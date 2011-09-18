@@ -1,0 +1,29 @@
+CarryFrom
+	Returns 1 if the addition specified as its parameter
+caused a carry (true result is bigger than 232−1, where the
+operands are treated as unsigned integers), and returns 0 in all
+other cases. This delivers further information about an addition
+which occurred earlier in the pseudo-code. The addition is not
+repeated.
+
+
+BorrowFrom
+	Returns 1 if the subtraction specified as its parameter
+caused a borrow (the true result is less than 0, where the
+operands are treated as unsigned integers), and returns 0 in all
+other cases. This delivers further information about a
+subtraction which occurred earlier in the pseudo-code. The
+subtraction is not repeated.
+
+
+OverflowFrom
+	Returns 1 if the addition or subtraction specified as its
+parameter caused a 32-bit signed overflow. Addition generates an
+overflow if both operands have the same sign (bit[31]), and the
+sign of the result is different to the sign of both operands.
+Subtraction causes an overflow if the operands have different
+signs, and the first operand and the result have different signs.
+This delivers further information about an addition or
+subtraction which occurred earlier in the pseudo-code.  The
+addition or subtraction is not repeated.
+

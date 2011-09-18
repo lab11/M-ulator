@@ -1,0 +1,37 @@
+Cortex M3 Memory Map
+
+0xffffffff
+ |------RESERVED
+0x60000000
+ |------Peripherals
+   |------Unused
+  4000a000
+   |------APB Peripherals
+  40002000
+   |------On-die peripherals
+0x40000000
+ |------RESERVED
+0x20004000
+ |------SRAM
+0x20000000
+ |------RESERVED
+0x00002000
+ |------Code (Internal Flash)
+0x00000000
+
+The simulator has 3 banks of LEDs, 8 red, 8 green, and 8 blue.
+The red   LEDs are at 0x40001000
+The green LEDs are at 0x40001004
+The blue  LEDs are at 0x40001008
+
+
+The Polling UART is located at 0x40004100-40004108
+
+0x40004100 Status Bits
+ |
+ | 0 - Reset		-- Write-Only -- Write 1 to reset UART controller
+ | 1 - RX Pending	-- Read-Only  -- Indicates data to be read
+ | 2 - TX Busy		-- Read-Only  -- UART is busy, do not send data
+ | ...			--            -- RESERVED
+0x40004104 RX Data	-- Read-Only  -- Read one byte of data from UART
+0x40004108 TX Data	-- Write-Only -- Write one byte of data to UART

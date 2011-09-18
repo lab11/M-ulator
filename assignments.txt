@@ -1,0 +1,66 @@
+1	core.c: reset,
+2	core.c: read_word
+3	core.c: write_word
+4	core.c: read_halfword TESTBENCH operations/mov.c
+5	core.c: write_halfword,	TESTBENCH operations/add.c
+6	core.c: read_byte TESTBENCH operations/pop.c
+7	core.c: write_byte, TESTBENCH operations/sub.c
+8	IMPLEMENT operations/ld.c
+9	IMPLEMENT operations/str.c
+10	IMPLEMENT operations/pop.c
+11	IMPLEMENT operations/push.c
+12	IMPLEMENT operations/shift.c TESTBENCH operations/branch.c
+13	IMPLEMENT operations/logical.c
+14	IMPLEMENT operations/sub.c
+15	IMPLEMENT operations/add.c
+16	IMPLEMENT operations/it.c TESTBENCH operations/mul.c
+17	IMPLEMENT operations/branch.c
+18	IMPLEMENT operations/ldm.c TESTBENCH operations/push.c
+19	IMPLEMENT operations/mov.c
+20	IMPLEMENT operations/mul.c TESTBENCH operations/str.c
+21	IMPLEMENT operations/cb.c TESTBENCH operations/ld.c
+22	IMPLEMENT operations/cmp.c TESTBENCH operations/logical.c
+23	programs/lib/uart.c: UART_read
+24	programs/lib/uart.c: UART_write
+25	misc.c: eval_cond
+26	programs/lib/printf.c: printf
+27	programs/lib/led.s
+28	programs/memmap
+29	programs/vectors.s
+30	TESTBENCH operations/ldm.c TESTBENCH operations/it.c
+31	TESTBENCH operations/add.c TESTBENCH operations/shift.c
+32	TESTBENCH operations/cb.c TESTBENCH operations/cmp.c
+
+1 FRANCISZ
+2 TELSHAMY
+3 SCHULJOH
+4 JOSHSTEP
+5 TAXDORFF
+6 CDIONY
+7 SHAFEEN
+8 BOCH
+9 CIOANNOU
+10 XIRT
+11 RLNAPIER
+12 IRVINC
+13 KNASTO
+14 IBURRIS
+15 FMUHIB
+16 YIFHUANG
+17 NKLUGMAN
+18 ADCAMPBE
+19 ADAMWILL
+20 WUBS
+21 FDARLING
+22 WOLFPHIL
+23 ELIZPAR
+24 HAVENM
+25 TGRUNN
+26 JROMEOO
+27 KFOZNOT
+28 HERTAL
+29 DUANMUA
+30 WUPB
+31 SALUBER
+32 ALIPNICK
+
