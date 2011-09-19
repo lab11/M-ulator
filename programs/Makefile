@@ -2,11 +2,16 @@ PROGS = basic.bin blink.bin echo.bin echo_str.bin
 MEMMAP = memmap
 VECTORS = vectors.s
 
+CROSS_COMPILE=$(shell if `hash arm-linux-gnueabi-gcc >& /dev/null`; then echo arm-linux-gnueabi; elif `hash arm-none-linux-gnueabi >& /dev/null`; then echo arm-none-linux-gnueabi; elif `hash arm-none-eabi-gcc >& /dev/null`; then echo arm-none-eabi; else echo -n ""; fi)
+CC=$(CROSS_COMPILE)-gcc
+
+ifeq (,$(CROSS_COMPILE))
+  $(error "No cross compiler found. Have you installed an ARM toolchain?")
+endif
+
 OBJS  = $(PROGS:%.bin=%.o)
 VECTORS_OBJS = $(VECTORS:%.s=%.o)
 
-CROSS_COMPILE=arm-none-eabi
-CC=$(CROSS_COMPILE)-gcc
 CFLAGS += -g -Wall -Wextra -Werror -mthumb -mcpu=cortex-m3 -nostdlib -nostartfiles -ffreestanding
 ASFLAGS += -g -mthumb
 
