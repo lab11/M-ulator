@@ -48,7 +48,6 @@ int ldr4(uint32_t inst) {
 		CORE_reg_write(rd, rd_val);
 	} else {
 		CORE_ERR_invalid_addr(true, address);
-		return FAILURE;
 	}
 
 	DBG2("ldr r%02d, [sp, #%d * 4]\n", rd, immed8);

@@ -46,10 +46,10 @@ uint32_t read_word(uint32_t addr) {
 	}
 	else if (addr == POLL_UART_TXDATA) {
 		DBG1("Attempt to read UART TXDATA\n");
-		CORE_ERR_invalid_addr(false, addr); return FAILURE;
+		CORE_ERR_invalid_addr(false, addr);
 	}
 	else {
-		CORE_ERR_invalid_addr(false, addr); return FAILURE;
+		CORE_ERR_invalid_addr(false, addr);
 	}
 }
 

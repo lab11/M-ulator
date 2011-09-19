@@ -133,7 +133,7 @@ uint8_t Feval_cond(uint32_t cpsr, uint8_t cond) {
 			return true;
 		case 15:
 		default:
-			CORE_ERR_unpredictable("Illegal cond\n"); return 0;
+			CORE_ERR_unpredictable("Illegal cond\n");
 	}
 }
 

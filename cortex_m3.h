@@ -138,18 +138,18 @@ uint8_t		CORE_poll_uart_rxdata_read();
 void		CORE_poll_uart_txdata_write(uint8_t val);
 
 // Thrown when an illegal read or write attempt is made
-void		CORE_ERR_invalid_addr(uint8_t is_write, uint32_t addr);
+void		CORE_ERR_invalid_addr(uint8_t is_write, uint32_t addr) __attribute__ ((noreturn));
 
 // Thrown when an illegal instruction is encountered
-void		CORE_ERR_illegal_instr(uint32_t instr);
-void		CORE_ERR_illegal_line(const char *line);
+void		CORE_ERR_illegal_instr(uint32_t instr) __attribute__ ((noreturn));
+void		CORE_ERR_illegal_line(const char *line) __attribute__ ((noreturn));
 
 // Thrown when an undefined or unpredictable state is encountered
-void		CORE_ERR_unpredictable(const char *opt_msg);
+void		CORE_ERR_unpredictable(const char *opt_msg) __attribute__ ((noreturn));
 
 // Useful for incremental work, indicates that everything up until this
 // point has completed successfully (pass NULL or "a message\n")
-void		CORE_ERR_not_implemented(const char *opt_msg);
+void		CORE_ERR_not_implemented(const char *opt_msg) __attribute__ ((noreturn));
 
 
 ///////////////

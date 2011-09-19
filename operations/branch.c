@@ -99,7 +99,6 @@ int bl(uint32_t inst) {
 
 int blx(uint32_t inst) {
 	CORE_ERR_not_implemented("blx");
-	return FAILURE;
 }
 
 void BranchTo(uint32_t address) {

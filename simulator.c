@@ -630,7 +630,7 @@ static int sim_execute(void) {
 	o = find_op(inst, true);
 	if (NULL == o) {
 		WARN("No handler registered for inst %x\n", inst);
-		CORE_ERR_illegal_instr(inst); return FAILURE;
+		CORE_ERR_illegal_instr(inst);
 	} else {
 		cycle++;
 		if (IN_IT_BLOCK()) {

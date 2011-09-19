@@ -32,7 +32,6 @@ int str3(uint32_t inst) {
 		write_word(address, rd_val);
 	} else {
 		CORE_ERR_invalid_addr(true, address);
-		return FAILURE;
 	}
 
 	DBG2("str r%02d, [sp, #%d * 4]\n", rd, immed8);
