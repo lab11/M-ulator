@@ -121,6 +121,30 @@ int sub2(uint32_t inst) {
 	return SUCCESS;
 }
 
+int sub3(uint32_t inst) {
+	uint8_t rm = (inst & 0x1c0) >> 6;
+	uint8_t rn = (inst & 0x38) >> 3;
+	uint8_t rd = (inst & 0x7) >> 0;
+
+	uint32_t rm_val = CORE_reg_read(rm);
+	uint32_t rn_val = CORE_reg_read(rn);
+	uint32_t result = rn_val - rm_val;
+	CORE_reg_write(rd, result);
+
+	uint32_t cpsr = CORE_cpsr_read();
+	cpsr = GEN_NZCV(
+			!!(result & xPSR_N),
+			result == 0,
+			!(result > rn_val),
+			OVER_SUB(result, rn_val, rm_val)
+		       );
+	CORE_cpsr_write(cpsr);
+
+	DBG2("sub3, r%02d = r%02d - r%02d\n", rd, rn, rm);
+
+	return SUCCESS;
+}
+
 int sub4(uint32_t inst) {
 	uint16_t immed7 = inst & 0x7f;
 
@@ -145,6 +169,9 @@ void register_opcodes_sub(void) {
 
 	// sub2: 0011 1<x's>
 	register_opcode_mask(0x3800, 0xffffc000, sub2);
+
+	// sub3: 0001 101<x's>
+	register_opcode_mask(0x1a00, 0xffffe400, sub3);
 
 	// sub4: 1011 0000 1<x's>
 	register_opcode_mask(0xb080, 0xffff4f00, sub4);
