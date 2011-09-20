@@ -1,4 +1,4 @@
-CFLAGS += -g -Wall -Werror -pthread -m32
+CFLAGS += -g -Wall -Werror -pthread -m32 -D_GNU_SOURCE
 LDFLAGS += -g -pthread -m32
 #CC=clang
 
