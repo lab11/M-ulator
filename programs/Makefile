@@ -1,3 +1,5 @@
+SHELL=/bin/bash
+
 PROGS = basic.bin blink.bin echo.bin echo_str.bin
 MEMMAP = memmap
 VECTORS = vectors.s
