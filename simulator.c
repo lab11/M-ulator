@@ -37,29 +37,29 @@
 #define LED  "leds"
 #define UART "uart"
 
-#define REG(_rw, _reg) printf("G~G E: "); \
+#define G_REG(_rw, _reg) printf("G~G E: "); \
 	printf("%c %02d %x\n", _rw ? 'w':'r', _reg, reg[_reg]);
-#define CPSR(_rw) printf("G~G C: "); \
+#define G_CPSR(_rw) printf("G~G C: "); \
 	printf("%c %d %d %d %d %08x\n", _rw ? 'w':'r',\
 			!!(*cpsr & 0x80000000),\
 			!!(*cpsr & 0x40000000),\
 			!!(*cpsr & 0x20000000),\
 			!!(*cpsr & 0x10000000),\
 			(*cpsr));
-#define ROM(_rw, _addr) printf("G~G O: "); \
+#define G_ROM(_rw, _addr) printf("G~G O: "); \
 	printf("%c %08x %x\n", _rw ? 'w':'r',\
 			_addr, rom[ADDR_TO_IDX(_addr, ROMBOT)]);
-#define RAM(_rw, _addr) printf("G~G A: "); \
+#define G_RAM(_rw, _addr) printf("G~G A: "); \
 	printf("%c %08x %x\n", _rw ? 'w':'r',\
 			_addr, ram[ADDR_TO_IDX(_addr, RAMBOT)]);
-#define PERIPH(_rw, _type, _idx) printf("G~G P: "); \
+#define G_PERIPH(_rw, _type, _idx) printf("G~G P: "); \
 	printf("%c %s %d\n", _rw ? 'w':'r', _type, _idx);
 #else
-#define REG(...)
-#define CPSR(...)
-#define ROM(...)
-#define RAM(...)
-#define PERIPH(...)
+#define G_REG(...)
+#define G_CPSR(...)
+#define G_ROM(...)
+#define G_RAM(...)
+#define G_PERIPH(...)
 #endif
 
 static void usage_fail(int retcode) {
@@ -348,9 +348,11 @@ static void shell(void) {
 
 uint32_t CORE_reg_read(int r) {
 	assert(r >= 0 && r < 16 && "CORE_reg_read");
-	REG(READ, r);
+	G_REG(READ, r);
 	if (r == PC_REG)
-		return reg[r] & 0xfffffffe;
+		return PC & 0xfffffffe;
+	else if (r == SP_REG)
+		return SP;
 	else
 		return reg[r];
 }
@@ -358,14 +360,16 @@ uint32_t CORE_reg_read(int r) {
 void CORE_reg_write(int r, uint32_t val) {
 	assert(r >= 0 && r < 16 && "CORE_reg_write");
 	if (r == PC_REG)
-		reg[r] = val & 0xfffffffe;
+		PC = val & 0xfffffffe;
+	else if (r == SP_REG)
+		SP = val;
 	else
 		reg[r] = val;
-	REG(WRITE, r);
+	G_REG(WRITE, r);
 }
 
 uint32_t CORE_cpsr_read(void) {
-	CPSR(READ);
+	G_CPSR(READ);
 	return *cpsr;
 }
 
@@ -374,19 +378,19 @@ void CORE_cpsr_write(uint32_t val) {
 		DBG1("WARN update of cpsr in IT block\n");
 	}
 	*cpsr = val;
-	CPSR(WRITE);
+	G_CPSR(WRITE);
 }
 
 uint32_t CORE_rom_read(uint32_t addr) {
 	DBG2("ROM Read request addr %x (idx: %d)\n", addr, ADDR_TO_IDX(addr, ROMBOT));
 	assert((addr >= ROMBOT) && (addr < ROMTOP) && "CORE_rom_read");
-	ROM(READ, addr);
+	G_ROM(READ, addr);
 	return rom[ADDR_TO_IDX(addr, ROMBOT)];
 }
 
 uint32_t CORE_ram_read(uint32_t addr) {
 	assert((addr >= RAMBOT) && (addr < RAMTOP) && "CORE_ram_read");
-	RAM(READ, addr);
+	G_RAM(READ, addr);
 	return ram[ADDR_TO_IDX(addr, RAMBOT)];
 }
 
@@ -394,40 +398,40 @@ void CORE_ram_write(uint32_t addr, uint32_t val) {
 	DBG2("RAM Write request addr %x (idx: %d)\n", addr, ADDR_TO_IDX(addr, RAMBOT));
 	assert((addr >= RAMBOT) && (addr < RAMTOP) && "CORE_ram_write");
 	ram[ADDR_TO_IDX(addr, RAMBOT)] = val;
-	RAM(WRITE, addr);
+	G_RAM(WRITE, addr);
 }
 
 uint32_t CORE_red_led_read(void) {
-	PERIPH(READ, LED, RED);
+	G_PERIPH(READ, LED, RED);
 	return leds[RED];
 }
 
 void CORE_red_led_write(uint32_t val) {
-	PERIPH(WRITE, LED, RED);
+	G_PERIPH(WRITE, LED, RED);
 	leds[RED] = val;
 	if (showledtoggles)
 		print_leds_line();
 }
 
 uint32_t CORE_grn_led_read(void) {
-	PERIPH(READ, LED, GRN);
+	G_PERIPH(READ, LED, GRN);
 	return leds[GRN];
 }
 
 void CORE_grn_led_write(uint32_t val) {
-	PERIPH(WRITE, LED, GRN);
+	G_PERIPH(WRITE, LED, GRN);
 	leds[GRN] = val;
 	if (showledtoggles)
 		print_leds_line();
 }
 
 uint32_t CORE_blu_led_read(void) {
-	PERIPH(READ, LED, BLU);
+	G_PERIPH(READ, LED, BLU);
 	return leds[BLU];
 }
 
 void CORE_blu_led_write(uint32_t val) {
-	PERIPH(WRITE, LED, BLU);
+	G_PERIPH(WRITE, LED, BLU);
 	leds[BLU] = val;
 	if (showledtoggles)
 		print_leds_line();

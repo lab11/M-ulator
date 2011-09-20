@@ -1,6 +1,8 @@
 #include "../cortex_m3.h"
 #include "cpsr.h"
 
+/* CMP and TST always write cpsr bits, regardless of itstate */
+
 int cmp1(uint32_t inst) {
 	uint8_t rn = (inst & 0x700) >> 8;
 	uint32_t immed_8 = inst & 0xff;
@@ -10,7 +12,6 @@ int cmp1(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	// ASSUMING ALWAYS, REGARDLESS OF ITSTATE?
 	cpsr = GEN_NZCV(!!(alu_out & xPSR_N), alu_out == 0,
 			!(alu_out > rn_val), OVER_SUB(alu_out, rn_val, immed_8));
 	CORE_cpsr_write(cpsr);
@@ -30,7 +31,6 @@ int cmp2(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	// ASSUMING ALWAYS, REGARDLESS OF ITSTATE?
 	cpsr = GEN_NZCV(!!(alu_out & xPSR_N), alu_out == 0,
 			!(alu_out > rn_val), OVER_SUB(alu_out, rn_val, rm_val));
 	CORE_cpsr_write(cpsr);
