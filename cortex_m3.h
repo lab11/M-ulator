@@ -96,6 +96,9 @@ void		write_byte(uint32_t addr, uint8_t val);
 // These functions you must implemented in misc.c
 uint8_t		eval_cond(uint32_t cpsr, uint8_t cond);
 void		write_itstate(uint8_t new_state);
+uint8_t		in_ITblock(uint8_t itstate);
+void		IT_advance(uint8_t itstate);
+uint8_t		last_in_ITblock(uint8_t itstate);
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Everything after this line has been implemented for you and are available for

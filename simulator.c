@@ -200,8 +200,8 @@ static uint32_t apsr = 0x0030;
 static uint32_t *cpsr = &apsr;
 
 #define ITSTATE			( (((*cpsr) & 0xfc00) >> 8) | (((*cpsr) & 0x06000000) >> 25) )
-#define	IN_IT_BLOCK()		((ITSTATE & 0xf) != 0)
-#define LAST_IN_IT_BLOCK()	((ITSTATE & 0xf) == 0x8)
+//#define	IN_IT_BLOCK()		((ITSTATE & 0xf) != 0)
+//#define LAST_IN_IT_BLOCK()	((ITSTATE & 0xf) == 0x8)
 
 
 /* Peripherals */
@@ -374,7 +374,7 @@ uint32_t CORE_cpsr_read(void) {
 }
 
 void CORE_cpsr_write(uint32_t val) {
-	if (IN_IT_BLOCK()) {
+	if (in_ITblock(ITSTATE)) {
 		DBG1("WARN update of cpsr in IT block\n");
 	}
 	*cpsr = val;
@@ -637,7 +637,7 @@ static int sim_execute(void) {
 		CORE_ERR_illegal_instr(inst);
 	} else {
 		cycle++;
-		if (IN_IT_BLOCK()) {
+		if (in_ITblock(ITSTATE)) {
 			int ret;
 
 			if (printcycles) {
@@ -662,6 +662,7 @@ static int sim_execute(void) {
 				else
 					ITSTATE.IT<4:0> = LSL(ITSTATE.IT<4:0>, 1);
 				*/
+				/*
 				if ((ITSTATE & 0x7) == 0) {
 					write_itstate(0);
 					DBG2("Left itstate\n");
@@ -673,6 +674,8 @@ static int sim_execute(void) {
 					write_itstate(itstate_t);
 					DBG2("New itstate: %02x\n", ITSTATE);
 				}
+				*/
+				IT_advance(ITSTATE);
 			}
 
 			return ret;
