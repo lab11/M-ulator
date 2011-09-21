@@ -264,7 +264,8 @@ static uint32_t epsr = 0x01000000;
 #define IPSR		(ipsr)
 #define EPSR		(epsr)
 
-#define ITSTATE			( ((EPSR & 0xfc00) >> 8) | ((EPSR & 0x06000000) >> 25) )
+#define ITSTATE		( ((EPSR & 0xfc00) >> 8) | ((EPSR & 0x06000000) >> 25) )
+
 
 #endif // M
 
@@ -826,15 +827,16 @@ static void load_opcodes(void) {
 	register_opcodes_cmp();
 	register_opcodes_extend();
 	register_opcodes_it();
-	register_opcodes_ldm();
 	register_opcodes_ld();
-	register_opcodes_str();
+	register_opcodes_ldm();
 	register_opcodes_logical();
 	register_opcodes_mov();
 	register_opcodes_mul();
 	register_opcodes_pop();
 	register_opcodes_push();
 	register_opcodes_shift();
+	register_opcodes_str();
+	register_opcodes_strm();
 	register_opcodes_sub();
 
 	INFO("Registered %d opcode mask%s\n", opcode_masks,
