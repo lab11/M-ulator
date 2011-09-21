@@ -6,7 +6,7 @@
 
 \begin{document}
 
-\fancyfoot[L]{Revision 1.1 -- 9/15/2011}
+\fancyfoot[L]{Revision 1.2 -- 9/21/2011}
 \pagestyle{fancyplain}
 
 \def\checkptdate{Sep 23, 10:30 AM}
@@ -251,7 +251,41 @@ tests must contain legal ARM code and should not throw any exceptions.
 
 \section{General Hints}
 
+\subsection{First Steps}
+\label{sec:firststeps}
+
+\begin{enumerate}
+\item Install the ARM toolchain (Confused? See \ref{sec:missing})
+\item Enter the {\tt programs} directory and type {\tt make} to build a copy
+of all the programs designed to run on the simulator. Only the {\tt basic}
+program will work at first
+\subitem The {\tt Makefile} generated four different file types: .o .elf .list
+.bin.  The .bin file is a binary image, something you could flash onto real
+hardware, or load into the simulator via {\tt --flash}. What are the other
+files?
+\item Back in the root directory, run {\tt ./reference --flash
+programs/basic.bin --dumpallcycles}. What happened?
+\item Now try {\tt arm-[...]-eabi-objdump -Sd programs/basic.elf}. What is
+this output? How does it relate to what happened in the previous step?
+\item Type {\tt make} in the root directory to build your own copy of the
+simulator. Try the same command {\tt ./simulator --flash programs/basic.bin
+--dumpallcycles}. What happened this time?
+\item You've got the basics! Now start reading through the code and try to
+figure out what's going on.
+\end{enumerate}
+
+\subsection{Debugging}
+\label{sec:debugging}
+
+Debugging this project will be challenging (so start early!). Check out all
+the options you get with {\tt ./simulator --help}. Try to eliminate as many
+variables as you can. If you're trying to debug the simulator, take advantage
+of the {\tt --usetestflash} option so you know you're running ``good'' code.
+On the flip side if you're debugging programs or libraries you've written, use
+the {\tt reference} simulator to execute it.
+
 \subsection{TTTA}
+\label{sec:TTTA}
 Sprinkled throughout the code are ``{\tt TTTA}'' comments (Things To Think
 About).  These will either help with your implementation of the simulator or
 your understanding of the M3 - or both! Be sure you can answer all the
@@ -263,6 +297,7 @@ from other people's sections)
 {\em Hint: {\tt grep -nR TTTA *.s *.c *.h} to find all of them}
 
 \subsection{Missing Information?}
+\label{sec:missing}
 At times, you may feel like you don't have enough information. {\em You
 probably don't}. A key part of this project is learning how to find resources
 and how to extract the information you need from them. As an example, missing
@@ -283,6 +318,10 @@ questions!
 \section{Document Revision History}
 
 \begin{itemize}
+
+\item Revision 1.2
+\subitem Added section \ref{sec:firststeps}: First Steps
+\subitem Added section \ref{sec:debugging}: Debugging
 
 \item Revision 1.1
 \subitem Add svn email notice
