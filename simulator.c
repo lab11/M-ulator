@@ -10,8 +10,34 @@
 #include <getopt.h>
 #include <signal.h>
 
-#include "cortex_m3.h"
+#include "cortex_m3.h"		// defines M_PROFILE
 #include "operations/opcodes.h"
+
+/////////////
+// PROFILE //
+/////////////
+
+// In my dreams, this could ultimately grow to
+// support A, R, or M profile processors. That's
+// a long way out in reality, but let's make some
+// effort to codify some differences as we go
+
+#if defined (M_PROFILE)
+#if defined (R_PROFILE)
+#error "Must choose one of M or R profiles, not both"
+#endif // R
+#if defined (A_PROFILE)
+#error "Must choose one of M or A profiles, not both"
+#endif // A
+#endif // M
+#if defined (R_PROFILE) && defined (A_PROFILE)
+#error "Must choose one of R or A profiles, not both"
+#endif // R && A
+
+
+/////////////////////////
+// PRETTY PRINT MACROS //
+/////////////////////////
 
 #define INFO(...) printf("--- I: "); printf(__VA_ARGS__)
 #define WARN(...) fprintf(stderr, "--- W: "); fprintf(stderr, __VA_ARGS__)
@@ -41,11 +67,15 @@
 	printf("%c %02d %x\n", _rw ? 'w':'r', _reg, reg[_reg]);
 #define G_CPSR(_rw) printf("G~G C: "); \
 	printf("%c %d %d %d %d %08x\n", _rw ? 'w':'r',\
-			!!(*cpsr & 0x80000000),\
-			!!(*cpsr & 0x40000000),\
-			!!(*cpsr & 0x20000000),\
-			!!(*cpsr & 0x10000000),\
-			(*cpsr));
+			!!(CPSR & 0x80000000),\
+			!!(CPSR & 0x40000000),\
+			!!(CPSR & 0x20000000),\
+			!!(CPSR & 0x10000000),\
+			(CPSR));
+#define G_IPSR(_rw) printf("G~G I: "); \
+	printf("%c %x\n", _rw ? 'w':'r', IPSR);
+#define G_EPSR(_rw) printf("G~G E: "); \
+	printf("%c %x\n", _rw ? 'w':'r', EPSR);
 #define G_ROM(_rw, _addr) printf("G~G O: "); \
 	printf("%c %08x %x\n", _rw ? 'w':'r',\
 			_addr, rom[ADDR_TO_IDX(_addr, ROMBOT)]);
@@ -57,6 +87,8 @@
 #else
 #define G_REG(...)
 #define G_CPSR(...)
+#define G_IPSR(...)
+#define G_EPSR(...)
 #define G_ROM(...)
 #define G_RAM(...)
 #define G_PERIPH(...)
@@ -173,6 +205,7 @@ static uint32_t reg[16];
 #define LR	reg[LR_REG]
 #define PC	reg[PC_REG]
 
+#ifdef A_PROFILE
 // XXX: Reset handler
 // (|= 0x0010) Start is user mode
 // (|= 0x0020) CPU only supports thumb (for now)
@@ -196,12 +229,44 @@ static uint32_t apsr = 0x0030;
 //    29: C		// Carry
 //    30: Z		// Zero
 //    31: N		// Negative
-#define	T_BIT		((*cpsr) & 0x0020)
 static uint32_t *cpsr = &apsr;
+#define CPSR		(*cpsr)
+#define	T_BIT		(CPSR & 0x0020)
 
-#define ITSTATE			( (((*cpsr) & 0xfc00) >> 8) | (((*cpsr) & 0x06000000) >> 25) )
-//#define	IN_IT_BLOCK()		((ITSTATE & 0xf) != 0)
-//#define LAST_IN_IT_BLOCK()	((ITSTATE & 0xf) == 0x8)
+#define ITSTATE			( ((CPSR & 0xfc00) >> 8) | ((CPSR & 0x06000000) >> 25) )
+
+#endif // A
+
+#ifdef M_PROFILE
+
+static uint32_t apsr;
+//  0-15: <reserved>
+// 16-19: GE[3:0]	// for DSP extension
+// 20-26: <reserved>
+//    27: Q		// Cumulative saturation
+//    28: V		// Overflow
+//    29: C		// Carry
+//    30: Z		// Zero
+//    31: N		// Negative
+static uint32_t ipsr = 0x0;
+//   0-8: 0 or Exception Number
+//  9-31: <reserved>
+static uint32_t epsr = 0x01000000;
+//   0-9: <reserved>
+// 10-15: ICI/IT	//
+// 16-23: <reserved>
+//    24: T		// Thumb bit
+// 25-26: ICI/IT	//
+// 27-31: <reserved>
+#define T_BIT		(epsr & 0x01000000)
+
+#define CPSR		(apsr)
+#define IPSR		(ipsr)
+#define EPSR		(epsr)
+
+#define ITSTATE			( ((EPSR & 0xfc00) >> 8) | ((EPSR & 0x06000000) >> 25) )
+
+#endif // M
 
 
 /* Peripherals */
@@ -243,10 +308,10 @@ static void print_reg_state_internal(void) {
 
 	printf("Registers:\t\t\t");
 	printf("\t  N: %d  Z: %d  C: %d  V: %d  ",
-			!!(*cpsr & xPSR_N),
-			!!(*cpsr & xPSR_Z),
-			!!(*cpsr & xPSR_C),
-			!!(*cpsr & xPSR_V)
+			!!(CPSR & xPSR_N),
+			!!(CPSR & xPSR_Z),
+			!!(CPSR & xPSR_C),
+			!!(CPSR & xPSR_V)
 	      );
 	printf("| ITSTATE: %02x\n", ITSTATE);
 	for (i=0; i<16; ) {
@@ -346,13 +411,18 @@ static void shell(void) {
 
 /* These are the functions called into by the student simulator project */
 
+/* ARMv7-M implementations treat SP bits [1:0] as RAZ/WI.
+ * ARM strongly recommends that software treats SP bits [1:0]
+ * as SBZP for maximum portability across ARMv7 profiles.
+ */
+
 uint32_t CORE_reg_read(int r) {
 	assert(r >= 0 && r < 16 && "CORE_reg_read");
 	G_REG(READ, r);
 	if (r == PC_REG)
 		return PC & 0xfffffffe;
 	else if (r == SP_REG)
-		return SP;
+		return SP & 0xfffffffc;
 	else
 		return reg[r];
 }
@@ -362,7 +432,7 @@ void CORE_reg_write(int r, uint32_t val) {
 	if (r == PC_REG)
 		PC = val & 0xfffffffe;
 	else if (r == SP_REG)
-		SP = val;
+		SP = val & 0xfffffffc;
 	else
 		reg[r] = val;
 	G_REG(WRITE, r);
@@ -370,16 +440,42 @@ void CORE_reg_write(int r, uint32_t val) {
 
 uint32_t CORE_cpsr_read(void) {
 	G_CPSR(READ);
-	return *cpsr;
+	return CPSR;
 }
 
 void CORE_cpsr_write(uint32_t val) {
 	if (in_ITblock(ITSTATE)) {
 		DBG1("WARN update of cpsr in IT block\n");
 	}
-	*cpsr = val;
+#ifdef M_PROFILE
+	if (val & 0x07f0ffff)
+		DBG1("WARN update of reserved CPSR bits\n");
+#endif
+	CPSR = val;
 	G_CPSR(WRITE);
 }
+
+#ifdef M_PROFILE
+uint32_t CORE_ipsr_read(void) {
+	G_IPSR(READ);
+	return IPSR;
+}
+
+void CORE_ipsr_write(uint32_t val) {
+	IPSR = val;
+	G_IPSR(WRITE);
+}
+
+uint32_t CORE_epsr_read(void) {
+	G_EPSR(READ);
+	return EPSR;
+}
+
+void CORE_epsr_write(uint32_t val) {
+	EPSR = val;
+	G_EPSR(WRITE);
+}
+#endif
 
 uint32_t CORE_rom_read(uint32_t addr) {
 	DBG2("ROM Read request addr %x (idx: %d)\n", addr, ADDR_TO_IDX(addr, ROMBOT));
@@ -626,7 +722,7 @@ static int sim_execute(void) {
 				PC += 2;
 		}
 	} else {
-		CORE_ERR_not_implemented("This CPU only supports thumb mode\n");
+		CORE_ERR_not_implemented("This CPU conforms to the ARM-7M profile, which requires the T bit to always be set\n");
 		DBG2("Reading arm mode instruction\n");
 		inst = read_word(PC);
 	}
@@ -646,7 +742,7 @@ static int sim_execute(void) {
 						cycle, PC, inst);
 			}
 
-			if (eval_cond(*cpsr, (ITSTATE & 0xf0) >> 4)) {
+			if (eval_cond(CPSR, (ITSTATE & 0xf0) >> 4)) {
 				ret = o->fn(inst);
 			} else {
 				DBG2("itstate skipped instruction\n");

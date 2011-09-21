@@ -34,6 +34,8 @@
 // SIMULATOR CONFIGURATION //
 /////////////////////////////
 
+#define M_PROFILE
+
 #define ROMBOT 0x00000000
 #define ROMTOP 0x00020000
 
@@ -123,6 +125,10 @@ uint32_t	CORE_reg_read(int r);
 void		CORE_reg_write(int r, uint32_t val);
 uint32_t	CORE_cpsr_read(void);
 void		CORE_cpsr_write(uint32_t val);
+uint32_t	CORE_ipsr_read(void);		// Don't need this yet
+void		CORE_ipsr_write(uint32_t val);	// Don't need this yet
+uint32_t	CORE_epsr_read(void);
+void		CORE_epsr_write(uint32_t val);
 uint32_t	CORE_rom_read(uint32_t addr);
 /* TTTA: Why is there no CORE_rom_write? */
 uint32_t	CORE_ram_read(uint32_t addr);

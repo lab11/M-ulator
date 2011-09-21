@@ -44,10 +44,17 @@ void write_itstate(uint8_t new_state) {
 	result |= ((new & 0x3) << 25);
 	result |= ((new & 0x3f) << 8);
 
+#ifdef A_PROFILE
 	uint32_t cpsr = CORE_cpsr_read();
 	cpsr = (((cpsr) & it_clear_mask) | result);
 	DBG1("write_itstate is writing cpsr\n");
 	CORE_cpsr_write(cpsr);
+#elif defined M_PROFILE
+	uint32_t epsr = CORE_epsr_read();
+	epsr = (((epsr) & it_clear_mask) | result);
+	DBG1("write_itstate is writing epsr\n");
+	CORE_epsr_write(epsr);
+#endif
 }
 
 uint8_t eval_cond(uint32_t cpsr, uint8_t cond) {

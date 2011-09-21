@@ -11,7 +11,7 @@ int adc(uint32_t inst) {
 	uint32_t result = rd_val + rm_val + !(cpsr & xPSR_C);
 	CORE_reg_write(rd, result);
 
-	if (!IN_IT_BLOCK) {
+	if (!in_ITblock(ITSTATE)) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				result < rd_val,
 				OVER_ADD(result, rd_val, rm_val + !!(cpsr & xPSR_C)));
@@ -35,7 +35,7 @@ int add1(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	if (!IN_IT_BLOCK) {
+	if (!in_ITblock(ITSTATE)) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				result < rn_val, OVER_ADD(result, rn_val, immed3));
 		CORE_cpsr_write(cpsr);
@@ -54,10 +54,9 @@ int add2(uint32_t inst) {
 	uint32_t result = rd_val + immed8;
 	CORE_reg_write(rd, result);
 
-	uint32_t cpsr;
-	cpsr = CORE_cpsr_read();
+	uint32_t cpsr = CORE_cpsr_read();
 
-	if (!IN_IT_BLOCK) {
+	if (!in_ITblock(ITSTATE)) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				result < rd_val, OVER_ADD(result, rd_val, immed8));
 		CORE_cpsr_write(cpsr);
@@ -80,7 +79,7 @@ int add3(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	if (!IN_IT_BLOCK) {
+	if (!in_ITblock(ITSTATE)) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				result < rn_val, OVER_ADD(result, rn_val, rm_val));
 		CORE_cpsr_write(cpsr);
@@ -223,7 +222,7 @@ int add_reg_t2(uint32_t inst) {
 	if ((rd == 15) && (rm == 15))
 		CORE_ERR_unpredictable("add_reg_t2\n");
 
-	if ((rd == 15) && IN_IT_BLOCK && !LAST_IN_IT_BLOCK)
+	if ((rd == 15) && in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
 		CORE_ERR_unpredictable("add_reg_t2 it\n");
 
 	return add_reg(cpsr, setflags, rn, rm, rd, shift_t, shift_n);

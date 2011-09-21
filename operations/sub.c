@@ -64,7 +64,7 @@ int sbc(uint32_t inst) {
 
 	CORE_reg_write(rd, result);
 
-	if (!IN_IT_BLOCK) {
+	if (!in_ITblock(ITSTATE)) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				!(result > rd_val),
 				OVER_SUB(result, rd_val, rm_val - !(cpsr & xPSR_C)));
@@ -87,7 +87,7 @@ int sub1(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	if (!IN_IT_BLOCK) {
+	if (!in_ITblock(ITSTATE)) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N),
 				result == 0,
 				!(result > rn_val),
@@ -110,7 +110,7 @@ int sub2(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	if (!IN_IT_BLOCK) {
+	if (!in_ITblock(ITSTATE)) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				!(result > rd_val), OVER_SUB(result, rd_val, immed8));
 		CORE_cpsr_write(cpsr);

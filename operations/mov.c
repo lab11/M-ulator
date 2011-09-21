@@ -9,7 +9,7 @@ int mov1(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	if (!IN_IT_BLOCK) {
+	if (!in_ITblock(ITSTATE)) {
 		// XXX: How could N ever be set by this instr
 		// if uimmed8 is 0-255?
 		cpsr = GEN_NZCV(0, uimmed8 == 0, cpsr & xPSR_C, cpsr & xPSR_V);
@@ -157,7 +157,7 @@ int mov_reg_t1(uint32_t inst) {
 
 	uint8_t setflags = false;
 
-	if ((rd == 15) && IN_IT_BLOCK && !LAST_IN_IT_BLOCK)
+	if ((rd == 15) && in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
 		CORE_ERR_unpredictable("mov_reg_t1 unpredictable\n");
 
 	return mov_reg(cpsr, setflags, rd, rm);

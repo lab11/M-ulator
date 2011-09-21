@@ -34,6 +34,25 @@ void ROR_C(uint32_t x, int Nbits, int shift, uint32_t *result, uint8_t *carry_ou
 uint32_t ThumbExpandImm(uint32_t imm12);
 void ThumbExpandImm_C(uint16_t imm12, uint8_t carry_in, uint32_t *imm32, uint8_t *carry_out);
 
+#define OVER_ADD(_res, _a, _b) \
+	(\
+	 (((_a) & (1<<31)) == ((_b)   & (1<<31))) &&\
+	 (((_a) & (1<<31)) != ((_res) & (1<<31)))\
+	)
+
+#define OVER_SUB(_res, _a, _b) \
+	(\
+	 (((_a) & (1<<31)) != ((_b)   & (1<<31))) &&\
+	 (((_a) & (1<<31)) != ((_res) & (1<<31)))\
+	)
+
+#define INST_SET_ARM		0x0
+#define INST_SET_THUMB		0x1
+#define INST_SET_JAZELLE	0x2
+#define INST_SET_THUMBEE	0x3
+
+#ifdef A_PROFILE
+
 #define ITSTATE			( (((cpsr) & 0xfc00) >> 8) | (((cpsr) & 0x06000000) >> 25) )
 #define	IN_IT_BLOCK		((ITSTATE & 0xf) != 0)
 #define LAST_IN_IT_BLOCK	((ITSTATE & 0xf) == 0x8)
@@ -63,10 +82,6 @@ void ThumbExpandImm_C(uint16_t imm12, uint8_t carry_in, uint32_t *imm32, uint8_t
 		CORE_cpsr_write(cpsr);\
 	} while (0)
 #define GET_ISETSTATE		(((GET_JAZELLE_BIT) << 1) | GET_THUMB_BIT)
-#define INST_SET_ARM		0x0
-#define INST_SET_THUMB		0x1
-#define INST_SET_JAZELLE	0x2
-#define INST_SET_THUMBEE	0x3
 
 #define GEN_NZCV(_n, _z, _c, _v) \
 	(\
@@ -77,16 +92,31 @@ void ThumbExpandImm_C(uint16_t imm12, uint8_t carry_in, uint32_t *imm32, uint8_t
 	 (cpsr & 0x0fffffff)\
 	)
 
-#define OVER_ADD(_res, _a, _b) \
+#elif defined M_PROFILE
+
+#define ITSTATE			( (((CORE_epsr_read()) & 0xfc00) >> 8) | (((CORE_epsr_read()) & 0x06000000) >> 25) )
+
+#define THUMB_BIT		(0x01000000)
+#define GET_THUMB_BIT		(!!(cpsr & THUMB_BIT))
+#define SET_THUMB_BIT(_t) \
+	do {\
+		if (_t)\
+			cpsr |= THUMB_BIT;\
+		else\
+			cpsr &= ~THUMB_BIT;\
+	} while (0)
+#define SET_ISETSTATE(_i) // NOP for M profile
+#define GET_ISETSTATE	INST_SET_THUMB
+
+#define GEN_NZCV(_n, _z, _c, _v) \
 	(\
-	 (((_a) & (1<<31)) == ((_b)   & (1<<31))) &&\
-	 (((_a) & (1<<31)) != ((_res) & (1<<31)))\
+	 ((_n) << N_IDX) |\
+	 ((_z) << Z_IDX) |\
+	 ((_c) << C_IDX) |\
+	 ((_v) << V_IDX) |\
+	 (cpsr & 0x0fffffff)\
 	)
 
-#define OVER_SUB(_res, _a, _b) \
-	(\
-	 (((_a) & (1<<31)) != ((_b)   & (1<<31))) &&\
-	 (((_a) & (1<<31)) != ((_res) & (1<<31)))\
-	)
+#endif // M
 
 #endif //__CPSR_H

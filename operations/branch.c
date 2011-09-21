@@ -196,7 +196,7 @@ int bl_t1(uint32_t inst) {
 
 	// targetInstrSet = CurrentInstrSet
 
-	if (IN_IT_BLOCK && !(LAST_IN_IT_BLOCK))
+	if (in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
 		CORE_ERR_unpredictable("bl_t1 in itstate, not ending\n");
 
 	return bl_blx(cpsr, CORE_reg_read(PC_REG), GET_ISETSTATE, imm32);
@@ -234,7 +234,7 @@ int bl_t2(uint32_t inst) {
 	DBG2("S %d I1 %d I2 %d imm10H %03x imm10L %03x\n",
 			S, I1, I2, imm10H, imm10L);
 
-	if (IN_IT_BLOCK && !(LAST_IN_IT_BLOCK))
+	if (in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
 		CORE_ERR_unpredictable("bl_t2 in itstate, not ending\n");
 
 	return bl_blx(cpsr, CORE_reg_read(PC_REG), INST_SET_ARM, imm32);

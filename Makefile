@@ -2,12 +2,16 @@ CFLAGS += -g -Wall -Werror -pthread -m32 -D_GNU_SOURCE
 LDFLAGS += -g -pthread -m32
 #CC=clang
 
+SIMFLAGS += --showledtoggles
+
 ifeq ($(debug), 1)
 	CFLAGS += -DDEBUG1
+	SIMFLAGS += --printcycles
 endif
 
 ifeq ($(debug), 2)
 	CFLAGS += -DDEBUG1 -DDEBUG2
+	SIMFLAGS += --printcycles --dumpatcycle 1
 endif
 
 OP_CFILES = $(wildcard operations/*.c)
@@ -26,19 +30,20 @@ README.pdf:	README.tex
 doc:	README.pdf
 
 basic:	programs/basic.bin simulator
-	./simulator --flash programs/basic.bin --dumpallcycles
+	./simulator --flash programs/basic.bin --dumpallcycles $(SIMFLAGS)
 
 blink:	programs/blink.bin simulator
-	./simulator --flash programs/blink.bin --showledtoggles
+	./simulator --flash programs/blink.bin $(SIMFLAGS)
 
 echo:	programs/echo.bin simulator
-	./simulator --flash programs/echo.bin --showledtoggles
+	echo e | nc -4 localhost 4100 > /tmp/echo_out &
+	./simulator --flash programs/echo.bin $(SIMFLAGS)
 
 echo_str:	programs/echo_str.bin simulator
-	./simulator --flash programs/echo_str.bin --showledtoggles
+	./simulator --flash programs/echo_str.bin $(SIMFLAGS)
 
 testflash:	simulator
-	./simulator --usetestflash
+	./simulator --usetestflash $(SIMFLAGS)
 
 .PHONY: all clean doc blink echo echo_str testflash
 

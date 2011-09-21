@@ -22,7 +22,7 @@ int lsl1(uint32_t inst) {
 
 	CORE_reg_write(rd, result);
 
-	if (!IN_IT_BLOCK) {
+	if (!in_ITblock(ITSTATE)) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				c_flag, !!(cpsr & xPSR_V));
 		CORE_cpsr_write(cpsr);
@@ -58,7 +58,7 @@ int lsl2(uint32_t inst) {
 		result = 0;
 	}
 
-	if (!IN_IT_BLOCK) {
+	if (!in_ITblock(ITSTATE)) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				cflag, !!(cpsr & xPSR_V));
 		CORE_cpsr_write(cpsr);
@@ -90,7 +90,7 @@ int lsr1(uint32_t inst) {
 
 	CORE_reg_write(rd, result);
 
-	if (!IN_IT_BLOCK) {
+	if (!in_ITblock(ITSTATE)) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				c_flag, !!(cpsr & xPSR_V));
 		CORE_cpsr_write(cpsr);

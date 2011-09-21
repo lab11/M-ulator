@@ -11,7 +11,7 @@ int and(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	if (!IN_IT_BLOCK) {
+	if (!in_ITblock(ITSTATE)) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				!!(cpsr & xPSR_C), !!(cpsr & xPSR_V));
 		CORE_cpsr_write(cpsr);
@@ -86,7 +86,7 @@ int bic(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	if (!IN_IT_BLOCK) {
+	if (!in_ITblock(ITSTATE)) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				!!(cpsr & xPSR_C), !!(cpsr & xPSR_V));
 		CORE_cpsr_write(cpsr);
@@ -107,7 +107,7 @@ int orr(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	if (!IN_IT_BLOCK) {
+	if (!in_ITblock(ITSTATE)) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				!!(cpsr & xPSR_C), !!(cpsr & xPSR_V));
 		CORE_cpsr_write(cpsr);
@@ -129,7 +129,7 @@ int neg(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	if (!IN_IT_BLOCK) {
+	if (!in_ITblock(ITSTATE)) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				!(result > 0), OVER_SUB(result, 0, rm_val));
 		CORE_cpsr_write(cpsr);
