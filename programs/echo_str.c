@@ -1,5 +1,6 @@
 #include "lib/uart.h"
 #include "lib/led.h"
+#include "lib/printf.h"
 
 int main() {
 	char str[100];
@@ -12,6 +13,6 @@ int main() {
 	} while ((*c != '\n') && (c < (str+99)));
 	*c = '\0';
 
-	UART_write_str(str);
+	printf("%s\n", str);
 	return 0;
 }

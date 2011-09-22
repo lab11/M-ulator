@@ -1,6 +1,8 @@
 #include "../cortex_m3.h"
+#include "helpers.h"
+#include "cpsr.h"
 
-int pop(uint32_t inst) {
+int pop_simple(uint32_t inst) {
 	uint32_t sp = CORE_reg_read(SP_REG);
 
 	int hamming = 0;
@@ -41,7 +43,51 @@ int pop(uint32_t inst) {
 	return SUCCESS;
 }
 
+int pop(uint16_t registers) {
+	uint32_t address = CORE_reg_read(SP_REG);
+
+	int i;
+	for (i = 0; i <= 14; i++) {
+		if (registers & (1 << i)) {
+			CORE_reg_write(i, CORE_ram_read(address));
+			address += 4;
+		}
+	}
+
+	if (registers & 0x8000) {
+		// LoadWritePC(MemA[address,4]);
+		CORE_ERR_not_implemented("pop LoadWritePC\n");
+	}
+
+	CORE_reg_write(SP_REG, CORE_reg_read(SP_REG) + 4 * hamming(registers));
+
+	DBG2("pop did stuff\n");
+
+	return SUCCESS;
+}
+
+int pop_t2(uint32_t inst) {
+	uint16_t reg_list = inst & 0x1fff;
+	uint8_t M = !!(inst & 0x4000);
+	uint8_t P = !!(inst & 0x8000);
+
+	uint16_t registers = (P << 15) | (M << 14) | reg_list;
+
+	DBG2("P %d M %d reg_list %04x, registers %04x\n", P, M, reg_list, registers);
+
+	if ((hamming(registers) < 2) || ((P == 1) && (M == 1)))
+		CORE_ERR_unpredictable("pop_t2 not enough regs\n");
+
+	if ((registers & 0x8000) && in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
+		CORE_ERR_unpredictable("pop_t2 itstate\n");
+
+	return pop(registers);
+}
+
 void register_opcodes_pop(void) {
 	// pop: 1011 110<x's>
-	register_opcode_mask(0xbc00, 0xffff4200, pop);
+	register_opcode_mask(0xbc00, 0xffff4200, pop_simple);
+
+	// pop_t2: 1110 1000 1011 1101 xx0<x's>
+	register_opcode_mask(0xe8bd0000, 0x17422000, pop_t2);
 }
