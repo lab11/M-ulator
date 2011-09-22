@@ -6,6 +6,8 @@ int main() {
 	char str[100];
 	char *c = str;
 
+	UART_write_str("Send me a string and I'll echo it back!\n");
+
 	c--;
 	do {
 		c++;
