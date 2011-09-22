@@ -825,6 +825,7 @@ static void load_opcodes(void) {
 	register_opcodes_branch();
 	register_opcodes_cb();
 	register_opcodes_cmp();
+	register_opcodes_div();
 	register_opcodes_extend();
 	register_opcodes_it();
 	register_opcodes_ld();

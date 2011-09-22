@@ -5,6 +5,7 @@ void register_opcodes_add(void);
 void register_opcodes_branch(void);
 void register_opcodes_cb(void);
 void register_opcodes_cmp(void);
+void register_opcodes_div(void);
 void register_opcodes_extend(void);
 void register_opcodes_it(void);
 void register_opcodes_ldm(void);
