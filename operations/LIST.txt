@@ -1,0 +1,169 @@
+Yes, some of these .c files don't exist.
+(Or haven't been assigned)
+Don't worry, there's a Part 2 for this project :)
+
+If you find an intruction not on this list,
+please email 373F11class@umich.edu and I
+will add it
+
+Try `grep add.c LIST.txt`
+
+ADC	add.c
+ADD	add.c
+ADR	add.c
+AND	logical.c
+ASR	shift.c
+B	branch.c
+BFC	bitfield.c
+BFI	bitfield.c
+BIC	logical.c
+BKPT	<not implemented>
+BL	branch.c
+BLX	branch.c
+BX	branch.c
+CB{N}Z	cb.c
+CDP	<not implemented>
+CLREX	<not implemented>
+CLZ	<not implemented>
+CMN	cmp.c
+CMP	cmp.c
+CPS	<not implemented>
+CPY	<not implemented>
+DBG	<not implemented>
+DMB	<not implemented>
+DSB	<not implemented>
+EOR	logical.c
+ISB	<not implemented>
+IT	it.c
+LDC	<not implemented>
+LDM	ldm.c
+LDMDB	ldm.c
+LDR	ld.c
+LDRB	ld.c
+LDRBT	<not implemented>
+LDRD	ld.c
+LDREX	<not implemented>
+LDREXB	<not implemented>
+LDREXH	<not implemented>
+LDRH	ld.c
+LDRHT	<not implemented>
+LDRSB	ld.c
+LDRSBT	<not implemented>
+LDRSH	ld.c
+LDRSHT	<not implemented>
+LDRT	<not implemented>
+LSL	shift.c
+LSR	shift.c
+MCR	<not implemented>
+MCRR	<not implemented>
+MLA	mul.c
+MLS	mul.c
+MOV	mov.c
+MOVT	mov.c
+MRC	<not implemented>
+MRRC	<not implemented>
+MRS	<not implemented>
+MSR	<not implemented>
+MUL	mul.c
+MVN	logical.c
+NEG	<not a real op> /* TTTA: What does NEG encode to? */
+NOP	<not a real op> /* TTTA: What does NOP encode to? Where can't you put a NOP because of this? */
+ORN	logical.c
+ORR	logical.c
+PKHBT	mov.c
+PKHTB	mov.c
+PLD	<not implemented>
+PLI	<not implemented>
+POP	pop.c
+PUSH	push.c
+Q*	<not implemented> // No saturating instructions for now
+RBIT	rev.c
+REV	rev.c
+REV16	rev.c
+REVSH	rev.c
+ROR	shift.c
+RRX	shift.c
+RSB	sub.c
+SADD16	add.c
+SADD8	add.c
+SASX	add_sub_ex.c
+SBC	sub.c
+SBFX	bitfield.c
+SDIV	div.c
+SEL	<not implemented>
+SEV	<not implemented>
+SHADD16	add.c
+SHADD8	add.c
+SHASX	add_sub_ex.c
+SHSAX	add_sub_ex.c
+SHSUB16	sub.c
+SHSUB8	sub.c
+SMLABB	<not implemented>
+ or any other "Accumulate" <not implemented>
+SMMUL{R}	mul.c
+SMUAD{X}	mul.c
+SMULBB	mul.c
+SMULL	mul.c
+SMULWB	mul.c
+SMUSM	mul.c
+SSAT	<not implemented>
+SSAT16	<not implemented>
+SSAX	add_sub_ex.c
+SSUB16	sub.c
+SSUB8	sub.c
+STC	<not implemented>
+STM	strm.c
+STMDB	strm.c
+STR	str.c
+STRB	str.c
+STRBT	<not implemented>
+STRD	str.c
+STREX	<not implemented>
+STREXB	<not implemented>
+STREXH	<not implemented>
+STRH	str.c
+STRHT	<not implemented>
+STRT	<not implemented>
+SUB	sub.c
+SVC	<not implemented>
+SXTAB	add_sub_ex.c
+SXTAB16	add_sub_ex.c
+SXTAH	add_sub_ex.c
+SXTB	extend.c
+SXTB16	extend.c
+SXTH	extend.c
+TBB	<not implemented>
+TEQ	logical.c
+TST	logical.c
+UADD16	add.c
+UADD8	add.c
+UASX	add_sub_ex.c
+UBFX	bitfield.c
+UDIV	div.c
+UHADD16	add.c
+UHADD8	add.c
+UHASX	add_sub_ex.c
+UHSAX	add_sub_ex.c
+UHSUB16	sub.c
+UHSUB8	sub.c
+UMAAL	<not implemented>
+UMLAL	<not implemented>
+UMULL	mul.c
+UQ*	<not implemented>
+USAD8	add.c
+USADA8	<not implemented>
+USAT	<not implemented>
+USAT16	<not implemented>
+USAX	add_sub_ex.c
+USUB16	sub.c
+USUB8	sub.c
+UXTAB	extend.c
+UXTAB16	extend.c
+UXTAH	extend.c
+UXTB	extend.c
+UXTB16	extend.c
+UXTH	extend.c
+V*	<no floating point>
+WFE	<not implemented>
+WFI	<not implemented>
+YIELD	<not implemented>
