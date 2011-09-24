@@ -261,11 +261,41 @@ static uint32_t epsr = 0x01000000;
 #define T_BIT		(epsr & 0x01000000)
 
 #define CPSR		(apsr)
+#define APSR		(apsr)
 #define IPSR		(ipsr)
 #define EPSR		(epsr)
+#define IAPSR		(IPSR | APSR)
+#define EAPSR		(EPSR | APSR)
+#define XPSR		(IPSR | APSR | EPSR)
+#define IEPSR		(IPSR | EPSR)
 
 #define ITSTATE		( ((EPSR & 0xfc00) >> 8) | ((EPSR & 0x06000000) >> 25) )
 
+static uint32_t primask = 0x0;
+//     0: priority	The exception mask register, a 1-bit register.
+//			Setting PRIMASK to 1 raises the execution priority to 0.
+static uint32_t basepri = 0x0;
+/* The base priority mask, an 8-bit register. BASEPRI changes the priority
+ * level required for exception preemption. It has an effect only when BASEPRI
+ * has a lower value than the unmasked priority level of the currently
+ * executing software.  The number of implemented bits in BASEPRI is the same
+ * as the number of implemented bits in each field of the priority registers,
+ * and BASEPRI has the same format as those fields.  For more information see
+ * Maximum supported priority value on page B1-636.  A value of zero disables
+ * masking by BASEPRI.
+ */
+static uint32_t faultmask = 0x0;
+/* The fault mask, a 1-bit register. Setting FAULTMASK to 1 raises the
+ * execution priority to -1, the priority of HardFault. Only privileged
+ * software executing at a priority below -1 can set FAULTMASK to 1. This means
+ * HardFault and NMI handlers cannot set FAULTMASK to 1. Returning from any
+ * exception except NMI clears FAULTMASK to 0.
+ */
+
+static uint32_t control = 0x0;
+//     0: nPRIV, thread mode only (0 == privileged, 1 == unprivileged)
+//     1: SPSEL, thread mode only (0 == use SP_main, 1 == use SP_process)
+//     2: FPCA, (1 if FP extension active)
 
 #endif // M
 
@@ -480,22 +510,40 @@ void CORE_epsr_write(uint32_t val) {
 
 uint32_t CORE_rom_read(uint32_t addr) {
 	DBG2("ROM Read request addr %x (idx: %d)\n", addr, ADDR_TO_IDX(addr, ROMBOT));
+#ifdef DEBUG1
 	assert((addr >= ROMBOT) && (addr < ROMTOP) && "CORE_rom_read");
-	G_ROM(READ, addr);
-	return rom[ADDR_TO_IDX(addr, ROMBOT)];
+#endif
+	if ((addr >= ROMBOT) && (addr < ROMTOP) && (0 == (addr & 0x3))) {
+		G_ROM(READ, addr);
+		return rom[ADDR_TO_IDX(addr, ROMBOT)];
+	} else {
+		CORE_ERR_invalid_addr(false, addr);
+	}
 }
 
 uint32_t CORE_ram_read(uint32_t addr) {
+#ifdef DEBUG1
 	assert((addr >= RAMBOT) && (addr < RAMTOP) && "CORE_ram_read");
-	G_RAM(READ, addr);
-	return ram[ADDR_TO_IDX(addr, RAMBOT)];
+#endif
+	if ((addr >= RAMBOT) && (addr < RAMTOP) && (0 == (addr & 0x3))) {
+		G_RAM(READ, addr);
+		return ram[ADDR_TO_IDX(addr, RAMBOT)];
+	} else {
+		CORE_ERR_invalid_addr(false, addr);
+	}
 }
 
 void CORE_ram_write(uint32_t addr, uint32_t val) {
 	DBG2("RAM Write request addr %x (idx: %d)\n", addr, ADDR_TO_IDX(addr, RAMBOT));
+#ifdef DEBUG1
 	assert((addr >= RAMBOT) && (addr < RAMTOP) && "CORE_ram_write");
-	ram[ADDR_TO_IDX(addr, RAMBOT)] = val;
-	G_RAM(WRITE, addr);
+#endif
+	if ((addr >= RAMBOT) && (addr < RAMTOP) && (0 == (addr & 0x3))) {
+		ram[ADDR_TO_IDX(addr, RAMBOT)] = val;
+		G_RAM(WRITE, addr);
+	} else {
+		CORE_ERR_invalid_addr(true, addr);
+	}
 }
 
 uint32_t CORE_red_led_read(void) {
@@ -551,7 +599,7 @@ void CORE_poll_uart_txdata_write(uint8_t val) {
 }
 
 void CORE_ERR_invalid_addr(uint8_t is_write, uint32_t addr) {
-	WARN("CORE_ERR_invalid_addr %s address: %x\n",
+	WARN("CORE_ERR_invalid_addr %s address: %08x\n",
 			is_write ? "writing":"reading", addr);
 	WARN("Dumping Core...\n");
 	print_full_state();

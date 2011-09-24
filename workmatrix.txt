@@ -15,7 +15,7 @@ operations/		(num instructions)
 	X T branch.c	4
 	X T cb.c	1
 	X T cmp.c	2
-	    div.c	2
+	X   div.c	2
 	X T extend.c	9
 	X T it.c	1
 	X T ld.c	6
