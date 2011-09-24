@@ -652,6 +652,7 @@ struct op {
 	uint32_t ones_mask;
 	uint32_t zeros_mask;
 	int (*fn) (uint32_t);
+	const char *name;
 };
 
 static struct op *ops = NULL;
@@ -677,8 +678,8 @@ static struct op* find_op(uint32_t inst, uint8_t reorder) {
 	return o;
 }
 
-int register_opcode_mask(uint32_t ones_mask, uint32_t zeros_mask,
-		int (*fn) (uint32_t)) {
+int register_opcode_mask_real(uint32_t ones_mask, uint32_t zeros_mask,
+		int (*fn) (uint32_t), const char* fn_name) {
 	if (NULL == ops) {
 		// first registration
 		ops = malloc(sizeof(struct op));
@@ -687,6 +688,7 @@ int register_opcode_mask(uint32_t ones_mask, uint32_t zeros_mask,
 		ops->ones_mask = ones_mask;
 		ops->zeros_mask = zeros_mask;
 		ops->fn = fn;
+		ops->name = fn_name;
 		return ++opcode_masks;
 	}
 
@@ -703,10 +705,10 @@ int register_opcode_mask(uint32_t ones_mask, uint32_t zeros_mask,
 	}
 	if (o) {
 		ERR(E_BAD_OPCODE, "Duplicate opcode mask.\n"\
-				"\tExisting  registration: 1's %x, 0's %x\n"\
-				"\tAttempted registration: 1's %x, 0's %x\n"\
-				, o->ones_mask, ones_mask\
-				, o->zeros_mask, zeros_mask);
+				"\tExisting  registration: 1's %x, 0's %x (%s)\n"\
+				"\tAttempted registration: 1's %x, 0's %x (%s)\n"\
+				, o->ones_mask, ones_mask, o->name\
+				, o->zeros_mask, zeros_mask, o->name);
 	}
 
 	// Add new element to list head b/c that's easy and it doesn't matter
@@ -716,6 +718,7 @@ int register_opcode_mask(uint32_t ones_mask, uint32_t zeros_mask,
 	o->ones_mask = ones_mask;
 	o->zeros_mask = zeros_mask;
 	o->fn = fn;
+	o->name = fn_name;
 	ops->prev = o;
 	ops = o;
 

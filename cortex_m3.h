@@ -200,4 +200,13 @@ void		CORE_ERR_not_implemented(const char *opt_msg) __attribute__ ((noreturn));
 #define QUOTE(x)	#x
 #define VAL2STR(x)	QUOTE(x)
 
+//////////////////
+// MACRO TRICKS //
+//////////////////
+
+#define register_opcode_mask(_o, _z, _f)\
+	register_opcode_mask_real((_o), (_z), (_f), __func__)
+int		register_opcode_mask_real(uint32_t, uint32_t,
+		int (*fn) (uint32_t), const char *);
+
 #endif // CORTEX_M3_H
