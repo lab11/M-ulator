@@ -97,7 +97,7 @@ int bl(uint32_t inst) {
 	return SUCCESS;
 }
 
-int blx(uint32_t inst) {
+int blx(uint32_t inst __attribute__ ((unused))) {
 	CORE_ERR_not_implemented("blx");
 }
 
@@ -105,7 +105,7 @@ void BranchTo(uint32_t address) {
 	CORE_reg_write(PC_REG, address);
 }
 
-void BranchWritePC(uint32_t cpsr, uint32_t address) {
+void BranchWritePC(uint32_t address) {
 	if (GET_ISETSTATE == INST_SET_ARM) {
 		BranchTo(address & 0xfffffffc);
 	} else if (GET_ISETSTATE == INST_SET_JAZELLE) {
@@ -115,14 +115,15 @@ void BranchWritePC(uint32_t cpsr, uint32_t address) {
 	}
 }
 
-void SelectInstrSet(uint32_t cpsr, uint8_t iset) {
+void SelectInstrSet(uint8_t iset) {
 	switch (iset) {
 		case INST_SET_ARM:
 			DBG2("Set ISETSTATE to Arm\n");
-			if (GET_ISETSTATE == INST_SET_THUMBEE)
+			if (GET_ISETSTATE == INST_SET_THUMBEE) {
 				CORE_ERR_unpredictable("ThumbEE -> Arm trans\n");
-			else
+			} else {
 				SET_ISETSTATE(INST_SET_ARM);
+			}
 			break;
 		case INST_SET_THUMB:
 			DBG2("Set ISETSTATE to Thumb\n");
@@ -142,7 +143,7 @@ void SelectInstrSet(uint32_t cpsr, uint8_t iset) {
 	}
 }
 
-int bl_blx(uint32_t cpsr, uint32_t pc, uint8_t targetInstrSet, uint32_t imm32) {
+int bl_blx(uint32_t pc, uint8_t targetInstrSet, uint32_t imm32) {
 	uint32_t lr;
 	DBG2("cpsr %08x pc %08x targetInstrSet %x imm32 %d 0x%08x\n",
 			cpsr, pc, targetInstrSet, imm32, imm32);
@@ -161,15 +162,13 @@ int bl_blx(uint32_t cpsr, uint32_t pc, uint8_t targetInstrSet, uint32_t imm32) {
 		targetAddress = pc + imm32;
 	}
 
-	SelectInstrSet(cpsr, targetInstrSet);
-	BranchWritePC(cpsr, targetAddress);
+	SelectInstrSet(targetInstrSet);
+	BranchWritePC(targetAddress);
 
 	return SUCCESS;
 }
 
 int bl_t1(uint32_t inst) {
-	uint32_t cpsr = CORE_cpsr_read();
-
 	// top 5 bits fixed
 	uint8_t  S = !!(inst & 0x04000000);
 	int imm10 =    (inst & 0x03ff0000) >> 16;
@@ -199,12 +198,10 @@ int bl_t1(uint32_t inst) {
 	if (in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
 		CORE_ERR_unpredictable("bl_t1 in itstate, not ending\n");
 
-	return bl_blx(cpsr, CORE_reg_read(PC_REG), GET_ISETSTATE, imm32);
+	return bl_blx(CORE_reg_read(PC_REG), GET_ISETSTATE, imm32);
 }
 
 int bl_t2(uint32_t inst) {
-	uint32_t cpsr = CORE_cpsr_read();
-
 	// top 5 bits fixed
 	uint8_t  S = !!(inst & 0x04000000);
 	int imm10H =   (inst & 0x03ff0000) >> 16;
@@ -237,7 +234,7 @@ int bl_t2(uint32_t inst) {
 	if (in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
 		CORE_ERR_unpredictable("bl_t2 in itstate, not ending\n");
 
-	return bl_blx(cpsr, CORE_reg_read(PC_REG), INST_SET_ARM, imm32);
+	return bl_blx(CORE_reg_read(PC_REG), INST_SET_ARM, imm32);
 }
 
 int bx(uint32_t inst) {

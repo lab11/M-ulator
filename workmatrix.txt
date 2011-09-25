@@ -11,24 +11,24 @@ x misc.c: eval_cond
 (1)
 
 operations/		(num instructions)
-	x t add.c	12
-	X T branch.c	4
-	X T cb.c	1
-	X T cmp.c	2
-	X   div.c	2
-	X T extend.c	9
-	X T it.c	1
-	X T ld.c	6
-	X T ldm.c	2
-	X T logical.c	8
-	X T mov.c	4
-	X T mul.c	10
-	X T pop.c	1
-	X T push.c	1
-	X T shift.c	4
-	X T str.c	4
-	    strm.c	2
-	X T sub.c	11
+	G x t add.c	12
+	G X T branch.c	4
+	G X T cb.c	1
+	G X T cmp.c	2
+	G X   div.c	2
+	G X T extend.c	9
+	G X T it.c	1
+	G X T ld.c	6
+	G X T ldm.c	2
+	G X T logical.c	8
+	G X T mov.c	4
+	G X T mul.c	10
+	G X T pop.c	1
+	G X T push.c	1
+	G X T shift.c	4
+	G X T str.c	4
+	G    strm.c	2
+	G X T sub.c	11
 (18)
 
 

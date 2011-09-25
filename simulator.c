@@ -271,10 +271,10 @@ static uint32_t epsr = 0x01000000;
 
 #define ITSTATE		( ((EPSR & 0xfc00) >> 8) | ((EPSR & 0x06000000) >> 25) )
 
-static uint32_t primask = 0x0;
+static uint32_t primask __attribute__ ((unused)) = 0x0;
 //     0: priority	The exception mask register, a 1-bit register.
 //			Setting PRIMASK to 1 raises the execution priority to 0.
-static uint32_t basepri = 0x0;
+static uint32_t basepri __attribute__ ((unused)) = 0x0;
 /* The base priority mask, an 8-bit register. BASEPRI changes the priority
  * level required for exception preemption. It has an effect only when BASEPRI
  * has a lower value than the unmasked priority level of the currently
@@ -284,7 +284,7 @@ static uint32_t basepri = 0x0;
  * Maximum supported priority value on page B1-636.  A value of zero disables
  * masking by BASEPRI.
  */
-static uint32_t faultmask = 0x0;
+static uint32_t faultmask __attribute__ ((unused)) = 0x0;
 /* The fault mask, a 1-bit register. Setting FAULTMASK to 1 raises the
  * execution priority to -1, the priority of HardFault. Only privileged
  * software executing at a priority below -1 can set FAULTMASK to 1. This means
@@ -292,7 +292,7 @@ static uint32_t faultmask = 0x0;
  * exception except NMI clears FAULTMASK to 0.
  */
 
-static uint32_t control = 0x0;
+static uint32_t control __attribute__ ((unused)) = 0x0;
 //     0: nPRIV, thread mode only (0 == privileged, 1 == unprivileged)
 //     1: SPSEL, thread mode only (0 == use SP_main, 1 == use SP_process)
 //     2: FPCA, (1 if FP extension active)
@@ -479,8 +479,9 @@ void CORE_cpsr_write(uint32_t val) {
 		DBG1("WARN update of cpsr in IT block\n");
 	}
 #ifdef M_PROFILE
-	if (val & 0x07f0ffff)
+	if (val & 0x07f0ffff) {
 		DBG1("WARN update of reserved CPSR bits\n");
+	}
 #endif
 	CPSR = val;
 	G_CPSR(WRITE);

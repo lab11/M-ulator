@@ -48,7 +48,7 @@ int add1(uint32_t inst) {
 
 int add2(uint32_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
-	int32_t immed8 = (inst & 0xff);
+	uint8_t immed8 = (inst & 0xff);
 
 	uint32_t rd_val = CORE_reg_read(rd);
 	uint32_t result = rd_val + immed8;

@@ -77,7 +77,7 @@ int sbc(uint32_t inst) {
 }
 
 int sub1(uint32_t inst) {
-	int32_t immed3 = (inst & 0x1c0) >> 6;
+	uint8_t immed3 = (inst & 0x1c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -102,7 +102,7 @@ int sub1(uint32_t inst) {
 
 int sub2(uint32_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
-	int32_t immed8 = inst & 0xff;
+	uint8_t immed8 = inst & 0xff;
 
 	uint32_t rd_val = CORE_reg_read(rd);
 	uint32_t result = rd_val - immed8;

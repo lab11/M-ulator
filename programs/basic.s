@@ -10,7 +10,6 @@
 
 .align 2
 .thumb_func
-.global _go
 _go:
     add r0, r0, #4
 loop:

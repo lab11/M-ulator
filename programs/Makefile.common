@@ -1,0 +1,50 @@
+CFLAGS  += -g -Wall -Wextra -Werror -mcpu=cortex-m3 -ffreestanding
+LDFLAGS += -g -nostartfiles -nodefaultlibs -nostdlib
+ASFLAGS += -g -mthumb
+
+MEMMAP = $(LEVEL)/memmap
+
+################################################################################
+## DO NOT EDIT BELOW THIS LINE
+################################################################################
+
+SHELL=/bin/bash
+
+CROSS_COMPILE=$(shell if `hash arm-linux-gnueabi-gcc >& /dev/null`; then echo arm-linux-gnueabi; elif `hash arm-none-linux-gnueabi-gcc >& /dev/null`; then echo arm-none-linux-gnueabi; elif `hash arm-none-eabi-gcc >& /dev/null`; then echo arm-none-eabi; else echo -n ""; fi)
+CC=$(CROSS_COMPILE)-gcc
+
+ifeq (,$(CROSS_COMPILE))
+  $(error "No cross compiler found. Have you installed an ARM toolchain?")
+endif
+
+# Some stuff they all need:
+AS_SOURCES += $(LEVEL)/vectors.s
+
+AS_OBJS := $(subst .s,.o,$(AS_SOURCES))
+C_OBJS  := $(subst .c,.o,$(C_OBJS))
+OBJS    := $(AS_OBJS) $(C_OBJS)
+
+$(LEVEL)/lib:
+	$(MAKE) -C $(LEVEL)/lib
+
+$(LEVEL)/lib/%:
+	$(MAKE) $* -C $(LEVEL)/lib
+
+$(LEVEL)/tests:
+	$(MAKE) -C $(LEVEL)/tests
+
+$(LEVEL)/tests/%:
+	$(MAKE) $* -C $(LEVEL)/tests
+
+.PHONY: lib tests
+
+%.o: %.s
+	$(CROSS_COMPILE)-as $(ASFLAGS) $? -o $@
+
+%.o: %.c
+	$(CROSS_COMPILE)-gcc $(CFLAGS) -c $? -o $@
+
+# Note, order important so memmap lines up with -T
+%.bin:	$(MEMMAP) $(OBJS) %.o 
+	$(CROSS_COMPILE)-ld -T $^ -o $*.elf
+	$(CROSS_COMPILE)-objcopy -O binary $*.elf $*.bin

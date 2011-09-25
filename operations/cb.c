@@ -1,6 +1,6 @@
 #include "../cortex_m3.h"
 
-int cb(uint32_t inst) {
+int cb(uint32_t inst __attribute__ ((unused))) {
 	/*
 	int32_t imm32 = ((inst & 0x200) >> 4) | ((inst & 0xf8) >> 3);
 	uint8_t rn = inst & 0x7;

@@ -5,6 +5,7 @@ int uxtb(uint8_t rd, uint8_t rm, uint8_t rotation) {
 
 	uint32_t rotated;
 	if (rotation != 0) {
+		rm = rm; // Silence compiler until this is implemented
 		CORE_ERR_not_implemented("uxtb rotation\n");
 	} else {
 		rotated = rd_val;

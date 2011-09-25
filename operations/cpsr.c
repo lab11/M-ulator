@@ -72,10 +72,10 @@ void LSL_C(uint32_t x, int Nbits, int shift, uint32_t *result, uint8_t *carry_ou
 	*carry_out = extended_x & (1 << Nbits);
 }
 
-void LSR_C(uint32_t x, int Nbits, int shift, uint32_t *result, uint8_t *carry_out) {
+void LSR_C(uint32_t x, int Nbits __attribute__ ((unused)), int shift, uint32_t *result, uint8_t *carry_out) {
 	assert(shift > 0);
 	// extended_x = ZeroExtend(x, shift+Nbits)
-	// ^^unneeded, zero-fills left bits
+	// ^^unneeded, C-language zero-fills left bits
 	*result = x >> shift;
 	*carry_out = (x >> (shift - 1)) & 0x1;
 }

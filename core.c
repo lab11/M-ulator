@@ -115,7 +115,24 @@ uint16_t read_halfword(uint32_t addr) {
 }
 
 void write_halfword(uint32_t addr, uint16_t val) {
-	CORE_ERR_not_implemented("write_halfword");
+	// Periphs are all word or byte, no need to check here then
+	// (they will either succeed or fail on the word checks)
+
+	uint32_t word = read_word(addr & 0xfffffffc);
+	uint32_t val32 = val;
+
+	switch (addr & 0x1) {
+		case 0:
+			word &= 0xffff0000;
+			word |= val32;
+			break;
+		case 1:
+			word &= 0x0000ffff;
+			word |= (val32 << 16);
+			break;
+	}
+
+	write_word(addr & 0xfffffffc, word);
 }
 
 uint8_t read_byte(uint32_t addr) {
