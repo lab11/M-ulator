@@ -1,0 +1,6 @@
+A list of changes I'd like to make that are too late
+for this project now:
+
+ * The peripherals alignment should be clearer
+     - LEDs still word aligned
+     - Poll UART stuff at addrs 4100, 4101, and 4102 instead
