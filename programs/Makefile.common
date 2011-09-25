@@ -1,6 +1,6 @@
 CFLAGS  += -g -Wall -Wextra -Werror -mcpu=cortex-m3 -ffreestanding
 LDFLAGS += -g -nostartfiles -nodefaultlibs -nostdlib
-ASFLAGS += -g -mthumb
+ASFLAGS += -g -mthumb --warn -mcpu=cortex-m3
 
 MEMMAP = $(LEVEL)/memmap
 

@@ -1,3 +1,4 @@
+.thumb_func
 .global main
 main:
 	sub r0, r0

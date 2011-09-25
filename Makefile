@@ -16,10 +16,15 @@ all:	simulator programs
 ###########
 # Simulator
 
+$(warning)
+
 ifeq ($(debug), 1)
 	CFLAGS += -DDEBUG1
 	SIMFLAGS += --printcycles
 endif
+
+# WTF? w/out empty warning make isn't picking up debug??
+$(warning)
 
 ifeq ($(debug), 2)
 	CFLAGS += -DDEBUG1 -DDEBUG2
@@ -72,7 +77,7 @@ clean-doc-all: clean-doc
 #########
 # Testing
 
-tester = $(MAKE) $(2).bin -C $(1);\
+tester = +$(MAKE) $(2).bin -C $(1);\
 	 ./simulator --flash $(1)/$(2).bin $(SIMFLAGS)
 
 SIM_EXE = ./simulator --flash $< $(SIMFLAGS)
