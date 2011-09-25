@@ -83,32 +83,35 @@ tester = +$(MAKE) $(2).bin -C $(1);\
 SIM_EXE = ./simulator --flash $< $(SIMFLAGS)
 
 basic:	programs/basic.bin simulator
-	$(eval SIM_EXE += --dumpallcycles)
-	$(SIM_EXE)
+	$(eval SIMFLAGS += --dumpallcycles)
+	$(call tester,programs,$@)
 
 blink:	programs/blink.bin simulator
-	$(SIM_EXE)
+	$(call tester,programs,$@)
 
 echo:	programs/echo.bin simulator
 	echo e | nc -4 localhost 4100 > /tmp/echo_out &
-	$(SIM_EXE)
+	$(call tester,programs,$@)
 
 echo_str:	programs/echo_str.bin simulator
-	$(SIM_EXE)
+	$(call tester,programs,$@)
 
 testflash:	simulator
-	$(SIM_EXE)
+	$(call tester,programs,$@)
 
 .PHONY: blink echo echo_str testflash
 
 trivialS: simulator
-	$(call tester, programs/tests,$@)
+	$(eval SIMFLAGS += --returnr0)
+	$(call tester,programs/tests,$@)
 
 trivialC: simulator
-	$(call tester, programs/tests,$@)
+	$(eval SIMFLAGS += --returnr0)
+	$(call tester,programs/tests,$@)
 
 trivialPrintf: simulator
-	$(call tester, programs/tests,$@)
+	$(eval SIMFLAGS += --returnr0)
+	$(call tester,programs/tests,$@)
 
 .PHONY: trivialS trivialC trivialPrintf
 

@@ -95,28 +95,32 @@
 #endif
 
 static void usage_fail(int retcode) {
-	printf("USAGE: ./simulator [OPTS]\n\n");
+	printf("\nUSAGE: ./simulator [OPTS]\n\n");
 	printf("\
-\t--dumpatpc PC_IN_HEX\n\
+\t-c, --dumpatpc PC_IN_HEX\n\
 \t\tExecute until PC reaches the given value. The simulator will\n\
 \t\tpause at the given PC and prompt for a new pause PC\n\
-\t--dumpatcycle N\n\
+\t-y, --dumpatcycle N\n\
 \t\tExecute until cycle N and print the current machine state.\n\
 \t\tYou will be prompted for a new N at the pause\n\
-\t--dumpallcycles\n\
+\t-d, --dumpallcycles\n\
 \t\tPrints the machine state every cycle -- This is a lot of text\n\
-\t--printcycles\n\
+\t-p, --printcycles\n\
 \t\tPrints cycle count and inst to execute every cycle (before exec)\n\
 \t\tConceptually, this executes between the intstruction fetch and\n\
 \t\tdecode stage, so the PC is already advanced\n\
-\t--slowsim\n\
+\t-s, --slowsim\n\
 \t\tSlows simulation down, running an instruction every .1s\n\
-\t--raiseonerror\n\
+\t-e, --raiseonerror\n\
 \t\tRaises a SIGTRAP for gdb on errors before dying\n\
 \t\t(Useful for debugging with gdb\n\
-\t--flash FILE\n\
-\t\tUse FILE as flash.mem\n\
-\t--showledtoggles\n\
+\t-r, --returnr0\n\
+\t\tSets simulator binary return code to the return\n\
+\t\tcode of the executed program on simulator exit\n\
+\t-f, --flash FILE\n\
+\t\tFlash FILE into ROM before executing\n\
+\t\t(this file is likely somthing.bin)\n\
+\t-l, --showledtoggles\n\
 \t\tPrints a message every time the LEDs are written to\n\
 \t--polluartport "VAL2STR(POLL_UART_PORT)"\n\
 \t\tThe port number to communicate with the polled UART device\n\
@@ -179,6 +183,11 @@ static int showledtoggles = 0;
 static int dumpatpc = -1;
 static int dumpatcycle = -1;
 static int dumpallcycles = 0;
+#ifdef GRADE
+static int returnr0 = 1;
+#else
+static int returnr0 = 0;
+#endif
 
 /* Test Flash */
 
@@ -739,9 +748,12 @@ static int sim_execute(void) {
 
 	// dectect branch to self loop for termination
 	if ((cycle) && (last_pc == PC)) {
-		INFO("Simulator determined PC 0x%08x is branch to self\n", PC);
+		INFO("Simulator determined PC 0x%08x is branch to self, terminating.\n", PC);
 		print_full_state();
-		INFO("Simulation completed successfully.\n");
+		if (returnr0) {
+			DBG2("Return code is r0: %08x\n", reg[0]);
+			exit(reg[0]);
+		}
 		exit(EXIT_SUCCESS);
 	}
 
@@ -837,6 +849,7 @@ static int sim_execute(void) {
 	}
 }
 
+static void sim_reset(void) __attribute__ ((noreturn));
 static void sim_reset(void) {
 	uint8_t ret;
 
@@ -898,31 +911,31 @@ static void load_opcodes(void) {
 
 int main(int argc, char **argv) {
 	// Command line args
-	const char *flash_file = "flash.mem";
+	const char *flash_file = NULL;
 	static int polluartport = POLL_UART_PORT;
 	static int usetestflash = 0;
-	static int usetestcore = 0;
 
 	// Command line parsing
 	while (1) {
 		static struct option long_options[] = {
 			{"dumpatpc",      required_argument, 0,              'c'},
-			{"dumpatcycle",   required_argument, 0,              'd'},
-			{"dumpallcycles", no_argument,       &dumpallcycles, 1},
-			{"printcycles",   no_argument,       &printcycles,   1},
-			{"raiseonerror",  no_argument,       &raiseonerror,  1},
-			{"slowsim",       no_argument,       &slowsim,       1},
+			{"dumpatcycle",   required_argument, 0,              'y'},
+			{"dumpallcycles", no_argument,       &dumpallcycles, 'd'},
+			{"printcycles",   no_argument,       &printcycles,   'p'},
+			{"slowsim",       no_argument,       &slowsim,       's'},
+			{"raiseonerror",  no_argument,       &raiseonerror,  'e'},
+			{"returnr0",      no_argument,       &returnr0,      'r'},
 			{"flash",         required_argument, 0,              'f'},
-			{"showledtoggles",no_argument,       &showledtoggles,'1'},
-			{"polluartport",  required_argument, 0,              'p'},
+			{"showledtoggles",no_argument,       &showledtoggles,'l'},
+			{"polluartport",  required_argument, 0,              0},
 			{"usetestflash",  no_argument,       &usetestflash,  1},
-			{"usetestcore",   no_argument,       &usetestcore,   1},
-			{"help",          no_argument,       0,              'h'},
+			{"help",          no_argument,       0,              '?'},
+			{0,0,0,0}
 		};
 		int option_index = 0;
 		int c;
 
-		c = getopt_long(argc, argv, "d:af:yz", long_options,
+		c = getopt_long(argc, argv, "c:y:dpserf:l?", long_options,
 				&option_index);
 
 		if (c == -1) break;
@@ -938,10 +951,30 @@ int main(int argc, char **argv) {
 						dumpatpc);
 				break;
 
-			case 'd':
+			case 'y':
 				dumpatcycle = atoi(optarg);
 				INFO("Simulator will pause at cycle %d\n",
 						dumpatcycle);
+				break;
+
+			case 'd':
+				dumpallcycles = true;
+				break;
+
+			case 'p':
+				printcycles = true;
+				break;
+
+			case 's':
+				slowsim = true;
+				break;
+
+			case 'e':
+				raiseonerror = true;
+				break;
+
+			case 'r':
+				returnr0 = true;
 				break;
 
 			case'f':
@@ -950,11 +983,10 @@ int main(int argc, char **argv) {
 						flash_file);
 				break;
 
-			case 'p':
-				polluartport = atoi(optarg);
+			case 'l':
+				showledtoggles = true;
 				break;
 
-			case 'h':
 			case '?':
 			default:
 				usage();
@@ -967,6 +999,9 @@ int main(int argc, char **argv) {
 		memcpy(rom, static_rom, STATIC_ROM_NUM_BYTES);
 		INFO("Loaded internal test flash\n");
 	} else {
+		if (NULL == flash_file) {
+			ERR(E_BAD_FLASH, "--flash or --usetestflash required, see --help\n");
+		}
 		int flashfd = open(flash_file, O_RDONLY);
 		ssize_t ret;
 		if (-1 == flashfd) {
