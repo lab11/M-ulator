@@ -145,8 +145,8 @@ void SelectInstrSet(uint8_t iset) {
 
 int bl_blx(uint32_t pc, uint8_t targetInstrSet, uint32_t imm32) {
 	uint32_t lr;
-	DBG2("cpsr %08x pc %08x targetInstrSet %x imm32 %d 0x%08x\n",
-			cpsr, pc, targetInstrSet, imm32, imm32);
+	DBG2("pc %08x targetInstrSet %x imm32 %d 0x%08x\n",
+			pc, targetInstrSet, imm32, imm32);
 
 	if (GET_ISETSTATE == INST_SET_ARM) {
 		lr = pc - 4;

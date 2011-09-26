@@ -20,6 +20,24 @@ int str1(uint32_t inst) {
 	return SUCCESS;
 }
 
+int str2(uint32_t inst) {
+	uint8_t rm = (inst & 0x1c) >> 6;
+	uint8_t rn = (inst & 0x38) >> 3;
+	uint8_t rd = (inst & 0x7);
+
+	uint32_t address = CORE_reg_read(rn) + CORE_reg_read(rm);
+
+	if (address & 0x3) {
+		CORE_ERR_unpredictable("str2 bad addr\n");
+	} else {
+		write_word(address, CORE_reg_read(rd));
+	}
+
+	DBG2("str r%02d, [r%02d, r%02d]\n", rd, rn, rm);
+
+	return SUCCESS;
+}
+
 int str3(uint32_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
 	uint16_t immed8 = inst & 0xff;
@@ -52,13 +70,68 @@ int strb1(uint32_t inst) {
 	return SUCCESS;
 }
 
+int strd_imm(uint32_t inst) {
+	uint8_t imm8 = (inst & 0xff);
+	uint8_t rt2 = (inst & 0xf00) >> 8;
+	uint8_t rt = (inst & 0xf000) >> 12;
+	uint8_t rn = (inst & 0xf0000) >> 16;
+	uint8_t W = !!(inst & 0x200000);
+	uint8_t U = !!(inst & 0x800000);
+	uint8_t P = !!(inst & 0x1000000);
+
+	if ((P == 0) && (W == 0))
+		CORE_ERR_unpredictable("strd_imm -> EX\n");
+
+	uint32_t imm32 = imm8 << 2;
+	// index = P
+	// add = U
+	// wback = W
+
+	if (W && ((rn == rt) || (rn == rt2)))
+		CORE_ERR_unpredictable("strd_imm wback + regs\n");
+
+	if ((rn == 15) || (rt >= 13) || (rt2 >= 13))
+		CORE_ERR_unpredictable("strd_imm bad regs\n");
+
+	uint32_t offset_addr;
+	if (U) {
+		offset_addr = CORE_reg_read(rn) + imm32;
+	} else {
+		offset_addr = CORE_reg_read(rn) - imm32;
+	}
+
+	uint32_t address;
+	if (P) {
+		address = offset_addr;
+	} else {
+		address = CORE_reg_read(rn);
+	}
+
+	write_word(address, CORE_reg_read(rt));
+	write_word(address + 4, CORE_reg_read(rt2));
+
+	if (W) {
+		CORE_reg_write(rn, offset_addr);
+	}
+
+	DBG2("strd_imm did lots of stuff\n");
+
+	return SUCCESS;
+}
+
 void register_opcodes_str(void) {
 	// str1: 0110 0<x's>
 	register_opcode_mask(0x6000, 0xffff9800, str1);
+
+	// str2: 0101 000<x's>
+	register_opcode_mask(0x5000, 0xffffae00, str2);
 
 	// str3: 1001 0<x's>
 	register_opcode_mask(0x9000, 0xffff6800, str3);
 
 	// strb1: 0111 0<x's>
 	register_opcode_mask(0x7000, 0xffff8800, strb1);
+
+	// strd_imm: 1110 100x x1x0 <x's>
+	register_opcode_mask(0xe8400000, 0x16100000, strd_imm);
 }
