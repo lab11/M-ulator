@@ -2,5 +2,19 @@ A list of changes I'd like to make that are too late
 for this project now:
 
  * The peripherals alignment should be clearer
-     - LEDs still word aligned
+     - LEDs still word aligned?
      - Poll UART stuff at addrs 4100, 4101, and 4102 instead
+
+ * The CORE_..._read|write functions are inconsistanly named
+
+ * Isolate functions to make their purposes clearer
+     - operations/ Should only have access to read|write_byte|[half]word
+
+ * Clearer naming scheme in general
+     - operations --> ARM Core
+     - core.c --> Memory Bus Interface
+         + Move reset() out of core.c
+
+ * Get rid of the "cpsr" nonsense - it doesn't even exist in
+   the M profile anyways (cpsr === apsr in M profile); don't
+   confuse people with your own larger agenda
