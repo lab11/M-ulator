@@ -842,8 +842,8 @@ static int sim_execute(void) {
 			return ret;
 		} else {
 			if (printcycles)
-				printf("    P: %08d - 0x%08x : %04x\n",
-						cycle, PC, inst);
+				printf("    P: %08d - 0x%08x : %04x (%s)\n",
+						cycle, PC, inst, o->name);
 			return o->fn(inst);
 		}
 	}

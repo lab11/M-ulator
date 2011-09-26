@@ -205,7 +205,7 @@ void		CORE_ERR_not_implemented(const char *opt_msg) __attribute__ ((noreturn));
 //////////////////
 
 #define register_opcode_mask(_o, _z, _f)\
-	register_opcode_mask_real((_o), (_z), (_f), __func__)
+	register_opcode_mask_real((_o), (_z), (_f), __FILE__":"VAL2STR(_f))
 int		register_opcode_mask_real(uint32_t, uint32_t,
 		int (*fn) (uint32_t), const char *);
 
