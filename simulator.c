@@ -681,6 +681,28 @@ static struct op* find_op(uint32_t inst, uint8_t reorder) {
 		o = o->next;
 	}
 
+	if (NULL != o) {
+		// Check for ambiguity
+		struct op* t = o->next;
+		while (NULL != t) {
+			if (
+					(t->ones_mask  == (t->ones_mask  & inst)) &&
+					(t->zeros_mask == (t->zeros_mask & ~inst))
+			   ) {
+				WARN("Ambiguous instruction detected!\n");
+				WARN("Instruction %08x at PC %08x matches two masks:\n",
+						inst,
+						(inst & 0xffff0000) ? PC-4 : PC-2);
+				WARN("%s:\tones %08x zeros %08x\n", o->name,
+						o->ones_mask, o->zeros_mask);
+				WARN("%s:\tones %08x zeros %08x\n", t->name,
+						t->ones_mask, t->zeros_mask);
+				CORE_ERR_illegal_instr(inst);
+			}
+			t = t->next;
+		}
+	}
+
 	if (o && reorder) {
 		// ...
 	}

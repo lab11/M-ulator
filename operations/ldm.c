@@ -53,5 +53,13 @@ int ldm_t2(uint32_t inst) {
 
 void register_opcodes_ldm(void) {
 	// LDM_t2: 1110 1000 10x1 xxxx xx0<x's>
-	register_opcode_mask(0xe8900000, 0x17402000, ldm_t2);
+	// Illegal:            1  1101
+	//register_opcode_mask(0xe8900000, 0x17402000, ldm_t2);
+	// enfore W == 0
+	register_opcode_mask(0xe8900000, 0x17602000, ldm_t2);
+	// if W == 1, enforce the 4 other cases:
+	register_opcode_mask(0xe8900000, 0x17482000, ldm_t2);
+	register_opcode_mask(0xe8900000, 0x17442000, ldm_t2);
+	register_opcode_mask(0xe8902000, 0x17402000, ldm_t2);
+	register_opcode_mask(0xe8900000, 0x17412000, ldm_t2);
 }
