@@ -859,7 +859,7 @@ static void sim_reset(void) {
 	INFO("De-asserting reset pin\n");
 
 	INFO("Entering main loop...\n");
-	while (SUCCESS == (ret = sim_execute()) ) {
+	do {
 		if (dumpatcycle == cycle) {
 			print_full_state();
 			shell();
@@ -871,7 +871,7 @@ static void sim_reset(void) {
 		if (dumpallcycles) {
 			print_reg_state();
 		}
-	}
+	} while (SUCCESS == (ret = sim_execute()) );
 
 	WARN("Simulation terminated with error code: %u\n", ret);
 	WARN("Dumping core...\n");
