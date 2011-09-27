@@ -389,11 +389,7 @@ void register_opcodes_logical(void) {
 
 	// Cannot allow               1111 case
 	// orr_reg_t2: 1110 1010 010x xxxx 0<x's>
-	//register_opcode_mask(0xea400000, 0x15a08000, orr_reg_t2);
-	register_opcode_mask(0xea400000, 0x15a88000, orr_reg_t2);
-	register_opcode_mask(0xea400000, 0x15a48000, orr_reg_t2);
-	register_opcode_mask(0xea400000, 0x15a28000, orr_reg_t2);
-	register_opcode_mask(0xea400000, 0x15a18000, orr_reg_t2);
+	register_opcode_mask_ex(0xea400000, 0x15a08000, orr_reg_t2, 0x000f0000, 0x00000000, 0, 0);
 
 	// neg: 0100 0010 01<x's>
 	register_opcode_mask(0x4240, 0xffffbd80, neg);

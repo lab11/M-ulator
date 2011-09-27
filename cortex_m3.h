@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <limits.h>
 #include <assert.h>
 #include <errno.h>
@@ -114,6 +115,8 @@ uint8_t		last_in_ITblock(uint8_t itstate);
 // the instruction is considered a match
 int		register_opcode_mask(uint32_t ones_mask,
 		uint32_t zeros_mask, int (*fn) (uint32_t));
+int		register_opcode_mask_ex(uint32_t ones_mask,
+		uint32_t zeros_mask, int (*fn) (uint32_t), ...);
 /* TTTA: Why do you need to specify two masks?
  *
  *  _Hint:_ When could we consider hardware to be trinary instead of binary?
@@ -208,5 +211,10 @@ void		CORE_ERR_not_implemented(const char *opt_msg) __attribute__ ((noreturn));
 	register_opcode_mask_real((_o), (_z), (_f), __FILE__":"VAL2STR(_f))
 int		register_opcode_mask_real(uint32_t, uint32_t,
 		int (*fn) (uint32_t), const char *);
+#define register_opcode_mask_ex(_o, _z, _f, ...)\
+	register_opcode_mask_ex_real((_o), (_z),(_f),\
+			__FILE__":"VAL2STR(_f), __VA_ARGS__)
+int		register_opcode_mask_ex_real(uint32_t, uint32_t,
+		int (*fn) (uint32_t), const char*, ...);
 
 #endif // CORTEX_M3_H

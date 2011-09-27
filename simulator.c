@@ -3,6 +3,7 @@
 
 #include <netinet/in.h>
 
+#include <stdarg.h>
 #include <unistd.h>
 #include <time.h>
 #include <pthread.h>
@@ -661,45 +662,69 @@ struct op {
 	struct op *next;
 	uint32_t ones_mask;
 	uint32_t zeros_mask;
+	int ex_cnt;
+	uint32_t *ex_ones;
+	uint32_t *ex_zeros;
 	int (*fn) (uint32_t);
 	const char *name;
 };
 
 static struct op *ops = NULL;
 
-static struct op* find_op(uint32_t inst, uint8_t reorder) {
-	struct op *o = ops;
-	//printf("inst:\t%08x %08x\n", inst, inst);
+static struct op* _find_op(struct op* o, uint32_t inst) {
 	while (NULL != o) {
-		//printf("o:\t%08x %08x\n", o->ones_mask, o->zeros_mask);
 		if (
 				(o->ones_mask  == (o->ones_mask  & inst)) &&
 				(o->zeros_mask == (o->zeros_mask & ~inst))
 		   ) {
-			break;
+			// The mask matched, now verify there isn't an exception
+			int i;
+			bool exception = false;
+			for (i = 0; i < o->ex_cnt; i++) {
+				uint32_t ones_mask  = o->ex_ones[i];
+				uint32_t zeros_mask = o->ex_zeros[i];
+				if (
+						(ones_mask  == (ones_mask  & inst)) &&
+						(zeros_mask == (zeros_mask & ~inst))
+				   ) {
+					DBG2("Collision averted via exception\n");
+					exception = true;
+				}
+			}
+
+			if (!exception)
+				break;
 		}
 		o = o->next;
 	}
 
+	return o;
+}
+
+static struct op* find_op(uint32_t inst, bool reorder) {
+	struct op *o = ops;
+	o = _find_op(o, inst);
+
 	if (NULL != o) {
-		// Check for ambiguity
-		struct op* t = o->next;
+		// Check for ambiguity, and let's report all of them now
+		struct op* t = _find_op(o->next, inst);
+		bool ambiguous = false;
+
 		while (NULL != t) {
-			if (
-					(t->ones_mask  == (t->ones_mask  & inst)) &&
-					(t->zeros_mask == (t->zeros_mask & ~inst))
-			   ) {
-				WARN("Ambiguous instruction detected!\n");
-				WARN("Instruction %08x at PC %08x matches two masks:\n",
-						inst,
-						(inst & 0xffff0000) ? PC-4 : PC-2);
-				WARN("%s:\tones %08x zeros %08x\n", o->name,
-						o->ones_mask, o->zeros_mask);
-				WARN("%s:\tones %08x zeros %08x\n", t->name,
-						t->ones_mask, t->zeros_mask);
-				CORE_ERR_illegal_instr(inst);
-			}
-			t = t->next;
+			WARN("AMB\t%s:\tones %08x zeros %08x\n", t->name,
+					t->ones_mask, t->zeros_mask);
+			ambiguous = true;
+			t = _find_op(t->next, inst);
+		}
+
+		if (ambiguous) {
+			WARN("AMB\t%s:\tones %08x zeros %08x\n", o->name,
+					o->ones_mask, o->zeros_mask);
+			WARN("AMB\tAmbiguous instruction detected!\n");
+			WARN("Instruction %08x at PC %08x matched multiple masks\n",
+					inst,
+					(inst & 0xffff0000) ? PC-4 : PC-2);
+			CORE_ERR_illegal_instr(inst);
 		}
 	}
 
@@ -710,22 +735,67 @@ static struct op* find_op(uint32_t inst, uint8_t reorder) {
 	return o;
 }
 
-int register_opcode_mask_real(uint32_t ones_mask, uint32_t zeros_mask,
-		int (*fn) (uint32_t), const char* fn_name) {
+static int _register_opcode_mask(uint32_t ones_mask, uint32_t zeros_mask,
+		int (*fn) (uint32_t), const char* fn_name, va_list va_args) {
+	struct op *o = malloc(sizeof(struct op));
+
+	o->prev = NULL;
+	o->next = ops;		// ops is NULL on first pass, this is fine
+	o->ones_mask = ones_mask;
+	o->zeros_mask = zeros_mask;
+	o->fn = fn;
+	o->name = fn_name;
+
+	o->ex_cnt = 0;
+	o->ex_ones = NULL;
+	o->ex_zeros = NULL;
+
+	ones_mask  = va_arg(va_args, uint32_t);
+	zeros_mask = va_arg(va_args, uint32_t);
+	while (ones_mask || zeros_mask) {
+		// Make the assumption that callers will have one, at most
+		// two exceptions; go with the simple realloc scheme
+		int idx = o->ex_cnt;
+
+		o->ex_cnt++;
+		o->ex_ones  = realloc(o->ex_ones,  o->ex_cnt * sizeof(uint32_t));
+		o->ex_zeros = realloc(o->ex_zeros, o->ex_cnt * sizeof(uint32_t));
+
+		o->ex_ones[idx]  = ones_mask;
+		o->ex_zeros[idx] = zeros_mask;
+
+		ones_mask  = va_arg(va_args, uint32_t);
+		zeros_mask = va_arg(va_args, uint32_t);
+	}
+
+	// Add new element to list head b/c that's easy and it doesn't matter
+	if (NULL == ops) {
+		ops = o;
+	} else {
+		ops->prev = o;
+		ops = o;
+	}
+
+	va_end(va_args);
+
+	return ++opcode_masks;
+}
+
+int register_opcode_mask_ex_real(uint32_t ones_mask, uint32_t zeros_mask,
+		int (*fn) (uint32_t), const char* fn_name, ...) {
+
+	va_list va_args;
+	va_start(va_args, fn_name);
+
 	if (NULL == ops) {
 		// first registration
-		ops = malloc(sizeof(struct op));
-		ops->prev = NULL;
-		ops->next = NULL;
-		ops->ones_mask = ones_mask;
-		ops->zeros_mask = zeros_mask;
-		ops->fn = fn;
-		ops->name = fn_name;
-		return ++opcode_masks;
+		return _register_opcode_mask(ones_mask, zeros_mask,
+				fn, fn_name, va_args);
 	}
 
 	struct op* o = ops;
 
+	// XXX: Make better
 	while (NULL != o) {
 		if (
 				(o->ones_mask  == ones_mask) &&
@@ -743,18 +813,13 @@ int register_opcode_mask_real(uint32_t ones_mask, uint32_t zeros_mask,
 				, o->zeros_mask, zeros_mask, o->name);
 	}
 
-	// Add new element to list head b/c that's easy and it doesn't matter
-	o = malloc(sizeof(struct op));
-	o->prev = NULL;
-	o->next = ops;
-	o->ones_mask = ones_mask;
-	o->zeros_mask = zeros_mask;
-	o->fn = fn;
-	o->name = fn_name;
-	ops->prev = o;
-	ops = o;
+	return _register_opcode_mask(ones_mask, zeros_mask, fn, fn_name, va_args);
+}
 
-	return ++opcode_masks;
+int register_opcode_mask_real(uint32_t ones_mask, uint32_t zeros_mask,
+		int (*fn) (uint32_t), const char* fn_name) {
+	return register_opcode_mask_ex_real(ones_mask, zeros_mask,
+			fn, fn_name, 0, 0);
 }
 
 static int sim_execute(void) {
