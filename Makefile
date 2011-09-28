@@ -1,7 +1,7 @@
 CFLAGS += -g3 -Wall -Wextra -Werror -Wno-type-limits -pthread -m32 -D_GNU_SOURCE -fno-strict-overflow
 LDFLAGS += -g3 -pthread -m32
 
-SIMFLAGS += --showledtoggles
+SIMFLAGS += --showledwrites
 
 ################################################################################
 ## DO NOT TOUCH ANYTHING BELOW THIS LINE

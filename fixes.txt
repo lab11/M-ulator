@@ -18,3 +18,7 @@ for this project now:
  * Get rid of the "cpsr" nonsense - it doesn't even exist in
    the M profile anyways (cpsr === apsr in M profile); don't
    confuse people with your own larger agenda
+
+ * simulator.o -> simulator.a
+     - Clean up simulator code in general and refactor into
+       multiple source files

@@ -121,9 +121,9 @@ static void usage_fail(int retcode) {
 \t-f, --flash FILE\n\
 \t\tFlash FILE into ROM before executing\n\
 \t\t(this file is likely somthing.bin)\n\
-\t-l, --showledtoggles\n\
-\t\tPrints a message every time the LEDs are written to\n\
-\t--polluartport "VAL2STR(POLL_UART_PORT)"\n\
+\t-l, --showledwrites\n\
+\t\tPrints LED state every time the LEDs are written to\n\
+\t-u, --polluartport "VAL2STR(POLL_UART_PORT)"\n\
 \t\tThe port number to communicate with the polled UART device\n\
 \t--usetestflash\n\
 \t\tInstead of reading a flash.mem, use a prebuilt internal\n\
@@ -163,7 +163,8 @@ static int poll_uart_client = -1;
 static char poll_uart_buffer[POLL_UART_BUFSIZE];
 static char *poll_uart_head = NULL;
 static char *poll_uart_tail = poll_uart_buffer;
-static const struct timespec poll_uart_baud_sleep = {0, NSECS_PER_SEC/POLL_UART_BAUD};
+static const struct timespec poll_uart_baud_sleep =\
+		{0, (NSECS_PER_SEC/POLL_UART_BAUD)*8};	// *8 bytes vs bits
 
 uint8_t poll_uart_status_read();
 void poll_uart_status_write();
@@ -180,7 +181,7 @@ static int raiseonerror = 1;
 static int printcycles = 0;
 static int raiseonerror = 0;
 #endif
-static int showledtoggles = 0;
+static int showledwrites = 0;
 static int dumpatpc = -1;
 static int dumpatcycle = -1;
 static int dumpallcycles = 0;
@@ -211,12 +212,11 @@ static uint32_t ram[RAMSIZE >> 2] = {0};
 #define ASSERT_VALID_REG(_r) assert(_r >= 0 && _r < 16)
 static uint32_t reg[16];
 
-#define SP	reg[SP_REG]
-#define LR	reg[LR_REG]
-#define PC	reg[PC_REG]
+#define SP	(reg[SP_REG])
+#define LR	(reg[LR_REG])
+#define PC	(reg[PC_REG])
 
 #ifdef A_PROFILE
-// XXX: Reset handler
 // (|= 0x0010) Start is user mode
 // (|= 0x0020) CPU only supports thumb (for now)
 static uint32_t apsr = 0x0030;
@@ -403,9 +403,15 @@ static void print_full_state(void) {
 	DIVIDERe;
 }
 
+// This needs to start splitting into multiple source files
+// project ease v. quality; added to fixes
+static int state_seek(int);
+
 static void shell(void) {
 	static char buf[100];
 
+	// protect <EOF> replay
+	buf[0] = '\0';
 	printf("> ");
 	fgets(buf, 100, stdin);
 
@@ -418,6 +424,26 @@ static void shell(void) {
 		case 'p':
 			sscanf(buf, "%*s %x", &dumpatpc);
 			return;
+
+		case 'r':
+		{
+			int ret;
+			int target;
+			ret = sscanf(buf, "%*s %d", &target);
+
+			if (-1 == ret)
+				target = cycle - 1;
+			else
+				assert(1 == ret);
+
+			if (target < 0) {
+				WARN("Ignoring seek to negative cycle\n");
+			} else {
+				state_seek(target);
+				print_full_state();
+			}
+			return shell();
+		}
 
 		case 'q':
 		case 't':
@@ -432,14 +458,16 @@ static void shell(void) {
 				dumpatpc = 0;
 				return;
 			}
-			// fall thru
+			// not 'cy' or 'co', fall thru
 
 		case 'h':
 		default:
 			printf(">> The following commands are recognized:\n");
 			printf("   <none>		Advance 1 cycle\n");
 			printf("   pc HEX_ADDR		Stop at pc\n");
-			printf("   cycle INT		Stop at cycle\n");
+			printf("   cycle INTEGER	Stop at cycle\n");
+			printf("   rewind [INTEGER]	Rewind to cycle\n");
+			printf("                        (back 1 cycle default\n");
 			printf("   continue		Continue\n");
 			printf("   terminate		Terminate Simulation\n");
 			return shell();
@@ -449,6 +477,143 @@ static void shell(void) {
 ////////////////////////////////////////////////////////////////////////////////
 // CORE
 ////////////////////////////////////////////////////////////////////////////////
+
+struct state_change {
+	struct state_change *prev;
+	struct state_change *next;
+
+	/* Holds changes made __during__ this cycle; there may be multiple
+	   list entries per cycle. Thus, to return to the beginning of a
+	   cycle n (e.g. before it had executed), the list must have traversed
+	   such that the list head reaches an entry of cycle less than n */
+	int cycle;
+	uint32_t *loc;
+	uint32_t prev_val;
+};
+
+static struct state_change state_start = {
+	.prev = NULL,
+	.next = NULL,
+	.cycle = -1,
+	.loc = NULL,
+	.prev_val = 0,
+};
+
+static struct state_change state_io_barrier_state;
+
+static struct state_change* state_head = &state_start;
+
+static void state_write(uint32_t *loc, uint32_t val) {
+	if (
+			(state_head == &state_io_barrier_state) &&
+			(state_head->cycle == cycle)
+	   ) {
+		// This write is in a barrier state, we can't rewind
+		// it anyways, so don't bother recording it
+		;
+	} else {
+		// Record:
+
+		struct state_change* s = malloc(sizeof(struct state_change));
+
+		// To write new state, we must be either executing the same cycle, or
+		// have advanced to the next cycle; o/w we lost synchronization somehow
+		assert((state_head->cycle == cycle) || ((state_head->cycle+1) == cycle));
+
+		DBG2("cycle: %08d\tloc %p val %08x\n", cycle, loc, val);
+
+		s->prev = state_head;
+		s->next = NULL;
+		s->cycle = cycle;
+		s->loc = loc;
+		s->prev_val = *loc;
+		state_head->next = s;
+		state_head = s;
+	}
+
+	// Now let's not forget to actually update the real state
+	*loc = val;
+}
+
+// Returns 0 on success
+// Returns >0 on tolerable error (e.g. seek past end)
+// Returns <0 on catastrophic error
+static int state_seek(int target_cycle) {
+	// This assertion relies on *something* being written every cycle,
+	// which should hold since the PC is written every cycle at least.
+	// However, if we ever go cycle-accurate, much of the state_seek
+	// logic will require a revisit
+	assert(state_head->cycle == cycle);
+
+	if (target_cycle > cycle) {
+		/* Could support replay easily if we hold a "new_val" field,
+		   but that's a little silly when re-executing instr's is
+		   equally easy; eh, code's here if I want it someday:
+
+		DBG2("seeking forward from %d to %d\n", cycle, target_cycle);
+		while (target_cycle > cycle) {
+			if (state_head->next == NULL) {
+				WARN("Request to seek to cycle %d failed\n",
+						target_cycle);
+				WARN("State is only known up to cycle %d\n",
+						state_head->cycle);
+				WARN("Simulator left at cycle %d\n", cycle);
+				return 1;
+			}
+
+			state_head = state_head->next;
+			*(state_head->loc) = state_head->val;
+			if (
+					(NULL == state_head->next) ||
+					(state_head->next->cycle > state_head->cycle)
+			   ) {
+				cycle++;
+			}
+		}
+
+		return 0;
+		*/
+		WARN("Request to seek into the future ignored\n");
+		return 1;
+	} else if (target_cycle == cycle) {
+		WARN("Request to seek to current cycle ignored\n");
+		return 1;
+	} else {
+		DBG2("seeking backward from %d to %d\n", cycle, target_cycle);
+		while (state_head->cycle > target_cycle) {
+			if (state_head == &state_io_barrier_state) {
+				WARN("Cannot rewind past I/O access\n");
+				WARN("Simulator left at cycle %08d\n", cycle);
+				return 1;
+			}
+
+			assert(NULL != state_head->prev);
+
+			DBG2("cycle: %d target: %d head: %d\n",
+					cycle, target_cycle, state_head->cycle);
+
+			DBG2("Resetting %p to %08x\n",
+					state_head->loc, state_head->prev_val);
+			*(state_head->loc) = state_head->prev_val;
+
+			state_head = state_head->prev;
+			free(state_head->next);
+			state_head->next = NULL;
+
+			cycle = state_head->cycle;
+		}
+
+		return 0;
+	}
+}
+
+static void state_io_barrier(void) {
+	// List behind this point is lost, but memory is cheap and this
+	// isn't permanent anyway
+	state_io_barrier_state.cycle = cycle;
+	state_head->next = &state_io_barrier_state;
+	state_head = state_head->next;
+}
 
 /* These are the functions called into by the student simulator project */
 
@@ -471,11 +636,11 @@ uint32_t CORE_reg_read(int r) {
 void CORE_reg_write(int r, uint32_t val) {
 	assert(r >= 0 && r < 16 && "CORE_reg_write");
 	if (r == PC_REG)
-		PC = val & 0xfffffffe;
+		state_write(&PC, val & 0xfffffffe);
 	else if (r == SP_REG)
-		SP = val & 0xfffffffc;
+		state_write(&SP, val & 0xfffffffc);
 	else
-		reg[r] = val;
+		state_write(&(reg[r]), val);
 	G_REG(WRITE, r);
 }
 
@@ -493,7 +658,7 @@ void CORE_cpsr_write(uint32_t val) {
 		DBG1("WARN update of reserved CPSR bits\n");
 	}
 #endif
-	CPSR = val;
+	state_write(&CPSR, val);
 	G_CPSR(WRITE);
 }
 
@@ -504,7 +669,7 @@ uint32_t CORE_ipsr_read(void) {
 }
 
 void CORE_ipsr_write(uint32_t val) {
-	IPSR = val;
+	state_write(&IPSR, val);
 	G_IPSR(WRITE);
 }
 
@@ -514,7 +679,7 @@ uint32_t CORE_epsr_read(void) {
 }
 
 void CORE_epsr_write(uint32_t val) {
-	EPSR = val;
+	state_write(&EPSR, val);
 	G_EPSR(WRITE);
 }
 #endif
@@ -550,7 +715,7 @@ void CORE_ram_write(uint32_t addr, uint32_t val) {
 	assert((addr >= RAMBOT) && (addr < RAMTOP) && "CORE_ram_write");
 #endif
 	if ((addr >= RAMBOT) && (addr < RAMTOP) && (0 == (addr & 0x3))) {
-		ram[ADDR_TO_IDX(addr, RAMBOT)] = val;
+		state_write(&ram[ADDR_TO_IDX(addr, RAMBOT)],val);
 		G_RAM(WRITE, addr);
 	} else {
 		CORE_ERR_invalid_addr(true, addr);
@@ -564,8 +729,8 @@ uint32_t CORE_red_led_read(void) {
 
 void CORE_red_led_write(uint32_t val) {
 	G_PERIPH(WRITE, LED, RED);
-	leds[RED] = val;
-	if (showledtoggles)
+	state_write(&leds[RED],val);
+	if (showledwrites)
 		print_leds_line();
 }
 
@@ -576,8 +741,8 @@ uint32_t CORE_grn_led_read(void) {
 
 void CORE_grn_led_write(uint32_t val) {
 	G_PERIPH(WRITE, LED, GRN);
-	leds[GRN] = val;
-	if (showledtoggles)
+	state_write(&leds[GRN],val);
+	if (showledwrites)
 		print_leds_line();
 }
 
@@ -588,24 +753,28 @@ uint32_t CORE_blu_led_read(void) {
 
 void CORE_blu_led_write(uint32_t val) {
 	G_PERIPH(WRITE, LED, BLU);
-	leds[BLU] = val;
-	if (showledtoggles)
+	state_write(&leds[BLU],val);
+	if (showledwrites)
 		print_leds_line();
 }
 
 uint8_t CORE_poll_uart_status_read() {
+	state_io_barrier();
 	return poll_uart_status_read();
 }
 
 void CORE_poll_uart_status_write(uint8_t val) {
+	state_io_barrier();
 	return poll_uart_status_write(val);
 }
 
 uint8_t CORE_poll_uart_rxdata_read() {
+	state_io_barrier();
 	return poll_uart_rxdata_read();
 }
 
 void CORE_poll_uart_txdata_write(uint8_t val) {
+	state_io_barrier();
 	return poll_uart_txdata_write(val);
 }
 
@@ -844,6 +1013,10 @@ static int sim_execute(void) {
 		exit(EXIT_SUCCESS);
 	}
 
+	// Now we're committed to starting the next cycle
+	cycle++;
+
+	// Instruction Fetch
 	if (T_BIT) {
 		DBG2("Reading thumb mode instruction\n");
 		inst = read_halfword(PC);
@@ -860,79 +1033,82 @@ static int sim_execute(void) {
 				// 32-bit thumb inst
 				DBG2("inst %04x is 32-bit\n", inst);
 
-				last_pc = PC;
-				PC += 2;
+				state_write(&last_pc, PC);
+				state_write(&PC, PC + 2);
 
 				inst <<= 16;
 				inst |= read_halfword(PC);
-				PC += 2;
+				state_write(&PC, PC + 2);
 				break;
 			}
 			default:
 				// 16-bit thumb inst
-				last_pc = PC;
-				PC += 2;
+				state_write(&last_pc, PC);
+				state_write(&PC, PC + 2);
 		}
 	} else {
+#ifdef M_PROFILE
 		CORE_ERR_not_implemented("This CPU conforms to the ARM-7M profile, which requires the T bit to always be set\n");
+#endif
 		DBG2("Reading arm mode instruction\n");
 		inst = read_word(PC);
 	}
 
+	// Instruction Decode
 	o = find_op(inst, true);
 	if (NULL == o) {
 		WARN("No handler registered for inst %x\n", inst);
 		CORE_ERR_illegal_instr(inst);
-	} else {
-		cycle++;
-		if (in_ITblock(ITSTATE)) {
-			int ret;
+	}
 
-			if (printcycles) {
-				DBG2("PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP\n");
-				printf("    P: %08d - 0x%08x : %04x\tITSTATE\n",
-						cycle, PC, inst);
-			}
+	// Execute
+	if (in_ITblock(ITSTATE)) {
+		int ret;
 
-			if (eval_cond(CPSR, (ITSTATE & 0xf0) >> 4)) {
-				ret = o->fn(inst);
-			} else {
-				DBG2("itstate skipped instruction\n");
-				//WARN("itstate skipped instruction\n");
-				ret = SUCCESS;
-			}
-
-			if (ret == SUCCESS) {
-				/*
-				ITAdvance()
-				if ITSTATE<2:0> == ‘000’ then
-					ITSTATE.IT = ‘00000000’;
-				else
-					ITSTATE.IT<4:0> = LSL(ITSTATE.IT<4:0>, 1);
-				*/
-				/*
-				if ((ITSTATE & 0x7) == 0) {
-					write_itstate(0);
-					DBG2("Left itstate\n");
-				} else {
-					uint8_t temp = ITSTATE & 0x0f; // yes 0f, not 1f
-					uint8_t itstate_t = ITSTATE;
-					itstate_t &= 0xe0;
-					itstate_t |= (temp << 1);
-					write_itstate(itstate_t);
-					DBG2("New itstate: %02x\n", ITSTATE);
-				}
-				*/
-				IT_advance(ITSTATE);
-			}
-
-			return ret;
-		} else {
-			if (printcycles)
-				printf("    P: %08d - 0x%08x : %04x (%s)\n",
-						cycle, PC, inst, o->name);
-			return o->fn(inst);
+		if (printcycles) {
+			DBG2("PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP\n");
+			printf("    P: %08d - 0x%08x : %04x\tITSTATE\n",
+					cycle, PC, inst);
 		}
+
+		if (eval_cond(CPSR, (ITSTATE & 0xf0) >> 4)) {
+			ret = o->fn(inst);
+		} else {
+			DBG2("itstate skipped instruction\n");
+			//WARN("itstate skipped instruction\n");
+			ret = SUCCESS;
+		}
+
+		if (ret == SUCCESS) {
+			/*
+			ITAdvance()
+			if ITSTATE<2:0> == ‘000’ then
+				ITSTATE.IT = ‘00000000’;
+			else
+				ITSTATE.IT<4:0> = LSL(ITSTATE.IT<4:0>, 1);
+			*/
+			/*
+			if ((ITSTATE & 0x7) == 0) {
+				write_itstate(0);
+				DBG2("Left itstate\n");
+			} else {
+				uint8_t temp = ITSTATE & 0x0f; // yes 0f, not 1f
+				uint8_t itstate_t = ITSTATE;
+				itstate_t &= 0xe0;
+				itstate_t |= (temp << 1);
+				write_itstate(itstate_t);
+				DBG2("New itstate: %02x\n", ITSTATE);
+			}
+			*/
+			IT_advance(ITSTATE);
+		}
+
+		return ret;
+	} else {
+		if (printcycles)
+			printf("    P: %08d - 0x%08x : %04x (%s)\n",
+					cycle, PC, inst, o->name);
+		return o->fn(inst);
 	}
 }
 
@@ -1013,8 +1189,8 @@ int main(int argc, char **argv) {
 			{"raiseonerror",  no_argument,       &raiseonerror,  'e'},
 			{"returnr0",      no_argument,       &returnr0,      'r'},
 			{"flash",         required_argument, 0,              'f'},
-			{"showledtoggles",no_argument,       &showledtoggles,'l'},
-			{"polluartport",  required_argument, 0,              0},
+			{"showledwrites", no_argument,       &showledwrites, 'l'},
+			{"polluartport",  required_argument, 0,              'u'},
 			{"usetestflash",  no_argument,       &usetestflash,  1},
 			{"help",          no_argument,       0,              '?'},
 			{0,0,0,0}
@@ -1022,7 +1198,7 @@ int main(int argc, char **argv) {
 		int option_index = 0;
 		int c;
 
-		c = getopt_long(argc, argv, "c:y:dpserf:l?", long_options,
+		c = getopt_long(argc, argv, "c:y:dpserf:lu:?", long_options,
 				&option_index);
 
 		if (c == -1) break;
@@ -1071,7 +1247,11 @@ int main(int argc, char **argv) {
 				break;
 
 			case 'l':
-				showledtoggles = true;
+				showledwrites = true;
+				break;
+
+			case 'u':
+				polluartport = atoi(optarg);
 				break;
 
 			case '?':
