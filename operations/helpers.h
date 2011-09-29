@@ -5,4 +5,6 @@
 
 int hamming(uint32_t val);
 
+uint32_t SignExtend(uint32_t val, uint8_t bits);
+
 #endif // __HELPERS_H

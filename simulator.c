@@ -64,19 +64,39 @@
 #define LED  "leds"
 #define UART "uart"
 
-#define G_REG(_rw, _reg) printf("G~G E: "); \
-	printf("%c %02d %x\n", _rw ? 'w':'r', _reg, reg[_reg]);
-#define G_CPSR(_rw) printf("G~G C: "); \
-	printf("%c %d %d %d %d %08x\n", _rw ? 'w':'r',\
-			!!(CPSR & 0x80000000),\
-			!!(CPSR & 0x40000000),\
-			!!(CPSR & 0x20000000),\
-			!!(CPSR & 0x10000000),\
-			(CPSR));
-#define G_IPSR(_rw) printf("G~G I: "); \
-	printf("%c %x\n", _rw ? 'w':'r', IPSR);
-#define G_EPSR(_rw) printf("G~G E: "); \
-	printf("%c %x\n", _rw ? 'w':'r', EPSR);
+#define G_REG(_rw, _reg)\
+	do {\
+		if (_rw) {\
+			printf("G~G G: "); \
+			printf("%c %02d %x\n", _rw ? 'w':'r', _reg, reg[_reg]);\
+		}\
+	} while (0)
+#define G_CPSR(_rw)\
+	do {\
+		if (_rw) {\
+			printf("G~G C: "); \
+			printf("%c %d %d %d %d %08x\n", _rw ? 'w':'r',\
+					!!(CPSR & 0x80000000),\
+					!!(CPSR & 0x40000000),\
+					!!(CPSR & 0x20000000),\
+					!!(CPSR & 0x10000000),\
+					(CPSR));\
+		}\
+	} while (0)
+#define G_IPSR(_rw)\
+	do {\
+		if (_rw) {\
+			printf("G~G I: "); \
+			printf("%c %x\n", _rw ? 'w':'r', IPSR);\
+		}\
+	} while (0)
+#define G_EPSR(_rw)\
+	do {\
+		if (_rw) {\
+			printf("G~G E: "); \
+			printf("%c %x\n", _rw ? 'w':'r', EPSR);\
+		}\
+	} while (0)
 #define G_ROM(_rw, _addr) printf("G~G O: "); \
 	printf("%c %08x %x\n", _rw ? 'w':'r',\
 			_addr, rom[ADDR_TO_IDX(_addr, ROMBOT)]);
@@ -996,6 +1016,7 @@ static int sim_execute(void) {
 	struct op *o;
 
 	static uint32_t last_pc;
+	static uint32_t was_16 = false; // bool, but eases state tracking
 
 	if (slowsim) {
 		static struct timespec s = {0, NSECS_PER_SEC/10};
@@ -1018,6 +1039,13 @@ static int sim_execute(void) {
 
 	// Instruction Fetch
 	if (T_BIT) {
+		if (was_16) {
+			// do NOT correct PC if we've branched here
+			if (last_pc == (PC - 4)) {
+				state_write(&PC, PC - 2);
+			}
+		}
+
 		DBG2("Reading thumb mode instruction\n");
 		inst = read_halfword(PC);
 
@@ -1039,12 +1067,19 @@ static int sim_execute(void) {
 				inst <<= 16;
 				inst |= read_halfword(PC);
 				state_write(&PC, PC + 2);
+				state_write(&was_16, false);
 				break;
 			}
 			default:
 				// 16-bit thumb inst
 				state_write(&last_pc, PC);
 				state_write(&PC, PC + 2);
+
+				// yeesh... read A5.1.2 p153 *carefully*
+				// use of 0b1111 as a register specifier
+				// reading PC must *always* return inst addr + 4
+				state_write(&PC, PC + 2);
+				state_write(&was_16, true);
 		}
 	} else {
 #ifdef M_PROFILE
@@ -1063,10 +1098,13 @@ static int sim_execute(void) {
 
 	// Execute
 	if (in_ITblock(ITSTATE)) {
+		// XXX: if we ever go cycle-accurate (or even bus-accurate) this
+		// check should go earlier, if we aren't going to execture this
+		// instruction we shouldn't even fetch it
 		int ret;
 
 		if (printcycles) {
-			DBG2("PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP\n");
+			DBG2("PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP\n");
 			printf("    P: %08d - 0x%08x : %04x\tITSTATE\n",
 					cycle, PC, inst);
 		}

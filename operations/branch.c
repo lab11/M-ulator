@@ -1,5 +1,6 @@
 #include "../cortex_m3.h"
 #include "cpsr.h"
+#include "helpers.h"
 
 int b1(uint32_t inst) {
 	uint8_t cond = (inst & 0xf00) >> 8;
@@ -107,8 +108,14 @@ void BranchTo(uint32_t address) {
 
 void BranchWritePC(uint32_t address) {
 	if (GET_ISETSTATE == INST_SET_ARM) {
+#ifdef M_PROFILE
+		assert(false && "Arm state in M profile?");
+#endif
 		BranchTo(address & 0xfffffffc);
 	} else if (GET_ISETSTATE == INST_SET_JAZELLE) {
+#ifdef M_PROFILE
+		assert(false && "Jazelle state in M profile?");
+#endif
 		CORE_ERR_not_implemented("Jazelle\n");
 	} else {
 		BranchTo(address & 0xfffffffe);
@@ -141,6 +148,48 @@ void SelectInstrSet(uint8_t iset) {
 			CORE_ERR_unpredictable("Unknown iset\n");
 			break;
 	}
+}
+
+int b(uint8_t cond, uint32_t imm32) {
+	if (eval_cond(CORE_cpsr_read(), cond)) {
+		uint32_t pc = CORE_reg_read(PC_REG);
+		BranchWritePC(pc + imm32);
+		DBG2("b taken old pc %08x new pc %08x\n",
+				pc, CORE_reg_read(PC_REG));
+	} else {
+		DBG2("b <not taken>\n");
+	}
+
+	return SUCCESS;
+}
+
+int b_t1(uint32_t inst) {
+	uint8_t imm8 = (inst & 0xff);
+	uint8_t cond = (inst & 0xf00) >> 8;
+
+	if (cond == 0xe)
+		CORE_ERR_unpredictable("b_t1 UNDEFINED\n");
+
+	uint32_t imm32 = SignExtend(imm8 << 1, 9);
+
+	DBG2("PC: %08x, imm32: %08x\n",
+			CORE_reg_read(PC_REG), imm32);
+
+	if (in_ITblock(ITSTATE))
+		CORE_ERR_unpredictable("b_t1 UNPREDICTABLE\n");
+
+	return b(cond, imm32);
+}
+
+int b_t2(uint32_t inst) {
+	uint16_t imm11 = (inst & 0x7ff);
+
+	uint32_t imm32 = SignExtend(imm11 << 1, 12);
+
+	if (in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
+		CORE_ERR_unpredictable("b_t2 in it block\n");
+
+	return b(0xf, imm32);
 }
 
 int bl_blx(uint32_t pc, uint8_t targetInstrSet, uint32_t imm32) {
@@ -237,6 +286,32 @@ int bl_t2(uint32_t inst) {
 	return bl_blx(CORE_reg_read(PC_REG), INST_SET_ARM, imm32);
 }
 
+void BXWritePC(uint32_t addr) {
+	// XXX: Mode handler / Exception stuff
+
+	SET_THUMB_BIT(addr & 0x1);
+
+	BranchTo(addr & 0xfffffffe);
+}
+
+int bx(uint8_t rm) {
+	BXWritePC(CORE_reg_read(rm));
+
+	DBG2("bx happened\n");
+
+	return SUCCESS;
+}
+
+int bx_t1(uint32_t inst) {
+	uint8_t rm = (inst & 0x78) >> 3;
+
+	if (in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
+		CORE_ERR_unpredictable("bx_t1 in it block\n");
+
+	return bx(rm);
+}
+
+/* ARMv6
 int bx(uint32_t inst) {
 	uint8_t rm = (inst & 0x78) >> 3;
 	uint32_t target = CORE_reg_read(rm);
@@ -259,11 +334,15 @@ int bx(uint32_t inst) {
 
 	return SUCCESS;
 }
+*/
 
 void register_opcodes_branch(void) {
+	/*
 	// b1: 1101 <x's>
 	register_opcode_mask(0xd000, 0xffff2000, b1);
+	*/
 
+	/*
 	// b2: 1110 0<x's>
 	register_opcode_mask(0xe000, 0xffff1800, b2);
 
@@ -277,6 +356,14 @@ void register_opcodes_branch(void) {
 	register_opcode_mask(0xf000, 0xffff0000, bl);
 	// 1110 1<x's>
 	register_opcode_mask(0xe800, 0xffff1000, blx);
+	*/
+
+	// b_t1: 1101 <x's>
+	//   ex: xxxx 1111 <x's>
+	register_opcode_mask_ex(0xd000, 0xffff2000, b_t1, 0x0f00, 0x0, 0, 0);
+
+	// b_t2: 1110 0<x's>
+	register_opcode_mask(0xe000, 0xffff1800, b_t2);
 
 	// bl_t1: 1111 0xxx xxxx xxxx 11x1 <x's>
 	register_opcode_mask(0xf000d000, 0x08000000, bl_t1);
@@ -284,6 +371,11 @@ void register_opcodes_branch(void) {
 	// bl_t2: 1111 0xxx xxxx xxxx 11x0 <x's>
 	register_opcode_mask(0xf000c000, 0x08001000, bl_t2);
 
+	// bx_t1: 0100 0111 0xxx x000
+	register_opcode_mask(0x4700, 0xffffb887, bx_t1);
+
+	/*
 	// bx: 0100 0111 0<x's>
 	register_opcode_mask(0x4700, 0xffffb800, bx);
+	*/
 }

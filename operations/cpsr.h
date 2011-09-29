@@ -97,13 +97,15 @@ void ThumbExpandImm_C(uint16_t imm12, uint8_t carry_in, uint32_t *imm32, uint8_t
 #define ITSTATE			( (((CORE_epsr_read()) & 0xfc00) >> 8) | (((CORE_epsr_read()) & 0x06000000) >> 25) )
 
 #define THUMB_BIT		(0x01000000)
-#define GET_THUMB_BIT		(!!(cpsr & THUMB_BIT))
+#define GET_THUMB_BIT		(!!(epsr & THUMB_BIT))
 #define SET_THUMB_BIT(_t) \
 	do {\
+		uint32_t epsr = CORE_epsr_read();\
 		if (_t)\
-			cpsr |= THUMB_BIT;\
+			epsr |= THUMB_BIT;\
 		else\
-			cpsr &= ~THUMB_BIT;\
+			epsr &= ~THUMB_BIT;\
+		CORE_epsr_write(epsr);\
 	} while (0)
 #define SET_ISETSTATE(_i) // NOP for M profile
 #define GET_ISETSTATE	INST_SET_THUMB

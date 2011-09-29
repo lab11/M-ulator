@@ -45,7 +45,7 @@ int ldr3(uint32_t inst) {
 	uint32_t pc = CORE_reg_read(PC_REG);
 	uint32_t address;
 
-	address = (pc & 0xfffffffe) + (immed8 * 4) + 2; // PC_HACK
+	address = (pc & 0xfffffffe) + (immed8 * 4);
 	CORE_reg_write(rd, read_word(address));
 
 	DBG2("ldr3 r%02d, [PC, #%d*4]\n", rd, immed8);

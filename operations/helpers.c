@@ -10,3 +10,12 @@ int hamming(uint32_t val) {
 	return hamm;
 }
 
+uint32_t SignExtend(uint32_t val, uint8_t bits) {
+	assert((bits > 0) && (bits < 32));
+
+	if ((val & (1 << (bits-1))) > 0) {
+		val |= (0xffffffff << bits);
+	}
+
+	return val;
+}
