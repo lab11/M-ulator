@@ -24,3 +24,5 @@ for this project now:
        multiple source files
 
  * Make implementing some of the pseudocode an assignment
+
+ * register_opcode_mask_[16|32] functions, seriously, wow...
