@@ -209,7 +209,7 @@ void register_opcodes_mov(void) {
 	register_opcode_mask(0xf2400000, 0x09b08000, mov_imm_t3);
 
 	// mov_reg_t1: 0100 0110 <x's>
-	register_opcode_mask(0x4600, 0xb900, mov_reg_t1);
+	register_opcode_mask(0x4600, 0xffffb900, mov_reg_t1);
 
 	// movt_t1: 1111 0x10 1100 xxxx 0<x's>
 	register_opcode_mask(0xf2c00000, 0x09308000, movt_t1);

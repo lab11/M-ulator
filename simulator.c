@@ -976,6 +976,12 @@ int register_opcode_mask_ex_real(uint32_t ones_mask, uint32_t zeros_mask,
 	va_list va_args;
 	va_start(va_args, fn_name);
 
+	if ((zeros_mask & 0xffff0000) == 0) {
+		WARN("%s registered zeros_mask requiring none of the top 4 bytes\n",
+				fn_name);
+		WARN("This is __probably__ an error, you should verify this\n");
+	}
+
 	if (NULL == ops) {
 		// first registration
 		return _register_opcode_mask(ones_mask, zeros_mask,

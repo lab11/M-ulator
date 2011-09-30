@@ -19,5 +19,5 @@ void register_opcodes_it(void) {
 	// The only instr we need to match now is bf03
 	//register_opcode_mask(0xbf03, 0xffff40fc, it);
 	// 1011 1111 <x's>
-	register_opcode_mask(0xbf00, 0x4000, it);
+	register_opcode_mask(0xbf00, 0xffff4000, it);
 }

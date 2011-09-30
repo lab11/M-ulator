@@ -22,3 +22,5 @@ for this project now:
  * simulator.o -> simulator.a
      - Clean up simulator code in general and refactor into
        multiple source files
+
+ * Make implementing some of the pseudocode an assignment
