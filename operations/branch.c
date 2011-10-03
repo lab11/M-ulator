@@ -102,26 +102,6 @@ int blx(uint32_t inst __attribute__ ((unused))) {
 	CORE_ERR_not_implemented("blx");
 }
 
-void BranchTo(uint32_t address) {
-	CORE_reg_write(PC_REG, address);
-}
-
-void BranchWritePC(uint32_t address) {
-	if (GET_ISETSTATE == INST_SET_ARM) {
-#ifdef M_PROFILE
-		assert(false && "Arm state in M profile?");
-#endif
-		BranchTo(address & 0xfffffffc);
-	} else if (GET_ISETSTATE == INST_SET_JAZELLE) {
-#ifdef M_PROFILE
-		assert(false && "Jazelle state in M profile?");
-#endif
-		CORE_ERR_not_implemented("Jazelle\n");
-	} else {
-		BranchTo(address & 0xfffffffe);
-	}
-}
-
 void SelectInstrSet(uint8_t iset) {
 	switch (iset) {
 		case INST_SET_ARM:
@@ -284,14 +264,6 @@ int bl_t2(uint32_t inst) {
 		CORE_ERR_unpredictable("bl_t2 in itstate, not ending\n");
 
 	return bl_blx(CORE_reg_read(PC_REG), INST_SET_ARM, imm32);
-}
-
-void BXWritePC(uint32_t addr) {
-	// XXX: Mode handler / Exception stuff
-
-	SET_THUMB_BIT(addr & 0x1);
-
-	BranchTo(addr & 0xfffffffe);
 }
 
 int bx(uint8_t rm) {

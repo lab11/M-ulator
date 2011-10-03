@@ -34,3 +34,5 @@ for this project now:
  * Be explicit about toolchain expectations
    - Yes, you should try to figure this out on your own
    - If you don't have it working by the checkpoint... bad, bad student!
+
+ * static in all of operations/*
