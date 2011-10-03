@@ -217,4 +217,23 @@ int		register_opcode_mask_real(uint32_t, uint32_t,
 int		register_opcode_mask_ex_real(uint32_t, uint32_t,
 		int (*fn) (uint32_t), const char*, ...);
 
+#define CORE_ERR_invalid_addr(_w, _a)\
+	CORE_ERR_invalid_addr_real(__FILE__, __LINE__, (_w), (_a))
+void		CORE_ERR_invalid_addr_real(const char*, int, uint8_t, uint32_t) __attribute__ ((noreturn));
+
+#define CORE_ERR_illegal_instr(_i)\
+	CORE_ERR_illegal_instr_real(__FILE__, __LINE__, (_i))
+void		CORE_ERR_illegal_instr_real(const char*, int, uint32_t) __attribute__ ((noreturn));
+
+#define CORE_ERR_illegal_line(_l)\
+	CORE_ERR_illegal_line_real(__FILE__, __LINE__, (_l))
+void		CORE_ERR_illegal_line_real(const char*, int, const char *) __attribute__ ((noreturn));
+
+#define CORE_ERR_unpredictable(_o)\
+	CORE_ERR_unpredictable_real(__FILE__, __LINE__, (_o))
+void		CORE_ERR_unpredictable_real(const char*, int, const char *) __attribute__ ((noreturn));
+
+#define CORE_ERR_not_implemented(_o)\
+	CORE_ERR_not_implemented_real(__FILE__, __LINE__, (_o))
+void		CORE_ERR_not_implemented_real(const char*, int, const char *) __attribute__ ((noreturn));
 #endif // CORTEX_M3_H

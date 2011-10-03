@@ -26,3 +26,11 @@ for this project now:
  * Make implementing some of the pseudocode an assignment
 
  * register_opcode_mask_[16|32] functions, seriously, wow...
+
+ * Explicit warning against (I mean really, this is even necessary?):
+     /* TODO: implement this */
+     return SUCCESS;
+
+ * Be explicit about toolchain expectations
+   - Yes, you should try to figure this out on your own
+   - If you don't have it working by the checkpoint... bad, bad student!

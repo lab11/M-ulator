@@ -798,34 +798,34 @@ void CORE_poll_uart_txdata_write(uint8_t val) {
 	return poll_uart_txdata_write(val);
 }
 
-void CORE_ERR_invalid_addr(uint8_t is_write, uint32_t addr) {
+void CORE_ERR_invalid_addr_real(const char *f, int l, uint8_t is_write, uint32_t addr) {
 	WARN("CORE_ERR_invalid_addr %s address: %08x\n",
 			is_write ? "writing":"reading", addr);
 	WARN("Dumping Core...\n");
 	print_full_state();
-	ERR(E_INVALID_ADDR, "Terminating due to invalid addr\n");
+	ERR(E_INVALID_ADDR, "%s:%d\tTerminating due to invalid addr\n", f, l);
 }
 
-void CORE_ERR_illegal_instr(uint32_t inst) {
+void CORE_ERR_illegal_instr_real(const char *f, int l, uint32_t inst) {
 	WARN("CORE_ERR_illegal_instr, inst: %04x\n", inst);
 	WARN("Dumping core...\n");
 	print_full_state();
-	ERR(E_UNKNOWN, "Unknown inst\n");
+	ERR(E_UNKNOWN, "%s:%d\tUnknown inst\n", f, l);
 }
 
-void CORE_ERR_illegal_line(const char *line) {
+void CORE_ERR_illegal_line_real(const char* f, int l, const char *line) {
 	WARN("CORE_ERR_illegal_line: %s\n", line);
 	WARN("Dumping core...\n");
 	print_full_state();
-	ERR(E_UNKNOWN, "This is a bug in your simulator.\n");
+	ERR(E_UNKNOWN, "%s:%d\tThis is a bug in your simulator.\n", f, l);
 }
 
-void CORE_ERR_unpredictable(const char *opt_msg) {
-	ERR(E_UNPREDICTABLE, "CORE_ERR_unpredictable -- %s\n", opt_msg);
+void CORE_ERR_unpredictable_real(const char *f, int l, const char *opt_msg) {
+	ERR(E_UNPREDICTABLE, "%s:%d\tCORE_ERR_unpredictable -- %s\n", f, l, opt_msg);
 }
 
-void CORE_ERR_not_implemented(const char *opt_msg) {
-	ERR(E_NOT_IMPLEMENTED, "CORE_ERR_not_implemented -- %s\n", opt_msg);
+void CORE_ERR_not_implemented_real(const char *f, int l, const char *opt_msg) {
+	ERR(E_NOT_IMPLEMENTED, "%s:%d\tCORE_ERR_not_implemented -- %s\n", f, l, opt_msg);
 }
 
 
@@ -948,7 +948,9 @@ static int _register_opcode_mask(uint32_t ones_mask, uint32_t zeros_mask,
 
 		o->ex_cnt++;
 		o->ex_ones  = realloc(o->ex_ones,  o->ex_cnt * sizeof(uint32_t));
+		assert(NULL != o->ex_ones && "realloc");
 		o->ex_zeros = realloc(o->ex_zeros, o->ex_cnt * sizeof(uint32_t));
+		assert(NULL != o->ex_zeros && "realloc");
 
 		o->ex_ones[idx]  = ones_mask;
 		o->ex_zeros[idx] = zeros_mask;
@@ -1109,16 +1111,19 @@ static int sim_execute(void) {
 		// instruction we shouldn't even fetch it
 		int ret;
 
-		if (printcycles) {
-			DBG2("PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP\n");
-			printf("    P: %08d - 0x%08x : %04x\tITSTATE\n",
-					cycle, PC, inst);
-		}
-
 		if (eval_cond(CPSR, (ITSTATE & 0xf0) >> 4)) {
+			if (printcycles) {
+				printf("    P: %08d - 0x%08x : %04x (%s)\t%s\n",
+						cycle, PC, inst, o->name,
+						"ITSTATE {executed}");
+			}
 			ret = o->fn(inst);
 		} else {
-			DBG2("itstate skipped instruction\n");
+			if (printcycles) {
+				printf("    P: %08d - 0x%08x : %04x (%s)\t%s\n",
+						cycle, PC, inst, o->name,
+						"ITSTATE {skipped}");
+			}
 			//WARN("itstate skipped instruction\n");
 			ret = SUCCESS;
 		}
