@@ -57,23 +57,6 @@ programs/%:
 
 .PHONY: programs
 
-###############
-# Documentation
-
-README.pdf:	README.tex
-	pdflatex README.tex
-	pdflatex README.tex
-
-doc:	README.pdf
-
-clean-doc:
-	rm -f README.log README.aux README.out
-
-clean-doc-all: clean-doc
-	rm -f README.pdf
-
-.PHONY: doc clean-doc clean-doc-all
-
 #########
 # Testing
 
@@ -118,8 +101,8 @@ trivialPrintf: simulator
 #####
 # Etc
 
-clean:	clean-doc clean-simulator programs/clean
+clean:	clean-simulator programs/clean
 
-clean-all: clean-doc-all clean-simulator-all programs/clean-all
+clean-all: clean-simulator-all programs/clean-all
 
 .PHONY: clean clean-all
