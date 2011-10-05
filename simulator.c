@@ -11,30 +11,10 @@
 #include <getopt.h>
 #include <signal.h>
 
-#include "cortex_m3.h"		// defines M_PROFILE
-#include "operations/opcodes.h"
-
-/////////////
-// PROFILE //
-/////////////
-
-// In my dreams, this could ultimately grow to
-// support A, R, or M profile processors. That's
-// a long way out in reality, but let's make some
-// effort to codify some differences as we go
-
-#if defined (M_PROFILE)
-#if defined (R_PROFILE)
-#error "Must choose one of M or R profiles, not both"
-#endif // R
-#if defined (A_PROFILE)
-#error "Must choose one of M or A profiles, not both"
-#endif // A
-#endif // M
-#if defined (R_PROFILE) && defined (A_PROFILE)
-#error "Must choose one of R or A profiles, not both"
-#endif // R && A
-
+#include "simulator.h"
+#include "cpu/core.h"
+#include "cpu/misc.h"
+#include "cpu/operations/opcodes.h"
 
 /////////////////////////
 // PRETTY PRINT MACROS //

@@ -1,20 +1,18 @@
-CFLAGS += -g3 -Wall -Wextra -Werror -Wno-type-limits -pthread -m32 -D_GNU_SOURCE -fno-strict-overflow
-LDFLAGS += -g3 -pthread -m32
-
 SIMFLAGS += --showledwrites
 
 ################################################################################
 ## DO NOT TOUCH ANYTHING BELOW THIS LINE
 ################################################################################
 
+LEVEL = .
+
 #################
 # Default Targets
 
 all:	simulator programs
 
-
 ###########
-# Simulator
+# Debugging
 
 $(warning)
 
@@ -31,20 +29,35 @@ ifeq ($(debug), 2)
 	SIMFLAGS += --printcycles --dumpatcycle 1
 endif
 
-OP_CFILES = $(wildcard operations/*.c)
-OP_OBJS   = $(patsubst operations/%.c,operations/%.o,$(OP_CFILES))
+###########
+# Simulator
 
-operations/%.o:	operations/%.c operations/opcodes.h cortex_m3.h
+CPU_OBJS += $(patsubst %.c,%.o,$(wildcard cpu/*.c))
+CPU_OBJS += $(patsubst %.c,%.o,$(wildcard cpu/operations/*.c))
 
-simulator:	$(OP_OBJS) simulator.o core.o misc.o cortex_m3.h
+#simulator:	$(CPU_OBJS) simulator.o
+simulator:	cpu simulator.o
+	$(CC) $(LDFLAGS) $(CPU_OBJS) simulator.o -o $@
 
 clean-simulator:
-	rm -f *.o operations/*.o simulator
+	rm -f simulator
+	rm -f simulator.o
 
 clean-simulator-all: clean-simulator
 	rm -f flash.mem
 
 .PHONY: all clean-simulator clean-simulator-all
+
+#####
+# CPU
+
+cpu:
+	$(MAKE) -C cpu
+
+cpu/%:
+	$(MAKE) $* -C cpu
+
+.PHONY: cpu
 
 ##########
 # Programs
@@ -101,8 +114,10 @@ trivialPrintf: simulator
 #####
 # Etc
 
-clean:	clean-simulator programs/clean
+clean:	clean-simulator cpu/clean programs/clean
 
-clean-all: clean-simulator-all programs/clean-all
+clean-all: clean-simulator-all cpu/clean-all programs/clean-all
 
 .PHONY: clean clean-all
+
+include $(LEVEL)/Makefile.common.host

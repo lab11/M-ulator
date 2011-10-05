@@ -12,4 +12,4 @@ clean-all: clean
 
 .PHONY: clean clean-all
 
-include $(LEVEL)/Makefile.common
+include $(LEVEL)/Makefile.common.target

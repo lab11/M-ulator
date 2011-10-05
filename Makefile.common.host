@@ -1,0 +1,46 @@
+# Define simulator profile, A_PROFILE, R_PROFILE, or M_PROFILE
+CFLAGS += -DM_PROFILE
+
+# Lots of debugging!
+CFLAGS += -g3
+
+########################################################
+## Hacking around the ancient software supplied by CAEN:
+##
+## Feel free to edit / update this as needed
+
+GCC_MAJOR    := $(shell $(CC) -v 2>&1 | \
+	grep " version " | cut -d' ' -f3  | cut -d'.' -f1)
+GCC_MINOR    := $(shell $(CC) -v 2>&1 | \
+	grep " version " | cut -d' ' -f3  | cut -d'.' -f2)
+
+ifneq ($(GCC_MAJOR), 4)
+	$(error "gcc version 4.x required")
+endif
+
+ifeq ($(GCC_MINOR), 1)
+$(info )
+$(info *****************************************************)
+$(info * Many compiler checks unavailable on CAEN gcc;     *)
+$(info * mostly since it is from 2007: gcc.gnu.org/gcc-4.1 *)
+$(info * Consider building on a newer machine instead      *)
+$(info *****************************************************)
+$(info )
+endif
+
+ifneq (,$(findstring $(GCC_MINOR),4-5))
+# Be strict on warnings
+CFLAGS += -Wall -Wextra -Werror
+
+# Except for some weaknesses of gcc
+CFLAGS += -Wno-type-limits
+
+# And watch out for optimizations
+CFLAGS += -fno-strict-overflow
+endif
+
+# The other necessary cruft:
+CFLAGS += -pthread -m32 -D_GNU_SOURCE
+
+# Aaaannnnddd... the linker:
+LDFLAGS += -g3 -pthread -m32
