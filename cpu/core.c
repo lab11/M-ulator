@@ -2,6 +2,7 @@
 
 #include "memmap.h"
 #include "cpu.h"
+#include "led_interface.h"
 #include "bus_interface.h"
 #include "pins.h"
 

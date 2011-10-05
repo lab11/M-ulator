@@ -12,8 +12,11 @@ Requires PROG to be a full path to bin (e.g. programs/blink.bin)
 
 If PROG does not exist, the script will attempt to 'make PROG'
 EOF
+popd
 exit
 }
+
+pushd ../
 
 if [ -z "$1" ] || [ -z "$2" ]; then
 	usage
@@ -24,6 +27,7 @@ if [ ! -e $1 ]; then
 fi
 if [ ! -e $1 ]; then
 	echo "ERR: Could not find or make $1"
+	popd
 	exit 1
 fi
 
@@ -32,6 +36,7 @@ if [ ! -e $2 ]; then
 fi
 if [ ! -e $2 ]; then
 	echo "ERR: Could not find or make $2"
+	popd
 	exit 1
 fi
 
@@ -40,6 +45,7 @@ if [ ! -x simulator ]; then
 fi
 if [ ! -x simulator ]; then
 	echo "ERR: Could not find or make simulator binary"
+	popd
 	exit 1
 fi
 
@@ -61,3 +67,5 @@ echo "`comm -13 $inst1 $inst2|wc -l` total"
 
 rm -f $inst1
 rm -f $inst2
+
+popd
