@@ -17,16 +17,16 @@ all:	simulator programs
 $(warning)
 
 ifeq ($(debug), 1)
-	CFLAGS += -DDEBUG1
-	SIMFLAGS += --printcycles
+CFLAGS += -DDEBUG1
+SIMFLAGS += --printcycles
 endif
 
 # WTF? w/out empty warning make isn't picking up debug??
 $(warning)
 
 ifeq ($(debug), 2)
-	CFLAGS += -DDEBUG1 -DDEBUG2
-	SIMFLAGS += --printcycles --dumpatcycle 1
+CFLAGS += -DDEBUG1 -DDEBUG2
+SIMFLAGS += --printcycles --dumpatcycle 0
 endif
 
 ###########
@@ -39,11 +39,11 @@ CPU_OBJS += $(patsubst %.c,%.o,$(wildcard cpu/operations/*.c))
 simulator:	cpu simulator.o
 	$(CC) $(LDFLAGS) $(CPU_OBJS) simulator.o -o $@
 
-clean-simulator:
+clean-simulator: cpu/clean
 	rm -f simulator
 	rm -f simulator.o
 
-clean-simulator-all: clean-simulator
+clean-simulator-all: clean-simulator cpu/clean-all
 	rm -f flash.mem
 
 .PHONY: all clean-simulator clean-simulator-all
@@ -114,9 +114,9 @@ trivialPrintf: simulator
 #####
 # Etc
 
-clean:	clean-simulator cpu/clean programs/clean
+clean:	clean-simulator programs/clean
 
-clean-all: clean-simulator-all cpu/clean-all programs/clean-all
+clean-all: clean-simulator-all doc/clean-all programs/clean-all
 
 .PHONY: clean clean-all
 

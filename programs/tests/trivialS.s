@@ -1,5 +1,6 @@
 .thumb_func
 .global main
+.syntax unified
 main:
-	sub r0, r0
+	subs r0, r0
 	bx lr

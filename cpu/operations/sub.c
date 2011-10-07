@@ -160,6 +160,47 @@ int sub4(uint32_t inst) {
 	return SUCCESS;
 }
 
+int sub_imm(bool setflags, uint8_t rd, uint8_t rn, uint32_t imm32) {
+	bool carry;
+	bool overflow;
+	uint32_t result;
+
+	AddWithCarry(CORE_reg_read(rn), ~imm32, 1, &result, &carry, &overflow);
+	CORE_reg_write(rd, result);
+
+	if (setflags) {
+		uint32_t cpsr = CORE_cpsr_read();
+		cpsr = GEN_NZCV(
+				!!(result & xPSR_N),
+				result == 0,
+				carry,
+				overflow
+			       );
+		CORE_cpsr_write(cpsr);
+	}
+
+	DBG2("sub_imm ran\n");
+
+	return SUCCESS;
+}
+
+int sub_imm_t3(uint32_t inst) {
+	uint8_t imm8 = (inst & 0xff);
+	uint8_t rd = (inst & 0xf00) >> 8;
+	uint8_t imm3 = (inst & 0x7000) >> 12;
+	uint8_t rn = (inst & 0xf0000) >> 16;
+	bool S = !!(inst & 0x100000);
+	bool i = !!(inst & 0x04000000);
+
+	uint16_t arg = (i << 11) | (imm3 << 8) | imm8;
+	uint32_t imm32 = ThumbExpandImm(arg);
+
+	if ((rd == 13) || ((rd == 15) && (S == 0)) || (rn == 15))
+		CORE_ERR_unpredictable("sub_imm_t3 bad regs\n");
+
+	return sub_imm(S, rd, rn, imm32);
+}
+
 void register_opcodes_sub(void) {
 	// rsb_reg_t1: 1110 1011 110x xxxx (0)<x's>
 	register_opcode_mask(0xebc00000, 0x14208000, rsb_reg_t1);
@@ -178,4 +219,12 @@ void register_opcodes_sub(void) {
 
 	// sub4: 1011 0000 1<x's>
 	register_opcode_mask(0xb080, 0xffff4f00, sub4);
+
+	// sub_imm_t3: 1111 0x01 101x xxxx 0xxx xxxx xxxx xxxx
+	//         ex:              1           1111
+	//         ex:                1101
+	register_opcode_mask_ex(0xf1a00000, 0x0a408000, sub_imm_t3,
+			0x00100f00, 0x0,
+			0x000d0000, 0x00020000,
+			0, 0);
 }

@@ -1,4 +1,5 @@
 .cpu cortex-m3
+.syntax unified
 .thumb
 
 /* TTTA: This program will work even with an empty memmap file, why? */

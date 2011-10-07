@@ -3,7 +3,7 @@
 
 #include "../common.h"
 
-// These functions you must implemented in misc.c
+// These functions you must implement in misc.c
 uint8_t		eval_cond(uint32_t cpsr, uint8_t cond);
 uint8_t		read_itstate();
 void		write_itstate(uint8_t new_state);

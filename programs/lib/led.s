@@ -1,7 +1,7 @@
 .equ LED_REG_ADDR, 0x40001000
 
 .text
-.syntax	unified
+.syntax unified
 .thumb
 
 @ TTTA: Caller / callee saved registers?

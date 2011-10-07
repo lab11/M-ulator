@@ -7,11 +7,11 @@ LIB_PRINTF = $(LEVEL)/lib/printf.o
 all:
 
 # Follow the examples to add your testbench to the build suite
-# Assembly or C testbench:
+# Assembly or C testbench, add one line like this:
 BINS += trivialS.bin
 BINS += trivialC.bin
 
-# Testbench that uses peripherals / libraries:
+# Testbench that uses peripherals / libraries, two lines like these:
 BINS += trivialPrintf.bin
 trivialPrintf.bin: $(LIB_UART) $(LIB_PRINTF)
 
