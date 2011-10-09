@@ -1,6 +1,6 @@
 BINS = blink.bin echo.bin echo_str.bin
 
-all: $(BINS) tests
+all: $(BINS) basic.bin tests
 
 blink.bin: lib/led.o
 
