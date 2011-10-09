@@ -57,8 +57,13 @@ programs/%:
 #########
 # Testing
 
+ifeq ($(debug), 2)
+tester = +$(MAKE) $(2).bin -C $(1);\
+	 gdb --args ./simulator --flash $(1)/$(2).bin $(SIMFLAGS)
+else
 tester = +$(MAKE) $(2).bin -C $(1);\
 	 ./simulator --flash $(1)/$(2).bin $(SIMFLAGS)
+endif
 
 SIM_EXE = ./simulator --flash $< $(SIMFLAGS)
 

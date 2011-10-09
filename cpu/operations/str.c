@@ -3,7 +3,7 @@
 #include "../cpu.h"
 #include "../core.h"
 
-int str1(uint32_t inst) {
+void str1(uint32_t inst) {
 	int32_t immed5 = (inst & 0x7c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -14,16 +14,14 @@ int str1(uint32_t inst) {
 		write_word(address, rd_val);
 	} else {
 		// misaligned
-		return FAILURE;
+		CORE_ERR_unpredictable("str1, misaligned\n");
 	}
 
 	DBG2("str1 r%02d, [r%02d, #%d*4]\t0x%08x = 0x%08x\n",
 			rd, rn, immed5, address, rd_val);
-
-	return SUCCESS;
 }
 
-int str2(uint32_t inst) {
+void str2(uint32_t inst) {
 	uint8_t rm = (inst & 0x1c) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7);
@@ -37,11 +35,9 @@ int str2(uint32_t inst) {
 	}
 
 	DBG2("str r%02d, [r%02d, r%02d]\n", rd, rn, rm);
-
-	return SUCCESS;
 }
 
-int str3(uint32_t inst) {
+void str3(uint32_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
 	uint16_t immed8 = inst & 0xff;
 
@@ -56,11 +52,9 @@ int str3(uint32_t inst) {
 	}
 
 	DBG2("str r%02d, [sp, #%d * 4]\n", rd, immed8);
-
-	return SUCCESS;
 }
 
-int strb1(uint32_t inst) {
+void strb1(uint32_t inst) {
 	uint8_t immed5 = (inst & 0x7c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -69,11 +63,9 @@ int strb1(uint32_t inst) {
 	write_byte(address, CORE_reg_read(rd) & 0xff);
 
 	DBG2("strb r%02d, [r%02d, #%d]\n", rd, rn, immed5);
-
-	return SUCCESS;
 }
 
-int strd_imm(uint32_t inst) {
+void strd_imm(uint32_t inst) {
 	uint8_t imm8 = (inst & 0xff);
 	uint8_t rt2 = (inst & 0xf00) >> 8;
 	uint8_t rt = (inst & 0xf000) >> 12;
@@ -118,8 +110,6 @@ int strd_imm(uint32_t inst) {
 	}
 
 	DBG2("strd_imm did lots of stuff\n");
-
-	return SUCCESS;
 }
 
 void register_opcodes_str(void) {

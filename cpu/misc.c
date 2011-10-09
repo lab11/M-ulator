@@ -5,23 +5,25 @@
 /* Boolean answering whether the itstate indicates the processor is
  * currently in an IT Block or not
  */
-uint8_t in_ITblock(uint8_t itstate) {
+uint8_t in_ITblock(void) {
 //#define	IN_IT_BLOCK()		((ITSTATE & 0xf) != 0)
-	return (itstate & 0xf) != 0;
+	return (read_itstate() & 0xf) != 0;
 }
 
 /* Boolean answering whether the current instruction is the last in
  * an IT block or not
  */
-uint8_t last_in_ITblock(uint8_t itstate) {
+uint8_t last_in_ITblock(void) {
 //#define LAST_IN_IT_BLOCK()	((ITSTATE & 0xf) == 0x8)
-	return ((itstate & 0xf) == 0x8);
+	return ((read_itstate() & 0xf) == 0x8);
 }
 
 /* Utility function to advance from the current itstate to the next
  * (should end with a call to write_itstate
  */
-void IT_advance(uint8_t itstate) {
+void IT_advance(void) {
+	uint32_t itstate = read_itstate();
+
 	if ((itstate & 0x7) == 0) {
 		write_itstate(0);
 		DBG2("Left itstate\n");
@@ -33,6 +35,11 @@ void IT_advance(uint8_t itstate) {
 		write_itstate(itstate_t);
 		DBG2("New itstate: %02x\n", itstate_t);
 	}
+}
+
+uint8_t read_itstate(void) {
+	uint32_t epsr = CORE_epsr_read();
+	return ((epsr & 0xfc00) >> 8) | ((epsr & 0x06000000) >> 25);
 }
 
 /* Manipulating the IT bits is a little annoying, utility function

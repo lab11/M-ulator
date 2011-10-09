@@ -5,7 +5,7 @@
 #include "../core.h"
 #include "../misc.h"
 
-int ldr1(uint32_t inst) {
+void ldr1(uint32_t inst) {
 	uint8_t immed5 = (inst & 0x7c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -17,15 +17,13 @@ int ldr1(uint32_t inst) {
 		// misaligned
 		DBG2("addr: %08x\n", addr);
 		DBG2("immed5: %x, immed5*4: %x\n", immed5, immed5*4);
-		return FAILURE;
+		CORE_ERR_unpredictable("misaligned access, ldr1\n");
 	}
 
 	DBG2("ldr1 r%02d, [r%02d, #%d*4]\n", rd, rn, immed5);
-
-	return SUCCESS;
 }
 
-int ldr2(uint32_t inst) {
+void ldr2(uint32_t inst) {
 	uint8_t rm = (inst & 0x1c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7);
@@ -39,11 +37,9 @@ int ldr2(uint32_t inst) {
 	}
 
 	DBG2("ldr2 r%02d, [r%02d, r%02d]\n", rd, rn, rm);
-
-	return SUCCESS;
 }
 
-int ldr3(uint32_t inst) {
+void ldr3(uint32_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
 	uint16_t immed8 = inst & 0xff;
 
@@ -54,11 +50,9 @@ int ldr3(uint32_t inst) {
 	CORE_reg_write(rd, read_word(addr));
 
 	DBG2("ldr3 r%02d, [PC, #%d*4]\n", rd, immed8);
-
-	return SUCCESS;
 }
 
-int ldr4(uint32_t inst) {
+void ldr4(uint32_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
 	uint16_t immed8 = inst & 0xff;
 
@@ -74,11 +68,9 @@ int ldr4(uint32_t inst) {
 	}
 
 	DBG2("ldr r%02d, [sp, #%d * 4]\n", rd, immed8);
-
-	return SUCCESS;
 }
 
-int ldr_lit(bool add, uint8_t rt, uint32_t imm32) {
+void ldr_lit(bool add, uint8_t rt, uint32_t imm32) {
 	uint32_t base = 0xfffffffc & CORE_reg_read(PC_REG);
 
 	uint32_t addr;
@@ -101,11 +93,9 @@ int ldr_lit(bool add, uint8_t rt, uint32_t imm32) {
 	}
 
 	DBG2("ldr_lit completed\n");
-
-	return SUCCESS;
 }
 
-int ldr_lit_t1(uint32_t inst) {
+void ldr_lit_t1(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rt = (inst & 0x700) >> 8;
 
@@ -114,12 +104,12 @@ int ldr_lit_t1(uint32_t inst) {
 	return ldr_lit(true, rt, imm32);
 }
 
-int ldr_lit_t2(uint32_t inst) {
+void ldr_lit_t2(uint32_t inst) {
 	uint16_t imm12 = inst & 0xfff;
 	uint8_t rt = (inst & 0xf000) >> 12;
 	bool U = !!(inst & 0x00800000);
 
-	if ((rt == 15) && in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
+	if ((rt == 15) && in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("ldr_lit_t2 PC in IT\n");
 
 	uint32_t imm32 = imm12;
@@ -127,7 +117,7 @@ int ldr_lit_t2(uint32_t inst) {
 	return ldr_lit(U, rt, imm32);
 }
 
-int ldrb1(uint32_t inst) {
+void ldrb1(uint32_t inst) {
 	uint8_t immed5 = (inst & 0x7c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -136,11 +126,9 @@ int ldrb1(uint32_t inst) {
 	CORE_reg_write(rd, read_byte(addr));
 
 	DBG2("ldrb r%02d, [r%02d, #%d]\n", rd, rn, immed5);
-
-	return SUCCESS;
 }
 
-int ldrd_imm(uint32_t inst) {
+void ldrd_imm(uint32_t inst) {
 	uint8_t imm8 = (inst & 0xff);
 	uint8_t rt2 = (inst & 0xf00) >> 8;
 	uint8_t rt = (inst & 0xf000) >> 12;
@@ -188,8 +176,6 @@ int ldrd_imm(uint32_t inst) {
 	}
 
 	DBG2("ldrd_imm did lots of stuff\n");
-
-	return SUCCESS;
 }
 
 void register_opcodes_ld(void) {

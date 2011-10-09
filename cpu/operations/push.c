@@ -3,7 +3,7 @@
 #include "../cpu.h"
 #include "../core.h"
 
-int push(uint32_t inst) {
+void push(uint32_t inst) {
 	uint32_t sp = CORE_reg_read(SP_REG);
 
 	int hamming = 0;
@@ -41,8 +41,6 @@ int push(uint32_t inst) {
 
 	DBG2("push {%sregisters %x (bitwise)}\n",
 			(inst & 0x100)?"LR and ":"", inst & 0xff);
-
-	return SUCCESS;
 }
 
 void register_opcodes_push(void) {

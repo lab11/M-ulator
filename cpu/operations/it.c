@@ -2,13 +2,11 @@
 
 #include "../misc.h"
 
-int it(uint32_t inst) {
+void it(uint32_t inst) {
 	uint8_t itstate = inst & 0xff;
 	write_itstate(itstate);
 
 	DBG2("it{xxx} wrote itstate: %02x\n", itstate);
-
-	return SUCCESS;
 }
 
 void register_opcodes_it(void) {

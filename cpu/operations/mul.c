@@ -3,7 +3,7 @@
 
 #include "../cpu.h"
 
-int mul(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm) {
+void mul(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm) {
 	uint32_t result;
 
 	result = CORE_reg_read(rn) * CORE_reg_read(rm);
@@ -19,11 +19,9 @@ int mul(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm) {
 			       );
 		CORE_cpsr_write(cpsr);
 	}
-
-	return SUCCESS;
 }
 
-int mul_t2(uint32_t inst) {
+void mul_t2(uint32_t inst) {
 	uint8_t rm = (inst & 0xf);
 	uint8_t rd = (inst & 0xf00) >> 8;
 	uint8_t rn = (inst & 0xf0000) >> 16;

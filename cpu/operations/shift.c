@@ -4,7 +4,7 @@
 #include "../cpu.h"
 #include "../misc.h"
 
-int lsl1(uint32_t inst) {
+void lsl1(uint32_t inst) {
 	uint8_t immed5 = (inst & 0x7c0) >> 6;
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -25,18 +25,16 @@ int lsl1(uint32_t inst) {
 
 	CORE_reg_write(rd, result);
 
-	if (!in_ITblock(ITSTATE)) {
+	if (!in_ITblock()) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				c_flag, !!(cpsr & xPSR_V));
 		CORE_cpsr_write(cpsr);
 	}
 
 	DBG2("lsls r%02d, r%02d, #%d\n", rd, rm, immed5);
-
-	return SUCCESS;
 }
 
-int lsl2(uint32_t inst) {
+void lsl2(uint32_t inst) {
 	uint8_t rs = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -48,8 +46,6 @@ int lsl2(uint32_t inst) {
 	uint8_t cflag = !!(cpsr & xPSR_C);
 
 	if ((rs_val & 0xff) == 0) {
-		// nop
-		return SUCCESS;
 	} else if ((rs_val & 0xff) < 32) {
 		cflag = !!(rd & (1 << (32 - (rs_val & 0xff))));
 		result = rd_val << (rs_val & 0xff);
@@ -61,18 +57,16 @@ int lsl2(uint32_t inst) {
 		result = 0;
 	}
 
-	if (!in_ITblock(ITSTATE)) {
+	if (!in_ITblock()) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				cflag, !!(cpsr & xPSR_V));
 		CORE_cpsr_write(cpsr);
 	}
 
 	DBG2("lsl2 r%02d, r%02d\n", rd, rs);
-
-	return SUCCESS;
 }
 
-int lsr1(uint32_t inst) {
+void lsr1(uint32_t inst) {
 	uint8_t immed5 = (inst & 0x7c0) >> 6;
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -93,18 +87,16 @@ int lsr1(uint32_t inst) {
 
 	CORE_reg_write(rd, result);
 
-	if (!in_ITblock(ITSTATE)) {
+	if (!in_ITblock()) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				c_flag, !!(cpsr & xPSR_V));
 		CORE_cpsr_write(cpsr);
 	}
 
 	DBG2("lsrs r%02d, r%02d, #%d\n", rd, rm, immed5);
-
-	return SUCCESS;
 }
 
-int asr_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
+void asr_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
 	uint32_t rm_val = CORE_reg_read(rm);
 
 	uint32_t result;
@@ -127,12 +119,10 @@ int asr_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rm, enum SRType
 	}
 
 	DBG2("asr_imm complete\n");
-
-	return SUCCESS;
 }
 
 
-int mov_shifted_reg(uint32_t inst, enum SRType shift_t) {
+void mov_shifted_reg(uint32_t inst, enum SRType shift_t) {
 	uint32_t cpsr = CORE_cpsr_read();
 
 	uint8_t rm = inst & 0xf;
@@ -155,11 +145,11 @@ int mov_shifted_reg(uint32_t inst, enum SRType shift_t) {
 	return asr_imm(cpsr, setflags, rd, rm, shift_t, shift_n);
 }
 
-int asr_imm_t2(uint32_t inst) {
+void asr_imm_t2(uint32_t inst) {
 	return mov_shifted_reg(inst, ASR);
 }
 
-int lsl_imm_t2(uint32_t inst) {
+void lsl_imm_t2(uint32_t inst) {
 	return mov_shifted_reg(inst, LSL);
 }
 

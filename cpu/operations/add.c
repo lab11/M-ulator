@@ -4,7 +4,7 @@
 #include "../cpu.h"
 #include "../misc.h"
 
-int adc(uint32_t inst) {
+void adc(uint32_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -14,7 +14,7 @@ int adc(uint32_t inst) {
 	uint32_t result = rd_val + rm_val + !(cpsr & xPSR_C);
 	CORE_reg_write(rd, result);
 
-	if (!in_ITblock(ITSTATE)) {
+	if (!in_ITblock()) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				result < rd_val,
 				OVER_ADD(result, rd_val, rm_val + !!(cpsr & xPSR_C)));
@@ -22,11 +22,9 @@ int adc(uint32_t inst) {
 	}
 
 	DBG2("adc r%02d, r%02d\n", rd, rm);
-
-	return SUCCESS;
 }
 
-int add1(uint32_t inst) {
+void add1(uint32_t inst) {
 	int32_t immed3 = (inst & 0x1c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -38,18 +36,16 @@ int add1(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	if (!in_ITblock(ITSTATE)) {
+	if (!in_ITblock()) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				result < rn_val, OVER_ADD(result, rn_val, immed3));
 		CORE_cpsr_write(cpsr);
 	}
 
 	DBG2("add1 r%02d = r%02d + %d\n", rd, rn, immed3);
-
-	return SUCCESS;
 }
 
-int add2(uint32_t inst) {
+void add2(uint32_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
 	uint8_t immed8 = (inst & 0xff);
 
@@ -59,18 +55,16 @@ int add2(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	if (!in_ITblock(ITSTATE)) {
+	if (!in_ITblock()) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				result < rd_val, OVER_ADD(result, rd_val, immed8));
 		CORE_cpsr_write(cpsr);
 	}
 
 	DBG2("add2 r%02d, #%d\t; 0x%x\n", rd, immed8, immed8);
-
-	return SUCCESS;
 }
 
-int add3(uint32_t inst) {
+void add3(uint32_t inst) {
 	uint8_t rm = (inst & 0x1c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -82,18 +76,16 @@ int add3(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	if (!in_ITblock(ITSTATE)) {
+	if (!in_ITblock()) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				result < rn_val, OVER_ADD(result, rn_val, rm_val));
 		CORE_cpsr_write(cpsr);
 	}
 
 	DBG2("add3 r%02d, r%02d, r%02d\n", rd, rn, rm);
-
-	return SUCCESS;
 }
 
-int add6(uint32_t inst) {
+void add6(uint32_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
 	int32_t immed8 = (inst & 0xff);
 
@@ -102,11 +94,9 @@ int add6(uint32_t inst) {
 	CORE_reg_write(rd, result);
 
 	DBG2("add6 r%02d, SP, #%d*4\n", rd, immed8);
-
-	return SUCCESS;
 }
 
-int add7(uint32_t inst) {
+void add7(uint32_t inst) {
 	uint32_t immed7 = inst & 0x7f;
 
 	uint32_t sp = CORE_reg_read(SP_REG);
@@ -114,11 +104,9 @@ int add7(uint32_t inst) {
 	CORE_reg_write(SP_REG, sp);
 
 	DBG2("add7 sp, #%d*4\t; 0x%x\n", immed7, immed7);
-
-	return SUCCESS;
 }
 
-int add_imm(uint8_t rn, uint8_t rd, uint32_t imm32, uint8_t setflags) {
+void add_imm(uint8_t rn, uint8_t rd, uint32_t imm32, uint8_t setflags) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
 	uint32_t result = rn_val + imm32;
@@ -137,11 +125,9 @@ int add_imm(uint8_t rn, uint8_t rd, uint32_t imm32, uint8_t setflags) {
 
 	DBG2("add r%02d = r%02d + 0x%08x\t%08x = %08x + %08x\n",
 			rd, rn, imm32, result, rn_val, imm32);
-
-	return SUCCESS;
 }
 
-int add_imm_t3(uint32_t inst) {
+void add_imm_t3(uint32_t inst) {
 	int imm8 =    (inst & 0x000000ff);
 	uint8_t rd =  (inst & 0x00000f00) >> 8;
 	int imm3 =    (inst & 0x00007000) >> 12;
@@ -175,7 +161,7 @@ int add_imm_t3(uint32_t inst) {
 	return add_imm(rn, rd, imm32, setflags);
 }
 
-int add_reg(uint32_t cpsr, uint8_t setflags, uint8_t rn, uint8_t rm, uint8_t rd, enum SRType shift_t, uint8_t shift_n) {
+void add_reg(uint32_t cpsr, uint8_t setflags, uint8_t rn, uint8_t rm, uint8_t rd, enum SRType shift_t, uint8_t shift_n) {
 	uint32_t rn_val = CORE_reg_read(rn);
 	uint32_t rm_val = CORE_reg_read(rm);
 	uint32_t result;
@@ -201,11 +187,9 @@ int add_reg(uint32_t cpsr, uint8_t setflags, uint8_t rn, uint8_t rm, uint8_t rd,
 	}
 
 	DBG2("add_reg r%02d = 0x%08x\n", rd, result);
-
-	return SUCCESS;
 }
 
-int add_reg_t2(uint32_t inst) {
+void add_reg_t2(uint32_t inst) {
 	uint32_t cpsr = CORE_cpsr_read();
 
 	uint8_t rm = (inst & 0x78) >> 3;
@@ -225,7 +209,7 @@ int add_reg_t2(uint32_t inst) {
 	if ((rd == 15) && (rm == 15))
 		CORE_ERR_unpredictable("add_reg_t2\n");
 
-	if ((rd == 15) && in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
+	if ((rd == 15) && in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("add_reg_t2 it\n");
 
 	return add_reg(cpsr, setflags, rn, rm, rd, shift_t, shift_n);

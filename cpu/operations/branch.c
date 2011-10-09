@@ -4,7 +4,7 @@
 #include "../cpu.h"
 #include "../misc.h"
 
-int b1(uint32_t inst) {
+void b1(uint32_t inst) {
 	uint8_t cond = (inst & 0xf00) >> 8;
 	int32_t signed_immed_8 = (inst & 0xff);
 
@@ -25,11 +25,9 @@ int b1(uint32_t inst) {
 	} else {
 		DBG2("b<cond> not taken\n");
 	}
-
-	return SUCCESS;
 }
 
-int b2(uint32_t inst) {
+void b2(uint32_t inst) {
 	int32_t signed_immed_11 = inst & 0x7ff;
 	int32_t sign_extended;
 
@@ -56,13 +54,11 @@ int b2(uint32_t inst) {
 	CORE_reg_write(PC_REG, pc);
 
 	DBG2("b new_pc: %08x\n", pc);
-
-	return SUCCESS;
 }
 
 // BL is actually two instructions to allow for larger offset,
 // need to preserve state across calls
-int bl(uint32_t inst) {
+void bl(uint32_t inst) {
 	static int32_t offset32;
 
 	int32_t signed_offset11 = inst & 0x7ff;
@@ -76,8 +72,6 @@ int bl(uint32_t inst) {
 		// Need to sign-extend
 		struct {signed int x:23;} s;
 		offset32 = s.x = signed_offset11;
-
-		return SUCCESS;
 	}
 
 	assert((inst & 0x1800) && "Expected H == 11");
@@ -96,11 +90,9 @@ int bl(uint32_t inst) {
 	CORE_reg_write(LR_REG, lr);
 
 	DBG2("bl %08x (net total)\n", pc);
-
-	return SUCCESS;
 }
 
-int blx(uint32_t inst __attribute__ ((unused))) {
+void blx(uint32_t inst __attribute__ ((unused))) {
 	CORE_ERR_not_implemented("blx");
 }
 
@@ -132,7 +124,7 @@ void SelectInstrSet(uint8_t iset) {
 	}
 }
 
-int b(uint8_t cond, uint32_t imm32) {
+void b(uint8_t cond, uint32_t imm32) {
 	if (eval_cond(CORE_cpsr_read(), cond)) {
 		uint32_t pc = CORE_reg_read(PC_REG);
 		BranchWritePC(pc + imm32);
@@ -141,11 +133,9 @@ int b(uint8_t cond, uint32_t imm32) {
 	} else {
 		DBG2("b <not taken>\n");
 	}
-
-	return SUCCESS;
 }
 
-int b_t1(uint32_t inst) {
+void b_t1(uint32_t inst) {
 	uint8_t imm8 = (inst & 0xff);
 	uint8_t cond = (inst & 0xf00) >> 8;
 
@@ -157,24 +147,24 @@ int b_t1(uint32_t inst) {
 	DBG2("PC: %08x, imm32: %08x\n",
 			CORE_reg_read(PC_REG), imm32);
 
-	if (in_ITblock(ITSTATE))
+	if (in_ITblock())
 		CORE_ERR_unpredictable("b_t1 UNPREDICTABLE\n");
 
 	return b(cond, imm32);
 }
 
-int b_t2(uint32_t inst) {
+void b_t2(uint32_t inst) {
 	uint16_t imm11 = (inst & 0x7ff);
 
 	uint32_t imm32 = SignExtend(imm11 << 1, 12);
 
-	if (in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
+	if (in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("b_t2 in it block\n");
 
 	return b(0xf, imm32);
 }
 
-int bl_blx(uint32_t pc, uint8_t targetInstrSet, uint32_t imm32) {
+void bl_blx(uint32_t pc, uint8_t targetInstrSet, uint32_t imm32) {
 	uint32_t lr;
 	DBG2("pc %08x targetInstrSet %x imm32 %d 0x%08x\n",
 			pc, targetInstrSet, imm32, imm32);
@@ -195,11 +185,9 @@ int bl_blx(uint32_t pc, uint8_t targetInstrSet, uint32_t imm32) {
 
 	SelectInstrSet(targetInstrSet);
 	BranchWritePC(targetAddress);
-
-	return SUCCESS;
 }
 
-int bl_t1(uint32_t inst) {
+void bl_t1(uint32_t inst) {
 	// top 5 bits fixed
 	uint8_t  S = !!(inst & 0x04000000);
 	int imm10 =    (inst & 0x03ff0000) >> 16;
@@ -226,13 +214,13 @@ int bl_t1(uint32_t inst) {
 
 	// targetInstrSet = CurrentInstrSet
 
-	if (in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
+	if (in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("bl_t1 in itstate, not ending\n");
 
 	return bl_blx(CORE_reg_read(PC_REG), GET_ISETSTATE, imm32);
 }
 
-int bl_t2(uint32_t inst) {
+void bl_t2(uint32_t inst) {
 	// top 5 bits fixed
 	uint8_t  S = !!(inst & 0x04000000);
 	int imm10H =   (inst & 0x03ff0000) >> 16;
@@ -262,31 +250,29 @@ int bl_t2(uint32_t inst) {
 	DBG2("S %d I1 %d I2 %d imm10H %03x imm10L %03x\n",
 			S, I1, I2, imm10H, imm10L);
 
-	if (in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
+	if (in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("bl_t2 in itstate, not ending\n");
 
 	return bl_blx(CORE_reg_read(PC_REG), INST_SET_ARM, imm32);
 }
 
-int bx(uint8_t rm) {
+void bx(uint8_t rm) {
 	BXWritePC(CORE_reg_read(rm));
 
 	DBG2("bx happened\n");
-
-	return SUCCESS;
 }
 
-int bx_t1(uint32_t inst) {
+void bx_t1(uint32_t inst) {
 	uint8_t rm = (inst & 0x78) >> 3;
 
-	if (in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
+	if (in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("bx_t1 in it block\n");
 
 	return bx(rm);
 }
 
 /* ARMv6
-int bx(uint32_t inst) {
+void bx(uint32_t inst) {
 	uint8_t rm = (inst & 0x78) >> 3;
 	uint32_t target = CORE_reg_read(rm);
 	uint32_t pc = target & 0xfffffffe; // target[31:1]<<1
@@ -305,8 +291,6 @@ int bx(uint32_t inst) {
 	CORE_reg_write(PC_REG, pc);
 
 	DBG2("bx %08x (net total)\n", pc);
-
-	return SUCCESS;
 }
 */
 

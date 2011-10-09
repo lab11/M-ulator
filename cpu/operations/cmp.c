@@ -5,7 +5,7 @@
 
 /* CMP and TST always write cpsr bits, regardless of itstate */
 
-int cmp1(uint32_t inst) {
+void cmp1(uint32_t inst) {
 	uint8_t rn = (inst & 0x700) >> 8;
 	uint32_t immed_8 = inst & 0xff;
 
@@ -19,11 +19,9 @@ int cmp1(uint32_t inst) {
 	CORE_cpsr_write(cpsr);
 
 	DBG2("cmp r%02d, #%d\t; 0x%x\n", rn, immed_8, immed_8);
-
-	return SUCCESS;
 }
 
-int cmp2(uint32_t inst) {
+void cmp2(uint32_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rn = (inst & 0x7) >> 0;
 
@@ -38,8 +36,6 @@ int cmp2(uint32_t inst) {
 	CORE_cpsr_write(cpsr);
 
 	DBG2("cmp r%02d, r%02d\n", rn, rm);
-
-	return SUCCESS;
 }
 
 void register_opcodes_cmp(void) {

@@ -6,29 +6,17 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <time.h>
-#include <pthread.h>
 #include <fcntl.h>
 #include <getopt.h>
-#include <signal.h>
 
 #include "simulator.h"
+#include "pipeline.h"
+#include "if_stage.h"
+#include "id_stage.h"
+#include "ex_stage.h"
 #include "cpu/core.h"
 #include "cpu/misc.h"
 #include "cpu/operations/opcodes.h"
-
-/////////////////////////
-// PRETTY PRINT MACROS //
-/////////////////////////
-
-#define INFO(...) printf("--- I: "); printf(__VA_ARGS__)
-#define WARN(...) fprintf(stderr, "--- W: "); fprintf(stderr, __VA_ARGS__)
-#define ERR(_e, ...)\
-	do {\
-		fprintf(stderr, "--- E: ");\
-		fprintf(stderr, __VA_ARGS__);\
-		if (raiseonerror) raise(SIGTRAP);\
-		exit(_e);\
-	} while (0)
 
 #ifdef DEBUG2
 #ifndef GRADE
@@ -145,6 +133,13 @@ static void usage(void) {
 
 #define NSECS_PER_SEC 1000000000
 
+/* Tick Control */
+EXPORT sem_t ticker_ready_sem;
+EXPORT sem_t start_tick_sem;
+EXPORT sem_t end_tick_sem;
+EXPORT sem_t end_tock_sem;
+#define NUM_TICKERS	3	// IF, ID, EX
+
 /* UARTs */
 #define POLL_UART_PORT 4100
 #define POLL_UART_BUFSIZE 16
@@ -175,14 +170,14 @@ void poll_uart_txdata_write(uint8_t val);
 
 static int slowsim = 0;
 #ifdef DEBUG2
-static int printcycles = 1;
-static int raiseonerror = 1;
+EXPORT int printcycles = 1;
+EXPORT int raiseonerror = 1;
 #else
-static int printcycles = 0;
-static int raiseonerror = 0;
+EXPORT int printcycles = 0;
+EXPORT int raiseonerror = 0;
 #endif
 static int showledwrites = 0;
-static int dumpatpc = -1;
+static int dumpatpc = -3;
 static int dumpatcycle = -1;
 static int dumpallcycles = 0;
 #ifdef GRADE
@@ -201,7 +196,7 @@ static uint32_t static_rom[80] = {0x20003FFC,0x55,0x51,0x51,0x51,0x51,0x51,0x51,
 
 static int opcode_masks;
 
-static int cycle = -1;
+EXPORT int cycle = -1;
 
 static uint32_t rom[ROMSIZE >> 2] = {0};
 static uint32_t ram[RAMSIZE >> 2] = {0};
@@ -209,12 +204,11 @@ static uint32_t ram[RAMSIZE >> 2] = {0};
 #define ADDR_TO_IDX(_addr, _bot) ((_addr - _bot) >> 2)
 
 /* Ignore mode transitions for now */
-#define ASSERT_VALID_REG(_r) assert(_r >= 0 && _r < 16)
-static uint32_t reg[16];
+static uint32_t reg[15];	// PC reg is not held here, so 15 registers
 
 #define SP	(reg[SP_REG])
 #define LR	(reg[LR_REG])
-#define PC	(reg[PC_REG])
+#define PC	(id_ex_PC)
 
 #ifdef A_PROFILE
 // (|= 0x0010) Start is user mode
@@ -355,12 +349,14 @@ static void print_reg_state_internal(void) {
 			!!(CPSR & xPSR_V)
 	      );
 	printf("| ITSTATE: %02x\n", ITSTATE);
-	for (i=0; i<16; ) {
+	for (i=0; i<12; ) {
 		printf("\tr%02d: %8x\tr%02d: %8x\tr%02d: %8x\tr%02d: %8x\n",
 				i, reg[i], i+1, reg[i+1],
 				i+2, reg[i+2], i+3, reg[i+3]);
 		i+=4;
 	}
+	printf("\tr12: %8x\t SP: %8x\t LR: %8x\t PC: %8x\n",
+			reg[12], SP, LR, PC);
 }
 
 static void print_reg_state(void) {
@@ -368,6 +364,12 @@ static void print_reg_state(void) {
 	print_leds_line();
 	DIVIDERd;
 	print_reg_state_internal();
+}
+
+static void print_stages(void) {
+	printf("Stages:\n");
+	printf("\tPC's:\tPRE_IF %08x, IF_ID %08x, ID_EX %08x\n",
+			pre_if_PC, if_id_PC, id_ex_PC);
 }
 
 static void print_full_state(void) {
@@ -378,6 +380,10 @@ static void print_full_state(void) {
 
 	DIVIDERd;
 	print_reg_state_internal();
+
+	DIVIDERd;
+	print_stages();
+
 	DIVIDERd;
 /*
 	FILE* romfp = fopen("/tmp/373rom", "w");
@@ -478,6 +484,9 @@ static void shell(void) {
 // CORE
 ////////////////////////////////////////////////////////////////////////////////
 
+#define STATE_IO_BARRIER	0x1
+#define STATE_PIPELINE_FLUSH	0x10
+
 struct state_change {
 	struct state_change *prev;
 	struct state_change *next;
@@ -487,52 +496,122 @@ struct state_change {
 	   cycle n (e.g. before it had executed), the list must have traversed
 	   such that the list head reaches an entry of cycle less than n */
 	int cycle;
+	int* flags;
 	uint32_t *loc;
+	uint32_t val;
 	uint32_t prev_val;
 };
 
+static int state_start_flags = 0;
 static struct state_change state_start = {
 	.prev = NULL,
 	.next = NULL,
 	.cycle = -1,
+	.flags = &state_start_flags,
 	.loc = NULL,
+	.val = 0,
 	.prev_val = 0,
 };
 
-static struct state_change state_io_barrier_state;
-
 static struct state_change* state_head = &state_start;
+static struct state_change* cycle_head = NULL;
 
-static void state_write(uint32_t *loc, uint32_t val) {
-	if (
-			(state_head == &state_io_barrier_state) &&
-			(state_head->cycle == cycle)
-	   ) {
-		// This write is in a barrier state, we can't rewind
-		// it anyways, so don't bother recording it
-		;
-	} else {
-		// Record:
+static int *state_flags_cur = NULL;
 
-		struct state_change* s = malloc(sizeof(struct state_change));
+static struct op* o_hack = NULL;
 
-		// To write new state, we must be either executing the same cycle, or
-		// have advanced to the next cycle; o/w we lost synchronization somehow
-		assert((state_head->cycle == cycle) || ((state_head->cycle+1) == cycle));
+static uint32_t state_pipeline_new_pc = -1;
 
-		DBG2("cycle: %08d\tloc %p val %08x\n", cycle, loc, val);
+static pthread_mutex_t state_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-		s->prev = state_head;
-		s->next = NULL;
-		s->cycle = cycle;
-		s->loc = loc;
-		s->prev_val = *loc;
-		state_head->next = s;
-		state_head = s;
+static void state_start_tick() {
+#ifdef DEBUG2
+	flockfile(stdout); flockfile(stderr);
+	printf("TICK TICK TICK TICK TICK TICK TICK TICK TICK TICK TICK TICK\n");
+	funlockfile(stderr); funlockfile(stdout);
+#endif
+	DBG2("CLOCK --> high (cycle %08d)\n", cycle);
+	assert((state_head->cycle+1) == cycle);
+	cycle_head = state_head;
+
+	state_flags_cur = malloc(sizeof(int));
+	assert((NULL != state_flags_cur) && "OOM");
+	*state_flags_cur = 0;
+
+	o_hack = NULL;
+}
+
+static void _state_tock() {
+	if (cycle > 0) {
+		assert((NULL != o_hack) && "nothing set instruction for EX this cycle");
 	}
+	id_ex_o = o_hack;
 
-	// Now let's not forget to actually update the real state
-	*loc = val;
+	while (NULL != cycle_head) {
+		assert(cycle_head->cycle == cycle);
+		DBG2("%p = %08x\n", cycle_head->loc, cycle_head->val);
+		*cycle_head->loc = cycle_head->val;
+		cycle_head = cycle_head->next;
+	}
+}
+
+static void state_tock() {
+#ifdef DEBUG2
+	flockfile(stdout); flockfile(stderr);
+	printf("TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK\n");
+	funlockfile(stderr); funlockfile(stdout);
+#endif
+	DBG2("CLOCK --> low (cycle %08d)\n", cycle);
+	// cycle_head is state_head from end of previous cycle here
+	cycle_head = cycle_head->next;
+	assert((NULL != cycle_head) && "nothing written this cycle?");
+
+	_state_tock();
+
+	if (*state_head->flags & STATE_PIPELINE_FLUSH) {
+		// Leverage the existing state mechanism to simplify replay,
+		// conceptually adding extra writes to the end of this cycle
+		// that alias the previous writes to actually flush the pipeline
+		cycle_head = state_head;
+		o_hack = NULL;
+		pipeline_flush(state_pipeline_new_pc);
+		cycle_head = cycle_head->next;
+
+		_state_tock();
+	}
+}
+
+void state_write_op(struct op **loc, struct op *val) {
+	pthread_mutex_lock(&state_mutex);
+	// Lazy hack since every other bit of preserved state is a uint32_t
+	// At some point in time state saving will likely have to be generalized,
+	// until then, however, this will suffice
+	assert(loc == &id_ex_o);
+	o_hack = val;
+	pthread_mutex_unlock(&state_mutex);
+}
+
+void state_write(uint32_t *loc, uint32_t val) {
+	pthread_mutex_lock(&state_mutex);
+
+	// Record:
+	struct state_change* s = malloc(sizeof(struct state_change));
+	assert((NULL != s) && "OOM");
+
+	DBG2("(head cycle: %08d)\tcycle: %08d\tloc %p val %08x\n",
+			state_head->cycle, cycle, loc, val);
+
+	s->prev = state_head;
+	s->next = NULL;
+	s->cycle = cycle;
+	s->flags = state_flags_cur;
+	s->loc = loc;
+	s->val = val;
+	s->prev_val = *loc;
+	state_head->next = s;
+	state_head = s;
+
+	pthread_mutex_unlock(&state_mutex);
 }
 
 // Returns 0 on success
@@ -581,7 +660,7 @@ static int state_seek(int target_cycle) {
 	} else {
 		DBG2("seeking backward from %d to %d\n", cycle, target_cycle);
 		while (state_head->cycle > target_cycle) {
-			if (state_head == &state_io_barrier_state) {
+			if (*state_head->flags & STATE_IO_BARRIER) {
 				WARN("Cannot rewind past I/O access\n");
 				WARN("Simulator left at cycle %08d\n", cycle);
 				return 1;
@@ -597,6 +676,7 @@ static int state_seek(int target_cycle) {
 			*(state_head->loc) = state_head->prev_val;
 
 			state_head = state_head->prev;
+			free(state_head->next->flags);
 			free(state_head->next);
 			state_head->next = NULL;
 
@@ -607,12 +687,17 @@ static int state_seek(int target_cycle) {
 	}
 }
 
+static void state_pipeline_flush(uint32_t new_pc) {
+	pthread_mutex_lock(&state_mutex);
+	*state_flags_cur |= STATE_PIPELINE_FLUSH;
+	state_pipeline_new_pc = new_pc;
+	pthread_mutex_unlock(&state_mutex);
+}
+
 static void state_io_barrier(void) {
-	// List behind this point is lost, but memory is cheap and this
-	// isn't permanent anyway
-	state_io_barrier_state.cycle = cycle;
-	state_head->next = &state_io_barrier_state;
-	state_head = state_head->next;
+	pthread_mutex_lock(&state_mutex);
+	*state_flags_cur |= STATE_IO_BARRIER;
+	pthread_mutex_unlock(&state_mutex);
 }
 
 /* These are the functions called into by the student simulator project */
@@ -635,12 +720,25 @@ uint32_t CORE_reg_read(int r) {
 
 void CORE_reg_write(int r, uint32_t val) {
 	assert(r >= 0 && r < 16 && "CORE_reg_write");
-	if (r == PC_REG)
+	if (r == PC_REG) {
+		if (PC == ((val & 0xfffffffe) + 4)) {
+			INFO("Simulator determined PC 0x%08x is branch to self, terminating.\n", PC);
+			print_full_state();
+			if (returnr0) {
+				DBG2("Return code is r0: %08x\n", reg[0]);
+				exit(reg[0]);
+			}
+			exit(EXIT_SUCCESS);
+		}
 		state_write(&PC, val & 0xfffffffe);
-	else if (r == SP_REG)
+		state_pipeline_flush(val & 0xfffffffe);
+	}
+	else if (r == SP_REG) {
 		state_write(&SP, val & 0xfffffffc);
-	else
+	}
+	else {
 		state_write(&(reg[r]), val);
+	}
 	G_REG(WRITE, r);
 }
 
@@ -650,7 +748,7 @@ uint32_t CORE_cpsr_read(void) {
 }
 
 void CORE_cpsr_write(uint32_t val) {
-	if (in_ITblock(ITSTATE)) {
+	if (in_ITblock()) {
 		DBG1("WARN update of cpsr in IT block\n");
 	}
 #ifdef M_PROFILE
@@ -813,99 +911,10 @@ void CORE_ERR_not_implemented_real(const char *f, int l, const char *opt_msg) {
 // SIMULATOR
 ////////////////////////////////////////////////////////////////////////////////
 
-/*
-static uint16_t read_addr16(uint32_t addr) {
-	if (0x1 & (addr >> 1)) {
-		DBG2("Returning upper half of %x (%x)\n",
-				(addr & 0xfffc), (addr & 0xfffc) + 2);
-		return (read_word(addr - 2) >> 16);
-	} else {
-		DBG2("Returning lower half of %x\n", addr);
-		return (read_word(addr) & 0xffff);
-	}
-}
-*/
-
-struct op {
-	struct op *prev;
-	struct op *next;
-	uint32_t ones_mask;
-	uint32_t zeros_mask;
-	int ex_cnt;
-	uint32_t *ex_ones;
-	uint32_t *ex_zeros;
-	int (*fn) (uint32_t);
-	const char *name;
-};
-
-static struct op *ops = NULL;
-
-static struct op* _find_op(struct op* o, uint32_t inst) {
-	while (NULL != o) {
-		if (
-				(o->ones_mask  == (o->ones_mask  & inst)) &&
-				(o->zeros_mask == (o->zeros_mask & ~inst))
-		   ) {
-			// The mask matched, now verify there isn't an exception
-			int i;
-			bool exception = false;
-			for (i = 0; i < o->ex_cnt; i++) {
-				uint32_t ones_mask  = o->ex_ones[i];
-				uint32_t zeros_mask = o->ex_zeros[i];
-				if (
-						(ones_mask  == (ones_mask  & inst)) &&
-						(zeros_mask == (zeros_mask & ~inst))
-				   ) {
-					DBG2("Collision averted via exception\n");
-					exception = true;
-				}
-			}
-
-			if (!exception)
-				break;
-		}
-		o = o->next;
-	}
-
-	return o;
-}
-
-static struct op* find_op(uint32_t inst, bool reorder) {
-	struct op *o = ops;
-	o = _find_op(o, inst);
-
-	if (NULL != o) {
-		// Check for ambiguity, and let's report all of them now
-		struct op* t = _find_op(o->next, inst);
-		bool ambiguous = false;
-
-		while (NULL != t) {
-			WARN("AMB\t%s:\tones %08x zeros %08x\n", t->name,
-					t->ones_mask, t->zeros_mask);
-			ambiguous = true;
-			t = _find_op(t->next, inst);
-		}
-
-		if (ambiguous) {
-			WARN("AMB\t%s:\tones %08x zeros %08x\n", o->name,
-					o->ones_mask, o->zeros_mask);
-			WARN("AMB\tAmbiguous instruction detected!\n");
-			WARN("Instruction %08x at PC %08x matched multiple masks\n",
-					inst,
-					(inst & 0xffff0000) ? PC-4 : PC-2);
-			CORE_ERR_illegal_instr(inst);
-		}
-	}
-
-	if (o && reorder) {
-		// ...
-	}
-
-	return o;
-}
+EXPORT struct op *ops = NULL;
 
 static int _register_opcode_mask(uint32_t ones_mask, uint32_t zeros_mask,
-		int (*fn) (uint32_t), const char* fn_name, va_list va_args) {
+		void (*fn) (uint32_t), const char* fn_name, va_list va_args) {
 	struct op *o = malloc(sizeof(struct op));
 
 	o->prev = NULL;
@@ -953,7 +962,7 @@ static int _register_opcode_mask(uint32_t ones_mask, uint32_t zeros_mask,
 }
 
 int register_opcode_mask_ex_real(uint32_t ones_mask, uint32_t zeros_mask,
-		int (*fn) (uint32_t), const char* fn_name, ...) {
+		void (*fn) (uint32_t), const char* fn_name, ...) {
 
 	va_list va_args;
 	va_start(va_args, fn_name);
@@ -994,151 +1003,38 @@ int register_opcode_mask_ex_real(uint32_t ones_mask, uint32_t zeros_mask,
 }
 
 int register_opcode_mask_real(uint32_t ones_mask, uint32_t zeros_mask,
-		int (*fn) (uint32_t), const char* fn_name) {
+		void (*fn) (uint32_t), const char* fn_name) {
 	return register_opcode_mask_ex_real(ones_mask, zeros_mask,
 			fn, fn_name, 0, 0);
 }
 
 static int sim_execute(void) {
-	uint32_t inst;
-	struct op *o;
-
-	static uint32_t last_pc;
-	static uint32_t was_16 = false; // bool, but eases state tracking
-
-	if (slowsim) {
-		static struct timespec s = {0, NSECS_PER_SEC/10};
-		nanosleep(&s, NULL);
-	}
-
-	// dectect branch to self loop for termination
-	if ((cycle) && (last_pc == PC)) {
-		INFO("Simulator determined PC 0x%08x is branch to self, terminating.\n", PC);
-		print_full_state();
-		if (returnr0) {
-			DBG2("Return code is r0: %08x\n", reg[0]);
-			exit(reg[0]);
-		}
-		exit(EXIT_SUCCESS);
-	}
-
 	// Now we're committed to starting the next cycle
 	cycle++;
 
-	// Instruction Fetch
-	if (T_BIT) {
-		if (was_16) {
-			// do NOT correct PC if we've branched here
-			if (last_pc == (PC - 4)) {
-				state_write(&PC, PC - 2);
-			}
-		}
+	int i;
 
-		DBG2("Reading thumb mode instruction\n");
-		inst = read_halfword(PC);
+	state_start_tick();
 
-		// If inst[15:11] are any of
-		// 11101, 11110, or 11111 then this is
-		// a 32-bit thumb inst
-
-		switch (inst & 0xf800) {
-			case 0xe800:
-			case 0xf000:
-			case 0xf800:
-			{
-				// 32-bit thumb inst
-				DBG2("inst %04x is 32-bit\n", inst);
-
-				state_write(&last_pc, PC);
-				state_write(&PC, PC + 2);
-
-				inst <<= 16;
-				inst |= read_halfword(PC);
-				state_write(&PC, PC + 2);
-				state_write(&was_16, false);
-				break;
-			}
-			default:
-				// 16-bit thumb inst
-				state_write(&last_pc, PC);
-				state_write(&PC, PC + 2);
-
-				// yeesh... read A5.1.2 p153 *carefully*
-				// use of 0b1111 as a register specifier
-				// reading PC must *always* return inst addr + 4
-				state_write(&PC, PC + 2);
-				state_write(&was_16, true);
-		}
-	} else {
-#ifdef M_PROFILE
-		CORE_ERR_not_implemented("This CPU conforms to the ARM-7M profile, which requires the T bit to always be set\n");
-#endif
-		DBG2("Reading arm mode instruction\n");
-		inst = read_word(PC);
+	for (i = 0; i < NUM_TICKERS; i++) {
+		sem_wait(&ticker_ready_sem);
 	}
 
-	// Instruction Decode
-	o = find_op(inst, true);
-	if (NULL == o) {
-		WARN("No handler registered for inst %x\n", inst);
-		CORE_ERR_illegal_instr(inst);
+	for (i = 0; i < NUM_TICKERS; i++) {
+		sem_post(&start_tick_sem);
 	}
 
-	// Execute
-	if (in_ITblock(ITSTATE)) {
-		// XXX: if we ever go cycle-accurate (or even bus-accurate) this
-		// check should go earlier, if we aren't going to execture this
-		// instruction we shouldn't even fetch it
-		int ret;
-
-		if (eval_cond(CPSR, (ITSTATE & 0xf0) >> 4)) {
-			if (printcycles) {
-				printf("    P: %08d - 0x%08x : %04x (%s)\t%s\n",
-						cycle, PC, inst, o->name,
-						"ITSTATE {executed}");
-			}
-			ret = o->fn(inst);
-		} else {
-			if (printcycles) {
-				printf("    P: %08d - 0x%08x : %04x (%s)\t%s\n",
-						cycle, PC, inst, o->name,
-						"ITSTATE {skipped}");
-			}
-			//WARN("itstate skipped instruction\n");
-			ret = SUCCESS;
-		}
-
-		if (ret == SUCCESS) {
-			/*
-			ITAdvance()
-			if ITSTATE<2:0> == ‘000’ then
-				ITSTATE.IT = ‘00000000’;
-			else
-				ITSTATE.IT<4:0> = LSL(ITSTATE.IT<4:0>, 1);
-			*/
-			/*
-			if ((ITSTATE & 0x7) == 0) {
-				write_itstate(0);
-				DBG2("Left itstate\n");
-			} else {
-				uint8_t temp = ITSTATE & 0x0f; // yes 0f, not 1f
-				uint8_t itstate_t = ITSTATE;
-				itstate_t &= 0xe0;
-				itstate_t |= (temp << 1);
-				write_itstate(itstate_t);
-				DBG2("New itstate: %02x\n", ITSTATE);
-			}
-			*/
-			IT_advance(ITSTATE);
-		}
-
-		return ret;
-	} else {
-		if (printcycles)
-			printf("    P: %08d - 0x%08x : %04x (%s)\n",
-					cycle, PC, inst, o->name);
-		return o->fn(inst);
+	for (i = 0; i < NUM_TICKERS; i++) {
+		sem_wait(&end_tick_sem);
 	}
+
+	state_tock();
+
+	for (i = 0; i < NUM_TICKERS; i++) {
+		sem_post(&end_tock_sem);
+	}
+
+	return SUCCESS;
 }
 
 static void sim_reset(void) __attribute__ ((noreturn));
@@ -1147,7 +1043,9 @@ static void sim_reset(void) {
 
 	INFO("Asserting reset pin\n");
 	cycle = 0;
+	state_start_tick();
 	reset();
+	state_tock();
 	INFO("De-asserting reset pin\n");
 
 	INFO("Entering main loop...\n");
@@ -1156,7 +1054,7 @@ static void sim_reset(void) {
 			print_full_state();
 			shell();
 		} else
-		if ((dumpatpc & 0xfffffffe) == (reg[PC_REG] & 0xfffffffe)) {
+		if ((dumpatpc & 0xfffffffe) == (PC & 0xfffffffe)) {
 			print_full_state();
 			shell();
 		} else
@@ -1171,6 +1069,7 @@ static void sim_reset(void) {
 	ERR(ret, "Terminating\n");
 }
 
+static void power_on(void) __attribute__ ((noreturn));
 static void power_on(void) {
 	INFO("Powering on processor...\n");
 	sim_reset();
@@ -1202,6 +1101,12 @@ static void load_opcodes(void) {
 }
 
 int main(int argc, char **argv) {
+	// Init uninit'd globals
+	assert(0 == sem_init(&ticker_ready_sem, 0, 0));
+	assert(0 == sem_init(&start_tick_sem, 0, 0));
+	assert(0 == sem_init(&end_tick_sem, 0, 0));
+	assert(0 == sem_init(&end_tock_sem, 0, 0));
+
 	// Command line args
 	const char *flash_file = NULL;
 	static int polluartport = POLL_UART_PORT;
@@ -1239,7 +1144,7 @@ int main(int argc, char **argv) {
 
 			case 'c':
 				dumpatpc = strtol(optarg, NULL, 16);
-				INFO("Simulator will pause at PC %x\n",
+				INFO("Simulator will pause at execute of PC %x\n",
 						dumpatpc);
 				break;
 
@@ -1326,11 +1231,16 @@ int main(int argc, char **argv) {
 	pthread_cond_wait(&poll_uart_cond, &poll_uart_mutex);
 	pthread_mutex_unlock(&poll_uart_mutex);
 
+	// Spawn pipeline stage threads
+	pthread_t ifstage_pthread;
+	pthread_t idstage_pthread;
+	pthread_t exstage_pthread;
+	pthread_create(&ifstage_pthread, NULL, ticker, tick_if);
+	pthread_create(&idstage_pthread, NULL, ticker, tick_id);
+	pthread_create(&exstage_pthread, NULL, ticker, tick_ex);
+
 	// Never returns
 	power_on();
-
-	assert(false);
-	return 0;
 }
 
 

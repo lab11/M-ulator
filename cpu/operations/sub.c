@@ -4,7 +4,7 @@
 #include "../cpu.h"
 #include "../misc.h"
 
-int rsb_reg(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
+void rsb_reg(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
 	uint32_t rm_val = CORE_reg_read(rm);
 	uint32_t shifted = Shift(rm_val, 32, shift_t, shift_n, !!(cpsr & xPSR_C));
 
@@ -28,11 +28,9 @@ int rsb_reg(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm,
 	}
 
 	DBG2("rsb_reg done\n");
-
-	return SUCCESS;
 }
 
-int rsb_reg_t1(uint32_t inst) {
+void rsb_reg_t1(uint32_t inst) {
 	uint32_t cpsr = CORE_cpsr_read();
 
 	uint8_t rm = inst & 0xf;
@@ -56,7 +54,7 @@ int rsb_reg_t1(uint32_t inst) {
 	return rsb_reg(cpsr, setflags, rd, rn, rm, shift_t, shift_n);
 }
 
-int sbc(uint32_t inst) {
+void sbc(uint32_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -67,7 +65,7 @@ int sbc(uint32_t inst) {
 
 	CORE_reg_write(rd, result);
 
-	if (!in_ITblock(ITSTATE)) {
+	if (!in_ITblock()) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				!(result > rd_val),
 				OVER_SUB(result, rd_val, rm_val - !(cpsr & xPSR_C)));
@@ -75,11 +73,9 @@ int sbc(uint32_t inst) {
 	}
 
 	DBG2("sbc r%02d, r%02d\n", rd, rm);
-
-	return SUCCESS;
 }
 
-int sub1(uint32_t inst) {
+void sub1(uint32_t inst) {
 	uint8_t immed3 = (inst & 0x1c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -90,7 +86,7 @@ int sub1(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	if (!in_ITblock(ITSTATE)) {
+	if (!in_ITblock()) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N),
 				result == 0,
 				!(result > rn_val),
@@ -99,11 +95,9 @@ int sub1(uint32_t inst) {
 	}
 
 	DBG2("sub1 %02d, %02d, #%d\n", rd, rn, immed3);
-
-	return SUCCESS;
 }
 
-int sub2(uint32_t inst) {
+void sub2(uint32_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
 	uint8_t immed8 = inst & 0xff;
 
@@ -113,18 +107,16 @@ int sub2(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	if (!in_ITblock(ITSTATE)) {
+	if (!in_ITblock()) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				!(result > rd_val), OVER_SUB(result, rd_val, immed8));
 		CORE_cpsr_write(cpsr);
 	}
 
 	DBG2("sub2 %02d, #%d\n", rd, immed8);
-
-	return SUCCESS;
 }
 
-int sub3(uint32_t inst) {
+void sub3(uint32_t inst) {
 	uint8_t rm = (inst & 0x1c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -144,11 +136,9 @@ int sub3(uint32_t inst) {
 	CORE_cpsr_write(cpsr);
 
 	DBG2("sub3, r%02d = r%02d - r%02d\n", rd, rn, rm);
-
-	return SUCCESS;
 }
 
-int sub4(uint32_t inst) {
+void sub4(uint32_t inst) {
 	uint16_t immed7 = inst & 0x7f;
 
 	uint32_t sp = CORE_reg_read(SP_REG);
@@ -156,11 +146,9 @@ int sub4(uint32_t inst) {
 	CORE_reg_write(SP_REG, sp);
 
 	DBG2("sub4, sp, #%d*4\t; 0x%x*4\n", immed7, immed7);
-
-	return SUCCESS;
 }
 
-int sub_imm(bool setflags, uint8_t rd, uint8_t rn, uint32_t imm32) {
+void sub_imm(bool setflags, uint8_t rd, uint8_t rn, uint32_t imm32) {
 	bool carry;
 	bool overflow;
 	uint32_t result;
@@ -180,11 +168,9 @@ int sub_imm(bool setflags, uint8_t rd, uint8_t rn, uint32_t imm32) {
 	}
 
 	DBG2("sub_imm ran\n");
-
-	return SUCCESS;
 }
 
-int sub_imm_t3(uint32_t inst) {
+void sub_imm_t3(uint32_t inst) {
 	uint8_t imm8 = (inst & 0xff);
 	uint8_t rd = (inst & 0xf00) >> 8;
 	uint8_t imm3 = (inst & 0x7000) >> 12;

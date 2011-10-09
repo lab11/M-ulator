@@ -4,7 +4,7 @@
 #include "../cpu.h"
 #include "../misc.h"
 
-int and(uint32_t inst) {
+void and(uint32_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -14,18 +14,16 @@ int and(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	if (!in_ITblock(ITSTATE)) {
+	if (!in_ITblock()) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				!!(cpsr & xPSR_C), !!(cpsr & xPSR_V));
 		CORE_cpsr_write(cpsr);
 	}
 
 	DBG2("ands r%02d, r%02d\n", rd, rm);
-
-	return SUCCESS;
 }
 
-int and_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn, uint32_t imm32, uint8_t carry) {
+void and_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn, uint32_t imm32, uint8_t carry) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
 	uint32_t result = rn_val & imm32;
@@ -46,11 +44,9 @@ int and_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn, uint32_t im
 	}
 
 	DBG2("and_imm done\n");
-
-	return SUCCESS;
 }
 
-int and_imm_t1(uint32_t inst) {
+void and_imm_t1(uint32_t inst) {
 	uint32_t cpsr = CORE_cpsr_read();
 
 	uint8_t imm8 = inst & 0xff;
@@ -79,7 +75,7 @@ int and_imm_t1(uint32_t inst) {
 	return and_imm(cpsr, setflags, rd, rn, imm32, carry);
 }
 
-int bic(uint32_t inst) {
+void bic(uint32_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -89,18 +85,16 @@ int bic(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	if (!in_ITblock(ITSTATE)) {
+	if (!in_ITblock()) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				!!(cpsr & xPSR_C), !!(cpsr & xPSR_V));
 		CORE_cpsr_write(cpsr);
 	}
 
 	DBG2("bics r%02d, r%02d\n", rd, rm);
-
-	return SUCCESS;
 }
 
-int bic_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn, uint32_t imm32, uint8_t carry) {
+void bic_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn, uint32_t imm32, uint8_t carry) {
 	uint32_t result = CORE_reg_read(rn) & (~imm32);
 	CORE_reg_write(rd, result);
 
@@ -115,11 +109,9 @@ int bic_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn, uint32_t im
 	}
 
 	DBG2("bic_imm ran\n");
-
-	return SUCCESS;
 }
 
-int bic_imm_t1(uint32_t inst) {
+void bic_imm_t1(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst & 0xf00) >> 8;
 	uint8_t imm3 = (inst & 0x7000) >> 12;
@@ -140,7 +132,7 @@ int bic_imm_t1(uint32_t inst) {
 	return bic_imm(cpsr, S, rd, rn, imm32, carry_out);
 }
 
-int eor_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
+void eor_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
 	uint32_t result;
 	uint8_t carry_out;
 
@@ -160,11 +152,9 @@ int eor_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm, enum SRType sh
 			       );
 		CORE_cpsr_write(cpsr);
 	}
-
-	return SUCCESS;
 }
 
-int eor_reg_t2(uint32_t inst) {
+void eor_reg_t2(uint32_t inst) {
 	uint8_t rm = (inst & 0xf);
 	uint8_t type = (inst & 0x30) >> 4;
 	uint8_t imm2 = (inst & 0xc0) >> 6;
@@ -188,7 +178,7 @@ int eor_reg_t2(uint32_t inst) {
 	return eor_reg(S, rd, rn, rm, shift_t, shift_n);
 }
 
-int lsl_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm) {
+void lsl_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm) {
 	enum SRType shift_t = SRType_LSL;
 	uint8_t shift_n = CORE_reg_read(rm) & 0xff;
 
@@ -210,11 +200,9 @@ int lsl_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm) {
 			       );
 		CORE_cpsr_write(cpsr);
 	}
-
-	return SUCCESS;
 }
 
-int lsl_reg_t2(uint32_t inst) {
+void lsl_reg_t2(uint32_t inst) {
 	uint8_t rm = (inst & 0xf);
 	uint8_t rd = (inst & 0xf00) >> 8;
 	uint8_t rn = (inst & 0xf0000) >> 16;
@@ -227,7 +215,7 @@ int lsl_reg_t2(uint32_t inst) {
 	return lsl_reg(S, rd, rn, rm);
 }
 
-int mvn_reg(uint8_t setflags, uint8_t rd, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
+void mvn_reg(uint8_t setflags, uint8_t rd, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
 	uint32_t result;
 	uint8_t carry_out;
 
@@ -249,11 +237,9 @@ int mvn_reg(uint8_t setflags, uint8_t rd, uint8_t rm, enum SRType shift_t, uint8
 	}
 
 	DBG2("mvn_reg did stuff\n");
-
-	return SUCCESS;
 }
 
-int mvn_reg_t2(uint32_t inst) {
+void mvn_reg_t2(uint32_t inst) {
 	uint8_t rm = (inst & 0xf);
 	uint8_t type = (inst & 0x30) >> 4;
 	uint8_t imm2 = (inst & 0xc0) >> 6;
@@ -273,7 +259,7 @@ int mvn_reg_t2(uint32_t inst) {
 	return mvn_reg(S, rd, rm, shift_t, shift_n);
 }
 
-int orr(uint32_t inst) {
+void orr(uint32_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -283,18 +269,16 @@ int orr(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	if (!in_ITblock(ITSTATE)) {
+	if (!in_ITblock()) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				!!(cpsr & xPSR_C), !!(cpsr & xPSR_V));
 		CORE_cpsr_write(cpsr);
 	}
 
 	DBG2("orrs r%02d, r%02d\n", rd, rm);
-
-	return SUCCESS;
 }
 
-int orr_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
+void orr_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
 	uint32_t result;
 	uint8_t carry_out;
 
@@ -316,11 +300,9 @@ int orr_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm, enum SRType sh
 	}
 
 	DBG2("orr_reg ran\n");
-
-	return SUCCESS;
 }
 
-int orr_reg_t2(uint32_t inst) {
+void orr_reg_t2(uint32_t inst) {
 	uint8_t rm = (inst & 0xf);
 	uint8_t type = (inst & 0x30) >> 4;
 	uint8_t imm2 = (inst & 0xc0) >> 6;
@@ -343,7 +325,7 @@ int orr_reg_t2(uint32_t inst) {
 	return orr_reg(S, rd, rn, rm, shift_t, shift_n);
 }
 
-int neg(uint32_t inst) {
+void neg(uint32_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -354,15 +336,13 @@ int neg(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	if (!in_ITblock(ITSTATE)) {
+	if (!in_ITblock()) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
 				!(result > 0), OVER_SUB(result, 0, rm_val));
 		CORE_cpsr_write(cpsr);
 	}
 
 	DBG2("negs r%02d, r%02d\n", rd, rm);
-
-	return SUCCESS;
 }
 
 void register_opcodes_logical(void) {

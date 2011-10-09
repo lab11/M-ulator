@@ -4,7 +4,7 @@
 #include "../cpu.h"
 #include "../misc.h"
 
-int mov1(uint32_t inst) {
+void mov1(uint32_t inst) {
 	int8_t rd = (inst & 0x700) >> 8;
 	uint8_t uimmed8 = (inst & 0xff);
 
@@ -12,7 +12,7 @@ int mov1(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 
-	if (!in_ITblock(ITSTATE)) {
+	if (!in_ITblock()) {
 		// XXX: How could N ever be set by this instr
 		// if uimmed8 is 0-255?
 		cpsr = GEN_NZCV(0, uimmed8 == 0, cpsr & xPSR_C, cpsr & xPSR_V);
@@ -20,11 +20,9 @@ int mov1(uint32_t inst) {
 	}
 
 	DBG2("mov r%02d, #%u\t; 0x%x\n", rd, uimmed8, uimmed8);
-
-	return SUCCESS;
 }
 /*
-int mov3(uint32_t inst) {
+void mov3(uint32_t inst) {
 	assert((inst & 0x80) || (inst & 0x40)); // ARM ref
 
 	int8_t rd = ((inst & 0x80) >> 4) | (inst & 0x7);
@@ -33,12 +31,10 @@ int mov3(uint32_t inst) {
 	CORE_reg_write(rd, CORE_reg_read(rm));
 
 	DBG2("mov r%02d, r%02d\n", rd, rm);
-
-	return SUCCESS;
 }
 */
 
-int mov_imm(uint32_t cpsr, uint8_t setflags, uint32_t imm32, uint8_t rd, uint8_t carry){
+void mov_imm(uint32_t cpsr, uint8_t setflags, uint32_t imm32, uint8_t rd, uint8_t carry){
 	uint32_t result = imm32;
 
 	if (rd == 15) {
@@ -57,11 +53,9 @@ int mov_imm(uint32_t cpsr, uint8_t setflags, uint32_t imm32, uint8_t rd, uint8_t
 	}
 
 	DBG2("mov_imm r%02d = 0x%08x\n", rd, result);
-
-	return SUCCESS;
 }
 
-int mov_imm_t2(uint32_t inst) {
+void mov_imm_t2(uint32_t inst) {
 	uint32_t cpsr = CORE_cpsr_read();
 
 	int   imm8 =  (inst & 0x000000ff);
@@ -102,7 +96,7 @@ int mov_imm_t2(uint32_t inst) {
 	return mov_imm(cpsr, setflags, imm32, Rd, carry);
 }
 
-int mov_imm_t3(uint32_t inst) {
+void mov_imm_t3(uint32_t inst) {
 	uint32_t cpsr = CORE_cpsr_read();
 
 	uint8_t imm8 = inst & 0xff;
@@ -123,7 +117,7 @@ int mov_imm_t3(uint32_t inst) {
 	return mov_imm(cpsr, setflags, imm32, rd, 0);
 }
 
-int mov_reg(uint32_t cpsr, uint8_t setflags,  uint8_t rd, uint8_t rm) {
+void mov_reg(uint32_t cpsr, uint8_t setflags,  uint8_t rd, uint8_t rm) {
 	uint32_t rm_val = CORE_reg_read(rm);
 
 	if (rd == 15) {
@@ -142,11 +136,9 @@ int mov_reg(uint32_t cpsr, uint8_t setflags,  uint8_t rd, uint8_t rm) {
 	}
 
 	DBG2("mov_reg r%02d = r%02d (val: %08x)\n", rd, rm, rm_val);
-
-	return SUCCESS;
 }
 
-int mov_reg_t1(uint32_t inst) {
+void mov_reg_t1(uint32_t inst) {
 	uint32_t cpsr = CORE_cpsr_read();
 
 	uint8_t rd =  (inst & 0x7);
@@ -160,13 +152,13 @@ int mov_reg_t1(uint32_t inst) {
 
 	uint8_t setflags = false;
 
-	if ((rd == 15) && in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
+	if ((rd == 15) && in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("mov_reg_t1 unpredictable\n");
 
 	return mov_reg(cpsr, setflags, rd, rm);
 }
 
-int movt(uint8_t rd, uint16_t imm16) {
+void movt(uint8_t rd, uint16_t imm16) {
 	uint32_t rd_val = CORE_reg_read(rd);
 	rd_val &= 0x0000ffff;	// clear top bits
 	uint32_t wide_imm = imm16;
@@ -174,11 +166,9 @@ int movt(uint8_t rd, uint16_t imm16) {
 	CORE_reg_write(rd, rd_val);
 
 	DBG2("movt r%02d = 0x%08x\n", rd, rd_val);
-
-	return SUCCESS;
 }
 
-int movt_t1(uint32_t inst) {
+void movt_t1(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst & 0xf00) >> 8;
 	uint8_t imm3 = (inst & 0x7000) >> 12;

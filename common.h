@@ -10,12 +10,18 @@
 #include <assert.h>
 #include <errno.h>
 
+#include <pthread.h>
+#include <semaphore.h>
+
 /////////////////////
 // GENERAL DEFINES //
 /////////////////////
 
 #define SUCCESS 0
 #define FAILURE 1
+
+// Clarity macro (since to export is simply to not be static)
+#define EXPORT
 
 /////////////////////////
 // USEFUL CORE DEFINES //
@@ -85,8 +91,13 @@ void		CORE_ERR_not_implemented(const char *opt_msg) __attribute__ ((noreturn));
 #ifdef DEBUG1
 // "Level 1" debug, for statements that would print not more than
 // once to a dozen times during execution
-#define DBG1(...) printf("111 D: %s:%d\t%s:\t", __FILE__, __LINE__, __func__); \
-	printf(__VA_ARGS__)
+#define DBG1(...)\
+	do {\
+		flockfile(stdout);\
+		printf("111 D: %s:%d\t%s:\t", __FILE__, __LINE__, __func__); \
+		printf(__VA_ARGS__);\
+		funlockfile(stdout);\
+	} while (0)
 #else
 #define DBG1(...)
 #endif
@@ -94,8 +105,13 @@ void		CORE_ERR_not_implemented(const char *opt_msg) __attribute__ ((noreturn));
 #ifdef DEBUG2
 // "Level 2" debug, for statements that print often, but may sometimes
 // be usefule for debugging
-#define DBG2(...) printf("222 D: %s:%d\t%s:\t", __FILE__, __LINE__, __func__); \
-	printf(__VA_ARGS__)
+#define DBG2(...)\
+	do {\
+		flockfile(stdout);\
+		printf("222 D: %s:%d\t%s:\t", __FILE__, __LINE__, __func__); \
+		printf(__VA_ARGS__);\
+		funlockfile(stdout);\
+	} while (0)
 #else
 #define DBG2(...)
 #endif
