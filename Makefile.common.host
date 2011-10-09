@@ -4,6 +4,26 @@ CFLAGS += -DM_PROFILE
 # Lots of debugging!
 CFLAGS += -g3
 
+###########
+# Debugging
+
+export debug
+
+$(warning)
+
+ifeq ($(debug), 1)
+CFLAGS += -DDEBUG1
+SIMFLAGS += --printcycles
+endif
+
+# WTF? w/out empty warning make isn't picking up debug??
+$(warning)
+
+ifeq ($(debug), 2)
+CFLAGS += -DDEBUG1 -DDEBUG2
+SIMFLAGS += --printcycles --dumpatcycle 0
+endif
+
 ########################################################
 ## Hacking around the ancient software supplied by CAEN:
 ##

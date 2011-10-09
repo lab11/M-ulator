@@ -12,36 +12,20 @@ LEVEL = .
 all:	simulator programs
 
 ###########
-# Debugging
-
-$(warning)
-
-ifeq ($(debug), 1)
-CFLAGS += -DDEBUG1
-SIMFLAGS += --printcycles
-endif
-
-# WTF? w/out empty warning make isn't picking up debug??
-$(warning)
-
-ifeq ($(debug), 2)
-CFLAGS += -DDEBUG1 -DDEBUG2
-SIMFLAGS += --printcycles --dumpatcycle 0
-endif
-
-###########
 # Simulator
 
 CPU_OBJS += $(patsubst %.c,%.o,$(wildcard cpu/*.c))
 CPU_OBJS += $(patsubst %.c,%.o,$(wildcard cpu/operations/*.c))
 
+SIM_OBJS += $(patsubst %.c,%.o,$(wildcard ./*.c))
+
 #simulator:	$(CPU_OBJS) simulator.o
-simulator:	cpu simulator.o
-	$(CC) $(LDFLAGS) $(CPU_OBJS) simulator.o -o $@
+simulator:	cpu $(SIM_OBJS)
+	$(CC) $(LDFLAGS) $(CPU_OBJS) $(SIM_OBJS) -o $@
 
 clean-simulator: cpu/clean
 	rm -f simulator
-	rm -f simulator.o
+	rm -f $(SIM_OBJS)
 
 clean-simulator-all: clean-simulator cpu/clean-all
 	rm -f flash.mem
