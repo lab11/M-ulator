@@ -487,6 +487,7 @@ static void shell(void) {
 #define STATE_IO_BARRIER	0x1
 #define STATE_PIPELINE_FLUSH	0x10
 #define STATE_PIPELINE_RUNNING	0x20
+#define STATE_LED_WRITTEN	0x100
 
 struct state_change {
 	struct state_change *prev;
@@ -619,6 +620,12 @@ static void state_tock() {
 		cycle_head = cycle_head->next;
 
 		_state_tock();
+	}
+
+	if (*state_head->flags & STATE_LED_WRITTEN) {
+		if (showledwrites) {
+			print_leds_line();
+		}
 	}
 }
 
@@ -755,6 +762,12 @@ static void state_pipeline_flush(uint32_t new_pc) {
 	pthread_mutex_lock(&state_mutex);
 	*state_flags_cur |= STATE_PIPELINE_FLUSH;
 	state_pipeline_new_pc = new_pc;
+	pthread_mutex_unlock(&state_mutex);
+}
+
+static void state_led_write(void) {
+	pthread_mutex_lock(&state_mutex);
+	*state_flags_cur |= STATE_LED_WRITTEN;
 	pthread_mutex_unlock(&state_mutex);
 }
 
@@ -897,7 +910,7 @@ void CORE_red_led_write(uint32_t val) {
 	G_PERIPH(WRITE, LED, RED);
 	state_write(&leds[RED],val);
 	if (showledwrites)
-		print_leds_line();
+		state_led_write();
 }
 
 uint32_t CORE_grn_led_read(void) {
@@ -909,7 +922,7 @@ void CORE_grn_led_write(uint32_t val) {
 	G_PERIPH(WRITE, LED, GRN);
 	state_write(&leds[GRN],val);
 	if (showledwrites)
-		print_leds_line();
+		state_led_write();
 }
 
 uint32_t CORE_blu_led_read(void) {
@@ -921,7 +934,7 @@ void CORE_blu_led_write(uint32_t val) {
 	G_PERIPH(WRITE, LED, BLU);
 	state_write(&leds[BLU],val);
 	if (showledwrites)
-		print_leds_line();
+		state_led_write();
 }
 
 uint8_t CORE_poll_uart_status_read() {
