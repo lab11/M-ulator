@@ -459,8 +459,19 @@ static void shell(void) {
 
 		case 'c':
 			if (buf[1] == 'y') {
-				sscanf(buf, "%*s %d", &dumpatcycle);
-				return;
+				int requested_cycle;
+				sscanf(buf, "%*s %d", &requested_cycle);
+				if (requested_cycle < cycle) {
+					WARN("Request to execute into the past ignored\n");
+					WARN("Did you mean 'rewind %d'?\n", requested_cycle);
+					return shell();
+				} else if (requested_cycle == cycle) {
+					WARN("Request to execute to current cycle ignored\n");
+					return shell();
+				} else {
+					dumpatcycle = requested_cycle;
+					return;
+				}
 			} else if (buf[1] == 'o') {
 				dumpatcycle = 0;
 				dumpatpc = 0;
