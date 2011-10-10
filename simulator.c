@@ -133,6 +133,8 @@ static void usage(void) {
 
 #define NSECS_PER_SEC 1000000000
 
+static volatile sig_atomic_t sigint = 0;
+
 /* Tick Control */
 EXPORT sem_t ticker_ready_sem;
 EXPORT sem_t start_tick_sem;
@@ -1131,6 +1133,11 @@ static void sim_reset(void) {
 
 	INFO("Entering main loop...\n");
 	do {
+		if (sigint) {
+			sigint = 0;
+			print_full_state();
+			shell();
+		} else
 		if (dumpatcycle == cycle) {
 			print_full_state();
 			shell();
@@ -1179,6 +1186,24 @@ static void load_opcodes(void) {
 
 	INFO("Registered %d opcode mask%s\n", opcode_masks,
 			(opcode_masks == 1) ? "":"s");
+}
+
+static void* sig_thread(void *arg) {
+	sigset_t *set = (sigset_t *) arg;
+	int s, sig;
+
+	for (;;) {
+		s = sigwait(set, &sig);
+		if (s != 0) {
+			ERR(E_UNKNOWN, "sigwait failed?\n");
+		}
+
+		if (sig == SIGINT) {
+			sigint = 1;
+		} else {
+			ERR(E_UNKNOWN, "caught unknown signal %d\n", sig);
+		}
+	}
 }
 
 int main(int argc, char **argv) {
@@ -1304,6 +1329,17 @@ int main(int argc, char **argv) {
 	}
 
 	load_opcodes();
+
+	// Prep signal-related stuff:
+	sigset_t set;
+
+	sigemptyset(&set);
+	sigaddset(&set, SIGINT);
+	assert(0 == pthread_sigmask(SIG_BLOCK, &set, NULL));
+
+	// Spawn signal handling thread
+	pthread_t sig_pthread;
+	pthread_create(&sig_pthread, NULL, &sig_thread, (void *) &set);
 
 	// Spawn uart thread
 	pthread_t poll_uart_pthread;
