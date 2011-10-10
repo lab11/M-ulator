@@ -59,8 +59,18 @@ extern int printcycles;
 extern int raiseonerror;
 
 // Latchable state
+#ifdef DEBUG1
+void state_write_real(uint32_t *loc, uint32_t val,
+		const char *file, const char *func,
+		const int line, const char *target);
+#define state_write(_l, _v)\
+	state_write_real((_l), (_v), __FILE__, __func__,\
+			__LINE__, VAL2STR(_l))
+void state_write_op(struct op **loc, struct op *val);
+#else
 void state_write(uint32_t *loc, uint32_t val);
 void state_write_op(struct op **loc, struct op *val);
+#endif
 
 /////////////////////////
 // PRETTY PRINT MACROS //
@@ -86,6 +96,14 @@ void state_write_op(struct op **loc, struct op *val);
 		funlockfile(stderr);\
 		if (raiseonerror) raise(SIGTRAP);\
 		exit(_e);\
+	} while (0)
+#define TRAP(...)\
+	do {\
+		flockfile(stderr);\
+		fprintf(stderr, "--- T: ");\
+		fprintf(stderr, __VA_ARGS__);\
+		funlockfile(stderr);\
+		raise(SIGTRAP);\
 	} while (0)
 
 #endif // SIMULATOR_H

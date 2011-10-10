@@ -486,6 +486,7 @@ static void shell(void) {
 
 #define STATE_IO_BARRIER	0x1
 #define STATE_PIPELINE_FLUSH	0x10
+#define STATE_PIPELINE_RUNNING	0x20
 
 struct state_change {
 	struct state_change *prev;
@@ -500,6 +501,12 @@ struct state_change {
 	uint32_t *loc;
 	uint32_t val;
 	uint32_t prev_val;
+#ifdef DEBUG1
+	const char* file;
+	const char* func;
+	int line;
+	const char* target;
+#endif
 };
 
 static int state_start_flags = 0;
@@ -511,6 +518,12 @@ static struct state_change state_start = {
 	.loc = NULL,
 	.val = 0,
 	.prev_val = 0,
+#ifdef DEBUG1
+	.file = NULL,
+	.func = NULL,
+	.line = -1,
+	.target = NULL,
+#endif
 };
 
 static struct state_change* state_head = &state_start;
@@ -527,7 +540,7 @@ static pthread_mutex_t state_mutex = PTHREAD_MUTEX_INITIALIZER;
 static void state_start_tick() {
 #ifdef DEBUG2
 	flockfile(stdout); flockfile(stderr);
-	printf("TICK TICK TICK TICK TICK TICK TICK TICK TICK TICK TICK TICK\n");
+	printf("\n%08d TICK TICK TICK TICK TICK TICK TICK TICK TICK\n", cycle);
 	funlockfile(stderr); funlockfile(stdout);
 #endif
 	DBG2("CLOCK --> high (cycle %08d)\n", cycle);
@@ -547,18 +560,45 @@ static void _state_tock() {
 	}
 	id_ex_o = o_hack;
 
+	struct state_change* orig_cycle_head = cycle_head;
+
 	while (NULL != cycle_head) {
 		assert(cycle_head->cycle == cycle);
-		DBG2("%p = %08x\n", cycle_head->loc, cycle_head->val);
+		DBG2("(%s::%s:%d: %s: %p = %08x (was %08x)\n",
+				cycle_head->file, cycle_head->func,
+				cycle_head->line, cycle_head->target,
+				cycle_head->loc, cycle_head->val, cycle_head->prev_val);
 		*cycle_head->loc = cycle_head->val;
 		cycle_head = cycle_head->next;
+	}
+
+	// Not going to do better than O(2n) for detecting duplicates in an
+	// unsorted list
+	while (NULL != orig_cycle_head) {
+		if (*orig_cycle_head->loc != orig_cycle_head->val) {
+#ifdef DEBUG1
+			ERR(E_UNPREDICTABLE, "(%s): %p was aliased, expected %08x, got %08x\n",
+					orig_cycle_head->target,
+#else
+			ERR(E_UNPREDICTABLE, "loc %p was aliased, expected %08x, got %08x\n",
+#endif
+					orig_cycle_head->loc,
+					orig_cycle_head->val,
+					*orig_cycle_head->loc
+#ifdef DEBUG1 // Appease ()'s balance
+			   );
+#else
+			   );
+#endif
+		}
+		orig_cycle_head = orig_cycle_head->next;
 	}
 }
 
 static void state_tock() {
 #ifdef DEBUG2
 	flockfile(stdout); flockfile(stderr);
-	printf("TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK\n");
+	printf("\n%08d TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK\n", cycle);
 	funlockfile(stderr); funlockfile(stdout);
 #endif
 	DBG2("CLOCK --> low (cycle %08d)\n", cycle);
@@ -573,6 +613,7 @@ static void state_tock() {
 		// conceptually adding extra writes to the end of this cycle
 		// that alias the previous writes to actually flush the pipeline
 		cycle_head = state_head;
+		*cycle_head->flags |= STATE_PIPELINE_RUNNING;
 		o_hack = NULL;
 		pipeline_flush(state_pipeline_new_pc);
 		cycle_head = cycle_head->next;
@@ -591,15 +632,25 @@ void state_write_op(struct op **loc, struct op *val) {
 	pthread_mutex_unlock(&state_mutex);
 }
 
+uint32_t state_read(uint32_t *loc) {
+	return *loc;
+}
+
+#ifdef DEBUG1
+void state_write_real(uint32_t *loc, uint32_t val,
+		const char *file, const char* func,
+		const int line, const char *target) {
+#else
 void state_write(uint32_t *loc, uint32_t val) {
+#endif
 	pthread_mutex_lock(&state_mutex);
 
 	// Record:
 	struct state_change* s = malloc(sizeof(struct state_change));
 	assert((NULL != s) && "OOM");
 
-	DBG2("(head cycle: %08d)\tcycle: %08d\tloc %p val %08x\n",
-			state_head->cycle, cycle, loc, val);
+	DBG2("cycle: %08d\t(%s): loc %p val %08x\n",
+			cycle, target, loc, val);
 
 	s->prev = state_head;
 	s->next = NULL;
@@ -608,6 +659,12 @@ void state_write(uint32_t *loc, uint32_t val) {
 	s->loc = loc;
 	s->val = val;
 	s->prev_val = *loc;
+#ifdef DEBUG1
+	s->file = file;
+	s->func = func;
+	s->line = line;
+	s->target = target;
+#endif
 	state_head->next = s;
 	state_head = s;
 
@@ -676,12 +733,19 @@ static int state_seek(int target_cycle) {
 			*(state_head->loc) = state_head->prev_val;
 
 			state_head = state_head->prev;
-			free(state_head->next->flags);
+
+			if (cycle != state_head->cycle) {
+				cycle = state_head->cycle;
+				free(state_head->next->flags);
+			}
+
 			free(state_head->next);
 			state_head->next = NULL;
-
-			cycle = state_head->cycle;
 		}
+
+		// One last bit of fixup since we don't actually track
+		// the op pointer
+		id_ex_o = find_op(id_ex_inst, false);
 
 		return 0;
 	}
@@ -710,18 +774,21 @@ static void state_io_barrier(void) {
 uint32_t CORE_reg_read(int r) {
 	assert(r >= 0 && r < 16 && "CORE_reg_read");
 	G_REG(READ, r);
-	if (r == PC_REG)
-		return PC & 0xfffffffe;
-	else if (r == SP_REG)
-		return SP & 0xfffffffc;
-	else
-		return reg[r];
+	if (r == PC_REG) {
+		return state_read(&PC) & 0xfffffffe;
+	}
+	else if (r == SP_REG) {
+		return state_read(&SP) & 0xfffffffc;
+	}
+	else {
+		return state_read(&reg[r]);
+	}
 }
 
 void CORE_reg_write(int r, uint32_t val) {
 	assert(r >= 0 && r < 16 && "CORE_reg_write");
 	if (r == PC_REG) {
-		if (PC == ((val & 0xfffffffe) + 4)) {
+		if (state_read(&PC) == ((val & 0xfffffffe) + 4)) {
 			INFO("Simulator determined PC 0x%08x is branch to self, terminating.\n", PC);
 			print_full_state();
 			if (returnr0) {
@@ -730,7 +797,8 @@ void CORE_reg_write(int r, uint32_t val) {
 			}
 			exit(EXIT_SUCCESS);
 		}
-		state_write(&PC, val & 0xfffffffe);
+		//state_write(&PC, val & 0xfffffffe);
+		// We have no branch predictor (yet?? oh my...)
 		state_pipeline_flush(val & 0xfffffffe);
 	}
 	else if (r == SP_REG) {
@@ -744,7 +812,7 @@ void CORE_reg_write(int r, uint32_t val) {
 
 uint32_t CORE_cpsr_read(void) {
 	G_CPSR(READ);
-	return CPSR;
+	return state_read(&CPSR);
 }
 
 void CORE_cpsr_write(uint32_t val) {
@@ -763,7 +831,7 @@ void CORE_cpsr_write(uint32_t val) {
 #ifdef M_PROFILE
 uint32_t CORE_ipsr_read(void) {
 	G_IPSR(READ);
-	return IPSR;
+	return state_read(&IPSR);
 }
 
 void CORE_ipsr_write(uint32_t val) {
@@ -773,7 +841,7 @@ void CORE_ipsr_write(uint32_t val) {
 
 uint32_t CORE_epsr_read(void) {
 	G_EPSR(READ);
-	return EPSR;
+	return state_read(&EPSR);
 }
 
 void CORE_epsr_write(uint32_t val) {
@@ -789,7 +857,7 @@ uint32_t CORE_rom_read(uint32_t addr) {
 #endif
 	if ((addr >= ROMBOT) && (addr < ROMTOP) && (0 == (addr & 0x3))) {
 		G_ROM(READ, addr);
-		return rom[ADDR_TO_IDX(addr, ROMBOT)];
+		return state_read(&rom[ADDR_TO_IDX(addr, ROMBOT)]);
 	} else {
 		CORE_ERR_invalid_addr(false, addr);
 	}
@@ -801,7 +869,7 @@ uint32_t CORE_ram_read(uint32_t addr) {
 #endif
 	if ((addr >= RAMBOT) && (addr < RAMTOP) && (0 == (addr & 0x3))) {
 		G_RAM(READ, addr);
-		return ram[ADDR_TO_IDX(addr, RAMBOT)];
+		return state_read(&ram[ADDR_TO_IDX(addr, RAMBOT)]);
 	} else {
 		CORE_ERR_invalid_addr(false, addr);
 	}
@@ -822,7 +890,7 @@ void CORE_ram_write(uint32_t addr, uint32_t val) {
 
 uint32_t CORE_red_led_read(void) {
 	G_PERIPH(READ, LED, RED);
-	return leds[RED];
+	return state_read(&leds[RED]);
 }
 
 void CORE_red_led_write(uint32_t val) {
@@ -834,7 +902,7 @@ void CORE_red_led_write(uint32_t val) {
 
 uint32_t CORE_grn_led_read(void) {
 	G_PERIPH(READ, LED, GRN);
-	return leds[GRN];
+	return state_read(&leds[GRN]);
 }
 
 void CORE_grn_led_write(uint32_t val) {
@@ -846,7 +914,7 @@ void CORE_grn_led_write(uint32_t val) {
 
 uint32_t CORE_blu_led_read(void) {
 	G_PERIPH(READ, LED, BLU);
-	return leds[BLU];
+	return state_read(&leds[BLU]);
 }
 
 void CORE_blu_led_write(uint32_t val) {
