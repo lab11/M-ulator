@@ -35,7 +35,7 @@ GCC_MINOR    := $(shell $(CC) -v 2>&1 | \
 	grep " version " | cut -d' ' -f3  | cut -d'.' -f2)
 
 ifneq ($(GCC_MAJOR), 4)
-	$(error "gcc version 4.x required")
+$(error "gcc version 4.x required")
 endif
 
 ifeq ($(GCC_MINOR), 1)
