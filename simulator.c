@@ -314,6 +314,310 @@ static uint32_t control __attribute__ ((unused)) = 0x0;
 static uint32_t leds[LED_COLORS] = {0};
 
 ////////////////////////////////////////////////////////////////////////////////
+// CORE
+////////////////////////////////////////////////////////////////////////////////
+
+#define STATE_IO_BARRIER	0x1
+#define STATE_PIPELINE_FLUSH	0x10
+#define STATE_PIPELINE_RUNNING	0x20
+#define STATE_LED_WRITTEN	0x100
+
+struct state_change {
+	struct state_change *prev;
+	struct state_change *next;
+
+	/* Holds changes made __during__ this cycle; there may be multiple
+	   list entries per cycle. Thus, to return to the beginning of a
+	   cycle n (e.g. before it had executed), the list must have traversed
+	   such that the list head reaches an entry of cycle less than n */
+	int cycle;
+	int* flags;
+	uint32_t *loc;
+	uint32_t val;
+	uint32_t prev_val;
+#ifdef DEBUG1
+	const char* file;
+	const char* func;
+	int line;
+	const char* target;
+#endif
+};
+
+static int state_start_flags = 0;
+static struct state_change state_start = {
+	.prev = NULL,
+	.next = NULL,
+	.cycle = -1,
+	.flags = &state_start_flags,
+	.loc = NULL,
+	.val = 0,
+	.prev_val = 0,
+#ifdef DEBUG1
+	.file = NULL,
+	.func = NULL,
+	.line = -1,
+	.target = NULL,
+#endif
+};
+
+static struct state_change* state_head = &state_start;
+static struct state_change* cycle_head = NULL;
+
+static int *state_flags_cur = NULL;
+
+static struct op* o_hack = NULL;
+
+static uint32_t state_pipeline_new_pc = -1;
+
+static pthread_mutex_t state_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static void state_start_tick() {
+#ifdef DEBUG2
+	flockfile(stdout); flockfile(stderr);
+	printf("\n%08d TICK TICK TICK TICK TICK TICK TICK TICK TICK\n", cycle);
+	funlockfile(stderr); funlockfile(stdout);
+#endif
+	DBG2("CLOCK --> high (cycle %08d)\n", cycle);
+	assert((state_head->cycle+1) == cycle);
+	cycle_head = state_head;
+
+	if (NULL != state_head->next) {
+		WARN("Simulator re-excuting at cycle %d\n", cycle);
+		WARN("Discarding all future state\n");
+
+		struct state_change* s = state_head->next;
+		while (s->next != NULL) {
+			s = s->next;
+			if (s->cycle != s->prev->cycle)
+				free(s->prev->flags);
+			free(s->prev);
+		}
+		free(s->flags);
+		free(s);
+
+		state_head->next = NULL;
+	}
+
+	state_flags_cur = malloc(sizeof(int));
+	assert((NULL != state_flags_cur) && "OOM");
+	*state_flags_cur = 0;
+
+	o_hack = NULL;
+}
+
+static void _state_tock() {
+	if (cycle > 0) {
+		assert((NULL != o_hack) && "nothing set instruction for EX this cycle");
+	}
+	id_ex_o = o_hack;
+
+	struct state_change* orig_cycle_head = cycle_head;
+
+	while (NULL != cycle_head) {
+		assert(cycle_head->cycle == cycle);
+		DBG2("(%s::%s:%d: %s: %p = %08x (was %08x)\n",
+				cycle_head->file, cycle_head->func,
+				cycle_head->line, cycle_head->target,
+				cycle_head->loc, cycle_head->val, cycle_head->prev_val);
+		*cycle_head->loc = cycle_head->val;
+		cycle_head = cycle_head->next;
+	}
+
+	// Not going to do better than O(2n) for detecting duplicates in an
+	// unsorted list
+	while (NULL != orig_cycle_head) {
+		if (*orig_cycle_head->loc != orig_cycle_head->val) {
+#ifdef DEBUG1
+			ERR(E_UNPREDICTABLE, "(%s): %p was aliased, expected %08x, got %08x\n",
+					orig_cycle_head->target,
+#else
+			ERR(E_UNPREDICTABLE, "loc %p was aliased, expected %08x, got %08x\n",
+#endif
+					orig_cycle_head->loc,
+					orig_cycle_head->val,
+					*orig_cycle_head->loc
+#ifdef DEBUG1 // Appease ()'s balance
+			   );
+#else
+			   );
+#endif
+		}
+		orig_cycle_head = orig_cycle_head->next;
+	}
+}
+
+static void print_leds_line();
+
+static void state_tock() {
+#ifdef DEBUG2
+	flockfile(stdout); flockfile(stderr);
+	printf("\n%08d TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK\n", cycle);
+	funlockfile(stderr); funlockfile(stdout);
+#endif
+	DBG2("CLOCK --> low (cycle %08d)\n", cycle);
+	// cycle_head is state_head from end of previous cycle here
+	cycle_head = cycle_head->next;
+	assert((NULL != cycle_head) && "nothing written this cycle?");
+
+	_state_tock();
+
+	if (*state_head->flags & STATE_PIPELINE_FLUSH) {
+		// Leverage the existing state mechanism to simplify replay,
+		// conceptually adding extra writes to the end of this cycle
+		// that alias the previous writes to actually flush the pipeline
+		cycle_head = state_head;
+		*cycle_head->flags |= STATE_PIPELINE_RUNNING;
+		o_hack = NULL;
+		pipeline_flush(state_pipeline_new_pc);
+		cycle_head = cycle_head->next;
+
+		_state_tock();
+	}
+
+	if (*state_head->flags & STATE_LED_WRITTEN) {
+		if (showledwrites) {
+			print_leds_line();
+		}
+	}
+}
+
+void state_write_op(struct op **loc, struct op *val) {
+	pthread_mutex_lock(&state_mutex);
+	// Lazy hack since every other bit of preserved state is a uint32_t
+	// At some point in time state saving will likely have to be generalized,
+	// until then, however, this will suffice
+	assert(loc == &id_ex_o);
+	o_hack = val;
+	pthread_mutex_unlock(&state_mutex);
+}
+
+uint32_t state_read(uint32_t *loc) {
+	return *loc;
+}
+
+#ifdef DEBUG1
+void state_write_real(uint32_t *loc, uint32_t val,
+		const char *file, const char* func,
+		const int line, const char *target) {
+#else
+void state_write(uint32_t *loc, uint32_t val) {
+#endif
+	pthread_mutex_lock(&state_mutex);
+
+	// Record:
+	struct state_change* s = malloc(sizeof(struct state_change));
+	assert((NULL != s) && "OOM");
+
+	DBG2("cycle: %08d\t(%s): loc %p val %08x\n",
+			cycle, target, loc, val);
+
+	s->prev = state_head;
+	s->next = NULL;
+	s->cycle = cycle;
+	s->flags = state_flags_cur;
+	s->loc = loc;
+	s->val = val;
+	s->prev_val = *loc;
+#ifdef DEBUG1
+	s->file = file;
+	s->func = func;
+	s->line = line;
+	s->target = target;
+#endif
+	state_head->next = s;
+	state_head = s;
+
+	pthread_mutex_unlock(&state_mutex);
+}
+
+// Returns 0 on success
+// Returns >0 on tolerable error (e.g. seek past end)
+// Returns <0 on catastrophic error
+static int state_seek(int target_cycle) {
+	// This assertion relies on *something* being written every cycle,
+	// which should hold since the PC is written every cycle at least.
+	// However, if we ever go cycle-accurate, much of the state_seek
+	// logic will require a revisit
+	assert(state_head->cycle == cycle);
+
+	if (target_cycle > cycle) {
+		DBG2("seeking forward from %d to %d\n", cycle, target_cycle);
+		while (target_cycle > cycle) {
+			if (state_head->next == NULL) {
+				WARN("Request to seek to cycle %d failed\n",
+						target_cycle);
+				WARN("State is only known up to cycle %d\n",
+						state_head->cycle);
+				WARN("Simulator left at cycle %d\n", cycle);
+				return 1;
+			}
+
+			state_head = state_head->next;
+			*(state_head->loc) = state_head->val;
+			if (
+					(NULL == state_head->next) ||
+					(state_head->next->cycle > state_head->cycle)
+			   ) {
+				cycle++;
+			}
+		}
+		return 0;
+	} else if (target_cycle == cycle) {
+		WARN("Request to seek to current cycle ignored\n");
+		return 1;
+	} else {
+		DBG2("seeking backward from %d to %d\n", cycle, target_cycle);
+		while (state_head->cycle > target_cycle) {
+			if (*state_head->flags & STATE_IO_BARRIER) {
+				WARN("Cannot rewind past I/O access\n");
+				WARN("Simulator left at cycle %08d\n", cycle);
+				return 1;
+			}
+
+			assert(NULL != state_head->prev);
+
+			DBG2("cycle: %d target: %d head: %d\n",
+					cycle, target_cycle, state_head->cycle);
+
+			DBG2("Resetting %p to %08x\n",
+					state_head->loc, state_head->prev_val);
+			*(state_head->loc) = state_head->prev_val;
+
+			state_head = state_head->prev;
+
+			if (cycle != state_head->cycle) {
+				cycle = state_head->cycle;
+			}
+		}
+
+		// One last bit of fixup since we don't actually track
+		// the op pointer
+		id_ex_o = find_op(id_ex_inst, false);
+
+		return 0;
+	}
+}
+
+static void state_pipeline_flush(uint32_t new_pc) {
+	pthread_mutex_lock(&state_mutex);
+	*state_flags_cur |= STATE_PIPELINE_FLUSH;
+	state_pipeline_new_pc = new_pc;
+	pthread_mutex_unlock(&state_mutex);
+}
+
+static void state_led_write(void) {
+	pthread_mutex_lock(&state_mutex);
+	*state_flags_cur |= STATE_LED_WRITTEN;
+	pthread_mutex_unlock(&state_mutex);
+}
+
+static void state_io_barrier(void) {
+	pthread_mutex_lock(&state_mutex);
+	*state_flags_cur |= STATE_IO_BARRIER;
+	pthread_mutex_unlock(&state_mutex);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // STATUS FUNCTIONS
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -411,10 +715,6 @@ static void print_full_state(void) {
 	DIVIDERe;
 }
 
-// This needs to start splitting into multiple source files
-// project ease v. quality; added to fixes
-static int state_seek(int);
-
 static void shell(void) {
 	static char buf[100];
 
@@ -425,27 +725,38 @@ static void shell(void) {
 
 	switch (buf[0]) {
 		case '\n':
-			dumpatpc = 0;
-			dumpatcycle = cycle + 1;
-			return;
+			dumpatpc = -3;
+			printf("%p, %p\n", state_head, state_head->next);
+			if (NULL == state_head->next) {
+				dumpatcycle = cycle + 1;
+				return;
+			} else {
+				state_seek(cycle + 1);
+				print_full_state();
+				return shell();
+			}
 
 		case 'p':
 			sscanf(buf, "%*s %x", &dumpatpc);
 			return;
 
-		case 'r':
+		case 's':
 		{
 			int ret;
 			int target;
 			ret = sscanf(buf, "%*s %d", &target);
 
-			if (-1 == ret)
-				target = cycle - 1;
-			else
-				assert(1 == ret);
+			if (-1 == ret) {
+				target = cycle + 1;
+			} else if (1 != ret) {
+				WARN("Error parsing input (ret %d?)\n", ret);
+				return shell();
+			}
 
 			if (target < 0) {
 				WARN("Ignoring seek to negative cycle\n");
+			} else if (target == cycle) {
+				WARN("Ignoring seek to current cycle\n");
 			} else {
 				state_seek(target);
 				print_full_state();
@@ -463,7 +774,7 @@ static void shell(void) {
 				sscanf(buf, "%*s %d", &requested_cycle);
 				if (requested_cycle < cycle) {
 					WARN("Request to execute into the past ignored\n");
-					WARN("Did you mean 'rewind %d'?\n", requested_cycle);
+					WARN("Did you mean 'seek %d'?\n", requested_cycle);
 					return shell();
 				} else if (requested_cycle == cycle) {
 					WARN("Request to execute to current cycle ignored\n");
@@ -485,309 +796,12 @@ static void shell(void) {
 			printf("   <none>		Advance 1 cycle\n");
 			printf("   pc HEX_ADDR		Stop at pc\n");
 			printf("   cycle INTEGER	Stop at cycle\n");
-			printf("   rewind [INTEGER]	Rewind to cycle\n");
-			printf("                        (back 1 cycle default\n");
+			printf("   seek [INTEGER]	Seek to cycle\n");
+			printf("                        (forward 1 cycle default)\n");
 			printf("   continue		Continue\n");
 			printf("   terminate		Terminate Simulation\n");
 			return shell();
 	}
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// CORE
-////////////////////////////////////////////////////////////////////////////////
-
-#define STATE_IO_BARRIER	0x1
-#define STATE_PIPELINE_FLUSH	0x10
-#define STATE_PIPELINE_RUNNING	0x20
-#define STATE_LED_WRITTEN	0x100
-
-struct state_change {
-	struct state_change *prev;
-	struct state_change *next;
-
-	/* Holds changes made __during__ this cycle; there may be multiple
-	   list entries per cycle. Thus, to return to the beginning of a
-	   cycle n (e.g. before it had executed), the list must have traversed
-	   such that the list head reaches an entry of cycle less than n */
-	int cycle;
-	int* flags;
-	uint32_t *loc;
-	uint32_t val;
-	uint32_t prev_val;
-#ifdef DEBUG1
-	const char* file;
-	const char* func;
-	int line;
-	const char* target;
-#endif
-};
-
-static int state_start_flags = 0;
-static struct state_change state_start = {
-	.prev = NULL,
-	.next = NULL,
-	.cycle = -1,
-	.flags = &state_start_flags,
-	.loc = NULL,
-	.val = 0,
-	.prev_val = 0,
-#ifdef DEBUG1
-	.file = NULL,
-	.func = NULL,
-	.line = -1,
-	.target = NULL,
-#endif
-};
-
-static struct state_change* state_head = &state_start;
-static struct state_change* cycle_head = NULL;
-
-static int *state_flags_cur = NULL;
-
-static struct op* o_hack = NULL;
-
-static uint32_t state_pipeline_new_pc = -1;
-
-static pthread_mutex_t state_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-static void state_start_tick() {
-#ifdef DEBUG2
-	flockfile(stdout); flockfile(stderr);
-	printf("\n%08d TICK TICK TICK TICK TICK TICK TICK TICK TICK\n", cycle);
-	funlockfile(stderr); funlockfile(stdout);
-#endif
-	DBG2("CLOCK --> high (cycle %08d)\n", cycle);
-	assert((state_head->cycle+1) == cycle);
-	cycle_head = state_head;
-
-	state_flags_cur = malloc(sizeof(int));
-	assert((NULL != state_flags_cur) && "OOM");
-	*state_flags_cur = 0;
-
-	o_hack = NULL;
-}
-
-static void _state_tock() {
-	if (cycle > 0) {
-		assert((NULL != o_hack) && "nothing set instruction for EX this cycle");
-	}
-	id_ex_o = o_hack;
-
-	struct state_change* orig_cycle_head = cycle_head;
-
-	while (NULL != cycle_head) {
-		assert(cycle_head->cycle == cycle);
-		DBG2("(%s::%s:%d: %s: %p = %08x (was %08x)\n",
-				cycle_head->file, cycle_head->func,
-				cycle_head->line, cycle_head->target,
-				cycle_head->loc, cycle_head->val, cycle_head->prev_val);
-		*cycle_head->loc = cycle_head->val;
-		cycle_head = cycle_head->next;
-	}
-
-	// Not going to do better than O(2n) for detecting duplicates in an
-	// unsorted list
-	while (NULL != orig_cycle_head) {
-		if (*orig_cycle_head->loc != orig_cycle_head->val) {
-#ifdef DEBUG1
-			ERR(E_UNPREDICTABLE, "(%s): %p was aliased, expected %08x, got %08x\n",
-					orig_cycle_head->target,
-#else
-			ERR(E_UNPREDICTABLE, "loc %p was aliased, expected %08x, got %08x\n",
-#endif
-					orig_cycle_head->loc,
-					orig_cycle_head->val,
-					*orig_cycle_head->loc
-#ifdef DEBUG1 // Appease ()'s balance
-			   );
-#else
-			   );
-#endif
-		}
-		orig_cycle_head = orig_cycle_head->next;
-	}
-}
-
-static void state_tock() {
-#ifdef DEBUG2
-	flockfile(stdout); flockfile(stderr);
-	printf("\n%08d TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK\n", cycle);
-	funlockfile(stderr); funlockfile(stdout);
-#endif
-	DBG2("CLOCK --> low (cycle %08d)\n", cycle);
-	// cycle_head is state_head from end of previous cycle here
-	cycle_head = cycle_head->next;
-	assert((NULL != cycle_head) && "nothing written this cycle?");
-
-	_state_tock();
-
-	if (*state_head->flags & STATE_PIPELINE_FLUSH) {
-		// Leverage the existing state mechanism to simplify replay,
-		// conceptually adding extra writes to the end of this cycle
-		// that alias the previous writes to actually flush the pipeline
-		cycle_head = state_head;
-		*cycle_head->flags |= STATE_PIPELINE_RUNNING;
-		o_hack = NULL;
-		pipeline_flush(state_pipeline_new_pc);
-		cycle_head = cycle_head->next;
-
-		_state_tock();
-	}
-
-	if (*state_head->flags & STATE_LED_WRITTEN) {
-		if (showledwrites) {
-			print_leds_line();
-		}
-	}
-}
-
-void state_write_op(struct op **loc, struct op *val) {
-	pthread_mutex_lock(&state_mutex);
-	// Lazy hack since every other bit of preserved state is a uint32_t
-	// At some point in time state saving will likely have to be generalized,
-	// until then, however, this will suffice
-	assert(loc == &id_ex_o);
-	o_hack = val;
-	pthread_mutex_unlock(&state_mutex);
-}
-
-uint32_t state_read(uint32_t *loc) {
-	return *loc;
-}
-
-#ifdef DEBUG1
-void state_write_real(uint32_t *loc, uint32_t val,
-		const char *file, const char* func,
-		const int line, const char *target) {
-#else
-void state_write(uint32_t *loc, uint32_t val) {
-#endif
-	pthread_mutex_lock(&state_mutex);
-
-	// Record:
-	struct state_change* s = malloc(sizeof(struct state_change));
-	assert((NULL != s) && "OOM");
-
-	DBG2("cycle: %08d\t(%s): loc %p val %08x\n",
-			cycle, target, loc, val);
-
-	s->prev = state_head;
-	s->next = NULL;
-	s->cycle = cycle;
-	s->flags = state_flags_cur;
-	s->loc = loc;
-	s->val = val;
-	s->prev_val = *loc;
-#ifdef DEBUG1
-	s->file = file;
-	s->func = func;
-	s->line = line;
-	s->target = target;
-#endif
-	state_head->next = s;
-	state_head = s;
-
-	pthread_mutex_unlock(&state_mutex);
-}
-
-// Returns 0 on success
-// Returns >0 on tolerable error (e.g. seek past end)
-// Returns <0 on catastrophic error
-static int state_seek(int target_cycle) {
-	// This assertion relies on *something* being written every cycle,
-	// which should hold since the PC is written every cycle at least.
-	// However, if we ever go cycle-accurate, much of the state_seek
-	// logic will require a revisit
-	assert(state_head->cycle == cycle);
-
-	if (target_cycle > cycle) {
-		/* Could support replay easily if we hold a "new_val" field,
-		   but that's a little silly when re-executing instr's is
-		   equally easy; eh, code's here if I want it someday:
-
-		DBG2("seeking forward from %d to %d\n", cycle, target_cycle);
-		while (target_cycle > cycle) {
-			if (state_head->next == NULL) {
-				WARN("Request to seek to cycle %d failed\n",
-						target_cycle);
-				WARN("State is only known up to cycle %d\n",
-						state_head->cycle);
-				WARN("Simulator left at cycle %d\n", cycle);
-				return 1;
-			}
-
-			state_head = state_head->next;
-			*(state_head->loc) = state_head->val;
-			if (
-					(NULL == state_head->next) ||
-					(state_head->next->cycle > state_head->cycle)
-			   ) {
-				cycle++;
-			}
-		}
-
-		return 0;
-		*/
-		WARN("Request to seek into the future ignored\n");
-		return 1;
-	} else if (target_cycle == cycle) {
-		WARN("Request to seek to current cycle ignored\n");
-		return 1;
-	} else {
-		DBG2("seeking backward from %d to %d\n", cycle, target_cycle);
-		while (state_head->cycle > target_cycle) {
-			if (*state_head->flags & STATE_IO_BARRIER) {
-				WARN("Cannot rewind past I/O access\n");
-				WARN("Simulator left at cycle %08d\n", cycle);
-				return 1;
-			}
-
-			assert(NULL != state_head->prev);
-
-			DBG2("cycle: %d target: %d head: %d\n",
-					cycle, target_cycle, state_head->cycle);
-
-			DBG2("Resetting %p to %08x\n",
-					state_head->loc, state_head->prev_val);
-			*(state_head->loc) = state_head->prev_val;
-
-			state_head = state_head->prev;
-
-			if (cycle != state_head->cycle) {
-				cycle = state_head->cycle;
-				free(state_head->next->flags);
-			}
-
-			free(state_head->next);
-			state_head->next = NULL;
-		}
-
-		// One last bit of fixup since we don't actually track
-		// the op pointer
-		id_ex_o = find_op(id_ex_inst, false);
-
-		return 0;
-	}
-}
-
-static void state_pipeline_flush(uint32_t new_pc) {
-	pthread_mutex_lock(&state_mutex);
-	*state_flags_cur |= STATE_PIPELINE_FLUSH;
-	state_pipeline_new_pc = new_pc;
-	pthread_mutex_unlock(&state_mutex);
-}
-
-static void state_led_write(void) {
-	pthread_mutex_lock(&state_mutex);
-	*state_flags_cur |= STATE_LED_WRITTEN;
-	pthread_mutex_unlock(&state_mutex);
-}
-
-static void state_io_barrier(void) {
-	pthread_mutex_lock(&state_mutex);
-	*state_flags_cur |= STATE_IO_BARRIER;
-	pthread_mutex_unlock(&state_mutex);
 }
 
 /* These are the functions called into by the student simulator project */
