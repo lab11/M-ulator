@@ -140,7 +140,7 @@ void b_t1(uint32_t inst) {
 	uint8_t cond = (inst & 0xf00) >> 8;
 
 	if (cond == 0xe)
-		CORE_ERR_unpredictable("b_t1 UNDEFINED\n");
+		CORE_ERR_unpredictable("b_t1 UNDEFINED (cond 0xe)\n");
 
 	uint32_t imm32 = SignExtend(imm8 << 1, 9);
 
@@ -148,7 +148,7 @@ void b_t1(uint32_t inst) {
 			CORE_reg_read(PC_REG), imm32);
 
 	if (in_ITblock())
-		CORE_ERR_unpredictable("b_t1 UNPREDICTABLE\n");
+		CORE_ERR_unpredictable("b_t1 UNPREDICTABLE (b in IT block)\n");
 
 	return b(cond, imm32);
 }
