@@ -1190,6 +1190,7 @@ static void load_opcodes(void) {
 	register_opcodes_logical();
 	register_opcodes_mov();
 	register_opcodes_mul();
+	register_opcodes_nop();
 	register_opcodes_pop();
 	register_opcodes_push();
 	register_opcodes_shift();
