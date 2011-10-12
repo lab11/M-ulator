@@ -31,7 +31,7 @@ void tick_if(void) {
 				// 32-bit thumb inst
 				DBG2("inst %04x is 32-bit\n", inst);
 
-				state_write(&last_pc, pc);
+				SW(&last_pc, pc);
 				pc = pc + 2;
 
 				inst <<= 16;
@@ -41,16 +41,16 @@ void tick_if(void) {
 			}
 			default:
 				// 16-bit thumb inst
-				state_write(&last_pc, pc);
+				SW(&last_pc, pc);
 				pc = pc + 2;
 		}
 
 		// A5.1.2 p153
 		// use of 0b1111 as a register specifier
 		// reading PC must *always* return inst addr + 4
-		state_write(&if_id_PC, pre_if_PC + 4);
-		state_write(&if_id_inst, inst);
-		state_write(&pre_if_PC, pc);
+		SW(&if_id_PC, pre_if_PC + 4);
+		SW(&if_id_inst, inst);
+		SW(&pre_if_PC, pc);
 	} else {
 #ifdef M_PROFILE
 		CORE_ERR_not_implemented("This CPU conforms to the ARM-7M profile, which requires the T bit to always be set\n");

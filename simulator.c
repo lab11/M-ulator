@@ -131,6 +131,25 @@ static void usage(void) {
 // GLOBALS
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef DEBUG1
+#define pthread_mutex_lock(_m)\
+	do {\
+		int ret = pthread_mutex_lock((_m));\
+		if (ret) {\
+			perror("Locking "VAL2STR(_m));\
+			exit(ret);\
+		}\
+	} while (0)
+#define pthread_mutex_unlock(_m)\
+	do {\
+		int ret = pthread_mutex_unlock((_m));\
+		if (ret) {\
+			perror("Unlocking "VAL2STR(_m));\
+			exit(ret);\
+		}\
+	} while (0)
+#endif
+
 #define NSECS_PER_SEC 1000000000
 
 static volatile sig_atomic_t sigint = 0;
@@ -147,9 +166,13 @@ EXPORT sem_t end_tock_sem;
 #define POLL_UART_BUFSIZE 16
 #define POLL_UART_BAUD 1200
 static void *poll_uart_thread(void *);
+#ifdef DEBUG1
+static pthread_mutex_t poll_uart_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
+#else
 static pthread_mutex_t poll_uart_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
 static pthread_cond_t  poll_uart_cond  = PTHREAD_COND_INITIALIZER;
-static int poll_uart_client = -1;
+static uint32_t poll_uart_client = 0;
 
 // circular buffer
 // head is location to read valid data from
@@ -157,9 +180,12 @@ static int poll_uart_client = -1;
 // characters are lost if not read fast enough
 // head == tail --> buffer is full (not that it matters)
 // head == NULL --> buffer if empty
-static char poll_uart_buffer[POLL_UART_BUFSIZE];
-static char *poll_uart_head = NULL;
-static char *poll_uart_tail = poll_uart_buffer;
+
+// these should be treated as char's, but are stored as uint32_t
+// to unify state tracking code
+static uint32_t poll_uart_buffer[POLL_UART_BUFSIZE];
+static uint32_t *poll_uart_head = NULL;
+static uint32_t *poll_uart_tail = poll_uart_buffer;
 static const struct timespec poll_uart_baud_sleep =\
 		{0, (NSECS_PER_SEC/POLL_UART_BAUD)*8};	// *8 bytes vs bits
 
@@ -307,10 +333,12 @@ static uint32_t control __attribute__ ((unused)) = 0x0;
 
 
 /* Peripherals */
-#define RED 0
-#define GRN 1
-#define BLU 2
-#define LED_COLORS 3
+enum LED_color {
+	RED = 0,
+	GRN = 1,
+	BLU = 2,
+	LED_COLORS,
+};
 static uint32_t leds[LED_COLORS] = {0};
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -319,8 +347,12 @@ static uint32_t leds[LED_COLORS] = {0};
 
 #define STATE_IO_BARRIER	0x1
 #define STATE_PIPELINE_FLUSH	0x10
-#define STATE_PIPELINE_RUNNING	0x20
+#define STATE_PIPELINE_RUNNING	0x80
 #define STATE_LED_WRITTEN	0x100
+#define STATE_LED_WRITING	0x800
+#define STATE_BLOCKING_ASYNC	0x8000
+
+#define STATE_LOCK_HELD_MASK	0x8888
 
 struct state_change {
 	struct state_change *prev;
@@ -335,6 +367,9 @@ struct state_change {
 	uint32_t *loc;
 	uint32_t val;
 	uint32_t prev_val;
+	uint32_t **ploc;
+	uint32_t *pval;
+	uint32_t *prev_pval;
 #ifdef DEBUG1
 	const char* file;
 	const char* func;
@@ -352,6 +387,9 @@ static struct state_change state_start = {
 	.loc = NULL,
 	.val = 0,
 	.prev_val = 0,
+	.ploc = NULL,
+	.pval = NULL,
+	.prev_pval = NULL,
 #ifdef DEBUG1
 	.file = NULL,
 	.func = NULL,
@@ -363,22 +401,49 @@ static struct state_change state_start = {
 static struct state_change* state_head = &state_start;
 static struct state_change* cycle_head = NULL;
 
-static int *state_flags_cur = NULL;
+static int *state_flags_cur = &state_start_flags;
 
 static struct op* o_hack = NULL;
 
 static uint32_t state_pipeline_new_pc = -1;
 
+#ifdef DEBUG1
+static pthread_mutex_t state_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
+#else
 static pthread_mutex_t state_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
+
+EXPORT void state_async_block_start(void) {
+	pthread_mutex_lock(&state_mutex);
+	DBG2("async_block started\n");
+	*state_flags_cur |= STATE_BLOCKING_ASYNC;
+}
+
+EXPORT void state_async_block_end(void) {
+	*state_flags_cur &= ~STATE_BLOCKING_ASYNC;
+	DBG2("async_block ended\n");
+	pthread_mutex_unlock(&state_mutex);
+}
+
+static void state_block_async_io(void) {
+	pthread_mutex_lock(&state_mutex);
+	*state_flags_cur |= STATE_BLOCKING_ASYNC;
+}
+
+static void state_unblock_async_io(void) {
+	*state_flags_cur &= ~STATE_BLOCKING_ASYNC;
+	pthread_mutex_unlock(&state_mutex);
+}
 
 static void state_start_tick() {
+	state_block_async_io();
 #ifdef DEBUG2
 	flockfile(stdout); flockfile(stderr);
 	printf("\n%08d TICK TICK TICK TICK TICK TICK TICK TICK TICK\n", cycle);
 	funlockfile(stderr); funlockfile(stdout);
 #endif
 	DBG2("CLOCK --> high (cycle %08d)\n", cycle);
-	assert((state_head->cycle+1) == cycle);
+	//assert((state_head->cycle+1) == cycle);
 	cycle_head = state_head;
 
 	if (NULL != state_head->next) {
@@ -403,6 +468,8 @@ static void state_start_tick() {
 	*state_flags_cur = 0;
 
 	o_hack = NULL;
+
+	state_unblock_async_io();
 }
 
 static void _state_tock() {
@@ -415,32 +482,49 @@ static void _state_tock() {
 
 	while (NULL != cycle_head) {
 		assert(cycle_head->cycle == cycle);
-		DBG2("(%s::%s:%d: %s: %p = %08x (was %08x)\n",
-				cycle_head->file, cycle_head->func,
-				cycle_head->line, cycle_head->target,
-				cycle_head->loc, cycle_head->val, cycle_head->prev_val);
-		*cycle_head->loc = cycle_head->val;
+		if (cycle_head->loc) {
+			DBG2("(%s::%s:%d: %s: %p = %08x (was %08x)\n",
+					cycle_head->file, cycle_head->func,
+					cycle_head->line, cycle_head->target,
+					cycle_head->loc, cycle_head->val,
+					cycle_head->prev_val);
+			*cycle_head->loc = cycle_head->val;
+		} else if (cycle_head->ploc) {
+			DBG2("(%s::%s:%d: %s: %p = %p (was %p)\n",
+					cycle_head->file, cycle_head->func,
+					cycle_head->line, cycle_head->target,
+					cycle_head->ploc, cycle_head->pval,
+					cycle_head->prev_pval);
+			*cycle_head->ploc = cycle_head->pval;
+		} else {
+			ERR(E_UNKNOWN, "loc and ploc NULL?\n");
+		}
 		cycle_head = cycle_head->next;
 	}
 
 	// Not going to do better than O(2n) for detecting duplicates in an
 	// unsorted list
 	while (NULL != orig_cycle_head) {
-		if (*orig_cycle_head->loc != orig_cycle_head->val) {
+		if (orig_cycle_head->loc) {
+			if (*orig_cycle_head->loc != orig_cycle_head->val) {
 #ifdef DEBUG1
-			ERR(E_UNPREDICTABLE, "(%s): %p was aliased, expected %08x, got %08x\n",
-					orig_cycle_head->target,
+				ERR(E_UNPREDICTABLE, "(%s): %p was aliased, expected %08x, got %08x\n",
+						orig_cycle_head->target,
 #else
-			ERR(E_UNPREDICTABLE, "loc %p was aliased, expected %08x, got %08x\n",
+				ERR(E_UNPREDICTABLE, "loc %p was aliased, expected %08x, got %08x\n",
 #endif
-					orig_cycle_head->loc,
-					orig_cycle_head->val,
-					*orig_cycle_head->loc
+						orig_cycle_head->loc,
+						orig_cycle_head->val,
+						*orig_cycle_head->loc
 #ifdef DEBUG1 // Appease ()'s balance
-			   );
+				   );
 #else
-			   );
+				   );
 #endif
+			}
+		} else {
+			// But async stuff is allowed to alias
+			;
 		}
 		orig_cycle_head = orig_cycle_head->next;
 	}
@@ -449,6 +533,8 @@ static void _state_tock() {
 static void print_leds_line();
 
 static void state_tock() {
+	state_block_async_io();
+
 #ifdef DEBUG2
 	flockfile(stdout); flockfile(stderr);
 	printf("\n%08d TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK\n", cycle);
@@ -461,7 +547,7 @@ static void state_tock() {
 
 	_state_tock();
 
-	if (*state_head->flags & STATE_PIPELINE_FLUSH) {
+	if (*state_flags_cur & STATE_PIPELINE_FLUSH) {
 		// Leverage the existing state mechanism to simplify replay,
 		// conceptually adding extra writes to the end of this cycle
 		// that alias the previous writes to actually flush the pipeline
@@ -472,37 +558,48 @@ static void state_tock() {
 		cycle_head = cycle_head->next;
 
 		_state_tock();
+
+		*state_flags_cur &= ~STATE_PIPELINE_RUNNING;
 	}
 
-	if (*state_head->flags & STATE_LED_WRITTEN) {
+	if (*state_flags_cur & STATE_LED_WRITTEN) {
 		if (showledwrites) {
 			print_leds_line();
 		}
 	}
+
+	state_unblock_async_io();
 }
 
-void state_write_op(struct op **loc, struct op *val) {
-	pthread_mutex_lock(&state_mutex);
-	// Lazy hack since every other bit of preserved state is a uint32_t
-	// At some point in time state saving will likely have to be generalized,
-	// until then, however, this will suffice
-	assert(loc == &id_ex_o);
-	o_hack = val;
-	pthread_mutex_unlock(&state_mutex);
+EXPORT uint32_t state_read(uint32_t *loc) {
+	return *loc;
 }
 
-uint32_t state_read(uint32_t *loc) {
+EXPORT uint32_t state_read_async(uint32_t *loc) {
+	uint32_t ret;
+	state_async_block_start();
+	ret = state_read(loc);
+	state_async_block_end();
+	return ret;
+}
+
+EXPORT uint32_t* state_read_p(uint32_t **loc) {
 	return *loc;
 }
 
 #ifdef DEBUG1
-void state_write_real(uint32_t *loc, uint32_t val,
+static void _state_write_dbg(uint32_t *loc, uint32_t val,
+		uint32_t** ploc, uint32_t* pval,
 		const char *file, const char* func,
 		const int line, const char *target) {
 #else
-void state_write(uint32_t *loc, uint32_t val) {
+static void _state_write(uint32_t *loc, uint32_t val,
+		uint32_t** ploc, uint32_t* pval) {
 #endif
-	pthread_mutex_lock(&state_mutex);
+	if (!(*state_flags_cur & STATE_LOCK_HELD_MASK))
+		pthread_mutex_lock(&state_mutex);
+
+	assert((NULL != loc) || (NULL != ploc));
 
 	// Record:
 	struct state_change* s = malloc(sizeof(struct state_change));
@@ -517,7 +614,10 @@ void state_write(uint32_t *loc, uint32_t val) {
 	s->flags = state_flags_cur;
 	s->loc = loc;
 	s->val = val;
-	s->prev_val = *loc;
+	s->prev_val = (loc) ? *loc : 0;
+	s->ploc = ploc;
+	s->pval = pval;
+	s->prev_pval = (ploc) ? *ploc : NULL;
 #ifdef DEBUG1
 	s->file = file;
 	s->func = func;
@@ -527,7 +627,64 @@ void state_write(uint32_t *loc, uint32_t val) {
 	state_head->next = s;
 	state_head = s;
 
-	pthread_mutex_unlock(&state_mutex);
+	if (*state_flags_cur & STATE_BLOCKING_ASYNC) {
+		if (loc) {
+			*loc = val;
+		} else {
+			*ploc = pval;
+		}
+	}
+
+	if (!(*state_flags_cur & STATE_LOCK_HELD_MASK))
+		pthread_mutex_unlock(&state_mutex);
+}
+
+#ifdef DEBUG1
+EXPORT void state_write_dbg(uint32_t *loc, uint32_t val,
+		const char *file, const char* func,
+		const int line, const char *target) {
+	return _state_write_dbg(loc, val, NULL, NULL, file, func, line, target);
+}
+
+EXPORT void state_write_p_dbg(uint32_t **ploc, uint32_t *pval,
+		const char *file, const char* func,
+		const int line, const char *target) {
+	return _state_write_dbg(NULL, 0, ploc, pval, file, func, line, target);
+}
+
+EXPORT void state_write_async_dbg(uint32_t *loc, uint32_t val,
+		const char *file, const char* func,
+		const int line, const char *target) {
+	state_async_block_start();
+	state_write_dbg(loc, val, file, func, line, target);
+	state_async_block_end();
+}
+#else
+EXPORT void state_write(uint32_t *loc, uint32_t val) {
+	return _state_write(loc, val, NULL, NULL);
+}
+
+EXPORT void state_write_p(uint32_t **ploc, uint32_t *pval) {
+	return _state_write(NULL, 0, ploc, pval);
+}
+
+EXPORT void state_write_async(uint32_t *loc, uint32_t val) {
+	state_async_block_start();
+	state_write(loc, val);
+	state_async_block_end();
+}
+#endif
+
+void state_write_op(struct op **loc, struct op *val) {
+	if (!(*state_flags_cur & STATE_LOCK_HELD_MASK))
+		pthread_mutex_lock(&state_mutex);
+	// Lazy hack since every other bit of preserved state is a uint32_t[*]
+	// At some point in time state saving will likely have to be generalized,
+	// until then, however, this will suffice
+	assert(loc == &id_ex_o);
+	o_hack = val;
+	if (!(*state_flags_cur & STATE_LOCK_HELD_MASK))
+		pthread_mutex_unlock(&state_mutex);
 }
 
 // Returns 0 on success
@@ -553,7 +710,11 @@ static int state_seek(int target_cycle) {
 			}
 
 			state_head = state_head->next;
-			*(state_head->loc) = state_head->val;
+			if (state_head->loc) {
+				*(state_head->loc) = state_head->val;
+			} else {
+				*(state_head->ploc) = state_head->pval;
+			}
 			if (
 					(NULL == state_head->next) ||
 					(state_head->next->cycle > state_head->cycle)
@@ -579,9 +740,15 @@ static int state_seek(int target_cycle) {
 			DBG2("cycle: %d target: %d head: %d\n",
 					cycle, target_cycle, state_head->cycle);
 
-			DBG2("Resetting %p to %08x\n",
-					state_head->loc, state_head->prev_val);
-			*(state_head->loc) = state_head->prev_val;
+			if (state_head->loc) {
+				DBG2("Resetting %p to %08x\n",
+						state_head->loc, state_head->prev_val);
+				*(state_head->loc) = state_head->prev_val;
+			} else {
+				DBG2("Resetting %p to %p\n",
+						state_head->ploc, state_head->prev_pval);
+				*(state_head->ploc) = state_head->prev_pval;
+			}
 
 			state_head = state_head->prev;
 
@@ -605,15 +772,14 @@ static void state_pipeline_flush(uint32_t new_pc) {
 	pthread_mutex_unlock(&state_mutex);
 }
 
-static void state_led_write(void) {
+static void state_led_write(enum LED_color led, uint32_t val) {
 	pthread_mutex_lock(&state_mutex);
+	*state_flags_cur |= STATE_LED_WRITING;
 	*state_flags_cur |= STATE_LED_WRITTEN;
-	pthread_mutex_unlock(&state_mutex);
-}
 
-static void state_io_barrier(void) {
-	pthread_mutex_lock(&state_mutex);
-	*state_flags_cur |= STATE_IO_BARRIER;
+	SW(&leds[led], val);
+
+	*state_flags_cur &= ~STATE_LED_WRITING;
 	pthread_mutex_unlock(&state_mutex);
 }
 
@@ -842,10 +1008,10 @@ void CORE_reg_write(int r, uint32_t val) {
 		state_pipeline_flush(val & 0xfffffffe);
 	}
 	else if (r == SP_REG) {
-		state_write(&SP, val & 0xfffffffc);
+		SW(&SP, val & 0xfffffffc);
 	}
 	else {
-		state_write(&(reg[r]), val);
+		SW(&(reg[r]), val);
 	}
 	G_REG(WRITE, r);
 }
@@ -864,7 +1030,7 @@ void CORE_cpsr_write(uint32_t val) {
 		DBG1("WARN update of reserved CPSR bits\n");
 	}
 #endif
-	state_write(&CPSR, val);
+	SW(&CPSR, val);
 	G_CPSR(WRITE);
 }
 
@@ -875,7 +1041,7 @@ uint32_t CORE_ipsr_read(void) {
 }
 
 void CORE_ipsr_write(uint32_t val) {
-	state_write(&IPSR, val);
+	SW(&IPSR, val);
 	G_IPSR(WRITE);
 }
 
@@ -885,7 +1051,7 @@ uint32_t CORE_epsr_read(void) {
 }
 
 void CORE_epsr_write(uint32_t val) {
-	state_write(&EPSR, val);
+	SW(&EPSR, val);
 	G_EPSR(WRITE);
 }
 #endif
@@ -921,7 +1087,7 @@ void CORE_ram_write(uint32_t addr, uint32_t val) {
 	assert((addr >= RAMBOT) && (addr < RAMTOP) && "CORE_ram_write");
 #endif
 	if ((addr >= RAMBOT) && (addr < RAMTOP) && (0 == (addr & 0x3))) {
-		state_write(&ram[ADDR_TO_IDX(addr, RAMBOT)],val);
+		SW(&ram[ADDR_TO_IDX(addr, RAMBOT)],val);
 		G_RAM(WRITE, addr);
 	} else {
 		CORE_ERR_invalid_addr(true, addr);
@@ -930,57 +1096,49 @@ void CORE_ram_write(uint32_t addr, uint32_t val) {
 
 uint32_t CORE_red_led_read(void) {
 	G_PERIPH(READ, LED, RED);
-	return state_read(&leds[RED]);
+	return SR(&leds[RED]);
 }
 
 void CORE_red_led_write(uint32_t val) {
 	G_PERIPH(WRITE, LED, RED);
-	state_write(&leds[RED],val);
-	if (showledwrites)
-		state_led_write();
+	SW(&leds[RED],val);
+	state_led_write(RED, val);
 }
 
 uint32_t CORE_grn_led_read(void) {
 	G_PERIPH(READ, LED, GRN);
-	return state_read(&leds[GRN]);
+	return SR(&leds[GRN]);
 }
 
 void CORE_grn_led_write(uint32_t val) {
 	G_PERIPH(WRITE, LED, GRN);
-	state_write(&leds[GRN],val);
-	if (showledwrites)
-		state_led_write();
+	SW(&leds[GRN],val);
+	state_led_write(GRN, val);
 }
 
 uint32_t CORE_blu_led_read(void) {
 	G_PERIPH(READ, LED, BLU);
-	return state_read(&leds[BLU]);
+	return SR(&leds[BLU]);
 }
 
 void CORE_blu_led_write(uint32_t val) {
 	G_PERIPH(WRITE, LED, BLU);
-	state_write(&leds[BLU],val);
-	if (showledwrites)
-		state_led_write();
+	state_led_write(BLU, val);
 }
 
 uint8_t CORE_poll_uart_status_read() {
-	state_io_barrier();
 	return poll_uart_status_read();
 }
 
 void CORE_poll_uart_status_write(uint8_t val) {
-	state_io_barrier();
 	return poll_uart_status_write(val);
 }
 
 uint8_t CORE_poll_uart_rxdata_read() {
-	state_io_barrier();
 	return poll_uart_rxdata_read();
 }
 
 void CORE_poll_uart_txdata_write(uint8_t val) {
-	state_io_barrier();
 	return poll_uart_txdata_write(val);
 }
 
@@ -1122,22 +1280,28 @@ static int sim_execute(void) {
 
 	int i;
 
+	// Start a clock tick
 	state_start_tick();
 
+	// Don't let stages steal wakeups
 	for (i = 0; i < NUM_TICKERS; i++) {
 		sem_wait(&ticker_ready_sem);
 	}
 
+	// Start off each stage
 	for (i = 0; i < NUM_TICKERS; i++) {
 		sem_post(&start_tick_sem);
 	}
 
+	// Wait for all stages to complete
 	for (i = 0; i < NUM_TICKERS; i++) {
 		sem_wait(&end_tick_sem);
 	}
 
+	// Latch hardware
 	state_tock();
 
+	// Notify stages this cycle is complete
 	for (i = 0; i < NUM_TICKERS; i++) {
 		sem_post(&end_tock_sem);
 	}
@@ -1405,7 +1569,7 @@ void *poll_uart_thread(void *arg_v) {
 	server.sin_family = AF_INET;
 	server.sin_addr.s_addr = htonl(INADDR_ANY);
 	server.sin_port = htons(port);
-	int on;
+	int on = 1;
 	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
 
 	if (-1 == bind(sock, (struct sockaddr *) &server, sizeof(server))) {
@@ -1431,6 +1595,8 @@ void *poll_uart_thread(void *arg_v) {
 
 		static const char *welcome = "\
 >>MSG<< You are now connected to the UART polling device\n\
+>>MSG<< Lines prefixed with '>>MSG<<' are sent from this\n\
+>>MSG<< UART <--> network bridge, not the connected device\n\
 >>MSG<< This device has a "VAL2STR(POLL_UART_BUFSIZE)" byte buffer\n\
 >>MSG<< This device operates at "VAL2STR(POLL_UART_BAUD)" baud\n\
 >>MSG<< To send a message, simply type and press the return key\n\
@@ -1441,18 +1607,37 @@ void *poll_uart_thread(void *arg_v) {
 		}
 
 		pthread_mutex_lock(&poll_uart_mutex);
-		poll_uart_client = client;
+		SW_A(&poll_uart_client, client);
 		pthread_mutex_unlock(&poll_uart_mutex);
 
 		static char c;
-		while (1 == recv(poll_uart_client, &c, 1, 0)) {
+		while (1 == recv(SR_A(&poll_uart_client), &c, 1, 0)) {
 			pthread_mutex_lock(&poll_uart_mutex);
-			*poll_uart_tail = c;
-			if (NULL == poll_uart_head)
-				poll_uart_head = poll_uart_tail;
-			poll_uart_tail++;
-			if (poll_uart_tail == (poll_uart_buffer + POLL_UART_BUFSIZE))
-				poll_uart_tail = poll_uart_buffer;
+			state_async_block_start();
+
+			uint32_t* head = SRP(&poll_uart_head);
+			uint32_t* tail = SRP(&poll_uart_tail);
+
+			DBG1("recv start\thead: %d, tail: %d\n",
+					(head)?head - poll_uart_buffer:-1,
+					tail - poll_uart_buffer);
+
+			SW(tail, c);
+			if (NULL == head) {
+				head = tail;
+				SWP(&poll_uart_head, head);
+			}
+			tail++;
+			if (tail == (poll_uart_buffer + POLL_UART_BUFSIZE))
+				tail = poll_uart_buffer;
+			SWP(&poll_uart_tail, tail);
+
+			DBG1("recv end\thead: %d, tail: %d\t[%d=%c]\n",
+					(head)?head - poll_uart_buffer:-1,
+					tail - poll_uart_buffer,
+					tail-poll_uart_buffer-1, *(tail-1));
+
+			state_async_block_end();
 			pthread_mutex_unlock(&poll_uart_mutex);
 
 			nanosleep(&poll_uart_baud_sleep, NULL);
@@ -1461,7 +1646,7 @@ void *poll_uart_thread(void *arg_v) {
 		WARN("Lost connection to UART client\n");
 
 		pthread_mutex_lock(&poll_uart_mutex);
-		poll_uart_client = -1;
+		SW_A(&poll_uart_client, 0);
 		pthread_mutex_unlock(&poll_uart_mutex);
 	}
 }
@@ -1470,8 +1655,10 @@ uint8_t poll_uart_status_read() {
 	uint8_t ret = 0;
 
 	pthread_mutex_lock(&poll_uart_mutex);
-	ret |= (poll_uart_head != NULL) << POLL_UART_RXBIT; // data avail?
-	ret |= (poll_uart_client == -1) << POLL_UART_TXBIT; // tx busy?
+	state_async_block_start();
+	ret |= (SRP(&poll_uart_head) != NULL) << POLL_UART_RXBIT; // data avail?
+	ret |= (SR(&poll_uart_client) == 0) << POLL_UART_TXBIT; // tx busy?
+	state_async_block_end();
 	pthread_mutex_unlock(&poll_uart_mutex);
 
 	// For lock contention
@@ -1482,8 +1669,10 @@ uint8_t poll_uart_status_read() {
 
 void poll_uart_status_write() {
 	pthread_mutex_lock(&poll_uart_mutex);
-	poll_uart_head = NULL;
-	poll_uart_tail = poll_uart_buffer;
+	state_async_block_start();
+	SWP(&poll_uart_head, NULL);
+	SWP(&poll_uart_tail, poll_uart_buffer);
+	state_async_block_end();
 	pthread_mutex_unlock(&poll_uart_mutex);
 
 	// For lock contention
@@ -1498,20 +1687,33 @@ uint8_t poll_uart_rxdata_read() {
 #endif
 
 	pthread_mutex_lock(&poll_uart_mutex);
-	if (NULL == poll_uart_head) {
+	state_async_block_start();
+	if (NULL == SRP(&poll_uart_head)) {
 		// XXX warn? nah.. but grade?
-		ret = poll_uart_buffer[3]; // eh... rand? 3, why not?
+		ret = SR(&poll_uart_buffer[3]); // eh... rand? 3, why not?
 	} else {
 #ifdef DEBUG1
-		idx = poll_uart_head - poll_uart_buffer;
+		idx = SRP(&poll_uart_head) - poll_uart_buffer;
 #endif
-		ret = *poll_uart_head;
-		poll_uart_head++;
-		if (poll_uart_head == (poll_uart_buffer + POLL_UART_BUFSIZE))
-			poll_uart_head = poll_uart_buffer;
-		if (poll_uart_head == poll_uart_tail)
-			poll_uart_head = NULL;
+		uint32_t* head = SRP(&poll_uart_head);
+		uint32_t* tail = SRP(&poll_uart_tail);
+
+		ret = *head;
+
+		head++;
+		if (head == (poll_uart_buffer + POLL_UART_BUFSIZE))
+			head = poll_uart_buffer;
+		if (head == tail)
+			head = NULL;
+
+		DBG1("rxdata end\thead: %d, tail: %d\t[%d=%c]\n",
+				(head)?head - poll_uart_buffer:-1,
+				tail - poll_uart_buffer,
+				(head)?head-poll_uart_buffer:-1,(head)?*head:'\0');
+
+		SWP(&poll_uart_head, head);
 	}
+	state_async_block_end();
 	pthread_mutex_unlock(&poll_uart_mutex);
 
 	DBG1("UART read byte: %c %x\tidx: %d\n", ret, ret, idx);
@@ -1523,14 +1725,15 @@ void poll_uart_txdata_write(uint8_t val) {
 	DBG1("UART write byte: %c %x\n", val, val);
 
 	pthread_mutex_lock(&poll_uart_mutex);
-	if (-1 == poll_uart_client) {
+	uint32_t client = SR_A(&poll_uart_client);
+	if (0 == client) {
 		// XXX warn? no, grade
 		// no connected client (TX is busy...) so drop
 	}
-	else if (-1 == send(poll_uart_client, &val, 1, 0)) {
+	else if (-1 == send(client, &val, 1, 0)) {
 		ERR(E_UNKNOWN, "%d UART: %s\n", __LINE__, strerror(errno));
 	}
 	pthread_mutex_unlock(&poll_uart_mutex);
 
-	DBG2("UART byte sent\n");
+	DBG2("UART byte sent %c\n", val);
 }

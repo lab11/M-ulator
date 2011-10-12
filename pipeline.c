@@ -21,12 +21,12 @@ uint32_t id_ex_inst;
 
 void pipeline_flush(uint32_t new_pc) {
 	DBG2("new_PC: %08x\n", new_pc);
-	state_write(&pre_if_PC, new_pc);
-	state_write(&if_id_PC, -1);
-	state_write(&if_id_inst, INST_NOP);
-	state_write(&id_ex_PC, -1);
+	SW(&pre_if_PC, new_pc);
+	SW(&if_id_PC, -1);
+	SW(&if_id_inst, INST_NOP);
+	SW(&id_ex_PC, -1);
 	state_write_op(&id_ex_o, find_op(INST_NOP, false));
-	state_write(&id_ex_inst, INST_NOP);
+	SW(&id_ex_inst, INST_NOP);
 }
 
 void* ticker(void *stage_fn) {

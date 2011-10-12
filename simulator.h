@@ -59,16 +59,36 @@ extern int printcycles;
 extern int raiseonerror;
 
 // Latchable state
+#define SR(_l) state_read((_l))
+uint32_t state_read(uint32_t *loc);
+#define SR_A(_l) state_read_async((_l))
+uint32_t state_read_async(uint32_t *loc);
+#define SRP(_l) state_read_p((_l))
+uint32_t* state_read_p(uint32_t **loc);
 #ifdef DEBUG1
-void state_write_real(uint32_t *loc, uint32_t val,
+#define SW(_l, _v) state_write_dbg((_l), (_v),\
+		__FILE__, __func__, __LINE__, VAL2STR(_l))
+void state_write_dbg(uint32_t *loc, uint32_t val,
 		const char *file, const char *func,
 		const int line, const char *target);
-#define state_write(_l, _v)\
-	state_write_real((_l), (_v), __FILE__, __func__,\
-			__LINE__, VAL2STR(_l))
+#define SW_A(_l, _v) state_write_async_dbg((_l), (_v),\
+		__FILE__, __func__, __LINE__, VAL2STR(_l))
+void state_write_async_dbg(uint32_t *loc, uint32_t val,
+		const char *file, const char *func,
+		const int line, const char *target);
+#define SWP(_l, _v) state_write_p_dbg((_l), (_v),\
+		__FILE__, __func__, __LINE__, VAL2STR(_l))
+void state_write_p_dbg(uint32_t **ploc, uint32_t *pval,
+		const char *file, const char* func,
+		const int line, const char *target);
 void state_write_op(struct op **loc, struct op *val);
 #else
+#define SW(_l, _v) state_write((_l), (_v))
 void state_write(uint32_t *loc, uint32_t val);
+#define SW_A(_l, _v) state_write_async((_l), (_v))
+void state_write_async(uint32_t *loc, uint32_t val);
+#define SWP(_l, _v) state_write_p((_l), (_v))
+void state_write_p(uint32_t **ploc, uint32_t *pval);
 void state_write_op(struct op **loc, struct op *val);
 #endif
 

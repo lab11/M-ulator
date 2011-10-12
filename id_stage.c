@@ -79,9 +79,9 @@ EXPORT void tick_id(void) {
 		CORE_ERR_illegal_instr(inst);
 	}
 
-	state_write(&id_ex_PC, if_id_PC);
+	SW(&id_ex_PC, if_id_PC);
 	state_write_op(&id_ex_o, o);
-	state_write(&id_ex_inst, inst);
+	SW(&id_ex_inst, inst);
 
 	DBG2("end\n");
 }
