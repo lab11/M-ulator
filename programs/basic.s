@@ -1,6 +1,6 @@
 .cpu cortex-m3
-.syntax unified
 .thumb
+.syntax unified
 
 /* TTTA: This program will work even with an empty memmap file, why? */
 
@@ -17,4 +17,5 @@ loop:
     movs r1, r0
     sub r0, r1, #2
     bne  loop
+    mov r0, #0
 hang:    b .
