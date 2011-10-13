@@ -31,6 +31,7 @@ void register_opcodes_ld(void);
 void register_opcodes_logical(void);
 void register_opcodes_mov(void);
 void register_opcodes_mul(void);
+void register_opcodes_nop(void);
 void register_opcodes_pop(void);
 void register_opcodes_push(void);
 void register_opcodes_shift(void);

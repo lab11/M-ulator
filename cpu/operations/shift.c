@@ -115,6 +115,7 @@ void asr_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rm, enum SRTyp
 					carry,
 					!!(cpsr & xPSR_V)
 				       );
+			CORE_cpsr_write(cpsr);
 		}
 	}
 

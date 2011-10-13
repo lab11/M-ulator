@@ -49,6 +49,7 @@ void mov_imm(uint32_t cpsr, uint8_t setflags, uint32_t imm32, uint8_t rd, uint8_
 					carry,
 					!!(cpsr & xPSR_V)
 				       );
+			CORE_cpsr_write(cpsr);
 		}
 	}
 
@@ -132,6 +133,7 @@ void mov_reg(uint32_t cpsr, uint8_t setflags,  uint8_t rd, uint8_t rm) {
 					!!(cpsr & xPSR_C),
 					!!(cpsr & xPSR_V)
 				       );
+			CORE_cpsr_write(cpsr);
 		}
 	}
 

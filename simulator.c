@@ -162,6 +162,8 @@ EXPORT sem_t end_tock_sem;
 #define NUM_TICKERS	3	// IF, ID, EX
 
 /* UARTs */
+#define INVALID_CLIENT (UINT_MAX-1)
+
 #define POLL_UART_PORT 4100
 #define POLL_UART_BUFSIZE 16
 #define POLL_UART_BAUD 1200
@@ -172,7 +174,7 @@ static pthread_mutex_t poll_uart_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP
 static pthread_mutex_t poll_uart_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 static pthread_cond_t  poll_uart_cond  = PTHREAD_COND_INITIALIZER;
-static uint32_t poll_uart_client = 0;
+static uint32_t poll_uart_client = INVALID_CLIENT;
 
 // circular buffer
 // head is location to read valid data from
@@ -1366,6 +1368,7 @@ static void load_opcodes(void) {
 	register_opcodes_logical();
 	register_opcodes_mov();
 	register_opcodes_mul();
+	register_opcodes_nop();
 	register_opcodes_pop();
 	register_opcodes_push();
 	register_opcodes_shift();
@@ -1611,7 +1614,8 @@ void *poll_uart_thread(void *arg_v) {
 		pthread_mutex_unlock(&poll_uart_mutex);
 
 		static char c;
-		while (1 == recv(SR_A(&poll_uart_client), &c, 1, 0)) {
+		static int ret;
+		while (1 ==  (ret = recv(SR_A(&poll_uart_client), &c, 1, 0))  ) {
 			pthread_mutex_lock(&poll_uart_mutex);
 			state_async_block_start();
 
@@ -1643,10 +1647,18 @@ void *poll_uart_thread(void *arg_v) {
 			nanosleep(&poll_uart_baud_sleep, NULL);
 		}
 
-		WARN("Lost connection to UART client\n");
-
-		pthread_mutex_lock(&poll_uart_mutex);
-		SW_A(&poll_uart_client, 0);
+		if (ret == 0) {
+			INFO("UART client has closed connection"\
+				"(no more data in but you can still send)");
+			pthread_mutex_lock(&poll_uart_mutex);
+			// Dodge small race window to miss wakeup
+			if (SR_A(&poll_uart_client) != INVALID_CLIENT)
+				pthread_cond_wait(&poll_uart_cond, &poll_uart_mutex);
+		} else {
+			WARN("Lost connection to UART client\n");
+			pthread_mutex_lock(&poll_uart_mutex);
+		}
+		SW_A(&poll_uart_client, INVALID_CLIENT);
 		pthread_mutex_unlock(&poll_uart_mutex);
 	}
 }
@@ -1657,7 +1669,7 @@ uint8_t poll_uart_status_read() {
 	pthread_mutex_lock(&poll_uart_mutex);
 	state_async_block_start();
 	ret |= (SRP(&poll_uart_head) != NULL) << POLL_UART_RXBIT; // data avail?
-	ret |= (SR(&poll_uart_client) == 0) << POLL_UART_TXBIT; // tx busy?
+	ret |= (SR(&poll_uart_client) == INVALID_CLIENT) << POLL_UART_TXBIT; // tx busy?
 	state_async_block_end();
 	pthread_mutex_unlock(&poll_uart_mutex);
 
@@ -1724,14 +1736,18 @@ uint8_t poll_uart_rxdata_read() {
 void poll_uart_txdata_write(uint8_t val) {
 	DBG1("UART write byte: %c %x\n", val, val);
 
+	static int ret;
+
 	pthread_mutex_lock(&poll_uart_mutex);
 	uint32_t client = SR_A(&poll_uart_client);
-	if (0 == client) {
+	if (INVALID_CLIENT == client) {
 		// XXX warn? no, grade
 		// no connected client (TX is busy...) so drop
 	}
-	else if (-1 == send(client, &val, 1, 0)) {
-		ERR(E_UNKNOWN, "%d UART: %s\n", __LINE__, strerror(errno));
+	else if (-1 ==  ( ret = send(client, &val, 1, 0))  ) {
+		WARN("%d UART: %s\n", __LINE__, strerror(errno));
+		SW_A(&poll_uart_client, INVALID_CLIENT);
+		pthread_cond_signal(&poll_uart_cond);
 	}
 	pthread_mutex_unlock(&poll_uart_mutex);
 
