@@ -1394,7 +1394,8 @@ void *poll_uart_thread(void *arg_v) {
 		pthread_mutex_unlock(&poll_uart_mutex);
 
 		static char c;
-		while (1 == recv(poll_uart_client, &c, 1, 0)) {
+		static int ret;
+		while (1 ==  (ret = recv(poll_uart_client, &c, 1, 0))  ) {
 			pthread_mutex_lock(&poll_uart_mutex);
 			*poll_uart_tail = c;
 			if (NULL == poll_uart_head)
@@ -1407,9 +1408,17 @@ void *poll_uart_thread(void *arg_v) {
 			nanosleep(&poll_uart_baud_sleep, NULL);
 		}
 
-		WARN("Lost connection to UART client\n");
-
-		pthread_mutex_lock(&poll_uart_mutex);
+		if (ret == 0) {
+			INFO("UART client has closed connection"\
+				"(no more data in but you can still send)");
+			pthread_mutex_lock(&poll_uart_mutex);
+			// Dodge small race window to miss wakeup
+			if (poll_uart_client != -1)
+				pthread_cond_wait(&poll_uart_cond, &poll_uart_mutex);
+		} else {
+			WARN("Lost connection to UART client\n");
+			pthread_mutex_lock(&poll_uart_mutex);
+		}
 		poll_uart_client = -1;
 		pthread_mutex_unlock(&poll_uart_mutex);
 	}
@@ -1471,13 +1480,17 @@ uint8_t poll_uart_rxdata_read() {
 void poll_uart_txdata_write(uint8_t val) {
 	DBG1("UART write byte: %c %x\n", val, val);
 
+	static int ret;
+
 	pthread_mutex_lock(&poll_uart_mutex);
 	if (-1 == poll_uart_client) {
 		// XXX warn? no, grade
 		// no connected client (TX is busy...) so drop
 	}
-	else if (-1 == send(poll_uart_client, &val, 1, 0)) {
-		ERR(E_UNKNOWN, "%d UART: %s\n", __LINE__, strerror(errno));
+	else if (-1 ==  ( ret = send(poll_uart_client, &val, 1, 0))  ) {
+		WARN("%d UART: %s\n", __LINE__, strerror(errno));
+		poll_uart_client = -1;
+		pthread_cond_signal(&poll_uart_cond);
 	}
 	pthread_mutex_unlock(&poll_uart_mutex);
 
