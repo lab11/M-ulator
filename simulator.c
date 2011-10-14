@@ -153,6 +153,7 @@ static void usage(void) {
 #define NSECS_PER_SEC 1000000000
 
 static volatile sig_atomic_t sigint = 0;
+static volatile bool shell_running = false;
 
 /* Tick Control */
 EXPORT sem_t ticker_ready_sem;
@@ -789,7 +790,7 @@ static void state_led_write(enum LED_color led, uint32_t val) {
 // STATUS FUNCTIONS
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DIVIDERe printf("================================================================================\n")
+#define DIVIDERe printf("\r================================================================================\n")
 #define DIVIDERd printf("--------------------------------------------------------------------------------\n")
 
 static void print_leds_line(void) {
@@ -883,7 +884,7 @@ static void print_full_state(void) {
 	DIVIDERe;
 }
 
-static void shell(void) {
+static void _shell(void) {
 	static char buf[100];
 
 	// protect <EOF> replay
@@ -901,7 +902,7 @@ static void shell(void) {
 			} else {
 				state_seek(cycle + 1);
 				print_full_state();
-				return shell();
+				return _shell();
 			}
 
 		case 'p':
@@ -918,7 +919,7 @@ static void shell(void) {
 				target = cycle + 1;
 			} else if (1 != ret) {
 				WARN("Error parsing input (ret %d?)\n", ret);
-				return shell();
+				return _shell();
 			}
 
 			if (target < 0) {
@@ -929,7 +930,7 @@ static void shell(void) {
 				state_seek(target);
 				print_full_state();
 			}
-			return shell();
+			return _shell();
 		}
 
 		case 'q':
@@ -943,10 +944,10 @@ static void shell(void) {
 				if (requested_cycle < cycle) {
 					WARN("Request to execute into the past ignored\n");
 					WARN("Did you mean 'seek %d'?\n", requested_cycle);
-					return shell();
+					return _shell();
 				} else if (requested_cycle == cycle) {
 					WARN("Request to execute to current cycle ignored\n");
-					return shell();
+					return _shell();
 				} else {
 					dumpatcycle = requested_cycle;
 					return;
@@ -968,8 +969,14 @@ static void shell(void) {
 			printf("                        (forward 1 cycle default)\n");
 			printf("   continue		Continue\n");
 			printf("   terminate		Terminate Simulation\n");
-			return shell();
+			return _shell();
 	}
+}
+
+static void shell(void) {
+	shell_running = true;
+	_shell();
+	shell_running = false;
 }
 
 /* These are the functions called into by the student simulator project */
@@ -1391,7 +1398,13 @@ static void* sig_thread(void *arg) {
 		}
 
 		if (sig == SIGINT) {
-			sigint = 1;
+			if (shell_running) {
+				flockfile(stdout); flockfile(stderr);
+				printf("\nQuit\n");
+				exit(0);
+			} else {
+				sigint = 1;
+			}
 		} else {
 			ERR(E_UNKNOWN, "caught unknown signal %d\n", sig);
 		}
