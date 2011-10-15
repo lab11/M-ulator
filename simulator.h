@@ -42,6 +42,23 @@ struct op {
 // EXPORTED SYMBOLS //
 //////////////////////
 
+// The simulator core
+void simulator(const char* flash_file, int polluartport);
+
+// Simulator config
+#define POLL_UART_PORT 4100
+#define POLL_UART_BUFSIZE 16
+#define POLL_UART_BAUD 1200
+extern int slowsim;
+extern int printcycles;
+extern int raiseonerror;
+extern int showledwrites;
+extern int dumpatpc;
+extern int dumpatcycle;
+extern int dumpallcycles;
+extern int returnr0;
+extern int usetestflash;
+
 // Simulator state
 extern int cycle;
 

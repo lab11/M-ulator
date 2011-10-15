@@ -7,7 +7,6 @@
 #include <unistd.h>
 #include <time.h>
 #include <fcntl.h>
-#include <getopt.h>
 
 #include "simulator.h"
 #include "pipeline.h"
@@ -83,50 +82,6 @@
 #define G_PERIPH(...)
 #endif
 
-static void usage_fail(int retcode) {
-	printf("\nUSAGE: ./simulator [OPTS]\n\n");
-	printf("\
-\t-c, --dumpatpc PC_IN_HEX\n\
-\t\tExecute until PC reaches the given value. The simulator will\n\
-\t\tpause at the given PC and prompt for a new pause PC\n\
-\t-y, --dumpatcycle N\n\
-\t\tExecute until cycle N and print the current machine state.\n\
-\t\tYou will be prompted for a new N at the pause\n\
-\t-d, --dumpallcycles\n\
-\t\tPrints the machine state every cycle -- This is a lot of text\n\
-\t-p, --printcycles\n\
-\t\tPrints cycle count and inst to execute every cycle (before exec)\n\
-\t\tConceptually, this executes between the intstruction fetch and\n\
-\t\tdecode stage, so the PC is already advanced\n\
-\t-s, --slowsim\n\
-\t\tSlows simulation down, running an instruction every .1s\n\
-\t-e, --raiseonerror\n\
-\t\tRaises a SIGTRAP for gdb on errors before dying\n\
-\t\t(Useful for debugging with gdb\n\
-\t-r, --returnr0\n\
-\t\tSets simulator binary return code to the return\n\
-\t\tcode of the executed program on simulator exit\n\
-\t-f, --flash FILE\n\
-\t\tFlash FILE into ROM before executing\n\
-\t\t(this file is likely somthing.bin)\n\
-\t-l, --showledwrites\n\
-\t\tPrints LED state every time the LEDs are written to\n\
-\t-u, --polluartport "VAL2STR(POLL_UART_PORT)"\n\
-\t\tThe port number to communicate with the polled UART device\n\
-\t--usetestflash\n\
-\t\tInstead of reading a flash.mem, use a prebuilt internal\n\
-\t\tflash.mem file. The internal flash.mem will run a valid\n\
-\t\tinstance of the supplied echo program\n\
-\n\
-"\
-	       );
-	exit(retcode);
-}
-
-static void usage(void) {
-	usage_fail(0);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,9 +120,6 @@ EXPORT sem_t end_tock_sem;
 /* UARTs */
 #define INVALID_CLIENT (UINT_MAX-1)
 
-#define POLL_UART_PORT 4100
-#define POLL_UART_BUFSIZE 16
-#define POLL_UART_BAUD 1200
 static void *poll_uart_thread(void *);
 #ifdef DEBUG1
 static pthread_mutex_t poll_uart_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
@@ -199,7 +151,7 @@ void poll_uart_txdata_write(uint8_t val);
 
 /* Config */
 
-static int slowsim = 0;
+EXPORT int slowsim = 0;
 #ifdef DEBUG2
 EXPORT int printcycles = 1;
 EXPORT int raiseonerror = 1;
@@ -207,14 +159,15 @@ EXPORT int raiseonerror = 1;
 EXPORT int printcycles = 0;
 EXPORT int raiseonerror = 0;
 #endif
-static int showledwrites = 0;
-static int dumpatpc = -3;
-static int dumpatcycle = -1;
-static int dumpallcycles = 0;
+EXPORT int showledwrites = 0;
+EXPORT int dumpatpc = -3;
+EXPORT int dumpatcycle = -1;
+EXPORT int dumpallcycles = 0;
 #ifdef GRADE
-static int returnr0 = 1;
+EXPORT int returnr0 = 1;
 #else
-static int returnr0 = 0;
+EXPORT int returnr0 = 0;
+EXPORT int usetestflash = 0;
 #endif
 
 /* Test Flash */
@@ -1361,6 +1314,10 @@ static void power_on(void) {
 	sim_reset();
 }
 
+void* core_thread(void *unused __attribute__ ((unused)) ) {
+	power_on();
+}
+
 static void load_opcodes(void) {
 	INFO("Registering all opcode masks/handlers...\n");
 	register_opcodes_add();
@@ -1411,100 +1368,12 @@ static void* sig_thread(void *arg) {
 	}
 }
 
-int main(int argc, char **argv) {
+EXPORT void simulator(const char *flash_file, int polluartport) {
 	// Init uninit'd globals
 	assert(0 == sem_init(&ticker_ready_sem, 0, 0));
 	assert(0 == sem_init(&start_tick_sem, 0, 0));
 	assert(0 == sem_init(&end_tick_sem, 0, 0));
 	assert(0 == sem_init(&end_tock_sem, 0, 0));
-
-	// Command line args
-	const char *flash_file = NULL;
-	static int polluartport = POLL_UART_PORT;
-	static int usetestflash = 0;
-
-	// Command line parsing
-	while (1) {
-		static struct option long_options[] = {
-			{"dumpatpc",      required_argument, 0,              'c'},
-			{"dumpatcycle",   required_argument, 0,              'y'},
-			{"dumpallcycles", no_argument,       &dumpallcycles, 'd'},
-			{"printcycles",   no_argument,       &printcycles,   'p'},
-			{"slowsim",       no_argument,       &slowsim,       's'},
-			{"raiseonerror",  no_argument,       &raiseonerror,  'e'},
-			{"returnr0",      no_argument,       &returnr0,      'r'},
-			{"flash",         required_argument, 0,              'f'},
-			{"showledwrites", no_argument,       &showledwrites, 'l'},
-			{"polluartport",  required_argument, 0,              'u'},
-			{"usetestflash",  no_argument,       &usetestflash,  1},
-			{"help",          no_argument,       0,              '?'},
-			{0,0,0,0}
-		};
-		int option_index = 0;
-		int c;
-
-		c = getopt_long(argc, argv, "c:y:dpserf:lu:?", long_options,
-				&option_index);
-
-		if (c == -1) break;
-
-		switch (c) {
-			case 0:
-				// option set a flag
-				break;
-
-			case 'c':
-				dumpatpc = strtol(optarg, NULL, 16);
-				INFO("Simulator will pause at execute of PC %x\n",
-						dumpatpc);
-				break;
-
-			case 'y':
-				dumpatcycle = atoi(optarg);
-				INFO("Simulator will pause at cycle %d\n",
-						dumpatcycle);
-				break;
-
-			case 'd':
-				dumpallcycles = true;
-				break;
-
-			case 'p':
-				printcycles = true;
-				break;
-
-			case 's':
-				slowsim = true;
-				break;
-
-			case 'e':
-				raiseonerror = true;
-				break;
-
-			case 'r':
-				returnr0 = true;
-				break;
-
-			case'f':
-				flash_file = optarg;
-				INFO("Simulator will use %s as flash\n",
-						flash_file);
-				break;
-
-			case 'l':
-				showledwrites = true;
-				break;
-
-			case 'u':
-				polluartport = atoi(optarg);
-				break;
-
-			case '?':
-			default:
-				usage();
-				break;
-		}
-	}
 
 	// Read in flash
 	if (usetestflash) {
@@ -1561,8 +1430,15 @@ int main(int argc, char **argv) {
 	pthread_create(&idstage_pthread, NULL, ticker, tick_id);
 	pthread_create(&exstage_pthread, NULL, ticker, tick_ex);
 
-	// Never returns
-	power_on();
+	// Simulator CORE thread
+	pthread_t core_pthread;
+	pthread_create(&core_pthread, NULL, core_thread, NULL);
+
+	// Everything is up and running now
+	pthread_join(core_pthread, NULL);
+
+	// Should not get here, proper exit comes from self-branch detection
+	ERR(E_UNKNOWN, "core thread terminated unexpectedly\n");
 }
 
 
