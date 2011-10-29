@@ -29,7 +29,7 @@ void DecodeImmShift(uint8_t type, uint8_t imm5, enum SRType *shift_t, uint8_t *s
 	}
 }
 
-void Shift_C(uint32_t value, int Nbits, enum SRType type, int amount, uint8_t carry_in, uint32_t *result, uint8_t *carry_out) {
+void Shift_C(uint32_t value, int Nbits, enum SRType type, uint8_t amount, uint8_t carry_in, uint32_t *result, uint8_t *carry_out) {
 	assert (!((type == SRType_RRX) && (amount != 1)));
 
 	if (amount == 0) {
@@ -59,31 +59,33 @@ void Shift_C(uint32_t value, int Nbits, enum SRType type, int amount, uint8_t ca
 	}
 }
 
-uint32_t Shift(uint32_t value, int Nbits, enum SRType type, int amount, uint8_t carry_in) {
+uint32_t Shift(uint32_t value, int Nbits, enum SRType type, uint8_t amount, uint8_t carry_in) {
 	uint32_t result;
 	uint8_t carry_out;
 	Shift_C(value, Nbits, type, amount, carry_in, &result, &carry_out);
 	return result;
 }
 
-void LSL_C(uint32_t x, int Nbits, int shift, uint32_t *result, uint8_t *carry_out) {
-	assert(shift > 0);
+void LSL_C(uint32_t x, int Nbits, uint8_t shift, uint32_t *result, uint8_t *carry_out) {
+	assert((shift > 0) && (shift < 32));
+	assert(Nbits <= 32);
 	// use 64 bit type to catch overflow of shift to the 33rd bit
-	uint64_t extended_x = x << shift;
-	*result = extended_x & ((1 << Nbits) - 1);
-	*carry_out = extended_x & (1 << Nbits);
+	uint64_t extended_x = x;
+	extended_x <<= shift;
+	*result = extended_x & ((1ULL << Nbits) - 1);
+	*carry_out = !!(extended_x & (1ULL << Nbits));
 }
 
-void LSR_C(uint32_t x, int Nbits __attribute__ ((unused)), int shift, uint32_t *result, uint8_t *carry_out) {
-	assert(shift > 0);
+void LSR_C(uint32_t x, int Nbits __attribute__ ((unused)), uint8_t shift, uint32_t *result, uint8_t *carry_out) {
+	assert((shift > 0) && (shift < 32));
 	// extended_x = ZeroExtend(x, shift+Nbits)
 	// ^^unneeded, C-language zero-fills left bits
 	*result = x >> shift;
 	*carry_out = (x >> (shift - 1)) & 0x1;
 }
 
-void ASR_C(uint32_t x, int Nbits, int shift, uint32_t *result, uint8_t *carry_out) {
-	assert(shift > 0);
+void ASR_C(uint32_t x, int Nbits, uint8_t shift, uint32_t *result, uint8_t *carry_out) {
+	assert((shift > 0) && (shift < 32));
 
 	uint32_t extended_x;
 	if (x & (1 << (shift - 1))) {
@@ -95,14 +97,14 @@ void ASR_C(uint32_t x, int Nbits, int shift, uint32_t *result, uint8_t *carry_ou
 	}
 
 	*result = (extended_x >> shift) & ((1 << Nbits) - 1);
-	*carry_out = extended_x & (1 << (shift - 1));
+	*carry_out = !!(extended_x & (1 << (shift - 1)));
 }
 
-void ROR_C(uint32_t x, int Nbits, int shift, uint32_t *result, uint8_t *carry_out) {
-	assert(shift != 0);
+void ROR_C(uint32_t x, int Nbits, uint8_t shift, uint32_t *result, uint8_t *carry_out) {
+	assert((shift > 0) && (shift < 32));
 	int m = shift % Nbits;
 	*result = (x >> m) | (x << (Nbits - m));
-	*carry_out = (*result) & (1 << (Nbits - 1));
+	*carry_out = !!((*result) & (1 << (Nbits - 1)));
 }
 
 uint32_t ThumbExpandImm(uint32_t imm12) {
@@ -117,7 +119,7 @@ uint32_t ThumbExpandImm(uint32_t imm12) {
 }
 
 void ThumbExpandImm_C(
-		uint16_t imm12, uint8_t carry_in,
+		uint32_t imm12, uint8_t carry_in,
 		uint32_t *imm32, uint8_t *carry_out
 		) {
 
@@ -155,7 +157,7 @@ void ThumbExpandImm_C(
 		DBG2("ThumbExpandImm_C --> ROR_C\n");
 		// unrotated_value is 32 bits
 		uint32_t unrotated_value = (1 << 7) | (imm12 & 0x7f);
-		uint32_t arg = (imm12 & 0xf80) >> 7;
+		uint8_t arg = (imm12 & 0xf80) >> 7;
 		ROR_C(unrotated_value, 32, arg, imm32, carry_out);
 	}
 

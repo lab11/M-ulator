@@ -54,7 +54,7 @@ void ldr3(uint32_t inst) {
 
 void ldr4(uint32_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
-	uint16_t immed8 = inst & 0xff;
+	uint32_t immed8 = inst & 0xff;
 
 	uint32_t sp = CORE_reg_read(SP_REG);
 
@@ -96,7 +96,7 @@ void ldr_lit(bool add, uint8_t rt, uint32_t imm32) {
 }
 
 void ldr_lit_t1(uint32_t inst) {
-	uint8_t imm8 = inst & 0xff;
+	uint32_t imm8 = inst & 0xff;
 	uint8_t rt = (inst & 0x700) >> 8;
 
 	uint32_t imm32 = imm8 << 2;
@@ -129,7 +129,7 @@ void ldrb1(uint32_t inst) {
 }
 
 void ldrd_imm(uint32_t inst) {
-	uint8_t imm8 = (inst & 0xff);
+	uint32_t imm8 = (inst & 0xff);
 	uint8_t rt2 = (inst & 0xf00) >> 8;
 	uint8_t rt = (inst & 0xf000) >> 12;
 	uint8_t rn = (inst & 0xf0000) >> 16;

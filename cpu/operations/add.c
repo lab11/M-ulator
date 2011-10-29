@@ -25,12 +25,12 @@ void adc(uint32_t inst) {
 }
 
 void add1(uint32_t inst) {
-	int32_t immed3 = (inst & 0x1c0) >> 6;
+	uint32_t immed3 = (inst & 0x1c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
-	int32_t rn_val = CORE_reg_read(rn);
-	int32_t result = rn_val + immed3;
+	uint32_t rn_val = CORE_reg_read(rn);
+	uint32_t result = rn_val + immed3;
 
 	CORE_reg_write(rd, result);
 
@@ -87,10 +87,10 @@ void add3(uint32_t inst) {
 
 void add6(uint32_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
-	int32_t immed8 = (inst & 0xff);
+	uint8_t immed8 = (inst & 0xff);
 
 	uint32_t sp = CORE_reg_read(SP_REG);
-	uint32_t result = sp + (immed8 << 2);
+	uint32_t result = sp + ((uint32_t)immed8 << 2U);
 	CORE_reg_write(rd, result);
 
 	DBG2("add6 r%02d, SP, #%d*4\n", rd, immed8);
@@ -128,14 +128,14 @@ void add_imm(uint8_t rn, uint8_t rd, uint32_t imm32, uint8_t setflags) {
 }
 
 void add_imm_t3(uint32_t inst) {
-	int imm8 =    (inst & 0x000000ff);
+	uint32_t imm8 =    (inst & 0x000000ff);
 	uint8_t rd =  (inst & 0x00000f00) >> 8;
-	int imm3 =    (inst & 0x00007000) >> 12;
+	uint32_t imm3 =    (inst & 0x00007000) >> 12;
 	assert(0 ==   (inst & 0x00008000));
 	uint8_t rn =  (inst & 0x000f0000) >> 16;
-	uint8_t S = !!(inst & 0x00100000);
+	uint32_t S = !!(inst & 0x00100000);
 	// skip 5
-	uint8_t i = !!(inst & 0x04000000);
+	uint32_t i = !!(inst & 0x04000000);
 
 	if ((rd == 0xf) && (S ==1)) {
 		CORE_ERR_not_implemented("CMN case\n");
@@ -150,10 +150,10 @@ void add_imm_t3(uint32_t inst) {
 
 	uint8_t setflags = (S == 1);
 
-	uint16_t imm12 = (i << 11) | (imm3 << 8) | imm8;
+	uint32_t imm12 = (i << 11) | (imm3 << 8) | imm8;
 	DBG2("i %d imm3 %01x imm8 %02x\t(imm12 %0x)\n", i, imm3, imm8, imm12);
 	//int imm32 = ThumbExpandImm(i:imm3:imm8);
-	int imm32 = ThumbExpandImm(imm12);
+	uint32_t imm32 = ThumbExpandImm(imm12);
 
 	if ((rd == 13 || ((rd == 15) && (S == 0))) || (rn == 15))
 		CORE_ERR_unpredictable("add_imm_t3 case\n");

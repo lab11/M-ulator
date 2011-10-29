@@ -38,6 +38,12 @@ GCC_MAJOR    := $(shell $(CC) -v 2>&1 | \
 GCC_MINOR    := $(shell $(CC) -v 2>&1 | \
 	grep " version " | cut -d' ' -f3  | cut -d'.' -f2)
 
+# anyone running clang is modern enough for our purposes
+ifeq ($(CC), clang)
+GCC_MAJOR := 4
+GCC_MINOR := 5
+endif
+
 ifneq ($(GCC_MAJOR), 4)
 $(error "gcc version 4.x required")
 endif
@@ -55,6 +61,12 @@ endif
 ifneq (,$(findstring $(GCC_MINOR),4-5))
 # Be strict on warnings
 CFLAGS += -Wall -Wextra -Werror
+
+STRICT ?= 0
+ifneq ($(STRICT),0)
+# And this needs explicit inclusion apparently
+CFLAGS += -Wconversion
+endif
 
 # Except for some weaknesses of gcc
 CFLAGS += -Wno-type-limits

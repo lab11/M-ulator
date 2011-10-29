@@ -4,11 +4,11 @@
 #include "../core.h"
 
 void str1(uint32_t inst) {
-	int32_t immed5 = (inst & 0x7c0) >> 6;
+	uint8_t immed5 = (inst & 0x7c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
-	uint32_t address = CORE_reg_read(rn) + (immed5 * 4);
+	uint32_t address = CORE_reg_read(rn) + (immed5 * 4U);
 	uint32_t rd_val = CORE_reg_read(rd);
 	if ((address & 0x3) == 0) {
 		write_word(address, rd_val);
@@ -63,6 +63,53 @@ void strb1(uint32_t inst) {
 	write_byte(address, CORE_reg_read(rd) & 0xff);
 
 	DBG2("strb r%02d, [r%02d, #%d]\n", rd, rn, immed5);
+}
+
+void strb_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool index, bool add, bool wback) {
+	uint32_t rn_val = CORE_reg_read(rn);
+	uint32_t rt_val = CORE_reg_read(rt);
+
+	uint32_t offset_addr;
+	if (add) {
+		offset_addr = rn_val + imm32;
+	} else {
+		offset_addr = rn_val - imm32;
+	}
+
+	uint32_t address;
+	if (index) {
+		address = offset_addr;
+	} else {
+		address = rn_val;
+	}
+
+	write_byte(address, rt_val & 0xff);
+
+	if (wback) {
+		CORE_reg_write(rn, offset_addr);
+	}
+
+	DBG2("strb_imm ran\n");
+}
+
+void strb_imm_t2(uint32_t inst) {
+	uint16_t imm12 = inst & 0xfff;
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	if (rn == 0xf)
+		CORE_ERR_unpredictable("strb_imm_t2 rn == 0xf undef\n");
+
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+
+	uint32_t imm32 = imm12;
+
+	if (rt >= 13)
+		CORE_ERR_unpredictable("strb_imm_t2 rt in {13,15}\n");
+
+	return strb_imm(rt, rn, imm32, index, add, wback);
 }
 
 void strd_imm(uint32_t inst) {
@@ -124,6 +171,9 @@ void register_opcodes_str(void) {
 
 	// strb1: 0111 0<x's>
 	register_opcode_mask(0x7000, 0xffff8800, strb1);
+
+	// strb_imm_t2: 1111 1000 1000 <x's>
+	register_opcode_mask(0xf8800000, 0x07700000, strb_imm_t2);
 
 	// strd_imm: 1110 100x x1x0 <x's>
 	register_opcode_mask(0xe8400000, 0x16100000, strd_imm);

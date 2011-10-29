@@ -141,6 +141,7 @@ static uint32_t poll_uart_client = INVALID_CLIENT;
 static uint32_t poll_uart_buffer[POLL_UART_BUFSIZE];
 static uint32_t *poll_uart_head = NULL;
 static uint32_t *poll_uart_tail = poll_uart_buffer;
+
 static const struct timespec poll_uart_baud_sleep =\
 		{0, (NSECS_PER_SEC/POLL_UART_BAUD)*8};	// *8 bytes vs bits
 
@@ -159,8 +160,9 @@ EXPORT int raiseonerror = 1;
 EXPORT int printcycles = 0;
 EXPORT int raiseonerror = 0;
 #endif
+EXPORT int limitcycles = -1;
 EXPORT int showledwrites = 0;
-EXPORT int dumpatpc = -3;
+EXPORT unsigned dumpatpc = -3;
 EXPORT int dumpatcycle = -1;
 EXPORT int dumpallcycles = 0;
 #ifdef GRADE
@@ -801,7 +803,7 @@ static void print_stages(void) {
 }
 
 static void print_full_state(void) {
-	int i;
+	size_t i;
 
 	DIVIDERe;
 	print_leds_line();
@@ -827,7 +829,7 @@ static void print_full_state(void) {
 	FILE* ramfp = fopen("/tmp/373ram", "w");
 	if (ramfp) {
 		i = fwrite(ram, RAMSIZE, 1, ramfp);
-		printf("Wrote %8d bytes to /tmp/373ram "\
+		printf("Wrote %8zu bytes to /tmp/373ram "\
 				"\t\t(Use 'hexdump -C' to view)\n", i*RAMSIZE);
 		fclose(ramfp);
 	} else {
@@ -1161,7 +1163,7 @@ static int _register_opcode_mask(uint32_t ones_mask, uint32_t zeros_mask,
 	while (ones_mask || zeros_mask) {
 		// Make the assumption that callers will have one, at most
 		// two exceptions; go with the simple realloc scheme
-		int idx = o->ex_cnt;
+		unsigned idx = o->ex_cnt;
 
 		o->ex_cnt++;
 		o->ex_ones  = realloc(o->ex_ones,  o->ex_cnt * sizeof(uint32_t));
@@ -1273,7 +1275,7 @@ static int sim_execute(void) {
 
 static void sim_reset(void) __attribute__ ((noreturn));
 static void sim_reset(void) {
-	uint8_t ret;
+	int ret;
 
 	INFO("Asserting reset pin\n");
 	cycle = 0;
@@ -1368,7 +1370,7 @@ static void* sig_thread(void *arg) {
 	}
 }
 
-EXPORT void simulator(const char *flash_file, int polluartport) {
+EXPORT void simulator(const char *flash_file, uint16_t polluartport) {
 	// Init uninit'd globals
 	assert(0 == sem_init(&ticker_ready_sem, 0, 0));
 	assert(0 == sem_init(&start_tick_sem, 0, 0));
@@ -1447,7 +1449,7 @@ EXPORT void simulator(const char *flash_file, int polluartport) {
 ////////////////////////////////////////////////////////////////////////////////
 
 void *poll_uart_thread(void *arg_v) {
-	int port = *((int *) arg_v);
+	uint16_t port = *((uint16_t *) arg_v);
 
 	int sock;
 	struct sockaddr_in server;
@@ -1502,7 +1504,7 @@ void *poll_uart_thread(void *arg_v) {
 		SW_A(&poll_uart_client, client);
 		pthread_mutex_unlock(&poll_uart_mutex);
 
-		static char c;
+		static uint8_t c;
 		static int ret;
 		while (1 ==  (ret = recv(SR_A(&poll_uart_client), &c, 1, 0))  ) {
 			pthread_mutex_lock(&poll_uart_mutex);

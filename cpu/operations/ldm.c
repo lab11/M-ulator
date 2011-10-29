@@ -21,7 +21,7 @@ void ldm(uint8_t rn, uint16_t registers, uint8_t wback) {
 	}
 
 	if (wback && ((registers & (1 << rn)) == 0)) {
-		CORE_reg_write(rn, CORE_reg_read(rn) + 4*hamming(registers));
+		CORE_reg_write(rn, CORE_reg_read(rn) + 4U*hamming(registers));
 	}
 
 	DBG2("ldm had loads of fun\n");
@@ -29,16 +29,16 @@ void ldm(uint8_t rn, uint16_t registers, uint8_t wback) {
 
 void ldm_t2(uint32_t inst) {
 	uint16_t reg_list = inst & 0x1fff;
-	uint8_t M = !!(inst & 0x4000);
-	uint8_t P = !!(inst & 0x8000);
+	bool M = !!(inst & 0x4000);
+	bool P = !!(inst & 0x8000);
 	uint8_t rn = (inst & 0xf0000) >> 16;
-	uint8_t W = !!(inst & 0x200000);
+	bool W = !!(inst & 0x200000);
 
 	if ((W == 1) && (rn == 0xd))
 		CORE_ERR_unpredictable("ldm_t2 --> pop\n");
 
 	uint16_t registers = (P << 15) | (M << 14) | reg_list;
-	uint8_t wback = (W == 1);
+	bool wback = (W == 1);
 
 	if ((rn == 15) || (hamming(registers) < 2) || ((P == 1) && (M == 1)))
 		CORE_ERR_unpredictable("ldm_t2, long ||'s\n");

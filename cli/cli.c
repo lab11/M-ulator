@@ -26,6 +26,9 @@ static void usage_fail(int retcode) {
 \t-r, --returnr0\n\
 \t\tSets simulator binary return code to the return\n\
 \t\tcode of the executed program on simulator exit\n\
+\t-m, --limit\n\
+\t\tLimit CPU execution to N cycles, returns failure if hit\n\
+\t\t(useful for catching runaway test cases)\n\
 \t-f, --flash FILE\n\
 \t\tFlash FILE into ROM before executing\n\
 \t\t(this file is likely somthing.bin)\n\
@@ -49,7 +52,7 @@ static void usage(void) {
 
 int main(int argc, char **argv) {
 	const char *flash_file = NULL;
-	int polluartport = POLL_UART_PORT;
+	uint16_t polluartport = POLL_UART_PORT;
 
 	// Command line parsing
 	while (1) {
@@ -61,6 +64,7 @@ int main(int argc, char **argv) {
 			{"slowsim",       no_argument,       &slowsim,       's'},
 			{"raiseonerror",  no_argument,       &raiseonerror,  'e'},
 			{"returnr0",      no_argument,       &returnr0,      'r'},
+			{"limit",         required_argument, 0,              'm'},
 			{"flash",         required_argument, 0,              'f'},
 			{"showledwrites", no_argument,       &showledwrites, 'l'},
 			{"polluartport",  required_argument, 0,              'u'},
@@ -71,7 +75,7 @@ int main(int argc, char **argv) {
 		int option_index = 0;
 		int c;
 
-		c = getopt_long(argc, argv, "c:y:dpserf:lu:?", long_options,
+		c = getopt_long(argc, argv, "c:y:dpserm:f:lu:?", long_options,
 				&option_index);
 
 		if (c == -1) break;
@@ -113,6 +117,12 @@ int main(int argc, char **argv) {
 				returnr0 = true;
 				break;
 
+			case 'm':
+				limitcycles = atoi(optarg);
+				INFO("Simulator will terminate at cycle %d\n",
+						limitcycles);
+				break;
+
 			case'f':
 				flash_file = optarg;
 				INFO("Simulator will use %s as flash\n",
@@ -124,8 +134,12 @@ int main(int argc, char **argv) {
 				break;
 
 			case 'u':
-				polluartport = atoi(optarg);
+			{
+				int temp = atoi(optarg);
+				assert(temp == ((uint16_t) temp));
+				polluartport = (uint16_t) temp;
 				break;
+			}
 
 			case '?':
 			default:
