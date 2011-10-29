@@ -2,7 +2,7 @@
 
 set -u
 
-make -C programs > /dev/null
+make > /dev/null
 
 function shell() {
 	cat << EOF
@@ -48,7 +48,7 @@ err=`tempfile`
 for t in $tests; do
 	(sleep 1; echo -e 'yTestStr1\n' | nc -4 localhost 4100 > /dev/null) &
 	#./simulator -f $t -r
-	./simulator -f $t -r > $out 2> $err &
+	./simulator -f $t -r > $out 2> $err
 	ret=$?
 	wait
 	printf "%40s: " $t

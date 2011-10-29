@@ -3,8 +3,8 @@
 
 #include "../cpu.h"
 
-int hamming(uint32_t val) {
-	int hamm = 0;
+uint32_t hamming(uint32_t val) {
+	uint32_t hamm = 0;
 
 	for (hamm = 0; val; hamm++) {
 		val &= (val - 1); // clears LSB
@@ -19,7 +19,7 @@ void AddWithCarry(uint32_t x, uint32_t y, bool carry_in,
 	uint64_t unsigned_sum = x + y + carry_in;
 	int64_t signed_sum = ((int32_t) x) + ((int32_t) y) + carry_in;
 
-	*result = unsigned_sum; // 64->32 truncation
+	*result = (uint32_t) unsigned_sum; // 64->32 truncation
 	uint64_t result64_u = *result;
 	int64_t result64_s = *result;
 	*carry_out = !(result64_u == unsigned_sum);

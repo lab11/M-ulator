@@ -33,11 +33,11 @@
 #define V_IDX 28
 #define Q_IDX 27
 
-#define xPSR_N (1<<N_IDX)
-#define xPSR_Z (1<<Z_IDX)
-#define xPSR_C (1<<C_IDX)
-#define xPSR_V (1<<V_IDX)
-#define xPSR_Q (1<<Q_IDX)
+#define xPSR_N (1U<<N_IDX)
+#define xPSR_Z (1U<<Z_IDX)
+#define xPSR_C (1U<<C_IDX)
+#define xPSR_V (1U<<V_IDX)
+#define xPSR_Q (1U<<Q_IDX)
 
 ///////////////////////////////
 // ERROR FUNCTIONS //

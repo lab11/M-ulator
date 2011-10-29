@@ -4,62 +4,6 @@
 #include "../cpu.h"
 #include "../misc.h"
 
-int b1(uint32_t inst) {
-	uint8_t cond = (inst & 0xf00) >> 8;
-	int32_t signed_immed_8 = (inst & 0xff);
-
-	if (eval_cond(CORE_cpsr_read(), cond)) {
-		uint32_t pc = CORE_reg_read(PC_REG);
-#ifdef DEBUG2
-		uint32_t old_pc = pc;
-#endif
-		int32_t sign_extended;
-
-		struct {signed int x:8;} s;
-		sign_extended = s.x = signed_immed_8;
-
-		pc = pc + (sign_extended << 1) + 2; // PC_HACK
-		CORE_reg_write(PC_REG, pc);
-
-		DBG2("b<cond> new_pc: %08x (taken)\told_pc: %08x\n", pc, old_pc);
-	} else {
-		DBG2("b<cond> not taken\n");
-	}
-
-	return SUCCESS;
-}
-
-int b2(uint32_t inst) {
-	int32_t signed_immed_11 = inst & 0x7ff;
-	int32_t sign_extended;
-
-	struct {signed int x:11;} s;
-	sign_extended = s.x = signed_immed_11;
-
-	uint32_t pc = CORE_reg_read(PC_REG);
-
-	DBG2("b cur_pc: %08x, immed: %08x, extended: %08x\n",
-			pc, signed_immed_11, sign_extended);
-
-/* THE DOCUMENTATION IS A LIE?
-
- Adding this to the contents of the PC (which contains the address of the branch
- instruction plus 4).
-
- No it's not, it's PC+4!!
-
- ^^^Nope, was working from an ARM ARM v6 not v7, this instruction
- no longer exists; screw that
- */
-
-	pc = pc + (sign_extended << 1) + 2; // ^^ correction?
-	CORE_reg_write(PC_REG, pc);
-
-	DBG2("b new_pc: %08x\n", pc);
-
-	return SUCCESS;
-}
-
 // BL is actually two instructions to allow for larger offset,
 // need to preserve state across calls
 int bl(uint32_t inst) {
@@ -332,27 +276,6 @@ int bx(uint32_t inst) {
 */
 
 void register_opcodes_branch(void) {
-	/*
-	// b1: 1101 <x's>
-	register_opcode_mask(0xd000, 0xffff2000, b1);
-	*/
-
-	/*
-	// b2: 1110 0<x's>
-	register_opcode_mask(0xe000, 0xffff1800, b2);
-
-	// AARRGGGG!!! THIS WAS ARMv6!
-	// bl,blx:
-	// 1111 0<x's>
-	// 1111 1<x's>
-	// 1110 1<s's>
-	// ----------------
-	// 1111 x<x's>
-	register_opcode_mask(0xf000, 0xffff0000, bl);
-	// 1110 1<x's>
-	register_opcode_mask(0xe800, 0xffff1000, blx);
-	*/
-
 	// b_t1: 1101 <x's>
 	//   ex: xxxx 1111 <x's>
 	register_opcode_mask_ex(0xd000, 0xffff2000, b_t1, 0x0f00, 0x0, 0, 0);

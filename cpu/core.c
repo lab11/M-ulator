@@ -81,14 +81,17 @@ void write_word(uint32_t addr, uint32_t val) {
 		CORE_blu_led_write(val);
 	}
 	else if (addr == POLL_UART_STATUS) {
-		CORE_poll_uart_status_write(val);
+		// Hmm.. interesting; I think the right choice for writing
+		// > 8 bits here is to just truncate, it's what real HW would do
+		CORE_poll_uart_status_write((uint8_t) val);
 	}
 	else if (addr == POLL_UART_RXDATA) {
 		DBG1("Attempt to write UART RXDATA\n");
 		CORE_ERR_invalid_addr(true, addr);
 	}
 	else if (addr == POLL_UART_TXDATA) {
-		CORE_poll_uart_txdata_write(val);
+		// Truncating again...
+		CORE_poll_uart_txdata_write((uint8_t) val);
 	}
 	else {
 		CORE_ERR_invalid_addr(true, addr);

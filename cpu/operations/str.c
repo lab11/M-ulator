@@ -4,11 +4,11 @@
 #include "../core.h"
 
 int str1(uint32_t inst) {
-	int32_t immed5 = (inst & 0x7c0) >> 6;
+	uint8_t immed5 = (inst & 0x7c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
-	uint32_t address = CORE_reg_read(rn) + (immed5 * 4);
+	uint32_t address = CORE_reg_read(rn) + (immed5 * 4U);
 	uint32_t rd_val = CORE_reg_read(rd);
 	if ((address & 0x3) == 0) {
 		write_word(address, rd_val);
