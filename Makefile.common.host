@@ -4,6 +4,10 @@ CFLAGS += -DM_PROFILE
 # Lots of debugging!
 CFLAGS += -g3
 
+# GTK
+GTK_CFLAGS=$(shell pkg-config gtk+-2.0 --cflags)
+GTK_LDFLAGS=$(shell pkg-config gtk+-2.0 --libs)
+
 ###########
 # Debugging
 
@@ -60,7 +64,11 @@ CFLAGS += -fno-strict-overflow
 endif
 
 # The other necessary cruft:
-CFLAGS += -pthread -m32 -D_GNU_SOURCE
+CFLAGS += -pthread -D_GNU_SOURCE
 
 # Aaaannnnddd... the linker:
-LDFLAGS += -g3 -pthread -m32
+LDFLAGS += -g3 -pthread
+
+# Added for student distribution
+#CFLAGS += -m32
+#LDFLAGS += -m32

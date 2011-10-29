@@ -17,20 +17,51 @@ all:	simulator programs
 CPU_OBJS += $(patsubst %.c,%.o,$(wildcard cpu/*.c))
 CPU_OBJS += $(patsubst %.c,%.o,$(wildcard cpu/operations/*.c))
 
+CLI_OBJS += $(patsubst %.c,%.o,$(wildcard cli/*.c))
+GUI_OBJS += $(patsubst %.c,%.o,$(wildcard gui/*.c))
+
 SIM_OBJS += $(patsubst %.c,%.o,$(wildcard ./*.c))
 
-#simulator:	$(CPU_OBJS) simulator.o
-simulator:	cpu $(SIM_OBJS)
-	$(CC) $(LDFLAGS) $(CPU_OBJS) $(SIM_OBJS) -o $@
+simulator:	simulator-cli simulator-gui
+	rm -f simulator
+	ln -s simulator-cli simulator
 
-clean-simulator: cpu/clean
+simulator-cli:	cpu cli $(SIM_OBJS)
+	$(CC) $(LDFLAGS) $(CLI_OBJS) $(CPU_OBJS) $(SIM_OBJS) -o $@
+
+simulator-gui:	cpu gui $(SIM_OBJS)
+	$(CC) $(GTK_LDFLAGS) $(LDFLAGS) $(GUI_OBJS) $(CPU_OBJS) $(SIM_OBJS) -o $@
+
+clean-simulator: cpu/clean cli/clean gui/clean
 	rm -f simulator
 	rm -f $(SIM_OBJS)
 
-clean-simulator-all: clean-simulator cpu/clean-all
+clean-simulator-all: clean-simulator cpu/clean-all cli/clean-all gui/clean-all
 	rm -f flash.mem
 
 .PHONY: all clean-simulator clean-simulator-all
+
+#####
+# CLI
+
+cli:
+	$(MAKE) -C cli
+
+cli/%:
+	$(MAKE) $* -C cli
+
+.PHONY: cli
+
+#####
+# GUI
+
+gui:
+	$(MAKE) -C gui
+
+gui/%:
+	$(MAKE) $* -C gui
+
+.PHONY: gui
 
 #####
 # CPU

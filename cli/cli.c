@@ -1,5 +1,5 @@
-#include "common.h"
-#include "simulator.h"
+#include "../common.h"
+#include "../simulator.h"
 
 #include <getopt.h>
 
