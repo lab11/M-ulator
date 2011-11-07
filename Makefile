@@ -34,6 +34,8 @@ simulator-gui:	cpu gui $(SIM_OBJS)
 
 clean-simulator: cpu/clean cli/clean gui/clean
 	rm -f simulator
+	rm -f simulator-cli
+	rm -f simulator-gui
 	rm -f $(SIM_OBJS)
 
 clean-simulator-all: clean-simulator cpu/clean-all cli/clean-all gui/clean-all
