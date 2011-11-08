@@ -1,6 +1,8 @@
 #ifndef __LED_H__
 #define __LED_H__
 
+#include <stdint.h>
+
 void LED_set(uint8_t bank, uint8_t led_no, uint8_t val);
 uint8_t LED_get(uint8_t bank, uint8_t led_no);
 

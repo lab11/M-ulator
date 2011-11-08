@@ -1,4 +1,3 @@
-#include "lib/uart.h"
 #include "lib/led.h"
 
 int main() {
