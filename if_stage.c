@@ -1,3 +1,5 @@
+#define STAGE IF
+
 #include "if_stage.h"
 #include "pipeline.h"
 #include "simulator.h"

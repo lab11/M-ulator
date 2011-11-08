@@ -8,6 +8,7 @@
 #include <time.h>
 #include <fcntl.h>
 
+#define STAGE SIM
 #include "simulator.h"
 #include "pipeline.h"
 #include "if_stage.h"
@@ -169,8 +170,8 @@ EXPORT int dumpallcycles = 0;
 EXPORT int returnr0 = 1;
 #else
 EXPORT int returnr0 = 0;
-EXPORT int usetestflash = 0;
 #endif
+EXPORT int usetestflash = 0;
 
 /* Test Flash */
 
@@ -303,14 +304,25 @@ static uint32_t leds[LED_COLORS] = {0};
 // CORE
 ////////////////////////////////////////////////////////////////////////////////
 
-#define STATE_IO_BARRIER	0x1
-#define STATE_PIPELINE_FLUSH	0x10
-#define STATE_PIPELINE_RUNNING	0x80
-#define STATE_LED_WRITTEN	0x100
-#define STATE_LED_WRITING	0x800
-#define STATE_BLOCKING_ASYNC	0x8000
+// state flags #defines:
+// Bottom byte aligns with enum stage
+#define STATE_STALL_PRE		PRE
+#define STATE_STALL_IF		IF
+#define STATE_STALL_ID		ID
+#define STATE_STALL_EX		EX
+#define STATE_STALL_PIPE	PIPE
+#define STATE_STALL_SIM		SIM
+#define STATE_STALL_UNK		UNK
+#define STATE_STALL_MASK	0xff
 
-#define STATE_LOCK_HELD_MASK	0x8888
+#define STATE_IO_BARRIER	0x100
+#define STATE_PIPELINE_FLUSH	0x1000
+#define STATE_PIPELINE_RUNNING	0x8000
+#define STATE_LED_WRITTEN	0x10000
+#define STATE_LED_WRITING	0x80000
+#define STATE_BLOCKING_ASYNC	0x800000
+
+#define STATE_LOCK_HELD_MASK	0x888800
 
 struct state_change {
 	struct state_change *prev;
@@ -321,7 +333,8 @@ struct state_change {
 	   cycle n (e.g. before it had executed), the list must have traversed
 	   such that the list head reaches an entry of cycle less than n */
 	int cycle;
-	int* flags;
+	enum stage g;
+	uint32_t *flags;
 	uint32_t *loc;
 	uint32_t val;
 	uint32_t prev_val;
@@ -336,11 +349,12 @@ struct state_change {
 #endif
 };
 
-static int state_start_flags = 0;
+static uint32_t state_start_flags = 0;
 static struct state_change state_start = {
 	.prev = NULL,
 	.next = NULL,
 	.cycle = -1,
+	.g = UNK,
 	.flags = &state_start_flags,
 	.loc = NULL,
 	.val = 0,
@@ -359,7 +373,7 @@ static struct state_change state_start = {
 static struct state_change* state_head = &state_start;
 static struct state_change* cycle_head = NULL;
 
-static int *state_flags_cur = &state_start_flags;
+static uint32_t* state_flags_cur = &state_start_flags;
 
 static struct op* o_hack = NULL;
 
@@ -421,7 +435,7 @@ static void state_start_tick() {
 		state_head->next = NULL;
 	}
 
-	state_flags_cur = malloc(sizeof(int));
+	state_flags_cur = malloc(sizeof(uint32_t));
 	assert((NULL != state_flags_cur) && "OOM");
 	*state_flags_cur = 0;
 
@@ -431,16 +445,47 @@ static void state_start_tick() {
 }
 
 static void _state_tock() {
-	if (cycle > 0) {
-		assert((NULL != o_hack) && "nothing set instruction for EX this cycle");
+	if (!(*state_flags_cur & STATE_STALL_ID)) {
+		if (cycle > 0) {
+			assert((NULL != o_hack) &&
+					"nothing set instruction for EX this cycle");
+		}
+		id_ex_o = o_hack;
 	}
-	id_ex_o = o_hack;
 
 	struct state_change* orig_cycle_head = cycle_head;
 
 	while (NULL != cycle_head) {
 		assert(cycle_head->cycle == cycle);
-		if (cycle_head->loc) {
+		if (cycle_head->g & *cycle_head->flags) {
+#ifdef DEBUG1
+			// This write has been stalled, skip it
+			;
+#else
+			// This write has been stalled, remove it
+			struct state_change* delete_me = cycle_head;
+
+			// shouldn't be able to stall most initial state
+			// XXX: what about after a replay? (no... this is ok)
+			assert(NULL != cycle_head->prev);
+			cycle_head->prev->next = cycle_head->next;
+			// but we could be the last state...
+			if (NULL != cycle_head->next) {
+				cycle_head->next->prev = cycle_head->prev;
+			}
+			// update checking bookkeeping
+			if (cycle_head == orig_cycle_head) {
+				orig_cycle_head = cycle_head->next;
+				if (NULL == orig_cycle_head) {
+					WARN("stall generated empty cycle\n");
+				}
+			}
+			// back the head up so the loop can advance it
+			cycle_head = cycle_head->prev;
+			free(delete_me);
+#endif
+		}
+		else if (cycle_head->loc) {
 			DBG2("(%s::%s:%d: %s: %p = %08x (was %08x)\n",
 					cycle_head->file, cycle_head->func,
 					cycle_head->line, cycle_head->target,
@@ -529,30 +574,35 @@ static void state_tock() {
 	state_unblock_async_io();
 }
 
-EXPORT uint32_t state_read(uint32_t *loc) {
+EXPORT uint32_t state_read(enum stage g __attribute__ ((unused)), uint32_t *loc) {
 	return *loc;
 }
 
-EXPORT uint32_t state_read_async(uint32_t *loc) {
+EXPORT uint32_t state_read_async(enum stage g __attribute__ ((unused)), uint32_t *loc) {
 	uint32_t ret;
 	state_async_block_start();
-	ret = state_read(loc);
+	ret = state_read(g, loc);
 	state_async_block_end();
 	return ret;
 }
 
-EXPORT uint32_t* state_read_p(uint32_t **loc) {
+EXPORT uint32_t* state_read_p(enum stage g __attribute__ ((unused)), uint32_t **loc) {
 	return *loc;
 }
 
 #ifdef DEBUG1
-static void _state_write_dbg(uint32_t *loc, uint32_t val,
+static void _state_write_dbg(enum stage g, uint32_t *loc, uint32_t val,
 		uint32_t** ploc, uint32_t* pval,
 		const char *file, const char* func,
 		const int line, const char *target) {
 #else
-static void _state_write(uint32_t *loc, uint32_t val,
+static void _state_write(enum stage g, uint32_t *loc, uint32_t val,
 		uint32_t** ploc, uint32_t* pval) {
+	// don't track state we won't write anyways, except in debug mode
+	// race for flags is OK here, since this check is always racing anyway
+	if (*state_flags_cur & g & STATE_STALL_MASK) {
+		return;
+	}
 #endif
 	if (!(*state_flags_cur & STATE_LOCK_HELD_MASK))
 		pthread_mutex_lock(&state_mutex);
@@ -569,6 +619,7 @@ static void _state_write(uint32_t *loc, uint32_t val,
 	s->prev = state_head;
 	s->next = NULL;
 	s->cycle = cycle;
+	s->g = g;
 	s->flags = state_flags_cur;
 	s->loc = loc;
 	s->val = val;
@@ -598,42 +649,42 @@ static void _state_write(uint32_t *loc, uint32_t val,
 }
 
 #ifdef DEBUG1
-EXPORT void state_write_dbg(uint32_t *loc, uint32_t val,
+EXPORT void state_write_dbg(enum stage g, uint32_t *loc, uint32_t val,
 		const char *file, const char* func,
 		const int line, const char *target) {
-	return _state_write_dbg(loc, val, NULL, NULL, file, func, line, target);
+	return _state_write_dbg(g, loc, val, NULL, NULL, file, func, line, target);
 }
 
-EXPORT void state_write_p_dbg(uint32_t **ploc, uint32_t *pval,
+EXPORT void state_write_p_dbg(enum stage g, uint32_t **ploc, uint32_t *pval,
 		const char *file, const char* func,
 		const int line, const char *target) {
-	return _state_write_dbg(NULL, 0, ploc, pval, file, func, line, target);
+	return _state_write_dbg(g, NULL, 0, ploc, pval, file, func, line, target);
 }
 
-EXPORT void state_write_async_dbg(uint32_t *loc, uint32_t val,
+EXPORT void state_write_async_dbg(enum stage g, uint32_t *loc, uint32_t val,
 		const char *file, const char* func,
 		const int line, const char *target) {
 	state_async_block_start();
-	state_write_dbg(loc, val, file, func, line, target);
+	state_write_dbg(g, loc, val, file, func, line, target);
 	state_async_block_end();
 }
 #else
-EXPORT void state_write(uint32_t *loc, uint32_t val) {
-	return _state_write(loc, val, NULL, NULL);
+EXPORT void state_write(enum stage g, uint32_t *loc, uint32_t val) {
+	return _state_write(g, loc, val, NULL, NULL);
 }
 
-EXPORT void state_write_p(uint32_t **ploc, uint32_t *pval) {
-	return _state_write(NULL, 0, ploc, pval);
+EXPORT void state_write_p(enum stage g, uint32_t **ploc, uint32_t *pval) {
+	return _state_write(g, NULL, 0, ploc, pval);
 }
 
-EXPORT void state_write_async(uint32_t *loc, uint32_t val) {
+EXPORT void state_write_async(enum stage g, uint32_t *loc, uint32_t val) {
 	state_async_block_start();
-	state_write(loc, val);
+	state_write(g, loc, val);
 	state_async_block_end();
 }
 #endif
 
-void state_write_op(struct op **loc, struct op *val) {
+EXPORT void state_write_op(enum stage g __attribute__ ((unused)), struct op **loc, struct op *val) {
 	if (!(*state_flags_cur & STATE_LOCK_HELD_MASK))
 		pthread_mutex_lock(&state_mutex);
 	// Lazy hack since every other bit of preserved state is a uint32_t[*]
@@ -643,6 +694,36 @@ void state_write_op(struct op **loc, struct op *val) {
 	o_hack = val;
 	if (!(*state_flags_cur & STATE_LOCK_HELD_MASK))
 		pthread_mutex_unlock(&state_mutex);
+}
+
+EXPORT void stall(enum stage g) {
+	pthread_mutex_lock(&state_mutex);
+#ifdef DEBUG1
+	assert((g <= STATE_STALL_MASK) && "stalling illegal stage");
+#endif
+	if (g & ~(PRE|IF|ID)) {
+		ERR(E_UNPREDICTABLE, "Stalling for non PRE|IF|ID needs namespace fix\n");
+	}
+	*state_flags_cur |= g;
+	pthread_mutex_unlock(&state_mutex);
+}
+
+static void state_pipeline_flush(uint32_t new_pc) {
+	pthread_mutex_lock(&state_mutex);
+	*state_flags_cur |= STATE_PIPELINE_FLUSH;
+	state_pipeline_new_pc = new_pc;
+	pthread_mutex_unlock(&state_mutex);
+}
+
+static void state_led_write(enum LED_color led, uint32_t val) {
+	pthread_mutex_lock(&state_mutex);
+	*state_flags_cur |= STATE_LED_WRITING;
+	*state_flags_cur |= STATE_LED_WRITTEN;
+
+	SW(&leds[led], val);
+
+	*state_flags_cur &= ~STATE_LED_WRITING;
+	pthread_mutex_unlock(&state_mutex);
 }
 
 // Returns 0 on success
@@ -721,24 +802,6 @@ static int state_seek(int target_cycle) {
 
 		return 0;
 	}
-}
-
-static void state_pipeline_flush(uint32_t new_pc) {
-	pthread_mutex_lock(&state_mutex);
-	*state_flags_cur |= STATE_PIPELINE_FLUSH;
-	state_pipeline_new_pc = new_pc;
-	pthread_mutex_unlock(&state_mutex);
-}
-
-static void state_led_write(enum LED_color led, uint32_t val) {
-	pthread_mutex_lock(&state_mutex);
-	*state_flags_cur |= STATE_LED_WRITING;
-	*state_flags_cur |= STATE_LED_WRITTEN;
-
-	SW(&leds[led], val);
-
-	*state_flags_cur &= ~STATE_LED_WRITING;
-	pthread_mutex_unlock(&state_mutex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -845,7 +908,10 @@ static void _shell(void) {
 	// protect <EOF> replay
 	buf[0] = '\0';
 	printf("> ");
-	fgets(buf, 100, stdin);
+	if (buf != fgets(buf, 100, stdin)) {
+		buf[0] = 'h';
+		buf[1] = '\0';
+	}
 
 	switch (buf[0]) {
 		case '\n':
@@ -945,20 +1011,20 @@ uint32_t CORE_reg_read(int r) {
 	assert(r >= 0 && r < 16 && "CORE_reg_read");
 	G_REG(READ, r);
 	if (r == PC_REG) {
-		return state_read(&PC) & 0xfffffffe;
+		return SR(&PC) & 0xfffffffe;
 	}
 	else if (r == SP_REG) {
-		return state_read(&SP) & 0xfffffffc;
+		return SR(&SP) & 0xfffffffc;
 	}
 	else {
-		return state_read(&reg[r]);
+		return SR(&reg[r]);
 	}
 }
 
 void CORE_reg_write(int r, uint32_t val) {
 	assert(r >= 0 && r < 16 && "CORE_reg_write");
 	if (r == PC_REG) {
-		if (state_read(&PC) == ((val & 0xfffffffe) + 4)) {
+		if (SR(&PC) == ((val & 0xfffffffe) + 4)) {
 			INFO("Simulator determined PC 0x%08x is branch to self, terminating.\n", PC);
 			print_full_state();
 			if (returnr0) {
@@ -982,7 +1048,7 @@ void CORE_reg_write(int r, uint32_t val) {
 
 uint32_t CORE_cpsr_read(void) {
 	G_CPSR(READ);
-	return state_read(&CPSR);
+	return SR(&CPSR);
 }
 
 void CORE_cpsr_write(uint32_t val) {
@@ -1001,7 +1067,7 @@ void CORE_cpsr_write(uint32_t val) {
 #ifdef M_PROFILE
 uint32_t CORE_ipsr_read(void) {
 	G_IPSR(READ);
-	return state_read(&IPSR);
+	return SR(&IPSR);
 }
 
 void CORE_ipsr_write(uint32_t val) {
@@ -1011,7 +1077,7 @@ void CORE_ipsr_write(uint32_t val) {
 
 uint32_t CORE_epsr_read(void) {
 	G_EPSR(READ);
-	return state_read(&EPSR);
+	return SR(&EPSR);
 }
 
 void CORE_epsr_write(uint32_t val) {
@@ -1027,7 +1093,7 @@ uint32_t CORE_rom_read(uint32_t addr) {
 #endif
 	if ((addr >= ROMBOT) && (addr < ROMTOP) && (0 == (addr & 0x3))) {
 		G_ROM(READ, addr);
-		return state_read(&rom[ADDR_TO_IDX(addr, ROMBOT)]);
+		return SR(&rom[ADDR_TO_IDX(addr, ROMBOT)]);
 	} else {
 		CORE_ERR_invalid_addr(false, addr);
 	}
@@ -1039,7 +1105,7 @@ uint32_t CORE_ram_read(uint32_t addr) {
 #endif
 	if ((addr >= RAMBOT) && (addr < RAMTOP) && (0 == (addr & 0x3))) {
 		G_RAM(READ, addr);
-		return state_read(&ram[ADDR_TO_IDX(addr, RAMBOT)]);
+		return SR(&ram[ADDR_TO_IDX(addr, RAMBOT)]);
 	} else {
 		CORE_ERR_invalid_addr(false, addr);
 	}
@@ -1513,7 +1579,7 @@ void *poll_uart_thread(void *arg_v) {
 			uint32_t* head = SRP(&poll_uart_head);
 			uint32_t* tail = SRP(&poll_uart_tail);
 
-			DBG1("recv start\thead: %d, tail: %d\n",
+			DBG1("recv start\thead: %td, tail: %td\n",
 					(head)?head - poll_uart_buffer:-1,
 					tail - poll_uart_buffer);
 
@@ -1527,7 +1593,7 @@ void *poll_uart_thread(void *arg_v) {
 				tail = poll_uart_buffer;
 			SWP(&poll_uart_tail, tail);
 
-			DBG1("recv end\thead: %d, tail: %d\t[%d=%c]\n",
+			DBG1("recv end\thead: %td, tail: %td\t[%td=%c]\n",
 					(head)?head - poll_uart_buffer:-1,
 					tail - poll_uart_buffer,
 					tail-poll_uart_buffer-1, *(tail-1));
@@ -1609,7 +1675,7 @@ uint8_t poll_uart_rxdata_read() {
 		if (head == tail)
 			head = NULL;
 
-		DBG1("rxdata end\thead: %d, tail: %d\t[%d=%c]\n",
+		DBG1("rxdata end\thead: %td, tail: %td\t[%td=%c]\n",
 				(head)?head - poll_uart_buffer:-1,
 				tail - poll_uart_buffer,
 				(head)?head-poll_uart_buffer:-1,(head)?*head:'\0');

@@ -1,3 +1,5 @@
+#define STAGE PIPE
+
 #include "pipeline.h"
 #include "simulator.h"
 #include "id_stage.h"
@@ -25,7 +27,7 @@ void pipeline_flush(uint32_t new_pc) {
 	SW(&if_id_PC, -1);
 	SW(&if_id_inst, INST_NOP);
 	SW(&id_ex_PC, -1);
-	state_write_op(&id_ex_o, find_op(INST_NOP, false));
+	state_write_op(STAGE, &id_ex_o, find_op(INST_NOP, false));
 	SW(&id_ex_inst, INST_NOP);
 }
 

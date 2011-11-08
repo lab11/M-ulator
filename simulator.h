@@ -72,42 +72,51 @@ extern sem_t end_tock_sem;
 // Head of the registered opcodes list
 extern struct op *ops;
 
-// Some configuration flags
-extern int printcycles;
-extern int raiseonerror;
+enum stage {
+	PRE  = 0x1,
+	IF   = 0x2,
+	ID   = 0x4,
+	EX   = 0x8,
+	PIPE = 0x10,
+	SIM  = 0x20,
+	UNK  = 0x80,
+	/* MAX: 0xff */
+};
+
+void stall(enum stage);
 
 // Latchable state
-#define SR(_l) state_read((_l))
-uint32_t state_read(uint32_t *loc);
-#define SR_A(_l) state_read_async((_l))
-uint32_t state_read_async(uint32_t *loc);
-#define SRP(_l) state_read_p((_l))
-uint32_t* state_read_p(uint32_t **loc);
+#define SR(_l) state_read(STAGE, (_l))
+uint32_t state_read(enum stage, uint32_t *loc);
+#define SR_A(_l) state_read_async(STAGE, (_l))
+uint32_t state_read_async(enum stage, uint32_t *loc);
+#define SRP(_l) state_read_p(STAGE, (_l))
+uint32_t* state_read_p(enum stage, uint32_t **loc);
 #ifdef DEBUG1
-#define SW(_l, _v) state_write_dbg((_l), (_v),\
+#define SW(_l, _v) state_write_dbg(STAGE, (_l), (_v),\
 		__FILE__, __func__, __LINE__, VAL2STR(_l))
-void state_write_dbg(uint32_t *loc, uint32_t val,
+void state_write_dbg(enum stage, uint32_t *loc, uint32_t val,
 		const char *file, const char *func,
 		const int line, const char *target);
-#define SW_A(_l, _v) state_write_async_dbg((_l), (_v),\
+#define SW_A(_l, _v) state_write_async_dbg(STAGE, (_l), (_v),\
 		__FILE__, __func__, __LINE__, VAL2STR(_l))
-void state_write_async_dbg(uint32_t *loc, uint32_t val,
+void state_write_async_dbg(enum stage, uint32_t *loc, uint32_t val,
 		const char *file, const char *func,
 		const int line, const char *target);
-#define SWP(_l, _v) state_write_p_dbg((_l), (_v),\
+#define SWP(_l, _v) state_write_p_dbg(STAGE, (_l), (_v),\
 		__FILE__, __func__, __LINE__, VAL2STR(_l))
-void state_write_p_dbg(uint32_t **ploc, uint32_t *pval,
+void state_write_p_dbg(enum stage, uint32_t **ploc, uint32_t *pval,
 		const char *file, const char* func,
 		const int line, const char *target);
-void state_write_op(struct op **loc, struct op *val);
+void state_write_op(enum stage, struct op **loc, struct op *val);
 #else
-#define SW(_l, _v) state_write((_l), (_v))
-void state_write(uint32_t *loc, uint32_t val);
-#define SW_A(_l, _v) state_write_async((_l), (_v))
-void state_write_async(uint32_t *loc, uint32_t val);
-#define SWP(_l, _v) state_write_p((_l), (_v))
-void state_write_p(uint32_t **ploc, uint32_t *pval);
-void state_write_op(struct op **loc, struct op *val);
+#define SW(_l, _v) state_write(STAGE, (_l), (_v))
+void state_write(enum stage, uint32_t *loc, uint32_t val);
+#define SW_A(_l, _v) state_write_async(STAGE, (_l), (_v))
+void state_write_async(enum stage, uint32_t *loc, uint32_t val);
+#define SWP(_l, _v) state_write_p(STAGE, (_l), (_v))
+void state_write_p(enum stage, uint32_t **ploc, uint32_t *pval);
+void state_write_op(enum stage, struct op **loc, struct op *val);
 #endif
 
 /////////////////////////

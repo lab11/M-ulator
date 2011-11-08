@@ -1,3 +1,5 @@
+#define STAGE EX
+
 #include "ex_stage.h"
 #include "pipeline.h"
 #include "simulator.h"
