@@ -1,0 +1,128 @@
+\documentclass{article}
+%\usepackage{fullpage}
+\usepackage[top=1in, bottom=1in, left=1cm,right=1cm]{geometry}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+
+\begin{document}
+
+\fancyfoot[L]{Revision 1.0 -- 11/17/2011}
+\pagestyle{fancyplain}
+
+\title{EECS 373 Cortex M3 Simulator Cleanup}
+\author{Date Open: Thu Nov 17}
+\date{{\bf Final submissions: 5PM, Mon Dec 12}}
+\maketitle
+
+One key aspect of good software engineering is called {\em regression
+testing}. Unfortunately, we neglected to emphasize this point throughout the
+simulator project. As a result, test cases that once worked became broken when
+subsequent bugfixes or new features either created or exposed other bugs.
+
+We would like to clean up the simulator and bring it to a completely working
+state. However, we would not like to detract from your final course project,
+as that should be your focus at this time.
+
+The compromise then is the carrot not the stick. We are offering {\tt 0.5\%}
+of extra credit for each failing test case that you fix. You may fix a maximum
+of {\bf 5} test cases (for credit). This extra credit will be applied at the
+very end of final grade calculation, after any curving or other corrections
+are made to the overall distribution; it will not in any way affect students
+who do not earn this extra credit.
+
+\section{The Gory Details}
+\subsection {Fixing Bugs}
+In order to receive credit, you must explain {\em how} you fixed the problem.
+In addition, you must {\em actually fix} the problem, not simply remove it,
+e.g.:
+\begin{itemize}
+\item {\bf BAD:} The {\tt and\_testbench} was failing on the test case in
+lines 78-92, so I removed them.
+\item {\bf GOOD:} In {\tt programs/tests/log\_ext\_shift/and\_testbench} the
+test case in lines 78-92 exposed a bug where the AND Immediate T2 encoding did
+not properly set the status flags (lines 589-622 in {\tt
+cpu/operations/logical.c}).  I corrected the instruction implementation to set
+the flags correctly and the test case now passes.
+\end{itemize}
+As a general rule, if faced with two options of how to fix a bug you've
+identified, the harder option is correct (this is extra credit after all).
+
+\subsection{Claiming Credit}
+Since it is possible that multiple people may be working on the same bugs in
+parallel, we will rely on the subversion repository to break any ties. The
+rule is simple: First to commit a fix wins.
+
+\vspace{1 em}
+{\bf One CRITICAL caveat:} Since the whole point of this is to address
+regressions, introducing a new regression with your fix would be a
+ReallyBadIdea\texttrademark, and would certainly invalidate your ``fix''.
+\vspace{1 em}
+
+The commit message for your fix should indicate clearly the bug you have fixed
+and any test cases that now pass as a result of your bugfix. It is possible
+that one bug fixes multiple test cases. The extra credit is awarded based on
+the number of {\em test cases} fixed. We believe it appropriate to reward
+those ``killer'' bugs that break a large number of test cases, rather than a
+more subjective ``per bug'' style system.
+
+\subsection{The Testcases}
+As a starting reference, the current status of all testcases have been
+appended to the end of this document. You can use the supplied {\tt
+run\_tests.sh} to run them in batch, or simply run them each by hand.
+\clearpage
+\begin{verbatim}
+                                programs/basic.bin: PASSED
+                                programs/blink.bin: FAILED
+                                 programs/echo.bin: FAILED
+                             programs/echo_str.bin: FAILED
+                       programs/tests/trivialC.bin: PASSED
+                  programs/tests/trivialPrintf.bin: FAILED
+                       programs/tests/trivialS.bin: PASSED
+      programs/tests/branch/cbnz_and_cbz_combo.bin: PASSED
+               programs/tests/branch/cbnz_test.bin: PASSED
+                programs/tests/branch/cbz_test.bin: PASSED
+           programs/tests/branch/cmp_testbench.bin: FAILED
+      programs/tests/add_sub_mov/add_testbench.bin: FAILED
+      programs/tests/add_sub_mov/mov_testbench.bin: FAILED
+      programs/tests/add_sub_mov/sub_testbench.bin: FAILED
+    programs/tests/log_ext_shift/and_testbench.bin: PASSED
+    programs/tests/log_ext_shift/bic_testbench.bin: PASSED
+    programs/tests/log_ext_shift/eor_testbench.bin: FAILED
+ programs/tests/log_ext_shift/extend_testbench.bin: PASSED
+    programs/tests/log_ext_shift/mvn_testbench.bin: FAILED
+    programs/tests/log_ext_shift/orn_testbench.bin: PASSED
+    programs/tests/log_ext_shift/orr_testbench.bin: PASSED
+  programs/tests/log_ext_shift/shift_testbench.bin: FAILED
+    programs/tests/log_ext_shift/teq_testbench.bin: FAILED
+    programs/tests/log_ext_shift/tst_testbench.bin: FAILED
+               programs/tests/ldr_str/ldrb_imm.bin: PASSED
+               programs/tests/ldr_str/ldrb_lit.bin: FAILED
+               programs/tests/ldr_str/ldrb_reg.bin: FAILED
+     programs/tests/ldr_str/ldrd-imm_testbench.bin: FAILED
+     programs/tests/ldr_str/ldrd-lit_testbench.bin: FAILED
+     programs/tests/ldr_str/ldrh_imm_testbench.bin: FAILED
+     programs/tests/ldr_str/ldrh_lit_testbench.bin: PASSED
+     programs/tests/ldr_str/ldrh-reg_testbench.bin: PASSED
+      programs/tests/ldr_str/ldr_lit_testbench.bin: FAILED
+              programs/tests/ldr_str/ldrsb_imm.bin: FAILED
+              programs/tests/ldr_str/ldrsb_lit.bin: FAILED
+              programs/tests/ldr_str/ldrsb_reg.bin: FAILED
+    programs/tests/ldr_str/ldrsh-imm_testbench.bin: PASSED
+    programs/tests/ldr_str/ldrsh_lit_testbench.bin: PASSED
+  programs/tests/ldr_str/ldrstrh_reg_testbench.bin: FAILED
+   programs/tests/ldr_str/ldrstr_imm_testbench.bin: FAILED
+   programs/tests/ldr_str/ldrstr_reg_testbench.bin: FAILED
+ programs/tests/ldr_str/ldrstrsh_reg_testbench.bin: FAILED
+               programs/tests/ldr_str/strb_imm.bin: FAILED
+               programs/tests/ldr_str/strb_reg.bin: FAILED
+     programs/tests/ldr_str/strd-imm_testbench.bin: FAILED
+     programs/tests/ldr_str/strh_imm_testbench.bin: FAILED
+     programs/tests/ldr_str/strh-reg_testbench.bin: PASSED
+         programs/tests/push_pop/pop_testbench.bin: PASSED
+        programs/tests/push_pop/push_testbench.bin: FAILED
+          programs/tests/mul_div/div_testbench.bin: PASSED
+         programs/tests/mul_div/mul_tb_shafeen.bin: FAILED
+      programs/tests/mul_div/mul_testbench_fim.bin: PASSED
+\end{verbatim}
+
+\end{document}

@@ -1,17 +1,19 @@
 ###############
 # Documentation
 
-doc:	README.pdf
+DOCS=$(patsubst %.tex,%.pdf,$(wildcard *.tex))
 
-README.pdf:	README.tex
-	pdflatex README.tex
-	pdflatex README.tex
+doc:	$(DOCS)
+
+%.pdf:	%.tex
+	pdflatex $<
+	pdflatex $<
 
 clean-doc:
-	rm -f README.log README.aux README.out
+	rm -f *.log *.aux *.out
 
 clean-doc-all: clean-doc
-	rm -f README.pdf
+	rm -f *.pdf
 
 clean: clean-doc
 
