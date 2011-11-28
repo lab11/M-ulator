@@ -16,6 +16,7 @@ all:	simulator programs
 
 CPU_OBJS += $(patsubst %.c,%.o,$(wildcard cpu/*.c))
 CPU_OBJS += $(patsubst %.c,%.o,$(wildcard cpu/operations/*.c))
+CPU_OBJS += cpu/private_peripheral_bus/ppb.o
 
 CLI_OBJS += $(patsubst %.c,%.o,$(wildcard cli/*.c))
 GUI_OBJS += $(patsubst %.c,%.o,$(wildcard gui/*.c))

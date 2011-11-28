@@ -191,10 +191,14 @@ static uint32_t ram[RAMSIZE >> 2] = {0};
 #define ADDR_TO_IDX(_addr, _bot) ((_addr - _bot) >> 2)
 
 /* Ignore mode transitions for now */
-static uint32_t reg[15];	// PC reg is not held here, so 15 registers
+static uint32_t reg[SP_REG];	// SP,LR,PC not held here, so 13 registers
+static uint32_t sp_process;
+static uint32_t sp_main __attribute__ ((unused));
+static uint32_t *sp = &sp_process;
+static uint32_t lr;
 
-#define SP	(reg[SP_REG])
-#define LR	(reg[LR_REG])
+#define SP	(*sp)
+#define LR	(lr)
 #define PC	(id_ex_PC)
 
 #ifdef A_PROFILE
@@ -1010,20 +1014,24 @@ static void shell(void) {
 uint32_t CORE_reg_read(int r) {
 	assert(r >= 0 && r < 16 && "CORE_reg_read");
 	G_REG(READ, r);
-	if (r == PC_REG) {
-		return SR(&PC) & 0xfffffffe;
-	}
-	else if (r == SP_REG) {
+	if (r == SP_REG) {
 		return SR(&SP) & 0xfffffffc;
-	}
-	else {
+	} else if (r == LR_REG) {
+		return SR(&LR);
+	} else if (r == PC_REG) {
+		return SR(&PC) & 0xfffffffe;
+	} else {
 		return SR(&reg[r]);
 	}
 }
 
 void CORE_reg_write(int r, uint32_t val) {
 	assert(r >= 0 && r < 16 && "CORE_reg_write");
-	if (r == PC_REG) {
+	if (r == SP_REG) {
+		SW(&SP, val & 0xfffffffc);
+	} else if (r == LR_REG) {
+		SW(&LR, val);
+	} else if (r == PC_REG) {
 		if (SR(&PC) == ((val & 0xfffffffe) + 4)) {
 			INFO("Simulator determined PC 0x%08x is branch to self, terminating.\n", PC);
 			print_full_state();
@@ -1036,9 +1044,6 @@ void CORE_reg_write(int r, uint32_t val) {
 		//state_write(&PC, val & 0xfffffffe);
 		// We have no branch predictor (yet?? oh my...)
 		state_pipeline_flush(val & 0xfffffffe);
-	}
-	else if (r == SP_REG) {
-		SW(&SP, val & 0xfffffffc);
 	}
 	else {
 		SW(&(reg[r]), val);
@@ -1170,6 +1175,20 @@ uint8_t CORE_poll_uart_rxdata_read() {
 
 void CORE_poll_uart_txdata_write(uint8_t val) {
 	return poll_uart_txdata_write(val);
+}
+
+void CORE_WARN_real(const char *f, int l, const char *msg) {
+	WARN("%s:%d\t%s\n", f, l, msg);
+}
+
+void CORE_ERR_read_only_real(const char *f, int l, uint32_t addr) {
+	print_full_state();
+	ERR(E_READONLY, "%s:%d\t%#08x is read-only\n", f, l, addr);
+}
+
+void CORE_ERR_write_only_real(const char *f, int l, uint32_t addr) {
+	print_full_state();
+	ERR(E_WRITEONLY, "%s:%d\t%#08x is write-only\n", f, l, addr);
 }
 
 void CORE_ERR_invalid_addr_real(const char *f, int l, uint8_t is_write, uint32_t addr) {

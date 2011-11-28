@@ -1,0 +1,50 @@
+1
+NVIC
+INTERRUPT_CONTROL_TYPE
+"""Reset value depends on the number of interrupts defined
+
+Bits	Field		Function
+[31:5	-		Reserved.
+[4:0]	INTLINESNUM	Total number of interrupt lines in groups of 32:
+
+b00000 = 0...32a
+b00001 = 33...64
+b00010 = 65...96
+b00011 = 97...128
+b00100 = 129...160
+b00101 = 161...192
+b00110 = 193...224
+b00111 = 225...256a
+
+a: Value must be in [1, 240]
+"""
+func {
+	SW(&XXX, 0x1);
+}
+
+2
+NVIC
+SYSTICK_RELOAD_VALUE
+"""Reset value is unpredictable, we choose to zero it"""
+func {
+	SW(&XXX, 0);
+}
+
+3
+NVIC
+SYSTICK_CURRENT_VALUE
+"""Reset value is unpredictable, we choose to zero it"""
+func {
+	SW(&XXX, 0);
+}
+
+4
+NVIC
+SYSTICK_CALIBRATION_VALUE
+"""Register is used for software calibration of divide / multiply speed,
+we set it only bit 30 as 1, which indicates we know absolutely nothing
+about the current speed / calibration"""
+func {
+	SW(&XXX, 0x40000000);
+}
+

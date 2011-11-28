@@ -21,6 +21,8 @@
 #define E_NOT_IMPLEMENTED	1
 #define E_BAD_FLASH		2
 #define E_UNKNOWN		3
+#define E_READONLY		4
+#define E_WRITEONLY		5
 
 ////////////////////
 // INTERNAL TYPES //

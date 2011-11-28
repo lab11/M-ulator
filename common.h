@@ -54,19 +54,26 @@
 #define E_BAD_OPCODE		101
 #define E_UNPREDICTABLE		102
 
+// Generic warning primative, will not cause exit
+void	CORE_WARN(const char *);
+
+// Thrown on invalid access to an address
+void	CORE_ERR_read_only(uint32_t addr) __attribute__ ((noreturn));
+void	CORE_ERR_write_only(uint32_t addr) __attribute__ ((noreturn));
+
 // Thrown when an illegal read or write attempt is made
-void		CORE_ERR_invalid_addr(uint8_t is_write, uint32_t addr) __attribute__ ((noreturn));
+void	CORE_ERR_invalid_addr(uint8_t is_write, uint32_t addr) __attribute__ ((noreturn));
 
 // Thrown when an illegal instruction is encountered
-void		CORE_ERR_illegal_instr(uint32_t instr) __attribute__ ((noreturn));
-void		CORE_ERR_illegal_line(const char *line) __attribute__ ((noreturn));
+void	CORE_ERR_illegal_instr(uint32_t instr) __attribute__ ((noreturn));
+void	CORE_ERR_illegal_line(const char *line) __attribute__ ((noreturn));
 
 // Thrown when an undefined or unpredictable state is encountered
-void		CORE_ERR_unpredictable(const char *opt_msg) __attribute__ ((noreturn));
+void	CORE_ERR_unpredictable(const char *opt_msg) __attribute__ ((noreturn));
 
 // Useful for incremental work, indicates that everything up until this
 // point has completed successfully (pass NULL or "a message\n")
-void		CORE_ERR_not_implemented(const char *opt_msg) __attribute__ ((noreturn));
+void	CORE_ERR_not_implemented(const char *opt_msg) __attribute__ ((noreturn));
 
 /////////////
 // UTILITY //
@@ -136,24 +143,36 @@ void		CORE_ERR_not_implemented(const char *opt_msg) __attribute__ ((noreturn));
 // MACRO TRICKS //
 //////////////////
 
+#define CORE_WARN(_m)\
+	CORE_WARN_real(__FILE__, __LINE__, (_m))
+void	CORE_WARN_real(const char*, int, const char *);
+
+#define CORE_ERR_read_only(_a)\
+	CORE_ERR_read_only_real(__FILE__, __LINE__, (_a))
+void	CORE_ERR_read_only_real(const char*, int, uint32_t) __attribute__ ((noreturn));
+
+#define CORE_ERR_write_only(_a)\
+	CORE_ERR_write_only_real(__FILE__, __LINE__, (_a))
+void	CORE_ERR_write_only_real(const char*, int, uint32_t) __attribute__ ((noreturn));
+
 #define CORE_ERR_invalid_addr(_w, _a)\
 	CORE_ERR_invalid_addr_real(__FILE__, __LINE__, (_w), (_a))
-void		CORE_ERR_invalid_addr_real(const char*, int, uint8_t, uint32_t) __attribute__ ((noreturn));
+void	CORE_ERR_invalid_addr_real(const char*, int, uint8_t, uint32_t) __attribute__ ((noreturn));
 
 #define CORE_ERR_illegal_instr(_i)\
 	CORE_ERR_illegal_instr_real(__FILE__, __LINE__, (_i))
-void		CORE_ERR_illegal_instr_real(const char*, int, uint32_t) __attribute__ ((noreturn));
+void	CORE_ERR_illegal_instr_real(const char*, int, uint32_t) __attribute__ ((noreturn));
 
 #define CORE_ERR_illegal_line(_l)\
 	CORE_ERR_illegal_line_real(__FILE__, __LINE__, (_l))
-void		CORE_ERR_illegal_line_real(const char*, int, const char *) __attribute__ ((noreturn));
+void	CORE_ERR_illegal_line_real(const char*, int, const char *) __attribute__ ((noreturn));
 
 #define CORE_ERR_unpredictable(_o)\
 	CORE_ERR_unpredictable_real(__FILE__, __LINE__, (_o))
-void		CORE_ERR_unpredictable_real(const char*, int, const char *) __attribute__ ((noreturn));
+void	CORE_ERR_unpredictable_real(const char*, int, const char *) __attribute__ ((noreturn));
 
 #define CORE_ERR_not_implemented(_o)\
 	CORE_ERR_not_implemented_real(__FILE__, __LINE__, (_o))
-void		CORE_ERR_not_implemented_real(const char*, int, const char *) __attribute__ ((noreturn));
+void	CORE_ERR_not_implemented_real(const char*, int, const char *) __attribute__ ((noreturn));
 
 #endif // COMMON_H

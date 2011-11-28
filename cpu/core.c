@@ -6,6 +6,8 @@
 #include "bus_interface.h"
 #include "pins.h"
 
+#include "private_peripheral_bus/ppb.h"
+
 /* void reset(void)
  *
  * This function is called when the reset pin is triggered on the processor.
@@ -13,6 +15,7 @@
  * will be called when the chip turns on
  */
 void reset(void) {
+	ppb_reset();
 	CORE_reg_write(SP_REG, read_word(0x00000000));
 	CORE_reg_write(LR_REG, 0xFFFFFFFF);
 	CORE_reg_write(PC_REG, read_word(0x00000004));
@@ -29,32 +32,26 @@ void reset(void) {
 uint32_t read_word(uint32_t addr) {
 	if (addr >= ROMBOT && addr < ROMTOP) {
 		return CORE_rom_read(addr);
-	}
-	else if (addr >= RAMBOT && addr < RAMTOP) {
+	} else if (addr >= RAMBOT && addr < RAMTOP) {
 		return CORE_ram_read(addr);
-	}
-	else if (addr == REDLED) {
+	} else if (addr == REDLED) {
 		return CORE_red_led_read();
-	}
-	else if (addr == GRNLED) {
+	} else if (addr == GRNLED) {
 		return CORE_grn_led_read();
-	}
-	else if (addr == BLULED) {
+	} else if (addr == BLULED) {
 		return CORE_blu_led_read();
-	}
-	else if (addr == POLL_UART_STATUS) {
+	} else if (addr == POLL_UART_STATUS) {
 		DBG2("Attempt to read UART STATUS\n");
 		return CORE_poll_uart_status_read();
-	}
-	else if (addr == POLL_UART_RXDATA) {
+	} else if (addr == POLL_UART_RXDATA) {
 		DBG1("Attempt to read UART RXDATA\n");
 		return CORE_poll_uart_rxdata_read();
-	}
-	else if (addr == POLL_UART_TXDATA) {
+	} else if (addr == POLL_UART_TXDATA) {
 		DBG1("Attempt to read UART TXDATA\n");
 		CORE_ERR_invalid_addr(false, addr);
-	}
-	else {
+	} else if (addr >= REGISTERS_BOT && addr < REGISTERS_TOP) {
+		return ppb_read(addr);
+	} else {
 		CORE_ERR_invalid_addr(false, addr);
 	}
 }
@@ -67,33 +64,27 @@ void write_word(uint32_t addr, uint32_t val) {
 	if (addr >= ROMBOT && addr < ROMTOP) {
 		DBG1("Attempt to write to ROM\n");
 		CORE_ERR_invalid_addr(true, addr);
-	}
-	else if (addr >= RAMBOT && addr < RAMTOP) {
+	} else if (addr >= RAMBOT && addr < RAMTOP) {
 		CORE_ram_write(addr, val);
-	}
-	else if (addr == REDLED) {
+	} else if (addr == REDLED) {
 		CORE_red_led_write(val);
-	}
-	else if (addr == GRNLED) {
+	} else if (addr == GRNLED) {
 		CORE_grn_led_write(val);
-	}
-	else if (addr == BLULED) {
+	} else if (addr == BLULED) {
 		CORE_blu_led_write(val);
-	}
-	else if (addr == POLL_UART_STATUS) {
+	} else if (addr == POLL_UART_STATUS) {
 		// Hmm.. interesting; I think the right choice for writing
 		// > 8 bits here is to just truncate, it's what real HW would do
 		CORE_poll_uart_status_write((uint8_t) val);
-	}
-	else if (addr == POLL_UART_RXDATA) {
+	} else if (addr == POLL_UART_RXDATA) {
 		DBG1("Attempt to write UART RXDATA\n");
 		CORE_ERR_invalid_addr(true, addr);
-	}
-	else if (addr == POLL_UART_TXDATA) {
+	} else if (addr == POLL_UART_TXDATA) {
 		// Truncating again...
 		CORE_poll_uart_txdata_write((uint8_t) val);
-	}
-	else {
+	} else if (addr >= REGISTERS_BOT && addr < REGISTERS_TOP) {
+		ppb_write(addr, val);
+	} else {
 		CORE_ERR_invalid_addr(true, addr);
 	}
 }
