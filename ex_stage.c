@@ -30,8 +30,14 @@ void tick_ex(void) {
 		IT_advance();
 	} else {
 		if (printcycles) {
-			printf("    P: %08d - 0x%08x : %04x (%s)\n",
-					cycle, id_ex_PC, id_ex_inst, id_ex_o->name);
+			if ((id_ex_PC == STALL_PC) && (id_ex_inst == INST_NOP)) {
+				printf("    P: %08d - 0x%08x : <stall>\n",
+						cycle, id_ex_PC);
+			} else {
+				printf("    P: %08d - 0x%08x : %04x (%s)\n",
+						cycle, id_ex_PC,
+						id_ex_inst, id_ex_o->name);
+			}
 		}
 		id_ex_o->fn(id_ex_inst);
 	}

@@ -6,6 +6,7 @@
 #ifdef M_PROFILE
 
 #define INST_NOP 0x46c0
+#define STALL_PC -1U
 
 #endif //M_PROFILE
 
