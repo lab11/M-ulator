@@ -15,14 +15,14 @@ void tick_ex(void) {
 		if (eval_cond(CORE_cpsr_read(), (read_itstate() & 0xf0) >> 4)) {
 			if (printcycles) {
 				printf("    P: %08d - 0x%08x : %04x (%s)\t%s\n",
-						cycle, id_ex_PC, id_ex_inst, id_ex_o->name,
+						cycle, id_ex_PC - 4, id_ex_inst, id_ex_o->name,
 						"ITSTATE {executed}");
 			}
 			id_ex_o->fn(id_ex_inst);
 		} else {
 			if (printcycles) {
 				printf("    P: %08d - 0x%08x : %04x (%s)\t%s\n",
-						cycle, id_ex_PC, id_ex_inst, id_ex_o->name,
+						cycle, id_ex_PC - 4, id_ex_inst, id_ex_o->name,
 						"ITSTATE {skipped}");
 			}
 			//WARN("itstate skipped instruction\n");
@@ -32,10 +32,10 @@ void tick_ex(void) {
 		if (printcycles) {
 			if ((id_ex_PC == STALL_PC) && (id_ex_inst == INST_NOP)) {
 				printf("    P: %08d - 0x%08x : <stall>\n",
-						cycle, id_ex_PC);
+						cycle, id_ex_PC - 4);
 			} else {
 				printf("    P: %08d - 0x%08x : %04x (%s)\n",
-						cycle, id_ex_PC,
+						cycle, id_ex_PC - 4,
 						id_ex_inst, id_ex_o->name);
 			}
 		}
