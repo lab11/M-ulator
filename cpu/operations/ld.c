@@ -70,6 +70,52 @@ void ldr4(uint32_t inst) {
 	DBG2("ldr r%02d, [sp, #%d * 4]\n", rd, immed8);
 }
 
+void ldr_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool index, bool add, bool wback) {
+	uint32_t rn_val = CORE_reg_read(rn);
+
+	uint32_t offset_addr;
+	if (add)
+		offset_addr = rn_val + imm32;
+	else
+		offset_addr = rn_val - imm32;
+
+	uint32_t address;
+	if (index)
+		address = offset_addr;
+	else
+		address = rn_val;
+
+	uint32_t data = read_word(address);
+
+	if (wback)
+		CORE_reg_write(rn, offset_addr);
+
+	if (rt == 15) {
+		if (address & 0x3)
+			CORE_ERR_unpredictable("Illegal load of PC in ldr imm\n");
+		else
+			LoadWritePC(data);
+	} else {
+		CORE_reg_write(rt, data);
+	}
+}
+
+void ldr_imm_t3(uint32_t inst) {
+	uint16_t imm12 = inst & 0xfff;
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	uint32_t imm32 = imm12;
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+
+	if ((rt == 15) && in_ITblock() && !last_in_ITblock())
+		CORE_ERR_unpredictable("invalid ldr imm to pc\n");
+
+	ldr_imm(rt, rn, imm32, index, add, wback);
+}
+
 void ldr_lit(bool add, uint8_t rt, uint32_t imm32) {
 	uint32_t base = 0xfffffffc & CORE_reg_read(PC_REG);
 
@@ -190,6 +236,10 @@ void register_opcodes_ld(void) {
 */
 	// ldr4: 1001 1<x's>
 	register_opcode_mask(0x9800, 0xffff6000, ldr4);
+
+	// ldr_imm_t3: 1111 1000 1101 xxxx <x's>
+	//                            1111
+	register_opcode_mask_ex(0xf8d00000, 0x07200000, ldr_imm_t3, 0x000f0000, 0x0, 0, 0);
 
 	// ldr_lit_t1: 0100 1<x's>
 	register_opcode_mask(0x4800, 0xffffb000, ldr_lit_t1);

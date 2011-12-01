@@ -4,36 +4,6 @@
 #include "../cpu.h"
 #include "../misc.h"
 
-void mov1(uint32_t inst) {
-	int8_t rd = (inst & 0x700) >> 8;
-	uint8_t uimmed8 = (inst & 0xff);
-
-	CORE_reg_write(rd, uimmed8);
-
-	uint32_t cpsr = CORE_cpsr_read();
-
-	if (!in_ITblock()) {
-		// XXX: How could N ever be set by this instr
-		// if uimmed8 is 0-255?
-		cpsr = GEN_NZCV(0, uimmed8 == 0, cpsr & xPSR_C, cpsr & xPSR_V);
-		CORE_cpsr_write(cpsr);
-	}
-
-	DBG2("mov r%02d, #%u\t; 0x%x\n", rd, uimmed8, uimmed8);
-}
-/*
-void mov3(uint32_t inst) {
-	assert((inst & 0x80) || (inst & 0x40)); // ARM ref
-
-	int8_t rd = ((inst & 0x80) >> 4) | (inst & 0x7);
-	int8_t rm = (inst & 0x78) >> 3;
-
-	CORE_reg_write(rd, CORE_reg_read(rm));
-
-	DBG2("mov r%02d, r%02d\n", rd, rm);
-}
-*/
-
 void mov_imm(uint32_t cpsr, uint8_t setflags, uint32_t imm32, uint8_t rd, uint8_t carry){
 	uint32_t result = imm32;
 
@@ -54,6 +24,19 @@ void mov_imm(uint32_t cpsr, uint8_t setflags, uint32_t imm32, uint8_t rd, uint8_
 	}
 
 	DBG2("mov_imm r%02d = 0x%08x\n", rd, result);
+}
+
+void mov_imm_t1(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t rd = (inst >> 8) & 0x7;
+
+	bool setflags = !in_ITblock();
+	uint32_t imm32 = imm8;
+
+	uint32_t cpsr = CORE_cpsr_read();
+	bool carry = !!(cpsr & xPSR_C);
+
+	return mov_imm(cpsr, setflags, imm32, rd, carry);
 }
 
 void mov_imm_t2(uint32_t inst) {
@@ -188,14 +171,7 @@ void movt_t1(uint32_t inst) {
 
 void register_opcodes_mov(void) {
 	// mov1: 0010 0xxx <x's>
-	register_opcode_mask(0x2000, 0xffffd800, mov1);
-
-	// NOTE: Same as ADD Rd, Rn, #0
-	// mov2: 0001 1100 00xx xxxx
-	// register_opcode_mask(0x1c00, 0xe3c0, mov2);
-
-	// mov3: 0100 0110 xxxx xxxx
-//	register_opcode_mask(0x4600, 0xffffb900, mov3);
+	register_opcode_mask(0x2000, 0xffffd800, mov_imm_t1);
 
 	// mov_imm_t2: 1111 0x00 010x 1111 0<x's>
 	register_opcode_mask(0xf04f0000, 0x0ba08000, mov_imm_t2);

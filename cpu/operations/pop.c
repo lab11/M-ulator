@@ -55,9 +55,8 @@ void pop(uint16_t registers) {
 		}
 	}
 
-	if (registers & 0x8000) {
-		// LoadWritePC(MemA[address,4]);
-		CORE_ERR_not_implemented("pop LoadWritePC\n");
+	if (registers & (1 << 15)) {
+		LoadWritePC(read_word(address));
 	}
 
 	CORE_reg_write(SP_REG, CORE_reg_read(SP_REG) + 4 * hamming(registers));

@@ -76,8 +76,8 @@ void b(uint8_t cond, uint32_t imm32) {
 	if (eval_cond(CORE_cpsr_read(), cond)) {
 		uint32_t pc = CORE_reg_read(PC_REG);
 		BranchWritePC(pc + imm32);
-		DBG2("b taken old pc %08x new pc %08x\n",
-				pc, CORE_reg_read(PC_REG));
+		DBG2("b taken old pc %08x new pc %08x (imm32: %08x)\n",
+				pc, CORE_reg_read(PC_REG), imm32);
 	} else {
 		DBG2("b <not taken>\n");
 	}
@@ -120,9 +120,17 @@ void b_t3(uint32_t inst) {
 	uint8_t cond = (inst >> 22) & 0xf;
 	bool S = !!(inst & 0x04000000);
 
-	bool I1 = !(J1 ^ S);
-	bool I2 = !(J2 ^ S);
-	uint32_t imm32 = (imm11 << 1) | (imm6 << 12) | (I2 << 18) | (I1 << 19);
+	/* THIS FUCKING INSTRUCTION DECODE IS MISSING FROM THE M SERIES ARM ARM,
+	   Turns out it is __NOT__ the same as the t4 encoding, as the absence
+	   of documentation may lead a naiive reader to believe. From the A
+	   seris ARM ARM we learn:
+
+	   if cond<3:1> == ‘111’ then SEE “Related encodings”;
+	   imm32 = SignExtend(S:J2:J1:imm6:imm11:’0’, 32);
+	   if InITBlock() then UNPREDICTABLE;
+	*/
+
+	uint32_t imm32 = (J2 << 19) | (J1 << 18) | (imm6 << 12) | (imm11 << 1);
 	if (S) {
 		imm32 |= 0xfff00000;
 	}
