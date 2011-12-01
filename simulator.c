@@ -934,6 +934,10 @@ static void _shell(void) {
 			sscanf(buf, "%*s %x", &dumpatpc);
 			return;
 
+		case 'b':
+			sprintf(buf, "s %d", cycle - 1);
+			// fall thru
+
 		case 's':
 		{
 			int ret;
