@@ -4,22 +4,22 @@
 #include "pipeline.h"
 #include "simulator.h"
 
+EXPORT bool match_mask(uint32_t inst, uint32_t ones_mask, uint32_t zeros_mask) {
+	return
+		(ones_mask  == (ones_mask  & inst)) &&
+		(zeros_mask == (zeros_mask & ~inst));
+}
+
 static struct op* _find_op(struct op* o, uint32_t inst) {
 	while (NULL != o) {
-		if (
-				(o->ones_mask  == (o->ones_mask  & inst)) &&
-				(o->zeros_mask == (o->zeros_mask & ~inst))
-		   ) {
+		if (match_mask(inst, o->ones_mask, o->zeros_mask)) {
 			// The mask matched, now verify there isn't an exception
 			int i;
 			bool exception = false;
 			for (i = 0; i < o->ex_cnt; i++) {
 				uint32_t ones_mask  = o->ex_ones[i];
 				uint32_t zeros_mask = o->ex_zeros[i];
-				if (
-						(ones_mask  == (ones_mask  & inst)) &&
-						(zeros_mask == (zeros_mask & ~inst))
-				   ) {
+				if (match_mask(inst, ones_mask, zeros_mask)) {
 					DBG2("Collision averted via exception\n");
 					exception = true;
 				}

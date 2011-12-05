@@ -102,7 +102,7 @@ endif
 SIM_EXE = ./simulator --flash $< $(SIMFLAGS)
 
 basic:	programs/basic.bin simulator
-	$(eval SIMFLAGS += --dumpallcycles)
+	$(eval SIMFLAGS += -p --dumpallcycles)
 	$(call tester,programs,$@)
 
 blink:	programs/blink.bin simulator
@@ -113,6 +113,9 @@ echo:	programs/echo.bin simulator
 	$(call tester,programs,$@)
 
 echo_str:	programs/echo_str.bin simulator
+	$(call tester,programs,$@)
+
+fib:	programs/fib.bin simulator
 	$(call tester,programs,$@)
 
 testflash:	simulator

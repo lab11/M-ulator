@@ -1046,8 +1046,16 @@ void CORE_reg_write(int r, uint32_t val) {
 			exit(EXIT_SUCCESS);
 		}
 		//state_write(&PC, val & 0xfffffffe);
-		// We have no branch predictor (yet?? oh my...)
-		state_pipeline_flush(val & 0xfffffffe);
+		// Only flush if the new PC differs from predicted in pipeline:
+		flockfile(stdout); flockfile(stderr);
+		if (((SR(&if_id_PC) & 0xfffffffe) - 4) == (val & 0xfffffffe)) {
+			DBG2("Predicted PC correctly (%08x)\n", val);
+		} else {
+			state_pipeline_flush(val & 0xfffffffe);
+			DBG2("Predicted PC incorrectly\n");
+			DBG2("Pred: %08x, val: %08x\n", SR(&if_id_PC), val);
+		}
+		funlockfile(stderr); funlockfile(stdout);
 	}
 	else {
 		SW(&(reg[r]), val);
