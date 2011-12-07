@@ -3,6 +3,7 @@
 
 #include "../cpu.h"
 #include "../misc.h"
+#include "../core.h"
 
 // BL is actually two instructions to allow for larger offset,
 // need to preserve state across calls
@@ -248,28 +249,34 @@ void bx_t1(uint32_t inst) {
 	return bx(rm);
 }
 
-/* ARMv6
-void bx(uint32_t inst) {
-	uint8_t rm = (inst & 0x78) >> 3;
-	uint32_t target = CORE_reg_read(rm);
-	uint32_t pc = target & 0xfffffffe; // target[31:1]<<1
+void tbb(uint8_t rn, uint8_t rm, bool is_tbh) {
+	uint32_t rn_val = CORE_reg_read(rn);
+	uint32_t rm_val = CORE_reg_read(rm);
 
-	// Set "T flag"
-	uint32_t cpsr = CORE_cpsr_read();
-	if (target & 0x1) {
-		DBG1("Entered Thumb mode\n");
-		cpsr |= 0x10;
-	} else {
-		DBG1("Exited Thumb mode\n");
-		cpsr &= ~0x10;
-	}
-	CORE_cpsr_write(cpsr);
+	uint32_t halfwords;
+	if (is_tbh)
+		halfwords = read_halfword(rn_val + (rm_val<<1));
+	else
+		halfwords = read_byte(rn_val + rm_val);
 
-	CORE_reg_write(PC_REG, pc);
-
-	DBG2("bx %08x (net total)\n", pc);
+	BranchWritePC(CORE_reg_read(PC_REG) + 2*halfwords);
 }
-*/
+
+void tbb_t1(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	bool H = !!(inst & 0x10);
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	bool is_tbh = H;
+
+	if ((rn == 13) || (rm == 13) || (rm == 15))
+		CORE_ERR_unpredictable("bad regs\n");
+
+	if (in_ITblock() && !last_in_ITblock())
+		CORE_ERR_unpredictable("branch in IT\n");
+
+	return tbb(rn, rm, is_tbh);
+}
 
 void register_opcodes_branch(void) {
 	// b_t1: 1101 <x's>
@@ -291,8 +298,6 @@ void register_opcodes_branch(void) {
 	// bx_t1: 0100 0111 0xxx x000
 	register_opcode_mask(0x4700, 0xffffb887, bx_t1);
 
-	/*
-	// bx: 0100 0111 0<x's>
-	register_opcode_mask(0x4700, 0xffffb800, bx);
-	*/
+	// tbb_t1: 1110 1000 1101 xxxx 1111 0000 000x xxxx
+	register_opcode_mask(0xe8d0f000, 0x17200fe0, tbb_t1);
 }

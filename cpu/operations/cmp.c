@@ -5,6 +5,33 @@
 
 /* CMP and TST always write cpsr bits, regardless of itstate */
 
+void cmn_imm(uint8_t rn, uint32_t imm32) {
+	uint32_t rn_val = CORE_reg_read(rn);
+	uint32_t cpsr = CORE_cpsr_read();
+
+	uint32_t result;
+	bool carry;
+	bool overflow;
+	AddWithCarry(rn_val, imm32, 0, &result, &carry, &overflow);
+
+	cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0, carry, overflow);
+	CORE_cpsr_write(cpsr);
+}
+
+void cmn_imm_t1(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	uint8_t rn = (inst >> 16) & 0xf;
+	bool i = !!(inst & 0x04000000);
+
+	uint32_t imm32 = ThumbExpandImm((i << 11) | (imm3 << 8) | (imm8));
+
+	if (rn == 15)
+		CORE_ERR_unpredictable("bad reg\n");
+
+	return cmn_imm(rn, imm32);
+}
+
 void cmp1(uint32_t inst) {
 	uint8_t rn = (inst & 0x700) >> 8;
 	uint32_t immed_8 = inst & 0xff;
@@ -69,6 +96,9 @@ void cmp_t2(uint32_t inst) {
 }
 
 void register_opcodes_cmp(void) {
+	// cmn_imm_t1: 1111 0x01 0001 xxxx 0xxx 1111 xxxx xxxx
+	register_opcode_mask(0xf1100f00, 0x0ae08000, cmn_imm_t1);
+
 	// cmp1: 0010 1<x's>
 	register_opcode_mask(0x2800, 0xffffd000, cmp1);
 

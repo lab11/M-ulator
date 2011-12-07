@@ -187,6 +187,48 @@ void sub_imm_t3(uint32_t inst) {
 	return sub_imm(S, rd, rn, imm32);
 }
 
+void sub_reg(uint8_t rd, uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n, bool setflags) {
+	uint32_t rn_val = CORE_reg_read(rn);
+	uint32_t rm_val = CORE_reg_read(rm);
+	uint32_t cpsr = CORE_cpsr_read();
+
+	uint32_t shifted;
+	shifted = Shift(rm_val, 32, shift_t, shift_n, !!(cpsr & xPSR_C));
+
+	uint32_t result;
+	bool carry;
+	bool overflow;
+	AddWithCarry(rn_val, ~shifted, 1, &result, &carry, &overflow);
+
+	CORE_reg_write(rd, result);
+
+	if (setflags) {
+		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0, carry, overflow);
+		CORE_cpsr_write(cpsr);
+	}
+}
+
+void sub_reg_t2(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t type = (inst >> 4) & 0x3;
+	uint8_t imm2 = (inst >> 6) & 0x3;
+	uint8_t rd = (inst >> 8) & 0xf;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	uint8_t rn = (inst > 16) & 0xf;
+	bool S = !!(inst & 0x100000);
+
+	bool setflags = S;
+
+	enum SRType shift_t;
+	uint8_t shift_n;
+	DecodeImmShift(type, (imm3 << 2) | imm2, &shift_t, &shift_n);
+
+	if ((rd == 13) || ((rd == 15) && (S == 0)) || (rn == 15) || BadReg(rm))
+		CORE_ERR_unpredictable("Bad reg\n");
+
+	return sub_reg(rd, rn, rm, shift_t, shift_n, setflags);
+}
+
 void register_opcodes_sub(void) {
 	// rsb_reg_t1: 1110 1011 110x xxxx (0)<x's>
 	register_opcode_mask(0xebc00000, 0x14208000, rsb_reg_t1);
@@ -213,4 +255,7 @@ void register_opcodes_sub(void) {
 			0x00100f00, 0x0,
 			0x000d0000, 0x00020000,
 			0, 0);
+
+	// sub_reg_t2: 1110 1011 101x xxxx 0<x's>
+	register_opcode_mask_ex(0xeba00000, 0x14408000, sub_reg_t2, 0x100f00, 0x0, 0xd0000, 0x20000, 0, 0);
 }
