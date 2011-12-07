@@ -1,9 +1,10 @@
 #include "opcodes.h"
+#include "helpers.h"
 
 #include "../cpu.h"
 #include "../core.h"
 
-int push(uint32_t inst) {
+void push_v6(uint32_t inst) {
 	uint32_t sp = CORE_reg_read(SP_REG);
 
 	int hamming = 0;
@@ -41,11 +42,42 @@ int push(uint32_t inst) {
 
 	DBG2("push {%sregisters %x (bitwise)}\n",
 			(inst & 0x100)?"LR and ":"", inst & 0xff);
+}
 
-	return SUCCESS;
+void push(const uint16_t registers) {
+	uint32_t sp = CORE_reg_read(SP_REG);
+
+	uint32_t address = sp - 4 * hamming(registers);
+
+	int i;
+	for (i=0; i <= 14; i++) {
+		if (registers & (1 << i)) {
+			write_word(address, CORE_reg_read(i));
+			address += 4;
+		}
+	}
+
+	CORE_reg_write(SP_REG, sp - 4 * hamming(registers));
+}
+
+void push_t2(uint32_t inst) {
+	uint16_t register_list = inst & 0x1fff;
+	bool M = (inst >> 14) & 0x1;
+
+	uint16_t registers = (M << 14) | register_list;
+
+	if (hamming(registers) < 2)
+		CORE_ERR_unpredictable("Too few regs to push\n");
+
+	push(registers);
 }
 
 void register_opcodes_push(void) {
 	// 1011 010x <x's>
-	register_opcode_mask(0xb400, 0xffff4a00, push);
+	register_opcode_mask(0xb400, 0xffff4a00, push_v6);
+
+	// 1110 1001 0010 1101 0x0x xxxx xxxx xxxx
+	register_opcode_mask(0xe92d0000, 0x16d2a000, push_t2);
+
+	// 1111 1000 0100 1101 xxxx 1101 0000 0100 (t3)
 }

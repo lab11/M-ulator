@@ -16,21 +16,55 @@ all:	simulator programs
 
 CPU_OBJS += $(patsubst %.c,%.o,$(wildcard cpu/*.c))
 CPU_OBJS += $(patsubst %.c,%.o,$(wildcard cpu/operations/*.c))
+CPU_OBJS += cpu/private_peripheral_bus/ppb.o
+
+CLI_OBJS += $(patsubst %.c,%.o,$(wildcard cli/*.c))
+GUI_OBJS += $(patsubst %.c,%.o,$(wildcard gui/*.c))
 
 SIM_OBJS += $(patsubst %.c,%.o,$(wildcard ./*.c))
 
-#simulator:	$(CPU_OBJS) simulator.o
-simulator:	cpu $(SIM_OBJS)
-	$(CC) $(LDFLAGS) $(CPU_OBJS) $(SIM_OBJS) -o $@
-
-clean-simulator: cpu/clean
+simulator:	simulator-cli simulator-gui
 	rm -f simulator
+	ln -s simulator-cli simulator
+
+simulator-cli:	cpu cli $(SIM_OBJS)
+	$(CC) $(LDFLAGS) $(CLI_OBJS) $(CPU_OBJS) $(SIM_OBJS) -o $@
+
+simulator-gui:	cpu gui $(SIM_OBJS)
+	$(CC) $(GTK_LDFLAGS) $(LDFLAGS) $(GUI_OBJS) $(CPU_OBJS) $(SIM_OBJS) -o $@
+
+clean-simulator: cpu/clean cli/clean gui/clean
+	rm -f simulator
+	rm -f simulator-cli
+	rm -f simulator-gui
 	rm -f $(SIM_OBJS)
 
-clean-simulator-all: clean-simulator cpu/clean-all
+clean-simulator-all: clean-simulator cpu/clean-all cli/clean-all gui/clean-all
 	rm -f flash.mem
 
 .PHONY: all clean-simulator clean-simulator-all
+
+#####
+# CLI
+
+cli:
+	$(MAKE) -C cli
+
+cli/%:
+	$(MAKE) $* -C cli
+
+.PHONY: cli
+
+#####
+# GUI
+
+gui:
+	$(MAKE) -C gui
+
+gui/%:
+	$(MAKE) $* -C gui
+
+.PHONY: gui
 
 #####
 # CPU
@@ -57,13 +91,18 @@ programs/%:
 #########
 # Testing
 
+ifeq ($(debug), 2)
+tester = +$(MAKE) $(2).bin -C $(1);\
+	 gdb --args ./simulator --flash $(1)/$(2).bin $(SIMFLAGS)
+else
 tester = +$(MAKE) $(2).bin -C $(1);\
 	 ./simulator --flash $(1)/$(2).bin $(SIMFLAGS)
+endif
 
 SIM_EXE = ./simulator --flash $< $(SIMFLAGS)
 
 basic:	programs/basic.bin simulator
-	$(eval SIMFLAGS += --dumpallcycles)
+	$(eval SIMFLAGS += -p --dumpallcycles)
 	$(call tester,programs,$@)
 
 blink:	programs/blink.bin simulator
@@ -74,6 +113,9 @@ echo:	programs/echo.bin simulator
 	$(call tester,programs,$@)
 
 echo_str:	programs/echo_str.bin simulator
+	$(call tester,programs,$@)
+
+fib:	programs/fib.bin simulator
 	$(call tester,programs,$@)
 
 testflash:	simulator

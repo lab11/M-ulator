@@ -5,7 +5,7 @@
 #include "../core.h"
 #include "../misc.h"
 
-int pop_simple(uint32_t inst) {
+void pop_simple(uint32_t inst) {
 	uint32_t sp = CORE_reg_read(SP_REG);
 
 	int hamming = 0;
@@ -42,11 +42,9 @@ int pop_simple(uint32_t inst) {
 
 	DBG2("pop {%sregisters %02x (bitwise)}\n",
 			(inst & 0x100)?"PC and ":"", inst & 0xff);
-
-	return SUCCESS;
 }
 
-int pop(uint16_t registers) {
+void pop(uint16_t registers) {
 	uint32_t address = CORE_reg_read(SP_REG);
 
 	int i;
@@ -57,19 +55,16 @@ int pop(uint16_t registers) {
 		}
 	}
 
-	if (registers & 0x8000) {
-		// LoadWritePC(MemA[address,4]);
-		CORE_ERR_not_implemented("pop LoadWritePC\n");
+	if (registers & (1 << 15)) {
+		LoadWritePC(read_word(address));
 	}
 
 	CORE_reg_write(SP_REG, CORE_reg_read(SP_REG) + 4 * hamming(registers));
 
 	DBG2("pop did stuff\n");
-
-	return SUCCESS;
 }
 
-int pop_t2(uint32_t inst) {
+void pop_t2(uint32_t inst) {
 	uint16_t reg_list = inst & 0x1fff;
 	uint8_t M = !!(inst & 0x4000);
 	uint8_t P = !!(inst & 0x8000);
@@ -81,7 +76,7 @@ int pop_t2(uint32_t inst) {
 	if ((hamming(registers) < 2) || ((P == 1) && (M == 1)))
 		CORE_ERR_unpredictable("pop_t2 not enough regs\n");
 
-	if ((registers & 0x8000) && in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
+	if ((registers & 0x8000) && in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("pop_t2 itstate\n");
 
 	return pop(registers);

@@ -3,10 +3,11 @@
 
 #include "../cpu.h"
 #include "../misc.h"
+#include "../core.h"
 
 // BL is actually two instructions to allow for larger offset,
 // need to preserve state across calls
-int bl(uint32_t inst) {
+void bl(uint32_t inst) {
 	static int32_t offset32;
 
 	int32_t signed_offset11 = inst & 0x7ff;
@@ -20,8 +21,6 @@ int bl(uint32_t inst) {
 		// Need to sign-extend
 		struct {signed int x:23;} s;
 		offset32 = s.x = signed_offset11;
-
-		return SUCCESS;
 	}
 
 	assert((inst & 0x1800) && "Expected H == 11");
@@ -40,11 +39,9 @@ int bl(uint32_t inst) {
 	CORE_reg_write(LR_REG, lr);
 
 	DBG2("bl %08x (net total)\n", pc);
-
-	return SUCCESS;
 }
 
-int blx(uint32_t inst __attribute__ ((unused))) {
+void blx(uint32_t inst __attribute__ ((unused))) {
 	CORE_ERR_not_implemented("blx");
 }
 
@@ -76,49 +73,47 @@ void SelectInstrSet(uint8_t iset) {
 	}
 }
 
-int b(uint8_t cond, uint32_t imm32) {
+void b(uint8_t cond, uint32_t imm32) {
 	if (eval_cond(CORE_cpsr_read(), cond)) {
 		uint32_t pc = CORE_reg_read(PC_REG);
 		BranchWritePC(pc + imm32);
-		DBG2("b taken old pc %08x new pc %08x\n",
-				pc, CORE_reg_read(PC_REG));
+		DBG2("b taken old pc %08x new pc %08x (imm32: %08x)\n",
+				pc, CORE_reg_read(PC_REG), imm32);
 	} else {
 		DBG2("b <not taken>\n");
 	}
-
-	return SUCCESS;
 }
 
-int b_t1(uint32_t inst) {
+void b_t1(uint32_t inst) {
 	uint8_t imm8 = (inst & 0xff);
 	uint8_t cond = (inst & 0xf00) >> 8;
 
 	if (cond == 0xe)
-		CORE_ERR_unpredictable("b_t1 UNDEFINED\n");
+		CORE_ERR_unpredictable("b_t1 UNDEFINED (cond 0xe)\n");
 
 	uint32_t imm32 = SignExtend(imm8 << 1, 9);
 
 	DBG2("PC: %08x, imm32: %08x\n",
 			CORE_reg_read(PC_REG), imm32);
 
-	if (in_ITblock(ITSTATE))
-		CORE_ERR_unpredictable("b_t1 UNPREDICTABLE\n");
+	if (in_ITblock())
+		CORE_ERR_unpredictable("b_t1 UNPREDICTABLE (b in IT block)\n");
 
 	return b(cond, imm32);
 }
 
-int b_t2(uint32_t inst) {
+void b_t2(uint32_t inst) {
 	uint16_t imm11 = (inst & 0x7ff);
 
 	uint32_t imm32 = SignExtend(imm11 << 1, 12);
 
-	if (in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
+	if (in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("b_t2 in it block\n");
 
 	return b(0xf, imm32);
 }
 
-int b_t3(uint32_t inst) {
+void b_t3(uint32_t inst) {
 	uint16_t imm11 = (inst & 0x7ff);
 	bool J2 = !!(inst & 0x800);
 	bool J1 = !!(inst & 0x2000);
@@ -126,20 +121,28 @@ int b_t3(uint32_t inst) {
 	uint8_t cond = (inst >> 22) & 0xf;
 	bool S = !!(inst & 0x04000000);
 
-	bool I1 = !(J1 ^ S);
-	bool I2 = !(J2 ^ S);
-	uint32_t imm32 = (imm11 << 1) | (imm6 << 12) | (I2 << 18) | (I1 << 19);
+	/* THIS FUCKING INSTRUCTION DECODE IS MISSING FROM THE M SERIES ARM ARM,
+	   Turns out it is __NOT__ the same as the t4 encoding, as the absence
+	   of documentation may lead a naiive reader to believe. From the A
+	   seris ARM ARM we learn:
+
+	   if cond<3:1> == ‘111’ then SEE “Related encodings”;
+	   imm32 = SignExtend(S:J2:J1:imm6:imm11:’0’, 32);
+	   if InITBlock() then UNPREDICTABLE;
+	*/
+
+	uint32_t imm32 = (J2 << 19) | (J1 << 18) | (imm6 << 12) | (imm11 << 1);
 	if (S) {
 		imm32 |= 0xfff00000;
 	}
 
-	if (in_ITblock(ITSTATE))
+	if (in_ITblock())
 		CORE_ERR_unpredictable("b_t3 not allowed in IT block\n");
 
 	return b(cond, imm32);
 }
 
-int bl_blx(uint32_t pc, uint8_t targetInstrSet, uint32_t imm32) {
+void bl_blx(uint32_t pc, uint8_t targetInstrSet, uint32_t imm32) {
 	uint32_t lr;
 	DBG2("pc %08x targetInstrSet %x imm32 %d 0x%08x\n",
 			pc, targetInstrSet, imm32, imm32);
@@ -160,11 +163,9 @@ int bl_blx(uint32_t pc, uint8_t targetInstrSet, uint32_t imm32) {
 
 	SelectInstrSet(targetInstrSet);
 	BranchWritePC(targetAddress);
-
-	return SUCCESS;
 }
 
-int bl_t1(uint32_t inst) {
+void bl_t1(uint32_t inst) {
 	// top 5 bits fixed
 	uint8_t  S = !!(inst & 0x04000000);
 	int imm10 =    (inst & 0x03ff0000) >> 16;
@@ -191,13 +192,13 @@ int bl_t1(uint32_t inst) {
 
 	// targetInstrSet = CurrentInstrSet
 
-	if (in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
+	if (in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("bl_t1 in itstate, not ending\n");
 
 	return bl_blx(CORE_reg_read(PC_REG), GET_ISETSTATE, imm32);
 }
 
-int bl_t2(uint32_t inst) {
+void bl_t2(uint32_t inst) {
 	// top 5 bits fixed
 	uint8_t  S = !!(inst & 0x04000000);
 	int imm10H =   (inst & 0x03ff0000) >> 16;
@@ -227,53 +228,55 @@ int bl_t2(uint32_t inst) {
 	DBG2("S %d I1 %d I2 %d imm10H %03x imm10L %03x\n",
 			S, I1, I2, imm10H, imm10L);
 
-	if (in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
+	if (in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("bl_t2 in itstate, not ending\n");
 
 	return bl_blx(CORE_reg_read(PC_REG), INST_SET_ARM, imm32);
 }
 
-int bx(uint8_t rm) {
+void bx(uint8_t rm) {
 	BXWritePC(CORE_reg_read(rm));
 
 	DBG2("bx happened\n");
-
-	return SUCCESS;
 }
 
-int bx_t1(uint32_t inst) {
+void bx_t1(uint32_t inst) {
 	uint8_t rm = (inst & 0x78) >> 3;
 
-	if (in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
+	if (in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("bx_t1 in it block\n");
 
 	return bx(rm);
 }
 
-/* ARMv6
-int bx(uint32_t inst) {
-	uint8_t rm = (inst & 0x78) >> 3;
-	uint32_t target = CORE_reg_read(rm);
-	uint32_t pc = target & 0xfffffffe; // target[31:1]<<1
+void tbb(uint8_t rn, uint8_t rm, bool is_tbh) {
+	uint32_t rn_val = CORE_reg_read(rn);
+	uint32_t rm_val = CORE_reg_read(rm);
 
-	// Set "T flag"
-	uint32_t cpsr = CORE_cpsr_read();
-	if (target & 0x1) {
-		DBG1("Entered Thumb mode\n");
-		cpsr |= 0x10;
-	} else {
-		DBG1("Exited Thumb mode\n");
-		cpsr &= ~0x10;
-	}
-	CORE_cpsr_write(cpsr);
+	uint32_t halfwords;
+	if (is_tbh)
+		halfwords = read_halfword(rn_val + (rm_val<<1));
+	else
+		halfwords = read_byte(rn_val + rm_val);
 
-	CORE_reg_write(PC_REG, pc);
-
-	DBG2("bx %08x (net total)\n", pc);
-
-	return SUCCESS;
+	BranchWritePC(CORE_reg_read(PC_REG) + 2*halfwords);
 }
-*/
+
+void tbb_t1(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	bool H = !!(inst & 0x10);
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	bool is_tbh = H;
+
+	if ((rn == 13) || (rm == 13) || (rm == 15))
+		CORE_ERR_unpredictable("bad regs\n");
+
+	if (in_ITblock() && !last_in_ITblock())
+		CORE_ERR_unpredictable("branch in IT\n");
+
+	return tbb(rn, rm, is_tbh);
+}
 
 void register_opcodes_branch(void) {
 	// b_t1: 1101 <x's>
@@ -295,8 +298,6 @@ void register_opcodes_branch(void) {
 	// bx_t1: 0100 0111 0xxx x000
 	register_opcode_mask(0x4700, 0xffffb887, bx_t1);
 
-	/*
-	// bx: 0100 0111 0<x's>
-	register_opcode_mask(0x4700, 0xffffb800, bx);
-	*/
+	// tbb_t1: 1110 1000 1101 xxxx 1111 0000 000x xxxx
+	register_opcode_mask(0xe8d0f000, 0x17200fe0, tbb_t1);
 }

@@ -1,6 +1,8 @@
 
 # /
 /simulator
+/simulator-gui
+/simulator-cli
 *.o
 
 # /cpu

@@ -30,7 +30,7 @@ void DecodeImmShift(uint8_t type, uint8_t imm5, enum SRType *shift_t, uint8_t *s
 }
 
 void Shift_C(uint32_t value, int Nbits, enum SRType type, uint8_t amount, uint8_t carry_in, uint32_t *result, uint8_t *carry_out) {
-	assert (!((type == SRType_RRX) && (amount != 1)));
+	assert (!((type == RRX) && (amount != 1)));
 
 	if (amount == 0) {
 		*result = value;

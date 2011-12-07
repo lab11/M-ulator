@@ -10,9 +10,9 @@
 //    )
 // the instruction is considered a match
 int		register_opcode_mask(uint32_t ones_mask,
-		uint32_t zeros_mask, int (*fn) (uint32_t));
+		uint32_t zeros_mask, void (*fn) (uint32_t));
 int		register_opcode_mask_ex(uint32_t ones_mask,
-		uint32_t zeros_mask, int (*fn) (uint32_t), ...);
+		uint32_t zeros_mask, void (*fn) (uint32_t), ...);
 /* TTTA: Why do you need to specify two masks?
  *
  *  _Hint:_ When could we consider hardware to be trinary instead of binary?
@@ -46,11 +46,11 @@ void register_opcodes_sub(void);
 #define register_opcode_mask(_o, _z, _f)\
 	register_opcode_mask_real((_o), (_z), (_f), __FILE__":"VAL2STR(_f))
 int		register_opcode_mask_real(uint32_t, uint32_t,
-		int (*fn) (uint32_t), const char *);
+		void (*fn) (uint32_t), const char *);
 #define register_opcode_mask_ex(_o, _z, _f, ...)\
 	register_opcode_mask_ex_real((_o), (_z),(_f),\
 			__FILE__":"VAL2STR(_f), __VA_ARGS__)
 int		register_opcode_mask_ex_real(uint32_t, uint32_t,
-		int (*fn) (uint32_t), const char*, ...);
+		void (*fn) (uint32_t), const char*, ...);
 
 #endif // OPCODES_H

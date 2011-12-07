@@ -12,4 +12,10 @@ void		CORE_ipsr_write(uint32_t val);	// Don't need this yet
 uint32_t	CORE_epsr_read(void);
 void		CORE_epsr_write(uint32_t val);
 
+#ifdef M_PROFILE
+
+#define T_BIT		(CORE_epsr_read() & 0x01000000)
+
+#endif // M_PROFILE
+
 #endif // __CPU_H

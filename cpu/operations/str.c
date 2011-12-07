@@ -1,9 +1,10 @@
 #include "opcodes.h"
+#include "helpers.h"
 
 #include "../cpu.h"
 #include "../core.h"
 
-int str1(uint32_t inst) {
+void str1(uint32_t inst) {
 	uint8_t immed5 = (inst & 0x7c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -14,16 +15,14 @@ int str1(uint32_t inst) {
 		write_word(address, rd_val);
 	} else {
 		// misaligned
-		return FAILURE;
+		CORE_ERR_unpredictable("str1, misaligned\n");
 	}
 
 	DBG2("str1 r%02d, [r%02d, #%d*4]\t0x%08x = 0x%08x\n",
 			rd, rn, immed5, address, rd_val);
-
-	return SUCCESS;
 }
 
-int str2(uint32_t inst) {
+void str2(uint32_t inst) {
 	uint8_t rm = (inst & 0x1c) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7);
@@ -37,11 +36,9 @@ int str2(uint32_t inst) {
 	}
 
 	DBG2("str r%02d, [r%02d, r%02d]\n", rd, rn, rm);
-
-	return SUCCESS;
 }
 
-int str3(uint32_t inst) {
+void str3(uint32_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
 	uint16_t immed8 = inst & 0xff;
 
@@ -56,11 +53,9 @@ int str3(uint32_t inst) {
 	}
 
 	DBG2("str r%02d, [sp, #%d * 4]\n", rd, immed8);
-
-	return SUCCESS;
 }
 
-int strb1(uint32_t inst) {
+void strb1(uint32_t inst) {
 	uint8_t immed5 = (inst & 0x7c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -69,11 +64,50 @@ int strb1(uint32_t inst) {
 	write_byte(address, CORE_reg_read(rd) & 0xff);
 
 	DBG2("strb r%02d, [r%02d, #%d]\n", rd, rn, immed5);
-
-	return SUCCESS;
 }
 
-int strb_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool index, bool add, bool wback) {
+void str_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool index, bool add, bool wback) {
+	uint32_t rn_val = CORE_reg_read(rn);
+
+	uint32_t offset_addr;
+	if (add)
+		offset_addr = rn_val + imm32;
+	else
+		offset_addr = rn_val - imm32;
+
+	uint32_t address;
+	if (index)
+		address = offset_addr;
+	else
+		address = rn_val;
+
+	uint32_t rt_val = CORE_reg_read(rt);
+	write_word(address, rt_val);
+
+	if (wback)
+		CORE_reg_write(rn, offset_addr);
+}
+
+void str_imm_t4(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	bool W = !!(inst & 0x100);
+	bool U = !!(inst & 0x200);
+	bool P = !!(inst & 0x400);
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	uint32_t imm32 = imm8;
+	bool index = P;
+	bool add = U;
+	bool wback = W;
+
+	if ((rt == 15) || (wback && (rn == rt)))
+		CORE_ERR_unpredictable("Bad regs\n");
+
+	return str_imm(rt, rn, imm32, index, add, wback);
+}
+
+void strb_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool index, bool add, bool wback) {
 	uint32_t rn_val = CORE_reg_read(rn);
 	uint32_t rt_val = CORE_reg_read(rt);
 
@@ -98,11 +132,9 @@ int strb_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool index, bool add, bool 
 	}
 
 	DBG2("strb_imm ran\n");
-
-	return SUCCESS;
 }
 
-int strb_imm_t2(uint32_t inst) {
+void strb_imm_t2(uint32_t inst) {
 	uint16_t imm12 = inst & 0xfff;
 	uint8_t rt = (inst >> 12) & 0xf;
 	uint8_t rn = (inst >> 16) & 0xf;
@@ -122,7 +154,26 @@ int strb_imm_t2(uint32_t inst) {
 	return strb_imm(rt, rn, imm32, index, add, wback);
 }
 
-int strd_imm(uint32_t inst) {
+void strb_imm_t3(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	bool W = !!(inst & 0x100);
+	bool U = !!(inst & 0x200);
+	bool P = !!(inst & 0x400);
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	uint32_t imm32 = imm8;
+	bool index = P;
+	bool add = U;
+	bool wback = W;
+
+	if (BadReg(rt) || (wback && (rn == rt)))
+		CORE_ERR_unpredictable("bad reg\n");
+
+	return strb_imm(rt, rn, imm32, index, add, wback);
+}
+
+void strd_imm(uint32_t inst) {
 	uint8_t imm8 = (inst & 0xff);
 	uint8_t rt2 = (inst & 0xf00) >> 8;
 	uint8_t rt = (inst & 0xf000) >> 12;
@@ -167,8 +218,44 @@ int strd_imm(uint32_t inst) {
 	}
 
 	DBG2("strd_imm did lots of stuff\n");
+}
 
-	return SUCCESS;
+void strh_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool index, bool add, bool wback) {
+	uint32_t rt_val = CORE_reg_read(rt);
+	uint32_t rn_val = CORE_reg_read(rn);
+
+	uint32_t offset_addr;
+	if (add)
+		offset_addr = rn_val + imm32;
+	else
+		offset_addr = rn_val - imm32;
+
+	uint32_t address;
+	if (index)
+		address = offset_addr;
+	else
+		address = rn_val;
+
+	write_halfword(address, rt_val & 0xffff);
+
+	if (wback)
+		CORE_reg_write(rn, offset_addr);
+}
+
+void strh_imm_t2(uint32_t inst) {
+	uint16_t imm12 = inst & 0xfff;
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	uint32_t imm32 = imm12;
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+
+	if ((rt == 13) || (rt == 15))
+		CORE_ERR_unpredictable("Bad dest reg\n");
+
+	return strh_imm(rt, rn, imm32, index, add, wback);
 }
 
 void register_opcodes_str(void) {
@@ -184,9 +271,22 @@ void register_opcodes_str(void) {
 	// strb1: 0111 0<x's>
 	register_opcode_mask(0x7000, 0xffff8800, strb1);
 
+	// str_imm_t4: 1111 1000 0100 xxxx xxxx 1xxx xxxx xxxx
+	register_opcode_mask_ex(0xf8400800, 0x07b00000, str_imm_t4,
+			0x600, 0x100,
+			0xd0500, 0x20200,
+			0xf0000, 0x0,
+			0x0, 0x500);
+
 	// strb_imm_t2: 1111 1000 1000 <x's>
 	register_opcode_mask(0xf8800000, 0x07700000, strb_imm_t2);
 
+	// strb_imm_t3: 1111 1000 0000 xxxx xxxx 1xxx xxxx xxxx
+	register_opcode_mask_ex(0xf8000800, 0x07f00000, strb_imm_t3, 0x600, 0x100, 0xf0000, 0x0, 0x0, 0x500, 0, 0);
+
 	// strd_imm: 1110 100x x1x0 <x's>
 	register_opcode_mask(0xe8400000, 0x16100000, strd_imm);
+
+	// strh_imm_t2: 1111 1000 1010 <x's>
+	register_opcode_mask_ex(0xf8a00000, 0x07500000, strh_imm_t2, 0x000f0000, 0x0, 0, 0);
 }

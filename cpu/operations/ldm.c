@@ -5,7 +5,7 @@
 #include "../core.h"
 #include "../misc.h"
 
-int ldm(uint8_t rn, uint16_t registers, uint8_t wback) {
+void ldm(uint8_t rn, uint16_t registers, uint8_t wback) {
 	uint32_t address = CORE_reg_read(rn);
 
 	int i;
@@ -25,11 +25,9 @@ int ldm(uint8_t rn, uint16_t registers, uint8_t wback) {
 	}
 
 	DBG2("ldm had loads of fun\n");
-
-	return SUCCESS;
 }
 
-int ldm_t2(uint32_t inst) {
+void ldm_t2(uint32_t inst) {
 	uint16_t reg_list = inst & 0x1fff;
 	bool M = !!(inst & 0x4000);
 	bool P = !!(inst & 0x8000);
@@ -45,7 +43,7 @@ int ldm_t2(uint32_t inst) {
 	if ((rn == 15) || (hamming(registers) < 2) || ((P == 1) && (M == 1)))
 		CORE_ERR_unpredictable("ldm_t2, long ||'s\n");
 
-	if ((registers & 0x8000) && in_ITblock(ITSTATE) && !last_in_ITblock(ITSTATE))
+	if ((registers & 0x8000) && in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("ldm_t2, itstate stuff\n");
 
 	if (wback && (registers & (1 << (rn))))

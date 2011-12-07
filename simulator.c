@@ -6,29 +6,17 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <time.h>
-#include <pthread.h>
 #include <fcntl.h>
-#include <getopt.h>
-#include <signal.h>
 
+#define STAGE SIM
 #include "simulator.h"
+#include "pipeline.h"
+#include "if_stage.h"
+#include "id_stage.h"
+#include "ex_stage.h"
 #include "cpu/core.h"
 #include "cpu/misc.h"
 #include "cpu/operations/opcodes.h"
-
-/////////////////////////
-// PRETTY PRINT MACROS //
-/////////////////////////
-
-#define INFO(...) printf("--- I: "); printf(__VA_ARGS__)
-#define WARN(...) fprintf(stderr, "--- W: "); fprintf(stderr, __VA_ARGS__)
-#define ERR(_e, ...)\
-	do {\
-		fprintf(stderr, "--- E: ");\
-		fprintf(stderr, __VA_ARGS__);\
-		if (raiseonerror) raise(SIGTRAP);\
-		exit(_e);\
-	} while (0)
 
 #ifdef DEBUG2
 #ifndef GRADE
@@ -95,67 +83,52 @@
 #define G_PERIPH(...)
 #endif
 
-static void usage_fail(int retcode) {
-	printf("\nUSAGE: ./simulator [OPTS]\n\n");
-	printf("\
-\t-c, --dumpatpc PC_IN_HEX\n\
-\t\tExecute until PC reaches the given value. The simulator will\n\
-\t\tpause at the given PC and prompt for a new pause PC\n\
-\t-y, --dumpatcycle N\n\
-\t\tExecute until cycle N and print the current machine state.\n\
-\t\tYou will be prompted for a new N at the pause\n\
-\t-d, --dumpallcycles\n\
-\t\tPrints the machine state every cycle -- This is a lot of text\n\
-\t-p, --printcycles\n\
-\t\tPrints cycle count and inst to execute every cycle (before exec)\n\
-\t\tConceptually, this executes between the intstruction fetch and\n\
-\t\tdecode stage, so the PC is already advanced\n\
-\t-s, --slowsim\n\
-\t\tSlows simulation down, running an instruction every .1s\n\
-\t-e, --raiseonerror\n\
-\t\tRaises a SIGTRAP for gdb on errors before dying\n\
-\t\t(Useful for debugging with gdb\n\
-\t-r, --returnr0\n\
-\t\tSets simulator binary return code to the return\n\
-\t\tcode of the executed program on simulator exit\n\
-\t-m, --limit\n\
-\t\tLimit CPU execution to N cycles, returns failure if hit\n\
-\t\t(useful for catching runaway test cases)\n\
-\t-f, --flash FILE\n\
-\t\tFlash FILE into ROM before executing\n\
-\t\t(this file is likely somthing.bin)\n\
-\t-l, --showledwrites\n\
-\t\tPrints LED state every time the LEDs are written to\n\
-\t-u, --polluartport "VAL2STR(POLL_UART_PORT)"\n\
-\t\tThe port number to communicate with the polled UART device\n\
-\t--usetestflash\n\
-\t\tInstead of reading a flash.mem, use a prebuilt internal\n\
-\t\tflash.mem file. The internal flash.mem will run a valid\n\
-\t\tinstance of the supplied echo program\n\
-\n\
-"\
-	       );
-	exit(retcode);
-}
-
-static void usage(void) {
-	usage_fail(0);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef DEBUG1
+#define pthread_mutex_lock(_m)\
+	do {\
+		int ret = pthread_mutex_lock((_m));\
+		if (ret) {\
+			perror("Locking "VAL2STR(_m));\
+			exit(ret);\
+		}\
+	} while (0)
+#define pthread_mutex_unlock(_m)\
+	do {\
+		int ret = pthread_mutex_unlock((_m));\
+		if (ret) {\
+			perror("Unlocking "VAL2STR(_m));\
+			exit(ret);\
+		}\
+	} while (0)
+#endif
+
 #define NSECS_PER_SEC 1000000000
 
+static volatile sig_atomic_t sigint = 0;
+static volatile bool shell_running = false;
+
+/* Tick Control */
+EXPORT sem_t ticker_ready_sem;
+EXPORT sem_t start_tick_sem;
+EXPORT sem_t end_tick_sem;
+EXPORT sem_t end_tock_sem;
+#define NUM_TICKERS	3	// IF, ID, EX
+
 /* UARTs */
-#define POLL_UART_PORT 4100
-#define POLL_UART_BUFSIZE 16
-#define POLL_UART_BAUD 1200
+#define INVALID_CLIENT (UINT_MAX-1)
+
 static void *poll_uart_thread(void *);
+#ifdef DEBUG1
+static pthread_mutex_t poll_uart_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
+#else
 static pthread_mutex_t poll_uart_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
 static pthread_cond_t  poll_uart_cond  = PTHREAD_COND_INITIALIZER;
-static int poll_uart_client = -1;
+static uint32_t poll_uart_client = INVALID_CLIENT;
 
 // circular buffer
 // head is location to read valid data from
@@ -163,9 +136,13 @@ static int poll_uart_client = -1;
 // characters are lost if not read fast enough
 // head == tail --> buffer is full (not that it matters)
 // head == NULL --> buffer if empty
-static uint8_t poll_uart_buffer[POLL_UART_BUFSIZE];
-static uint8_t *poll_uart_head = NULL;
-static uint8_t *poll_uart_tail = poll_uart_buffer;
+
+// these should be treated as char's, but are stored as uint32_t
+// to unify state tracking code
+static uint32_t poll_uart_buffer[POLL_UART_BUFSIZE];
+static uint32_t *poll_uart_head = NULL;
+static uint32_t *poll_uart_tail = poll_uart_buffer;
+
 static const struct timespec poll_uart_baud_sleep =\
 		{0, (NSECS_PER_SEC/POLL_UART_BAUD)*8};	// *8 bytes vs bits
 
@@ -176,24 +153,25 @@ void poll_uart_txdata_write(uint8_t val);
 
 /* Config */
 
-static int slowsim = 0;
+EXPORT int slowsim = 0;
 #ifdef DEBUG2
-static int printcycles = 1;
-static int raiseonerror = 1;
+EXPORT int printcycles = 1;
+EXPORT int raiseonerror = 1;
 #else
-static int printcycles = 0;
-static int raiseonerror = 0;
+EXPORT int printcycles = 0;
+EXPORT int raiseonerror = 0;
 #endif
-static int limitcycles = -1;
-static int showledwrites = 0;
-static unsigned dumpatpc = 0;
-static int dumpatcycle = -1;
-static int dumpallcycles = 0;
+EXPORT int limitcycles = -1;
+EXPORT int showledwrites = 0;
+EXPORT unsigned dumpatpc = -3;
+EXPORT int dumpatcycle = -1;
+EXPORT int dumpallcycles = 0;
 #ifdef GRADE
-static int returnr0 = 1;
+EXPORT int returnr0 = 1;
 #else
-static int returnr0 = 0;
+EXPORT int returnr0 = 0;
 #endif
+EXPORT int usetestflash = 0;
 
 /* Test Flash */
 
@@ -205,7 +183,7 @@ static uint32_t static_rom[80] = {0x20003FFC,0x55,0x51,0x51,0x51,0x51,0x51,0x51,
 
 static int opcode_masks;
 
-static int cycle = -1;
+EXPORT int cycle = -1;
 
 static uint32_t rom[ROMSIZE >> 2] = {0};
 static uint32_t ram[RAMSIZE >> 2] = {0};
@@ -213,12 +191,15 @@ static uint32_t ram[RAMSIZE >> 2] = {0};
 #define ADDR_TO_IDX(_addr, _bot) ((_addr - _bot) >> 2)
 
 /* Ignore mode transitions for now */
-#define ASSERT_VALID_REG(_r) assert(_r >= 0 && _r < 16)
-static uint32_t reg[16];
+static uint32_t reg[SP_REG];	// SP,LR,PC not held here, so 13 registers
+static uint32_t sp_process;
+static uint32_t sp_main __attribute__ ((unused));
+static uint32_t *sp = &sp_process;
+static uint32_t lr;
 
-#define SP	(reg[SP_REG])
-#define LR	(reg[LR_REG])
-#define PC	(reg[PC_REG])
+#define SP	(*sp)
+#define LR	(lr)
+#define PC	(id_ex_PC)
 
 #ifdef A_PROFILE
 // (|= 0x0010) Start is user mode
@@ -315,17 +296,523 @@ static uint32_t control __attribute__ ((unused)) = 0x0;
 
 
 /* Peripherals */
-#define RED 0
-#define GRN 1
-#define BLU 2
-#define LED_COLORS 3
+enum LED_color {
+	RED = 0,
+	GRN = 1,
+	BLU = 2,
+	LED_COLORS,
+};
 static uint32_t leds[LED_COLORS] = {0};
+
+////////////////////////////////////////////////////////////////////////////////
+// CORE
+////////////////////////////////////////////////////////////////////////////////
+
+// state flags #defines:
+// Bottom byte aligns with enum stage
+#define STATE_STALL_PRE		PRE
+#define STATE_STALL_IF		IF
+#define STATE_STALL_ID		ID
+#define STATE_STALL_EX		EX
+#define STATE_STALL_PIPE	PIPE
+#define STATE_STALL_SIM		SIM
+#define STATE_STALL_UNK		UNK
+#define STATE_STALL_MASK	0xff
+
+#define STATE_IO_BARRIER	0x100
+#define STATE_PIPELINE_FLUSH	0x1000
+#define STATE_PIPELINE_RUNNING	0x8000
+#define STATE_LED_WRITTEN	0x10000
+#define STATE_LED_WRITING	0x80000
+#define STATE_BLOCKING_ASYNC	0x800000
+
+#define STATE_LOCK_HELD_MASK	0x888800
+
+struct state_change {
+	struct state_change *prev;
+	struct state_change *next;
+
+	/* Holds changes made __during__ this cycle; there may be multiple
+	   list entries per cycle. Thus, to return to the beginning of a
+	   cycle n (e.g. before it had executed), the list must have traversed
+	   such that the list head reaches an entry of cycle less than n */
+	int cycle;
+	enum stage g;
+	uint32_t *flags;
+	uint32_t *loc;
+	uint32_t val;
+	uint32_t prev_val;
+	uint32_t **ploc;
+	uint32_t *pval;
+	uint32_t *prev_pval;
+#ifdef DEBUG1
+	const char* file;
+	const char* func;
+	int line;
+	const char* target;
+#endif
+};
+
+static uint32_t state_start_flags = 0;
+static struct state_change state_start = {
+	.prev = NULL,
+	.next = NULL,
+	.cycle = -1,
+	.g = UNK,
+	.flags = &state_start_flags,
+	.loc = NULL,
+	.val = 0,
+	.prev_val = 0,
+	.ploc = NULL,
+	.pval = NULL,
+	.prev_pval = NULL,
+#ifdef DEBUG1
+	.file = NULL,
+	.func = NULL,
+	.line = -1,
+	.target = NULL,
+#endif
+};
+
+static struct state_change* state_head = &state_start;
+static struct state_change* cycle_head = NULL;
+
+static uint32_t* state_flags_cur = &state_start_flags;
+
+static struct op* o_hack = NULL;
+
+static uint32_t state_pipeline_new_pc = -1;
+
+#ifdef DEBUG1
+static pthread_mutex_t state_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
+#else
+static pthread_mutex_t state_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
+
+EXPORT void state_async_block_start(void) {
+	pthread_mutex_lock(&state_mutex);
+	DBG2("async_block started\n");
+	*state_flags_cur |= STATE_BLOCKING_ASYNC;
+}
+
+EXPORT void state_async_block_end(void) {
+	*state_flags_cur &= ~STATE_BLOCKING_ASYNC;
+	DBG2("async_block ended\n");
+	pthread_mutex_unlock(&state_mutex);
+}
+
+static void state_block_async_io(void) {
+	pthread_mutex_lock(&state_mutex);
+	*state_flags_cur |= STATE_BLOCKING_ASYNC;
+}
+
+static void state_unblock_async_io(void) {
+	*state_flags_cur &= ~STATE_BLOCKING_ASYNC;
+	pthread_mutex_unlock(&state_mutex);
+}
+
+static void state_start_tick() {
+	state_block_async_io();
+#ifdef DEBUG2
+	flockfile(stdout); flockfile(stderr);
+	printf("\n%08d TICK TICK TICK TICK TICK TICK TICK TICK TICK\n", cycle);
+	funlockfile(stderr); funlockfile(stdout);
+#endif
+	DBG2("CLOCK --> high (cycle %08d)\n", cycle);
+	//assert((state_head->cycle+1) == cycle);
+	cycle_head = state_head;
+
+	if (NULL != state_head->next) {
+		WARN("Simulator re-excuting at cycle %d\n", cycle);
+		WARN("Discarding all future state\n");
+
+		struct state_change* s = state_head->next;
+		while (s->next != NULL) {
+			s = s->next;
+			if (s->cycle != s->prev->cycle)
+				free(s->prev->flags);
+			free(s->prev);
+		}
+		free(s->flags);
+		free(s);
+
+		state_head->next = NULL;
+	}
+
+	state_flags_cur = malloc(sizeof(uint32_t));
+	assert((NULL != state_flags_cur) && "OOM");
+	*state_flags_cur = 0;
+
+	o_hack = NULL;
+
+	state_unblock_async_io();
+}
+
+static void _state_tock() {
+	if (!(*state_flags_cur & STATE_STALL_ID)) {
+		if (cycle > 0) {
+			assert((NULL != o_hack) &&
+					"nothing set instruction for EX this cycle");
+		}
+		id_ex_o = o_hack;
+	}
+
+	struct state_change* orig_cycle_head = cycle_head;
+
+	while (NULL != cycle_head) {
+		assert(cycle_head->cycle == cycle);
+		if (cycle_head->g & *cycle_head->flags) {
+#ifdef DEBUG1
+			// This write has been stalled, skip it
+			;
+#else
+			// This write has been stalled, remove it
+			struct state_change* delete_me = cycle_head;
+
+			// shouldn't be able to stall most initial state
+			// XXX: what about after a replay? (no... this is ok)
+			assert(NULL != cycle_head->prev);
+			cycle_head->prev->next = cycle_head->next;
+			// but we could be the last state...
+			if (NULL != cycle_head->next) {
+				cycle_head->next->prev = cycle_head->prev;
+			}
+			// update checking bookkeeping
+			if (cycle_head == orig_cycle_head) {
+				orig_cycle_head = cycle_head->next;
+				if (NULL == orig_cycle_head) {
+					WARN("stall generated empty cycle\n");
+				}
+			}
+			// back the head up so the loop can advance it
+			cycle_head = cycle_head->prev;
+			free(delete_me);
+#endif
+		}
+		else if (cycle_head->loc) {
+			DBG2("(%s::%s:%d: %s: %p = %08x (was %08x)\n",
+					cycle_head->file, cycle_head->func,
+					cycle_head->line, cycle_head->target,
+					cycle_head->loc, cycle_head->val,
+					cycle_head->prev_val);
+			*cycle_head->loc = cycle_head->val;
+		} else if (cycle_head->ploc) {
+			DBG2("(%s::%s:%d: %s: %p = %p (was %p)\n",
+					cycle_head->file, cycle_head->func,
+					cycle_head->line, cycle_head->target,
+					cycle_head->ploc, cycle_head->pval,
+					cycle_head->prev_pval);
+			*cycle_head->ploc = cycle_head->pval;
+		} else {
+			ERR(E_UNKNOWN, "loc and ploc NULL?\n");
+		}
+		cycle_head = cycle_head->next;
+	}
+
+	// Not going to do better than O(2n) for detecting duplicates in an
+	// unsorted list
+	while (NULL != orig_cycle_head) {
+		if (orig_cycle_head->loc) {
+			if (*orig_cycle_head->loc != orig_cycle_head->val) {
+#ifdef DEBUG1
+				ERR(E_UNPREDICTABLE, "(%s): %p was aliased, expected %08x, got %08x\n",
+						orig_cycle_head->target,
+#else
+				ERR(E_UNPREDICTABLE, "loc %p was aliased, expected %08x, got %08x\n",
+#endif
+						orig_cycle_head->loc,
+						orig_cycle_head->val,
+						*orig_cycle_head->loc
+#ifdef DEBUG1 // Appease ()'s balance
+				   );
+#else
+				   );
+#endif
+			}
+		} else {
+			// But async stuff is allowed to alias
+			;
+		}
+		orig_cycle_head = orig_cycle_head->next;
+	}
+}
+
+static void print_leds_line();
+
+static void state_tock() {
+	state_block_async_io();
+
+#ifdef DEBUG2
+	flockfile(stdout); flockfile(stderr);
+	printf("\n%08d TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK\n", cycle);
+	funlockfile(stderr); funlockfile(stdout);
+#endif
+	DBG2("CLOCK --> low (cycle %08d)\n", cycle);
+	// cycle_head is state_head from end of previous cycle here
+	cycle_head = cycle_head->next;
+	assert((NULL != cycle_head) && "nothing written this cycle?");
+
+	_state_tock();
+
+	if (*state_flags_cur & STATE_PIPELINE_FLUSH) {
+		// Leverage the existing state mechanism to simplify replay,
+		// conceptually adding extra writes to the end of this cycle
+		// that alias the previous writes to actually flush the pipeline
+		cycle_head = state_head;
+		*cycle_head->flags |= STATE_PIPELINE_RUNNING;
+		o_hack = NULL;
+		pipeline_flush(state_pipeline_new_pc);
+		cycle_head = cycle_head->next;
+
+		_state_tock();
+
+		*state_flags_cur &= ~STATE_PIPELINE_RUNNING;
+	}
+
+	if (*state_flags_cur & STATE_LED_WRITTEN) {
+		if (showledwrites) {
+			print_leds_line();
+		}
+	}
+
+	state_unblock_async_io();
+}
+
+EXPORT uint32_t state_read(enum stage g __attribute__ ((unused)), uint32_t *loc) {
+	return *loc;
+}
+
+EXPORT uint32_t state_read_async(enum stage g __attribute__ ((unused)), uint32_t *loc) {
+	uint32_t ret;
+	state_async_block_start();
+	ret = state_read(g, loc);
+	state_async_block_end();
+	return ret;
+}
+
+EXPORT uint32_t* state_read_p(enum stage g __attribute__ ((unused)), uint32_t **loc) {
+	return *loc;
+}
+
+#ifdef DEBUG1
+static void _state_write_dbg(enum stage g, uint32_t *loc, uint32_t val,
+		uint32_t** ploc, uint32_t* pval,
+		const char *file, const char* func,
+		const int line, const char *target) {
+#else
+static void _state_write(enum stage g, uint32_t *loc, uint32_t val,
+		uint32_t** ploc, uint32_t* pval) {
+	// don't track state we won't write anyways, except in debug mode
+	// race for flags is OK here, since this check is always racing anyway
+	if (*state_flags_cur & g & STATE_STALL_MASK) {
+		return;
+	}
+#endif
+	if (!(*state_flags_cur & STATE_LOCK_HELD_MASK))
+		pthread_mutex_lock(&state_mutex);
+
+	assert((NULL != loc) || (NULL != ploc));
+
+	// Record:
+	struct state_change* s = malloc(sizeof(struct state_change));
+	assert((NULL != s) && "OOM");
+
+	DBG2("cycle: %08d\t(%s): loc %p val %08x\n",
+			cycle, target, loc, val);
+
+	s->prev = state_head;
+	s->next = NULL;
+	s->cycle = cycle;
+	s->g = g;
+	s->flags = state_flags_cur;
+	s->loc = loc;
+	s->val = val;
+	s->prev_val = (loc) ? *loc : 0;
+	s->ploc = ploc;
+	s->pval = pval;
+	s->prev_pval = (ploc) ? *ploc : NULL;
+#ifdef DEBUG1
+	s->file = file;
+	s->func = func;
+	s->line = line;
+	s->target = target;
+#endif
+	state_head->next = s;
+	state_head = s;
+
+	if (*state_flags_cur & STATE_BLOCKING_ASYNC) {
+		if (loc) {
+			*loc = val;
+		} else {
+			*ploc = pval;
+		}
+	}
+
+	if (!(*state_flags_cur & STATE_LOCK_HELD_MASK))
+		pthread_mutex_unlock(&state_mutex);
+}
+
+#ifdef DEBUG1
+EXPORT void state_write_dbg(enum stage g, uint32_t *loc, uint32_t val,
+		const char *file, const char* func,
+		const int line, const char *target) {
+	return _state_write_dbg(g, loc, val, NULL, NULL, file, func, line, target);
+}
+
+EXPORT void state_write_p_dbg(enum stage g, uint32_t **ploc, uint32_t *pval,
+		const char *file, const char* func,
+		const int line, const char *target) {
+	return _state_write_dbg(g, NULL, 0, ploc, pval, file, func, line, target);
+}
+
+EXPORT void state_write_async_dbg(enum stage g, uint32_t *loc, uint32_t val,
+		const char *file, const char* func,
+		const int line, const char *target) {
+	state_async_block_start();
+	state_write_dbg(g, loc, val, file, func, line, target);
+	state_async_block_end();
+}
+#else
+EXPORT void state_write(enum stage g, uint32_t *loc, uint32_t val) {
+	return _state_write(g, loc, val, NULL, NULL);
+}
+
+EXPORT void state_write_p(enum stage g, uint32_t **ploc, uint32_t *pval) {
+	return _state_write(g, NULL, 0, ploc, pval);
+}
+
+EXPORT void state_write_async(enum stage g, uint32_t *loc, uint32_t val) {
+	state_async_block_start();
+	state_write(g, loc, val);
+	state_async_block_end();
+}
+#endif
+
+EXPORT void state_write_op(enum stage g __attribute__ ((unused)), struct op **loc, struct op *val) {
+	if (!(*state_flags_cur & STATE_LOCK_HELD_MASK))
+		pthread_mutex_lock(&state_mutex);
+	// Lazy hack since every other bit of preserved state is a uint32_t[*]
+	// At some point in time state saving will likely have to be generalized,
+	// until then, however, this will suffice
+	assert(loc == &id_ex_o);
+	o_hack = val;
+	if (!(*state_flags_cur & STATE_LOCK_HELD_MASK))
+		pthread_mutex_unlock(&state_mutex);
+}
+
+EXPORT void stall(enum stage g) {
+	pthread_mutex_lock(&state_mutex);
+#ifdef DEBUG1
+	assert((g <= STATE_STALL_MASK) && "stalling illegal stage");
+#endif
+	if (g & ~(PRE|IF|ID)) {
+		ERR(E_UNPREDICTABLE, "Stalling for non PRE|IF|ID needs namespace fix\n");
+	}
+	*state_flags_cur |= g;
+	pthread_mutex_unlock(&state_mutex);
+}
+
+static void state_pipeline_flush(uint32_t new_pc) {
+	pthread_mutex_lock(&state_mutex);
+	*state_flags_cur |= STATE_PIPELINE_FLUSH;
+	state_pipeline_new_pc = new_pc;
+	pthread_mutex_unlock(&state_mutex);
+}
+
+static void state_led_write(enum LED_color led, uint32_t val) {
+	pthread_mutex_lock(&state_mutex);
+	*state_flags_cur |= STATE_LED_WRITING;
+	*state_flags_cur |= STATE_LED_WRITTEN;
+
+	SW(&leds[led], val);
+
+	*state_flags_cur &= ~STATE_LED_WRITING;
+	pthread_mutex_unlock(&state_mutex);
+}
+
+// Returns 0 on success
+// Returns >0 on tolerable error (e.g. seek past end)
+// Returns <0 on catastrophic error
+static int state_seek(int target_cycle) {
+	// This assertion relies on *something* being written every cycle,
+	// which should hold since the PC is written every cycle at least.
+	// However, if we ever go cycle-accurate, much of the state_seek
+	// logic will require a revisit
+	assert(state_head->cycle == cycle);
+
+	if (target_cycle > cycle) {
+		DBG2("seeking forward from %d to %d\n", cycle, target_cycle);
+		while (target_cycle > cycle) {
+			if (state_head->next == NULL) {
+				WARN("Request to seek to cycle %d failed\n",
+						target_cycle);
+				WARN("State is only known up to cycle %d\n",
+						state_head->cycle);
+				WARN("Simulator left at cycle %d\n", cycle);
+				return 1;
+			}
+
+			state_head = state_head->next;
+			if (state_head->loc) {
+				*(state_head->loc) = state_head->val;
+			} else {
+				*(state_head->ploc) = state_head->pval;
+			}
+			if (
+					(NULL == state_head->next) ||
+					(state_head->next->cycle > state_head->cycle)
+			   ) {
+				cycle++;
+			}
+		}
+		return 0;
+	} else if (target_cycle == cycle) {
+		WARN("Request to seek to current cycle ignored\n");
+		return 1;
+	} else {
+		DBG2("seeking backward from %d to %d\n", cycle, target_cycle);
+		while (state_head->cycle > target_cycle) {
+			if (*state_head->flags & STATE_IO_BARRIER) {
+				WARN("Cannot rewind past I/O access\n");
+				WARN("Simulator left at cycle %08d\n", cycle);
+				return 1;
+			}
+
+			assert(NULL != state_head->prev);
+
+			DBG2("cycle: %d target: %d head: %d\n",
+					cycle, target_cycle, state_head->cycle);
+
+			if (state_head->loc) {
+				DBG2("Resetting %p to %08x\n",
+						state_head->loc, state_head->prev_val);
+				*(state_head->loc) = state_head->prev_val;
+			} else {
+				DBG2("Resetting %p to %p\n",
+						state_head->ploc, state_head->prev_pval);
+				*(state_head->ploc) = state_head->prev_pval;
+			}
+
+			state_head = state_head->prev;
+
+			if (cycle != state_head->cycle) {
+				cycle = state_head->cycle;
+			}
+		}
+
+		// One last bit of fixup since we don't actually track
+		// the op pointer
+		id_ex_o = find_op(id_ex_inst, false);
+
+		return 0;
+	}
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // STATUS FUNCTIONS
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DIVIDERe printf("================================================================================\n")
+#define DIVIDERe printf("\r================================================================================\n")
 #define DIVIDERd printf("--------------------------------------------------------------------------------\n")
 
 static void print_leds_line(void) {
@@ -359,12 +846,14 @@ static void print_reg_state_internal(void) {
 			!!(CPSR & xPSR_V)
 	      );
 	printf("| ITSTATE: %02x\n", ITSTATE);
-	for (i=0; i<16; ) {
+	for (i=0; i<12; ) {
 		printf("\tr%02d: %8x\tr%02d: %8x\tr%02d: %8x\tr%02d: %8x\n",
 				i, reg[i], i+1, reg[i+1],
 				i+2, reg[i+2], i+3, reg[i+3]);
 		i+=4;
 	}
+	printf("\tr12: %8x\t SP: %8x\t LR: %8x\t PC: %8x\n",
+			reg[12], SP, LR, PC);
 }
 
 static void print_reg_state(void) {
@@ -372,6 +861,12 @@ static void print_reg_state(void) {
 	print_leds_line();
 	DIVIDERd;
 	print_reg_state_internal();
+}
+
+static void print_stages(void) {
+	printf("Stages:\n");
+	printf("\tPC's:\tPRE_IF %08x, IF_ID %08x, ID_EX %08x\n",
+			pre_if_PC, if_id_PC, id_ex_PC);
 }
 
 static void print_full_state(void) {
@@ -382,6 +877,10 @@ static void print_full_state(void) {
 
 	DIVIDERd;
 	print_reg_state_internal();
+
+	DIVIDERd;
+	print_stages();
+
 	DIVIDERd;
 /*
 	FILE* romfp = fopen("/tmp/373rom", "w");
@@ -397,7 +896,7 @@ static void print_full_state(void) {
 	FILE* ramfp = fopen("/tmp/373ram", "w");
 	if (ramfp) {
 		i = fwrite(ram, RAMSIZE, 1, ramfp);
-		printf("Wrote %8d bytes to /tmp/373ram "\
+		printf("Wrote %8zu bytes to /tmp/373ram "\
 				"\t\t(Use 'hexdump -C' to view)\n", i*RAMSIZE);
 		fclose(ramfp);
 	} else {
@@ -407,46 +906,60 @@ static void print_full_state(void) {
 	DIVIDERe;
 }
 
-// This needs to start splitting into multiple source files
-// project ease v. quality; added to fixes
-static int state_seek(int);
-
-static void shell(void) {
+static void _shell(void) {
 	static char buf[100];
 
 	// protect <EOF> replay
 	buf[0] = '\0';
 	printf("> ");
-	fgets(buf, 100, stdin);
+	if (buf != fgets(buf, 100, stdin)) {
+		buf[0] = 'h';
+		buf[1] = '\0';
+	}
 
 	switch (buf[0]) {
 		case '\n':
-			dumpatpc = 0;
-			dumpatcycle = cycle + 1;
-			return;
+			dumpatpc = -3;
+			printf("%p, %p\n", state_head, state_head->next);
+			if (NULL == state_head->next) {
+				dumpatcycle = cycle + 1;
+				return;
+			} else {
+				state_seek(cycle + 1);
+				print_full_state();
+				return _shell();
+			}
 
 		case 'p':
 			sscanf(buf, "%*s %x", &dumpatpc);
 			return;
 
-		case 'r':
+		case 'b':
+			sprintf(buf, "s %d", cycle - 1);
+			// fall thru
+
+		case 's':
 		{
 			int ret;
 			int target;
 			ret = sscanf(buf, "%*s %d", &target);
 
-			if (-1 == ret)
-				target = cycle - 1;
-			else
-				assert(1 == ret);
+			if (-1 == ret) {
+				target = cycle + 1;
+			} else if (1 != ret) {
+				WARN("Error parsing input (ret %d?)\n", ret);
+				return _shell();
+			}
 
 			if (target < 0) {
 				WARN("Ignoring seek to negative cycle\n");
+			} else if (target == cycle) {
+				WARN("Ignoring seek to current cycle\n");
 			} else {
 				state_seek(target);
 				print_full_state();
 			}
-			return shell();
+			return _shell();
 		}
 
 		case 'q':
@@ -455,8 +968,19 @@ static void shell(void) {
 
 		case 'c':
 			if (buf[1] == 'y') {
-				sscanf(buf, "%*s %d", &dumpatcycle);
-				return;
+				int requested_cycle;
+				sscanf(buf, "%*s %d", &requested_cycle);
+				if (requested_cycle < cycle) {
+					WARN("Request to execute into the past ignored\n");
+					WARN("Did you mean 'seek %d'?\n", requested_cycle);
+					return _shell();
+				} else if (requested_cycle == cycle) {
+					WARN("Request to execute to current cycle ignored\n");
+					return _shell();
+				} else {
+					dumpatcycle = requested_cycle;
+					return;
+				}
 			} else if (buf[1] == 'o') {
 				dumpatcycle = 0;
 				dumpatpc = 0;
@@ -470,153 +994,18 @@ static void shell(void) {
 			printf("   <none>		Advance 1 cycle\n");
 			printf("   pc HEX_ADDR		Stop at pc\n");
 			printf("   cycle INTEGER	Stop at cycle\n");
-			printf("   rewind [INTEGER]	Rewind to cycle\n");
-			printf("                        (back 1 cycle default\n");
+			printf("   seek [INTEGER]	Seek to cycle\n");
+			printf("                        (forward 1 cycle default)\n");
 			printf("   continue		Continue\n");
 			printf("   terminate		Terminate Simulation\n");
-			return shell();
+			return _shell();
 	}
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// CORE
-////////////////////////////////////////////////////////////////////////////////
-
-struct state_change {
-	struct state_change *prev;
-	struct state_change *next;
-
-	/* Holds changes made __during__ this cycle; there may be multiple
-	   list entries per cycle. Thus, to return to the beginning of a
-	   cycle n (e.g. before it had executed), the list must have traversed
-	   such that the list head reaches an entry of cycle less than n */
-	int cycle;
-	uint32_t *loc;
-	uint32_t prev_val;
-};
-
-static struct state_change state_start = {
-	.prev = NULL,
-	.next = NULL,
-	.cycle = -1,
-	.loc = NULL,
-	.prev_val = 0,
-};
-
-static struct state_change state_io_barrier_state;
-
-static struct state_change* state_head = &state_start;
-
-static void state_write(uint32_t *loc, uint32_t val) {
-	if (
-			(state_head == &state_io_barrier_state) &&
-			(state_head->cycle == cycle)
-	   ) {
-		// This write is in a barrier state, we can't rewind
-		// it anyways, so don't bother recording it
-		;
-	} else {
-		// Record:
-
-		struct state_change* s = malloc(sizeof(struct state_change));
-
-		// To write new state, we must be either executing the same cycle, or
-		// have advanced to the next cycle; o/w we lost synchronization somehow
-		assert((state_head->cycle == cycle) || ((state_head->cycle+1) == cycle));
-
-		DBG2("cycle: %08d\tloc %p val %08x\n", cycle, loc, val);
-
-		s->prev = state_head;
-		s->next = NULL;
-		s->cycle = cycle;
-		s->loc = loc;
-		s->prev_val = *loc;
-		state_head->next = s;
-		state_head = s;
-	}
-
-	// Now let's not forget to actually update the real state
-	*loc = val;
-}
-
-// Returns 0 on success
-// Returns >0 on tolerable error (e.g. seek past end)
-// Returns <0 on catastrophic error
-static int state_seek(int target_cycle) {
-	// This assertion relies on *something* being written every cycle,
-	// which should hold since the PC is written every cycle at least.
-	// However, if we ever go cycle-accurate, much of the state_seek
-	// logic will require a revisit
-	assert(state_head->cycle == cycle);
-
-	if (target_cycle > cycle) {
-		/* Could support replay easily if we hold a "new_val" field,
-		   but that's a little silly when re-executing instr's is
-		   equally easy; eh, code's here if I want it someday:
-
-		DBG2("seeking forward from %d to %d\n", cycle, target_cycle);
-		while (target_cycle > cycle) {
-			if (state_head->next == NULL) {
-				WARN("Request to seek to cycle %d failed\n",
-						target_cycle);
-				WARN("State is only known up to cycle %d\n",
-						state_head->cycle);
-				WARN("Simulator left at cycle %d\n", cycle);
-				return 1;
-			}
-
-			state_head = state_head->next;
-			*(state_head->loc) = state_head->val;
-			if (
-					(NULL == state_head->next) ||
-					(state_head->next->cycle > state_head->cycle)
-			   ) {
-				cycle++;
-			}
-		}
-
-		return 0;
-		*/
-		WARN("Request to seek into the future ignored\n");
-		return 1;
-	} else if (target_cycle == cycle) {
-		WARN("Request to seek to current cycle ignored\n");
-		return 1;
-	} else {
-		DBG2("seeking backward from %d to %d\n", cycle, target_cycle);
-		while (state_head->cycle > target_cycle) {
-			if (state_head == &state_io_barrier_state) {
-				WARN("Cannot rewind past I/O access\n");
-				WARN("Simulator left at cycle %08d\n", cycle);
-				return 1;
-			}
-
-			assert(NULL != state_head->prev);
-
-			DBG2("cycle: %d target: %d head: %d\n",
-					cycle, target_cycle, state_head->cycle);
-
-			DBG2("Resetting %p to %08x\n",
-					state_head->loc, state_head->prev_val);
-			*(state_head->loc) = state_head->prev_val;
-
-			state_head = state_head->prev;
-			free(state_head->next);
-			state_head->next = NULL;
-
-			cycle = state_head->cycle;
-		}
-
-		return 0;
-	}
-}
-
-static void state_io_barrier(void) {
-	// List behind this point is lost, but memory is cheap and this
-	// isn't permanent anyway
-	state_io_barrier_state.cycle = cycle;
-	state_head->next = &state_io_barrier_state;
-	state_head = state_head->next;
+static void shell(void) {
+	shell_running = true;
+	_shell();
+	shell_running = false;
 }
 
 /* These are the functions called into by the student simulator project */
@@ -629,32 +1018,58 @@ static void state_io_barrier(void) {
 uint32_t CORE_reg_read(int r) {
 	assert(r >= 0 && r < 16 && "CORE_reg_read");
 	G_REG(READ, r);
-	if (r == PC_REG)
-		return PC & 0xfffffffe;
-	else if (r == SP_REG)
-		return SP & 0xfffffffc;
-	else
-		return reg[r];
+	if (r == SP_REG) {
+		return SR(&SP) & 0xfffffffc;
+	} else if (r == LR_REG) {
+		return SR(&LR);
+	} else if (r == PC_REG) {
+		return SR(&PC) & 0xfffffffe;
+	} else {
+		return SR(&reg[r]);
+	}
 }
 
 void CORE_reg_write(int r, uint32_t val) {
 	assert(r >= 0 && r < 16 && "CORE_reg_write");
-	if (r == PC_REG)
-		state_write(&PC, val & 0xfffffffe);
-	else if (r == SP_REG)
-		state_write(&SP, val & 0xfffffffc);
-	else
-		state_write(&(reg[r]), val);
+	if (r == SP_REG) {
+		SW(&SP, val & 0xfffffffc);
+	} else if (r == LR_REG) {
+		SW(&LR, val);
+	} else if (r == PC_REG) {
+		if (SR(&PC) == ((val & 0xfffffffe) + 4)) {
+			INFO("Simulator determined PC 0x%08x is branch to self, terminating.\n", PC);
+			print_full_state();
+			if (returnr0) {
+				DBG2("Return code is r0: %08x\n", reg[0]);
+				exit(reg[0]);
+			}
+			exit(EXIT_SUCCESS);
+		}
+		//state_write(&PC, val & 0xfffffffe);
+		// Only flush if the new PC differs from predicted in pipeline:
+		flockfile(stdout); flockfile(stderr);
+		if (((SR(&if_id_PC) & 0xfffffffe) - 4) == (val & 0xfffffffe)) {
+			DBG2("Predicted PC correctly (%08x)\n", val);
+		} else {
+			state_pipeline_flush(val & 0xfffffffe);
+			DBG2("Predicted PC incorrectly\n");
+			DBG2("Pred: %08x, val: %08x\n", SR(&if_id_PC), val);
+		}
+		funlockfile(stderr); funlockfile(stdout);
+	}
+	else {
+		SW(&(reg[r]), val);
+	}
 	G_REG(WRITE, r);
 }
 
 uint32_t CORE_cpsr_read(void) {
 	G_CPSR(READ);
-	return CPSR;
+	return SR(&CPSR);
 }
 
 void CORE_cpsr_write(uint32_t val) {
-	if (in_ITblock(ITSTATE)) {
+	if (in_ITblock()) {
 		DBG1("WARN update of cpsr in IT block\n");
 	}
 #ifdef M_PROFILE
@@ -662,28 +1077,28 @@ void CORE_cpsr_write(uint32_t val) {
 		DBG1("WARN update of reserved CPSR bits\n");
 	}
 #endif
-	state_write(&CPSR, val);
+	SW(&CPSR, val);
 	G_CPSR(WRITE);
 }
 
 #ifdef M_PROFILE
 uint32_t CORE_ipsr_read(void) {
 	G_IPSR(READ);
-	return IPSR;
+	return SR(&IPSR);
 }
 
 void CORE_ipsr_write(uint32_t val) {
-	state_write(&IPSR, val);
+	SW(&IPSR, val);
 	G_IPSR(WRITE);
 }
 
 uint32_t CORE_epsr_read(void) {
 	G_EPSR(READ);
-	return EPSR;
+	return SR(&EPSR);
 }
 
 void CORE_epsr_write(uint32_t val) {
-	state_write(&EPSR, val);
+	SW(&EPSR, val);
 	G_EPSR(WRITE);
 }
 #endif
@@ -695,7 +1110,7 @@ uint32_t CORE_rom_read(uint32_t addr) {
 #endif
 	if ((addr >= ROMBOT) && (addr < ROMTOP) && (0 == (addr & 0x3))) {
 		G_ROM(READ, addr);
-		return rom[ADDR_TO_IDX(addr, ROMBOT)];
+		return SR(&rom[ADDR_TO_IDX(addr, ROMBOT)]);
 	} else {
 		CORE_ERR_invalid_addr(false, addr);
 	}
@@ -707,7 +1122,7 @@ uint32_t CORE_ram_read(uint32_t addr) {
 #endif
 	if ((addr >= RAMBOT) && (addr < RAMTOP) && (0 == (addr & 0x3))) {
 		G_RAM(READ, addr);
-		return ram[ADDR_TO_IDX(addr, RAMBOT)];
+		return SR(&ram[ADDR_TO_IDX(addr, RAMBOT)]);
 	} else {
 		CORE_ERR_invalid_addr(false, addr);
 	}
@@ -719,7 +1134,7 @@ void CORE_ram_write(uint32_t addr, uint32_t val) {
 	assert((addr >= RAMBOT) && (addr < RAMTOP) && "CORE_ram_write");
 #endif
 	if ((addr >= RAMBOT) && (addr < RAMTOP) && (0 == (addr & 0x3))) {
-		state_write(&ram[ADDR_TO_IDX(addr, RAMBOT)],val);
+		SW(&ram[ADDR_TO_IDX(addr, RAMBOT)],val);
 		G_RAM(WRITE, addr);
 	} else {
 		CORE_ERR_invalid_addr(true, addr);
@@ -728,58 +1143,64 @@ void CORE_ram_write(uint32_t addr, uint32_t val) {
 
 uint32_t CORE_red_led_read(void) {
 	G_PERIPH(READ, LED, RED);
-	return leds[RED];
+	return SR(&leds[RED]);
 }
 
 void CORE_red_led_write(uint32_t val) {
 	G_PERIPH(WRITE, LED, RED);
-	state_write(&leds[RED],val);
-	if (showledwrites)
-		print_leds_line();
+	SW(&leds[RED],val);
+	state_led_write(RED, val);
 }
 
 uint32_t CORE_grn_led_read(void) {
 	G_PERIPH(READ, LED, GRN);
-	return leds[GRN];
+	return SR(&leds[GRN]);
 }
 
 void CORE_grn_led_write(uint32_t val) {
 	G_PERIPH(WRITE, LED, GRN);
-	state_write(&leds[GRN],val);
-	if (showledwrites)
-		print_leds_line();
+	SW(&leds[GRN],val);
+	state_led_write(GRN, val);
 }
 
 uint32_t CORE_blu_led_read(void) {
 	G_PERIPH(READ, LED, BLU);
-	return leds[BLU];
+	return SR(&leds[BLU]);
 }
 
 void CORE_blu_led_write(uint32_t val) {
 	G_PERIPH(WRITE, LED, BLU);
-	state_write(&leds[BLU],val);
-	if (showledwrites)
-		print_leds_line();
+	state_led_write(BLU, val);
 }
 
 uint8_t CORE_poll_uart_status_read() {
-	state_io_barrier();
 	return poll_uart_status_read();
 }
 
 void CORE_poll_uart_status_write(uint8_t val) {
-	state_io_barrier();
 	return poll_uart_status_write(val);
 }
 
 uint8_t CORE_poll_uart_rxdata_read() {
-	state_io_barrier();
 	return poll_uart_rxdata_read();
 }
 
 void CORE_poll_uart_txdata_write(uint8_t val) {
-	state_io_barrier();
 	return poll_uart_txdata_write(val);
+}
+
+void CORE_WARN_real(const char *f, int l, const char *msg) {
+	WARN("%s:%d\t%s\n", f, l, msg);
+}
+
+void CORE_ERR_read_only_real(const char *f, int l, uint32_t addr) {
+	print_full_state();
+	ERR(E_READONLY, "%s:%d\t%#08x is read-only\n", f, l, addr);
+}
+
+void CORE_ERR_write_only_real(const char *f, int l, uint32_t addr) {
+	print_full_state();
+	ERR(E_WRITEONLY, "%s:%d\t%#08x is write-only\n", f, l, addr);
 }
 
 void CORE_ERR_invalid_addr_real(const char *f, int l, uint8_t is_write, uint32_t addr) {
@@ -817,99 +1238,10 @@ void CORE_ERR_not_implemented_real(const char *f, int l, const char *opt_msg) {
 // SIMULATOR
 ////////////////////////////////////////////////////////////////////////////////
 
-/*
-static uint16_t read_addr16(uint32_t addr) {
-	if (0x1 & (addr >> 1)) {
-		DBG2("Returning upper half of %x (%x)\n",
-				(addr & 0xfffc), (addr & 0xfffc) + 2);
-		return (read_word(addr - 2) >> 16);
-	} else {
-		DBG2("Returning lower half of %x\n", addr);
-		return (read_word(addr) & 0xffff);
-	}
-}
-*/
-
-struct op {
-	struct op *prev;
-	struct op *next;
-	uint32_t ones_mask;
-	uint32_t zeros_mask;
-	unsigned ex_cnt;
-	uint32_t *ex_ones;
-	uint32_t *ex_zeros;
-	int (*fn) (uint32_t);
-	const char *name;
-};
-
-static struct op *ops = NULL;
-
-static struct op* _find_op(struct op* o, uint32_t inst) {
-	while (NULL != o) {
-		if (
-				(o->ones_mask  == (o->ones_mask  & inst)) &&
-				(o->zeros_mask == (o->zeros_mask & ~inst))
-		   ) {
-			// The mask matched, now verify there isn't an exception
-			unsigned i;
-			bool exception = false;
-			for (i = 0; i < o->ex_cnt; i++) {
-				uint32_t ones_mask  = o->ex_ones[i];
-				uint32_t zeros_mask = o->ex_zeros[i];
-				if (
-						(ones_mask  == (ones_mask  & inst)) &&
-						(zeros_mask == (zeros_mask & ~inst))
-				   ) {
-					DBG2("Collision averted via exception\n");
-					exception = true;
-				}
-			}
-
-			if (!exception)
-				break;
-		}
-		o = o->next;
-	}
-
-	return o;
-}
-
-static struct op* find_op(uint32_t inst, bool reorder) {
-	struct op *o = ops;
-	o = _find_op(o, inst);
-
-	if (NULL != o) {
-		// Check for ambiguity, and let's report all of them now
-		struct op* t = _find_op(o->next, inst);
-		bool ambiguous = false;
-
-		while (NULL != t) {
-			WARN("AMB\t%s:\tones %08x zeros %08x\n", t->name,
-					t->ones_mask, t->zeros_mask);
-			ambiguous = true;
-			t = _find_op(t->next, inst);
-		}
-
-		if (ambiguous) {
-			WARN("AMB\t%s:\tones %08x zeros %08x\n", o->name,
-					o->ones_mask, o->zeros_mask);
-			WARN("AMB\tAmbiguous instruction detected!\n");
-			WARN("Instruction %08x at PC %08x matched multiple masks\n",
-					inst,
-					(inst & 0xffff0000) ? PC-4 : PC-2);
-			CORE_ERR_illegal_instr(inst);
-		}
-	}
-
-	if (o && reorder) {
-		// ...
-	}
-
-	return o;
-}
+EXPORT struct op *ops = NULL;
 
 static int _register_opcode_mask(uint32_t ones_mask, uint32_t zeros_mask,
-		int (*fn) (uint32_t), const char* fn_name, va_list va_args) {
+		void (*fn) (uint32_t), const char* fn_name, va_list va_args) {
 	struct op *o = malloc(sizeof(struct op));
 
 	o->prev = NULL;
@@ -957,7 +1289,7 @@ static int _register_opcode_mask(uint32_t ones_mask, uint32_t zeros_mask,
 }
 
 int register_opcode_mask_ex_real(uint32_t ones_mask, uint32_t zeros_mask,
-		int (*fn) (uint32_t), const char* fn_name, ...) {
+		void (*fn) (uint32_t), const char* fn_name, ...) {
 
 	va_list va_args;
 	va_start(va_args, fn_name);
@@ -998,170 +1330,44 @@ int register_opcode_mask_ex_real(uint32_t ones_mask, uint32_t zeros_mask,
 }
 
 int register_opcode_mask_real(uint32_t ones_mask, uint32_t zeros_mask,
-		int (*fn) (uint32_t), const char* fn_name) {
+		void (*fn) (uint32_t), const char* fn_name) {
 	return register_opcode_mask_ex_real(ones_mask, zeros_mask,
 			fn, fn_name, 0, 0);
 }
 
 static int sim_execute(void) {
-	uint32_t inst;
-	struct op *o;
-
-	static uint32_t last_pc;
-	static uint32_t was_16 = false; // bool, but eases state tracking
-
-	if (slowsim) {
-		static struct timespec s = {0, NSECS_PER_SEC/10};
-		nanosleep(&s, NULL);
-	}
-
-	// dectect branch to self loop for termination
-	if ((cycle) && (last_pc == PC)) {
-		INFO("Simulator determined PC 0x%08x is branch to self, terminating.\n", PC);
-		print_full_state();
-		if (returnr0) {
-			DBG2("Return code is r0: %08x\n", reg[0]);
-			if (reg[0] != (reg[0] & 0x0377)) {
-				WARN("Return code truncated, full ret: %x\n",
-						reg[0]);
-				WARN("See 'man 3 exit' for details on why\n");
-				if (0 == (reg[0] & 0x0377)) {
-					WARN("Forcing ret -1 to indicate error on truncated return\n");
-					exit(-1);
-				}
-			}
-			// With above checks, now safe to cast
-			exit((int) reg[0]);
-		}
-		exit(EXIT_SUCCESS);
-	}
-
-	if (cycle == limitcycles) {
-		WARN("Simulator reached maximum allowed cycles %d\n", cycle);
-		print_full_state();
-		if (returnr0) {
-			WARN("Return code would have been: %08x\n", reg[0]);
-		}
-		ERR(E_UNKNOWN, "Failing due to cycle limit\n");
-	}
-
 	// Now we're committed to starting the next cycle
 	cycle++;
 
-	// Instruction Fetch
-	if (T_BIT) {
-		if (was_16) {
-			// do NOT correct PC if we've branched here
-			if (last_pc == (PC - 4)) {
-				state_write(&PC, PC - 2);
-			}
-		}
+	int i;
 
-		DBG2("Reading thumb mode instruction\n");
-		inst = read_halfword(PC);
+	// Start a clock tick
+	state_start_tick();
 
-		// If inst[15:11] are any of
-		// 11101, 11110, or 11111 then this is
-		// a 32-bit thumb inst
-
-		switch (inst & 0xf800) {
-			case 0xe800:
-			case 0xf000:
-			case 0xf800:
-			{
-				// 32-bit thumb inst
-				DBG2("inst %04x is 32-bit\n", inst);
-
-				state_write(&last_pc, PC);
-				state_write(&PC, PC + 2);
-
-				inst <<= 16;
-				inst |= read_halfword(PC);
-				state_write(&PC, PC + 2);
-				state_write(&was_16, false);
-				break;
-			}
-			default:
-				// 16-bit thumb inst
-				state_write(&last_pc, PC);
-				state_write(&PC, PC + 2);
-
-				// yeesh... read A5.1.2 p153 *carefully*
-				// use of 0b1111 as a register specifier
-				// reading PC must *always* return inst addr + 4
-				state_write(&PC, PC + 2);
-				state_write(&was_16, true);
-		}
-	} else {
-#ifdef M_PROFILE
-		CORE_ERR_not_implemented("This CPU conforms to the ARM-7M profile, which requires the T bit to always be set\n");
-#endif
-		DBG2("Reading arm mode instruction\n");
-		inst = read_word(PC);
+	// Don't let stages steal wakeups
+	for (i = 0; i < NUM_TICKERS; i++) {
+		sem_wait(&ticker_ready_sem);
 	}
 
-	// Instruction Decode
-	o = find_op(inst, true);
-	if (NULL == o) {
-		WARN("No handler registered for inst %x\n", inst);
-		CORE_ERR_illegal_instr(inst);
+	// Start off each stage
+	for (i = 0; i < NUM_TICKERS; i++) {
+		sem_post(&start_tick_sem);
 	}
 
-	// Execute
-	if (in_ITblock(ITSTATE)) {
-		// XXX: if we ever go cycle-accurate (or even bus-accurate) this
-		// check should go earlier, if we aren't going to execture this
-		// instruction we shouldn't even fetch it
-		int ret;
-
-		if (eval_cond(CPSR, (ITSTATE & 0xf0) >> 4)) {
-			if (printcycles) {
-				printf("    P: %08d - 0x%08x : %04x (%s)\t%s\n",
-						cycle, PC, inst, o->name,
-						"ITSTATE {executed}");
-			}
-			ret = o->fn(inst);
-		} else {
-			if (printcycles) {
-				printf("    P: %08d - 0x%08x : %04x (%s)\t%s\n",
-						cycle, PC, inst, o->name,
-						"ITSTATE {skipped}");
-			}
-			//WARN("itstate skipped instruction\n");
-			ret = SUCCESS;
-		}
-
-		if (ret == SUCCESS) {
-			/*
-			ITAdvance()
-			if ITSTATE<2:0> == ‘000’ then
-				ITSTATE.IT = ‘00000000’;
-			else
-				ITSTATE.IT<4:0> = LSL(ITSTATE.IT<4:0>, 1);
-			*/
-			/*
-			if ((ITSTATE & 0x7) == 0) {
-				write_itstate(0);
-				DBG2("Left itstate\n");
-			} else {
-				uint8_t temp = ITSTATE & 0x0f; // yes 0f, not 1f
-				uint8_t itstate_t = ITSTATE;
-				itstate_t &= 0xe0;
-				itstate_t |= (temp << 1);
-				write_itstate(itstate_t);
-				DBG2("New itstate: %02x\n", ITSTATE);
-			}
-			*/
-			IT_advance(ITSTATE);
-		}
-
-		return ret;
-	} else {
-		if (printcycles)
-			printf("    P: %08d - 0x%08x : %04x (%s)\n",
-					cycle, PC, inst, o->name);
-		return o->fn(inst);
+	// Wait for all stages to complete
+	for (i = 0; i < NUM_TICKERS; i++) {
+		sem_wait(&end_tick_sem);
 	}
+
+	// Latch hardware
+	state_tock();
+
+	// Notify stages this cycle is complete
+	for (i = 0; i < NUM_TICKERS; i++) {
+		sem_post(&end_tock_sem);
+	}
+
+	return SUCCESS;
 }
 
 static void sim_reset(void) __attribute__ ((noreturn));
@@ -1170,16 +1376,23 @@ static void sim_reset(void) {
 
 	INFO("Asserting reset pin\n");
 	cycle = 0;
+	state_start_tick();
 	reset();
+	state_tock();
 	INFO("De-asserting reset pin\n");
 
 	INFO("Entering main loop...\n");
 	do {
+		if (sigint) {
+			sigint = 0;
+			print_full_state();
+			shell();
+		} else
 		if (dumpatcycle == cycle) {
 			print_full_state();
 			shell();
 		} else
-		if ((dumpatpc & 0xfffffffe) == (reg[PC_REG] & 0xfffffffe)) {
+		if ((dumpatpc & 0xfffffffe) == (PC & 0xfffffffe)) {
 			print_full_state();
 			shell();
 		} else
@@ -1194,9 +1407,14 @@ static void sim_reset(void) {
 	ERR(ret, "Terminating\n");
 }
 
+static void power_on(void) __attribute__ ((noreturn));
 static void power_on(void) {
 	INFO("Powering on processor...\n");
 	sim_reset();
+}
+
+void* core_thread(void *unused __attribute__ ((unused)) ) {
+	power_on();
 }
 
 static void load_opcodes(void) {
@@ -1225,105 +1443,36 @@ static void load_opcodes(void) {
 			(opcode_masks == 1) ? "":"s");
 }
 
-int main(int argc, char **argv) {
-	// Command line args
-	const char *flash_file = NULL;
-	static uint16_t polluartport = POLL_UART_PORT;
-	static int usetestflash = 0;
+static void* sig_thread(void *arg) {
+	sigset_t *set = (sigset_t *) arg;
+	int s, sig;
 
-	// Command line parsing
-	while (1) {
-		static struct option long_options[] = {
-			{"dumpatpc",      required_argument, 0,              'c'},
-			{"dumpatcycle",   required_argument, 0,              'y'},
-			{"dumpallcycles", no_argument,       &dumpallcycles, 'd'},
-			{"printcycles",   no_argument,       &printcycles,   'p'},
-			{"slowsim",       no_argument,       &slowsim,       's'},
-			{"raiseonerror",  no_argument,       &raiseonerror,  'e'},
-			{"returnr0",      no_argument,       &returnr0,      'r'},
-			{"limit",         required_argument, 0,              'm'},
-			{"flash",         required_argument, 0,              'f'},
-			{"showledwrites", no_argument,       &showledwrites, 'l'},
-			{"polluartport",  required_argument, 0,              'u'},
-			{"usetestflash",  no_argument,       &usetestflash,  1},
-			{"help",          no_argument,       0,              '?'},
-			{0,0,0,0}
-		};
-		int option_index = 0;
-		int c;
+	for (;;) {
+		s = sigwait(set, &sig);
+		if (s != 0) {
+			ERR(E_UNKNOWN, "sigwait failed?\n");
+		}
 
-		c = getopt_long(argc, argv, "c:y:dpserm:f:lu:?", long_options,
-				&option_index);
-
-		if (c == -1) break;
-
-		switch (c) {
-			case 0:
-				// option set a flag
-				break;
-
-			case 'c':
-				dumpatpc = strtoul(optarg, NULL, 16);
-				INFO("Simulator will pause at PC %x\n",
-						dumpatpc);
-				break;
-
-			case 'y':
-				dumpatcycle = atoi(optarg);
-				INFO("Simulator will pause at cycle %d\n",
-						dumpatcycle);
-				break;
-
-			case 'd':
-				dumpallcycles = true;
-				break;
-
-			case 'p':
-				printcycles = true;
-				break;
-
-			case 's':
-				slowsim = true;
-				break;
-
-			case 'e':
-				raiseonerror = true;
-				break;
-
-			case 'r':
-				returnr0 = true;
-				break;
-
-			case 'm':
-				limitcycles = atoi(optarg);
-				INFO("Simulator will terminate at cycle %d\n",
-						limitcycles);
-				break;
-
-			case'f':
-				flash_file = optarg;
-				INFO("Simulator will use %s as flash\n",
-						flash_file);
-				break;
-
-			case 'l':
-				showledwrites = true;
-				break;
-
-			case 'u':
-			{
-				int temp = atoi(optarg);
-				assert(temp == ((uint16_t) temp));
-				polluartport = (uint16_t) temp;
-				break;
+		if (sig == SIGINT) {
+			if (shell_running) {
+				flockfile(stdout); flockfile(stderr);
+				printf("\nQuit\n");
+				exit(0);
+			} else {
+				sigint = 1;
 			}
-
-			case '?':
-			default:
-				usage();
-				break;
+		} else {
+			ERR(E_UNKNOWN, "caught unknown signal %d\n", sig);
 		}
 	}
+}
+
+EXPORT void simulator(const char *flash_file, uint16_t polluartport) {
+	// Init uninit'd globals
+	assert(0 == sem_init(&ticker_ready_sem, 0, 0));
+	assert(0 == sem_init(&start_tick_sem, 0, 0));
+	assert(0 == sem_init(&end_tick_sem, 0, 0));
+	assert(0 == sem_init(&end_tock_sem, 0, 0));
 
 	// Read in flash
 	if (usetestflash) {
@@ -1354,6 +1503,17 @@ int main(int argc, char **argv) {
 
 	load_opcodes();
 
+	// Prep signal-related stuff:
+	sigset_t set;
+
+	sigemptyset(&set);
+	sigaddset(&set, SIGINT);
+	assert(0 == pthread_sigmask(SIG_BLOCK, &set, NULL));
+
+	// Spawn signal handling thread
+	pthread_t sig_pthread;
+	pthread_create(&sig_pthread, NULL, &sig_thread, (void *) &set);
+
 	// Spawn uart thread
 	pthread_t poll_uart_pthread;
 	pthread_mutex_lock(&poll_uart_mutex);
@@ -1361,11 +1521,23 @@ int main(int argc, char **argv) {
 	pthread_cond_wait(&poll_uart_cond, &poll_uart_mutex);
 	pthread_mutex_unlock(&poll_uart_mutex);
 
-	// Never returns
-	power_on();
+	// Spawn pipeline stage threads
+	pthread_t ifstage_pthread;
+	pthread_t idstage_pthread;
+	pthread_t exstage_pthread;
+	pthread_create(&ifstage_pthread, NULL, ticker, tick_if);
+	pthread_create(&idstage_pthread, NULL, ticker, tick_id);
+	pthread_create(&exstage_pthread, NULL, ticker, tick_ex);
 
-	assert(false);
-	return 0;
+	// Simulator CORE thread
+	pthread_t core_pthread;
+	pthread_create(&core_pthread, NULL, core_thread, NULL);
+
+	// Everything is up and running now
+	pthread_join(core_pthread, NULL);
+
+	// Should not get here, proper exit comes from self-branch detection
+	ERR(E_UNKNOWN, "core thread terminated unexpectedly\n");
 }
 
 
@@ -1388,7 +1560,7 @@ void *poll_uart_thread(void *arg_v) {
 	server.sin_family = AF_INET;
 	server.sin_addr.s_addr = htonl(INADDR_ANY);
 	server.sin_port = htons(port);
-	int on;
+	int on = 1;
 	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
 
 	if (-1 == bind(sock, (struct sockaddr *) &server, sizeof(server))) {
@@ -1414,6 +1586,8 @@ void *poll_uart_thread(void *arg_v) {
 
 		static const char *welcome = "\
 >>MSG<< You are now connected to the UART polling device\n\
+>>MSG<< Lines prefixed with '>>MSG<<' are sent from this\n\
+>>MSG<< UART <--> network bridge, not the connected device\n\
 >>MSG<< This device has a "VAL2STR(POLL_UART_BUFSIZE)" byte buffer\n\
 >>MSG<< This device operates at "VAL2STR(POLL_UART_BAUD)" baud\n\
 >>MSG<< To send a message, simply type and press the return key\n\
@@ -1424,19 +1598,38 @@ void *poll_uart_thread(void *arg_v) {
 		}
 
 		pthread_mutex_lock(&poll_uart_mutex);
-		poll_uart_client = client;
+		SW_A(&poll_uart_client, client);
 		pthread_mutex_unlock(&poll_uart_mutex);
 
 		static uint8_t c;
 		static int ret;
-		while (1 ==  (ret = recv(poll_uart_client, &c, 1, 0))  ) {
+		while (1 ==  (ret = recv(SR_A(&poll_uart_client), &c, 1, 0))  ) {
 			pthread_mutex_lock(&poll_uart_mutex);
-			*poll_uart_tail = c;
-			if (NULL == poll_uart_head)
-				poll_uart_head = poll_uart_tail;
-			poll_uart_tail++;
-			if (poll_uart_tail == (poll_uart_buffer + POLL_UART_BUFSIZE))
-				poll_uart_tail = poll_uart_buffer;
+			state_async_block_start();
+
+			uint32_t* head = SRP(&poll_uart_head);
+			uint32_t* tail = SRP(&poll_uart_tail);
+
+			DBG1("recv start\thead: %td, tail: %td\n",
+					(head)?head - poll_uart_buffer:-1,
+					tail - poll_uart_buffer);
+
+			SW(tail, c);
+			if (NULL == head) {
+				head = tail;
+				SWP(&poll_uart_head, head);
+			}
+			tail++;
+			if (tail == (poll_uart_buffer + POLL_UART_BUFSIZE))
+				tail = poll_uart_buffer;
+			SWP(&poll_uart_tail, tail);
+
+			DBG1("recv end\thead: %td, tail: %td\t[%td=%c]\n",
+					(head)?head - poll_uart_buffer:-1,
+					tail - poll_uart_buffer,
+					tail-poll_uart_buffer-1, *(tail-1));
+
+			state_async_block_end();
 			pthread_mutex_unlock(&poll_uart_mutex);
 
 			nanosleep(&poll_uart_baud_sleep, NULL);
@@ -1447,13 +1640,13 @@ void *poll_uart_thread(void *arg_v) {
 				"(no more data in but you can still send)");
 			pthread_mutex_lock(&poll_uart_mutex);
 			// Dodge small race window to miss wakeup
-			if (poll_uart_client != -1)
+			if (SR_A(&poll_uart_client) != INVALID_CLIENT)
 				pthread_cond_wait(&poll_uart_cond, &poll_uart_mutex);
 		} else {
 			WARN("Lost connection to UART client\n");
 			pthread_mutex_lock(&poll_uart_mutex);
 		}
-		poll_uart_client = -1;
+		SW_A(&poll_uart_client, INVALID_CLIENT);
 		pthread_mutex_unlock(&poll_uart_mutex);
 	}
 }
@@ -1462,8 +1655,10 @@ uint8_t poll_uart_status_read() {
 	uint8_t ret = 0;
 
 	pthread_mutex_lock(&poll_uart_mutex);
-	ret |= (poll_uart_head != NULL) << POLL_UART_RXBIT; // data avail?
-	ret |= (poll_uart_client == -1) << POLL_UART_TXBIT; // tx busy?
+	state_async_block_start();
+	ret |= (SRP(&poll_uart_head) != NULL) << POLL_UART_RXBIT; // data avail?
+	ret |= (SR(&poll_uart_client) == INVALID_CLIENT) << POLL_UART_TXBIT; // tx busy?
+	state_async_block_end();
 	pthread_mutex_unlock(&poll_uart_mutex);
 
 	// For lock contention
@@ -1474,8 +1669,10 @@ uint8_t poll_uart_status_read() {
 
 void poll_uart_status_write() {
 	pthread_mutex_lock(&poll_uart_mutex);
-	poll_uart_head = NULL;
-	poll_uart_tail = poll_uart_buffer;
+	state_async_block_start();
+	SWP(&poll_uart_head, NULL);
+	SWP(&poll_uart_tail, poll_uart_buffer);
+	state_async_block_end();
 	pthread_mutex_unlock(&poll_uart_mutex);
 
 	// For lock contention
@@ -1490,20 +1687,33 @@ uint8_t poll_uart_rxdata_read() {
 #endif
 
 	pthread_mutex_lock(&poll_uart_mutex);
-	if (NULL == poll_uart_head) {
+	state_async_block_start();
+	if (NULL == SRP(&poll_uart_head)) {
 		// XXX warn? nah.. but grade?
-		ret = poll_uart_buffer[3]; // eh... rand? 3, why not?
+		ret = SR(&poll_uart_buffer[3]); // eh... rand? 3, why not?
 	} else {
 #ifdef DEBUG1
-		idx = poll_uart_head - poll_uart_buffer;
+		idx = SRP(&poll_uart_head) - poll_uart_buffer;
 #endif
-		ret = *poll_uart_head;
-		poll_uart_head++;
-		if (poll_uart_head == (poll_uart_buffer + POLL_UART_BUFSIZE))
-			poll_uart_head = poll_uart_buffer;
-		if (poll_uart_head == poll_uart_tail)
-			poll_uart_head = NULL;
+		uint32_t* head = SRP(&poll_uart_head);
+		uint32_t* tail = SRP(&poll_uart_tail);
+
+		ret = *head;
+
+		head++;
+		if (head == (poll_uart_buffer + POLL_UART_BUFSIZE))
+			head = poll_uart_buffer;
+		if (head == tail)
+			head = NULL;
+
+		DBG1("rxdata end\thead: %td, tail: %td\t[%td=%c]\n",
+				(head)?head - poll_uart_buffer:-1,
+				tail - poll_uart_buffer,
+				(head)?head-poll_uart_buffer:-1,(head)?*head:'\0');
+
+		SWP(&poll_uart_head, head);
 	}
+	state_async_block_end();
 	pthread_mutex_unlock(&poll_uart_mutex);
 
 	DBG1("UART read byte: %c %x\tidx: %d\n", ret, ret, idx);
@@ -1517,16 +1727,17 @@ void poll_uart_txdata_write(uint8_t val) {
 	static int ret;
 
 	pthread_mutex_lock(&poll_uart_mutex);
-	if (-1 == poll_uart_client) {
+	uint32_t client = SR_A(&poll_uart_client);
+	if (INVALID_CLIENT == client) {
 		// XXX warn? no, grade
 		// no connected client (TX is busy...) so drop
 	}
-	else if (-1 ==  ( ret = send(poll_uart_client, &val, 1, 0))  ) {
+	else if (-1 ==  ( ret = send(client, &val, 1, 0))  ) {
 		WARN("%d UART: %s\n", __LINE__, strerror(errno));
-		poll_uart_client = -1;
+		SW_A(&poll_uart_client, INVALID_CLIENT);
 		pthread_cond_signal(&poll_uart_cond);
 	}
 	pthread_mutex_unlock(&poll_uart_mutex);
 
-	DBG2("UART byte sent\n");
+	DBG2("UART byte sent %c\n", val);
 }
