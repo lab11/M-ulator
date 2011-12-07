@@ -1,4 +1,5 @@
 #include "opcodes.h"
+#include "helpers.h"
 
 #include "../cpu.h"
 #include "../core.h"
@@ -153,6 +154,25 @@ void strb_imm_t2(uint32_t inst) {
 	return strb_imm(rt, rn, imm32, index, add, wback);
 }
 
+void strb_imm_t3(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	bool W = !!(inst & 0x100);
+	bool U = !!(inst & 0x200);
+	bool P = !!(inst & 0x400);
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	uint32_t imm32 = imm8;
+	bool index = P;
+	bool add = U;
+	bool wback = W;
+
+	if (BadReg(rt) || (wback && (rn == rt)))
+		CORE_ERR_unpredictable("bad reg\n");
+
+	return strb_imm(rt, rn, imm32, index, add, wback);
+}
+
 void strd_imm(uint32_t inst) {
 	uint8_t imm8 = (inst & 0xff);
 	uint8_t rt2 = (inst & 0xf00) >> 8;
@@ -260,6 +280,9 @@ void register_opcodes_str(void) {
 
 	// strb_imm_t2: 1111 1000 1000 <x's>
 	register_opcode_mask(0xf8800000, 0x07700000, strb_imm_t2);
+
+	// strb_imm_t3: 1111 1000 0000 xxxx xxxx 1xxx xxxx xxxx
+	register_opcode_mask_ex(0xf8000800, 0x07f00000, strb_imm_t3, 0x600, 0x100, 0xf0000, 0x0, 0x0, 0x500, 0, 0);
 
 	// strd_imm: 1110 100x x1x0 <x's>
 	register_opcode_mask(0xe8400000, 0x16100000, strd_imm);

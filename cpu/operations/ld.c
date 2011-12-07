@@ -230,6 +230,49 @@ void ldrb_imm_t3(uint32_t inst) {
 	ldrb_imm(rt, rn, imm32, U, P, W);
 }
 
+void ldrb_reg(uint8_t rt, uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n, bool index, bool add, bool wback) {
+	assert(wback == false);
+
+	uint32_t rm_val = CORE_reg_read(rm);
+	uint32_t rn_val = CORE_reg_read(rn);
+	uint32_t cpsr = CORE_cpsr_read();
+
+	uint32_t offset = Shift(rm_val, 32, shift_t, shift_n, !!(cpsr & xPSR_C));
+
+	uint32_t offset_addr;
+	if (add)
+		offset_addr = rn_val + offset;
+	else
+		offset_addr = rn_val - offset;
+
+	uint32_t address;
+	if (index)
+		address = offset_addr;
+	else
+		address = rn_val;
+
+	CORE_reg_write(rt, read_byte(address));
+}
+
+void ldrb_reg_t2(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t imm2 = (inst >> 4) & 0x3;
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+
+	enum SRType shift_t = SRType_LSL;
+	uint8_t shift_n = imm2;
+
+	if ((rt == 13) || BadReg(rm))
+		CORE_ERR_unpredictable("bad reg\n");
+
+	return ldrb_reg(rt, rn, rm, shift_t, shift_n, index, add, wback);
+}
+
 void ldrd_imm(uint32_t inst) {
 	uint32_t imm8 = (inst & 0xff);
 	uint8_t rt2 = (inst & 0xf00) >> 8;
@@ -305,6 +348,9 @@ void register_opcodes_ld(void) {
 
 	// ldrb_imm_t3: 1111 1000 0001 xxxx xxxx 1xxx xxxx xxxx
 	register_opcode_mask_ex(0xf8100800, 0x07e00000, ldrb_imm_t3, 0xf400, 0x300, 0xf0000, 0x0, 0x600, 0x100, 0x0, 0x500, 0, 0);
+
+	// ldrb_reg_t2: 1111 1000 0001 xxxx xxxx 0000 00xx xxxx
+	register_opcode_mask_ex(0xf8100000, 0x07e00fc0, ldrb_reg_t2, 0xf000, 0x0, 0xf0000, 0x0, 0, 0);
 
 	// ldrd_imm: 1110 100x x1x1 <x's>
 	register_opcode_mask_ex(0xe8500000, 0x16000000, ldrd_imm, 0x0, 0x01200000, 0xf0000, 0x0, 0, 0);
