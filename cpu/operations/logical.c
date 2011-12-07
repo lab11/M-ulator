@@ -132,6 +132,39 @@ void bic_imm_t1(uint32_t inst) {
 	return bic_imm(cpsr, S, rd, rn, imm32, carry_out);
 }
 
+void eor_imm(uint8_t rd, uint8_t rn, uint32_t imm32, bool carry, bool setflags, uint32_t cpsr) {
+	uint32_t rn_val = CORE_reg_read(rn);
+
+	uint32_t result = rn_val ^ imm32;
+	CORE_reg_write(rd, result);
+
+	if (setflags) {
+		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0, carry, !!(cpsr & xPSR_V));
+		CORE_cpsr_write(cpsr);
+	}
+}
+
+void eor_imm_t1(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t rd = (inst >> 8) & 0xf;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	uint8_t rn = (inst >> 16) & 0xf;
+	bool S = !!(inst & 0x100000);
+	bool i = !!(inst & 0x04000000);
+
+	bool setflags = S;
+
+	uint32_t cpsr = CORE_cpsr_read();
+	uint32_t imm32;
+	uint8_t carry;
+	ThumbExpandImm_C((i << 11) | (imm3 << 8) | imm8, !!(cpsr & xPSR_C), &imm32, &carry);
+
+	if ((rd == 13) || ((rd == 15) && (S == 0)) || BadReg(rn))
+		CORE_ERR_unpredictable("bad reg\n");
+
+	return eor_imm(rd, rn, imm32, carry, setflags, cpsr);
+}
+
 void eor_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
 	uint32_t result;
 	uint8_t carry_out;
@@ -385,6 +418,9 @@ void register_opcodes_logical(void) {
 
 	// bic_imm_t1: 1111 0x00 001x xxxx 0<x's>
 	register_opcode_mask(0xf0200000, 0x0bc08000, bic_imm_t1);
+
+	// eor_imm_t1: 1111 0x00 100x xxxx 0<x's>
+	register_opcode_mask_ex(0xf0800000, 0x0b608000, eor_imm_t1, 0x100f00, 0x0, 0, 0);
 
 	// eor_reg_t2: 1110 1010 100x xxxx 0<x's>
 	register_opcode_mask(0xea800000, 0x15608000, eor_reg_t2);
