@@ -272,6 +272,17 @@ void mvn_reg(uint8_t setflags, uint8_t rd, uint8_t rm, enum SRType shift_t, uint
 	DBG2("mvn_reg did stuff\n");
 }
 
+void mvn_reg_t1(uint32_t inst) {
+	uint8_t rd = inst & 0x7;
+	uint8_t rm = (inst >> 3) & 0x7;
+
+	bool setflags = !in_ITblock();
+	enum SRType shift_t = LSL;
+	uint8_t shift_n = 0;
+
+	return mvn_reg(setflags, rd, rm, shift_t, shift_n);
+}
+
 void mvn_reg_t2(uint32_t inst) {
 	uint8_t rm = (inst & 0xf);
 	uint8_t type = (inst & 0x30) >> 4;
@@ -427,6 +438,9 @@ void register_opcodes_logical(void) {
 
 	// lsl_reg_t2: 1111 1010 000x xxxx 1111 xxxx 0000 xxxx
 	register_opcode_mask(0xfa00f000, 0x05e000f0, lsl_reg_t2);
+
+	// mvn_reg_t1: 0100 0011 11xx xxxx
+	register_opcode_mask(0x43c0, 0xffffbc00, mvn_reg_t1);
 
 	// mvn_reg_t2: 1110 1010 011x 1111 0<x's>
 	register_opcode_mask(0xea6f0000, 0x15808000, mvn_reg_t2);
