@@ -1383,10 +1383,19 @@ static void sim_reset(void) {
 
 	INFO("Entering main loop...\n");
 	do {
+		// Slow things down?
+		if (slowsim) {
+			static struct timespec s = {0, NSECS_PER_SEC/10};
+			nanosleep(&s, NULL);
+		}
+
 		if (sigint) {
 			sigint = 0;
 			print_full_state();
 			shell();
+		} else
+		if ((limitcycles != -1) && limitcycles <= cycle) {
+			ERR(E_UNKNOWN, "Cycle limit (%d) reached.\n", limitcycles);
 		} else
 		if (dumpatcycle == cycle) {
 			print_full_state();
