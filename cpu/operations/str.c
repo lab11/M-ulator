@@ -276,7 +276,8 @@ void register_opcodes_str(void) {
 			0x600, 0x100,
 			0xd0500, 0x20200,
 			0xf0000, 0x0,
-			0x0, 0x500);
+			0x0, 0x500,
+			0, 0);
 
 	// strb_imm_t2: 1111 1000 1000 <x's>
 	register_opcode_mask(0xf8800000, 0x07700000, strb_imm_t2);
