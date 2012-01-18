@@ -1450,6 +1450,9 @@ static void load_opcodes(void) {
 
 	INFO("Registered %d opcode mask%s\n", opcode_masks,
 			(opcode_masks == 1) ? "":"s");
+
+	// Fake instructions used to propogate pipeline exceptions
+	register_opcode_mask_real(INST_HAZARD, ~INST_HAZARD, pipeline_exception, "Pipeline Excpetion");
 }
 
 static void* sig_thread(void *arg) {

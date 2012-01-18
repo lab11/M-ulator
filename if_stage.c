@@ -82,6 +82,17 @@ void tick_if(void) {
 
 	DBG2("start\n");
 
+	// Poor man's pipeline hazard
+	if (pc > 0xf0000000) {
+		CORE_WARN("Build a proper pipeline exception mechanism\n");
+		SW(&if_id_PC, HAZARD_PC);
+		SW(&if_id_inst, INST_HAZARD);
+		SW(&pre_if_PC, HAZARD_PC);
+
+		DBG2("end from pipeline hazard\n");
+		return;
+	}
+
 	// Instruction Fetch
 	if (T_BIT) {
 

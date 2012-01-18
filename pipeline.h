@@ -8,6 +8,9 @@
 #define INST_NOP 0x46c0
 #define STALL_PC -1U
 
+#define INST_HAZARD 0x0
+#define HAZARD_PC -5U
+
 #endif //M_PROFILE
 
 // PREFETCH <--> IF
@@ -25,5 +28,7 @@ extern uint32_t id_ex_inst;
 void pipeline_flush(uint32_t new_pc);
 
 void* ticker(void *stage_fn) __attribute__ ((noreturn));
+
+void pipeline_exception(uint32_t inst);
 
 #endif // PIPELINE_H

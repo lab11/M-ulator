@@ -196,7 +196,8 @@ void ror_imm_t1(uint32_t inst) {
 
 void register_opcodes_shift(void) {
 	// lsl1: 0000 0<x's>
-	register_opcode_mask(0x0000, 0xfffff800, lsl1);
+	register_opcode_mask_ex(0x0000, 0xfffff800, lsl1,
+			0x0, 0x07c0, 0, 0);
 
 	// lsl2: 0100 0000 10 <x's>
 	register_opcode_mask(0x4080, 0xffffbf40, lsl2);

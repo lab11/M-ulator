@@ -44,3 +44,7 @@ void* ticker(void *stage_fn) {
 		sem_wait(&end_tock_sem);
 	}
 }
+
+void pipeline_exception(uint32_t inst __attribute__ ((unused))) {
+	CORE_ERR_not_implemented("Pipeline excpetion!\n");
+}
