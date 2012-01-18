@@ -62,6 +62,8 @@ memset:
 	str	r0, [r7, #12]
 	str	r1, [r7, #8]
 	str	r2, [r7, #4]
+	ldr	r3, [r7, #12]
+	str	r3, [r7, #20]
 	b	.L2
 .L3:
 	ldr	r3, [r7, #8]
@@ -89,6 +91,5 @@ memset:
 	mov	sp, r7
 	pop	{r7}
 	bx	lr
-
 
 .end
