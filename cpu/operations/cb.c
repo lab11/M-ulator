@@ -7,7 +7,7 @@
 void cbz(bool nonzero, uint8_t rn, uint32_t imm32) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
-	if (nonzero || (rn_val == 0))
+	if (nonzero ^ (rn_val == 0))
 		BranchWritePC(CORE_reg_read(PC_REG) + imm32);
 }
 
