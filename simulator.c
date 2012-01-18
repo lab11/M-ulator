@@ -1664,7 +1664,7 @@ void *poll_uart_thread(void *arg_v) {
 
 		if (ret == 0) {
 			INFO("UART client has closed connection"\
-				"(no more data in but you can still send)");
+				"(no more data in but you can still send)\n");
 			pthread_mutex_lock(&poll_uart_mutex);
 			// Dodge small race window to miss wakeup
 			if (SR_A(&poll_uart_client) != INVALID_CLIENT)
