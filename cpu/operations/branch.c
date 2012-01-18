@@ -301,7 +301,10 @@ void tbb_t1(uint32_t inst) {
 void register_opcodes_branch(void) {
 	// b_t1: 1101 <x's>
 	//   ex: xxxx 1111 <x's>
-	register_opcode_mask_ex(0xd000, 0xffff2000, b_t1, 0x0f00, 0x0, 0, 0);
+	register_opcode_mask_ex(0xd000, 0xffff2000, b_t1,
+			0x0e00, 0x100,
+			0x0f00, 0x0,
+			0, 0);
 
 	// b_t2: 1110 0<x's>
 	register_opcode_mask(0xe000, 0xffff1800, b_t2);
