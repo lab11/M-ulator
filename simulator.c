@@ -870,8 +870,6 @@ static void print_stages(void) {
 }
 
 static void print_full_state(void) {
-	size_t i;
-
 	DIVIDERe;
 	print_leds_line();
 
@@ -883,6 +881,8 @@ static void print_full_state(void) {
 
 	DIVIDERd;
 /*
+	size_t i;
+
 	FILE* romfp = fopen("/tmp/373rom", "w");
 	if (romfp) {
 		i = fwrite(rom, ROMSIZE, 1, romfp);
@@ -893,6 +893,7 @@ static void print_full_state(void) {
 		perror("Failed to open /tmp/373rom for writing -- No ROM dump");
 	}
 */
+/*
 	FILE* ramfp = fopen("/tmp/373ram", "w");
 	if (ramfp) {
 		i = fwrite(ram, RAMSIZE, 1, ramfp);
@@ -902,6 +903,7 @@ static void print_full_state(void) {
 	} else {
 		perror("Failed to open /tmp/373ram for writing -- No RAM dump");
 	}
+*/
 
 	DIVIDERe;
 }

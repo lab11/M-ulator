@@ -116,6 +116,25 @@ void ldr_imm_t3(uint32_t inst) {
 	ldr_imm(rt, rn, imm32, index, add, wback);
 }
 
+void ldr_imm_t4(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	bool W = !!(inst & 0x100);
+	bool U = !!(inst & 0x200);
+	bool P = !!(inst & 0x400);
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	uint32_t imm32 = imm8;
+	bool index = P;
+	bool add = U;
+	bool wback = W;
+
+	if ((wback && (rn == rt)) || ((rt == 15) && in_ITblock() && !last_in_ITblock()))
+		CORE_ERR_unpredictable("bad regs\n");
+
+	return ldr_imm(rt, rn, imm32, index, add, wback);
+}
+
 void ldr_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 		bool index, bool add, bool wback,
 		enum SRType shift_t, uint8_t shift_n) {
@@ -451,6 +470,14 @@ void register_opcodes_ld(void) {
 	register_opcode_mask_ex(0xf8d00000, 0x07200000, ldr_imm_t3,
 			0x000f0000, 0x0, 0, 0);
 
+	// ldr_imm_t4: 1111 1000 0101 xxxx xxxx 1xxx xxxx xxxx
+	register_opcode_mask_ex(0xf8500800, 0x07a00000, ldr_imm_t4,
+			0xf0000, 0x0,
+			0x600, 0x100,
+			0xd0304, 0x204fb,
+			0x0, 0x500,
+			0, 0);
+
 	// ldr_reg_t2: 1111 1000 0101 xxxx xxxx 0000 00xx xxxx
 	register_opcode_mask_ex(0xf8500000, 0x07a00fc0, ldr_reg_t2,
 			0xf0000, 0x0, 0, 0);
@@ -477,7 +504,7 @@ void register_opcodes_ld(void) {
 	register_opcode_mask_ex(0xf8100000, 0x07e00fc0, ldrb_reg_t2, 0xf000, 0x0, 0xf0000, 0x0, 0, 0);
 
 	// ldrsb_reg_t1: 0101 011x xxxx xxxx
-	register_opcode_mask(0x5600, 0xa800, ldrsb_reg_t1);
+	register_opcode_mask(0x5600, 0xffffa800, ldrsb_reg_t1);
 
 	// ldrd_imm: 1110 100x x1x1 <x's>
 	register_opcode_mask_ex(0xe8500000, 0x16000000, ldrd_imm, 0x0, 0x01200000, 0xf0000, 0x0, 0, 0);

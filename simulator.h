@@ -49,8 +49,10 @@ void simulator(const char* flash_file, uint16_t polluartport);
 
 // Simulator config
 #define POLL_UART_PORT 4100
-#define POLL_UART_BUFSIZE 16
-#define POLL_UART_BAUD 1200
+//#define POLL_UART_BUFSIZE 16
+//#define POLL_UART_BAUD 1200
+#define POLL_UART_BUFSIZE 8192
+#define POLL_UART_BAUD 9600
 extern int slowsim;
 extern int printcycles;
 extern int raiseonerror;

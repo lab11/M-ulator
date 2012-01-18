@@ -75,7 +75,7 @@ void ubfx_t1(uint32_t inst) {
 
 void register_opcodes_extend(void) {
 	// sxtb_t1: 1011 0010 01xx xxxx
-	register_opcode_mask(0xb240, 0x4d80, sxtb_t1);
+	register_opcode_mask(0xb240, 0xffff4d80, sxtb_t1);
 
 	// uxtb_t1: 1011 0010 11<x's>
 	register_opcode_mask(0xb2c0, 0xffff4d00, uxtb_t1);

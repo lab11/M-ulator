@@ -22,22 +22,6 @@ void str1(uint32_t inst) {
 			rd, rn, immed5, address, rd_val);
 }
 
-void str2(uint32_t inst) {
-	uint8_t rm = (inst & 0x1c) >> 6;
-	uint8_t rn = (inst & 0x38) >> 3;
-	uint8_t rd = (inst & 0x7);
-
-	uint32_t address = CORE_reg_read(rn) + CORE_reg_read(rm);
-
-	if (address & 0x3) {
-		CORE_ERR_unpredictable("str2 bad addr\n");
-	} else {
-		write_word(address, CORE_reg_read(rd));
-	}
-
-	DBG2("str r%02d, [r%02d, r%02d]\n", rd, rn, rm);
-}
-
 void str3(uint32_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
 	uint16_t immed8 = inst & 0xff;
@@ -124,6 +108,17 @@ void str_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 	uint32_t address = rn_val + offset;
 	uint32_t data = rt_val;
 	write_word(address, data);
+}
+
+void str_reg_t1(uint32_t inst) {
+	uint8_t rt = inst & 0x7;
+	uint8_t rn = (inst >> 3) & 0x7;
+	uint8_t rm = (inst >> 6) & 0x7;
+
+	enum SRType shift_t = LSL;
+	uint8_t shift_n = 0;
+
+	return str_reg(rt, rn, rm, shift_t, shift_n);
 }
 
 void str_reg_t2(uint32_t inst) {
@@ -313,9 +308,6 @@ void register_opcodes_str(void) {
 	// str1: 0110 0<x's>
 	register_opcode_mask(0x6000, 0xffff9800, str1);
 
-	// str2: 0101 000<x's>
-	register_opcode_mask(0x5000, 0xffffae00, str2);
-
 	// str3: 1001 0<x's>
 	register_opcode_mask(0x9000, 0xffff6800, str3);
 
@@ -330,6 +322,9 @@ void register_opcodes_str(void) {
 			0xf0000, 0x0,
 			0x0, 0x500,
 			0, 0);
+
+	// str_reg_t1: 0101 000x xxxx xxxx
+	register_opcode_mask(0x5000, 0xffffae00, str_reg_t1);
 
 	// str_reg_t2: 1111 1000 0100 xxxx xxxx 0000 00xx xxxx
 	register_opcode_mask_ex(0xf8400000, 0x07b00fc0, str_reg_t2,

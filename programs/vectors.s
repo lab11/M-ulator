@@ -2,7 +2,7 @@
 .syntax unified
 .thumb
 
-.word   0x2003fffc  /* stack top address */
+.word   0x27fffffc  /* stack top address */
 .word   _start      /* 1 Reset */
 .word   hang        /* 2 NMI */
 .word   hang        /* 3 HardFault */
