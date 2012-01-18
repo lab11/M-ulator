@@ -1116,6 +1116,21 @@ uint32_t CORE_rom_read(uint32_t addr) {
 	}
 }
 
+#ifdef WRITEABLE_ROM
+void CORE_rom_write(uint32_t addr, uint32_t val) {
+	DBG2("ROM Write request addr %x (idx: %d)\n", addr, ADDR_TO_IDX(addr, ROMBOT));
+#ifdef DEBUG1
+	assert((addr >= ROMBOT) && (addr < ROMTOP) && "CORE_rom_write");
+#endif
+	if ((addr >= ROMBOT) && (addr < ROMTOP) && (0 == (addr & 0x3))) {
+		SW(&rom[ADDR_TO_IDX(addr, ROMBOT)],val);
+		G_ROM(WRITE, addr);
+	} else {
+		CORE_ERR_invalid_addr(true, addr);
+	}
+}
+#endif
+
 uint32_t CORE_ram_read(uint32_t addr) {
 #ifdef DEBUG1
 	assert((addr >= RAMBOT) && (addr < RAMTOP) && "CORE_ram_read");

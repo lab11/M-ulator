@@ -313,6 +313,21 @@ void ldrb_reg(uint8_t rt, uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t s
 	CORE_reg_write(rt, read_byte(address));
 }
 
+void ldrb_reg_t1(uint32_t inst) {
+	uint8_t rt = inst & 0x7;
+	uint8_t rn = (inst >> 3) & 0x7;
+	uint8_t rm = (inst >> 6) & 0x7;
+
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+
+	enum SRType shift_t = LSL;
+	uint8_t shift_n = 0;
+
+	return ldrb_reg(rt, rn, rm, shift_t, shift_n, index, add, wback);
+}
+
 void ldrb_reg_t2(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t imm2 = (inst >> 4) & 0x3;
@@ -330,6 +345,48 @@ void ldrb_reg_t2(uint32_t inst) {
 		CORE_ERR_unpredictable("bad reg\n");
 
 	return ldrb_reg(rt, rn, rm, shift_t, shift_n, index, add, wback);
+}
+
+void ldrsb_reg(uint8_t rt, uint8_t rn, uint8_t rm,
+		bool index, bool add, bool wback,
+		enum SRType shift_t, uint8_t shift_n) {
+	assert(wback == false);
+
+	uint32_t rm_val = CORE_reg_read(rm);
+	uint32_t rn_val = CORE_reg_read(rn);
+	uint32_t cpsr = CORE_cpsr_read();
+
+	uint32_t offset = Shift(rm_val, 32, shift_t, shift_n, !!(cpsr & xPSR_C));
+
+	uint32_t offset_addr;
+	if (add)
+		offset_addr = rn_val + offset;
+	else
+		offset_addr = rn_val - offset;
+
+	uint32_t address;
+	if (index)
+		address = offset_addr;
+	else
+		address = rn_val;
+
+	int32_t signd = (int32_t) read_byte(address);
+	CORE_reg_write(rt, signd);
+}
+
+void ldrsb_reg_t1(uint32_t inst) {
+	uint8_t rt = inst & 0x7;
+	uint8_t rn = (inst >> 3) & 0x7;
+	uint8_t rm = (inst >> 6) & 0x7;
+
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+
+	enum SRType shift_t = LSL;
+	uint8_t shift_n = 0;
+
+	return ldrsb_reg(rt, rn, rm, index, add, wback, shift_t, shift_n);
 }
 
 void ldrd_imm(uint32_t inst) {
@@ -413,8 +470,14 @@ void register_opcodes_ld(void) {
 	// ldrb_imm_t3: 1111 1000 0001 xxxx xxxx 1xxx xxxx xxxx
 	register_opcode_mask_ex(0xf8100800, 0x07e00000, ldrb_imm_t3, 0xf400, 0x300, 0xf0000, 0x0, 0x600, 0x100, 0x0, 0x500, 0, 0);
 
+	// ldrb_reg_t1: 0101 110x xxxx xxxx
+	register_opcode_mask(0x5c00, 0xffffa200, ldrb_reg_t1);
+
 	// ldrb_reg_t2: 1111 1000 0001 xxxx xxxx 0000 00xx xxxx
 	register_opcode_mask_ex(0xf8100000, 0x07e00fc0, ldrb_reg_t2, 0xf000, 0x0, 0xf0000, 0x0, 0, 0);
+
+	// ldrsb_reg_t1: 0101 011x xxxx xxxx
+	register_opcode_mask(0x5600, 0xa800, ldrsb_reg_t1);
 
 	// ldrd_imm: 1110 100x x1x1 <x's>
 	register_opcode_mask_ex(0xe8500000, 0x16000000, ldrd_imm, 0x0, 0x01200000, 0xf0000, 0x0, 0, 0);

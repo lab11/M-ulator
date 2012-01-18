@@ -62,8 +62,12 @@ uint32_t read_word(uint32_t addr) {
  */
 void write_word(uint32_t addr, uint32_t val) {
 	if (addr >= ROMBOT && addr < ROMTOP) {
+#ifdef WRITEABLE_ROM
+		CORE_rom_write(addr, val);
+#else
 		DBG1("Attempt to write to ROM\n");
 		CORE_ERR_invalid_addr(true, addr);
+#endif
 	} else if (addr >= RAMBOT && addr < RAMTOP) {
 		CORE_ram_write(addr, val);
 	} else if (addr == REDLED) {

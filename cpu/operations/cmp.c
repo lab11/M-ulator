@@ -65,6 +65,41 @@ void cmp2(uint32_t inst) {
 	DBG2("cmp r%02d, r%02d\n", rn, rm);
 }
 
+void cmp_reg(uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
+	uint32_t rm_val = CORE_reg_read(rm);
+	uint32_t rn_val = CORE_reg_read(rn);
+
+	uint32_t cpsr = CORE_cpsr_read();
+	uint32_t shifted = Shift(rm_val, 32, shift_t, shift_n, !!(cpsr & xPSR_C));
+
+	uint32_t result;
+	bool carry;
+	bool overflow;
+	AddWithCarry(rn_val, ~shifted, 1, &result, &carry, &overflow);
+
+	cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0, carry, overflow);
+	CORE_cpsr_write(cpsr);
+}
+
+void cmp_reg_t2(uint32_t inst) {
+	uint8_t rn = inst & 0x7;
+	uint8_t rm = (inst >> 3) & 0xf;
+	bool N = (inst >> 7) & 0x1;
+
+	rn = (N << 3) | rn;
+
+	enum SRType shift_t = LSL;
+	uint8_t shift_n = 0;
+
+	if ((rn < 8) && (rm < 8))
+		CORE_ERR_unpredictable("cmp bad reg\n");
+
+	if ((rn == 15) && (rm == 15))
+		CORE_ERR_unpredictable("cmp bad regs\n");
+
+	return cmp_reg(rn, rm, shift_t, shift_n);
+}
+
 void cmp_imm(uint8_t rn, uint32_t imm32) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
@@ -110,6 +145,9 @@ void register_opcodes_cmp(void) {
 
 	// cmp2: 0100 0010 10<x's>
 	register_opcode_mask(0x4280, 0xffffbd40, cmp2);
+
+	// cmp_reg_t2: 0100 0101 xxxx xxxx
+	register_opcode_mask(0x4500, 0xffffba00, cmp_reg_t2);
 
 	// 1111 0x01 1011 xxxx 0xxx 1111 xxxx xxxx
 	register_opcode_mask(0xf1b00f00, 0x0a408000, cmp_imm_t2);

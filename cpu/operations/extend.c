@@ -3,6 +3,24 @@
 
 #include "../cpu.h"
 
+void sxtb(uint8_t rd, uint8_t rm, uint8_t rotation) {
+	uint32_t rm_val = CORE_reg_read(rm);
+
+	uint32_t rotated = Shift(rm_val, 32, ROR, rotation, 0);
+	int8_t trunc = (int8_t) rotated;
+	int32_t signd = (int32_t) trunc;
+	CORE_reg_write(rd, signd);
+}
+
+void sxtb_t1(uint32_t inst) {
+	uint8_t rd = inst & 0x7;
+	uint8_t rm = (inst >> 3) & 0x7;
+
+	uint8_t rotation = 0;
+
+	return sxtb(rd, rm, rotation);
+}
+
 // XXX: remove attribute after completing implementation
 void uxtb(uint8_t rd, uint8_t rm __attribute__ ((unused)), uint8_t rotation) {
 	uint32_t rd_val = CORE_reg_read(rd);
@@ -56,6 +74,9 @@ void ubfx_t1(uint32_t inst) {
 }
 
 void register_opcodes_extend(void) {
+	// sxtb_t1: 1011 0010 01xx xxxx
+	register_opcode_mask(0xb240, 0x4d80, sxtb_t1);
+
 	// uxtb_t1: 1011 0010 11<x's>
 	register_opcode_mask(0xb2c0, 0xffff4d00, uxtb_t1);
 

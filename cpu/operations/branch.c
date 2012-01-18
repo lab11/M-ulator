@@ -142,6 +142,26 @@ void b_t3(uint32_t inst) {
 	return b(cond, imm32);
 }
 
+void b_t4(uint32_t inst) {
+	uint16_t imm11 = inst & 0x7ff;
+	bool J2 = !!(inst & 0x800);
+	bool J1 = !!(inst & 0x2000);
+	uint16_t imm10 = (inst >> 16) & 0x3ff;
+	bool S = !!(inst & 0x04000000);
+
+	bool I1 = !(J1 ^ S);
+	bool I2 = !(J2 ^ S);
+	uint32_t imm32 = (I1 << 23) | (I2 << 22) | (imm10 << 12) | (imm11 << 1);
+	if (S) {
+		imm32 |= 0xff000000;
+	}
+
+	if (in_ITblock() && !last_in_ITblock())
+		CORE_ERR_unpredictable("bad it time\n");
+
+	return b(0xf, imm32);
+}
+
 void bl_blx(uint32_t pc, uint8_t targetInstrSet, uint32_t imm32) {
 	uint32_t lr;
 	DBG2("pc %08x targetInstrSet %x imm32 %d 0x%08x\n",
@@ -288,6 +308,9 @@ void register_opcodes_branch(void) {
 
 	// b_t3: 1111 0xxx xxxx xxxx 10x0 <x's>
 	register_opcode_mask(0xf0008000, 0x08005000, b_t3);
+
+	// b_t4: 1111 0xxx xxxx xxxx 10x1 xxxx xxxx xxxx
+	register_opcode_mask(0xf0009000, 0x08004000, b_t4);
 
 	// bl_t1: 1111 0xxx xxxx xxxx 11x1 <x's>
 	register_opcode_mask(0xf000d000, 0x08000000, bl_t1);

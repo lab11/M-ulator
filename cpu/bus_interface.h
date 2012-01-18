@@ -4,7 +4,9 @@
 #include "../common.h"
 
 uint32_t	CORE_rom_read(uint32_t addr);
-/* TTTA: Why is there no CORE_rom_write? */
+#ifdef WRITEABLE_ROM
+void		CORE_rom_write(uint32_t addr, uint32_t val);
+#endif
 uint32_t	CORE_ram_read(uint32_t addr);
 void		CORE_ram_write(uint32_t addr, uint32_t val);
 

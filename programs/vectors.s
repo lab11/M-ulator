@@ -33,7 +33,11 @@ _start:
     bl main
     b hang
 
-.global memcpy
+	.align 2
+	.global memcpy
+	.thumb
+	.thumb_func
+	.type	memcpy, %function
 memcpy:
 	push	{r4, lr}
 	mov	r3, r0

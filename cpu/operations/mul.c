@@ -57,6 +57,34 @@ void mul_t2(uint32_t inst) {
 	return mul(false, rd, rn, rm);
 }
 
+void smull(uint8_t rdlo, uint8_t rdhi, uint8_t rn, uint8_t rm, bool setflags) {
+	assert(setflags == false);
+
+	int64_t rn_val = CORE_reg_read(rn);
+	int64_t rm_val = CORE_reg_read(rm);
+	int64_t result = rn_val * rm_val;
+
+	CORE_reg_write(rdhi, (result >> 32) & 0xffffffff);
+	CORE_reg_write(rdlo, result & 0xffffffff);
+}
+
+void smull_t1(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t rdhi = (inst >> 8) & 0xf;
+	uint8_t rdlo = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	bool setflags = false;
+
+	if (BadReg(rdlo) || BadReg(rdhi) || BadReg(rn) || BadReg(rm))
+		CORE_ERR_unpredictable("smull bad reg\n");
+
+	if (rdhi == rdlo)
+		CORE_ERR_unpredictable("smull same hi lo regs\n");
+
+	return smull(rdlo, rdhi, rn, rm, setflags);
+}
+
 void umull(uint8_t rdlo, uint8_t rdhi, uint8_t rn, uint8_t rm, bool setflags) {
 	assert(setflags == false);
 
@@ -91,6 +119,9 @@ void register_opcodes_mul(void) {
 
 	// mul_t2: 1111 1011 0000 xxxx 1111 xxxx 0000 xxxx
 	register_opcode_mask(0xfb00f000, 0x04f000f0, mul_t2);
+
+	// smull_t1: 1111 1011 1000 xxxx xxxx xxxx 0000 xxxx
+	register_opcode_mask(0xfb800000, 0x047000f0, smull_t1);
 
 	// umull_t1: 1111 1011 1010 xxxx xxxx xxxx 0000 xxxx
 	register_opcode_mask(0xfba00000, 0x045000f0, umull_t1);
