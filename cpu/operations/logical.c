@@ -82,7 +82,7 @@ void and_reg(uint8_t rd, uint8_t rn, uint8_t rm, bool setflags, enum SRType shif
 
 	uint32_t shifted;
 	uint8_t carry_out;
-	Shift_C(CORE_reg_read(rm), 32, shift_t, shift_n, !!(cpsr & xPSR_C), &shifted, &carry_out);
+	Shift_C(rm_val, 32, shift_t, shift_n, !!(cpsr & xPSR_C), &shifted, &carry_out);
 
 	uint32_t result = rn_val & shifted;
 	CORE_reg_write(rd, result);
