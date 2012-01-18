@@ -48,10 +48,10 @@ err=`tempfile`
 for t in $tests; do
 	(sleep 1; echo -e 'yTestStr1\n' | nc -4 localhost 4100 > /dev/null) &
 	#./simulator -f $t -r
+	printf "%40s: " $t
 	./simulator -f $t -r > $out 2> $err
 	ret=$?
 	wait
-	printf "%40s: " $t
 	if [ $ret -eq 0 ]; then
 		echo -e "\E[32mPASSED"; tput sgr0
 	else
