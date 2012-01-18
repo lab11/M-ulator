@@ -24,6 +24,39 @@ void adc(uint32_t inst) {
 	DBG2("adc r%02d, r%02d\n", rd, rm);
 }
 
+void adc_imm(uint8_t rd, uint8_t rn, uint32_t imm32, bool setflags) {
+	uint32_t rn_val = CORE_reg_read(rn);
+
+	uint32_t cpsr = CORE_cpsr_read();
+	uint32_t result;
+	bool carry;
+	bool overflow;
+	AddWithCarry(rn_val, imm32, !!(cpsr & xPSR_C), &result, &carry, &overflow);
+	CORE_reg_write(rd, result);
+
+	if (setflags) {
+		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0, carry, overflow);
+		CORE_cpsr_write(cpsr);
+	}
+}
+
+void adc_imm_t1(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t rd = (inst >> 8) & 0xf;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	uint8_t rn = (inst >> 16) & 0xf;
+	bool S = (inst >> 20) & 0x1;
+	bool i = !!(inst & 0x04000000);
+
+	bool setflags = S;
+	uint32_t imm32 = ThumbExpandImm((i << 11) | (imm3 << 8) | imm8);
+
+	if (BadReg(rd) || BadReg(rn))
+		CORE_ERR_unpredictable("Bad reg\n");
+
+	return adc_imm(rd, rn, imm32, setflags);
+}
+
 void add1(uint32_t inst) {
 	uint32_t immed3 = (inst & 0x1c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
@@ -279,6 +312,9 @@ void add_sp_plus_imm_t4(uint32_t inst) {
 void register_opcodes_add(void) {
 	// adc: 0100 0001 01<x's>
 	register_opcode_mask(0x4140, 0xffffbe80, adc);
+
+	// adc_imm_t1: 1111 0x01 010x xxxx 0xxx xxxx xxxx xxxx
+	register_opcode_mask(0xf1400000, 0x0aa08000, adc_imm_t1);
 
 	// add1: 0001 110x xxxx xxxx
 	register_opcode_mask(0x1c00, 0xffffe200, add1);

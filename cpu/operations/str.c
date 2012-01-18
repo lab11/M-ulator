@@ -55,17 +55,6 @@ void str3(uint32_t inst) {
 	DBG2("str r%02d, [sp, #%d * 4]\n", rd, immed8);
 }
 
-void strb1(uint32_t inst) {
-	uint8_t immed5 = (inst & 0x7c0) >> 6;
-	uint8_t rn = (inst & 0x38) >> 3;
-	uint8_t rd = (inst & 0x7) >> 0;
-
-	uint32_t address = CORE_reg_read(rn) + immed5;
-	write_byte(address, CORE_reg_read(rd) & 0xff);
-
-	DBG2("strb r%02d, [r%02d, #%d]\n", rd, rn, immed5);
-}
-
 void str_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool index, bool add, bool wback) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
@@ -153,6 +142,8 @@ void str_reg_t2(uint32_t inst) {
 }
 
 void strb_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool index, bool add, bool wback) {
+	DBG2("strb r%02d, [r%02d, #%08x]\n", rt, rn, imm32);
+
 	uint32_t rn_val = CORE_reg_read(rn);
 	uint32_t rt_val = CORE_reg_read(rt);
 
@@ -170,6 +161,8 @@ void strb_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool index, bool add, bool
 		address = rn_val;
 	}
 
+	DBG2("address: %08x\n", address);
+
 	write_byte(address, rt_val & 0xff);
 
 	if (wback) {
@@ -177,6 +170,19 @@ void strb_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool index, bool add, bool
 	}
 
 	DBG2("strb_imm ran\n");
+}
+
+void strb_imm_t1(uint32_t inst) {
+	uint8_t rt = inst & 0x7;
+	uint8_t rn = (inst >> 3) & 0x7;
+	uint8_t imm5 = (inst >> 6) & 0x1f;
+
+	uint32_t imm32 = imm5;
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+
+	return strb_imm(rt, rn, imm32, index, add, wback);
 }
 
 void strb_imm_t2(uint32_t inst) {
@@ -313,9 +319,6 @@ void register_opcodes_str(void) {
 	// str3: 1001 0<x's>
 	register_opcode_mask(0x9000, 0xffff6800, str3);
 
-	// strb1: 0111 0<x's>
-	register_opcode_mask(0x7000, 0xffff8800, strb1);
-
 	// str_imm_t3: 1111 1000 1100 xxxx xxxx xxxx xxxx xxxx
 	register_opcode_mask_ex(0xf8c00000, 0x07300000, str_imm_t3,
 			0xf0000, 0x0, 0, 0);
@@ -331,6 +334,9 @@ void register_opcodes_str(void) {
 	// str_reg_t2: 1111 1000 0100 xxxx xxxx 0000 00xx xxxx
 	register_opcode_mask_ex(0xf8400000, 0x07b00fc0, str_reg_t2,
 			0xf0000, 0x0, 0, 0);
+
+	// strb_imm_t1: 0111 0<x's>
+	register_opcode_mask(0x7000, 0xffff8800, strb_imm_t1);
 
 	// strb_imm_t2: 1111 1000 1000 <x's>
 	register_opcode_mask(0xf8800000, 0x07700000, strb_imm_t2);
