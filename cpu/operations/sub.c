@@ -229,6 +229,39 @@ void sub_reg_t2(uint32_t inst) {
 	return sub_reg(rd, rn, rm, shift_t, shift_n, setflags);
 }
 
+void sub_sp_imm(uint8_t rd, uint32_t imm32, bool setflags) {
+	uint32_t sp_val = CORE_reg_read(SP_REG);
+
+	uint32_t result;
+	bool carry;
+	bool overflow;
+
+	AddWithCarry(sp_val, ~imm32, 1, &result, &carry, &overflow);
+	CORE_reg_write(rd, result);
+
+	if (setflags) {
+		uint32_t cpsr = CORE_cpsr_read();
+		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0, carry, overflow);
+		CORE_cpsr_write(cpsr);
+	}
+}
+
+void sub_sp_imm_t2(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t rd = (inst >> 8) & 0xf;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	bool S = !!(inst & 0x100000);
+	bool i = !!(inst & 0x04000000);
+
+	bool setflags = S;
+	uint32_t imm32 = ThumbExpandImm((i << 11) | (imm3 << 8) | imm8);
+
+	if ((rd == 15) && (S == 0))
+		CORE_ERR_unpredictable("bad reg\n");
+
+	return sub_sp_imm(rd, imm32, setflags);
+}
+
 void register_opcodes_sub(void) {
 	// rsb_reg_t1: 1110 1011 110x xxxx (0)<x's>
 	register_opcode_mask(0xebc00000, 0x14208000, rsb_reg_t1);
@@ -237,7 +270,7 @@ void register_opcodes_sub(void) {
 	register_opcode_mask(0x4180, 0xffffbe40, sbc);
 
 	// sub1: 0001 111<x's>
-	register_opcode_mask(0x1e00, 0xffffe100, sub1);
+	register_opcode_mask(0x1e00, 0xffffe000, sub1);
 
 	// sub2: 0011 1<x's>
 	register_opcode_mask(0x3800, 0xffffc000, sub2);
@@ -258,4 +291,7 @@ void register_opcodes_sub(void) {
 
 	// sub_reg_t2: 1110 1011 101x xxxx 0<x's>
 	register_opcode_mask_ex(0xeba00000, 0x14408000, sub_reg_t2, 0x100f00, 0x0, 0xd0000, 0x20000, 0, 0);
+
+	// sub_sp_imm_t2: 1111 0x01 101x 1101 0<x's>
+	register_opcode_mask_ex(0xf1ad0000, 0x0a428000, sub_sp_imm_t2, 0x100f00, 0x0, 0, 0);
 }

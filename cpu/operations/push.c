@@ -72,6 +72,16 @@ void push_t2(uint32_t inst) {
 	push(registers);
 }
 
+void push_t3(uint32_t inst) {
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint16_t registers = (1 << rt);
+
+	if (BadReg(rt))
+		CORE_ERR_unpredictable("bad reg\n");
+
+	push(registers);
+}
+
 void register_opcodes_push(void) {
 	// 1011 010x <x's>
 	register_opcode_mask(0xb400, 0xffff4a00, push_v6);
@@ -80,4 +90,5 @@ void register_opcodes_push(void) {
 	register_opcode_mask(0xe92d0000, 0x16d2a000, push_t2);
 
 	// 1111 1000 0100 1101 xxxx 1101 0000 0100 (t3)
+	register_opcode_mask(0xf84d0d04, 0x07b202fb, push_t3);
 }

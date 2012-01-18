@@ -116,6 +116,65 @@ void ldr_imm_t3(uint32_t inst) {
 	ldr_imm(rt, rn, imm32, index, add, wback);
 }
 
+void ldr_reg(uint8_t rt, uint8_t rn, uint8_t rm,
+		bool index, bool add, bool wback,
+		enum SRType shift_t, uint8_t shift_n) {
+	uint32_t rn_val = CORE_reg_read(rn);
+	uint32_t rm_val = CORE_reg_read(rm);
+
+	uint32_t cpsr = CORE_cpsr_read();
+
+	uint32_t offset = Shift(rm_val, 32, shift_t, shift_n, !!(cpsr & xPSR_C));
+
+	uint32_t offset_addr;
+	if (add)
+		offset_addr = rn_val + offset;
+	else
+		offset_addr = rn_val - offset;
+
+	uint32_t address;
+	if (index)
+		address = offset_addr;
+	else
+		address = rn_val;
+
+	uint32_t data = read_word(address);
+
+	if (wback)
+		CORE_reg_write(rn, offset_addr);
+
+	if (rt == 15) {
+		if (address & 0x3)
+			CORE_ERR_unpredictable("bad dest pc\n");
+		else
+			LoadWritePC(data);
+	} else {
+		CORE_reg_write(rt, data);
+	}
+}
+
+void ldr_reg_t2(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t imm2 = (inst >> 4) & 0x3;
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+
+	enum SRType shift_t = LSL;
+	uint8_t shift_n = imm2;
+
+	if (BadReg(rm))
+		CORE_ERR_unpredictable("bad reg\n");
+
+	if ((rt == 15) && in_ITblock() && !last_in_ITblock())
+		CORE_ERR_unpredictable("it probs\n");
+
+	return ldr_reg(rt, rn, rm, index, add, wback, shift_t, shift_n);
+}
+
 void ldr_lit(bool add, uint8_t rt, uint32_t imm32) {
 	uint32_t base = 0xfffffffc & CORE_reg_read(PC_REG);
 
@@ -332,7 +391,12 @@ void register_opcodes_ld(void) {
 
 	// ldr_imm_t3: 1111 1000 1101 xxxx <x's>
 	//                            1111
-	register_opcode_mask_ex(0xf8d00000, 0x07200000, ldr_imm_t3, 0x000f0000, 0x0, 0, 0);
+	register_opcode_mask_ex(0xf8d00000, 0x07200000, ldr_imm_t3,
+			0x000f0000, 0x0, 0, 0);
+
+	// ldr_reg_t2: 1111 1000 0101 xxxx xxxx 0000 00xx xxxx
+	register_opcode_mask_ex(0xf8500000, 0x07a00fc0, ldr_reg_t2,
+			0xf0000, 0x0, 0, 0);
 
 	// ldr_lit_t1: 0100 1<x's>
 	register_opcode_mask(0x4800, 0xffffb000, ldr_lit_t1);

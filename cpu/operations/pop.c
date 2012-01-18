@@ -82,10 +82,23 @@ void pop_t2(uint32_t inst) {
 	return pop(registers);
 }
 
+void pop_t3(uint32_t inst) {
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint16_t registers = (1 << rt);
+
+	if ((rt == 13) || ((rt == 15) && in_ITblock() && !last_in_ITblock()))
+		CORE_ERR_unpredictable("bad reg\n");
+
+	return pop(registers);
+}
+
 void register_opcodes_pop(void) {
 	// pop: 1011 110<x's>
 	register_opcode_mask(0xbc00, 0xffff4200, pop_simple);
 
 	// pop_t2: 1110 1000 1011 1101 xx0<x's>
 	register_opcode_mask(0xe8bd0000, 0x17422000, pop_t2);
+
+	// pop_t3: 1111 1000 0101 1101 xxxx 1011 0000 0100
+	register_opcode_mask(0xf85d0b04, 0x07a204fb, pop_t3);
 }

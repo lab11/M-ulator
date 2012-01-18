@@ -88,6 +88,22 @@ void str_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool index, bool add, bool 
 		CORE_reg_write(rn, offset_addr);
 }
 
+void str_imm_t3(uint32_t inst) {
+	uint16_t imm12 = inst & 0xfff;
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	uint32_t imm32 = imm12;
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+
+	if (rt == 15)
+		CORE_ERR_unpredictable("bad reg\n");
+
+	return str_imm(rt, rn, imm32, index, add, wback);
+}
+
 void str_imm_t4(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	bool W = !!(inst & 0x100);
@@ -105,6 +121,35 @@ void str_imm_t4(uint32_t inst) {
 		CORE_ERR_unpredictable("Bad regs\n");
 
 	return str_imm(rt, rn, imm32, index, add, wback);
+}
+
+void str_reg(uint8_t rt, uint8_t rn, uint8_t rm,
+		enum SRType shift_t, uint8_t shift_n) {
+	uint32_t rn_val = CORE_reg_read(rn);
+	uint32_t rm_val = CORE_reg_read(rm);
+	uint32_t rt_val = CORE_reg_read(rt);
+
+	uint32_t cpsr = CORE_cpsr_read();
+
+	uint32_t offset = Shift(rm_val, 32, shift_t, shift_n, !!(cpsr & xPSR_C));
+	uint32_t address = rn_val + offset;
+	uint32_t data = rt_val;
+	write_word(address, data);
+}
+
+void str_reg_t2(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t imm2 = (inst >> 4) & 0x3;
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	enum SRType shift_t = LSL;
+	uint8_t shift_n = imm2;
+
+	if ((rt == 15) || BadReg(rm))
+		CORE_ERR_unpredictable("bad reg\n");
+
+	return str_reg(rt, rn, rm, shift_t, shift_n);
 }
 
 void strb_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool index, bool add, bool wback) {
@@ -271,6 +316,10 @@ void register_opcodes_str(void) {
 	// strb1: 0111 0<x's>
 	register_opcode_mask(0x7000, 0xffff8800, strb1);
 
+	// str_imm_t3: 1111 1000 1100 xxxx xxxx xxxx xxxx xxxx
+	register_opcode_mask_ex(0xf8c00000, 0x07300000, str_imm_t3,
+			0xf0000, 0x0, 0, 0);
+
 	// str_imm_t4: 1111 1000 0100 xxxx xxxx 1xxx xxxx xxxx
 	register_opcode_mask_ex(0xf8400800, 0x07b00000, str_imm_t4,
 			0x600, 0x100,
@@ -278,6 +327,10 @@ void register_opcodes_str(void) {
 			0xf0000, 0x0,
 			0x0, 0x500,
 			0, 0);
+
+	// str_reg_t2: 1111 1000 0100 xxxx xxxx 0000 00xx xxxx
+	register_opcode_mask_ex(0xf8400000, 0x07b00fc0, str_reg_t2,
+			0xf0000, 0x0, 0, 0);
 
 	// strb_imm_t2: 1111 1000 1000 <x's>
 	register_opcode_mask(0xf8800000, 0x07700000, strb_imm_t2);
