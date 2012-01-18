@@ -8,7 +8,10 @@
 #define INST_NOP 0x46c0
 #define STALL_PC -1U
 
-#define INST_HAZARD 0x0
+// Find something unused as a sentinel, we choose
+// 0100 0101 00xx xxxx, the unpredictable range in
+// the special data instructions and branch and exchange
+#define INST_HAZARD 0x4500
 #define HAZARD_PC -5U
 
 #endif //M_PROFILE

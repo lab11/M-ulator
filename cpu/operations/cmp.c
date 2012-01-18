@@ -65,13 +65,17 @@ void cmp2(uint32_t inst) {
 	DBG2("cmp r%02d, r%02d\n", rn, rm);
 }
 
-void cmp(uint8_t rn, uint32_t imm32) {
+void cmp_imm(uint8_t rn, uint32_t imm32) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
 	uint32_t result;
 	bool carry_out;
 	bool overflow_out;
+
+	DBG2("rn_val: %08x, ~imm32: %08x\n", rn_val, ~imm32);
 	AddWithCarry(rn_val, ~imm32, 1, &result, &carry_out, &overflow_out);
+	DBG2("result: %08x, carry: %d, overflow: %d\n",
+			result, carry_out, overflow_out);
 
 	uint32_t cpsr = CORE_cpsr_read();
 
@@ -84,7 +88,7 @@ void cmp(uint8_t rn, uint32_t imm32) {
 	CORE_cpsr_write(cpsr);
 }
 
-void cmp_t2(uint32_t inst) {
+void cmp_imm_t2(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t imm3 = (inst >> 12) & 0x7;
 	uint8_t rn = (inst >> 16) & 0xf;
@@ -92,7 +96,9 @@ void cmp_t2(uint32_t inst) {
 
 	uint32_t imm32 = ThumbExpandImm((i << 11) | (imm3 << 8) | imm8);
 
-	cmp(rn, imm32);
+	DBG2("imm32: %08x\n", imm32);
+
+	cmp_imm(rn, imm32);
 }
 
 void register_opcodes_cmp(void) {
@@ -106,5 +112,5 @@ void register_opcodes_cmp(void) {
 	register_opcode_mask(0x4280, 0xffffbd40, cmp2);
 
 	// 1111 0x01 1011 xxxx 0xxx 1111 xxxx xxxx
-	register_opcode_mask(0xf1b00f00, 0x0a408000, cmp_t2);
+	register_opcode_mask(0xf1b00f00, 0x0a408000, cmp_imm_t2);
 }

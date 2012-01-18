@@ -101,7 +101,7 @@ void mov_imm_t3(uint32_t inst) {
 	return mov_imm(cpsr, setflags, imm32, rd, 0);
 }
 
-void mov_reg(uint32_t cpsr, uint8_t setflags,  uint8_t rd, uint8_t rm) {
+void mov_reg(uint8_t rd, uint8_t rm, bool setflags) {
 	uint32_t rm_val = CORE_reg_read(rm);
 
 	if (rd == 15) {
@@ -110,6 +110,7 @@ void mov_reg(uint32_t cpsr, uint8_t setflags,  uint8_t rd, uint8_t rm) {
 	} else {
 		CORE_reg_write(rd, rm_val);
 		if (setflags) {
+			uint32_t cpsr = CORE_cpsr_read();
 			cpsr = GEN_NZCV(
 					!!(rm_val & xPSR_N),
 					rm_val == 0,
@@ -124,8 +125,6 @@ void mov_reg(uint32_t cpsr, uint8_t setflags,  uint8_t rd, uint8_t rm) {
 }
 
 void mov_reg_t1(uint32_t inst) {
-	uint32_t cpsr = CORE_cpsr_read();
-
 	uint8_t rd =  (inst & 0x7);
 	uint8_t rm =  (inst & 0x78) >> 3;
 	uint8_t D = !!(inst & 0x80);
@@ -140,7 +139,19 @@ void mov_reg_t1(uint32_t inst) {
 	if ((rd == 15) && in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("mov_reg_t1 unpredictable\n");
 
-	return mov_reg(cpsr, setflags, rd, rm);
+	return mov_reg(rd, rm, setflags);
+}
+
+void mov_reg_t2(uint32_t inst) {
+	uint8_t rd = inst & 0x7;
+	uint8_t rm = (inst >> 3) & 0x7;
+
+	bool setflags = true;
+
+	if (in_ITblock())
+		CORE_ERR_unpredictable("illegal in it block\n");
+
+	return mov_reg(rd, rm, setflags);
 }
 
 void movt(uint8_t rd, uint16_t imm16) {
@@ -181,6 +192,9 @@ void register_opcodes_mov(void) {
 
 	// mov_reg_t1: 0100 0110 <x's>
 	register_opcode_mask(0x4600, 0xffffb900, mov_reg_t1);
+
+	// mov_reg_t2: 0000 0000 00xx xxxx
+	register_opcode_mask(0x0, 0xffffffc0, mov_reg_t2);
 
 	// movt_t1: 1111 0x10 1100 xxxx 0<x's>
 	register_opcode_mask(0xf2c00000, 0x09308000, movt_t1);

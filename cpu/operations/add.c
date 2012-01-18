@@ -296,7 +296,10 @@ void register_opcodes_add(void) {
 	register_opcode_mask(0xb000, 0xffff4f80, add7);
 
 	// add_imm_t3: 1111 0x01 000x xxxx 0<x's>
-	register_opcode_mask_ex(0xf1000000, 0x0ae08000, add_imm_t3, 0x100f00, 0x0, 0xd0000, 0x20000, 0, 0);
+	register_opcode_mask_ex(0xf1000000, 0x0ae08000, add_imm_t3,
+			0x100f00, 0x0,
+			0xd0000, 0x20000,
+			0, 0);
 
 	// add_reg_t2: 0100 0100 <x's>
 	register_opcode_mask(0x4400, 0xffffbb00, add_reg_t2);

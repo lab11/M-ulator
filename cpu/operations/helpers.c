@@ -20,10 +20,11 @@ void AddWithCarry(uint32_t x, uint32_t y, bool carry_in,
 	int64_t signed_sum = ((int32_t) x) + ((int32_t) y) + carry_in;
 
 	*result = (uint32_t) unsigned_sum; // 64->32 truncation
-	uint64_t result64_u = *result;
-	int64_t result64_s = *result;
-	*carry_out = !(result64_u == unsigned_sum);
-	*overflow_out = !(result64_s == signed_sum);
+
+	DBG2("x %08x, y %08x, carry %d\n", x, y, carry_in);
+	DBG2("usum %09lx, ssum %09lx\n", unsigned_sum, signed_sum);
+	*carry_out    = !((uint32_t) *result == (uint32_t) unsigned_sum);
+	*overflow_out = !( (int32_t) *result ==  (int32_t) signed_sum);
 }
 
 uint32_t SignExtend(uint32_t val, uint8_t bits) {
