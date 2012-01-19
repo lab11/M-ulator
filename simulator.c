@@ -880,30 +880,39 @@ static void print_full_state(void) {
 	print_stages();
 
 	DIVIDERd;
-/*
-	size_t i;
 
-	FILE* romfp = fopen("/tmp/373rom", "w");
-	if (romfp) {
-		i = fwrite(rom, ROMSIZE, 1, romfp);
-		printf("Wrote %8d bytes to /tmp/373rom "\
-				"\t\t(Use 'hexdump -C' to view)\n", i*ROMSIZE);
-		fclose(romfp);
-	} else {
-		perror("Failed to open /tmp/373rom for writing -- No ROM dump");
-	}
-*/
+	{
+		char file[] = "/tmp/373rom.\0\0\0\0\0\0\0\0\0";
+		if (0 != getlogin_r(file + strlen("/tmp/373rom."), 9))
+			perror("getting username for rom/ram dump");
+
+		size_t i;
 /*
-	FILE* ramfp = fopen("/tmp/373ram", "w");
-	if (ramfp) {
-		i = fwrite(ram, RAMSIZE, 1, ramfp);
-		printf("Wrote %8zu bytes to /tmp/373ram "\
-				"\t\t(Use 'hexdump -C' to view)\n", i*RAMSIZE);
-		fclose(ramfp);
-	} else {
-		perror("Failed to open /tmp/373ram for writing -- No RAM dump");
-	}
+		FILE* romfp = fopen(file, "w");
+		if (romfp) {
+			i = fwrite(rom, ROMSIZE, 1, romfp);
+			printf("Wrote %8d bytes to %s "\
+					"\t\t(Use 'hexdump -C' to view)\n",
+					i*ROMSIZE, file);
+			fclose(romfp);
+		} else {
+			perror("No ROM dump");
+		}
 */
+		// rom --> ram
+		file[strlen("/tmp/373r")] = 'a';
+
+		FILE* ramfp = fopen(file, "w");
+		if (ramfp) {
+			i = fwrite(ram, RAMSIZE, 1, ramfp);
+			printf("Wrote %8zu bytes to %s "\
+					"\t\t(Use 'hexdump -C' to view)\n",
+					i*RAMSIZE, file);
+			fclose(ramfp);
+		} else {
+			perror("No RAM dump");
+		}
+	}
 
 	DIVIDERe;
 }
