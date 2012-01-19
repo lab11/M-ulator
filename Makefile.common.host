@@ -1,6 +1,9 @@
 # Define simulator profile, A_PROFILE, R_PROFILE, or M_PROFILE
 CFLAGS += -DM_PROFILE
 
+# Disable pipeline simulation for student clarity
+CFLAGS += -DNO_PIPELINE
+
 # Lots of debugging!
 CFLAGS += -g3
 

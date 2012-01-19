@@ -320,8 +320,10 @@ static uint32_t leds[LED_COLORS] = {0};
 #define STATE_STALL_MASK	0xff
 
 #define STATE_IO_BARRIER	0x100
+#ifndef NO_PIPELINE
 #define STATE_PIPELINE_FLUSH	0x1000
 #define STATE_PIPELINE_RUNNING	0x8000
+#endif
 #define STATE_LED_WRITTEN	0x10000
 #define STATE_LED_WRITING	0x80000
 #define STATE_BLOCKING_ASYNC	0x800000
@@ -381,7 +383,9 @@ static uint32_t* state_flags_cur = &state_start_flags;
 
 static struct op* o_hack = NULL;
 
+#ifndef NO_PIPELINE
 static uint32_t state_pipeline_new_pc = -1;
+#endif
 
 #ifdef DEBUG1
 static pthread_mutex_t state_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
@@ -513,6 +517,13 @@ static void _state_tock() {
 	// unsorted list
 	while (NULL != orig_cycle_head) {
 		if (orig_cycle_head->loc) {
+#ifdef NO_PIPELINE
+			// Allow the PC to alias for branches
+			if (orig_cycle_head->loc == &pre_if_PC) {
+				orig_cycle_head = orig_cycle_head->next;
+				continue;
+			}
+#endif
 			if (*orig_cycle_head->loc != orig_cycle_head->val) {
 #ifdef DEBUG1
 				ERR(E_UNPREDICTABLE, "(%s): %p was aliased, expected %08x, got %08x\n",
@@ -554,6 +565,7 @@ static void state_tock() {
 
 	_state_tock();
 
+#ifndef NO_PIPELINE
 	if (*state_flags_cur & STATE_PIPELINE_FLUSH) {
 		// Leverage the existing state mechanism to simplify replay,
 		// conceptually adding extra writes to the end of this cycle
@@ -568,6 +580,7 @@ static void state_tock() {
 
 		*state_flags_cur &= ~STATE_PIPELINE_RUNNING;
 	}
+#endif
 
 	if (*state_flags_cur & STATE_LED_WRITTEN) {
 		if (showledwrites) {
@@ -640,10 +653,18 @@ static void _state_write(enum stage g, uint32_t *loc, uint32_t val,
 	state_head->next = s;
 	state_head = s;
 
+#ifdef NO_PIPELINE
+	if (true) {
+#ifdef DEBUG1
+		printf("  SW: %s:%d\t%s = %d\n", file, line, target, val);
+#endif
+#else
 	if (*state_flags_cur & STATE_BLOCKING_ASYNC) {
+#endif
 		if (loc) {
 			*loc = val;
 		} else {
+			assert(NULL != ploc);
 			*ploc = pval;
 		}
 	}
@@ -696,6 +717,9 @@ EXPORT void state_write_op(enum stage g __attribute__ ((unused)), struct op **lo
 	// until then, however, this will suffice
 	assert(loc == &id_ex_o);
 	o_hack = val;
+#ifdef NO_PIPELINE
+	id_ex_o = val;
+#endif
 	if (!(*state_flags_cur & STATE_LOCK_HELD_MASK))
 		pthread_mutex_unlock(&state_mutex);
 }
@@ -712,12 +736,14 @@ EXPORT void stall(enum stage g) {
 	pthread_mutex_unlock(&state_mutex);
 }
 
+#ifndef NO_PIPELINE
 static void state_pipeline_flush(uint32_t new_pc) {
 	pthread_mutex_lock(&state_mutex);
 	*state_flags_cur |= STATE_PIPELINE_FLUSH;
 	state_pipeline_new_pc = new_pc;
 	pthread_mutex_unlock(&state_mutex);
 }
+#endif
 
 static void state_led_write(enum LED_color led, uint32_t val) {
 	pthread_mutex_lock(&state_mutex);
@@ -863,11 +889,13 @@ static void print_reg_state(void) {
 	print_reg_state_internal();
 }
 
+#ifndef NO_PIPELINE
 static void print_stages(void) {
 	printf("Stages:\n");
 	printf("\tPC's:\tPRE_IF %08x, IF_ID %08x, ID_EX %08x\n",
 			pre_if_PC, if_id_PC, id_ex_PC);
 }
+#endif
 
 static void print_full_state(void) {
 	DIVIDERe;
@@ -876,8 +904,10 @@ static void print_full_state(void) {
 	DIVIDERd;
 	print_reg_state_internal();
 
+#ifndef NO_PIPELINE
 	DIVIDERd;
 	print_stages();
+#endif
 
 	DIVIDERd;
 
@@ -1056,9 +1086,10 @@ void CORE_reg_write(int r, uint32_t val) {
 			}
 			exit(EXIT_SUCCESS);
 		}
-		//state_write(&PC, val & 0xfffffffe);
+#ifdef NO_PIPELINE
+		SW(&pre_if_PC, val & 0xfffffffe);
+#else
 		// Only flush if the new PC differs from predicted in pipeline:
-		flockfile(stdout); flockfile(stderr);
 		if (((SR(&if_id_PC) & 0xfffffffe) - 4) == (val & 0xfffffffe)) {
 			DBG2("Predicted PC correctly (%08x)\n", val);
 		} else {
@@ -1066,7 +1097,7 @@ void CORE_reg_write(int r, uint32_t val) {
 			DBG2("Predicted PC incorrectly\n");
 			DBG2("Pred: %08x, val: %08x\n", SR(&if_id_PC), val);
 		}
-		funlockfile(stderr); funlockfile(stdout);
+#endif
 	}
 	else {
 		SW(&(reg[r]), val);
@@ -1362,6 +1393,22 @@ int register_opcode_mask_real(uint32_t ones_mask, uint32_t zeros_mask,
 }
 
 static int sim_execute(void) {
+#ifdef NO_PIPELINE
+	// Not the common code path, try to catch if things have changed
+	assert(NUM_TICKERS == 3);
+
+	cycle++;
+
+	state_start_tick();
+	DBG1("tick_if\n");
+	tick_if();
+	DBG1("tick_id\n");
+	tick_id();
+	DBG1("tick_ex\n");
+	tick_ex();
+	state_tock();
+
+#else
 	// Now we're committed to starting the next cycle
 	cycle++;
 
@@ -1392,6 +1439,7 @@ static int sim_execute(void) {
 	for (i = 0; i < NUM_TICKERS; i++) {
 		sem_post(&end_tock_sem);
 	}
+#endif
 
 	return SUCCESS;
 }
@@ -1477,8 +1525,10 @@ static void load_opcodes(void) {
 	INFO("Registered %d opcode mask%s\n", opcode_masks,
 			(opcode_masks == 1) ? "":"s");
 
+#ifndef NO_PIPELINE
 	// Fake instructions used to propogate pipeline exceptions
 	register_opcode_mask_real(INST_HAZARD, ~INST_HAZARD, pipeline_exception, "Pipeline Excpetion");
+#endif
 }
 
 static void* sig_thread(void *arg) {
@@ -1507,10 +1557,12 @@ static void* sig_thread(void *arg) {
 
 EXPORT void simulator(const char *flash_file, uint16_t polluartport) {
 	// Init uninit'd globals
+#ifndef NO_PIPELINE
 	assert(0 == sem_init(&ticker_ready_sem, 0, 0));
 	assert(0 == sem_init(&start_tick_sem, 0, 0));
 	assert(0 == sem_init(&end_tick_sem, 0, 0));
 	assert(0 == sem_init(&end_tock_sem, 0, 0));
+#endif
 
 	// Read in flash
 	if (usetestflash) {
@@ -1560,12 +1612,14 @@ EXPORT void simulator(const char *flash_file, uint16_t polluartport) {
 	pthread_mutex_unlock(&poll_uart_mutex);
 
 	// Spawn pipeline stage threads
+#ifndef NO_PIPELINE
 	pthread_t ifstage_pthread;
 	pthread_t idstage_pthread;
 	pthread_t exstage_pthread;
 	pthread_create(&ifstage_pthread, NULL, ticker, tick_if);
 	pthread_create(&idstage_pthread, NULL, ticker, tick_id);
 	pthread_create(&exstage_pthread, NULL, ticker, tick_ex);
+#endif
 
 	// Simulator CORE thread
 	pthread_t core_pthread;

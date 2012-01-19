@@ -10,6 +10,9 @@
 void tick_ex(void) {
 	DBG2("start\n");
 
+	assert(NULL != id_ex_o);
+	assert(NULL != id_ex_o->name);
+
 	// Execute
 	if (in_ITblock()) {
 		if (eval_cond(CORE_cpsr_read(), (read_itstate() & 0xf0) >> 4)) {
