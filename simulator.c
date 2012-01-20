@@ -17,6 +17,7 @@
 #include "cpu/core.h"
 #include "cpu/misc.h"
 #include "cpu/operations/opcodes.h"
+#include "gdb.h"
 
 #ifdef DEBUG2
 #ifndef GRADE
@@ -153,6 +154,7 @@ void poll_uart_txdata_write(uint8_t val);
 
 /* Config */
 
+EXPORT int gdb_port = -1;
 EXPORT int slowsim = 0;
 #ifdef DEBUG2
 EXPORT int printcycles = 1;
@@ -1044,6 +1046,10 @@ static void _shell(void) {
 }
 
 static void shell(void) {
+	if (gdb_port != -1)
+		return stop_and_wait_for_gdb();
+
+	print_full_state();
 	shell_running = true;
 	_shell();
 	shell_running = false;
@@ -1078,13 +1084,12 @@ void CORE_reg_write(int r, uint32_t val) {
 		SW(&LR, val);
 	} else if (r == PC_REG) {
 		if (SR(&PC) == ((val & 0xfffffffe) + 4)) {
-			INFO("Simulator determined PC 0x%08x is branch to self, terminating.\n", PC);
-			print_full_state();
-			if (returnr0) {
-				DBG2("Return code is r0: %08x\n", reg[0]);
-				exit(reg[0]);
+			if (gdb_port == -1) {
+				INFO("Simulator determined PC 0x%08x is branch to self, terminating.\n", PC);
+				sim_terminate();
+			} else {
+				wait_for_gdb();
 			}
-			exit(EXIT_SUCCESS);
 		}
 #ifdef NO_PIPELINE
 		SW(&pre_if_PC, val & 0xfffffffe);
@@ -1455,6 +1460,11 @@ static void sim_reset(void) {
 	state_tock();
 	INFO("De-asserting reset pin\n");
 
+	if (gdb_port != -1) {
+		gdb_init(gdb_port);
+		wait_for_gdb();
+	}
+
 	INFO("Entering main loop...\n");
 	do {
 		// Slow things down?
@@ -1465,18 +1475,15 @@ static void sim_reset(void) {
 
 		if (sigint) {
 			sigint = 0;
-			print_full_state();
 			shell();
 		} else
 		if ((limitcycles != -1) && limitcycles <= cycle) {
 			ERR(E_UNKNOWN, "Cycle limit (%d) reached.\n", limitcycles);
 		} else
 		if (dumpatcycle == cycle) {
-			print_full_state();
 			shell();
 		} else
 		if ((dumpatpc & 0xfffffffe) == (PC & 0xfffffffe)) {
-			print_full_state();
 			shell();
 		} else
 		if (dumpallcycles) {
@@ -1488,6 +1495,15 @@ static void sim_reset(void) {
 	WARN("Dumping core...\n");
 	print_full_state();
 	ERR(ret, "Terminating\n");
+}
+
+EXPORT void sim_terminate(void) {
+	print_full_state();
+	if (returnr0) {
+		DBG2("Return code is r0: %08x\n", reg[0]);
+		exit(reg[0]);
+	}
+	exit(EXIT_SUCCESS);
 }
 
 static void power_on(void) __attribute__ ((noreturn));
@@ -1547,6 +1563,12 @@ static void* sig_thread(void *arg) {
 				printf("\nQuit\n");
 				exit(0);
 			} else {
+				if (sigint == 1) {
+					flockfile(stdout); flockfile(stderr);
+					printf("\nQuit\n");
+					exit(0);
+				}
+				INFO("Caught SIGINT, again to quit\n");
 				sigint = 1;
 			}
 		} else {

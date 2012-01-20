@@ -6,6 +6,11 @@
 static void usage_fail(int retcode) {
 	printf("\nUSAGE: ./simulator [OPTS]\n\n");
 	printf("\
+-- DEBUGGING -------------------------------------------------------------------\
+\t-g, --gdb [port]\n\
+\t\tAct as a remote target for gdb to debug. The optional port\n\
+\t\targument specifies the port to listen on, otherwise a random\n\
+\t\tport will be selected.\
 \t-c, --dumpatpc PC_IN_HEX\n\
 \t\tExecute until PC reaches the given value. The simulator will\n\
 \t\tpause at the given PC and prompt for a new pause PC\n\
@@ -23,6 +28,7 @@ static void usage_fail(int retcode) {
 \t-e, --raiseonerror\n\
 \t\tRaises a SIGTRAP for gdb on errors before dying\n\
 \t\t(Useful for debugging with gdb\n\
+-- RUN TIME --------------------------------------------------------------------\
 \t-r, --returnr0\n\
 \t\tSets simulator binary return code to the return\n\
 \t\tcode of the executed program on simulator exit\n\
@@ -57,6 +63,7 @@ int main(int argc, char **argv) {
 	// Command line parsing
 	while (1) {
 		static struct option long_options[] = {
+			{"gdb",           optional_argument, 0,              'g'},
 			{"dumpatpc",      required_argument, 0,              'c'},
 			{"dumpatcycle",   required_argument, 0,              'y'},
 			{"dumpallcycles", no_argument,       &dumpallcycles, 'd'},
@@ -75,7 +82,7 @@ int main(int argc, char **argv) {
 		int option_index = 0;
 		int c;
 
-		c = getopt_long(argc, argv, "c:y:dpserm:f:lu:?", long_options,
+		c = getopt_long(argc, argv, "g::c:y:dpserm:f:lu:?", long_options,
 				&option_index);
 
 		if (c == -1) break;
@@ -83,6 +90,10 @@ int main(int argc, char **argv) {
 		switch (c) {
 			case 0:
 				// option set a flag
+				break;
+
+			case 'g':
+				gdb_port = optarg ? atoi(optarg) : 0;
 				break;
 
 			case 'c':

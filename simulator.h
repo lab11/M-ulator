@@ -4,6 +4,11 @@
 #include "common.h"
 #include <signal.h>
 
+#ifndef PP_STRING
+#define PP_STRING "---"
+#include "pretty_print.h"
+#endif
+
 /////////////////////////////
 // SIMULATOR CONFIGURATION //
 /////////////////////////////
@@ -46,6 +51,7 @@ struct op {
 
 // The simulator core
 void simulator(const char* flash_file, uint16_t polluartport);
+void sim_terminate(void) __attribute__ ((noreturn));
 
 // Simulator config
 #define POLL_UART_PORT 4100
@@ -53,6 +59,7 @@ void simulator(const char* flash_file, uint16_t polluartport);
 //#define POLL_UART_BAUD 1200
 #define POLL_UART_BUFSIZE 8192
 #define POLL_UART_BAUD 9600
+extern int gdb_port;
 extern int slowsim;
 extern int printcycles;
 extern int raiseonerror;
@@ -122,39 +129,5 @@ void state_write_async(enum stage, uint32_t *loc, uint32_t val);
 void state_write_p(enum stage, uint32_t **ploc, uint32_t *pval);
 void state_write_op(enum stage, struct op **loc, struct op *val);
 #endif
-
-/////////////////////////
-// PRETTY PRINT MACROS //
-/////////////////////////
-
-#define INFO(...)\
-	do {\
-		flockfile(stdout);\
-		printf("--- I: "); printf(__VA_ARGS__);\
-		funlockfile(stdout);\
-	} while (0)
-#define WARN(...)\
-	do {\
-		flockfile(stderr);\
-		fprintf(stderr, "--- W: "); fprintf(stderr, __VA_ARGS__);\
-		funlockfile(stderr);\
-	} while (0)
-#define ERR(_e, ...)\
-	do {\
-		flockfile(stderr);\
-		fprintf(stderr, "--- E: ");\
-		fprintf(stderr, __VA_ARGS__);\
-		funlockfile(stderr);\
-		if (raiseonerror) raise(SIGTRAP);\
-		exit(_e);\
-	} while (0)
-#define TRAP(...)\
-	do {\
-		flockfile(stderr);\
-		fprintf(stderr, "--- T: ");\
-		fprintf(stderr, __VA_ARGS__);\
-		funlockfile(stderr);\
-		raise(SIGTRAP);\
-	} while (0)
 
 #endif // SIMULATOR_H
