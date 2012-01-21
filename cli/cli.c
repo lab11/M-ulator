@@ -6,11 +6,11 @@
 static void usage_fail(int retcode) {
 	printf("\nUSAGE: ./simulator [OPTS]\n\n");
 	printf("\
--- DEBUGGING -------------------------------------------------------------------\
+-- DEBUGGING -------------------------------------------------------------------\n\
 \t-g, --gdb [port]\n\
 \t\tAct as a remote target for gdb to debug. The optional port\n\
 \t\targument specifies the port to listen on, otherwise a random\n\
-\t\tport will be selected.\
+\t\tport will be selected.\n\
 \t-c, --dumpatpc PC_IN_HEX\n\
 \t\tExecute until PC reaches the given value. The simulator will\n\
 \t\tpause at the given PC and prompt for a new pause PC\n\
@@ -28,7 +28,7 @@ static void usage_fail(int retcode) {
 \t-e, --raiseonerror\n\
 \t\tRaises a SIGTRAP for gdb on errors before dying\n\
 \t\t(Useful for debugging with gdb\n\
--- RUN TIME --------------------------------------------------------------------\
+-- RUN TIME --------------------------------------------------------------------\n\
 \t-r, --returnr0\n\
 \t\tSets simulator binary return code to the return\n\
 \t\tcode of the executed program on simulator exit\n\
