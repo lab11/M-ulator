@@ -155,6 +155,7 @@ void poll_uart_txdata_write(uint8_t val);
 /* Config */
 
 EXPORT int gdb_port = -1;
+#define GDB_ATTACHED (gdb_port != -1)
 EXPORT int slowsim = 0;
 #ifdef DEBUG2
 EXPORT int printcycles = 1;
@@ -1046,7 +1047,7 @@ static void _shell(void) {
 }
 
 static void shell(void) {
-	if (gdb_port != -1)
+	if (GDB_ATTACHED)
 		return stop_and_wait_for_gdb();
 
 	print_full_state();
@@ -1084,7 +1085,7 @@ void CORE_reg_write(int r, uint32_t val) {
 		SW(&LR, val);
 	} else if (r == PC_REG) {
 		if (SR(&PC) == ((val & 0xfffffffe) + 4)) {
-			if (gdb_port == -1) {
+			if (GDB_ATTACHED) {
 				INFO("Simulator determined PC 0x%08x is branch to self, terminating.\n", PC);
 				sim_terminate();
 			} else {
@@ -1460,7 +1461,7 @@ static void sim_reset(void) {
 	state_tock();
 	INFO("De-asserting reset pin\n");
 
-	if (gdb_port != -1) {
+	if (GDB_ATTACHED) {
 		gdb_init(gdb_port);
 		wait_for_gdb();
 	}
@@ -1592,25 +1593,30 @@ EXPORT void simulator(const char *flash_file, uint16_t polluartport) {
 		INFO("Loaded internal test flash\n");
 	} else {
 		if (NULL == flash_file) {
-			ERR(E_BAD_FLASH, "--flash or --usetestflash required, see --help\n");
+			if (GDB_ATTACHED) {
+				WARN("No binary image specified, you will have to 'load' one with gdb\n");
+			} else {
+				ERR(E_BAD_FLASH, "--flash or --usetestflash required, see --help\n");
+			}
+		} else {
+			int flashfd = open(flash_file, O_RDONLY);
+			ssize_t ret;
+			if (-1 == flashfd) {
+				ERR(E_BAD_FLASH, "Could not open file %s for reading\n",
+						flash_file);
+			}
+			assert (ROMSIZE < SSIZE_MAX);
+			ret = read(flashfd, rom, ROMSIZE);
+			if (ret < 0) {
+				WARN("%s\n", strerror(errno));
+				ERR(E_BAD_FLASH, "Failed to read flash file %s\n", flash_file);
+			}
+			if (ret < ROMSIZE) {
+				WARN("Flash file (%zd) smaller than ROMSIZE (%d)\n", ret, ROMSIZE);
+				WARN("Zero-filling remainder of ROM\n");
+			}
+			INFO("Succesfully loaded flash ROM: %s\n", flash_file);
 		}
-		int flashfd = open(flash_file, O_RDONLY);
-		ssize_t ret;
-		if (-1 == flashfd) {
-			ERR(E_BAD_FLASH, "Could not open file %s for reading\n",
-					flash_file);
-		}
-		assert (ROMSIZE < SSIZE_MAX);
-		ret = read(flashfd, rom, ROMSIZE);
-		if (ret < 0) {
-			WARN("%s\n", strerror(errno));
-			ERR(E_BAD_FLASH, "Failed to read flash file %s\n", flash_file);
-		}
-		if (ret < ROMSIZE) {
-			WARN("Flash file (%zd) smaller than ROMSIZE (%d)\n", ret, ROMSIZE);
-			WARN("Zero-filling remainder of ROM\n");
-		}
-		INFO("Succesfully loaded flash ROM: %s\n", flash_file);
 	}
 
 	load_opcodes();
