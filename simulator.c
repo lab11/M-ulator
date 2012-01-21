@@ -1086,10 +1086,11 @@ void CORE_reg_write(int r, uint32_t val) {
 	} else if (r == PC_REG) {
 		if (SR(&PC) == ((val & 0xfffffffe) + 4)) {
 			if (GDB_ATTACHED) {
+				INFO("Simulator determined PC 0x%08x is branch to self, breaking for gdb.\n", PC);
+				stop_and_wait_for_gdb();
+			} else {
 				INFO("Simulator determined PC 0x%08x is branch to self, terminating.\n", PC);
 				sim_terminate();
-			} else {
-				wait_for_gdb();
 			}
 		}
 #ifdef NO_PIPELINE

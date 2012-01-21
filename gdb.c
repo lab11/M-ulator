@@ -230,7 +230,8 @@ void wait_for_gdb(void) {
 	// out on completely new ones.
 	while (true) {
 		printf("Waiting for a message from gdb...\n");
-		char *cmd = gdb_get_message(NULL);
+		int cmd_len;
+		char *cmd = gdb_get_message(&cmd_len);
 
 		switch (cmd[0]) {
 			case '?':
@@ -238,6 +239,18 @@ void wait_for_gdb(void) {
 				// Right now SIGTRAP is the only option
 				gdb_send_message("S05");
 				break;
+
+			case 'c':
+			{
+				if (cmd_len == 1) {
+					// Basic "c" continue message
+					return;
+				} else {
+					WARN("Request to continue at specific address currently unsupported, ignoring\n");
+					goto unknown_gdb;
+				}
+				break;
+			}
 
 			case 'g':
 			{
