@@ -5,7 +5,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#define GDB_MSG_MAX 128
+#define REG_STR_LEN (16 * 8 + 1) // 16 regs * 8 ascii chars each + NULL
+#define GDB_MSG_MAX (2*REG_STR_LEN) // Minimum is REG_STR_LEN
 
 static int sock = 0;
 static char escape_chars[] = "}$#*";
@@ -78,7 +79,12 @@ char* gdb_get_message(int *ext_len) {
 	int len = 0;
 
 	do {
-		assert(read < GDB_MSG_MAX);
+		if (read >= GDB_MSG_MAX) {
+			WARN("Max message length (%d) exceeded (read %d)",
+					GDB_MSG_MAX, read);
+			WARN("Msg thus far >>>%s<<<\n", buf);
+			ERR(E_UNKNOWN, "Why did gdb ignore PacketSize??\n");
+		}
 
 		int ret;
 		ret = recv(sock, buf+read, GDB_MSG_MAX-read, 0);
@@ -254,10 +260,9 @@ void wait_for_gdb(void) {
 
 			case 'g':
 			{
-				const int reg_str_len = 16 * 8 + 1;
-				char buf[reg_str_len];
+				char buf[REG_STR_LEN];
 
-				snprintf(buf, reg_str_len,
+				snprintf(buf, REG_STR_LEN,
 						"%08x%08x%08x%08x%08x%08x%08x%08x%08x%08x%08x%08x%08x%08x%08x%08x", 
 						htonl(CORE_reg_read(0)),
 						htonl(CORE_reg_read(1)),
@@ -278,6 +283,19 @@ void wait_for_gdb(void) {
 					);
 
 				gdb_send_message(buf);
+				break;
+			}
+
+			case 'G':
+			{
+				// Write all registers
+				int i;
+				for (i=0; i<16; i++) {
+					char buf[9] = {0};
+					memcpy(buf, cmd, 8);
+					CORE_reg_write(i, ntohl(strtol(buf, NULL, 16)));
+				}
+				gdb_send_message("OK");
 				break;
 			}
 
