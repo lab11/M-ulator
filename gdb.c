@@ -61,9 +61,13 @@ void gdb_init(int port) {
 	printf("Got msg >>>%s<<<, len %d, strlen %zd\n", msg, len, strlen(msg));
 
 	// Respond with out message
-	const char resp[] = "qSupported:PacketSize="VAL2STR(GDB_MSG_MAX-1)";qReverseContinue+;qReverseStep+";
+	char *resp;
+	asprintf(&resp, "qSupported:PacketSize=%x;qReverseContinue+;qReverseStep+",
+			GDB_MSG_MAX - 1);
+	assert(NULL != resp);
 
 	gdb_send_message(resp);
+	free(resp);
 }
 
 char* gdb_get_message(int *ext_len) {
@@ -311,6 +315,34 @@ void wait_for_gdb(void) {
 
 					gdb_send_message(buf);
 				}
+				break;
+			}
+
+			case 'M':
+			{
+				// M addr,length:bytes
+
+				const char *address = strtok(cmd+1, ",");
+				const char *length = strtok(NULL, ":");
+				const char *bytes = strtok(NULL, "");
+				assert(NULL != length);
+				assert(NULL != bytes);
+
+				int addr = strtol(address, NULL, 16);
+				int len = strtol(length, NULL, 16);
+
+				while (len) {
+					char buf[3] = {0};
+					buf[0] = bytes[0];
+					buf[1] = bytes[1];
+					uint8_t val = strtol(buf, NULL, 16);
+					write_byte(addr, val);
+					addr++;
+					bytes += 2;
+					len--;
+				}
+
+				gdb_send_message("OK");
 				break;
 			}
 
