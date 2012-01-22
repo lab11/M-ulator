@@ -39,7 +39,7 @@ static void stmdb_t1(uint32_t inst) {
 	stmdb(rn, registers, W);
 }
 
-void stm(uint8_t rn, uint16_t registers, bool wback) {
+static void stm(uint8_t rn, uint16_t registers, bool wback) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
 	uint32_t address = rn_val;
@@ -60,7 +60,7 @@ void stm(uint8_t rn, uint16_t registers, bool wback) {
 		CORE_reg_write(rn, rn_val + 4*hamming(registers));
 }
 
-void stm_t2(uint32_t inst) {
+static void stm_t2(uint32_t inst) {
 	uint16_t register_list = inst & 0xfff;
 	bool M = !!(inst & 0x4000);
 	uint8_t rn = (inst >> 16) & 0xf;

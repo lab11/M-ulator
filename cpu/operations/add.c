@@ -4,7 +4,7 @@
 #include "../cpu.h"
 #include "../misc.h"
 
-void adc(uint32_t inst) {
+static void adc(uint32_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -24,7 +24,7 @@ void adc(uint32_t inst) {
 	DBG2("adc r%02d, r%02d\n", rd, rm);
 }
 
-void adc_imm(uint8_t rd, uint8_t rn, uint32_t imm32, bool setflags) {
+static void adc_imm(uint8_t rd, uint8_t rn, uint32_t imm32, bool setflags) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
 	uint32_t cpsr = CORE_cpsr_read();
@@ -40,7 +40,7 @@ void adc_imm(uint8_t rd, uint8_t rn, uint32_t imm32, bool setflags) {
 	}
 }
 
-void adc_imm_t1(uint32_t inst) {
+static void adc_imm_t1(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst >> 8) & 0xf;
 	uint8_t imm3 = (inst >> 12) & 0x7;
@@ -57,7 +57,7 @@ void adc_imm_t1(uint32_t inst) {
 	return adc_imm(rd, rn, imm32, setflags);
 }
 
-void add1(uint32_t inst) {
+static void add1(uint32_t inst) {
 	uint32_t immed3 = (inst & 0x1c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -78,7 +78,7 @@ void add1(uint32_t inst) {
 	DBG2("add1 r%02d = r%02d + %d\n", rd, rn, immed3);
 }
 
-void add2(uint32_t inst) {
+static void add2(uint32_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
 	uint8_t immed8 = (inst & 0xff);
 
@@ -97,7 +97,7 @@ void add2(uint32_t inst) {
 	DBG2("add2 r%02d, #%d\t; 0x%x\n", rd, immed8, immed8);
 }
 
-void add3(uint32_t inst) {
+static void add3(uint32_t inst) {
 	uint8_t rm = (inst & 0x1c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -118,7 +118,7 @@ void add3(uint32_t inst) {
 	DBG2("add3 r%02d, r%02d, r%02d\n", rd, rn, rm);
 }
 
-void add6(uint32_t inst) {
+static void add6(uint32_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
 	uint8_t immed8 = (inst & 0xff);
 
@@ -129,7 +129,7 @@ void add6(uint32_t inst) {
 	DBG2("add6 r%02d, SP, #%d*4\n", rd, immed8);
 }
 
-void add7(uint32_t inst) {
+static void add7(uint32_t inst) {
 	uint32_t immed7 = inst & 0x7f;
 
 	uint32_t sp = CORE_reg_read(SP_REG);
@@ -139,7 +139,7 @@ void add7(uint32_t inst) {
 	DBG2("add7 sp, #%d*4\t; 0x%x\n", immed7, immed7);
 }
 
-void add_imm(uint8_t rn, uint8_t rd, uint32_t imm32, uint8_t setflags) {
+static void add_imm(uint8_t rn, uint8_t rd, uint32_t imm32, uint8_t setflags) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
 	uint32_t result = rn_val + imm32;
@@ -160,7 +160,7 @@ void add_imm(uint8_t rn, uint8_t rd, uint32_t imm32, uint8_t setflags) {
 			rd, rn, imm32, result, rn_val, imm32);
 }
 
-void add_imm_t3(uint32_t inst) {
+static void add_imm_t3(uint32_t inst) {
 	uint32_t imm8 =    (inst & 0x000000ff);
 	uint8_t rd =  (inst & 0x00000f00) >> 8;
 	uint32_t imm3 =    (inst & 0x00007000) >> 12;
@@ -183,7 +183,7 @@ void add_imm_t3(uint32_t inst) {
 	return add_imm(rn, rd, imm32, setflags);
 }
 
-void add_reg(uint8_t rn, uint8_t rm, uint8_t rd, enum SRType shift_t, uint8_t shift_n, bool setflags) {
+static void add_reg(uint8_t rn, uint8_t rm, uint8_t rd, enum SRType shift_t, uint8_t shift_n, bool setflags) {
 	uint32_t rn_val = CORE_reg_read(rn);
 	uint32_t rm_val = CORE_reg_read(rm);
 	uint32_t result;
@@ -213,7 +213,7 @@ void add_reg(uint8_t rn, uint8_t rm, uint8_t rd, enum SRType shift_t, uint8_t sh
 	DBG2("add_reg r%02d = 0x%08x\n", rd, result);
 }
 
-void add_reg_t2(uint32_t inst) {
+static void add_reg_t2(uint32_t inst) {
 	uint8_t rm = (inst & 0x78) >> 3;
 	uint8_t rd = (((inst & 0x80) >> 7) | ((inst & 0x7) >> 0));
 
@@ -237,7 +237,7 @@ void add_reg_t2(uint32_t inst) {
 	return add_reg(rn, rm, rd, shift_t, shift_n, setflags);
 }
 
-void add_reg_t3(uint32_t inst) {
+static void add_reg_t3(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t type = (inst >> 4) & 0x3;
 	uint8_t imm2 = (inst >> 6) & 0x3;
@@ -259,7 +259,7 @@ void add_reg_t3(uint32_t inst) {
 	return add_reg(rn, rm, rd, shift_t, shift_n, setflags);
 }
 
-void add_sp_plus_imm(uint8_t rd, uint32_t imm32, bool setflags) {
+static void add_sp_plus_imm(uint8_t rd, uint32_t imm32, bool setflags) {
 	uint32_t sp_val = CORE_reg_read(SP_REG);
 
 	uint32_t result;
@@ -277,7 +277,7 @@ void add_sp_plus_imm(uint8_t rd, uint32_t imm32, bool setflags) {
 	}
 }
 
-void add_sp_plus_imm_t3(uint32_t inst) {
+static void add_sp_plus_imm_t3(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst >> 8) & 0xf;
 	uint8_t imm3 = (inst >> 12) & 0x7;
@@ -294,7 +294,7 @@ void add_sp_plus_imm_t3(uint32_t inst) {
 	return add_sp_plus_imm(rd, imm32, setflags);
 }
 
-void add_sp_plus_imm_t4(uint32_t inst) {
+static void add_sp_plus_imm_t4(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst >> 8) & 0xf;
 	uint8_t imm3 = (inst >> 12) & 0x7;

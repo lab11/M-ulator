@@ -4,7 +4,7 @@
 #include "../cpu.h"
 #include "../misc.h"
 
-void lsl1(uint32_t inst) {
+static void lsl1(uint32_t inst) {
 	uint8_t immed5 = (inst & 0x7c0) >> 6;
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -34,7 +34,7 @@ void lsl1(uint32_t inst) {
 	DBG2("lsls r%02d, r%02d, #%d\n", rd, rm, immed5);
 }
 
-void lsl2(uint32_t inst) {
+static void lsl2(uint32_t inst) {
 	uint8_t rs = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -66,7 +66,7 @@ void lsl2(uint32_t inst) {
 	DBG2("lsl2 r%02d, r%02d\n", rd, rs);
 }
 
-void lsr1(uint32_t inst) {
+static void lsr1(uint32_t inst) {
 	uint8_t immed5 = (inst & 0x7c0) >> 6;
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -96,7 +96,8 @@ void lsr1(uint32_t inst) {
 	DBG2("lsrs r%02d, r%02d, #%d\n", rd, rm, immed5);
 }
 
-void asr_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
+static void asr_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rm,
+		enum SRType shift_t, uint8_t shift_n) {
 	uint32_t rm_val = CORE_reg_read(rm);
 
 	uint32_t result;
@@ -123,7 +124,7 @@ void asr_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rm, enum SRTyp
 }
 
 
-void mov_shifted_reg(uint32_t inst, enum SRType shift_t) {
+static void mov_shifted_reg(uint32_t inst, enum SRType shift_t) {
 	uint32_t cpsr = CORE_cpsr_read();
 
 	uint8_t rm = inst & 0xf;
@@ -144,19 +145,19 @@ void mov_shifted_reg(uint32_t inst, enum SRType shift_t) {
 	return asr_imm(cpsr, setflags, rd, rm, shift_t, shift_n);
 }
 
-void asr_imm_t2(uint32_t inst) {
+static void asr_imm_t2(uint32_t inst) {
 	return mov_shifted_reg(inst, ASR);
 }
 
-void lsl_imm_t2(uint32_t inst) {
+static void lsl_imm_t2(uint32_t inst) {
 	return mov_shifted_reg(inst, LSL);
 }
 
-void lsr_imm_t2(uint32_t inst) {
+static void lsr_imm_t2(uint32_t inst) {
 	return mov_shifted_reg(inst, LSR);
 }
 
-void ror_imm(uint8_t rd, uint8_t rm, uint8_t shift_n, bool setflags) {
+static void ror_imm(uint8_t rd, uint8_t rm, uint8_t shift_n, bool setflags) {
 	uint32_t rm_val = CORE_reg_read(rm);
 
 	uint32_t result;
@@ -174,7 +175,7 @@ void ror_imm(uint8_t rd, uint8_t rm, uint8_t shift_n, bool setflags) {
 	}
 }
 
-void ror_imm_t1(uint32_t inst) {
+static void ror_imm_t1(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t imm2 = (inst >> 6) & 0x3;
 	uint8_t rd = (inst >> 8) & 0xf;

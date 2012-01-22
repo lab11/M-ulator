@@ -2,7 +2,7 @@
 
 #include "../misc.h"
 
-void it(uint32_t inst) {
+static void it(uint32_t inst) {
 	uint8_t itstate = inst & 0xff;
 	write_itstate(itstate);
 

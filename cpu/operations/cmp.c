@@ -5,7 +5,7 @@
 
 /* CMP and TST always write cpsr bits, regardless of itstate */
 
-void cmn_imm(uint8_t rn, uint32_t imm32) {
+static void cmn_imm(uint8_t rn, uint32_t imm32) {
 	uint32_t rn_val = CORE_reg_read(rn);
 	uint32_t cpsr = CORE_cpsr_read();
 
@@ -18,7 +18,7 @@ void cmn_imm(uint8_t rn, uint32_t imm32) {
 	CORE_cpsr_write(cpsr);
 }
 
-void cmn_imm_t1(uint32_t inst) {
+static void cmn_imm_t1(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t imm3 = (inst >> 12) & 0x7;
 	uint8_t rn = (inst >> 16) & 0xf;
@@ -32,7 +32,7 @@ void cmn_imm_t1(uint32_t inst) {
 	return cmn_imm(rn, imm32);
 }
 
-void cmp1(uint32_t inst) {
+static void cmp1(uint32_t inst) {
 	uint8_t rn = (inst & 0x700) >> 8;
 	uint32_t immed_8 = inst & 0xff;
 
@@ -48,7 +48,7 @@ void cmp1(uint32_t inst) {
 	DBG2("cmp r%02d, #%d\t; 0x%x\n", rn, immed_8, immed_8);
 }
 
-void cmp2(uint32_t inst) {
+static void cmp2(uint32_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rn = (inst & 0x7) >> 0;
 
@@ -65,7 +65,7 @@ void cmp2(uint32_t inst) {
 	DBG2("cmp r%02d, r%02d\n", rn, rm);
 }
 
-void cmp_reg(uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
+static void cmp_reg(uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
 	uint32_t rm_val = CORE_reg_read(rm);
 	uint32_t rn_val = CORE_reg_read(rn);
 
@@ -81,7 +81,7 @@ void cmp_reg(uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
 	CORE_cpsr_write(cpsr);
 }
 
-void cmp_reg_t2(uint32_t inst) {
+static void cmp_reg_t2(uint32_t inst) {
 	uint8_t rn = inst & 0x7;
 	uint8_t rm = (inst >> 3) & 0xf;
 	bool N = (inst >> 7) & 0x1;
@@ -100,7 +100,7 @@ void cmp_reg_t2(uint32_t inst) {
 	return cmp_reg(rn, rm, shift_t, shift_n);
 }
 
-void cmp_imm(uint8_t rn, uint32_t imm32) {
+static void cmp_imm(uint8_t rn, uint32_t imm32) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
 	uint32_t result;
@@ -123,7 +123,7 @@ void cmp_imm(uint8_t rn, uint32_t imm32) {
 	CORE_cpsr_write(cpsr);
 }
 
-void cmp_imm_t2(uint32_t inst) {
+static void cmp_imm_t2(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t imm3 = (inst >> 12) & 0x7;
 	uint8_t rn = (inst >> 16) & 0xf;

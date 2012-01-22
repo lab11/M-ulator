@@ -5,7 +5,7 @@
 #include "../core.h"
 #include "../misc.h"
 
-void ldm(uint8_t rn, uint16_t registers, uint8_t wback) {
+static void ldm(uint8_t rn, uint16_t registers, uint8_t wback) {
 	uint32_t address = CORE_reg_read(rn);
 
 	int i;
@@ -27,7 +27,7 @@ void ldm(uint8_t rn, uint16_t registers, uint8_t wback) {
 	DBG2("ldm had loads of fun\n");
 }
 
-void ldm_t2(uint32_t inst) {
+static void ldm_t2(uint32_t inst) {
 	uint16_t reg_list = inst & 0x1fff;
 	bool M = !!(inst & 0x4000);
 	bool P = !!(inst & 0x8000);

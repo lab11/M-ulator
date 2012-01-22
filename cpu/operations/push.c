@@ -4,7 +4,7 @@
 #include "../cpu.h"
 #include "../core.h"
 
-void push_v6(uint32_t inst) {
+static void push_v6(uint32_t inst) {
 	uint32_t sp = CORE_reg_read(SP_REG);
 
 	int hamming = 0;
@@ -44,7 +44,7 @@ void push_v6(uint32_t inst) {
 			(inst & 0x100)?"LR and ":"", inst & 0xff);
 }
 
-void push(const uint16_t registers) {
+static void push(const uint16_t registers) {
 	uint32_t sp = CORE_reg_read(SP_REG);
 
 	uint32_t address = sp - 4 * hamming(registers);
@@ -60,7 +60,7 @@ void push(const uint16_t registers) {
 	CORE_reg_write(SP_REG, sp - 4 * hamming(registers));
 }
 
-void push_t2(uint32_t inst) {
+static void push_t2(uint32_t inst) {
 	uint16_t register_list = inst & 0x1fff;
 	bool M = (inst >> 14) & 0x1;
 
@@ -72,7 +72,7 @@ void push_t2(uint32_t inst) {
 	push(registers);
 }
 
-void push_t3(uint32_t inst) {
+static void push_t3(uint32_t inst) {
 	uint8_t rt = (inst >> 12) & 0xf;
 	uint16_t registers = (1 << rt);
 

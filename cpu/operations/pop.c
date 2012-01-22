@@ -5,7 +5,7 @@
 #include "../core.h"
 #include "../misc.h"
 
-void pop_simple(uint32_t inst) {
+static void pop_simple(uint32_t inst) {
 	uint32_t sp = CORE_reg_read(SP_REG);
 
 	int hamming = 0;
@@ -44,7 +44,7 @@ void pop_simple(uint32_t inst) {
 			(inst & 0x100)?"PC and ":"", inst & 0xff);
 }
 
-void pop(uint16_t registers) {
+static void pop(uint16_t registers) {
 	uint32_t address = CORE_reg_read(SP_REG);
 
 	int i;
@@ -64,7 +64,7 @@ void pop(uint16_t registers) {
 	DBG2("pop did stuff\n");
 }
 
-void pop_t2(uint32_t inst) {
+static void pop_t2(uint32_t inst) {
 	uint16_t reg_list = inst & 0x1fff;
 	uint8_t M = !!(inst & 0x4000);
 	uint8_t P = !!(inst & 0x8000);
@@ -82,7 +82,7 @@ void pop_t2(uint32_t inst) {
 	return pop(registers);
 }
 
-void pop_t3(uint32_t inst) {
+static void pop_t3(uint32_t inst) {
 	uint8_t rt = (inst >> 12) & 0xf;
 	uint16_t registers = (1 << rt);
 

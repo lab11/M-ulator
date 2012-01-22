@@ -4,7 +4,7 @@
 #include "../cpu.h"
 #include "../misc.h"
 
-void mov_imm(uint32_t cpsr, uint8_t setflags, uint32_t imm32, uint8_t rd, uint8_t carry){
+static void mov_imm(uint32_t cpsr, uint8_t setflags, uint32_t imm32, uint8_t rd, uint8_t carry){
 	uint32_t result = imm32;
 
 	if (rd == 15) {
@@ -26,7 +26,7 @@ void mov_imm(uint32_t cpsr, uint8_t setflags, uint32_t imm32, uint8_t rd, uint8_
 	DBG2("mov_imm r%02d = 0x%08x\n", rd, result);
 }
 
-void mov_imm_t1(uint32_t inst) {
+static void mov_imm_t1(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst >> 8) & 0x7;
 
@@ -39,7 +39,7 @@ void mov_imm_t1(uint32_t inst) {
 	return mov_imm(cpsr, setflags, imm32, rd, carry);
 }
 
-void mov_imm_t2(uint32_t inst) {
+static void mov_imm_t2(uint32_t inst) {
 	uint32_t cpsr = CORE_cpsr_read();
 
 	int   imm8 =  (inst & 0x000000ff);
@@ -80,7 +80,7 @@ void mov_imm_t2(uint32_t inst) {
 	return mov_imm(cpsr, setflags, imm32, Rd, carry);
 }
 
-void mov_imm_t3(uint32_t inst) {
+static void mov_imm_t3(uint32_t inst) {
 	uint32_t cpsr = CORE_cpsr_read();
 
 	uint8_t imm8 = inst & 0xff;
@@ -101,7 +101,7 @@ void mov_imm_t3(uint32_t inst) {
 	return mov_imm(cpsr, setflags, imm32, rd, 0);
 }
 
-void mov_reg(uint8_t rd, uint8_t rm, bool setflags) {
+static void mov_reg(uint8_t rd, uint8_t rm, bool setflags) {
 	uint32_t rm_val = CORE_reg_read(rm);
 
 	if (rd == 15) {
@@ -124,7 +124,7 @@ void mov_reg(uint8_t rd, uint8_t rm, bool setflags) {
 	DBG2("mov_reg r%02d = r%02d (val: %08x)\n", rd, rm, rm_val);
 }
 
-void mov_reg_t1(uint32_t inst) {
+static void mov_reg_t1(uint32_t inst) {
 	uint8_t rd =  (inst & 0x7);
 	uint8_t rm =  (inst & 0x78) >> 3;
 	uint8_t D = !!(inst & 0x80);
@@ -142,7 +142,7 @@ void mov_reg_t1(uint32_t inst) {
 	return mov_reg(rd, rm, setflags);
 }
 
-void mov_reg_t2(uint32_t inst) {
+static void mov_reg_t2(uint32_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rm = (inst >> 3) & 0x7;
 
@@ -154,7 +154,7 @@ void mov_reg_t2(uint32_t inst) {
 	return mov_reg(rd, rm, setflags);
 }
 
-void movt(uint8_t rd, uint16_t imm16) {
+static void movt(uint8_t rd, uint16_t imm16) {
 	uint32_t rd_val = CORE_reg_read(rd);
 	rd_val &= 0x0000ffff;	// clear top bits
 	uint32_t wide_imm = imm16;
@@ -164,7 +164,7 @@ void movt(uint8_t rd, uint16_t imm16) {
 	DBG2("movt r%02d = 0x%08x\n", rd, rd_val);
 }
 
-void movt_t1(uint32_t inst) {
+static void movt_t1(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst & 0xf00) >> 8;
 	uint8_t imm3 = (inst & 0x7000) >> 12;

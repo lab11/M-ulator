@@ -4,7 +4,7 @@
 #include "../cpu.h"
 #include "../misc.h"
 
-void and(uint32_t inst) {
+static void and(uint32_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -23,7 +23,8 @@ void and(uint32_t inst) {
 	DBG2("ands r%02d, r%02d\n", rd, rm);
 }
 
-void and_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn, uint32_t imm32, uint8_t carry) {
+static void and_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn,
+		uint32_t imm32, uint8_t carry) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
 	uint32_t result = rn_val & imm32;
@@ -46,7 +47,7 @@ void and_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn, uint32_t i
 	DBG2("and_imm done\n");
 }
 
-void and_imm_t1(uint32_t inst) {
+static void and_imm_t1(uint32_t inst) {
 	uint32_t cpsr = CORE_cpsr_read();
 
 	uint8_t imm8 = inst & 0xff;
@@ -75,7 +76,8 @@ void and_imm_t1(uint32_t inst) {
 	return and_imm(cpsr, setflags, rd, rn, imm32, carry);
 }
 
-void and_reg(uint8_t rd, uint8_t rn, uint8_t rm, bool setflags, enum SRType shift_t, uint8_t shift_n) {
+static void and_reg(uint8_t rd, uint8_t rn, uint8_t rm,
+		bool setflags, enum SRType shift_t, uint8_t shift_n) {
 	uint32_t rn_val = CORE_reg_read(rn);
 	uint32_t rm_val = CORE_reg_read(rm);
 	uint32_t cpsr = CORE_cpsr_read();
@@ -93,7 +95,7 @@ void and_reg(uint8_t rd, uint8_t rn, uint8_t rm, bool setflags, enum SRType shif
 	}
 }
 
-void and_reg_t2(uint32_t inst) {
+static void and_reg_t2(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t type = (inst >> 4) & 0x3;
 	uint8_t imm2 = (inst >> 6) & 0x3;
@@ -115,7 +117,7 @@ void and_reg_t2(uint32_t inst) {
 	return and_reg(rd, rn, rm, setflags, shift_t, shift_n);
 }
 
-void bic(uint32_t inst) {
+static void bic(uint32_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -134,7 +136,8 @@ void bic(uint32_t inst) {
 	DBG2("bics r%02d, r%02d\n", rd, rm);
 }
 
-void bic_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn, uint32_t imm32, uint8_t carry) {
+static void bic_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn,
+		uint32_t imm32, uint8_t carry) {
 	uint32_t result = CORE_reg_read(rn) & (~imm32);
 	CORE_reg_write(rd, result);
 
@@ -151,7 +154,7 @@ void bic_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn, uint32_t i
 	DBG2("bic_imm ran\n");
 }
 
-void bic_imm_t1(uint32_t inst) {
+static void bic_imm_t1(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst & 0xf00) >> 8;
 	uint8_t imm3 = (inst & 0x7000) >> 12;
@@ -172,7 +175,8 @@ void bic_imm_t1(uint32_t inst) {
 	return bic_imm(cpsr, S, rd, rn, imm32, carry_out);
 }
 
-void eor_imm(uint8_t rd, uint8_t rn, uint32_t imm32, bool carry, bool setflags, uint32_t cpsr) {
+static void eor_imm(uint8_t rd, uint8_t rn,
+		uint32_t imm32, bool carry, bool setflags, uint32_t cpsr) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
 	uint32_t result = rn_val ^ imm32;
@@ -184,7 +188,7 @@ void eor_imm(uint8_t rd, uint8_t rn, uint32_t imm32, bool carry, bool setflags, 
 	}
 }
 
-void eor_imm_t1(uint32_t inst) {
+static void eor_imm_t1(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst >> 8) & 0xf;
 	uint8_t imm3 = (inst >> 12) & 0x7;
@@ -205,7 +209,8 @@ void eor_imm_t1(uint32_t inst) {
 	return eor_imm(rd, rn, imm32, carry, setflags, cpsr);
 }
 
-void eor_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
+static void eor_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm,
+		enum SRType shift_t, uint8_t shift_n) {
 	uint32_t result;
 	uint8_t carry_out;
 
@@ -227,7 +232,7 @@ void eor_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm, enum SRType s
 	}
 }
 
-void eor_reg_t2(uint32_t inst) {
+static void eor_reg_t2(uint32_t inst) {
 	uint8_t rm = (inst & 0xf);
 	uint8_t type = (inst & 0x30) >> 4;
 	uint8_t imm2 = (inst & 0xc0) >> 6;
@@ -251,7 +256,7 @@ void eor_reg_t2(uint32_t inst) {
 	return eor_reg(S, rd, rn, rm, shift_t, shift_n);
 }
 
-void lsl_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm) {
+static void lsl_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm) {
 	enum SRType shift_t = SRType_LSL;
 	uint8_t shift_n = CORE_reg_read(rm) & 0xff;
 
@@ -275,7 +280,7 @@ void lsl_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm) {
 	}
 }
 
-void lsl_reg_t2(uint32_t inst) {
+static void lsl_reg_t2(uint32_t inst) {
 	uint8_t rm = (inst & 0xf);
 	uint8_t rd = (inst & 0xf00) >> 8;
 	uint8_t rn = (inst & 0xf0000) >> 16;
@@ -288,7 +293,8 @@ void lsl_reg_t2(uint32_t inst) {
 	return lsl_reg(S, rd, rn, rm);
 }
 
-void mvn_reg(uint8_t setflags, uint8_t rd, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
+static void mvn_reg(uint8_t setflags, uint8_t rd, uint8_t rm,
+		enum SRType shift_t, uint8_t shift_n) {
 	uint32_t result;
 	uint8_t carry_out;
 
@@ -312,7 +318,7 @@ void mvn_reg(uint8_t setflags, uint8_t rd, uint8_t rm, enum SRType shift_t, uint
 	DBG2("mvn_reg did stuff\n");
 }
 
-void mvn_reg_t1(uint32_t inst) {
+static void mvn_reg_t1(uint32_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rm = (inst >> 3) & 0x7;
 
@@ -323,7 +329,7 @@ void mvn_reg_t1(uint32_t inst) {
 	return mvn_reg(setflags, rd, rm, shift_t, shift_n);
 }
 
-void mvn_reg_t2(uint32_t inst) {
+static void mvn_reg_t2(uint32_t inst) {
 	uint8_t rm = (inst & 0xf);
 	uint8_t type = (inst & 0x30) >> 4;
 	uint8_t imm2 = (inst & 0xc0) >> 6;
@@ -343,7 +349,7 @@ void mvn_reg_t2(uint32_t inst) {
 	return mvn_reg(S, rd, rm, shift_t, shift_n);
 }
 
-void orr(uint32_t inst) {
+static void orr(uint32_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -362,7 +368,8 @@ void orr(uint32_t inst) {
 	DBG2("orrs r%02d, r%02d\n", rd, rm);
 }
 
-void orr_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
+static void orr_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm,
+		enum SRType shift_t, uint8_t shift_n) {
 	uint32_t result;
 	uint8_t carry_out;
 
@@ -386,7 +393,7 @@ void orr_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm, enum SRType s
 	DBG2("orr_reg ran\n");
 }
 
-void orr_reg_t2(uint32_t inst) {
+static void orr_reg_t2(uint32_t inst) {
 	uint8_t rm = (inst & 0xf);
 	uint8_t type = (inst & 0x30) >> 4;
 	uint8_t imm2 = (inst & 0xc0) >> 6;
@@ -409,7 +416,7 @@ void orr_reg_t2(uint32_t inst) {
 	return orr_reg(S, rd, rn, rm, shift_t, shift_n);
 }
 
-void neg(uint32_t inst) {
+static void neg(uint32_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -429,7 +436,7 @@ void neg(uint32_t inst) {
 	DBG2("negs r%02d, r%02d\n", rd, rm);
 }
 
-void tst_imm(uint32_t cpsr, uint8_t rn, uint32_t imm32, bool carry) {
+static void tst_imm(uint32_t cpsr, uint8_t rn, uint32_t imm32, bool carry) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
 	uint32_t result = rn_val & imm32;
@@ -437,7 +444,7 @@ void tst_imm(uint32_t cpsr, uint8_t rn, uint32_t imm32, bool carry) {
 	CORE_cpsr_write(cpsr);
 }
 
-void tst_imm_t1(uint32_t inst) {
+static void tst_imm_t1(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t imm3 = (inst >> 12) & 0x7;
 	uint8_t rn = (inst >> 16) & 0xf;

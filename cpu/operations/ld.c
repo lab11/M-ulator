@@ -5,7 +5,7 @@
 #include "../core.h"
 #include "../misc.h"
 
-void ldr1(uint32_t inst) {
+static void ldr1(uint32_t inst) {
 	uint8_t immed5 = (inst & 0x7c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -23,7 +23,7 @@ void ldr1(uint32_t inst) {
 	DBG2("ldr1 r%02d, [r%02d, #%d*4]\n", rd, rn, immed5);
 }
 
-void ldr2(uint32_t inst) {
+static void ldr2(uint32_t inst) {
 	uint8_t rm = (inst & 0x1c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7);
@@ -39,20 +39,7 @@ void ldr2(uint32_t inst) {
 	DBG2("ldr2 r%02d, [r%02d, r%02d]\n", rd, rn, rm);
 }
 
-void ldr3(uint32_t inst) {
-	uint8_t rd = (inst & 0x700) >> 8;
-	uint16_t immed8 = inst & 0xff;
-
-	uint32_t pc = CORE_reg_read(PC_REG);
-	uint32_t addr;
-
-	addr = (pc & 0xfffffffe) + (immed8 * 4);
-	CORE_reg_write(rd, read_word(addr));
-
-	DBG2("ldr3 r%02d, [PC, #%d*4]\n", rd, immed8);
-}
-
-void ldr4(uint32_t inst) {
+static void ldr4(uint32_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
 	uint32_t immed8 = inst & 0xff;
 
@@ -70,7 +57,7 @@ void ldr4(uint32_t inst) {
 	DBG2("ldr r%02d, [sp, #%d * 4]\n", rd, immed8);
 }
 
-void ldr_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool index, bool add, bool wback) {
+static void ldr_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool index, bool add, bool wback) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
 	uint32_t offset_addr;
@@ -100,7 +87,7 @@ void ldr_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool index, bool add, bool 
 	}
 }
 
-void ldr_imm_t3(uint32_t inst) {
+static void ldr_imm_t3(uint32_t inst) {
 	uint16_t imm12 = inst & 0xfff;
 	uint8_t rt = (inst >> 12) & 0xf;
 	uint8_t rn = (inst >> 16) & 0xf;
@@ -116,7 +103,7 @@ void ldr_imm_t3(uint32_t inst) {
 	ldr_imm(rt, rn, imm32, index, add, wback);
 }
 
-void ldr_imm_t4(uint32_t inst) {
+static void ldr_imm_t4(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	bool W = !!(inst & 0x100);
 	bool U = !!(inst & 0x200);
@@ -135,7 +122,7 @@ void ldr_imm_t4(uint32_t inst) {
 	return ldr_imm(rt, rn, imm32, index, add, wback);
 }
 
-void ldr_reg(uint8_t rt, uint8_t rn, uint8_t rm,
+static void ldr_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 		bool index, bool add, bool wback,
 		enum SRType shift_t, uint8_t shift_n) {
 	uint32_t rn_val = CORE_reg_read(rn);
@@ -172,7 +159,7 @@ void ldr_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 	}
 }
 
-void ldr_reg_t2(uint32_t inst) {
+static void ldr_reg_t2(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t imm2 = (inst >> 4) & 0x3;
 	uint8_t rt = (inst >> 12) & 0xf;
@@ -194,7 +181,7 @@ void ldr_reg_t2(uint32_t inst) {
 	return ldr_reg(rt, rn, rm, index, add, wback, shift_t, shift_n);
 }
 
-void ldr_lit(bool add, uint8_t rt, uint32_t imm32) {
+static void ldr_lit(bool add, uint8_t rt, uint32_t imm32) {
 	uint32_t base = 0xfffffffc & CORE_reg_read(PC_REG);
 
 	uint32_t addr;
@@ -219,7 +206,7 @@ void ldr_lit(bool add, uint8_t rt, uint32_t imm32) {
 	DBG2("ldr_lit completed\n");
 }
 
-void ldr_lit_t1(uint32_t inst) {
+static void ldr_lit_t1(uint32_t inst) {
 	uint32_t imm8 = inst & 0xff;
 	uint8_t rt = (inst & 0x700) >> 8;
 
@@ -228,7 +215,7 @@ void ldr_lit_t1(uint32_t inst) {
 	return ldr_lit(true, rt, imm32);
 }
 
-void ldr_lit_t2(uint32_t inst) {
+static void ldr_lit_t2(uint32_t inst) {
 	uint16_t imm12 = inst & 0xfff;
 	uint8_t rt = (inst & 0xf000) >> 12;
 	bool U = !!(inst & 0x00800000);
@@ -241,7 +228,7 @@ void ldr_lit_t2(uint32_t inst) {
 	return ldr_lit(U, rt, imm32);
 }
 
-void ldrb1(uint32_t inst) {
+static void ldrb1(uint32_t inst) {
 	uint8_t immed5 = (inst & 0x7c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -252,7 +239,7 @@ void ldrb1(uint32_t inst) {
 	DBG2("ldrb r%02d, [r%02d, #%d]\n", rd, rn, immed5);
 }
 
-void ldrb_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool add, bool index, bool wback) {
+static void ldrb_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool add, bool index, bool wback) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
 	uint32_t offset_addr;
@@ -273,7 +260,7 @@ void ldrb_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool add, bool index, bool
 		CORE_reg_write(rn, offset_addr);
 }
 
-void ldrb_imm_t2(uint32_t inst) {
+static void ldrb_imm_t2(uint32_t inst) {
 	uint16_t imm12 = inst & 0xfff;
 	uint8_t rt = (inst >> 12) & 0xf;
 	uint8_t rn = (inst >> 16) & 0xf;
@@ -289,7 +276,7 @@ void ldrb_imm_t2(uint32_t inst) {
 	ldrb_imm(rt, rn, imm32, add, index, wback);
 }
 
-void ldrb_imm_t3(uint32_t inst) {
+static void ldrb_imm_t3(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	bool W = !!(inst & 0x100);		// wback
 	bool U = !!(inst & 0x200);		// add
@@ -308,7 +295,8 @@ void ldrb_imm_t3(uint32_t inst) {
 	ldrb_imm(rt, rn, imm32, U, P, W);
 }
 
-void ldrb_reg(uint8_t rt, uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n, bool index, bool add, bool wback) {
+static void ldrb_reg(uint8_t rt, uint8_t rn, uint8_t rm, enum SRType shift_t,
+		uint8_t shift_n, bool index, bool add, bool wback) {
 	assert(wback == false);
 
 	uint32_t rm_val = CORE_reg_read(rm);
@@ -332,7 +320,7 @@ void ldrb_reg(uint8_t rt, uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t s
 	CORE_reg_write(rt, read_byte(address));
 }
 
-void ldrb_reg_t1(uint32_t inst) {
+static void ldrb_reg_t1(uint32_t inst) {
 	uint8_t rt = inst & 0x7;
 	uint8_t rn = (inst >> 3) & 0x7;
 	uint8_t rm = (inst >> 6) & 0x7;
@@ -347,7 +335,7 @@ void ldrb_reg_t1(uint32_t inst) {
 	return ldrb_reg(rt, rn, rm, shift_t, shift_n, index, add, wback);
 }
 
-void ldrb_reg_t2(uint32_t inst) {
+static void ldrb_reg_t2(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t imm2 = (inst >> 4) & 0x3;
 	uint8_t rt = (inst >> 12) & 0xf;
@@ -366,7 +354,7 @@ void ldrb_reg_t2(uint32_t inst) {
 	return ldrb_reg(rt, rn, rm, shift_t, shift_n, index, add, wback);
 }
 
-void ldrsb_reg(uint8_t rt, uint8_t rn, uint8_t rm,
+static void ldrsb_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 		bool index, bool add, bool wback,
 		enum SRType shift_t, uint8_t shift_n) {
 	assert(wback == false);
@@ -393,7 +381,7 @@ void ldrsb_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 	CORE_reg_write(rt, signd);
 }
 
-void ldrsb_reg_t1(uint32_t inst) {
+static void ldrsb_reg_t1(uint32_t inst) {
 	uint8_t rt = inst & 0x7;
 	uint8_t rn = (inst >> 3) & 0x7;
 	uint8_t rm = (inst >> 6) & 0x7;
@@ -408,7 +396,7 @@ void ldrsb_reg_t1(uint32_t inst) {
 	return ldrsb_reg(rt, rn, rm, index, add, wback, shift_t, shift_n);
 }
 
-void ldrd_imm(uint32_t inst) {
+static void ldrd_imm(uint32_t inst) {
 	uint32_t imm8 = (inst & 0xff);
 	uint8_t rt2 = (inst & 0xf00) >> 8;
 	uint8_t rt = (inst & 0xf000) >> 12;
@@ -458,10 +446,7 @@ void register_opcodes_ld(void) {
 
 	// ldr2: 0101 100<x's>
 	register_opcode_mask(0x5800, 0xffffa600, ldr2);
-/*
-	// ldr3: 0100 1<x's>
-	register_opcode_mask(0x4800, 0xffffb000, ldr3);
-*/
+
 	// ldr4: 1001 1<x's>
 	register_opcode_mask(0x9800, 0xffff6000, ldr4);
 

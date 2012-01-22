@@ -3,7 +3,7 @@
 
 #include "../cpu.h"
 
-void sxtb(uint8_t rd, uint8_t rm, uint8_t rotation) {
+static void sxtb(uint8_t rd, uint8_t rm, uint8_t rotation) {
 	uint32_t rm_val = CORE_reg_read(rm);
 
 	uint32_t rotated = Shift(rm_val, 32, ROR, rotation, 0);
@@ -12,7 +12,7 @@ void sxtb(uint8_t rd, uint8_t rm, uint8_t rotation) {
 	CORE_reg_write(rd, signd);
 }
 
-void sxtb_t1(uint32_t inst) {
+static void sxtb_t1(uint32_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rm = (inst >> 3) & 0x7;
 
@@ -22,7 +22,7 @@ void sxtb_t1(uint32_t inst) {
 }
 
 // XXX: remove attribute after completing implementation
-void uxtb(uint8_t rd, uint8_t rm __attribute__ ((unused)), uint8_t rotation) {
+static void uxtb(uint8_t rd, uint8_t rm __attribute__ ((unused)), uint8_t rotation) {
 	uint32_t rd_val = CORE_reg_read(rd);
 
 	uint32_t rotated;
@@ -38,7 +38,7 @@ void uxtb(uint8_t rd, uint8_t rm __attribute__ ((unused)), uint8_t rotation) {
 	DBG2("uxtb wrote r%02d = %08x\n", rd, rd_val);
 }
 
-void uxtb_t1(uint32_t inst) {
+static void uxtb_t1(uint32_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rm = (inst & 0x38) >> 3;
 
@@ -47,7 +47,7 @@ void uxtb_t1(uint32_t inst) {
 	return uxtb(rd, rm, rotation);
 }
 
-void ubfx(uint8_t rd, uint8_t rn, uint8_t lsbit, uint8_t widthminus1) {
+static void ubfx(uint8_t rd, uint8_t rn, uint8_t lsbit, uint8_t widthminus1) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
 	uint8_t msbit = lsbit + widthminus1;
@@ -57,7 +57,7 @@ void ubfx(uint8_t rd, uint8_t rn, uint8_t lsbit, uint8_t widthminus1) {
 		CORE_ERR_unpredictable("msb > 31?\n");
 }
 
-void ubfx_t1(uint32_t inst) {
+static void ubfx_t1(uint32_t inst) {
 	uint8_t widthm1 = inst & 0x1f;
 	uint8_t imm2 = (inst >> 6) & 0x3;
 	uint8_t rd = (inst >> 8) & 0xf;

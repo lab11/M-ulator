@@ -5,47 +5,7 @@
 #include "../misc.h"
 #include "../core.h"
 
-// BL is actually two instructions to allow for larger offset,
-// need to preserve state across calls
-void bl(uint32_t inst) {
-	static int32_t offset32;
-
-	int32_t signed_offset11 = inst & 0x7ff;
-
-	if ((inst & 0x1000) && (~inst & 0x0800)) {
-		DBG2("bl %x (H=10, first call)\n", signed_offset11);
-
-		// H is 10, aka first call
-		signed_offset11 <<= 12;
-
-		// Need to sign-extend
-		struct {signed int x:23;} s;
-		offset32 = s.x = signed_offset11;
-	}
-
-	assert((inst & 0x1800) && "Expected H == 11");
-
-	DBG2("bl %x (H=11, second call)\n", signed_offset11);
-
-	uint32_t pc = CORE_reg_read(PC_REG);
-	uint32_t lr = pc | 0x1;
-
-	// PC_HACK is self-correct here b/c two instrs
-	pc = pc + offset32;
-
-	pc = pc + (2 * signed_offset11);
-
-	CORE_reg_write(PC_REG, pc);
-	CORE_reg_write(LR_REG, lr);
-
-	DBG2("bl %08x (net total)\n", pc);
-}
-
-void blx(uint32_t inst __attribute__ ((unused))) {
-	CORE_ERR_not_implemented("blx");
-}
-
-void SelectInstrSet(uint8_t iset) {
+static void SelectInstrSet(uint8_t iset) {
 	switch (iset) {
 		case INST_SET_ARM:
 			DBG2("Set ISETSTATE to Arm\n");
@@ -73,7 +33,7 @@ void SelectInstrSet(uint8_t iset) {
 	}
 }
 
-void b(uint8_t cond, uint32_t imm32) {
+static void b(uint8_t cond, uint32_t imm32) {
 	if (eval_cond(CORE_cpsr_read(), cond)) {
 		uint32_t pc = CORE_reg_read(PC_REG);
 		BranchWritePC(pc + imm32);
@@ -84,7 +44,7 @@ void b(uint8_t cond, uint32_t imm32) {
 	}
 }
 
-void b_t1(uint32_t inst) {
+static void b_t1(uint32_t inst) {
 	uint8_t imm8 = (inst & 0xff);
 	uint8_t cond = (inst & 0xf00) >> 8;
 
@@ -102,7 +62,7 @@ void b_t1(uint32_t inst) {
 	return b(cond, imm32);
 }
 
-void b_t2(uint32_t inst) {
+static void b_t2(uint32_t inst) {
 	uint16_t imm11 = (inst & 0x7ff);
 
 	uint32_t imm32 = SignExtend(imm11 << 1, 12);
@@ -113,7 +73,7 @@ void b_t2(uint32_t inst) {
 	return b(0xf, imm32);
 }
 
-void b_t3(uint32_t inst) {
+static void b_t3(uint32_t inst) {
 	uint16_t imm11 = (inst & 0x7ff);
 	bool J2 = !!(inst & 0x800);
 	bool J1 = !!(inst & 0x2000);
@@ -142,7 +102,7 @@ void b_t3(uint32_t inst) {
 	return b(cond, imm32);
 }
 
-void b_t4(uint32_t inst) {
+static void b_t4(uint32_t inst) {
 	uint16_t imm11 = inst & 0x7ff;
 	bool J2 = !!(inst & 0x800);
 	bool J1 = !!(inst & 0x2000);
@@ -162,7 +122,7 @@ void b_t4(uint32_t inst) {
 	return b(0xf, imm32);
 }
 
-void bl_blx(uint32_t pc, uint8_t targetInstrSet, uint32_t imm32) {
+static void bl_blx(uint32_t pc, uint8_t targetInstrSet, uint32_t imm32) {
 	uint32_t lr;
 	DBG2("pc %08x targetInstrSet %x imm32 %d 0x%08x\n",
 			pc, targetInstrSet, imm32, imm32);
@@ -185,7 +145,7 @@ void bl_blx(uint32_t pc, uint8_t targetInstrSet, uint32_t imm32) {
 	BranchWritePC(targetAddress);
 }
 
-void bl_t1(uint32_t inst) {
+static void bl_t1(uint32_t inst) {
 	// top 5 bits fixed
 	uint8_t  S = !!(inst & 0x04000000);
 	int imm10 =    (inst & 0x03ff0000) >> 16;
@@ -218,7 +178,7 @@ void bl_t1(uint32_t inst) {
 	return bl_blx(CORE_reg_read(PC_REG), GET_ISETSTATE, imm32);
 }
 
-void bl_t2(uint32_t inst) {
+static void bl_t2(uint32_t inst) {
 	// top 5 bits fixed
 	uint8_t  S = !!(inst & 0x04000000);
 	int imm10H =   (inst & 0x03ff0000) >> 16;
@@ -254,13 +214,13 @@ void bl_t2(uint32_t inst) {
 	return bl_blx(CORE_reg_read(PC_REG), INST_SET_ARM, imm32);
 }
 
-void bx(uint8_t rm) {
+static void bx(uint8_t rm) {
 	BXWritePC(CORE_reg_read(rm));
 
 	DBG2("bx happened\n");
 }
 
-void bx_t1(uint32_t inst) {
+static void bx_t1(uint32_t inst) {
 	uint8_t rm = (inst & 0x78) >> 3;
 
 	if (in_ITblock() && !last_in_ITblock())
@@ -269,7 +229,7 @@ void bx_t1(uint32_t inst) {
 	return bx(rm);
 }
 
-void tbb(uint8_t rn, uint8_t rm, bool is_tbh) {
+static void tbb(uint8_t rn, uint8_t rm, bool is_tbh) {
 	uint32_t rn_val = CORE_reg_read(rn);
 	uint32_t rm_val = CORE_reg_read(rm);
 
@@ -282,7 +242,7 @@ void tbb(uint8_t rn, uint8_t rm, bool is_tbh) {
 	BranchWritePC(CORE_reg_read(PC_REG) + 2*halfwords);
 }
 
-void tbb_t1(uint32_t inst) {
+static void tbb_t1(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	bool H = !!(inst & 0x10);
 	uint8_t rn = (inst >> 16) & 0xf;

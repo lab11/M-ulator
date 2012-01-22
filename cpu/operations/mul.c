@@ -4,7 +4,7 @@
 #include "../cpu.h"
 #include "../misc.h"
 
-void mla(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t ra) {
+static void mla(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t ra) {
 	uint32_t rn_val = CORE_reg_read(rn);
 	uint32_t rm_val = CORE_reg_read(rm);
 	uint32_t ra_val = CORE_reg_read(ra);
@@ -17,7 +17,7 @@ void mla(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t ra) {
 	CORE_reg_write(rd, result & 0xffffffff);
 }
 
-void mla_t1(uint32_t inst) {
+static void mla_t1(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t rd = (inst >> 8) & 0xf;
 	uint8_t ra = (inst >> 12) & 0xf;
@@ -29,7 +29,7 @@ void mla_t1(uint32_t inst) {
 	return mla(rd, rn, rm, ra);
 }
 
-void mls(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t ra) {
+static void mls(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t ra) {
 	uint32_t rn_val = CORE_reg_read(rn);
 	uint32_t rm_val = CORE_reg_read(rm);
 	uint32_t ra_val = CORE_reg_read(ra);
@@ -41,7 +41,7 @@ void mls(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t ra) {
 	CORE_reg_write(rd, result);
 }
 
-void mls_t1(uint32_t inst) {
+static void mls_t1(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t rd = (inst >> 8) & 0xf;
 	uint8_t ra = (inst >> 12) & 0xf;
@@ -53,7 +53,7 @@ void mls_t1(uint32_t inst) {
 	return mls(rd, rn, rm, ra);
 }
 
-void mul(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm) {
+static void mul(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm) {
 	uint32_t result;
 
 	result = CORE_reg_read(rn) * CORE_reg_read(rm);
@@ -71,7 +71,7 @@ void mul(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm) {
 	}
 }
 
-void mul_t1(uint32_t inst) {
+static void mul_t1(uint32_t inst) {
 	uint8_t rdm = inst & 0x7;
 	uint8_t rn = inst & 0x7;
 
@@ -80,7 +80,7 @@ void mul_t1(uint32_t inst) {
 	return mul(setflags, rdm, rn, rdm);
 }
 
-void mul_t2(uint32_t inst) {
+static void mul_t2(uint32_t inst) {
 	uint8_t rm = (inst & 0xf);
 	uint8_t rd = (inst & 0xf00) >> 8;
 	uint8_t rn = (inst & 0xf0000) >> 16;
@@ -92,7 +92,7 @@ void mul_t2(uint32_t inst) {
 	return mul(false, rd, rn, rm);
 }
 
-void smull(uint8_t rdlo, uint8_t rdhi, uint8_t rn, uint8_t rm, bool setflags) {
+static void smull(uint8_t rdlo, uint8_t rdhi, uint8_t rn, uint8_t rm, bool setflags) {
 	assert(setflags == false);
 
 	int64_t rn_val = CORE_reg_read(rn);
@@ -103,7 +103,7 @@ void smull(uint8_t rdlo, uint8_t rdhi, uint8_t rn, uint8_t rm, bool setflags) {
 	CORE_reg_write(rdlo, result & 0xffffffff);
 }
 
-void smull_t1(uint32_t inst) {
+static void smull_t1(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t rdhi = (inst >> 8) & 0xf;
 	uint8_t rdlo = (inst >> 12) & 0xf;
@@ -120,7 +120,7 @@ void smull_t1(uint32_t inst) {
 	return smull(rdlo, rdhi, rn, rm, setflags);
 }
 
-void umull(uint8_t rdlo, uint8_t rdhi, uint8_t rn, uint8_t rm, bool setflags) {
+static void umull(uint8_t rdlo, uint8_t rdhi, uint8_t rn, uint8_t rm, bool setflags) {
 	assert(setflags == false);
 
 	uint64_t rn_val = CORE_reg_read(rn);
@@ -131,7 +131,7 @@ void umull(uint8_t rdlo, uint8_t rdhi, uint8_t rn, uint8_t rm, bool setflags) {
 	CORE_reg_write(rdlo, result & 0xffffffff);
 }
 
-void umull_t1(uint32_t inst) {
+static void umull_t1(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t rdhi = (inst >> 8) & 0xf;
 	uint8_t rdlo = (inst >> 12) & 0xf;

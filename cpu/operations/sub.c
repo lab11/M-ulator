@@ -4,7 +4,7 @@
 #include "../cpu.h"
 #include "../misc.h"
 
-void rsb_reg(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
+static void rsb_reg(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n) {
 	uint32_t rm_val = CORE_reg_read(rm);
 	uint32_t shifted = Shift(rm_val, 32, shift_t, shift_n, !!(cpsr & xPSR_C));
 
@@ -30,7 +30,7 @@ void rsb_reg(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm
 	DBG2("rsb_reg done\n");
 }
 
-void rsb_reg_t1(uint32_t inst) {
+static void rsb_reg_t1(uint32_t inst) {
 	uint32_t cpsr = CORE_cpsr_read();
 
 	uint8_t rm = inst & 0xf;
@@ -54,7 +54,7 @@ void rsb_reg_t1(uint32_t inst) {
 	return rsb_reg(cpsr, setflags, rd, rn, rm, shift_t, shift_n);
 }
 
-void sbc(uint32_t inst) {
+static void sbc(uint32_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -75,7 +75,7 @@ void sbc(uint32_t inst) {
 	DBG2("sbc r%02d, r%02d\n", rd, rm);
 }
 
-void sub1(uint32_t inst) {
+static void sub1(uint32_t inst) {
 	uint8_t immed3 = (inst & 0x1c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -97,7 +97,7 @@ void sub1(uint32_t inst) {
 	DBG2("sub1 %02d, %02d, #%d\n", rd, rn, immed3);
 }
 
-void sub2(uint32_t inst) {
+static void sub2(uint32_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
 	uint8_t immed8 = inst & 0xff;
 
@@ -116,7 +116,7 @@ void sub2(uint32_t inst) {
 	DBG2("sub2 %02d, #%d\n", rd, immed8);
 }
 
-void sub3(uint32_t inst) {
+static void sub3(uint32_t inst) {
 	uint8_t rm = (inst & 0x1c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -138,7 +138,7 @@ void sub3(uint32_t inst) {
 	DBG2("sub3, r%02d = r%02d - r%02d\n", rd, rn, rm);
 }
 
-void sub4(uint32_t inst) {
+static void sub4(uint32_t inst) {
 	uint16_t immed7 = inst & 0x7f;
 
 	uint32_t sp = CORE_reg_read(SP_REG);
@@ -148,7 +148,7 @@ void sub4(uint32_t inst) {
 	DBG2("sub4, sp, #%d*4\t; 0x%x*4\n", immed7, immed7);
 }
 
-void sub_imm(bool setflags, uint8_t rd, uint8_t rn, uint32_t imm32) {
+static void sub_imm(bool setflags, uint8_t rd, uint8_t rn, uint32_t imm32) {
 	bool carry;
 	bool overflow;
 	uint32_t result;
@@ -170,7 +170,7 @@ void sub_imm(bool setflags, uint8_t rd, uint8_t rn, uint32_t imm32) {
 	DBG2("sub_imm ran\n");
 }
 
-void sub_imm_t3(uint32_t inst) {
+static void sub_imm_t3(uint32_t inst) {
 	uint8_t imm8 = (inst & 0xff);
 	uint8_t rd = (inst & 0xf00) >> 8;
 	uint8_t imm3 = (inst & 0x7000) >> 12;
@@ -187,7 +187,8 @@ void sub_imm_t3(uint32_t inst) {
 	return sub_imm(S, rd, rn, imm32);
 }
 
-void sub_reg(uint8_t rd, uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n, bool setflags) {
+static void sub_reg(uint8_t rd, uint8_t rn, uint8_t rm,
+		enum SRType shift_t, uint8_t shift_n, bool setflags) {
 	uint32_t rn_val = CORE_reg_read(rn);
 	uint32_t rm_val = CORE_reg_read(rm);
 	uint32_t cpsr = CORE_cpsr_read();
@@ -208,7 +209,7 @@ void sub_reg(uint8_t rd, uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t sh
 	}
 }
 
-void sub_reg_t2(uint32_t inst) {
+static void sub_reg_t2(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t type = (inst >> 4) & 0x3;
 	uint8_t imm2 = (inst >> 6) & 0x3;
@@ -229,7 +230,7 @@ void sub_reg_t2(uint32_t inst) {
 	return sub_reg(rd, rn, rm, shift_t, shift_n, setflags);
 }
 
-void sub_sp_imm(uint8_t rd, uint32_t imm32, bool setflags) {
+static void sub_sp_imm(uint8_t rd, uint32_t imm32, bool setflags) {
 	uint32_t sp_val = CORE_reg_read(SP_REG);
 
 	uint32_t result;
@@ -246,7 +247,7 @@ void sub_sp_imm(uint8_t rd, uint32_t imm32, bool setflags) {
 	}
 }
 
-void sub_sp_imm_t2(uint32_t inst) {
+static void sub_sp_imm_t2(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst >> 8) & 0xf;
 	uint8_t imm3 = (inst >> 12) & 0x7;
