@@ -59,7 +59,7 @@ void gdb_init(int port) {
 	int len;
 	msg = gdb_get_message(&len);
 
-	printf("Got msg >>>%s<<<, len %d, strlen %zd\n", msg, len, strlen(msg));
+	DBG2("Got msg >>>%s<<<, len %d, strlen %zd\n", msg, len, strlen(msg));
 
 	// Respond with out message
 	char *resp;
@@ -141,7 +141,7 @@ char* gdb_get_message(int *ext_len) {
 		send(sock, "+", 1, 0);
 	}
 
-	printf("Got message >>>%s<<<, len %d, my_csum %2x\n", buf, len+2, csum);
+	DBG2("Got message >>>%s<<<, len %d, my_csum %2x\n", buf, len+2, csum);
 
 	if (NULL != ext_len)
 		*ext_len = len - 2; // omit $ and #
@@ -152,7 +152,10 @@ char* gdb_get_message(int *ext_len) {
 }
 
 static void _gdb_send(const char c) {
+#ifdef DEBUG2
 	static int csum = 0;
+	flockfile(stdout);
+	printf(PP_STRING" I: ");
 	if (c == '$') {
 		printf("Sending: >$");
 		csum = 0;
@@ -171,6 +174,8 @@ static void _gdb_send(const char c) {
 	} else {
 		printf("%c", c);
 	}
+	funlockfile(stdout);
+#endif
 
 	int ret = send(sock, &c, 1, 0);
 	if (ret != 1) {
@@ -231,7 +236,7 @@ static bool _wait_for_gdb(void) {
 	// In general, the empty response is allowed for unknown messages. For now,
 	// we try to explicitly identify the messages we don't recognize, and bail
 	// out on completely new ones.
-	printf("Waiting for a message from gdb...\n");
+	DBG1("Waiting for a message from gdb...\n");
 	int cmd_len;
 	char *cmd = gdb_get_message(&cmd_len);
 
@@ -292,7 +297,7 @@ static bool _wait_for_gdb(void) {
 				memcpy(buf, cmd, 8);
 				cmd += 8;
 				CORE_reg_write(i, ntohl(strtol(buf, NULL, 16)));
-				printf("Set r%02d=%08x\n",
+				DBG2("Set r%02d=%08x\n",
 						i, ntohl(strtol(buf, NULL, 16)));
 			}
 			gdb_send_message("OK");
@@ -333,7 +338,7 @@ static bool _wait_for_gdb(void) {
 			int len = strtol(length, NULL, 16);
 			int resp_len = len * 2 + 1;
 
-			printf("addr %d (%s) len %d (%s)\n", addr, address, len, length);
+			DBG2("addr %d (%s) len %d (%s)\n", addr, address, len, length);
 			{
 				char buf[resp_len];
 				char *head = buf;
@@ -379,7 +384,7 @@ static bool _wait_for_gdb(void) {
 				buf[1] = bytes[1];
 				uint8_t val = strtol(buf, NULL, 16);
 				write_byte(addr, val);
-				printf("0x%x=0x%02x\n", addr, val);
+				DBG2("0x%x=0x%02x\n", addr, val);
 				addr++;
 				bytes += 2;
 				len--;
@@ -455,9 +460,9 @@ void wait_for_gdb(void) {
 }
 
 void stop_and_wait_for_gdb(void) {
-	printf("breaking to wait for gdb\n");
+	DBG1("breaking to wait for gdb\n");
 	gdb_send_message("S05");
 	wait_for_gdb();
-	printf("done waiting for gdb\n");
+	DBG1("done waiting for gdb\n");
 	fflush(stdout);
 }
