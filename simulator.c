@@ -1388,22 +1388,11 @@ static int _register_opcode_mask(uint32_t ones_mask, uint32_t zeros_mask,
 		ops = o;
 	}
 
-	va_end(va_args);
-
 	return ++opcode_masks;
 }
 
-int register_opcode_mask_ex_real(uint32_t ones_mask, uint32_t zeros_mask,
-		void (*fn) (uint32_t), const char* fn_name, ...) {
-
-	va_list va_args;
-	va_start(va_args, fn_name);
-
-	if ((zeros_mask & 0xffff0000) == 0) {
-		WARN("%s registered zeros_mask requiring none of the top 4 bytes\n",
-				fn_name);
-		WARN("This is __probably__ an error, you should verify this\n");
-	}
+static int register_opcode_mask_ex(uint32_t ones_mask, uint32_t zeros_mask,
+		void (*fn) (uint32_t), const char* fn_name, va_list va_args) {
 
 	if (NULL == ops) {
 		// first registration
@@ -1434,10 +1423,54 @@ int register_opcode_mask_ex_real(uint32_t ones_mask, uint32_t zeros_mask,
 	return _register_opcode_mask(ones_mask, zeros_mask, fn, fn_name, va_args);
 }
 
-int register_opcode_mask_real(uint32_t ones_mask, uint32_t zeros_mask,
-		void (*fn) (uint32_t), const char* fn_name) {
-	return register_opcode_mask_ex_real(ones_mask, zeros_mask,
+EXPORT int register_opcode_mask_16_ex_real(uint16_t ones_mask, uint16_t zeros_mask,
+		void (*fn) (uint16_t), const char *fn_name, ...) {
+	// XXX: Non-portable, but a function taking a single 16-bit argument
+	// should be passed in a register, so calling the 32-bit version will
+	// work for now
+
+	va_list va_args;
+	va_start(va_args, fn_name);
+
+	int ret;
+
+	ret = register_opcode_mask_ex(ones_mask, 0xffff0000 | zeros_mask,
+			(void (*) (uint32_t)) fn, fn_name, va_args);
+
+	va_end(va_args);
+
+	return ret;
+}
+
+EXPORT int register_opcode_mask_16_real(uint16_t ones_mask, uint16_t zeros_mask,
+		void (*fn) (uint16_t), const char* fn_name) {
+	return register_opcode_mask_16_ex_real(ones_mask, zeros_mask,
 			fn, fn_name, 0, 0);
+}
+
+EXPORT int register_opcode_mask_32_ex_real(uint32_t ones_mask, uint32_t zeros_mask,
+		void (*fn) (uint32_t), const char* fn_name, ...) {
+
+	if ((zeros_mask & 0xffff0000) == 0) {
+		WARN("%s registered zeros_mask requiring none of the top 4 bytes\n",
+				fn_name);
+		ERR(E_BAD_OPCODE, "Use register_opcode_mask_16 instead");
+	}
+
+	va_list va_args;
+	va_start(va_args, fn_name);
+
+	int ret;
+	ret = register_opcode_mask_ex(ones_mask, zeros_mask, fn, fn_name, va_args);
+
+	va_end(va_args);
+
+	return ret;
+}
+
+EXPORT int register_opcode_mask_32_real(uint32_t ones_mask, uint32_t zeros_mask,
+		void (*fn) (uint32_t), const char *fn_name) {
+	return register_opcode_mask_32_ex_real(ones_mask, zeros_mask, fn, fn_name, 0, 0);
 }
 
 static int sim_execute(void) {

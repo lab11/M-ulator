@@ -32,7 +32,7 @@ static void cmn_imm_t1(uint32_t inst) {
 	return cmn_imm(rn, imm32);
 }
 
-static void cmp1(uint32_t inst) {
+static void cmp1(uint16_t inst) {
 	uint8_t rn = (inst & 0x700) >> 8;
 	uint32_t immed_8 = inst & 0xff;
 
@@ -48,7 +48,7 @@ static void cmp1(uint32_t inst) {
 	DBG2("cmp r%02d, #%d\t; 0x%x\n", rn, immed_8, immed_8);
 }
 
-static void cmp2(uint32_t inst) {
+static void cmp2(uint16_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rn = (inst & 0x7) >> 0;
 
@@ -81,7 +81,7 @@ static void cmp_reg(uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n
 	CORE_cpsr_write(cpsr);
 }
 
-static void cmp_reg_t2(uint32_t inst) {
+static void cmp_reg_t2(uint16_t inst) {
 	uint8_t rn = inst & 0x7;
 	uint8_t rm = (inst >> 3) & 0xf;
 	bool N = (inst >> 7) & 0x1;
@@ -138,17 +138,17 @@ static void cmp_imm_t2(uint32_t inst) {
 
 void register_opcodes_cmp(void) {
 	// cmn_imm_t1: 1111 0x01 0001 xxxx 0xxx 1111 xxxx xxxx
-	register_opcode_mask(0xf1100f00, 0x0ae08000, cmn_imm_t1);
+	register_opcode_mask_32(0xf1100f00, 0x0ae08000, cmn_imm_t1);
 
 	// cmp1: 0010 1<x's>
-	register_opcode_mask(0x2800, 0xffffd000, cmp1);
+	register_opcode_mask_16(0x2800, 0xd000, cmp1);
 
 	// cmp2: 0100 0010 10<x's>
-	register_opcode_mask(0x4280, 0xffffbd40, cmp2);
+	register_opcode_mask_16(0x4280, 0xbd40, cmp2);
 
 	// cmp_reg_t2: 0100 0101 xxxx xxxx
-	register_opcode_mask(0x4500, 0xffffba00, cmp_reg_t2);
+	register_opcode_mask_16(0x4500, 0xba00, cmp_reg_t2);
 
 	// 1111 0x01 1011 xxxx 0xxx 1111 xxxx xxxx
-	register_opcode_mask(0xf1b00f00, 0x0a408000, cmp_imm_t2);
+	register_opcode_mask_32(0xf1b00f00, 0x0a408000, cmp_imm_t2);
 }

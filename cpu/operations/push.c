@@ -4,7 +4,7 @@
 #include "../cpu.h"
 #include "../core.h"
 
-static void push_v6(uint32_t inst) {
+static void push_v6(uint16_t inst) {
 	uint32_t sp = CORE_reg_read(SP_REG);
 
 	int hamming = 0;
@@ -84,11 +84,11 @@ static void push_t3(uint32_t inst) {
 
 void register_opcodes_push(void) {
 	// 1011 010x <x's>
-	register_opcode_mask(0xb400, 0xffff4a00, push_v6);
+	register_opcode_mask_16(0xb400, 0x4a00, push_v6);
 
 	// 1110 1001 0010 1101 0x0x xxxx xxxx xxxx
-	register_opcode_mask(0xe92d0000, 0x16d2a000, push_t2);
+	register_opcode_mask_32(0xe92d0000, 0x16d2a000, push_t2);
 
 	// 1111 1000 0100 1101 xxxx 1101 0000 0100 (t3)
-	register_opcode_mask(0xf84d0d04, 0x07b202fb, push_t3);
+	register_opcode_mask_32(0xf84d0d04, 0x07b202fb, push_t3);
 }

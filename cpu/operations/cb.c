@@ -11,7 +11,7 @@ static void cbz(bool nonzero, uint8_t rn, uint32_t imm32) {
 		BranchWritePC(CORE_reg_read(PC_REG) + imm32);
 }
 
-static void cbz_t1(uint32_t inst) {
+static void cbz_t1(uint16_t inst) {
 	uint8_t rn = (inst & 0x7);
 	uint8_t imm5 = (inst >> 3) & 0x1f;
 	bool i = (inst >> 9) & 0x1;
@@ -27,5 +27,5 @@ static void cbz_t1(uint32_t inst) {
 
 void register_opcodes_cb(void) {
 	// cb{N}Z: 1011 x0x1 <x's>
-	register_opcode_mask(0xb100, 0xffff4400, cbz_t1);
+	register_opcode_mask_16(0xb100, 0x4400, cbz_t1);
 }

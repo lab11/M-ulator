@@ -4,7 +4,7 @@
 #include "../cpu.h"
 #include "../misc.h"
 
-static void lsl1(uint32_t inst) {
+static void lsl1(uint16_t inst) {
 	uint8_t immed5 = (inst & 0x7c0) >> 6;
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -34,7 +34,7 @@ static void lsl1(uint32_t inst) {
 	DBG2("lsls r%02d, r%02d, #%d\n", rd, rm, immed5);
 }
 
-static void lsl2(uint32_t inst) {
+static void lsl2(uint16_t inst) {
 	uint8_t rs = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -66,7 +66,7 @@ static void lsl2(uint32_t inst) {
 	DBG2("lsl2 r%02d, r%02d\n", rd, rs);
 }
 
-static void lsr1(uint32_t inst) {
+static void lsr1(uint16_t inst) {
 	uint8_t immed5 = (inst & 0x7c0) >> 6;
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -197,24 +197,26 @@ static void ror_imm_t1(uint32_t inst) {
 
 void register_opcodes_shift(void) {
 	// lsl1: 0000 0<x's>
-	register_opcode_mask_ex(0x0000, 0xfffff800, lsl1,
+	register_opcode_mask_16_ex(0x0000, 0xf800, lsl1,
 			0x0, 0x07c0, 0, 0);
 
 	// lsl2: 0100 0000 10 <x's>
-	register_opcode_mask(0x4080, 0xffffbf40, lsl2);
+	register_opcode_mask_16(0x4080, 0xbf40, lsl2);
 
 	// lsr1: 0000 1<x's>
-	register_opcode_mask(0x0800, 0xfffff000, lsr1);
+	register_opcode_mask_16(0x0800, 0xf000, lsr1);
 
 	// asr_imm_t2: 1110 1010 010x 1111 0xxx xxxx xx10 xxxx
-	register_opcode_mask(0xea4f0020, 0x15a08010, asr_imm_t2);
+	register_opcode_mask_32(0xea4f0020, 0x15a08010, asr_imm_t2);
 
 	// lsl_imm_t2: 1110 1010 010x 1111 0xxx xxxx xx00 xxxx
-	register_opcode_mask(0xea4f0000, 0x15a08030, lsl_imm_t2);
+	register_opcode_mask_32(0xea4f0000, 0x15a08030, lsl_imm_t2);
 
 	// lsr_imm_t2: 1110 1010 010x 1111 0xxx xxxx xx01 xxxx
-	register_opcode_mask(0xea4f0010, 0x15a08020, lsr_imm_t2);
+	register_opcode_mask_32(0xea4f0010, 0x15a08020, lsr_imm_t2);
 
 	// ror_imm_t1: 1110 1010 010x 1111 0xxx xxxx xx11 xxxx
-	register_opcode_mask_ex(0xea4f0030, 0x15a08000, ror_imm_t1, 0x0, 0x70c0, 0, 0);
+	register_opcode_mask_32_ex(0xea4f0030, 0x15a08000, ror_imm_t1,
+			0x0, 0x70c0,
+			0, 0);
 }

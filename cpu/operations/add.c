@@ -4,7 +4,7 @@
 #include "../cpu.h"
 #include "../misc.h"
 
-static void adc(uint32_t inst) {
+static void adc(uint16_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -57,7 +57,7 @@ static void adc_imm_t1(uint32_t inst) {
 	return adc_imm(rd, rn, imm32, setflags);
 }
 
-static void add1(uint32_t inst) {
+static void add1(uint16_t inst) {
 	uint32_t immed3 = (inst & 0x1c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -78,7 +78,7 @@ static void add1(uint32_t inst) {
 	DBG2("add1 r%02d = r%02d + %d\n", rd, rn, immed3);
 }
 
-static void add2(uint32_t inst) {
+static void add2(uint16_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
 	uint8_t immed8 = (inst & 0xff);
 
@@ -97,7 +97,7 @@ static void add2(uint32_t inst) {
 	DBG2("add2 r%02d, #%d\t; 0x%x\n", rd, immed8, immed8);
 }
 
-static void add3(uint32_t inst) {
+static void add3(uint16_t inst) {
 	uint8_t rm = (inst & 0x1c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -118,7 +118,7 @@ static void add3(uint32_t inst) {
 	DBG2("add3 r%02d, r%02d, r%02d\n", rd, rn, rm);
 }
 
-static void add6(uint32_t inst) {
+static void add6(uint16_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
 	uint8_t immed8 = (inst & 0xff);
 
@@ -129,7 +129,7 @@ static void add6(uint32_t inst) {
 	DBG2("add6 r%02d, SP, #%d*4\n", rd, immed8);
 }
 
-static void add7(uint32_t inst) {
+static void add7(uint16_t inst) {
 	uint32_t immed7 = inst & 0x7f;
 
 	uint32_t sp = CORE_reg_read(SP_REG);
@@ -213,7 +213,7 @@ static void add_reg(uint8_t rn, uint8_t rm, uint8_t rd, enum SRType shift_t, uin
 	DBG2("add_reg r%02d = 0x%08x\n", rd, result);
 }
 
-static void add_reg_t2(uint32_t inst) {
+static void add_reg_t2(uint16_t inst) {
 	uint8_t rm = (inst & 0x78) >> 3;
 	uint8_t rd = (((inst & 0x80) >> 7) | ((inst & 0x7) >> 0));
 
@@ -311,41 +311,41 @@ static void add_sp_plus_imm_t4(uint32_t inst) {
 
 void register_opcodes_add(void) {
 	// adc: 0100 0001 01<x's>
-	register_opcode_mask(0x4140, 0xffffbe80, adc);
+	register_opcode_mask_16(0x4140, 0xbe80, adc);
 
 	// adc_imm_t1: 1111 0x01 010x xxxx 0xxx xxxx xxxx xxxx
-	register_opcode_mask(0xf1400000, 0x0aa08000, adc_imm_t1);
+	register_opcode_mask_32(0xf1400000, 0x0aa08000, adc_imm_t1);
 
 	// add1: 0001 110x xxxx xxxx
-	register_opcode_mask(0x1c00, 0xffffe200, add1);
+	register_opcode_mask_16(0x1c00, 0xe200, add1);
 
 	// add2: 0011 0<x's>
-	register_opcode_mask(0x3000, 0xffffc800, add2);
+	register_opcode_mask_16(0x3000, 0xc800, add2);
 
 	// add3: 0001 100<x's>
-	register_opcode_mask(0x1800, 0xffffe600, add3);
+	register_opcode_mask_16(0x1800, 0xe600, add3);
 
 	// add6: 1010 1<s's>
-	register_opcode_mask(0xa800, 0xffff5000, add6);
+	register_opcode_mask_16(0xa800, 0x5000, add6);
 
 	// add7: 1011 0000 0<x's>
-	register_opcode_mask(0xb000, 0xffff4f80, add7);
+	register_opcode_mask_16(0xb000, 0x4f80, add7);
 
 	// add_imm_t3: 1111 0x01 000x xxxx 0<x's>
-	register_opcode_mask_ex(0xf1000000, 0x0ae08000, add_imm_t3,
+	register_opcode_mask_32_ex(0xf1000000, 0x0ae08000, add_imm_t3,
 			0x100f00, 0x0,
 			0xd0000, 0x20000,
 			0, 0);
 
 	// add_reg_t2: 0100 0100 <x's>
-	register_opcode_mask(0x4400, 0xffffbb00, add_reg_t2);
+	register_opcode_mask_16(0x4400, 0xbb00, add_reg_t2);
 
 	// add_reg_t3: 1110 1011 000x xxxx 0<x's>
-	register_opcode_mask_ex(0xeb000000, 0x14e08000, add_reg_t3, 0x100f00, 0x0, 0xd0000, 0x20000, 0, 0);
+	register_opcode_mask_32_ex(0xeb000000, 0x14e08000, add_reg_t3, 0x100f00, 0x0, 0xd0000, 0x20000, 0, 0);
 
 	// add_sp_plus_imm_t3: 1111 0x01 000x 1101 0<x's>
-	register_opcode_mask_ex(0xf10d0000, 0x0ae28000, add_sp_plus_imm_t3, 0x100f00, 0x0, 0, 0);
+	register_opcode_mask_32_ex(0xf10d0000, 0x0ae28000, add_sp_plus_imm_t3, 0x100f00, 0x0, 0, 0);
 
 	// add_sp_plus_imm_t4: 1111 0x10 0000 1101 0<x's>
-	register_opcode_mask(0xf20d0000, 0x09f28000, add_sp_plus_imm_t4);
+	register_opcode_mask_32(0xf20d0000, 0x09f28000, add_sp_plus_imm_t4);
 }

@@ -81,8 +81,10 @@ static void stm_t2(uint32_t inst) {
 void register_opcodes_strm(void) {
 	// 1110 1001 00x0 xxxx 0x0x xxxx xxxx xxxx
 	//             1  1101
-	register_opcode_mask_ex(0xe9000000, 0x16d0a000, stmdb_t1, 0x002d0000, 0x00020000, 0, 0);
+	register_opcode_mask_32_ex(0xe9000000, 0x16d0a000, stmdb_t1,
+			0x002d0000, 0x00020000,
+			0, 0);
 
 	// stm{ia,ea}_t2: 1110 1000 10x0 xxxx 0x0x xxxx xxxx xxxx
-	register_opcode_mask(0xe8800000, 0x1750a000, stm_t2);
+	register_opcode_mask_32(0xe8800000, 0x1750a000, stm_t2);
 }

@@ -44,7 +44,7 @@ static void b(uint8_t cond, uint32_t imm32) {
 	}
 }
 
-static void b_t1(uint32_t inst) {
+static void b_t1(uint16_t inst) {
 	uint8_t imm8 = (inst & 0xff);
 	uint8_t cond = (inst & 0xf00) >> 8;
 
@@ -62,7 +62,7 @@ static void b_t1(uint32_t inst) {
 	return b(cond, imm32);
 }
 
-static void b_t2(uint32_t inst) {
+static void b_t2(uint16_t inst) {
 	uint16_t imm11 = (inst & 0x7ff);
 
 	uint32_t imm32 = SignExtend(imm11 << 1, 12);
@@ -220,7 +220,7 @@ static void bx(uint8_t rm) {
 	DBG2("bx happened\n");
 }
 
-static void bx_t1(uint32_t inst) {
+static void bx_t1(uint16_t inst) {
 	uint8_t rm = (inst & 0x78) >> 3;
 
 	if (in_ITblock() && !last_in_ITblock())
@@ -261,29 +261,29 @@ static void tbb_t1(uint32_t inst) {
 void register_opcodes_branch(void) {
 	// b_t1: 1101 <x's>
 	//   ex: xxxx 1111 <x's>
-	register_opcode_mask_ex(0xd000, 0xffff2000, b_t1,
+	register_opcode_mask_16_ex(0xd000, 0x2000, b_t1,
 			0x0e00, 0x100,
 			0x0f00, 0x0,
 			0, 0);
 
 	// b_t2: 1110 0<x's>
-	register_opcode_mask(0xe000, 0xffff1800, b_t2);
+	register_opcode_mask_16(0xe000, 0x1800, b_t2);
 
 	// b_t3: 1111 0xxx xxxx xxxx 10x0 <x's>
-	register_opcode_mask(0xf0008000, 0x08005000, b_t3);
+	register_opcode_mask_32(0xf0008000, 0x08005000, b_t3);
 
 	// b_t4: 1111 0xxx xxxx xxxx 10x1 xxxx xxxx xxxx
-	register_opcode_mask(0xf0009000, 0x08004000, b_t4);
+	register_opcode_mask_32(0xf0009000, 0x08004000, b_t4);
 
 	// bl_t1: 1111 0xxx xxxx xxxx 11x1 <x's>
-	register_opcode_mask(0xf000d000, 0x08000000, bl_t1);
+	register_opcode_mask_32(0xf000d000, 0x08000000, bl_t1);
 
 	// bl_t2: 1111 0xxx xxxx xxxx 11x0 <x's>
-	register_opcode_mask(0xf000c000, 0x08001000, bl_t2);
+	register_opcode_mask_32(0xf000c000, 0x08001000, bl_t2);
 
 	// bx_t1: 0100 0111 0xxx x000
-	register_opcode_mask(0x4700, 0xffffb887, bx_t1);
+	register_opcode_mask_16(0x4700, 0xb887, bx_t1);
 
 	// tbb_t1: 1110 1000 1101 xxxx 1111 0000 000x xxxx
-	register_opcode_mask(0xe8d0f000, 0x17200fe0, tbb_t1);
+	register_opcode_mask_32(0xe8d0f000, 0x17200fe0, tbb_t1);
 }

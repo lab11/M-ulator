@@ -4,7 +4,7 @@
 #include "../cpu.h"
 #include "../core.h"
 
-static void str1(uint32_t inst) {
+static void str1(uint16_t inst) {
 	uint8_t immed5 = (inst & 0x7c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -22,7 +22,7 @@ static void str1(uint32_t inst) {
 			rd, rn, immed5, address, rd_val);
 }
 
-static void str3(uint32_t inst) {
+static void str3(uint16_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
 	uint16_t immed8 = inst & 0xff;
 
@@ -111,7 +111,7 @@ static void str_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 	write_word(address, data);
 }
 
-static void str_reg_t1(uint32_t inst) {
+static void str_reg_t1(uint16_t inst) {
 	uint8_t rt = inst & 0x7;
 	uint8_t rn = (inst >> 3) & 0x7;
 	uint8_t rm = (inst >> 6) & 0x7;
@@ -169,7 +169,7 @@ static void strb_imm(uint8_t rt, uint8_t rn, uint32_t imm32,
 	DBG2("strb_imm ran\n");
 }
 
-static void strb_imm_t1(uint32_t inst) {
+static void strb_imm_t1(uint16_t inst) {
 	uint8_t rt = inst & 0x7;
 	uint8_t rn = (inst >> 3) & 0x7;
 	uint8_t imm5 = (inst >> 6) & 0x1f;
@@ -309,18 +309,18 @@ static void strh_imm_t2(uint32_t inst) {
 
 void register_opcodes_str(void) {
 	// str1: 0110 0<x's>
-	register_opcode_mask(0x6000, 0xffff9800, str1);
+	register_opcode_mask_16(0x6000, 0x9800, str1);
 
 	// str3: 1001 0<x's>
-	register_opcode_mask(0x9000, 0xffff6800, str3);
+	register_opcode_mask_16(0x9000, 0x6800, str3);
 
 	// str_imm_t3: 1111 1000 1100 xxxx xxxx xxxx xxxx xxxx
-	register_opcode_mask_ex(0xf8c00000, 0x07300000, str_imm_t3,
+	register_opcode_mask_32_ex(0xf8c00000, 0x07300000, str_imm_t3,
 			0xf0000, 0x0,
 			0, 0);
 
 	// str_imm_t4: 1111 1000 0100 xxxx xxxx 1xxx xxxx xxxx
-	register_opcode_mask_ex(0xf8400800, 0x07b00000, str_imm_t4,
+	register_opcode_mask_32_ex(0xf8400800, 0x07b00000, str_imm_t4,
 			0x600, 0x100,
 			0xd0500, 0x20200,
 			0xf0000, 0x0,
@@ -328,31 +328,31 @@ void register_opcodes_str(void) {
 			0, 0);
 
 	// str_reg_t1: 0101 000x xxxx xxxx
-	register_opcode_mask(0x5000, 0xffffae00, str_reg_t1);
+	register_opcode_mask_16(0x5000, 0xae00, str_reg_t1);
 
 	// str_reg_t2: 1111 1000 0100 xxxx xxxx 0000 00xx xxxx
-	register_opcode_mask_ex(0xf8400000, 0x07b00fc0, str_reg_t2,
+	register_opcode_mask_32_ex(0xf8400000, 0x07b00fc0, str_reg_t2,
 			0xf0000, 0x0,
 			0, 0);
 
 	// strb_imm_t1: 0111 0<x's>
-	register_opcode_mask(0x7000, 0xffff8800, strb_imm_t1);
+	register_opcode_mask_16(0x7000, 0x8800, strb_imm_t1);
 
 	// strb_imm_t2: 1111 1000 1000 <x's>
-	register_opcode_mask(0xf8800000, 0x07700000, strb_imm_t2);
+	register_opcode_mask_32(0xf8800000, 0x07700000, strb_imm_t2);
 
 	// strb_imm_t3: 1111 1000 0000 xxxx xxxx 1xxx xxxx xxxx
-	register_opcode_mask_ex(0xf8000800, 0x07f00000, strb_imm_t3,
+	register_opcode_mask_32_ex(0xf8000800, 0x07f00000, strb_imm_t3,
 			0x600, 0x100,
 			0xf0000, 0x0,
 			0x0, 0x500,
 			0, 0);
 
 	// strd_imm: 1110 100x x1x0 <x's>
-	register_opcode_mask(0xe8400000, 0x16100000, strd_imm);
+	register_opcode_mask_32(0xe8400000, 0x16100000, strd_imm);
 
 	// strh_imm_t2: 1111 1000 1010 <x's>
-	register_opcode_mask_ex(0xf8a00000, 0x07500000, strh_imm_t2,
+	register_opcode_mask_32_ex(0xf8a00000, 0x07500000, strh_imm_t2,
 			0x000f0000, 0x0,
 			0, 0);
 }

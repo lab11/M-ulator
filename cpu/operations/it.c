@@ -2,7 +2,7 @@
 
 #include "../misc.h"
 
-static void it(uint32_t inst) {
+static void it(uint16_t inst) {
 	uint8_t itstate = inst & 0xff;
 	write_itstate(itstate);
 
@@ -19,5 +19,5 @@ void register_opcodes_it(void) {
 	// The only instr we need to match now is bf03
 	//register_opcode_mask(0xbf03, 0xffff40fc, it);
 	// 1011 1111 <x's>
-	register_opcode_mask(0xbf00, 0xffff4000, it);
+	register_opcode_mask_16(0xbf00, 0x4000, it);
 }

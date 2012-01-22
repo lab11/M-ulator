@@ -5,7 +5,7 @@
 #include "../core.h"
 #include "../misc.h"
 
-static void ldr1(uint32_t inst) {
+static void ldr1(uint16_t inst) {
 	uint8_t immed5 = (inst & 0x7c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -23,7 +23,7 @@ static void ldr1(uint32_t inst) {
 	DBG2("ldr1 r%02d, [r%02d, #%d*4]\n", rd, rn, immed5);
 }
 
-static void ldr2(uint32_t inst) {
+static void ldr2(uint16_t inst) {
 	uint8_t rm = (inst & 0x1c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7);
@@ -39,7 +39,7 @@ static void ldr2(uint32_t inst) {
 	DBG2("ldr2 r%02d, [r%02d, r%02d]\n", rd, rn, rm);
 }
 
-static void ldr4(uint32_t inst) {
+static void ldr4(uint16_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
 	uint32_t immed8 = inst & 0xff;
 
@@ -206,7 +206,7 @@ static void ldr_lit(bool add, uint8_t rt, uint32_t imm32) {
 	DBG2("ldr_lit completed\n");
 }
 
-static void ldr_lit_t1(uint32_t inst) {
+static void ldr_lit_t1(uint16_t inst) {
 	uint32_t imm8 = inst & 0xff;
 	uint8_t rt = (inst & 0x700) >> 8;
 
@@ -228,7 +228,7 @@ static void ldr_lit_t2(uint32_t inst) {
 	return ldr_lit(U, rt, imm32);
 }
 
-static void ldrb1(uint32_t inst) {
+static void ldrb1(uint16_t inst) {
 	uint8_t immed5 = (inst & 0x7c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -320,7 +320,7 @@ static void ldrb_reg(uint8_t rt, uint8_t rn, uint8_t rm, enum SRType shift_t,
 	CORE_reg_write(rt, read_byte(address));
 }
 
-static void ldrb_reg_t1(uint32_t inst) {
+static void ldrb_reg_t1(uint16_t inst) {
 	uint8_t rt = inst & 0x7;
 	uint8_t rn = (inst >> 3) & 0x7;
 	uint8_t rm = (inst >> 6) & 0x7;
@@ -381,7 +381,7 @@ static void ldrsb_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 	CORE_reg_write(rt, signd);
 }
 
-static void ldrsb_reg_t1(uint32_t inst) {
+static void ldrsb_reg_t1(uint16_t inst) {
 	uint8_t rt = inst & 0x7;
 	uint8_t rn = (inst >> 3) & 0x7;
 	uint8_t rm = (inst >> 6) & 0x7;
@@ -442,21 +442,21 @@ static void ldrd_imm(uint32_t inst) {
 
 void register_opcodes_ld(void) {
 	// ldr1: 0110 1<x's>
-	register_opcode_mask(0x6800, 0xffff9000, ldr1);
+	register_opcode_mask_16(0x6800, 0x9000, ldr1);
 
 	// ldr2: 0101 100<x's>
-	register_opcode_mask(0x5800, 0xffffa600, ldr2);
+	register_opcode_mask_16(0x5800, 0xa600, ldr2);
 
 	// ldr4: 1001 1<x's>
-	register_opcode_mask(0x9800, 0xffff6000, ldr4);
+	register_opcode_mask_16(0x9800, 0x6000, ldr4);
 
 	// ldr_imm_t3: 1111 1000 1101 xxxx <x's>
 	//                            1111
-	register_opcode_mask_ex(0xf8d00000, 0x07200000, ldr_imm_t3,
+	register_opcode_mask_32_ex(0xf8d00000, 0x07200000, ldr_imm_t3,
 			0x000f0000, 0x0, 0, 0);
 
 	// ldr_imm_t4: 1111 1000 0101 xxxx xxxx 1xxx xxxx xxxx
-	register_opcode_mask_ex(0xf8500800, 0x07a00000, ldr_imm_t4,
+	register_opcode_mask_32_ex(0xf8500800, 0x07a00000, ldr_imm_t4,
 			0xf0000, 0x0,
 			0x600, 0x100,
 			0xd0304, 0x204fb,
@@ -464,33 +464,33 @@ void register_opcodes_ld(void) {
 			0, 0);
 
 	// ldr_reg_t2: 1111 1000 0101 xxxx xxxx 0000 00xx xxxx
-	register_opcode_mask_ex(0xf8500000, 0x07a00fc0, ldr_reg_t2,
+	register_opcode_mask_32_ex(0xf8500000, 0x07a00fc0, ldr_reg_t2,
 			0xf0000, 0x0, 0, 0);
 
 	// ldr_lit_t1: 0100 1<x's>
-	register_opcode_mask(0x4800, 0xffffb000, ldr_lit_t1);
+	register_opcode_mask_16(0x4800, 0xb000, ldr_lit_t1);
 
 	// ldr_lit_t2: 1111 1000 x101 1111 <x's>
-	register_opcode_mask(0xf85f0000, 0x07200000, ldr_lit_t2);
+	register_opcode_mask_32(0xf85f0000, 0x07200000, ldr_lit_t2);
 
 	// ldrb1: 0111 1<x's>
-	register_opcode_mask(0x7800, 0xffff8000, ldrb1);
+	register_opcode_mask_16(0x7800, 0x8000, ldrb1);
 
 	// ldrb_imm_t2: 1111 1000 1001 <x's>
-	register_opcode_mask_ex(0xf8900000, 0x07600000, ldrb_imm_t2, 0xf000, 0x0, 0xf0000, 0x0, 0, 0);
+	register_opcode_mask_32_ex(0xf8900000, 0x07600000, ldrb_imm_t2, 0xf000, 0x0, 0xf0000, 0x0, 0, 0);
 
 	// ldrb_imm_t3: 1111 1000 0001 xxxx xxxx 1xxx xxxx xxxx
-	register_opcode_mask_ex(0xf8100800, 0x07e00000, ldrb_imm_t3, 0xf400, 0x300, 0xf0000, 0x0, 0x600, 0x100, 0x0, 0x500, 0, 0);
+	register_opcode_mask_32_ex(0xf8100800, 0x07e00000, ldrb_imm_t3, 0xf400, 0x300, 0xf0000, 0x0, 0x600, 0x100, 0x0, 0x500, 0, 0);
 
 	// ldrb_reg_t1: 0101 110x xxxx xxxx
-	register_opcode_mask(0x5c00, 0xffffa200, ldrb_reg_t1);
+	register_opcode_mask_16(0x5c00, 0xa200, ldrb_reg_t1);
 
 	// ldrb_reg_t2: 1111 1000 0001 xxxx xxxx 0000 00xx xxxx
-	register_opcode_mask_ex(0xf8100000, 0x07e00fc0, ldrb_reg_t2, 0xf000, 0x0, 0xf0000, 0x0, 0, 0);
+	register_opcode_mask_32_ex(0xf8100000, 0x07e00fc0, ldrb_reg_t2, 0xf000, 0x0, 0xf0000, 0x0, 0, 0);
 
 	// ldrsb_reg_t1: 0101 011x xxxx xxxx
-	register_opcode_mask(0x5600, 0xffffa800, ldrsb_reg_t1);
+	register_opcode_mask_16(0x5600, 0xa800, ldrsb_reg_t1);
 
 	// ldrd_imm: 1110 100x x1x1 <x's>
-	register_opcode_mask_ex(0xe8500000, 0x16000000, ldrd_imm, 0x0, 0x01200000, 0xf0000, 0x0, 0, 0);
+	register_opcode_mask_32_ex(0xe8500000, 0x16000000, ldrd_imm, 0x0, 0x01200000, 0xf0000, 0x0, 0, 0);
 }

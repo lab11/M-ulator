@@ -29,5 +29,5 @@ static void udiv_t1(uint32_t inst) {
 
 void register_opcodes_div(void) {
 	// udiv_t1: 1111 1011 1011 xxxx 1111 xxxx 1111 xxxx
-	register_opcode_mask(0xfbb0f0f0, 0x04400000, udiv_t1);
+	register_opcode_mask_32(0xfbb0f0f0, 0x04400000, udiv_t1);
 }

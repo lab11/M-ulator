@@ -12,7 +12,7 @@ static void sxtb(uint8_t rd, uint8_t rm, uint8_t rotation) {
 	CORE_reg_write(rd, signd);
 }
 
-static void sxtb_t1(uint32_t inst) {
+static void sxtb_t1(uint16_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rm = (inst >> 3) & 0x7;
 
@@ -38,7 +38,7 @@ static void uxtb(uint8_t rd, uint8_t rm __attribute__ ((unused)), uint8_t rotati
 	DBG2("uxtb wrote r%02d = %08x\n", rd, rd_val);
 }
 
-static void uxtb_t1(uint32_t inst) {
+static void uxtb_t1(uint16_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rm = (inst & 0x38) >> 3;
 
@@ -75,11 +75,11 @@ static void ubfx_t1(uint32_t inst) {
 
 void register_opcodes_extend(void) {
 	// sxtb_t1: 1011 0010 01xx xxxx
-	register_opcode_mask(0xb240, 0xffff4d80, sxtb_t1);
+	register_opcode_mask_16(0xb240, 0x4d80, sxtb_t1);
 
 	// uxtb_t1: 1011 0010 11<x's>
-	register_opcode_mask(0xb2c0, 0xffff4d00, uxtb_t1);
+	register_opcode_mask_16(0xb2c0, 0x4d00, uxtb_t1);
 
 	// ubfx_t1: 1111 0011 1100 xxxx 0xxx xxxx xx0x xxxx
-	register_opcode_mask(0xf3c00000, 0x0c308020, ubfx_t1);
+	register_opcode_mask_32(0xf3c00000, 0x0c308020, ubfx_t1);
 }

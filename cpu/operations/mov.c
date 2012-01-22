@@ -26,7 +26,7 @@ static void mov_imm(uint32_t cpsr, uint8_t setflags, uint32_t imm32, uint8_t rd,
 	DBG2("mov_imm r%02d = 0x%08x\n", rd, result);
 }
 
-static void mov_imm_t1(uint32_t inst) {
+static void mov_imm_t1(uint16_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst >> 8) & 0x7;
 
@@ -124,7 +124,7 @@ static void mov_reg(uint8_t rd, uint8_t rm, bool setflags) {
 	DBG2("mov_reg r%02d = r%02d (val: %08x)\n", rd, rm, rm_val);
 }
 
-static void mov_reg_t1(uint32_t inst) {
+static void mov_reg_t1(uint16_t inst) {
 	uint8_t rd =  (inst & 0x7);
 	uint8_t rm =  (inst & 0x78) >> 3;
 	uint8_t D = !!(inst & 0x80);
@@ -142,7 +142,7 @@ static void mov_reg_t1(uint32_t inst) {
 	return mov_reg(rd, rm, setflags);
 }
 
-static void mov_reg_t2(uint32_t inst) {
+static void mov_reg_t2(uint16_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rm = (inst >> 3) & 0x7;
 
@@ -182,20 +182,20 @@ static void movt_t1(uint32_t inst) {
 
 void register_opcodes_mov(void) {
 	// mov1: 0010 0xxx <x's>
-	register_opcode_mask(0x2000, 0xffffd800, mov_imm_t1);
+	register_opcode_mask_16(0x2000, 0xd800, mov_imm_t1);
 
 	// mov_imm_t2: 1111 0x00 010x 1111 0<x's>
-	register_opcode_mask(0xf04f0000, 0x0ba08000, mov_imm_t2);
+	register_opcode_mask_32(0xf04f0000, 0x0ba08000, mov_imm_t2);
 
 	// mov_imm_t3: 1111 0x10 0100 xxxx 0<x's>
-	register_opcode_mask(0xf2400000, 0x09b08000, mov_imm_t3);
+	register_opcode_mask_32(0xf2400000, 0x09b08000, mov_imm_t3);
 
 	// mov_reg_t1: 0100 0110 <x's>
-	register_opcode_mask(0x4600, 0xffffb900, mov_reg_t1);
+	register_opcode_mask_16(0x4600, 0xb900, mov_reg_t1);
 
 	// mov_reg_t2: 0000 0000 00xx xxxx
-	register_opcode_mask(0x0, 0xffffffc0, mov_reg_t2);
+	register_opcode_mask_16(0x0, 0xffc0, mov_reg_t2);
 
 	// movt_t1: 1111 0x10 1100 xxxx 0<x's>
-	register_opcode_mask(0xf2c00000, 0x09308000, movt_t1);
+	register_opcode_mask_32(0xf2c00000, 0x09308000, movt_t1);
 }

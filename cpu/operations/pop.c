@@ -5,7 +5,7 @@
 #include "../core.h"
 #include "../misc.h"
 
-static void pop_simple(uint32_t inst) {
+static void pop_simple(uint16_t inst) {
 	uint32_t sp = CORE_reg_read(SP_REG);
 
 	int hamming = 0;
@@ -94,11 +94,11 @@ static void pop_t3(uint32_t inst) {
 
 void register_opcodes_pop(void) {
 	// pop: 1011 110<x's>
-	register_opcode_mask(0xbc00, 0xffff4200, pop_simple);
+	register_opcode_mask_16(0xbc00, 0x4200, pop_simple);
 
 	// pop_t2: 1110 1000 1011 1101 xx0<x's>
-	register_opcode_mask(0xe8bd0000, 0x17422000, pop_t2);
+	register_opcode_mask_32(0xe8bd0000, 0x17422000, pop_t2);
 
 	// pop_t3: 1111 1000 0101 1101 xxxx 1011 0000 0100
-	register_opcode_mask(0xf85d0b04, 0x07a204fb, pop_t3);
+	register_opcode_mask_32(0xf85d0b04, 0x07a204fb, pop_t3);
 }

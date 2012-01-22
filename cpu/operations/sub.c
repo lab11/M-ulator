@@ -54,7 +54,7 @@ static void rsb_reg_t1(uint32_t inst) {
 	return rsb_reg(cpsr, setflags, rd, rn, rm, shift_t, shift_n);
 }
 
-static void sbc(uint32_t inst) {
+static void sbc(uint16_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -75,7 +75,7 @@ static void sbc(uint32_t inst) {
 	DBG2("sbc r%02d, r%02d\n", rd, rm);
 }
 
-static void sub1(uint32_t inst) {
+static void sub1(uint16_t inst) {
 	uint8_t immed3 = (inst & 0x1c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -97,7 +97,7 @@ static void sub1(uint32_t inst) {
 	DBG2("sub1 %02d, %02d, #%d\n", rd, rn, immed3);
 }
 
-static void sub2(uint32_t inst) {
+static void sub2(uint16_t inst) {
 	uint8_t rd = (inst & 0x700) >> 8;
 	uint8_t immed8 = inst & 0xff;
 
@@ -116,7 +116,7 @@ static void sub2(uint32_t inst) {
 	DBG2("sub2 %02d, #%d\n", rd, immed8);
 }
 
-static void sub3(uint32_t inst) {
+static void sub3(uint16_t inst) {
 	uint8_t rm = (inst & 0x1c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
@@ -138,7 +138,7 @@ static void sub3(uint32_t inst) {
 	DBG2("sub3, r%02d = r%02d - r%02d\n", rd, rn, rm);
 }
 
-static void sub4(uint32_t inst) {
+static void sub4(uint16_t inst) {
 	uint16_t immed7 = inst & 0x7f;
 
 	uint32_t sp = CORE_reg_read(SP_REG);
@@ -265,34 +265,39 @@ static void sub_sp_imm_t2(uint32_t inst) {
 
 void register_opcodes_sub(void) {
 	// rsb_reg_t1: 1110 1011 110x xxxx (0)<x's>
-	register_opcode_mask(0xebc00000, 0x14208000, rsb_reg_t1);
+	register_opcode_mask_32(0xebc00000, 0x14208000, rsb_reg_t1);
 
 	// sbc: 0100 0001 10<x's>
-	register_opcode_mask(0x4180, 0xffffbe40, sbc);
+	register_opcode_mask_16(0x4180, 0xbe40, sbc);
 
 	// sub1: 0001 111<x's>
-	register_opcode_mask(0x1e00, 0xffffe000, sub1);
+	register_opcode_mask_16(0x1e00, 0xe000, sub1);
 
 	// sub2: 0011 1<x's>
-	register_opcode_mask(0x3800, 0xffffc000, sub2);
+	register_opcode_mask_16(0x3800, 0xc000, sub2);
 
 	// sub3: 0001 101<x's>
-	register_opcode_mask(0x1a00, 0xffffe400, sub3);
+	register_opcode_mask_16(0x1a00, 0xe400, sub3);
 
 	// sub4: 1011 0000 1<x's>
-	register_opcode_mask(0xb080, 0xffff4f00, sub4);
+	register_opcode_mask_16(0xb080, 0x4f00, sub4);
 
 	// sub_imm_t3: 1111 0x01 101x xxxx 0xxx xxxx xxxx xxxx
 	//         ex:              1           1111
 	//         ex:                1101
-	register_opcode_mask_ex(0xf1a00000, 0x0a408000, sub_imm_t3,
+	register_opcode_mask_32_ex(0xf1a00000, 0x0a408000, sub_imm_t3,
 			0x00100f00, 0x0,
 			0x000d0000, 0x00020000,
 			0, 0);
 
 	// sub_reg_t2: 1110 1011 101x xxxx 0<x's>
-	register_opcode_mask_ex(0xeba00000, 0x14408000, sub_reg_t2, 0x100f00, 0x0, 0xd0000, 0x20000, 0, 0);
+	register_opcode_mask_32_ex(0xeba00000, 0x14408000, sub_reg_t2,
+			0x100f00, 0x0,
+			0xd0000, 0x20000,
+			0, 0);
 
 	// sub_sp_imm_t2: 1111 0x01 101x 1101 0<x's>
-	register_opcode_mask_ex(0xf1ad0000, 0x0a428000, sub_sp_imm_t2, 0x100f00, 0x0, 0, 0);
+	register_opcode_mask_32_ex(0xf1ad0000, 0x0a428000, sub_sp_imm_t2,
+			0x100f00, 0x0,
+			0, 0);
 }

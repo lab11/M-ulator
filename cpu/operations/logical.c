@@ -4,7 +4,7 @@
 #include "../cpu.h"
 #include "../misc.h"
 
-static void and(uint32_t inst) {
+static void and(uint16_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -117,7 +117,7 @@ static void and_reg_t2(uint32_t inst) {
 	return and_reg(rd, rn, rm, setflags, shift_t, shift_n);
 }
 
-static void bic(uint32_t inst) {
+static void bic(uint16_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -318,7 +318,7 @@ static void mvn_reg(uint8_t setflags, uint8_t rd, uint8_t rm,
 	DBG2("mvn_reg did stuff\n");
 }
 
-static void mvn_reg_t1(uint32_t inst) {
+static void mvn_reg_t1(uint16_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rm = (inst >> 3) & 0x7;
 
@@ -349,7 +349,7 @@ static void mvn_reg_t2(uint32_t inst) {
 	return mvn_reg(S, rd, rm, shift_t, shift_n);
 }
 
-static void orr(uint32_t inst) {
+static void orr(uint16_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -416,7 +416,7 @@ static void orr_reg_t2(uint32_t inst) {
 	return orr_reg(S, rd, rn, rm, shift_t, shift_n);
 }
 
-static void neg(uint32_t inst) {
+static void neg(uint16_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -466,45 +466,53 @@ static void tst_imm_t1(uint32_t inst) {
 
 void register_opcodes_logical(void) {
 	// and: 0100 0000 00<x's>
-	register_opcode_mask(0x4000, 0xffffbfc0, and);
+	register_opcode_mask_16(0x4000, 0xbfc0, and);
 
 	// and_imm_t1: 1111 0x00 000x xxxx 0<x's>
-	register_opcode_mask_ex(0xf0000000, 0x0be08000, and_imm_t1, 0x00100f00, 0x0, 0, 0);
+	register_opcode_mask_32_ex(0xf0000000, 0x0be08000, and_imm_t1,
+			0x00100f00, 0x0,
+			0, 0);
 
 	// and_reg_t2: 1110 1010 000x xxxx 0xxx xxxx xxxx xxxx
-	register_opcode_mask_ex(0xea000000, 0x15e08000, and_reg_t2, 0x00100f00, 0x0, 0, 0);
+	register_opcode_mask_32_ex(0xea000000, 0x15e08000, and_reg_t2,
+			0x00100f00, 0x0,
+			0, 0);
 
 	// bic: 0100 0011 10<x's>
-	register_opcode_mask(0x4380, 0xffffbc40, bic);
+	register_opcode_mask_16(0x4380, 0xbc40, bic);
 
 	// bic_imm_t1: 1111 0x00 001x xxxx 0<x's>
-	register_opcode_mask(0xf0200000, 0x0bc08000, bic_imm_t1);
+	register_opcode_mask_32(0xf0200000, 0x0bc08000, bic_imm_t1);
 
 	// eor_imm_t1: 1111 0x00 100x xxxx 0<x's>
-	register_opcode_mask_ex(0xf0800000, 0x0b608000, eor_imm_t1, 0x100f00, 0x0, 0, 0);
+	register_opcode_mask_32_ex(0xf0800000, 0x0b608000, eor_imm_t1,
+			0x100f00, 0x0,
+			0, 0);
 
 	// eor_reg_t2: 1110 1010 100x xxxx 0<x's>
-	register_opcode_mask(0xea800000, 0x15608000, eor_reg_t2);
+	register_opcode_mask_32(0xea800000, 0x15608000, eor_reg_t2);
 
 	// lsl_reg_t2: 1111 1010 000x xxxx 1111 xxxx 0000 xxxx
-	register_opcode_mask(0xfa00f000, 0x05e000f0, lsl_reg_t2);
+	register_opcode_mask_32(0xfa00f000, 0x05e000f0, lsl_reg_t2);
 
 	// mvn_reg_t1: 0100 0011 11xx xxxx
-	register_opcode_mask(0x43c0, 0xffffbc00, mvn_reg_t1);
+	register_opcode_mask_16(0x43c0, 0xbc00, mvn_reg_t1);
 
 	// mvn_reg_t2: 1110 1010 011x 1111 0<x's>
-	register_opcode_mask(0xea6f0000, 0x15808000, mvn_reg_t2);
+	register_opcode_mask_32(0xea6f0000, 0x15808000, mvn_reg_t2);
 
 	// orr: 0100 0011 00<x's>
-	register_opcode_mask(0x4300, 0xffffbcc0, orr);
+	register_opcode_mask_16(0x4300, 0xbcc0, orr);
 
 	// Cannot allow               1111 case
 	// orr_reg_t2: 1110 1010 010x xxxx 0<x's>
-	register_opcode_mask_ex(0xea400000, 0x15a08000, orr_reg_t2, 0x000f0000, 0x00000000, 0, 0);
+	register_opcode_mask_32_ex(0xea400000, 0x15a08000, orr_reg_t2,
+			0x000f0000, 0x00000000,
+			0, 0);
 
 	// neg: 0100 0010 01<x's>
-	register_opcode_mask(0x4240, 0xffffbd80, neg);
+	register_opcode_mask_16(0x4240, 0xbd80, neg);
 
 	// tst_imm_t1: 1111 0x00 0001 xxxx 0xxx 1111 xxxx xxxx
-	register_opcode_mask(0xf0100f00, 0x0be08000, tst_imm_t1);
+	register_opcode_mask_32(0xf0100f00, 0x0be08000, tst_imm_t1);
 }
