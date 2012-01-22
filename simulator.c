@@ -624,10 +624,11 @@ static void _state_write_dbg(enum stage g, uint32_t *loc, uint32_t val,
 #else
 static void _state_write(enum stage g, uint32_t *loc, uint32_t val,
 		uint32_t** ploc, uint32_t* pval) {
+#endif
 	// If a debugger is changing values, write them directly. We do not track debugger
 	// writes (as I'm not sure the best architecture / usage model around that), so for
 	// now it's quite probable / possible that writing values with the debugger could do
-	// some strange things.
+	// some strange things for replay.
 	if (*state_flags_cur & STATE_DEBUGGING) {
 		if (loc)
 			*loc = val;
@@ -636,6 +637,7 @@ static void _state_write(enum stage g, uint32_t *loc, uint32_t val,
 		return;
 	}
 
+#ifndef DEBUG1
 	// don't track state we won't write anyways, except in debug mode
 	// race for flags is OK here, since this check is always racing anyway
 	if (*state_flags_cur & g & STATE_STALL_MASK) {
@@ -1132,7 +1134,7 @@ void CORE_reg_write(int r, uint32_t val) {
 		//}
 #else
 		if (*state_flags_cur & STATE_DEBUGGING) {
-			state_pipeline_flush(vale & 0xfffffffe);
+			state_pipeline_flush(val & 0xfffffffe);
 		} else {
 			// Only flush if the new PC differs from predicted in pipeline:
 			if (((SR(&if_id_PC) & 0xfffffffe) - 4) == (val & 0xfffffffe)) {
