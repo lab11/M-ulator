@@ -202,7 +202,11 @@ static uint32_t lr;
 
 #define SP	(*sp)
 #define LR	(lr)
+#ifdef NO_PIPELINE
+#define PC	(pre_if_PC)
+#else
 #define PC	(id_ex_PC)
+#endif
 
 #ifdef A_PROFILE
 // (|= 0x0010) Start is user mode
@@ -330,6 +334,8 @@ static uint32_t leds[LED_COLORS] = {0};
 #define STATE_LED_WRITTEN	0x10000
 #define STATE_LED_WRITING	0x80000
 #define STATE_BLOCKING_ASYNC	0x800000
+
+#define STATE_DEBUGGING		0x1000000
 
 #define STATE_LOCK_HELD_MASK	0x888800
 
@@ -618,6 +624,18 @@ static void _state_write_dbg(enum stage g, uint32_t *loc, uint32_t val,
 #else
 static void _state_write(enum stage g, uint32_t *loc, uint32_t val,
 		uint32_t** ploc, uint32_t* pval) {
+	// If a debugger is changing values, write them directly. We do not track debugger
+	// writes (as I'm not sure the best architecture / usage model around that), so for
+	// now it's quite probable / possible that writing values with the debugger could do
+	// some strange things.
+	if (*state_flags_cur & STATE_DEBUGGING) {
+		if (loc)
+			*loc = val;
+		else
+			*ploc = pval;
+		return;
+	}
+
 	// don't track state we won't write anyways, except in debug mode
 	// race for flags is OK here, since this check is always racing anyway
 	if (*state_flags_cur & g & STATE_STALL_MASK) {
@@ -658,9 +676,7 @@ static void _state_write(enum stage g, uint32_t *loc, uint32_t val,
 
 #ifdef NO_PIPELINE
 	if (true) {
-#ifdef DEBUG1
-		printf("  SW: %s:%d\t%s = %d\n", file, line, target, val);
-#endif
+		DBG1("  SW: %s:%d\t%s = %08x\n", file, line, target, val);
 #else
 	if (*state_flags_cur & STATE_BLOCKING_ASYNC) {
 #endif
@@ -757,6 +773,14 @@ static void state_led_write(enum LED_color led, uint32_t val) {
 
 	*state_flags_cur &= ~STATE_LED_WRITING;
 	pthread_mutex_unlock(&state_mutex);
+}
+
+EXPORT void state_enter_debugging(void) {
+	*state_flags_cur |= STATE_DEBUGGING;
+}
+
+EXPORT void state_exit_debugging(void) {
+	*state_flags_cur &= ~STATE_DEBUGGING;
 }
 
 // Returns 0 on success
@@ -892,13 +916,13 @@ static void print_reg_state(void) {
 	print_reg_state_internal();
 }
 
-#ifndef NO_PIPELINE
+//#ifndef NO_PIPELINE
 static void print_stages(void) {
 	printf("Stages:\n");
 	printf("\tPC's:\tPRE_IF %08x, IF_ID %08x, ID_EX %08x\n",
 			pre_if_PC, if_id_PC, id_ex_PC);
 }
-#endif
+//#endif
 
 static void print_full_state(void) {
 	DIVIDERe;
@@ -907,10 +931,10 @@ static void print_full_state(void) {
 	DIVIDERd;
 	print_reg_state_internal();
 
-#ifndef NO_PIPELINE
+//#ifndef NO_PIPELINE
 	DIVIDERd;
 	print_stages();
-#endif
+//#endif
 
 	DIVIDERd;
 
@@ -1047,8 +1071,16 @@ static void _shell(void) {
 }
 
 static void shell(void) {
-	if (GDB_ATTACHED)
+	if (GDB_ATTACHED) {
+#ifdef DEBUG1
+		print_full_state();
+		stop_and_wait_for_gdb();
+		print_full_state();
+		return;
+#else
 		return stop_and_wait_for_gdb();
+#endif
+	}
 
 	print_full_state();
 	shell_running = true;
@@ -1071,7 +1103,11 @@ uint32_t CORE_reg_read(int r) {
 	} else if (r == LR_REG) {
 		return SR(&LR);
 	} else if (r == PC_REG) {
+#ifdef NO_PIPELINE
+		return SR(&id_ex_PC) & 0xfffffffe;
+#else
 		return SR(&PC) & 0xfffffffe;
+#endif
 	} else {
 		return SR(&reg[r]);
 	}
@@ -1084,25 +1120,28 @@ void CORE_reg_write(int r, uint32_t val) {
 	} else if (r == LR_REG) {
 		SW(&LR, val);
 	} else if (r == PC_REG) {
-		if (SR(&PC) == ((val & 0xfffffffe) + 4)) {
-			if (GDB_ATTACHED) {
-				INFO("Simulator determined PC 0x%08x is branch to self, breaking for gdb.\n", PC);
-				stop_and_wait_for_gdb();
-			} else {
-				INFO("Simulator determined PC 0x%08x is branch to self, terminating.\n", PC);
-				sim_terminate();
-			}
-		}
 #ifdef NO_PIPELINE
-		SW(&pre_if_PC, val & 0xfffffffe);
-#else
-		// Only flush if the new PC differs from predicted in pipeline:
-		if (((SR(&if_id_PC) & 0xfffffffe) - 4) == (val & 0xfffffffe)) {
-			DBG2("Predicted PC correctly (%08x)\n", val);
+		/*
+		if (*state_flags_cur & STATE_DEBUGGING) {
+			SW(&pre_if_PC, val & 0xfffffffe);
+			SW(&if_id_PC, val & 0xfffffffe);
+			SW(&id_ex_PC, val & 0xfffffffe);
 		} else {
-			state_pipeline_flush(val & 0xfffffffe);
-			DBG2("Predicted PC incorrectly\n");
-			DBG2("Pred: %08x, val: %08x\n", SR(&if_id_PC), val);
+		*/
+			SW(&pre_if_PC, val & 0xfffffffe);
+		//}
+#else
+		if (*state_flags_cur & STATE_DEBUGGING) {
+			state_pipeline_flush(vale & 0xfffffffe);
+		} else {
+			// Only flush if the new PC differs from predicted in pipeline:
+			if (((SR(&if_id_PC) & 0xfffffffe) - 4) == (val & 0xfffffffe)) {
+				DBG2("Predicted PC correctly (%08x)\n", val);
+			} else {
+				state_pipeline_flush(val & 0xfffffffe);
+				DBG2("Predicted PC incorrectly\n");
+				DBG2("Pred: %08x, val: %08x\n", SR(&if_id_PC), val);
+			}
 		}
 #endif
 	}
@@ -1268,7 +1307,7 @@ void CORE_ERR_write_only_real(const char *f, int l, uint32_t addr) {
 }
 
 void CORE_ERR_invalid_addr_real(const char *f, int l, uint8_t is_write, uint32_t addr) {
-	WARN("CORE_ERR_invalid_addr %s address: %08x\n",
+	WARN("CORE_ERR_invalid_addr %s address: 0x%08x\n",
 			is_write ? "writing":"reading", addr);
 	WARN("Dumping Core...\n");
 	print_full_state();
@@ -1400,6 +1439,19 @@ int register_opcode_mask_real(uint32_t ones_mask, uint32_t zeros_mask,
 }
 
 static int sim_execute(void) {
+	// XXX: What if the debugger wants to execute the same instruction two cycles in a row? How do we allow this?
+	static uint32_t prev_pc = STALL_PC;
+	if ((prev_pc == PC) && (prev_pc != STALL_PC)) {
+		if (GDB_ATTACHED) {
+			INFO("Simulator determined PC 0x%08x is branch to self, breaking for gdb.\n", PC);
+			shell();
+		} else {
+			INFO("Simulator determined PC 0x%08x is branch to self, terminating.\n", PC);
+			sim_terminate();
+		}
+	} else {
+		prev_pc = PC;
+	}
 #ifdef NO_PIPELINE
 	// Not the common code path, try to catch if things have changed
 	assert(NUM_TICKERS == 3);
@@ -1455,17 +1507,23 @@ static void sim_reset(void) __attribute__ ((noreturn));
 static void sim_reset(void) {
 	int ret;
 
+	if (GDB_ATTACHED) {
+		gdb_init(gdb_port);
+#ifdef DEBUG1
+		print_full_state();
+		wait_for_gdb();
+		print_full_state();
+#else
+		wait_for_gdb();
+#endif
+	}
+
 	INFO("Asserting reset pin\n");
 	cycle = 0;
 	state_start_tick();
 	reset();
 	state_tock();
 	INFO("De-asserting reset pin\n");
-
-	if (GDB_ATTACHED) {
-		gdb_init(gdb_port);
-		wait_for_gdb();
-	}
 
 	INFO("Entering main loop...\n");
 	do {

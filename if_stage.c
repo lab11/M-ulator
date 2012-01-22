@@ -12,6 +12,10 @@
 // Currently, no speculative branching,
 // but we can make unconditional branches quick
 static void branch_target_forward32(uint32_t target, uint32_t inst, uint32_t *pc) {
+#ifdef NO_PIPELINE
+	return;
+#endif
+
 	if (match_mask(inst, 0xf0009000, 0x08004000)) {
 		DBG2("btf: b_t4\n");
 		// This is b_t4

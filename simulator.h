@@ -96,6 +96,9 @@ enum stage {
 
 void stall(enum stage);
 
+void state_enter_debugging(void);
+void state_exit_debugging(void);
+
 // Latchable state
 #define SR(_l) state_read(STAGE, (_l))
 uint32_t state_read(enum stage, uint32_t *loc);

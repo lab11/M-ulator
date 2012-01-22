@@ -29,28 +29,39 @@ void reset(void) {
  * well. Consult memmap.txt for details and the CORE_ERR_...() functions may
  * be useful as well
  */
-uint32_t read_word(uint32_t addr) {
+bool try_read_word(uint32_t addr, uint32_t *val) {
 	if (addr >= ROMBOT && addr < ROMTOP) {
-		return CORE_rom_read(addr);
+		*val = CORE_rom_read(addr);
 	} else if (addr >= RAMBOT && addr < RAMTOP) {
-		return CORE_ram_read(addr);
+		*val = CORE_ram_read(addr);
 	} else if (addr == REDLED) {
-		return CORE_red_led_read();
+		*val = CORE_red_led_read();
 	} else if (addr == GRNLED) {
-		return CORE_grn_led_read();
+		*val = CORE_grn_led_read();
 	} else if (addr == BLULED) {
-		return CORE_blu_led_read();
+		*val = CORE_blu_led_read();
 	} else if (addr == POLL_UART_STATUS) {
 		DBG2("Attempt to read UART STATUS\n");
-		return CORE_poll_uart_status_read();
+		*val = CORE_poll_uart_status_read();
 	} else if (addr == POLL_UART_RXDATA) {
 		DBG1("Attempt to read UART RXDATA\n");
-		return CORE_poll_uart_rxdata_read();
+		*val = CORE_poll_uart_rxdata_read();
 	} else if (addr == POLL_UART_TXDATA) {
 		DBG1("Attempt to read UART TXDATA\n");
 		CORE_ERR_invalid_addr(false, addr);
 	} else if (addr >= REGISTERS_BOT && addr < REGISTERS_TOP) {
-		return ppb_read(addr);
+		*val = ppb_read(addr);
+	} else {
+		return false;
+	}
+
+	return true;
+}
+
+uint32_t read_word(uint32_t addr) {
+	uint32_t val;
+	if (try_read_word(addr, &val)) {
+		return val;
 	} else {
 		CORE_ERR_invalid_addr(false, addr);
 	}
@@ -139,34 +150,43 @@ void write_halfword(uint32_t addr, uint16_t val) {
 	write_word(addr & 0xfffffffc, word);
 }
 
-uint8_t read_byte(uint32_t addr) {
-	uint32_t word = read_word(addr & 0xfffffffc);
-
+bool try_read_byte(uint32_t addr, uint8_t* ret) {
 	DBG2("read_byte: addr %08x, val %08x, case %d\n", addr, word, addr & 0x3);
 
-	uint8_t ret;
+	uint32_t word;
+	if (!try_read_word(addr & 0xfffffffc, &word))
+		return false;
 
 	switch (addr & 0x3) {
 		case 0:
-			ret = (word & 0x000000ff) >> 0;
+			*ret = (word & 0x000000ff) >> 0;
 			break;
 		case 1:
-			ret = (word & 0x0000ff00) >> 8;
+			*ret = (word & 0x0000ff00) >> 8;
 			break;
 		case 2:
-			ret = (word & 0x00ff0000) >> 16;
+			*ret = (word & 0x00ff0000) >> 16;
 			break;
 		case 3:
-			ret = (word & 0xff000000) >> 24;
+			*ret = (word & 0xff000000) >> 24;
 			break;
 		default:
 			//appease dumb compiler
 			assert(false); return 0;
 	}
 
-	DBG2("read_byte: returning %c\t%02x\n", ret, ret);
+	DBG2("read_byte: returning %c\t%02x\n", *ret, *ret);
 
-	return ret;
+	return true;
+}
+
+uint8_t read_byte(uint32_t addr) {
+	uint8_t val;
+	if (try_read_byte(addr, &val)) {
+		return val;
+	} else {
+		CORE_ERR_unpredictable("read_byte failed unexpectedly\n");
+	}
 }
 
 void write_byte(uint32_t addr, uint8_t val) {
