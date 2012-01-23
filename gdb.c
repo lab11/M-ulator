@@ -490,6 +490,13 @@ static bool _wait_for_gdb(void) {
 			break;
 		}
 		*/
+		case 'v':
+		{
+			// Just because we don't support it doesn't mean we
+			// don't recognize it
+			gdb_send_message("");
+			return true;
+		}
 
 		case 'X':
 		{
