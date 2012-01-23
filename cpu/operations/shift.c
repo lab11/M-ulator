@@ -38,7 +38,7 @@ static void lsl_reg(uint8_t rd, uint8_t rn, uint8_t rm, bool setflags) {
 	uint8_t shift_n = CORE_reg_read(rm);
 
 	uint32_t result;
-	uint8_t carry;
+	bool carry;
 
 	uint32_t cpsr = CORE_cpsr_read();
 
@@ -97,7 +97,7 @@ static void asr_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rm,
 	uint32_t rm_val = CORE_reg_read(rm);
 
 	uint32_t result;
-	uint8_t carry;
+	bool carry;
 	Shift_C(rm_val, 32, shift_t, shift_n, !!(cpsr & xPSR_C), &result, &carry);
 
 	if (rd == 15) {
@@ -157,7 +157,7 @@ static void ror_imm(uint8_t rd, uint8_t rm, uint8_t shift_n, bool setflags) {
 	uint32_t rm_val = CORE_reg_read(rm);
 
 	uint32_t result;
-	uint8_t carry_out;
+	bool carry_out;
 
 	uint32_t cpsr = CORE_cpsr_read();
 

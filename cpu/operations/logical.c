@@ -64,7 +64,7 @@ static void and_imm_t1(uint32_t inst) {
 	uint8_t setflags = (S == 1);
 
 	uint32_t imm32;
-	uint8_t carry;
+	bool carry;
 	uint16_t imm12 = (i << 11) | (imm3 << 8) | imm8;
 	ThumbExpandImm_C(imm12, !!(cpsr & xPSR_C), &imm32, &carry);
 
@@ -83,7 +83,7 @@ static void and_reg(uint8_t rd, uint8_t rn, uint8_t rm,
 	uint32_t cpsr = CORE_cpsr_read();
 
 	uint32_t shifted;
-	uint8_t carry_out;
+	bool carry_out;
 	Shift_C(rm_val, 32, shift_t, shift_n, !!(cpsr & xPSR_C), &shifted, &carry_out);
 
 	uint32_t result = rn_val & shifted;
@@ -166,7 +166,7 @@ static void bic_imm_t1(uint32_t inst) {
 
 	uint16_t imm12 = (i << 11) | (imm3 << 8) | imm8;
 	uint32_t imm32;
-	uint8_t carry_out;
+	bool carry_out;
 	ThumbExpandImm_C(imm12, !!(cpsr & xPSR_C), &imm32, &carry_out);
 
 	if ((rd >= 13) || (rn >= 13))
@@ -200,7 +200,7 @@ static void eor_imm_t1(uint32_t inst) {
 
 	uint32_t cpsr = CORE_cpsr_read();
 	uint32_t imm32;
-	uint8_t carry;
+	bool carry;
 	ThumbExpandImm_C((i << 11) | (imm3 << 8) | imm8, !!(cpsr & xPSR_C), &imm32, &carry);
 
 	if ((rd == 13) || ((rd == 15) && (S == 0)) || BadReg(rn))
@@ -212,7 +212,7 @@ static void eor_imm_t1(uint32_t inst) {
 static void eor_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm,
 		enum SRType shift_t, uint8_t shift_n) {
 	uint32_t result;
-	uint8_t carry_out;
+	bool carry_out;
 
 	uint32_t cpsr = CORE_cpsr_read();
 
@@ -261,7 +261,7 @@ static void lsl_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm) {
 	uint8_t shift_n = CORE_reg_read(rm) & 0xff;
 
 	uint32_t result;
-	uint8_t carry_out;
+	bool carry_out;
 
 	uint32_t cpsr = CORE_cpsr_read();
 
@@ -296,7 +296,7 @@ static void lsl_reg_t2(uint32_t inst) {
 static void mvn_reg(uint8_t setflags, uint8_t rd, uint8_t rm,
 		enum SRType shift_t, uint8_t shift_n) {
 	uint32_t result;
-	uint8_t carry_out;
+	bool carry_out;
 
 	uint32_t cpsr = CORE_cpsr_read();
 
@@ -371,7 +371,7 @@ static void orr(uint16_t inst) {
 static void orr_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm,
 		enum SRType shift_t, uint8_t shift_n) {
 	uint32_t result;
-	uint8_t carry_out;
+	bool carry_out;
 
 	uint32_t cpsr = CORE_cpsr_read();
 
@@ -452,7 +452,7 @@ static void tst_imm_t1(uint32_t inst) {
 
 	uint16_t imm12 = (i << 11) | (imm3 << 8) | (imm8);
 	uint32_t imm32;
-	uint8_t carry;
+	bool carry;
 
 	uint32_t cpsr = CORE_cpsr_read();
 

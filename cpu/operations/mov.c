@@ -69,7 +69,7 @@ static void mov_imm_t2(uint32_t inst) {
 	arg |= (imm3 << 8);
 	arg |= (i << 11);
 	uint32_t imm32;
-	uint8_t carry;
+	bool carry;
 	ThumbExpandImm_C(arg, !!(cpsr & xPSR_C), &imm32, &carry);
 
 	// if BadReg(d) then UNPREDICTABLE

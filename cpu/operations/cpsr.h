@@ -25,16 +25,17 @@ enum SRType {
 
 // Legal range of shift is 0..31, uint8_t forces callers to be at least somewhat concious of this
 void DecodeImmShift(uint8_t type, uint8_t imm5, enum SRType *shift_t, uint8_t *shift_n);
-void Shift_C(uint32_t value, int Nbits, enum SRType type, uint8_t amount, uint8_t carry_in, uint32_t *result, uint8_t *carry_out);
-uint32_t Shift(uint32_t value, int Nbits, enum SRType type, uint8_t amount, uint8_t carry_in);
+void Shift_C(uint32_t value, int Nbits, enum SRType type, uint8_t amount, bool carry_in,
+		uint32_t *result, bool *carry_out);
+uint32_t Shift(uint32_t value, int Nbits, enum SRType type, uint8_t amount, bool carry_in);
 
 // Legal range of shift is 0..31, uint8_t forces callers to be at least somewhat concious of this
-void LSL_C(uint32_t x, int Nbits, uint8_t shift, uint32_t *result, uint8_t *carry_out);
-void LSR_C(uint32_t x, int Nbits, uint8_t shift, uint32_t *result, uint8_t *carry_out);
-void ASR_C(uint32_t x, int Nbits, uint8_t shift, uint32_t *result, uint8_t *carry_out);
-void ROR_C(uint32_t x, int Nbits, uint8_t shift, uint32_t *result, uint8_t *carry_out);
+void LSL_C(uint32_t x, int Nbits, uint8_t shift, uint32_t *result, bool *carry_out);
+void LSR_C(uint32_t x, int Nbits, uint8_t shift, uint32_t *result, bool *carry_out);
+void ASR_C(uint32_t x, int Nbits, uint8_t shift, uint32_t *result, bool *carry_out);
+void ROR_C(uint32_t x, int Nbits, uint8_t shift, uint32_t *result, bool *carry_out);
 uint32_t ThumbExpandImm(uint32_t imm12);
-void ThumbExpandImm_C(uint32_t imm12, uint8_t carry_in, uint32_t *imm32, uint8_t *carry_out);
+void ThumbExpandImm_C(uint32_t imm12, bool carry_in, uint32_t *imm32, bool *carry_out);
 
 #define OVER_ADD(_res, _a, _b) \
 	(\
