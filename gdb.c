@@ -394,6 +394,21 @@ static bool _wait_for_gdb(void) {
 			break;
 		}
 
+		case 'P':
+		{
+			// P reg = val
+			const char *regstr = strtok(cmd+1, "=");
+			const char *value = strtok(NULL, "");
+			assert(strlen(regstr) == 1);
+
+			uint8_t reg = strtol(regstr, NULL, 16);
+			uint32_t val = ntohl(strtol(value, NULL, 16));
+			CORE_reg_write(reg, val);
+
+			gdb_send_message("OK");
+			break;
+		}
+
 		case 'q':
 		{
 			if (0 == strcmp("qC", cmd)) {
