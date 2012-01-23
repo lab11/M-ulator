@@ -306,18 +306,10 @@ static bool _wait_for_gdb(void) {
 
 		case 'H':
 		{
-			if (0 == strcmp("Hc-1", cmd)) {
-				// Indicates that all future commands should be
-				// applied to all running threads, we only have
-				// the one, so we're cool with that
-				gdb_send_message("OK");
-			} else
-			if (0 == strcmp("Hc0", cmd)) {
-				// Future step/cont commands on any thread
-				gdb_send_message("OK");
-			} else {
-				goto unknown_gdb;
-			}
+			// H operations target specific threads, but we have
+			// no notion of threads, so we bail with an unsupported
+			// response for all of them
+			gdb_send_message("");
 			break;
 		}
 
@@ -394,6 +386,37 @@ static bool _wait_for_gdb(void) {
 			break;
 		}
 
+		case 'p':
+		{
+			uint32_t val;
+
+			// p reg
+			if (cmd[2] != '\0') {
+				if (0 == strcmp(cmd, "p19")) {
+					// Inferred from gdb's messages, 0x19
+					// is looking for the cpsr, but I'll be
+					// dammned if I could find any proof
+					val = CORE_cpsr_read();
+				} else {
+					WARN("Request for illegal register: 0x%s\n",
+							cmd + 1);
+					// I cannot find documentation on the
+					// gdb error codes, nor can I find any
+					// actual usage in gdb's remote.c, so...
+					gdb_send_message("E00");
+					return true;
+				}
+			} else {
+				uint8_t reg = strtol(cmd+1, NULL, 16);
+				val = CORE_reg_read(reg);
+			}
+
+			char buf[9];
+			sprintf(buf, "%08x", val);
+			gdb_send_message(buf);
+			break;
+		}
+
 		case 'P':
 		{
 			// P reg = val
@@ -415,6 +438,12 @@ static bool _wait_for_gdb(void) {
 				// Asking for info on current thread, we don't
 				// support multithread, so an empty response says
 				// the 'default' thread is running, which is okay
+				gdb_send_message("");
+			} else
+			if (0 == strcmp("qAttached", cmd)) {
+				// Wants to know whether attached to a process
+				// or spawned one, but we're bare metal and do
+				// not support this, so empty
 				gdb_send_message("");
 			} else {
 				goto unknown_gdb;
