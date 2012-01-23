@@ -34,36 +34,32 @@ static void lsl1(uint16_t inst) {
 	DBG2("lsls r%02d, r%02d, #%d\n", rd, rm, immed5);
 }
 
-static void lsl2(uint16_t inst) {
-	uint8_t rs = (inst & 0x38) >> 3;
-	uint8_t rd = (inst & 0x7) >> 0;
+static void lsl_reg(uint8_t rd, uint8_t rn, uint8_t rm, bool setflags) {
+	uint8_t shift_n = CORE_reg_read(rm);
 
-	uint32_t rs_val = CORE_reg_read(rs);
-	uint32_t rd_val = CORE_reg_read(rd);
 	uint32_t result;
+	uint8_t carry;
 
 	uint32_t cpsr = CORE_cpsr_read();
-	uint8_t cflag = !!(cpsr & xPSR_C);
 
-	if ((rs_val & 0xff) == 0) {
-	} else if ((rs_val & 0xff) < 32) {
-		cflag = !!(rd & (1 << (32 - (rs_val & 0xff))));
-		result = rd_val << (rs_val & 0xff);
-	} else if ((rs_val & 0xff) == 32) {
-		cflag = rd_val & 0x1;
-		result = 0;
-	} else {
-		cflag = 0;
-		result = 0;
-	}
+	Shift_C(CORE_reg_read(rn), 32, SRType_LSL, shift_n, !!(cpsr & xPSR_C),
+			&result, &carry);
 
-	if (!in_ITblock()) {
+	CORE_reg_write(rd, result);
+
+	if (setflags) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
-				cflag, !!(cpsr & xPSR_V));
+				carry, !!(cpsr & xPSR_C));
 		CORE_cpsr_write(cpsr);
 	}
+}
 
-	DBG2("lsl2 r%02d, r%02d\n", rd, rs);
+static void lsl_reg_t1(uint16_t inst) {
+	uint8_t rdn = inst & 0x7;
+	uint8_t rm = (inst >> 3) & 0x7;
+	bool setflags = !in_ITblock();
+
+	return lsl_reg(rdn, rdn, rm, setflags);
 }
 
 static void lsr1(uint16_t inst) {
@@ -200,8 +196,8 @@ void register_opcodes_shift(void) {
 	register_opcode_mask_16_ex(0x0000, 0xf800, lsl1,
 			0x0, 0x07c0, 0, 0);
 
-	// lsl2: 0100 0000 10 <x's>
-	register_opcode_mask_16(0x4080, 0xbf40, lsl2);
+	// lsl_reg_t1: 0100 0000 10 <x's>
+	register_opcode_mask_16(0x4080, 0xbf40, lsl_reg_t1);
 
 	// lsr1: 0000 1<x's>
 	register_opcode_mask_16(0x0800, 0xf000, lsr1);

@@ -61,6 +61,11 @@ void gdb_init(int port) {
 
 	DBG2("Got msg >>>%s<<<, len %d, strlen %zd\n", msg, len, strlen(msg));
 
+	if (0 != strncmp("qSupported", msg, strlen("qSupported"))) {
+		WARN("No support from gdb host for qSupported message\n");
+		ERR(E_NOT_IMPLEMENTED, "Your version of gdb is too old\n");
+	}
+
 	// Respond with out message
 	char *resp;
 	asprintf(&resp, "qSupported:PacketSize=%x;ReverseContinue+;ReverseStep+",

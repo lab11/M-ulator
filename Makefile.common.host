@@ -47,8 +47,15 @@ GCC_MAJOR := 4
 GCC_MINOR := 5
 endif
 
+# XXX Surrender and write a configure script at some point
+ifeq ($(GCC_MAJOR), )
+$(warning Unknown compiler, compiler checks skipped)
+GCC_MAJOR := 4
+GCC_MINOR := 5
+endif
+
 ifneq ($(GCC_MAJOR), 4)
-$(error "gcc version 4.x required")
+$(error gcc version 4.x required)
 endif
 
 ifeq ($(GCC_MINOR), 1)
