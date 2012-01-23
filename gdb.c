@@ -63,7 +63,7 @@ void gdb_init(int port) {
 
 	// Respond with out message
 	char *resp;
-	asprintf(&resp, "qSupported:PacketSize=%x;qReverseContinue+;qReverseStep+",
+	asprintf(&resp, "qSupported:PacketSize=%x;ReverseContinue+;ReverseStep+",
 			GDB_MSG_MAX - 1);
 	assert(NULL != resp);
 
@@ -250,6 +250,43 @@ static bool _wait_for_gdb(void) {
 			// Right now SIGTRAP is the only option
 			gdb_send_message("S05");
 			break;
+
+		case 'b':
+		{
+			if (cmd[1] == 's') {
+				if (cycle > 0) {
+					if (state_seek(cycle - 1)) {
+						gdb_send_message("E00");
+						return true;
+					} else {
+						gdb_send_message("S05");
+						return true;
+					}
+				}else {
+					WARN("Request to seek before beginning\n");
+					gdb_send_message("E00");
+					return true;
+				}
+			} else
+			if (cmd[1] == 'c') {
+				if (cycle) {
+					if (state_seek(0)) {
+						gdb_send_message("E00");
+						return true;
+					} else {
+						gdb_send_message("S05");
+						return true;
+					}
+				} else {
+					WARN("Request to seek to current cycle ignored\n");
+					gdb_send_message("S05");
+					return true;
+				}
+			} else {
+				goto unknown_gdb;
+			}
+			break;
+		}
 
 		case 'c':
 		{

@@ -56,6 +56,7 @@ struct op {
 // The simulator core
 void simulator(const char* flash_file, uint16_t polluartport);
 void sim_terminate(void) __attribute__ ((noreturn));
+int state_seek(int);
 
 // Simulator config
 #define POLL_UART_PORT 4100

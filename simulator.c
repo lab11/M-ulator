@@ -788,7 +788,7 @@ EXPORT void state_exit_debugging(void) {
 // Returns 0 on success
 // Returns >0 on tolerable error (e.g. seek past end)
 // Returns <0 on catastrophic error
-static int state_seek(int target_cycle) {
+EXPORT int state_seek(int target_cycle) {
 	// This assertion relies on *something* being written every cycle,
 	// which should hold since the PC is written every cycle at least.
 	// However, if we ever go cycle-accurate, much of the state_seek
