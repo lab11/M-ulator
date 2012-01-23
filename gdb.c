@@ -154,9 +154,8 @@ char* gdb_get_message(int *ext_len) {
 static void _gdb_send(const char c) {
 #ifdef DEBUG2
 	static int csum = 0;
-	flockfile(stdout);
-	printf(PP_STRING" I: ");
 	if (c == '$') {
+		printf(PP_STRING" I: ");
 		printf("Sending: >$");
 		csum = 0;
 	}
@@ -174,7 +173,6 @@ static void _gdb_send(const char c) {
 	} else {
 		printf("%c", c);
 	}
-	funlockfile(stdout);
 #endif
 
 	int ret = send(sock, &c, 1, 0);
@@ -185,6 +183,9 @@ static void _gdb_send(const char c) {
 }
 
 static void gdb_send(const char *msg, int len) {
+#ifdef DEBUG2
+	flockfile(stdout);
+#endif
 	while (len) {
 		const char *c = escape_chars;
 		while (*c != '\0') {
@@ -201,6 +202,9 @@ static void gdb_send(const char *msg, int len) {
 		msg++;
 		len--;
 	}
+#ifdef DEBUG2
+	funlockfile(stdout);
+#endif
 }
 
 void gdb_send_message(const char *msg) {
@@ -486,6 +490,44 @@ static bool _wait_for_gdb(void) {
 			break;
 		}
 		*/
+
+		case 'X':
+		{
+			// The undocumented, 'more efficient' binary transfer
+			// protocol, should replicate 'M' at half the character
+			// count
+
+			// X addr,length:XX...
+
+			const char *address = strtok(cmd+1, ",");
+			const char *length = strtok(NULL, ":");
+			unsigned char *data = (unsigned char*) strtok(NULL, "");
+
+			unsigned addr = strtoul(address, NULL, 16);
+			unsigned len = strtoul(length, NULL, 16);
+
+#ifdef DEBG1
+			//                 X          addr       ,          length    :
+			unsigned msg_len = 1 + strlen(address) + 1 + strlen(length) + 1;
+			DBG1("X, addr %d len %d msg_len %d cmd_len %d\n",
+					addr, len, msg_len, cmd_len);
+#endif
+
+			while (len) {
+				if (*data == '}') {
+					data++;
+					*data ^= 0x20;
+				}
+				write_byte(addr, *data);
+				DBG2("0x%08x = %02x\n", addr, *data);
+				addr++;
+				len--;
+				data++;
+			}
+			gdb_send_message("OK");
+
+			break;
+		}
 
 		default:
 unknown_gdb:
