@@ -7,6 +7,13 @@
 #include "cpu/cpu.h"
 #include "cpu/misc.h"
 
+static void execute(struct op *o, uint32_t inst) {
+	if (o->is16)
+		o->fn.fn16(inst);
+	else
+		o->fn.fn32(inst);
+}
+
 void tick_ex(void) {
 	DBG2("start\n");
 
@@ -21,7 +28,7 @@ void tick_ex(void) {
 						cycle, id_ex_PC - 4, id_ex_inst, id_ex_o->name,
 						"ITSTATE {executed}");
 			}
-			id_ex_o->fn(id_ex_inst);
+			execute(id_ex_o, id_ex_inst);
 		} else {
 			if (printcycles) {
 				printf("    P: %08d - 0x%08x : %04x (%s)\t%s\n",
@@ -42,7 +49,7 @@ void tick_ex(void) {
 						id_ex_inst, id_ex_o->name);
 			}
 		}
-		id_ex_o->fn(id_ex_inst);
+		execute(id_ex_o, id_ex_inst);
 	}
 
 	DBG2("end\n");

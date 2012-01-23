@@ -1346,14 +1346,18 @@ void CORE_ERR_not_implemented_real(const char *f, int l, const char *opt_msg) {
 EXPORT struct op *ops = NULL;
 
 static int _register_opcode_mask(uint32_t ones_mask, uint32_t zeros_mask,
-		void (*fn) (uint32_t), const char* fn_name, va_list va_args) {
+		bool is16, void *fn, const char* fn_name, va_list va_args) {
 	struct op *o = malloc(sizeof(struct op));
 
 	o->prev = NULL;
 	o->next = ops;		// ops is NULL on first pass, this is fine
 	o->ones_mask = ones_mask;
 	o->zeros_mask = zeros_mask;
-	o->fn = fn;
+	o->is16 = is16;
+	if (is16)
+		o->fn.fn16 = fn;
+	else
+		o->fn.fn32 = fn;
 	o->name = fn_name;
 
 	o->ex_cnt = 0;
@@ -1392,12 +1396,15 @@ static int _register_opcode_mask(uint32_t ones_mask, uint32_t zeros_mask,
 }
 
 static int register_opcode_mask_ex(uint32_t ones_mask, uint32_t zeros_mask,
-		void (*fn) (uint32_t), const char* fn_name, va_list va_args) {
+		bool is16, void *fn, const char* fn_name, va_list va_args) {
+
+	if (is16)
+		assert(0xffff0000 == (0xffff0000 & zeros_mask));
 
 	if (NULL == ops) {
 		// first registration
 		return _register_opcode_mask(ones_mask, zeros_mask,
-				fn, fn_name, va_args);
+				is16, fn, fn_name, va_args);
 	}
 
 	struct op* o = ops;
@@ -1420,22 +1427,19 @@ static int register_opcode_mask_ex(uint32_t ones_mask, uint32_t zeros_mask,
 				, o->zeros_mask, zeros_mask, o->name);
 	}
 
-	return _register_opcode_mask(ones_mask, zeros_mask, fn, fn_name, va_args);
+	return _register_opcode_mask(ones_mask, zeros_mask,
+			is16, fn, fn_name, va_args);
 }
 
 EXPORT int register_opcode_mask_16_ex_real(uint16_t ones_mask, uint16_t zeros_mask,
 		void (*fn) (uint16_t), const char *fn_name, ...) {
-	// XXX: Non-portable, but a function taking a single 16-bit argument
-	// should be passed in a register, so calling the 32-bit version will
-	// work for now
-
 	va_list va_args;
 	va_start(va_args, fn_name);
 
 	int ret;
 
 	ret = register_opcode_mask_ex(ones_mask, 0xffff0000 | zeros_mask,
-			(void (*) (uint32_t)) fn, fn_name, va_args);
+			true, fn, fn_name, va_args);
 
 	va_end(va_args);
 
@@ -1461,7 +1465,8 @@ EXPORT int register_opcode_mask_32_ex_real(uint32_t ones_mask, uint32_t zeros_ma
 	va_start(va_args, fn_name);
 
 	int ret;
-	ret = register_opcode_mask_ex(ones_mask, zeros_mask, fn, fn_name, va_args);
+	ret = register_opcode_mask_ex(ones_mask, zeros_mask,
+			false, fn, fn_name, va_args);
 
 	va_end(va_args);
 

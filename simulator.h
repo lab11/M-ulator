@@ -41,7 +41,11 @@ struct op {
 	int ex_cnt;
 	uint32_t *ex_ones;
 	uint32_t *ex_zeros;
-	void (*fn) (uint32_t);
+	bool is16;
+	union {
+		void (*fn32) (uint32_t);
+		void (*fn16) (uint16_t);
+	} fn;
 	const char *name;
 };
 
