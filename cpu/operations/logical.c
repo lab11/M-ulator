@@ -416,31 +416,6 @@ static void orr_reg_t2(uint32_t inst) {
 	return orr_reg(S, rd, rn, rm, shift_t, shift_n);
 }
 
-static void rsb_imm(uint8_t rd, uint8_t rn, uint32_t imm32, bool setflags) {
-	uint32_t result;
-	bool carry;
-	bool overflow;
-
-	AddWithCarry(~CORE_reg_read(rn), imm32, 1, &result, &carry, &overflow);
-
-	CORE_reg_write(rd, result);
-	if (setflags) {
-		uint32_t cpsr = CORE_cpsr_read();
-		cpsr = GEN_NZCV(!!(cpsr & xPSR_N), result == 0, carry, overflow);
-		CORE_cpsr_write(cpsr);
-	}
-}
-
-static void rsb_imm_t1(uint16_t inst) {
-	uint8_t rd = inst & 0x7;
-	uint8_t rn = (inst >> 3) & 0x7;
-
-	bool setflags = !in_ITblock();
-	uint32_t imm32 = 0;
-
-	return rsb_imm(rd, rn, imm32, setflags);
-}
-
 static void tst_imm(uint32_t cpsr, uint8_t rn, uint32_t imm32, bool carry) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
@@ -514,10 +489,6 @@ void register_opcodes_logical(void) {
 	register_opcode_mask_32_ex(0xea400000, 0x15a08000, orr_reg_t2,
 			0x000f0000, 0x00000000,
 			0, 0);
-
-	// rsb_imm_t1: 0100 0010 01<x's>
-	// (pre-UAL name: neg)
-	register_opcode_mask_16(0x4240, 0xbd80, rsb_imm_t1);
 
 	// tst_imm_t1: 1111 0x00 0001 xxxx 0xxx 1111 xxxx xxxx
 	register_opcode_mask_32(0xf0100f00, 0x0be08000, tst_imm_t1);
