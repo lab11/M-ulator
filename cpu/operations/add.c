@@ -4,26 +4,6 @@
 #include "../cpu.h"
 #include "../misc.h"
 
-static void adc(uint16_t inst) {
-	uint8_t rm = (inst & 0x38) >> 3;
-	uint8_t rd = (inst & 0x7) >> 0;
-
-	uint32_t rm_val = CORE_reg_read(rm);
-	uint32_t rd_val = CORE_reg_read(rd);
-	uint32_t cpsr = CORE_cpsr_read();
-	uint32_t result = rd_val + rm_val + !(cpsr & xPSR_C);
-	CORE_reg_write(rd, result);
-
-	if (!in_ITblock()) {
-		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
-				result < rd_val,
-				OVER_ADD(result, rd_val, rm_val + !!(cpsr & xPSR_C)));
-		CORE_cpsr_write(cpsr);
-	}
-
-	DBG2("adc r%02d, r%02d\n", rd, rm);
-}
-
 static void adc_imm(uint8_t rd, uint8_t rn, uint32_t imm32, bool setflags) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
@@ -57,65 +37,33 @@ static void adc_imm_t1(uint32_t inst) {
 	return adc_imm(rd, rn, imm32, setflags);
 }
 
-static void add1(uint16_t inst) {
-	uint32_t immed3 = (inst & 0x1c0) >> 6;
-	uint8_t rn = (inst & 0x38) >> 3;
-	uint8_t rd = (inst & 0x7) >> 0;
+static void adc_reg(uint8_t rd, uint8_t rn, uint8_t rm,
+		bool setflags, enum SRType shift_t, uint8_t shift_n) {
+	uint32_t cpsr = CORE_cpsr_read();
 
-	uint32_t rn_val = CORE_reg_read(rn);
-	uint32_t result = rn_val + immed3;
+	uint32_t shifted = Shift(CORE_reg_read(rm), 32,
+			shift_t, shift_n, !!(cpsr & xPSR_C));
+
+	uint32_t result;
+	bool carry;
+	bool overflow;
+	AddWithCarry(CORE_reg_read(rn), shifted, !!(cpsr & xPSR_C),
+			&result, &carry, & overflow);
 
 	CORE_reg_write(rd, result);
 
-	uint32_t cpsr = CORE_cpsr_read();
-
-	if (!in_ITblock()) {
-		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
-				result < rn_val, OVER_ADD(result, rn_val, immed3));
+	if (setflags) {
+		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0, carry, overflow);
 		CORE_cpsr_write(cpsr);
 	}
-
-	DBG2("add1 r%02d = r%02d + %d\n", rd, rn, immed3);
 }
 
-static void add2(uint16_t inst) {
-	uint8_t rd = (inst & 0x700) >> 8;
-	uint8_t immed8 = (inst & 0xff);
+static void adc_reg_t1(uint16_t inst) {
+	uint8_t rdn = inst & 0x7;
+	uint8_t rm = (inst >> 3) & 0x7;
+	bool setflags = !in_ITblock();
 
-	uint32_t rd_val = CORE_reg_read(rd);
-	uint32_t result = rd_val + immed8;
-	CORE_reg_write(rd, result);
-
-	uint32_t cpsr = CORE_cpsr_read();
-
-	if (!in_ITblock()) {
-		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
-				result < rd_val, OVER_ADD(result, rd_val, immed8));
-		CORE_cpsr_write(cpsr);
-	}
-
-	DBG2("add2 r%02d, #%d\t; 0x%x\n", rd, immed8, immed8);
-}
-
-static void add3(uint16_t inst) {
-	uint8_t rm = (inst & 0x1c0) >> 6;
-	uint8_t rn = (inst & 0x38) >> 3;
-	uint8_t rd = (inst & 0x7) >> 0;
-
-	uint32_t rn_val = CORE_reg_read(rn);
-	uint32_t rm_val = CORE_reg_read(rm);
-	uint32_t result = rn_val + rm_val;
-	CORE_reg_write(rd, result);
-
-	uint32_t cpsr = CORE_cpsr_read();
-
-	if (!in_ITblock()) {
-		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
-				result < rn_val, OVER_ADD(result, rn_val, rm_val));
-		CORE_cpsr_write(cpsr);
-	}
-
-	DBG2("add3 r%02d, r%02d, r%02d\n", rd, rn, rm);
+	return adc_reg(rdn, rdn, rm, setflags, SRType_LSL, 0);
 }
 
 static void add6(uint16_t inst) {
@@ -142,7 +90,11 @@ static void add7(uint16_t inst) {
 static void add_imm(uint8_t rn, uint8_t rd, uint32_t imm32, uint8_t setflags) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
-	uint32_t result = rn_val + imm32;
+	uint32_t result;
+	bool carry;
+	bool overflow;
+	AddWithCarry(rn_val, imm32, 0, &result, &carry, &overflow);
+
 	CORE_reg_write(rd, result);
 
 	if (setflags) {
@@ -150,14 +102,35 @@ static void add_imm(uint8_t rn, uint8_t rd, uint32_t imm32, uint8_t setflags) {
 		cpsr = GEN_NZCV(
 				!!(result & xPSR_N),
 				result == 0,
-				result < rn_val,
-				OVER_ADD(result, rn_val, imm32)
+				carry,
+				overflow
 			       );
 		CORE_cpsr_write(cpsr);
 	}
 
 	DBG2("add r%02d = r%02d + 0x%08x\t%08x = %08x + %08x\n",
 			rd, rn, imm32, result, rn_val, imm32);
+}
+
+static void add_imm_t1(uint16_t inst) {
+	uint8_t rd = inst & 0x7;
+	uint8_t rn = (inst >> 3) & 0x7;
+	uint8_t imm3 = (inst >> 6) & 0x7;
+
+	bool setflags = !in_ITblock();
+	uint32_t imm32 = imm3;
+
+	return add_imm(rn, rd, imm32, setflags);
+}
+
+static void add_imm_t2(uint16_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t rdn = (inst >> 8) & 0x7;
+
+	bool setflags = !in_ITblock();
+	uint32_t imm32 = imm8;
+
+	return add_imm(rdn, rdn, imm32, setflags);
 }
 
 static void add_imm_t3(uint32_t inst) {
@@ -183,17 +156,21 @@ static void add_imm_t3(uint32_t inst) {
 	return add_imm(rn, rd, imm32, setflags);
 }
 
-static void add_reg(uint8_t rn, uint8_t rm, uint8_t rd, enum SRType shift_t, uint8_t shift_n, bool setflags) {
+static void add_reg(uint8_t rd, uint8_t rn, uint8_t rm, bool setflags,
+		enum SRType shift_t, uint8_t shift_n) {
 	uint32_t rn_val = CORE_reg_read(rn);
 	uint32_t rm_val = CORE_reg_read(rm);
-	uint32_t result;
 
 	uint32_t cpsr = CORE_cpsr_read();
 
 	uint32_t shifted;
 	shifted = Shift(rm_val, 32, shift_t, shift_n, !!(cpsr & xPSR_C));
 
-	result = rn_val + shifted;
+	uint32_t result;
+	bool carry;
+	bool overflow;
+	AddWithCarry(rn_val, shifted, 0, &result, &carry, &overflow);
+
 	if (rd == 15) {
 		// ALUWritePC
 		CORE_ERR_not_implemented("ALUWritePC case add_reg\n");
@@ -203,14 +180,24 @@ static void add_reg(uint8_t rn, uint8_t rm, uint8_t rd, enum SRType shift_t, uin
 			cpsr = GEN_NZCV(
 					!!(result & xPSR_N),
 					result == 0,
-					result < rn_val,
-					OVER_ADD(result, rn_val, shifted)
+					carry,
+					overflow
 				       );
 			CORE_cpsr_write(cpsr);
 		}
 	}
 
 	DBG2("add_reg r%02d = 0x%08x\n", rd, result);
+}
+
+static void add_reg_t1(uint16_t inst) {
+	uint8_t rd = inst & 0x7;
+	uint8_t rn = (inst >> 3) & 0x7;
+	uint8_t rm = (inst >> 6) & 0x7;
+
+	bool setflags = !in_ITblock();
+
+	return add_reg(rd, rn, rm, setflags, SRType_LSL, 0);
 }
 
 static void add_reg_t2(uint16_t inst) {
@@ -234,7 +221,7 @@ static void add_reg_t2(uint16_t inst) {
 	if ((rd == 15) && in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("add_reg_t2 it\n");
 
-	return add_reg(rn, rm, rd, shift_t, shift_n, setflags);
+	return add_reg(rd, rn, rm, setflags, shift_t, shift_n);
 }
 
 static void add_reg_t3(uint32_t inst) {
@@ -256,7 +243,7 @@ static void add_reg_t3(uint32_t inst) {
 	if ((rd == 13) || ((rd == 15) && (S == 0)) || (rn == 15) || BadReg(rm))
 		CORE_ERR_unpredictable("bad regs\n");
 
-	return add_reg(rn, rm, rd, shift_t, shift_n, setflags);
+	return add_reg(rd, rn, rm, setflags, shift_t, shift_n);
 }
 
 static void add_sp_plus_imm(uint8_t rd, uint32_t imm32, bool setflags) {
@@ -310,20 +297,11 @@ static void add_sp_plus_imm_t4(uint32_t inst) {
 }
 
 void register_opcodes_add(void) {
-	// adc: 0100 0001 01<x's>
-	register_opcode_mask_16(0x4140, 0xbe80, adc);
-
 	// adc_imm_t1: 1111 0x01 010x xxxx 0xxx xxxx xxxx xxxx
 	register_opcode_mask_32(0xf1400000, 0x0aa08000, adc_imm_t1);
 
-	// add1: 0001 110x xxxx xxxx
-	register_opcode_mask_16(0x1c00, 0xe200, add1);
-
-	// add2: 0011 0<x's>
-	register_opcode_mask_16(0x3000, 0xc800, add2);
-
-	// add3: 0001 100<x's>
-	register_opcode_mask_16(0x1800, 0xe600, add3);
+	// adc_reg_t1: 0100 0001 01<x's>
+	register_opcode_mask_16(0x4140, 0xbe80, adc_reg_t1);
 
 	// add6: 1010 1<s's>
 	register_opcode_mask_16(0xa800, 0x5000, add6);
@@ -331,11 +309,20 @@ void register_opcodes_add(void) {
 	// add7: 1011 0000 0<x's>
 	register_opcode_mask_16(0xb000, 0x4f80, add7);
 
+	// add_imm_t1: 0001 110x xxxx xxxx
+	register_opcode_mask_16(0x1c00, 0xe200, add_imm_t1);
+
+	// add_imm_t2: 0011 0<x's>
+	register_opcode_mask_16(0x3000, 0xc800, add_imm_t2);
+
 	// add_imm_t3: 1111 0x01 000x xxxx 0<x's>
 	register_opcode_mask_32_ex(0xf1000000, 0x0ae08000, add_imm_t3,
 			0x100f00, 0x0,
 			0xd0000, 0x20000,
 			0, 0);
+
+	// add_reg_t1: 0001 100<x's>
+	register_opcode_mask_16(0x1800, 0xe600, add_reg_t1);
 
 	// add_reg_t2: 0100 0100 <x's>
 	register_opcode_mask_16(0x4400, 0xbb00, add_reg_t2);
