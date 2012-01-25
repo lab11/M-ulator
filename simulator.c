@@ -918,13 +918,13 @@ static void print_reg_state(void) {
 	print_reg_state_internal();
 }
 
-//#ifndef NO_PIPELINE
+#ifndef NO_PIPELINE
 static void print_stages(void) {
 	printf("Stages:\n");
 	printf("\tPC's:\tPRE_IF %08x, IF_ID %08x, ID_EX %08x\n",
 			pre_if_PC, if_id_PC, id_ex_PC);
 }
-//#endif
+#endif
 
 static void print_full_state(void) {
 	DIVIDERe;
@@ -933,10 +933,10 @@ static void print_full_state(void) {
 	DIVIDERd;
 	print_reg_state_internal();
 
-//#ifndef NO_PIPELINE
+#ifndef NO_PIPELINE
 	DIVIDERd;
 	print_stages();
-//#endif
+#endif
 
 	DIVIDERd;
 
@@ -950,8 +950,8 @@ static void print_full_state(void) {
 		FILE* romfp = fopen(file, "w");
 		if (romfp) {
 			i = fwrite(rom, ROMSIZE, 1, romfp);
-			printf("Wrote %8d bytes to %s "\
-					"\t\t(Use 'hexdump -C' to view)\n",
+			printf("Wrote %8d bytes to %-29s "\
+					"(Use 'hexdump -C' to view)\n",
 					i*ROMSIZE, file);
 			fclose(romfp);
 		} else {
@@ -964,8 +964,8 @@ static void print_full_state(void) {
 		FILE* ramfp = fopen(file, "w");
 		if (ramfp) {
 			i = fwrite(ram, RAMSIZE, 1, ramfp);
-			printf("Wrote %8zu bytes to %s "\
-					"\t\t(Use 'hexdump -C' to view)\n",
+			printf("Wrote %8zu bytes to %-29s "\
+					"(Use 'hexdump -C' to view)\n",
 					i*RAMSIZE, file);
 			fclose(ramfp);
 		} else {
