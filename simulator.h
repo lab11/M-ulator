@@ -17,6 +17,7 @@
 
 #define ROMSIZE (ROMTOP - ROMBOT) // In bytes
 #define RAMSIZE (RAMTOP - RAMBOT) // In bytes
+//#define PRINT_ROM_EN
 
 /////////////////
 // ERROR CODES //

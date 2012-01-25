@@ -926,6 +926,15 @@ static void print_stages(void) {
 }
 #endif
 
+static const char *get_dump_name(char c) {
+	static char name[] = "/tmp/373rom.\0\0\0\0\0\0\0\0\0";
+	if ('\0' == name[strlen("/tmp/373rom.")])
+		if (0 != getlogin_r(name + strlen("/tmp/373rom."), 9))
+			perror("getting username for rom/ram dump");
+	name[strlen("/tmp/373r")] = c;
+	return name;
+}
+
 static void print_full_state(void) {
 	DIVIDERe;
 	print_leds_line();
@@ -941,25 +950,25 @@ static void print_full_state(void) {
 	DIVIDERd;
 
 	{
-		char file[] = "/tmp/373rom.\0\0\0\0\0\0\0\0\0";
-		if (0 != getlogin_r(file + strlen("/tmp/373rom."), 9))
-			perror("getting username for rom/ram dump");
-
+		const char *file;
 		size_t i;
-/*
+
+#ifdef PRINT_ROM_EN
+		file = get_dump_name('o');
 		FILE* romfp = fopen(file, "w");
 		if (romfp) {
 			i = fwrite(rom, ROMSIZE, 1, romfp);
-			printf("Wrote %8d bytes to %-29s "\
+			printf("Wrote %8zu bytes to %-29s "\
 					"(Use 'hexdump -C' to view)\n",
 					i*ROMSIZE, file);
 			fclose(romfp);
 		} else {
 			perror("No ROM dump");
 		}
-*/
+#endif
+
 		// rom --> ram
-		file[strlen("/tmp/373r")] = 'a';
+		file = get_dump_name('a');
 
 		FILE* ramfp = fopen(file, "w");
 		if (ramfp) {
@@ -1036,6 +1045,39 @@ static void _shell(void) {
 		case 't':
 			exit(EXIT_SUCCESS);
 
+		case 'r':
+		{
+			const char *file;
+
+#ifdef PRINT_ROM_EN
+			if (buf[1] == 'o') {
+				file = get_dump_name('o');
+			} else
+#endif
+			if (buf[1] == 'a') {
+				file = get_dump_name('a');
+			} else {
+				file = NULL;
+				buf[1] = '\0';
+				// now fall through 'c' to help
+			}
+
+			if (file) {
+				char *cmd;
+				assert(-1 != asprintf(&cmd, "hexdump -C %s", file));
+				FILE *out = popen(cmd, "r");
+
+				char buf[100];
+				while ( fgets(buf, 99, out) ) {
+					printf("%s", buf);
+				}
+
+				pclose(out);
+
+				return _shell();
+			}
+		}
+
 		case 'c':
 			if (buf[1] == 'y') {
 				int requested_cycle;
@@ -1066,6 +1108,10 @@ static void _shell(void) {
 			printf("   cycle INTEGER	Stop at cycle\n");
 			printf("   seek [INTEGER]	Seek to cycle\n");
 			printf("                        (forward 1 cycle default)\n");
+#ifdef PRINT_ROM_EN
+			printf("   rom			Print ROM contents\n");
+#endif
+			printf("   ram			Print RAM contents\n");
 			printf("   continue		Continue\n");
 			printf("   terminate		Terminate Simulation\n");
 			return _shell();

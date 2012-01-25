@@ -105,10 +105,30 @@ for f in sys.argv[1:]:
 
 		if line[0] == '#':
 			continue
-		try:
-			read,write,addr,init,reg = line.split()
-		except ValueError:
-			raise ParseError(e, "Malformatted line")
+		elif line[0] == '\t':
+			try:
+				bits,name = line.split()
+			except ValueError:
+				raise ParseError(e, "Malformatted bit-specifier line")
+
+			if name == "RESERVED":
+				continue
+
+			bits = bits[:-1][1:]
+			if ":" in bits:
+				high,low = bits.split(':')
+				mask = 0
+				for i in range(int(low), int(high)+1):
+					mask |= (1 << i)
+			else:
+				mask = (1 << int(bits))
+			h.write("#define %s_%s_MASK 0x%08x\n" % (reg, name, mask))
+			continue
+		else:
+			try:
+				read,write,addr,init,reg = line.split()
+			except ValueError:
+				raise ParseError(e, "Malformatted line")
 
 		read = read.lower()
 		write = write.lower()

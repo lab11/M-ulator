@@ -8,6 +8,8 @@
 
 #include "private_peripheral_bus/ppb.h"
 
+#define TRAP_ALIGNMENT (read_word(CONFIGURATION_CONTROL) & CONFIGURATION_CONTROL_UNALIGN_TRP_MASK)
+
 /* void reset(void)
  *
  * This function is called when the reset pin is triggered on the processor.
@@ -30,6 +32,8 @@ void reset(void) {
  * be useful as well
  */
 bool try_read_word(uint32_t addr, uint32_t *val) {
+	DBG2("addr %08x\n", addr);
+
 	if (addr >= ROMBOT && addr < ROMTOP) {
 		*val = CORE_rom_read(addr);
 	} else if (addr >= RAMBOT && addr < RAMTOP) {
@@ -72,6 +76,8 @@ uint32_t read_word(uint32_t addr) {
  * Like read_word, only for writes
  */
 void write_word(uint32_t addr, uint32_t val) {
+	DBG2("addr %08x val %08x\n", addr, val);
+
 	if (addr >= ROMBOT && addr < ROMTOP) {
 #ifdef WRITEABLE_ROM
 		CORE_rom_write(addr, val);
@@ -105,23 +111,30 @@ void write_word(uint32_t addr, uint32_t val) {
 }
 
 uint16_t read_halfword(uint32_t addr) {
+	DBG2("addr %08x\n", addr);
+
 	uint32_t word = read_word(addr & 0xfffffffc);
 
-	if (addr & 0x1)
-		CORE_ERR_invalid_addr(false, addr);
+	if ((addr & 0x1) & TRAP_ALIGNMENT) {
+		assert(false && "Alignment exception");
+	}
 
 	uint16_t ret;
 
-	switch (addr & 0x2) {
+	switch (addr & 0x3) {
 		case 0x0:
 			ret = (word & 0x0000ffff) >> 0;
+			break;
+		case 0x1:
+			ret = (word & 0x00ffff00) >> 8;
 			break;
 		case 0x2:
 			ret = (word & 0xffff0000) >> 16;
 			break;
-		default:
-			// appease compiler
-			assert(false); return 0;
+		case 0x3:
+			ret = (word & 0xff000000) >> 24;
+			ret |= (read_byte(addr + 1) << 8);
+			break;
 	}
 
 	DBG2("read_halfword: returning %d\t0x%04x\n", ret, ret);
@@ -130,20 +143,36 @@ uint16_t read_halfword(uint32_t addr) {
 }
 
 void write_halfword(uint32_t addr, uint16_t val) {
+	DBG2("addr %08x val %04x\n", addr, val);
+
 	// Periphs are all word or byte, no need to check here then
 	// (they will either succeed or fail on the word checks)
+
+	if ((addr & 0x1) & TRAP_ALIGNMENT) {
+		// misaligned access
+		assert(false && "Alignment exception");
+	}
 
 	uint32_t word = read_word(addr & 0xfffffffc);
 	uint32_t val32 = val;
 
-	switch (addr & 0x1) {
-		case 0:
+	switch (addr & 0x3) {
+		case 0x0:
 			word &= 0xffff0000;
 			word |= val32;
 			break;
-		case 1:
+		case 0x1:
+			word &= 0xff0000ff;
+			word |= val32;
+			break;
+		case 0x2:
 			word &= 0x0000ffff;
 			word |= (val32 << 16);
+			break;
+		case 0x3:
+			word &= 0x00ffffff;
+			word |= (val32 << 24);
+			write_byte(addr + 1, val32 >> 8);
 			break;
 	}
 
@@ -151,11 +180,11 @@ void write_halfword(uint32_t addr, uint16_t val) {
 }
 
 bool try_read_byte(uint32_t addr, uint8_t* ret) {
-	DBG2("read_byte: addr %08x, val %08x, case %d\n", addr, word, addr & 0x3);
-
 	uint32_t word;
 	if (!try_read_word(addr & 0xfffffffc, &word))
 		return false;
+
+	DBG2("addr %08x, val %08x, case %d\n", addr, word, addr & 0x3);
 
 	switch (addr & 0x3) {
 		case 0:
@@ -175,7 +204,7 @@ bool try_read_byte(uint32_t addr, uint8_t* ret) {
 			assert(false); return 0;
 	}
 
-	DBG2("read_byte: returning %c\t%02x\n", *ret, *ret);
+	DBG2("returning %c\t%02x\n", *ret, *ret);
 
 	return true;
 }
