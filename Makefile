@@ -22,15 +22,16 @@ CLI_OBJS += $(patsubst %.c,%.o,$(wildcard cli/*.c))
 GUI_OBJS += $(patsubst %.c,%.o,$(wildcard gui/*.c))
 
 SIM_OBJS += $(patsubst %.c,%.o,$(wildcard ./*.c))
+SIM_H    += $(wildcard ./*.h)
 
 simulator:	simulator-cli simulator-gui
 	rm -f simulator
 	ln -s simulator-cli simulator
 
-simulator-cli:	cpu cli $(SIM_OBJS)
+simulator-cli:	cpu cli $(SIM_OBJS) $(SIM_H)
 	$(CC) $(LDFLAGS) $(CLI_OBJS) $(CPU_OBJS) $(SIM_OBJS) -o $@
 
-simulator-gui:	cpu gui $(SIM_OBJS)
+simulator-gui:	cpu gui $(SIM_OBJS) $(SIM_H)
 	$(CC) $(GTK_LDFLAGS) $(LDFLAGS) $(GUI_OBJS) $(CPU_OBJS) $(SIM_OBJS) -o $@
 
 clean-simulator: cpu/clean cli/clean gui/clean
@@ -40,7 +41,6 @@ clean-simulator: cpu/clean cli/clean gui/clean
 	rm -f $(SIM_OBJS)
 
 clean-simulator-all: clean-simulator cpu/clean-all cli/clean-all gui/clean-all
-	rm -f flash.mem
 
 .PHONY: all clean-simulator clean-simulator-all
 
