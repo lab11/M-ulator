@@ -291,6 +291,20 @@ static void strh_imm(uint8_t rt, uint8_t rn, uint32_t imm32,
 		CORE_reg_write(rn, offset_addr);
 }
 
+static void strh_imm_t1(uint16_t inst) {
+	uint8_t rt = inst & 0x7;
+	uint8_t rn = (inst >> 3) & 0x7;
+	uint8_t imm5 = (inst >> 6) & 0x1f;
+
+	uint32_t imm32 = imm5 << 1;
+
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+
+	return strh_imm(rt, rn, imm32, index, add, wback);
+}
+
 static void strh_imm_t2(uint32_t inst) {
 	uint16_t imm12 = inst & 0xfff;
 	uint8_t rt = (inst >> 12) & 0xf;
@@ -350,6 +364,9 @@ void register_opcodes_str(void) {
 
 	// strd_imm: 1110 100x x1x0 <x's>
 	register_opcode_mask_32(0xe8400000, 0x16100000, strd_imm);
+
+	// strh_imm_t1: 1000 0<x's>
+	register_opcode_mask_16(0x8000, 0x7800, strh_imm_t1);
 
 	// strh_imm_t2: 1111 1000 1010 <x's>
 	register_opcode_mask_32_ex(0xf8a00000, 0x07500000, strh_imm_t2,
