@@ -1143,7 +1143,7 @@ static void shell(void) {
  * as SBZP for maximum portability across ARMv7 profiles.
  */
 
-uint32_t CORE_reg_read(int r) {
+EXPORT uint32_t CORE_reg_read(int r) {
 	assert(r >= 0 && r < 16 && "CORE_reg_read");
 	G_REG(READ, r);
 	if (r == SP_REG) {
@@ -1161,7 +1161,7 @@ uint32_t CORE_reg_read(int r) {
 	}
 }
 
-void CORE_reg_write(int r, uint32_t val) {
+EXPORT void CORE_reg_write(int r, uint32_t val) {
 	assert(r >= 0 && r < 16 && "CORE_reg_write");
 	if (r == SP_REG) {
 		SW(&SP, val & 0xfffffffc);
@@ -1199,12 +1199,12 @@ void CORE_reg_write(int r, uint32_t val) {
 	G_REG(WRITE, r);
 }
 
-uint32_t CORE_cpsr_read(void) {
+EXPORT uint32_t CORE_cpsr_read(void) {
 	G_CPSR(READ);
 	return SR(&CPSR);
 }
 
-void CORE_cpsr_write(uint32_t val) {
+EXPORT void CORE_cpsr_write(uint32_t val) {
 	if (in_ITblock()) {
 		DBG1("WARN update of cpsr in IT block\n");
 	}
@@ -1218,28 +1218,28 @@ void CORE_cpsr_write(uint32_t val) {
 }
 
 #ifdef M_PROFILE
-uint32_t CORE_ipsr_read(void) {
+EXPORT uint32_t CORE_ipsr_read(void) {
 	G_IPSR(READ);
 	return SR(&IPSR);
 }
 
-void CORE_ipsr_write(uint32_t val) {
+EXPORT void CORE_ipsr_write(uint32_t val) {
 	SW(&IPSR, val);
 	G_IPSR(WRITE);
 }
 
-uint32_t CORE_epsr_read(void) {
+EXPORT uint32_t CORE_epsr_read(void) {
 	G_EPSR(READ);
 	return SR(&EPSR);
 }
 
-void CORE_epsr_write(uint32_t val) {
+EXPORT void CORE_epsr_write(uint32_t val) {
 	SW(&EPSR, val);
 	G_EPSR(WRITE);
 }
 #endif
 
-uint32_t CORE_rom_read(uint32_t addr) {
+EXPORT uint32_t CORE_rom_read(uint32_t addr) {
 	DBG2("ROM Read request addr %x (idx: %d)\n", addr, ADDR_TO_IDX(addr, ROMBOT));
 #ifdef DEBUG1
 	assert((addr >= ROMBOT) && (addr < ROMTOP) && "CORE_rom_read");
@@ -1253,7 +1253,7 @@ uint32_t CORE_rom_read(uint32_t addr) {
 }
 
 #ifdef WRITEABLE_ROM
-void CORE_rom_write(uint32_t addr, uint32_t val) {
+EXPORT void CORE_rom_write(uint32_t addr, uint32_t val) {
 	DBG2("ROM Write request addr %x (idx: %d)\n", addr, ADDR_TO_IDX(addr, ROMBOT));
 #ifdef DEBUG1
 	assert((addr >= ROMBOT) && (addr < ROMTOP) && "CORE_rom_write");
@@ -1267,7 +1267,7 @@ void CORE_rom_write(uint32_t addr, uint32_t val) {
 }
 #endif
 
-uint32_t CORE_ram_read(uint32_t addr) {
+EXPORT uint32_t CORE_ram_read(uint32_t addr) {
 #ifdef DEBUG1
 	assert((addr >= RAMBOT) && (addr < RAMTOP) && "CORE_ram_read");
 #endif
@@ -1279,7 +1279,7 @@ uint32_t CORE_ram_read(uint32_t addr) {
 	}
 }
 
-void CORE_ram_write(uint32_t addr, uint32_t val) {
+EXPORT void CORE_ram_write(uint32_t addr, uint32_t val) {
 	DBG2("RAM Write request addr %x (idx: %d)\n", addr, ADDR_TO_IDX(addr, RAMBOT));
 #ifdef DEBUG1
 	assert((addr >= RAMBOT) && (addr < RAMTOP) && "CORE_ram_write");
@@ -1292,69 +1292,69 @@ void CORE_ram_write(uint32_t addr, uint32_t val) {
 	}
 }
 
-uint32_t CORE_red_led_read(void) {
+EXPORT uint32_t CORE_red_led_read(void) {
 	G_PERIPH(READ, LED, RED);
 	return SR(&leds[RED]);
 }
 
-void CORE_red_led_write(uint32_t val) {
+EXPORT void CORE_red_led_write(uint32_t val) {
 	G_PERIPH(WRITE, LED, RED);
 	SW(&leds[RED],val);
 	state_led_write(RED, val);
 }
 
-uint32_t CORE_grn_led_read(void) {
+EXPORT uint32_t CORE_grn_led_read(void) {
 	G_PERIPH(READ, LED, GRN);
 	return SR(&leds[GRN]);
 }
 
-void CORE_grn_led_write(uint32_t val) {
+EXPORT void CORE_grn_led_write(uint32_t val) {
 	G_PERIPH(WRITE, LED, GRN);
 	SW(&leds[GRN],val);
 	state_led_write(GRN, val);
 }
 
-uint32_t CORE_blu_led_read(void) {
+EXPORT uint32_t CORE_blu_led_read(void) {
 	G_PERIPH(READ, LED, BLU);
 	return SR(&leds[BLU]);
 }
 
-void CORE_blu_led_write(uint32_t val) {
+EXPORT void CORE_blu_led_write(uint32_t val) {
 	G_PERIPH(WRITE, LED, BLU);
 	state_led_write(BLU, val);
 }
 
-uint8_t CORE_poll_uart_status_read() {
+EXPORT uint8_t CORE_poll_uart_status_read() {
 	return poll_uart_status_read();
 }
 
-void CORE_poll_uart_status_write(uint8_t val) {
+EXPORT void CORE_poll_uart_status_write(uint8_t val) {
 	return poll_uart_status_write(val);
 }
 
-uint8_t CORE_poll_uart_rxdata_read() {
+EXPORT uint8_t CORE_poll_uart_rxdata_read() {
 	return poll_uart_rxdata_read();
 }
 
-void CORE_poll_uart_txdata_write(uint8_t val) {
+EXPORT void CORE_poll_uart_txdata_write(uint8_t val) {
 	return poll_uart_txdata_write(val);
 }
 
-void CORE_WARN_real(const char *f, int l, const char *msg) {
+EXPORT void CORE_WARN_real(const char *f, int l, const char *msg) {
 	WARN("%s:%d\t%s\n", f, l, msg);
 }
 
-void CORE_ERR_read_only_real(const char *f, int l, uint32_t addr) {
+EXPORT void CORE_ERR_read_only_real(const char *f, int l, uint32_t addr) {
 	print_full_state();
 	ERR(E_READONLY, "%s:%d\t%#08x is read-only\n", f, l, addr);
 }
 
-void CORE_ERR_write_only_real(const char *f, int l, uint32_t addr) {
+EXPORT void CORE_ERR_write_only_real(const char *f, int l, uint32_t addr) {
 	print_full_state();
 	ERR(E_WRITEONLY, "%s:%d\t%#08x is write-only\n", f, l, addr);
 }
 
-void CORE_ERR_invalid_addr_real(const char *f, int l, uint8_t is_write, uint32_t addr) {
+EXPORT void CORE_ERR_invalid_addr_real(const char *f, int l, uint8_t is_write, uint32_t addr) {
 	WARN("CORE_ERR_invalid_addr %s address: 0x%08x\n",
 			is_write ? "writing":"reading", addr);
 	WARN("Dumping Core...\n");
@@ -1362,25 +1362,25 @@ void CORE_ERR_invalid_addr_real(const char *f, int l, uint8_t is_write, uint32_t
 	ERR(E_INVALID_ADDR, "%s:%d\tTerminating due to invalid addr\n", f, l);
 }
 
-void CORE_ERR_illegal_instr_real(const char *f, int l, uint32_t inst) {
+EXPORT void CORE_ERR_illegal_instr_real(const char *f, int l, uint32_t inst) {
 	WARN("CORE_ERR_illegal_instr, inst: %04x\n", inst);
 	WARN("Dumping core...\n");
 	print_full_state();
 	ERR(E_UNKNOWN, "%s:%d\tUnknown inst\n", f, l);
 }
 
-void CORE_ERR_illegal_line_real(const char* f, int l, const char *line) {
+EXPORT void CORE_ERR_illegal_line_real(const char* f, int l, const char *line) {
 	WARN("CORE_ERR_illegal_line: %s\n", line);
 	WARN("Dumping core...\n");
 	print_full_state();
 	ERR(E_UNKNOWN, "%s:%d\tThis is a bug in your simulator.\n", f, l);
 }
 
-void CORE_ERR_unpredictable_real(const char *f, int l, const char *opt_msg) {
+EXPORT void CORE_ERR_unpredictable_real(const char *f, int l, const char *opt_msg) {
 	ERR(E_UNPREDICTABLE, "%s:%d\tCORE_ERR_unpredictable -- %s\n", f, l, opt_msg);
 }
 
-void CORE_ERR_not_implemented_real(const char *f, int l, const char *opt_msg) {
+EXPORT void CORE_ERR_not_implemented_real(const char *f, int l, const char *opt_msg) {
 	ERR(E_NOT_IMPLEMENTED, "%s:%d\tCORE_ERR_not_implemented -- %s\n", f, l, opt_msg);
 }
 
@@ -1658,7 +1658,7 @@ static void power_on(void) {
 	sim_reset();
 }
 
-void* core_thread(void *unused __attribute__ ((unused)) ) {
+static void* core_thread(void *unused __attribute__ ((unused)) ) {
 	power_on();
 }
 
@@ -1810,7 +1810,7 @@ EXPORT void simulator(const char *flash_file, uint16_t polluartport) {
 // UART THREAD(S)
 ////////////////////////////////////////////////////////////////////////////////
 
-void *poll_uart_thread(void *arg_v) {
+static void *poll_uart_thread(void *arg_v) {
 	uint16_t port = *((uint16_t *) arg_v);
 
 	int sock;
