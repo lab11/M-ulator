@@ -119,6 +119,23 @@ static void cmp_reg_t2(uint16_t inst) {
 	return cmp_reg(rn, rm, shift_t, shift_n);
 }
 
+static void cmp_reg_t3(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t type = (inst >> 4) & 0x3;
+	uint8_t imm2 = (inst >> 6) & 0x3;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	enum SRType shift_t;
+	uint8_t shift_n;
+	DecodeImmShift(type, (imm3 << 2) | imm2, &shift_t, &shift_n);
+
+	if ((rn == 15) || BadReg(rm))
+		CORE_ERR_unpredictable("bad regs\n");
+
+	return cmp_reg(rn, rm, shift_t, shift_n);
+}
+
 void register_opcodes_cmp(void) {
 	// cmn_imm_t1: 1111 0x01 0001 xxxx 0xxx 1111 xxxx xxxx
 	register_opcode_mask_32(0xf1100f00, 0x0ae08000, cmn_imm_t1);
@@ -134,4 +151,7 @@ void register_opcodes_cmp(void) {
 
 	// cmp_reg_t2: 0100 0101 xxxx xxxx
 	register_opcode_mask_16(0x4500, 0xba00, cmp_reg_t2);
+
+	// cmp_reg_t3: 1110 1011 1011 xxxx 0xxx 1111 xxxx xxxx
+	register_opcode_mask_32(0xebb00f00, 0x14408000, cmp_reg_t3);
 }
