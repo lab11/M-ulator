@@ -270,7 +270,10 @@ void register_opcodes_branch(void) {
 	register_opcode_mask_16(0xe000, 0x1800, b_t2);
 
 	// b_t3: 1111 0xxx xxxx xxxx 10x0 <x's>
-	register_opcode_mask_32(0xf0008000, 0x08005000, b_t3);
+	//   ex:        11 1
+	register_opcode_mask_32_ex(0xf0008000, 0x08005000, b_t3,
+			0x03800000, 0x0,
+			0, 0);
 
 	// b_t4: 1111 0xxx xxxx xxxx 10x1 xxxx xxxx xxxx
 	register_opcode_mask_32(0xf0009000, 0x08004000, b_t4);

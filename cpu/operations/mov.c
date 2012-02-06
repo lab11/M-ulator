@@ -4,6 +4,53 @@
 #include "../cpu.h"
 #include "../misc.h"
 
+static void mrs(uint8_t rd, uint8_t sysm) {
+	uint32_t rd_val = 0;
+
+	switch ((sysm >> 3) & 0x1f) {
+		case 0x0:
+			if (sysm & 0x1) {
+				rd_val |= (CORE_ipsr_read() & 0x1ff);
+			}
+			if (sysm & 0x2) {
+				// Clear rd [26:24], [15:10]
+				rd_val &= ~0x0700fc00;
+			}
+			if (!(sysm & 0x4)) {
+				// XXX: cpsr vs apsr naming convention
+				rd_val |= (CORE_cpsr_read() & 0xf8000000);
+				if (false /*HaveDSPext()*/) {
+					rd_val |= (CORE_cpsr_read() & 0xf0000);
+				}
+			}
+			break;
+
+		case 0x1:
+			CORE_ERR_not_implemented("priviledge separation\n");
+			break;
+
+		case 0x2:
+			CORE_ERR_not_implemented("priviledge separation & FP\n");
+			break;
+
+		default:
+			CORE_ERR_unpredictable("bad sysm val\n");
+	}
+
+	CORE_reg_write(rd, rd_val);
+}
+
+static void mrs_t1(uint32_t inst) {
+	uint8_t sysm = inst & 0xff;
+	uint8_t rd = (inst >> 8) & 0xf;
+
+	// if d IN {13,15} || !(Uint(SYSm) IN {0..3,5.9.16..20})
+	if (BadReg(rd) || false /* XXX lazy */)
+		CORE_ERR_unpredictable("bad reg\n");
+
+	return mrs(rd, sysm);
+}
+
 static void mov_imm(uint32_t cpsr, uint8_t setflags, uint32_t imm32, uint8_t rd, uint8_t carry){
 	uint32_t result = imm32;
 
@@ -181,6 +228,9 @@ static void movt_t1(uint32_t inst) {
 }
 
 void register_opcodes_mov(void) {
+	// mrs_t1: 1111 0011 1110 1111 1000 xxxx xxxx xxxx
+	register_opcode_mask_32(0xf3ef8000, 0x0c107000, mrs_t1);
+
 	// mov1: 0010 0xxx <x's>
 	register_opcode_mask_16(0x2000, 0xd800, mov_imm_t1);
 
