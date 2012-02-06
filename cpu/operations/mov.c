@@ -51,6 +51,59 @@ static void mrs_t1(uint32_t inst) {
 	return mrs(rd, sysm);
 }
 
+static void msr(uint8_t rn, uint8_t mask, uint8_t sysm) {
+	uint32_t apsr_val = CORE_cpsr_read();
+	uint32_t rn_val = CORE_reg_read(rn);
+
+	switch ((sysm >> 3) & 0x1f) {
+		case 0x0:
+			if (!(sysm & 0x4)) {
+				if (mask & 0x1) {
+					if (!(false /*HaveDSPExt()*/)) {
+						CORE_ERR_unpredictable("dsp?\n");
+					} else {
+						apsr_val &= ~0xf0000;
+						apsr_val |= (rn_val & 0xf0000);
+					}
+				}
+				if (mask & 0x2) {
+					apsr_val &= ~0xf0000000;
+					apsr_val |= (rn_val & 0xf0000000);
+				}
+			}
+
+			break;
+
+		case 0x1:
+			CORE_ERR_not_implemented("priviledge\n");
+			break;
+
+		case 0x2:
+			CORE_ERR_not_implemented("priviledge & others\n");
+			break;
+
+		default:
+			CORE_ERR_unpredictable("bad sysm\n");
+	}
+
+	CORE_cpsr_write(apsr_val);
+}
+
+static void msr_t1(uint32_t inst) {
+	uint8_t sysm = inst & 0xff;
+	uint8_t mask = (inst >> 10) & 0x3;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	if ((mask == 0x0) || ((mask != 0x2) && !(sysm <= 3)))
+		CORE_ERR_unpredictable("bad mask\n");
+
+	// if n IN {13,15} || !(Uint(SYSm) IN {0..3,5.9.16..20})
+	if (BadReg(rn) || false /* XXX lazy */)
+		CORE_ERR_unpredictable("bad reg\n");
+
+	return msr(rn, mask, sysm);
+}
+
 static void mov_imm(uint32_t cpsr, uint8_t setflags, uint32_t imm32, uint8_t rd, uint8_t carry){
 	uint32_t result = imm32;
 
@@ -230,6 +283,9 @@ static void movt_t1(uint32_t inst) {
 void register_opcodes_mov(void) {
 	// mrs_t1: 1111 0011 1110 1111 1000 xxxx xxxx xxxx
 	register_opcode_mask_32(0xf3ef8000, 0x0c107000, mrs_t1);
+
+	// msr_t1: 1111 0011 1000 xxxx 1000 xx00 xxxx xxxx
+	register_opcode_mask_32(0xf3808000, 0x0c707300, msr_t1);
 
 	// mov1: 0010 0xxx <x's>
 	register_opcode_mask_16(0x2000, 0xd800, mov_imm_t1);
