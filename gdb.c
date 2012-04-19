@@ -12,7 +12,7 @@ static int sock = 0;
 static char escape_chars[] = "}$#*";
 //static char empty_resp[] = "$#00";
 
-void gdb_init(int port) {
+EXPORT void gdb_init(int port) {
 	assert((sock == 0) && "Multiple calls to gdb_init");
 
 	int serv_sock;
@@ -78,7 +78,7 @@ void gdb_init(int port) {
 	INFO("Connection initialized successfully\n");
 }
 
-char* gdb_get_message(int *ext_len) {
+EXPORT char* gdb_get_message(int *ext_len) {
 	static char buf[GDB_MSG_MAX];
 	memset(buf, 0, GDB_MSG_MAX);
 
@@ -212,7 +212,7 @@ static void gdb_send(const char *msg, int len) {
 #endif
 }
 
-void gdb_send_message(const char *msg) {
+EXPORT void gdb_send_message(const char *msg) {
 	unsigned char csum = 0;
 	const char *cur = msg;
 	while (*cur != '\0')
@@ -360,9 +360,12 @@ static bool _wait_for_gdb(void) {
 		}
 
 		case 'k':
+		{
 			// kill
 			INFO("Killed by remote debugger, dying\n");
 			sim_terminate();
+			break;
+		}
 
 		case 'm':
 		{
