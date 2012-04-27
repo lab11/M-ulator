@@ -119,8 +119,16 @@ EXPORT sem_t end_tick_sem;
 EXPORT sem_t end_tock_sem;
 #define NUM_TICKERS	3	// IF, ID, EX
 
+/* Peripherals */
+static void join_periph_threads (void);
+
 /* UARTs */
 #define INVALID_CLIENT (UINT_MAX-1)
+
+// Thread object running the polling UART peripheral
+pthread_t poll_uart_pthread;
+
+volatile bool poll_uart_shutdown = false;
 
 static void *poll_uart_thread(void *);
 #ifdef DEBUG1
@@ -1644,6 +1652,7 @@ static void sim_reset(void) {
 }
 
 EXPORT void sim_terminate(void) {
+	join_periph_threads();
 	print_full_state();
 	if (returnr0) {
 		DBG2("Return code is r0: %08x\n", reg[0]);
@@ -1778,7 +1787,6 @@ EXPORT void simulator(const char *flash_file, uint16_t polluartport) {
 	pthread_create(&sig_pthread, NULL, &sig_thread, (void *) &set);
 
 	// Spawn uart thread
-	pthread_t poll_uart_pthread;
 	pthread_mutex_lock(&poll_uart_mutex);
 	pthread_create(&poll_uart_pthread, NULL, poll_uart_thread, &polluartport);
 	pthread_cond_wait(&poll_uart_cond, &poll_uart_mutex);
@@ -1803,6 +1811,12 @@ EXPORT void simulator(const char *flash_file, uint16_t polluartport) {
 
 	// Should not get here, proper exit comes from self-branch detection
 	ERR(E_UNKNOWN, "core thread terminated unexpectedly\n");
+}
+
+static void join_periph_threads(void) {
+	INFO("Shutting down the polling uart peripheral");
+	poll_uart_shutdown = true;
+	pthread_join(poll_uart_pthread, NULL);
 }
 
 
@@ -1868,7 +1882,35 @@ static void *poll_uart_thread(void *arg_v) {
 
 		static uint8_t c;
 		static int ret;
-		while (1 ==  (ret = recv(SR_A(&poll_uart_client), &c, 1, 0))  ) {
+		while (1) {
+			// n.b. If the baud rate is set to a speed s.t. polling
+			// becomes CPU intensive (not likely..), this could be
+			// replaced with select + self-pipe
+			nanosleep(&poll_uart_baud_sleep, NULL);
+
+			ret = recv(client, &c, 1, MSG_DONTWAIT);
+
+			if (poll_uart_shutdown) {
+				SW_A(&poll_uart_client, INVALID_CLIENT);
+				static const char *goodbye = "\
+\n\
+>>MSG<< An extra newline has been printed before this line\n\
+>>MSG<< The polling UART device has shut down. Good bye.\n";
+				send(client, goodbye, strlen(goodbye), 0);
+				close(client);
+				INFO("Polling UART device shut down\n");
+				pthread_exit(NULL);
+			}
+
+			if (ret != 1) {
+				// Common case: poll
+				if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+					continue;
+				}
+
+				break;
+			}
+
 			pthread_mutex_lock(&poll_uart_mutex);
 			state_async_block_start();
 
@@ -1896,8 +1938,6 @@ static void *poll_uart_thread(void *arg_v) {
 
 			state_async_block_end();
 			pthread_mutex_unlock(&poll_uart_mutex);
-
-			nanosleep(&poll_uart_baud_sleep, NULL);
 		}
 
 		if (ret == 0) {
@@ -1908,7 +1948,7 @@ static void *poll_uart_thread(void *arg_v) {
 			if (SR_A(&poll_uart_client) != INVALID_CLIENT)
 				pthread_cond_wait(&poll_uart_cond, &poll_uart_mutex);
 		} else {
-			WARN("Lost connection to UART client\n");
+			WARN("Lost connection to UART client (%s)\n", strerror(errno));
 			pthread_mutex_lock(&poll_uart_mutex);
 		}
 		SW_A(&poll_uart_client, INVALID_CLIENT);
@@ -1954,7 +1994,7 @@ uint8_t poll_uart_rxdata_read() {
 	pthread_mutex_lock(&poll_uart_mutex);
 	state_async_block_start();
 	if (NULL == SRP(&poll_uart_head)) {
-		// XXX warn? nah.. but grade?
+		DBG1("Poll UART RX attempt when RX Pending was false\n");
 		ret = SR(&poll_uart_buffer[3]); // eh... rand? 3, why not?
 	} else {
 #ifdef DEBUG1
@@ -1994,6 +2034,7 @@ void poll_uart_txdata_write(uint8_t val) {
 	pthread_mutex_lock(&poll_uart_mutex);
 	uint32_t client = SR_A(&poll_uart_client);
 	if (INVALID_CLIENT == client) {
+		DBG1("Poll UART TX ignored as client is busy\n");
 		// XXX warn? no, grade
 		// no connected client (TX is busy...) so drop
 	}
