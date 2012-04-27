@@ -27,7 +27,7 @@ static void usage_fail(int retcode) {
 \t\tSlows simulation down, running an instruction every .1s\n\
 \t-e, --raiseonerror\n\
 \t\tRaises a SIGTRAP for gdb on errors before dying\n\
-\t\t(Useful for debugging with gdb\n\
+\t\t(Useful for debugging with gdb)\n\
 -- RUN TIME --------------------------------------------------------------------\n\
 \t-r, --returnr0\n\
 \t\tSets simulator binary return code to the return\n\
@@ -43,9 +43,8 @@ static void usage_fail(int retcode) {
 \t-u, --polluartport "VAL2STR(POLL_UART_PORT)"\n\
 \t\tThe port number to communicate with the polled UART device\n\
 \t--usetestflash\n\
-\t\tInstead of reading a flash.mem, use a prebuilt internal\n\
-\t\tflash.mem file. The internal flash.mem will run a valid\n\
-\t\tinstance of the supplied echo program\n\
+\t\tFlash the program ROM with a copy of the echo program\n\
+\t\tbefore running. Conflicts with -f\n\
 \n\
 "\
 	       );
@@ -157,6 +156,12 @@ int main(int argc, char **argv) {
 				usage();
 				break;
 		}
+	}
+
+	if (flash_file && usetestflash) {
+		ERR(E_BAD_FLASH, "Only one of -f or --usetestflash may be used\n");
+	} else if (usetestflash) {
+		INFO("Simulator will use internal test flash\n");
 	}
 
 	simulator(flash_file, polluartport);
