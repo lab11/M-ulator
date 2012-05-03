@@ -1377,13 +1377,6 @@ EXPORT void CORE_ERR_illegal_instr_real(const char *f, int l, uint32_t inst) {
 	ERR(E_UNKNOWN, "%s:%d\tUnknown inst\n", f, l);
 }
 
-EXPORT void CORE_ERR_illegal_line_real(const char* f, int l, const char *line) {
-	WARN("CORE_ERR_illegal_line: %s\n", line);
-	WARN("Dumping core...\n");
-	print_full_state();
-	ERR(E_UNKNOWN, "%s:%d\tThis is a bug in your simulator.\n", f, l);
-}
-
 EXPORT void CORE_ERR_unpredictable_real(const char *f, int l, const char *opt_msg) {
 	ERR(E_UNPREDICTABLE, "%s:%d\tCORE_ERR_unpredictable -- %s\n", f, l, opt_msg);
 }
@@ -1814,7 +1807,7 @@ EXPORT void simulator(const char *flash_file, uint16_t polluartport) {
 }
 
 static void join_periph_threads(void) {
-	INFO("Shutting down the polling uart peripheral");
+	INFO("Shutting down the polling uart peripheral\n");
 	poll_uart_shutdown = true;
 	pthread_join(poll_uart_pthread, NULL);
 }

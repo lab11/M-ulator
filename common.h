@@ -68,7 +68,6 @@ void	CORE_ERR_invalid_addr(uint8_t is_write, uint32_t addr) __attribute__ ((nore
 
 // Thrown when an illegal instruction is encountered
 void	CORE_ERR_illegal_instr(uint32_t instr) __attribute__ ((noreturn));
-void	CORE_ERR_illegal_line(const char *line) __attribute__ ((noreturn));
 
 // Thrown when an undefined or unpredictable state is encountered
 void	CORE_ERR_unpredictable(const char *opt_msg) __attribute__ ((noreturn));
@@ -164,10 +163,6 @@ void	CORE_ERR_invalid_addr_real(const char*, int, uint8_t, uint32_t) __attribute
 #define CORE_ERR_illegal_instr(_i)\
 	CORE_ERR_illegal_instr_real(__FILE__, __LINE__, (_i))
 void	CORE_ERR_illegal_instr_real(const char*, int, uint32_t) __attribute__ ((noreturn));
-
-#define CORE_ERR_illegal_line(_l)\
-	CORE_ERR_illegal_line_real(__FILE__, __LINE__, (_l))
-void	CORE_ERR_illegal_line_real(const char*, int, const char *) __attribute__ ((noreturn));
 
 #define CORE_ERR_unpredictable(_o)\
 	CORE_ERR_unpredictable_real(__FILE__, __LINE__, (_o))
