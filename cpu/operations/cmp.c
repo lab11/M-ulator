@@ -136,6 +136,7 @@ static void cmp_reg_t3(uint32_t inst) {
 	return cmp_reg(rn, rm, shift_t, shift_n);
 }
 
+__attribute__ ((constructor))
 void register_opcodes_cmp(void) {
 	// cmn_imm_t1: 1111 0x01 0001 xxxx 0xxx 1111 xxxx xxxx
 	register_opcode_mask_32(0xf1100f00, 0x0ae08000, cmn_imm_t1);

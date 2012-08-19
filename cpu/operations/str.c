@@ -321,6 +321,7 @@ static void strh_imm_t2(uint32_t inst) {
 	return strh_imm(rt, rn, imm32, index, add, wback);
 }
 
+__attribute__ ((constructor))
 void register_opcodes_str(void) {
 	// str1: 0110 0<x's>
 	register_opcode_mask_16(0x6000, 0x9800, str1);

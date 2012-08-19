@@ -191,6 +191,7 @@ static void ror_imm_t1(uint32_t inst) {
 	return ror_imm(rd, rm, shift_n, setflags);
 }
 
+__attribute__ ((constructor))
 void register_opcodes_shift(void) {
 	// lsl1: 0000 0<x's>
 	register_opcode_mask_16_ex(0x0000, 0xf800, lsl1,

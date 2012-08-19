@@ -78,6 +78,7 @@ static void stm_t2(uint32_t inst) {
 	return stm(rn, registers, wback);
 }
 
+__attribute__ ((constructor))
 void register_opcodes_strm(void) {
 	// 1110 1001 00x0 xxxx 0x0x xxxx xxxx xxxx
 	//             1  1101

@@ -258,6 +258,7 @@ static void tbb_t1(uint32_t inst) {
 	return tbb(rn, rm, is_tbh);
 }
 
+__attribute__ ((constructor))
 void register_opcodes_branch(void) {
 	// b_t1: 1101 <x's>
 	//   ex: xxxx 1111 <x's>

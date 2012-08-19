@@ -52,6 +52,7 @@ static void ldm_t2(uint32_t inst) {
 	return ldm(rn, registers, wback);
 }
 
+__attribute__ ((constructor))
 void register_opcodes_ldm(void) {
 	// LDM_t2: 1110 1000 10x1 xxxx xx0<x's>
 	// Illegal:            1  1101

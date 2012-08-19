@@ -9,6 +9,7 @@ static void it(uint16_t inst) {
 	DBG2("it{xxx} wrote itstate: %02x\n", itstate);
 }
 
+__attribute__ ((constructor))
 void register_opcodes_it(void) {
 	// Complicated encoding...
 	// 1011 1111 firstcond mask

@@ -148,6 +148,7 @@ static void umull_t1(uint32_t inst) {
 	return umull(rdlo, rdhi, rn, rm, setflags);
 }
 
+__attribute__ ((constructor))
 void register_opcodes_mul(void) {
 	// mla_t1: 1111 1011 0000 xxxx xxxx xxxx 0000 xxxx
 	register_opcode_mask_32_ex(0xfb000000, 0x04f000f0, mla_t1,

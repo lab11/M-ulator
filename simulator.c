@@ -1665,27 +1665,6 @@ static void* core_thread(void *unused __attribute__ ((unused)) ) {
 }
 
 static void load_opcodes(void) {
-	INFO("Registering all opcode masks/handlers...\n");
-	register_opcodes_add();
-	register_opcodes_branch();
-	register_opcodes_cb();
-	register_opcodes_cmp();
-	register_opcodes_div();
-	register_opcodes_extend();
-	register_opcodes_it();
-	register_opcodes_ld();
-	register_opcodes_ldm();
-	register_opcodes_logical();
-	register_opcodes_mov();
-	register_opcodes_mul();
-	register_opcodes_nop();
-	register_opcodes_pop();
-	register_opcodes_push();
-	register_opcodes_shift();
-	register_opcodes_str();
-	register_opcodes_strm();
-	register_opcodes_sub();
-
 	INFO("Registered %d opcode mask%s\n", opcode_masks,
 			(opcode_masks == 1) ? "":"s");
 

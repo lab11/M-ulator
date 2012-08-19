@@ -296,6 +296,7 @@ static void add_sp_plus_imm_t4(uint32_t inst) {
 	return add_sp_plus_imm(rd, imm32, setflags);
 }
 
+__attribute__ ((constructor))
 void register_opcodes_add(void) {
 	// adc_imm_t1: 1111 0x01 010x xxxx 0xxx xxxx xxxx xxxx
 	register_opcode_mask_32(0xf1400000, 0x0aa08000, adc_imm_t1);

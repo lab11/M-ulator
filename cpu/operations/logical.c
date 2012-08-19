@@ -444,6 +444,7 @@ static void tst_imm_t1(uint32_t inst) {
 	tst_imm(cpsr, rn, imm32, carry);
 }
 
+__attribute__ ((constructor))
 void register_opcodes_logical(void) {
 	// and: 0100 0000 00<x's>
 	register_opcode_mask_16(0x4000, 0xbfc0, and);

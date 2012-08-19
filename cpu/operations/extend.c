@@ -73,6 +73,7 @@ static void ubfx_t1(uint32_t inst) {
 	return ubfx(rd, rn, lsbit, widthminus1);
 }
 
+__attribute__ ((constructor))
 void register_opcodes_extend(void) {
 	// sxtb_t1: 1011 0010 01xx xxxx
 	register_opcode_mask_16(0xb240, 0x4d80, sxtb_t1);

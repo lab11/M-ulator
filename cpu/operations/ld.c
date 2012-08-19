@@ -440,6 +440,7 @@ static void ldrd_imm(uint32_t inst) {
 	DBG2("ldrd_imm did lots of stuff\n");
 }
 
+__attribute__ ((constructor))
 void register_opcodes_ld(void) {
 	// ldr1: 0110 1<x's>
 	register_opcode_mask_16(0x6800, 0x9000, ldr1);

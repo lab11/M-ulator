@@ -262,6 +262,7 @@ static void sub_sp_imm_t2(uint32_t inst) {
 	return sub_sp_imm(rd, imm32, setflags);
 }
 
+__attribute__ ((constructor))
 void register_opcodes_sub(void) {
 	// rsb_imm_t1: 0100 0010 01<x's>
 	// (pre-UAL name: neg)

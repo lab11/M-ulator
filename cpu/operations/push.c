@@ -82,6 +82,7 @@ static void push_t3(uint32_t inst) {
 	push(registers);
 }
 
+__attribute__ ((constructor))
 void register_opcodes_push(void) {
 	// 1011 010x <x's>
 	register_opcode_mask_16(0xb400, 0x4a00, push_v6);

@@ -25,6 +25,7 @@ static void cbz_t1(uint16_t inst) {
 	cbz(op == 1, rn, imm32);
 }
 
+__attribute__ ((constructor))
 void register_opcodes_cb(void) {
 	// cb{N}Z: 1011 x0x1 <x's>
 	register_opcode_mask_16(0xb100, 0x4400, cbz_t1);

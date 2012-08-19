@@ -280,6 +280,7 @@ static void movt_t1(uint32_t inst) {
 	return movt(rd, imm16);
 }
 
+__attribute__ ((constructor))
 void register_opcodes_mov(void) {
 	// mrs_t1: 1111 0011 1110 1111 1000 xxxx xxxx xxxx
 	register_opcode_mask_32(0xf3ef8000, 0x0c107000, mrs_t1);
