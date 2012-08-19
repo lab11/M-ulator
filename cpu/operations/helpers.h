@@ -35,7 +35,8 @@
 uint32_t hamming(uint32_t val);
 
 void AddWithCarry(uint32_t x, uint32_t y, bool carry_in,
-		uint32_t *result, bool *carry_out, bool *overflow_out);
+		uint32_t *result, bool *carry_out, bool *overflow_out)
+		__attribute__ ((nonnull));
 
 uint32_t SignExtend(uint32_t val, uint8_t bits);
 
@@ -63,10 +64,15 @@ enum SRType {
 };
 
 // Legal range of shift is 0..31, uint8_t forces callers to be at least somewhat concious of this
-void DecodeImmShift(uint8_t type, uint8_t imm5, enum SRType *shift_t, uint8_t *shift_n);
-void Shift_C(uint32_t value, int Nbits, enum SRType type, uint8_t amount, bool carry_in,
-		uint32_t *result, bool *carry_out);
-uint32_t Shift(uint32_t value, int Nbits, enum SRType type, uint8_t amount, bool carry_in);
+void DecodeImmShift(uint8_t type, uint8_t imm5,
+		enum SRType *shift_t, uint8_t *shift_n)
+		__attribute__ ((nonnull));
+void Shift_C(uint32_t value, int Nbits,
+		enum SRType type, uint8_t amount, bool carry_in,
+		uint32_t *result, bool *carry_out)
+		__attribute__((nonnull));
+uint32_t Shift(uint32_t value, int Nbits,
+		enum SRType type, uint8_t amount, bool carry_in);
 
 // Legal range of shift is 0..31, uint8_t forces callers to be at least somewhat concious of this
 void LSL_C(uint32_t x, int Nbits, uint8_t shift, uint32_t *result, bool *carry_out);
