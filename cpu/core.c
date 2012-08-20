@@ -26,13 +26,15 @@ void reset(void) {
 struct memmap {
 	struct memmap *next;
 	union {
-		bool (*R_fn)(uint32_t, uint32_t *);
-		void (*W_fn)(uint32_t, uint32_t);
+		bool (*R_fn32)(uint32_t, uint32_t *);
+		void (*W_fn32)(uint32_t, uint32_t);
+		bool (*R_fn8)(uint32_t, uint8_t *);
+		void (*W_fn8)(uint32_t, uint8_t);
 	};
 	uint32_t bot;
 	uint32_t top;
+	char alignment;
 };
-
 
 struct memmap reads = {0};
 struct memmap writes = {0};
@@ -42,10 +44,11 @@ void register_memmap_read_word(
 		uint32_t bot,
 		uint32_t top
 	) {
-	if (reads.R_fn == NULL) {
-		reads.R_fn = fn;
+	if (reads.R_fn32 == NULL) {
+		reads.R_fn32 = fn;
 		reads.bot = bot;
 		reads.top = top;
+		reads.alignment = 4;
 	} else {
 		struct memmap *cur = &reads;
 		while (cur->next != NULL)
@@ -53,9 +56,10 @@ void register_memmap_read_word(
 		cur->next = malloc(sizeof(struct memmap));
 		cur = cur->next;
 		cur->next = NULL;
-		cur->R_fn = fn;
+		cur->R_fn32 = fn;
 		cur->bot = bot;
 		cur->top = top;
+		cur->alignment = 4;
 	}
 }
 
@@ -64,10 +68,11 @@ void register_memmap_write_word(
 		uint32_t bot,
 		uint32_t top
 	) {
-	if (writes.W_fn == NULL) {
-		writes.W_fn = fn;
+	if (writes.W_fn32 == NULL) {
+		writes.W_fn32 = fn;
 		writes.bot = bot;
 		writes.top = top;
+		writes.alignment = 4;
 	} else {
 		struct memmap *cur = &writes;
 		while (cur->next != NULL)
@@ -75,9 +80,58 @@ void register_memmap_write_word(
 		cur->next = malloc(sizeof(struct memmap));
 		cur = cur->next;
 		cur->next = NULL;
-		cur->W_fn = fn;
+		cur->W_fn32 = fn;
 		cur->bot = bot;
 		cur->top = top;
+		cur->alignment = 4;
+	}
+}
+
+void register_memmap_read_byte(
+		bool (*fn)(uint32_t, uint8_t *),
+		uint32_t bot,
+		uint32_t top
+	) {
+	if (reads.R_fn8 == NULL) {
+		reads.R_fn8 = fn;
+		reads.bot = bot;
+		reads.top = top;
+		reads.alignment = 1;
+	} else {
+		struct memmap *cur = &reads;
+		while (cur->next != NULL)
+			cur = cur->next;
+		cur->next = malloc(sizeof(struct memmap));
+		cur = cur->next;
+		cur->next = NULL;
+		cur->R_fn8 = fn;
+		cur->bot = bot;
+		cur->top = top;
+		cur->alignment = 1;
+	}
+}
+
+void register_memmap_write_byte(
+		void (*fn)(uint32_t, uint8_t),
+		uint32_t bot,
+		uint32_t top
+	) {
+	if (writes.W_fn8 == NULL) {
+		writes.W_fn8 = fn;
+		writes.bot = bot;
+		writes.top = top;
+		writes.alignment = 1;
+	} else {
+		struct memmap *cur = &writes;
+		while (cur->next != NULL)
+			cur = cur->next;
+		cur->next = malloc(sizeof(struct memmap));
+		cur = cur->next;
+		cur->next = NULL;
+		cur->W_fn8 = fn;
+		cur->bot = bot;
+		cur->top = top;
+		cur->alignment = 1;
 	}
 }
 
@@ -87,14 +141,16 @@ void print_memmap() {
 	printf("READ MEMMAP\n");
 	struct memmap *cur = &reads;
 	while (cur != NULL) {
-		printf("\t%08x...%08x\n", cur->bot, cur->top);
+		printf("\t%08x...%08x (align %d)\n",
+				cur->bot, cur->top, cur->alignment);
 		cur = cur->next;
 	}
 
 	printf("WRITE MEMMAP\n");
 	cur = &writes;
 	while (cur != NULL) {
-		printf("\t%08x...%08x\n", cur->bot, cur->top);
+		printf("\t%08x...%08x (align %d)\n",
+				cur->bot, cur->top, cur->alignment);
 		cur = cur->next;
 	}
 
@@ -107,8 +163,9 @@ static bool try_read_word(uint32_t addr, uint32_t *val) {
 
 	struct memmap *cur = &reads;
 	while (cur != NULL) {
-		if ((cur->bot <= addr) && (addr < cur->top))
-			return cur->R_fn(addr, val);
+		if (cur->alignment == 4)
+			if ((cur->bot <= addr) && (addr < cur->top))
+				return cur->R_fn32(addr, val);
 		cur = cur->next;
 	}
 
@@ -136,8 +193,9 @@ void write_word(uint32_t addr, uint32_t val) {
 
 	struct memmap *cur = &writes;
 	while (cur != NULL) {
-		if ((cur->bot <= addr) && (addr < cur->top))
-			return cur->W_fn(addr, val);
+		if (cur->alignment == 4)
+			if ((cur->bot <= addr) && (addr < cur->top))
+				return cur->W_fn32(addr, val);
 		cur = cur->next;
 	}
 
@@ -216,32 +274,37 @@ void write_halfword(uint32_t addr, uint16_t val) {
 	write_word(addr & 0xfffffffc, word);
 }
 
-bool try_read_byte(uint32_t addr, uint8_t* ret) {
+bool try_read_byte(uint32_t addr, uint8_t* val) {
+
+	struct memmap *cur = &reads;
+	while (cur != NULL) {
+		if (cur->alignment == 1)
+			if ((cur->bot <= addr) && (addr < cur->top))
+				return cur->R_fn8(addr, val);
+		cur = cur->next;
+	}
+
 	uint32_t word;
 	if (!try_read_word(addr & 0xfffffffc, &word))
 		return false;
 
-	DBG2("addr %08x, val %08x, case %d\n", addr, word, addr & 0x3);
-
 	switch (addr & 0x3) {
 		case 0:
-			*ret = (word & 0x000000ff) >> 0;
+			*val = (word & 0x000000ff) >> 0;
 			break;
 		case 1:
-			*ret = (word & 0x0000ff00) >> 8;
+			*val = (word & 0x0000ff00) >> 8;
 			break;
 		case 2:
-			*ret = (word & 0x00ff0000) >> 16;
+			*val = (word & 0x00ff0000) >> 16;
 			break;
 		case 3:
-			*ret = (word & 0xff000000) >> 24;
+			*val = (word & 0xff000000) >> 24;
 			break;
 		default:
 			//appease dumb compiler
 			assert(false); return 0;
 	}
-
-	DBG2("returning %c\t%02x\n", *ret, *ret);
 
 	return true;
 }
@@ -256,6 +319,14 @@ uint8_t read_byte(uint32_t addr) {
 }
 
 void write_byte(uint32_t addr, uint8_t val) {
+	struct memmap *cur = &writes;
+	while (cur != NULL) {
+		if (cur->alignment == 1)
+			if ((cur->bot <= addr) && (addr < cur->top))
+				return cur->W_fn8(addr, val);
+		cur = cur->next;
+	}
+
 	uint32_t word = read_word(addr & 0xfffffffc);
 	uint32_t val32 = val;
 

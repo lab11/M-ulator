@@ -1,6 +1,8 @@
 #ifndef STATE_H
 #define STATE_H
 
+#include "common.h"
+
 enum stage {
 	PRE  = 0x1,
 	IF   = 0x2,

@@ -1,8 +1,3 @@
-#include <sys/stat.h>
-#include <sys/socket.h>
-
-#include <netinet/in.h>
-
 #include <stdarg.h>
 #include <unistd.h>
 #include <time.h>
@@ -44,8 +39,6 @@
 	} while (0)
 #endif
 
-#define NSECS_PER_SEC 1000000000
-
 static volatile sig_atomic_t sigint = 0;
 static volatile bool shell_running = false;
 
@@ -58,44 +51,6 @@ EXPORT sem_t end_tock_sem;
 
 /* Peripherals */
 static void join_periph_threads (void);
-
-/* UARTs */
-#define INVALID_CLIENT (UINT_MAX-1)
-
-// Thread object running the polling UART peripheral
-pthread_t poll_uart_pthread;
-
-volatile bool poll_uart_shutdown = false;
-
-static void *poll_uart_thread(void *);
-#ifdef DEBUG1
-static pthread_mutex_t poll_uart_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
-#else
-static pthread_mutex_t poll_uart_mutex = PTHREAD_MUTEX_INITIALIZER;
-#endif
-static pthread_cond_t  poll_uart_cond  = PTHREAD_COND_INITIALIZER;
-static uint32_t poll_uart_client = INVALID_CLIENT;
-
-// circular buffer
-// head is location to read valid data from
-// tail is location to write data to
-// characters are lost if not read fast enough
-// head == tail --> buffer is full (not that it matters)
-// head == NULL --> buffer if empty
-
-// these should be treated as char's, but are stored as uint32_t
-// to unify state tracking code
-static uint32_t poll_uart_buffer[POLL_UART_BUFSIZE];
-static uint32_t *poll_uart_head = NULL;
-static uint32_t *poll_uart_tail = poll_uart_buffer;
-
-static const struct timespec poll_uart_baud_sleep =\
-		{0, (NSECS_PER_SEC/POLL_UART_BAUD)*8};	// *8 bytes vs bits
-
-uint8_t poll_uart_status_read();
-void poll_uart_status_write();
-uint8_t poll_uart_rxdata_read();
-void poll_uart_txdata_write(uint8_t val);
 
 /* Config */
 
@@ -1168,22 +1123,6 @@ EXPORT void CORE_epsr_write(uint32_t val) {
 }
 #endif
 
-EXPORT uint8_t CORE_poll_uart_status_read() {
-	return poll_uart_status_read();
-}
-
-EXPORT void CORE_poll_uart_status_write(uint8_t val) {
-	return poll_uart_status_write(val);
-}
-
-EXPORT uint8_t CORE_poll_uart_rxdata_read() {
-	return poll_uart_rxdata_read();
-}
-
-EXPORT void CORE_poll_uart_txdata_write(uint8_t val) {
-	return poll_uart_txdata_write(val);
-}
-
 EXPORT void CORE_WARN_real(const char *f, int l, const char *msg) {
 	WARN("%s:%d\t%s\n", f, l, msg);
 }
@@ -1540,7 +1479,33 @@ static void* sig_thread(void *arg) {
 	}
 }
 
-EXPORT void simulator(const char *flash_file, uint16_t polluartport) {
+struct periph_thread {
+	struct periph_thread *next;
+	pthread_t (*fn)(void *);
+	volatile bool *en;
+	pthread_t pthread;
+};
+
+static struct periph_thread periph_threads;
+
+EXPORT void register_periph_thread(pthread_t (*fn)(void *), volatile bool *en) {
+	if (periph_threads.fn == NULL) {
+		periph_threads.fn = fn;
+		periph_threads.en = en;
+	} else {
+		struct periph_thread *cur = &periph_threads;
+		while (cur->next != NULL)
+			cur = cur->next;
+		cur->next = malloc(sizeof(struct periph_thread));
+		cur = cur->next;
+		cur->next = NULL;
+		cur->fn = fn;
+		cur->en = en;
+	}
+}
+
+
+EXPORT void simulator(const char *flash_file) {
 	// Init uninit'd globals
 #ifndef NO_PIPELINE
 	assert(0 == sem_init(&ticker_ready_sem, 0, 0));
@@ -1595,11 +1560,13 @@ EXPORT void simulator(const char *flash_file, uint16_t polluartport) {
 	pthread_t sig_pthread;
 	pthread_create(&sig_pthread, NULL, &sig_thread, (void *) &set);
 
-	// Spawn uart thread
-	pthread_mutex_lock(&poll_uart_mutex);
-	pthread_create(&poll_uart_pthread, NULL, poll_uart_thread, &polluartport);
-	pthread_cond_wait(&poll_uart_cond, &poll_uart_mutex);
-	pthread_mutex_unlock(&poll_uart_mutex);
+	// Spawn peripheral threads
+	struct periph_thread *cur = &periph_threads;
+	while (cur != NULL) {
+		*cur->en = true;
+		cur->pthread = cur->fn(NULL);
+		cur = cur->next;
+	}
 
 	// Spawn pipeline stage threads
 #ifndef NO_PIPELINE
@@ -1623,258 +1590,13 @@ EXPORT void simulator(const char *flash_file, uint16_t polluartport) {
 }
 
 static void join_periph_threads(void) {
-	INFO("Shutting down the polling uart peripheral\n");
-	poll_uart_shutdown = true;
-	pthread_join(poll_uart_pthread, NULL);
-}
+	INFO("Shutting down all peripherals\n");
 
-
-////////////////////////////////////////////////////////////////////////////////
-// UART THREAD(S)
-////////////////////////////////////////////////////////////////////////////////
-
-static void *poll_uart_thread(void *arg_v) {
-	uint16_t port = *((uint16_t *) arg_v);
-
-	int sock;
-	struct sockaddr_in server;
-
-	sock = socket(AF_INET, SOCK_STREAM, 0);
-	if (-1 == sock) {
-		ERR(E_UNKNOWN, "Creating UART device: %s\n", strerror(errno));
-	}
-
-	memset(&server, 0, sizeof(server));
-	server.sin_family = AF_INET;
-	server.sin_addr.s_addr = htonl(INADDR_ANY);
-	server.sin_port = htons(port);
-	int on = 1;
-	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
-
-	if (-1 == bind(sock, (struct sockaddr *) &server, sizeof(server))) {
-		ERR(E_UNKNOWN, "Creating UART device: %s\n", strerror(errno));
-	}
-
-	if (-1 == listen(sock, 1)) {
-		ERR(E_UNKNOWN, "Creating UART device: %s\n", strerror(errno));
-	}
-
-	INFO("UART listening on port %d (use `nc -4 localhost %d` to communicate)\n",
-			port, port);
-
-	pthread_cond_signal(&poll_uart_cond);
-
-	while (1) {
-		int client;
-		while (1) {
-			fd_set set;
-			struct timeval timeout;
-
-			FD_ZERO(&set);
-			FD_SET(sock, &set);
-
-			timeout.tv_sec = 0;
-			timeout.tv_usec = 100000;
-
-			if (select(FD_SETSIZE, &set, NULL, NULL, &timeout)) {
-				client = accept(sock, NULL, 0);
-				break;
-			} else {
-				if (poll_uart_shutdown) {
-					INFO("Polling UART device shut down\n");
-					pthread_exit(NULL);
-				}
-			}
-		}
-
-		if (-1 == client) {
-			ERR(E_UNKNOWN, "UART device failure: %s\n", strerror(errno));
-		}
-
-		INFO("UART connected\n");
-
-		static const char *welcome = "\
->>MSG<< You are now connected to the UART polling device\n\
->>MSG<< Lines prefixed with '>>MSG<<' are sent from this\n\
->>MSG<< UART <--> network bridge, not the connected device\n\
->>MSG<< This device has a "VAL2STR(POLL_UART_BUFSIZE)" byte buffer\n\
->>MSG<< This device operates at "VAL2STR(POLL_UART_BAUD)" baud\n\
->>MSG<< To send a message, simply type and press the return key\n\
->>MSG<< All characters, up to and including the \\n will be sent\n";
-
-		if (-1 == send(client, welcome, strlen(welcome), 0)) {
-			ERR(E_UNKNOWN, "%d UART: %s\n", __LINE__, strerror(errno));
-		}
-
-		pthread_mutex_lock(&poll_uart_mutex);
-		SW_A(&poll_uart_client, client);
-		pthread_mutex_unlock(&poll_uart_mutex);
-
-		static uint8_t c;
-		static int ret;
-		while (1) {
-			// n.b. If the baud rate is set to a speed s.t. polling
-			// becomes CPU intensive (not likely..), this could be
-			// replaced with select + self-pipe
-			nanosleep(&poll_uart_baud_sleep, NULL);
-
-			ret = recv(client, &c, 1, MSG_DONTWAIT);
-
-			if (poll_uart_shutdown) {
-				SW_A(&poll_uart_client, INVALID_CLIENT);
-				static const char *goodbye = "\
-\n\
->>MSG<< An extra newline has been printed before this line\n\
->>MSG<< The polling UART device has shut down. Good bye.\n";
-				send(client, goodbye, strlen(goodbye), 0);
-				close(client);
-				INFO("Polling UART disconnected from client\n");
-				INFO("Polling UART device shut down\n");
-				pthread_exit(NULL);
-			}
-
-			if (ret != 1) {
-				// Common case: poll
-				if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
-					continue;
-				}
-
-				break;
-			}
-
-			pthread_mutex_lock(&poll_uart_mutex);
-			state_async_block_start();
-
-			uint32_t* head = SRP(&poll_uart_head);
-			uint32_t* tail = SRP(&poll_uart_tail);
-
-			DBG1("recv start\thead: %td, tail: %td\n",
-					(head)?head - poll_uart_buffer:-1,
-					tail - poll_uart_buffer);
-
-			SW(tail, c);
-			if (NULL == head) {
-				head = tail;
-				SWP(&poll_uart_head, head);
-			}
-			tail++;
-			if (tail == (poll_uart_buffer + POLL_UART_BUFSIZE))
-				tail = poll_uart_buffer;
-			SWP(&poll_uart_tail, tail);
-
-			DBG1("recv end\thead: %td, tail: %td\t[%td=%c]\n",
-					(head)?head - poll_uart_buffer:-1,
-					tail - poll_uart_buffer,
-					tail-poll_uart_buffer-1, *(tail-1));
-
-			state_async_block_end();
-			pthread_mutex_unlock(&poll_uart_mutex);
-		}
-
-		if (ret == 0) {
-			INFO("UART client has closed connection"\
-				"(no more data in but you can still send)\n");
-			pthread_mutex_lock(&poll_uart_mutex);
-			// Dodge small race window to miss wakeup
-			if (SR_A(&poll_uart_client) != INVALID_CLIENT)
-				pthread_cond_wait(&poll_uart_cond, &poll_uart_mutex);
-		} else {
-			WARN("Lost connection to UART client (%s)\n", strerror(errno));
-			pthread_mutex_lock(&poll_uart_mutex);
-		}
-		SW_A(&poll_uart_client, INVALID_CLIENT);
-		pthread_mutex_unlock(&poll_uart_mutex);
+	struct periph_thread *cur = &periph_threads;
+	while (cur != NULL) {
+		*cur->en = false;
+		pthread_join(cur->pthread, NULL);
+		cur = cur->next;
 	}
 }
 
-uint8_t poll_uart_status_read() {
-	uint8_t ret = 0;
-
-	pthread_mutex_lock(&poll_uart_mutex);
-	state_async_block_start();
-	ret |= (SRP(&poll_uart_head) != NULL) << POLL_UART_RXBIT; // data avail?
-	ret |= (SR(&poll_uart_client) == INVALID_CLIENT) << POLL_UART_TXBIT; // tx busy?
-	state_async_block_end();
-	pthread_mutex_unlock(&poll_uart_mutex);
-
-	// For lock contention
-	nanosleep(&poll_uart_baud_sleep, NULL);
-
-	return ret;
-}
-
-void poll_uart_status_write() {
-	pthread_mutex_lock(&poll_uart_mutex);
-	state_async_block_start();
-	SWP(&poll_uart_head, NULL);
-	SWP(&poll_uart_tail, poll_uart_buffer);
-	state_async_block_end();
-	pthread_mutex_unlock(&poll_uart_mutex);
-
-	// For lock contention
-	nanosleep(&poll_uart_baud_sleep, NULL);
-}
-
-uint8_t poll_uart_rxdata_read() {
-	uint8_t ret;
-
-#ifdef DEBUG1
-	int idx;
-#endif
-
-	pthread_mutex_lock(&poll_uart_mutex);
-	state_async_block_start();
-	if (NULL == SRP(&poll_uart_head)) {
-		DBG1("Poll UART RX attempt when RX Pending was false\n");
-		ret = SR(&poll_uart_buffer[3]); // eh... rand? 3, why not?
-	} else {
-#ifdef DEBUG1
-		idx = SRP(&poll_uart_head) - poll_uart_buffer;
-#endif
-		uint32_t* head = SRP(&poll_uart_head);
-		uint32_t* tail = SRP(&poll_uart_tail);
-
-		ret = *head;
-
-		head++;
-		if (head == (poll_uart_buffer + POLL_UART_BUFSIZE))
-			head = poll_uart_buffer;
-		if (head == tail)
-			head = NULL;
-
-		DBG1("rxdata end\thead: %td, tail: %td\t[%td=%c]\n",
-				(head)?head - poll_uart_buffer:-1,
-				tail - poll_uart_buffer,
-				(head)?head-poll_uart_buffer:-1,(head)?*head:'\0');
-
-		SWP(&poll_uart_head, head);
-	}
-	state_async_block_end();
-	pthread_mutex_unlock(&poll_uart_mutex);
-
-	DBG1("UART read byte: %c %x\tidx: %d\n", ret, ret, idx);
-
-	return ret;
-}
-
-void poll_uart_txdata_write(uint8_t val) {
-	DBG1("UART write byte: %c %x\n", val, val);
-
-	static int ret;
-
-	pthread_mutex_lock(&poll_uart_mutex);
-	uint32_t client = SR_A(&poll_uart_client);
-	if (INVALID_CLIENT == client) {
-		DBG1("Poll UART TX ignored as client is busy\n");
-		// XXX warn? no, grade
-		// no connected client (TX is busy...) so drop
-	}
-	else if (-1 ==  ( ret = send(client, &val, 1, 0))  ) {
-		WARN("%d UART: %s\n", __LINE__, strerror(errno));
-		SW_A(&poll_uart_client, INVALID_CLIENT);
-		pthread_cond_signal(&poll_uart_cond);
-	}
-	pthread_mutex_unlock(&poll_uart_mutex);
-
-	DBG2("UART byte sent %c\n", val);
-}

@@ -2,7 +2,6 @@
 #define SIMULATOR_H
 
 #include "common.h"
-#include <signal.h>
 
 #ifndef PP_STRING
 #define PP_STRING "---"
@@ -19,12 +18,9 @@
 // ERROR CODES //
 /////////////////
 
-// Internal Simulator Errors
-#define E_NOT_IMPLEMENTED	1
-#define E_BAD_FLASH		2
-#define E_UNKNOWN		3
-#define E_READONLY		4
-#define E_WRITEONLY		5
+#define E_BAD_FLASH	10
+#define E_READONLY	11
+#define E_WRITEONLY	12
 
 ////////////////////
 // INTERNAL TYPES //
@@ -51,20 +47,14 @@ struct op {
 //////////////////////
 
 // The simulator core
-void simulator(const char* flash_file, uint16_t polluartport);
+void simulator(const char* flash_file);
 void sim_terminate(void) __attribute__ ((noreturn));
 int state_seek(int);
 
 // Simulator config
-#define POLL_UART_PORT 4100
-//#define POLL_UART_BUFSIZE 16
-//#define POLL_UART_BAUD 1200
-#define POLL_UART_BUFSIZE 8192
-#define POLL_UART_BAUD 9600
 extern int gdb_port;
 extern int slowsim;
 extern int printcycles;
-extern int raiseonerror;
 extern unsigned dumpatpc;
 extern int dumpatcycle;
 extern int dumpallcycles;

@@ -83,6 +83,8 @@ void	CORE_ERR_not_implemented(const char *opt_msg) __attribute__ ((noreturn));
 #define QUOTE(x)	#x
 #define VAL2STR(x)	QUOTE(x)
 
+#define NSECS_PER_SEC 1000000000
+
 ///////////////
 // DEBUGGING //
 ///////////////

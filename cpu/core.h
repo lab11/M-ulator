@@ -13,6 +13,16 @@ void		register_memmap_write_word(
 			uint32_t bot,
 			uint32_t top
 		);
+void		register_memmap_read_byte(
+			bool (*fn)(uint32_t, uint8_t *),
+			uint32_t bot,
+			uint32_t top
+		);
+void		register_memmap_write_byte(
+			void (*fn)(uint32_t, uint8_t),
+			uint32_t bot,
+			uint32_t top
+		);
 
 // These functions you must implement in core.c 
 void		reset(void);

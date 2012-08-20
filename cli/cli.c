@@ -1,4 +1,9 @@
 #include "../common.h"
+
+// For access to 'raiseonerror' flag
+#define PP_STRING "CLI"
+#include "../pretty_print.h"
+
 #include "../simulator.h"
 
 #include <getopt.h>
@@ -38,8 +43,6 @@ static void usage_fail(int retcode) {
 \t-f, --flash FILE\n\
 \t\tFlash FILE into ROM before executing\n\
 \t\t(this file is likely somthing.bin)\n\
-\t-u, --polluartport "VAL2STR(POLL_UART_PORT)"\n\
-\t\tThe port number to communicate with the polled UART device\n\
 \t--usetestflash\n\
 \t\tFlash the program ROM with a copy of the echo program\n\
 \t\tbefore running. Conflicts with -f\n\
@@ -55,7 +58,6 @@ static void usage(void) {
 
 int main(int argc, char **argv) {
 	const char *flash_file = NULL;
-	uint16_t polluartport = POLL_UART_PORT;
 
 	// Command line parsing
 	while (1) {
@@ -70,7 +72,6 @@ int main(int argc, char **argv) {
 			{"returnr0",      no_argument,       &returnr0,      'r'},
 			{"limit",         required_argument, 0,              'm'},
 			{"flash",         required_argument, 0,              'f'},
-			{"polluartport",  required_argument, 0,              'u'},
 			{"usetestflash",  no_argument,       &usetestflash,  1},
 			{"help",          no_argument,       0,              '?'},
 			{0,0,0,0}
@@ -78,7 +79,7 @@ int main(int argc, char **argv) {
 		int option_index = 0;
 		int c;
 
-		c = getopt_long(argc, argv, "g::c:y:dpserm:f:u:?", long_options,
+		c = getopt_long(argc, argv, "g::c:y:dpserm:f:?", long_options,
 				&option_index);
 
 		if (c == -1) break;
@@ -136,14 +137,6 @@ int main(int argc, char **argv) {
 						flash_file);
 				break;
 
-			case 'u':
-			{
-				int temp = atoi(optarg);
-				assert(temp == ((uint16_t) temp));
-				polluartport = (uint16_t) temp;
-				break;
-			}
-
 			case '?':
 			default:
 				usage();
@@ -157,7 +150,7 @@ int main(int argc, char **argv) {
 		INFO("Simulator will use internal test flash\n");
 	}
 
-	simulator(flash_file, polluartport);
+	simulator(flash_file);
 
 	ERR(E_UNKNOWN, "Simluator returned to cli main thread?\n");
 }

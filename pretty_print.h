@@ -5,6 +5,19 @@
 #error The macro PP_STRING must be defined with a 3 character prefix
 #endif
 
+#include <signal.h>
+extern int raiseonerror; // storage in simulator.c
+
+/////////////////
+// ERROR CODES //
+/////////////////
+
+// Generic errors
+#define E_NOT_IMPLEMENTED	1
+#define E_UNKNOWN		2
+
+// 10-19 are simulator.h
+
 /////////////////////////
 // PRETTY PRINT MACROS //
 /////////////////////////
