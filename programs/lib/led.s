@@ -20,7 +20,7 @@ LED_set:
 	@ Need to read out current LED state first
 	ldr.n	r0, [r3, #0]
 	@ Caller ensures r2 is only 0 or 1, so only need shift
-	cmp.n	r2, #0
+	lsls.n	r2, r2, r1
 	ittte	eq
 	moveq	r2, #1
 	lsleq	r2, r2, r1

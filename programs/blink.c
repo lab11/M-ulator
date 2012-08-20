@@ -5,8 +5,8 @@ int main() {
 	int status1 = 1;
 
 	/* TTTA: What should the LED blinking pattern of this program be? */
-	/* 01 01 01 01 01 ... */
-	/* 00 11 01 10 00 ... */
+	/* 10 10 10 10 10 ... */
+	/* 11 00 11 00 11 ... */
 
 	int cnt = 10;
 
