@@ -129,8 +129,6 @@ static int opcode_masks;
 
 EXPORT int cycle = -1;
 
-static uint32_t rom[ROMSIZE >> 2] = {0};
-
 #define ADDR_TO_IDX(_addr, _bot) ((_addr - _bot) >> 2)
 
 /* Ignore mode transitions for now */
@@ -897,6 +895,10 @@ static void print_full_state(void) {
 		file = get_dump_name('o');
 		FILE* romfp = fopen(file, "w");
 		if (romfp) {
+			uint32_t rom[ROMSIZE >> 2] = {0};
+			for (i = ROMBOT; i < ROMSIZE; i += 4)
+				rom[i/4] = read_word(i);
+
 			i = fwrite(rom, ROMSIZE, 1, romfp);
 			printf("Wrote %8zu bytes to %-29s "\
 					"(Use 'hexdump -C' to view)\n",
@@ -1172,32 +1174,6 @@ EXPORT uint32_t CORE_epsr_read(void) {
 
 EXPORT void CORE_epsr_write(uint32_t val) {
 	SW(&EPSR, val);
-}
-#endif
-
-EXPORT uint32_t CORE_rom_read(uint32_t addr) {
-	DBG2("ROM Read request addr %x (idx: %d)\n", addr, ADDR_TO_IDX(addr, ROMBOT));
-#ifdef DEBUG1
-	assert((addr >= ROMBOT) && (addr < ROMTOP) && "CORE_rom_read");
-#endif
-	if ((addr >= ROMBOT) && (addr < ROMTOP) && (0 == (addr & 0x3))) {
-		return SR(&rom[ADDR_TO_IDX(addr, ROMBOT)]);
-	} else {
-		CORE_ERR_invalid_addr(false, addr);
-	}
-}
-
-#ifdef WRITEABLE_ROM
-EXPORT void CORE_rom_write(uint32_t addr, uint32_t val) {
-	DBG2("ROM Write request addr %x (idx: %d)\n", addr, ADDR_TO_IDX(addr, ROMBOT));
-#ifdef DEBUG1
-	assert((addr >= ROMBOT) && (addr < ROMTOP) && "CORE_rom_write");
-#endif
-	if ((addr >= ROMBOT) && (addr < ROMTOP) && (0 == (addr & 0x3))) {
-		SW(&rom[ADDR_TO_IDX(addr, ROMBOT)],val);
-	} else {
-		CORE_ERR_invalid_addr(true, addr);
-	}
 }
 #endif
 
@@ -1610,7 +1586,7 @@ EXPORT void simulator(const char *flash_file, uint16_t polluartport) {
 
 	// Read in flash
 	if (usetestflash) {
-		memcpy(rom, static_rom, STATIC_ROM_NUM_BYTES);
+		flash_ROM(static_rom, STATIC_ROM_NUM_BYTES);
 		INFO("Loaded internal test flash\n");
 	} else {
 		if (NULL == flash_file) {
@@ -1622,20 +1598,21 @@ EXPORT void simulator(const char *flash_file, uint16_t polluartport) {
 		} else {
 			int flashfd = open(flash_file, O_RDONLY);
 			ssize_t ret;
+
 			if (-1 == flashfd) {
 				ERR(E_BAD_FLASH, "Could not open file %s for reading\n",
 						flash_file);
 			}
+
+			uint32_t rom[ROMSIZE >> 2] = {0};
+
 			assert (ROMSIZE < SSIZE_MAX);
 			ret = read(flashfd, rom, ROMSIZE);
 			if (ret < 0) {
 				WARN("%s\n", strerror(errno));
 				ERR(E_BAD_FLASH, "Failed to read flash file %s\n", flash_file);
 			}
-			if (ret < ROMSIZE) {
-				WARN("Flash file (%zd) smaller than ROMSIZE (%d)\n", ret, ROMSIZE);
-				WARN("Zero-filling remainder of ROM\n");
-			}
+			flash_ROM(rom, ret);
 			INFO("Succesfully loaded flash ROM: %s\n", flash_file);
 		}
 	}
