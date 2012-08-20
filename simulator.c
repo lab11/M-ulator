@@ -1828,7 +1828,28 @@ static void *poll_uart_thread(void *arg_v) {
 	pthread_cond_signal(&poll_uart_cond);
 
 	while (1) {
-		int client = accept(sock, NULL, 0);
+		int client;
+		while (1) {
+			fd_set set;
+			struct timeval timeout;
+
+			FD_ZERO(&set);
+			FD_SET(sock, &set);
+
+			timeout.tv_sec = 0;
+			timeout.tv_usec = 100000;
+
+			if (select(FD_SETSIZE, &set, NULL, NULL, &timeout)) {
+				client = accept(sock, NULL, 0);
+				break;
+			} else {
+				if (poll_uart_shutdown) {
+					INFO("Polling UART device shut down\n");
+					pthread_exit(NULL);
+				}
+			}
+		}
+
 		if (-1 == client) {
 			ERR(E_UNKNOWN, "UART device failure: %s\n", strerror(errno));
 		}
@@ -1870,6 +1891,7 @@ static void *poll_uart_thread(void *arg_v) {
 >>MSG<< The polling UART device has shut down. Good bye.\n";
 				send(client, goodbye, strlen(goodbye), 0);
 				close(client);
+				INFO("Polling UART disconnected from client\n");
 				INFO("Polling UART device shut down\n");
 				pthread_exit(NULL);
 			}
