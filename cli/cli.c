@@ -38,8 +38,6 @@ static void usage_fail(int retcode) {
 \t-f, --flash FILE\n\
 \t\tFlash FILE into ROM before executing\n\
 \t\t(this file is likely somthing.bin)\n\
-\t-l, --showledwrites\n\
-\t\tPrints LED state every time the LEDs are written to\n\
 \t-u, --polluartport "VAL2STR(POLL_UART_PORT)"\n\
 \t\tThe port number to communicate with the polled UART device\n\
 \t--usetestflash\n\
@@ -72,7 +70,6 @@ int main(int argc, char **argv) {
 			{"returnr0",      no_argument,       &returnr0,      'r'},
 			{"limit",         required_argument, 0,              'm'},
 			{"flash",         required_argument, 0,              'f'},
-			{"showledwrites", no_argument,       &showledwrites, 'l'},
 			{"polluartport",  required_argument, 0,              'u'},
 			{"usetestflash",  no_argument,       &usetestflash,  1},
 			{"help",          no_argument,       0,              '?'},
@@ -81,7 +78,7 @@ int main(int argc, char **argv) {
 		int option_index = 0;
 		int c;
 
-		c = getopt_long(argc, argv, "g::c:y:dpserm:f:lu:?", long_options,
+		c = getopt_long(argc, argv, "g::c:y:dpserm:f:u:?", long_options,
 				&option_index);
 
 		if (c == -1) break;
@@ -137,10 +134,6 @@ int main(int argc, char **argv) {
 				flash_file = optarg;
 				INFO("Simulator will use %s as flash\n",
 						flash_file);
-				break;
-
-			case 'l':
-				showledwrites = true;
 				break;
 
 			case 'u':

@@ -65,7 +65,6 @@ extern int gdb_port;
 extern int slowsim;
 extern int printcycles;
 extern int raiseonerror;
-extern int showledwrites;
 extern unsigned dumpatpc;
 extern int dumpatcycle;
 extern int dumpallcycles;

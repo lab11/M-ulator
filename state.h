@@ -8,6 +8,7 @@ enum stage {
 	EX   = 0x8,
 	PIPE = 0x10,
 	SIM  = 0x20,
+	PERIPH = 0x40,
 	UNK  = 0x80,
 	/* MAX: 0xff */
 };

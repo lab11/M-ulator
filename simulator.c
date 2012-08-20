@@ -110,7 +110,6 @@ EXPORT int printcycles = 0;
 EXPORT int raiseonerror = 0;
 #endif
 EXPORT int limitcycles = -1;
-EXPORT int showledwrites = 0;
 EXPORT unsigned dumpatpc = -3;
 EXPORT int dumpatcycle = -1;
 EXPORT int dumpallcycles = 0;
@@ -240,15 +239,6 @@ static uint32_t control __attribute__ ((unused)) = 0x0;
 #endif // M
 
 
-/* Peripherals */
-enum LED_color {
-	RED = 0,
-	GRN = 1,
-	BLU = 2,
-	LED_COLORS,
-};
-static uint32_t leds[LED_COLORS] = {0};
-
 ////////////////////////////////////////////////////////////////////////////////
 // CORE
 ////////////////////////////////////////////////////////////////////////////////
@@ -269,8 +259,7 @@ static uint32_t leds[LED_COLORS] = {0};
 #define STATE_PIPELINE_FLUSH	0x1000
 #define STATE_PIPELINE_RUNNING	0x8000
 #endif
-#define STATE_LED_WRITTEN	0x10000
-#define STATE_LED_WRITING	0x80000
+#define STATE_PERIPH_WRITTEN	0x10000
 #define STATE_BLOCKING_ASYNC	0x800000
 
 #define STATE_DEBUGGING		0x1000000
@@ -495,7 +484,7 @@ static void _state_tock() {
 	}
 }
 
-static void print_leds_line();
+static void print_periphs(void);
 
 static void state_tock() {
 	state_block_async_io();
@@ -529,10 +518,8 @@ static void state_tock() {
 	}
 #endif
 
-	if (*state_flags_cur & STATE_LED_WRITTEN) {
-		if (showledwrites) {
-			print_leds_line();
-		}
+	if (*state_flags_cur & STATE_PERIPH_WRITTEN) {
+		print_periphs();
 	}
 
 	state_unblock_async_io();
@@ -582,6 +569,7 @@ static void _state_write(enum stage g, uint32_t *loc, uint32_t val,
 		return;
 	}
 #endif
+	// XXX: Maybe I'm tired, but something looks wrong (TOCTTOU?) here
 	if (!(*state_flags_cur & STATE_LOCK_HELD_MASK))
 		pthread_mutex_lock(&state_mutex);
 
@@ -627,6 +615,9 @@ static void _state_write(enum stage g, uint32_t *loc, uint32_t val,
 			*ploc = pval;
 		}
 	}
+
+	if (g & PERIPH)
+		*state_flags_cur |= STATE_PERIPH_WRITTEN;
 
 	if (!(*state_flags_cur & STATE_LOCK_HELD_MASK))
 		pthread_mutex_unlock(&state_mutex);
@@ -703,17 +694,6 @@ static void state_pipeline_flush(uint32_t new_pc) {
 	pthread_mutex_unlock(&state_mutex);
 }
 #endif
-
-static void state_led_write(enum LED_color led, uint32_t val) {
-	pthread_mutex_lock(&state_mutex);
-	*state_flags_cur |= STATE_LED_WRITING;
-	*state_flags_cur |= STATE_LED_WRITTEN;
-
-	SW(&leds[led], val);
-
-	*state_flags_cur &= ~STATE_LED_WRITING;
-	pthread_mutex_unlock(&state_mutex);
-}
 
 EXPORT void state_enter_debugging(void) {
 	*state_flags_cur |= STATE_DEBUGGING;
@@ -808,24 +788,8 @@ EXPORT int state_seek(int target_cycle) {
 #define DIVIDERe printf("\r================================================================================\n")
 #define DIVIDERd printf("--------------------------------------------------------------------------------\n")
 
-static void print_leds_line(void) {
-	int i;
-
-	printf("Cycle: %8d ", cycle);
-
-	printf("| R: ");
-	for (i = 0; i < 8; i++)
-		printf("%d ", !!(leds[RED] & (1 << i)));
-
-	printf("| G: ");
-	for (i = 0; i < 8; i++)
-		printf("%d ", !!(leds[GRN] & (1 << i)));
-
-	printf("| B: ");
-	for (i = 0; i < 8; i++)
-		printf("%d ", !!(leds[BLU] & (1 << i)));
-
-	printf("|\n");
+static void print_periphs(void) {
+	printf("PRINT PERIPHS PLACEHOLDER\n");
 }
 
 static void print_reg_state_internal(void) {
@@ -851,7 +815,7 @@ static void print_reg_state_internal(void) {
 
 static void print_reg_state(void) {
 	DIVIDERe;
-	print_leds_line();
+	print_periphs();
 	DIVIDERd;
 	print_reg_state_internal();
 }
@@ -875,7 +839,7 @@ static const char *get_dump_name(char c) {
 
 static void print_full_state(void) {
 	DIVIDERe;
-	print_leds_line();
+	print_periphs();
 
 	DIVIDERd;
 	print_reg_state_internal();
@@ -1176,32 +1140,6 @@ EXPORT void CORE_epsr_write(uint32_t val) {
 	SW(&EPSR, val);
 }
 #endif
-
-EXPORT uint32_t CORE_red_led_read(void) {
-	return SR(&leds[RED]);
-}
-
-EXPORT void CORE_red_led_write(uint32_t val) {
-	SW(&leds[RED],val);
-	state_led_write(RED, val);
-}
-
-EXPORT uint32_t CORE_grn_led_read(void) {
-	return SR(&leds[GRN]);
-}
-
-EXPORT void CORE_grn_led_write(uint32_t val) {
-	SW(&leds[GRN],val);
-	state_led_write(GRN, val);
-}
-
-EXPORT uint32_t CORE_blu_led_read(void) {
-	return SR(&leds[BLU]);
-}
-
-EXPORT void CORE_blu_led_write(uint32_t val) {
-	state_led_write(BLU, val);
-}
 
 EXPORT uint8_t CORE_poll_uart_status_read() {
 	return poll_uart_status_read();

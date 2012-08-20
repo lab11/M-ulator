@@ -202,8 +202,8 @@ writing these devices can be found in {\tt memmap.txt}.
 
 \subsubsection{LEDs}
 
-In general, toggling LEDs does not produce any output. You can enable
-notification of LED toggles via the {\tt --showledwrites} flag.
+When an LED's status is changed, a line will print to the screen showing the
+current state of all LEDs.
 
 \subsubsection{UARTs}
 
@@ -318,6 +318,9 @@ questions!
 \section{Document Revision History}
 
 \begin{itemize}
+
+\item Revision 1.3b
+\subitem Remove LED printing option, always on
 
 \item Revision 1.3a
 \subitem showledtoggles --> showledwrites
