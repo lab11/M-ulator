@@ -17,8 +17,6 @@
 // GENERAL DEFINES //
 /////////////////////
 
-#define WRITEABLE_ROM
-
 #define SUCCESS 0
 #define FAILURE 1
 
@@ -73,7 +71,7 @@ void	CORE_ERR_illegal_instr(uint32_t instr) __attribute__ ((noreturn));
 void	CORE_ERR_unpredictable(const char *opt_msg) __attribute__ ((noreturn));
 
 // Useful for incremental work, indicates that everything up until this
-// point has completed successfully (pass NULL or "a message\n")
+// point has completed successfully
 void	CORE_ERR_not_implemented(const char *opt_msg) __attribute__ ((noreturn));
 
 /////////////
@@ -152,26 +150,51 @@ void	CORE_WARN_real(const char*, int, const char *);
 
 #define CORE_ERR_read_only(_a)\
 	CORE_ERR_read_only_real(__FILE__, __LINE__, (_a))
-void	CORE_ERR_read_only_real(const char*, int, uint32_t) __attribute__ ((noreturn));
+void	CORE_ERR_read_only_real(const char*, int, uint32_t)
+		__attribute__ ((noreturn));
 
 #define CORE_ERR_write_only(_a)\
 	CORE_ERR_write_only_real(__FILE__, __LINE__, (_a))
-void	CORE_ERR_write_only_real(const char*, int, uint32_t) __attribute__ ((noreturn));
+void	CORE_ERR_write_only_real(const char*, int, uint32_t)
+		__attribute__ ((noreturn));
 
 #define CORE_ERR_invalid_addr(_w, _a)\
 	CORE_ERR_invalid_addr_real(__FILE__, __LINE__, (_w), (_a))
-void	CORE_ERR_invalid_addr_real(const char*, int, uint8_t, uint32_t) __attribute__ ((noreturn));
+void	CORE_ERR_invalid_addr_real(const char*, int, uint8_t, uint32_t)
+		__attribute__ ((noreturn));
 
 #define CORE_ERR_illegal_instr(_i)\
 	CORE_ERR_illegal_instr_real(__FILE__, __LINE__, (_i))
-void	CORE_ERR_illegal_instr_real(const char*, int, uint32_t) __attribute__ ((noreturn));
+void	CORE_ERR_illegal_instr_real(const char*, int, uint32_t)
+		__attribute__ ((noreturn));
 
 #define CORE_ERR_unpredictable(_o)\
 	CORE_ERR_unpredictable_real(__FILE__, __LINE__, (_o))
-void	CORE_ERR_unpredictable_real(const char*, int, const char *) __attribute__ ((noreturn));
+void	CORE_ERR_unpredictable_real(const char*, int, const char *)
+		__attribute__ ((noreturn));
 
 #define CORE_ERR_not_implemented(_o)\
 	CORE_ERR_not_implemented_real(__FILE__, __LINE__, (_o))
-void	CORE_ERR_not_implemented_real(const char*, int, const char *) __attribute__ ((noreturn));
+void	CORE_ERR_not_implemented_real(const char*, int, const char *)
+		__attribute__ ((noreturn));
+
+#ifdef DEBUG1
+#define pthread_mutex_lock(_m)\
+	do {\
+		int ret = pthread_mutex_lock((_m));\
+		if (ret) {\
+			perror("Locking "VAL2STR(_m));\
+			exit(ret);\
+		}\
+	} while (0)
+#define pthread_mutex_unlock(_m)\
+	do {\
+		int ret = pthread_mutex_unlock((_m));\
+		if (ret) {\
+			perror("Unlocking "VAL2STR(_m));\
+			exit(ret);\
+		}\
+	} while (0)
+#endif
 
 #endif // COMMON_H

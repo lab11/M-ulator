@@ -12,32 +12,12 @@
 #include "ex_stage.h"
 #include "cpu/core.h"
 #include "cpu/misc.h"
-#include "cpu/operations/opcodes.h"
 #include "gdb.h"
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 ////////////////////////////////////////////////////////////////////////////////
-
-#ifdef DEBUG1
-#define pthread_mutex_lock(_m)\
-	do {\
-		int ret = pthread_mutex_lock((_m));\
-		if (ret) {\
-			perror("Locking "VAL2STR(_m));\
-			exit(ret);\
-		}\
-	} while (0)
-#define pthread_mutex_unlock(_m)\
-	do {\
-		int ret = pthread_mutex_unlock((_m));\
-		if (ret) {\
-			perror("Unlocking "VAL2STR(_m));\
-			exit(ret);\
-		}\
-	} while (0)
-#endif
 
 static volatile sig_atomic_t sigint = 0;
 static volatile bool shell_running = false;
@@ -53,7 +33,6 @@ EXPORT sem_t end_tock_sem;
 static void join_periph_threads (void);
 
 /* Config */
-
 EXPORT int gdb_port = -1;
 #define GDB_ATTACHED (gdb_port != -1)
 EXPORT int slowsim = 0;
@@ -82,8 +61,6 @@ static uint32_t static_rom[80] = {0x20003FFC,0x55,0x51,0x51,0x51,0x51,0x51,0x51,
 static int opcode_masks;
 
 EXPORT int cycle = -1;
-
-#define ADDR_TO_IDX(_addr, _bot) ((_addr - _bot) >> 2)
 
 /* Ignore mode transitions for now */
 static uint32_t reg[SP_REG];	// SP,LR,PC not held here, so 13 registers
@@ -198,6 +175,9 @@ static uint32_t control __attribute__ ((unused)) = 0x0;
 // CORE
 ////////////////////////////////////////////////////////////////////////////////
 
+// Advance function prototypes //
+static void print_periphs(void);
+
 // state flags #defines:
 // Bottom byte aligns with enum stage
 #define STATE_STALL_PRE		PRE
@@ -306,7 +286,7 @@ static void state_unblock_async_io(void) {
 	pthread_mutex_unlock(&state_mutex);
 }
 
-static void state_start_tick() {
+static void state_start_tick(void) {
 	state_block_async_io();
 #ifdef DEBUG2
 	flockfile(stdout); flockfile(stderr);
@@ -334,16 +314,15 @@ static void state_start_tick() {
 		state_head->next = NULL;
 	}
 
-	state_flags_cur = malloc(sizeof(uint32_t));
+	state_flags_cur = calloc(1, sizeof(uint32_t));
 	assert((NULL != state_flags_cur) && "OOM");
-	*state_flags_cur = 0;
 
 	o_hack = NULL;
 
 	state_unblock_async_io();
 }
 
-static void _state_tock() {
+static void _state_tock(void) {
 	if (!(*state_flags_cur & STATE_STALL_ID)) {
 		if (cycle > 0) {
 			assert((NULL != o_hack) &&
@@ -439,9 +418,7 @@ static void _state_tock() {
 	}
 }
 
-static void print_periphs(void);
-
-static void state_tock() {
+static void state_tock(void) {
 	state_block_async_io();
 
 #ifdef DEBUG2
@@ -505,10 +482,10 @@ static void _state_write_dbg(enum stage g, uint32_t *loc, uint32_t val,
 static void _state_write(enum stage g, uint32_t *loc, uint32_t val,
 		uint32_t** ploc, uint32_t* pval) {
 #endif
-	// If a debugger is changing values, write them directly. We do not track debugger
-	// writes (as I'm not sure the best architecture / usage model around that), so for
-	// now it's quite probable / possible that writing values with the debugger could do
-	// some strange things for replay.
+	// If debugger is changing values, write them directly. We do not track
+	// debugger writes (as I'm not sure the best architecture / usage model
+	// around that), so for now it's quite probable / possible that writing
+	// values with the debugger could do some strange things for replay.
 	if (*state_flags_cur & STATE_DEBUGGING) {
 		if (loc)
 			*loc = val;
@@ -1028,13 +1005,10 @@ static void shell(void) {
 	shell_running = false;
 }
 
-/* These are the functions called into by the student simulator project */
-
 /* ARMv7-M implementations treat SP bits [1:0] as RAZ/WI.
  * ARM strongly recommends that software treats SP bits [1:0]
  * as SBZP for maximum portability across ARMv7 profiles.
  */
-
 EXPORT uint32_t CORE_reg_read(int r) {
 	assert(r >= 0 && r < 16 && "CORE_reg_read");
 	if (r == SP_REG) {
@@ -1301,7 +1275,8 @@ EXPORT int register_opcode_mask_32_real(uint32_t ones_mask, uint32_t zeros_mask,
 }
 
 static int sim_execute(void) {
-	// XXX: What if the debugger wants to execute the same instruction two cycles in a row? How do we allow this?
+	// XXX: What if the debugger wants to execute the same instruction two
+	// cycles in a row? How do we allow this?
 	static uint32_t prev_pc = STALL_PC;
 	if ((prev_pc == PC) && (prev_pc != STALL_PC)) {
 		if (GDB_ATTACHED) {
@@ -1389,7 +1364,6 @@ static void sim_reset(void) {
 
 	INFO("Entering main loop...\n");
 	do {
-		// Slow things down?
 		if (slowsim) {
 			static struct timespec s = {0, NSECS_PER_SEC/10};
 			nanosleep(&s, NULL);
@@ -1435,17 +1409,14 @@ static void power_on(void) {
 	sim_reset();
 }
 
-static void* core_thread(void *unused __attribute__ ((unused)) ) {
-	power_on();
-}
-
 static void load_opcodes(void) {
+	// N.B. These are registered before main via constructor attributes
 	INFO("Registered %d opcode mask%s\n", opcode_masks,
 			(opcode_masks == 1) ? "":"s");
 
 #ifndef NO_PIPELINE
 	// Fake instructions used to propogate pipeline exceptions
-	register_opcode_mask_real(INST_HAZARD, ~INST_HAZARD, pipeline_exception, "Pipeline Excpetion");
+	register_opcode_mask_32_real(INST_HAZARD, ~INST_HAZARD, pipeline_exception, "Pipeline Excpetion");
 #endif
 }
 
@@ -1530,7 +1501,7 @@ EXPORT void simulator(const char *flash_file) {
 			ssize_t ret;
 
 			if (-1 == flashfd) {
-				ERR(E_BAD_FLASH, "Could not open file %s for reading\n",
+				ERR(E_BAD_FLASH, "Could not open '%s' for reading\n",
 						flash_file);
 			}
 
@@ -1540,7 +1511,8 @@ EXPORT void simulator(const char *flash_file) {
 			ret = read(flashfd, rom, ROMSIZE);
 			if (ret < 0) {
 				WARN("%s\n", strerror(errno));
-				ERR(E_BAD_FLASH, "Failed to read flash file %s\n", flash_file);
+				ERR(E_BAD_FLASH, "Failed to read flash file '%s'\n",
+						flash_file);
 			}
 			flash_ROM(rom, ret);
 			INFO("Succesfully loaded flash ROM: %s\n", flash_file);
@@ -1579,12 +1551,7 @@ EXPORT void simulator(const char *flash_file) {
 	pthread_create(&exstage_pthread, NULL, ticker, tick_ex);
 #endif
 
-	// Simulator CORE thread
-	pthread_t core_pthread;
-	pthread_create(&core_pthread, NULL, core_thread, NULL);
-
-	// Everything is up and running now
-	pthread_join(core_pthread, NULL);
+	power_on();
 
 	// Should not get here, proper exit comes from self-branch detection
 	ERR(E_UNKNOWN, "core thread terminated unexpectedly\n");
