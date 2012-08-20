@@ -49,7 +49,7 @@ static void lsl_reg(uint8_t rd, uint8_t rn, uint8_t rm, bool setflags) {
 
 	if (setflags) {
 		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
-				carry, !!(cpsr & xPSR_C));
+				carry, !!(cpsr & xPSR_V));
 		CORE_cpsr_write(cpsr);
 	}
 }
