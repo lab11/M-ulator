@@ -70,10 +70,10 @@ programs/%:
 # Testing
 
 ifeq ($(debug), 2)
-tester = +$(MAKE) $(2).bin -C $(1);\
+tester = \
 	 gdb --args ./simulator --flash $(1)/$(2).bin $(SIMFLAGS)
 else
-tester = +$(MAKE) $(2).bin -C $(1);\
+tester = \
 	 ./simulator --flash $(1)/$(2).bin $(SIMFLAGS)
 endif
 
@@ -87,7 +87,7 @@ blink:	programs/blink.bin simulator
 	$(call tester,programs,$@)
 
 echo:	programs/echo.bin simulator
-	echo e | nc -4 localhost 4100 > /tmp/echo_out &
+	sh -c 'sleep 1s; echo -e "e\n" | nc -4 localhost 4100 > /dev/null' &
 	$(call tester,programs,$@)
 
 echo_str:	programs/echo_str.bin simulator
