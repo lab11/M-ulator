@@ -17,28 +17,19 @@ CPU_OBJS += $(patsubst %.c,%.o,$(wildcard cpu/operations/*.c))
 CPU_OBJS += cpu/private_peripheral_bus/ppb.o
 
 CLI_OBJS += $(patsubst %.c,%.o,$(wildcard cli/*.c))
-GUI_OBJS += $(patsubst %.c,%.o,$(wildcard gui/*.c))
 
 SIM_OBJS += $(patsubst %.c,%.o,$(wildcard ./*.c))
 SIM_H    += $(wildcard ./*.h)
 
-simulator:	simulator-cli simulator-gui
-	rm -f simulator
-	ln -s simulator-cli simulator
-
-simulator-cli:	cpu cli $(SIM_OBJS) $(SIM_H)
+simulator:	cpu cli $(SIM_OBJS) $(SIM_H)
 	$(CC) $(LDFLAGS) $(CLI_OBJS) $(CPU_OBJS) $(SIM_OBJS) -o $@
 
-simulator-gui:	cpu gui $(SIM_OBJS) $(SIM_H)
-	$(CC) $(GTK_LDFLAGS) $(LDFLAGS) $(GUI_OBJS) $(CPU_OBJS) $(SIM_OBJS) -o $@
-
-clean-simulator: cpu/clean cli/clean gui/clean
+clean-simulator: cpu/clean cli/clean
 	rm -f simulator
 	rm -f simulator-cli
-	rm -f simulator-gui
 	rm -f $(SIM_OBJS)
 
-clean-simulator-all: clean-simulator cpu/clean-all cli/clean-all gui/clean-all
+clean-simulator-all: clean-simulator cpu/clean-all cli/clean-all
 
 .PHONY: all clean-simulator clean-simulator-all
 
@@ -52,17 +43,6 @@ cli/%:
 	$(MAKE) $* -C cli
 
 .PHONY: cli
-
-#####
-# GUI
-
-gui:
-	$(MAKE) -C gui
-
-gui/%:
-	$(MAKE) $* -C gui
-
-.PHONY: gui
 
 #####
 # CPU
