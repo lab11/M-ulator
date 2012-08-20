@@ -69,4 +69,6 @@ __attribute__ ((constructor))
 void register_led_periph(void) {
 	register_memmap_read_word(led_read, REDLED, BLULED+4);
 	register_memmap_write_word(led_write, REDLED, BLULED+4);
+
+	register_periph_printer(print_leds_line);
 }

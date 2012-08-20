@@ -788,8 +788,34 @@ EXPORT int state_seek(int target_cycle) {
 #define DIVIDERe printf("\r================================================================================\n")
 #define DIVIDERd printf("--------------------------------------------------------------------------------\n")
 
+// XXX: Define a consistent odering mechanism
+struct periph_printer {
+	struct periph_printer *next;
+	void (*fn)(void);
+};
+
+static struct periph_printer periph_printers;
+
+EXPORT void register_periph_printer(void (*fn)(void)) {
+	if (periph_printers.fn == NULL) {
+		periph_printers.fn = fn;
+	} else {
+		struct periph_printer *cur = &periph_printers;
+		while (cur->next != NULL)
+			cur = cur->next;
+		cur->next = malloc(sizeof(struct periph_printer));
+		cur = cur->next;
+		cur->next = NULL;
+		cur->fn = fn;
+	}
+}
+
 static void print_periphs(void) {
-	printf("PRINT PERIPHS PLACEHOLDER\n");
+	struct periph_printer *cur = &periph_printers;
+	while (cur != NULL) {
+		cur->fn();
+		cur = cur->next;
+	}
 }
 
 static void print_reg_state_internal(void) {
