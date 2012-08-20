@@ -76,7 +76,7 @@ h.write('void ppb_write(uint32_t addr, uint32_t val);\n')
 h.write('\n')
 
 c.write('#include "ppb.h"\n')
-c.write('#include "../../simulator.h"\n')
+c.write('#include "../../state.h"\n')
 c.write('\n')
 
 # Hack :(

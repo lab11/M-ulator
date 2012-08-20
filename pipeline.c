@@ -1,7 +1,7 @@
 #define STAGE PIPE
 
 #include "pipeline.h"
-#include "simulator.h"
+#include "state.h"
 #include "id_stage.h"
 
 /* This file defines all of the gloabl state shared across the various

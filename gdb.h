@@ -8,8 +8,6 @@
 #include "pretty_print.h"
 #endif
 
-#include "simulator.h"
-
 void gdb_init(int);
 char* gdb_get_message(int*);
 void gdb_send_message(const char*);

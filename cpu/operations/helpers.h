@@ -1,8 +1,6 @@
 #ifndef __HELPERS_H
 #define __HELPERS_H
 
-#include "../../simulator.h"
-
 #define INST_SET_ARM		0x0
 #define INST_SET_THUMB		0x1
 #define INST_SET_JAZELLE	0x2

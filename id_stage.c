@@ -2,6 +2,8 @@
 
 #include "id_stage.h"
 #include "pipeline.h"
+#include "state.h"
+
 #include "simulator.h"
 
 EXPORT bool match_mask(uint32_t inst, uint32_t ones_mask, uint32_t zeros_mask) {

@@ -2,6 +2,8 @@
 
 #include "ex_stage.h"
 #include "pipeline.h"
+#include "state.h"
+
 #include "simulator.h"
 
 #include "cpu/cpu.h"

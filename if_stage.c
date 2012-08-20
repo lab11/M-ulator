@@ -3,7 +3,7 @@
 #include "if_stage.h"
 #include "id_stage.h"
 #include "pipeline.h"
-#include "simulator.h"
+#include "state.h"
 
 #include "cpu/cpu.h"
 #include "cpu/core.h"

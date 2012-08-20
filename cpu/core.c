@@ -112,6 +112,7 @@ static bool try_read_word(uint32_t addr, uint32_t *val) {
 		cur = cur->next;
 	}
 
+	DBG1("addr %08x falls outside known range\n", addr);
 	return false;
 
 	/*

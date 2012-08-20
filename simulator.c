@@ -9,6 +9,7 @@
 #include <fcntl.h>
 
 #define STAGE SIM
+#include "state.h"
 #include "simulator.h"
 #include "pipeline.h"
 #include "if_stage.h"
@@ -129,7 +130,6 @@ static int opcode_masks;
 EXPORT int cycle = -1;
 
 static uint32_t rom[ROMSIZE >> 2] = {0};
-static uint32_t ram[RAMSIZE >> 2] = {0};
 
 #define ADDR_TO_IDX(_addr, _bot) ((_addr - _bot) >> 2)
 
@@ -912,6 +912,10 @@ static void print_full_state(void) {
 
 		FILE* ramfp = fopen(file, "w");
 		if (ramfp) {
+			uint32_t ram[RAMSIZE >> 2] = {0};
+			for (i = RAMBOT; i < RAMSIZE; i += 4)
+				ram[i/4] = read_word(i);
+
 			i = fwrite(ram, RAMSIZE, 1, ramfp);
 			printf("Wrote %8zu bytes to %-29s "\
 					"(Use 'hexdump -C' to view)\n",
@@ -1196,29 +1200,6 @@ EXPORT void CORE_rom_write(uint32_t addr, uint32_t val) {
 	}
 }
 #endif
-
-EXPORT uint32_t CORE_ram_read(uint32_t addr) {
-#ifdef DEBUG1
-	assert((addr >= RAMBOT) && (addr < RAMTOP) && "CORE_ram_read");
-#endif
-	if ((addr >= RAMBOT) && (addr < RAMTOP) && (0 == (addr & 0x3))) {
-		return SR(&ram[ADDR_TO_IDX(addr, RAMBOT)]);
-	} else {
-		CORE_ERR_invalid_addr(false, addr);
-	}
-}
-
-EXPORT void CORE_ram_write(uint32_t addr, uint32_t val) {
-	DBG2("RAM Write request addr %x (idx: %d)\n", addr, ADDR_TO_IDX(addr, RAMBOT));
-#ifdef DEBUG1
-	assert((addr >= RAMBOT) && (addr < RAMTOP) && "CORE_ram_write");
-#endif
-	if ((addr >= RAMBOT) && (addr < RAMTOP) && (0 == (addr & 0x3))) {
-		SW(&ram[ADDR_TO_IDX(addr, RAMBOT)],val);
-	} else {
-		CORE_ERR_invalid_addr(true, addr);
-	}
-}
 
 EXPORT uint32_t CORE_red_led_read(void) {
 	return SR(&leds[RED]);

@@ -5,7 +5,7 @@ CFLAGS += -DM_PROFILE
 CFLAGS += -DNO_PIPELINE
 
 # Lots of debugging!
-CFLAGS += -g3
+CFLAGS += -g3 -Werror
 
 # GTK
 GTK_CFLAGS=$(shell pkg-config gtk+-2.0 --cflags)

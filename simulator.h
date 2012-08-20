@@ -15,10 +15,6 @@
 
 #include "cpu/memmap.h"
 
-#define ROMSIZE (ROMTOP - ROMBOT) // In bytes
-#define RAMSIZE (RAMTOP - RAMBOT) // In bytes
-//#define PRINT_ROM_EN
-
 /////////////////
 // ERROR CODES //
 /////////////////
@@ -86,63 +82,13 @@ extern sem_t start_tick_sem;
 extern sem_t end_tick_sem;
 extern sem_t end_tock_sem;
 
+// XXX: Oh.. so hacky. Thrown in as stopgap while removing unnecessary
+// references to simulator.h
+#ifdef STAGE
 // Head of the registered opcodes list
 extern struct op *ops;
-
-enum stage {
-	PRE  = 0x1,
-	IF   = 0x2,
-	ID   = 0x4,
-	EX   = 0x8,
-	PIPE = 0x10,
-	SIM  = 0x20,
-	UNK  = 0x80,
-	/* MAX: 0xff */
-};
-
-void stall(enum stage);
-
-void state_enter_debugging(void);
-void state_exit_debugging(void);
-
-// Latchable state
-#define SR(_l) state_read(STAGE, (_l))
-uint32_t state_read(enum stage, uint32_t *loc) __attribute__ ((nonnull));
-#define SR_A(_l) state_read_async(STAGE, (_l))
-uint32_t state_read_async(enum stage, uint32_t *loc) __attribute__ ((nonnull));
-#define SRP(_l) state_read_p(STAGE, (_l))
-uint32_t* state_read_p(enum stage, uint32_t **loc) __attribute__ ((nonnull));
-#ifdef DEBUG1
-#define SW(_l, _v) state_write_dbg(STAGE, (_l), (_v),\
-		__FILE__, __func__, __LINE__, VAL2STR(_l))
-void state_write_dbg(enum stage, uint32_t *loc, uint32_t val,
-		const char *file, const char *func,
-		const int line, const char *target) __attribute__ ((nonnull));
-#define SW_A(_l, _v) state_write_async_dbg(STAGE, (_l), (_v),\
-		__FILE__, __func__, __LINE__, VAL2STR(_l))
-void state_write_async_dbg(enum stage, uint32_t *loc, uint32_t val,
-		const char *file, const char *func,
-		const int line, const char *target) __attribute__ ((nonnull));
-#define SWP(_l, _v) state_write_p_dbg(STAGE, (_l), (_v),\
-		__FILE__, __func__, __LINE__, VAL2STR(_l))
-void state_write_p_dbg(enum stage, uint32_t **ploc, uint32_t *pval,
-		const char *file, const char* func,
-		const int line, const char *target)
-			__attribute__ ((nonnull (2, 4, 5, 7)));
 void state_write_op(enum stage, struct op **loc, struct op *val)
 			__attribute__ ((nonnull (2)));
-#else
-#define SW(_l, _v) state_write(STAGE, (_l), (_v))
-void state_write(enum stage, uint32_t *loc, uint32_t val)
-	__attribute__ ((nonnull));
-#define SW_A(_l, _v) state_write_async(STAGE, (_l), (_v))
-void state_write_async(enum stage, uint32_t *loc, uint32_t val)
-	__attribute__ ((nonnull));
-#define SWP(_l, _v) state_write_p(STAGE, (_l), (_v))
-void state_write_p(enum stage, uint32_t **ploc, uint32_t *pval)
-	__attribute__ ((nonnull (2)));
-void state_write_op(enum stage, struct op **loc, struct op *val)
-	__attribute__ ((nonnull (2)));
 #endif
 
 #endif // SIMULATOR_H

@@ -1,4 +1,8 @@
 #include "gdb.h"
+
+#include "state.h"
+#include "simulator.h"
+
 #include "cpu/cpu.h"
 #include "cpu/core.h"
 
