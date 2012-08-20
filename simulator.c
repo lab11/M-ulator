@@ -1550,8 +1550,9 @@ EXPORT void simulator(const char *flash_file) {
 	load_opcodes();
 
 	// Prep signal-related stuff:
-	sigset_t set;
+	signal(SIGPIPE, SIG_IGN);
 
+	sigset_t set;
 	sigemptyset(&set);
 	sigaddset(&set, SIGINT);
 	assert(0 == pthread_sigmask(SIG_BLOCK, &set, NULL));

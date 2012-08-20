@@ -120,9 +120,7 @@ static void *poll_uart_thread(void *unused __attribute__ ((unused))) {
 			ERR(E_UNKNOWN, "%d UART: %s\n", __LINE__, strerror(errno));
 		}
 
-		pthread_mutex_lock(&poll_uart_mutex);
 		SW_A(&poll_uart_client, client);
-		pthread_mutex_unlock(&poll_uart_mutex);
 
 		static uint8_t c;
 		static int ret;
@@ -131,8 +129,6 @@ static void *poll_uart_thread(void *unused __attribute__ ((unused))) {
 			// becomes CPU intensive (not likely..), this could be
 			// replaced with select + self-pipe
 			nanosleep(&poll_uart_baud_sleep, NULL);
-
-			ret = recv(client, &c, 1, MSG_DONTWAIT);
 
 			if (!poll_uart_enabled) {
 				SW_A(&poll_uart_client, INVALID_CLIENT);
@@ -147,6 +143,8 @@ static void *poll_uart_thread(void *unused __attribute__ ((unused))) {
 				pthread_exit(NULL);
 			}
 
+			ret = recv(client, &c, 1, MSG_DONTWAIT);
+
 			if (ret != 1) {
 				// Common case: poll
 				if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
@@ -156,7 +154,6 @@ static void *poll_uart_thread(void *unused __attribute__ ((unused))) {
 				break;
 			}
 
-			pthread_mutex_lock(&poll_uart_mutex);
 			state_async_block_start();
 
 			uint32_t* head = SRP(&poll_uart_head);
@@ -182,34 +179,25 @@ static void *poll_uart_thread(void *unused __attribute__ ((unused))) {
 					tail-poll_uart_buffer-1, *(tail-1));
 
 			state_async_block_end();
-			pthread_mutex_unlock(&poll_uart_mutex);
 		}
 
 		if (ret == 0) {
 			INFO("UART client has closed connection"\
 				"(no more data in but you can still send)\n");
-			pthread_mutex_lock(&poll_uart_mutex);
-			// Dodge small race window to miss wakeup
-			if (SR_A(&poll_uart_client) != INVALID_CLIENT)
-				pthread_cond_wait(&poll_uart_cond, &poll_uart_mutex);
 		} else {
 			WARN("Lost connection to UART client (%s)\n", strerror(errno));
-			pthread_mutex_lock(&poll_uart_mutex);
+			SW_A(&poll_uart_client, INVALID_CLIENT);
 		}
-		SW_A(&poll_uart_client, INVALID_CLIENT);
-		pthread_mutex_unlock(&poll_uart_mutex);
 	}
 }
 
 static uint8_t poll_uart_status_read() {
 	uint8_t ret = 0;
 
-	pthread_mutex_lock(&poll_uart_mutex);
 	state_async_block_start();
 	ret |= (SRP(&poll_uart_head) != NULL) << POLL_UART_RXBIT; // data avail?
 	ret |= (SR(&poll_uart_client) == INVALID_CLIENT) << POLL_UART_TXBIT; // tx busy?
 	state_async_block_end();
-	pthread_mutex_unlock(&poll_uart_mutex);
 
 	// For lock contention
 	nanosleep(&poll_uart_baud_sleep, NULL);
@@ -218,12 +206,10 @@ static uint8_t poll_uart_status_read() {
 }
 
 static void poll_uart_status_write() {
-	pthread_mutex_lock(&poll_uart_mutex);
 	state_async_block_start();
 	SWP(&poll_uart_head, NULL);
 	SWP(&poll_uart_tail, poll_uart_buffer);
 	state_async_block_end();
-	pthread_mutex_unlock(&poll_uart_mutex);
 
 	// For lock contention
 	nanosleep(&poll_uart_baud_sleep, NULL);
@@ -236,7 +222,6 @@ static uint8_t poll_uart_rxdata_read() {
 	int idx;
 #endif
 
-	pthread_mutex_lock(&poll_uart_mutex);
 	state_async_block_start();
 	if (NULL == SRP(&poll_uart_head)) {
 		DBG1("Poll UART RX attempt when RX Pending was false\n");
@@ -264,7 +249,6 @@ static uint8_t poll_uart_rxdata_read() {
 		SWP(&poll_uart_head, head);
 	}
 	state_async_block_end();
-	pthread_mutex_unlock(&poll_uart_mutex);
 
 	DBG1("UART read byte: %c %x\tidx: %d\n", ret, ret, idx);
 
@@ -276,7 +260,6 @@ static void poll_uart_txdata_write(uint8_t val) {
 
 	static int ret;
 
-	pthread_mutex_lock(&poll_uart_mutex);
 	uint32_t client = SR_A(&poll_uart_client);
 	if (INVALID_CLIENT == client) {
 		DBG1("Poll UART TX ignored as client is busy\n");
@@ -285,9 +268,7 @@ static void poll_uart_txdata_write(uint8_t val) {
 	else if (-1 ==  ( ret = send(client, &val, 1, 0))  ) {
 		WARN("%d UART: %s\n", __LINE__, strerror(errno));
 		SW_A(&poll_uart_client, INVALID_CLIENT);
-		pthread_cond_signal(&poll_uart_cond);
 	}
-	pthread_mutex_unlock(&poll_uart_mutex);
 
 	DBG2("UART byte sent %c\n", val);
 }
