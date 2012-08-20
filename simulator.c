@@ -887,8 +887,8 @@ static void print_full_state(void) {
 		FILE* romfp = fopen(file, "w");
 		if (romfp) {
 			uint32_t rom[ROMSIZE >> 2] = {0};
-			for (i = ROMBOT; i < ROMSIZE; i += 4)
-				rom[i/4] = read_word(i);
+			for (i = ROMBOT; i < ROMBOT+ROMSIZE; i += 4)
+				rom[(i-ROMBOT)/4] = read_word(i);
 
 			i = fwrite(rom, ROMSIZE, 1, romfp);
 			printf("Wrote %8zu bytes to %-29s "\
@@ -906,8 +906,8 @@ static void print_full_state(void) {
 		FILE* ramfp = fopen(file, "w");
 		if (ramfp) {
 			uint32_t ram[RAMSIZE >> 2] = {0};
-			for (i = RAMBOT; i < RAMSIZE; i += 4)
-				ram[i/4] = read_word(i);
+			for (i = RAMBOT; i < RAMBOT+RAMSIZE; i += 4)
+				ram[(i-RAMBOT)/4] = read_word(i);
 
 			i = fwrite(ram, RAMSIZE, 1, ramfp);
 			printf("Wrote %8zu bytes to %-29s "\
