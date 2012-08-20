@@ -821,14 +821,15 @@ static void print_periphs(void) {
 static void print_reg_state_internal(void) {
 	int i;
 
-	printf("Registers:\t\t\t");
+	printf("[Cycle %d]\t\t\t", cycle);
 	printf("\t  N: %d  Z: %d  C: %d  V: %d  ",
 			!!(CPSR & xPSR_N),
 			!!(CPSR & xPSR_Z),
 			!!(CPSR & xPSR_C),
 			!!(CPSR & xPSR_V)
 	      );
-	printf("| ITSTATE: %02x\n", ITSTATE);
+	printf("| ITSTATE: %02x  ", ITSTATE);
+	printf("\n");
 	for (i=0; i<12; ) {
 		printf("\tr%02d: %8x\tr%02d: %8x\tr%02d: %8x\tr%02d: %8x\n",
 				i, reg[i], i+1, reg[i+1],
