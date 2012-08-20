@@ -164,7 +164,7 @@ for f in sys.argv[1:]:
 		if "XXX" == init[0:3]:
 			# Handle exception
 			f_name = addr[1:] + "_reset()"
-			reset_funcs += "static void " + f_name
+			reset_funcs += "static void " + f_name[:-1] + "void)"
 			try:
 				idx = int(init[4:])
 				exception = exceptions[idx]

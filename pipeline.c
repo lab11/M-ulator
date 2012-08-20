@@ -22,6 +22,8 @@ struct op* id_ex_o;
 uint32_t id_ex_inst;
 
 #ifndef NO_PIPELINE
+#include "simulator.h"
+
 void pipeline_flush(uint32_t new_pc) {
 	DBG2("new_PC: %08x\n", new_pc);
 	SW(&pre_if_PC, new_pc);

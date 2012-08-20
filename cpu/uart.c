@@ -191,7 +191,7 @@ static void *poll_uart_thread(void *unused __attribute__ ((unused))) {
 	}
 }
 
-static uint8_t poll_uart_status_read() {
+static uint8_t poll_uart_status_read(void) {
 	uint8_t ret = 0;
 
 	state_async_block_start();
@@ -205,17 +205,16 @@ static uint8_t poll_uart_status_read() {
 	return ret;
 }
 
-static void poll_uart_status_write() {
-	state_async_block_start();
-	SWP(&poll_uart_head, NULL);
-	SWP(&poll_uart_tail, poll_uart_buffer);
-	state_async_block_end();
-
-	// For lock contention
-	nanosleep(&poll_uart_baud_sleep, NULL);
+static void poll_uart_status_write(uint8_t val) {
+	if (val & POLL_UART_RSTBIT) {
+		state_async_block_start();
+		SWP(&poll_uart_head, NULL);
+		SWP(&poll_uart_tail, poll_uart_buffer);
+		state_async_block_end();
+	}
 }
 
-static uint8_t poll_uart_rxdata_read() {
+static uint8_t poll_uart_rxdata_read(void) {
 	uint8_t ret;
 
 #ifdef DEBUG1

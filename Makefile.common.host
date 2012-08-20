@@ -2,10 +2,10 @@
 CFLAGS += -DM_PROFILE
 
 # Disable pipeline simulation for student clarity
-CFLAGS += -DNO_PIPELINE
+#CFLAGS += -DNO_PIPELINE
 
 # Lots of debugging!
-CFLAGS += -g3 -Werror
+CFLAGS += -g3 -Werror -Wstrict-prototypes
 
 # GTK
 GTK_CFLAGS=$(shell pkg-config gtk+-2.0 --cflags)

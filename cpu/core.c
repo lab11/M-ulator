@@ -135,7 +135,7 @@ void register_memmap_write_byte(
 	}
 }
 
-void print_memmap() {
+void print_memmap(void) {
 	printf("\n");
 
 	printf("READ MEMMAP\n");
