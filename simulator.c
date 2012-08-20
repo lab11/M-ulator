@@ -19,70 +19,6 @@
 #include "cpu/operations/opcodes.h"
 #include "gdb.h"
 
-#ifdef DEBUG2
-#ifndef GRADE
-#define GRADE
-#endif
-#endif
-
-#ifdef GRADE
-
-#define READ 0
-#define WRITE 1
-
-#define LED  "leds"
-#define UART "uart"
-
-#define G_REG(_rw, _reg)\
-	do {\
-		if (_rw) {\
-			printf("G~G G: "); \
-			printf("%c %02d %x\n", _rw ? 'w':'r', _reg, reg[_reg]);\
-		}\
-	} while (0)
-#define G_CPSR(_rw)\
-	do {\
-		if (_rw) {\
-			printf("G~G C: "); \
-			printf("%c %d %d %d %d %08x\n", _rw ? 'w':'r',\
-					!!(CPSR & 0x80000000),\
-					!!(CPSR & 0x40000000),\
-					!!(CPSR & 0x20000000),\
-					!!(CPSR & 0x10000000),\
-					(CPSR));\
-		}\
-	} while (0)
-#define G_IPSR(_rw)\
-	do {\
-		if (_rw) {\
-			printf("G~G I: "); \
-			printf("%c %x\n", _rw ? 'w':'r', IPSR);\
-		}\
-	} while (0)
-#define G_EPSR(_rw)\
-	do {\
-		if (_rw) {\
-			printf("G~G E: "); \
-			printf("%c %x\n", _rw ? 'w':'r', EPSR);\
-		}\
-	} while (0)
-#define G_ROM(_rw, _addr) printf("G~G O: "); \
-	printf("%c %08x %x\n", _rw ? 'w':'r',\
-			_addr, rom[ADDR_TO_IDX(_addr, ROMBOT)]);
-#define G_RAM(_rw, _addr) printf("G~G A: "); \
-	printf("%c %08x %x\n", _rw ? 'w':'r',\
-			_addr, ram[ADDR_TO_IDX(_addr, RAMBOT)]);
-#define G_PERIPH(_rw, _type, _idx) printf("G~G P: "); \
-	printf("%c %s %d\n", _rw ? 'w':'r', _type, _idx);
-#else
-#define G_REG(...)
-#define G_CPSR(...)
-#define G_IPSR(...)
-#define G_EPSR(...)
-#define G_ROM(...)
-#define G_RAM(...)
-#define G_PERIPH(...)
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
@@ -177,11 +113,7 @@ EXPORT int showledwrites = 0;
 EXPORT unsigned dumpatpc = -3;
 EXPORT int dumpatcycle = -1;
 EXPORT int dumpallcycles = 0;
-#ifdef GRADE
-EXPORT int returnr0 = 1;
-#else
 EXPORT int returnr0 = 0;
-#endif
 EXPORT int usetestflash = 0;
 
 /* Test Flash */
@@ -1153,7 +1085,6 @@ static void shell(void) {
 
 EXPORT uint32_t CORE_reg_read(int r) {
 	assert(r >= 0 && r < 16 && "CORE_reg_read");
-	G_REG(READ, r);
 	if (r == SP_REG) {
 		return SR(&SP) & 0xfffffffc;
 	} else if (r == LR_REG) {
@@ -1204,11 +1135,9 @@ EXPORT void CORE_reg_write(int r, uint32_t val) {
 	else {
 		SW(&(reg[r]), val);
 	}
-	G_REG(WRITE, r);
 }
 
 EXPORT uint32_t CORE_cpsr_read(void) {
-	G_CPSR(READ);
 	return SR(&CPSR);
 }
 
@@ -1222,28 +1151,23 @@ EXPORT void CORE_cpsr_write(uint32_t val) {
 	}
 #endif
 	SW(&CPSR, val);
-	G_CPSR(WRITE);
 }
 
 #ifdef M_PROFILE
 EXPORT uint32_t CORE_ipsr_read(void) {
-	G_IPSR(READ);
 	return SR(&IPSR);
 }
 
 EXPORT void CORE_ipsr_write(uint32_t val) {
 	SW(&IPSR, val);
-	G_IPSR(WRITE);
 }
 
 EXPORT uint32_t CORE_epsr_read(void) {
-	G_EPSR(READ);
 	return SR(&EPSR);
 }
 
 EXPORT void CORE_epsr_write(uint32_t val) {
 	SW(&EPSR, val);
-	G_EPSR(WRITE);
 }
 #endif
 
@@ -1253,7 +1177,6 @@ EXPORT uint32_t CORE_rom_read(uint32_t addr) {
 	assert((addr >= ROMBOT) && (addr < ROMTOP) && "CORE_rom_read");
 #endif
 	if ((addr >= ROMBOT) && (addr < ROMTOP) && (0 == (addr & 0x3))) {
-		G_ROM(READ, addr);
 		return SR(&rom[ADDR_TO_IDX(addr, ROMBOT)]);
 	} else {
 		CORE_ERR_invalid_addr(false, addr);
@@ -1268,7 +1191,6 @@ EXPORT void CORE_rom_write(uint32_t addr, uint32_t val) {
 #endif
 	if ((addr >= ROMBOT) && (addr < ROMTOP) && (0 == (addr & 0x3))) {
 		SW(&rom[ADDR_TO_IDX(addr, ROMBOT)],val);
-		G_ROM(WRITE, addr);
 	} else {
 		CORE_ERR_invalid_addr(true, addr);
 	}
@@ -1280,7 +1202,6 @@ EXPORT uint32_t CORE_ram_read(uint32_t addr) {
 	assert((addr >= RAMBOT) && (addr < RAMTOP) && "CORE_ram_read");
 #endif
 	if ((addr >= RAMBOT) && (addr < RAMTOP) && (0 == (addr & 0x3))) {
-		G_RAM(READ, addr);
 		return SR(&ram[ADDR_TO_IDX(addr, RAMBOT)]);
 	} else {
 		CORE_ERR_invalid_addr(false, addr);
@@ -1294,41 +1215,34 @@ EXPORT void CORE_ram_write(uint32_t addr, uint32_t val) {
 #endif
 	if ((addr >= RAMBOT) && (addr < RAMTOP) && (0 == (addr & 0x3))) {
 		SW(&ram[ADDR_TO_IDX(addr, RAMBOT)],val);
-		G_RAM(WRITE, addr);
 	} else {
 		CORE_ERR_invalid_addr(true, addr);
 	}
 }
 
 EXPORT uint32_t CORE_red_led_read(void) {
-	G_PERIPH(READ, LED, RED);
 	return SR(&leds[RED]);
 }
 
 EXPORT void CORE_red_led_write(uint32_t val) {
-	G_PERIPH(WRITE, LED, RED);
 	SW(&leds[RED],val);
 	state_led_write(RED, val);
 }
 
 EXPORT uint32_t CORE_grn_led_read(void) {
-	G_PERIPH(READ, LED, GRN);
 	return SR(&leds[GRN]);
 }
 
 EXPORT void CORE_grn_led_write(uint32_t val) {
-	G_PERIPH(WRITE, LED, GRN);
 	SW(&leds[GRN],val);
 	state_led_write(GRN, val);
 }
 
 EXPORT uint32_t CORE_blu_led_read(void) {
-	G_PERIPH(READ, LED, BLU);
 	return SR(&leds[BLU]);
 }
 
 EXPORT void CORE_blu_led_write(uint32_t val) {
-	G_PERIPH(WRITE, LED, BLU);
 	state_led_write(BLU, val);
 }
 
