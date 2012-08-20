@@ -1,14 +1,10 @@
 #include "core.h"
 
-#include "memmap.h"
-#include "cpu.h"
-#include "led_interface.h"
-#include "bus_interface.h"
+#include "private_peripheral_bus/ppb.h"
 #include "pins.h"
 
-#include "private_peripheral_bus/ppb.h"
-
-#define TRAP_ALIGNMENT (read_word(CONFIGURATION_CONTROL) & CONFIGURATION_CONTROL_UNALIGN_TRP_MASK)
+//#define TRAP_ALIGNMENT (read_word(CONFIGURATION_CONTROL) & CONFIGURATION_CONTROL_UNALIGN_TRP_MASK)
+#define TRAP_ALIGNMENT false
 
 /* void reset(void)
  *
@@ -23,43 +19,105 @@ void reset(void) {
 	CORE_reg_write(PC_REG, read_word(0x00000004));
 }
 
-/* uint32_t read_word(uint32_t addr)
- *
- * A wrapper function to read a memory address.  This function is responsible
- * for "doing the right thing". That is, if this address is in RAM it should
- * be read from RAM, if it's a peripheral then that should work correctly as
- * well. Consult memmap.txt for details and the CORE_ERR_...() functions may
- * be useful as well
- */
-bool try_read_word(uint32_t addr, uint32_t *val) {
-	DBG2("addr %08x\n", addr);
 
-	if (addr >= ROMBOT && addr < ROMTOP) {
-		*val = CORE_rom_read(addr);
-	} else if (addr >= RAMBOT && addr < RAMTOP) {
-		*val = CORE_ram_read(addr);
-	} else if (addr == REDLED) {
-		*val = CORE_red_led_read();
-	} else if (addr == GRNLED) {
-		*val = CORE_grn_led_read();
-	} else if (addr == BLULED) {
-		*val = CORE_blu_led_read();
-	} else if (addr == POLL_UART_STATUS) {
-		DBG2("Attempt to read UART STATUS\n");
-		*val = CORE_poll_uart_status_read();
-	} else if (addr == POLL_UART_RXDATA) {
-		DBG1("Attempt to read UART RXDATA\n");
-		*val = CORE_poll_uart_rxdata_read();
-	} else if (addr == POLL_UART_TXDATA) {
-		DBG1("Attempt to read UART TXDATA\n");
-		CORE_ERR_invalid_addr(false, addr);
-	} else if (addr >= REGISTERS_BOT && addr < REGISTERS_TOP) {
-		*val = ppb_read(addr);
+////////////////////
+
+// XXX: Build efficient structure with masks
+struct memmap {
+	struct memmap *next;
+	union {
+		bool (*R_fn)(uint32_t, uint32_t *);
+		void (*W_fn)(uint32_t, uint32_t);
+	};
+	uint32_t bot;
+	uint32_t top;
+};
+
+
+struct memmap reads = {0};
+struct memmap writes = {0};
+
+void register_memmap_read_word(
+		bool (*fn)(uint32_t, uint32_t *),
+		uint32_t bot,
+		uint32_t top
+	) {
+	if (reads.R_fn == NULL) {
+		reads.R_fn = fn;
+		reads.bot = bot;
+		reads.top = top;
 	} else {
-		return false;
+		struct memmap *cur = &reads;
+		while (cur->next != NULL)
+			cur = cur->next;
+		cur->next = malloc(sizeof(struct memmap));
+		cur = cur->next;
+		cur->next = NULL;
+		cur->R_fn = fn;
+		cur->bot = bot;
+		cur->top = top;
+	}
+}
+
+void register_memmap_write_word(
+		void (*fn)(uint32_t, uint32_t),
+		uint32_t bot,
+		uint32_t top
+	) {
+	if (writes.W_fn == NULL) {
+		writes.W_fn = fn;
+		writes.bot = bot;
+		writes.top = top;
+	} else {
+		struct memmap *cur = &writes;
+		while (cur->next != NULL)
+			cur = cur->next;
+		cur->next = malloc(sizeof(struct memmap));
+		cur = cur->next;
+		cur->next = NULL;
+		cur->W_fn = fn;
+		cur->bot = bot;
+		cur->top = top;
+	}
+}
+
+void print_memmap() {
+	printf("\n");
+
+	printf("READ MEMMAP\n");
+	struct memmap *cur = &reads;
+	while (cur != NULL) {
+		printf("\t%08x...%08x\n", cur->bot, cur->top);
+		cur = cur->next;
 	}
 
-	return true;
+	printf("WRITE MEMMAP\n");
+	cur = &writes;
+	while (cur != NULL) {
+		printf("\t%08x...%08x\n", cur->bot, cur->top);
+		cur = cur->next;
+	}
+
+	printf("\n");
+}
+
+
+static bool try_read_word(uint32_t addr, uint32_t *val) {
+	DBG2("addr %08x\n", addr);
+
+	struct memmap *cur = &reads;
+	while (cur != NULL) {
+		if ((cur->bot <= addr) && (addr < cur->top))
+			return cur->R_fn(addr, val);
+		cur = cur->next;
+	}
+
+	return false;
+
+	/*
+	} else if (addr >= REGISTERS_BOT && addr < REGISTERS_TOP) {
+		*val = ppb_read(addr);
+	*/
 }
 
 uint32_t read_word(uint32_t addr) {
@@ -67,57 +125,38 @@ uint32_t read_word(uint32_t addr) {
 	if (try_read_word(addr, &val)) {
 		return val;
 	} else {
+		print_memmap();
 		CORE_ERR_invalid_addr(false, addr);
 	}
 }
 
-/* void write_word(uint32_t addr)
- *
- * Like read_word, only for writes
- */
 void write_word(uint32_t addr, uint32_t val) {
 	DBG2("addr %08x val %08x\n", addr, val);
 
-	if (addr >= ROMBOT && addr < ROMTOP) {
-#ifdef WRITEABLE_ROM
-		CORE_rom_write(addr, val);
-#else
-		DBG1("Attempt to write to ROM\n");
-		CORE_ERR_invalid_addr(true, addr);
-#endif
-	} else if (addr >= RAMBOT && addr < RAMTOP) {
-		CORE_ram_write(addr, val);
-	} else if (addr == REDLED) {
-		CORE_red_led_write(val);
-	} else if (addr == GRNLED) {
-		CORE_grn_led_write(val);
-	} else if (addr == BLULED) {
-		CORE_blu_led_write(val);
-	} else if (addr == POLL_UART_STATUS) {
-		// Hmm.. interesting; I think the right choice for writing
-		// > 8 bits here is to just truncate, it's what real HW would do
-		CORE_poll_uart_status_write((uint8_t) val);
-	} else if (addr == POLL_UART_RXDATA) {
-		DBG1("Attempt to write UART RXDATA\n");
-		CORE_ERR_invalid_addr(true, addr);
-	} else if (addr == POLL_UART_TXDATA) {
-		// Truncating again...
-		CORE_poll_uart_txdata_write((uint8_t) val);
+	struct memmap *cur = &writes;
+	while (cur != NULL) {
+		if ((cur->bot <= addr) && (addr < cur->top))
+			return cur->W_fn(addr, val);
+		cur = cur->next;
+	}
+
+	print_memmap();
+	CORE_ERR_invalid_addr(true, addr);
+
+	/*
 	} else if (addr >= REGISTERS_BOT && addr < REGISTERS_TOP) {
 		ppb_write(addr, val);
-	} else {
-		CORE_ERR_invalid_addr(true, addr);
-	}
+	*/
 }
 
 uint16_t read_halfword(uint32_t addr) {
 	DBG2("addr %08x\n", addr);
 
-	uint32_t word = read_word(addr & 0xfffffffc);
-
 	if ((addr & 0x1) & TRAP_ALIGNMENT) {
 		assert(false && "Alignment exception");
 	}
+
+	uint32_t word = read_word(addr & 0xfffffffc);
 
 	uint16_t ret;
 
@@ -144,9 +183,6 @@ uint16_t read_halfword(uint32_t addr) {
 
 void write_halfword(uint32_t addr, uint16_t val) {
 	DBG2("addr %08x val %04x\n", addr, val);
-
-	// Periphs are all word or byte, no need to check here then
-	// (they will either succeed or fail on the word checks)
 
 	if ((addr & 0x1) & TRAP_ALIGNMENT) {
 		// misaligned access
@@ -219,11 +255,6 @@ uint8_t read_byte(uint32_t addr) {
 }
 
 void write_byte(uint32_t addr, uint8_t val) {
-	if (addr == POLL_UART_STATUS)
-		return CORE_poll_uart_status_write(val);
-	if (addr == POLL_UART_TXDATA)
-		return CORE_poll_uart_txdata_write(val);
-
 	uint32_t word = read_word(addr & 0xfffffffc);
 	uint32_t val32 = val;
 
