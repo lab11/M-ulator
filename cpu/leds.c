@@ -67,8 +67,12 @@ static void led_write(uint32_t addr, uint32_t val) {
 
 __attribute__ ((constructor))
 void register_led_periph(void) {
-	register_memmap_read_word(led_read, REDLED, BLULED+4);
-	register_memmap_write_word(led_write, REDLED, BLULED+4);
+	union memmap_fn mem_fn;
+
+	mem_fn.R_fn32 = led_read;
+	register_memmap(false, 4, mem_fn, REDLED, BLULED+4);
+	mem_fn.W_fn32 = led_write;
+	register_memmap(true, 4, mem_fn, REDLED, BLULED+4);
 
 	register_periph_printer(print_leds_line);
 }

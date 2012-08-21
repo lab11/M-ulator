@@ -3,26 +3,20 @@
 
 #include "../common.h"
 
-void		register_memmap_read_word(
-			bool (*fn)(uint32_t, uint32_t *),
-			uint32_t bot,
-			uint32_t top
-		);
-void		register_memmap_write_word(
-			void (*fn)(uint32_t, uint32_t),
-			uint32_t bot,
-			uint32_t top
-		);
-void		register_memmap_read_byte(
-			bool (*fn)(uint32_t, uint8_t *),
-			uint32_t bot,
-			uint32_t top
-		);
-void		register_memmap_write_byte(
-			void (*fn)(uint32_t, uint8_t),
-			uint32_t bot,
-			uint32_t top
-		);
+union memmap_fn {
+	bool (*R_fn32)(uint32_t, uint32_t *);
+	void (*W_fn32)(uint32_t, uint32_t);
+	bool (*R_fn8)(uint32_t, uint8_t *);
+	void (*W_fn8)(uint32_t, uint8_t);
+};
+
+void register_memmap(
+		bool write,
+		short alignment,
+		union memmap_fn mem_fn,
+		uint32_t bot,
+		uint32_t top
+	);
 
 // These functions you must implement in core.c 
 void		reset(void);

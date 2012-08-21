@@ -47,9 +47,12 @@ void register_memmap_rom(void) {
 #elif (ROMBOT == ROMTOP)
 #pragma message ( "ROM of size 0. ROM has been disabled" )
 #else
-	register_memmap_read_word(rom_read, ROMBOT, ROMTOP);
+	union memmap_fn mem_fn;
+
+	mem_fn.R_fn32 = rom_read;
+	register_memmap(false, 4, mem_fn, ROMBOT, ROMTOP);
 #ifdef WRITEABLE_ROM
-	register_memmap_write_word(rom_write, ROMBOT, ROMTOP);
+	register_memmap(true, 4, rom_write, ROMBOT, ROMTOP);
 #endif
 #endif
 }

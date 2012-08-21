@@ -306,12 +306,18 @@ static pthread_t start_poll_uart(void *unused __attribute__ ((unused))) {
 
 __attribute__ ((constructor))
 void register_memmap_uart(void) {
-	register_memmap_read_byte(uart_read_status, POLL_UART_STATUS, POLL_UART_STATUS+1);
-	register_memmap_write_byte(uart_write_status, POLL_UART_STATUS, POLL_UART_STATUS+1);
+	union memmap_fn mem_fn;
 
-	register_memmap_read_byte(uart_read_data, POLL_UART_RXDATA, POLL_UART_RXDATA+1);
+	mem_fn.R_fn8 = uart_read_status;
+	register_memmap(false, 1, mem_fn, POLL_UART_STATUS, POLL_UART_STATUS+1);
+	mem_fn.W_fn8 = uart_write_status;
+	register_memmap(true, 1, mem_fn, POLL_UART_STATUS, POLL_UART_STATUS+1);
 
-	register_memmap_write_byte(uart_write_data, POLL_UART_TXDATA, POLL_UART_TXDATA+1);
+	mem_fn.R_fn8 = uart_read_data;
+	register_memmap(false, 1, mem_fn, POLL_UART_RXDATA, POLL_UART_RXDATA+1);
+
+	mem_fn.W_fn8 = uart_write_data;
+	register_memmap(true, 1, mem_fn, POLL_UART_TXDATA, POLL_UART_TXDATA+1);
 
 	register_periph_printer(print_poll_uart);
 	register_periph_thread(start_poll_uart, &poll_uart_enabled);

@@ -39,7 +39,11 @@ void register_memmap_ram(void) {
 #elif (RAMBOT == RAMTOP)
 #pragma message ( "RAM of size 0. RAM has been disabled" )
 #else
-	register_memmap_read_word(ram_read, RAMBOT, RAMTOP);
-	register_memmap_write_word(ram_write, RAMBOT, RAMTOP);
+	union memmap_fn mem_fn;
+
+	mem_fn.R_fn32 = ram_read;
+	register_memmap(false, 4, mem_fn, RAMBOT, RAMTOP);
+	mem_fn.W_fn32 = ram_write;
+	register_memmap(true, 4, mem_fn, RAMBOT, RAMTOP);
 #endif
 }

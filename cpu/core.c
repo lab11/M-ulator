@@ -12,7 +12,10 @@
  * Recall that most M3s are Power-On Reset, so this is the first function that
  * will be called when the chip turns on
  */
+void print_memmap(void);
+
 void reset(void) {
+	print_memmap();
 	ppb_reset();
 	CORE_reg_write(SP_REG, read_word(0x00000000));
 	CORE_reg_write(LR_REG, 0xFFFFFFFF);
@@ -25,12 +28,7 @@ void reset(void) {
 // XXX: Build efficient structure with masks
 struct memmap {
 	struct memmap *next;
-	union {
-		bool (*R_fn32)(uint32_t, uint32_t *);
-		void (*W_fn32)(uint32_t, uint32_t);
-		bool (*R_fn8)(uint32_t, uint8_t *);
-		void (*W_fn8)(uint32_t, uint8_t);
-	};
+	union memmap_fn mem_fn;
 	uint32_t bot;
 	uint32_t top;
 	char alignment;
@@ -39,100 +37,26 @@ struct memmap {
 struct memmap reads = {0};
 struct memmap writes = {0};
 
-void register_memmap_read_word(
-		bool (*fn)(uint32_t, uint32_t *),
+void register_memmap(
+		bool write,
+		short alignment,
+		union memmap_fn mem_fn,
 		uint32_t bot,
 		uint32_t top
 	) {
-	if (reads.R_fn32 == NULL) {
-		reads.R_fn32 = fn;
-		reads.bot = bot;
-		reads.top = top;
-		reads.alignment = 4;
-	} else {
-		struct memmap *cur = &reads;
-		while (cur->next != NULL)
-			cur = cur->next;
-		cur->next = malloc(sizeof(struct memmap));
-		cur = cur->next;
-		cur->next = NULL;
-		cur->R_fn32 = fn;
-		cur->bot = bot;
-		cur->top = top;
-		cur->alignment = 4;
-	}
-}
+	struct memmap *cur = &reads;
 
-void register_memmap_write_word(
-		void (*fn)(uint32_t, uint32_t),
-		uint32_t bot,
-		uint32_t top
-	) {
-	if (writes.W_fn32 == NULL) {
-		writes.W_fn32 = fn;
-		writes.bot = bot;
-		writes.top = top;
-		writes.alignment = 4;
-	} else {
-		struct memmap *cur = &writes;
+	if (cur->mem_fn.R_fn32 != NULL) {
 		while (cur->next != NULL)
 			cur = cur->next;
 		cur->next = malloc(sizeof(struct memmap));
 		cur = cur->next;
-		cur->next = NULL;
-		cur->W_fn32 = fn;
-		cur->bot = bot;
-		cur->top = top;
-		cur->alignment = 4;
 	}
-}
-
-void register_memmap_read_byte(
-		bool (*fn)(uint32_t, uint8_t *),
-		uint32_t bot,
-		uint32_t top
-	) {
-	if (reads.R_fn8 == NULL) {
-		reads.R_fn8 = fn;
-		reads.bot = bot;
-		reads.top = top;
-		reads.alignment = 1;
-	} else {
-		struct memmap *cur = &reads;
-		while (cur->next != NULL)
-			cur = cur->next;
-		cur->next = malloc(sizeof(struct memmap));
-		cur = cur->next;
-		cur->next = NULL;
-		cur->R_fn8 = fn;
-		cur->bot = bot;
-		cur->top = top;
-		cur->alignment = 1;
-	}
-}
-
-void register_memmap_write_byte(
-		void (*fn)(uint32_t, uint8_t),
-		uint32_t bot,
-		uint32_t top
-	) {
-	if (writes.W_fn8 == NULL) {
-		writes.W_fn8 = fn;
-		writes.bot = bot;
-		writes.top = top;
-		writes.alignment = 1;
-	} else {
-		struct memmap *cur = &writes;
-		while (cur->next != NULL)
-			cur = cur->next;
-		cur->next = malloc(sizeof(struct memmap));
-		cur = cur->next;
-		cur->next = NULL;
-		cur->W_fn8 = fn;
-		cur->bot = bot;
-		cur->top = top;
-		cur->alignment = 1;
-	}
+	cur->next = NULL;
+	cur->mem_fn = mem_fn;
+	cur->bot = bot;
+	cur->top = top;
+	cur->alignment = alignment;
 }
 
 void print_memmap(void) {
@@ -165,7 +89,7 @@ static bool try_read_word(uint32_t addr, uint32_t *val) {
 	while (cur != NULL) {
 		if (cur->alignment == 4)
 			if ((cur->bot <= addr) && (addr < cur->top))
-				return cur->R_fn32(addr, val);
+				return cur->mem_fn.R_fn32(addr, val);
 		cur = cur->next;
 	}
 
@@ -195,7 +119,7 @@ void write_word(uint32_t addr, uint32_t val) {
 	while (cur != NULL) {
 		if (cur->alignment == 4)
 			if ((cur->bot <= addr) && (addr < cur->top))
-				return cur->W_fn32(addr, val);
+				return cur->mem_fn.W_fn32(addr, val);
 		cur = cur->next;
 	}
 
@@ -280,7 +204,7 @@ bool try_read_byte(uint32_t addr, uint8_t* val) {
 	while (cur != NULL) {
 		if (cur->alignment == 1)
 			if ((cur->bot <= addr) && (addr < cur->top))
-				return cur->R_fn8(addr, val);
+				return cur->mem_fn.R_fn8(addr, val);
 		cur = cur->next;
 	}
 
@@ -323,7 +247,7 @@ void write_byte(uint32_t addr, uint8_t val) {
 	while (cur != NULL) {
 		if (cur->alignment == 1)
 			if ((cur->bot <= addr) && (addr < cur->top))
-				return cur->W_fn8(addr, val);
+				return cur->mem_fn.W_fn8(addr, val);
 		cur = cur->next;
 	}
 
