@@ -2,6 +2,7 @@
 
 #include "private_peripheral_bus/ppb.h"
 #include "pins.h"
+#include "cpu.h"
 
 //#define TRAP_ALIGNMENT (read_word(CONFIGURATION_CONTROL) & CONFIGURATION_CONTROL_UNALIGN_TRP_MASK)
 #define TRAP_ALIGNMENT false
@@ -34,8 +35,8 @@ struct memmap {
 	char alignment;
 };
 
-struct memmap reads = {0};
-struct memmap writes = {0};
+struct memmap reads = {0,{0},0,0,0};
+struct memmap writes = {0,{0},0,0,0};
 
 void register_memmap(
 		bool write,
@@ -44,7 +45,12 @@ void register_memmap(
 		uint32_t bot,
 		uint32_t top
 	) {
-	struct memmap *cur = &reads;
+	struct memmap *cur;
+
+	if (write)
+		cur = &writes;
+	else
+		cur = &reads;
 
 	if (cur->mem_fn.R_fn32 != NULL) {
 		while (cur->next != NULL)

@@ -6,9 +6,14 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdarg.h>
 #include <limits.h>
 #include <assert.h>
+#include <unistd.h>
+#include <time.h>
+#include <fcntl.h>
 #include <errno.h>
+
 
 #include <pthread.h>
 #include <semaphore.h>

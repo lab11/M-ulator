@@ -3,7 +3,7 @@
 
 #include <netinet/in.h>
 
-#define STAGE PERIPH
+#include "periph.h"
 #include "uart.h"
 
 #include "memmap.h"
@@ -275,20 +275,21 @@ static void poll_uart_txdata_write(uint8_t val) {
 //////////////////////////////////////////////////////////////////
 
 // Wrappers to match function signature
-static bool uart_read_status(uint32_t addr, uint8_t *val) {
+static bool uart_read_status(uint32_t addr __attribute__ ((unused)), uint8_t *val) {
 	*val = poll_uart_status_read();
 	return true;
 }
 
-static void uart_write_status(uint32_t addr, uint8_t val) {
+static void uart_write_status(uint32_t addr __attribute__ ((unused)), uint8_t val) {
 	poll_uart_status_write(val);
 }
 
-static bool uart_read_data(uint32_t addr, uint8_t *val) {
+static bool uart_read_data(uint32_t addr __attribute__ ((unused)), uint8_t *val) {
 	*val = poll_uart_rxdata_read();
+	return true;
 }
 
-static void uart_write_data(uint32_t addr, uint8_t val) {
+static void uart_write_data(uint32_t addr __attribute__ ((unused)), uint8_t val) {
 	poll_uart_txdata_write(val);
 }
 

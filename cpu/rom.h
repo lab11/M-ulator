@@ -8,6 +8,6 @@
 #include "../pretty_print.h"
 #endif
 
-void flash_ROM(char *image, uint32_t nbytes);
+void flash_ROM(void *image, uint32_t nbytes);
 
 #endif // ROM_H

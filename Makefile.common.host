@@ -5,7 +5,7 @@ CFLAGS += -DM_PROFILE
 #CFLAGS += -DNO_PIPELINE
 
 # Lots of debugging!
-CFLAGS += -g3 -Werror -Wstrict-prototypes
+CFLAGS += -g3
 
 # GTK
 GTK_CFLAGS=$(shell pkg-config gtk+-2.0 --cflags)
@@ -66,17 +66,13 @@ $(info * mostly since it is from 2007: gcc.gnu.org/gcc-4.1 *)
 $(info * Consider building on a newer machine instead      *)
 $(info *****************************************************)
 $(info )
-endif
 
-ifneq (,$(findstring $(GCC_MINOR),4-5))
+else
 # Be strict on warnings
 CFLAGS += -Wall -Wextra -Werror
 
-STRICT ?= 0
-ifneq ($(STRICT),0)
-# And this needs explicit inclusion apparently
-CFLAGS += -Wconversion
-endif
+# Some more warnings not otherwise covered
+CFLAGS += -Wstrict-prototypes
 
 # Except for some weaknesses of gcc
 CFLAGS += -Wno-type-limits

@@ -8,7 +8,7 @@
 #define ADDR_TO_IDX(_addr, _bot) ((_addr - _bot) >> 2)
 static uint32_t rom[ROMSIZE >> 2] = {0};
 
-EXPORT void flash_ROM(char *image, uint32_t nbytes) {
+EXPORT void flash_ROM(void *image, uint32_t nbytes) {
 	memcpy(rom, image, nbytes);
 	INFO("Flashed %d bytes to ROM\n", nbytes);
 }

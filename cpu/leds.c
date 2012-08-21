@@ -1,5 +1,4 @@
-#define STAGE PERIPH
-
+#include "periph.h"
 #include "leds.h"
 
 #include "memmap.h"

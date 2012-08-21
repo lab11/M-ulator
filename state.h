@@ -24,6 +24,9 @@ enum stage {
 // XXX: Moved in core refactor - consider final placement
 void stall(enum stage);
 
+void state_async_block_start(void);
+void state_async_block_end(void);
+
 void state_enter_debugging(void);
 void state_exit_debugging(void);
 

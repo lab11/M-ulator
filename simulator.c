@@ -1,8 +1,3 @@
-#include <stdarg.h>
-#include <unistd.h>
-#include <time.h>
-#include <fcntl.h>
-
 #define STAGE SIM
 #include "state.h"
 #include "simulator.h"
@@ -11,6 +6,7 @@
 #include "id_stage.h"
 #include "ex_stage.h"
 #include "cpu/core.h"
+#include "cpu/rom.h"
 #include "cpu/misc.h"
 #include "gdb.h"
 
@@ -1505,7 +1501,7 @@ EXPORT void simulator(const char *flash_file) {
 						flash_file);
 			}
 
-			uint32_t rom[ROMSIZE >> 2] = {0};
+			uint8_t rom[ROMSIZE] = {0};
 
 			assert (ROMSIZE < SSIZE_MAX);
 			ret = read(flashfd, rom, ROMSIZE);
