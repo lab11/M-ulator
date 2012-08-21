@@ -192,9 +192,9 @@ for f in sys.argv[1:]:
 				for i in range(len(bitstring)):
 					bit = bitstring[i]
 					if bit is '1':
-						reset += '|(1<<'+str(i)+')'
+						reset += '|(1U<<'+str(i)+')'
 					elif bit is '0':
-						reset += '&~(1<<'+str(i)+')'
+						reset += '&~(1U<<'+str(i)+')'
 					elif bit is 'x':
 						pass
 					else:
