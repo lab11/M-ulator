@@ -15,6 +15,8 @@
 // GLOBALS
 ////////////////////////////////////////////////////////////////////////////////
 
+EXPORT int debug_ = 0;
+
 static volatile sig_atomic_t sigint = 0;
 static volatile bool shell_running = false;
 
@@ -32,13 +34,8 @@ static void join_periph_threads (void);
 EXPORT int gdb_port = -1;
 #define GDB_ATTACHED (gdb_port != -1)
 EXPORT int slowsim = 0;
-#ifdef DEBUG2
-EXPORT int printcycles = 1;
-EXPORT int raiseonerror = 1;
-#else
 EXPORT int printcycles = 0;
 EXPORT int raiseonerror = 0;
-#endif
 EXPORT int limitcycles = -1;
 EXPORT unsigned dumpatpc = -3;
 EXPORT int dumpatcycle = -1;
@@ -285,9 +282,11 @@ static void state_unblock_async_io(void) {
 static void state_start_tick(void) {
 	state_block_async_io();
 #ifdef DEBUG2
+if (debug_ >= 2) {
 	flockfile(stdout); flockfile(stderr);
 	printf("\n%08d TICK TICK TICK TICK TICK TICK TICK TICK TICK\n", cycle);
 	funlockfile(stderr); funlockfile(stdout);
+}
 #endif
 	DBG2("CLOCK --> high (cycle %08d)\n", cycle);
 	//assert((state_head->cycle+1) == cycle);
@@ -418,9 +417,11 @@ static void state_tock(void) {
 	state_block_async_io();
 
 #ifdef DEBUG2
+if (debug_ >= 2) {
 	flockfile(stdout); flockfile(stderr);
 	printf("\n%08d TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK\n", cycle);
 	funlockfile(stderr); funlockfile(stdout);
+}
 #endif
 	DBG2("CLOCK --> low (cycle %08d)\n", cycle);
 	// cycle_head is state_head from end of previous cycle here

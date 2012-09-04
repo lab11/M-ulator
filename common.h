@@ -101,15 +101,19 @@ void	CORE_ERR_not_implemented(const char *opt_msg) __attribute__ ((noreturn));
  * (debug2 ==> debug1)
  */
 
+extern int debug_;
+
 #ifdef DEBUG1
 // "Level 1" debug, for statements that would print not more than
 // once to a dozen times during execution
 #define DBG1(...)\
 	do {\
+		if (debug_ >= 1) {\
 		flockfile(stdout);\
 		printf("111 D: %s:%d\t%s:\t", __FILE__, __LINE__, __func__); \
 		printf(__VA_ARGS__);\
 		funlockfile(stdout);\
+		}\
 	} while (0)
 #else
 #define DBG1(...)
@@ -120,10 +124,12 @@ void	CORE_ERR_not_implemented(const char *opt_msg) __attribute__ ((noreturn));
 // be usefule for debugging
 #define DBG2(...)\
 	do {\
+		if (debug_ >= 2) {\
 		flockfile(stdout);\
 		printf("222 D: %s:%d\t%s:\t", __FILE__, __LINE__, __func__); \
 		printf(__VA_ARGS__);\
 		funlockfile(stdout);\
+		}\
 	} while (0)
 #else
 #define DBG2(...)

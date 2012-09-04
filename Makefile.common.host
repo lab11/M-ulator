@@ -18,6 +18,13 @@ export debug
 
 $(warning)
 
+ifeq ($(strip $(debug)),)
+# Turning on by default for now
+debug=2
+endif
+
+$(warning)
+
 ifeq ($(debug), 1)
 CFLAGS += -DDEBUG1
 SIMFLAGS += --printcycles

@@ -10,6 +10,15 @@
 
 static void usage_fail(int retcode) {
 	printf("\nUSAGE: ./simulator [OPTS]\n\n");
+#ifdef DEBUG1
+	printf("\
+\t-d, --debug\n\
+\t\tPrint internal debugging information.\n");
+#ifdef DEBUG2
+	printf("\
+\t\tMay be repeated for additional debug information.\n");
+#endif //DEBUG2
+#endif //DEBUG1
 	printf("\
 -- DEBUGGING -------------------------------------------------------------------\n\
 \t-g, --gdb [port]\n\
@@ -22,7 +31,7 @@ static void usage_fail(int retcode) {
 \t-y, --dumpatcycle N\n\
 \t\tExecute until cycle N and print the current machine state.\n\
 \t\tYou will be prompted for a new N at the pause\n\
-\t-d, --dumpallcycles\n\
+\t-a, --dumpallcycles\n\
 \t\tPrints the machine state every cycle -- This is a lot of text\n\
 \t-p, --printcycles\n\
 \t\tPrints cycle count and inst to execute every cycle (before exec)\n\
@@ -62,10 +71,11 @@ int main(int argc, char **argv) {
 	// Command line parsing
 	while (1) {
 		static struct option long_options[] = {
+			{"debug",         no_argument,       0,              'd'},
 			{"gdb",           optional_argument, 0,              'g'},
 			{"dumpatpc",      required_argument, 0,              'c'},
 			{"dumpatcycle",   required_argument, 0,              'y'},
-			{"dumpallcycles", no_argument,       &dumpallcycles, 'd'},
+			{"dumpallcycles", no_argument,       &dumpallcycles, 'a'},
 			{"printcycles",   no_argument,       &printcycles,   'p'},
 			{"slowsim",       no_argument,       &slowsim,       's'},
 			{"raiseonerror",  no_argument,       &raiseonerror,  'e'},
@@ -79,7 +89,7 @@ int main(int argc, char **argv) {
 		int option_index = 0;
 		int c;
 
-		c = getopt_long(argc, argv, "g::c:y:dpserm:f:?", long_options,
+		c = getopt_long(argc, argv, "dg::c:y:apserm:f:?", long_options,
 				&option_index);
 
 		if (c == -1) break;
@@ -87,6 +97,10 @@ int main(int argc, char **argv) {
 		switch (c) {
 			case 0:
 				// option set a flag
+				break;
+
+			case 'd':
+				debug_ += 1;
 				break;
 
 			case 'g':
@@ -105,7 +119,7 @@ int main(int argc, char **argv) {
 						dumpatcycle);
 				break;
 
-			case 'd':
+			case 'a':
 				dumpallcycles = true;
 				break;
 
