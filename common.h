@@ -194,16 +194,18 @@ void	CORE_ERR_not_implemented_real(const char*, int, const char *)
 	do {\
 		int ret = pthread_mutex_lock((_m));\
 		if (ret) {\
+			errno = ret;\
 			perror("Locking "VAL2STR(_m));\
-			exit(ret);\
+			raise(SIGTRAP);\
 		}\
 	} while (0)
 #define pthread_mutex_unlock(_m)\
 	do {\
 		int ret = pthread_mutex_unlock((_m));\
 		if (ret) {\
+			errno = ret;\
 			perror("Unlocking "VAL2STR(_m));\
-			exit(ret);\
+			raise(SIGTRAP);\
 		}\
 	} while (0)
 #endif
