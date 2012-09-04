@@ -1109,10 +1109,16 @@ EXPORT void CORE_ERR_write_only_real(const char *f, int l, uint32_t addr) {
 }
 
 EXPORT void CORE_ERR_invalid_addr_real(const char *f, int l, uint8_t is_write, uint32_t addr) {
-	WARN("CORE_ERR_invalid_addr %s address: 0x%08x\n",
-			is_write ? "writing":"reading", addr);
-	WARN("Dumping Core...\n");
-	print_full_state();
+	static bool dumping = false;
+	if (dumping) {
+		WARN("Err generating core dump, aborting\n");
+	} else {
+		dumping = true;
+		WARN("CORE_ERR_invalid_addr %s address: 0x%08x\n",
+				is_write ? "writing":"reading", addr);
+		WARN("Dumping Core...\n");
+		print_full_state();
+	}
 	ERR(E_INVALID_ADDR, "%s:%d\tTerminating due to invalid addr\n", f, l);
 }
 
