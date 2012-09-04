@@ -52,7 +52,8 @@ void register_memmap_rom(void) {
 	mem_fn.R_fn32 = rom_read;
 	register_memmap(false, 4, mem_fn, ROMBOT, ROMTOP);
 #ifdef WRITEABLE_ROM
-	register_memmap(true, 4, rom_write, ROMBOT, ROMTOP);
+	mem_fn.W_fn32 = rom_write;
+	register_memmap(true, 4, mem_fn, ROMBOT, ROMTOP);
 #endif
 #endif
 }
