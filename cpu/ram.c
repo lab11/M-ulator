@@ -42,8 +42,8 @@ void register_memmap_ram(void) {
 	union memmap_fn mem_fn;
 
 	mem_fn.R_fn32 = ram_read;
-	register_memmap(false, 4, mem_fn, RAMBOT, RAMTOP);
+	register_memmap("RAM", false, 4, mem_fn, RAMBOT, RAMTOP);
 	mem_fn.W_fn32 = ram_write;
-	register_memmap(true, 4, mem_fn, RAMBOT, RAMTOP);
+	register_memmap("RAM", true, 4, mem_fn, RAMBOT, RAMTOP);
 #endif
 }

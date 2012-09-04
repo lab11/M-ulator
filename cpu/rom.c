@@ -50,10 +50,10 @@ void register_memmap_rom(void) {
 	union memmap_fn mem_fn;
 
 	mem_fn.R_fn32 = rom_read;
-	register_memmap(false, 4, mem_fn, ROMBOT, ROMTOP);
+	register_memmap("ROM", false, 4, mem_fn, ROMBOT, ROMTOP);
 #ifdef WRITEABLE_ROM
 	mem_fn.W_fn32 = rom_write;
-	register_memmap(true, 4, mem_fn, ROMBOT, ROMTOP);
+	register_memmap("ROM", true, 4, mem_fn, ROMBOT, ROMTOP);
 #endif
 #endif
 }

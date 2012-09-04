@@ -30,6 +30,7 @@ void reset(void) {
 struct memmap {
 	struct memmap *next;
 	struct memmap *prev;
+	const char *name;
 	union memmap_fn mem_fn;
 	uint32_t bot;
 	uint32_t top;
@@ -40,8 +41,9 @@ struct memmap *reads = NULL;
 struct memmap *writes = NULL;
 
 static void bad_memmap_reg(struct memmap *newmap, struct memmap *cur) {
-	WARN("Inserting %x--%x, but cur is %x--%x\n",
-			newmap->bot, newmap->top, cur->bot, cur->top);
+	WARN("Inserting %s at %x--%x, but cur is %s at %x--%x\n",
+			newmap->name, newmap->bot, newmap->top,
+			cur->name, cur->bot, cur->top);
 	ERR(E_INVALID_ADDR, "\
 Bad memmap registration, overlapping address range\n");
 }
@@ -65,6 +67,7 @@ static void insert_memmap(struct memmap **head, struct memmap *newmap,
 }
 
 void register_memmap(
+		const char *name,
 		bool write,
 		short alignment,
 		union memmap_fn mem_fn,
@@ -73,7 +76,9 @@ void register_memmap(
 	) {
 	assert(bot < top);
 	struct memmap *newmap = malloc(sizeof(struct memmap));
-	*newmap = (struct memmap){NULL, NULL, mem_fn, bot, top, alignment};
+	*newmap = (struct memmap){
+		NULL, NULL, strdup(name), mem_fn, bot, top, alignment};
+	assert(newmap->name);
 
 	struct memmap **head;
 	struct memmap *cur;
@@ -113,23 +118,138 @@ void register_memmap(
 	}
 }
 
-void print_memmap(void) {
+static void print_memmap_line(
+		bool rvalid, uint32_t rval,
+		bool wvalid, uint32_t wval) {
+	printf("\t");
+	if (rvalid)
+		printf("|%08x\t\t", rval);
+	else
+		printf("|\t\t\t");
+	if (wvalid)
+		printf("|%08x\t\t", wval);
+	else
+		printf("|\t\t\t");
 	printf("\n");
+}
 
-	printf("READ MEMMAP\n");
-	struct memmap *cur = reads;
-	while (cur != NULL) {
-		printf("\t%08x...%08x (align %d)\n",
-				cur->bot, cur->top, cur->alignment);
-		cur = cur->next;
-	}
+static void print_memmap_name(
+		bool rvalid, struct memmap *rcur,
+		bool wvalid, struct memmap *wcur) {
+	printf("\t");
+	if (rvalid)
+		printf("| | %-20s", rcur->name);
+	else
+		printf("|\t\t\t");
+	if (wvalid)
+		printf("| | %-20s", wcur->name);
+	else
+		printf("|\t\t\t");
+	printf("\n");
+}
 
-	printf("WRITE MEMMAP\n");
-	cur = writes;
-	while (cur != NULL) {
-		printf("\t%08x...%08x (align %d)\n",
-				cur->bot, cur->top, cur->alignment);
-		cur = cur->next;
+EXPORT void print_memmap(void) {
+	INFO("Printing memory map\n");
+
+	struct memmap *rcur = reads;
+	struct memmap *wcur = writes;
+
+	bool rvalid = false;
+	bool wvalid = false;
+
+	while (rcur || wcur) {
+		if (!rvalid && !wvalid) {
+			printf("\t|\t\t\t|\n");
+			uint32_t rbot = (rcur) ? rcur->bot : UINT32_MAX;
+			uint32_t wbot = (wcur) ? wcur->bot : UINT32_MAX;
+
+			if (rbot < wbot) {
+				rvalid = true;
+				wvalid = false;
+			} else if (rbot > wbot) {
+				rvalid = false;
+				wvalid = true;
+			} else {
+				rvalid = true;
+				wvalid = true;
+			}
+			print_memmap_line(rvalid, rbot, wvalid, wbot);
+			print_memmap_name(rvalid, rcur, wvalid, wcur);
+			continue;
+		}
+
+		else if (rvalid && !wvalid) {
+			if (wcur && wcur->bot < rcur->top) {
+				wvalid = true;
+				print_memmap_line(false, 0, wvalid, wcur->bot);
+				print_memmap_name(false, rcur, wvalid, wcur);
+				continue;
+			} else if ((!wcur) || (wcur && wcur->bot > rcur->top)) {
+				print_memmap_line(rvalid, rcur->top, false, 0);
+				rvalid = false;
+				rcur = rcur->next;
+				continue;
+			} else {
+				assert(wcur->bot == rcur->top);
+				wvalid = true;
+				rcur = rcur->next;
+				if (rcur && (rcur->bot == wcur->bot))
+					rvalid = true;
+				else
+					rvalid = false;
+				print_memmap_line(true, wcur->bot, wvalid, wcur->bot);
+				print_memmap_name(rvalid, rcur, wvalid, wcur);
+				continue;
+			}
+		}
+
+		else if (!rvalid && wvalid) {
+			if (rcur && rcur->bot < wcur->top) {
+				rvalid = true;
+				print_memmap_line(rvalid, rcur->bot, false, 0);
+				print_memmap_name(rvalid, rcur, false, wcur);
+				continue;
+			} else if ((!rcur) || (rcur && rcur->bot > wcur->top)) {
+				print_memmap_line(false, 0, wvalid, wcur->top);
+				wvalid = false;
+				wcur = wcur->next;
+				continue;
+			} else {
+				assert(rcur->bot == wcur->top);
+				rvalid = true;
+				wcur = wcur->next;
+				if (wcur && (wcur->bot == rcur->bot))
+					wvalid = true;
+				else
+					wvalid = false;
+				print_memmap_line(rvalid, rcur->bot, true, rcur->bot);
+				print_memmap_name(rvalid, rcur, wvalid, wcur);
+				continue;
+			}
+		}
+
+		else if (rvalid && wvalid) {
+			if (rcur->top > wcur->top) {
+				print_memmap_line(false, 0, wvalid, wcur->top);
+				if (!(wcur->next && wcur->next->bot == wcur->top))
+					wvalid = false;
+				wcur = wcur->next;
+				continue;
+			} else if (rcur->top < wcur->top) {
+				print_memmap_line(rvalid, rcur->top, false, 0);
+				if (!(rcur->next && rcur->next->bot == rcur->top))
+					rvalid = false;
+				rcur = rcur->next;
+				continue;
+			} else {
+				print_memmap_line(rvalid, rcur->top, wvalid, wcur->top);
+				rvalid = false;
+				wvalid = false;
+				rcur = rcur->next;
+				wcur = wcur->next;
+				continue;
+			}
+		}
 	}
 
 	printf("\n");

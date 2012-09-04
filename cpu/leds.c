@@ -69,9 +69,9 @@ void register_led_periph(void) {
 	union memmap_fn mem_fn;
 
 	mem_fn.R_fn32 = led_read;
-	register_memmap(false, 4, mem_fn, REDLED, BLULED+4);
+	register_memmap("Simple LED", false, 4, mem_fn, REDLED, BLULED+4);
 	mem_fn.W_fn32 = led_write;
-	register_memmap(true, 4, mem_fn, REDLED, BLULED+4);
+	register_memmap("Simple LED", true, 4, mem_fn, REDLED, BLULED+4);
 
 	register_periph_printer(print_leds_line);
 }

@@ -310,15 +310,19 @@ void register_memmap_uart(void) {
 	union memmap_fn mem_fn;
 
 	mem_fn.R_fn8 = uart_read_status;
-	register_memmap(false, 1, mem_fn, POLL_UART_STATUS, POLL_UART_STATUS+1);
+	register_memmap("Poll UART", false, 1, mem_fn,
+			POLL_UART_STATUS, POLL_UART_STATUS+1);
 	mem_fn.W_fn8 = uart_write_status;
-	register_memmap(true, 1, mem_fn, POLL_UART_STATUS, POLL_UART_STATUS+1);
+	register_memmap("Poll UART", true, 1, mem_fn,
+			POLL_UART_STATUS, POLL_UART_STATUS+1);
 
 	mem_fn.R_fn8 = uart_read_data;
-	register_memmap(false, 1, mem_fn, POLL_UART_RXDATA, POLL_UART_RXDATA+1);
+	register_memmap("Poll UART", false, 1, mem_fn,
+			POLL_UART_RXDATA, POLL_UART_RXDATA+1);
 
 	mem_fn.W_fn8 = uart_write_data;
-	register_memmap(true, 1, mem_fn, POLL_UART_TXDATA, POLL_UART_TXDATA+1);
+	register_memmap("Poll UART", true, 1, mem_fn,
+			POLL_UART_TXDATA, POLL_UART_TXDATA+1);
 
 	register_periph_printer(print_poll_uart);
 	register_periph_thread(start_poll_uart, &poll_uart_enabled);

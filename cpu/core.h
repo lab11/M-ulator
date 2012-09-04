@@ -16,6 +16,7 @@ union memmap_fn {
 };
 
 void register_memmap(
+		const char *name,
 		bool write,
 		short alignment,
 		union memmap_fn mem_fn,
