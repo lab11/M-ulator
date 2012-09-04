@@ -3,6 +3,11 @@
 
 #include "../common.h"
 
+#ifndef PP_STRING
+#define PP_STRING "COR"
+#include "../pretty_print.h"
+#endif
+
 union memmap_fn {
 	bool (*R_fn32)(uint32_t, uint32_t *);
 	void (*W_fn32)(uint32_t, uint32_t);

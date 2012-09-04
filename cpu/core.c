@@ -29,14 +29,40 @@ void reset(void) {
 // XXX: Build efficient structure with masks
 struct memmap {
 	struct memmap *next;
+	struct memmap *prev;
 	union memmap_fn mem_fn;
 	uint32_t bot;
 	uint32_t top;
 	char alignment;
 };
 
-struct memmap reads = {0,{0},0,0,0};
-struct memmap writes = {0,{0},0,0,0};
+struct memmap *reads = NULL;
+struct memmap *writes = NULL;
+
+static void bad_memmap_reg(struct memmap *newmap, struct memmap *cur) {
+	WARN("Inserting %x--%x, but cur is %x--%x\n",
+			newmap->bot, newmap->top, cur->bot, cur->top);
+	ERR(E_INVALID_ADDR, "\
+Bad memmap registration, overlapping address range\n");
+}
+
+static void insert_memmap(struct memmap **head, struct memmap *newmap,
+		struct memmap *cur) {
+	// Overlap check: Equal is allowed, range is [bot, top)
+	if (newmap->top > cur->bot) {
+		bad_memmap_reg(newmap, cur);
+	}
+	if (cur->prev) {
+		assert(cur->prev->next = cur);
+		cur->prev->next = newmap;
+		cur->prev = newmap;
+	}
+	newmap->next = cur;
+	newmap->prev = cur->prev;
+
+	if (*head == cur)
+		*head = newmap;
+}
 
 void register_memmap(
 		bool write,
@@ -45,31 +71,53 @@ void register_memmap(
 		uint32_t bot,
 		uint32_t top
 	) {
+	assert(bot < top);
+	struct memmap *newmap = malloc(sizeof(struct memmap));
+	*newmap = (struct memmap){NULL, NULL, mem_fn, bot, top, alignment};
+
+	struct memmap **head;
 	struct memmap *cur;
 
 	if (write)
-		cur = &writes;
+		head = &writes;
 	else
-		cur = &reads;
+		head = &reads;
+	cur = *head;
 
-	if (cur->mem_fn.R_fn32 != NULL) {
-		while (cur->next != NULL)
-			cur = cur->next;
-		cur->next = malloc(sizeof(struct memmap));
+	if (cur == NULL) {
+		*head = newmap;
+		return;
+	}
+
+	while (cur->next != NULL) {
+		// Insert behind cur
+		if (bot < cur->bot) {
+			insert_memmap(head, newmap, cur);
+			return;
+		}
+
+		// Overlap check: ensure new range completely exceeds old
+		if (bot < cur->top) {
+			bad_memmap_reg(newmap, cur);
+		}
+
 		cur = cur->next;
 	}
-	cur->next = NULL;
-	cur->mem_fn = mem_fn;
-	cur->bot = bot;
-	cur->top = top;
-	cur->alignment = alignment;
+
+	// Insert at end of list
+	if (bot < cur->top) {
+		insert_memmap(head, newmap, cur);
+	} else {
+		cur->next = newmap;
+		newmap->prev = cur;
+	}
 }
 
 void print_memmap(void) {
 	printf("\n");
 
 	printf("READ MEMMAP\n");
-	struct memmap *cur = &reads;
+	struct memmap *cur = reads;
 	while (cur != NULL) {
 		printf("\t%08x...%08x (align %d)\n",
 				cur->bot, cur->top, cur->alignment);
@@ -77,7 +125,7 @@ void print_memmap(void) {
 	}
 
 	printf("WRITE MEMMAP\n");
-	cur = &writes;
+	cur = writes;
 	while (cur != NULL) {
 		printf("\t%08x...%08x (align %d)\n",
 				cur->bot, cur->top, cur->alignment);
@@ -91,7 +139,7 @@ void print_memmap(void) {
 static bool try_read_word(uint32_t addr, uint32_t *val) {
 	DBG2("addr %08x\n", addr);
 
-	struct memmap *cur = &reads;
+	struct memmap *cur = reads;
 	while (cur != NULL) {
 		if (cur->alignment == 4)
 			if ((cur->bot <= addr) && (addr < cur->top))
@@ -121,7 +169,7 @@ uint32_t read_word(uint32_t addr) {
 void write_word(uint32_t addr, uint32_t val) {
 	DBG2("addr %08x val %08x\n", addr, val);
 
-	struct memmap *cur = &writes;
+	struct memmap *cur = writes;
 	while (cur != NULL) {
 		if (cur->alignment == 4)
 			if ((cur->bot <= addr) && (addr < cur->top))
@@ -206,7 +254,7 @@ void write_halfword(uint32_t addr, uint16_t val) {
 
 bool try_read_byte(uint32_t addr, uint8_t* val) {
 
-	struct memmap *cur = &reads;
+	struct memmap *cur = reads;
 	while (cur != NULL) {
 		if (cur->alignment == 1)
 			if ((cur->bot <= addr) && (addr < cur->top))
@@ -249,7 +297,7 @@ uint8_t read_byte(uint32_t addr) {
 }
 
 void write_byte(uint32_t addr, uint8_t val) {
-	struct memmap *cur = &writes;
+	struct memmap *cur = writes;
 	while (cur != NULL) {
 		if (cur->alignment == 1)
 			if ((cur->bot <= addr) && (addr < cur->top))
