@@ -7,7 +7,7 @@ LEVEL = .
 #################
 # Default Targets
 
-all:	simulator programs
+all:	simulator
 
 ###########
 # Simulator
@@ -58,13 +58,13 @@ cpu/%:
 ##########
 # Programs
 
-programs:
-	$(MAKE) -C programs
+../programs:
+	$(MAKE) -C ../programs
 
-programs/%:
-	$(MAKE) $* -C programs
+../programs/%:
+	$(MAKE) $* -C ../programs
 
-.PHONY: programs
+.PHONY: ../programs
 
 #########
 # Testing
@@ -79,48 +79,48 @@ endif
 
 SIM_EXE = ./simulator --flash $< $(SIMFLAGS)
 
-basic:	programs/basic.bin simulator
+basic:	../programs/basic.bin simulator
 	$(eval SIMFLAGS += -p --dumpallcycles)
-	$(call tester,programs,$@)
+	$(call tester,../programs,$@)
 
-blink:	programs/blink.bin simulator
-	$(call tester,programs,$@)
+blink:	../programs/blink.bin simulator
+	$(call tester,../programs,$@)
 
-echo:	programs/echo.bin simulator
+echo:	../programs/echo.bin simulator
 	sh -c 'sleep 1s; echo -e "e\n" | nc -4 localhost 4100 > /dev/null' &
-	$(call tester,programs,$@)
+	$(call tester,../programs,$@)
 
-echo_str:	programs/echo_str.bin simulator
-	$(call tester,programs,$@)
+echo_str:	../programs/echo_str.bin simulator
+	$(call tester,../programs,$@)
 
-fib:	programs/fib.bin simulator
-	$(call tester,programs,$@)
+fib:	../programs/fib.bin simulator
+	$(call tester,../programs,$@)
 
 testflash:	simulator
-	$(call tester,programs,$@)
+	$(call tester,../programs,$@)
 
 .PHONY: blink echo echo_str testflash
 
-trivialS: simulator
+trivialS: ../programs/tests/trivialS.bin simulator
 	$(eval SIMFLAGS += --returnr0)
-	$(call tester,programs/tests,$@)
+	$(call tester,../programs/tests,$@)
 
-trivialC: simulator
+trivialC: ../programs/tests/trivialC.bin simulator
 	$(eval SIMFLAGS += --returnr0)
-	$(call tester,programs/tests,$@)
+	$(call tester,../programs/tests,$@)
 
-trivialPrintf: simulator
+trivialPrintf: ../programs/tests/trivialPrintf.bin simulator
 	$(eval SIMFLAGS += --returnr0)
-	$(call tester,programs/tests,$@)
+	$(call tester,../programs/tests,$@)
 
 .PHONY: trivialS trivialC trivialPrintf
 
 #####
 # Etc
 
-clean:	clean-simulator programs/clean
+clean:	clean-simulator
 
-clean-all: clean-simulator-all doc/clean-all programs/clean-all
+clean-all: clean-simulator-all ../programs/clean-all
 
 .PHONY: clean clean-all
 

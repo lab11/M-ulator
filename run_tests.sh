@@ -2,7 +2,7 @@
 
 set -u
 
-make > /dev/null
+make -C simulator > /dev/null
 
 function shell() {
 	cat << EOF
@@ -49,7 +49,7 @@ for t in $tests; do
 	(sleep 1; echo -e 'yTestStr1\n' | nc -4 localhost 4100 > /dev/null) &
 	#./simulator -f $t -r
 	printf "%40s: " $t
-	./simulator -f $t -r > $out 2> $err
+	simulator/simulator -f $t -r > $out 2> $err
 	ret=$?
 	wait
 	if [ $ret -eq 0 ]; then
