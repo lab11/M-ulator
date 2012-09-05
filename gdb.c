@@ -72,9 +72,8 @@ EXPORT void gdb_init(int port) {
 
 	// Respond with out message
 	char *resp;
-	asprintf(&resp, "qSupported:PacketSize=%x;ReverseContinue+;ReverseStep+",
-			GDB_MSG_MAX - 1);
-	assert(NULL != resp);
+	assert(-1 != asprintf(&resp, "\
+qSupported:PacketSize=%x;ReverseContinue+;ReverseStep+", GDB_MSG_MAX - 1));
 
 	gdb_send_message(resp);
 	free(resp);
