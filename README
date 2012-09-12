@@ -1,0 +1,45 @@
+********************************************************************************
+   MMM      MMM
+   MMM      MMM
+    M M    M M
+    M M   M  M
+    M  M M   M
+   MMM  M   MMM
+   MMM      MMM ulator
+********************************************************************************
+
+This project is a highly extensible ARM {e,si}mulator. It is capable of both
+simple simulation of various ARM cores (currently M0, M3) or in-circuit
+emulation (currently the Michigan Micro Mote platform)
+
+In addition, this project is used as a teaching tool for embedded systems
+courses (currently at University of Michigan and University of Utah), both to
+understand internal core design and higher-level MCU usage.
+
+The project has reached a state of 'largely usable', but has a plethora of known
+issues and future goals which have not yet been implemented. A starter list is
+included in this README.
+
+********************************************************************************
+
+KNOWN ISSUES:
+
+  * There is TOCTTOU bug with the asynchronous state code, there is a plan to
+    fix but it is part of a large re-factor of the state-tracking system
+  * Course documentation is out of date, does not reflect current projects
+      - Or even all of the original projects for that matter
+  * In-circuit emulation code is largely off-master branch still
+  * In-circuit emulation requires external hardware support, currently this is
+    stored elsewhere, perhaps it should be included in this repository somehow
+  * The Makefile hackery has gotten pretty ugly, perhaps it is time to surrender
+    to autotools
+      - or tup! I really like tup [gittup.org/tup]
+
+FUTURE FEATURES / GOALS:
+
+  * More flexible peripheral registration
+  * Better method of core selection
+  * General clean-up of configuration options
+  * Automated testing
+      - In particular of all of the various compilation methods/options
+  * Larger / more interesting peripheral library
