@@ -18,10 +18,10 @@ export debug
 
 $(warning)
 
-ifeq ($(strip $(debug)),)
+#ifeq ($(strip $(debug)),)
 # Turning on by default for now
-debug=2
-endif
+#debug=2
+#endif
 
 $(warning)
 
