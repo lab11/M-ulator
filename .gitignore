@@ -1,5 +1,8 @@
 *.o
 
+# /simulator/
+/simulator/simulator
+
 # /programs/
 /programs/*.list
 /programs/*.elf
