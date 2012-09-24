@@ -3,6 +3,11 @@
 
 #include "common.h"
 
+#ifndef PP_STRING
+#define PP_STRING " ST"
+#include "pretty_print.h"
+#endif
+
 enum stage {
 	PRE  = 0x1,
 	IF   = 0x2,
@@ -23,6 +28,13 @@ enum stage {
 // Not 100% sure this is appropriate here, but no callers of this yet
 // XXX: Moved in core refactor - consider final placement
 void stall(enum stage);
+
+bool state_is_debugging(void);
+void state_start_tick(void);
+void state_tock(void);
+#ifndef NO_PIPELINE
+void state_pipeline_flush(uint32_t new_pc);
+#endif
 
 void state_async_block_start(void);
 void state_async_block_end(void);
