@@ -1,23 +1,10 @@
-
-# /
-/simulator
-/simulator-gui
-/simulator-cli
 *.o
-
-# /cpu
-/cpu/*.o
-
-# /cpu/operations
-/cpu/operations/*.o
 
 # /programs/
 /programs/*.list
 /programs/*.elf
 /programs/*.bin
-/programs/*.o
 
 # /programs/tests/
 /programs/tests/*.elf
 /programs/tests/*.bin
-/programs/tests/*.o
