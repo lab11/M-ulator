@@ -48,22 +48,23 @@ static void bad_memmap_reg(struct memmap *newmap, struct memmap *cur) {
 Bad memmap registration, overlapping address range\n");
 }
 
-static void insert_memmap(struct memmap **head, struct memmap *newmap,
+static void insert_memmap_behind(struct memmap **head, struct memmap *newmap,
 		struct memmap *cur) {
 	// Overlap check: Equal is allowed, range is [bot, top)
 	if (newmap->top > cur->bot) {
 		bad_memmap_reg(newmap, cur);
 	}
-	if (cur->prev) {
-		assert(cur->prev->next = cur);
-		cur->prev->next = newmap;
-		cur->prev = newmap;
-	}
-	newmap->next = cur;
-	newmap->prev = cur->prev;
 
-	if (*head == cur)
+	newmap->prev = cur->prev;
+	newmap->next = cur;
+	if (cur->prev) {
+		assert(cur->prev->next == cur);
+		cur->prev->next = newmap;
+	} else {
+		assert(*head == cur);
 		*head = newmap;
+	}
+	cur->prev = newmap;
 }
 
 void register_memmap(
@@ -75,6 +76,7 @@ void register_memmap(
 		uint32_t top
 	) {
 	assert(bot < top);
+
 	struct memmap *newmap = malloc(sizeof(struct memmap));
 	*newmap = (struct memmap){
 		NULL, NULL, strdup(name), mem_fn, bot, top, alignment};
@@ -97,7 +99,7 @@ void register_memmap(
 	while (cur->next != NULL) {
 		// Insert behind cur
 		if (bot < cur->bot) {
-			insert_memmap(head, newmap, cur);
+			insert_memmap_behind(head, newmap, cur);
 			return;
 		}
 
@@ -111,7 +113,7 @@ void register_memmap(
 
 	// Insert at end of list
 	if (bot < cur->top) {
-		insert_memmap(head, newmap, cur);
+		insert_memmap_behind(head, newmap, cur);
 	} else {
 		cur->next = newmap;
 		newmap->prev = cur;
