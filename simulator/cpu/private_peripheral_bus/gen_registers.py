@@ -65,6 +65,8 @@ c.write(preamble)
 
 h.write('#ifndef PPB_H\n#define PPB_H\n\n')
 h.write('#include "../../common.h"\n\n')
+h.write('#ifndef PP_STRING\n#define PP_STRING "PPB"\n')
+h.write('#include "../../pretty_print.h"\n#endif\n\n')
 
 h.write('#define REGISTERS_BOT 0xE0000000\n')
 h.write('#define REGISTERS_TOP 0xF0000000\n')
@@ -89,10 +91,10 @@ storage = "// Registers gotta live somewhere...\n"
 reg_read = "uint32_t ppb_read(uint32_t addr) {\nswitch(addr){\n"
 reg_write = "void ppb_write(uint32_t addr, uint32_t val) {\nswitch(addr){\n"
 
-unpredictable_func = "\
+unpredictable_func = '\
 {\n\
-\tCORE_WARN(\"Unpredictable register reset is NOP\");\n\
-}\n"
+\tWARN("Unpredictable register reset is NOP\\n");\n\
+}\n'
 
 for f in sys.argv[1:]:
 	# It's a for loop! (ish)
@@ -230,7 +232,7 @@ for f in sys.argv[1:]:
 			reg_write += "\tCORE_ERR_read_only(addr);\n"
 		elif write == 'c':
 			# Write Clear: Any write writes 0
-			reg_write += "\tif (val != 0) CORE_WARN("
+			reg_write += "\tif (val != 0) WARN("
 			reg_write += '"Non-zero write to write-clear register\\n"'
 			reg_write += ");\n"
 			reg_write += "\treturn SW(&" + addr[1:] + ", 0);\n"
