@@ -2,7 +2,7 @@
 
 #include "ex_stage.h"
 #include "pipeline.h"
-#include "state.h"
+#include "state_sync.h"
 
 #include "simulator.h"
 

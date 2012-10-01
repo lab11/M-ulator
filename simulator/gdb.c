@@ -1,6 +1,6 @@
 #include "gdb.h"
 
-#include "state.h"
+#include "state_sync.h"
 #include "simulator.h"
 
 #include "cpu/cpu.h"

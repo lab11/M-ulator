@@ -4,7 +4,7 @@
 #include "memmap.h"
 #include "core.h"
 
-#include "../state.h"
+#include "../state_sync.h"
 
 uint32_t red;
 uint32_t grn;

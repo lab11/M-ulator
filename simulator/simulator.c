@@ -2,7 +2,7 @@
 
 #include <sys/prctl.h>
 
-#include "state.h"
+#include "state_sync.h"
 #include "simulator.h"
 #include "pipeline.h"
 #include "if_stage.h"

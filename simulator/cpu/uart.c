@@ -10,7 +10,7 @@
 #include "memmap.h"
 #include "core.h"
 
-#include "../state.h"
+#include "../state_async.h"
 
 #define INVALID_CLIENT (UINT_MAX-1)
 
@@ -159,22 +159,22 @@ static void *poll_uart_thread(void *unused __attribute__ ((unused))) {
 
 			state_async_block_start();
 
-			uint32_t* head = SRP(&poll_uart_head);
-			uint32_t* tail = SRP(&poll_uart_tail);
+			uint32_t* head = SRP_AB(&poll_uart_head);
+			uint32_t* tail = SRP_AB(&poll_uart_tail);
 
 			DBG1("recv start\thead: %td, tail: %td\n",
 					(head)?head - poll_uart_buffer:-1,
 					tail - poll_uart_buffer);
 
-			SW(tail, c);
+			SW_AB(tail, c);
 			if (NULL == head) {
 				head = tail;
-				SWP(&poll_uart_head, head);
+				SWP_AB(&poll_uart_head, head);
 			}
 			tail++;
 			if (tail == (poll_uart_buffer + POLL_UART_BUFSIZE))
 				tail = poll_uart_buffer;
-			SWP(&poll_uart_tail, tail);
+			SWP_AB(&poll_uart_tail, tail);
 
 			DBG1("recv end\thead: %td, tail: %td\t[%td=%c]\n",
 					(head)?head - poll_uart_buffer:-1,
@@ -198,8 +198,8 @@ static uint8_t poll_uart_status_read(void) {
 	uint8_t ret = 0;
 
 	state_async_block_start();
-	ret |= (SRP(&poll_uart_head) != NULL) << POLL_UART_RXBIT; // data avail?
-	ret |= (SR(&poll_uart_client) == INVALID_CLIENT) << POLL_UART_TXBIT; // tx busy?
+	ret |= (SRP_AB(&poll_uart_head) != NULL) << POLL_UART_RXBIT; // data avail?
+	ret |= (SR_AB(&poll_uart_client) == INVALID_CLIENT) << POLL_UART_TXBIT; // tx busy?
 	state_async_block_end();
 
 	// For lock contention
@@ -211,8 +211,8 @@ static uint8_t poll_uart_status_read(void) {
 static void poll_uart_status_write(uint8_t val) {
 	if (val & POLL_UART_RSTBIT) {
 		state_async_block_start();
-		SWP(&poll_uart_head, NULL);
-		SWP(&poll_uart_tail, poll_uart_buffer);
+		SWP_AB(&poll_uart_head, NULL);
+		SWP_AB(&poll_uart_tail, poll_uart_buffer);
 		state_async_block_end();
 	}
 }
@@ -225,15 +225,15 @@ static uint8_t poll_uart_rxdata_read(void) {
 #endif
 
 	state_async_block_start();
-	if (NULL == SRP(&poll_uart_head)) {
+	if (NULL == SRP_AB(&poll_uart_head)) {
 		DBG1("Poll UART RX attempt when RX Pending was false\n");
-		ret = SR(&poll_uart_buffer[3]); // eh... rand? 3, why not?
+		ret = SR_AB(&poll_uart_buffer[3]); // eh... rand? 3, why not?
 	} else {
 #ifdef DEBUG1
-		idx = SRP(&poll_uart_head) - poll_uart_buffer;
+		idx = SRP_AB(&poll_uart_head) - poll_uart_buffer;
 #endif
-		uint32_t* head = SRP(&poll_uart_head);
-		uint32_t* tail = SRP(&poll_uart_tail);
+		uint32_t* head = SRP_AB(&poll_uart_head);
+		uint32_t* tail = SRP_AB(&poll_uart_tail);
 
 		ret = *head;
 
@@ -248,7 +248,7 @@ static uint8_t poll_uart_rxdata_read(void) {
 				tail - poll_uart_buffer,
 				(head)?head-poll_uart_buffer:-1,(head)?*head:'\0');
 
-		SWP(&poll_uart_head, head);
+		SWP_AB(&poll_uart_head, head);
 	}
 	state_async_block_end();
 

@@ -1,4 +1,8 @@
+#define DIRECT_STATE_H_CHECK
+
 #include "state.h"
+#include "state_sync.h"
+#include "state_async.h"
 
 #include "simulator.h"
 #include "id_stage.h"
@@ -24,8 +28,6 @@
 #define STATE_BLOCKING_ASYNC	 0x800000
 
 #define STATE_DEBUGGING		0x1000000
-
-#define STATE_LOCK_HELD_MASK	0x888800
 
 struct state_change {
 	struct state_change *prev;
@@ -86,8 +88,10 @@ static uint32_t state_pipeline_new_pc = -1;
 
 #ifdef DEBUG1
 static pthread_mutex_t state_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
+static pthread_mutex_t async_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
 #else
 static pthread_mutex_t state_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t async_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
 EXPORT bool state_is_debugging(void) {
@@ -95,25 +99,33 @@ EXPORT bool state_is_debugging(void) {
 }
 
 EXPORT void state_async_block_start(void) {
+	pthread_mutex_lock(&async_mutex);
 	pthread_mutex_lock(&state_mutex);
 	DBG2("async_block started\n");
 	*state_flags_cur |= STATE_BLOCKING_ASYNC;
-}
-
-EXPORT void state_async_block_end(void) {
-	*state_flags_cur &= ~STATE_BLOCKING_ASYNC;
-	DBG2("async_block ended\n");
 	pthread_mutex_unlock(&state_mutex);
 }
 
-static void state_block_async_io(void) {
+EXPORT void state_async_block_end(void) {
 	pthread_mutex_lock(&state_mutex);
+	*state_flags_cur &= ~STATE_BLOCKING_ASYNC;
+	pthread_mutex_unlock(&state_mutex);
+	pthread_mutex_unlock(&async_mutex);
+	DBG2("async_block ended\n");
+}
+
+static void state_block_async_io(void) {
+	pthread_mutex_lock(&async_mutex);
+#ifdef DEBUG1
+	assert(0 == pthread_mutex_trylock(&state_mutex));
+	pthread_mutex_unlock(&state_mutex);
+#endif
 	*state_flags_cur |= STATE_BLOCKING_ASYNC;
 }
 
 static void state_unblock_async_io(void) {
 	*state_flags_cur &= ~STATE_BLOCKING_ASYNC;
-	pthread_mutex_unlock(&state_mutex);
+	pthread_mutex_unlock(&async_mutex);
 }
 
 EXPORT void state_start_tick(void) {
@@ -294,29 +306,51 @@ if (debug_ >= 2) {
 	state_unblock_async_io();
 }
 
-EXPORT uint32_t state_read(enum stage g __attribute__ ((unused)), uint32_t *loc) {
+EXPORT uint32_t state_read(enum stage g __attribute__ ((unused)),
+		uint32_t *loc) {
 	return *loc;
 }
 
-EXPORT uint32_t state_read_async(enum stage g __attribute__ ((unused)), uint32_t *loc) {
+EXPORT uint32_t state_read_async(enum stage g __attribute__ ((unused)),
+		bool in_block, uint32_t *loc) {
 	uint32_t ret;
-	state_async_block_start();
+	if (!in_block)
+		pthread_mutex_lock(&async_mutex);
+	pthread_mutex_lock(&state_mutex);
 	ret = state_read(g, loc);
-	state_async_block_end();
+	if (!in_block)
+		pthread_mutex_unlock(&async_mutex);
+	pthread_mutex_unlock(&state_mutex);
 	return ret;
 }
 
-EXPORT uint32_t* state_read_p(enum stage g __attribute__ ((unused)), uint32_t **loc) {
+EXPORT uint32_t* state_read_p(enum stage g __attribute__ ((unused)),
+		uint32_t **loc) {
 	return *loc;
 }
 
+EXPORT uint32_t* state_read_p_async(enum stage g __attribute__ ((unused)),
+		bool in_block, uint32_t **loc) {
+	uint32_t *ret;
+	if (!in_block)
+		pthread_mutex_lock(&async_mutex);
+	pthread_mutex_lock(&state_mutex);
+	ret = *loc;
+	if (!in_block)
+		pthread_mutex_unlock(&async_mutex);
+	pthread_mutex_unlock(&state_mutex);
+	return ret;
+}
+
 #ifdef DEBUG1
-static void _state_write_dbg(enum stage g, uint32_t *loc, uint32_t val,
+static void _state_write_dbg(enum stage g, bool async,
+		uint32_t *loc, uint32_t val,
 		uint32_t** ploc, uint32_t* pval,
 		const char *file, const char* func,
 		const int line, const char *target) {
 #else
-static void _state_write(enum stage g, uint32_t *loc, uint32_t val,
+static void _state_write(enum stage g, bool async,
+		uint32_t *loc, uint32_t val,
 		uint32_t** ploc, uint32_t* pval) {
 #endif
 	// If debugger is changing values, write them directly. We do not track
@@ -338,9 +372,7 @@ static void _state_write(enum stage g, uint32_t *loc, uint32_t val,
 		return;
 	}
 #endif
-	// XXX: Maybe I'm tired, but something looks wrong (TOCTTOU?) here
-	if (!(*state_flags_cur & STATE_LOCK_HELD_MASK))
-		pthread_mutex_lock(&state_mutex);
+	pthread_mutex_lock(&state_mutex);
 
 	assert((NULL != loc) || (NULL != ploc));
 
@@ -375,7 +407,7 @@ static void _state_write(enum stage g, uint32_t *loc, uint32_t val,
 	if (true) {
 		DBG1("  SW: %s:%d\t%s = %08x\n", file, line, target, val);
 #else
-	if (*state_flags_cur & STATE_BLOCKING_ASYNC) {
+	if (async) {
 #endif
 		if (loc) {
 			*loc = val;
@@ -388,49 +420,73 @@ static void _state_write(enum stage g, uint32_t *loc, uint32_t val,
 	if (g & PERIPH)
 		*state_flags_cur |= STATE_PERIPH_WRITTEN;
 
-	if (!(*state_flags_cur & STATE_LOCK_HELD_MASK))
-		pthread_mutex_unlock(&state_mutex);
+	pthread_mutex_unlock(&state_mutex);
 }
 
 #ifdef DEBUG1
 EXPORT void state_write_dbg(enum stage g, uint32_t *loc, uint32_t val,
 		const char *file, const char* func,
 		const int line, const char *target) {
-	return _state_write_dbg(g, loc, val, NULL, NULL, file, func, line, target);
+	_state_write_dbg(g, false, loc, val, NULL, NULL, file, func, line, target);
 }
 
 EXPORT void state_write_p_dbg(enum stage g, uint32_t **ploc, uint32_t *pval,
 		const char *file, const char* func,
 		const int line, const char *target) {
-	return _state_write_dbg(g, NULL, 0, ploc, pval, file, func, line, target);
+	_state_write_dbg(g, false, NULL, 0, ploc, pval, file, func, line, target);
 }
 
-EXPORT void state_write_async_dbg(enum stage g, uint32_t *loc, uint32_t val,
+EXPORT void state_write_async_dbg(enum stage g, bool in_block,
+		uint32_t *loc, uint32_t val,
 		const char *file, const char* func,
 		const int line, const char *target) {
-	state_async_block_start();
-	state_write_dbg(g, loc, val, file, func, line, target);
-	state_async_block_end();
+	if (!in_block)
+		pthread_mutex_lock(&async_mutex);
+	_state_write_dbg(g, true, loc, val, NULL, NULL, file, func, line, target);
+	if (!in_block)
+		pthread_mutex_unlock(&async_mutex);
+}
+
+EXPORT void state_write_p_async_dbg(enum stage g, bool in_block,
+		uint32_t **ploc, uint32_t *pval,
+		const char *file, const char* func,
+		const int line, const char *target) {
+	if (!in_block)
+		pthread_mutex_lock(&async_mutex);
+	_state_write_dbg(g, true, NULL, 0, ploc, pval, file, func, line, target);
+	if (!in_block)
+		pthread_mutex_unlock(&async_mutex);
 }
 #else
 EXPORT void state_write(enum stage g, uint32_t *loc, uint32_t val) {
-	return _state_write(g, loc, val, NULL, NULL);
+	_state_write(g, false, loc, val, NULL, NULL);
 }
 
 EXPORT void state_write_p(enum stage g, uint32_t **ploc, uint32_t *pval) {
-	return _state_write(g, NULL, 0, ploc, pval);
+	_state_write(g, false, NULL, 0, ploc, pval);
 }
 
-EXPORT void state_write_async(enum stage g, uint32_t *loc, uint32_t val) {
-	state_async_block_start();
-	state_write(g, loc, val);
-	state_async_block_end();
+EXPORT void state_write_async(enum stage g, bool in_block,
+		uint32_t *loc, uint32_t val) {
+	if (!in_block)
+		pthread_mutex_lock(&async_mutex);
+	_state_write(g, true, loc, val, NULL, NULL);
+	if (!in_block)
+		pthread_mutex_unlock(&async_mutex);
+}
+
+EXPORT void state_write_p_async(enum stage g, bool in_block,
+		uint32_t **ploc, uint32_t *pval) {
+	if (!in_block)
+		pthread_mutex_lock(&async_mutex);
+	_state_write(g, true, NULL, 0, ploc, pval);
+	if (!in_block)
+		pthread_mutex_unlock(&async_mutex);
 }
 #endif
 
 EXPORT void state_write_op(enum stage g __attribute__ ((unused)), struct op **loc, struct op *val) {
-	if (!(*state_flags_cur & STATE_LOCK_HELD_MASK))
-		pthread_mutex_lock(&state_mutex);
+	pthread_mutex_lock(&state_mutex);
 	// Lazy hack since every other bit of preserved state is a uint32_t[*]
 	// At some point in time state saving will likely have to be generalized,
 	// until then, however, this will suffice
@@ -439,8 +495,7 @@ EXPORT void state_write_op(enum stage g __attribute__ ((unused)), struct op **lo
 #ifdef NO_PIPELINE
 	id_ex_o = val;
 #endif
-	if (!(*state_flags_cur & STATE_LOCK_HELD_MASK))
-		pthread_mutex_unlock(&state_mutex);
+	pthread_mutex_unlock(&state_mutex);
 }
 
 EXPORT void stall(enum stage g) {
@@ -465,11 +520,15 @@ EXPORT void state_pipeline_flush(uint32_t new_pc) {
 #endif
 
 EXPORT void state_enter_debugging(void) {
+	pthread_mutex_lock(&state_mutex);
 	*state_flags_cur |= STATE_DEBUGGING;
+	pthread_mutex_unlock(&state_mutex);
 }
 
 EXPORT void state_exit_debugging(void) {
+	pthread_mutex_lock(&state_mutex);
 	*state_flags_cur &= ~STATE_DEBUGGING;
+	pthread_mutex_unlock(&state_mutex);
 }
 
 // Returns 0 on success

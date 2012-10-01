@@ -3,7 +3,7 @@
 #include "memmap.h"
 #include "core.h"
 
-#include "../state.h"
+#include "../state_sync.h"
 
 #define ADDR_TO_IDX(_addr, _bot) ((_addr - _bot) >> 2)
 static uint32_t rom[ROMSIZE >> 2] = {0};
