@@ -4,7 +4,7 @@
 #include "common.h"
 
 #ifndef PP_STRING
-#define PP_STRING " ST"
+#define PP_STRING "ST-"
 #include "pretty_print.h"
 #endif
 

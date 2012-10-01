@@ -1,3 +1,4 @@
+#include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
 
@@ -52,6 +53,8 @@ static void *poll_uart_thread(void *unused __attribute__ ((unused))) {
 
 	int sock;
 	struct sockaddr_in server;
+
+	assert(0 == prctl(PR_SET_NAME, "poll_uart_thread", 0, 0, 0));
 
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (-1 == sock) {

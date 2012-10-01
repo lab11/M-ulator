@@ -1,5 +1,7 @@
 #define STAGE PIPE
 
+#include <sys/prctl.h>
+
 #include "pipeline.h"
 #include "state.h"
 #include "id_stage.h"
@@ -36,6 +38,8 @@ void pipeline_flush(uint32_t new_pc) {
 
 void* ticker(void *stage_fn) {
 	void (*fn) (void) = (void(*)(void)) stage_fn;
+
+	assert(0 == prctl(PR_SET_NAME, "ticker", 0, 0, 0));
 
 	DBG2("spawned ticker thread executing: %p\n", fn);
 

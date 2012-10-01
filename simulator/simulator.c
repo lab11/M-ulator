@@ -1,4 +1,7 @@
 #define STAGE SIM
+
+#include <sys/prctl.h>
+
 #include "state.h"
 #include "simulator.h"
 #include "pipeline.h"
@@ -869,6 +872,8 @@ static void load_opcodes(void) {
 static void* sig_thread(void *arg) {
 	sigset_t *set = (sigset_t *) arg;
 	int s, sig;
+
+	prctl(PR_SET_NAME, "signal hander", 0, 0, 0);
 
 	for (;;) {
 		s = sigwait(set, &sig);
