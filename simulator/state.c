@@ -15,13 +15,13 @@
 #define STATE_STALL_UNK		UNK
 #define STATE_STALL_MASK	0xff
 
-#define STATE_IO_BARRIER	0x100
+#define STATE_IO_BARRIER	    0x100
 #ifndef NO_PIPELINE
-#define STATE_PIPELINE_FLUSH	0x1000
-#define STATE_PIPELINE_RUNNING	0x8000
+#define STATE_PIPELINE_FLUSH	   0x1000
+#define STATE_PIPELINE_RUNNING	   0x8000
 #endif
-#define STATE_PERIPH_WRITTEN	0x10000
-#define STATE_BLOCKING_ASYNC	0x800000
+#define STATE_PERIPH_WRITTEN	  0x10000
+#define STATE_BLOCKING_ASYNC	 0x800000
 
 #define STATE_DEBUGGING		0x1000000
 
@@ -275,7 +275,9 @@ if (debug_ >= 2) {
 		cycle_head = state_head;
 		*cycle_head->flags |= STATE_PIPELINE_RUNNING;
 		o_hack = NULL;
+
 		pipeline_flush(state_pipeline_new_pc);
+
 		cycle_head = cycle_head->next;
 
 		_state_tock();
