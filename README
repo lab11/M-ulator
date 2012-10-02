@@ -24,8 +24,6 @@ included in this README.
 
 KNOWN ISSUES:
 
-  * There is TOCTTOU bug with the asynchronous state code, there is a plan to
-    fix but it is part of a large re-factor of the state-tracking system
   * Course documentation is out of date, does not reflect current projects
       - Or even all of the original projects for that matter
   * In-circuit emulation code is largely off-master branch still
