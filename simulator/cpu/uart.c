@@ -1,8 +1,8 @@
 #include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
-
 #include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include "periph.h"
 #include "uart.h"
@@ -106,9 +106,22 @@ static void *poll_uart_thread(void *unused __attribute__ ((unused))) {
 
 		if (-1 == client) {
 			ERR(E_UNKNOWN, "UART device failure: %s\n", strerror(errno));
-		}
+		} else {
+			struct sockaddr_in sa;
+			socklen_t l = sizeof(sa);
 
-		INFO("UART connected\n");
+			if (getsockname(client, (struct sockaddr*) &sa, &l)) {
+				ERR(E_UNKNOWN, "%d UART: %s\n", __LINE__, strerror(errno));
+			}
+			assert(l == sizeof(sa));
+
+			char buf[INET_ADDRSTRLEN];
+			if (NULL == inet_ntop(AF_INET, &sa.sin_addr, buf, INET_ADDRSTRLEN)) {
+				ERR(E_UNKNOWN, "%d UART: %s\n", __LINE__, strerror(errno));
+			}
+
+			INFO("UART connected. Client at %s\n", buf);
+		}
 
 		static const char *welcome = "\
 >>MSG<< You are now connected to the UART polling device\n\
