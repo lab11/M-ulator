@@ -1,14 +1,14 @@
 ********************************************************************************
-   MMM      MMM
-   MMM      MMM
-    M M    M M
-    M M   M  M
-    M  M M   M
-   MMM  M   MMM
-   MMM      MMM ulator
+         MMM      MMM
+         MMM      MMM
+          M M    M M
+          M M   M  M
+          M  M M   M
+         MMM  M   MMM
+  {e/si} MMM      MMM ulator
 ********************************************************************************
 
-This project is a highly extensible ARM {e,si}mulator. It is capable of both
+This project is a highly extensible {ARM} {e,si}mulator. It is capable of both
 simple simulation of various ARM cores (currently M0, M3) or in-circuit
 emulation (currently the Michigan Micro Mote platform)
 
@@ -19,6 +19,25 @@ understand internal core design and higher-level MCU usage.
 The project has reached a state of 'largely usable', but has a plethora of known
 issues and future goals which have not yet been implemented. A starter list is
 included in this README.
+
+********************************************************************************
+
+PROJECT LAYOUT:
+
+  * The simulator/ directory contains the code to simulate the ARM core. You
+    will need to set the 'PLATFORM' variable to indicate which platform
+    (currently only 373 or M3) you wish to {e,si}mulate. For more details see
+    simulator/README
+      -- The simulator is licensed under the GPLv3 --
+
+  * The programs/ directory holds a small array of test programs that can be
+    run on the simulated cores. Platform selectivity / integration is not yet
+    intelligent (read: existent).
+      -- The programs are licensed under the MIT/XWin license --
+
+  * The docs/ directory holds the course materials and some amount of dated
+    information on the simulator design. It is not particularly useful currently
+      -- Documentation, course materials licensed under the MIT/Xwin license --
 
 ********************************************************************************
 
