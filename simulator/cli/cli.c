@@ -1,10 +1,10 @@
-#include "../common.h"
+#include "core/common.h"
 
 // For access to 'raiseonerror' flag
 #define PP_STRING "CLI"
-#include "../pretty_print.h"
+#include "core/pretty_print.h"
 
-#include "../simulator.h"
+#include "core/simulator.h"
 
 #include <getopt.h>
 

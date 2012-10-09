@@ -1,44 +1,39 @@
-################################################################################
-## DO NOT TOUCH ANYTHING BELOW THIS LINE
-################################################################################
-
 LEVEL = ..
+include $(LEVEL)/Makefile.common.host
 
 OBJS = $(patsubst %.c,%.o,$(wildcard *.c))
 
-all:	$(OBJS) operations
+all:	$(OBJS) common $(PLATFORM)
 
-core.c:	private_peripheral_bus
+core.o: common $(PLATFORM)
 
-###########
-# REGISTERS
+##########
+# COMMON
 
-private_peripheral_bus:
-	$(MAKE) -C private_peripheral_bus
+common:
+	$(MAKE) -C common
 
-private_peripheral_bus/%:
-	$(MAKE) $* -C private_peripheral_bus
+common/%:
+	$(MAKE) $* -C common
 
-.PHONY: private_peripheral_bus
+.PHONY: common
 
-############
-# OPERATIONS
+##########
+# PLATFORM
 
-operations:
-	$(MAKE) -C operations
+$(PLATFORM):
+	$(MAKE) -C $(PLATFORM)
 
-operations/%:
-	$(MAKE) $* -C operations
+$(PLATFORM)/%:
+	$(MAKE) $* -C $(PLATFORM)
 
-.PHONY: operations
+.PHONY: $(PLATFORM)
 
 ##
 
-clean: operations/clean private_peripheral_bus/clean
+clean: common/clean $(PLATFORM)/clean
 	rm -f *.o
 
-clean-all: clean operations/clean-all private_peripheral_bus/clean-all
+clean-all: clean common/clean-all $(PLATFORM)/clean-all
 
 .PHONY: all clean clean-all
-
-include $(LEVEL)/Makefile.common.host

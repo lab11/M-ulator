@@ -1,8 +1,5 @@
-################################################################################
-## DO NOT TOUCH ANYTHING BELOW THIS LINE
-################################################################################
-
 LEVEL = .
+include $(LEVEL)/Makefile.common.host
 
 #################
 # Default Targets
@@ -12,26 +9,27 @@ all:	simulator
 ###########
 # Simulator
 
-CPU_OBJS += $(patsubst %.c,%.o,$(wildcard cpu/*.c))
-CPU_OBJS += $(patsubst %.c,%.o,$(wildcard cpu/operations/*.c))
-CPU_OBJS += cpu/private_peripheral_bus/ppb.o
-
 CLI_OBJS += $(patsubst %.c,%.o,$(wildcard cli/*.c))
 
-SIM_OBJS += $(patsubst %.c,%.o,$(wildcard ./*.c))
-SIM_H    += $(wildcard ./*.h)
+CPU_OBJS += $(patsubst %.c,%.o,$(wildcard cpu/*.c))
+CPU_OBJS += $(patsubst %.c,%.o,$(wildcard cpu/common/*.c))
+CPU_OBJS += $(patsubst %.c,%.o,$(wildcard cpu/$(PLATFORM)/*.c))
+CPU_OBJS += cpu/common/private_peripheral_bus/ppb.o
 
-simulator:	cpu cli $(SIM_OBJS) $(SIM_H)
-	$(CC) $(LDFLAGS) $(CLI_OBJS) $(CPU_OBJS) $(SIM_OBJS) -o $@
+CORE_OBJS += $(patsubst %.c,%.o,$(wildcard core/*.c))
+CORE_OBJS += $(patsubst %.c,%.o,$(wildcard core/operations/*.c))
 
-clean-simulator: cpu/clean cli/clean
+simulator:	cpu cli core
+	$(CC) $(LDFLAGS) $(CLI_OBJS) $(CPU_OBJS) $(CORE_OBJS) -o $@
+
+clean: cpu/clean cli/clean core/clean
 	rm -f simulator
-	rm -f simulator-cli
-	rm -f $(SIM_OBJS)
 
-clean-simulator-all: clean-simulator cpu/clean-all cli/clean-all
+clean-simulator-all: clean cpu/clean-all cli/clean-all core/clean-all
 
-.PHONY: all clean-simulator clean-simulator-all
+.PHONY: all clean clean-all
+
+################################################################################
 
 #####
 # CLI
@@ -54,6 +52,17 @@ cpu/%:
 	$(MAKE) $* -C cpu
 
 .PHONY: cpu
+
+######
+# CORE
+
+core:
+	$(MAKE) -C core
+
+core/%:
+	$(MAKE) $* -C core
+
+.PHONY: core
 
 ##########
 # Programs
@@ -114,14 +123,3 @@ trivialPrintf: ../programs/tests/trivialPrintf.bin simulator
 	$(call tester,../programs/tests,$@)
 
 .PHONY: trivialS trivialC trivialPrintf
-
-#####
-# Etc
-
-clean:	clean-simulator
-
-clean-all: clean-simulator-all ../programs/clean-all
-
-.PHONY: clean clean-all
-
-include $(LEVEL)/Makefile.common.host

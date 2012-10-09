@@ -1,11 +1,11 @@
 #ifndef CORE_H
 #define CORE_H
 
-#include "../common.h"
+#include "core/common.h"
 
 #ifndef PP_STRING
 #define PP_STRING "COR"
-#include "../pretty_print.h"
+#include "core/pretty_print.h"
 #endif
 
 union memmap_fn {

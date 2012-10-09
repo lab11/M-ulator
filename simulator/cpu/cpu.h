@@ -1,7 +1,7 @@
 #ifndef __CPU_H
 #define __CPU_H
 
-#include "../common.h"
+#include "core/common.h"
 
 uint32_t	CORE_reg_read(int r);
 void		CORE_reg_write(int r, uint32_t val);

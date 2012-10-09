@@ -1,5 +1,17 @@
 # Define simulator profile, A_PROFILE, R_PROFILE, or M_PROFILE
-CFLAGS += -DM_PROFILE
+PROFILE = M_PROFILE
+
+# Define the platform currently being simulated
+PLATFORM = 373
+
+MEMMAP = cpu/$(PLATFORM)/memmap.h
+
+##############
+
+CFLAGS += -I$(LEVEL)
+
+CFLAGS += -D$(PROFILE)
+#CFLAGS += '-DMEMMAP_H="$(MEMMAP)"'
 
 # Disable pipeline simulation for student clarity
 #CFLAGS += -DNO_PIPELINE

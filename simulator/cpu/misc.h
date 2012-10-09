@@ -1,7 +1,7 @@
 #ifndef MISC_H
 #define MISC_H
 
-#include "../common.h"
+#include "core/common.h"
 
 // These functions you must implement in misc.c
 uint8_t		eval_cond(uint32_t cpsr, uint8_t cond);

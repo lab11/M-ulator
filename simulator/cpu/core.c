@@ -1,7 +1,6 @@
 #include "core.h"
 
-#include "private_peripheral_bus/ppb.h"
-#include "pins.h"
+#include "common/private_peripheral_bus/ppb.h"
 #include "cpu.h"
 
 //#define TRAP_ALIGNMENT (read_word(CONFIGURATION_CONTROL) & CONFIGURATION_CONTROL_UNALIGN_TRP_MASK)
