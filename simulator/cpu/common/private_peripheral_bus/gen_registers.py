@@ -105,7 +105,7 @@ for f in sys.argv[1:]:
 		except StopIteration:
 			break
 
-		if line[0] == '#':
+		if line[0] in '#\n':
 			continue
 		elif line[0] == '\t':
 			try:
