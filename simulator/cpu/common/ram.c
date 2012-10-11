@@ -18,7 +18,7 @@
  */
 
 #include "ram.h"
-#include "memmap.h"
+#include MEMMAP_HEADER
 
 #include "cpu/core.h"
 

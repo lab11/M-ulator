@@ -11,7 +11,7 @@ MEMMAP = cpu/$(PLATFORM)/memmap.h
 CFLAGS += -I$(LEVEL)
 
 CFLAGS += -D$(PROFILE)
-#CFLAGS += '-DMEMMAP_H="$(MEMMAP)"'
+CFLAGS += '-DMEMMAP_HEADER="$(MEMMAP)"'
 
 # Disable pipeline simulation for student clarity
 #CFLAGS += -DNO_PIPELINE

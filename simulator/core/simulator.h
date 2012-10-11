@@ -31,8 +31,7 @@
 // SIMULATOR CONFIGURATION //
 /////////////////////////////
 
-//#include MEMMAP_H
-#include "cpu/373/memmap.h"
+#include MEMMAP_HEADER
 
 /////////////////
 // ERROR CODES //
