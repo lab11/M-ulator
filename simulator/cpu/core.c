@@ -174,6 +174,15 @@ EXPORT void print_memmap(void) {
 	struct memmap *rcur = reads;
 	struct memmap *wcur = writes;
 
+	if ((rcur == NULL) && (wcur == NULL)) {
+		WARN("******************************************************\n");
+		WARN("Empty memmap!!\n");
+		WARN("\tYou have probably misconfigured something, there is\n");
+		WARN("\tno memory attached to this core. Have you configured\n");
+		WARN("\t/platforms/YOUR_PLATFORM/simulator/memmap.h ?\n");
+		WARN("******************************************************\n");
+	}
+
 	bool rvalid = false;
 	bool wvalid = false;
 
