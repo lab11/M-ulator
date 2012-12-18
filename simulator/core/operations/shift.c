@@ -138,6 +138,19 @@ static void asr_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rm,
 	DBG2("asr_imm complete\n");
 }
 
+static void asr_imm_t1(uint16_t inst) {
+	uint8_t rd = inst & 0x7;
+	uint8_t rm = (inst >> 3) & 0x7;
+	uint8_t imm5 = (inst >> 6) & 0x1f;
+	bool setflags = !in_ITblock();
+
+	enum SRType shift_t;
+	uint8_t shift_n;
+	DecodeImmShift(0x2, imm5, &shift_t, &shift_n);
+
+	return asr_imm(CORE_cpsr_read(), setflags, rd, rm,
+			shift_t, shift_n);
+}
 
 static void mov_shifted_reg(uint32_t inst, enum SRType shift_t) {
 	uint32_t cpsr = CORE_cpsr_read();
@@ -221,6 +234,9 @@ void register_opcodes_shift(void) {
 
 	// lsr1: 0000 1<x's>
 	register_opcode_mask_16(0x0800, 0xf000, lsr1);
+
+	// asr_imm_t1: 0001 0xxx xxxx xxxx
+	register_opcode_mask_16(0x1000, 0xe800, asr_imm_t1);
 
 	// asr_imm_t2: 1110 1010 010x 1111 0xxx xxxx xx10 xxxx
 	register_opcode_mask_32(0xea4f0020, 0x15a08010, asr_imm_t2);
