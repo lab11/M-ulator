@@ -1005,11 +1005,13 @@ EXPORT void simulator(const char *flash_file) {
 	pthread_create(&sig_pthread, NULL, &sig_thread, (void *) &set);
 
 	// Spawn peripheral threads
-	struct periph_thread *cur = &periph_threads;
-	while (cur != NULL) {
-		*cur->en = true;
-		cur->pthread = cur->fn(NULL);
-		cur = cur->next;
+	if (periph_threads.fn != NULL) {
+		struct periph_thread *cur = &periph_threads;
+		while (cur != NULL) {
+			*cur->en = true;
+			cur->pthread = cur->fn(NULL);
+			cur = cur->next;
+		}
 	}
 
 	// Spawn pipeline stage threads
@@ -1029,13 +1031,15 @@ EXPORT void simulator(const char *flash_file) {
 }
 
 static void join_periph_threads(void) {
-	INFO("Shutting down all peripherals\n");
+	if (periph_threads.fn != NULL) {
+		INFO("Shutting down all peripherals\n");
 
-	struct periph_thread *cur = &periph_threads;
-	while (cur != NULL) {
-		*cur->en = false;
-		pthread_join(cur->pthread, NULL);
-		cur = cur->next;
+		struct periph_thread *cur = &periph_threads;
+		while (cur != NULL) {
+			*cur->en = false;
+			pthread_join(cur->pthread, NULL);
+			cur = cur->next;
+		}
 	}
 }
 
