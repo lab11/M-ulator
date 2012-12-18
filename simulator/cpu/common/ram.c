@@ -17,9 +17,13 @@
  * along with Mulator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "ram.h"
 #include MEMMAP_HEADER
 
+////////////////////////////////////////////////////////////////////////
+// Only include this peripheral if requested in the platform memmap.h //
+#ifdef RAMBOT
+
+#include "ram.h"
 #include "cpu/core.h"
 
 #include "core/state_sync.h"
@@ -66,3 +70,7 @@ void register_memmap_ram(void) {
 	register_memmap("RAM", true, 4, mem_fn, RAMBOT, RAMTOP);
 #endif
 }
+
+#endif // RAMBOT
+// Only include this peripheral if requested in the platform memmap.h //
+////////////////////////////////////////////////////////////////////////

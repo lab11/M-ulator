@@ -21,5 +21,6 @@
 #define RAM_H
 
 #include "core/common.h"
+#define RAMSIZE (RAMTOP - RAMBOT) // In bytes
 
 #endif // RAM_H

@@ -29,6 +29,7 @@
 #include "ex_stage.h"
 #include "cpu/core.h"
 #include "cpu/common/rom.h"
+#include "cpu/common/ram.h"
 #include "cpu/misc.h"
 #include "gdb.h"
 

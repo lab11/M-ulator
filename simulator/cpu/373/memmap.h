@@ -37,8 +37,6 @@
 #define POLL_UART_RXDATA 0x40004104
 #define POLL_UART_TXDATA 0x40004108
 
-#define ROMSIZE (ROMTOP - ROMBOT) // In bytes
-#define RAMSIZE (RAMTOP - RAMBOT) // In bytes
 //#define PRINT_ROM_EN
 
 #endif // MEMMAP_H

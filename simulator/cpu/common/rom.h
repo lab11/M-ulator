@@ -22,6 +22,8 @@
 
 #include "core/common.h"
 
+#define ROMSIZE (ROMTOP - ROMBOT) // In bytes
+
 #ifndef PP_STRING
 #define PP_STRING "ROM"
 #include "core/pretty_print.h"

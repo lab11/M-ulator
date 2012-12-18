@@ -17,9 +17,13 @@
  * along with Mulator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "rom.h"
 #include MEMMAP_HEADER
 
+////////////////////////////////////////////////////////////////////////
+// Only include this peripheral if requested in the platform memmap.h //
+#ifdef ROMBOT
+
+#include "rom.h"
 #include "cpu/core.h"
 
 #include "core/state_sync.h"
@@ -76,3 +80,7 @@ void register_memmap_rom(void) {
 #endif
 #endif
 }
+
+#endif // ROMBOT
+// Only include this peripheral if requested in the platform memmap.h //
+////////////////////////////////////////////////////////////////////////
