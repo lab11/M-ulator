@@ -19,26 +19,41 @@
 
 #include "opcodes.h"
 
-#include "cpu/misc.h"
+static void nop(void) {
+	;
+}
 
-static void it(uint16_t inst) {
-	uint8_t itstate = inst & 0xff;
-	write_itstate(itstate);
+static void nop_t1(uint16_t inst __attribute__ ((unused))) {
+	return nop();
+}
 
-	DBG2("it{xxx} wrote itstate: %02x\n", itstate);
+static void nop_t2(uint32_t inst __attribute__ ((unused))) {
+	return nop();
+}
+
+static void wfi(void) {
+	CORE_ERR_not_implemented("Wait For Interrupt");
+}
+
+static void wfi_t1(uint16_t inst __attribute__ ((unused))) {
+	return wfi();
+}
+
+static void wfi_t2(uint32_t inst __attribute__ ((unused))) {
+	return wfi();
 }
 
 __attribute__ ((constructor))
-void register_opcodes_it(void) {
-	// Complicated encoding...
-	// 1011 1111 firstcond mask
-	// mask cannot be 0000
-	// firstcond cannot be 1111
-	// if firstcont is 1110, then hamming(mask) must be 1
+void register_opcodes_hints(void) {
+	// nop_t1: 1011 1111 0000 0000
+	register_opcode_mask_16(0xbf00, 0x40ff, nop_t1);
 
-	// it_t1: 1011 1111 xxxx xxxx
-	//    ex:                0000
-	register_opcode_mask_16_ex(0xbf00, 0x4000, it,
-			0x0000, 0x000f,
-			0, 0);
+	// nop_t2: 1111 0011 1010 1111 1000 0000 0000 0000
+	register_opcode_mask_32(0xf3af8000, 0x0c507fff, nop_t2);
+
+	// wfi_t1: 1011 1111 0011 0000
+	register_opcode_mask_16(0xbf30, 0x40cf, wfi_t1);
+
+	// wfi_t2: 1111 0011 1010 1111 1000 0000 0000 0011
+	register_opcode_mask_32(0xf3af8003, 0x0c507ffc, wfi_t2);
 }
