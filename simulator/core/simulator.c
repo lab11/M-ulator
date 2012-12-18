@@ -218,10 +218,12 @@ EXPORT void register_periph_printer(void (*fn)(void)) {
 }
 
 static void print_periphs(void) {
-	struct periph_printer *cur = &periph_printers;
-	while (cur != NULL) {
-		cur->fn();
-		cur = cur->next;
+	if (periph_printers.fn != NULL) {
+		struct periph_printer *cur = &periph_printers;
+		while (cur != NULL) {
+			cur->fn();
+			cur = cur->next;
+		}
 	}
 }
 
