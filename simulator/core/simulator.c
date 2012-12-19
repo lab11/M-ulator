@@ -271,11 +271,11 @@ static void print_stages(void) {
 #endif
 
 static const char *get_dump_name(char c) {
-	static char name[] = "/tmp/373rom.\0\0\0\0\0\0\0\0\0";
-	if ('\0' == name[strlen("/tmp/373rom.")])
-		if (0 != getlogin_r(name + strlen("/tmp/373rom."), 9))
+	static char name[] = "/tmp/rom.\0\0\0\0\0\0\0\0\0";
+	if ('\0' == name[strlen("/tmp/rom.")])
+		if (0 != getlogin_r(name + strlen("/tmp/rom."), 9))
 			perror("getting username for rom/ram dump");
-	name[strlen("/tmp/373r")] = c;
+	name[strlen("/tmp/r")] = c;
 	return name;
 }
 
