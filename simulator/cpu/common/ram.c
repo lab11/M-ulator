@@ -18,12 +18,12 @@
  */
 
 #include MEMMAP_HEADER
+#include "ram.h"
 
 ////////////////////////////////////////////////////////////////////////
 // Only include this peripheral if requested in the platform memmap.h //
-#ifdef RAMBOT
+#ifdef HAVE_RAM
 
-#include "ram.h"
 #include "cpu/core.h"
 
 #include "core/state_sync.h"
@@ -71,6 +71,6 @@ void register_memmap_ram(void) {
 #endif
 }
 
-#endif // RAMBOT
+#endif // HAVE_RAM
 // Only include this peripheral if requested in the platform memmap.h //
 ////////////////////////////////////////////////////////////////////////

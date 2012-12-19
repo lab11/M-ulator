@@ -22,6 +22,11 @@
 
 #include "core/common.h"
 
+////////////////////////////////////////////////////////////////////////
+// Only include this peripheral if requested in the platform memmap.h //
+#ifdef ROMBOT
+#define HAVE_ROM
+
 #define ROMSIZE (ROMTOP - ROMBOT) // In bytes
 
 #ifndef PP_STRING
@@ -29,6 +34,10 @@
 #include "core/pretty_print.h"
 #endif
 
-void flash_ROM(void *image, uint32_t nbytes);
+void flash_ROM(const uint8_t *image, const uint32_t nbytes);
+
+#endif // ROMBOT
+// Only include this peripheral if requested in the platform memmap.h //
+////////////////////////////////////////////////////////////////////////
 
 #endif // ROM_H

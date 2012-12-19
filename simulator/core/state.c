@@ -376,6 +376,9 @@ static void _state_write(enum stage g, bool async,
 	// debugger writes (as I'm not sure the best architecture / usage model
 	// around that), so for now it's quite probable / possible that writing
 	// values with the debugger could do some strange things for replay.
+	//
+	// This mechanism is also leveraged to write directly to memory when the
+	// simulator is first starting up (flashing the program image).
 	if (*state_flags_cur & STATE_DEBUGGING) {
 		if (loc)
 			*loc = val;

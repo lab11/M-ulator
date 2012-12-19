@@ -20,9 +20,15 @@
 #define STAGE SIM
 
 #include <sys/prctl.h>
+#include <sys/stat.h>
 
+// XXX: Temporary fix, see note at end of simulator.h
+#define PP_STRING "---"
+#include "pretty_print.h"
+// ^^ need to resolve ordering
 #include "state_sync.h"
 #include "simulator.h"
+
 #include "pipeline.h"
 #include "if_stage.h"
 #include "id_stage.h"
@@ -70,7 +76,7 @@ EXPORT int usetestflash = 0;
 
 // utils/bintoarray.sh
 #define STATIC_ROM_NUM_BYTES (80 * 4)
-static uint32_t static_rom[80] = {0x20003FFC,0x55,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0xBF00E7FE,0xF862F000,0xBF00E7FA,0xB083B480,0xF244AF00,0xF2C41300,0x603B0300,0x1304F244,0x300F2C4,0x683B607B,0xB2DB781B,0x302F003,0xD0F82B00,0x781B687B,0x4618B2DB,0x70CF107,0xBC8046BD,0xBF004770,0xB085B480,0x4603AF00,0xF24471FB,0xF2C41300,0x60BB0300,0x1308F244,0x300F2C4,0x68BB60FB,0xB2DB781B,0x304F003,0xD1F82B00,0x79FA68FB,0xF107701A,0x46BD0714,0x4770BC80,0xB082B580,0x6078AF00,0x687BE008,0x4618781B,0xFFD8F7FF,0xF103687B,0x607B0301,0x781B687B,0xD1F22B00,0x708F107,0xBD8046BD,0x181B4B05,0x2A006818,0x2201BF03,0x4390408A,0x60184310,0x30004770,0x40001000,0xB082B580,0xF7FFAF00,0x4603FF9B,0x79FB71FB,0xF7FF4618,0xF04FFFB3,0x46180300,0x708F107,0xBD8046BD};
+static const uint32_t static_rom[80] = {0x20003FFC,0x55,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0x51,0xBF00E7FE,0xF862F000,0xBF00E7FA,0xB083B480,0xF244AF00,0xF2C41300,0x603B0300,0x1304F244,0x300F2C4,0x683B607B,0xB2DB781B,0x302F003,0xD0F82B00,0x781B687B,0x4618B2DB,0x70CF107,0xBC8046BD,0xBF004770,0xB085B480,0x4603AF00,0xF24471FB,0xF2C41300,0x60BB0300,0x1308F244,0x300F2C4,0x68BB60FB,0xB2DB781B,0x304F003,0xD1F82B00,0x79FA68FB,0xF107701A,0x46BD0714,0x4770BC80,0xB082B580,0x6078AF00,0x687BE008,0x4618781B,0xFFD8F7FF,0xF103687B,0x607B0301,0x781B687B,0xD1F22B00,0x708F107,0xBD8046BD,0x181B4B05,0x2A006818,0x2201BF03,0x4390408A,0x60184310,0x30004770,0x40001000,0xB082B580,0xF7FFAF00,0x4603FF9B,0x79FB71FB,0xF7FF4618,0xF04FFFB3,0x46180300,0x708F107,0xBD8046BD};
 
 /* State */
 
@@ -291,7 +297,7 @@ static void print_full_state(void) {
 		const char *file;
 		size_t i;
 
-#ifdef PRINT_ROM_EN
+#if defined (HAVE_ROM) && defined (PRINT_ROM_EN)
 		file = get_dump_name('o');
 		FILE* romfp = fopen(file, "w");
 		if (romfp) {
@@ -312,6 +318,7 @@ static void print_full_state(void) {
 		// rom --> ram
 		file = get_dump_name('a');
 
+#if defined (HAVE_RAM)
 		FILE* ramfp = fopen(file, "w");
 		if (ramfp) {
 			uint32_t ram[RAMSIZE >> 2] = {0};
@@ -326,6 +333,7 @@ static void print_full_state(void) {
 		} else {
 			perror("No RAM dump");
 		}
+#endif
 	}
 
 	DIVIDERe;
@@ -383,7 +391,7 @@ static void _shell(void) {
 		{
 			const char *file;
 
-#ifdef PRINT_ROM_EN
+#if defined (HAVE_ROM) && defined (PRINT_ROM_EN)
 			if (buf[1] == 'o') {
 				file = get_dump_name('o');
 			} else
@@ -442,10 +450,12 @@ static void _shell(void) {
 			printf("   cycle INTEGER	Stop at cycle\n");
 			printf("   seek [INTEGER]	Seek to cycle\n");
 			printf("                        (forward 1 cycle default)\n");
-#ifdef PRINT_ROM_EN
+#if defined (HAVE_ROM) && defined (PRINT_ROM_EN)
 			printf("   rom			Print ROM contents\n");
 #endif
+#if defined (HAVE_RAM)
 			printf("   ram			Print RAM contents\n");
+#endif
 			printf("   continue		Continue\n");
 			printf("   terminate		Terminate Simulation\n");
 			return _shell();
@@ -948,6 +958,22 @@ EXPORT void register_periph_thread(pthread_t (*fn)(void *), volatile bool *en) {
 	}
 }
 
+static void flash_image(const uint8_t *image, const uint32_t num_bytes){
+#if defined (HAVE_ROM)
+	if (ROMBOT == 0x0) {
+		flash_ROM(image, num_bytes);
+		return;
+	}
+#endif
+	// Enter debugging to circumvent state-tracking code and write directly
+	state_enter_debugging();
+	unsigned i;
+	for (i=0; i<num_bytes; i++) {
+		write_byte(i, image[i]);
+	}
+	state_exit_debugging();
+	INFO("Wrote %d bytes to memory\n", num_bytes);
+}
 
 EXPORT void simulator(const char *flash_file) {
 	// Init uninit'd globals
@@ -960,7 +986,7 @@ EXPORT void simulator(const char *flash_file) {
 
 	// Read in flash
 	if (usetestflash) {
-		flash_ROM(static_rom, STATIC_ROM_NUM_BYTES);
+		flash_image((const uint8_t*) static_rom, STATIC_ROM_NUM_BYTES);
 		INFO("Loaded internal test flash\n");
 	} else {
 		if (NULL == flash_file) {
@@ -978,17 +1004,25 @@ EXPORT void simulator(const char *flash_file) {
 						flash_file);
 			}
 
-			uint8_t rom[ROMSIZE] = {0};
-
-			assert (ROMSIZE < SSIZE_MAX);
-			ret = read(flashfd, rom, ROMSIZE);
-			if (ret < 0) {
-				WARN("%s\n", strerror(errno));
-				ERR(E_BAD_FLASH, "Failed to read flash file '%s'\n",
-						flash_file);
+			struct stat flash_stat;
+			if (0 != fstat(flashfd, &flash_stat)) {
+				ERR(E_BAD_FLASH, "Could not get flash file size: %s\n",
+						strerror(errno));
 			}
-			flash_ROM(rom, ret);
-			INFO("Succesfully loaded flash ROM: %s\n", flash_file);
+
+			{
+				uint8_t flash[flash_stat.st_size];
+
+				ret = read(flashfd, flash, flash_stat.st_size);
+				if (ret < 0) {
+					WARN("%s\n", strerror(errno));
+					ERR(E_BAD_FLASH, "Failed to read flash file '%s'\n",
+							flash_file);
+				}
+				flash_image(flash, ret);
+			}
+
+			INFO("Succesfully loaded image: %s\n", flash_file);
 		}
 	}
 

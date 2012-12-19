@@ -60,3 +60,7 @@ FUTURE FEATURES / GOALS:
   * Automated testing
       - In particular of all of the various compilation methods/options
   * Larger / more interesting peripheral library
+  * Better gdb / recovery semantics
+      - This likely correlates with BusFault-style work
+      - This is why there is a temporary imbalance in memory semantics,
+        supporting the try_read_byte function for gdb

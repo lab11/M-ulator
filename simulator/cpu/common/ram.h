@@ -21,6 +21,16 @@
 #define RAM_H
 
 #include "core/common.h"
+
+////////////////////////////////////////////////////////////////////////
+// Only include this peripheral if requested in the platform memmap.h //
+#ifdef RAMBOT
+
+#define HAVE_RAM
 #define RAMSIZE (RAMTOP - RAMBOT) // In bytes
+
+#endif //RAMBOT
+// Only include this peripheral if requested in the platform memmap.h //
+////////////////////////////////////////////////////////////////////////
 
 #endif // RAM_H
