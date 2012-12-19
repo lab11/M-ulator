@@ -4,11 +4,11 @@
 # /simulator/
 /simulator/simulator
 
-# /programs/
-/programs/*.list
-/programs/*.elf
-/programs/*.bin
+# /platforms/373/software/
+/platforms/373/software/*.list
+/platforms/373/software/*.elf
+/platforms/373/software/*.bin
 
-# /programs/tests/
-/programs/tests/*.elf
-/programs/tests/*.bin
+# /platforms/373/software/tests/
+/platforms/373/software/tests/*.elf
+/platforms/373/software/tests/*.bin
