@@ -2,7 +2,11 @@
 
 set -u
 
-make -C simulator > /dev/null
+make -C simulator clean > /dev/null
+make -C simulator PLATFORM=373 > /dev/null
+
+SOFTWARE_PATH=platforms/373/software
+make -C $SOFTWARE_PATH > /dev/null
 
 function shell() {
 	cat << EOF
@@ -10,7 +14,7 @@ Choose from the following test suites:
 
 1) Just basic (runs only basic.s)
 2) Samples (basic, blink, echo, echo_str, trivialS, trivialC, trivialPrintf)
-3) All tests (programs/*.bin, programs/tests/*.bin)
+3) All tests (/*.bin, /tests/*.bin)
 
 You may skip this menu by providing an argument to this script:
 	$0 OPT
@@ -26,15 +30,15 @@ fi
 
 case $suite in 
 	1)
-		tests=programs/basic.bin
+		tests=$SOFTWARE_PATH/basic.bin
 		;;
 	2)
-		tests=`ls programs/*.bin`
-		tests="$tests `ls programs/tests/trivial*.bin`"
+		tests=`ls $SOFTWARE_PATH/*.bin`
+		tests="$tests `ls $SOFTWARE_PATH/tests/trivial*.bin`"
 		;;
 	3)
-		tests=`ls programs/*.bin`
-		tests="$tests `ls programs/tests/*.bin`"
+		tests=`ls $SOFTWARE_PATH/*.bin`
+		tests="$tests `ls $SOFTWARE_PATH/tests/*.bin`"
 		;;
 	*)
 		echo "ERR: $suite is not a valid test suite"
