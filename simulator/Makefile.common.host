@@ -59,9 +59,20 @@ GCC_MINOR    := $(shell $(CC) -v 2>&1 | \
 	grep " version " | cut -d' ' -f3  | cut -d'.' -f2)
 
 # anyone running clang is modern enough for our purposes
+# though detecting clang reliably sucks, really need to give into autotools soon
+CC_R=$(shell readlink `which $(CC)`)
+
+ifeq ($(CC_R),)
+# Blank CC_R implies $(CC) was not a symlink
 ifeq ($(CC), clang)
 GCC_MAJOR := 4
 GCC_MINOR := 5
+endif
+else
+ifeq ($(CC_R), clang)
+GCC_MAJOR := 4
+GCC_MINOR := 5
+endif
 endif
 
 # XXX Surrender and write a configure script at some point
@@ -72,7 +83,8 @@ GCC_MINOR := 5
 endif
 
 ifneq ($(GCC_MAJOR), 4)
-$(error gcc version 4.x required)
+$(info CC variable: $(CC))
+$(error gcc version 4.x required [ got version $(GCC_MAJOR).$(GCC_MINOR) ])
 endif
 
 ifeq ($(GCC_MINOR), 1)
