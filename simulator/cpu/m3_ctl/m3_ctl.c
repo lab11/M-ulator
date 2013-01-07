@@ -46,12 +46,16 @@ static uint32_t m3_ctl_reg_imsg3;
 static void m3_ctl_reset(void) {
 	m3_ctl_reg_chip_id = 0;
 	m3_ctl_reg_dma_info = 0x02000080;
+
 	//1 010 000 0 -- 10 10 01 1 0 11 0010
 	// 1010 0000 --10 1001 1011 0010
 	m3_ctl_reg_goc_ctrl = 0xa029b2;
+
 	//-- 0 0 11 11 0111 0111 00 000 00 00 010 10 01
 	// --00 1111 0111 0111 0000 0000 0010 1001
 	m3_ctl_reg_pmu_ctrl = 0x0f770039;
+
+	m3_ctl_reg_wup_ctrl = 0;
 }
 
 static void recv_i2c_message(uint8_t addr, uint32_t length, uint8_t *data) {
@@ -80,6 +84,12 @@ static void recv_i2c_message(uint8_t addr, uint32_t length, uint8_t *data) {
 			if (length != 4)
 				CORE_ERR_unpredictable("I2C_PMU_CTRL_REG_WR bad length\n");
 			SW(&m3_ctl_reg_pmu_ctrl, *((uint32_t *) data));
+			break;
+		case 0xe8:
+			// I2C_WUP_CTRL_REG_WR?
+			if (length != 2)
+				CORE_ERR_unpredictable("I2C_WUP_CTRL_REG_WR bad length\n");
+			SW(&m3_ctl_reg_wup_ctrl, *((uint16_t *) data));
 			break;
 		default:
 			CORE_ERR_unpredictable("M3 CTL recv i2c bad addr\n");
@@ -125,6 +135,10 @@ static bool cpu_conf_regs_rd(uint32_t addr, uint32_t *val) {
 			return true;
 		case PMU_CTRL_REG_RD:
 			*val = SR(&m3_ctl_reg_pmu_ctrl) & 0x1fffffff;
+			return true;
+		case WUP_CTRL_REG_RD:
+			*val = SR(&m3_ctl_reg_wup_ctrl) & 0xffff;
+			return true;
 		case MSG_REG0_RD:
 		case MSG_REG1_RD:
 		case MSG_REG2_RD:
@@ -209,6 +223,9 @@ static void cpu_conf_regs_wr(uint32_t addr, uint32_t val) {
 			break;
 		case PMU_CTRL_REG_WR:
 			SW(&m3_ctl_reg_pmu_ctrl, val & 0x1fffffff);
+			break;
+		case WUP_CTRL_REG_WR:
+			SW(&m3_ctl_reg_wup_ctrl, val & 0xffff);
 			break;
 		default:
 			CORE_ERR_unpredictable("Bad CPU Config Reg Write");
