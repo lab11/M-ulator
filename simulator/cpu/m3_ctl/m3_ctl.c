@@ -43,6 +43,14 @@ static uint32_t m3_ctl_reg_imsg1;
 static uint32_t m3_ctl_reg_imsg2;
 static uint32_t m3_ctl_reg_imsg3;
 
+static void m3_ctl_reset(void) {
+	m3_ctl_reg_chip_id = 0;
+	m3_ctl_reg_dma_info = 0x02000080;
+	//1 010 000 0 -- 10 10 01 1 0 11 0010
+	// 1010 0000 --10 1001 1011 0010
+	m3_ctl_reg_goc_ctrl = 0xa029b2;
+}
+
 static void recv_i2c_message(uint8_t addr, uint32_t length, uint8_t *data) {
 	switch (addr) {
 		case 0xe0:
@@ -57,6 +65,12 @@ static void recv_i2c_message(uint8_t addr, uint32_t length, uint8_t *data) {
 			if (length != 4)
 				CORE_ERR_unpredictable("I2C_DMA_INFO_REG_WR bad length\n");
 			SW(&m3_ctl_reg_dma_info, *((uint32_t *) data));
+			break;
+		case 0xe4:
+			// I2C_GOC_CTRL_REG_WR?
+			if (length != 4)
+				CORE_ERR_unpredictable("I2C_GOC_CTRL_REG_WR bad length\n");
+			SW(&m3_ctl_reg_goc_ctrl, *((uint32_t *) data) & 0x00ffffff);
 			break;
 		default:
 			CORE_ERR_unpredictable("M3 CTL recv i2c bad addr\n");
@@ -97,6 +111,9 @@ static bool cpu_conf_regs_rd(uint32_t addr, uint32_t *val) {
 		case DMA_INFO_REG_RD:
 			*val = SR(&m3_ctl_reg_dma_info);
 			return true;
+		case GOC_CTRL_REG_RD:
+			*val = SR(&m3_ctl_reg_goc_ctrl) & 0x3fff; //XXX
+			return true;
 		case MSG_REG0_RD:
 		case MSG_REG1_RD:
 		case MSG_REG2_RD:
@@ -105,7 +122,6 @@ static bool cpu_conf_regs_rd(uint32_t addr, uint32_t *val) {
 		case INT_MSG_REG1_RD:
 		case INT_MSG_REG2_RD:
 		case INT_MSG_REG3_RD:
-		case GOC_CTRL_REG_RD:
 		case PMU_CTRL_REG_RD:
 			INFO("Would read from %p", val);
 			CORE_ERR_not_implemented("cpu config regs read");
@@ -179,6 +195,8 @@ static void cpu_conf_regs_wr(uint32_t addr, uint32_t val) {
 			SW(&m3_ctl_reg_dma_info, val);
 			break;
 		case GOC_CTRL_REG_WR:
+			SW(&m3_ctl_reg_goc_ctrl, val & 0x00ffffff);
+			break;
 		case PMU_CTRL_REG_WR:
 			INFO("Would write %08x (silence warn)", val);
 			CORE_ERR_not_implemented("cpu config regs write");
