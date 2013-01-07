@@ -57,6 +57,15 @@ static void m3_ctl_reset(void) {
 
 	m3_ctl_reg_wup_ctrl = 0;
 	m3_ctl_reg_tstamp = 0;
+
+	m3_ctl_reg_msg0 = 0;
+	m3_ctl_reg_msg1 = 0;
+	m3_ctl_reg_msg2 = 0;
+	m3_ctl_reg_msg3 = 0;
+	m3_ctl_reg_imsg0 = 0;
+	m3_ctl_reg_imsg1 = 0;
+	m3_ctl_reg_imsg2 = 0;
+	m3_ctl_reg_imsg3 = 0;
 }
 
 static void recv_i2c_message(uint8_t addr, uint32_t length, uint8_t *data) {
@@ -96,6 +105,55 @@ static void recv_i2c_message(uint8_t addr, uint32_t length, uint8_t *data) {
 			// I2C_TSTAMP_REG_WR?
 			// Data is ignored, register is reset (0'd)
 			SW(&m3_ctl_reg_tstamp, 0);
+			break;
+
+		case 0x80:
+			// I2C_MSG_REG0_WR?
+			if (length != 4)
+				CORE_ERR_unpredictable("I2C_MSG_REG0_WR bad length\n");
+			SW(&m3_ctl_reg_msg0, *((uint32_t *) data));
+			break;
+		case 0x82:
+			// I2C_MSG_REG1_WR?
+			if (length != 4)
+				CORE_ERR_unpredictable("I2C_MSG_REG1_WR bad length\n");
+			SW(&m3_ctl_reg_msg1, *((uint32_t *) data));
+			break;
+		case 0x84:
+			// I2C_MSG_REG2_WR?
+			if (length != 4)
+				CORE_ERR_unpredictable("I2C_MSG_REG2_WR bad length\n");
+			SW(&m3_ctl_reg_msg2, *((uint32_t *) data));
+			break;
+		case 0x86:
+			// I2C_MSG_REG3_WR?
+			if (length != 4)
+				CORE_ERR_unpredictable("I2C_MSG_REG3_WR bad length\n");
+			SW(&m3_ctl_reg_msg3, *((uint32_t *) data));
+			break;
+		case 0x88:
+			// I2C_IMSG_REG0_WR?
+			if (length != 4)
+				CORE_ERR_unpredictable("I2C_IMSG_REG0_WR bad length\n");
+			SW(&m3_ctl_reg_imsg0, *((uint32_t *) data));
+			break;
+		case 0x8a:
+			// I2C_IMSG_REG1_WR?
+			if (length != 4)
+				CORE_ERR_unpredictable("I2C_IMSG_REG1_WR bad length\n");
+			SW(&m3_ctl_reg_imsg1, *((uint32_t *) data));
+			break;
+		case 0x8c:
+			// I2C_IMSG_REG2_WR?
+			if (length != 4)
+				CORE_ERR_unpredictable("I2C_IMSG_REG2_WR bad length\n");
+			SW(&m3_ctl_reg_imsg2, *((uint32_t *) data));
+			break;
+		case 0x8e:
+			// I2C_IMSG_REG3_WR?
+			if (length != 4)
+				CORE_ERR_unpredictable("I2C_IMSG_REG3_WR bad length\n");
+			SW(&m3_ctl_reg_imsg3, *((uint32_t *) data));
 			break;
 		default:
 			CORE_ERR_unpredictable("M3 CTL recv i2c bad addr\n");
@@ -149,15 +207,29 @@ static bool cpu_conf_regs_rd(uint32_t addr, uint32_t *val) {
 			*val = SR(&m3_ctl_reg_tstamp) & 0xffff;
 			return true;
 		case MSG_REG0_RD:
+			*val = SR(&m3_ctl_reg_msg0);
+			return true;
 		case MSG_REG1_RD:
+			*val = SR(&m3_ctl_reg_msg1);
+			return true;
 		case MSG_REG2_RD:
+			*val = SR(&m3_ctl_reg_msg2);
+			return true;
 		case MSG_REG3_RD:
+			*val = SR(&m3_ctl_reg_msg3);
+			return true;
 		case INT_MSG_REG0_RD:
+			*val = SR(&m3_ctl_reg_imsg0);
+			return true;
 		case INT_MSG_REG1_RD:
+			*val = SR(&m3_ctl_reg_imsg1);
+			return true;
 		case INT_MSG_REG2_RD:
+			*val = SR(&m3_ctl_reg_imsg2);
+			return true;
 		case INT_MSG_REG3_RD:
-			INFO("Would read from %p", val);
-			CORE_ERR_not_implemented("cpu config regs read");
+			*val = SR(&m3_ctl_reg_imsg3);
+			return true;
 		default:
 			CORE_ERR_unpredictable("Bad CPU Config Reg Read");
 	}
@@ -266,7 +338,7 @@ void register_led_periph(void) {
 	register_memmap("M3 CTL I2C WR", true, 4, mem_fn, I2C_BOT_WR, I2C_TOP_WR);
 
 	mem_fn.R_fn32 = cpu_conf_regs_rd;
-	register_memmap("M3 CTL CONF RD", false, 4, mem_fn, MSG_REG0_RD, PMU_CTRL_REG_RD+4);
+	register_memmap("M3 CTL CONF RD", false, 4, mem_fn, MSG_REG0_RD, TSTAMP_REG_RD+4);
 
 	mem_fn.W_fn32 = dma_write;
 	register_memmap("M3 CTL DMA WR", true, 4, mem_fn, DMA_BOT_WR, DMA_TOP_WR);
@@ -274,7 +346,7 @@ void register_led_periph(void) {
 	mem_fn.W_fn32 = cpu_conf_regs_wr;
 	INFO("%d %x\n", CHIP_ID_REG_WR, CHIP_ID_REG_WR);
 	INFO("%d %x\n", PMU_CTRL_REG_WR+4, PMU_CTRL_REG_WR+4);
-	register_memmap("M3 CTL CONF WR", true, 4, mem_fn, CHIP_ID_REG_WR, PMU_CTRL_REG_WR+4);
+	register_memmap("M3 CTL CONF WR", true, 4, mem_fn, CHIP_ID_REG_WR, TSTAMP_REG_WR+4);
 
 	mem_fn.W_fn32 = pmu_special_wr;
 	register_memmap("M3 CTL PMU SPECIAL", true, 1, mem_fn, PMU_SPECIAL, PMU_SPECIAL+1);
