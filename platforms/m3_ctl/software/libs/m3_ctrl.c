@@ -1,6 +1,18 @@
 #include "m3_ctrl.h"
 
-#define MEMMAP_ACCESS_FIX asm("nop\n\tnop\n\tnop")
+// HW BUGFIX:
+//
+// If you write to memory address that corresponds to I2C message TX
+// (0xA0000XXX), and if you have 4 or more of the memory write operation
+// consecutively, you would want to insert 3 of NOPs next to the memory write
+// instruction.  Here, 'consecutive' means that your following I2C write
+// instruction is executed before earlier I2C write instruction is completed.
+// Usually it takes ~>50 cycles to complete I2C write instruction since I2C is
+// much slower than CPU execution.  So when there is consecutive I2C write
+// request, I2C TX FIFO buffer is filled.  When FIFO is full, memory bus stalls
+// to prevent I2C request loss.  However, when memory bus resume operation,
+// there is a fetch error for next instruction - this is why we insert NOP.
+#define I2C_HW_BUG_FIX asm("nop\n\tnop\n\tnop")
 
 // [31:12] = 20'hA0000
 // [11:10] = Data length (00:4, 01:1, 10:2, 11:3 bytes)
@@ -15,7 +27,7 @@ int write_i2c_message(uint8_t addr, uint8_t length, uint32_t data) {
 	_addr |= (addr << 2);
 
 	*((uint32_t *) _addr) = data;
-	MEMMAP_ACCESS_FIX;
+	I2C_HW_BUG_FIX;
 	return 0;
 }
 
@@ -32,7 +44,6 @@ int read_config_reg(uint8_t reg, uint32_t *data) {
 	_addr |= (reg << 2);
 
 	*data = *((uint32_t *) _addr);
-	MEMMAP_ACCESS_FIX;
 	return 0;
 }
 
@@ -59,7 +70,6 @@ int init_DMA(uint8_t layer, bool write, uint16_t words,
 	uint32_t data = (target << 16) | current;
 
 	*((uint32_t *) _addr) = data;
-	MEMMAP_ACCESS_FIX;
 	return 0;
 }
 
@@ -71,7 +81,6 @@ int write_config_reg(uint8_t reg, uint32_t data) {
 	_addr |= (reg << 2);
 
 	*((uint32_t *) _addr) = data;
-	MEMMAP_ACCESS_FIX;
 	return 0;
 }
 
@@ -83,7 +92,6 @@ int PMU_req(uint8_t req) {
 
 	uint32_t data = req; // upper bit are don't care
 	*((uint32_t *) _addr) = data;
-	MEMMAP_ACCESS_FIX;
 	return 0;
 }
 
@@ -91,23 +99,19 @@ int PMU_req(uint8_t req) {
 void GPIO_direction_get(uint32_t *mask) {
 	uint32_t* _addr = GPIO_DIR;
 	*mask = *_addr;
-	MEMMAP_ACCESS_FIX;
 }
 
 void GPIO_direction_set(uint32_t mask) {
 	uint32_t* _addr = GPIO_DIR;
 	*_addr = mask;
-	MEMMAP_ACCESS_FIX;
 }
 
 void GPIO_get(uint32_t *mask) {
 	uint32_t* _addr = GPIO_DATA;
 	*mask = *_addr;
-	MEMMAP_ACCESS_FIX;
 }
 
 void GPIO_set(uint32_t mask) {
 	uint32_t* _addr = GPIO_DATA;
 	*_addr = mask;
-	MEMMAP_ACCESS_FIX;
 }
