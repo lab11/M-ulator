@@ -73,7 +73,8 @@ void register_reset_m3_ctl(void) {
 	register_reset(m3_ctl_reset);
 }
 
-static void recv_i2c_message(uint8_t addr, uint32_t length, uint8_t *data) {
+// XXX: External linkage, register hook?
+void recv_i2c_message(uint8_t addr, uint32_t length, uint8_t *data) {
 	switch (addr) {
 		case 0xe0:
 			// I2C_CHIP_ID_REG_WR? XXX: Flesh out I2C interface
