@@ -33,9 +33,29 @@
  */
 void print_memmap(void);
 
-void reset(void) {
+struct reset_fn {
+	struct reset_fn *next;
+	void (*fn)(void);
+};
+
+struct reset_fn* reset_head = NULL;
+
+EXPORT void register_reset(void (*fn)(void)) {
+	struct reset_fn* n = malloc(sizeof(struct reset_fn));
+	n->fn = fn;
+	n->next = reset_head;
+
+	reset_head = n;
+}
+
+EXPORT void reset(void) {
 	print_memmap();
-	ppb_reset();
+
+	struct reset_fn* r = reset_head;
+	while (r) {
+		r->fn();
+		r = r->next;
+	}
 	CORE_reg_write(SP_REG, read_word(0x00000000));
 	CORE_reg_write(LR_REG, 0xFFFFFFFF);
 	CORE_reg_write(PC_REG, read_word(0x00000004));

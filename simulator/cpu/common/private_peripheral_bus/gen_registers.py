@@ -90,19 +90,19 @@ h.write('#define REGISTERS_BOT 0xE0000000\n')
 h.write('#define REGISTERS_TOP 0xF0000000\n')
 h.write('\n')
 
-h.write('void ppb_reset(void);\n')
 h.write('uint32_t ppb_read(uint32_t addr);\n')
 h.write('void ppb_write(uint32_t addr, uint32_t val);\n')
 h.write('\n')
 
 c.write('#include "ppb.h"\n')
 c.write('#include "core/state_sync.h"\n')
+c.write('#include "cpu/core.h"\n')
 c.write('\n')
 
 # Hack :(
 c.write('#define STAGE UNK\n\n')
 
-reset = "void ppb_reset(void) {\n"
+reset = "static void ppb_reset(void) {\n"
 reset_funcs = "// Support functions for reset case\n"
 reset_funcs += "// Contents generated from file 'exceptions'\n\n"
 storage = "// Registers gotta live somewhere...\n"
@@ -276,6 +276,13 @@ c.write(reset_funcs)
 c.write(reset)
 c.write(reg_read)
 c.write(reg_write)
+
+c.write('''
+__attribute__ ((constructor))
+void register_reset_ppb(void) {
+    register_reset(ppb_reset);
+}
+''')
 
 h.close()
 c.close()
