@@ -56,7 +56,6 @@ EXPORT void reset(void) {
 		r->fn();
 		r = r->next;
 	}
-	ppb_reset();
 	CORE_reg_write(SP_REG, read_word(0x00000000));
 	CORE_reg_write(LR_REG, 0xFFFFFFFF);
 	CORE_reg_write(PC_REG, read_word(0x00000004));
