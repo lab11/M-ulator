@@ -72,9 +72,8 @@ static void recv_i2c_message(uint8_t addr, uint32_t length, uint8_t *data) {
 	switch (addr) {
 		case 0xe0:
 			// I2C_CHIP_ID_REG_WR? XXX: Flesh out I2C interface
-			// XXX: More details pending from ctrl doc
-			if (length != 2)
-				CORE_ERR_unpredictable("I2C_CHIP_ID_REG_WR bad length\n");
+			if (length > 2)
+				WARN("Target reg is 16 bits, truncated (len %d)\n", length);
 			SW(&m3_ctl_reg_chip_id, *((uint16_t *) data));
 			break;
 		case 0xe2:
@@ -195,7 +194,7 @@ static bool cpu_conf_regs_rd(uint32_t addr, uint32_t *val) {
 			*val = SR(&m3_ctl_reg_dma_info);
 			return true;
 		case GOC_CTRL_REG_RD:
-			*val = SR(&m3_ctl_reg_goc_ctrl) & 0x3fff; //XXX
+			*val = SR(&m3_ctl_reg_goc_ctrl) & 0x00ffffff;
 			return true;
 		case PMU_CTRL_REG_RD:
 			*val = SR(&m3_ctl_reg_pmu_ctrl) & 0x1fffffff;
@@ -344,8 +343,6 @@ void register_led_periph(void) {
 	register_memmap("M3 CTL DMA WR", true, 4, mem_fn, DMA_BOT_WR, DMA_TOP_WR);
 
 	mem_fn.W_fn32 = cpu_conf_regs_wr;
-	INFO("%d %x\n", CHIP_ID_REG_WR, CHIP_ID_REG_WR);
-	INFO("%d %x\n", PMU_CTRL_REG_WR+4, PMU_CTRL_REG_WR+4);
 	register_memmap("M3 CTL CONF WR", true, 4, mem_fn, CHIP_ID_REG_WR, TSTAMP_REG_WR+4);
 
 	mem_fn.W_fn32 = pmu_special_wr;
