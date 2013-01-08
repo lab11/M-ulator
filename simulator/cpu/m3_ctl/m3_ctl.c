@@ -68,6 +68,11 @@ static void m3_ctl_reset(void) {
 	m3_ctl_reg_imsg3 = 0;
 }
 
+__attribute__ ((constructor))
+void register_reset_m3_ctl(void) {
+	register_reset(m3_ctl_reset);
+}
+
 static void recv_i2c_message(uint8_t addr, uint32_t length, uint8_t *data) {
 	switch (addr) {
 		case 0xe0:
