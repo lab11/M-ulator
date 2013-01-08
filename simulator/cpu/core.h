@@ -27,6 +27,8 @@
 #include "core/pretty_print.h"
 #endif
 
+void register_reset(void(*fn)(void));
+
 union memmap_fn {
 	bool (*R_fn32)(uint32_t, uint32_t *);
 	void (*W_fn32)(uint32_t, uint32_t);
