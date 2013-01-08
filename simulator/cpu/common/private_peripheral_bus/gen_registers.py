@@ -90,8 +90,6 @@ h.write('#define REGISTERS_BOT 0xE0000000\n')
 h.write('#define REGISTERS_TOP 0xF0000000\n')
 h.write('\n')
 
-h.write('uint32_t ppb_read(uint32_t addr);\n')
-h.write('void ppb_write(uint32_t addr, uint32_t val);\n')
 h.write('\n')
 
 c.write('#include "ppb.h"\n')
@@ -106,8 +104,8 @@ reset = "static void ppb_reset(void) {\n"
 reset_funcs = "// Support functions for reset case\n"
 reset_funcs += "// Contents generated from file 'exceptions'\n\n"
 storage = "// Registers gotta live somewhere...\n"
-reg_read = "uint32_t ppb_read(uint32_t addr) {\nswitch(addr){\n"
-reg_write = "void ppb_write(uint32_t addr, uint32_t val) {\nswitch(addr){\n"
+reg_read =  "static bool ppb_read (uint32_t addr, uint32_t *val) {\nswitch(addr){\n"
+reg_write = "static void ppb_write(uint32_t addr, uint32_t val)  {\nswitch(addr){\n"
 
 unpredictable_func = '\
 {\n\
@@ -231,12 +229,14 @@ for f in sys.argv[1:]:
 		# Generate read cases
 		reg_read += "case " + addr + ":\n"
 		if read == 'r':
-			reg_read += "\treturn SR(&" + addr[1:] + ");\n"
+			reg_read += "\t*val = SR(&" + addr[1:] + ");\n"
+			reg_read += "\treturn true;\n"
 		elif read == '-':
 			reg_read += "\tCORE_ERR_write_only(addr);\n"
 		elif read[0] == 'a':
 			# This register is aliased to another
-			reg_read += "\treturn SR(&" + read[2:] + ");\n"
+			reg_read += "\t*val = SR(&" + read[2:] + ");\n"
+			reg_read += "\treturn true;\n"
 			if init != '-':
 				raise ParseError(e, "Aliased register cannot define a reset ("+init+")")
 		else:
@@ -281,6 +281,17 @@ c.write('''
 __attribute__ ((constructor))
 void register_reset_ppb(void) {
     register_reset(ppb_reset);
+}
+
+__attribute__ ((constructor))
+void register_memmap_ppb(void) {
+    union memmap_fn mem_fn;
+
+    mem_fn.R_fn32 = ppb_read;
+    register_memmap("PPB", false, 4, mem_fn, REGISTERS_BOT, REGISTERS_TOP);
+
+    mem_fn.W_fn32 = ppb_write;
+    register_memmap("PPB", true, 4, mem_fn, REGISTERS_BOT, REGISTERS_TOP);
 }
 ''')
 
