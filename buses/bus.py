@@ -108,13 +108,24 @@ I2C BUS {i}
         while True:
             conn, addr = self.s.accept()
             logging.info("New connection from " + str(addr))
-            with self.connection_lock:
-                self.connections[conn] = addr
+            threading.Thread(target=self.new_connection, args=((conn,addr))).start()
 
             if self.conn_thread is None:
-                self.conn_thread = threading.Thread(target=connection)
+                self.conn_thread = threading.Thread(target=self.connection)
                 self.conn_thread.daemon = True
                 self.conn_thread.start()
+
+    def new_connection(self, conn, addr):
+        t = self.recv_all(conn, 1)
+        if t != 'i':
+            logging.warn("Bad handshake, dropping connection from " + str(addr))
+            logging.warn("Expected 'i' got '%c'" % (t))
+            conn.close()
+            return
+
+        conn.send('i')
+        with self.connection_lock:
+            self.connections[conn] = addr
 
     def recv_packet(self, conn):
         t = self.recv_all(conn, 1)
