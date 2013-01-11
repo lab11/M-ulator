@@ -937,15 +937,18 @@ struct periph_thread {
 	struct periph_thread *next;
 	pthread_t (*fn)(void *);
 	volatile bool *en;
+	void *arg;
 	pthread_t pthread;
 };
 
 static struct periph_thread periph_threads;
 
-EXPORT void register_periph_thread(pthread_t (*fn)(void *), volatile bool *en) {
+EXPORT void register_periph_thread(
+		pthread_t (*fn)(void *), volatile bool *en, void *arg) {
 	if (periph_threads.fn == NULL) {
 		periph_threads.fn = fn;
 		periph_threads.en = en;
+		periph_threads.arg = arg;
 	} else {
 		struct periph_thread *cur = &periph_threads;
 		while (cur->next != NULL)
@@ -955,6 +958,7 @@ EXPORT void register_periph_thread(pthread_t (*fn)(void *), volatile bool *en) {
 		cur->next = NULL;
 		cur->fn = fn;
 		cur->en = en;
+		cur->arg = arg;
 	}
 }
 
@@ -1045,7 +1049,7 @@ EXPORT void simulator(const char *flash_file) {
 		struct periph_thread *cur = &periph_threads;
 		while (cur != NULL) {
 			*cur->en = true;
-			cur->pthread = cur->fn(NULL);
+			cur->pthread = cur->fn(cur->arg);
 			cur = cur->next;
 		}
 	}
