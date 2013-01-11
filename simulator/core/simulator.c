@@ -64,7 +64,11 @@ EXPORT int gdb_port = -1;
 #define GDB_ATTACHED (gdb_port != -1)
 EXPORT int slowsim = 0;
 EXPORT int printcycles = 0;
+#ifdef DEBUG1
+EXPORT int raiseonerror = 1;
+#else
 EXPORT int raiseonerror = 0;
+#endif
 EXPORT int limitcycles = -1;
 EXPORT unsigned dumpatpc = -3;
 EXPORT int dumpatcycle = -1;
