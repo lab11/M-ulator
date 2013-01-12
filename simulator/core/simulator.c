@@ -44,8 +44,6 @@
 // GLOBALS
 ////////////////////////////////////////////////////////////////////////////////
 
-EXPORT int debug_ = 0;
-
 static volatile sig_atomic_t sigint = 0;
 static volatile bool shell_running = false;
 

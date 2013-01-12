@@ -150,11 +150,9 @@ static void state_unblock_async_io(void) {
 EXPORT void state_start_tick(void) {
 	state_block_async_io();
 #ifdef DEBUG2
-if (debug_ >= 2) {
 	flockfile(stdout); flockfile(stderr);
 	printf("\n%08d TICK TICK TICK TICK TICK TICK TICK TICK TICK\n", cycle);
 	funlockfile(stderr); funlockfile(stdout);
-}
 #endif
 	DBG2("CLOCK --> high (cycle %08d)\n", cycle);
 	//assert((state_head->cycle+1) == cycle);
@@ -285,11 +283,9 @@ EXPORT void state_tock(void) {
 	state_block_async_io();
 
 #ifdef DEBUG2
-if (debug_ >= 2) {
 	flockfile(stdout); flockfile(stderr);
 	printf("\n%08d TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK\n", cycle);
 	funlockfile(stderr); funlockfile(stdout);
-}
 #endif
 	DBG2("CLOCK --> low (cycle %08d)\n", cycle);
 	// cycle_head is state_head from end of previous cycle here
