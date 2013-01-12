@@ -132,6 +132,7 @@ static struct i2c_packet* i2c_recv_packet(int sock) {
 			WARN("Socket reports: %s\n", strerror(errno));
 			goto i2c_recv_packet_die_with_bytes;
 		}
+		DBG1("Got a message packet (dest: %02x)\n", p->m.address);
 	} else if (p->type == 1) {
 		// Acknowledge
 		if (1 != recv(sock, &p->a.acked, 1, 0)) {
@@ -139,6 +140,7 @@ static struct i2c_packet* i2c_recv_packet(int sock) {
 			WARN("Socket reports: %s\n", strerror(errno));
 			goto i2c_recv_packet_die;
 		}
+		DBG1("Got an acknowledgment packet (acked: %d)\n", p->a.acked);
 	} else {
 		WARN("Bad message type %d. Disconnecting\n", p->type);
 		goto i2c_recv_packet_die;
@@ -183,6 +185,12 @@ EXPORT bool i2c_send_message(struct i2c_instance* t,
 
 	// Wait for NAK/ACK from listener thread
 	pthread_cond_wait(&t->pc, &t->pm);
+
+	bool acked = t->is_sending_resp;
+	t->is_sending = false;
+	pthread_mutex_unlock(&t->pm);
+
+	return acked;
 
 i2c_send_die:
 	WARN("Unexpected error while sending I2C message.\n");
@@ -248,7 +256,7 @@ static void* i2c_thread(void *v_args) {
 		if (p->type == 0) {
 			// Incoming message (async event)
 			if (t->is_sending) {
-				// Lost Arbitration!
+				DBG1("Lost Arbitration, switching to recv\n");
 				t->is_sending = false;
 				pthread_cond_signal(&t->pc);
 			}
@@ -268,6 +276,7 @@ static void* i2c_thread(void *v_args) {
 			// Incoming ACK/NAK
 			if (t->is_sending) {
 				t->is_sending_resp = p->a.acked;
+				pthread_cond_signal(&t->pc);
 			} else if (t->is_active_message) {
 				t->is_active_message = false;
 			} else {
