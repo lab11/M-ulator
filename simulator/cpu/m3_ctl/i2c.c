@@ -201,7 +201,7 @@ static void* i2c_thread(void *v_args) {
 	struct i2c_instance* t = (struct i2c_instance*) v_args;
 
 	//                   0123456789012345 <-- max thread name
-	char *thread_name = "i2c:            ";
+	char thread_name[] = "i2c:            ";
 	strncpy(thread_name+strlen("i2c: "), t->name, 16-strlen("i2c: "));
 
 	assert(0 == prctl(PR_SET_NAME, thread_name, 0, 0, 0));
