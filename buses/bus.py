@@ -42,6 +42,7 @@ class Bus(object):
             if n == '':
                 raise IOError, "Connection closed"
             r += n
+        assert len(r) == length
         return r
 
 class I2CBus(Bus):
@@ -107,7 +108,7 @@ I2C BUS {i}
     def accept(self):
         while True:
             conn, addr = self.s.accept()
-            logging.info("New connection from " + str(addr))
+            logging.info("New connection from " + str(addr) + " on " + str(conn))
             threading.Thread(target=self.new_connection, args=((conn,addr))).start()
 
             if self.conn_thread is None:
@@ -124,15 +125,17 @@ I2C BUS {i}
             return
 
         conn.send('i')
+        logging.debug("Handshake complete")
         with self.connection_lock:
             self.connections[conn] = addr
 
     def recv_packet(self, conn):
         t = self.recv_all(conn, 1)
+        t = struct.unpack("!B", t)[0]
         if (t == 0):
             # Message type
-            address = struct.unpack("!B", self.recv_all(conn, 1))
-            length = struct.unpack("!I", self.recv_all(conn, 4))
+            address = struct.unpack("!B", self.recv_all(conn, 1))[0]
+            length = struct.unpack("!I", self.recv_all(conn, 4))[0]
             msg = self.recv_all(conn, length)
             return (t, address, length, msg)
         elif (t == 1):
@@ -140,7 +143,7 @@ I2C BUS {i}
             acked = bool(self.recv_all(conn, 1))
             return (t, acked)
         else:
-            raise TypeError, "Unknown packet type: " + str(t)
+            raise TypeError, "Unknown packet type: " + str(t) + " " + str(ord(t))
 
     def send_packet(self, conn, p):
         if p[0] == 0:
@@ -148,11 +151,12 @@ I2C BUS {i}
         elif p[0] == 1:
             msg = struct.pack("!BB", *p)
         else:
-            raise TypeError, "Unknown packet type: " + str(t)
+            raise TypeError, "Unknown packet type: " + str(t) + " " + str(ord(t))
         conn.send(msg)
 
     def handle_message(self, conn):
         p = self.recv_packet(conn)
+        logging.debug("Got packet: " + str(p))
         if p[0] != 0:
             raise RuntimeError, "Unexpected ACK-type packet?"
 
@@ -162,9 +166,10 @@ I2C BUS {i}
                 if c == conn:
                     continue
                 self.send_packet(c, p)
-            acked = False
+            logging.debug("Finished Broadcast")
 
             # Collect ACK/NAKs
+            acked = False
             for c in self.connections.keys():
                 if c == conn:
                     continue
@@ -179,6 +184,7 @@ I2C BUS {i}
                     else:
                         raise TypeError, "Unknown packet type: " + str(t)
                 acked |= p[1]
+            logging.debug("Got all ACK/NAKs, sending " + str(acked))
 
             # Broadcast ACK/NAK
             for c in self.connections.keys():
