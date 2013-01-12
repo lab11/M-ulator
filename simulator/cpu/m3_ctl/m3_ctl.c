@@ -17,7 +17,10 @@
  * along with Mulator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <unistd.h>
+
 #include "m3_ctl.h"
+#include "i2c.h"
 
 #include "memmap.h"
 
@@ -25,6 +28,9 @@
 #include "cpu/core.h"
 
 #include "core/state_sync.h"
+
+// GLOBAL STATE
+struct i2c_instance* i2c;
 
 // CPU CONF REG'S
 static uint32_t m3_ctl_reg_chip_id;
@@ -336,7 +342,7 @@ static void pmu_special_wr(uint32_t addr, uint32_t val) {
 }
 
 __attribute__ ((constructor))
-void register_led_periph(void) {
+void register_periph_m3_ctl(void) {
 	union memmap_fn mem_fn;
 
 	mem_fn.W_fn32 = i2c_write;
@@ -355,4 +361,12 @@ void register_led_periph(void) {
 	register_memmap("M3 CTL PMU SPECIAL", true, 1, mem_fn, PMU_SPECIAL, PMU_SPECIAL+1);
 
 	register_periph_printer(print_m3_ctl_line);
+
+	const char *host = getlogin();
+	const uint16_t port = 21010; // Hardcoded for now (2C!)
+	// m3_ctl responds to 10x0xxxx
+	i2c = create_i2c_instance("m3_ctl",
+			NULL,
+			0x80, 0x50,
+			host, port);
 }

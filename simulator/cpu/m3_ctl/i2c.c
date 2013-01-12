@@ -303,11 +303,12 @@ static pthread_t start_i2c(void *v_args) {
 }
 
 // This function *MUST* be called from a peripheral's constructor
-void create_i2c_instance(const char *periph_name,
+EXPORT struct i2c_instance* create_i2c_instance(const char *periph_name,
 		void (*async_recv_message)(uint8_t, uint32_t, char *),
 		uint8_t ones_mask, uint8_t zeros_mask,
 		const char *host, const uint16_t port) {
 	struct i2c_instance *t = malloc(sizeof(struct i2c_instance));
+	assert((t != NULL) && "Alloc i2c_instance");
 	t->name = periph_name;
 	t->recv_fn = async_recv_message;
 	t->ones = ones_mask;
@@ -331,4 +332,5 @@ void create_i2c_instance(const char *periph_name,
 	assert(0 == pthread_cond_init(&t->pc, NULL));
 
 	register_periph_thread(start_i2c, &(t->en), t);
+	return t;
 }

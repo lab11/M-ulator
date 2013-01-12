@@ -27,5 +27,15 @@
 #include "core/pretty_print.h"
 #endif
 
+struct i2c_instance;
+
+bool i2c_send_message(struct i2c_instance* t,
+		uint8_t address, uint32_t length, const char *msg);
+
+// This function *MUST* be called from a peripheral's constructor
+struct i2c_instance* create_i2c_instance(const char *periph_name,
+		void (*async_recv_message)(uint8_t, uint32_t, char *),
+		uint8_t ones_mask, uint8_t zeros_mask,
+		const char *host, const uint16_t port);
 
 #endif // I2C_H
