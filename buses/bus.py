@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import time
 import threading
 import os
 import getpass
@@ -13,6 +14,13 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 class Bus(object):
+    class BusError(Exception):
+        pass
+
+    class ConnectionClosedError(BusError):
+        def __init__(self, conn):
+            self.conn = conn
+
     def __init__(self):
         raise NotImplementedError, "Abstract Base Class"
 
@@ -40,7 +48,7 @@ class Bus(object):
         while len(r) < length:
             n = conn.recv(length-len(r))
             if n == '':
-                raise IOError, "Connection closed"
+                raise self.ConnectionClosedError(conn)
             r += n
         assert len(r) == length
         return r
@@ -100,6 +108,11 @@ I2C BUS {i}
         self.accept_thread.start()
 
         self.connections = {}
+        self.conn_thread = threading.Thread(target=self.connection)
+        self.conn_thread.daemon = True
+        self.conn_thread.start()
+
+        self.connections = {}
         self.conn_thread = None
 
     def join(self, timeout=None):
@@ -110,11 +123,6 @@ I2C BUS {i}
             conn, addr = self.s.accept()
             logging.info("New connection from " + str(addr) + " on " + str(conn))
             threading.Thread(target=self.new_connection, args=((conn,addr))).start()
-
-            if self.conn_thread is None:
-                self.conn_thread = threading.Thread(target=self.connection)
-                self.conn_thread.daemon = True
-                self.conn_thread.start()
 
     def new_connection(self, conn, addr):
         t = self.recv_all(conn, 1)
@@ -193,8 +201,6 @@ I2C BUS {i}
     def connection(self):
         while True:
             try:
-                # Would rather use exceptions arg to detect new connections from
-                # the accept thread, but Windows doesn't support it
                 r = select.select(self.connections.keys(), (), (), 1.0)
                 if len(r[0]) == 0:
                     continue
@@ -202,8 +208,13 @@ I2C BUS {i}
                 # More I2C-like arbitration? Is that really possible / necessary?
                 conn = r[0][0]
                 self.handle_message(conn)
+            except self.ConnectionClosedError as e:
+                logging.info("Connection " + str(self.connections[e.conn]) + " dropped")
+                with self.connection_lock:
+                    del(self.connections[e.conn])
             except:
                 logging.exception('Got exception on connection thread')
+                time.sleep(.1)
 
 
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
