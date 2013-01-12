@@ -374,11 +374,15 @@ void register_periph_m3_ctl(void) {
 
 	register_periph_printer(print_m3_ctl_line);
 
-	const char *host = getlogin();
+	char *host;
 	const uint16_t port = 21010; // Hardcoded for now (2C!)
+	assert(-1 != asprintf(&host, "/tmp/%s.M-ulator.bus", getlogin()));
+
 	// m3_ctl responds to 10x0xxxx
 	i2c = create_i2c_instance("m3_ctl",
 			NULL,
 			0x80, 0x50,
 			host, port);
+
+	free(host);
 }

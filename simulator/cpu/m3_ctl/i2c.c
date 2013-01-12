@@ -36,7 +36,7 @@ struct i2c_instance {
 	uint8_t ones;
 	uint8_t zeros;
 	const char *name;
-	const char *host;
+	char *host;
 	uint16_t port;
 	int sock;
 	bool is_connected;
@@ -289,6 +289,7 @@ i2c_shutdown:
 	assert(!t->en);
 	pthread_mutex_unlock(&t->pm);
 	INFO("Bus interface '%s' shut down\n", thread_name);
+	free(t->host);
 	free(t);
 	pthread_exit(NULL);
 }
@@ -315,7 +316,7 @@ EXPORT struct i2c_instance* create_i2c_instance(const char *periph_name,
 	t->recv_fn = async_recv_message;
 	t->ones = ones_mask;
 	t->zeros = zeros_mask;
-	t->host = host;
+	t->host = strdup(host);
 	t->port = port;
 
 	t->is_connected = false;
