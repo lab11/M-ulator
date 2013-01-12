@@ -159,8 +159,8 @@ EXPORT bool i2c_send_message(struct i2c_instance* t,
 	pthread_mutex_lock(&t->pm);
 
 	if ( ! t->is_connected) {
-		WARN("Request to send I2C message, but simulator is not\n");
-		WARN("connected to a bus. Trying to connect...\n");
+		WARN("Request to send I2C message, but simulator is not conn-\n");
+		WARN("ected to a bus. Trying to connect...\n");
 		if (-1 == i2c_connect(t->sock, t->host, t->port)) {
 			ERR(E_UNKNOWN, "Could not connect to I2C bus\n");
 		}

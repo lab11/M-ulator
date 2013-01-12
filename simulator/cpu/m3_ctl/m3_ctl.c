@@ -171,10 +171,23 @@ void recv_i2c_message(uint8_t addr, uint32_t length, uint8_t *data) {
 	}
 }
 
-static void send_i2c_message(uint8_t addr, uint32_t length, uint8_t *data) {
-	INFO("Would send I2C message to %02x of len %d bytes at %p",
-			addr, length, data);
-	CORE_ERR_not_implemented("send_i2c_message");
+static void m3_ctl_send_i2c_message(uint8_t addr, uint32_t length, char *msg) {
+	static int tries = 0;
+
+	bool acked;
+	acked = i2c_send_message(i2c, addr, length, msg);
+
+	if (!acked) {
+		tries += 1;
+		if (tries > 3) {
+			TRAP("I2C Send Max Tries exceeded. Cont to retry\n");
+			tries -= 1;
+			m3_ctl_send_i2c_message(addr, length, msg);
+		} else {
+			m3_ctl_send_i2c_message(addr, length, msg);
+		}
+	}
+	tries = 0;
 }
 
 static void i2c_write(uint32_t addr, uint32_t val) {
@@ -186,8 +199,7 @@ static void i2c_write(uint32_t addr, uint32_t val) {
 	address <<= 1; // I2C Write, LSB is 0
 	assert((addr & 0x3) == 0x0);
 
-	CORE_ERR_not_implemented("Send I2C message");
-	send_i2c_message(address, length, (uint8_t *)&val);
+	m3_ctl_send_i2c_message(address, length, (char*) &val);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -297,7 +309,7 @@ static void dma_write(uint32_t addr, uint32_t val) {
 		}
 
 		CORE_ERR_not_implemented("Send I2C Message");
-		send_i2c_message(i2c_addr, num_words*4, (uint8_t *)buf);
+		m3_ctl_send_i2c_message(i2c_addr, num_words*4, (char*) buf);
 	}
 }
 
