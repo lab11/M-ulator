@@ -23,6 +23,8 @@
 #include <sys/un.h>
 #include <sys/prctl.h>
 
+#include "i2c.h"
+
 #include "cpu/periph.h"
 #include "cpu/core.h"
 
@@ -75,7 +77,7 @@ static int i2c_connect(int sock, const char *host, const uint16_t port) {
 	len = sizeof(address);
 
 	if (-1 == connect(sock, (struct sockaddr*) &address, len)) {
-		WARN("Connecting I2C Bus: %s", strerror(errno));
+		WARN("Connecting I2C Bus: %s\n", strerror(errno));
 		return -1;
 	}
 
@@ -83,7 +85,7 @@ static int i2c_connect(int sock, const char *host, const uint16_t port) {
 	send(sock, &handshake, 1, 0);
 	// XXX: Add timeout
 	if (1 != recv(sock, &handshake, 1, 0)) {
-		WARN("Connection dropped? %s", strerror(errno));
+		WARN("Connection dropped? %s\n", strerror(errno));
 		return -1;
 	}
 	if ('i' != handshake) {
@@ -160,7 +162,7 @@ EXPORT bool i2c_send_message(struct i2c_instance* t,
 		WARN("Request to send I2C message, but simulator is not\n");
 		WARN("connected to a bus. Trying to connect...\n");
 		if (-1 == i2c_connect(t->sock, t->host, t->port)) {
-			ERR(E_UNKNOWN, "Could not connect to I2C bus");
+			ERR(E_UNKNOWN, "Could not connect to I2C bus\n");
 		}
 		t->is_connected = true;
 		pthread_cond_signal(&t->pc);
