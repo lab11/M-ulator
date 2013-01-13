@@ -190,22 +190,21 @@ static void m3_ctl_send_i2c_message(uint8_t addr, uint32_t length, char *msg) {
 	tries = 0;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+static void print_m3_ctl_line(void) {
+	;
+}
+
 static void i2c_write(uint32_t addr, uint32_t val) {
 	assert((addr & 0xfffff000) == 0xA0000000);
 	uint8_t length = (addr >> 10) & 0x3;
 	if (length == 0)
 		length = 4;
-	uint8_t address = (addr >> 2) & 0x7f;
-	address <<= 1; // I2C Write, LSB is 0
+	uint8_t address = (addr >> 2) & 0xff;
 	assert((addr & 0x3) == 0x0);
 
 	m3_ctl_send_i2c_message(address, length, (char*) &val);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-static void print_m3_ctl_line(void) {
-	;
 }
 
 static bool cpu_conf_regs_rd(uint32_t addr, uint32_t *val) {
