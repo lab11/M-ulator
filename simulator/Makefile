@@ -78,6 +78,8 @@ core/%:
 #########
 # Testing
 
+PATH_373=../platforms/373/software
+
 ifeq ($(debug), 2)
 tester = \
 	 gdb --args ./simulator --flash $(1)/$(2).bin $(SIMFLAGS)
@@ -88,38 +90,38 @@ endif
 
 SIM_EXE = ./simulator --flash $< $(SIMFLAGS)
 
-basic:	../programs/basic.bin simulator
+basic:	$(PATH_373)/basic.bin simulator
 	$(eval SIMFLAGS += -p --dumpallcycles)
-	$(call tester,../programs,$@)
+	$(call tester,$(PATH_373),$@)
 
-blink:	../programs/blink.bin simulator
-	$(call tester,../programs,$@)
+blink:	$(PATH_373)/blink.bin simulator
+	$(call tester,$(PATH_373),$@)
 
-echo:	../programs/echo.bin simulator
+echo:	$(PATH_373)/echo.bin simulator
 	sh -c 'sleep 1s; echo -e "e\n" | nc -4 localhost 4100 > /dev/null' &
-	$(call tester,../programs,$@)
+	$(call tester,$(PATH_373),$@)
 
-echo_str:	../programs/echo_str.bin simulator
-	$(call tester,../programs,$@)
+echo_str:	$(PATH_373)/echo_str.bin simulator
+	$(call tester,$(PATH_373),$@)
 
-fib:	../programs/fib.bin simulator
-	$(call tester,../programs,$@)
+fib:	$(PATH_373)/fib.bin simulator
+	$(call tester,$(PATH_373),$@)
 
 testflash:	simulator
-	$(call tester,../programs,$@)
+	$(call tester,$(PATH_373),$@)
 
 .PHONY: blink echo echo_str testflash
 
-trivialS: ../programs/tests/trivialS.bin simulator
+trivialS: $(PATH_373)/tests/trivialS.bin simulator
 	$(eval SIMFLAGS += --returnr0)
-	$(call tester,../programs/tests,$@)
+	$(call tester,$(PATH_373)/tests,$@)
 
-trivialC: ../programs/tests/trivialC.bin simulator
+trivialC: $(PATH_373)/tests/trivialC.bin simulator
 	$(eval SIMFLAGS += --returnr0)
-	$(call tester,../programs/tests,$@)
+	$(call tester,$(PATH_373)/tests,$@)
 
-trivialPrintf: ../programs/tests/trivialPrintf.bin simulator
+trivialPrintf: $(PATH_373)/tests/trivialPrintf.bin simulator
 	$(eval SIMFLAGS += --returnr0)
-	$(call tester,../programs/tests,$@)
+	$(call tester,$(PATH_373)/tests,$@)
 
 .PHONY: trivialS trivialC trivialPrintf
