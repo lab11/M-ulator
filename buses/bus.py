@@ -93,7 +93,8 @@ I2C BUS {i}
 
     @staticmethod
     def add_parsers(p):
-        p.add_argument('-a', '--address', type=str, help='address mask')
+        p.add_argument('-a', '--address', type=str,
+                help="address mask of the form '10x0xxx'")
         return I2CBus.INFO
 
 
@@ -164,9 +165,12 @@ I2C BUS {i}
 
     def handle_message(self, conn):
         p = self.recv_packet(conn)
-        logging.debug("Got packet: " + str(p))
         if p[0] != 0:
+            logging.debug("Got packet: " + str(p))
             raise RuntimeError, "Unexpected ACK-type packet?"
+        logging.debug("Got packet: MSG 0x%x %d: %s" % (p[1], p[2],
+            " ".join(p[3].encode('hex')[i:i+2] for i in range(0,
+                len(p[3].encode('hex')), 2))))
 
         with self.connection_lock:
             # Broadcast message

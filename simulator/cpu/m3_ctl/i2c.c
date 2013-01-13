@@ -140,7 +140,8 @@ static struct i2c_packet* i2c_recv_packet(int sock) {
 			WARN("Socket reports: %s\n", strerror(errno));
 			goto i2c_recv_packet_die;
 		}
-		DBG1("Got an acknowledgment packet (acked: %d)\n", p->a.acked);
+		DBG1("Got an acknowledgment packet (acked: %s)\n",
+				(p->a.acked) ? "true" : "false");
 	} else {
 		WARN("Bad message type %d. Disconnecting\n", p->type);
 		goto i2c_recv_packet_die;
@@ -171,6 +172,19 @@ EXPORT bool i2c_send_message(struct i2c_instance* t,
 		t->is_connected = true;
 		pthread_cond_signal(&t->pc);
 	}
+
+#ifdef DEBUG1
+	{
+	flockfile(stdout); flockfile(stderr);
+	DBG1("len %d to 0x%02x: ", length, address);
+	unsigned i;
+	for (i=0; i<length; i++) {
+		printf("%x ", msg[i]);
+	}
+	printf("\n");
+	funlockfile(stderr); funlockfile(stdout);
+	}
+#endif //DEBUG1
 
 	t->is_sending = true;
 
