@@ -1,0 +1,16 @@
+It becomes necessary for simulated devices to interact with the world. In the
+case of simple peripherals (e.g. a UART) this is a simple connection between
+the dedicated peripheral and an endpoint. For a bus archetype, however, this is
+more complicated as up to Ns software and Nh hardware devices ought to be able
+to communicate on one logically shared medium.
+
+The ideas here are very preliminary, first attempts at fleshing out a hybrid
+simulated/emulated bus system, but an ideal goal would be:
+
+  * A common, simple bus interface that any type of actual bus driver could
+  * connect to without an specialization in the platform code
+
+  * Accurate representation of myriad hardware bus interfaces and the ability
+  * to communicate emulated software with real hardware if available
+
+Here goes nothing..

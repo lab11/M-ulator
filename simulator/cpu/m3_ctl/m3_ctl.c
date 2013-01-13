@@ -17,7 +17,10 @@
  * along with Mulator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <unistd.h>
+
 #include "m3_ctl.h"
+#include "i2c.h"
 
 #include "memmap.h"
 
@@ -25,6 +28,9 @@
 #include "cpu/core.h"
 
 #include "core/state_sync.h"
+
+// GLOBAL STATE
+struct i2c_instance* i2c;
 
 // CPU CONF REG'S
 static uint32_t m3_ctl_reg_chip_id;
@@ -165,10 +171,29 @@ void recv_i2c_message(uint8_t addr, uint32_t length, uint8_t *data) {
 	}
 }
 
-static void send_i2c_message(uint8_t addr, uint32_t length, uint8_t *data) {
-	INFO("Would send I2C message to %02x of len %d bytes at %p",
-			addr, length, data);
-	CORE_ERR_not_implemented("send_i2c_message");
+static void m3_ctl_send_i2c_message(uint8_t addr, uint32_t length, char *msg) {
+	static int tries = 0;
+
+	bool acked;
+	acked = i2c_send_message(i2c, addr, length, msg);
+
+	if (!acked) {
+		tries += 1;
+		if (tries > 3) {
+			TRAP("I2C Send Max Tries exceeded. Cont to retry\n");
+			tries -= 1;
+			m3_ctl_send_i2c_message(addr, length, msg);
+		} else {
+			m3_ctl_send_i2c_message(addr, length, msg);
+		}
+	}
+	tries = 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+static void print_m3_ctl_line(void) {
+	;
 }
 
 static void i2c_write(uint32_t addr, uint32_t val) {
@@ -176,18 +201,10 @@ static void i2c_write(uint32_t addr, uint32_t val) {
 	uint8_t length = (addr >> 10) & 0x3;
 	if (length == 0)
 		length = 4;
-	uint8_t address = (addr >> 2) & 0x7f;
-	address <<= 1; // I2C Write, LSB is 0
+	uint8_t address = (addr >> 2) & 0xff;
 	assert((addr & 0x3) == 0x0);
 
-	CORE_ERR_not_implemented("Send I2C message");
-	send_i2c_message(address, length, (uint8_t *)&val);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-static void print_m3_ctl_line(void) {
-	;
+	m3_ctl_send_i2c_message(address, length, (char*) &val);
 }
 
 static bool cpu_conf_regs_rd(uint32_t addr, uint32_t *val) {
@@ -291,7 +308,7 @@ static void dma_write(uint32_t addr, uint32_t val) {
 		}
 
 		CORE_ERR_not_implemented("Send I2C Message");
-		send_i2c_message(i2c_addr, num_words*4, (uint8_t *)buf);
+		m3_ctl_send_i2c_message(i2c_addr, num_words*4, (char*) buf);
 	}
 }
 
@@ -336,7 +353,7 @@ static void pmu_special_wr(uint32_t addr, uint32_t val) {
 }
 
 __attribute__ ((constructor))
-void register_led_periph(void) {
+void register_periph_m3_ctl(void) {
 	union memmap_fn mem_fn;
 
 	mem_fn.W_fn32 = i2c_write;
@@ -355,4 +372,16 @@ void register_led_periph(void) {
 	register_memmap("M3 CTL PMU SPECIAL", true, 1, mem_fn, PMU_SPECIAL, PMU_SPECIAL+1);
 
 	register_periph_printer(print_m3_ctl_line);
+
+	char *host;
+	const uint16_t port = 21010; // Hardcoded for now (2C!)
+	assert(-1 != asprintf(&host, "/tmp/%s.M-ulator.bus", getlogin()));
+
+	// m3_ctl responds to 10x0xxxx
+	i2c = create_i2c_instance("m3_ctl",
+			NULL,
+			0x80, 0x50,
+			host, port);
+
+	free(host);
 }

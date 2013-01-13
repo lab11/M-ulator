@@ -29,15 +29,6 @@
 
 static void usage_fail(int retcode) {
 	printf("\nUSAGE: ./simulator [OPTS]\n\n");
-#ifdef DEBUG1
-	printf("\
-\t-d, --debug\n\
-\t\tPrint internal debugging information.\n");
-#ifdef DEBUG2
-	printf("\
-\t\tMay be repeated for additional debug information.\n");
-#endif //DEBUG2
-#endif //DEBUG1
 	printf("\
 -- DEBUGGING -------------------------------------------------------------------\n\
 \t-g, --gdb [port]\n\
@@ -90,7 +81,6 @@ int main(int argc, char **argv) {
 	// Command line parsing
 	while (1) {
 		static struct option long_options[] = {
-			{"debug",         no_argument,       0,              'd'},
 			{"gdb",           optional_argument, 0,              'g'},
 			{"dumpatpc",      required_argument, 0,              'c'},
 			{"dumpatcycle",   required_argument, 0,              'y'},
@@ -116,10 +106,6 @@ int main(int argc, char **argv) {
 		switch (c) {
 			case 0:
 				// option set a flag
-				break;
-
-			case 'd':
-				debug_ += 1;
 				break;
 
 			case 'g':

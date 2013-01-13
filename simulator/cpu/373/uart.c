@@ -360,5 +360,5 @@ void register_memmap_uart(void) {
 			POLL_UART_TXDATA, POLL_UART_TXDATA+1);
 
 	register_periph_printer(print_poll_uart);
-	register_periph_thread(start_poll_uart, &poll_uart_enabled);
+	register_periph_thread(start_poll_uart, &poll_uart_enabled, NULL);
 }

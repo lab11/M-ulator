@@ -9,12 +9,20 @@
 .global main
 .type main,#function
 main:
-	ldr.n	r3, [pc, #20]	@ r3 = GPIO_DIR
-	ldr.n	r4, [pc, #24]	@ r4 = GPIO_DATA
-	ldr.n	r0, [pc, #24]	@ r0 = 0xffff, GPIO 0-15 to output
-	ldr.n	r1, [pc, #28]	@ r1 = 0x5555, GPIO 0-15 to striped
+	/* Twiddle some GPIOs */
+/*
+	ldr.n	r3, [pc, #28]	@ r3 = GPIO_DIR
+	ldr.n	r4, [pc, #32]	@ r4 = GPIO_DATA
+	ldr.n	r0, [pc, #32]	@ r0 = 0xffff, GPIO 0-15 to output
+	ldr.n	r1, [pc, #36]	@ r1 = 0x5555, GPIO 0-15 to striped
 	str.n	r0, [r3]	@ Write r0 to GPIO_DIR
 	str.n	r1, [r4]	@ Write r1 to GPIO_DATA
+*/
+	/* Send an I2C message */
+	ldr.n	r5, [pc, #32]	@ r5 = CPU-Issue I2C message Addr
+	ldr.n	r6, [pc, #36]	@ r6 = Data to send
+	str.n	r6, [r5]	@ Write r6 to r5
+.align 2
 hang:
 	nop
 	nop
@@ -23,13 +31,11 @@ hang:
 	b.n	hang
 .align 2
 mem:
-	.word	0xA0000260
-	.word	0x12345678
-	.word	0x12345678
+	.word	GPIO_DIR
+	.word	GPIO_DATA
+	.word	0xffff
 	.word	0x5555
 /* 4 bytes data -> i2c addr 98 is 00 1001 1000 00 --> 0010 0110 0000 */
-;	.word	GPIO_DIR
-;	.word	GPIO_DATA
-;	.word	0xffff
-;	.word	0x5555
+	.word	0xA0000260
+	.word	0xdeadbeef
 .end
