@@ -20,7 +20,7 @@
 #include "opcodes.h"
 #include "helpers.h"
 
-#include "cpu/cpu.h"
+#include "cpu/registers.h"
 
 static void sxtb(uint8_t rd, uint8_t rm, uint8_t rotation) {
 	uint32_t rm_val = CORE_reg_read(rm);

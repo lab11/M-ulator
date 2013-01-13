@@ -20,7 +20,7 @@
 #include "opcodes.h"
 #include "helpers.h"
 
-#include "cpu/cpu.h"
+#include "cpu/registers.h"
 
 /* CMP and TST always write cpsr bits, regardless of itstate */
 

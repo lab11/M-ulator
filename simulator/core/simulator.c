@@ -34,6 +34,7 @@
 #include "id_stage.h"
 #include "ex_stage.h"
 #include "cpu/core.h"
+#include "cpu/registers.h"
 #include "cpu/common/rom.h"
 #include "cpu/common/ram.h"
 #include "cpu/misc.h"
@@ -82,117 +83,7 @@ static const uint32_t static_rom[80] = {0x20003FFC,0x55,0x51,0x51,0x51,0x51,0x51
 
 /* State */
 
-static int opcode_masks;
-
 EXPORT int cycle = -1;
-
-/* Ignore mode transitions for now */
-static uint32_t reg[SP_REG];	// SP,LR,PC not held here, so 13 registers
-static uint32_t sp_process;
-static uint32_t sp_main __attribute__ ((unused));
-static uint32_t *sp = &sp_process;
-static uint32_t lr;
-
-#define SP	(*sp)
-#define LR	(lr)
-#ifdef NO_PIPELINE
-#define PC	(pre_if_PC)
-#else
-#define PC	(id_ex_PC)
-#endif
-
-#ifdef A_PROFILE
-// (|= 0x0010) Start is user mode
-// (|= 0x0020) CPU only supports thumb (for now)
-static uint32_t apsr = 0x0030;
-
-// "Current" program status register
-//   0-4: M[4:0]	// Mode field: 10000 user  10001 FIQ 10010 IRQ 10011 svc
-			//             10111 abort 11011 und 11111 sys
-//     5: T		// Thumb bit
-//     6: F		// Fast Interrupt disable (FIQ interrupts)
-//     7: I		// Interrupt disable (IRQ interrupts)
-//     8: A		// Asynchronous abort disable
-//     9: E		// Endianness execution state bit (0: little, 1: big)
-// 10-15: IT[7:2]	// it-bits
-// 16-19: GE[3:0]	// Greater than or equal flags for SIMD instructions
-// 20-23: <reserved>
-//    24: J		// Jazelle bit
-// 25-26: IT[1:0]	// it-bits
-//    27: Q		// Cumulative saturation
-//    28: V		// Overflow
-//    29: C		// Carry
-//    30: Z		// Zero
-//    31: N		// Negative
-static uint32_t *cpsr = &apsr;
-#define CPSR		(*cpsr)
-#define	T_BIT		(CPSR & 0x0020)
-
-#define ITSTATE			( ((CPSR & 0xfc00) >> 8) | ((CPSR & 0x06000000) >> 25) )
-
-#endif // A
-
-#ifdef M_PROFILE
-
-static uint32_t apsr;
-//  0-15: <reserved>
-// 16-19: GE[3:0]	// for DSP extension
-// 20-26: <reserved>
-//    27: Q		// Cumulative saturation
-//    28: V		// Overflow
-//    29: C		// Carry
-//    30: Z		// Zero
-//    31: N		// Negative
-static uint32_t ipsr = 0x0;
-//   0-8: 0 or Exception Number
-//  9-31: <reserved>
-static uint32_t epsr = 0x01000000;
-//   0-9: <reserved>
-// 10-15: ICI/IT	//
-// 16-23: <reserved>
-//    24: T		// Thumb bit
-// 25-26: ICI/IT	//
-// 27-31: <reserved>
-#define T_BIT		(epsr & 0x01000000)
-
-#define CPSR		(apsr)
-#define APSR		(apsr)
-#define IPSR		(ipsr)
-#define EPSR		(epsr)
-#define IAPSR		(IPSR | APSR)
-#define EAPSR		(EPSR | APSR)
-#define XPSR		(IPSR | APSR | EPSR)
-#define IEPSR		(IPSR | EPSR)
-
-#define ITSTATE		( ((EPSR & 0xfc00) >> 8) | ((EPSR & 0x06000000) >> 25) )
-
-static uint32_t primask __attribute__ ((unused)) = 0x0;
-//     0: priority	The exception mask register, a 1-bit register.
-//			Setting PRIMASK to 1 raises the execution priority to 0.
-static uint32_t basepri __attribute__ ((unused)) = 0x0;
-/* The base priority mask, an 8-bit register. BASEPRI changes the priority
- * level required for exception preemption. It has an effect only when BASEPRI
- * has a lower value than the unmasked priority level of the currently
- * executing software.  The number of implemented bits in BASEPRI is the same
- * as the number of implemented bits in each field of the priority registers,
- * and BASEPRI has the same format as those fields.  For more information see
- * Maximum supported priority value on page B1-636.  A value of zero disables
- * masking by BASEPRI.
- */
-static uint32_t faultmask __attribute__ ((unused)) = 0x0;
-/* The fault mask, a 1-bit register. Setting FAULTMASK to 1 raises the
- * execution priority to -1, the priority of HardFault. Only privileged
- * software executing at a priority below -1 can set FAULTMASK to 1. This means
- * HardFault and NMI handlers cannot set FAULTMASK to 1. Returning from any
- * exception except NMI clears FAULTMASK to 0.
- */
-
-static uint32_t control __attribute__ ((unused)) = 0x0;
-//     0: nPRIV, thread mode only (0 == privileged, 1 == unprivileged)
-//     1: SPSEL, thread mode only (0 == use SP_main, 1 == use SP_process)
-//     2: FPCA, (1 if FP extension active)
-
-#endif // M
 
 ////////////////////////////////////////////////////////////////////////////////
 // CORE
@@ -240,21 +131,28 @@ static void print_reg_state_internal(void) {
 
 	printf("[Cycle %d]\t\t\t", cycle);
 	printf("\t  N: %d  Z: %d  C: %d  V: %d  ",
-			!!(CPSR & xPSR_N),
-			!!(CPSR & xPSR_Z),
-			!!(CPSR & xPSR_C),
-			!!(CPSR & xPSR_V)
+			!!(CORE_cpsr_read() & xPSR_N),
+			!!(CORE_cpsr_read() & xPSR_Z),
+			!!(CORE_cpsr_read() & xPSR_C),
+			!!(CORE_cpsr_read() & xPSR_V)
 	      );
-	printf("| ITSTATE: %02x  ", ITSTATE);
+	printf("| ITSTATE: %02x  ", read_itstate());
 	printf("\n");
 	for (i=0; i<12; ) {
 		printf("\tr%02d: %8x\tr%02d: %8x\tr%02d: %8x\tr%02d: %8x\n",
-				i, reg[i], i+1, reg[i+1],
-				i+2, reg[i+2], i+3, reg[i+3]);
+				i, CORE_reg_read(i),
+				i+1, CORE_reg_read(i+1),
+				i+2, CORE_reg_read(i+2),
+				i+3, CORE_reg_read(i+3)
+		      );
 		i+=4;
 	}
 	printf("\tr12: %8x\t SP: %8x\t LR: %8x\t PC: %8x\n",
-			reg[12], SP, LR, PC);
+			CORE_reg_read(12),
+			CORE_reg_read(SP_REG),
+			CORE_reg_read(LR_REG),
+			CORE_reg_read(PC_REG)
+	      );
 }
 
 static void print_reg_state(void) {
@@ -482,97 +380,7 @@ static void shell(void) {
 	shell_running = false;
 }
 
-/* ARMv7-M implementations treat SP bits [1:0] as RAZ/WI.
- * ARM strongly recommends that software treats SP bits [1:0]
- * as SBZP for maximum portability across ARMv7 profiles.
- */
-EXPORT uint32_t CORE_reg_read(int r) {
-	assert(r >= 0 && r < 16 && "CORE_reg_read");
-	if (r == SP_REG) {
-		return SR(&SP) & 0xfffffffc;
-	} else if (r == LR_REG) {
-		return SR(&LR);
-	} else if (r == PC_REG) {
-#ifdef NO_PIPELINE
-		return SR(&id_ex_PC) & 0xfffffffe;
-#else
-		return SR(&PC) & 0xfffffffe;
-#endif
-	} else {
-		return SR(&reg[r]);
-	}
-}
-
-EXPORT void CORE_reg_write(int r, uint32_t val) {
-	assert(r >= 0 && r < 16 && "CORE_reg_write");
-	if (r == SP_REG) {
-		SW(&SP, val & 0xfffffffc);
-	} else if (r == LR_REG) {
-		SW(&LR, val);
-	} else if (r == PC_REG) {
-#ifdef NO_PIPELINE
-		/*
-		if (*state_flags_cur & STATE_DEBUGGING) {
-			SW(&pre_if_PC, val & 0xfffffffe);
-			SW(&if_id_PC, val & 0xfffffffe);
-			SW(&id_ex_PC, val & 0xfffffffe);
-		} else {
-		*/
-			SW(&pre_if_PC, val & 0xfffffffe);
-		//}
-#else
-		if (state_is_debugging()) {
-			state_pipeline_flush(val & 0xfffffffe);
-		} else {
-			// Only flush if the new PC differs from predicted in pipeline:
-			if (((SR(&if_id_PC) & 0xfffffffe) - 4) == (val & 0xfffffffe)) {
-				DBG2("Predicted PC correctly (%08x)\n", val);
-			} else {
-				state_pipeline_flush(val & 0xfffffffe);
-				DBG2("Predicted PC incorrectly\n");
-				DBG2("Pred: %08x, val: %08x\n", SR(&if_id_PC), val);
-			}
-		}
-#endif
-	}
-	else {
-		SW(&(reg[r]), val);
-	}
-}
-
-EXPORT uint32_t CORE_cpsr_read(void) {
-	return SR(&CPSR);
-}
-
-EXPORT void CORE_cpsr_write(uint32_t val) {
-	if (in_ITblock()) {
-		DBG1("WARN update of cpsr in IT block\n");
-	}
-#ifdef M_PROFILE
-	if (val & 0x07f0ffff) {
-		DBG1("WARN update of reserved CPSR bits\n");
-	}
-#endif
-	SW(&CPSR, val);
-}
-
-#ifdef M_PROFILE
-EXPORT uint32_t CORE_ipsr_read(void) {
-	return SR(&IPSR);
-}
-
-EXPORT void CORE_ipsr_write(uint32_t val) {
-	SW(&IPSR, val);
-}
-
-EXPORT uint32_t CORE_epsr_read(void) {
-	return SR(&EPSR);
-}
-
-EXPORT void CORE_epsr_write(uint32_t val) {
-	SW(&EPSR, val);
-}
-#endif
+////////////////////////////////////////////////////////////////////////////////
 
 EXPORT void CORE_WARN_real(const char *f, int l, const char *msg) {
 	WARN("%s:%d\t%s\n", f, l, msg);
@@ -622,6 +430,7 @@ EXPORT void CORE_ERR_not_implemented_real(const char *f, int l, const char *opt_
 // SIMULATOR
 ////////////////////////////////////////////////////////////////////////////////
 
+static int opcode_masks;
 EXPORT struct op *ops = NULL;
 
 static int _register_opcode_mask(uint32_t ones_mask, uint32_t zeros_mask,
@@ -761,16 +570,18 @@ static int sim_execute(void) {
 	// XXX: What if the debugger wants to execute the same instruction two
 	// cycles in a row? How do we allow this?
 	static uint32_t prev_pc = STALL_PC;
-	if ((prev_pc == PC) && (prev_pc != STALL_PC)) {
+
+	uint32_t cur_pc = CORE_reg_read(PC_REG);
+	if ((prev_pc == cur_pc) && (prev_pc != STALL_PC)) {
 		if (GDB_ATTACHED) {
-			INFO("Simulator determined PC 0x%08x is branch to self, breaking for gdb.\n", PC);
+			INFO("Simulator determined PC 0x%08x is branch to self, breaking for gdb.\n", cur_pc);
 			shell();
 		} else {
-			INFO("Simulator determined PC 0x%08x is branch to self, terminating.\n", PC);
+			INFO("Simulator determined PC 0x%08x is branch to self, terminating.\n", cur_pc);
 			sim_terminate();
 		}
 	} else {
-		prev_pc = PC;
+		prev_pc = cur_pc;
 	}
 #ifdef NO_PIPELINE
 	// Not the common code path, try to catch if things have changed
@@ -862,7 +673,7 @@ static void sim_reset(void) {
 		if (dumpatcycle == cycle) {
 			shell();
 		} else
-		if ((dumpatpc & 0xfffffffe) == (PC & 0xfffffffe)) {
+		if ((dumpatpc & 0xfffffffe) == (CORE_reg_read(PC_REG) & 0xfffffffe)) {
 			shell();
 		} else
 		if (dumpallcycles) {
@@ -880,8 +691,9 @@ EXPORT void sim_terminate(void) {
 	join_periph_threads();
 	print_full_state();
 	if (returnr0) {
-		DBG2("Return code is r0: %08x\n", reg[0]);
-		exit(reg[0]);
+		uint32_t r0 = CORE_reg_read(0);
+		DBG2("Return code is r0: %08x\n", r0);
+		exit(r0);
 	}
 	exit(EXIT_SUCCESS);
 }

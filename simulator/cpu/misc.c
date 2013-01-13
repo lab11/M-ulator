@@ -19,7 +19,7 @@
 
 #include "misc.h"
 
-#include "cpu.h"
+#include "registers.h"
 
 /* Boolean answering whether the itstate indicates the processor is
  * currently in an IT Block or not

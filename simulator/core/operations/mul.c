@@ -20,7 +20,7 @@
 #include "opcodes.h"
 #include "helpers.h"
 
-#include "cpu/cpu.h"
+#include "cpu/registers.h"
 #include "cpu/misc.h"
 
 static void mla(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t ra) {

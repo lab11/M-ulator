@@ -20,7 +20,7 @@
 #include "opcodes.h"
 #include "helpers.h"
 
-#include "cpu/cpu.h"
+#include "cpu/registers.h"
 #include "cpu/misc.h"
 
 static void adc_imm(uint8_t rd, uint8_t rn, uint32_t imm32, bool setflags) {

@@ -20,7 +20,7 @@
 #include "opcodes.h"
 #include "helpers.h"
 
-#include "cpu/cpu.h"
+#include "cpu/registers.h"
 #include "cpu/core.h"
 
 static void stmdb(const uint8_t rn, const uint16_t registers, const bool wback) {

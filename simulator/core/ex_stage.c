@@ -25,7 +25,7 @@
 
 #include "simulator.h"
 
-#include "cpu/cpu.h"
+#include "cpu/registers.h"
 #include "cpu/misc.h"
 
 static void execute(struct op *o, uint32_t inst) {

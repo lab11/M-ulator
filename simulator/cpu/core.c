@@ -20,7 +20,6 @@
 #include "core.h"
 
 #include "common/private_peripheral_bus/ppb.h"
-#include "cpu.h"
 
 //#define TRAP_ALIGNMENT (read_word(CONFIGURATION_CONTROL) & CONFIGURATION_CONTROL_UNALIGN_TRP_MASK)
 #define TRAP_ALIGNMENT false
@@ -56,9 +55,6 @@ EXPORT void reset(void) {
 		r->fn();
 		r = r->next;
 	}
-	CORE_reg_write(SP_REG, read_word(0x00000000));
-	CORE_reg_write(LR_REG, 0xFFFFFFFF);
-	CORE_reg_write(PC_REG, read_word(0x00000004));
 }
 
 

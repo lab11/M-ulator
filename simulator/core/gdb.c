@@ -22,7 +22,7 @@
 #include "state_sync.h"
 #include "simulator.h"
 
-#include "cpu/cpu.h"
+#include "cpu/registers.h"
 #include "cpu/core.h"
 
 #include <sys/socket.h>

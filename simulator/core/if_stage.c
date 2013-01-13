@@ -24,7 +24,7 @@
 #include "pipeline.h"
 #include "state_sync.h"
 
-#include "cpu/cpu.h"
+#include "cpu/registers.h"
 #include "cpu/core.h"
 
 // Branch Target Forwarding

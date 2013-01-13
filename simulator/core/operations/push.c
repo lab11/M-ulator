@@ -20,7 +20,7 @@
 #include "opcodes.h"
 #include "helpers.h"
 
-#include "cpu/cpu.h"
+#include "cpu/registers.h"
 #include "cpu/core.h"
 
 static void push_v6(uint16_t inst) {

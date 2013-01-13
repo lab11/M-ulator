@@ -17,10 +17,15 @@
  * along with Mulator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __CPU_H
-#define __CPU_H
+#ifndef REGISTERS_H
+#define REGISTERS_H
 
 #include "core/common.h"
+
+#ifndef PP_STRING
+#define PP_STRING "REG"
+#include "core/pretty_print.h"
+#endif
 
 uint32_t	CORE_reg_read(int r);
 void		CORE_reg_write(int r, uint32_t val);
@@ -31,10 +36,13 @@ void		CORE_ipsr_write(uint32_t val);	// Don't need this yet
 uint32_t	CORE_epsr_read(void);
 void		CORE_epsr_write(uint32_t val);
 
+#ifdef A_PROFILE
+#define	T_BIT		(CPSR & 0x0020)
+#endif // A_PROFILE
+
 #ifdef M_PROFILE
-
 #define T_BIT		(CORE_epsr_read() & 0x01000000)
-
 #endif // M_PROFILE
 
-#endif // __CPU_H
+#endif // REGISTERS_H
+

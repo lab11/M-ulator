@@ -20,7 +20,7 @@
 #include "opcodes.h"
 #include "helpers.h"
 
-#include "cpu/cpu.h"
+#include "cpu/registers.h"
 
 static void udiv(uint8_t rd, uint8_t rn, uint8_t rm) {
 	uint32_t rn_val = CORE_reg_read(rn);

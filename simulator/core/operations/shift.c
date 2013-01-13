@@ -20,7 +20,7 @@
 #include "opcodes.h"
 #include "helpers.h"
 
-#include "cpu/cpu.h"
+#include "cpu/registers.h"
 #include "cpu/misc.h"
 
 static void lsl1(uint16_t inst) {

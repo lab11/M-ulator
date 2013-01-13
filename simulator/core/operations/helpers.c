@@ -20,7 +20,7 @@
 #include "opcodes.h"
 #include "helpers.h"
 
-#include "cpu/cpu.h"
+#include "cpu/registers.h"
 
 uint32_t hamming(uint32_t val) {
 	uint32_t hamm = 0;
