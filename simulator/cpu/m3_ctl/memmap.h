@@ -53,4 +53,10 @@
 
 #define PMU_SPECIAL	0xA3000000
 
+#define GPIO_BOT	0xA4000000
+#define GPIO_TOP	0xA5000000
+
+#define SPI_BOT		0xAF000000
+#define SPI_TOP		0xB0000000
+
 #endif // MEMMAP_H

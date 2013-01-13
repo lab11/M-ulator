@@ -10,14 +10,12 @@
 .type main,#function
 main:
 	/* Twiddle some GPIOs */
-/*
 	ldr.n	r3, [pc, #28]	@ r3 = GPIO_DIR
 	ldr.n	r4, [pc, #32]	@ r4 = GPIO_DATA
 	ldr.n	r0, [pc, #32]	@ r0 = 0xffff, GPIO 0-15 to output
 	ldr.n	r1, [pc, #36]	@ r1 = 0x5555, GPIO 0-15 to striped
 	str.n	r0, [r3]	@ Write r0 to GPIO_DIR
 	str.n	r1, [r4]	@ Write r1 to GPIO_DATA
-*/
 	/* Send an I2C message */
 	ldr.n	r5, [pc, #32]	@ r5 = CPU-Issue I2C message Addr
 	ldr.n	r6, [pc, #36]	@ r6 = Data to send

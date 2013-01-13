@@ -49,6 +49,12 @@ static uint32_t m3_ctl_reg_imsg1;
 static uint32_t m3_ctl_reg_imsg2;
 static uint32_t m3_ctl_reg_imsg3;
 
+// GPIO REG'S
+static uint32_t gpio_dir;	// 0-input, 1-output
+static uint32_t gpio_int_mask;	// INT if dir == 0 and any edge detected. IRQ4
+static uint32_t gpio_data_I;
+static uint32_t gpio_data_O;
+
 static void m3_ctl_reset(void) {
 	m3_ctl_reg_chip_id = 0;
 	m3_ctl_reg_dma_info = 0x02000080;
@@ -352,6 +358,41 @@ static void pmu_special_wr(uint32_t addr, uint32_t val) {
 	}
 }
 
+static bool gpio_read(uint32_t addr, uint32_t *val) {
+	switch (addr) {
+		case 0xA4000000:
+			*val = gpio_data_I;
+			break;
+		case 0xA4001000:
+			*val = gpio_dir;
+			break;
+		case 0xA4001040:
+			*val = gpio_int_mask;
+			break;
+		default:
+			CORE_ERR_invalid_addr(false, addr);
+	}
+	return true;
+}
+
+static void gpio_write(uint32_t addr, uint32_t val) {
+	switch (addr) {
+		case 0xA4000000:
+			gpio_data_O = val;
+			WARN("GPIO Write, but no ICE connected\n");
+			// XXX: ICE Integration
+			break;
+		case 0xA4001000:
+			gpio_dir = val;
+			break;
+		case 0xA4001040:
+			gpio_int_mask = val;
+			break;
+		default:
+			CORE_ERR_invalid_addr(true, addr);
+	}
+}
+
 __attribute__ ((constructor))
 void register_periph_m3_ctl(void) {
 	union memmap_fn mem_fn;
@@ -370,6 +411,11 @@ void register_periph_m3_ctl(void) {
 
 	mem_fn.W_fn32 = pmu_special_wr;
 	register_memmap("M3 CTL PMU SPECIAL", true, 1, mem_fn, PMU_SPECIAL, PMU_SPECIAL+1);
+
+	mem_fn.R_fn32 = gpio_read;
+	register_memmap("M3 CTL GPIO RD", false, 4, mem_fn, GPIO_BOT, GPIO_TOP);
+	mem_fn.W_fn32 = gpio_write;
+	register_memmap("M3 CTL GPIO WR",  true, 4, mem_fn, GPIO_BOT, GPIO_TOP);
 
 	register_periph_printer(print_m3_ctl_line);
 
