@@ -98,7 +98,10 @@ I2C BUS {i}
         return I2CBus.INFO
 
 
-    def __init__(self, port):
+    class I2CBusError(Bus.BusError):
+        pass
+
+    def __init__(self, port, address):
         logging.info("Creating an I2C Bus on port " + str(port))
         self.create(port)
 
@@ -115,6 +118,26 @@ I2C BUS {i}
 
         self.connections = {}
         self.conn_thread = None
+
+        if address is None:
+            # Disable (bit 0 cannot be both 0 and 1)
+            self.ones = 1
+            self.zeros = 1
+        else:
+            self.ones = 0
+            self.zeros = 0
+            idx = 8
+            for c in address:
+                idx -= 1
+                if c == '1':
+                    self.ones |= (1 << idx)
+                elif c == '0':
+                    self.zeros |= (1 << idx)
+                elif c in ('x', 'X', ' '):
+                    continue
+                else:
+                    raise self.I2CBusError,\
+                        "Illegal character in address mask: >>>" + c + "<<<"
 
     def join(self, timeout=None):
         self.accept_thread.join(timeout)
@@ -180,8 +203,13 @@ I2C BUS {i}
                 self.send_packet(c, p)
             logging.debug("Finished Broadcast")
 
+            if (self.ones & p[1]) and (~self.zeros & ~p[1]):
+                logging.debug("Bus will ACK this packet")
+                acked = True
+            else:
+                acked = False
+
             # Collect ACK/NAKs
-            acked = False
             for c in self.connections.keys():
                 if c == conn:
                     continue
@@ -196,6 +224,7 @@ I2C BUS {i}
                     else:
                         raise TypeError, "Unknown packet type: " + str(t)
                 acked |= p[1]
+
             logging.debug("Got all ACK/NAKs, sending " + str(acked))
 
             # Broadcast ACK/NAK
@@ -239,7 +268,7 @@ args = parser.parse_args()
 args.BUS = args.BUS.upper()
 
 if args.BUS == "I2C":
-    bus = I2CBus(int(args.PORT))
+    bus = I2CBus(int(args.PORT), args.address)
 else:
     logger.error("Unknown BUS type: " + args.BUS)
     print parser.description
