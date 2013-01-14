@@ -196,5 +196,9 @@ static void reset_registers(void) {
 
 __attribute__ ((constructor))
 static void register_reset_registers(void) {
+	assert(sizeof(union apsr_t) == 4);
+	assert(sizeof(union ipsr_t) == 4);
+	assert(sizeof(union epsr_t) == 4);
+
 	register_reset(reset_registers);
 }
