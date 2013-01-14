@@ -25,7 +25,7 @@
 #ifdef M_PROFILE
 
 #define INST_NOP 0x46c0
-#define STALL_PC -1U
+#define STALL_PC (-1U & 0xfffffffe)
 
 // Find something unused as a sentinel, we choose
 // 1101 1110 xxxx xxxx, which is Permanently UNDEFINED

@@ -573,6 +573,7 @@ static int sim_execute(void) {
 
 	uint32_t cur_pc = CORE_reg_read(PC_REG);
 	if ((prev_pc == cur_pc) && (prev_pc != STALL_PC)) {
+		DBG1("prev_pc: %08x cur_pc: %08x\n", prev_pc, cur_pc);
 		if (GDB_ATTACHED) {
 			INFO("Simulator determined PC 0x%08x is branch to self, breaking for gdb.\n", cur_pc);
 			shell();
