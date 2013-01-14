@@ -50,6 +50,7 @@
 hang:   b .
 
 .align 2
+.thumb_func
 .global _start
 _start:
     bl main

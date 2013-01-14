@@ -25,7 +25,6 @@
  * currently in an IT Block or not
  */
 uint8_t in_ITblock(void) {
-//#define	IN_IT_BLOCK()		((ITSTATE & 0xf) != 0)
 	return (read_itstate() & 0xf) != 0;
 }
 
@@ -33,7 +32,6 @@ uint8_t in_ITblock(void) {
  * an IT block or not
  */
 uint8_t last_in_ITblock(void) {
-//#define LAST_IN_IT_BLOCK()	((ITSTATE & 0xf) == 0x8)
 	return ((read_itstate() & 0xf) == 0x8);
 }
 
@@ -57,8 +55,14 @@ void IT_advance(void) {
 }
 
 uint8_t read_itstate(void) {
+#ifdef A_PROFILE
+	uint32_t cpsr = CORE_cpsr_read();
+	return ((cpsr & 0xfc00) >> 8) | ((cpsr & 0x06000000) >> 25);
+#endif // A_PROFILE
+#ifdef M_PROFILE
 	uint32_t epsr = CORE_epsr_read();
 	return ((epsr & 0xfc00) >> 8) | ((epsr & 0x06000000) >> 25);
+#endif // M_PROFILE
 }
 
 /* Manipulating the IT bits is a little annoying, utility function

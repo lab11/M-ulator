@@ -24,6 +24,7 @@
 
 #include "cpu/core.h"
 #include "cpu/misc.h"
+#include "cpu/common/private_peripheral_bus/ppb.h"
 
 /* Ignore mode transitions for now */
 static uint32_t reg[SP_REG];	// SP,LR,PC not held here, so 13 registers
@@ -40,66 +41,11 @@ static uint32_t lr;
 #define PC	(id_ex_PC)
 #endif
 
-#ifdef A_PROFILE
-// (|= 0x0010) Start is user mode
-// (|= 0x0020) CPU only supports thumb (for now)
-static uint32_t apsr = 0x0030;
-
-// "Current" program status register
-//   0-4: M[4:0]	// Mode field: 10000 user  10001 FIQ 10010 IRQ 10011 svc
-			//             10111 abort 11011 und 11111 sys
-//     5: T		// Thumb bit
-//     6: F		// Fast Interrupt disable (FIQ interrupts)
-//     7: I		// Interrupt disable (IRQ interrupts)
-//     8: A		// Asynchronous abort disable
-//     9: E		// Endianness execution state bit (0: little, 1: big)
-// 10-15: IT[7:2]	// it-bits
-// 16-19: GE[3:0]	// Greater than or equal flags for SIMD instructions
-// 20-23: <reserved>
-//    24: J		// Jazelle bit
-// 25-26: IT[1:0]	// it-bits
-//    27: Q		// Cumulative saturation
-//    28: V		// Overflow
-//    29: C		// Carry
-//    30: Z		// Zero
-//    31: N		// Negative
-static uint32_t *cpsr = &apsr;
-#define CPSR		(*cpsr)
-#define ITSTATE		( ((CPSR & 0xfc00) >> 8) | ((CPSR & 0x06000000) >> 25) )
-
-#endif // A
-
 #ifdef M_PROFILE
 
-static uint32_t apsr;
-//  0-15: <reserved>
-// 16-19: GE[3:0]	// for DSP extension
-// 20-26: <reserved>
-//    27: Q		// Cumulative saturation
-//    28: V		// Overflow
-//    29: C		// Carry
-//    30: Z		// Zero
-//    31: N		// Negative
-static uint32_t ipsr = 0x0;
-//   0-8: 0 or Exception Number
-//  9-31: <reserved>
-static uint32_t epsr = 0x01000000;
-//   0-9: <reserved>
-// 10-15: ICI/IT	//
-// 16-23: <reserved>
-//    24: T		// Thumb bit
-// 25-26: ICI/IT	//
-// 27-31: <reserved>
-#define CPSR		(apsr)
-#define APSR		(apsr)
-#define IPSR		(ipsr)
-#define EPSR		(epsr)
-#define IAPSR		(IPSR | APSR)
-#define EAPSR		(EPSR | APSR)
-#define XPSR		(IPSR | APSR | EPSR)
-#define IEPSR		(IPSR | EPSR)
-
-#define ITSTATE		( ((EPSR & 0xfc00) >> 8) | ((EPSR & 0x06000000) >> 25) )
+static union apsr_t apsr;
+static union ipsr_t ipsr;
+static union epsr_t epsr;
 
 static uint32_t primask __attribute__ ((unused)) = 0x0;
 //     0: priority	The exception mask register, a 1-bit register.
@@ -191,36 +137,36 @@ EXPORT void CORE_reg_write(int r, uint32_t val) {
 }
 
 EXPORT uint32_t CORE_cpsr_read(void) {
-	return SR(&CPSR);
+	return SR(&apsr.storage);
 }
 
 EXPORT void CORE_cpsr_write(uint32_t val) {
 	if (in_ITblock()) {
-		DBG1("WARN update of cpsr in IT block\n");
+		WARN("WARN update of cpsr in IT block\n");
 	}
 #ifdef M_PROFILE
 	if (val & 0x07f0ffff) {
 		DBG1("WARN update of reserved CPSR bits\n");
 	}
 #endif
-	SW(&CPSR, val);
+	SW(&apsr.storage, val);
 }
 
 #ifdef M_PROFILE
 EXPORT uint32_t CORE_ipsr_read(void) {
-	return SR(&IPSR);
+	return SR(&ipsr.storage);
 }
 
 EXPORT void CORE_ipsr_write(uint32_t val) {
-	SW(&IPSR, val);
+	SW(&ipsr.storage, val);
 }
 
 EXPORT uint32_t CORE_epsr_read(void) {
-	return SR(&EPSR);
+	return SR(&epsr.storage);
 }
 
 EXPORT void CORE_epsr_write(uint32_t val) {
-	SW(&EPSR, val);
+	SW(&epsr.storage, val);
 }
 #endif
 
