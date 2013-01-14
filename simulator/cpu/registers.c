@@ -153,12 +153,14 @@ EXPORT void CORE_cpsr_write(uint32_t val) {
 }
 
 #ifdef M_PROFILE
-EXPORT uint32_t CORE_ipsr_read(void) {
-	return SR(&ipsr.storage);
+EXPORT union ipsr_t CORE_ipsr_read(void) {
+	union ipsr_t i;
+	i.storage = SR(&ipsr.storage);
+	return i;
 }
 
-EXPORT void CORE_ipsr_write(uint32_t val) {
-	SW(&ipsr.storage, val);
+EXPORT void CORE_ipsr_write(union ipsr_t val) {
+	SW(&ipsr.storage, val.storage);
 }
 
 EXPORT uint32_t CORE_epsr_read(void) {
@@ -191,7 +193,9 @@ static void reset_registers(void) {
 
 	// ASPR = bits(32) UNKNOWN {nop}
 
-	CORE_ipsr_write(CORE_ipsr_read() & ~0x1ff);
+	union ipsr_t ipsr = CORE_ipsr_read();
+	ipsr.bits.exception = 0;
+	CORE_ipsr_write(ipsr);
 }
 
 __attribute__ ((constructor))

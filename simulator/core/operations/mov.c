@@ -29,7 +29,8 @@ static void mrs(uint8_t rd, uint8_t sysm) {
 	switch ((sysm >> 3) & 0x1f) {
 		case 0x0:
 			if (sysm & 0x1) {
-				rd_val |= (CORE_ipsr_read() & 0x1ff);
+				union ipsr_t ipsr = CORE_ipsr_read();
+				rd_val |= ipsr.bits.exception;
 			}
 			if (sysm & 0x2) {
 				// Clear rd [26:24], [15:10]
