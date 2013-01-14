@@ -30,6 +30,15 @@ except ImportError:
 class ICE(object):
     VERSIONS = ((0,1),)
 
+    # XXX: Version-specific constants?
+    POWER_0P6 = 0
+    POWER_1P2 = 1
+    POWER_VBATT = 2
+
+    POWER_0P6_DEFAULT = 0.675
+    POWER_1P2_DEFAULT = 1.2
+    POWER_VBATT_DEFAULT = 3.8
+
     class ICE_Error(Exception):
         '''
         A base class for all exceptions raised by this module
@@ -388,3 +397,68 @@ class ICE(object):
             raise self.FormatError, "Address must be exactly 8 bits"
 
         return self._i2c_set_address(ones, zeros)
+
+    def power_get_voltage(self, rail):
+        '''
+        Query the current voltage setting of a power rail.
+
+        The `rail' argument must be one of:
+            ICE.POWER_0P6
+            ICE.POWER_1P2
+            ICE.POWER_VBATT
+        '''
+        if rail not in (ICE.POWER_0P6, ICE.POWER_1P2, ICE.POWER_VBATT):
+            raise self.ParameterError, "Invalid rail: " + str(rail)
+
+        resp = self.send_message_until_acked('P', struct.pack("BB", ord('v'), rail))
+        if len(resp) != 1:
+            raise self.FormatError, "Too long of a response from `Pv#':" + str(resp)
+        raw = struct.unpack("B", resp)
+
+        # Vout = (0.537 + 0.0185 * v_set) * Vdefault
+        default_voltage = (ICE.POWER_0P6_DEFAULT, ICE.POWER_1P2_DEFAULT,
+                ICE.POWER_VBATT_DEFAULT)[rail]
+        vout = (0.537 + 0.0185 * raw) * default_voltage
+        return vout
+
+    def power_get_onoff(self, rail):
+        '''
+        Query the current on/off setting of a power rail.
+
+        Returns a boolean, on=True.
+        '''
+        if rail not in (ICE.POWER_0P6, ICE.POWER_1P2, ICE.POWER_VBATT):
+            raise self.ParameterError, "Invalid rail: " + str(rail)
+
+        resp = self.send_message_until_acked('P', struct.pack("BB", ord('o'), rail))
+        if len(resp) != 1:
+            raise self.FormatError, "Too long of a response from `Po#':" + str(resp)
+        onoff = struct.unpack("B", resp)
+        return bool(onoff)
+
+    def power_set_voltage(self, rail, output_voltage):
+        '''
+        Set the voltage setting of a power rail. Units are V.
+        '''
+        if rail not in (ICE.POWER_0P6, ICE.POWER_1P2, ICE.POWER_VBATT):
+            raise self.ParameterError, "Invalid rail: " + str(rail)
+
+        # Vout = (0.537 + 0.0185 * v_set) * Vdefault
+        output_voltage = float(output_voltage)
+        default_voltage = (ICE.POWER_0P6_DEFAULT, ICE.POWER_1P2_DEFAULT,
+                ICE.POWER_VBATT_DEFAULT)[rail]
+        vset = ((output_voltage / default_voltage) - 0.537) / 0.0185
+        vset = int(vset)
+        if (vset < 0) or (vset > 255):
+            raise self.ParameterError, "Voltage exceeds range. vset: " + str(vset)
+
+        self.send_message_until_acked('p', struct.pack("BBB", ord('v'), rail, vset))
+
+    def power_set_onoff(self, rail, onoff):
+        '''
+        Turn a power rail on or off (on=True).
+        '''
+        if rail not in (ICE.POWER_0P6, ICE.POWER_1P2, ICE.POWER_VBATT):
+            raise self.ParameterError, "Invalid rail: " + str(rail)
+
+        self.send_message_until_acked('p', struct.pack("BBB", ord('v'), rail, onoff))
