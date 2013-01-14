@@ -55,13 +55,9 @@ void IT_advance(void) {
 }
 
 uint8_t read_itstate(void) {
-#ifdef A_PROFILE
-	uint32_t cpsr = CORE_cpsr_read();
-	return ((cpsr & 0xfc00) >> 8) | ((cpsr & 0x06000000) >> 25);
-#endif // A_PROFILE
 #ifdef M_PROFILE
-	uint32_t epsr = CORE_epsr_read();
-	return ((epsr & 0xfc00) >> 8) | ((epsr & 0x06000000) >> 25);
+	union epsr_t epsr = CORE_epsr_read();
+	return (epsr.bits.ICI_IT_top << 2) | epsr.bits.ICI_IT_bot;
 #endif // M_PROFILE
 }
 
@@ -69,24 +65,14 @@ uint8_t read_itstate(void) {
  * to write them for you
  */
 void write_itstate(uint8_t new_state) {
-	uint32_t new = new_state;
-	uint32_t it_clear_mask = 0xf9ff03ff;
-	uint32_t result = 0;
-
-	result |= ((new & 0x3) << 25);
-	result |= ((new & 0x3f) << 8);
-
-#ifdef A_PROFILE
-	uint32_t cpsr = CORE_cpsr_read();
-	cpsr = (((cpsr) & it_clear_mask) | result);
-	DBG1("write_itstate is writing cpsr\n");
-	CORE_cpsr_write(cpsr);
-#elif defined M_PROFILE
-	uint32_t epsr = CORE_epsr_read();
-	epsr = (((epsr) & it_clear_mask) | result);
-	DBG1("write_itstate is writing epsr\n");
+#ifdef M_PROFILE
+	union epsr_t epsr = CORE_epsr_read();
+	epsr.bits.ICI_IT_top = new_state >> 2;
+	epsr.bits.ICI_IT_bot = new_state & 0x3f;
 	CORE_epsr_write(epsr);
-#endif
+#else
+#error Need to implement itstate for non-M Profiles
+#endif // M_PROFILE
 }
 
 uint8_t eval_cond(uint32_t cpsr, uint8_t cond) {

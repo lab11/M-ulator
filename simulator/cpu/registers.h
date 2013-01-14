@@ -33,8 +33,8 @@ uint32_t	CORE_cpsr_read(void);
 void		CORE_cpsr_write(uint32_t val);
 union ipsr_t	CORE_ipsr_read(void);
 void		CORE_ipsr_write(union ipsr_t val);
-uint32_t	CORE_epsr_read(void);
-void		CORE_epsr_write(uint32_t val);
+union epsr_t	CORE_epsr_read(void);
+void		CORE_epsr_write(union epsr_t val);
 
 
 #ifdef A_PROFILE
@@ -82,7 +82,6 @@ union __attribute__ ((__packed__)) apsr_t {
 #endif // A_PROFILE
 
 #ifdef M_PROFILE
-#define T_BIT		(CORE_epsr_read() & 0x01000000)
 
 union __attribute__ ((__packed__)) apsr_t {
 	uint32_t storage;

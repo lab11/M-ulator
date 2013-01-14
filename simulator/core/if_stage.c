@@ -119,8 +119,8 @@ void tick_if(void) {
 #endif
 
 	// Instruction Fetch
-	if (true || T_BIT) {
-
+	union epsr_t epsr = CORE_epsr_read();
+	if (epsr.bits.T) {
 		DBG2("Reading thumb mode instruction\n");
 		inst = read_halfword(pc);
 

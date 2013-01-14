@@ -99,56 +99,18 @@ void ROR_C(uint32_t x, int Nbits, uint8_t shift, uint32_t *result, bool *carry_o
 uint32_t ThumbExpandImm(uint32_t imm12);
 void ThumbExpandImm_C(uint32_t imm12, bool carry_in, uint32_t *imm32, bool *carry_out);
 
-#ifdef A_PROFILE
+#ifdef M_PROFILE
 
-#define ITSTATE			( (((cpsr) & 0xfc00) >> 8) | (((cpsr) & 0x06000000) >> 25) )
-#define	IN_IT_BLOCK		((ITSTATE & 0xf) != 0)
-#define LAST_IN_IT_BLOCK	((ITSTATE & 0xf) == 0x8)
-
-#define THUMB_BIT		(0x00000020)
-#define GET_THUMB_BIT		(!!(cpsr & THUMB_BIT))
 #define SET_THUMB_BIT(_t) \
 	do {\
-		if (_t)\
-			cpsr |= THUMB_BIT;\
-		else\
-			cpsr &= ~THUMB_BIT;\
-	} while (0)
-#define JAZELLE_BIT		(0x01000000)
-#define GET_JAZELLE_BIT		(!!(cpsr & JAZELLE_BIT))
-#define SET_JAZELLE_BIT(_j)\
-	do {\
-		if (_j)\
-			cpsr |= JAZELLE_BIT;\
-		else\
-			cpsr &= ~JAZELLE_BIT;\
-	} while (0)
-#define SET_ISETSTATE(_i)\
-	do {\
-		SET_JAZELLE_BIT((_i) >> 1);\
-		SET_THUMB_BIT((_i) & 0x1);\
-		CORE_cpsr_write(cpsr);\
-	} while (0)
-#define GET_ISETSTATE		(((GET_JAZELLE_BIT) << 1) | GET_THUMB_BIT)
-
-#elif defined M_PROFILE
-
-#define ITSTATE			( (((CORE_epsr_read()) & 0xfc00) >> 8) | (((CORE_epsr_read()) & 0x06000000) >> 25) )
-
-#define THUMB_BIT		(0x01000000)
-#define GET_THUMB_BIT		(!!(epsr & THUMB_BIT))
-#define SET_THUMB_BIT(_t) \
-	do {\
-		uint32_t epsr = CORE_epsr_read();\
-		if (_t)\
-			epsr |= THUMB_BIT;\
-		else\
-			epsr &= ~THUMB_BIT;\
+		union epsr_t epsr = CORE_epsr_read();\
+		epsr.bits.T = _t;\
 		CORE_epsr_write(epsr);\
 	} while (0)
+
 #define SET_ISETSTATE(_i) // NOP for M profile
 #define GET_ISETSTATE	INST_SET_THUMB
 
-#endif // M
+#endif //M_PROFILE
 
 #endif // __HELPERS_H

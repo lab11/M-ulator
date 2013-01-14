@@ -163,12 +163,14 @@ EXPORT void CORE_ipsr_write(union ipsr_t val) {
 	SW(&ipsr.storage, val.storage);
 }
 
-EXPORT uint32_t CORE_epsr_read(void) {
-	return SR(&epsr.storage);
+EXPORT union epsr_t CORE_epsr_read(void) {
+	union epsr_t e;
+	e.storage = SR(&epsr.storage);
+	return e;
 }
 
-EXPORT void CORE_epsr_write(uint32_t val) {
-	SW(&epsr.storage, val);
+EXPORT void CORE_epsr_write(union epsr_t val) {
+	SW(&epsr.storage, val.storage);
 }
 #endif
 
@@ -185,6 +187,7 @@ static void reset_registers(void) {
 	CORE_reg_write(LR_REG, 0xFFFFFFFF);
 
 	uint32_t tmp = read_word(vectortable+4);
+	bool tbit = tmp & 0x1;
 	CORE_reg_write(PC_REG, tmp & 0xfffffffe);
 	if (! (tmp & 0x1) ) {
 		WARN("Reset vector %08x at %08x invalid\n", tmp, vectortable+4);
@@ -196,6 +199,12 @@ static void reset_registers(void) {
 	union ipsr_t ipsr = CORE_ipsr_read();
 	ipsr.bits.exception = 0;
 	CORE_ipsr_write(ipsr);
+
+	union epsr_t epsr = CORE_epsr_read();
+	epsr.bits.T = tbit;
+	epsr.bits.ICI_IT_top = 0;
+	epsr.bits.ICI_IT_bot = 0;
+	CORE_epsr_write(epsr);
 }
 
 __attribute__ ((constructor))
