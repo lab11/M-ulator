@@ -50,6 +50,11 @@ EXPORT void register_reset(void (*fn)(void)) {
 EXPORT void reset(void) {
 	print_memmap();
 
+	// ARM ARM B1.5.5 Reset behavior (p641)
+
+	// Clear all exceptions
+	//  --> registers.c::reset
+
 	struct reset_fn* r = reset_head;
 	while (r) {
 		r->fn();

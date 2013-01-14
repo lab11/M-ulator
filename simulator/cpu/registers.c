@@ -28,8 +28,8 @@
 /* Ignore mode transitions for now */
 static uint32_t reg[SP_REG];	// SP,LR,PC not held here, so 13 registers
 static uint32_t sp_process;
-static uint32_t sp_main __attribute__ ((unused));
-static uint32_t *sp = &sp_process;
+static uint32_t sp_main;
+static uint32_t *sp = &sp_main;
 static uint32_t lr;
 
 #define SP	(*sp)
@@ -225,9 +225,27 @@ EXPORT void CORE_epsr_write(uint32_t val) {
 #endif
 
 static void reset_registers(void) {
-	CORE_reg_write(SP_REG, read_word(0x00000000));
+	uint32_t vectortable = read_word(VECTOR_TABLE_OFFSET);
+
+	// R[0..12] = bits(32) UNKNOWN {nop}
+
+	SW(&sp_main,read_word(vectortable) & 0xfffffffc);
+
+	// sp_process = ((bits(30) UNKNOWN):'00')
+	SW(&sp_process, SR(&sp_process) & ~0x3);
+
 	CORE_reg_write(LR_REG, 0xFFFFFFFF);
-	CORE_reg_write(PC_REG, read_word(0x00000004));
+
+	uint32_t tmp = read_word(vectortable+4);
+	CORE_reg_write(PC_REG, tmp & 0xfffffffe);
+	if (! (tmp & 0x1) ) {
+		WARN("Reset vector %08x at %08x invalid\n", tmp, vectortable+4);
+		CORE_ERR_unpredictable("Thumb bit must be set for M-series\n");
+	}
+
+	// ASPR = bits(32) UNKNOWN {nop}
+
+	CORE_ipsr_write(CORE_ipsr_read() & ~0x1ff);
 }
 
 __attribute__ ((constructor))
