@@ -43,7 +43,7 @@ void tick_ex(void) {
 
 	// Execute
 	if (in_ITblock()) {
-		if (eval_cond(CORE_cpsr_read(), (read_itstate() & 0xf0) >> 4)) {
+		if (eval_cond(CORE_apsr_read(), (read_itstate() & 0xf0) >> 4)) {
 			if (printcycles) {
 				printf("    P: %08d - 0x%08x : %04x (%s)\t%s\n",
 						cycle, id_ex_PC - 4, id_ex_inst, id_ex_o->name,

@@ -25,29 +25,7 @@
 #define INST_SET_JAZELLE	0x2
 #define INST_SET_THUMBEE	0x3
 
-#define GEN_NZCV(_n, _z, _c, _v) \
-	(\
-	 (!!(_n) << N_IDX) |\
-	 (!!(_z) << Z_IDX) |\
-	 (!!(_c) << C_IDX) |\
-	 (!!(_v) << V_IDX) |\
-	 (cpsr & 0x0fffffff)\
-	)
-
-#define GEN_NZC(_n, _z, _c) \
-	(\
-	 (!!(_n) << N_IDX) |\
-	 (!!(_z) << Z_IDX) |\
-	 (!!(_c) << C_IDX) |\
-	 (cpsr & 0x1fffffff)\
-	)
-
-#define GEN_NZ(_n, _z) \
-	(\
-	 (!!(_n) << N_IDX) |\
-	 (!!(_z) << Z_IDX) |\
-	 (cpsr & 0x3fffffff)\
-	)
+#define HIGH_BIT(_r) (!!(_r & 0x80000000))
 
 uint32_t hamming(uint32_t val);
 

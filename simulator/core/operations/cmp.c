@@ -22,19 +22,22 @@
 
 #include "cpu/registers.h"
 
-/* CMP and TST always write cpsr bits, regardless of itstate */
+/* CMP and TST always write apsr bits, regardless of itstate */
 
 static void cmn_imm(uint8_t rn, uint32_t imm32) {
 	uint32_t rn_val = CORE_reg_read(rn);
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
 	uint32_t result;
 	bool carry;
 	bool overflow;
 	AddWithCarry(rn_val, imm32, 0, &result, &carry, &overflow);
 
-	cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0, carry, overflow);
-	CORE_cpsr_write(cpsr);
+	apsr.bits.N = HIGH_BIT(result);
+	apsr.bits.Z = result == 0;
+	apsr.bits.C = carry;
+	apsr.bits.V = overflow;
+	CORE_apsr_write(apsr);
 }
 
 static void cmn_imm_t1(uint32_t inst) {
@@ -63,15 +66,12 @@ static void cmp_imm(uint8_t rn, uint32_t imm32) {
 	DBG2("result: %08x, carry: %d, overflow: %d\n",
 			result, carry_out, overflow_out);
 
-	uint32_t cpsr = CORE_cpsr_read();
-
-	cpsr = GEN_NZCV(
-			!!(result & xPSR_N),
-			result == 0,
-			carry_out,
-			overflow_out
-		       );
-	CORE_cpsr_write(cpsr);
+	union apsr_t apsr = CORE_apsr_read();
+	apsr.bits.N = HIGH_BIT(result);
+	apsr.bits.Z = result == 0;
+	apsr.bits.C = carry_out;
+	apsr.bits.V = overflow_out;
+	CORE_apsr_write(apsr);
 }
 
 static void cmp_imm_t1(uint16_t inst) {
@@ -100,16 +100,19 @@ static void cmp_reg(uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n
 	uint32_t rm_val = CORE_reg_read(rm);
 	uint32_t rn_val = CORE_reg_read(rn);
 
-	uint32_t cpsr = CORE_cpsr_read();
-	uint32_t shifted = Shift(rm_val, 32, shift_t, shift_n, !!(cpsr & xPSR_C));
+	union apsr_t apsr = CORE_apsr_read();
+	uint32_t shifted = Shift(rm_val, 32, shift_t, shift_n, apsr.bits.C);
 
 	uint32_t result;
 	bool carry;
 	bool overflow;
 	AddWithCarry(rn_val, ~shifted, 1, &result, &carry, &overflow);
 
-	cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0, carry, overflow);
-	CORE_cpsr_write(cpsr);
+	apsr.bits.N = HIGH_BIT(result);
+	apsr.bits.Z = result == 0;
+	apsr.bits.C = carry;
+	apsr.bits.V = overflow;
+	CORE_apsr_write(apsr);
 }
 
 static void cmp_reg_t1(uint16_t inst) {

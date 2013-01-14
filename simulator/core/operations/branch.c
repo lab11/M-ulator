@@ -53,7 +53,7 @@ static void SelectInstrSet(uint8_t iset) {
 }
 
 static void b(uint8_t cond, uint32_t imm32) {
-	if (eval_cond(CORE_cpsr_read(), cond)) {
+	if (eval_cond(CORE_apsr_read(), cond)) {
 		uint32_t pc = CORE_reg_read(PC_REG);
 		BranchWritePC(pc + imm32);
 		DBG2("b taken old pc %08x new pc %08x (imm32: %08x)\n",

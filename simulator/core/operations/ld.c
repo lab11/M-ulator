@@ -147,9 +147,9 @@ static void ldr_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 	uint32_t rn_val = CORE_reg_read(rn);
 	uint32_t rm_val = CORE_reg_read(rm);
 
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
-	uint32_t offset = Shift(rm_val, 32, shift_t, shift_n, !!(cpsr & xPSR_C));
+	uint32_t offset = Shift(rm_val, 32, shift_t, shift_n, apsr.bits.C);
 
 	uint32_t offset_addr;
 	if (add)
@@ -320,9 +320,9 @@ static void ldrb_reg(uint8_t rt, uint8_t rn, uint8_t rm, enum SRType shift_t,
 
 	uint32_t rm_val = CORE_reg_read(rm);
 	uint32_t rn_val = CORE_reg_read(rn);
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
-	uint32_t offset = Shift(rm_val, 32, shift_t, shift_n, !!(cpsr & xPSR_C));
+	uint32_t offset = Shift(rm_val, 32, shift_t, shift_n, apsr.bits.C);
 
 	uint32_t offset_addr;
 	if (add)
@@ -380,9 +380,9 @@ static void ldrsb_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 
 	uint32_t rm_val = CORE_reg_read(rm);
 	uint32_t rn_val = CORE_reg_read(rn);
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
-	uint32_t offset = Shift(rm_val, 32, shift_t, shift_n, !!(cpsr & xPSR_C));
+	uint32_t offset = Shift(rm_val, 32, shift_t, shift_n, apsr.bits.C);
 
 	uint32_t offset_addr;
 	if (add)

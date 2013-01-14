@@ -136,20 +136,22 @@ EXPORT void CORE_reg_write(int r, uint32_t val) {
 	}
 }
 
-EXPORT uint32_t CORE_cpsr_read(void) {
-	return SR(&apsr.storage);
+EXPORT union apsr_t CORE_apsr_read(void) {
+	union apsr_t a;
+	a.storage = SR(&apsr.storage);
+	return a;
 }
 
-EXPORT void CORE_cpsr_write(uint32_t val) {
+EXPORT void CORE_apsr_write(union apsr_t val) {
 	if (in_ITblock()) {
-		WARN("WARN update of cpsr in IT block\n");
+		WARN("WARN update of apsr in IT block\n");
 	}
 #ifdef M_PROFILE
-	if (val & 0x07f0ffff) {
-		DBG1("WARN update of reserved CPSR bits\n");
+	if (val.storage & 0x07f0ffff) {
+		DBG1("WARN update of reserved APSR bits\n");
 	}
 #endif
-	SW(&apsr.storage, val);
+	SW(&apsr.storage, val.storage);
 }
 
 #ifdef M_PROFILE

@@ -29,8 +29,8 @@
 
 uint32_t	CORE_reg_read(int r);
 void		CORE_reg_write(int r, uint32_t val);
-uint32_t	CORE_cpsr_read(void);
-void		CORE_cpsr_write(uint32_t val);
+union apsr_t	CORE_apsr_read(void);
+void		CORE_apsr_write(union apsr_t val);
 union ipsr_t	CORE_ipsr_read(void);
 void		CORE_ipsr_write(union ipsr_t val);
 union epsr_t	CORE_epsr_read(void);
@@ -38,7 +38,6 @@ void		CORE_epsr_write(union epsr_t val);
 
 
 #ifdef A_PROFILE
-#define	T_BIT		(CPSR & 0x0020)
 
 union __attribute__ ((__packed__)) apsr_t {
 	uint32_t storage;

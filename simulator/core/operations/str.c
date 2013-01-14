@@ -122,9 +122,9 @@ static void str_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 	uint32_t rm_val = CORE_reg_read(rm);
 	uint32_t rt_val = CORE_reg_read(rt);
 
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
-	uint32_t offset = Shift(rm_val, 32, shift_t, shift_n, !!(cpsr & xPSR_C));
+	uint32_t offset = Shift(rm_val, 32, shift_t, shift_n, apsr.bits.C);
 	uint32_t address = rn_val + offset;
 	uint32_t data = rt_val;
 	write_word(address, data);

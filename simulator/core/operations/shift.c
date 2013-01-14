@@ -32,11 +32,11 @@ static void lsl1(uint16_t inst) {
 	uint8_t c_flag;
 	uint32_t result;
 
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
 	if (immed5 == 0) {
 		result = rm_val;
-		c_flag = !!(cpsr & xPSR_C);
+		c_flag = apsr.bits.C;
 	} else {
 		c_flag = !!( rm_val & (1 << (32 - immed5)) );
 		result = rm_val << immed5;
@@ -45,9 +45,10 @@ static void lsl1(uint16_t inst) {
 	CORE_reg_write(rd, result);
 
 	if (!in_ITblock()) {
-		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
-				c_flag, !!(cpsr & xPSR_V));
-		CORE_cpsr_write(cpsr);
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = c_flag;
+		CORE_apsr_write(apsr);
 	}
 
 	DBG2("lsls r%02d, r%02d, #%d\n", rd, rm, immed5);
@@ -59,17 +60,18 @@ static void lsl_reg(uint8_t rd, uint8_t rn, uint8_t rm, bool setflags) {
 	uint32_t result;
 	bool carry;
 
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
-	Shift_C(CORE_reg_read(rn), 32, SRType_LSL, shift_n, !!(cpsr & xPSR_C),
+	Shift_C(CORE_reg_read(rn), 32, SRType_LSL, shift_n, apsr.bits.C,
 			&result, &carry);
 
 	CORE_reg_write(rd, result);
 
 	if (setflags) {
-		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
-				carry, !!(cpsr & xPSR_V));
-		CORE_cpsr_write(cpsr);
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry;
+		CORE_apsr_write(apsr);
 	}
 }
 
@@ -90,11 +92,11 @@ static void lsr1(uint16_t inst) {
 	uint8_t c_flag;
 	uint32_t result;
 
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
 	if (immed5 == 0) {
 		result = rm_val;
-		c_flag = !!(cpsr & xPSR_C);
+		c_flag = apsr.bits.C;
 	} else {
 		c_flag = !!( rm_val & (1 << (immed5 - 1)) );
 		result = rm_val >> immed5;
@@ -103,21 +105,22 @@ static void lsr1(uint16_t inst) {
 	CORE_reg_write(rd, result);
 
 	if (!in_ITblock()) {
-		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
-				c_flag, !!(cpsr & xPSR_V));
-		CORE_cpsr_write(cpsr);
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = c_flag;
+		CORE_apsr_write(apsr);
 	}
 
 	DBG2("lsrs r%02d, r%02d, #%d\n", rd, rm, immed5);
 }
 
-static void asr_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rm,
+static void asr_imm(union apsr_t apsr, uint8_t setflags, uint8_t rd, uint8_t rm,
 		enum SRType shift_t, uint8_t shift_n) {
 	uint32_t rm_val = CORE_reg_read(rm);
 
 	uint32_t result;
 	bool carry;
-	Shift_C(rm_val, 32, shift_t, shift_n, !!(cpsr & xPSR_C), &result, &carry);
+	Shift_C(rm_val, 32, shift_t, shift_n, apsr.bits.C, &result, &carry);
 
 	if (rd == 15) {
 		// ALUWritePC(result);
@@ -125,13 +128,10 @@ static void asr_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rm,
 	} else {
 		CORE_reg_write(rd, result);
 		if (setflags) {
-			cpsr = GEN_NZCV(
-					!!(result & xPSR_N),
-					result == 0,
-					carry,
-					!!(cpsr & xPSR_V)
-				       );
-			CORE_cpsr_write(cpsr);
+			apsr.bits.N = HIGH_BIT(result);
+			apsr.bits.Z = result == 0;
+			apsr.bits.C = carry;
+			CORE_apsr_write(apsr);
 		}
 	}
 
@@ -148,12 +148,12 @@ static void asr_imm_t1(uint16_t inst) {
 	uint8_t shift_n;
 	DecodeImmShift(0x2, imm5, &shift_t, &shift_n);
 
-	return asr_imm(CORE_cpsr_read(), setflags, rd, rm,
+	return asr_imm(CORE_apsr_read(), setflags, rd, rm,
 			shift_t, shift_n);
 }
 
 static void mov_shifted_reg(uint32_t inst, enum SRType shift_t) {
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
 	uint8_t rm = inst & 0xf;
 	uint8_t imm2 = (inst >> 6) & 0x3;
@@ -170,7 +170,7 @@ static void mov_shifted_reg(uint32_t inst, enum SRType shift_t) {
 	if (BadReg(rd) || BadReg(rm))
 		CORE_ERR_unpredictable("BadReg in (fake)mov_shifted_reg\n");
 
-	return asr_imm(cpsr, setflags, rd, rm, shift_t, shift_n);
+	return asr_imm(apsr, setflags, rd, rm, shift_t, shift_n);
 }
 
 static void asr_imm_t2(uint32_t inst) {
@@ -191,15 +191,17 @@ static void ror_imm(uint8_t rd, uint8_t rm, uint8_t shift_n, bool setflags) {
 	uint32_t result;
 	bool carry_out;
 
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
-	Shift_C(rm_val, 32, ROR, shift_n, !!(cpsr & xPSR_C), &result, &carry_out);
+	Shift_C(rm_val, 32, ROR, shift_n, apsr.bits.C, &result, &carry_out);
 
 	CORE_reg_write(rd, result);
 
 	if (setflags) {
-		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0, carry_out, !!(cpsr & xPSR_V));
-		CORE_cpsr_write(cpsr);
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry_out;
+		CORE_apsr_write(apsr);
 	}
 }
 

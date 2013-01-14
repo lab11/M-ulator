@@ -26,16 +26,19 @@
 static void adc_imm(uint8_t rd, uint8_t rn, uint32_t imm32, bool setflags) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 	uint32_t result;
 	bool carry;
 	bool overflow;
-	AddWithCarry(rn_val, imm32, !!(cpsr & xPSR_C), &result, &carry, &overflow);
+	AddWithCarry(rn_val, imm32, apsr.bits.C, &result, &carry, &overflow);
 	CORE_reg_write(rd, result);
 
 	if (setflags) {
-		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0, carry, overflow);
-		CORE_cpsr_write(cpsr);
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry;
+		apsr.bits.V = overflow;
+		CORE_apsr_write(apsr);
 	}
 }
 
@@ -58,22 +61,25 @@ static void adc_imm_t1(uint32_t inst) {
 
 static void adc_reg(uint8_t rd, uint8_t rn, uint8_t rm,
 		bool setflags, enum SRType shift_t, uint8_t shift_n) {
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
 	uint32_t shifted = Shift(CORE_reg_read(rm), 32,
-			shift_t, shift_n, !!(cpsr & xPSR_C));
+			shift_t, shift_n, apsr.bits.C);
 
 	uint32_t result;
 	bool carry;
 	bool overflow;
-	AddWithCarry(CORE_reg_read(rn), shifted, !!(cpsr & xPSR_C),
+	AddWithCarry(CORE_reg_read(rn), shifted, apsr.bits.C,
 			&result, &carry, & overflow);
 
 	CORE_reg_write(rd, result);
 
 	if (setflags) {
-		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0, carry, overflow);
-		CORE_cpsr_write(cpsr);
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry;
+		apsr.bits.V = overflow;
+		CORE_apsr_write(apsr);
 	}
 }
 
@@ -117,14 +123,12 @@ static void add_imm(uint8_t rn, uint8_t rd, uint32_t imm32, uint8_t setflags) {
 	CORE_reg_write(rd, result);
 
 	if (setflags) {
-		uint32_t cpsr = CORE_cpsr_read();
-		cpsr = GEN_NZCV(
-				!!(result & xPSR_N),
-				result == 0,
-				carry,
-				overflow
-			       );
-		CORE_cpsr_write(cpsr);
+		union apsr_t apsr = CORE_apsr_read();
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry;
+		apsr.bits.V = overflow;
+		CORE_apsr_write(apsr);
 	}
 
 	DBG2("add r%02d = r%02d + 0x%08x\t%08x = %08x + %08x\n",
@@ -180,10 +184,10 @@ static void add_reg(uint8_t rd, uint8_t rn, uint8_t rm, bool setflags,
 	uint32_t rn_val = CORE_reg_read(rn);
 	uint32_t rm_val = CORE_reg_read(rm);
 
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
 	uint32_t shifted;
-	shifted = Shift(rm_val, 32, shift_t, shift_n, !!(cpsr & xPSR_C));
+	shifted = Shift(rm_val, 32, shift_t, shift_n, apsr.bits.C);
 
 	uint32_t result;
 	bool carry;
@@ -196,13 +200,11 @@ static void add_reg(uint8_t rd, uint8_t rn, uint8_t rm, bool setflags,
 	} else {
 		CORE_reg_write(rd, result);
 		if (setflags) {
-			cpsr = GEN_NZCV(
-					!!(result & xPSR_N),
-					result == 0,
-					carry,
-					overflow
-				       );
-			CORE_cpsr_write(cpsr);
+			apsr.bits.N = HIGH_BIT(result);
+			apsr.bits.Z = result == 0;
+			apsr.bits.C = carry;
+			apsr.bits.V = overflow;
+			CORE_apsr_write(apsr);
 		}
 	}
 
@@ -277,9 +279,12 @@ static void add_sp_plus_imm(uint8_t rd, uint32_t imm32, bool setflags) {
 	CORE_reg_write(rd, result);
 
 	if (setflags) {
-		uint32_t cpsr = CORE_cpsr_read();
-		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0, carry, overflow);
-		CORE_cpsr_write(cpsr);
+		union apsr_t apsr = CORE_apsr_read();
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry;
+		apsr.bits.V = overflow;
+		CORE_apsr_write(apsr);
 	}
 }
 

@@ -465,9 +465,10 @@ static bool _wait_for_gdb(void) {
 			if (cmd[2] != '\0') {
 				if (0 == strcmp(cmd, "p19")) {
 					// Inferred from gdb's messages, 0x19
-					// is looking for the cpsr, but I'll be
+					// is looking for the apsr, but I'll be
 					// dammned if I could find any proof
-					val = CORE_cpsr_read();
+					union apsr_t apsr = CORE_apsr_read();
+					val = apsr.storage;
 				} else {
 					WARN("Request for illegal register: 0x%s\n",
 							cmd + 1);

@@ -37,10 +37,10 @@ static void mrs(uint8_t rd, uint8_t sysm) {
 				rd_val &= ~0x0700fc00;
 			}
 			if (!(sysm & 0x4)) {
-				// XXX: cpsr vs apsr naming convention
-				rd_val |= (CORE_cpsr_read() & 0xf8000000);
+				union apsr_t apsr = CORE_apsr_read();
+				rd_val |= (apsr.storage & 0xf8000000);
 				if (false /*HaveDSPext()*/) {
-					rd_val |= (CORE_cpsr_read() & 0xf0000);
+					rd_val |= (apsr.storage & 0xf0000);
 				}
 			}
 			break;
@@ -72,7 +72,7 @@ static void mrs_t1(uint32_t inst) {
 }
 
 static void msr(uint8_t rn, uint8_t mask, uint8_t sysm) {
-	uint32_t apsr_val = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 	uint32_t rn_val = CORE_reg_read(rn);
 
 	switch ((sysm >> 3) & 0x1f) {
@@ -82,13 +82,13 @@ static void msr(uint8_t rn, uint8_t mask, uint8_t sysm) {
 					if (!(false /*HaveDSPExt()*/)) {
 						CORE_ERR_unpredictable("dsp?\n");
 					} else {
-						apsr_val &= ~0xf0000;
-						apsr_val |= (rn_val & 0xf0000);
+						apsr.storage &= ~0xf0000;
+						apsr.storage |= (rn_val & 0xf0000);
 					}
 				}
 				if (mask & 0x2) {
-					apsr_val &= ~0xf0000000;
-					apsr_val |= (rn_val & 0xf0000000);
+					apsr.storage &= ~0xf0000000;
+					apsr.storage |= (rn_val & 0xf0000000);
 				}
 			}
 
@@ -106,7 +106,7 @@ static void msr(uint8_t rn, uint8_t mask, uint8_t sysm) {
 			CORE_ERR_unpredictable("bad sysm\n");
 	}
 
-	CORE_cpsr_write(apsr_val);
+	CORE_apsr_write(apsr);
 }
 
 static void msr_t1(uint32_t inst) {
@@ -124,7 +124,7 @@ static void msr_t1(uint32_t inst) {
 	return msr(rn, mask, sysm);
 }
 
-static void mov_imm(uint32_t cpsr, uint8_t setflags, uint32_t imm32, uint8_t rd, uint8_t carry){
+static void mov_imm(union apsr_t apsr, uint8_t setflags, uint32_t imm32, uint8_t rd, uint8_t carry){
 	uint32_t result = imm32;
 
 	if (rd == 15) {
@@ -133,13 +133,10 @@ static void mov_imm(uint32_t cpsr, uint8_t setflags, uint32_t imm32, uint8_t rd,
 	} else {
 		CORE_reg_write(rd, result);
 		if (setflags) {
-			cpsr = GEN_NZCV(
-					!!(result & xPSR_N),
-					result == 0,
-					carry,
-					!!(cpsr & xPSR_V)
-				       );
-			CORE_cpsr_write(cpsr);
+			apsr.bits.N = HIGH_BIT(result);
+			apsr.bits.Z = result == 0;
+			apsr.bits.C = carry;
+			CORE_apsr_write(apsr);
 		}
 	}
 
@@ -153,14 +150,14 @@ static void mov_imm_t1(uint16_t inst) {
 	bool setflags = !in_ITblock();
 	uint32_t imm32 = imm8;
 
-	uint32_t cpsr = CORE_cpsr_read();
-	bool carry = !!(cpsr & xPSR_C);
+	union apsr_t apsr = CORE_apsr_read();
+	bool carry = apsr.bits.C;
 
-	return mov_imm(cpsr, setflags, imm32, rd, carry);
+	return mov_imm(apsr, setflags, imm32, rd, carry);
 }
 
 static void mov_imm_t2(uint32_t inst) {
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
 	int   imm8 =  (inst & 0x000000ff);
 	uint8_t Rd =  (inst & 0x00000f00) >> 8;
@@ -190,18 +187,18 @@ static void mov_imm_t2(uint32_t inst) {
 	arg |= (i << 11);
 	uint32_t imm32;
 	bool carry;
-	ThumbExpandImm_C(arg, !!(cpsr & xPSR_C), &imm32, &carry);
+	ThumbExpandImm_C(arg, apsr.bits.C, &imm32, &carry);
 
 	// if BadReg(d) then UNPREDICTABLE
 	if ((Rd == 13) || (Rd == 15)) {
 		CORE_ERR_unpredictable("mov to SP or PC\n");
 	}
 
-	return mov_imm(cpsr, setflags, imm32, Rd, carry);
+	return mov_imm(apsr, setflags, imm32, Rd, carry);
 }
 
 static void mov_imm_t3(uint32_t inst) {
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst & 0xf00) >> 8;
@@ -218,7 +215,7 @@ static void mov_imm_t3(uint32_t inst) {
 		CORE_ERR_unpredictable("BadReg in mov_imm_t3\n");
 
 	// carry set to 0 irrelevant since setflags is false
-	return mov_imm(cpsr, setflags, imm32, rd, 0);
+	return mov_imm(apsr, setflags, imm32, rd, 0);
 }
 
 static void mov_reg(uint8_t rd, uint8_t rm, bool setflags) {
@@ -230,14 +227,10 @@ static void mov_reg(uint8_t rd, uint8_t rm, bool setflags) {
 	} else {
 		CORE_reg_write(rd, rm_val);
 		if (setflags) {
-			uint32_t cpsr = CORE_cpsr_read();
-			cpsr = GEN_NZCV(
-					!!(rm_val & xPSR_N),
-					rm_val == 0,
-					!!(cpsr & xPSR_C),
-					!!(cpsr & xPSR_V)
-				       );
-			CORE_cpsr_write(cpsr);
+			union apsr_t apsr = CORE_apsr_read();
+			apsr.bits.N = HIGH_BIT(rm_val);
+			apsr.bits.Z = rm_val == 0;
+			CORE_apsr_write(apsr);
 		}
 	}
 

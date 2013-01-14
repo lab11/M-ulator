@@ -75,11 +75,11 @@ void write_itstate(uint8_t new_state) {
 #endif // M_PROFILE
 }
 
-uint8_t eval_cond(uint32_t cpsr, uint8_t cond) {
-	uint8_t n = !!(cpsr & xPSR_N);
-	uint8_t z = !!(cpsr & xPSR_Z);
-	uint8_t c = !!(cpsr & xPSR_C);
-	uint8_t v = !!(cpsr & xPSR_V);
+uint8_t eval_cond(union apsr_t apsr, uint8_t cond) {
+	bool n = apsr.bits.N;
+	bool z = apsr.bits.Z;
+	bool c = apsr.bits.C;
+	bool v = apsr.bits.V;
 
 	uint8_t ret;
 

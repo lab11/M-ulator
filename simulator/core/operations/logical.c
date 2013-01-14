@@ -31,18 +31,18 @@ static void and(uint16_t inst) {
 	result = CORE_reg_read(rd) & CORE_reg_read(rm);
 	CORE_reg_write(rd, result);
 
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
 	if (!in_ITblock()) {
-		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
-				!!(cpsr & xPSR_C), !!(cpsr & xPSR_V));
-		CORE_cpsr_write(cpsr);
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		CORE_apsr_write(apsr);
 	}
 
 	DBG2("ands r%02d, r%02d\n", rd, rm);
 }
 
-static void and_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn,
+static void and_imm(union apsr_t apsr, uint8_t setflags, uint8_t rd, uint8_t rn,
 		uint32_t imm32, uint8_t carry) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
@@ -53,13 +53,10 @@ static void and_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn,
 	} else {
 		CORE_reg_write(rd, result);
 		if (setflags) {
-			cpsr = GEN_NZCV(
-					!!(result & xPSR_N),
-					result == 0,
-					carry,
-					!!(cpsr & xPSR_V)
-				       );
-			CORE_cpsr_write(cpsr);
+			apsr.bits.N = HIGH_BIT(result);
+			apsr.bits.Z = result == 0;
+			apsr.bits.C = carry;
+			CORE_apsr_write(apsr);
 		}
 	}
 
@@ -67,7 +64,7 @@ static void and_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn,
 }
 
 static void and_imm_t1(uint32_t inst) {
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst & 0xf00) >> 8;
@@ -85,32 +82,34 @@ static void and_imm_t1(uint32_t inst) {
 	uint32_t imm32;
 	bool carry;
 	uint16_t imm12 = (i << 11) | (imm3 << 8) | imm8;
-	ThumbExpandImm_C(imm12, !!(cpsr & xPSR_C), &imm32, &carry);
+	ThumbExpandImm_C(imm12, apsr.bits.C, &imm32, &carry);
 
 	DBG2("rd: %d, rn %d, imm12 0x%03x (%d)\n", rd, rn, imm12, imm12);
 
 	if ( ((rd == 13) || ((rd == 15) && (S == 0))) || BadReg(rn) )
 		CORE_ERR_unpredictable("Bad reg combo's in add_imm_t1\n");
 
-	return and_imm(cpsr, setflags, rd, rn, imm32, carry);
+	return and_imm(apsr, setflags, rd, rn, imm32, carry);
 }
 
 static void and_reg(uint8_t rd, uint8_t rn, uint8_t rm,
 		bool setflags, enum SRType shift_t, uint8_t shift_n) {
 	uint32_t rn_val = CORE_reg_read(rn);
 	uint32_t rm_val = CORE_reg_read(rm);
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
 	uint32_t shifted;
 	bool carry_out;
-	Shift_C(rm_val, 32, shift_t, shift_n, !!(cpsr & xPSR_C), &shifted, &carry_out);
+	Shift_C(rm_val, 32, shift_t, shift_n, apsr.bits.C, &shifted, &carry_out);
 
 	uint32_t result = rn_val & shifted;
 	CORE_reg_write(rd, result);
 
 	if (setflags) {
-		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0, carry_out, !!(cpsr & xPSR_V));
-		CORE_cpsr_write(cpsr);
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry_out;
+		CORE_apsr_write(apsr);
 	}
 }
 
@@ -144,30 +143,27 @@ static void bic(uint16_t inst) {
 	result = CORE_reg_read(rd) & ~CORE_reg_read(rm);
 	CORE_reg_write(rd, result);
 
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
 	if (!in_ITblock()) {
-		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
-				!!(cpsr & xPSR_C), !!(cpsr & xPSR_V));
-		CORE_cpsr_write(cpsr);
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		CORE_apsr_write(apsr);
 	}
 
 	DBG2("bics r%02d, r%02d\n", rd, rm);
 }
 
-static void bic_imm(uint32_t cpsr, uint8_t setflags, uint8_t rd, uint8_t rn,
+static void bic_imm(union apsr_t apsr, uint8_t setflags, uint8_t rd, uint8_t rn,
 		uint32_t imm32, uint8_t carry) {
 	uint32_t result = CORE_reg_read(rn) & (~imm32);
 	CORE_reg_write(rd, result);
 
 	if (setflags) {
-		cpsr = GEN_NZCV(
-				!!(result & xPSR_N),
-				result == 0,
-				carry,
-				!!(cpsr & xPSR_V)
-			       );
-		CORE_cpsr_write(cpsr);
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry;
+		CORE_apsr_write(apsr);
 	}
 
 	DBG2("bic_imm ran\n");
@@ -181,29 +177,31 @@ static void bic_imm_t1(uint32_t inst) {
 	uint8_t S = !!(inst & 0x100000);
 	uint8_t i = !!(inst & 0x04000000);
 
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
 	uint16_t imm12 = (i << 11) | (imm3 << 8) | imm8;
 	uint32_t imm32;
 	bool carry_out;
-	ThumbExpandImm_C(imm12, !!(cpsr & xPSR_C), &imm32, &carry_out);
+	ThumbExpandImm_C(imm12, apsr.bits.C, &imm32, &carry_out);
 
 	if ((rd >= 13) || (rn >= 13))
 		CORE_ERR_unpredictable("bic_imm_t1 bad reg\n");
 
-	return bic_imm(cpsr, S, rd, rn, imm32, carry_out);
+	return bic_imm(apsr, S, rd, rn, imm32, carry_out);
 }
 
 static void eor_imm(uint8_t rd, uint8_t rn,
-		uint32_t imm32, bool carry, bool setflags, uint32_t cpsr) {
+		uint32_t imm32, bool carry, bool setflags, union apsr_t apsr) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
 	uint32_t result = rn_val ^ imm32;
 	CORE_reg_write(rd, result);
 
 	if (setflags) {
-		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0, carry, !!(cpsr & xPSR_V));
-		CORE_cpsr_write(cpsr);
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry;
+		CORE_apsr_write(apsr);
 	}
 }
 
@@ -217,15 +215,15 @@ static void eor_imm_t1(uint32_t inst) {
 
 	bool setflags = S;
 
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 	uint32_t imm32;
 	bool carry;
-	ThumbExpandImm_C((i << 11) | (imm3 << 8) | imm8, !!(cpsr & xPSR_C), &imm32, &carry);
+	ThumbExpandImm_C((i << 11) | (imm3 << 8) | imm8, apsr.bits.C, &imm32, &carry);
 
 	if ((rd == 13) || ((rd == 15) && (S == 0)) || BadReg(rn))
 		CORE_ERR_unpredictable("bad reg\n");
 
-	return eor_imm(rd, rn, imm32, carry, setflags, cpsr);
+	return eor_imm(rd, rn, imm32, carry, setflags, apsr);
 }
 
 static void eor_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm,
@@ -233,21 +231,18 @@ static void eor_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm,
 	uint32_t result;
 	bool carry_out;
 
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
-	Shift_C(CORE_reg_read(rm), 32, shift_t, shift_n, !!(cpsr & xPSR_C), &result, &carry_out);
+	Shift_C(CORE_reg_read(rm), 32, shift_t, shift_n, apsr.bits.C, &result, &carry_out);
 
 	result = CORE_reg_read(rn) ^ result;
 	CORE_reg_write(rd, result);
 
 	if (setflags) {
-		cpsr = GEN_NZCV(
-				!!(result & xPSR_N),
-				result == 0,
-				carry_out,
-				!!(cpsr & xPSR_V)
-			       );
-		CORE_cpsr_write(cpsr);
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry_out;
+		CORE_apsr_write(apsr);
 	}
 }
 
@@ -282,20 +277,17 @@ static void lsl_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm) {
 	uint32_t result;
 	bool carry_out;
 
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
-	Shift_C(CORE_reg_read(rn), 32, shift_t, shift_n, !!(cpsr & xPSR_C), &result, &carry_out);
+	Shift_C(CORE_reg_read(rn), 32, shift_t, shift_n, apsr.bits.C, &result, &carry_out);
 
 	CORE_reg_write(rd, result);
 
 	if (setflags) {
-		cpsr = GEN_NZCV(
-				!!(result & xPSR_N),
-				result == 0,
-				carry_out,
-				!!(cpsr & xPSR_V)
-			       );
-		CORE_cpsr_write(cpsr);
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry_out;
+		CORE_apsr_write(apsr);
 	}
 }
 
@@ -317,21 +309,18 @@ static void mvn_reg(uint8_t setflags, uint8_t rd, uint8_t rm,
 	uint32_t result;
 	bool carry_out;
 
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
-	Shift_C(CORE_reg_read(rm), 32, shift_t, shift_n, !!(cpsr & xPSR_C), &result, &carry_out);
+	Shift_C(CORE_reg_read(rm), 32, shift_t, shift_n, apsr.bits.C, &result, &carry_out);
 
 	result = ~result;
 	CORE_reg_write(rd, result);
 
 	if (setflags) {
-		cpsr = GEN_NZCV(
-				!!(result & xPSR_N),
-				result == 0,
-				carry_out,
-				!!(cpsr & xPSR_V)
-			       );
-		CORE_cpsr_write(cpsr);
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry_out;
+		CORE_apsr_write(apsr);
 	}
 
 	DBG2("mvn_reg did stuff\n");
@@ -376,12 +365,12 @@ static void orr(uint16_t inst) {
 	result = CORE_reg_read(rd) | CORE_reg_read(rm);
 	CORE_reg_write(rd, result);
 
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
 	if (!in_ITblock()) {
-		cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0,
-				!!(cpsr & xPSR_C), !!(cpsr & xPSR_V));
-		CORE_cpsr_write(cpsr);
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		CORE_apsr_write(apsr);
 	}
 
 	DBG2("orrs r%02d, r%02d\n", rd, rm);
@@ -392,21 +381,18 @@ static void orr_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm,
 	uint32_t result;
 	bool carry_out;
 
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
-	Shift_C(CORE_reg_read(rm), 32, shift_t, shift_n, !!(cpsr & xPSR_C), &result, &carry_out);
+	Shift_C(CORE_reg_read(rm), 32, shift_t, shift_n, apsr.bits.C, &result, &carry_out);
 
 	result = CORE_reg_read(rn) | result;
 	CORE_reg_write(rd, result);
 
 	if (setflags) {
-		cpsr = GEN_NZCV(
-				!!(result & xPSR_N),
-				result == 0,
-				carry_out,
-				!!(cpsr & xPSR_V)
-			       );
-		CORE_cpsr_write(cpsr);
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry_out;
+		CORE_apsr_write(apsr);
 	}
 
 	DBG2("orr_reg ran\n");
@@ -435,12 +421,14 @@ static void orr_reg_t2(uint32_t inst) {
 	return orr_reg(S, rd, rn, rm, shift_t, shift_n);
 }
 
-static void tst_imm(uint32_t cpsr, uint8_t rn, uint32_t imm32, bool carry) {
+static void tst_imm(union apsr_t apsr, uint8_t rn, uint32_t imm32, bool carry) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
 	uint32_t result = rn_val & imm32;
-	cpsr = GEN_NZCV(!!(result & xPSR_N), result == 0, carry, !!(result & xPSR_V));
-	CORE_cpsr_write(cpsr);
+	apsr.bits.N = HIGH_BIT(result);
+	apsr.bits.Z = result == 0;
+	apsr.bits.C = carry;
+	CORE_apsr_write(apsr);
 }
 
 static void tst_imm_t1(uint32_t inst) {
@@ -453,14 +441,14 @@ static void tst_imm_t1(uint32_t inst) {
 	uint32_t imm32;
 	bool carry;
 
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
-	ThumbExpandImm_C(imm12, !!(cpsr & xPSR_C), &imm32, &carry);
+	ThumbExpandImm_C(imm12, apsr.bits.C, &imm32, &carry);
 
 	if ((rn == 13) || (rn == 15))
 		CORE_ERR_unpredictable("bad reg\n");
 
-	tst_imm(cpsr, rn, imm32, carry);
+	tst_imm(apsr, rn, imm32, carry);
 }
 
 __attribute__ ((constructor))

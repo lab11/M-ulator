@@ -79,14 +79,10 @@ static void mul(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm) {
 	CORE_reg_write(rd, result);
 
 	if (setflags) {
-		uint32_t cpsr = CORE_cpsr_read();
-		cpsr = GEN_NZCV(
-				!!(result & xPSR_N),
-				result == 0,
-				!!(cpsr & xPSR_C),
-				!!(cpsr & xPSR_V)
-			       );
-		CORE_cpsr_write(cpsr);
+		union apsr_t apsr = CORE_apsr_read();
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		CORE_apsr_write(apsr);
 	}
 }
 

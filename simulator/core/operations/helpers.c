@@ -200,12 +200,12 @@ void ROR_C(uint32_t x, int Nbits, uint8_t shift,
 }
 
 uint32_t ThumbExpandImm(uint32_t imm12) {
-	uint32_t cpsr = CORE_cpsr_read();
+	union apsr_t apsr = CORE_apsr_read();
 
 	uint32_t result;
 	bool carry;
 
-	ThumbExpandImm_C(imm12, !!(cpsr & xPSR_C), &result, &carry);
+	ThumbExpandImm_C(imm12, apsr.bits.C, &result, &carry);
 
 	return result;
 }

@@ -128,14 +128,11 @@ static void print_periphs(void) {
 
 static void print_reg_state_internal(void) {
 	int i;
+	union apsr_t apsr = CORE_apsr_read();
 
 	printf("[Cycle %d]\t\t\t", cycle);
 	printf("\t  N: %d  Z: %d  C: %d  V: %d  ",
-			!!(CORE_cpsr_read() & xPSR_N),
-			!!(CORE_cpsr_read() & xPSR_Z),
-			!!(CORE_cpsr_read() & xPSR_C),
-			!!(CORE_cpsr_read() & xPSR_V)
-	      );
+			apsr.bits.N, apsr.bits.Z, apsr.bits.C, apsr.bits.V);
 	printf("| ITSTATE: %02x  ", read_itstate());
 	printf("\n");
 	for (i=0; i<12; ) {
