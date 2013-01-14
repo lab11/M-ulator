@@ -44,6 +44,15 @@ class ICE(object):
         '''
         pass
 
+    class ParameterError(ICE_Error):
+        '''
+        An illegal parameter was passed.
+
+        This may be raised by the ICE library if it can determine in advance
+        that the reqeust is illegal (e.g. out of range), or by the ICE board if
+        the board rejects the desired setting (e.g. not configurable)
+        '''
+
     class NAK_Error(ICE_Error):
         '''
         Raised when an unexpected NAK is returned
@@ -224,19 +233,55 @@ class ICE(object):
 
         self.send_message_until_acked('v', struct.pack("BB", self.major, self.minor))
 
+    def _fragment_sender(self, msg_type, msg):
+        '''
+        Internal. (helper for {i2c,goc}_send
+        '''
+        # XXX: Make version dependent?
+        FRAG_SIZE = 255
+
+        sent = 0
+        print "Sending %d byte message (in %d byte fragments)" % (len(msg), FRAG_SIZE)
+        while len(msg) >= FRAG_SIZE:
+            ack,resp = self.send_message(msg_type, msg[0:FRAG_SIZE])
+            if ack == 1: # (NAK)
+                return sent + ord(resp)
+            msg = msg[FRAG_SIZE:]
+            sent += FRAG_SIZE
+            print "\tSent %d bytes, %d remaining" % (sent, len(msg))
+        print "Sending last message, %d bytes long" % (len(msg))
+        ack,resp = self.send_message(msg_type, msg)
+        if ack == 1:
+            return sent + ord(resp)
+        sent += len(resp)
+        return sent
+
     def goc_send(self, msg):
         '''
         Blinks a message via GOC.
+
+        Takes a raw byte stream (e.g. "0xaa".decode('hex')).
+        Returns the number of bytes actually sent.
+
+        Long messages may be fragmented between the ICE library and the ICE
+        FPGA. These fragments will be combined on the ICE board, and given the
+        significantly lower bandwidth of the GOC interface, there should be no
+        interruption in message transmission.
         '''
-        raise NotImplementedError
+        return self._fragment_sender('f', msg)
 
     def goc_set_frequency(self, freq_in_hz):
         '''
         Sets the GOC frequency.
-
-        Takes a raw byte stream (e.g. "0xaa".decode('hex'))
         '''
-        raise NotImplementedError
+        # Send a 3-byte value N, where 2 MHz / N == clock speed
+        NOMINAL = int(2e6)
+        setting = NOMINAL / freq_in_hz;
+        packed = struct.pack("!I", setting)
+        if packed[0] != '\x00':
+            raise self.ParameterError, "Out of range."
+        msg = struct.pack("B", ord('c')) + packed[1:]
+        self.send_message_until_acked('o', msg)
 
     def i2c_send(self, addr, data):
         '''
@@ -253,25 +298,9 @@ class ICE(object):
         clock is stretched for a period of time.  A faster baud rate between the
         PC host and the ICE FPGA will help mitigate this.
         '''
-        # XXX: Make version dependent?
-        FRAG_SIZE = 255
 
         msg = struct.pack("B", addr) + data
-        sent = 0
-        print "Sending %d byte message (in %d byte fragments)" % (len(msg), FRAG_SIZE)
-        while len(msg) >= FRAG_SIZE:
-            ack,resp = self.send_message('d', msg[0:FRAG_SIZE])
-            if ack == 1: # (NAK)
-                return sent + ord(resp)
-            msg = msg[FRAG_SIZE:]
-            sent += FRAG_SIZE
-            print "\tSent %d bytes, %d remaining" % (sent, len(msg))
-        print "Sending last message, %d bytes long" % (len(msg))
-        ack,resp = self.send_message('d', msg)
-        if ack == 1:
-            return sent + ord(resp)
-        sent += len(resp)
-        return sent
+        return self._fragment_sender('d', msg)
 
     def i2c_get_speed(self):
         '''
