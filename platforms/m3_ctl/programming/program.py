@@ -44,6 +44,12 @@ if (len(hexencoded) % 8) != 0:
 else:
     print "Binfile is %d bytes long\n" % (len(hexencoded) / 2)
 
+# Callback for async I2C message
+def validate_bin_helper(msg_type, event_id, length, msg):
+    validate_q.put(msg)
+
+validate_q = Queue.Queue()
+ice.msg_handler['d+'] = validate_bin_helper
 
 ice.connect(sys.argv[2])
 ice.i2c_set_address("1001100x") # 0x98
@@ -76,12 +82,6 @@ def write_bin(ice, hexencoded, offset=0):
     dma_done_msg = "%08X" % (socket.htonl(data))
     print "Sending:", dma_done_msg
     ice.i2c_send(0xaa, dma_done_msg.decode('hex'))
-
-def validate_bin_helper(msg_type, event_id, length, msg):
-    validate_q.put(msg)
-
-validate_q = Queue.Queue()
-ice.msg_handler['d+'] = validate_bin_helper
 
 def validate_bin(ice, hexencoded, offset=0):
     print "Running Validation sequence:"

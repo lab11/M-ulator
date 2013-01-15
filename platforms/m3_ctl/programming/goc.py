@@ -40,6 +40,13 @@ else:
     print "Binfile is %d bytes long\n" % (len(hexencoded) / 2)
 
 
+# Callback for async I2C message
+def validate_bin_helper(msg_type, event_id, length, msg):
+    validate_q.put(msg)
+
+validate_q = Queue.Queue()
+ice.msg_handler['d+'] = validate_bin_helper
+
 ice.connect(sys.argv[2])
 
 print "Would you like to run after programming? If you do not"
