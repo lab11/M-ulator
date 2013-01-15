@@ -4,6 +4,7 @@ print "-" * 80
 print "-- M3 GOC Programmer"
 print
 
+from time import sleep
 import socket
 import sys
 import os
@@ -48,6 +49,22 @@ validate_q = Queue.Queue()
 ice.msg_handler['d+'] = validate_bin_helper
 
 ice.connect(sys.argv[2])
+
+print "Turning all M3 power rails on"
+ice.power_set_voltage(0,0.6)
+ice.power_set_voltage(1,1.2)
+ice.power_set_voltage(2,3.8)
+ice.power_set_onoff(0,True)
+ice.power_set_onoff(1,True)
+ice.power_set_onoff(2,True)
+sleep(1.0)
+
+print "M3 0.6V => OFF (reset controller)"
+ice.power_set_onoff(0,False)
+sleep(1.0)
+print "M3 0.6V => ON"
+ice.power_set_onoff(0,True)
+sleep(1.0)
 
 print "Would you like to run after programming? If you do not"
 print "have GOC start the program, you will be prompted to send"
@@ -217,3 +234,4 @@ if len(resp) != 0 and resp[0] in ('n', 'N'):
 
 print "Sending 0x88 0x00000000"
 ice.i2c_send(0x88, "00000000".decode('hex'))
+

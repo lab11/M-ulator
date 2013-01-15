@@ -54,6 +54,22 @@ ice.msg_handler['d+'] = validate_bin_helper
 ice.connect(sys.argv[2])
 ice.i2c_set_address("1001100x") # 0x98
 
+print "Turning all M3 power rails on"
+ice.power_set_voltage(0,0.6)
+ice.power_set_voltage(1,1.2)
+ice.power_set_voltage(2,3.8)
+ice.power_set_onoff(0,True)
+ice.power_set_onoff(1,True)
+ice.power_set_onoff(2,True)
+sleep(1.0)
+
+print "M3 0.6V => OFF (reset controller)"
+ice.power_set_onoff(0,False)
+sleep(1.0)
+print "M3 0.6V => ON"
+ice.power_set_onoff(0,True)
+sleep(1.0)
+
 resp = raw_input("About to send I2C message to wake controller. Continue? [Y/n] ")
 if len(resp) != 0 and resp[0] in ('n', 'N'):
     sys.exit()
@@ -154,3 +170,4 @@ if len(resp) != 0 and resp[0] in ('n', 'N'):
 
 print "Sending 0x88 0x00000000"
 ice.i2c_send(0x88, "00000000".decode('hex'))
+
