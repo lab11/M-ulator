@@ -39,6 +39,10 @@ class ICE(object):
     POWER_1P2_DEFAULT = 1.2
     POWER_VBATT_DEFAULT = 3.8
 
+    GPIO_INPUT = 0
+    GPIO_OUTPUT = 1
+    GPIO_TRISTATE = 2
+
     class ICE_Error(Exception):
         '''
         A base class for all exceptions raised by this module
@@ -397,6 +401,54 @@ class ICE(object):
             raise self.FormatError, "Address must be exactly 8 bits"
 
         return self._i2c_set_address(ones, zeros)
+
+    def gpio_get_level(self, gpio_idx):
+        '''
+        Query whether a gpio is high or low. (high=True)
+        '''
+        resp = self.send_message_until_acked('G',
+                struct.pack('BB', ord('l'), gpio_idx))
+        if len(resp) != 1:
+            raise self.FormatError, "Too long of a response from `Gl#':" + str(resp)
+
+        return bool(struct.unpack("B", resp))
+
+    def gpio_get_direction(self, gpio_idx):
+        '''
+        Query gpio pin setup.
+
+        Returns one of:
+            ICE.GPIO_INPUT
+            ICE.GPIO_OUTPUT
+            ICE.GPIO_TRISTATE
+        '''
+        resp = self.send_message_until_acked('G',
+                struct.pack('BB', ord('d'), gpio_idx))
+        if len(resp) != 1:
+            raise self.FormatError, "Too long of a response from `Gl#':" + str(resp)
+
+        direction = struct.unpack("B", resp)
+        if direction not in (ICE.GPIO_INPUT, ICE.GPIO_OUTPUT, ICE.GPIO_TRISTATE):
+            raise self.FormatError, "Unknown direction: " + str(direction)
+
+        return direction
+
+    def gpio_set_level(self, gpio_idx, level):
+        '''
+        Set gpio level. (high=True)
+        '''
+        self.send_message_until_acked('g',
+                struct.pack('BBB', ord('l'), gpio_idx, level))
+
+    def gpio_set_direction(self, gpio_idx, direction):
+        '''
+        Setup a GPIO pin.
+        '''
+        if direction not in (ICE.GPIO_INPUT, ICE.GPIO_OUTPUT, ICE.GPIO_TRISTATE):
+            raise self.ParameterError, "Unknown direction: " + str(direction)
+
+        self.send_message_until_acked('g',
+                struct.pack('BBB', ord('d'), gpio_idx, direction))
 
     def power_get_voltage(self, rail):
         '''
