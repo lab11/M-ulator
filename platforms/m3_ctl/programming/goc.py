@@ -10,11 +10,12 @@ import sys
 import os
 import time
 import mimetypes
+import Queue
 
 from ice import ICE
 ice = ICE()
 
-if len(sys.argv) not in (3,),:
+if len(sys.argv) not in (3,):
     print "USAGE: %s BINFILE SERAIL_DEVICE\n" % (sys.argv[0])
     sys.exit(2)
 
@@ -81,34 +82,33 @@ print "Sending frequency setting to ICE (.625Hz)"
 ice.goc_set_frequency(0.625)
 print
 
-def goc_delay(byte_string, div8 = False):
-    # byte_string is cmd + hexencoded bytes (4 bits each) + \r\n, hence the -3 and the *4
-    num_bits = (len(byte_string) - 3) * 4
-    t = num_bits / 5.0 + 1
-    if div8:
-        t *= 8
-        print "Sleeping for %f seconds while it blinks at 1/8th speed..." % (t)
-    else:
-        print "Sleeping for %f seconds while it blinks..." % (t)
-    while (t > 1):
-        sys.stdout.write("\r\t\t\t\t\t\t")
-        sys.stdout.write("\r\t%f remaining..." % (t))
-        sys.stdout.flush()
-        t -= 1
-        time.sleep(1)
-    time.sleep(t)
+#def goc_delay(byte_string, div8 = False):
+#    # byte_string is cmd + hexencoded bytes (4 bits each) + \r\n, hence the -3 and the *4
+#    num_bits = (len(byte_string) - 3) * 4
+#    t = num_bits / 5.0 + 1
+#    if div8:
+#        t *= 8
+#        print "Sleeping for %f seconds while it blinks at 1/8th speed..." % (t)
+#    else:
+#        print "Sleeping for %f seconds while it blinks..." % (t)
+#    while (t > 1):
+#        sys.stdout.write("\r\t\t\t\t\t\t")
+#        sys.stdout.write("\r\t%f remaining..." % (t))
+#        sys.stdout.flush()
+#        t -= 1
+#        time.sleep(1)
+#    time.sleep(t)
 
-def write_bin_via_goc(ser, hexencoded, run_after):
-    passcode_string = "e7394\r\n"
+def write_bin_via_goc(ice, hexencoded, run_after):
+    passcode_string = "7394"
     print "Sending passcode to GOC"
     print "Sending:", passcode_string
     ice.goc_send(passcode_string.decode('hex'))
-    goc_delay(passcode_string, True)
+#goc_delay(passcode_string, True)
     print
 
     # Up ICE sending frequency to 5Hz
     print "Sending 8x frequency setting to ICE (5Hz)"
-    print "Sending:", freq_string
     ice.goc_set_frequency(5)
     print
 
@@ -152,7 +152,7 @@ def write_bin_via_goc(ser, hexencoded, run_after):
     # Bytes 9+: Data
 
     # Assemble message:
-    message = "e%02X%04X%04X%04X%02X%02X%s\r\n" % (
+    message = "%02X%04X%04X%04X%02X%02X%s" % (
             control,
             chip_id,
             mem_addr,
@@ -164,17 +164,17 @@ def write_bin_via_goc(ser, hexencoded, run_after):
     print "Sending program to GOC"
     print "Sending:", message
     ice.goc_send(message.decode('hex'))
-    goc_delay(message)
+# goc_delay(message)
     print
 
     print "Sending extra blink to end transaction"
-    extra = "e80\r\n"
+    extra = "80"
     print "Sending:", extra
     ice.goc_send(extra.decode('hex'))
-    goc_delay(extra)
+#    goc_delay(extra)
     print
 
-def validate_bin(ser, hexencoded):
+def validate_bin(ice, hexencoded, offset=0):
     ice.i2c_set_address("1001100x") # 0x98
 
     print "Running Validation sequence:"
@@ -217,14 +217,14 @@ def validate_bin(ser, hexencoded):
     print "Programming validated successfully"
     return True
 
-write_bin_via_goc(ser, hexencoded, run_after)
+write_bin_via_goc(ice, hexencoded, run_after)
 
 print "Programming complete."
 print
 
 resp = raw_input("Would you like to read back the program via I2C to validate? [Y/n] ")
 if not (len(resp) != 0 and resp[0] in ('n', 'N')):
-    if validate_bin(ser, hexencoded) is False:
+    if validate_bin(ice, hexencoded) is False:
         print "Validation failed. Dying"
         sys.exit()
 
