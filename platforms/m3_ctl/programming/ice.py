@@ -513,4 +513,4 @@ class ICE(object):
         if rail not in (ICE.POWER_0P6, ICE.POWER_1P2, ICE.POWER_VBATT):
             raise self.ParameterError, "Invalid rail: " + str(rail)
 
-        self.send_message_until_acked('p', struct.pack("BBB", ord('v'), rail, onoff))
+        self.send_message_until_acked('p', struct.pack("BBB", ord('o'), rail, onoff))
