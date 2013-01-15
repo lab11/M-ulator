@@ -137,7 +137,7 @@ class ICE(object):
                 print "WARNING: Duplicate event_id! THIS IS A BUG [somewhere]!!"
                 print "         Dropping packet:"
                 print
-                print "    Type: %d" % (ord(msg_type))
+                print "    Type: %d" % (msg_type)
                 print "Event ID: %d" % (event_id)
                 print "  Length: %d" % (length)
                 print " Message:", msg.encode('hex')
@@ -156,7 +156,7 @@ class ICE(object):
                     print "WARNING: Synchronization lost. Unsolicited ACK/NAK."
                     print "         Dropping packet:"
                     print
-                    print "    Type: %s" % (["ACK","NAK"][ord(msg_type)])
+                    print "    Type: %s" % (["ACK","NAK"][msg_type])
                     print "Event ID: %d" % (event_id)
                     print "  Length: %d" % (length)
                     print " Message:", msg.encode('hex')
