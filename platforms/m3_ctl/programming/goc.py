@@ -44,6 +44,12 @@ else:
 
 # Callback for async I2C message
 def validate_bin_helper(msg_type, event_id, length, msg):
+    sys.stdout.flush()
+    print "Bin Helper got msg len", len(msg)
+    if len(msg) == 0:
+        print "Ignore msg of len 0"
+        return
+    sys.stdout.flush()
     validate_q.put(msg)
 
 validate_q = Queue.Queue()
@@ -169,10 +175,16 @@ def validate_bin(ice, hexencoded, offset=0):
     print "Sending:", dma_read_req
     ice.i2c_send(0xaa, dma_read_req.decode('hex'))
 
+    sys.stdout.flush()
     print "Chip Program Dump Response:"
     chip_bin = validate_q.get(True, ice.ONEYEAR)
+    sys.stdout.flush()
+    print "Raw chip bin response len", len(chip_bin)
+    sys.stdout.flush()
     chip_bin = chip_bin.encode('hex')
-    print chip_bin
+    sys.stdout.flush()
+    print "Chip bin len %d val: %s" % (len(chip_bin), chip_bin)
+    sys.stdout.flush()
 
     #1,2-addr ...
     chip_bin = chip_bin[2:]

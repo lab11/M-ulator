@@ -7,6 +7,7 @@ import errno
 import socket
 import struct
 import time
+from copy import copy
 
 try:
     import threading
@@ -170,8 +171,10 @@ class ICE(object):
             self.d_frag += msg
             # XXX: Make version dependent
             if length != 255:
+                sys.stdout.flush()
                 print "Got a complete I2C transaction of length %d bytes. Forwarding..." % (len(self.d_frag))
-                self.spawn_handler('d+', event_id, len(self.d_frag), self.d_frag)
+                sys.stdout.flush()
+                self.spawn_handler('d+', event_id, len(self.d_frag), copy(self.d_frag))
                 self.d_frag = ''
             else:
                 print "Got a fragment message... thus far %d bytes received:" % (len(self.d_frag))
