@@ -113,7 +113,7 @@ def validate_bin(ice, hexencoded, offset=0):
     logging.info("\tCompare received data and validate it was programmed correctly")
     logging.info("")
 
-    length = socket.htons(len(hexencoded)/8)
+    length = len(hexencoded)/8
     offset = socket.htons(offset)
     data = 0x80000000 | (length << 16) | offset
     dma_read_req = "%08X" % (socket.htonl(data))
