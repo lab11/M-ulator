@@ -93,6 +93,7 @@ def write_bin_via_goc(ice, hexencoded, run_after):
     print "Sending passcode to GOC"
     print "Sending:", passcode_string
     ice.goc_send(passcode_string.decode('hex'))
+    sleep(2.0)
     print
 
     # Up ICE sending frequency to 5Hz
