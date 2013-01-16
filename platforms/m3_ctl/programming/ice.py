@@ -268,8 +268,8 @@ class ICE(object):
         except AttributeError:
             freq = GOC_SPEED_DEFAULT_HZ
 
-        num_bytes = len(msg)
-        t = num_bytes / freq
+        num_bits = len(msg) * 8
+        t = num_bits / freq
         print "Sleeping for %f seconds while it blinks..." % (t)
         while (t > 1):
             sys.stdout.write("\r\t\t\t\t\t\t")
