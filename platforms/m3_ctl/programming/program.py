@@ -161,8 +161,8 @@ while True:
         break
     tries += 1
     if tries > 2:
-        logging.info( )
-        logging.info( )
+        logging.info("")
+        logging.info("")
         logging.info('=' * 80)
         logging.info("Maximum number of tries exceeded. Programming Failed.")
         sys.exit(-1)
