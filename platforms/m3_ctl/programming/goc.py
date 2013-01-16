@@ -93,7 +93,7 @@ def write_bin_via_goc(ice, hexencoded, run_after):
     print "Sending passcode to GOC"
     print "Sending:", passcode_string
     ice.goc_send(passcode_string.decode('hex'))
-    sleep(2.0)
+    sleep(4.0)
     print
 
     # Up ICE sending frequency to 5Hz
@@ -172,8 +172,8 @@ def validate_bin(ice, hexencoded, offset=0):
     print "\tCompare received data and validate it was programmed correctly"
     print
 
-    length = socket.htons(len(hexencoded)/8)
-    offset = socket.htons(offset)
+    length = len(hexencoded)/8
+    offset = offset
     data = 0x80000000 | (length << 16) | offset
     dma_read_req = "%08X" % (socket.htonl(data))
     print "Sending:", dma_read_req
