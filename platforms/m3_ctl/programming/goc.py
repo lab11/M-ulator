@@ -117,6 +117,7 @@ def write_bin_via_goc(ice, hexencoded, run_after):
 
     # Byte 5,6: Program Lengh
     length = len(hexencoded) >> 3	# hex exapnded -> bytes, /2; word count /4
+    length = socket.htons(length)
 
     # Byte 7: bit-wise XOR parity of header
     header_parity = 0
@@ -170,7 +171,9 @@ def validate_bin(ice, hexencoded, offset=0):
     print "\tCompare received data and validate it was programmed correctly"
     print
 
-    data = 0x80000000 | ((len(hexencoded)/8) << 16) | offset
+    length = socket.htons(len(hexencoded)/8)
+    offset = socket.htons(offset)
+    data = 0x80000000 | (length << 16) | offset
     dma_read_req = "%08X" % (socket.htonl(data))
     print "Sending:", dma_read_req
     ice.i2c_send(0xaa, dma_read_req.decode('hex'))

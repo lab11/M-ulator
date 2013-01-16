@@ -86,7 +86,9 @@ def write_bin(ice, hexencoded, offset=0):
     print "\tI2C message for end of DMA at address 0x%x, length %d" % (offset, len(hexencoded)/2)
     print
 
-    data = 0x40000000 | ((len(hexencoded)/8) << 16) | offset
+    length = socket.htons(len(hexencoded)/8)
+    offset = socket.htons(offset)
+    data = 0x40000000 | (length << 16) | offset
     dma_write_req = "%08X" % (socket.htonl(data))
     print "Sending:", dma_write_req
     ice.i2c_send(0xaa, dma_write_req.decode('hex'))
@@ -94,7 +96,7 @@ def write_bin(ice, hexencoded, offset=0):
     print "Sending data to address 0xA8"
     ice.i2c_send(0xa8, hexencoded.decode('hex'))
 
-    data = 0x20000000 | ((len(hexencoded)/8) << 16) | offset
+    data = 0x20000000 | (length << 16) | offset
     dma_done_msg = "%08X" % (socket.htonl(data))
     print "Sending:", dma_done_msg
     ice.i2c_send(0xaa, dma_done_msg.decode('hex'))
@@ -106,7 +108,9 @@ def validate_bin(ice, hexencoded, offset=0):
     print "\tCompare received data and validate it was programmed correctly"
     print
 
-    data = 0x80000000 | ((len(hexencoded)/8) << 16) | offset
+    length = socket.htons(len(hexencoded)/8)
+    offset = socket.htons(offset)
+    data = 0x80000000 | (length << 16) | offset
     dma_read_req = "%08X" % (socket.htonl(data))
     print "Sending:", dma_read_req
     ice.i2c_send(0xaa, dma_read_req.decode('hex'))
