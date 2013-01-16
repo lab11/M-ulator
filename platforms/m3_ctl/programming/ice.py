@@ -88,7 +88,7 @@ class ICE(object):
         '''
         self.dev = serial.Serial(serial_device, baudrate)
         if self.dev.isOpen():
-            logging.info("Connected to serial device at", self.dev.portstr)
+            logging.info("Connected to serial device at " + self.dev.portstr)
         else:
             raise self.ICE_Error, "Failed to connect to serial device"
 
@@ -142,7 +142,7 @@ class ICE(object):
                     if msg_type == 0:
                         logging.debug("Got an ACK packet. Event: " + str(event_id))
                     else:
-                        logging.info("Got a NAK packet. Event:", str(event_id))
+                        logging.info("Got a NAK packet. Event:" + str(event_id))
                     self.sync_queue.put((msg_type, msg))
                 except Queue.Full:
                     logging.warn("WARNING: Synchronization lost. Unsolicited ACK/NAK.")
@@ -249,7 +249,7 @@ class ICE(object):
         FRAG_SIZE = 255
 
         sent = 0
-        logging.debug("Sending %d byte message (in %d byte fragments)" % (len(msg ), FRAG_SIZE))
+        logging.debug("Sending %d byte message (in %d byte fragments)" % (len(msg), FRAG_SIZE))
         while len(msg) >= FRAG_SIZE:
             ack,resp = self.send_message(msg_type, msg[0:FRAG_SIZE])
             if ack == 1: # (NAK)

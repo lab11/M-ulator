@@ -113,7 +113,7 @@ def validate_bin(ice, hexencoded, offset=0):
     logging.info("\tCompare received data and validate it was programmed correctly")
     logging.info("")
 
-    length = socket.htons(len(hexencoded)/8)
+    length = len(hexencoded)/8
     offset = socket.htons(offset)
     data = 0x80000000 | (length << 16) | offset
     dma_read_req = "%08X" % (socket.htonl(data))
@@ -121,7 +121,7 @@ def validate_bin(ice, hexencoded, offset=0):
     ice.i2c_send(0xaa, dma_read_req.decode('hex'))
 
     logging.info("Chip Program Dump Response:")
-    chip_bin = validate_q.get(True, ONEYEAR)
+    chip_bin = validate_q.get(True, ICE.ONEYEAR)
     chip_bin = chip_bin.encode('hex')
     logging.debug(chip_bin)
 
@@ -161,8 +161,8 @@ while True:
         break
     tries += 1
     if tries > 2:
-        logging.info( )
-        logging.info( )
+        logging.info("")
+        logging.info("")
         logging.info('=' * 80)
         logging.info("Maximum number of tries exceeded. Programming Failed.")
         sys.exit(-1)
