@@ -204,6 +204,10 @@ print
 
 resp = raw_input("Would you like to read back the program via I2C to validate? [Y/n] ")
 if not (len(resp) != 0 and resp[0] in ('n', 'N')):
+    junk_dma_done_msg = "%08X" % (socket.htonl(0x20000000))
+    print "Sending junk message (DMA Done, 0 bytes to addr 0) to ensure chip is awake"
+    print "Sending: 0xAA", junk_dma_done_msg
+    ice.i2c_send(0xaa, junk_dma_done_msg.decode('hex'))
     if validate_bin(ice, hexencoded) is False:
         print "Validation failed. Dying"
         sys.exit()
