@@ -82,29 +82,11 @@ print "Sending frequency setting to ICE (.625Hz)"
 ice.goc_set_frequency(0.625)
 print
 
-#def goc_delay(byte_string, div8 = False):
-#    # byte_string is cmd + hexencoded bytes (4 bits each) + \r\n, hence the -3 and the *4
-#    num_bits = (len(byte_string) - 3) * 4
-#    t = num_bits / 5.0 + 1
-#    if div8:
-#        t *= 8
-#        print "Sleeping for %f seconds while it blinks at 1/8th speed..." % (t)
-#    else:
-#        print "Sleeping for %f seconds while it blinks..." % (t)
-#    while (t > 1):
-#        sys.stdout.write("\r\t\t\t\t\t\t")
-#        sys.stdout.write("\r\t%f remaining..." % (t))
-#        sys.stdout.flush()
-#        t -= 1
-#        time.sleep(1)
-#    time.sleep(t)
-
 def write_bin_via_goc(ice, hexencoded, run_after):
     passcode_string = "7394"
     print "Sending passcode to GOC"
     print "Sending:", passcode_string
     ice.goc_send(passcode_string.decode('hex'))
-#goc_delay(passcode_string, True)
     print
 
     # Up ICE sending frequency to 5Hz
@@ -164,14 +146,12 @@ def write_bin_via_goc(ice, hexencoded, run_after):
     print "Sending program to GOC"
     print "Sending:", message
     ice.goc_send(message.decode('hex'))
-# goc_delay(message)
     print
 
     print "Sending extra blink to end transaction"
     extra = "80"
     print "Sending:", extra
     ice.goc_send(extra.decode('hex'))
-#    goc_delay(extra)
     print
 
 def validate_bin(ice, hexencoded, offset=0):

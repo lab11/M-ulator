@@ -30,19 +30,6 @@ except ImportError:
 class ICE(object):
     VERSIONS = ((0,1),)
 
-    # XXX: Version-specific constants?
-    POWER_0P6 = 0
-    POWER_1P2 = 1
-    POWER_VBATT = 2
-
-    POWER_0P6_DEFAULT = 0.675
-    POWER_1P2_DEFAULT = 1.2
-    POWER_VBATT_DEFAULT = 3.8
-
-    GPIO_INPUT = 0
-    GPIO_OUTPUT = 1
-    GPIO_TRISTATE = 2
-
     class ICE_Error(Exception):
         '''
         A base class for all exceptions raised by this module
@@ -269,7 +256,29 @@ class ICE(object):
         sent += len(resp)
         return sent
 
-    def goc_send(self, msg):
+    ## GOC ##
+    GOC_SPEED_DEFAULT_HZ = .625
+
+    def _goc_display_delay(self, msg, event):
+        try:
+            freq = self.goc_freq
+        except AttributeError:
+            freq = GOC_SPEED_DEFAULT_HZ
+
+        num_bytes = len(msg)
+        t = num_bytes / freq
+        print "Sleeping for %f seconds while it blinks..." % (t)
+        while (t > 1):
+            sys.stdout.write("\r\t\t\t\t\t\t")
+            sys.stdout.write("\r\t%f remaining..." % (t))
+            sys.stdout.flush()
+            t -= 1
+            if event.is_set():
+                return
+            time.sleep(1)
+        time.sleep(t)
+
+    def goc_send(self, msg, show_progress=True):
         '''
         Blinks a message via GOC.
 
@@ -281,7 +290,17 @@ class ICE(object):
         significantly lower bandwidth of the GOC interface, there should be no
         interruption in message transmission.
         '''
-        return self._fragment_sender('f', msg)
+        if show_progress:
+            e = threading.Event()
+            t = threading.Thread(target=self._goc_display_delay, args=(msg,e))
+            t.daemon = True
+            t.start()
+            ret = self._fragment_sender('f', msg)
+            e.set()
+            t.join()
+        else:
+            ret = self._fragment_sender('f', msg)
+        return ret
 
     def goc_set_frequency(self, freq_in_hz):
         '''
@@ -295,6 +314,8 @@ class ICE(object):
             raise self.ParameterError, "Out of range."
         msg = struct.pack("B", ord('c')) + packed[1:]
         self.send_message_until_acked('o', msg)
+
+        self.goc_freq = freq_in_hz
 
     def i2c_send(self, addr, data):
         '''
@@ -315,6 +336,7 @@ class ICE(object):
         msg = struct.pack("B", addr) + data
         return self._fragment_sender('d', msg)
 
+    ## I2C ##
     def i2c_get_speed(self):
         '''
         Get the clock speed of the ICE I2C driver in kHz.
@@ -402,6 +424,11 @@ class ICE(object):
 
         return self._i2c_set_address(ones, zeros)
 
+    ## GPIO ##
+    GPIO_INPUT = 0
+    GPIO_OUTPUT = 1
+    GPIO_TRISTATE = 2
+
     def gpio_get_level(self, gpio_idx):
         '''
         Query whether a gpio is high or low. (high=True)
@@ -449,6 +476,15 @@ class ICE(object):
 
         self.send_message_until_acked('g',
                 struct.pack('BBB', ord('d'), gpio_idx, direction))
+
+    ## POWER ##
+    POWER_0P6 = 0
+    POWER_1P2 = 1
+    POWER_VBATT = 2
+
+    POWER_0P6_DEFAULT = 0.675
+    POWER_1P2_DEFAULT = 1.2
+    POWER_VBATT_DEFAULT = 3.8
 
     def power_get_voltage(self, rail):
         '''
