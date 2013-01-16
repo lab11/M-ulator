@@ -30,6 +30,7 @@ except ImportError:
 
 class ICE(object):
     VERSIONS = ((0,1),)
+    ONEYEAR = 365 * 24 * 60 * 60
 
     class ICE_Error(Exception):
         '''
@@ -189,7 +190,8 @@ class ICE(object):
         self.event_id = (self.event_id + 1) % 256
         self.dev.write(buf + msg)
 
-        return self.sync_queue.get()
+        # Ugly hack so python allows keyboard interrupts
+        return self.sync_queue.get(True, ONEYEAR)
 
     def send_message_until_acked(self, msg_type, msg='', length=None, tries=5):
         while tries:
