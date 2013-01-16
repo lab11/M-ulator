@@ -249,7 +249,7 @@ class ICE(object):
         FRAG_SIZE = 255
 
         sent = 0
-        logging.debug("Sending %d byte message (in %d byte fragments)" % (len(msg ) + FRAG_SIZE))
+        logging.debug("Sending %d byte message (in %d byte fragments)" % (len(msg), FRAG_SIZE))
         while len(msg) >= FRAG_SIZE:
             ack,resp = self.send_message(msg_type, msg[0:FRAG_SIZE])
             if ack == 1: # (NAK)
