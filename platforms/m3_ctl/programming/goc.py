@@ -155,6 +155,7 @@ def write_bin_via_goc(ice, hexencoded, run_after):
     print
 
 def validate_bin(ice, hexencoded, offset=0):
+    print "Configuring ICE to ACK adress 1001 100x"
     ice.i2c_set_address("1001100x") # 0x98
 
     print "Running Validation sequence:"
