@@ -6,6 +6,7 @@ import sys
 import errno
 import socket
 import struct
+import time
 
 try:
     import threading

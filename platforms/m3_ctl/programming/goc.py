@@ -158,7 +158,7 @@ def validate_bin(ice, hexencoded, offset=0):
     ice.i2c_set_address("1001100x") # 0x98
 
     print "Running Validation sequence:"
-    print "\tI2C message for start DMA read at address 0x%x, length %d" % (offset, len(hexencoded)/2)
+    print "\t DMA read at address 0x%x, length %d" % (offset, len(hexencoded)/2)
     print "\t<Receive I2C message for DMA data>"
     print "\tCompare received data and validate it was programmed correctly"
     print
