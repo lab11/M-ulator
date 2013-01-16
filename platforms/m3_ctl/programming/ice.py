@@ -88,7 +88,7 @@ class ICE(object):
         '''
         self.dev = serial.Serial(serial_device, baudrate)
         if self.dev.isOpen():
-            logging.info("Connected to serial device at", self.dev.portstr)
+            logging.info("Connected to serial device at " + self.dev.portstr)
         else:
             raise self.ICE_Error, "Failed to connect to serial device"
 
