@@ -181,7 +181,7 @@ def validate_bin(ice, hexencoded, offset=0):
     chip_bin = chip_bin.upper()
     hexencoded = hexencoded.upper()
 
-    for b in range(2, len(hexencoded)):
+    for b in range(len(hexencoded)):
         try:
             if hexencoded[b] != chip_bin[b]:
                 print "ERR: Mismatch at half-byte", b
