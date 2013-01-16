@@ -191,7 +191,7 @@ class ICE(object):
         self.dev.write(buf + msg)
 
         # Ugly hack so python allows keyboard interrupts
-        return self.sync_queue.get(True, ONEYEAR)
+        return self.sync_queue.get(True, self.ONEYEAR)
 
     def send_message_until_acked(self, msg_type, msg='', length=None, tries=5):
         while tries:
