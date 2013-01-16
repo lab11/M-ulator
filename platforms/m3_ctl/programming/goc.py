@@ -116,7 +116,7 @@ def write_bin_via_goc(ice, hexencoded, run_after):
     mem_addr = 0
 
     # Byte 5,6: Program Lengh
-    length = len(hexencoded) >> 3	# hex exapnded -> bytes, /2; word count /4
+    length = len(hexencoded) >> 1	# hex exapnded -> bytes, /2
     length = socket.htons(length)
 
     # Byte 7: bit-wise XOR parity of header
