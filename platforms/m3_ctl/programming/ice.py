@@ -8,23 +8,24 @@ import socket
 import struct
 import time
 from copy import copy
+import logging
 
 try:
     import threading
     import Queue
 except ImportError:
-    print "Your python installation does not support threads."
-    print
-    print "Please install a version of python that supports threading."
+    logging.warn("Your python installation does not support threads.")
+    logging.warn("")
+    logging.warn("Please install a version of python that supports threading.")
     raise
 
 try:
     import serial
 except ImportError:
-    print "You do not have the pyserial library installed."
-    print
-    print "For installation instructions, see:"
-    print "\thttp://pyserial.sourceforge.net/pyserial.html#installation"
+    logging.warn("You do not have the pyserial library installed.")
+    logging.warn("")
+    logging.warn("For installation instructions + see:")
+    logging.warn("\thttp://pyserial.sourceforge.net/pyserial.html#installation")
     raise
 
 ################################################################################
@@ -87,7 +88,7 @@ class ICE(object):
         '''
         self.dev = serial.Serial(serial_device, baudrate)
         if self.dev.isOpen():
-            print "Connected to serial device at", self.dev.portstr
+            logging.info("Connected to serial device at", self.dev.portstr)
         else:
             raise self.ICE_Error, "Failed to connect to serial device"
 
@@ -104,16 +105,17 @@ class ICE(object):
             t.daemon = True
             t.start()
         except KeyError:
-            print "WARNING: No handler registered for message type:", msg_type
-            print "Known Types:"
+            logging.warn("WARNING: No handler registered for message type: " +
+                    str(msg_type))
+            logging.warn("Known Types:")
             for t,f in self.msg_handler.iteritems():
-                print "%s\t%s" % (t, f)
-            print "         Dropping packet:"
-            print
-            print "    Type: %s" % (msg_type)
-            print "Event ID: %d" % (event_id)
-            print "  Length: %d" % (length)
-            print " Message:", msg.encode('hex')
+                logging.warn("%s\t%s" % (t + f))
+            logging.warn("         Dropping packet:")
+            logging.warn("")
+            logging.warn("    Type: %s" % (msg_type))
+            logging.warn("Event ID: %d" % (event_id))
+            logging.warn("  Length: %d" % (length))
+            logging.warn(" Message:" + msg.encode('hex'))
 
     def communicator(self):
         while True:
@@ -124,13 +126,13 @@ class ICE(object):
             msg = self.dev.read(length)
 
             if event_id == self.last_event_id:
-                print "WARNING: Duplicate event_id! THIS IS A BUG [somewhere]!!"
-                print "         Dropping packet:"
-                print
-                print "    Type: %d" % (msg_type)
-                print "Event ID: %d" % (event_id)
-                print "  Length: %d" % (length)
-                print " Message:", msg.encode('hex')
+                logging.warn("WARNING: Duplicate event_id! THIS IS A BUG [somewhere]!!")
+                logging.warn("         Dropping packet:")
+                logging.warn("")
+                logging.warn("    Type: %d" % (msg_type))
+                logging.warn("Event ID: %d" % (event_id))
+                logging.warn("  Length: %d" % (length))
+                logging.warn(" Message:" + msg.encode('hex'))
             else:
                 self.last_event_id = event_id
 
@@ -138,21 +140,21 @@ class ICE(object):
                 # Ack / Nack response from a synchronous message
                 try:
                     if msg_type == 0:
-                        print "Got an ACK packet. Event:", event_id
+                        logging.debug("Got an ACK packet. Event: " + str(event_id))
                     else:
-                        print "Got a NAK packet. Event:", event_id
+                        logging.info("Got a NAK packet. Event:", str(event_id))
                     self.sync_queue.put((msg_type, msg))
                 except Queue.Full:
-                    print "WARNING: Synchronization lost. Unsolicited ACK/NAK."
-                    print "         Dropping packet:"
-                    print
-                    print "    Type: %s" % (["ACK","NAK"][msg_type])
-                    print "Event ID: %d" % (event_id)
-                    print "  Length: %d" % (length)
-                    print " Message:", msg.encode('hex')
+                    logging.warn("WARNING: Synchronization lost. Unsolicited ACK/NAK.")
+                    logging.warn("         Dropping packet:")
+                    logging.warn("")
+                    logging.warn("    Type: %s" % (["ACK","NAK"][msg_type]))
+                    logging.warn("Event ID: %d" % (event_id))
+                    logging.warn("  Length: %d" % (length))
+                    logging.warn(" Message:" + msg.encode('hex'))
             else:
                 msg_type = chr(msg_type)
-                print "Got an async message of type:", msg_type
+                logging.debug("Got an async message of type: " + msg_type)
                 self.spawn_handler(msg_type, event_id, length, msg)
 
     def d_defragger(self, msg_type, event_id, length, msg):
@@ -172,12 +174,12 @@ class ICE(object):
             # XXX: Make version dependent
             if length != 255:
                 sys.stdout.flush()
-                print "Got a complete I2C transaction of length %d bytes. Forwarding..." % (len(self.d_frag))
+                logging.debug("Got a complete I2C transaction of length %d bytes. Forwarding..." % (len(self.d_frag)))
                 sys.stdout.flush()
                 self.spawn_handler('d+', event_id, len(self.d_frag), copy(self.d_frag))
                 self.d_frag = ''
             else:
-                print "Got a fragment message... thus far %d bytes received:" % (len(self.d_frag))
+                logging.debug("Got a fragment message... thus far %d bytes received:" % (len(self.d_frag)))
 
     def send_message(self, msg_type, msg='', length=None):
         if len(msg_type) != 1:
@@ -212,15 +214,15 @@ class ICE(object):
         This function is called automatically by __init__ and should not be
         called directly.
         '''
-        print "This library supports versions..."
+        logging.info("This library supports versions...")
         for major, minor in ICE.VERSIONS:
-            print "%d.%d" % (major, minor)
+            logging.info("\t%d.%d" % (major, minor))
 
         resp = self.send_message_until_acked('V')
         if (len(resp) is 0) or (len(resp) % 2):
             raise self.FormatError, "Version response: " + resp
 
-        print "This ICE board supports versions..."
+        logging.info("This ICE board supports versions...")
         self.major = None
         self.minor = None
         while len(resp) > 0:
@@ -229,12 +231,12 @@ class ICE(object):
             if self.major is None and (major, minor) in ICE.VERSIONS:
                 self.major = major
                 self.minor = minor
-                print "%d.%d **Chosen version" % (major, minor)
+                logging.info("\t%d.%d **Chosen version" % (major, minor))
             else:
-                print "%d.%d" % (major, minor)
+                logging.info("\t%d.%d" % (major, minor))
 
         if self.major is None:
-            print "No versions in common. Version negotiation failed."
+            logging.warn("No versions in common. Version negotiation failed.")
             raise self.ICE_Error
 
         self.send_message_until_acked('v', struct.pack("BB", self.major, self.minor))
@@ -247,15 +249,15 @@ class ICE(object):
         FRAG_SIZE = 255
 
         sent = 0
-        print "Sending %d byte message (in %d byte fragments)" % (len(msg), FRAG_SIZE)
+        logging.debug("Sending %d byte message (in %d byte fragments)" % (len(msg ) + FRAG_SIZE))
         while len(msg) >= FRAG_SIZE:
             ack,resp = self.send_message(msg_type, msg[0:FRAG_SIZE])
             if ack == 1: # (NAK)
                 return sent + ord(resp)
             msg = msg[FRAG_SIZE:]
             sent += FRAG_SIZE
-            print "\tSent %d bytes, %d remaining" % (sent, len(msg))
-        print "Sending last message, %d bytes long" % (len(msg))
+            logging.debug("\tSent %d byte s, %d remaining" % (sent, len(msg)))
+        logging.debug("Sending last messag e, %d bytes long" % (len(msg)))
         ack,resp = self.send_message(msg_type, msg)
         if ack == 1:
             return sent + ord(resp)
@@ -273,7 +275,7 @@ class ICE(object):
 
         num_bits = len(msg) * 8
         t = num_bits / freq
-        print "Sleeping for %f seconds while it blinks..." % (t)
+        logging.info("Sleeping for %f seconds while it blinks..." % (t))
         while (t > 1):
             sys.stdout.write("\r\t\t\t\t\t\t")
             sys.stdout.write("\r\t%f remaining..." % (t))
@@ -556,3 +558,6 @@ class ICE(object):
             raise self.ParameterError, "Invalid rail: " + str(rail)
 
         self.send_message_until_acked('p', struct.pack("BBB", ord('o'), rail, onoff))
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
