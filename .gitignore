@@ -1,5 +1,6 @@
 *.o
 *.swp
+*.pyc
 
 # /simulator/
 /simulator/simulator
