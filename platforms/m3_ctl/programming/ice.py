@@ -142,7 +142,7 @@ class ICE(object):
                     if msg_type == 0:
                         logging.debug("Got an ACK packet. Event: " + str(event_id))
                     else:
-                        logging.info("Got a NAK packet. Event:", str(event_id))
+                        logging.info("Got a NAK packet. Event:" + str(event_id))
                     self.sync_queue.put((msg_type, msg))
                 except Queue.Full:
                     logging.warn("WARNING: Synchronization lost. Unsolicited ACK/NAK.")

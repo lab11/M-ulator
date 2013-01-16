@@ -121,7 +121,7 @@ def validate_bin(ice, hexencoded, offset=0):
     ice.i2c_send(0xaa, dma_read_req.decode('hex'))
 
     logging.info("Chip Program Dump Response:")
-    chip_bin = validate_q.get(True, ONEYEAR)
+    chip_bin = validate_q.get(True, ICE.ONEYEAR)
     chip_bin = chip_bin.encode('hex')
     logging.debug(chip_bin)
 
