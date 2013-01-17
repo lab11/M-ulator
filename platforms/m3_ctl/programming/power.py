@@ -24,7 +24,7 @@ args = parser.parse_args()
 
 ice.connect(args.SERIAL)
 
-try:
+if args.V1P2 is not None:
     if args.V1P2 == 0:
         logging.info("Turning off 1.2V")
         ice.power_set_onoff(ICE.POWER_1P2, False)
@@ -32,10 +32,8 @@ try:
         logging.info("Turning on 1.2V to " + str(args.V1P2))
         ice.power_set_voltage(ICE.POWER_1P2, args.V1P2)
         ice.power_set_onoff(ICE.POWER_1P2, True)
-except AttributeError:
-    pass
 
-try:
+if args.V0P6 is not None:
     if args.V0P6 == 0:
         logging.info("Turning off 0.6V")
         ice.power_set_onoff(ICE.POWER_0P6, False)
@@ -43,10 +41,8 @@ try:
         logging.info("Turning on 0.6V to " + str(args.V0P6))
         ice.power_set_voltage(ICE.POWER_0P6, args.V0P6)
         ice.power_set_onoff(ICE.POWER_0P6, True)
-except AttributeError:
-    pass
 
-try:
+if args.VBATT is not None:
     if args.VBATT == 0:
         logging.info("Turning off VBatt")
         ice.power_set_onoff(ICE.POWER_VBATT, False)
@@ -54,5 +50,4 @@ try:
         logging.info("Turning on VBatt to " + str(args.VBATT))
         ice.power_set_voltage(ICE.POWER_VBATT, args.VBATT)
         ice.power_set_onoff(ICE.POWER_VBATT, True)
-except AttributeError:
-    pass
+
