@@ -17,8 +17,11 @@ logging.info("")
 from ice import ICE
 ice = ICE()
 
-if len(sys.argv) not in (3,):
-    logging.info("USAGE: %s BINFILE SERAIL_DEVICE\n" % (sys.argv[0]))
+if len(sys.argv) not in (3,4):
+    logging.info("USAGE: %s BINFILE SERAIL_DEVICE [GOC_FREQ]\n" % (sys.argv[0]))
+    logging.info("")
+    logging.info("GOC_FREQ is optional, defaults to 0.625 Hz")
+    logging.info("The option sets the slow frequency in Hz, fast freq is *8")
     sys.exit(2)
 
 binfile = sys.argv[1]
@@ -31,7 +34,7 @@ if mimetypes.guess_type(binfile)[0] == 'text/plain':
     binfd = open(binfile, 'r')
     hexencoded = ""
     for line in binfd:
-        hexencoded += line[0:2]
+        hexencoded += line[0:2].upper()
 else:
     logging.info("Guessing compiled binary")
     binfd = open(binfile, 'rb')
@@ -98,8 +101,12 @@ else:
     run_after = 1
 
 # Set to .625Hz
-logging.info("Sending frequency setting to ICE (.625Hz)")
-ice.goc_set_frequency(0.625)
+try:
+    slow_freq = float(sys.argv[3])
+except IndexError:
+    slow_freq = 0.625
+logging.info("Sending frequency setting to ICE (%f Hz)" % (slow_freq))
+ice.goc_set_frequency(slow_freq)
 
 def write_bin_via_goc(ice, hexencoded, run_after):
     passcode_string = "7394"
@@ -110,8 +117,9 @@ def write_bin_via_goc(ice, hexencoded, run_after):
     print
 
     # Up ICE sending frequency to 5Hz
-    logging.info("Sending 8x frequency setting to ICE (5Hz)")
-    ice.goc_set_frequency(5)
+    fast_freq = slow_freq * 8
+    logging.info("Sending 8x frequency setting to ICE (%f Hz)" % (fast_freq))
+    ice.goc_set_frequency(fast_freq)
 
     # Build the GOC message:
     chip_id_mask = 0                # [0:3] Chip ID Mask
