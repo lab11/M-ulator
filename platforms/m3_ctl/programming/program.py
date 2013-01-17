@@ -10,7 +10,7 @@ import os
 import mimetypes
 import Queue
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 logging.info("-" * 80)
 logging.info("-- M3 Programmer")
@@ -48,6 +48,10 @@ else:
 
 # Callback for async I2C message
 def validate_bin_helper(msg_type, event_id, length, msg):
+    logging.debug("Bin Helper got msg len" + str(len(msg)))
+    if len(msg) == 0:
+        logging.debug("Ignore msg of len 0")
+        return
     validate_q.put(msg)
 
 validate_q = Queue.Queue()
@@ -60,17 +64,24 @@ logging.info("Turning all M3 power rails on")
 ice.power_set_voltage(0,0.6)
 ice.power_set_voltage(1,1.2)
 ice.power_set_voltage(2,3.8)
-ice.power_set_onoff(0,True)
-ice.power_set_onoff(1,True)
+logging.info("Turning 3.8 on")
 ice.power_set_onoff(2,True)
 sleep(1.0)
+logging.info("Turning 1.2 on")
+ice.power_set_onoff(1,True)
+sleep(1.0)
+logging.info("Turning 0.6 on")
+ice.power_set_onoff(0,True)
+sleep(1.0)
+logging.info("Waiting 8 seconds for power rails to settle")
+sleep(8.0)
 
 logging.info("M3 0.6V => OFF (reset controller)")
 ice.power_set_onoff(0,False)
-sleep(1.0)
+sleep(4.0)
 logging.info("M3 0.6V => ON")
 ice.power_set_onoff(0,True)
-sleep(1.0)
+sleep(4.0)
 
 resp = raw_input("About to send I2C message to wake controller. Continue? [Y/n] ")
 if len(resp) != 0 and resp[0] in ('n', 'N'):
@@ -180,3 +191,4 @@ if len(resp) != 0 and resp[0] in ('n', 'N'):
 logging.info("Sending 0x88 0x00000000")
 ice.i2c_send(0x88, "00000000".decode('hex'))
 
+sleep(10000)

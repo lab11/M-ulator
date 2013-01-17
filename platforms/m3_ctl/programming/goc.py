@@ -61,17 +61,30 @@ logging.info("Turning all M3 power rails on")
 ice.power_set_voltage(0,0.6)
 ice.power_set_voltage(1,1.2)
 ice.power_set_voltage(2,3.8)
-ice.power_set_onoff(0,True)
-ice.power_set_onoff(1,True)
+logging.info("Turning 3.8 on")
 ice.power_set_onoff(2,True)
 sleep(1.0)
+logging.info("Turning 1.2 on")
+ice.power_set_onoff(1,True)
+sleep(1.0)
+logging.info("Turning 0.6 on")
+ice.power_set_onoff(0,True)
+sleep(1.0)
+logging.info("Waiting 8 seconds for power rails to settle")
+sleep(8.0)
 
 logging.info("M3 0.6V => OFF (reset controller)")
 ice.power_set_onoff(0,False)
-sleep(1.0)
+sleep(4.0)
 logging.info("M3 0.6V => ON")
 ice.power_set_onoff(0,True)
-sleep(1.0)
+sleep(4.0)
+
+#junk_dma_done_msg = "%08X" % (socket.htonl(0x20000000))
+#logging.info("Sending junk message (DMA Done, 0 bytes to addr 0) to ensure chip is awake")
+#logging.debug("Sending: 0xAA " + junk_dma_done_msg)
+#ice.i2c_send(0xaa, junk_dma_done_msg.decode('hex'))
+#sleep(1.0)
 
 logging.info("")
 logging.info("Would you like to run after programming? If you do not")
@@ -116,7 +129,7 @@ def write_bin_via_goc(ice, hexencoded, run_after):
     mem_addr = 0
 
     # Byte 5,6: Program Lengh
-    length = len(hexencoded) >> 1   # hex exapnded -> bytes, /2
+    length = len(hexencoded) >> 3   # hex exapnded -> bytes, /2
     length = socket.htons(length)
 
     # Byte 7: bit-wise XOR parity of header
@@ -153,6 +166,7 @@ def write_bin_via_goc(ice, hexencoded, run_after):
     logging.info("Sending program to GOC")
     logging.debug("Sending: " + message)
     ice.goc_send(message.decode('hex'))
+    sleep(1.0)
 
     logging.info("Sending extra blink to end transaction")
     extra = "80"
@@ -217,6 +231,7 @@ if not (len(resp) != 0 and resp[0] in ('n', 'N')):
     logging.info("Sending junk message (DMA Done, 0 bytes to addr 0) to ensure chip is awake")
     logging.debug("Sending: 0xAA " + junk_dma_done_msg)
     ice.i2c_send(0xaa, junk_dma_done_msg.decode('hex'))
+    sleep(1.0)
     if validate_bin(ice, hexencoded) is False:
         logging.warn("Validation failed. Dying")
         sys.exit()
@@ -228,3 +243,4 @@ if len(resp) != 0 and resp[0] in ('n', 'N'):
 logging.info("Sending 0x88 0x00000000")
 ice.i2c_send(0x88, "00000000".decode('hex'))
 
+sleep(10000)
