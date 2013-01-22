@@ -26,7 +26,20 @@ if len(sys.argv) not in (3,):
 
 binfile = sys.argv[1]
 
-if mimetypes.guess_type(binfile)[0] == 'text/plain':
+ext = os.path.splitext(binfile)[1]
+if ext == os.extsep + "txt":
+    t = 'hex'
+elif ext == os.extsep + 'bin':
+    t = 'bin'
+else:
+    logging.debug("File ext (%s) not matched", ext)
+    logging.debug("MIME Type: " + str(mimetypes.guess_type(binfile)[0]))
+    if mimetypes.guess_type(binfile)[0] == 'text/plain':
+        t = 'hex'
+    else:
+        t = 'bin'
+
+if t == 'hex':
     logging.info("Guessing hex-encoded stream for NI setup")
     logging.info("  ** This means one byte (two hex characters) per line")
     logging.info("  ** and these are the first two characters on each line.")
@@ -35,10 +48,12 @@ if mimetypes.guess_type(binfile)[0] == 'text/plain':
     hexencoded = ""
     for line in binfd:
         hexencoded += line[0:2]
-else:
+elif t == 'bin':
     logging.info("Guessing compiled binary")
     binfd = open(binfile, 'rb')
     hexencoded = binfd.read().encode("hex").upper()
+else:
+    logging.error("No file type set?")
 
 if (len(hexencoded) % 8) != 0:
     logging.warn("Binfile is not word-aligned. This is not a valid image")
@@ -162,6 +177,13 @@ def validate_bin(ice, hexencoded, offset=0):
 
 resp = raw_input("About to send program data to I2C. Continue? [Y/n] ")
 if len(resp) != 0 and resp[0] in ('n', 'N'):
+    sys.exit()
+
+# Length field is bits 28:16, 4*2^(28-16+1) = 32768 maximum byte single message
+if (len(hexencoded)/2) > (4*2**(28-16+1)):
+    logging.warn("Program is too long to write in one DMA message")
+    logging.warn("I can fix this with fragmentation if you encounter it")
+    logging.warn("Send me an email and I'll take care of it")
     sys.exit()
 
 tries = 0
