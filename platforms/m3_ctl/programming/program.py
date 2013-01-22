@@ -29,6 +29,8 @@ binfile = sys.argv[1]
 ext = os.path.splitext(binfile)[1]
 if ext == os.extsep + "txt":
     t = 'hex'
+elif ext == os.extsep + 'hex':
+    t = 'hex'
 elif ext == os.extsep + 'bin':
     t = 'bin'
 else:
