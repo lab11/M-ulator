@@ -215,4 +215,3 @@ if len(resp) != 0 and resp[0] in ('n', 'N'):
 logging.info("Sending 0x88 0x00000000")
 ice.i2c_send(0x88, "00000000".decode('hex'))
 
-sleep(10000)
