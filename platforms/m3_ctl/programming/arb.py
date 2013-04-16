@@ -4,7 +4,7 @@ import sys
 import struct
 import socket
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 from ice import ICE
 ice = ICE()

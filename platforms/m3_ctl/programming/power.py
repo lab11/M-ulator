@@ -7,7 +7,7 @@ import os
 import time
 import argparse
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 from ice import ICE
 ice = ICE()

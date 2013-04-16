@@ -8,7 +8,7 @@ import time
 import mimetypes
 import Queue
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 logging.info("-" * 80)
 logging.info("-- M3 GOC Programmer")
