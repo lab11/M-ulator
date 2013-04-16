@@ -118,7 +118,7 @@ def write_bin(ice, hexencoded, offset=0):
             (offset, len(hexencoded)/2))
     logging.info("")
 
-    length = socket.htons(len(hexencoded)/8)
+    length = len(hexencoded)/8
     offset = socket.htons(offset)
     data = 0x40000000 | (length << 16) | offset
     dma_write_req = "%08X" % (socket.htonl(data))
