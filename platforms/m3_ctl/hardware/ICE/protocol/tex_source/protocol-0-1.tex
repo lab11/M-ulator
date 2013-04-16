@@ -40,8 +40,8 @@
         \begin{itemize}
           \item An I2C transaction of length 510 (1 byte addr + 509 bytes
             of data) would be {\bf three} messages. The first of length
-            255 (addr + bytes 0-254), the second of length 255 (addr +
-            bytes 255-510), and the third of length 0 (there is no more
+            255 (addr + bytes 0-253), the second of length 255 (bytes
+            254-508), and the third of length 0 (there is no more
             data, but the fragment series must be terminated).
         \end{itemize}
       \item Fragments are treated as one logical message, but individual I2C bus
