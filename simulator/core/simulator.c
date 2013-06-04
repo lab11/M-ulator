@@ -19,7 +19,9 @@
 
 #define STAGE SIM
 
+#ifndef __APPLE__
 #include <sys/prctl.h>
+#endif
 #include <sys/stat.h>
 
 // XXX: Temporary fix, see note at end of simulator.h
@@ -717,7 +719,9 @@ static void* sig_thread(void *arg) {
 	sigset_t *set = (sigset_t *) arg;
 	int s, sig;
 
+#ifndef __APPLE__
 	prctl(PR_SET_NAME, "signal hander", 0, 0, 0);
+#endif
 
 	for (;;) {
 		s = sigwait(set, &sig);

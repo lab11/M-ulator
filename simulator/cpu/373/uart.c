@@ -17,7 +17,9 @@
  * along with Mulator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef __APPLE__
 #include <sys/prctl.h>
+#endif
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -73,7 +75,9 @@ static void *poll_uart_thread(void *unused __attribute__ ((unused))) {
 	int sock;
 	struct sockaddr_in server;
 
+#ifndef __APPLE__
 	assert(0 == prctl(PR_SET_NAME, "poll_uart_thread", 0, 0, 0));
+#endif
 
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (-1 == sock) {

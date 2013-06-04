@@ -19,7 +19,9 @@
 
 #define STAGE PIPE
 
+#ifndef __APPLE__
 #include <sys/prctl.h>
+#endif
 
 #include "pipeline.h"
 #include "state_sync.h"
@@ -58,7 +60,9 @@ void pipeline_flush(uint32_t new_pc) {
 void* ticker(void *stage_fn) {
 	void (*fn) (void) = (void(*)(void)) stage_fn;
 
+#ifndef __APPLE__
 	assert(0 == prctl(PR_SET_NAME, "ticker", 0, 0, 0));
+#endif
 
 	DBG2("spawned ticker thread executing: %p\n", fn);
 
