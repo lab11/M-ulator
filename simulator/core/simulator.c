@@ -51,10 +51,10 @@ static volatile sig_atomic_t sigint = 0;
 static volatile bool shell_running = false;
 
 /* Tick Control */
-EXPORT sem_t ticker_ready_sem;
-EXPORT sem_t start_tick_sem;
-EXPORT sem_t end_tick_sem;
-EXPORT sem_t end_tock_sem;
+EXPORT sem_t* ticker_ready_sem;
+EXPORT sem_t* start_tick_sem;
+EXPORT sem_t* end_tick_sem;
+EXPORT sem_t* end_tock_sem;
 #define NUM_TICKERS	3	// IF, ID, EX
 
 /* Peripherals */
@@ -609,17 +609,17 @@ static int sim_execute(void) {
 
 	// Don't let stages steal wakeups
 	for (i = 0; i < NUM_TICKERS; i++) {
-		sem_wait(&ticker_ready_sem);
+		sem_wait(ticker_ready_sem);
 	}
 
 	// Start off each stage
 	for (i = 0; i < NUM_TICKERS; i++) {
-		sem_post(&start_tick_sem);
+		sem_post(start_tick_sem);
 	}
 
 	// Wait for all stages to complete
 	for (i = 0; i < NUM_TICKERS; i++) {
-		sem_wait(&end_tick_sem);
+		sem_wait(end_tick_sem);
 	}
 
 	// Latch hardware
@@ -627,7 +627,7 @@ static int sim_execute(void) {
 
 	// Notify stages this cycle is complete
 	for (i = 0; i < NUM_TICKERS; i++) {
-		sem_post(&end_tock_sem);
+		sem_post(end_tock_sem);
 	}
 #endif
 
@@ -798,10 +798,40 @@ static void flash_image(const uint8_t *image, const uint32_t num_bytes){
 EXPORT void simulator(const char *flash_file) {
 	// Init uninit'd globals
 #ifndef NO_PIPELINE
-	assert(0 == sem_init(&ticker_ready_sem, 0, 0));
-	assert(0 == sem_init(&start_tick_sem, 0, 0));
-	assert(0 == sem_init(&end_tick_sem, 0, 0));
-	assert(0 == sem_init(&end_tock_sem, 0, 0));
+	{
+		// OS X requires named semaphores, but we really don't want
+		// them, so use PID to create a unique namespace for this
+		// instance of the simulator
+		char name_buf[32];
+
+		sprintf(name_buf, "/%d/%s", getpid(), "ticker_ready_sem");
+		ticker_ready_sem = sem_open(name_buf, O_CREAT|O_EXCL, 600, 0);
+		if (ticker_ready_sem == SEM_FAILED) {
+			WARN("%s\n", strerror(errno));
+			ERR(E_UNKNOWN, "Initilizing ticker_ready_sem\n");
+		}
+
+		sprintf(name_buf, "/%d/%s", getpid(), "start_tick_sem");
+		start_tick_sem = sem_open(name_buf, O_CREAT|O_EXCL, 600, 0);
+		if (start_tick_sem == SEM_FAILED) {
+			WARN("%s\n", strerror(errno));
+			ERR(E_UNKNOWN, "Initilizing start_tick_sem\n");
+		}
+
+		sprintf(name_buf, "/%d/%s", getpid(), "end_tick_sem");
+		end_tick_sem = sem_open(name_buf, O_CREAT|O_EXCL, 600, 0);
+		if (end_tick_sem == SEM_FAILED) {
+			WARN("%s\n", strerror(errno));
+			ERR(E_UNKNOWN, "Initilizing end_tick_sem\n");
+		}
+
+		sprintf(name_buf, "/%d/%s", getpid(), "end_tock_sem");
+		end_tock_sem = sem_open(name_buf, O_CREAT|O_EXCL, 600, 0);
+		if (end_tock_sem == SEM_FAILED) {
+			WARN("%s\n", strerror(errno));
+			ERR(E_UNKNOWN, "Initilizing end_tock_sem\n");
+		}
+	}
 #endif
 
 	// Read in flash

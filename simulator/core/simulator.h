@@ -85,10 +85,10 @@ extern int usetestflash;
 extern int cycle;
 
 // Simulator synchronization
-extern sem_t ticker_ready_sem;
-extern sem_t start_tick_sem;
-extern sem_t end_tick_sem;
-extern sem_t end_tock_sem;
+extern sem_t* ticker_ready_sem;
+extern sem_t* start_tick_sem;
+extern sem_t* end_tick_sem;
+extern sem_t* end_tock_sem;
 
 // XXX: Oh.. so hacky. Thrown in as stopgap while removing unnecessary
 // references to simulator.h

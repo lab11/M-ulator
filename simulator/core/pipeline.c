@@ -67,11 +67,11 @@ void* ticker(void *stage_fn) {
 	DBG2("spawned ticker thread executing: %p\n", fn);
 
 	while (1) {
-		sem_post(&ticker_ready_sem);
-		sem_wait(&start_tick_sem);
+		sem_post(ticker_ready_sem);
+		sem_wait(start_tick_sem);
 		fn();
-		sem_post(&end_tick_sem);
-		sem_wait(&end_tock_sem);
+		sem_post(end_tick_sem);
+		sem_wait(end_tock_sem);
 	}
 }
 
