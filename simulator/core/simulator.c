@@ -898,28 +898,28 @@ EXPORT void simulator(const char *flash_file) {
 		char name_buf[32];
 
 		sprintf(name_buf, "/%d/%s", getpid(), "ticker_ready_sem");
-		ticker_ready_sem = sem_open(name_buf, O_CREAT|O_EXCL, 600, 0);
+		ticker_ready_sem = sem_open(name_buf, O_CREAT|O_EXCL, 0600, 0);
 		if (ticker_ready_sem == SEM_FAILED) {
 			WARN("%s\n", strerror(errno));
 			ERR(E_UNKNOWN, "Initilizing ticker_ready_sem\n");
 		}
 
 		sprintf(name_buf, "/%d/%s", getpid(), "start_tick_sem");
-		start_tick_sem = sem_open(name_buf, O_CREAT|O_EXCL, 600, 0);
+		start_tick_sem = sem_open(name_buf, O_CREAT|O_EXCL, 0600, 0);
 		if (start_tick_sem == SEM_FAILED) {
 			WARN("%s\n", strerror(errno));
 			ERR(E_UNKNOWN, "Initilizing start_tick_sem\n");
 		}
 
 		sprintf(name_buf, "/%d/%s", getpid(), "end_tick_sem");
-		end_tick_sem = sem_open(name_buf, O_CREAT|O_EXCL, 600, 0);
+		end_tick_sem = sem_open(name_buf, O_CREAT|O_EXCL, 0600, 0);
 		if (end_tick_sem == SEM_FAILED) {
 			WARN("%s\n", strerror(errno));
 			ERR(E_UNKNOWN, "Initilizing end_tick_sem\n");
 		}
 
 		sprintf(name_buf, "/%d/%s", getpid(), "end_tock_sem");
-		end_tock_sem = sem_open(name_buf, O_CREAT|O_EXCL, 600, 0);
+		end_tock_sem = sem_open(name_buf, O_CREAT|O_EXCL, 0600, 0);
 		if (end_tock_sem == SEM_FAILED) {
 			WARN("%s\n", strerror(errno));
 			ERR(E_UNKNOWN, "Initilizing end_tock_sem\n");
