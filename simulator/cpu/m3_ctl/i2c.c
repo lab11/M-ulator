@@ -21,7 +21,9 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#ifndef __APPLE__
 #include <sys/prctl.h>
+#endif
 
 #include "i2c.h"
 
@@ -190,6 +192,9 @@ EXPORT bool i2c_send_message(struct i2c_instance* t,
 
 	const char message_type = 0;
 	uint32_t nlen = htonl(length);
+#ifdef __APPLE__
+#define MSG_MORE 0 // hack hack hack
+#endif
 	if (1 != send(t->sock, &message_type, 1, MSG_MORE))
 		goto i2c_send_die;
 	if (1 != send(t->sock, &address, 1, MSG_MORE))
@@ -198,6 +203,9 @@ EXPORT bool i2c_send_message(struct i2c_instance* t,
 		goto i2c_send_die;
 	if (length != send(t->sock, msg, length, 0))
 		goto i2c_send_die;
+#ifdef __APPLE__
+#undef MSG_MORE
+#endif
 
 	// Wait for NAK/ACK from listener thread
 	pthread_cond_wait(&t->pc, &t->pm);
@@ -230,7 +238,9 @@ static void* i2c_thread(void *v_args) {
 	char thread_name[] = "i2c:            ";
 	strncpy(thread_name+strlen("i2c: "), t->name, 16-strlen("i2c: "));
 
+#ifndef __APPLE__
 	assert(0 == prctl(PR_SET_NAME, thread_name, 0, 0, 0));
+#endif
 
 	t->sock = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (-1 == t->sock) {
