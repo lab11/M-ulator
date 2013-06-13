@@ -156,9 +156,10 @@ int main(int argc, char **argv) {
 					WARN("You're kidding right? The simulator is not\n");
 					WARN("capable of real-time simulation of a GHz core\n");
 					ERR(E_UNKNOWN, "Requested speed too fast\n");
-				} else if (*endptr == '\0')
-					;
-				else {
+				} else if (*endptr == '\0') {
+					// Default is kHz
+					simspeed *= 1000;
+				} else {
 					ERR(E_UNKNOWN, "Unrecognized speed format character: %c\n",
 							*endptr);
 				}
