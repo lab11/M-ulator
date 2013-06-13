@@ -422,7 +422,7 @@ static void _state_write(enum stage g, bool async,
 	state_head = s;
 
 #ifdef NO_PIPELINE
-	if (true) {
+	if (true || async) { // "using" async suppresses compiler warning
 		DBG1("  SW: %s:%d\t%s = %08x\n", file, line, target, val);
 #else
 	if (async) {
