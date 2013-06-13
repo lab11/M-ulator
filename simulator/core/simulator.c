@@ -320,6 +320,8 @@ static void _shell(void) {
 			}
 		}
 
+		case '\n':
+			sprintf(buf, "cycle %d\n", cycle+1);
 		case 'c':
 			if (buf[1] == 'y') {
 				int requested_cycle;
