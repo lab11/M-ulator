@@ -72,7 +72,7 @@ int state_seek(int);
 
 // Simulator config
 extern int gdb_port;
-extern int slowsim;
+extern struct timespec cycle_time;
 extern int printcycles;
 extern unsigned dumpatpc;
 extern int dumpatcycle;

@@ -26,6 +26,8 @@
 #include "core/simulator.h"
 
 #include <getopt.h>
+#include <ctype.h>
+#include <math.h>
 
 static void usage_fail(int retcode) {
 	printf("\nUSAGE: ./simulator [OPTS]\n\n");
@@ -47,8 +49,11 @@ static void usage_fail(int retcode) {
 \t\tPrints cycle count and inst to execute every cycle (before exec)\n\
 \t\tConceptually, this executes between the intstruction fetch and\n\
 \t\tdecode stage, so the PC is already advanced\n\
-\t-s, --slowsim\n\
-\t\tSlows simulation down, running an instruction every .1s\n\
+\t-s, --speed SPEED\n\
+\t\tSpecify a clock speed to run at. The units are assumed to be kHz\n\
+\t\tunless otherwise specified. A warning will be printed if the \n\
+\t\tsimulator cannot keep up the requested speed. Setting speed\n\
+\t\tto 0 (default) will run unthrottled.\n\
 \t-e, --raiseonerror\n\
 \t\tRaises a SIGTRAP for gdb on errors before dying\n\
 \t\t(Useful for debugging with gdb)\n\
@@ -86,7 +91,7 @@ int main(int argc, char **argv) {
 			{"dumpatcycle",   required_argument, 0,              'y'},
 			{"dumpallcycles", no_argument,       &dumpallcycles, 'a'},
 			{"printcycles",   no_argument,       &printcycles,   'p'},
-			{"slowsim",       no_argument,       &slowsim,       's'},
+			{"speed",         required_argument, 0,              's'},
 			{"raiseonerror",  no_argument,       &raiseonerror,  'e'},
 			{"returnr0",      no_argument,       &returnr0,      'r'},
 			{"limit",         required_argument, 0,              'm'},
@@ -98,7 +103,7 @@ int main(int argc, char **argv) {
 		int option_index = 0;
 		int c;
 
-		c = getopt_long(argc, argv, "dg::c:y:apserm:f:?", long_options,
+		c = getopt_long(argc, argv, "dg::c:y:aps:erm:f:?", long_options,
 				&option_index);
 
 		if (c == -1) break;
@@ -133,8 +138,42 @@ int main(int argc, char **argv) {
 				break;
 
 			case 's':
-				slowsim = true;
+			{
+				long double simspeed;
+				char *endptr;
+				simspeed = strtold(optarg, &endptr);
+				while (isspace(*endptr)) endptr++;
+				if ((*endptr == 'h') || (*endptr == 'H')) {
+					if (simspeed <= 1) {
+						WARN("Speed must be > 1 Hz. Set to 1.1 Hz\n");
+						simspeed = 1.1;
+					}
+				} else if ((*endptr == 'k') || (*endptr == 'K'))
+					simspeed *= 1000;
+				else if ((*endptr == 'm') || (*endptr == 'M'))
+					simspeed *= 1000000;
+				else if ((*endptr == 'g') || (*endptr == 'G')) {
+					WARN("You're kidding right? The simulator is not\n");
+					WARN("capable of real-time simulation of a GHz core\n");
+					ERR(E_UNKNOWN, "Requested speed too fast\n");
+				} else if (*endptr == '\0')
+					;
+				else {
+					ERR(E_UNKNOWN, "Unrecognized speed format character: %c\n",
+							*endptr);
+				}
+
+				simspeed = 1 / simspeed;
+				cycle_time.tv_sec = floorl(simspeed);
+				assert(cycle_time.tv_sec == 0);
+				cycle_time.tv_nsec = roundl(simspeed * 1000000000);
+				DBG1("Cycle time set to %ld nsec\n", cycle_time.tv_nsec);
+
+				// Allow us to only check nsec to see if timing is requested
+				if (cycle_time.tv_sec && (!cycle_time.tv_nsec))
+					cycle_time.tv_nsec++;
 				break;
+			}
 
 			case 'e':
 				raiseonerror = true;

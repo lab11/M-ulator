@@ -26,6 +26,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdarg.h>
+#include <time.h>
 #include <limits.h>
 #include <assert.h>
 #include <unistd.h>

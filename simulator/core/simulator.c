@@ -63,7 +63,7 @@ static void join_periph_threads (void);
 /* Config */
 EXPORT int gdb_port = -1;
 #define GDB_ATTACHED (gdb_port != -1)
-EXPORT int slowsim = 0;
+EXPORT struct timespec cycle_time;
 EXPORT int printcycles = 0;
 #ifdef DEBUG1
 EXPORT int raiseonerror = 1;
@@ -86,6 +86,7 @@ static const uint32_t static_rom[80] = {0x20003FFC,0x55,0x51,0x51,0x51,0x51,0x51
 /* State */
 
 EXPORT int cycle = -1;
+static void sim_delay_reset();
 
 ////////////////////////////////////////////////////////////////////////////////
 // CORE
@@ -362,6 +363,9 @@ static void _shell(void) {
 }
 
 static void shell(void) {
+	// Reset the cycle frequency governer to prevent spurious warnings.
+	sim_delay_reset();
+
 	if (GDB_ATTACHED) {
 #ifdef DEBUG1
 		print_full_state();
@@ -565,6 +569,95 @@ EXPORT int register_opcode_mask_32_real(uint32_t ones_mask, uint32_t zeros_mask,
 	return register_opcode_mask_32_ex_real(ones_mask, zeros_mask, fn, fn_name, 0, 0);
 }
 
+#if _POSIX_TIMERS > 0
+static struct timespec last_cycle_time;
+#elif __APPLE__
+#include <CoreServices/CoreServices.h>
+#include <mach/mach.h>
+#include <mach/mach_time.h>
+static uint64_t last_cycle_time;
+static mach_timebase_info_data_t sTimebaseInfo;
+#endif
+
+static void sim_delay_reset() {
+#if _POSIX_TIMERS > 0
+	// Perform check here to verify system (i) has CLOCK_REALTIME and (ii)
+	// supports clock_gettime. This prevents requiring the check in the
+	// main loop.
+	assert(0 == clock_gettime(CLOCK_REALTIME, &last_cycle_time));
+	last_cycle_time.tv_nsec = -1;
+#elif __APPLE__
+	mach_timebase_info(&sTimebaseInfo);
+	last_cycle_time = -1;
+#endif
+}
+
+#if (_POSIX_TIMERS > 0) || (defined __APPLE__)
+static void sim_delay_warn(long ns) {
+	static int warn_count = 0;
+	if (warn_count < 5) {
+		WARN("Timing requirement missed\n");
+		WARN("Cycle exceeded requested time by %ld ns\n", ns);
+		warn_count++;
+	} else if (warn_count++ == 5) {
+		WARN("Timing requirement missed\n");
+		WARN("Too many timing violations. Warnings suppressed\n");
+	}
+}
+#endif
+
+static void sim_delay() {
+#if _POSIX_TIMERS > 0
+	if (last_cycle_time.tv_nsec != -1) {
+		struct timespec this_cycle_time;
+		clock_gettime(CLOCK_REALTIME, &this_cycle_time);
+
+		struct timespec cycle_delay_time = {0, 0};
+		cycle_delay_time.tv_nsec = cycle_time.tv_nsec -
+			(this_cycle_time.tv_nsec - last_cycle_time.tv_nsec);
+		if (cycle_delay_time.tv_nsec > 0) {
+			nanosleep(&cycle_delay_time, NULL);
+		} else {
+			sim_delay_warn(-cycle_delay_time.tv_nsec);
+		}
+	}
+	clock_gettime(CLOCK_REALTIME, &last_cycle_time);
+#elif __APPLE__
+	/* https://developer.apple.com/library/mac/#qa/qa1398/_index.html */
+	if (last_cycle_time != (uint64_t) -1) {
+		uint64_t this_cycle_time, elapsed;
+		uint64_t elapsedNano;
+		long delay;
+		this_cycle_time = mach_absolute_time();
+
+		elapsed = this_cycle_time - last_cycle_time;
+
+		// (code & comment from above link)
+		// Do the maths. We hope that the multiplication doesn't
+		// overflow; the price you pay for working in fixed point.
+		elapsedNano = elapsed * sTimebaseInfo.numer / sTimebaseInfo.denom;
+		delay = cycle_time.tv_nsec - elapsedNano;
+
+		if (delay > 0) {
+			struct timespec cycle_delay_time = {
+				.tv_sec = 0,
+				.tv_nsec = delay
+			};
+			nanosleep(&cycle_delay_time, NULL);
+		} else {
+			sim_delay_warn(-delay);
+		}
+	}
+	last_cycle_time = mach_absolute_time();
+#else
+	WARN("Cannot control frequency. No timer implementation is\n");
+	WARN("available for the current platform. Have support for:\n");
+	WARN("\tPosix timers (_POSIX_TIMERS defined and > 0)\n");
+	WARN("\tMach timers (__APPLE__ defined)\n");
+	ERR(E_NOT_IMPLEMENTED, "No timer available for platform\n");
+#endif
+}
+
 static int sim_execute(void) {
 	// XXX: What if the debugger wants to execute the same instruction two
 	// cycles in a row? How do we allow this?
@@ -583,11 +676,12 @@ static int sim_execute(void) {
 	} else {
 		prev_pc = cur_pc;
 	}
+
+	cycle++;
+
 #ifdef NO_PIPELINE
 	// Not the common code path, try to catch if things have changed
 	assert(NUM_TICKERS == 3);
-
-	cycle++;
 
 	state_start_tick();
 	DBG1("tick_if\n");
@@ -597,10 +691,8 @@ static int sim_execute(void) {
 	DBG1("tick_ex\n");
 	tick_ex();
 	state_tock();
-
 #else
 	// Now we're committed to starting the next cycle
-	cycle++;
 
 	int i;
 
@@ -631,12 +723,18 @@ static int sim_execute(void) {
 	}
 #endif
 
+	if (cycle_time.tv_nsec)
+		sim_delay();
+
 	return SUCCESS;
 }
 
 static void sim_reset(void) __attribute__ ((noreturn));
 static void sim_reset(void) {
 	int ret;
+
+	// Initilize the frequency governer
+	sim_delay_reset();
 
 	if (GDB_ATTACHED) {
 		gdb_init(gdb_port);
@@ -658,11 +756,6 @@ static void sim_reset(void) {
 
 	INFO("Entering main loop...\n");
 	do {
-		if (slowsim) {
-			static struct timespec s = {0, NSECS_PER_SEC/10};
-			nanosleep(&s, NULL);
-		}
-
 		if (sigint) {
 			sigint = 0;
 			shell();
