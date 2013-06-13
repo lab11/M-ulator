@@ -114,7 +114,12 @@ endif
 CFLAGS += -pthread -D_GNU_SOURCE
 
 # Aaaannnnddd... the linker:
-LDFLAGS += -g3 -pthread -lrt -lm
+LDFLAGS += -g3 -pthread -lm
+# Someday I shall surrender to auto{tools,make}. Today is not that day.
+OS := $(shell uname -s)
+ifeq ($(OS),Linux)
+LDFLAGS += -lrt
+endif
 
 # Added for student distribution
 #CFLAGS += -m32
