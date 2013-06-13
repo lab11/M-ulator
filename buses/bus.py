@@ -270,7 +270,7 @@ args.BUS = args.BUS.upper()
 if args.BUS == "I2C":
     bus = I2CBus(int(args.PORT), args.address)
 else:
-    logger.error("Unknown BUS type: " + args.BUS)
+    logging.error("Unknown BUS type: " + args.BUS)
     print parser.description
     sys.exit(1)
 
