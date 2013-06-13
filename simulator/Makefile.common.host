@@ -114,7 +114,7 @@ endif
 CFLAGS += -pthread -D_GNU_SOURCE
 
 # Aaaannnnddd... the linker:
-LDFLAGS += -g3 -pthread
+LDFLAGS += -g3 -pthread -lrt -lm
 
 # Added for student distribution
 #CFLAGS += -m32

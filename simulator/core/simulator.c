@@ -86,7 +86,7 @@ static const uint32_t static_rom[80] = {0x20003FFC,0x55,0x51,0x51,0x51,0x51,0x51
 /* State */
 
 EXPORT int cycle = -1;
-static void sim_delay_reset();
+static void sim_delay_reset(void);
 
 ////////////////////////////////////////////////////////////////////////////////
 // CORE
@@ -606,7 +606,7 @@ static void sim_delay_warn(long ns) {
 }
 #endif
 
-static void sim_delay() {
+static void sim_delay(void) {
 #if _POSIX_TIMERS > 0
 	if (last_cycle_time.tv_nsec != -1) {
 		struct timespec this_cycle_time;
