@@ -285,7 +285,7 @@ static void _shell(void) {
 
 		case 'q':
 		case 't':
-			exit(EXIT_SUCCESS);
+			sim_terminate();
 
 		case 'r':
 		{
