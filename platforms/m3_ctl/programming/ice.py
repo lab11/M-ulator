@@ -218,6 +218,7 @@ class ICE(object):
         for major, minor in ICE.VERSIONS:
             logging.info("\t%d.%d" % (major, minor))
 
+        logging.debug("Sending version probe")
         resp = self.send_message_until_acked('V')
         if (len(resp) is 0) or (len(resp) % 2):
             raise self.FormatError, "Version response: " + resp
