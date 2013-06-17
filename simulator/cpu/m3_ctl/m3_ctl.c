@@ -21,6 +21,7 @@
 
 #include "m3_ctl.h"
 #include "i2c.h"
+#include "ice_bridge.h"
 
 #include "memmap.h"
 
@@ -31,6 +32,7 @@
 
 // GLOBAL STATE
 struct i2c_instance* i2c;
+struct ice_instance* ice;
 
 // CPU CONF REG'S
 static uint32_t m3_ctl_reg_chip_id;
@@ -375,17 +377,29 @@ static bool gpio_read(uint32_t addr, uint32_t *val) {
 	return true;
 }
 
+static void gpio_demux(uint32_t old, uint32_t new,
+		void (*fn)(struct ice_instance*, uint8_t, bool)) {
+	int i;
+	for (i=0; i<24 /*XXX: max gpios, make a constant?*/; i++) {
+		uint32_t j = (1 << i);
+		if ((old & j) != (new & j)) {
+			fn(ice, i, new & j);
+		}
+	}
+}
+
 static void gpio_write(uint32_t addr, uint32_t val) {
 	switch (addr) {
 		case 0xA4000000:
+			gpio_demux(gpio_data_O, val, ice_gpio_out);
 			gpio_data_O = val;
-			WARN("GPIO Write, but no ICE connected\n");
-			// XXX: ICE Integration
 			break;
 		case 0xA4001000:
+			gpio_demux(gpio_dir, val, ice_gpio_dir);
 			gpio_dir = val;
 			break;
 		case 0xA4001040:
+			gpio_demux(gpio_int_mask, val, ice_gpio_int);
 			gpio_int_mask = val;
 			break;
 		default:
@@ -419,15 +433,26 @@ void register_periph_m3_ctl(void) {
 
 	register_periph_printer(print_m3_ctl_line);
 
-	char *host;
-	const uint16_t port = 21010; // Hardcoded for now (2C!)
-	assert(-1 != asprintf(&host, "/tmp/%s.M-ulator.bus", getlogin()));
+	{
+		// Connect to software I2C Bus
+		char *host;
+		const uint16_t port = 21010; // Hardcoded for now (2C!)
+		assert(-1 != asprintf(&host, "/tmp/%s.M-ulator.bus", getlogin()));
 
-	// m3_ctl responds to 10x0xxxx
-	i2c = create_i2c_instance("m3_ctl",
-			NULL,
-			0x80, 0x50,
-			host, port);
+		// m3_ctl responds to 10x0xxxx
+		i2c = create_i2c_instance("m3_ctl",
+				NULL,
+				0x80, 0x50,
+				host, port);
 
-	free(host);
+		free(host);
+	}
+
+	{
+		// Connect to ICE Hardware Board
+		const char *host = "/tmp/com1";
+		const uint16_t baud = 0; // use default baud
+
+		ice = create_ice_instance(host, baud);
+	}
 }

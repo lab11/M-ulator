@@ -26,11 +26,12 @@
 #endif
 
 #include "i2c.h"
+#include "ice_bridge.h"
 
 #include "cpu/periph.h"
 #include "cpu/core.h"
 
-#include "core/state_sync.h"
+//#include "core/state_sync.h"
 
 struct i2c_instance {
 	volatile bool en;
@@ -68,7 +69,6 @@ struct i2c_packet {
 	};
 };
 
-// Caller must hold instance mutex
 static int i2c_connect(int sock, const char *host, const uint16_t port) {
 	int len;
 	struct sockaddr_un address;
@@ -79,7 +79,11 @@ static int i2c_connect(int sock, const char *host, const uint16_t port) {
 	len = sizeof(address);
 
 	if (-1 == connect(sock, (struct sockaddr*) &address, len)) {
-		WARN("Connecting I2C Bus: %s\n", strerror(errno));
+		static int warn_once = 0;
+		if (warn_once) {
+			WARN("Connecting I2C Bus: %s\n", strerror(errno));
+			warn_once++;
+		}
 		return -1;
 	}
 
@@ -88,11 +92,13 @@ static int i2c_connect(int sock, const char *host, const uint16_t port) {
 	// XXX: Add timeout
 	if (1 != recv(sock, &handshake, 1, 0)) {
 		WARN("Connection dropped? %s\n", strerror(errno));
+		close(sock);
 		return -1;
 	}
 	if ('i' != handshake) {
 		WARN("Bad handshake with software I2C Bus.\n");
 		WARN("Expected 'i', Got '%c'\n", handshake);
+		close(sock);
 		return -1;
 	}
 
@@ -164,15 +170,9 @@ EXPORT bool i2c_send_message(struct i2c_instance* t,
 	pthread_mutex_lock(&t->pm);
 
 	if ( ! t->is_connected) {
-		WARN("Request to send I2C message, but simulator is not\n");
-		WARN("  connected to a bus. Trying to connect...\n");
-		if (-1 == i2c_connect(t->sock, t->host, t->port)) {
-			TRAP("Could not connect to I2C bus. Cont try again.\n");
-			pthread_mutex_unlock(&t->pm);
-			return i2c_send_message(t, address, length, msg);
-		}
-		t->is_connected = true;
-		pthread_cond_signal(&t->pc);
+		pthread_mutex_unlock(&t->pm);
+		WARN("Request to send I2C message, but simulator is not connected to a bus.\n");
+		return false;
 	}
 
 #ifdef DEBUG1
@@ -234,7 +234,7 @@ static void i2c_propogate_recv(struct i2c_instance *t, struct i2c_packet *p) {
 static void* i2c_thread(void *v_args) {
 	struct i2c_instance* t = (struct i2c_instance*) v_args;
 
-	//                   0123456789012345 <-- max thread name
+	//                    0123456789012345 <-- max thread name
 	char thread_name[] = "i2c:            ";
 	strncpy(thread_name+strlen("i2c: "), t->name, 16-strlen("i2c: "));
 
@@ -254,19 +254,16 @@ static void* i2c_thread(void *v_args) {
 
 
 	while (1) {
-		// Try to connect once at startup. If that fails, sleep until a
-		// request to use the bus comes in. The requester will attempt
-		// the connection and wake this thread
 		pthread_mutex_lock(&t->pm);
-		if ( ! t->is_connected) {
-			if (-1 == i2c_connect(t->sock, t->host, t->port)) {
-				pthread_cond_wait(&t->pc, &t->pm);
+		while (t->is_connected == false) {
+			pthread_mutex_unlock(&t->pm);
+			while (-1 == i2c_connect(t->sock, t->host, t->port)) {
 				if (!t->en) goto i2c_shutdown;
-			} else {
-				t->is_connected = true;
+				sleep(1);
 			}
+			pthread_mutex_lock(&t->pm);
+			t->is_connected = true;
 		}
-		assert(t->is_connected);
 		pthread_mutex_unlock(&t->pm);
 
 		struct i2c_packet *p = i2c_recv_packet(t->sock);

@@ -115,6 +115,7 @@ CFLAGS += -pthread -D_GNU_SOURCE
 
 # Aaaannnnddd... the linker:
 LDFLAGS += -g3 -pthread -lm
+LDFLAGS += -lpython $(shell python -c "import distutils.sysconfig; print distutils.sysconfig.get_config_var('LINKFORSHARED')")
 # Someday I shall surrender to auto{tools,make}. Today is not that day.
 OS := $(shell uname -s)
 ifeq ($(OS),Linux)
