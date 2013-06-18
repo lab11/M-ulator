@@ -40,7 +40,7 @@ volatile bool poll_uart_enabled = false;
 
 
 static void *poll_uart_thread(void *);
-#ifdef DEBUG1
+#if (defined DEBUG1) && (!defined __APPLE__)
 static pthread_mutex_t poll_uart_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
 #else
 static pthread_mutex_t poll_uart_mutex = PTHREAD_MUTEX_INITIALIZER;

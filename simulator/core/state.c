@@ -105,7 +105,7 @@ static struct op* o_hack = NULL;
 static uint32_t state_pipeline_new_pc = -1;
 #endif
 
-#ifdef DEBUG1
+#if (defined DEBUG1) && (!defined __APPLE__)
 static pthread_mutex_t state_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
 static pthread_mutex_t async_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
 #else
