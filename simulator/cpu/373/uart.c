@@ -75,7 +75,9 @@ static void *poll_uart_thread(void *unused __attribute__ ((unused))) {
 	int sock;
 	struct sockaddr_in server;
 
-#ifndef __APPLE__
+#ifdef __APPLE__
+	assert(0 == pthread_setname_np("poll_uart_thread"));
+#else
 	assert(0 == prctl(PR_SET_NAME, "poll_uart_thread", 0, 0, 0));
 #endif
 

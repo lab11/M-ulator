@@ -60,7 +60,9 @@ void pipeline_flush(uint32_t new_pc) {
 void* ticker(void *stage_fn) {
 	void (*fn) (void) = (void(*)(void)) stage_fn;
 
-#ifndef __APPLE__
+#ifdef __APPLE__
+	assert(0 == pthread_setname_np("ticker"));
+#else
 	assert(0 == prctl(PR_SET_NAME, "ticker", 0, 0, 0));
 #endif
 

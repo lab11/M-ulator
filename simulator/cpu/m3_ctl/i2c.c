@@ -238,7 +238,9 @@ static void* i2c_thread(void *v_args) {
 	char thread_name[] = "i2c:            ";
 	strncpy(thread_name+strlen("i2c: "), t->name, 16-strlen("i2c: "));
 
-#ifndef __APPLE__
+#ifdef __APPLE__
+	assert(0 == pthread_setname_np(thread_name));
+#else
 	assert(0 == prctl(PR_SET_NAME, thread_name, 0, 0, 0));
 #endif
 

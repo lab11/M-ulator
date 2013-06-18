@@ -814,8 +814,10 @@ static void* sig_thread(void *arg) {
 	sigset_t *set = (sigset_t *) arg;
 	int s, sig;
 
-#ifndef __APPLE__
-	prctl(PR_SET_NAME, "signal hander", 0, 0, 0);
+#ifdef __APPLE__
+	assert(0 == pthread_setname_np("signal handler"));
+#else
+	assert(0 == prctl(PR_SET_NAME, "signal handler", 0, 0, 0));
 #endif
 
 	for (;;) {
