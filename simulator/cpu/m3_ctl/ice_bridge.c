@@ -241,7 +241,9 @@ static void *ice_thread(void *v_args) {
 	struct ice_instance *ice = (struct ice_instance*) v_args;
 	create_ice_bridge(ice);
 
-	while (true) sleep(1);
+	while (ice->en) {
+		sleep(1);
+	}
 
 	destroy_ice_bridge();
 	pthread_exit(NULL);
