@@ -56,6 +56,12 @@ extern int raiseonerror; // storage in simulator.c
 #define ERR(_e, ...)\
 	do {\
 		flockfile(stderr);\
+		fprintf(stderr, PP_STRING" E: *** Error: ");\
+		if (_e == E_NOT_IMPLEMENTED) {\
+			fprintf(stderr, "Not implemented error.\n");\
+		} else {\
+			fprintf(stderr, "Unknown error.\n");\
+		}\
 		fprintf(stderr, PP_STRING" E: ");\
 		fprintf(stderr, __VA_ARGS__);\
 		funlockfile(stderr);\
