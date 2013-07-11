@@ -42,6 +42,7 @@ static void adc_imm(uint8_t rd, uint8_t rn, uint32_t imm32, bool setflags) {
 	}
 }
 
+// arm-v7-m
 static void adc_imm_t1(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst >> 8) & 0xf;
@@ -83,6 +84,7 @@ static void adc_reg(uint8_t rd, uint8_t rn, uint8_t rm,
 	}
 }
 
+// arm-thumb
 static void adc_reg_t1(uint16_t inst) {
 	uint8_t rdn = inst & 0x7;
 	uint8_t rm = (inst >> 3) & 0x7;
@@ -135,6 +137,7 @@ static void add_imm(uint8_t rn, uint8_t rd, uint32_t imm32, uint8_t setflags) {
 			rd, rn, imm32, result, rn_val, imm32);
 }
 
+// arm-thumb
 static void add_imm_t1(uint16_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rn = (inst >> 3) & 0x7;
@@ -146,6 +149,7 @@ static void add_imm_t1(uint16_t inst) {
 	return add_imm(rn, rd, imm32, setflags);
 }
 
+// arm-thumb
 static void add_imm_t2(uint16_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rdn = (inst >> 8) & 0x7;
@@ -156,6 +160,7 @@ static void add_imm_t2(uint16_t inst) {
 	return add_imm(rdn, rdn, imm32, setflags);
 }
 
+// arm-v7-m
 static void add_imm_t3(uint32_t inst) {
 	uint32_t imm8 =    (inst & 0x000000ff);
 	uint8_t rd =  (inst & 0x00000f00) >> 8;
@@ -175,6 +180,24 @@ static void add_imm_t3(uint32_t inst) {
 
 	if ((rd == 13 || ((rd == 15) && (S == 0))) || (rn == 15))
 		CORE_ERR_unpredictable("add_imm_t3 case\n");
+
+	return add_imm(rn, rd, imm32, setflags);
+}
+
+// arm-v7-m
+static void add_imm_t4(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t rd   = (inst >> 8) & 0xf;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	uint8_t rn   = (inst >> 16) & 0xf;
+	bool i       = (inst >> 26) & 0x1;
+
+	bool setflags = false;
+
+	uint32_t imm32 = imm8 | (imm3 << 8) | (i << 11);
+
+	if (rd >= 13)
+		CORE_ERR_unpredictable("add_imm_t4 case\n");
 
 	return add_imm(rn, rd, imm32, setflags);
 }
@@ -211,6 +234,7 @@ static void add_reg(uint8_t rd, uint8_t rn, uint8_t rm, bool setflags,
 	DBG2("add_reg r%02d = 0x%08x\n", rd, result);
 }
 
+// arm-thumb
 static void add_reg_t1(uint16_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rn = (inst >> 3) & 0x7;
@@ -221,6 +245,7 @@ static void add_reg_t1(uint16_t inst) {
 	return add_reg(rd, rn, rm, setflags, SRType_LSL, 0);
 }
 
+// arm-thumb
 static void add_reg_t2(uint16_t inst) {
 	uint8_t rm = (inst & 0x78) >> 3;
 	uint8_t rd = (((inst & 0x80) >> 7) | ((inst & 0x7) >> 0));
@@ -245,6 +270,7 @@ static void add_reg_t2(uint16_t inst) {
 	return add_reg(rd, rn, rm, setflags, shift_t, shift_n);
 }
 
+// arm-v7-m
 static void add_reg_t3(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t type = (inst >> 4) & 0x3;
@@ -288,6 +314,29 @@ static void add_sp_plus_imm(uint8_t rd, uint32_t imm32, bool setflags) {
 	}
 }
 
+// arm-thumb
+static void add_sp_plus_imm_t1(uint16_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t rd = (inst >> 8) & 0xf;
+
+	bool setflags = false;
+	uint32_t imm32 = (imm8 << 2);
+
+	return add_sp_plus_imm(rd, imm32, setflags);
+}
+
+// arm-thumb
+static void add_sp_plus_imm_t2(uint16_t inst) {
+	uint8_t imm7 = inst & 0x7f;
+
+	uint8_t rd = 13;
+	bool setflags = false;
+	uint32_t imm32 = (imm7 << 2);
+
+	return add_sp_plus_imm(rd, imm32, setflags);
+}
+
+// arm-v7-m
 static void add_sp_plus_imm_t3(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst >> 8) & 0xf;
@@ -305,6 +354,7 @@ static void add_sp_plus_imm_t3(uint32_t inst) {
 	return add_sp_plus_imm(rd, imm32, setflags);
 }
 
+// arm-v7-m
 static void add_sp_plus_imm_t4(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst >> 8) & 0xf;
@@ -318,6 +368,90 @@ static void add_sp_plus_imm_t4(uint32_t inst) {
 		CORE_ERR_unpredictable("bad reg 15\n");
 
 	return add_sp_plus_imm(rd, imm32, setflags);
+}
+
+static void add_sp_plus_reg(uint8_t rd, uint8_t rm,
+		bool setflags, enum SRType shift_t, uint8_t shift_n) {
+
+	union apsr_t apsr = CORE_apsr_read();
+
+	uint32_t shifted = Shift(CORE_reg_read(rm), 32,
+			shift_t, shift_n, apsr.bits.C);
+
+	uint32_t result;
+	bool carry;
+	bool overflow;
+	AddWithCarry(CORE_reg_read(SP_REG), shifted, 0,
+			&result, &carry, &overflow);
+
+	if (rd == 15) {
+		assert(setflags == false);
+		//ALUWritePC(result);
+		CORE_ERR_not_implemented("ALUWritePC add_sp_plus_reg\n");
+	} else {
+		CORE_reg_write(rd, result);
+
+		if (setflags) {
+			apsr.bits.N = HIGH_BIT(result);
+			apsr.bits.Z = result == 0;
+			apsr.bits.C = carry;
+			apsr.bits.V = overflow;
+			CORE_apsr_write(apsr);
+		}
+	}
+}
+
+// arm-thumb
+static void add_sp_plus_reg_t1(uint16_t inst) {
+	uint8_t rdm = inst & 0x7;
+	bool DM     = (inst >> 7) & 0x1;
+
+	uint8_t rd = rdm | (DM << 3);
+	uint8_t rm = rdm | (DM << 3);
+	bool setflags = false;
+
+	if ((rd == 15) && in_ITblock() && !last_in_ITblock())
+		CORE_ERR_unpredictable("add_sp_plus_reg_t1 case\n");
+
+	enum SRType shift_t = SRType_LSL;
+	uint8_t shift_n = 0;
+
+	return add_sp_plus_reg(rd, rm, setflags, shift_t, shift_n);
+}
+
+// arm-thumb
+static void add_sp_plus_reg_t2(uint16_t inst) {
+	uint8_t rm = (inst >> 3) & 0xf;
+
+	uint8_t rd = 13;
+	bool setflags = false;
+	enum SRType shift_t = SRType_LSL;
+	uint8_t shift_n = 0;
+
+	return add_sp_plus_reg(rd, rm, setflags, shift_t, shift_n);
+}
+
+// arm-v7-m
+static void add_sp_plug_reg_t3(uint32_t inst) {
+	uint8_t rm   = inst & 0xf;
+	uint8_t type = (inst >> 4) & 0x3;
+	uint8_t imm2 = (inst >> 6) & 0x3;
+	uint8_t rd   = (inst >> 8) & 0xf;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	bool    S    = (inst >> 16) & 0x1;
+
+	bool setflags = (S == 1);
+	enum SRType shift_t;
+	uint8_t shift_n;
+	DecodeImmShift(type, imm2 | (imm3 << 2), &shift_t, &shift_n);
+
+	if (
+			((rd == 13) && ((shift_t != SRType_LSL) || shift_n > 3)) ||
+			((rd == 15) || (rm > 13))
+	   )
+		CORE_ERR_unpredictable("add_sp_plug_reg_t3 case\n");
+
+	return add_sp_plus_reg(rd, rm, setflags, shift_t, shift_n);
 }
 
 __attribute__ ((constructor))
@@ -346,6 +480,12 @@ void register_opcodes_add(void) {
 			0xd0000, 0x20000,
 			0, 0);
 
+	// add_imm_t4: 1111 0x10 0000 xxxx 0<x's>
+	register_opcode_mask_32_ex(0xf2000000, 0x09f08000, add_imm_t4,
+			0xf0000, 0x0,
+			0xd0000, 0x20000,
+			0, 0);
+
 	// add_reg_t1: 0001 100<x's>
 	register_opcode_mask_16(0x1800, 0xe600, add_reg_t1);
 
@@ -353,11 +493,33 @@ void register_opcodes_add(void) {
 	register_opcode_mask_16(0x4400, 0xbb00, add_reg_t2);
 
 	// add_reg_t3: 1110 1011 000x xxxx 0<x's>
-	register_opcode_mask_32_ex(0xeb000000, 0x14e08000, add_reg_t3, 0x100f00, 0x0, 0xd0000, 0x20000, 0, 0);
+	register_opcode_mask_32_ex(0xeb000000, 0x14e08000, add_reg_t3,
+			0x100f00, 0x0,
+			0xd0000, 0x20000,
+			0, 0);
+
+	// add_sp_plus_imm_t1: 1010 1<x's>
+	register_opcode_mask_16(0xa800, 0x5000, add_sp_plus_imm_t1);
+
+	// add_sp_plus_imm_t2: 1011 0000 0<x's>
+	register_opcode_mask_16(0xb000, 0x4f80, add_sp_plus_imm_t2);
 
 	// add_sp_plus_imm_t3: 1111 0x01 000x 1101 0<x's>
-	register_opcode_mask_32_ex(0xf10d0000, 0x0ae28000, add_sp_plus_imm_t3, 0x100f00, 0x0, 0, 0);
+	register_opcode_mask_32_ex(0xf10d0000, 0x0ae28000, add_sp_plus_imm_t3,
+			0x100f00, 0x0,
+			0, 0);
 
 	// add_sp_plus_imm_t4: 1111 0x10 0000 1101 0<x's>
 	register_opcode_mask_32(0xf20d0000, 0x09f28000, add_sp_plus_imm_t4);
+
+	// add_sp_plus_reg_t1: 0100 0100 x110 1xxx
+	register_opcode_mask_16(0x4468, 0xbb10, add_sp_plus_reg_t1);
+
+	// add_sp_plus_reg_t2: 0100 0100 1xxx x101
+	register_opcode_mask_16_ex(0x4485, 0xbb02, add_sp_plus_reg_t2,
+			0x68, 0x10,
+			0, 0);
+
+	// add_sp_plug_reg_t3: 1110 1011 000x 1101 0<x's>
+	register_opcode_mask_32(0xeb0d0000, 0x14e28000, add_sp_plug_reg_t3);
 }
