@@ -138,6 +138,7 @@ static void asr_imm(union apsr_t apsr, uint8_t setflags, uint8_t rd, uint8_t rm,
 	DBG2("asr_imm complete\n");
 }
 
+// arm-thumb
 static void asr_imm_t1(uint16_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rm = (inst >> 3) & 0x7;
@@ -173,6 +174,7 @@ static void mov_shifted_reg(uint32_t inst, enum SRType shift_t) {
 	return asr_imm(apsr, setflags, rd, rm, shift_t, shift_n);
 }
 
+// arm-v7-m
 static void asr_imm_t2(uint32_t inst) {
 	return mov_shifted_reg(inst, ASR);
 }
@@ -225,6 +227,52 @@ static void ror_imm_t1(uint32_t inst) {
 	return ror_imm(rd, rm, shift_n, setflags);
 }
 
+static void asr_reg(uint8_t rd, uint8_t rn, uint8_t rm, bool setflags) {
+	uint8_t shift_n = CORE_reg_read(rm) & 0xff;
+
+	union apsr_t apsr = CORE_apsr_read();
+
+	uint32_t result;
+	bool carry;
+	Shift_C(CORE_reg_read(rn), 32, SRType_ASR, shift_n, apsr.bits.C,
+			&result, &carry);
+
+	CORE_reg_write(rd, result);
+	if (setflags) {
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry;
+		CORE_apsr_write(apsr);
+	}
+}
+
+// arm-thumb
+static void asr_reg_t1(uint16_t inst) {
+	uint8_t rdn = inst & 0x7;
+	uint8_t rm = (inst >> 3) & 0x7;
+
+	uint8_t rd = rdn;
+	uint8_t rn = rdn;
+	bool setflags = !in_ITblock();
+
+	return asr_reg(rd, rn, rm, setflags);
+}
+
+// arm-v7-m
+static void asr_reg_t2(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t rd = (inst >> 8) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+	bool    S  = (inst >> 20) & 0x1;
+
+	bool setflags = S == 1;
+
+	if ((rd > 13) || (rn > 13) || (rm > 13))
+		CORE_ERR_unpredictable("asr_reg_t2 case\n");
+
+	return asr_reg(rd, rn, rm, setflags);
+}
+
 __attribute__ ((constructor))
 void register_opcodes_shift(void) {
 	// lsl1: 0000 0<x's>
@@ -242,6 +290,12 @@ void register_opcodes_shift(void) {
 
 	// asr_imm_t2: 1110 1010 010x 1111 0xxx xxxx xx10 xxxx
 	register_opcode_mask_32(0xea4f0020, 0x15a08010, asr_imm_t2);
+
+	// asr_reg_t1: 0100 0001 00xx xxxx
+	register_opcode_mask_16(0x4100, 0xbec0, asr_reg_t1);
+
+	// asr_reg_t2: 1111 1010 010x xxxx 1111 xxxx 0000 xxxx
+	register_opcode_mask_32(0xfa40f000, 0x05a000f0, asr_reg_t2);
 
 	// lsl_imm_t2: 1110 1010 010x 1111 0xxx xxxx xx00 xxxx
 	register_opcode_mask_32(0xea4f0000, 0x15a08030, lsl_imm_t2);
