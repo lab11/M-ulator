@@ -63,6 +63,7 @@ static void b(uint8_t cond, uint32_t imm32) {
 	}
 }
 
+// arm-thumb
 static void b_t1(uint16_t inst) {
 	uint8_t imm8 = (inst & 0xff);
 	uint8_t cond = (inst & 0xf00) >> 8;
@@ -81,6 +82,7 @@ static void b_t1(uint16_t inst) {
 	return b(cond, imm32);
 }
 
+// arm-thumb
 static void b_t2(uint16_t inst) {
 	uint16_t imm11 = (inst & 0x7ff);
 
@@ -92,6 +94,7 @@ static void b_t2(uint16_t inst) {
 	return b(0xf, imm32);
 }
 
+// arm-v7-m
 static void b_t3(uint32_t inst) {
 	uint16_t imm11 = (inst & 0x7ff);
 	bool J2 = !!(inst & 0x800);
@@ -121,6 +124,7 @@ static void b_t3(uint32_t inst) {
 	return b(cond, imm32);
 }
 
+// arm-v7-m
 static void b_t4(uint32_t inst) {
 	uint16_t imm11 = inst & 0x7ff;
 	bool J2 = !!(inst & 0x800);
