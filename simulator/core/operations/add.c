@@ -454,6 +454,58 @@ static void add_sp_plug_reg_t3(uint32_t inst) {
 	return add_sp_plus_reg(rd, rm, setflags, shift_t, shift_n);
 }
 
+static void adr(uint8_t rd, bool add, uint32_t imm32) {
+	uint32_t result;
+	if (add)
+		result = (CORE_reg_read(PC_REG) & 0xfffffffc) + imm32;
+	else
+		result = (CORE_reg_read(PC_REG) & 0xfffffffc) - imm32;
+	CORE_reg_write(rd, result);
+}
+
+// arm-thumb
+static void adr_t1(uint16_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t rd   = (inst >> 8) & 0x7;
+
+	uint32_t imm32 = imm8 << 2;
+	bool add = true;
+
+	return adr(rd, add, imm32);
+}
+
+// arm-v7-m
+static void adr_t2(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t rd   = (inst >> 8) & 0xf;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	bool    i    = (inst >> 26) & 0x1;
+
+	uint32_t imm32 = imm8 | (imm3 << 8) | (i << 11);
+	bool add = false;
+
+	if (rd > 13)
+		CORE_ERR_unpredictable("adr_t2 case\n");
+
+	return adr(rd, add, imm32);
+}
+
+// arm-v7-m
+static void adr_t3(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t rd   = (inst >> 8) & 0xf;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	bool    i    = (inst >> 26) & 0x1;
+
+	uint32_t imm32 = imm8 | (imm3 << 8) | (i << 11);
+	bool add = true;
+
+	if (rd > 13)
+		CORE_ERR_unpredictable("adr_t2 case\n");
+
+	return adr(rd, add, imm32);
+}
+
 __attribute__ ((constructor))
 void register_opcodes_add(void) {
 	// adc_imm_t1: 1111 0x01 010x xxxx 0xxx xxxx xxxx xxxx
@@ -522,4 +574,13 @@ void register_opcodes_add(void) {
 
 	// add_sp_plug_reg_t3: 1110 1011 000x 1101 0<x's>
 	register_opcode_mask_32(0xeb0d0000, 0x14e28000, add_sp_plug_reg_t3);
+
+	// adr_t1: 1010 0<x's>
+	register_opcode_mask_16(0xa000, 0x5800, adr_t1);
+
+	// adr_t2: 1111 0x10 1010 1111 0<x's>
+	register_opcode_mask_32(0xf2af0000, 0x09508000, adr_t2);
+
+	// adr_t3: 1111 0x10 0000 1111 0<x's>
+	register_opcode_mask_32(0xf20f0000, 0x09f08000, adr_t3);
 }
