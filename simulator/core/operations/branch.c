@@ -202,6 +202,23 @@ static void bl_t1(uint32_t inst) {
 	return bl_blx(CORE_reg_read(PC_REG), GET_ISETSTATE, imm32);
 }
 
+static inline void blx_reg(uint8_t rm) {
+	uint32_t target = CORE_reg_read(rm);
+	uint32_t next_instr_addr = CORE_reg_read(PC_REG) - 2;
+	CORE_reg_write(LR_REG, next_instr_addr | 0x1);
+	BLXWritePC(target);
+}
+
+// arm-v5-t*, arm-v6-m, arm-v7-m
+static void blx_reg_t1(uint16_t inst) {
+	uint8_t rm = (inst >> 3) & 0xf;
+
+	if ((rm == 15) || (in_ITblock() && !last_in_ITblock()))
+		CORE_ERR_unpredictable("blx_reg_t1 case\n");
+
+	return blx_reg(rm);
+}
+
 static void bx(uint8_t rm) {
 	BXWritePC(CORE_reg_read(rm));
 
@@ -269,6 +286,9 @@ void register_opcodes_branch(void) {
 
 	// bl_t1: 1111 0xxx xxxx xxxx 11x1 <x's>
 	register_opcode_mask_32(0xf000d000, 0x08000000, bl_t1);
+
+	// blx_reg_t1: 0100 0111 1xxx x000
+	register_opcode_mask_16(0x4780, 0xb807, blx_reg_t1);
 
 	// bx_t1: 0100 0111 0xxx x000
 	register_opcode_mask_16(0x4700, 0xb887, bx_t1);

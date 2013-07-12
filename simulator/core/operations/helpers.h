@@ -37,6 +37,7 @@ uint32_t SignExtend(uint32_t val, uint8_t bits);
 
 void LoadWritePC(uint32_t addr);
 void BXWritePC(uint32_t addr);
+void BLXWritePC(uint32_t addr);
 void BranchTo(uint32_t addr);
 void BranchWritePC(uint32_t addr);
 

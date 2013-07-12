@@ -68,6 +68,10 @@ void BXWritePC(uint32_t addr) {
 	BranchTo(addr & 0xfffffffe);
 }
 
+void BLXWritePC(uint32_t addr __attribute__ ((unused))) {
+	CORE_ERR_not_implemented("BLXWritePC\n");
+}
+
 void BranchTo(uint32_t addr) {
 	CORE_reg_write(PC_REG, addr);
 }
