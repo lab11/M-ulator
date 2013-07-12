@@ -19,6 +19,16 @@
 
 #include "opcodes.h"
 
+static inline void dbg(uint8_t option __attribute__ ((unused))) {
+	// NOP-compatible hint
+}
+
+// arm-v7-m
+static void dbg_t1(uint32_t inst) {
+	uint8_t option = inst & 0xf;
+	return dbg(option);
+}
+
 static void nop(void) {
 	;
 }
@@ -45,6 +55,9 @@ static void wfi_t2(uint32_t inst __attribute__ ((unused))) {
 
 __attribute__ ((constructor))
 void register_opcodes_hints(void) {
+	// dbg_t1: 1111 0011 1010 1111 1000 0000 1111 xxxx
+	register_opcode_mask_32(0xf3af80f0, 0x0c507f00, dbg_t1);
+
 	// nop_t1: 1011 1111 0000 0000
 	register_opcode_mask_16(0xbf00, 0x40ff, nop_t1);
 

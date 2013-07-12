@@ -1,5 +1,5 @@
 /* Mulator - An extensible {ARM} {e,si}mulator
- * Copyright 2011-2012  Pat Pannuto <pat.pannuto@gmail.com>
+ * Copyright 2011-2013  Pat Pannuto <pat.pannuto@gmail.com>
  *
  * This file is part of Mulator.
  *
