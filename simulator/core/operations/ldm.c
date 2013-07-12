@@ -24,7 +24,7 @@
 #include "cpu/core.h"
 #include "cpu/misc.h"
 
-static void ldm(uint8_t rn, uint16_t registers, uint8_t wback) {
+static void ldm(uint8_t rn, uint16_t registers, bool wback) {
 	uint32_t address = CORE_reg_read(rn);
 
 	int i;
@@ -46,6 +46,20 @@ static void ldm(uint8_t rn, uint16_t registers, uint8_t wback) {
 	DBG2("ldm had loads of fun\n");
 }
 
+// arm-thumb
+static void ldm_t1(uint16_t inst) {
+	uint8_t registers = inst & 0xff;
+	uint8_t rn = (inst >> 8) & 0x7;
+
+	bool wback = registers & (1 << rn);
+
+	if (hamming(registers) < 1)
+		CORE_ERR_unpredictable("ldm_t1 load no regs?\n");
+
+	return ldm(rn, registers, wback);
+}
+
+// arm-v7-m
 static void ldm_t2(uint32_t inst) {
 	uint16_t reg_list = inst & 0x1fff;
 	bool M = !!(inst & 0x4000);
@@ -73,6 +87,9 @@ static void ldm_t2(uint32_t inst) {
 
 __attribute__ ((constructor))
 void register_opcodes_ldm(void) {
+	// ldm_t1: 1100 1<x's>
+	register_opcode_mask_16(0xc800, 0x3000, ldm_t1);
+
 	// LDM_t2: 1110 1000 10x1 xxxx xx0<x's>
 	// Illegal:            1  1101
 	//register_opcode_mask(0xe8900000, 0x17402000, ldm_t2);
