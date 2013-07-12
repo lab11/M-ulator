@@ -30,6 +30,7 @@ static void cbz(bool nonzero, uint8_t rn, uint32_t imm32) {
 		BranchWritePC(CORE_reg_read(PC_REG) + imm32);
 }
 
+// arm-v7-m
 static void cbz_t1(uint16_t inst) {
 	uint8_t rn = (inst & 0x7);
 	uint8_t imm5 = (inst >> 3) & 0x1f;
