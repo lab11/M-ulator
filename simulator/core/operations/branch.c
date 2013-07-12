@@ -168,6 +168,7 @@ static void bl_blx(uint32_t pc, uint8_t targetInstrSet, uint32_t imm32) {
 	BranchWritePC(targetAddress);
 }
 
+// arm-thumb
 static void bl_t1(uint32_t inst) {
 	// top 5 bits fixed
 	uint8_t  S = !!(inst & 0x04000000);
@@ -199,42 +200,6 @@ static void bl_t1(uint32_t inst) {
 		CORE_ERR_unpredictable("bl_t1 in itstate, not ending\n");
 
 	return bl_blx(CORE_reg_read(PC_REG), GET_ISETSTATE, imm32);
-}
-
-static void bl_t2(uint32_t inst) {
-	// top 5 bits fixed
-	uint8_t  S = !!(inst & 0x04000000);
-	int imm10H =   (inst & 0x03ff0000) >> 16;
-	assert(1 == (!!(inst & 0x00008000)));
-	assert(1 == (!!(inst & 0x00004000)));
-	uint8_t J1 = !!(inst & 0x00002000);
-	assert(0 == (!!(inst & 0x00001000)));
-	uint8_t J2 = !!(inst & 0x00000800);
-	int imm10L =   (inst & 0x000007fe);
-	uint8_t  H = !!(inst & 0x00000001);
-
-	if (GET_ISETSTATE == (INST_SET_THUMBEE || H))
-		CORE_ERR_unpredictable("bl_t2 thumbEE\n");
-
-	uint8_t I1 = !(J1 ^ S);
-	uint8_t I2 = !(J2 ^ S);
-
-	struct {signed int x:25;} s;
-	s.x = 0;		// 2
-	s.x |= (imm10L << 2);	// 12
-	s.x |= (imm10H << 12);	// 22
-	s.x |= (I2 << 22);	// 23
-	s.x |= (I1 << 23);	// 24
-	s.x |= (S << 24);	// 25
-	int32_t imm32 = s.x;
-
-	DBG2("S %d I1 %d I2 %d imm10H %03x imm10L %03x\n",
-			S, I1, I2, imm10H, imm10L);
-
-	if (in_ITblock() && !last_in_ITblock())
-		CORE_ERR_unpredictable("bl_t2 in itstate, not ending\n");
-
-	return bl_blx(CORE_reg_read(PC_REG), INST_SET_ARM, imm32);
 }
 
 static void bx(uint8_t rm) {
@@ -304,9 +269,6 @@ void register_opcodes_branch(void) {
 
 	// bl_t1: 1111 0xxx xxxx xxxx 11x1 <x's>
 	register_opcode_mask_32(0xf000d000, 0x08000000, bl_t1);
-
-	// bl_t2: 1111 0xxx xxxx xxxx 11x0 <x's>
-	register_opcode_mask_32(0xf000c000, 0x08001000, bl_t2);
 
 	// bx_t1: 0100 0111 0xxx x000
 	register_opcode_mask_16(0x4700, 0xb887, bx_t1);
