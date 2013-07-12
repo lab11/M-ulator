@@ -66,32 +66,6 @@ static void uxtb_t1(uint16_t inst) {
 	return uxtb(rd, rm, rotation);
 }
 
-static void ubfx(uint8_t rd, uint8_t rn, uint8_t lsbit, uint8_t widthminus1) {
-	uint32_t rn_val = CORE_reg_read(rn);
-
-	uint8_t msbit = lsbit + widthminus1;
-	if (msbit <= 31)
-		CORE_reg_write(rd, (rn_val >> lsbit) & ((1 << (msbit - lsbit + 1)) - 1));
-	else
-		CORE_ERR_unpredictable("msb > 31?\n");
-}
-
-static void ubfx_t1(uint32_t inst) {
-	uint8_t widthm1 = inst & 0x1f;
-	uint8_t imm2 = (inst >> 6) & 0x3;
-	uint8_t rd = (inst >> 8) & 0xf;
-	uint8_t imm3 = (inst >> 12) & 0x7;
-	uint8_t rn = (inst >> 16) & 0xf;
-
-	uint8_t lsbit = (imm3 << 2) | imm2;
-	uint8_t widthminus1 = widthm1;
-
-	if (BadReg(rd) || BadReg(rn))
-		CORE_ERR_unpredictable("bad reg\n");
-
-	return ubfx(rd, rn, lsbit, widthminus1);
-}
-
 __attribute__ ((constructor))
 void register_opcodes_extend(void) {
 	// sxtb_t1: 1011 0010 01xx xxxx
@@ -99,7 +73,4 @@ void register_opcodes_extend(void) {
 
 	// uxtb_t1: 1011 0010 11<x's>
 	register_opcode_mask_16(0xb2c0, 0x4d00, uxtb_t1);
-
-	// ubfx_t1: 1111 0011 1100 xxxx 0xxx xxxx xx0x xxxx
-	register_opcode_mask_32(0xf3c00000, 0x0c308020, ubfx_t1);
 }

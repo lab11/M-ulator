@@ -267,32 +267,6 @@ static void mov_reg_t2(uint16_t inst) {
 	return mov_reg(rd, rm, setflags);
 }
 
-static void movt(uint8_t rd, uint16_t imm16) {
-	uint32_t rd_val = CORE_reg_read(rd);
-	rd_val &= 0x0000ffff;	// clear top bits
-	uint32_t wide_imm = imm16;
-	rd_val |= (wide_imm << 16);
-	CORE_reg_write(rd, rd_val);
-
-	DBG2("movt r%02d = 0x%08x\n", rd, rd_val);
-}
-
-static void movt_t1(uint32_t inst) {
-	uint8_t imm8 = inst & 0xff;
-	uint8_t rd = (inst & 0xf00) >> 8;
-	uint8_t imm3 = (inst & 0x7000) >> 12;
-	uint8_t imm4 = (inst & 0xf0000) >> 16;
-	uint8_t i = !!(inst & 0x04000000);
-
-	// d = uint(rd)
-	uint16_t imm16 = (imm4 << 12) | (i << 11) | (imm3 << 8) | imm8;
-
-	if (BadReg(rd))
-		CORE_ERR_unpredictable("BadReg movt_t1\n");
-
-	return movt(rd, imm16);
-}
-
 __attribute__ ((constructor))
 void register_opcodes_mov(void) {
 	// mrs_t1: 1111 0011 1110 1111 1000 xxxx xxxx xxxx
@@ -315,7 +289,4 @@ void register_opcodes_mov(void) {
 
 	// mov_reg_t2: 0000 0000 00xx xxxx
 	register_opcode_mask_16(0x0, 0xffc0, mov_reg_t2);
-
-	// movt_t1: 1111 0x10 1100 xxxx 0<x's>
-	register_opcode_mask_32(0xf2c00000, 0x09308000, movt_t1);
 }
