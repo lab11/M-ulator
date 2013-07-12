@@ -24,7 +24,7 @@
 
 /* CMP and TST always write apsr bits, regardless of itstate */
 
-static void cmn_imm(uint8_t rn, uint32_t imm32) {
+static inline void cmn_imm(uint8_t rn, uint32_t imm32) {
 	uint32_t rn_val = CORE_reg_read(rn);
 	union apsr_t apsr = CORE_apsr_read();
 
@@ -40,6 +40,7 @@ static void cmn_imm(uint8_t rn, uint32_t imm32) {
 	CORE_apsr_write(apsr);
 }
 
+// arm-v7-m
 static void cmn_imm_t1(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t imm3 = (inst >> 12) & 0x7;
@@ -52,6 +53,55 @@ static void cmn_imm_t1(uint32_t inst) {
 		CORE_ERR_unpredictable("bad reg\n");
 
 	return cmn_imm(rn, imm32);
+}
+
+static inline void cmn_reg(uint8_t rn, uint8_t rm,
+		enum SRType shift_t, uint8_t shift_n) {
+
+	union apsr_t apsr = CORE_apsr_read();
+	uint32_t rn_val = CORE_reg_read(rn);
+	uint32_t rm_val = CORE_reg_read(rm);
+
+	uint32_t shifted = Shift(rm_val, 32, shift_t, shift_n, apsr.bits.C);
+
+	uint32_t result;
+	bool carry_out, overflow_out;
+	AddWithCarry(rn_val, shifted, 0, &result, &carry_out, &overflow_out);
+
+	apsr.bits.N = HIGH_BIT(result);
+	apsr.bits.Z = result == 0;
+	apsr.bits.C = carry_out;
+	apsr.bits.V = overflow_out;
+	CORE_apsr_write(apsr);
+}
+
+// arm-thumb
+static void cmn_reg_t1(uint16_t inst) {
+	uint8_t rn = inst & 0x7;
+	uint8_t rm = (inst >> 3) & 0x7;
+
+	enum SRType shift_t = SRType_LSL;
+	uint8_t shift_n = 0;
+
+	return cmn_reg(rn, rm, shift_t, shift_n);
+}
+
+// arm-v7-m
+static void cmn_reg_t2(uint32_t inst) {
+	uint8_t rm   = inst & 0xf;
+	uint8_t type = (inst >> 4) & 0x3;
+	uint8_t imm2 = (inst >> 6) & 0x3;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	uint8_t rn   = (inst >> 16) & 0xf;
+
+	enum SRType shift_t;
+	uint8_t shift_n;
+	DecodeImmShift(type, imm2 | (imm3 << 2), &shift_t, &shift_n);
+
+	if ((rn == 15) || (rm > 13))
+		CORE_ERR_unpredictable("cmn_reg_t2 case\n");
+
+	return cmn_reg(rn, rm, shift_t, shift_n);
 }
 
 static void cmp_imm(uint8_t rn, uint32_t imm32) {
@@ -74,6 +124,7 @@ static void cmp_imm(uint8_t rn, uint32_t imm32) {
 	CORE_apsr_write(apsr);
 }
 
+// arm-thumb
 static void cmp_imm_t1(uint16_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rn = (inst >> 8) & 0x7;
@@ -83,6 +134,7 @@ static void cmp_imm_t1(uint16_t inst) {
 	return cmp_imm(rn, imm32);
 }
 
+// arm-v7-m
 static void cmp_imm_t2(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t imm3 = (inst >> 12) & 0x7;
@@ -115,6 +167,7 @@ static void cmp_reg(uint8_t rn, uint8_t rm, enum SRType shift_t, uint8_t shift_n
 	CORE_apsr_write(apsr);
 }
 
+// arm-thumb
 static void cmp_reg_t1(uint16_t inst) {
 	uint8_t rn = inst & 0x7;
 	uint8_t rm = (inst >> 3) & 0x7;
@@ -122,6 +175,7 @@ static void cmp_reg_t1(uint16_t inst) {
 	return cmp_reg(rn, rm, SRType_LSL, 0);
 }
 
+// arm-thumb
 static void cmp_reg_t2(uint16_t inst) {
 	uint8_t rn = inst & 0x7;
 	uint8_t rm = (inst >> 3) & 0xf;
@@ -141,6 +195,7 @@ static void cmp_reg_t2(uint16_t inst) {
 	return cmp_reg(rn, rm, shift_t, shift_n);
 }
 
+// arm-v7-m
 static void cmp_reg_t3(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t type = (inst >> 4) & 0x3;
@@ -162,6 +217,12 @@ __attribute__ ((constructor))
 void register_opcodes_cmp(void) {
 	// cmn_imm_t1: 1111 0x01 0001 xxxx 0xxx 1111 xxxx xxxx
 	register_opcode_mask_32(0xf1100f00, 0x0ae08000, cmn_imm_t1);
+
+	// cmn_reg_t1: 0100 0010 11xx xxxx
+	register_opcode_mask_16(0x42c0, 0xbd00, cmn_reg_t1);
+
+	// cmn_reg_t2: 1110 1011 0001 xxxx 0xxx 1111 xxxx xxxx
+	register_opcode_mask_32(0xeb100f00, 0x14e08000, cmn_reg_t2);
 
 	// cmp_imm_t1: 0010 1<x's>
 	register_opcode_mask_16(0x2800, 0xd000, cmp_imm_t1);
