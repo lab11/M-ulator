@@ -237,6 +237,7 @@ static void eor_imm(uint8_t rd, uint8_t rn,
 	}
 }
 
+// arm-v7-m
 static void eor_imm_t1(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst >> 8) & 0xf;
@@ -278,6 +279,21 @@ static void eor_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm,
 	}
 }
 
+// arm-thumb
+static void eor_reg_t1(uint16_t inst) {
+	uint8_t rdn = inst & 0x7;
+	uint8_t rm  = (inst >> 3) & 0x7;
+
+	uint8_t rd = rdn;
+	uint8_t rn = rdn;
+	bool setflags = !in_ITblock();
+	enum SRType shift_t = SRType_LSL;
+	uint8_t shift_n = 0;
+
+	return eor_reg(setflags, rd, rn, rm, shift_t, shift_n);
+}
+
+// arm-v7-m
 static void eor_reg_t2(uint32_t inst) {
 	uint8_t rm = (inst & 0xf);
 	uint8_t type = (inst & 0x30) >> 4;
@@ -511,6 +527,9 @@ void register_opcodes_logical(void) {
 	register_opcode_mask_32_ex(0xf0800000, 0x0b608000, eor_imm_t1,
 			0x100f00, 0x0,
 			0, 0);
+
+	// eor_reg_t1: 0100 0000 01xx xxxx
+	register_opcode_mask_16(0x4040, 0xbf80, eor_reg_t1);
 
 	// eor_reg_t2: 1110 1010 100x xxxx 0<x's>
 	register_opcode_mask_32(0xea800000, 0x15608000, eor_reg_t2);
