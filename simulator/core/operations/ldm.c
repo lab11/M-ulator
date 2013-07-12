@@ -42,8 +42,6 @@ static void ldm(uint8_t rn, uint16_t registers, bool wback) {
 	if (wback && ((registers & (1 << rn)) == 0)) {
 		CORE_reg_write(rn, CORE_reg_read(rn) + 4U*hamming(registers));
 	}
-
-	DBG2("ldm had loads of fun\n");
 }
 
 // arm-thumb
@@ -85,6 +83,51 @@ static void ldm_t2(uint32_t inst) {
 	return ldm(rn, registers, wback);
 }
 
+static inline void ldmdb(uint8_t rn, uint16_t registers, bool wback) {
+	uint32_t address = CORE_reg_read(rn) - 4*hamming(registers);
+
+	int i;
+	for (i=0;i<14;i++) {
+		if (registers & (1 << i)) {
+			CORE_reg_write(i, read_word(address));
+			address += 4;
+		}
+	}
+	if (registers & (1 << 15)) {
+		//LoadWritePC(MemA[address, 4]);
+		CORE_ERR_not_implemented("ldmdb PC");
+	}
+
+	if (wback && ((registers & (1 << rn)) == 0)) {
+		CORE_reg_write(rn, CORE_reg_read(rn) - 4U*hamming(registers));
+	}
+}
+
+// arm-v7-m
+static void ldmdb_t1(uint32_t inst) {
+	/* { literal
+		uint16_t register_list = inst & 0x1fff;
+		uint16_t registers = register_list | (M << 14) | (P << 15);
+	} */
+	uint16_t registers = inst & 0xdfff;
+	bool M = (inst >> 14) & 0x1;
+	bool P = (inst >> 15) & 0x1;
+	uint8_t rn = (inst >> 16) & 0xf;
+	bool W = (inst >> 21) & 0x1;
+
+	bool wback = W==1;
+
+	if ((rn == 15) || (hamming(registers) < 2) || ((P==1) && (M==1)))
+		CORE_ERR_unpredictable("ldmdb_t1 case 1\n");
+	if (P && in_ITblock() && !last_in_ITblock)
+		CORE_ERR_unpredictable("ldmdb_t1 case 2\n");
+	if (wback && (registers & (1 << rn)))
+		CORE_ERR_unpredictable("ldmdb_t1 case 3\n");
+
+	return ldmdb(rn, registers, wback);
+}
+
+
 __attribute__ ((constructor))
 void register_opcodes_ldm(void) {
 	// ldm_t1: 1100 1<x's>
@@ -97,4 +140,7 @@ void register_opcodes_ldm(void) {
 	register_opcode_mask_32_ex(0xe8900000, 0x17402000, ldm_t2,
 			0x002d0000, 0x00020000,
 			0, 0);
+
+	// ldmdb_t1: 1110 1001 00x1 xxxx 110x <x's>
+	register_opcode_mask_32(0xe910c000, 0x16c02000, ldmdb_t1);
 }
