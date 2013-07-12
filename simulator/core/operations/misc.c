@@ -78,6 +78,29 @@ static void bfi_t1(uint32_t inst) {
 	return bfi(rd, rn, msbit, lsbit);
 }
 
+static inline void clz(uint8_t rd, uint8_t rm) {
+	uint32_t rm_val = CORE_reg_read(rm);
+	uint32_t result = __builtin_clz(rm_val);
+	CORE_reg_write(rd, result);
+}
+
+// arm-v7-m
+static void clz_t1(uint32_t inst) {
+	uint8_t rm_lsb = inst & 0xf;
+	uint8_t rd     = (inst >> 8) & 0xf;
+	uint8_t rm_msb = (inst >> 16) & 0xf;
+
+	if (rm_lsb != rm_msb)
+		CORE_ERR_unpredictable("clz_t1 rm_lsb != rm_msb\n");
+
+	uint8_t rm = rm_lsb;
+
+	if ((rd > 13) || (rm > 13))
+		CORE_ERR_unpredictable("clz_t1 case\n");
+
+	return clz(rd, rm);
+}
+
 static void movt(uint8_t rd, uint16_t imm16) {
 	uint32_t rd_val = CORE_reg_read(rd);
 	rd_val &= 0x0000ffff;	// clear top bits
@@ -139,6 +162,9 @@ void register_opcodes_misc(void) {
 	register_opcode_mask_32_ex(0xf3600000, 0x0c908020, bfi_t1,
 			0xf0000, 0x0,
 			0, 0);
+
+	// clz_t1: 1111 1010 1011 xxxx 1111 xxxx 1000 xxxx
+	register_opcode_mask_32(0xfab0f080, 0x05400070, clz_t1);
 
 	// movt_t1: 1111 0x10 1100 xxxx 0<x's>
 	register_opcode_mask_32(0xf2c00000, 0x09308000, movt_t1);
