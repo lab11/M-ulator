@@ -27,7 +27,9 @@
 
 #define HIGH_BIT(_r) (!!(_r & 0x80000000))
 
-uint32_t hamming(uint32_t val);
+static inline uint32_t hamming(uint32_t val) {
+	return __builtin_popcount(val);
+}
 
 void AddWithCarry(uint32_t x, uint32_t y, bool carry_in,
 		uint32_t *result, bool *carry_out, bool *overflow_out)

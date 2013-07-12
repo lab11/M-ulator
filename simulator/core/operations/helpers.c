@@ -22,16 +22,6 @@
 
 #include "cpu/registers.h"
 
-uint32_t hamming(uint32_t val) {
-	uint32_t hamm = 0;
-
-	for (hamm = 0; val; hamm++) {
-		val &= (val - 1); // clears LSB
-	}
-
-	return hamm;
-}
-
 // Only supports N == 32 bits
 void AddWithCarry(uint32_t x, uint32_t y, bool carry_in,
 		uint32_t *result, bool *carry_out, bool *overflow_out) {
