@@ -401,6 +401,317 @@ static void ldrb_reg_t2(uint32_t inst) {
 	return ldrb_reg(rt, rn, rm, shift_t, shift_n, index, add, wback);
 }
 
+// arm-v7-m
+static void ldrd_imm_t1(uint32_t inst) {
+	uint32_t imm8 = (inst & 0xff);
+	uint8_t rt2 = (inst & 0xf00) >> 8;
+	uint8_t rt = (inst & 0xf000) >> 12;
+	uint8_t rn = (inst & 0xf0000) >> 16;
+	uint8_t W = !!(inst & 0x200000);
+	uint8_t U = !!(inst & 0x800000);
+	uint8_t P = !!(inst & 0x1000000);
+
+	uint32_t imm32 = imm8 << 2;
+	// index = P
+	// add = U
+	// wback = W
+
+	if (W && ((rn == rt) || (rn == rt2)))
+		CORE_ERR_unpredictable("ldrd_imm_t1 wbck + regs\n");
+
+	if ((rt >= 13) || (rt2 >= 13) || (rt == rt2))
+		CORE_ERR_unpredictable("ldrd_imm_t1 bad regs\n");
+
+	uint32_t offset_addr;
+	if (U) {
+		offset_addr = CORE_reg_read(rn) + imm32;
+	} else {
+		offset_addr = CORE_reg_read(rn) - imm32;
+	}
+
+	uint32_t addr;
+	if (P) {
+		addr = offset_addr;
+	} else {
+		addr = CORE_reg_read(rn);
+	}
+
+	CORE_reg_write(rt, read_word(addr));
+	CORE_reg_write(rt2, read_word(addr + 4));
+
+	if (W) {
+		CORE_reg_write(rn, offset_addr);
+	}
+}
+
+static inline void ldrd_lit(uint8_t rt, uint8_t rt2,
+		uint32_t imm32, bool add) {
+	uint32_t pc_val = CORE_reg_read(PC_REG);
+	if (pc_val & 0x3)
+		CORE_ERR_unpredictable("Unaligned PC in ldrd_lit\n");
+
+	uint32_t address;
+	address = (add) ? pc_val + imm32 : pc_val - imm32;
+
+	CORE_reg_write(rt, read_word(address));
+	CORE_reg_write(rt2, read_word(address+4));
+}
+
+static void ldrd_lit_t1(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t rt2  = (inst >> 8) & 0xf;
+	uint8_t rt   = (inst >> 12) & 0xf;
+	bool    W    = (inst >> 22) & 0x1;
+	bool    U    = (inst >> 24) & 0x1;
+	/* P is unused, but encoded
+	bool    P    = (inst >> 25) & 0x1;
+	*/
+
+	uint32_t imm32 = imm8 << 2;
+	bool add = U==1;
+
+	if ((rt > 13) || (rt2 > 13) || (rt == rt2) || (W == 1))
+		CORE_ERR_unpredictable("ldrd_lit_t1 case\n");
+
+	return ldrd_lit(rt, rt2, imm32, add);
+}
+
+static void ldrh_imm(uint8_t rt, uint8_t rn, uint32_t imm32,
+		bool index, bool add, bool wback) {
+	uint32_t rn_val = CORE_reg_read(rn);
+
+	uint32_t offset_addr;
+	offset_addr = (add) ? rn_val + imm32 : rn_val - imm32;
+
+	uint32_t address;
+	address = (index) ? offset_addr : rn_val;
+
+	uint32_t data;
+	data = read_halfword(address);
+
+	if (wback)
+		CORE_reg_write(rn, offset_addr);
+
+	CORE_reg_write(rt, data);
+}
+
+// arm-thumb
+static void ldrh_imm_t1(uint16_t inst) {
+	uint8_t rt = inst & 0x7;
+	uint8_t rn = (inst >> 3) & 0x7;
+	uint8_t imm5 = (inst >> 6) & 0x1f;
+
+	uint32_t imm32 = imm5 << 1;
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+
+	return ldrh_imm(rt, rn, imm32, index, add, wback);
+}
+
+// arm-v7-m
+static void ldrh_imm_t2(uint32_t inst) {
+	uint16_t imm12 = inst & 0xfff;
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	uint32_t imm32 = imm12;
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+
+	if (rt == 13)
+		CORE_ERR_unpredictable("ldrh_imm_t2 case\n");
+
+	return ldrh_imm(rt, rn, imm32, index, add, wback);
+}
+
+// arm-v7-m
+static void ldrh_imm_t3(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	bool W = (inst >> 8) & 0x1;
+	bool U = (inst >> 9) & 0x1;
+	bool P = (inst >> 10) & 0x1;
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	uint32_t imm32 = imm8;
+	bool index = P==1;
+	bool add = U==1;
+	bool wback = W==1;
+
+	if ((rt == 13) || (wback && (rn == rt)))
+		CORE_ERR_unpredictable("ldrh_imm_t3 case 1\n");
+	if ((rt == 15) && ((P == 0) || (U == 1) || (W == 1)))
+		CORE_ERR_unpredictable("ldrh_imm_t3 case 2\n");
+
+	return ldrh_imm(rt, rn, imm32, index, add, wback);
+}
+
+static inline void ldrh_lit(uint8_t rt, uint32_t imm32, bool add) {
+	uint32_t pc_val = CORE_reg_read(PC_REG);
+	uint32_t base = pc_val & ~0x3;
+	uint32_t address;
+	address = (add) ? base + imm32 : base - imm32;
+	uint32_t data = read_halfword(address);
+	CORE_reg_write(rt, data);
+}
+
+// arm-v7-m
+static void ldrh_lit_t1(uint32_t inst) {
+	uint16_t imm12 = inst & 0xfff;
+	uint8_t rt = (inst >> 12) & 0xf;
+	bool U = (inst >> 23) & 0x1;
+
+	uint32_t imm32 = imm12;
+	bool add = U==1;
+
+	if (rt == 13)
+		CORE_ERR_unpredictable("ldrh_lit_t1 case\n");
+
+	return ldrh_lit(rt, imm32, add);
+}
+
+static void ldrh_reg(uint8_t rt, uint8_t rn, uint8_t rm,
+		bool index, bool add, bool wback,
+		enum SRType shift_t, uint8_t shift_n) {
+	union apsr_t apsr = CORE_apsr_read();
+
+	uint32_t offset;
+	offset = Shift(CORE_reg_read(rm), 32, shift_t, shift_n, apsr.bits.C);
+
+	uint32_t rn_val = CORE_reg_read(rn);
+	uint32_t offset_addr;
+	offset_addr = (add) ? rn_val + offset : rn_val - offset;
+
+	uint32_t address;
+	address = (index) ? offset_addr : rn_val;
+
+	uint32_t data = read_halfword(address);
+
+	if (wback)
+		CORE_reg_write(rn, offset_addr);
+
+	CORE_reg_write(rt, data);
+}
+
+// arm-thumb
+static void ldrh_reg_t1(uint16_t inst) {
+	uint8_t rt = inst & 0x7;
+	uint8_t rn = (inst >> 3) & 0x7;
+	uint8_t rm = (inst >> 6) & 0x7;
+
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+	enum SRType shift_t = SRType_LSL;
+	uint8_t shift_n = 0;
+
+	return ldrh_reg(rt, rn, rm, index, add, wback, shift_t, shift_n);
+}
+
+// arm-v7-m
+static void ldrh_reg_t2(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t imm2 = (inst >> 4) & 0x3;
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+	enum SRType shift_t = SRType_LSL;
+	uint8_t shift_n = imm2;
+
+	if ((rt == 13) || (rm > 13))
+		CORE_ERR_unpredictable("ldrh_reg_t2 case\n");
+
+	return ldrh_reg(rt, rn, rm, index, add, wback, shift_t, shift_n);
+}
+
+static void ldrsb_imm(uint8_t rt, uint8_t rn, uint32_t imm32,
+		bool index, bool add, bool wback) {
+	uint32_t rn_val = CORE_reg_read(rn);
+
+	uint32_t offset_addr;
+	offset_addr = (add) ? rn_val + imm32 : rn_val - imm32;
+
+	uint32_t address;
+	address = (index) ? offset_addr : rn_val;
+
+	int8_t sbyte = (int8_t) read_byte(address);
+	int32_t sword = sbyte;
+	CORE_reg_write(rt, (uint32_t) sword);
+
+	if (wback)
+		CORE_reg_write(rn, offset_addr);
+}
+
+// arm-v7-m
+static void ldrsb_imm_t1(uint32_t inst) {
+	uint16_t imm12 = inst & 0xfff;
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	uint32_t imm32 = imm12;
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+
+	if (rt == 13)
+		CORE_ERR_unpredictable("ldrsb_imm_t1 case\n");
+
+	return ldrsb_imm(rt, rn, imm32, index, add, wback);
+}
+
+// arm-v7-m
+static void ldrsb_imm_t2(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	bool W = (inst >> 8) & 0x1;
+	bool U = (inst >> 9) & 0x1;
+	bool P = (inst >> 10) & 0x1;
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	uint32_t imm32 = imm8;
+	bool index = P==1;
+	bool add = U==1;
+	bool wback = W==1;
+
+	if ((rt == 13) || (wback && (rn == rt)))
+		CORE_ERR_unpredictable("ldrsb_imm_t2 case 1\n");
+	if ((rt == 15) && ((P==0) || (U==1) || (W==1)))
+		CORE_ERR_unpredictable("ldrsb_imm_t2 case 2\n");
+
+	return ldrsb_imm(rt, rn, imm32, index, add, wback);
+}
+
+static inline void ldrsb_lit(uint8_t rt, uint32_t imm32, bool add) {
+	uint32_t pc_val = CORE_reg_read(PC_REG);
+	uint32_t base = pc_val & ~0x3;
+	uint32_t address;
+	address = (add) ? base + imm32 : base - imm32;
+
+	int8_t sbyte = (int8_t) read_byte(address);
+	int32_t sword = sbyte;
+	CORE_reg_write(rt, (uint32_t) sword);
+}
+
+// arm-v7-m
+static void ldrsb_lit_t1(uint32_t inst) {
+	uint16_t imm12 = inst & 0xfff;
+	uint8_t rt = (inst >> 12) & 0xf;
+	bool U = (inst >> 23) & 0x1;
+
+	uint32_t imm32 = imm12;
+	bool add = U==1;
+
+	if (rt == 13)
+		CORE_ERR_unpredictable("ldrsb_lit_t1 case\n");
+
+	return ldrsb_lit(rt, imm32, add);
+}
+
 static void ldrsb_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 		bool index, bool add, bool wback,
 		enum SRType shift_t, uint8_t shift_n) {
@@ -464,47 +775,139 @@ static void ldrsb_reg_t2(uint32_t inst) {
 	return ldrsb_reg(rt, rn, rm, index, add, wback, shift_t, shift_n);
 }
 
-// arm-v7-m
-static void ldrd_imm_t1(uint32_t inst) {
-	uint32_t imm8 = (inst & 0xff);
-	uint8_t rt2 = (inst & 0xf00) >> 8;
-	uint8_t rt = (inst & 0xf000) >> 12;
-	uint8_t rn = (inst & 0xf0000) >> 16;
-	uint8_t W = !!(inst & 0x200000);
-	uint8_t U = !!(inst & 0x800000);
-	uint8_t P = !!(inst & 0x1000000);
-
-	uint32_t imm32 = imm8 << 2;
-	// index = P
-	// add = U
-	// wback = W
-
-	if (W && ((rn == rt) || (rn == rt2)))
-		CORE_ERR_unpredictable("ldrd_imm_t1 wbck + regs\n");
-
-	if ((rt >= 13) || (rt2 >= 13) || (rt == rt2))
-		CORE_ERR_unpredictable("ldrd_imm_t1 bad regs\n");
+static void ldrsh_imm(uint8_t rt, uint8_t rn, uint32_t imm32,
+		bool index, bool add, bool wback) {
+	uint32_t rn_val = CORE_reg_read(rn);
 
 	uint32_t offset_addr;
-	if (U) {
-		offset_addr = CORE_reg_read(rn) + imm32;
-	} else {
-		offset_addr = CORE_reg_read(rn) - imm32;
-	}
+	offset_addr = (add) ? rn_val + imm32 : rn_val - imm32;
 
-	uint32_t addr;
-	if (P) {
-		addr = offset_addr;
-	} else {
-		addr = CORE_reg_read(rn);
-	}
+	uint32_t address;
+	address = (index) ? offset_addr : rn_val;
 
-	CORE_reg_write(rt, read_word(addr));
-	CORE_reg_write(rt2, read_word(addr + 4));
+	int16_t shword = (int16_t) read_halfword(address);
+	int32_t sword = shword;
+	CORE_reg_write(rt, (uint32_t) sword);
 
-	if (W) {
+	if (wback)
 		CORE_reg_write(rn, offset_addr);
-	}
+}
+
+// arm-v7-m
+static void ldrsh_imm_t1(uint32_t inst) {
+	uint16_t imm12 = inst & 0xfff;
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	uint32_t imm32 = imm12;
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+
+	if (rt == 13)
+		CORE_ERR_unpredictable("ldrsh_imm_t1 case\n");
+
+	return ldrsh_imm(rt, rn, imm32, index, add, wback);
+}
+
+// arm-v7-m
+static void ldrsh_imm_t2(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	bool W = (inst >> 8) & 0x1;
+	bool U = (inst >> 9) & 0x1;
+	bool P = (inst >> 10) & 0x1;
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	uint32_t imm32 = imm8;
+	bool index = P==1;
+	bool add = U==1;
+	bool wback = W==1;
+
+	if ((rt == 13) || (wback && (rn == rt)))
+		CORE_ERR_unpredictable("ldrsh_imm_t2 case 1\n");
+	if ((rt == 15) && ((P==0) || (U==1) || (W==1)))
+		CORE_ERR_unpredictable("ldrsh_imm_t2 case 2\n");
+
+	return ldrsh_imm(rt, rn, imm32, index, add, wback);
+}
+
+static inline void ldrsh_lit(uint8_t rt, uint32_t imm32, bool add) {
+	uint32_t pc_val = CORE_reg_read(PC_REG);
+	uint32_t base = pc_val & ~0x3;
+	uint32_t address;
+	address = (add) ? base + imm32 : base - imm32;
+
+	int16_t shword = (int16_t) read_halfword(address);
+	int32_t sword = shword;
+	CORE_reg_write(rt, (uint32_t) sword);
+}
+
+static void ldrsh_lit_t1(uint32_t inst) {
+	uint16_t imm12 = inst & 0xfff;
+	uint8_t rt = (inst >> 12) & 0xf;
+	bool U = (inst >> 23) & 0x1;
+
+	uint32_t imm32 = imm12;
+	bool add = U==1;
+
+	if (rt == 13)
+		CORE_ERR_unpredictable("ldrsh_lit_t1 case\n");
+
+	return ldrsh_lit(rt, imm32, add);
+}
+
+static void ldrsh_reg(uint8_t rt, uint8_t rn, uint8_t rm,
+		bool index, bool add, bool wback,
+		enum SRType shift_t, uint8_t shift_n) {
+	uint32_t rm_val = CORE_reg_read(rm);
+	uint32_t rn_val = CORE_reg_read(rn);
+	union apsr_t apsr = CORE_apsr_read();
+
+	uint32_t offset = Shift(rm_val, 32, shift_t, shift_n, apsr.bits.C);
+	uint32_t offset_addr;
+	offset_addr = (add) ? rn_val + offset : rn_val - offset;
+
+	uint32_t address;
+	address = (index) ? offset_addr : rn_val;
+
+	int16_t shword = (int16_t) read_halfword(address);
+	int32_t sword = shword;
+	CORE_reg_write(rt, (uint32_t) sword);
+
+	if (wback)
+		CORE_reg_write(rn, offset_addr);
+}
+
+// arm-thumb
+static void ldrsh_reg_t1(uint16_t inst) {
+	uint8_t rt = inst & 0x7;
+	uint8_t rn = (inst >> 3) & 0x7;
+	uint8_t rm = (inst >> 6) & 0x7;
+
+	bool index = true;
+	bool add = true;
+	bool wback = true;
+	enum SRType shift_t = SRType_LSL;
+	uint8_t shift_n = 0;
+
+	return ldrsh_reg(rt, rn, rm, index, add, wback, shift_t, shift_n);
+}
+
+// arm-v7-m
+static void ldrsh_reg_t2(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t imm2 = (inst >> 4) & 0x3;
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	bool index = true;
+	bool add = true;
+	bool wback = true;
+	enum SRType shift_t = SRType_LSL;
+	uint8_t shift_n = imm2;
+
+	return ldrsh_reg(rt, rn, rm, index, add, wback, shift_t, shift_n);
 }
 
 __attribute__ ((constructor))
@@ -560,6 +963,64 @@ void register_opcodes_ld(void) {
 	// ldrb_reg_t2: 1111 1000 0001 xxxx xxxx 0000 00xx xxxx
 	register_opcode_mask_32_ex(0xf8100000, 0x07e00fc0, ldrb_reg_t2, 0xf000, 0x0, 0xf0000, 0x0, 0, 0);
 
+	// ldrd_imm_t1: 1110 100x x1x1 <x's>
+	register_opcode_mask_32_ex(0xe8500000, 0x16000000, ldrd_imm_t1, 0x0, 0x01200000, 0xf0000, 0x0, 0, 0);
+
+	// ldrd_lit_t1: 1110 100x x1x1 1111 <x's>
+	register_opcode_mask_32_ex(0xe85f0000, 0x16000000, ldrd_lit_t1,
+			0x0, 0x01800000,
+			0, 0);
+
+	// ldrh_imm_t1: 1000 1<x's>
+	register_opcode_mask_16(0x8800, 0x7000, ldrh_imm_t1);
+
+	// ldrh_imm_t2: 1111 1000 1011 <x's>
+	register_opcode_mask_32_ex(0xf8b00000, 0x07400000, ldrh_imm_t2,
+			0xf000, 0x0,
+			0xf0000, 0x0,
+			0, 0);
+
+	// ldrh_imm_t3: 1111 1000 0011 xxxx xxxx 1xxx xxxx xxxx
+	register_opcode_mask_32_ex(0xf8300800, 0x07c00000, ldrh_imm_t3,
+			0xf0000, 0x0,
+			0xf400, 0x300,
+			0x600, 0x100,
+			0x0, 0x500,
+			0, 0);
+
+	// ldrh_lit_t1: 1111 1000 x011 1111 <x's>
+	register_opcode_mask_32_ex(0xf83f0000, 0x07400000, ldrh_lit_t1,
+			0xf000, 0x0,
+			0, 0);
+
+	// ldrh_reg_t1: 0101 101<x's>
+	register_opcode_mask_16(0x5a00, 0xa400, ldrh_reg_t1);
+
+	// ldrh_reg_t2: 1111 1000 0011 xxxx xxxx 0000 00xx xxxx
+	register_opcode_mask_32_ex(0xf8300000, 0x07c00fc0, ldrh_reg_t2,
+			0xf0000, 0x0,
+			0xf000, 0x0,
+			0, 0);
+
+	// ldrsb_imm_t1: 1111 1001 1001 <x's>
+	register_opcode_mask_32_ex(0xf9900000, 0x06600000, ldrsb_imm_t1,
+			0xf000, 0x0,
+			0xf0000, 0x0,
+			0, 0);
+
+	// ldrsb_imm_t2: 1111 1001 0001 xxxx xxxx 1xxx xxxx xxxx
+	register_opcode_mask_32_ex(0xf9100800, 0x06e00000, ldrsb_imm_t2,
+			0xf400, 0x300,
+			0xf0000, 0x0,
+			0x600, 0x100,
+			0x0, 0x500,
+			0, 0);
+
+	// ldrsb_lit_t1: 1111 1001 x001 1111 <x's>
+	register_opcode_mask_32_ex(0xf91f0000, 0x06600000, ldrsb_lit_t1,
+			0xf000, 0x0,
+			0, 0);
+
 	// ldrsb_reg_t1: 0101 011x xxxx xxxx
 	register_opcode_mask_16(0x5600, 0xa800, ldrsb_reg_t1);
 
@@ -569,6 +1030,31 @@ void register_opcodes_ld(void) {
 			0xf0000, 0x0,
 			0, 0);
 
-	// ldrd_imm_t1: 1110 100x x1x1 <x's>
-	register_opcode_mask_32_ex(0xe8500000, 0x16000000, ldrd_imm_t1, 0x0, 0x01200000, 0xf0000, 0x0, 0, 0);
+	// ldrsh_imm_t1: 1111 1001 1011 <x's>
+	register_opcode_mask_32_ex(0xf9b00000, 0x06400000, ldrsh_imm_t1,
+			0xf0000, 0x0,
+			0xf000, 0x0,
+			0, 0);
+
+	// ldrsh_imm_t2: 1111 1001 0011 xxxx xxxx 1xxx xxxx xxxx
+	register_opcode_mask_32_ex(0xf9300800, 0x06c00000, ldrsh_imm_t2,
+			0xf0000, 0x0,
+			0xf400, 0x300,
+			0x600, 0x100,
+			0x0, 0x500,
+			0, 0);
+
+	// ldrsh_lit_t1: 1111 1001 x011 1111 <x's>
+	register_opcode_mask_32_ex(0xf93f0000, 0x06400000, ldrsh_lit_t1,
+			0xf000, 0x0,
+			0, 0);
+
+	// ldrsh_reg_t1: 0101 111x <x's>
+	register_opcode_mask_16(0xa000, 0x5e00, ldrsh_reg_t1);
+
+	// ldrsh_reg_t2: 1111 1001 0011 xxxx xxxx 0000 00xx xxxx
+	register_opcode_mask_32_ex(0xf9300000, 0x06c00fc0, ldrsh_reg_t2,
+			0xf0000, 0x0,
+			0xf000, 0x0,
+			0, 0);
 }
