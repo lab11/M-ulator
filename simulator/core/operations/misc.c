@@ -101,16 +101,15 @@ static void clz_t1(uint32_t inst) {
 	return clz(rd, rm);
 }
 
-static void movt(uint8_t rd, uint16_t imm16) {
+static inline void movt(uint8_t rd, uint16_t imm16) {
 	uint32_t rd_val = CORE_reg_read(rd);
 	rd_val &= 0x0000ffff;	// clear top bits
 	uint32_t wide_imm = imm16;
 	rd_val |= (wide_imm << 16);
 	CORE_reg_write(rd, rd_val);
-
-	DBG2("movt r%02d = 0x%08x\n", rd, rd_val);
 }
 
+// arm-v7-m
 static void movt_t1(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst & 0xf00) >> 8;
