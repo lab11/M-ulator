@@ -318,40 +318,6 @@ static void eor_reg_t2(uint32_t inst) {
 	return eor_reg(S, rd, rn, rm, shift_t, shift_n);
 }
 
-static void lsl_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm) {
-	enum SRType shift_t = SRType_LSL;
-	uint8_t shift_n = CORE_reg_read(rm) & 0xff;
-
-	uint32_t result;
-	bool carry_out;
-
-	union apsr_t apsr = CORE_apsr_read();
-
-	Shift_C(CORE_reg_read(rn), 32, shift_t, shift_n, apsr.bits.C, &result, &carry_out);
-
-	CORE_reg_write(rd, result);
-
-	if (setflags) {
-		apsr.bits.N = HIGH_BIT(result);
-		apsr.bits.Z = result == 0;
-		apsr.bits.C = carry_out;
-		CORE_apsr_write(apsr);
-	}
-}
-
-static void lsl_reg_t2(uint32_t inst) {
-	uint8_t rm = (inst & 0xf);
-	uint8_t rd = (inst & 0xf00) >> 8;
-	uint8_t rn = (inst & 0xf0000) >> 16;
-	uint8_t S = !!(inst & 0x100000);
-
-	if ((rd >= 13) || (rn >= 13) || (rm >= 13)) {
-		CORE_ERR_unpredictable("lsl_reg_t2 bad reg\n");
-	}
-
-	return lsl_reg(S, rd, rn, rm);
-}
-
 static void mvn_reg(uint8_t setflags, uint8_t rd, uint8_t rm,
 		enum SRType shift_t, uint8_t shift_n) {
 	uint32_t result;
@@ -533,9 +499,6 @@ void register_opcodes_logical(void) {
 
 	// eor_reg_t2: 1110 1010 100x xxxx 0<x's>
 	register_opcode_mask_32(0xea800000, 0x15608000, eor_reg_t2);
-
-	// lsl_reg_t2: 1111 1010 000x xxxx 1111 xxxx 0000 xxxx
-	register_opcode_mask_32(0xfa00f000, 0x05e000f0, lsl_reg_t2);
 
 	// mvn_reg_t1: 0100 0011 11xx xxxx
 	register_opcode_mask_16(0x43c0, 0xbc00, mvn_reg_t1);
