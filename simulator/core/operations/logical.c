@@ -187,8 +187,8 @@ static void bfi_t1(uint32_t inst) {
 	return bfi(rd, rn, msbit, lsbit);
 }
 
-static void bic_imm(union apsr_t apsr, uint8_t setflags, uint8_t rd, uint8_t rn,
-		uint32_t imm32, uint8_t carry) {
+static inline void bic_imm(union apsr_t apsr, uint8_t setflags,
+		uint8_t rd, uint8_t rn, uint32_t imm32, uint8_t carry) {
 	uint32_t result = CORE_reg_read(rn) & (~imm32);
 	CORE_reg_write(rd, result);
 
@@ -198,10 +198,9 @@ static void bic_imm(union apsr_t apsr, uint8_t setflags, uint8_t rd, uint8_t rn,
 		apsr.bits.C = carry;
 		CORE_apsr_write(apsr);
 	}
-
-	DBG2("bic_imm ran\n");
 }
 
+// arm-v7-m
 static void bic_imm_t1(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst & 0xf00) >> 8;
@@ -243,6 +242,7 @@ static void bic_reg(uint8_t rd, uint8_t rn, uint8_t rm,
 	}
 }
 
+// arm-thumb
 static void bic_reg_t1(uint16_t inst) {
 	uint8_t rdn = inst & 0x7;
 	uint8_t rm = (inst >> 3) & 0x7;
@@ -252,6 +252,27 @@ static void bic_reg_t1(uint16_t inst) {
 	bool setflags = !in_ITblock();
 	enum SRType shift_t = SRType_LSL;
 	uint8_t shift_n = 0;
+
+	return bic_reg(rd, rn, rm, setflags, shift_t, shift_n);
+}
+
+// arm-v7-m
+static void bic_reg_t2(uint32_t inst) {
+	uint8_t rm   = inst & 0xf;
+	uint8_t type = (inst >> 4) & 0x3;
+	uint8_t imm2 = (inst >> 6) & 0x3;
+	uint8_t rd   = (inst >> 8) & 0xf;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	uint8_t rn   = (inst >> 16) & 0xf;
+	bool    S    = (inst >> 20) & 0x1;
+
+	bool setflags = S == 1;
+	enum SRType shift_t;
+	uint8_t shift_n;
+	DecodeImmShift(type, imm2 | (imm3 << 2), &shift_t, &shift_n);
+
+	if ((rd > 13) || (rn > 13) || (rm > 13))
+		CORE_ERR_unpredictable("bic_reg_t2 case\n");
 
 	return bic_reg(rd, rn, rm, setflags, shift_t, shift_n);
 }
@@ -545,6 +566,9 @@ void register_opcodes_logical(void) {
 
 	// bic_reg_t1: 0100 0011 10<x's>
 	register_opcode_mask_16(0x4380, 0xbc40, bic_reg_t1);
+
+	// bic_reg_t2: 1110 1010 001x xxxx 0<x's>
+	register_opcode_mask_32(0xea200000, 0x15c08000, bic_reg_t2);
 
 	// eor_imm_t1: 1111 0x00 100x xxxx 0<x's>
 	register_opcode_mask_32_ex(0xf0800000, 0x0b608000, eor_imm_t1,
