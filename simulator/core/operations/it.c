@@ -21,6 +21,7 @@
 
 #include "cpu/misc.h"
 
+// arm-v7-m
 static void it(uint16_t inst) {
 	uint8_t itstate = inst & 0xff;
 	write_itstate(itstate);
@@ -30,14 +31,7 @@ static void it(uint16_t inst) {
 
 __attribute__ ((constructor))
 void register_opcodes_it(void) {
-	// Complicated encoding...
-	// 1011 1111 firstcond mask
-	// mask cannot be 0000
-	// firstcond cannot be 1111
-	// if firstcont is 1110, then hamming(mask) must be 1
-
 	// it_t1: 1011 1111 xxxx xxxx
-	//    ex:                0000
 	register_opcode_mask_16_ex(0xbf00, 0x4000, it,
 			0x0000, 0x000f,
 			0, 0);
