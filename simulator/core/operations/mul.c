@@ -23,7 +23,7 @@
 #include "cpu/registers.h"
 #include "cpu/misc.h"
 
-static void mla(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t ra) {
+static inline void mla(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t ra) {
 	uint32_t rn_val = CORE_reg_read(rn);
 	uint32_t rm_val = CORE_reg_read(rm);
 	uint32_t ra_val = CORE_reg_read(ra);
@@ -36,6 +36,7 @@ static void mla(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t ra) {
 	CORE_reg_write(rd, result & 0xffffffff);
 }
 
+// arm-v7-m
 static void mla_t1(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t rd = (inst >> 8) & 0xf;
@@ -48,7 +49,7 @@ static void mla_t1(uint32_t inst) {
 	return mla(rd, rn, rm, ra);
 }
 
-static void mls(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t ra) {
+static inline void mls(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t ra) {
 	uint32_t rn_val = CORE_reg_read(rn);
 	uint32_t rm_val = CORE_reg_read(rm);
 	uint32_t ra_val = CORE_reg_read(ra);
@@ -60,6 +61,7 @@ static void mls(uint8_t rd, uint8_t rn, uint8_t rm, uint8_t ra) {
 	CORE_reg_write(rd, result);
 }
 
+// arm-v7-m
 static void mls_t1(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t rd = (inst >> 8) & 0xf;
