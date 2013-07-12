@@ -143,6 +143,7 @@ static void mov_imm(union apsr_t apsr, uint8_t setflags, uint32_t imm32, uint8_t
 	DBG2("mov_imm r%02d = 0x%08x\n", rd, result);
 }
 
+// arm-thumb
 static void mov_imm_t1(uint16_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst >> 8) & 0x7;
@@ -156,27 +157,15 @@ static void mov_imm_t1(uint16_t inst) {
 	return mov_imm(apsr, setflags, imm32, rd, carry);
 }
 
+// arm-v7-m
 static void mov_imm_t2(uint32_t inst) {
 	union apsr_t apsr = CORE_apsr_read();
 
 	int   imm8 =  (inst & 0x000000ff);
 	uint8_t Rd =  (inst & 0x00000f00) >> 8;
 	int   imm3 =  (inst & 0x00007000) >> 12;
-	assert(0 ==   (inst & 0x00008000));
-	assert(0 ==  !(inst & 0x00010000));
-	assert(0 ==  !(inst & 0x00020000));
-	assert(0 ==  !(inst & 0x00040000));
-	assert(0 ==  !(inst & 0x00080000));
 	uint8_t S = !!(inst & 0x00100000);
-	assert(0 ==   (inst & 0x00200000));
-	assert(0 ==  !(inst & 0x00400000));
-	assert(0 ==   (inst & 0x00800000));
-	assert(0 ==   (inst & 0x01000000));
-	assert(0 ==   (inst & 0x02000000));
 	uint8_t i = !!(inst & 0x04000000);
-
-	// d = UInt(Rd);
-	// Unecessary
 
 	uint8_t setflags = (S == 0x1);
 
@@ -189,7 +178,6 @@ static void mov_imm_t2(uint32_t inst) {
 	bool carry;
 	ThumbExpandImm_C(arg, apsr.bits.C, &imm32, &carry);
 
-	// if BadReg(d) then UNPREDICTABLE
 	if ((Rd == 13) || (Rd == 15)) {
 		CORE_ERR_unpredictable("mov to SP or PC\n");
 	}
@@ -197,6 +185,7 @@ static void mov_imm_t2(uint32_t inst) {
 	return mov_imm(apsr, setflags, imm32, Rd, carry);
 }
 
+// arm-v7-m
 static void mov_imm_t3(uint32_t inst) {
 	union apsr_t apsr = CORE_apsr_read();
 
@@ -237,6 +226,8 @@ static void mov_reg(uint8_t rd, uint8_t rm, bool setflags) {
 	DBG2("mov_reg r%02d = r%02d (val: %08x)\n", rd, rm, rm_val);
 }
 
+/* If <rd> and <rm> both in R0-R7 then all thumb */
+// arm-v6-m, arm-v7-m, arm-thumb*
 static void mov_reg_t1(uint16_t inst) {
 	uint8_t rd =  (inst & 0x7);
 	uint8_t rm =  (inst & 0x78) >> 3;
@@ -255,6 +246,7 @@ static void mov_reg_t1(uint16_t inst) {
 	return mov_reg(rd, rm, setflags);
 }
 
+// arm-thumb
 static void mov_reg_t2(uint16_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rm = (inst >> 3) & 0x7;
@@ -263,6 +255,22 @@ static void mov_reg_t2(uint16_t inst) {
 
 	if (in_ITblock())
 		CORE_ERR_unpredictable("illegal in it block\n");
+
+	return mov_reg(rd, rm, setflags);
+}
+
+// arm-v7-m
+static void mov_reg_t3(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t rd = (inst >> 8) & 0xf;
+	bool    S  = (inst >> 16) & 0x1;
+
+	bool setflags = S==1;
+
+	if (setflags && ((rd > 13) || (rm > 13)))
+		CORE_ERR_unpredictable("mov_reg_t3 case 1\n");
+	if (!setflags && ((rd == 15) || (rm == 15) || ((rd == 13) && (rm == 13))))
+		CORE_ERR_unpredictable("mov_reg_t3 case 2\n");
 
 	return mov_reg(rd, rm, setflags);
 }
@@ -289,4 +297,7 @@ void register_opcodes_mov(void) {
 
 	// mov_reg_t2: 0000 0000 00xx xxxx
 	register_opcode_mask_16(0x0, 0xffc0, mov_reg_t2);
+
+	// mov_reg_t3: 1110 1010 010x 1111 0000 xxxx 0000 xxxx
+	register_opcode_mask_32(0xea4f0000, 0x15a0f0f0, mov_reg_t3);
 }
