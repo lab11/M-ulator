@@ -187,25 +187,6 @@ static void bfi_t1(uint32_t inst) {
 	return bfi(rd, rn, msbit, lsbit);
 }
 
-static void bic(uint16_t inst) {
-	uint8_t rm = (inst & 0x38) >> 3;
-	uint8_t rd = (inst & 0x7) >> 0;
-
-	uint32_t result;
-	result = CORE_reg_read(rd) & ~CORE_reg_read(rm);
-	CORE_reg_write(rd, result);
-
-	union apsr_t apsr = CORE_apsr_read();
-
-	if (!in_ITblock()) {
-		apsr.bits.N = HIGH_BIT(result);
-		apsr.bits.Z = result == 0;
-		CORE_apsr_write(apsr);
-	}
-
-	DBG2("bics r%02d, r%02d\n", rd, rm);
-}
-
 static void bic_imm(union apsr_t apsr, uint8_t setflags, uint8_t rd, uint8_t rn,
 		uint32_t imm32, uint8_t carry) {
 	uint32_t result = CORE_reg_read(rn) & (~imm32);
@@ -240,6 +221,39 @@ static void bic_imm_t1(uint32_t inst) {
 		CORE_ERR_unpredictable("bic_imm_t1 bad reg\n");
 
 	return bic_imm(apsr, S, rd, rn, imm32, carry_out);
+}
+
+static void bic_reg(uint8_t rd, uint8_t rn, uint8_t rm,
+		bool setflags, enum SRType shift_t, uint8_t shift_n) {
+	union apsr_t apsr = CORE_apsr_read();
+
+	uint32_t shifted;
+	bool carry_out;
+	Shift_C(CORE_reg_read(rm), 32, shift_t, shift_n, apsr.bits.C,
+			&shifted, &carry_out);
+
+	uint32_t result = CORE_reg_read(rn) & ~shifted;
+	CORE_reg_write(rd, result);
+
+	if (setflags) {
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry_out;
+		CORE_apsr_write(apsr);
+	}
+}
+
+static void bic_reg_t1(uint16_t inst) {
+	uint8_t rdn = inst & 0x7;
+	uint8_t rm = (inst >> 3) & 0x7;
+
+	uint8_t rd = rdn;
+	uint8_t rn = rdn;
+	bool setflags = !in_ITblock();
+	enum SRType shift_t = SRType_LSL;
+	uint8_t shift_n = 0;
+
+	return bic_reg(rd, rn, rm, setflags, shift_t, shift_n);
 }
 
 static void eor_imm(uint8_t rd, uint8_t rn,
@@ -526,11 +540,11 @@ void register_opcodes_logical(void) {
 			0xf0000, 0x0,
 			0, 0);
 
-	// bic: 0100 0011 10<x's>
-	register_opcode_mask_16(0x4380, 0xbc40, bic);
-
 	// bic_imm_t1: 1111 0x00 001x xxxx 0<x's>
 	register_opcode_mask_32(0xf0200000, 0x0bc08000, bic_imm_t1);
+
+	// bic_reg_t1: 0100 0011 10<x's>
+	register_opcode_mask_16(0x4380, 0xbc40, bic_reg_t1);
 
 	// eor_imm_t1: 1111 0x00 100x xxxx 0<x's>
 	register_opcode_mask_32_ex(0xf0800000, 0x0b608000, eor_imm_t1,
