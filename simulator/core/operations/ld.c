@@ -24,58 +24,6 @@
 #include "cpu/core.h"
 #include "cpu/misc.h"
 
-static void ldr1(uint16_t inst) {
-	uint8_t immed5 = (inst & 0x7c0) >> 6;
-	uint8_t rn = (inst & 0x38) >> 3;
-	uint8_t rd = (inst & 0x7) >> 0;
-
-	uint32_t addr = CORE_reg_read(rn) + (immed5 * 4);
-	if ((addr & 0x3) == 0) {
-		CORE_reg_write(rd, read_word(addr));
-	} else {
-		// misaligned
-		DBG2("addr: %08x\n", addr);
-		DBG2("immed5: %x, immed5*4: %x\n", immed5, immed5*4);
-		CORE_ERR_unpredictable("misaligned access, ldr1\n");
-	}
-
-	DBG2("ldr1 r%02d, [r%02d, #%d*4]\n", rd, rn, immed5);
-}
-
-static void ldr2(uint16_t inst) {
-	uint8_t rm = (inst & 0x1c0) >> 6;
-	uint8_t rn = (inst & 0x38) >> 3;
-	uint8_t rd = (inst & 0x7);
-
-	uint32_t addr = CORE_reg_read(rn) + CORE_reg_read(rm);
-
-	if (addr & 0x3) {
-		CORE_ERR_unpredictable("ldr2 bad addr\n");
-	} else {
-		CORE_reg_write(rd, read_word(addr));
-	}
-
-	DBG2("ldr2 r%02d, [r%02d, r%02d]\n", rd, rn, rm);
-}
-
-static void ldr4(uint16_t inst) {
-	uint8_t rd = (inst & 0x700) >> 8;
-	uint32_t immed8 = inst & 0xff;
-
-	uint32_t sp = CORE_reg_read(SP_REG);
-
-	uint32_t addr = sp + (immed8 << 2);
-
-	if ((addr & 0x3) == 0) {
-		uint32_t rd_val = read_word(addr);
-		CORE_reg_write(rd, rd_val);
-	} else {
-		CORE_ERR_invalid_addr(true, addr);
-	}
-
-	DBG2("ldr r%02d, [sp, #%d * 4]\n", rd, immed8);
-}
-
 static void ldr_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool index, bool add, bool wback) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
@@ -106,6 +54,35 @@ static void ldr_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool index, bool add
 	}
 }
 
+// arm-thumb
+static void ldr_imm_t1(uint16_t inst) {
+	uint8_t rt = inst & 0x7;
+	uint8_t rn = (inst >> 3) & 0x7;
+	uint8_t imm5 = (inst >> 6) & 0x1f;
+
+	uint32_t imm32 = imm5 << 2;
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+
+	return ldr_imm(rt, rn, imm32, index, add, wback);
+}
+
+// arm-thumb
+static void ldr_imm_t2(uint16_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t rt   = (inst >> 8) & 0x7;
+
+	uint8_t rn = 13;
+	uint32_t imm32 = imm8 << 2;
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+
+	return ldr_imm(rt, rn, imm32, index, add, wback);
+}
+
+// arm-v7-m
 static void ldr_imm_t3(uint32_t inst) {
 	uint16_t imm12 = inst & 0xfff;
 	uint8_t rt = (inst >> 12) & 0xf;
@@ -122,6 +99,7 @@ static void ldr_imm_t3(uint32_t inst) {
 	ldr_imm(rt, rn, imm32, index, add, wback);
 }
 
+// arm-v7-m
 static void ldr_imm_t4(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	bool W = !!(inst & 0x100);
@@ -178,6 +156,22 @@ static void ldr_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 	}
 }
 
+// arm-thumb
+static void ldr_reg_t1(uint16_t inst) {
+	uint8_t rt = inst & 0x7;
+	uint8_t rn = (inst >> 3) & 0x7;
+	uint8_t rm = (inst >> 6) & 0x7;
+
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+	enum SRType shift_t = SRType_LSL;
+	uint8_t shift_n = 0;
+
+	return ldr_reg(rt, rn, rm, index, add, wback, shift_t, shift_n);
+}
+
+// arm-v7-m
 static void ldr_reg_t2(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t imm2 = (inst >> 4) & 0x3;
@@ -221,10 +215,9 @@ static void ldr_lit(bool add, uint8_t rt, uint32_t imm32) {
 	} else {
 		CORE_reg_write(rt, data);
 	}
-
-	DBG2("ldr_lit completed\n");
 }
 
+// arm-thumb
 static void ldr_lit_t1(uint16_t inst) {
 	uint32_t imm8 = inst & 0xff;
 	uint8_t rt = (inst & 0x700) >> 8;
@@ -234,6 +227,7 @@ static void ldr_lit_t1(uint16_t inst) {
 	return ldr_lit(true, rt, imm32);
 }
 
+// arm-v7-m
 static void ldr_lit_t2(uint32_t inst) {
 	uint16_t imm12 = inst & 0xfff;
 	uint8_t rt = (inst & 0xf000) >> 12;
@@ -245,17 +239,6 @@ static void ldr_lit_t2(uint32_t inst) {
 	uint32_t imm32 = imm12;
 
 	return ldr_lit(U, rt, imm32);
-}
-
-static void ldrb1(uint16_t inst) {
-	uint8_t immed5 = (inst & 0x7c0) >> 6;
-	uint8_t rn = (inst & 0x38) >> 3;
-	uint8_t rd = (inst & 0x7) >> 0;
-
-	uint32_t addr = CORE_reg_read(rn) + immed5;
-	CORE_reg_write(rd, read_byte(addr));
-
-	DBG2("ldrb r%02d, [r%02d, #%d]\n", rd, rn, immed5);
 }
 
 static void ldrb_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool add, bool index, bool wback) {
@@ -279,6 +262,21 @@ static void ldrb_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool add, bool inde
 		CORE_reg_write(rn, offset_addr);
 }
 
+// arm-thumb
+static void ldrb_imm_t1(uint16_t inst) {
+	uint8_t rt = inst & 0x7;
+	uint8_t rn = (inst >> 3) & 0x7;
+	uint8_t imm5 = (inst >> 6) & 0x1f;
+
+	uint32_t imm32 = imm5;
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+
+	return ldrb_imm(rt, rn, imm32, add, index, wback);
+}
+
+// arm-v7-m
 static void ldrb_imm_t2(uint32_t inst) {
 	uint16_t imm12 = inst & 0xfff;
 	uint8_t rt = (inst >> 12) & 0xf;
@@ -292,9 +290,10 @@ static void ldrb_imm_t2(uint32_t inst) {
 	if (rt == 13)
 		CORE_ERR_unpredictable("reg 13 not allowed\n");
 
-	ldrb_imm(rt, rn, imm32, add, index, wback);
+	return ldrb_imm(rt, rn, imm32, add, index, wback);
 }
 
+// arm-v7-m
 static void ldrb_imm_t3(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	bool W = !!(inst & 0x100);		// wback
@@ -311,7 +310,34 @@ static void ldrb_imm_t3(uint32_t inst) {
 	if ((rt == 15) && ((P == 0) || (U == 1) || (W == 1)))
 		CORE_ERR_unpredictable("bad regs / flags\n");
 
-	ldrb_imm(rt, rn, imm32, U, P, W);
+	return ldrb_imm(rt, rn, imm32, U, P, W);
+}
+
+static inline void ldrb_lit(uint8_t rt, uint32_t imm32, bool add) {
+	uint32_t base = CORE_reg_read(PC_REG) & 0xfffffffc;
+
+	uint32_t address;
+	if (add)
+		address = base + imm32;
+	else
+		address = base - imm32;
+
+	CORE_reg_write(rt, read_byte(address));
+}
+
+// arm-v7-m
+static void ldrb_lit_t1(uint32_t inst) {
+	uint16_t imm12 = inst & 0xfff;
+	uint8_t rt = (inst >> 12) & 0xf;
+	bool U = (inst >> 23) & 0x1;
+
+	uint32_t imm32 = imm12;
+	bool add = U == 1;
+
+	if (rt == 13)
+		CORE_ERR_unpredictable("ldrb_lit_t1 case\n");
+
+	return ldrb_lit(rt, imm32, add);
 }
 
 static void ldrb_reg(uint8_t rt, uint8_t rn, uint8_t rm, enum SRType shift_t,
@@ -339,6 +365,7 @@ static void ldrb_reg(uint8_t rt, uint8_t rn, uint8_t rm, enum SRType shift_t,
 	CORE_reg_write(rt, read_byte(address));
 }
 
+// arm-thumb
 static void ldrb_reg_t1(uint16_t inst) {
 	uint8_t rt = inst & 0x7;
 	uint8_t rn = (inst >> 3) & 0x7;
@@ -354,6 +381,7 @@ static void ldrb_reg_t1(uint16_t inst) {
 	return ldrb_reg(rt, rn, rm, shift_t, shift_n, index, add, wback);
 }
 
+// arm-v7-m
 static void ldrb_reg_t2(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t imm2 = (inst >> 4) & 0x3;
@@ -400,6 +428,7 @@ static void ldrsb_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 	CORE_reg_write(rt, signd);
 }
 
+// arm-thumb
 static void ldrsb_reg_t1(uint16_t inst) {
 	uint8_t rt = inst & 0x7;
 	uint8_t rn = (inst >> 3) & 0x7;
@@ -409,13 +438,34 @@ static void ldrsb_reg_t1(uint16_t inst) {
 	bool add = true;
 	bool wback = false;
 
-	enum SRType shift_t = LSL;
+	enum SRType shift_t = SRType_LSL;
 	uint8_t shift_n = 0;
 
 	return ldrsb_reg(rt, rn, rm, index, add, wback, shift_t, shift_n);
 }
 
-static void ldrd_imm(uint32_t inst) {
+// arm-v7-m
+static void ldrsb_reg_t2(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t imm2 = (inst >> 4) & 0x3;
+	uint8_t rt = (inst >> 12) & 0xf;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	bool index = true;
+	bool add = true;
+	bool wback = false;
+
+	enum SRType shift_t = SRType_LSL;
+	uint8_t shift_n = imm2;
+
+	if ((rt == 13) || (rm > 13))
+		CORE_ERR_unpredictable("ldrsb_reg_t2 case\n");
+
+	return ldrsb_reg(rt, rn, rm, index, add, wback, shift_t, shift_n);
+}
+
+// arm-v7-m
+static void ldrd_imm_t1(uint32_t inst) {
 	uint32_t imm8 = (inst & 0xff);
 	uint8_t rt2 = (inst & 0xf00) >> 8;
 	uint8_t rt = (inst & 0xf000) >> 12;
@@ -430,10 +480,10 @@ static void ldrd_imm(uint32_t inst) {
 	// wback = W
 
 	if (W && ((rn == rt) || (rn == rt2)))
-		CORE_ERR_unpredictable("ldrd_imm wbck + regs\n");
+		CORE_ERR_unpredictable("ldrd_imm_t1 wbck + regs\n");
 
 	if ((rt >= 13) || (rt2 >= 13) || (rt == rt2))
-		CORE_ERR_unpredictable("ldrd_imm bad regs\n");
+		CORE_ERR_unpredictable("ldrd_imm_t1 bad regs\n");
 
 	uint32_t offset_addr;
 	if (U) {
@@ -455,20 +505,15 @@ static void ldrd_imm(uint32_t inst) {
 	if (W) {
 		CORE_reg_write(rn, offset_addr);
 	}
-
-	DBG2("ldrd_imm did lots of stuff\n");
 }
 
 __attribute__ ((constructor))
 void register_opcodes_ld(void) {
-	// ldr1: 0110 1<x's>
-	register_opcode_mask_16(0x6800, 0x9000, ldr1);
+	// ldr_imm_t1: 0110 1<x's>
+	register_opcode_mask_16(0x6800, 0x9000, ldr_imm_t1);
 
-	// ldr2: 0101 100<x's>
-	register_opcode_mask_16(0x5800, 0xa600, ldr2);
-
-	// ldr4: 1001 1<x's>
-	register_opcode_mask_16(0x9800, 0x6000, ldr4);
+	// ldr_imm_t2: 1001 1<x's>
+	register_opcode_mask_16(0x9800, 0x6000, ldr_imm_t2);
 
 	// ldr_imm_t3: 1111 1000 1101 xxxx <x's>
 	//                            1111
@@ -483,6 +528,9 @@ void register_opcodes_ld(void) {
 			0x0, 0x500,
 			0, 0);
 
+	// ldr_reg_t1: 0101 100<x's>
+	register_opcode_mask_16(0x5800, 0xa600, ldr_reg_t1);
+
 	// ldr_reg_t2: 1111 1000 0101 xxxx xxxx 0000 00xx xxxx
 	register_opcode_mask_32_ex(0xf8500000, 0x07a00fc0, ldr_reg_t2,
 			0xf0000, 0x0, 0, 0);
@@ -493,14 +541,18 @@ void register_opcodes_ld(void) {
 	// ldr_lit_t2: 1111 1000 x101 1111 <x's>
 	register_opcode_mask_32(0xf85f0000, 0x07200000, ldr_lit_t2);
 
-	// ldrb1: 0111 1<x's>
-	register_opcode_mask_16(0x7800, 0x8000, ldrb1);
+	// ldrb_imm_t1: 0111 1<x's>
+	register_opcode_mask_16(0x7800, 0x8000, ldrb_imm_t1);
 
 	// ldrb_imm_t2: 1111 1000 1001 <x's>
 	register_opcode_mask_32_ex(0xf8900000, 0x07600000, ldrb_imm_t2, 0xf000, 0x0, 0xf0000, 0x0, 0, 0);
 
 	// ldrb_imm_t3: 1111 1000 0001 xxxx xxxx 1xxx xxxx xxxx
 	register_opcode_mask_32_ex(0xf8100800, 0x07e00000, ldrb_imm_t3, 0xf400, 0x300, 0xf0000, 0x0, 0x600, 0x100, 0x0, 0x500, 0, 0);
+
+	// ldrb_lit_t1: 1111 1000 x001 1111 <x's>
+	register_opcode_mask_32_ex(0xf81f0000, 0x07600000, ldrb_lit_t1,
+			0xf000, 0x0, 0, 0);
 
 	// ldrb_reg_t1: 0101 110x xxxx xxxx
 	register_opcode_mask_16(0x5c00, 0xa200, ldrb_reg_t1);
@@ -511,6 +563,12 @@ void register_opcodes_ld(void) {
 	// ldrsb_reg_t1: 0101 011x xxxx xxxx
 	register_opcode_mask_16(0x5600, 0xa800, ldrsb_reg_t1);
 
-	// ldrd_imm: 1110 100x x1x1 <x's>
-	register_opcode_mask_32_ex(0xe8500000, 0x16000000, ldrd_imm, 0x0, 0x01200000, 0xf0000, 0x0, 0, 0);
+	// ldrsb_reg_t2: 1111 1001 0001 xxxx xxxx 0000 00xx xxxx
+	register_opcode_mask_32_ex(0xf9100000, 0x06e00fc0, ldrsb_reg_t2,
+			0xf000, 0x0,
+			0xf0000, 0x0,
+			0, 0);
+
+	// ldrd_imm_t1: 1110 100x x1x1 <x's>
+	register_opcode_mask_32_ex(0xe8500000, 0x16000000, ldrd_imm_t1, 0x0, 0x01200000, 0xf0000, 0x0, 0, 0);
 }
