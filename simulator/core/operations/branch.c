@@ -219,14 +219,13 @@ static void blx_reg_t1(uint16_t inst) {
 	return blx_reg(rm);
 }
 
-static void bx(uint8_t rm) {
+static inline void bx(uint8_t rm) {
 	BXWritePC(CORE_reg_read(rm));
-
-	DBG2("bx happened\n");
 }
 
+// arm-thumb
 static void bx_t1(uint16_t inst) {
-	uint8_t rm = (inst & 0x78) >> 3;
+	uint8_t rm = (inst >> 3) & 0xf;
 
 	if (in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("bx_t1 in it block\n");
