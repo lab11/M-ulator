@@ -147,6 +147,115 @@ static void rbit_t1(uint32_t inst) {
 	return rbit(rm, rd);
 }
 
+static void rev(uint8_t rd, uint8_t rm) {
+	uint32_t rm_val = CORE_reg_read(rm);
+	uint32_t result;
+	result = (
+			(((rm_val >> 24) & 0xff) << 0) |
+			(((rm_val >> 16) & 0xff) << 8) |
+			(((rm_val >> 8) & 0xff) << 16) |
+			(((rm_val >> 0) & 0xff) << 24)
+		 );
+	CORE_reg_write(rd, result);
+}
+
+// arm-v6-m, arm-v7-m
+static void rev_t1(uint16_t inst) {
+	uint8_t rd = inst & 0x7;
+	uint8_t rm = (inst >> 3) & 0x7;
+
+	return rev(rd, rm);
+}
+
+// arm-v7-m
+static void rev_t2(uint32_t inst) {
+	uint8_t rm_lsb = inst & 0xf;
+	uint8_t rd = (inst >> 8) & 0xf;
+	uint8_t rm_msb = (inst >> 16) & 0xf;
+
+	if (rm_lsb != rm_msb)
+		CORE_ERR_unpredictable("rm_lsb != rm_msb\n");
+
+	uint8_t rm = rm_lsb;
+
+	if (BadReg(rd) || BadReg(rm))
+		CORE_ERR_unpredictable("rbit_t1 case\n");
+
+	return rev(rd, rm);
+}
+
+static void rev16(uint8_t rd, uint8_t rm) {
+	uint32_t rm_val = CORE_reg_read(rm);
+	uint32_t result;
+	result = (
+			(((rm_val >> 24) & 0xff) << 16) |
+			(((rm_val >> 16) & 0xff) << 24) |
+			(((rm_val >> 8) & 0xff) << 0) |
+			(((rm_val >> 0) & 0xff) << 8)
+		 );
+	CORE_reg_write(rd, result);
+}
+
+// arm-v6-m, arm-v7-m
+static void rev16_t1(uint16_t inst) {
+	uint8_t rd = inst & 0x7;
+	uint8_t rm = (inst >> 3) & 0x7;
+	return rev16(rd, rm);
+}
+
+// arm-v7-m
+static void rev16_t2(uint32_t inst) {
+	uint8_t rm_lsb = inst & 0xf;
+	uint8_t rd = (inst >> 8) & 0xf;
+	uint8_t rm_msb = (inst >> 16) & 0xf;
+
+	if (rm_lsb != rm_msb)
+		CORE_ERR_unpredictable("rm_lsb != rm_msb\n");
+
+	uint8_t rm = rm_lsb;
+
+	if (BadReg(rd) || BadReg(rm))
+		CORE_ERR_unpredictable("rbit_t1 case\n");
+
+	return rev16(rd, rm);
+}
+
+static void revsh(uint8_t rd, uint8_t rm) {
+	uint32_t rm_val = CORE_reg_read(rm);
+
+	int8_t sbyte = (int8_t) (rm_val & 0xff);
+	int32_t sword = (sbyte << 8);
+	uint32_t result = (uint32_t) sword;
+	result &= ~0xff;
+	result |= ((rm_val >> 8) & 0xff);
+
+	CORE_reg_write(rd, result);
+}
+
+// arm-v6-m, arm-v7-m
+static void revsh_t1(uint16_t inst) {
+	uint8_t rd = inst & 0x7;
+	uint8_t rm = (inst >> 3) & 0x7;
+	return revsh(rd, rm);
+}
+
+// arm-v7-m
+static void revsh_t2(uint32_t inst) {
+	uint8_t rm_lsb = inst & 0xf;
+	uint8_t rd = (inst >> 8) & 0xf;
+	uint8_t rm_msb = (inst >> 16) & 0xf;
+
+	if (rm_lsb != rm_msb)
+		CORE_ERR_unpredictable("rm_lsb != rm_msb\n");
+
+	uint8_t rm = rm_lsb;
+
+	if (BadReg(rd) || BadReg(rm))
+		CORE_ERR_unpredictable("rbit_t1 case\n");
+
+	return revsh(rd, rm);
+}
+
 static void ubfx(uint8_t rd, uint8_t rn, uint8_t lsbit, uint8_t widthminus1) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
@@ -191,6 +300,24 @@ void register_opcodes_misc(void) {
 
 	// rbit_t1: 1111 1010 1001 xxxx 1111 xxxx 1010 xxxx
 	register_opcode_mask_32(0xfa90f0a0, 0x05600050, rbit_t1);
+
+	// rev_t1: 1011 1010 00xx xxxx
+	register_opcode_mask_16(0xba00, 0x45c0, rev_t1);
+
+	// rev_t2: 1111 1010 1001 xxxx 1111 xxxx 1000 xxxx
+	register_opcode_mask_32(0xfa90f080, 0x05600070, rev_t2);
+
+	// rev16_t1: 1011 1010 01xx xxxx
+	register_opcode_mask_16(0xba40, 0x4580, rev16_t1);
+
+	// rev16_t2: 1111 1010 1001 xxxx 1111 xxxx 1001 xxxx
+	register_opcode_mask_32(0xfa90f090, 0x05600060, rev16_t2);
+
+	// revsh_t1: 1011 1010 11xx xxxx
+	register_opcode_mask_16(0xbac0, 0x4500, revsh_t1);
+
+	// revsh_t2: 1111 1010 1001 xxxx 1111 xxxx 1011 xxxx
+	register_opcode_mask_32(0xfa90f0b0, 0x05600040, revsh_t2);
 
 	// ubfx_t1: 1111 0011 1100 xxxx 0xxx xxxx xx0x xxxx
 	register_opcode_mask_32(0xf3c00000, 0x0c308020, ubfx_t1);
