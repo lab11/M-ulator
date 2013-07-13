@@ -57,16 +57,46 @@ static void sev_t2(uint32_t inst __attribute__ ((unused))) {
 	return sev();
 }
 
+static void wfe(void) {
+	CORE_ERR_not_implemented("Wait for Event");
+}
+
+// arm-v6-m, arm-v7-m
+static void wfe_t1(uint16_t inst __attribute__ ((unused))) {
+	return wfe();
+}
+
+// arm-v7-m
+static void wfe_t2(uint32_t inst __attribute__ ((unused))) {
+	return wfe();
+}
+
 static void wfi(void) {
 	CORE_ERR_not_implemented("Wait For Interrupt");
 }
 
+// arm-v6-m, arm-v7-m
 static void wfi_t1(uint16_t inst __attribute__ ((unused))) {
 	return wfi();
 }
 
+// arm-v7-m
 static void wfi_t2(uint32_t inst __attribute__ ((unused))) {
 	return wfi();
+}
+
+static void yield(void) {
+	CORE_ERR_not_implemented("Yield");
+}
+
+// arm-v6-m, arm-v7-m
+static void yield_t1(uint16_t inst __attribute__ ((unused))) {
+	return yield();
+}
+
+// arm-v7-m
+static void yield_t2(uint32_t inst __attribute__ ((unused))) {
+	return yield();
 }
 
 __attribute__ ((constructor))
@@ -86,9 +116,21 @@ void register_opcodes_hints(void) {
 	// sev_t2: 1111 0011 1010 1111 1000 0000 0000 0100
 	register_opcode_mask_32(0xf3af8004, 0x0c507ffb, sev_t2);
 
+	// wfe_t1: 1011 1111 0010 0000
+	register_opcode_mask_16(0xbf20, 0x40df, wfe_t1);
+
+	// wfe_t2: 1111 0011 1010 1111 1000 0000 0000 0010
+	register_opcode_mask_32(0xf3af8002, 0x0c507ffd, wfe_t2);
+
 	// wfi_t1: 1011 1111 0011 0000
 	register_opcode_mask_16(0xbf30, 0x40cf, wfi_t1);
 
 	// wfi_t2: 1111 0011 1010 1111 1000 0000 0000 0011
 	register_opcode_mask_32(0xf3af8003, 0x0c507ffc, wfi_t2);
+
+	// yield_t1: 1011 1111 0001 0000
+	register_opcode_mask_16(0xbf10, 0x40ef, yield_t1);
+
+	// yield_t2: 1111 0011 1010 1111 1000 0000 0000 0001
+	register_opcode_mask_32(0xf3af8001, 0x0c507ffe, yield_t2);
 }
