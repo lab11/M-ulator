@@ -93,27 +93,6 @@ static void adc_reg_t1(uint16_t inst) {
 	return adc_reg(rdn, rdn, rm, setflags, SRType_LSL, 0);
 }
 
-static void add6(uint16_t inst) {
-	uint8_t rd = (inst & 0x700) >> 8;
-	uint8_t immed8 = (inst & 0xff);
-
-	uint32_t sp = CORE_reg_read(SP_REG);
-	uint32_t result = sp + ((uint32_t)immed8 << 2U);
-	CORE_reg_write(rd, result);
-
-	DBG2("add6 r%02d, SP, #%d*4\n", rd, immed8);
-}
-
-static void add7(uint16_t inst) {
-	uint32_t immed7 = inst & 0x7f;
-
-	uint32_t sp = CORE_reg_read(SP_REG);
-	sp = sp + (immed7 << 2);
-	CORE_reg_write(SP_REG, sp);
-
-	DBG2("add7 sp, #%d*4\t; 0x%x\n", immed7, immed7);
-}
-
 static void add_imm(uint8_t rn, uint8_t rd, uint32_t imm32, uint8_t setflags) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
@@ -317,7 +296,7 @@ static void add_sp_plus_imm(uint8_t rd, uint32_t imm32, bool setflags) {
 // arm-thumb
 static void add_sp_plus_imm_t1(uint16_t inst) {
 	uint8_t imm8 = inst & 0xff;
-	uint8_t rd = (inst >> 8) & 0xf;
+	uint8_t rd = (inst >> 8) & 0x7;
 
 	bool setflags = false;
 	uint32_t imm32 = (imm8 << 2);
@@ -513,12 +492,6 @@ void register_opcodes_add(void) {
 
 	// adc_reg_t1: 0100 0001 01<x's>
 	register_opcode_mask_16(0x4140, 0xbe80, adc_reg_t1);
-
-	// add6: 1010 1<s's>
-	register_opcode_mask_16(0xa800, 0x5000, add6);
-
-	// add7: 1011 0000 0<x's>
-	register_opcode_mask_16(0xb000, 0x4f80, add7);
 
 	// add_imm_t1: 0001 110x xxxx xxxx
 	register_opcode_mask_16(0x1c00, 0xe200, add_imm_t1);
