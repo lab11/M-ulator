@@ -233,7 +233,7 @@ static void bx_t1(uint16_t inst) {
 	return bx(rm);
 }
 
-static void tbb(uint8_t rn, uint8_t rm, bool is_tbh) {
+static inline void tbb(uint8_t rn, uint8_t rm, bool is_tbh) {
 	uint32_t rn_val = CORE_reg_read(rn);
 	uint32_t rm_val = CORE_reg_read(rm);
 
@@ -246,6 +246,7 @@ static void tbb(uint8_t rn, uint8_t rm, bool is_tbh) {
 	BranchWritePC(CORE_reg_read(PC_REG) + 2*halfwords);
 }
 
+// arm-v7-m
 static void tbb_t1(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	bool H = !!(inst & 0x10);
