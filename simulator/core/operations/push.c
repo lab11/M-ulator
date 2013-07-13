@@ -23,46 +23,6 @@
 #include "cpu/registers.h"
 #include "cpu/core.h"
 
-static void push_v6(uint16_t inst) {
-	uint32_t sp = CORE_reg_read(SP_REG);
-
-	int hamming = 0;
-	{
-		int reg_list = inst & 0xff;
-		for (hamming = 0; reg_list; hamming++) {
-			reg_list &= (reg_list - 1); // clears LSB
-		}
-		hamming += !!(inst & 0x100); // LR?
-
-		assert((hamming > 0) && (hamming <= 9));
-	}
-
-
-	uint32_t start_address = sp - 4*hamming;
-	uint32_t end_address = sp - 4;
-	uint32_t address = start_address;
-
-	int i;
-	for (i = 0; i < 8; i++) {
-		if (inst & (1 << i)) {
-			write_word(address, CORE_reg_read(i));
-			address += 4;
-		}
-	}
-	if (inst & 0x100) {
-		write_word(address, CORE_reg_read(LR_REG));
-		address += 4;
-	}
-
-	assert ((end_address == address - 4) && "Sanity check");
-
-	sp = sp - 4*hamming;
-	CORE_reg_write(SP_REG, sp);
-
-	DBG2("push {%sregisters %x (bitwise)}\n",
-			(inst & 0x100)?"LR and ":"", inst & 0xff);
-}
-
 static void push(const uint16_t registers) {
 	uint32_t sp = CORE_reg_read(SP_REG);
 
@@ -79,6 +39,20 @@ static void push(const uint16_t registers) {
 	CORE_reg_write(SP_REG, sp - 4 * hamming(registers));
 }
 
+// arm-thumb
+static void push_t1(uint16_t inst) {
+	uint8_t register_list = inst & 0xff;
+	bool M = (inst >> 8) & 0x1;
+
+	uint16_t registers = register_list | (M << 14);
+
+	if (hamming(registers) < 1)
+		CORE_ERR_unpredictable("push_t1 case\n");
+
+	return push(registers);
+}
+
+// arm-v7-m
 static void push_t2(uint32_t inst) {
 	uint16_t register_list = inst & 0x1fff;
 	bool M = (inst >> 14) & 0x1;
@@ -91,6 +65,7 @@ static void push_t2(uint32_t inst) {
 	push(registers);
 }
 
+// arm-v7-m
 static void push_t3(uint32_t inst) {
 	uint8_t rt = (inst >> 12) & 0xf;
 	uint16_t registers = (1 << rt);
@@ -104,7 +79,7 @@ static void push_t3(uint32_t inst) {
 __attribute__ ((constructor))
 void register_opcodes_push(void) {
 	// 1011 010x <x's>
-	register_opcode_mask_16(0xb400, 0x4a00, push_v6);
+	register_opcode_mask_16(0xb400, 0x4a00, push_t1);
 
 	// 1110 1001 0010 1101 0x0x xxxx xxxx xxxx
 	register_opcode_mask_32(0xe92d0000, 0x16d2a000, push_t2);
