@@ -516,8 +516,8 @@ static int register_opcode_mask_ex(uint32_t ones_mask, uint32_t zeros_mask,
 		ERR(E_BAD_OPCODE, "Duplicate opcode mask.\n"\
 				"\tExisting  registration: 1's %x, 0's %x (%s)\n"\
 				"\tAttempted registration: 1's %x, 0's %x (%s)\n"\
-				, o->ones_mask, ones_mask, o->name\
-				, o->zeros_mask, zeros_mask, o->name);
+				, ones_mask, zeros_mask, fn_name\
+				, o->ones_mask, o->zeros_mask, o->name);
 	}
 
 	return _register_opcode_mask(ones_mask, zeros_mask,
