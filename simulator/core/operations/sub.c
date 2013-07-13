@@ -203,16 +203,6 @@ static void sbc_reg_t2(uint32_t inst) {
 	return sbc_reg(rd, rn, rm, setflags, shift_t, shift_n);
 }
 
-static void sub4(uint16_t inst) {
-	uint16_t immed7 = inst & 0x7f;
-
-	uint32_t sp = CORE_reg_read(SP_REG);
-	sp = sp - (immed7 << 2);
-	CORE_reg_write(SP_REG, sp);
-
-	DBG2("sub4, sp, #%d*4\t; 0x%x*4\n", immed7, immed7);
-}
-
 static void sub_imm(uint8_t rd, uint8_t rn, uint32_t imm32, bool setflags) {
 	bool carry;
 	bool overflow;
@@ -233,6 +223,7 @@ static void sub_imm(uint8_t rd, uint8_t rn, uint32_t imm32, bool setflags) {
 	DBG2("sub_imm ran\n");
 }
 
+// arm-thumb
 static void sub_imm_t1(uint16_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rn = (inst >> 3) & 0x7;
@@ -244,6 +235,7 @@ static void sub_imm_t1(uint16_t inst) {
 	return sub_imm(rd, rn, imm32, setflags);
 }
 
+// arm-thumb
 static void sub_imm_t2(uint16_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rdn = (inst >> 8) & 0x7;
@@ -254,6 +246,7 @@ static void sub_imm_t2(uint16_t inst) {
 	return sub_imm(rdn, rdn, imm32, setflags);
 }
 
+// arm-v7-m
 static void sub_imm_t3(uint32_t inst) {
 	uint8_t imm8 = (inst & 0xff);
 	uint8_t rd = (inst & 0xf00) >> 8;
@@ -269,6 +262,23 @@ static void sub_imm_t3(uint32_t inst) {
 		CORE_ERR_unpredictable("sub_imm_t3 bad regs\n");
 
 	return sub_imm(rd, rn, imm32, S);
+}
+
+// arm-v7-m
+static void sub_imm_t4(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t rd   = (inst >> 8) & 0xf;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	uint8_t rn   = (inst >> 16) & 0xf;
+	bool    i    = (inst >> 26) & 0x1;
+
+	bool setflags = false;
+	uint32_t imm32 = imm8 | (imm3 << 8) | (i << 11);
+
+	if (BadReg(rd))
+		CORE_ERR_unpredictable("sub_imm_t4 case\n");
+
+	return sub_imm(rd, rn, imm32, setflags);
 }
 
 static void sub_reg(uint8_t rd, uint8_t rn, uint8_t rm,
@@ -296,6 +306,7 @@ static void sub_reg(uint8_t rd, uint8_t rn, uint8_t rm,
 	}
 }
 
+// arm-thumb
 static void sub_reg_t1(uint16_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rn = (inst >> 3) & 0x7;
@@ -306,6 +317,7 @@ static void sub_reg_t1(uint16_t inst) {
 	return sub_reg(rd, rn, rm, SRType_LSL, 0, setflags);
 }
 
+// arm-v7-m
 static void sub_reg_t2(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t type = (inst >> 4) & 0x3;
@@ -347,6 +359,16 @@ static void sub_sp_imm(uint8_t rd, uint32_t imm32, bool setflags) {
 	}
 }
 
+static void sub_sp_imm_t1(uint16_t inst) {
+	uint8_t imm7 = inst & 0x7f;
+
+	uint8_t rd = 13;
+	bool setflags = false;
+	uint32_t imm32 = imm7 << 2;
+
+	return sub_sp_imm(rd, imm32, setflags);
+}
+
 static void sub_sp_imm_t2(uint32_t inst) {
 	uint8_t imm8 = inst & 0xff;
 	uint8_t rd = (inst >> 8) & 0xf;
@@ -361,6 +383,65 @@ static void sub_sp_imm_t2(uint32_t inst) {
 		CORE_ERR_unpredictable("bad reg\n");
 
 	return sub_sp_imm(rd, imm32, setflags);
+}
+
+static void sub_sp_imm_t3(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t rd   = (inst >> 8) & 0xf;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	bool    i    = (inst >> 26) & 0x1;
+
+	bool setflags = false;
+	uint32_t imm32 = imm8 | (imm3 << 8) | (i << 11);
+
+	if (BadReg(rd))
+		CORE_ERR_unpredictable("sub_sp_imm_t3 case\n");
+
+	return sub_sp_imm(rd, imm32, setflags);
+}
+
+static inline void sub_sp_reg(uint8_t rd, uint8_t rm, bool setflags,
+		enum SRType shift_t, uint8_t shift_n) {
+	union apsr_t apsr = CORE_apsr_read();
+
+	uint32_t shifted;
+	shifted = Shift(CORE_reg_read(rm), 32, shift_t, shift_n, apsr.bits.C);
+
+	uint32_t result;
+	bool carry;
+	bool overflow;
+	AddWithCarry(CORE_reg_read(SP_REG), ~shifted, 1,
+			&result, &carry, &overflow);
+
+	CORE_reg_write(rd, result);
+	if (setflags) {
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry;
+		apsr.bits.V = overflow;
+	}
+}
+
+// arm-thumb
+static void sub_sp_reg_t1(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t type = (inst >> 4) & 0x3;
+	uint8_t imm2 = (inst >> 6) & 0x3;
+	uint8_t rd   = (inst >> 8) & 0xf;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	bool    S    = (inst >> 20) & 0x1;
+
+	bool setflags = S==1;
+	enum SRType shift_t;
+	uint8_t shift_n;
+	DecodeImmShift(type, imm2 | (imm3 << 2), &shift_t, &shift_n);
+
+	if ((rd == 13) && ((shift_t != SRType_LSL) || (shift_n > 3)))
+		CORE_ERR_unpredictable("sub_sp_reg_t1 case 1\n");
+	if ((rd == 15) || BadReg(rm))
+		CORE_ERR_unpredictable("sub_sp_reg_t1 case 2\n");
+
+	return sub_sp_reg(rd, rm, setflags, shift_t, shift_n);
 }
 
 __attribute__ ((constructor))
@@ -384,9 +465,6 @@ void register_opcodes_sub(void) {
 	// sbc_reg_t2: 1110 1011 011x xxxx 0<x's>
 	register_opcode_mask_32(0xeb600000, 0x14808000, sbc_reg_t2);
 
-	// sub4: 1011 0000 1<x's>
-	register_opcode_mask_16(0xb080, 0x4f00, sub4);
-
 	// sub_imm_t1: 0001 111<x's>
 	register_opcode_mask_16(0x1e00, 0xe000, sub_imm_t1);
 
@@ -394,11 +472,15 @@ void register_opcodes_sub(void) {
 	register_opcode_mask_16(0x3800, 0xc000, sub_imm_t2);
 
 	// sub_imm_t3: 1111 0x01 101x xxxx 0xxx xxxx xxxx xxxx
-	//         ex:              1           1111
-	//         ex:                1101
 	register_opcode_mask_32_ex(0xf1a00000, 0x0a408000, sub_imm_t3,
 			0x00100f00, 0x0,
 			0x000d0000, 0x00020000,
+			0, 0);
+
+	// sub_imm_t4: 1111 0x10 1010 xxxx 0<x's>
+	register_opcode_mask_32_ex(0xf2a00000, 0x09508000, sub_imm_t4,
+			0xf0000, 0x0,
+			0xd0000, 0x20000,
 			0, 0);
 
 	// sub_reg_t1: 0001 101<x's>
@@ -410,8 +492,17 @@ void register_opcodes_sub(void) {
 			0xd0000, 0x20000,
 			0, 0);
 
+	// sub_sp_imm_t1: 1011 0000 1<x's>
+	register_opcode_mask_16(0xb080, 0x4f00, sub_sp_imm_t1);
+
 	// sub_sp_imm_t2: 1111 0x01 101x 1101 0<x's>
 	register_opcode_mask_32_ex(0xf1ad0000, 0x0a428000, sub_sp_imm_t2,
 			0x100f00, 0x0,
 			0, 0);
+
+	// sub_sp_imm_t3: 1111 0x10 1010 1101 0<x's>
+	register_opcode_mask_32(0xf2ad0000, 0x09528000, sub_sp_imm_t3);
+
+	// sub_sp_reg_t1: 1110 1011 101x 1101 0<x's>
+	register_opcode_mask_32(0xebad0000, 0x14428000, sub_sp_reg_t1);
 }
