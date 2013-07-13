@@ -75,7 +75,7 @@ static void lsr_imm_t1(uint16_t inst) {
 	return shift_imm_t1(inst, LSR);
 }
 
-// arm-thumb
+// arm-v7-m
 static void ror_imm_t1(uint32_t inst) {
 	return shift_imm_t1(inst, ROR);
 }
@@ -193,6 +193,47 @@ static void lsr_reg_t2(uint32_t inst) {
 	return shift_reg_t2(inst, SRType_LSR);
 }
 
+// arm-thumb
+static void ror_reg_t1(uint16_t inst) {
+	return shift_reg_t1(inst, SRType_ROR);
+}
+
+// arm-v7-m
+static void ror_reg_t2(uint32_t inst) {
+	return shift_reg_t2(inst, SRType_ROR);
+}
+
+static inline void rrx(uint8_t rm, uint8_t rd, bool setflags) {
+	union apsr_t apsr = CORE_apsr_read();
+
+	uint32_t result;
+	bool carry_out;
+	Shift_C(CORE_reg_read(rm), 32, SRType_RRX, 1, apsr.bits.C,
+			&result, &carry_out);
+
+	CORE_reg_write(rd, result);
+	if (setflags) {
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry_out;
+		CORE_apsr_write(apsr);
+	}
+}
+
+// arm-v7-m
+static void rrx_t1(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t rd = (inst >> 8) & 0xf;
+	bool    S  = (inst >> 20) & 0x1;
+
+	bool setflags = S==1;
+
+	if (BadReg(rd) || BadReg(rm))
+		CORE_ERR_unpredictable("rrx_t1 case\n");
+
+	return rrx(rm, rd, setflags);
+}
+
 __attribute__ ((constructor))
 void register_opcodes_shift(void) {
 	// asr_imm_t1: 0001 0xxx xxxx xxxx
@@ -237,4 +278,13 @@ void register_opcodes_shift(void) {
 
 	// lsr_reg_t2: 1111 1010 001x xxxx 1111 xxxx 0000 xxxx
 	register_opcode_mask_32(0xfa20f000, 0x05c000f0, lsr_reg_t2);
+
+	// ror_reg_t1: 0100 0001 11<x's>
+	register_opcode_mask_16(0x41c0, 0xbe00, ror_reg_t1);
+
+	// ror_reg_t2: 1111 1010 011x xxxx 1111 xxxx 0000 xxxx
+	register_opcode_mask_32(0xfa60f000, 0x058000f0, ror_reg_t2);
+
+	// rrx_t1: 1110 1010 010x 1111 0000 xxxx 0011 xxxx
+	register_opcode_mask_32(0xea4f0030, 0x15a0f0c0, rrx_t1);
 }
