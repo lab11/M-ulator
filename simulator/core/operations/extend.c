@@ -31,6 +31,7 @@ static void sxtb(uint8_t rd, uint8_t rm, uint8_t rotation) {
 	CORE_reg_write(rd, signd);
 }
 
+// arm-v6-m, arm-v7-m
 static void sxtb_t1(uint16_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rm = (inst >> 3) & 0x7;
@@ -38,6 +39,52 @@ static void sxtb_t1(uint16_t inst) {
 	uint8_t rotation = 0;
 
 	return sxtb(rd, rm, rotation);
+}
+
+// arm-v7-m
+static void sxtb_t2(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t rotate = (inst >> 4) & 0x3;
+	uint8_t rd = (inst >> 8) & 0xf;
+
+	uint8_t rotation = rotate << 3;
+
+	if (BadReg(rd) || BadReg(rm))
+		CORE_ERR_unpredictable("sxtb_t2 case\n");
+
+	return sxtb(rd, rm, rotation);
+}
+
+static void sxth(uint8_t rd, uint8_t rm, uint8_t rotation) {
+	uint32_t rm_val = CORE_reg_read(rm);
+
+	uint32_t rotated = Shift(rm_val, 32, ROR, rotation, 0);
+	int16_t trunc = (int16_t) rotated;
+	int32_t signd = trunc;
+	CORE_reg_write(rd, signd);
+}
+
+// arm-v6-m, arm-v7-m
+static void sxth_t1(uint16_t inst) {
+	uint8_t rd = inst & 0x7;
+	uint8_t rm = (inst >> 3) & 0x7;
+
+	uint8_t rotation = 0;
+	return sxth(rd, rm, rotation);
+}
+
+// arm-v7-m
+static void sxth_t2(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t rotate = (inst >> 4) & 0x3;
+	uint8_t rd = (inst >> 8) & 0xf;
+
+	uint8_t rotation = rotate << 3;
+
+	if (BadReg(rd) || BadReg(rm))
+		CORE_ERR_unpredictable("sxth_t2 case\n");
+
+	return sxth(rd, rm, rotation);
 }
 
 // XXX: remove attribute after completing implementation
@@ -70,6 +117,15 @@ __attribute__ ((constructor))
 void register_opcodes_extend(void) {
 	// sxtb_t1: 1011 0010 01xx xxxx
 	register_opcode_mask_16(0xb240, 0x4d80, sxtb_t1);
+
+	// sxtb_t2: 1111 1010 0100 1111 1111 xxxx 10xx xxxx
+	register_opcode_mask_32(0xfa4ff080, 0x05b00040, sxtb_t2);
+
+	// sxth_t1: 1011 0010 00xx xxxx
+	register_opcode_mask_16(0xb200, 0x4dc0, sxth_t1);
+
+	// sxth_t2: 1111 1010 0000 1111 1111 xxxx 10xx xxxx
+	register_opcode_mask_32(0xfa0ff080, 0x05f00040, sxth_t2);
 
 	// uxtb_t1: 1011 0010 11<x's>
 	register_opcode_mask_16(0xb2c0, 0x4d00, uxtb_t1);
