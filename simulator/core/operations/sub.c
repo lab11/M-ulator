@@ -40,6 +40,7 @@ static void rsb_imm(uint8_t rd, uint8_t rn, uint32_t imm32, bool setflags) {
 	}
 }
 
+// arm-thumb
 static void rsb_imm_t1(uint16_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rn = (inst >> 3) & 0x7;
@@ -50,7 +51,25 @@ static void rsb_imm_t1(uint16_t inst) {
 	return rsb_imm(rd, rn, imm32, setflags);
 }
 
-static void rsb_reg(uint8_t rd, uint8_t rn, uint8_t rm, bool setflags,
+// arm-v7-m
+static void rsb_imm_t2(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t rd   = (inst >> 8) & 0xf;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	uint8_t rn   = (inst >> 16) & 0xf;
+	bool    S    = (inst >> 20) & 0x1;
+	bool    i    = (inst >> 26) & 0x1;
+
+	bool setflags = S==1;
+	uint32_t imm32 = ThumbExpandImm(imm8 | (imm3 << 8) | (i << 11));
+
+	if (BadReg(rd) || BadReg(rn))
+		CORE_ERR_unpredictable("rsb_imm_t2 case\n");
+
+	return rsb_imm(rd, rn, imm32, setflags);
+}
+
+static inline void rsb_reg(uint8_t rd, uint8_t rn, uint8_t rm, bool setflags,
 		enum SRType shift_t, uint8_t shift_n) {
 	union apsr_t apsr = CORE_apsr_read();
 	uint32_t rm_val = CORE_reg_read(rm);
@@ -70,10 +89,9 @@ static void rsb_reg(uint8_t rd, uint8_t rn, uint8_t rm, bool setflags,
 		apsr.bits.V = overflow;
 		CORE_apsr_write(apsr);
 	}
-
-	DBG2("rsb_reg done\n");
 }
 
+// arm-v7-m
 static void rsb_reg_t1(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t type = (inst & 0x3) >> 4;
@@ -289,9 +307,12 @@ static void sub_sp_imm_t2(uint32_t inst) {
 
 __attribute__ ((constructor))
 void register_opcodes_sub(void) {
-	// rsb_imm_t1: 0100 0010 01<x's>
 	// (pre-UAL name: neg)
+	// rsb_imm_t1: 0100 0010 01<x's>
 	register_opcode_mask_16(0x4240, 0xbd80, rsb_imm_t1);
+
+	// rsb_imm_t2: 1111 0x01 110x xxxx 0<x's>
+	register_opcode_mask_32(0xf1c00000, 0x0a208000, rsb_imm_t2);
 
 	// rsb_reg_t1: 1110 1011 110x xxxx (0)<x's>
 	register_opcode_mask_32(0xebc00000, 0x14208000, rsb_reg_t1);
