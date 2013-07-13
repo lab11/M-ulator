@@ -213,6 +213,136 @@ static void cmp_reg_t3(uint32_t inst) {
 	return cmp_reg(rn, rm, shift_t, shift_n);
 }
 
+// arm-v7-m
+static void teq_imm_t1(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	uint8_t rn   = (inst >> 16) & 0xf;
+	bool    i    = (inst >> 26) & 0x1;
+
+	union apsr_t apsr = CORE_apsr_read();
+	uint32_t imm32;
+	bool carry;
+	ThumbExpandImm_C(imm8 | (imm3 << 8) | (i << 11), apsr.bits.C,
+			&imm32, &carry);
+
+	if (BadReg(rn))
+		CORE_ERR_unpredictable("teq_imm_t1 case\n");
+
+	//
+	uint32_t result = CORE_reg_read(rn) ^ imm32;
+	apsr.bits.N = HIGH_BIT(result);
+	apsr.bits.Z = result == 0;
+	apsr.bits.C = carry;
+	CORE_apsr_write(apsr);
+}
+
+// arm-v7-m
+static void teq_reg_t1(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t type = (inst >> 4) & 0x3;
+	uint8_t imm2 = (inst >> 6) & 0x3;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	uint8_t rn   = (inst >> 16) & 0xf;
+
+	enum SRType shift_t;
+	uint8_t shift_n;
+	DecodeImmShift(type, imm2 | (imm3 << 2), &shift_t, &shift_n);
+
+	if (BadReg(rn) || BadReg(rm))
+		CORE_ERR_unpredictable("teq_reg_t1 case\n");
+
+	//
+	union apsr_t apsr = CORE_apsr_read();
+
+	uint32_t shifted;
+	bool carry;
+	Shift_C(CORE_reg_read(rm), 32, shift_t, shift_n, apsr.bits.C,
+			&shifted, &carry);
+	uint32_t result = CORE_reg_read(rn) ^ shifted;
+
+	apsr.bits.N = HIGH_BIT(result);
+	apsr.bits.Z = result == 0;
+	apsr.bits.C = carry;
+	CORE_apsr_write(apsr);
+}
+
+static void tst_imm(union apsr_t apsr, uint8_t rn, uint32_t imm32, bool carry) {
+	uint32_t rn_val = CORE_reg_read(rn);
+
+	uint32_t result = rn_val & imm32;
+	apsr.bits.N = HIGH_BIT(result);
+	apsr.bits.Z = result == 0;
+	apsr.bits.C = carry;
+	CORE_apsr_write(apsr);
+}
+
+// arm-v7-m
+static void tst_imm_t1(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	uint8_t rn = (inst >> 16) & 0xf;
+	bool i = !!(inst & 0x04000000);
+
+	uint16_t imm12 = (i << 11) | (imm3 << 8) | (imm8);
+	uint32_t imm32;
+	bool carry;
+
+	union apsr_t apsr = CORE_apsr_read();
+
+	ThumbExpandImm_C(imm12, apsr.bits.C, &imm32, &carry);
+
+	if ((rn == 13) || (rn == 15))
+		CORE_ERR_unpredictable("bad reg\n");
+
+	tst_imm(apsr, rn, imm32, carry);
+}
+
+static void tst_reg(uint8_t rn, uint8_t rm,
+		enum SRType shift_t, uint8_t shift_n) {
+	union apsr_t apsr = CORE_apsr_read();
+
+	uint32_t shifted;
+	bool carry;
+	Shift_C(CORE_reg_read(rm), 32, shift_t, shift_n, apsr.bits.C,
+			&shifted, &carry);
+
+	uint32_t result = CORE_reg_read(rn) & shifted;
+	apsr.bits.N = HIGH_BIT(result);
+	apsr.bits.Z = result == 0;
+	apsr.bits.C = carry;
+	CORE_apsr_write(apsr);
+}
+
+// arm-thumb
+static void tst_reg_t1(uint16_t inst) {
+	uint8_t rn = inst & 0x7;
+	uint8_t rm = (inst >> 3) & 0x7;
+
+	enum SRType shift_t = SRType_LSL;
+	uint8_t shift_n = 0;
+
+	return tst_reg(rn, rm, shift_t, shift_n);
+}
+
+// arm-v7-m
+static void tst_reg_t2(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t type = (inst >> 4) & 0x3;
+	uint8_t imm2 = (inst >> 6) & 0x3;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	uint8_t rn   = (inst >> 16) & 0xf;
+
+	enum SRType shift_t;
+	uint8_t shift_n;
+	DecodeImmShift(type, imm2 | (imm3 << 2), &shift_t, &shift_n);
+
+	if (BadReg(rn) || BadReg(rm))
+		CORE_ERR_unpredictable("tst_reg_t2 case\n");
+
+	return tst_reg(rn, rm, shift_t, shift_n);
+}
+
 __attribute__ ((constructor))
 void register_opcodes_cmp(void) {
 	// cmn_imm_t1: 1111 0x01 0001 xxxx 0xxx 1111 xxxx xxxx
@@ -238,4 +368,19 @@ void register_opcodes_cmp(void) {
 
 	// cmp_reg_t3: 1110 1011 1011 xxxx 0xxx 1111 xxxx xxxx
 	register_opcode_mask_32(0xebb00f00, 0x14408000, cmp_reg_t3);
+
+	// teq_imm_t1: 1111 0x00 1001 xxxx 0xxx 1111 xxxx xxxx
+	register_opcode_mask_32(0xf0900f00, 0x0b608000, teq_imm_t1);
+
+	// teq_reg_t1: 1110 1010 1001 xxxx 0xxx 1111 xxxx xxxx
+	register_opcode_mask_32(0xea900f00, 0x15608000, teq_reg_t1);
+
+	// tst_imm_t1: 1111 0x00 0001 xxxx 0xxx 1111 xxxx xxxx
+	register_opcode_mask_32(0xf0100f00, 0x0be08000, tst_imm_t1);
+
+	// tst_reg_t1: 0100 0010 00xx xxxx
+	register_opcode_mask_16(0x4200, 0xbdc0, tst_reg_t1);
+
+	// tst_reg_t2: 1110 1010 0001 xxxx 0xxx 1111 xxxx xxxx
+	register_opcode_mask_32(0xea100f00, 0x15e08000, tst_reg_t2);
 }

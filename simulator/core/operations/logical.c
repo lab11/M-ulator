@@ -580,36 +580,6 @@ static void orr_reg_t2(uint32_t inst) {
 	return orr_reg(S, rd, rn, rm, shift_t, shift_n);
 }
 
-static void tst_imm(union apsr_t apsr, uint8_t rn, uint32_t imm32, bool carry) {
-	uint32_t rn_val = CORE_reg_read(rn);
-
-	uint32_t result = rn_val & imm32;
-	apsr.bits.N = HIGH_BIT(result);
-	apsr.bits.Z = result == 0;
-	apsr.bits.C = carry;
-	CORE_apsr_write(apsr);
-}
-
-static void tst_imm_t1(uint32_t inst) {
-	uint8_t imm8 = inst & 0xff;
-	uint8_t imm3 = (inst >> 12) & 0x7;
-	uint8_t rn = (inst >> 16) & 0xf;
-	bool i = !!(inst & 0x04000000);
-
-	uint16_t imm12 = (i << 11) | (imm3 << 8) | (imm8);
-	uint32_t imm32;
-	bool carry;
-
-	union apsr_t apsr = CORE_apsr_read();
-
-	ThumbExpandImm_C(imm12, apsr.bits.C, &imm32, &carry);
-
-	if ((rn == 13) || (rn == 15))
-		CORE_ERR_unpredictable("bad reg\n");
-
-	tst_imm(apsr, rn, imm32, carry);
-}
-
 __attribute__ ((constructor))
 void register_opcodes_logical(void) {
 	// and_imm_t1: 1111 0x00 000x xxxx 0<x's>
@@ -677,7 +647,4 @@ void register_opcodes_logical(void) {
 	register_opcode_mask_32_ex(0xea400000, 0x15a08000, orr_reg_t2,
 			0x000f0000, 0x00000000,
 			0, 0);
-
-	// tst_imm_t1: 1111 0x00 0001 xxxx 0xxx 1111 xxxx xxxx
-	register_opcode_mask_32(0xf0100f00, 0x0be08000, tst_imm_t1);
 }
