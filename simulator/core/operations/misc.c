@@ -126,6 +126,27 @@ static void movt_t1(uint32_t inst) {
 	return movt(rd, imm16);
 }
 
+static inline void rbit(uint8_t rm, uint8_t rd) {
+	CORE_reg_write(rd, reverse_bits(CORE_reg_read(rm)));
+}
+
+// arm-v7-m
+static void rbit_t1(uint32_t inst) {
+	uint8_t rm_lsb = inst & 0xf;
+	uint8_t rd = (inst >> 8) & 0xf;
+	uint8_t rm_msb = (inst >> 16) & 0xf;
+
+	if (rm_lsb != rm_msb)
+		CORE_ERR_unpredictable("rm_lsb != rm_msb\n");
+
+	uint8_t rm = rm_lsb;
+
+	if (BadReg(rd) || BadReg(rm))
+		CORE_ERR_unpredictable("rbit_t1 case\n");
+
+	return rbit(rm, rd);
+}
+
 static void ubfx(uint8_t rd, uint8_t rn, uint8_t lsbit, uint8_t widthminus1) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
@@ -167,6 +188,9 @@ void register_opcodes_misc(void) {
 
 	// movt_t1: 1111 0x10 1100 xxxx 0<x's>
 	register_opcode_mask_32(0xf2c00000, 0x09308000, movt_t1);
+
+	// rbit_t1: 1111 1010 1001 xxxx 1111 xxxx 1010 xxxx
+	register_opcode_mask_32(0xfa90f0a0, 0x05600050, rbit_t1);
 
 	// ubfx_t1: 1111 0011 1100 xxxx 0xxx xxxx xx0x xxxx
 	register_opcode_mask_32(0xf3c00000, 0x0c308020, ubfx_t1);
