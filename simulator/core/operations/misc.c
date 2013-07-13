@@ -256,7 +256,38 @@ static void revsh_t2(uint32_t inst) {
 	return revsh(rd, rm);
 }
 
-static void ubfx(uint8_t rd, uint8_t rn, uint8_t lsbit, uint8_t widthminus1) {
+static inline void sbfx(uint8_t rd, uint8_t rn, uint8_t lsbit, uint8_t widthminus1) {
+	uint32_t rn_val = CORE_reg_read(rn);
+	uint8_t msbit = lsbit + widthminus1;
+
+	uint32_t result = (rn_val >> lsbit) & ((1 << (msbit - lsbit + 1)) - 1);
+	if (rn_val & (1 << msbit))
+		result |= ~((1 << (msbit - lsbit + 1)) - 1);
+
+	if (msbit <= 31)
+		CORE_reg_write(rd, result);
+	else
+		CORE_ERR_unpredictable("msb > 31?\n");
+}
+
+// arm-v7-m
+static void sbfx_t1(uint32_t inst) {
+	uint8_t widthm1 = inst & 0x1f;
+	uint8_t imm2 = (inst >> 6) & 0x3;
+	uint8_t rd = (inst >> 8) & 0xf;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	uint8_t rn = (inst >> 16) & 0xf;
+
+	uint8_t lsbit = (imm3 << 2) | imm2;
+	uint8_t widthminus1 = widthm1;
+
+	if (BadReg(rd) || BadReg(rn))
+		CORE_ERR_unpredictable("bad reg\n");
+
+	return sbfx(rd, rn, lsbit, widthminus1);
+}
+
+static inline void ubfx(uint8_t rd, uint8_t rn, uint8_t lsbit, uint8_t widthminus1) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
 	uint8_t msbit = lsbit + widthminus1;
@@ -266,6 +297,7 @@ static void ubfx(uint8_t rd, uint8_t rn, uint8_t lsbit, uint8_t widthminus1) {
 		CORE_ERR_unpredictable("msb > 31?\n");
 }
 
+// arm-v7-m
 static void ubfx_t1(uint32_t inst) {
 	uint8_t widthm1 = inst & 0x1f;
 	uint8_t imm2 = (inst >> 6) & 0x3;
@@ -318,6 +350,9 @@ void register_opcodes_misc(void) {
 
 	// revsh_t2: 1111 1010 1001 xxxx 1111 xxxx 1011 xxxx
 	register_opcode_mask_32(0xfa90f0b0, 0x05600040, revsh_t2);
+
+	// sbfx_t1: 1111 0011 0100 xxxx 0xxx xxxx xx0x xxxx
+	register_opcode_mask_32(0xf3400000, 0x0cb08020, sbfx_t1);
 
 	// ubfx_t1: 1111 0011 1100 xxxx 0xxx xxxx xx0x xxxx
 	register_opcode_mask_32(0xf3c00000, 0x0c308020, ubfx_t1);
