@@ -87,23 +87,14 @@ static void sxth_t2(uint32_t inst) {
 	return sxth(rd, rm, rotation);
 }
 
-// XXX: remove attribute after completing implementation
-static void uxtb(uint8_t rd, uint8_t rm __attribute__ ((unused)), uint8_t rotation) {
-	uint32_t rd_val = CORE_reg_read(rd);
+static void uxtb(uint8_t rd, uint8_t rm, uint8_t rotation) {
+	uint32_t rm_val = CORE_reg_read(rm);
 
-	uint32_t rotated;
-	if (rotation != 0) {
-		CORE_ERR_not_implemented("uxtb rotation\n");
-	} else {
-		rotated = rd_val;
-	}
-
-	rd_val = rotated & 0xff;
-	CORE_reg_write(rd, rd_val);
-
-	DBG2("uxtb wrote r%02d = %08x\n", rd, rd_val);
+	uint32_t rotated = Shift(rm_val, 32, ROR, rotation, 0);
+	CORE_reg_write(rd, rotated & 0xff);
 }
 
+// arm-v6-m, arm-v7-m
 static void uxtb_t1(uint16_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rm = (inst & 0x38) >> 3;
@@ -111,6 +102,50 @@ static void uxtb_t1(uint16_t inst) {
 	uint8_t rotation = 0;
 
 	return uxtb(rd, rm, rotation);
+}
+
+// arm-v7-m
+static void uxtb_t2(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t rotate = (inst >> 4) & 0x3;
+	uint8_t rd = (inst >> 8) & 0xf;
+
+	uint8_t rotation = rotate << 3;
+
+	if (BadReg(rd) || BadReg(rm))
+		CORE_ERR_unpredictable("uxtb_t2 case\n");
+
+	return uxtb(rd, rm, rotation);
+}
+
+static void uxth(uint8_t rd, uint8_t rm, uint8_t rotation) {
+	uint32_t rm_val = CORE_reg_read(rm);
+
+	uint32_t rotated = Shift(rm_val, 32, ROR, rotation, 0);
+	CORE_reg_write(rd, rotated & 0xffff);
+}
+
+// arm-v6-m, arm-v7-m
+static void uxth_t1(uint16_t inst) {
+	uint8_t rd = inst & 0x7;
+	uint8_t rm = (inst >> 3) & 0x7;
+
+	uint8_t rotation = 0;
+	return uxth(rd, rm, rotation);
+}
+
+// arm-v7-m
+static void uxth_t2(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t rotate = (inst >> 4) & 0x3;
+	uint8_t rd = (inst >> 8) & 0xf;
+
+	uint8_t rotation = rotate << 3;
+
+	if (BadReg(rd) || BadReg(rm))
+		CORE_ERR_unpredictable("uxth_t2 case\n");
+
+	return uxth(rd, rm, rotation);
 }
 
 __attribute__ ((constructor))
@@ -129,4 +164,13 @@ void register_opcodes_extend(void) {
 
 	// uxtb_t1: 1011 0010 11<x's>
 	register_opcode_mask_16(0xb2c0, 0x4d00, uxtb_t1);
+
+	// uxtb_t2: 1111 1010 0101 1111 1111 xxxx 10xx xxxx
+	register_opcode_mask_32(0xfa5ff080, 0x05a00040, uxtb_t2);
+
+	// uxth_t1: 1011 0010 10xx xxxx
+	register_opcode_mask_16(0xb280, 0x4d40, uxth_t1);
+
+	// uxth_t2: 1111 1010 0001 1111 1111 xxxx 10xx xxxx
+	register_opcode_mask_32(0xfa1ff080, 0x05e00040, uxth_t2);
 }
