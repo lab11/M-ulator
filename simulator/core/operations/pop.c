@@ -24,7 +24,8 @@
 #include "cpu/core.h"
 #include "cpu/misc.h"
 
-static void pop_simple(uint16_t inst) {
+// arm-thumb
+static void pop_t1(uint16_t inst) {
 	uint32_t sp = CORE_reg_read(SP_REG);
 
 	int hamming = 0;
@@ -79,10 +80,9 @@ static void pop(uint16_t registers) {
 	}
 
 	CORE_reg_write(SP_REG, CORE_reg_read(SP_REG) + 4 * hamming(registers));
-
-	DBG2("pop did stuff\n");
 }
 
+// arm-v7-m
 static void pop_t2(uint32_t inst) {
 	uint16_t reg_list = inst & 0x1fff;
 	uint8_t M = !!(inst & 0x4000);
@@ -101,6 +101,7 @@ static void pop_t2(uint32_t inst) {
 	return pop(registers);
 }
 
+// arm-v7-m
 static void pop_t3(uint32_t inst) {
 	uint8_t rt = (inst >> 12) & 0xf;
 	uint16_t registers = (1 << rt);
@@ -113,8 +114,8 @@ static void pop_t3(uint32_t inst) {
 
 __attribute__ ((constructor))
 void register_opcodes_pop(void) {
-	// pop: 1011 110<x's>
-	register_opcode_mask_16(0xbc00, 0x4200, pop_simple);
+	// pop_t1: 1011 110<x's>
+	register_opcode_mask_16(0xbc00, 0x4200, pop_t1);
 
 	// pop_t2: 1110 1000 1011 1101 xx0<x's>
 	register_opcode_mask_32(0xe8bd0000, 0x17422000, pop_t2);
