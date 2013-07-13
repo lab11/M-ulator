@@ -33,10 +33,12 @@ static void nop(void) {
 	;
 }
 
+// arm-v7-m
 static void nop_t1(uint16_t inst __attribute__ ((unused))) {
 	return nop();
 }
 
+// arm-v7-m
 static void nop_t2(uint32_t inst __attribute__ ((unused))) {
 	return nop();
 }

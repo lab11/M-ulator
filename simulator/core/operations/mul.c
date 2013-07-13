@@ -88,6 +88,7 @@ static void mul(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm) {
 	}
 }
 
+// arm-thumb
 static void mul_t1(uint32_t inst) {
 	uint8_t rdm = inst & 0x7;
 	uint8_t rn = inst & 0x7;
@@ -97,6 +98,7 @@ static void mul_t1(uint32_t inst) {
 	return mul(setflags, rdm, rn, rdm);
 }
 
+// arm-v7-m
 static void mul_t2(uint32_t inst) {
 	uint8_t rm = (inst & 0xf);
 	uint8_t rd = (inst & 0xf00) >> 8;
