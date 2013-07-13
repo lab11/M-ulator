@@ -122,6 +122,7 @@ static void smull(uint8_t rdlo, uint8_t rdhi, uint8_t rn, uint8_t rm, bool setfl
 	CORE_reg_write(rdlo, result & 0xffffffff);
 }
 
+// arm-v7-m
 static void smull_t1(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t rdhi = (inst >> 8) & 0xf;
@@ -139,6 +140,30 @@ static void smull_t1(uint32_t inst) {
 	return smull(rdlo, rdhi, rn, rm, setflags);
 }
 
+// arm-v7-m
+static void umlal_t1(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t rdhi = (inst >> 8) & 0xf;
+	uint8_t rdlo = (inst >> 12) & 0xf;
+	uint8_t rn   = (inst >> 16) & 0xf;
+
+	if (BadReg(rdlo) || BadReg(rdhi) || BadReg(rn) || BadReg(rm))
+		CORE_ERR_unpredictable("umlal_t1 case 1\n");
+	if (rdhi == rdlo)
+		CORE_ERR_unpredictable("umlal_t1 case 2\n");
+
+	//
+	uint64_t rn_val = CORE_reg_read(rn);
+	uint64_t rm_val = CORE_reg_read(rm);
+	uint64_t rdlo_val = CORE_reg_read(rdlo);
+	uint64_t rdhi_val = CORE_reg_read(rdhi);
+	uint64_t rd_val = rdlo_val | (rdhi_val << 32);
+	uint64_t result = rn_val * rm_val + rd_val;
+
+	CORE_reg_write(rdhi, result >> 32);
+	CORE_reg_write(rdlo, result & 0xffffffff);
+}
+
 static void umull(uint8_t rdlo, uint8_t rdhi, uint8_t rn, uint8_t rm, bool setflags) {
 	assert(setflags == false);
 
@@ -150,6 +175,7 @@ static void umull(uint8_t rdlo, uint8_t rdhi, uint8_t rn, uint8_t rm, bool setfl
 	CORE_reg_write(rdlo, result & 0xffffffff);
 }
 
+// arm-v7-m
 static void umull_t1(uint32_t inst) {
 	uint8_t rm = inst & 0xf;
 	uint8_t rdhi = (inst >> 8) & 0xf;
@@ -185,6 +211,9 @@ void register_opcodes_mul(void) {
 
 	// smull_t1: 1111 1011 1000 xxxx xxxx xxxx 0000 xxxx
 	register_opcode_mask_32(0xfb800000, 0x047000f0, smull_t1);
+
+	// umlal_t1: 1111 1011 1110 xxxx xxxx xxxx 0000 xxxx
+	register_opcode_mask_32(0xfbe00000, 0x041000f0, umlal_t1);
 
 	// umull_t1: 1111 1011 1010 xxxx xxxx xxxx 0000 xxxx
 	register_opcode_mask_32(0xfba00000, 0x045000f0, umull_t1);
