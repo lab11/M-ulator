@@ -405,7 +405,119 @@ static void mvn_reg_t2(uint32_t inst) {
 	return mvn_reg(S, rd, rm, shift_t, shift_n);
 }
 
-static void orr(uint16_t inst) {
+static inline void orn_imm(uint8_t rd, uint8_t rn, bool setflags,
+		union apsr_t apsr, uint32_t imm32, bool carry) {
+	uint32_t result = CORE_reg_read(rn) | ~imm32;
+	CORE_reg_write(rd, result);
+	if (setflags) {
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry;
+		CORE_apsr_write(apsr);
+	}
+}
+
+// arm-v7-m
+static void orn_imm_t1(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t rd   = (inst >> 8) & 0xf;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	uint8_t rn   = (inst >> 16) & 0xf;
+	bool    S    = (inst >> 20) & 0x1;
+	bool    i    = (inst >> 26) & 0x1;
+
+	bool setflags = S==1;
+
+	union apsr_t apsr = CORE_apsr_read();
+	uint32_t imm32;
+	bool carry;
+	ThumbExpandImm_C(imm8 | (imm3 << 8) | (i << 11), apsr.bits.C,
+			&imm32, &carry);
+
+	if ((rd > 13) || (rn == 1))
+		CORE_ERR_unpredictable("orn_imm_t1 case\n");
+
+	return orn_imm(rd, rn, setflags, apsr, imm32, carry);
+}
+
+static inline void orn_reg(uint8_t rd, uint8_t rn, uint8_t rm,
+		bool setflags, enum SRType shift_t, uint8_t shift_n) {
+	union apsr_t apsr = CORE_apsr_read();
+
+	uint32_t shifted;
+	bool carry_out;
+	Shift_C(CORE_reg_read(rm), 32, shift_t, shift_n, apsr.bits.C,
+			&shifted, &carry_out);
+
+	uint32_t result = CORE_reg_read(rn) | ~shifted;
+	CORE_reg_write(rd, result);
+
+	if (setflags) {
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry_out;
+		CORE_apsr_write(apsr);
+	}
+}
+
+// arm-v7-m
+static void orn_reg_t1(uint32_t inst) {
+	uint8_t rm = inst & 0xf;
+	uint8_t type = (inst >> 4) & 0x3;
+	uint8_t imm2 = (inst >> 6) & 0x3;
+	uint8_t rd   = (inst >> 8) & 0xf;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	uint8_t rn   = (inst >> 16) & 0xf;
+	bool    S    = (inst >> 20) & 0x1;
+
+	bool setflags = S==1;
+	enum SRType shift_t;
+	uint8_t shift_n;
+	DecodeImmShift(type, imm2 | (imm3 << 2), &shift_t, &shift_n);
+
+	if ((rd > 13) || (rn == 13) || (rm > 13))
+		CORE_ERR_unpredictable("orn_reg_t1 case\n");
+
+	return orn_reg(rd, rn, rm, setflags, shift_t, shift_n);
+}
+
+static inline void orr_imm(uint8_t rd, uint8_t rn, bool setflags,
+		union apsr_t apsr, uint32_t imm32, bool carry) {
+	uint32_t result = CORE_reg_read(rn) | imm32;
+	CORE_reg_write(rd, result);
+	if (setflags) {
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry;
+		CORE_apsr_write(apsr);
+	}
+}
+
+// arm-v7-m
+static void orr_imm_t1(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t rd   = (inst >> 8) & 0xf;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	uint8_t rn   = (inst >> 16) & 0xf;
+	bool    S    = (inst >> 20) & 0x1;
+	bool    i    = (inst >> 26) & 0x1;
+
+	bool setflags = S==1;
+
+	union apsr_t apsr = CORE_apsr_read();
+	uint32_t imm32;
+	bool carry;
+	ThumbExpandImm_C(imm8 | (imm3 << 8) | (i << 11), apsr.bits.C,
+			&imm32, &carry);
+
+	if ((rd > 13) || (rn == 13))
+		CORE_ERR_unpredictable("orr_imm_t1 case\n");
+
+	return orr_imm(rd, rn, setflags, apsr, imm32, carry);
+}
+
+// arm-thumb
+static void orr_reg_t1(uint16_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
 
@@ -420,8 +532,6 @@ static void orr(uint16_t inst) {
 		apsr.bits.Z = result == 0;
 		CORE_apsr_write(apsr);
 	}
-
-	DBG2("orrs r%02d, r%02d\n", rd, rm);
 }
 
 static void orr_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm,
@@ -446,6 +556,7 @@ static void orr_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm,
 	DBG2("orr_reg ran\n");
 }
 
+// arm-v7-m
 static void orr_reg_t2(uint32_t inst) {
 	uint8_t rm = (inst & 0xf);
 	uint8_t type = (inst & 0x30) >> 4;
@@ -543,8 +654,23 @@ void register_opcodes_logical(void) {
 	// mvn_reg_t2: 1110 1010 011x 1111 0<x's>
 	register_opcode_mask_32(0xea6f0000, 0x15808000, mvn_reg_t2);
 
-	// orr: 0100 0011 00<x's>
-	register_opcode_mask_16(0x4300, 0xbcc0, orr);
+	// orn_imm_t1: 1111 0x00 011x xxxx 0<x's>
+	register_opcode_mask_32_ex(0xf0600000, 0x0b808000, orn_imm_t1,
+			0xf0000, 0x0,
+			0, 0);
+
+	// orn_reg_t1: 1110 1010 011x xxxx 0<x's>
+	register_opcode_mask_32_ex(0xea600000, 0x15808000, orn_reg_t1,
+			0xf0000, 0x0,
+			0, 0);
+
+	// orr_imm_t1: 1111 0x00 010x xxxx 0<x's>
+	register_opcode_mask_32_ex(0xf0400000, 0x0ba08000, orr_imm_t1,
+			0xf0000, 0x0,
+			0, 0);
+
+	// orr_reg_t1: 0100 0011 00<x's>
+	register_opcode_mask_16(0x4300, 0xbcc0, orr_reg_t1);
 
 	// Cannot allow               1111 case
 	// orr_reg_t2: 1110 1010 010x xxxx 0<x's>
