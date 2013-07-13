@@ -23,7 +23,7 @@
 #include "cpu/registers.h"
 #include "cpu/core.h"
 
-static void stmdb(const uint8_t rn, const uint16_t registers, const bool wback) {
+static inline void stmdb(uint8_t rn, uint16_t registers, bool wback) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
 	uint32_t address = rn_val - 4 * hamming(registers);
@@ -41,6 +41,7 @@ static void stmdb(const uint8_t rn, const uint16_t registers, const bool wback) 
 	}
 }
 
+// arm-v7-m
 static void stmdb_t1(uint32_t inst) {
 	uint16_t register_list = inst & 0xfff;
 	bool M = (inst >> 14) & 0x1;
@@ -79,6 +80,21 @@ static void stm(uint8_t rn, uint16_t registers, bool wback) {
 		CORE_reg_write(rn, rn_val + 4*hamming(registers));
 }
 
+// arm-thumb
+static void stm_t1(uint16_t inst) {
+	uint8_t register_list = inst & 0xff;
+	uint8_t rn = (inst >> 8) & 0x7;
+
+	uint16_t registers = register_list;
+	bool wback = false;
+
+	if (hamming(registers) < 1)
+		CORE_ERR_unpredictable("stm_t1 case\n");
+
+	return stm(rn, registers, wback);
+}
+
+// arm-v7-m
 static void stm_t2(uint32_t inst) {
 	uint16_t register_list = inst & 0xfff;
 	bool M = !!(inst & 0x4000);
@@ -104,6 +120,9 @@ void register_opcodes_strm(void) {
 	register_opcode_mask_32_ex(0xe9000000, 0x16d0a000, stmdb_t1,
 			0x002d0000, 0x00020000,
 			0, 0);
+
+	// stm_t1: 1100 0<x's>
+	register_opcode_mask_16(0xc000, 0x3800, stm_t1);
 
 	// stm{ia,ea}_t2: 1110 1000 10x0 xxxx 0x0x xxxx xxxx xxxx
 	register_opcode_mask_32(0xe8800000, 0x1750a000, stm_t2);
