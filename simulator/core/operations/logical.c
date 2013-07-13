@@ -318,6 +318,40 @@ static void eor_reg_t2(uint32_t inst) {
 	return eor_reg(S, rd, rn, rm, shift_t, shift_n);
 }
 
+static inline void mvn_imm(uint8_t rd, bool setflags, union apsr_t apsr,
+		uint32_t imm32, bool carry) {
+	uint32_t result = ~imm32;
+	CORE_reg_write(rd, result);
+	if (setflags) {
+		apsr.bits.N = HIGH_BIT(result);
+		apsr.bits.Z = result == 0;
+		apsr.bits.C = carry;
+		CORE_apsr_write(apsr);
+	}
+}
+
+// arm-v7-m
+static void mvn_imm_t1(uint32_t inst) {
+	uint8_t imm8 = inst & 0xff;
+	uint8_t rd   = (inst >> 8) & 0xf;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	bool    S    = (inst >> 20) & 0x1;
+	bool    i    = (inst >> 26) & 0x1;
+
+	bool setflags = S==1;
+
+	union apsr_t apsr = CORE_apsr_read();
+	uint32_t imm32;
+	bool carry;
+	ThumbExpandImm_C(imm8 | (imm3 << 8) | (i << 11), apsr.bits.C,
+			&imm32, &carry);
+
+	if (rd > 13)
+		CORE_ERR_unpredictable("mvn_imm_t1 case\n");
+
+	return mvn_imm(rd, setflags, apsr, imm32, carry);
+}
+
 static void mvn_reg(uint8_t setflags, uint8_t rd, uint8_t rm,
 		enum SRType shift_t, uint8_t shift_n) {
 	uint32_t result;
@@ -336,10 +370,9 @@ static void mvn_reg(uint8_t setflags, uint8_t rd, uint8_t rm,
 		apsr.bits.C = carry_out;
 		CORE_apsr_write(apsr);
 	}
-
-	DBG2("mvn_reg did stuff\n");
 }
 
+// arm-thumb
 static void mvn_reg_t1(uint16_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rm = (inst >> 3) & 0x7;
@@ -351,6 +384,7 @@ static void mvn_reg_t1(uint16_t inst) {
 	return mvn_reg(setflags, rd, rm, shift_t, shift_n);
 }
 
+// arm-v7-m
 static void mvn_reg_t2(uint32_t inst) {
 	uint8_t rm = (inst & 0xf);
 	uint8_t type = (inst & 0x30) >> 4;
@@ -499,6 +533,9 @@ void register_opcodes_logical(void) {
 
 	// eor_reg_t2: 1110 1010 100x xxxx 0<x's>
 	register_opcode_mask_32(0xea800000, 0x15608000, eor_reg_t2);
+
+	// mvn_imm_t1: 1111 0x00 011x 1111 0<x's>
+	register_opcode_mask_32(0xf06f0000, 0x0b808000, mvn_imm_t1);
 
 	// mvn_reg_t1: 0100 0011 11xx xxxx
 	register_opcode_mask_16(0x43c0, 0xbc00, mvn_reg_t1);
