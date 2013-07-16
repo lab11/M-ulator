@@ -20,8 +20,8 @@
 #define STAGE IF
 
 #include "if_stage.h"
-#include "id_stage.h"
 #include "pipeline.h"
+#include "opcodes.h"
 #include "state_sync.h"
 
 #include "cpu/registers.h"
@@ -35,7 +35,7 @@ static void branch_target_forward32(uint32_t target, uint32_t inst, uint32_t *pc
 	return;
 #endif
 
-	if (match_mask(inst, 0xf0009000, 0x08004000)) {
+	if (match_mask32(inst, 0xf0009000, 0x08004000)) {
 		DBG2("btf: b_t4\n");
 		// This is b_t4
 		uint16_t imm11 = inst & 0x7ff;
@@ -54,7 +54,7 @@ static void branch_target_forward32(uint32_t target, uint32_t inst, uint32_t *pc
 		return;
 	}
 
-	if (match_mask(inst, 0xf000d000, 0x08000000)) {
+	if (match_mask32(inst, 0xf000d000, 0x08000000)) {
 		DBG2("btf: bl_t1\n");
 		// This is a bl_t1
 		uint16_t imm11 = inst & 0x7ff;
@@ -76,7 +76,7 @@ static void branch_target_forward32(uint32_t target, uint32_t inst, uint32_t *pc
 }
 
 static void branch_target_forward16(uint32_t target, uint32_t inst, uint32_t *pc) {
-	if (match_mask(inst, 0xe000, 0x1000)) {
+	if (match_mask32(inst, 0xe000, 0x1000)) {
 		DBG2("btf: b_t2\n");
 		// This is b_t2
 		uint16_t imm11 = inst & 0x7ff;
@@ -88,7 +88,7 @@ static void branch_target_forward16(uint32_t target, uint32_t inst, uint32_t *pc
 		return;
 	}
 
-	if (match_mask(inst, 0x4700, 0xb880)) {
+	if (match_mask32(inst, 0x4700, 0xb880)) {
 		DBG2("btf: bx_t1\n");
 		uint8_t rm = (inst >> 3) & 0xf;
 

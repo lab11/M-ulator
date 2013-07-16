@@ -41,26 +41,6 @@
 #define E_READONLY	11
 #define E_WRITEONLY	12
 
-////////////////////
-// INTERNAL TYPES //
-////////////////////
-
-struct op {
-	struct op *prev;
-	struct op *next;
-	uint32_t ones_mask;
-	uint32_t zeros_mask;
-	int ex_cnt;
-	uint32_t *ex_ones;
-	uint32_t *ex_zeros;
-	bool is16;
-	union {
-		void (*fn32) (uint32_t);
-		void (*fn16) (uint16_t);
-	} fn;
-	const char *name;
-};
-
 //////////////////////
 // EXPORTED SYMBOLS //
 //////////////////////

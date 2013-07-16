@@ -24,7 +24,7 @@
 #include "state_async.h"
 
 #include "simulator.h"
-#include "id_stage.h"
+#include "opcodes.h"
 #include "pipeline.h"
 
 // state flags #defines:
@@ -621,7 +621,7 @@ EXPORT int state_seek(int target_cycle) {
 
 		// One last bit of fixup since we don't actually track
 		// the op pointer
-		id_ex_o = find_op(id_ex_inst, false);
+		id_ex_o = find_op(id_ex_inst);
 
 		return 0;
 	}

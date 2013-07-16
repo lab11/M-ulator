@@ -24,12 +24,12 @@
 
 #ifdef M_PROFILE
 
-#define INST_NOP 0x46c0
+#define INST_NOP 0x46c0U
 #define STALL_PC (-1U & 0xfffffffe)
 
 // Find something unused as a sentinel, we choose
 // 1101 1110 xxxx xxxx, which is Permanently UNDEFINED
-#define INST_HAZARD 0xde00
+#define INST_HAZARD 0xde00U
 #define HAZARD_PC -5U
 
 #endif //M_PROFILE
@@ -50,6 +50,6 @@ void pipeline_flush(uint32_t new_pc);
 
 void* ticker(void *stage_fn) __attribute__ ((noreturn));
 
-void pipeline_exception(uint32_t inst);
+void pipeline_exception(uint16_t inst);
 
 #endif // PIPELINE_H

@@ -24,15 +24,16 @@
 #include "state_sync.h"
 
 #include "simulator.h"
+#include "opcodes.h"
 
 #include "cpu/registers.h"
 #include "cpu/misc.h"
 
 static void execute(struct op *o, uint32_t inst) {
 	if (o->is16)
-		o->fn.fn16(inst);
+		o->op16.fn(inst);
 	else
-		o->fn.fn32(inst);
+		o->op32.fn(inst);
 }
 
 void tick_ex(void) {

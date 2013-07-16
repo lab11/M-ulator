@@ -31,6 +31,7 @@
 #include "state_sync.h"
 #include "simulator.h"
 
+#include "opcodes.h"
 #include "pipeline.h"
 #include "if_stage.h"
 #include "id_stage.h"
@@ -416,7 +417,7 @@ EXPORT void CORE_ERR_invalid_addr_real(const char *f, int l, uint8_t is_write, u
 }
 
 EXPORT void CORE_ERR_illegal_instr_real(const char *f, int l, uint32_t inst) {
-	WARN("CORE_ERR_illegal_instr, inst: %04x\n", inst);
+	WARN("CORE_ERR_illegal_instr, inst: %08x\n", inst);
 	WARN("Dumping core...\n");
 	print_full_state();
 	ERR(E_UNKNOWN, "%s:%d\tUnknown inst\n", f, l);
@@ -434,142 +435,6 @@ EXPORT void CORE_ERR_not_implemented_real(const char *f, int l, const char *opt_
 ////////////////////////////////////////////////////////////////////////////////
 // SIMULATOR
 ////////////////////////////////////////////////////////////////////////////////
-
-static int opcode_masks;
-EXPORT struct op *ops = NULL;
-
-static int _register_opcode_mask(uint32_t ones_mask, uint32_t zeros_mask,
-		bool is16, void *fn, const char* fn_name, va_list va_args) {
-	struct op *o = malloc(sizeof(struct op));
-
-	o->prev = NULL;
-	o->next = ops;		// ops is NULL on first pass, this is fine
-	o->ones_mask = ones_mask;
-	o->zeros_mask = zeros_mask;
-	o->is16 = is16;
-	if (is16)
-		o->fn.fn16 = fn;
-	else
-		o->fn.fn32 = fn;
-	o->name = fn_name;
-
-	o->ex_cnt = 0;
-	o->ex_ones = NULL;
-	o->ex_zeros = NULL;
-
-	ones_mask  = va_arg(va_args, uint32_t);
-	zeros_mask = va_arg(va_args, uint32_t);
-	while (ones_mask || zeros_mask) {
-		// Make the assumption that callers will have one, at most
-		// two exceptions; go with the simple realloc scheme
-		unsigned idx = o->ex_cnt;
-
-		o->ex_cnt++;
-		o->ex_ones  = realloc(o->ex_ones,  o->ex_cnt * sizeof(uint32_t));
-		assert(NULL != o->ex_ones && "realloc");
-		o->ex_zeros = realloc(o->ex_zeros, o->ex_cnt * sizeof(uint32_t));
-		assert(NULL != o->ex_zeros && "realloc");
-
-		o->ex_ones[idx]  = ones_mask;
-		o->ex_zeros[idx] = zeros_mask;
-
-		ones_mask  = va_arg(va_args, uint32_t);
-		zeros_mask = va_arg(va_args, uint32_t);
-	}
-
-	// Add new element to list head b/c that's easy and it doesn't matter
-	if (NULL == ops) {
-		ops = o;
-	} else {
-		ops->prev = o;
-		ops = o;
-	}
-
-	return ++opcode_masks;
-}
-
-static int register_opcode_mask_ex(uint32_t ones_mask, uint32_t zeros_mask,
-		bool is16, void *fn, const char* fn_name, va_list va_args) {
-
-	if (is16)
-		assert(0xffff0000 == (0xffff0000 & zeros_mask));
-
-	if (NULL == ops) {
-		// first registration
-		return _register_opcode_mask(ones_mask, zeros_mask,
-				is16, fn, fn_name, va_args);
-	}
-
-	struct op* o = ops;
-
-	// XXX: Make better
-	while (NULL != o) {
-		if (
-				(o->ones_mask  == ones_mask) &&
-				(o->zeros_mask == zeros_mask)
-		   ) {
-			break;
-		}
-		o = o->next;
-	}
-	if (o) {
-		ERR(E_BAD_OPCODE, "Duplicate opcode mask.\n"\
-				"\tExisting  registration: 1's %x, 0's %x (%s)\n"\
-				"\tAttempted registration: 1's %x, 0's %x (%s)\n"\
-				, ones_mask, zeros_mask, fn_name\
-				, o->ones_mask, o->zeros_mask, o->name);
-	}
-
-	return _register_opcode_mask(ones_mask, zeros_mask,
-			is16, fn, fn_name, va_args);
-}
-
-EXPORT int register_opcode_mask_16_ex_real(uint16_t ones_mask, uint16_t zeros_mask,
-		void (*fn) (uint16_t), const char *fn_name, ...) {
-	va_list va_args;
-	va_start(va_args, fn_name);
-
-	int ret;
-
-	ret = register_opcode_mask_ex(ones_mask, 0xffff0000 | zeros_mask,
-			true, fn, fn_name, va_args);
-
-	va_end(va_args);
-
-	return ret;
-}
-
-EXPORT int register_opcode_mask_16_real(uint16_t ones_mask, uint16_t zeros_mask,
-		void (*fn) (uint16_t), const char* fn_name) {
-	return register_opcode_mask_16_ex_real(ones_mask, zeros_mask,
-			fn, fn_name, 0, 0);
-}
-
-EXPORT int register_opcode_mask_32_ex_real(uint32_t ones_mask, uint32_t zeros_mask,
-		void (*fn) (uint32_t), const char* fn_name, ...) {
-
-	if ((zeros_mask & 0xffff0000) == 0) {
-		WARN("%s registered zeros_mask requiring none of the top 4 bytes\n",
-				fn_name);
-		ERR(E_BAD_OPCODE, "Use register_opcode_mask_16 instead");
-	}
-
-	va_list va_args;
-	va_start(va_args, fn_name);
-
-	int ret;
-	ret = register_opcode_mask_ex(ones_mask, zeros_mask,
-			false, fn, fn_name, va_args);
-
-	va_end(va_args);
-
-	return ret;
-}
-
-EXPORT int register_opcode_mask_32_real(uint32_t ones_mask, uint32_t zeros_mask,
-		void (*fn) (uint32_t), const char *fn_name) {
-	return register_opcode_mask_32_ex_real(ones_mask, zeros_mask, fn, fn_name, 0, 0);
-}
 
 #if _POSIX_TIMERS > 0
 static struct timespec last_cycle_time;
@@ -799,14 +664,18 @@ static void power_on(void) {
 	sim_reset();
 }
 
+int register_opcode_mask_16_real(uint16_t, uint16_t, void (*fn) (uint16_t), const char *);
 static void load_opcodes(void) {
 	// N.B. These are registered before main via constructor attributes
-	INFO("Registered %d opcode mask%s\n", opcode_masks,
-			(opcode_masks == 1) ? "":"s");
+	INFO("Registered %d opcode mask%s\n", get_opcode_masks(),
+			(get_opcode_masks() == 1) ? "":"s");
+
+	opcode_statistics();
 
 #ifndef NO_PIPELINE
 	// Fake instructions used to propogate pipeline exceptions
-	register_opcode_mask_32_real(INST_HAZARD, ~INST_HAZARD, pipeline_exception, "Pipeline Excpetion");
+	uint16_t hazard = INST_HAZARD;
+	register_opcode_mask_16_real(hazard, ~hazard, pipeline_exception, "Pipeline Excpetion");
 #endif
 }
 

@@ -25,7 +25,7 @@
 
 #include "pipeline.h"
 #include "state_sync.h"
-#include "id_stage.h"
+#include "opcodes.h"
 
 /* This file defines all of the gloabl state shared across the various
  * stages in the ARM pipeline; this simulator assumes the standard ARMv7
@@ -53,7 +53,7 @@ void pipeline_flush(uint32_t new_pc) {
 	SW(&if_id_PC, STALL_PC);
 	SW(&if_id_inst, INST_NOP);
 	SW(&id_ex_PC, STALL_PC);
-	state_write_op(STAGE, &id_ex_o, find_op(INST_NOP, false));
+	state_write_op(STAGE, &id_ex_o, find_op(INST_NOP));
 	SW(&id_ex_inst, INST_NOP);
 }
 
@@ -77,7 +77,7 @@ void* ticker(void *stage_fn) {
 	}
 }
 
-void pipeline_exception(uint32_t inst __attribute__ ((unused))) {
+void pipeline_exception(uint16_t inst __attribute__ ((unused))) {
 	CORE_ERR_not_implemented("Pipeline excpetion!\n");
 }
 #endif
