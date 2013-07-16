@@ -89,7 +89,7 @@ static void mul(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm) {
 }
 
 // arm-thumb
-static void mul_t1(uint32_t inst) {
+static void mul_t1(uint16_t inst) {
 	uint8_t rdm = inst & 0x7;
 	uint8_t rn = inst & 0x7;
 
@@ -204,7 +204,7 @@ void register_opcodes_mul(void) {
 	register_opcode_mask_32(0xfb000010, 0x04f000e0, mls_t1);
 
 	// mul_t1: 0100 0011 01xx xxxx
-	register_opcode_mask_32(0x4340, 0xffffbc80, mul_t1);
+	register_opcode_mask_16(0x4340, 0xbc80, mul_t1);
 
 	// mul_t2: 1111 1011 0000 xxxx 1111 xxxx 0000 xxxx
 	register_opcode_mask_32(0xfb00f000, 0x04f000f0, mul_t2);
