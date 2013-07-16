@@ -649,7 +649,7 @@ static void sim_reset(void) {
 
 EXPORT void sim_terminate(void) {
 	join_periph_threads();
-	print_full_state();
+	INFO("Simulator shutdown successfully.\n");
 	if (returnr0) {
 		uint32_t r0 = CORE_reg_read(0);
 		DBG2("Return code is r0: %08x\n", r0);
