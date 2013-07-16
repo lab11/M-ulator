@@ -198,6 +198,7 @@ EXPORT int register_opcode_mask_16_ex_real(uint16_t ones_mask, uint16_t zeros_ma
 
 			struct op_list* olist = malloc(sizeof(struct op_list));
 			assert((olist != NULL) && "alloc olist");
+			olist->next = NULL;
 			olist->o = o;
 
 			if (op16_root[i] == NULL) {
@@ -282,6 +283,7 @@ EXPORT int register_opcode_mask_32_ex_real(uint32_t ones_mask, uint32_t zeros_ma
 			if (match_mask8(i, ones_bucket, zeros_bucket)) {
 				struct op_list* olist = malloc(sizeof(struct op_list));
 				assert((olist != NULL) && "alloc olist");
+				olist->next = NULL;
 				olist->o = o;
 
 				if (op32_11101_root[i] == NULL) {
@@ -300,6 +302,7 @@ EXPORT int register_opcode_mask_32_ex_real(uint32_t ones_mask, uint32_t zeros_ma
 			if (match_mask8(i, ones_bucket, zeros_bucket)) {
 				struct op_list* olist = malloc(sizeof(struct op_list));
 				assert((olist != NULL) && "alloc olist");
+				olist->next = NULL;
 				olist->o = o;
 
 				if (op32_11110_root[i] == NULL) {
@@ -318,6 +321,7 @@ EXPORT int register_opcode_mask_32_ex_real(uint32_t ones_mask, uint32_t zeros_ma
 			if (match_mask8(i, ones_bucket, zeros_bucket)) {
 				struct op_list* olist = malloc(sizeof(struct op_list));
 				assert((olist != NULL) && "alloc olist");
+				olist->next = NULL;
 				olist->o = o;
 
 				if (op32_11111_root[i] == NULL) {
