@@ -189,12 +189,13 @@ EXPORT int register_opcode_mask_16_ex_real(uint16_t ones_mask, uint16_t zeros_ma
 
 	////
 
+	bool inserted = false;
 	int i;
 	uint8_t ones_bucket = ones_mask >> 8;
 	uint8_t zeros_bucket = zeros_mask >> 8;
 	for (i = 0; i < 256; i++) {
 		if (match_mask8(i, ones_bucket, zeros_bucket)) {
-			if (match_exceptions16(i << 8, o)) break;
+			inserted = true;
 
 			struct op_list* olist = malloc(sizeof(struct op_list));
 			assert((olist != NULL) && "alloc olist");
@@ -210,6 +211,19 @@ EXPORT int register_opcode_mask_16_ex_real(uint16_t ones_mask, uint16_t zeros_ma
 				op16_root[i] = olist;
 			}
 		}
+	}
+
+	if (!inserted) {
+		WARN("Registration for %s was never inserted\n", fn_name);
+		WARN("\t ones: %04x\n", ones_mask);
+		WARN("\tzeros: %04x\n", zeros_mask);
+		WARN("\t  exc: %d\n", o->op16.ex_cnt);
+		int k;
+		for (k = 0; k < o->op16.ex_cnt; k++) {
+			WARN("\t\tones: %04x zeros: %04x\n",
+					o->op16.ex_ones[k], o->op16.ex_zeros[k]);
+		}
+		ERR(E_BAD_OPCODE, "Uncallable instruction registered?\n");
 	}
 
 	va_end(va_args);
@@ -270,17 +284,18 @@ EXPORT int register_opcode_mask_32_ex_real(uint32_t ones_mask, uint32_t zeros_ma
 
 	////
 
+	bool inserted = false;
 	int i;
 	uint8_t ones_bucket = (ones_mask >> 19) & 0xff;
 	uint8_t zeros_bucket = (zeros_mask >> 19) & 0xff;
 	for (i = 0; i < 256; i++) {
-		if (match_exceptions32(i << 24, o)) break;
-
 		if (
 				match_mask32(ones_mask, 0xe8000000, 0x10000000) &&
 				match_mask32(zeros_mask, 0x10000000, 0xe8000000)
 		   ){
 			if (match_mask8(i, ones_bucket, zeros_bucket)) {
+				inserted = true;
+
 				struct op_list* olist = malloc(sizeof(struct op_list));
 				assert((olist != NULL) && "alloc olist");
 				olist->next = NULL;
@@ -300,6 +315,8 @@ EXPORT int register_opcode_mask_32_ex_real(uint32_t ones_mask, uint32_t zeros_ma
 				match_mask32(zeros_mask, 0x08000000, 0xf0000000)
 			  ){
 			if (match_mask8(i, ones_bucket, zeros_bucket)) {
+				inserted = true;
+
 				struct op_list* olist = malloc(sizeof(struct op_list));
 				assert((olist != NULL) && "alloc olist");
 				olist->next = NULL;
@@ -319,6 +336,8 @@ EXPORT int register_opcode_mask_32_ex_real(uint32_t ones_mask, uint32_t zeros_ma
 				match_mask32(zeros_mask, 0x0, 0xf8000000)
 			  ){
 			if (match_mask8(i, ones_bucket, zeros_bucket)) {
+				inserted = true;
+
 				struct op_list* olist = malloc(sizeof(struct op_list));
 				assert((olist != NULL) && "alloc olist");
 				olist->next = NULL;
@@ -338,6 +357,19 @@ EXPORT int register_opcode_mask_32_ex_real(uint32_t ones_mask, uint32_t zeros_ma
 					ones_mask, zeros_mask, fn_name);
 			ERR(E_BAD_OPCODE, "Legal 32-bit instructions begin with 111{01,10,11}\n");
 		}
+	}
+
+	if (!inserted) {
+		WARN("Registration for %s was never inserted\n", fn_name);
+		WARN("\t ones: %08x\n", ones_mask);
+		WARN("\tzeros: %08x\n", zeros_mask);
+		WARN("\t  exc: %d\n", o->op32.ex_cnt);
+		int k;
+		for (k = 0; k < o->op32.ex_cnt; k++) {
+			WARN("\t\tones: %08x zeros: %08x\n",
+					o->op32.ex_ones[k], o->op32.ex_zeros[k]);
+		}
+		ERR(E_BAD_OPCODE, "Uncallable instruction registered?\n");
 	}
 
 	va_end(va_args);
