@@ -27,16 +27,6 @@
 #include "core/pretty_print.h"
 #endif
 
-uint32_t	CORE_reg_read(int r);
-void		CORE_reg_write(int r, uint32_t val);
-union apsr_t	CORE_apsr_read(void);
-void		CORE_apsr_write(union apsr_t val);
-union ipsr_t	CORE_ipsr_read(void);
-void		CORE_ipsr_write(union ipsr_t val);
-union epsr_t	CORE_epsr_read(void);
-void		CORE_epsr_write(union epsr_t val);
-
-
 #ifdef A_PROFILE
 
 union __attribute__ ((__packed__)) apsr_t {
@@ -81,6 +71,24 @@ union __attribute__ ((__packed__)) apsr_t {
 #endif // A_PROFILE
 
 #ifdef M_PROFILE
+
+uint32_t	CORE_reg_read(int r);
+void		CORE_reg_write(int r, uint32_t val);
+union apsr_t	CORE_apsr_read(void);
+void		CORE_apsr_write(union apsr_t val);
+union ipsr_t	CORE_ipsr_read(void);
+void		CORE_ipsr_write(union ipsr_t val);
+union epsr_t	CORE_epsr_read(void);
+void		CORE_epsr_write(union epsr_t val);
+
+bool		CORE_primask_read(void);
+void		CORE_primask_write(bool);
+bool		CORE_faultmask_read(void);
+void		CORE_faultmask_write(bool);
+uint8_t		CORE_basepri_read(void);
+void		CORE_basepri_write(uint8_t);
+union control_t CORE_control_read(void);
+void		CORE_control_write(union control_t);
 
 union __attribute__ ((__packed__)) apsr_t {
 	uint32_t storage;
@@ -131,6 +139,20 @@ union __attribute__ ((__packed__)) epsr_t {
 		unsigned T		:  1;
 		unsigned ICI_IT_bot	:  2;
 		unsigned reserved2	:  5;
+	} bits;
+};
+
+union __attribute__ ((__packed__)) control_t {
+	uint32_t storage;
+	struct {
+		unsigned nPRIV		:  1;
+		unsigned SPSEL		:  1;
+#ifdef HAVE_FP // How to do this exactly...
+		unsigned FPCA		:  1;
+		unsigned reserved0	: 29;
+#else
+		unsigned reserved0	: 30;
+#endif
 	} bits;
 };
 
