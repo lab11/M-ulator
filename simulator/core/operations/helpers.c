@@ -53,7 +53,7 @@ void AddWithCarry(uint32_t x, uint32_t y, bool carry_in,
 	*result = (uint32_t) unsigned_sum; // 64->32 truncation
 
 	DBG2("x %08x, y %08x, carry %d\n", x, y, carry_in);
-	DBG2("usum %09lx, ssum %09lx\n", unsigned_sum, signed_sum);
+	DBG2("usum %09llx, ssum %09llx\n", unsigned_sum, signed_sum);
 	*carry_out    = !((uint32_t) *result == (uint32_t) unsigned_sum);
 	*overflow_out = !( (int32_t) *result ==  (int32_t) signed_sum);
 }

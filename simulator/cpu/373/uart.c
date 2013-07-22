@@ -258,18 +258,11 @@ static void poll_uart_status_write(uint8_t val) {
 static uint8_t poll_uart_rxdata_read(void) {
 	uint8_t ret;
 
-#ifdef DEBUG1
-	int idx;
-#endif
-
 	state_async_block_start();
 	if (NULL == SRP_AB(&poll_uart_head)) {
 		DBG1("Poll UART RX attempt when RX Pending was false\n");
 		ret = SR_AB(&poll_uart_buffer[3]); // eh... rand? 3, why not?
 	} else {
-#ifdef DEBUG1
-		idx = SRP_AB(&poll_uart_head) - poll_uart_buffer;
-#endif
 		uint32_t* head = SRP_AB(&poll_uart_head);
 		uint32_t* tail = SRP_AB(&poll_uart_tail);
 
@@ -289,8 +282,6 @@ static uint8_t poll_uart_rxdata_read(void) {
 		SWP_AB(&poll_uart_head, head);
 	}
 	state_async_block_end();
-
-	DBG1("UART read byte: %c %x\tidx: %d\n", ret, ret, idx);
 
 	return ret;
 }
