@@ -1,0 +1,6 @@
+include_rules
+
+SUBS += operations/built-in.o
+
+: foreach *.c |> !cc |> {objs}
+: {objs} $(SUBS) |> !ld_part |>

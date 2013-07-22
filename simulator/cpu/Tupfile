@@ -1,0 +1,6 @@
+include_rules
+
+SUBS += common/built-in.o @(PLATFORM)/built-in.o
+
+: foreach *.c | common/private_peripheral_bus/ppb.h |> !cc |> {objs}
+: {objs} $(SUBS) |> !ld_part |>

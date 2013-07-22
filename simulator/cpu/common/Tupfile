@@ -1,0 +1,6 @@
+include_rules
+
+SUBS += private_peripheral_bus/built-in.o
+
+: foreach *.c |> !cc |> {objs}
+: {objs} $(SUBS) |> !ld_part |>

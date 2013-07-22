@@ -20,6 +20,9 @@ The project has reached a state of 'largely usable', but has a plethora of known
 issues and future goals which have not yet been implemented. A starter list is
 included in this README.
 
+The simulator is built using `tup`, a make replacement. For details, please see
+the tup homepage: http://gittup.org/tup/
+
 ********************************************************************************
 
 PROJECT LAYOUT:
@@ -48,9 +51,6 @@ KNOWN ISSUES:
   * In-circuit emulation code is largely off-master branch still
   * In-circuit emulation requires external hardware support, currently this is
     stored elsewhere, perhaps it should be included in this repository somehow
-  * The Makefile hackery has gotten pretty ugly, perhaps it is time to surrender
-    to autotools
-      - or tup! I really like tup [gittup.org/tup]
 
 FUTURE FEATURES / GOALS:
 
