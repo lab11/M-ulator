@@ -1,0 +1,24 @@
+Building the simulator
+======================
+
+The simulator uses `tup` as a build engine. For instructions on installing tup,
+please see the tup homepage: http://gittup.org/tup/
+
+Once you have tup installed, the first step is to initialize tup in the current
+working directory:
+
+    $ /M-ulator/simulator > tup init
+
+You then need to select the "variants" you would like to build. A list of
+predefined variants is found in the `configs/` directory. For example, to build
+a simulator for the Michigan Micro Mote CTL CPU chip:
+
+    $ /M-ulator/simulator > tup variant configs/m3_ctl-release
+
+This will create the directory `build-m3_ctl-release/` where the built files
+will be placed. To build the simulator, simply run:
+
+    $ /M-ulator/simulator > tup upd
+
+If you make any modifications to the simulator itself, you only need to run the
+update command (`tup upd`) to rebuild the simulator.
