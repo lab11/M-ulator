@@ -17,6 +17,10 @@ CFLAGS += -pthread -D_GNU_SOURCE
 CFLAGS += -D@(CPU_PROFILE)
 CFLAGS += -DMEMMAP_HEADER='"cpu/@(PLATFORM)/memmap.h"'
 
+ifeq (@(NO_PIPELINE),y)
+CFLAGS += -DNO_PIPELINE
+endif
+
 ifeq (@(DEBUG_SYMBOLS),y)
 CFLAGS  += -g
 LDFLAGS += -g
