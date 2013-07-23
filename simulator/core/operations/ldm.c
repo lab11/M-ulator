@@ -119,7 +119,7 @@ static void ldmdb_t1(uint32_t inst) {
 
 	if ((rn == 15) || (hamming(registers) < 2) || ((P==1) && (M==1)))
 		CORE_ERR_unpredictable("ldmdb_t1 case 1\n");
-	if (P && in_ITblock() && !last_in_ITblock)
+	if (P && in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("ldmdb_t1 case 2\n");
 	if (wback && (registers & (1 << rn)))
 		CORE_ERR_unpredictable("ldmdb_t1 case 3\n");
