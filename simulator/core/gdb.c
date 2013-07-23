@@ -259,6 +259,12 @@ EXPORT void gdb_send_message(const char *msg) {
 		ERR(E_UNKNOWN, "Expected + or -, got %c\n", c);
 }
 
+#ifndef HAVE_REPLAY
+static inline int state_seek(int cycle __attribute__ ((unused))) {
+	return -1;
+}
+#endif
+
 /* We expect gdb to issue some form of command to indicate how
    long we should run. This function (or its delegates) should
    set variables such that the simulator stops as requested, and

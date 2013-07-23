@@ -53,27 +53,38 @@ void pipeline_flush(uint32_t new_pc) {
 	SW(&if_id_PC, STALL_PC);
 	SW(&if_id_inst, INST_NOP);
 	SW(&id_ex_PC, STALL_PC);
-	state_write_op(STAGE, &id_ex_o, find_op(INST_NOP));
 	SW(&id_ex_inst, INST_NOP);
 }
 
-void* ticker(void *stage_fn) {
-	void (*fn) (void) = (void(*)(void)) stage_fn;
+void* ticker(void *param) {
+	// Make a local copy so compiler can prove values never change
+	struct ticker_params tp;
+	memcpy(&tp, param, sizeof(struct ticker_params));
 
 #ifdef __APPLE__
-	assert(0 == pthread_setname_np("ticker"));
+	assert(0 == pthread_setname_np(tp.name));
+#ifdef DEBUG1
+	{
+	char buf[16];
+	assert(0 == pthread_getname_np(pthread_self(), buf, 16));
+	assert(0 == strcmp(buf, tp.name));
+	}
+#endif // DEBUG1
 #else
-	assert(0 == prctl(PR_SET_NAME, "ticker", 0, 0, 0));
-#endif
+	assert(0 == prctl(PR_SET_NAME, tp.name, 0, 0, 0));
+#endif // __APPLE__
 
-	DBG2("spawned ticker thread executing: %p\n", fn);
+	DBG2("spawned %s thread executing: %p\n", tp.name, tp.fn);
 
 	while (1) {
 		sem_post(ticker_ready_sem);
 		sem_wait(start_tick_sem);
-		fn();
+		state_start_tick();
+		tp.fn();
 		sem_post(end_tick_sem);
 		sem_wait(end_tock_sem);
+		if (tp.always_tick || stages_should_tock)
+			state_tock();
 	}
 }
 

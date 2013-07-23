@@ -48,7 +48,10 @@
 // The simulator core
 void simulator(const char* flash_file);
 void sim_terminate(void) __attribute__ ((noreturn));
+bool state_handle_exceptions(void);
+#ifdef HAVE_REPLAY
 int state_seek(int);
+#endif
 
 // Simulator config
 extern int gdb_port;
@@ -64,6 +67,9 @@ extern int usetestflash;
 
 // Simulator state
 extern int cycle;
+#ifndef NO_PIPELINE
+extern bool stages_should_tock;
+#endif
 
 // Simulator synchronization
 extern sem_t* ticker_ready_sem;

@@ -115,9 +115,11 @@ EXPORT void CORE_reg_write(int r, uint32_t val) {
 		} else {
 		*/
 			SW(&pre_if_PC, val & 0xfffffffe);
+			ERR(E_UNKNOWN, "FIXME: Need to flush still now\n");
 		//}
 #else
 		if (state_is_debugging()) {
+			DBG2("PC write + debugging --> flush\n");
 			state_pipeline_flush(val & 0xfffffffe);
 		} else {
 			// Only flush if the new PC differs from predicted in pipeline:
@@ -211,6 +213,7 @@ EXPORT void CORE_control_write(union control_t val) {
 #endif
 
 static void reset_registers(void) {
+	DBG2("begin\n");
 	uint32_t vectortable = read_word(VECTOR_TABLE_OFFSET);
 
 	// R[0..12] = bits(32) UNKNOWN {nop}
@@ -249,6 +252,7 @@ static void reset_registers(void) {
 	SW(&faultmask, 0);
 	SW(&basepri, 0);
 	SW(&control.storage, 0);
+	DBG2("end\n");
 }
 
 __attribute__ ((constructor))

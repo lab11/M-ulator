@@ -48,7 +48,12 @@ extern uint32_t id_ex_inst;
 
 void pipeline_flush(uint32_t new_pc);
 
-void* ticker(void *stage_fn) __attribute__ ((noreturn));
+struct ticker_params {
+	const char name[16];
+	void (*fn) (void);
+	bool always_tick;
+};
+void* ticker(void *);
 
 void pipeline_exception(uint16_t inst);
 

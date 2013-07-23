@@ -57,7 +57,7 @@ void tick_ex(void) {
 						cycle, id_ex_PC - 4, id_ex_inst, id_ex_o->name,
 						"ITSTATE {skipped}");
 			}
-			//WARN("itstate skipped instruction\n");
+			DBG2("itstate skipped instruction\n");
 		}
 		IT_advance();
 	} else {

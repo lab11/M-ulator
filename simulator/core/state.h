@@ -54,7 +54,7 @@ void stall(enum stage);
 
 bool state_is_debugging(void);
 void state_start_tick(void);
-void state_tock(void);
+int state_tock(void);
 #ifndef NO_PIPELINE
 void state_pipeline_flush(uint32_t new_pc);
 #endif

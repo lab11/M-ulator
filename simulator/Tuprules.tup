@@ -6,10 +6,12 @@ ifndef CPU_PROFILE
 error The variable CPU_PROFILE must be defined. Did you forget to set up a variant?
 endif
 
+CFLAGS += -std=gnu11
 CFLAGS += -Wall -Wextra -Werror
 CFLAGS += -Wstrict-prototypes
 CFLAGS += -Wno-type-limits
 CFLAGS += -fno-strict-overflow
+CFLAGS += -Wno-unused-parameter
 
 CFLAGS += -I$(TUP_CWD)
 CFLAGS += -pthread -D_GNU_SOURCE

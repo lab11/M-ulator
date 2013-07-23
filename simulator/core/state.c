@@ -27,6 +27,30 @@
 #include "opcodes.h"
 #include "pipeline.h"
 
+#if defined(__has_include)
+# if __has_include(<stdatomic.h>)
+#  include <stdatomic.h>
+#  define HAVE_STDATOMIC
+# else
+#  define CLANG_ATOMIC
+   typedef enum memory_order {
+   	  memory_order_relaxed, memory_order_consume, memory_order_acquire,
+   	    memory_order_release, memory_order_acq_rel, memory_order_seq_cst
+   } memory_order;
+#  define atomic_fetch_add(_p, _i) __c11_atomic_fetch_add(_p, _i, memory_order_seq_cst)
+#  define atomic_store(_p, _i)     __c11_atomic_store(_p, _i, memory_order_seq_cst)
+#  define atomic_load(_p)          __c11_atomic_load(_p, memory_order_seq_cst)
+# endif
+# if __has_include(<threads.h>)
+#  include <threads.h>
+# else
+#  define thread_local __thread
+# endif
+#else
+# error No C11 atomic / thread support?
+#endif
+
+
 // state flags #defines:
 // Bottom byte aligns with enum stage
 #define STATE_STALL_PRE		PRE
@@ -46,8 +70,6 @@
 #define STATE_PERIPH_WRITTEN	  0x10000
 #define STATE_BLOCKING_ASYNC	 0x800000
 
-#define STATE_DEBUGGING		0x1000000
-
 struct state_change {
 	struct state_change *prev;
 	struct state_change *next;
@@ -56,15 +78,15 @@ struct state_change {
 	   list entries per cycle. Thus, to return to the beginning of a
 	   cycle n (e.g. before it had executed), the list must have traversed
 	   such that the list head reaches an entry of cycle less than n */
-	int cycle;
-	enum stage g;
-	uint32_t *flags;
 	uint32_t *loc;
 	uint32_t val;
-	uint32_t prev_val;
 	uint32_t **ploc;
 	uint32_t *pval;
+#ifdef HAVE_REPLAY
+	int cycle;
+	uint32_t prev_val;
 	uint32_t *prev_pval;
+#endif
 #ifdef DEBUG1
 	const char* file;
 	const char* func;
@@ -73,89 +95,119 @@ struct state_change {
 #endif
 };
 
-static uint32_t state_start_flags = 0;
+#ifdef HAVE_REPLAY
 static struct state_change state_start = {
 	.prev = NULL,
 	.next = NULL,
-	.cycle = -1,
-	.g = UNK,
-	.flags = &state_start_flags,
 	.loc = NULL,
 	.val = 0,
-	.prev_val = 0,
 	.ploc = NULL,
 	.pval = NULL,
+#ifdef HAVE_REPLAY
+	.cycle = -1,
+	.prev_val = 0,
 	.prev_pval = NULL,
+#endif
 #ifdef DEBUG1
 	.file = NULL,
 	.func = NULL,
 	.line = -1,
 	.target = NULL,
-#endif
+#endif // DEBUG1
 };
-
-static struct state_change* state_head = &state_start;
-static struct state_change* cycle_head = NULL;
-
-static uint32_t* state_flags_cur = &state_start_flags;
-
-static struct op* o_hack = NULL;
+#endif // HAVE_REPLAY
 
 #ifndef NO_PIPELINE
 static uint32_t state_pipeline_new_pc = -1;
 #endif
 
-#if (defined DEBUG1) && (!defined __APPLE__)
-static pthread_mutex_t state_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
-static pthread_mutex_t async_mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
+////
+#define STATE_MAX_THREADS 16
+#define STATE_MAX_WRITES 32
+
+static thread_local int state_tls_id = -1;
+#ifdef HAVE_REPLAY
 #else
-static pthread_mutex_t state_mutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t async_mutex = PTHREAD_MUTEX_INITIALIZER;
+static struct state_change writes[STATE_MAX_THREADS][STATE_MAX_WRITES];
+static thread_local int state_tls_count = 0;
+#endif // HAVE_REPLAY
+#ifndef NO_PIPELINE
+static thread_local struct op* state_next_id_ex_o = NULL;
+#endif
+
+#ifdef HAVE_STDATOMIC
+static atomic_int state_thread_count = ATOMIC_VAR_INIT(0);
+#elif defined(CLANG_ATOMIC)
+static _Atomic(int) state_thread_count;
+
+__attribute__ ((constructor))
+void clang_state_thread_count_atomic_init(void) {
+	__c11_atomic_init(&state_thread_count, 0);
+}
+#endif
+
+static inline unsigned state_id(void) {
+	if (unlikely(state_tls_id == -1)) {
+		state_tls_id = atomic_fetch_add(&state_thread_count, 1);
+#ifdef HAVE_REPLAY
+#else
+		if (state_tls_id == STATE_MAX_THREADS) {
+			WARN("Maximum static thread count exceeded\n");
+			ERR(E_UNKNOWN, "Need to increment state.c::STATE_MAX_THREADS\n");
+		}
+#endif
+	}
+	return state_tls_id;
+}
+////
+
+#ifdef HAVE_STDATOMIC
+static atomic_flag pipeline_flush_flag = ATOMIC_FLAG_INIT(false);
+static atomic_bool debugging_bool = ATOMIC_BOOL_INIT(false);
+#elif defined(CLANG_ATOMIC)
+static int pipeline_flush_bool = false;
+static _Atomic(_Bool) debugging_bool;
+
+__attribute__ ((constructor))
+void clang_pipeline_debugging_atomic_bools_init(void) {
+	__c11_atomic_init(&debugging_bool, false);
+}
 #endif
 
 EXPORT bool state_is_debugging(void) {
-	return *state_flags_cur & STATE_DEBUGGING;
+	return atomic_load(&debugging_bool);
+}
+
+EXPORT void state_enter_debugging(void) {
+	DBG2("Entering debugging\n");
+	atomic_store(&debugging_bool, true);
+}
+
+EXPORT void state_exit_debugging(void) {
+	atomic_store(&debugging_bool, false);
+	DBG2("Exited debugging\n");
 }
 
 EXPORT void state_async_block_start(void) {
-	pthread_mutex_lock(&async_mutex);
-	pthread_mutex_lock(&state_mutex);
+	//WARN("nop\n");
 	DBG2("async_block started\n");
-	*state_flags_cur |= STATE_BLOCKING_ASYNC;
-	pthread_mutex_unlock(&state_mutex);
 }
 
 EXPORT void state_async_block_end(void) {
-	pthread_mutex_lock(&state_mutex);
-	*state_flags_cur &= ~STATE_BLOCKING_ASYNC;
-	pthread_mutex_unlock(&state_mutex);
-	pthread_mutex_unlock(&async_mutex);
+	//WARN("nop\n");
 	DBG2("async_block ended\n");
 }
 
 static void state_block_async_io(void) {
-	pthread_mutex_lock(&async_mutex);
-#ifdef DEBUG1
-	assert(0 == pthread_mutex_trylock(&state_mutex));
-	pthread_mutex_unlock(&state_mutex);
-#endif
-	*state_flags_cur |= STATE_BLOCKING_ASYNC;
+	//WARN("nop\n");
 }
 
 static void state_unblock_async_io(void) {
-	*state_flags_cur &= ~STATE_BLOCKING_ASYNC;
-	pthread_mutex_unlock(&async_mutex);
+	//WARN("nop\n");
 }
 
-EXPORT void state_start_tick(void) {
-	state_block_async_io();
-#ifdef DEBUG2
-	flockfile(stdout); flockfile(stderr);
-	printf("\n%08d TICK TICK TICK TICK TICK TICK TICK TICK TICK\n", cycle);
-	funlockfile(stderr); funlockfile(stdout);
-#endif
-	DBG2("CLOCK --> high (cycle %08d)\n", cycle);
-	//assert((state_head->cycle+1) == cycle);
+static void _state_start_tick(void) {
+#ifdef HAVE_REPLAY
 	cycle_head = state_head;
 
 	if (NULL != state_head->next) {
@@ -174,24 +226,38 @@ EXPORT void state_start_tick(void) {
 
 		state_head->next = NULL;
 	}
+#else
+	state_tls_count = 0;
+#endif
+}
 
-	state_flags_cur = calloc(1, sizeof(uint32_t));
-	assert((NULL != state_flags_cur) && "OOM");
-
-	o_hack = NULL;
-
+EXPORT void state_start_tick(void) {
+	state_block_async_io();
+	_state_start_tick();
 	state_unblock_async_io();
 }
 
-static void _state_tock(void) {
-	if (!(*state_flags_cur & STATE_STALL_ID)) {
-		if (cycle > 0) {
-			assert((NULL != o_hack) &&
-					"nothing set instruction for EX this cycle");
-		}
-		id_ex_o = o_hack;
+EXPORT bool state_handle_exceptions(void) {
+	bool pipeline;
+#ifdef HAVE_STDATOMIC
+	pipeline = atomic_flag_test_and_set(&pipeline_flush_flag);
+	atomic_flag_clear(&pipeline_flush_flag);
+#elif defined(CLANG_ATOMIC)
+	pipeline = __sync_lock_test_and_set(&pipeline_flush_bool, 1);
+	__sync_lock_release(&pipeline_flush_bool);
+#endif
+	if (pipeline) {
+		DBG2("Exception: Pipeline Flush\n");
+		pipeline_flush(state_pipeline_new_pc);
+		id_ex_o = find_op(INST_NOP);
+		return true;
 	}
 
+	return false;
+}
+
+static int _state_tock(void) {
+#ifdef HAVE_REPLAY
 	struct state_change* orig_cycle_head = cycle_head;
 
 	while (NULL != cycle_head) {
@@ -277,48 +343,31 @@ static void _state_tock(void) {
 		}
 		orig_cycle_head = orig_cycle_head->next;
 	}
+#else // -> !HAVE_REPLAY
+	int i;
+	int id = state_id();
+	for (i = 0; i < state_tls_count; i++) {
+		if (writes[id][i].loc != NULL)
+			*(writes[id][i].loc) = writes[id][i].val;
+		else
+			*(writes[id][i].ploc) = writes[id][i].pval;
+	}
+#ifndef NO_PIPELINE
+	if (state_next_id_ex_o != NULL) {
+		id_ex_o = state_next_id_ex_o;
+		state_next_id_ex_o = NULL;
+	}
+#endif // NO_PIPELINE
+	return state_tls_count;
+#endif // !HAVE_REPLAY
 }
 
-EXPORT void state_tock(void) {
+EXPORT int state_tock(void) {
+	int ret;
 	state_block_async_io();
-
-#ifdef DEBUG2
-	flockfile(stdout); flockfile(stderr);
-	printf("\n%08d TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK TOCK\n", cycle);
-	funlockfile(stderr); funlockfile(stdout);
-#endif
-	DBG2("CLOCK --> low (cycle %08d)\n", cycle);
-	// cycle_head is state_head from end of previous cycle here
-	cycle_head = cycle_head->next;
-	assert((NULL != cycle_head) && "nothing written this cycle?");
-
-	_state_tock();
-
-#ifndef NO_PIPELINE
-	if (*state_flags_cur & STATE_PIPELINE_FLUSH) {
-		// Leverage the existing state mechanism to simplify replay,
-		// conceptually adding extra writes to the end of this cycle
-		// that alias the previous writes to actually flush the pipeline
-		cycle_head = state_head;
-		*cycle_head->flags |= STATE_PIPELINE_RUNNING;
-		o_hack = NULL;
-
-		pipeline_flush(state_pipeline_new_pc);
-
-		cycle_head = cycle_head->next;
-
-		_state_tock();
-
-		*state_flags_cur &= ~STATE_PIPELINE_RUNNING;
-	}
-#endif
-
-	if (*state_flags_cur & STATE_PERIPH_WRITTEN) {
-		// XXX: Replace when periphs are split from sim core
-		//print_periphs();
-	}
-
+	ret = _state_tock();
 	state_unblock_async_io();
+	return ret;
 }
 
 EXPORT uint32_t state_read(enum stage g __attribute__ ((unused)),
@@ -329,31 +378,27 @@ EXPORT uint32_t state_read(enum stage g __attribute__ ((unused)),
 EXPORT uint32_t state_read_async(enum stage g __attribute__ ((unused)),
 		bool in_block, uint32_t *loc) {
 	uint32_t ret;
-	if (!in_block)
-		pthread_mutex_lock(&async_mutex);
-	pthread_mutex_lock(&state_mutex);
+//	if (!in_block)
+//		pthread_mutex_lock(&async_mutex);
 	ret = state_read(g, loc);
-	if (!in_block)
-		pthread_mutex_unlock(&async_mutex);
-	pthread_mutex_unlock(&state_mutex);
+//	if (!in_block)
+//		pthread_mutex_unlock(&async_mutex);
 	return ret;
 }
 
 EXPORT uint32_t* state_read_p(enum stage g __attribute__ ((unused)),
-		uint32_t **loc) {
-	return *loc;
+		uint32_t **ploc) {
+	return *ploc;
 }
 
 EXPORT uint32_t* state_read_p_async(enum stage g __attribute__ ((unused)),
-		bool in_block, uint32_t **loc) {
+		bool in_block, uint32_t **ploc) {
 	uint32_t *ret;
-	if (!in_block)
-		pthread_mutex_lock(&async_mutex);
-	pthread_mutex_lock(&state_mutex);
-	ret = *loc;
-	if (!in_block)
-		pthread_mutex_unlock(&async_mutex);
-	pthread_mutex_unlock(&state_mutex);
+//	if (!in_block)
+//		pthread_mutex_lock(&async_mutex);
+	ret = *ploc;
+//	if (!in_block)
+//		pthread_mutex_unlock(&async_mutex);
 	return ret;
 }
 
@@ -375,7 +420,7 @@ static void _state_write(enum stage g, bool async,
 	//
 	// This mechanism is also leveraged to write directly to memory when the
 	// simulator is first starting up (flashing the program image).
-	if (*state_flags_cur & STATE_DEBUGGING) {
+	if (state_is_debugging()) {
 		if (loc)
 			*loc = val;
 		else
@@ -383,50 +428,47 @@ static void _state_write(enum stage g, bool async,
 		return;
 	}
 
-#ifndef DEBUG1
-	// don't track state we won't write anyways, except in debug mode
-	// race for flags is OK here, since this check is always racing anyway
-	if (*state_flags_cur & g & STATE_STALL_MASK) {
-		return;
-	}
-#endif
-	pthread_mutex_lock(&state_mutex);
-
 	assert((NULL != loc) || (NULL != ploc));
 
 	// Record:
+#ifdef HAVE_REPLAY
 	struct state_change* s = malloc(sizeof(struct state_change));
 	assert((NULL != s) && "OOM");
+#define S s->
+#else
+	int s_i = state_id();
+	int s_c = state_tls_count++;
+	if (unlikely(s_c == STATE_MAX_WRITES)) {
+		WARN("Maximum write location count exceeded\n");
+		ERR(E_UNKNOWN, "Need to increment state.c::STATE_MAX_WRITES\n");
+	}
+#define S writes[s_i][s_c].
+#endif
 
 	DBG2("cycle: %08d\t(%s): loc %p val %08x\n",
 			cycle, target, loc, val);
 
-	s->prev = state_head;
-	s->next = NULL;
-	s->cycle = cycle;
-	s->g = g;
-	s->flags = state_flags_cur;
-	s->loc = loc;
-	s->val = val;
-	s->prev_val = (loc) ? *loc : 0;
-	s->ploc = ploc;
-	s->pval = pval;
-	s->prev_pval = (ploc) ? *ploc : NULL;
+	//s->prev = state_head;
+	//s->next = NULL;
+	S loc = loc;
+	S val = val;
+	S ploc = ploc;
+	S pval = pval;
+#ifdef HAVE_REPLAY
+	S cycle = cycle;
+	S prev_val = (loc) ? *loc : 0;
+	S prev_pval = (ploc) ? *ploc : NULL;
+#endif
 #ifdef DEBUG1
-	s->file = file;
-	s->func = func;
-	s->line = line;
-	s->target = target;
+	S file = file;
+	S func = func;
+	S line = line;
+	S target = target;
 #endif
-	state_head->next = s;
-	state_head = s;
+	//state_head->next = s;
+	//state_head = s;
 
-#ifdef NO_PIPELINE
-	if (true || async) { // "using" async suppresses compiler warning
-		DBG1("  SW: %s:%d\t%s = %08x\n", file, line, target, val);
-#else
 	if (async) {
-#endif
 		if (loc) {
 			*loc = val;
 		} else {
@@ -434,11 +476,6 @@ static void _state_write(enum stage g, bool async,
 			*ploc = pval;
 		}
 	}
-
-	if (g & PERIPH)
-		*state_flags_cur |= STATE_PERIPH_WRITTEN;
-
-	pthread_mutex_unlock(&state_mutex);
 }
 
 #ifdef DEBUG1
@@ -458,22 +495,22 @@ EXPORT void state_write_async_dbg(enum stage g, bool in_block,
 		uint32_t *loc, uint32_t val,
 		const char *file, const char* func,
 		const int line, const char *target) {
-	if (!in_block)
-		pthread_mutex_lock(&async_mutex);
+//	if (!in_block)
+//		pthread_mutex_lock(&async_mutex);
 	_state_write_dbg(g, true, loc, val, NULL, NULL, file, func, line, target);
-	if (!in_block)
-		pthread_mutex_unlock(&async_mutex);
+//	if (!in_block)
+//		pthread_mutex_unlock(&async_mutex);
 }
 
 EXPORT void state_write_p_async_dbg(enum stage g, bool in_block,
 		uint32_t **ploc, uint32_t *pval,
 		const char *file, const char* func,
 		const int line, const char *target) {
-	if (!in_block)
-		pthread_mutex_lock(&async_mutex);
+//	if (!in_block)
+//		pthread_mutex_lock(&async_mutex);
 	_state_write_dbg(g, true, NULL, 0, ploc, pval, file, func, line, target);
-	if (!in_block)
-		pthread_mutex_unlock(&async_mutex);
+//	if (!in_block)
+//		pthread_mutex_unlock(&async_mutex);
 }
 #else
 EXPORT void state_write(enum stage g, uint32_t *loc, uint32_t val) {
@@ -486,69 +523,64 @@ EXPORT void state_write_p(enum stage g, uint32_t **ploc, uint32_t *pval) {
 
 EXPORT void state_write_async(enum stage g, bool in_block,
 		uint32_t *loc, uint32_t val) {
-	if (!in_block)
-		pthread_mutex_lock(&async_mutex);
+//	if (!in_block)
+//		pthread_mutex_lock(&async_mutex);
 	_state_write(g, true, loc, val, NULL, NULL);
-	if (!in_block)
-		pthread_mutex_unlock(&async_mutex);
+//	if (!in_block)
+//		pthread_mutex_unlock(&async_mutex);
 }
 
 EXPORT void state_write_p_async(enum stage g, bool in_block,
 		uint32_t **ploc, uint32_t *pval) {
-	if (!in_block)
-		pthread_mutex_lock(&async_mutex);
+//	if (!in_block)
+//		pthread_mutex_lock(&async_mutex);
 	_state_write(g, true, NULL, 0, ploc, pval);
-	if (!in_block)
-		pthread_mutex_unlock(&async_mutex);
+//	if (!in_block)
+//		pthread_mutex_unlock(&async_mutex);
 }
 #endif
 
 EXPORT void state_write_op(enum stage g __attribute__ ((unused)), struct op **loc, struct op *val) {
-	pthread_mutex_lock(&state_mutex);
 	// Lazy hack since every other bit of preserved state is a uint32_t[*]
 	// At some point in time state saving will likely have to be generalized,
 	// until then, however, this will suffice
 	assert(loc == &id_ex_o);
-	o_hack = val;
 #ifdef NO_PIPELINE
 	id_ex_o = val;
-#endif
-	pthread_mutex_unlock(&state_mutex);
+#else
+#ifdef DEBUG1
+	static bool why_is_there_no_pthread_null = false;
+	static pthread_t sanity;
+	if (why_is_there_no_pthread_null == false) {
+		why_is_there_no_pthread_null = true;
+		sanity = pthread_self();
+	} else {
+		assert(sanity == pthread_self());
+	}
+#endif // DEBUG1
+	state_next_id_ex_o = val;
+#endif // NO_PIPELINE
 }
 
 EXPORT void stall(enum stage g) {
-	pthread_mutex_lock(&state_mutex);
-#ifdef DEBUG1
-	assert((g <= STATE_STALL_MASK) && "stalling illegal stage");
-#endif
-	if (g & ~(PRE|IF|ID)) {
-		ERR(E_UNPREDICTABLE, "Stalling for non PRE|IF|ID needs namespace fix\n");
-	}
-	*state_flags_cur |= g;
-	pthread_mutex_unlock(&state_mutex);
+	CORE_ERR_not_implemented("stall\n");
 }
 
 #ifndef NO_PIPELINE
 EXPORT void state_pipeline_flush(uint32_t new_pc) {
-	pthread_mutex_lock(&state_mutex);
-	*state_flags_cur |= STATE_PIPELINE_FLUSH;
+	DBG2("pipeline flush. new_pc: %08x\n", new_pc);
+	bool flag;
+#ifdef HAVE_STDATOMIC
+	flag = atomic_flag_test_and_set(&pipeline_flush_flag);
+#elif defined(CLANG_ATOMIC)
+	flag = __sync_lock_test_and_set(&pipeline_flush_bool, 1);
+#endif
+	assert((flag == false) && "duplicate pipeline flushes?");
 	state_pipeline_new_pc = new_pc;
-	pthread_mutex_unlock(&state_mutex);
 }
 #endif
 
-EXPORT void state_enter_debugging(void) {
-	pthread_mutex_lock(&state_mutex);
-	*state_flags_cur |= STATE_DEBUGGING;
-	pthread_mutex_unlock(&state_mutex);
-}
-
-EXPORT void state_exit_debugging(void) {
-	pthread_mutex_lock(&state_mutex);
-	*state_flags_cur &= ~STATE_DEBUGGING;
-	pthread_mutex_unlock(&state_mutex);
-}
-
+#ifdef HAVE_REPLAY
 // Returns 0 on success
 // Returns >0 on tolerable error (e.g. seek past end)
 // Returns <0 on catastrophic error
@@ -626,3 +658,4 @@ EXPORT int state_seek(int target_cycle) {
 		return 0;
 	}
 }
+#endif //HAVE_REPLAY

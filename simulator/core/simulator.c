@@ -90,6 +90,9 @@ static const uint32_t static_rom[80] = {0x20003FFC,0x55,0x51,0x51,0x51,0x51,0x51
 /* State */
 
 EXPORT int cycle = -1;
+#ifndef NO_PIPELINE
+EXPORT bool stages_should_tock = false;
+#endif
 static void sim_delay_reset(void);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -259,6 +262,7 @@ static void _shell(void) {
 			sscanf(buf, "%*s %x", &dumpatpc);
 			return;
 
+#ifdef HAVE_REPLAY
 		case 'b':
 			sprintf(buf, "s %d", cycle - 1);
 			// fall thru
@@ -286,6 +290,7 @@ static void _shell(void) {
 			}
 			return _shell();
 		}
+#endif
 
 		case 'q':
 		case 't':
@@ -354,8 +359,9 @@ static void _shell(void) {
 			printf("   <none>		Advance 1 cycle\n");
 			printf("   pc HEX_ADDR		Stop at pc\n");
 			printf("   cycle INTEGER	Stop at cycle\n");
+#ifdef HAVE_REPLAY
 			printf("   seek [INTEGER]	Seek to cycle\n");
-			printf("                        (forward 1 cycle default)\n");
+#endif
 #if defined (HAVE_ROM) && defined (PRINT_ROM_EN)
 			printf("   rom			Print ROM contents\n");
 #endif
@@ -535,7 +541,7 @@ static int sim_execute(void) {
 
 	uint32_t cur_pc = CORE_reg_read(PC_REG);
 	if ((prev_pc == cur_pc) && (prev_pc != STALL_PC)) {
-		DBG1("prev_pc: %08x cur_pc: %08x\n", prev_pc, cur_pc);
+		DBG1("cycle: %d prev_pc: %08x cur_pc: %08x\n", cycle, prev_pc, cur_pc);
 		if (GDB_ATTACHED) {
 			INFO("Simulator determined PC 0x%08x is branch to self, breaking for gdb.\n", cur_pc);
 			shell();
@@ -548,6 +554,7 @@ static int sim_execute(void) {
 	}
 
 	cycle++;
+	DBG2("Begin cycle %d.............................cycle %d\n", cycle, cycle);
 
 #ifdef NO_PIPELINE
 	// Not the common code path, try to catch if things have changed
@@ -560,19 +567,17 @@ static int sim_execute(void) {
 	tick_id();
 	DBG1("tick_ex\n");
 	tick_ex();
-	state_tock();
+	if (!state_handle_exceptions()) {
+		state_tock();
+	} else {
+		assert(false && "wtf?");
+		INFO("state_tock skipped due to exceptions\n");
+	}
 #else
-	// Now we're committed to starting the next cycle
-
 	int i;
 
 	// Start a clock tick
 	state_start_tick();
-
-	// Don't let stages steal wakeups
-	for (i = 0; i < NUM_TICKERS; i++) {
-		sem_wait(ticker_ready_sem);
-	}
 
 	// Start off each stage
 	for (i = 0; i < NUM_TICKERS; i++) {
@@ -584,14 +589,26 @@ static int sim_execute(void) {
 		sem_wait(end_tick_sem);
 	}
 
-	// Latch hardware
-	state_tock();
+	stages_should_tock = !state_handle_exceptions();
+
+	if (!stages_should_tock) {
+		// Latch hardware
+		state_tock();
+	} else {
+		assert(0 == state_tock());
+	}
 
 	// Notify stages this cycle is complete
 	for (i = 0; i < NUM_TICKERS; i++) {
 		sem_post(end_tock_sem);
 	}
+
+	for (i = 0; i < NUM_TICKERS; i++) {
+		sem_wait(ticker_ready_sem);
+	}
 #endif
+
+	__sync_synchronize();
 
 	if (cycle_time.tv_nsec)
 		sim_delay();
@@ -618,10 +635,13 @@ static void sim_reset(void) {
 	}
 
 	INFO("Asserting reset pin\n");
+	state_enter_debugging();
 	cycle = 0;
 	state_start_tick();
 	reset();
-	state_tock();
+	state_handle_exceptions();
+	state_exit_debugging();
+	__sync_synchronize();
 	INFO("De-asserting reset pin\n");
 
 	INFO("Entering main loop...\n");
@@ -776,6 +796,12 @@ static void flash_image(const uint8_t *image, const uint32_t num_bytes){
 }
 
 EXPORT void simulator(const char *flash_file) {
+	const char thread_name[16] = "Simulator main";
+#ifdef __APPLE__
+	assert(0 == pthread_setname_np(thread_name));
+#else
+	assert(0 == prctl(PR_SET_NAME, thread_name, 0, 0, 0));
+#endif
 	// Init uninit'd globals
 #ifndef NO_PIPELINE
 	{
@@ -885,9 +911,32 @@ EXPORT void simulator(const char *flash_file) {
 	pthread_t ifstage_pthread;
 	pthread_t idstage_pthread;
 	pthread_t exstage_pthread;
-	pthread_create(&ifstage_pthread, NULL, ticker, tick_if);
-	pthread_create(&idstage_pthread, NULL, ticker, tick_id);
-	pthread_create(&exstage_pthread, NULL, ticker, tick_ex);
+	struct ticker_params ifstage_params = {
+		.name = "IF ticker",
+		.fn = tick_if,
+		.always_tick = false,
+	};
+	struct ticker_params idstage_params = {
+		.name = "ID ticker",
+		.fn = tick_id,
+		.always_tick = false,
+	};
+	struct ticker_params exstage_params = {
+		.name = "EX ticker",
+		.fn = tick_ex,
+		.always_tick = true,
+	};
+	pthread_create(&ifstage_pthread, NULL, ticker, &ifstage_params);
+	pthread_create(&idstage_pthread, NULL, ticker, &idstage_params);
+	pthread_create(&exstage_pthread, NULL, ticker, &exstage_params);
+
+	// Wait for threads to init; consume initial wakeups
+	{
+		int i;
+		for (i = 0; i < NUM_TICKERS; i++) {
+			sem_wait(ticker_ready_sem);
+		}
+	}
 #endif
 
 	power_on();
