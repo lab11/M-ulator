@@ -1,0 +1,207 @@
+/* Mulator - An extensible {ARM} {e,si}mulator
+ * Copyright 2011-2012  Pat Pannuto <pat.pannuto@gmail.com>
+ *
+ * This file is part of Mulator.
+ *
+ * Mulator is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Mulator is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Mulator.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifdef HAVE_DECOMPILE
+
+#include "core/common.h"
+
+#include "cpu/registers.h"
+#include "cpu/core.h"
+
+static int handle_op(const char *syntax, va_list args) {
+	assert(syntax[0] == '<');
+	assert(syntax[1] != '>');
+	char buf[16] = {0};
+	int i = 1;
+
+	while (syntax[i] != '>') {
+		assert(syntax[i] != '\0');
+		buf[i-1] = syntax[i];
+		i++;
+	}
+
+#define IS_OP(_op) (0 == (strcmp(_op, buf)))
+	if (IS_OP("c")) {
+		;
+	} else if ((0 == strncmp("imm", buf, 3)) || IS_OP("const")) {
+		unsigned imm = va_arg(args, unsigned);
+		printf("0x%x", imm);
+	} else if (IS_OP("label")) {
+		unsigned imm32 = va_arg(args, unsigned);
+		printf("0x%x", imm32);
+		uint32_t pc_val = CORE_reg_read(PC_REG);
+		printf(" (PC=%08x, PC+label=%08x)", pc_val, pc_val+imm32);
+	} else if (IS_OP("Rd")) {
+		unsigned rd = va_arg(args, unsigned);
+		printf("R%02d(=%08x)", rd, CORE_reg_read(rd));
+	} else if (IS_OP("Rm")) {
+		unsigned rm = va_arg(args, unsigned);
+		printf("R%02d(=%08x)", rm, CORE_reg_read(rm));
+	} else if (IS_OP("Rn")) {
+		unsigned rn = va_arg(args, unsigned);
+		printf("R%02d(=%08x)", rn, CORE_reg_read(rn));
+	} else if (IS_OP("Rt")) {
+		unsigned rt = va_arg(args, unsigned);
+		printf("R%02d(=%08x)", rt, CORE_reg_read(rt));
+	} else if (IS_OP("Rdn")) {
+		unsigned rdn = va_arg(args, unsigned);
+		printf("R%02d(=%08x)", rdn, CORE_reg_read(rdn));
+	} else if (IS_OP("registers")) {
+		unsigned registers = va_arg(args, unsigned);
+		putchar_unlocked('{');
+		int i;
+		for (i=0; i<SP_REG; i++) {
+			if (registers & (1 << i)) {
+				printf("R%02d(=%08x),", i, CORE_reg_read(i));
+			}
+		}
+		if (registers & (1 << SP_REG))
+			printf("SP(=%08x),", CORE_reg_read(SP_REG));
+		if (registers & (1 << LR_REG))
+			printf("LR(=%08x),", CORE_reg_read(LR_REG));
+		if (registers & (1 << PC_REG))
+			printf("PC(=%08x),", CORE_reg_read(PC_REG));
+		putchar_unlocked('}');
+	} else {
+		printf("<<unknown: '%s'>>", buf);
+	}
+
+	return i;
+}
+
+static int print_it_inst(const char *syntax, va_list args) {
+	unsigned itstate = va_arg(args, unsigned);
+
+	uint8_t mask = itstate & 0xf;
+	assert(mask != 0);
+	bool mask0 = !!(mask & 0x1);
+	bool mask1 = !!(mask & 0x2);
+	bool mask2 = !!(mask & 0x4);
+	bool mask3 = !!(mask & 0x8);
+	uint8_t firstcond = (itstate >> 4) & 0xf;
+	bool firstcond0 = !!(firstcond & 0x1);
+
+	printf("IT ");
+	if (mask3) {
+		; // no x, y, or z
+	} else {
+		if (firstcond0)
+			putchar_unlocked('T');
+		else
+			putchar_unlocked('E');
+		if (mask2) {
+			; // no y or z
+		} else {
+			if (firstcond0)
+				putchar_unlocked('T');
+			else
+				putchar_unlocked('E');
+			if (mask1) {
+				; // no z
+			} else {
+				if (firstcond0)
+					putchar_unlocked('T');
+				else
+					putchar_unlocked('E');
+				assert(mask0);
+			}
+		}
+	}
+
+	putchar_unlocked('\t');
+
+	switch (firstcond) {
+		case  0: printf("EQ"); break;
+		case  1: printf("NE"); break;
+		case  2: printf("CS"); break;
+		case  3: printf("CC"); break;
+		case  4: printf("MI"); break;
+		case  5: printf("PL"); break;
+		case  6: printf("VS"); break;
+		case  7: printf("VC"); break;
+		case  8: printf("HI"); break;
+		case  9: printf("LS"); break;
+		case 10: printf("GE"); break;
+		case 11: printf("LT"); break;
+		case 12: printf("GT"); break;
+		case 13: printf("LE"); break;
+		case 14: printf("AL"); break;
+		case 15: assert(false && "illegal condition"); break;
+	}
+
+	return strlen(syntax);
+}
+
+static int print_sp(void) {
+	printf("SP(=%08x)", CORE_reg_read(SP_REG));
+	return 1;
+}
+
+static int print_optional_setflags(va_list args) {
+	bool setflags = va_arg(args, int);
+	if (setflags)
+		putchar_unlocked('S');
+	return 2;
+}
+
+static void print_addr(va_list args) {
+	unsigned addr = va_arg(args, unsigned);
+	printf("(addr=%08x,val=%08x)", addr, read_word(addr));
+}
+
+static void _op_decompile(const char *syntax, va_list args) {
+	int len = strlen(syntax);
+	int space_cnt = 0;
+
+	int i;
+	for (i=0; i<len; i++) {
+		if (syntax[i] == '<')
+			i += handle_op(syntax+i, args);
+		else if (0 == strncmp(syntax+i, "IT", 2))
+			i += print_it_inst(syntax+i, args);
+		else if (0 == strncmp(syntax+i, "SP", 2))
+			i += print_sp();
+		else if (0 == strncmp(syntax+i, "{S}", 3))
+			i += print_optional_setflags(args);
+		else if (syntax[i] == '{')
+			;
+		else if (syntax[i] == '}')
+			;
+		else if ((syntax[i] == ' ') && (space_cnt++ == 0))
+			putchar_unlocked('\t');
+		else
+			putchar_unlocked(syntax[i]);
+
+		if (syntax[i] == ']')
+			print_addr(args);
+	}
+}
+
+EXPORT void op_decompile(const char* syntax, ...) {
+	flockfile(stdout); flockfile(stderr);
+	va_list va_args;
+	va_start(va_args, syntax);
+	printf("DECOM: ");
+	_op_decompile(syntax, va_args);
+	putchar_unlocked('\n');
+	va_end(va_args);
+	funlockfile(stderr); funlockfile(stdout);
+}
+
+#endif // HAVE_DECOMPILE

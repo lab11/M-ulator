@@ -65,6 +65,8 @@ static void ldr_imm_t1(uint16_t inst) {
 	bool add = true;
 	bool wback = false;
 
+	OP_DECOMPILE("LDR<c> <Rt>, [<Rn>{,#<imm5>}]", rt, rn, imm5,
+			CORE_reg_read(rn) + imm32);
 	return ldr_imm(rt, rn, imm32, index, add, wback);
 }
 

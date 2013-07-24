@@ -125,6 +125,10 @@ static void add_imm_t1(uint16_t inst) {
 	bool setflags = !in_ITblock();
 	uint32_t imm32 = imm3;
 
+	if (in_ITblock())
+		OP_DECOMPILE("ADD<c> <Rd>,<Rn>,#<imm3>", rd, rn, imm3);
+	else
+		OP_DECOMPILE("ADDS <Rd>,<Rn>,#<imm3>", rd, rn, imm3);
 	return add_imm(rn, rd, imm32, setflags);
 }
 
@@ -136,6 +140,10 @@ static void add_imm_t2(uint16_t inst) {
 	bool setflags = !in_ITblock();
 	uint32_t imm32 = imm8;
 
+	if (in_ITblock())
+		OP_DECOMPILE("ADD<c> <Rdn>,#<imm8>", rdn, imm8);
+	else
+		OP_DECOMPILE("ADDS <Rdn>,#<imm8>", rdn, imm8);
 	return add_imm(rdn, rdn, imm32, setflags);
 }
 
@@ -160,6 +168,7 @@ static void add_imm_t3(uint32_t inst) {
 	if ((rd == 13 || ((rd == 15) && (S == 0))) || (rn == 15))
 		CORE_ERR_unpredictable("add_imm_t3 case\n");
 
+	OP_DECOMPILE("ADD{S}<c>.W <Rd>,<Rn>,#<const>", setflags, rd, rn, imm32);
 	return add_imm(rn, rd, imm32, setflags);
 }
 
@@ -301,6 +310,7 @@ static void add_sp_plus_imm_t1(uint16_t inst) {
 	bool setflags = false;
 	uint32_t imm32 = (imm8 << 2);
 
+	OP_DECOMPILE("ADD<c> <Rd>,SP,#<imm8>", rd, imm8);
 	return add_sp_plus_imm(rd, imm32, setflags);
 }
 

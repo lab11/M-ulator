@@ -25,6 +25,7 @@
 static void it(uint16_t inst) {
 	uint8_t itstate = inst & 0xff;
 	write_itstate(itstate);
+	OP_DECOMPILE("IT{x{y{z}}}<q> <firstcond>", itstate); // IT -> special
 
 	DBG2("it{xxx} wrote itstate: %02x\n", itstate);
 }

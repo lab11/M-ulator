@@ -79,6 +79,7 @@ static void b_t1(uint16_t inst) {
 	if (in_ITblock())
 		CORE_ERR_unpredictable("b_t1 UNPREDICTABLE (b in IT block)\n");
 
+	OP_DECOMPILE("B<c> <label>", imm32);
 	return b(cond, imm32);
 }
 
@@ -91,6 +92,7 @@ static void b_t2(uint16_t inst) {
 	if (in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("b_t2 in it block\n");
 
+	OP_DECOMPILE("B<c> <label>", imm32);
 	return b(0xf, imm32);
 }
 
@@ -142,6 +144,7 @@ static void b_t4(uint32_t inst) {
 	if (in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("bad it time\n");
 
+	OP_DECOMPILE("B<c>.W <label>", imm32);
 	return b(0xf, imm32);
 }
 
@@ -199,6 +202,7 @@ static void bl_t1(uint32_t inst) {
 	if (in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("bl_t1 in itstate, not ending\n");
 
+	OP_DECOMPILE("BL<c> <label>", imm32);
 	return bl_blx(CORE_reg_read(PC_REG), GET_ISETSTATE, imm32);
 }
 

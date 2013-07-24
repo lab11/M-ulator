@@ -66,6 +66,9 @@ EXPORT int gdb_port = -1;
 #define GDB_ATTACHED (gdb_port != -1)
 EXPORT struct timespec cycle_time;
 EXPORT int printcycles = 0;
+#ifdef HAVE_DECOMPILE
+EXPORT int decompile_flag = 0;
+#endif
 #ifdef DEBUG1
 EXPORT int raiseonerror = 1;
 #else

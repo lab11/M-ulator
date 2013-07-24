@@ -49,6 +49,7 @@ static void push_t1(uint16_t inst) {
 	if (hamming(registers) < 1)
 		CORE_ERR_unpredictable("push_t1 case\n");
 
+	OP_DECOMPILE("PUSH<c> <registers>", registers);
 	return push(registers);
 }
 

@@ -54,6 +54,7 @@ int state_seek(int);
 extern int gdb_port;
 extern struct timespec cycle_time;
 extern int printcycles;
+extern int decompile_flag;
 extern unsigned dumpatpc;
 extern int dumpatcycle;
 extern int dumpallcycles;

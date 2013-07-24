@@ -366,6 +366,7 @@ static void sub_sp_imm_t1(uint16_t inst) {
 	bool setflags = false;
 	uint32_t imm32 = imm7 << 2;
 
+	OP_DECOMPILE("SUB<c> SP,SP,#<imm7>", imm7);
 	return sub_sp_imm(rd, imm32, setflags);
 }
 

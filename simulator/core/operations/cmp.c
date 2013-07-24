@@ -131,6 +131,7 @@ static void cmp_imm_t1(uint16_t inst) {
 
 	uint32_t imm32 = imm8;
 
+	OP_DECOMPILE("CMP<c> <Rn>,#<imm8>", rn, imm8);
 	return cmp_imm(rn, imm32);
 }
 
@@ -145,6 +146,7 @@ static void cmp_imm_t2(uint32_t inst) {
 
 	DBG2("imm32: %08x\n", imm32);
 
+	OP_DECOMPILE("CMP<c>.W <Rn>,#<const>", rn, imm32);
 	return cmp_imm(rn, imm32);
 }
 
@@ -172,6 +174,7 @@ static void cmp_reg_t1(uint16_t inst) {
 	uint8_t rn = inst & 0x7;
 	uint8_t rm = (inst >> 3) & 0x7;
 
+	OP_DECOMPILE("CMP<c> <Rn>,<Rm>", rn, rm);
 	return cmp_reg(rn, rm, SRType_LSL, 0);
 }
 
@@ -192,6 +195,7 @@ static void cmp_reg_t2(uint16_t inst) {
 	if ((rn == 15) && (rm == 15))
 		CORE_ERR_unpredictable("cmp bad regs\n");
 
+	OP_DECOMPILE("CMP<c> <Rn>,<Rm>", rn, rm);
 	return cmp_reg(rn, rm, shift_t, shift_n);
 }
 

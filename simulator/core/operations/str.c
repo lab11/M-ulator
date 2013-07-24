@@ -27,16 +27,18 @@
 static void str_imm_t1(uint16_t inst) {
 	uint8_t immed5 = (inst & 0x7c0) >> 6;
 	uint8_t rn = (inst & 0x38) >> 3;
-	uint8_t rd = (inst & 0x7) >> 0;
+	uint8_t rt = (inst & 0x7) >> 0;
 
 	uint32_t address = CORE_reg_read(rn) + (immed5 * 4U);
-	uint32_t rd_val = CORE_reg_read(rd);
+	uint32_t rt_val = CORE_reg_read(rt);
 	if ((address & 0x3) == 0) {
-		write_word(address, rd_val);
+		write_word(address, rt_val);
 	} else {
 		// misaligned
 		CORE_ERR_unpredictable("str_imm_t1, misaligned\n");
 	}
+
+	OP_DECOMPILE("STR<c> <Rt>, [<Rn>{,#<imm5>}]", rt, rn, immed5, address);
 }
 
 // arm-thumb

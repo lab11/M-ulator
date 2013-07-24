@@ -31,6 +31,7 @@ static void pop_t1(uint16_t inst) {
 	int hamming = 0;
 	{
 		int reg_list = inst & 0xff;
+		OP_DECOMPILE("POP<c> <registers>", reg_list);
 		for (hamming = 0; reg_list; hamming++) {
 			reg_list &= (reg_list - 1); // clears LSB
 		}

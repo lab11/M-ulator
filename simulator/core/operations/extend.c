@@ -101,6 +101,7 @@ static void uxtb_t1(uint16_t inst) {
 
 	uint8_t rotation = 0;
 
+	OP_DECOMPILE("UXTB<c> <Rd>,<Rm>", rd, rm);
 	return uxtb(rd, rm, rotation);
 }
 

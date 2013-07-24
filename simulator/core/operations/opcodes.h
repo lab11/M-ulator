@@ -46,6 +46,18 @@ int		register_opcode_mask_32_ex(uint32_t ones_mask,
 // MACRO TRICKS //
 //////////////////
 
+#ifdef HAVE_DECOMPILE
+extern int decompile_flag;
+#define OP_DECOMPILE(_syntax, ...)\
+	do {\
+		if (decompile_flag)\
+			op_decompile(_syntax, __VA_ARGS__);\
+	} while(0)
+void op_decompile(const char* syntax, ...);
+#else
+#define OP_DECOMPILE(...)
+#endif
+
 #define register_opcode_mask_16(_o, _z, _f)\
 	register_opcode_mask_16_real((_o), (_z), (_f), __FILE__":"VAL2STR(_f))
 int		register_opcode_mask_16_real(uint16_t, uint16_t,

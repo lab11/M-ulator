@@ -154,6 +154,10 @@ static void mov_imm_t1(uint16_t inst) {
 	union apsr_t apsr = CORE_apsr_read();
 	bool carry = apsr.bits.C;
 
+	if (in_ITblock())
+		OP_DECOMPILE("MOV<c> <Rd>,#<imm8>", rd, imm8);
+	else
+		OP_DECOMPILE("MOVS <Rd>,#<imm8>", rd, imm8);
 	return mov_imm(apsr, setflags, imm32, rd, carry);
 }
 
@@ -182,6 +186,7 @@ static void mov_imm_t2(uint32_t inst) {
 		CORE_ERR_unpredictable("mov to SP or PC\n");
 	}
 
+	OP_DECOMPILE("MOV{S}<c>.W <Rd>,#<const>", setflags, Rd, imm32);
 	return mov_imm(apsr, setflags, imm32, Rd, carry);
 }
 
@@ -203,6 +208,7 @@ static void mov_imm_t3(uint32_t inst) {
 	if (BadReg(rd))
 		CORE_ERR_unpredictable("BadReg in mov_imm_t3\n");
 
+	OP_DECOMPILE("MOVW<c> <Rd>,#<imm16>", rd, imm32);
 	// carry set to 0 irrelevant since setflags is false
 	return mov_imm(apsr, setflags, imm32, rd, 0);
 }
@@ -243,6 +249,7 @@ static void mov_reg_t1(uint16_t inst) {
 	if ((rd == 15) && in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("mov_reg_t1 unpredictable\n");
 
+	OP_DECOMPILE("MOV<c> <Rd>,<Rm>", rd, rm);
 	return mov_reg(rd, rm, setflags);
 }
 
@@ -256,6 +263,7 @@ static void mov_reg_t2(uint16_t inst) {
 	if (in_ITblock())
 		CORE_ERR_unpredictable("illegal in it block\n");
 
+	OP_DECOMPILE("MOVS <Rd>,<Rm>", rd, rm);
 	return mov_reg(rd, rm, setflags);
 }
 

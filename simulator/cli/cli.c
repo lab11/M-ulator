@@ -48,7 +48,19 @@ static void usage_fail(int retcode) {
 \t-p, --printcycles\n\
 \t\tPrints cycle count and inst to execute every cycle (before exec)\n\
 \t\tConceptually, this executes between the intstruction fetch and\n\
-\t\tdecode stage, so the PC is already advanced\n\
+\t\tdecode stage, so the PC is already advanced\n"
+	      );
+#ifdef HAVE_DECOMPILE
+	printf("\
+\t-d, --decompile\n\
+\t\tPrint real-time \"decompilation\" of instructions as they are\n\
+\t\texecuted. Values of all instruction arguments before execution\n\
+\t\tare printed in ()'s. Removing these (e.g. sed 's/([^)]*)//g')\n\
+\t\tshould generate a legal, exectuable stream of assembly\n\
+\t\t(with obvious caveats of branches, pc-relative ldr/str, etc)\n"
+	      );
+#endif
+	printf("\
 \t-s, --speed SPEED\n\
 \t\tSpecify a clock speed to run at. The units are assumed to be kHz\n\
 \t\tunless otherwise specified. A warning will be printed if the \n\
@@ -91,6 +103,9 @@ int main(int argc, char **argv) {
 			{"dumpatcycle",   required_argument, 0,              'y'},
 			{"dumpallcycles", no_argument,       &dumpallcycles, 'a'},
 			{"printcycles",   no_argument,       &printcycles,   'p'},
+#ifdef HAVE_DECOMPILE
+			{"decompile",     no_argument,       &decompile_flag,'d'},
+#endif
 			{"speed",         required_argument, 0,              's'},
 			{"raiseonerror",  no_argument,       &raiseonerror,  'e'},
 			{"returnr0",      no_argument,       &returnr0,      'r'},
@@ -103,8 +118,13 @@ int main(int argc, char **argv) {
 		int option_index = 0;
 		int c;
 
+#ifdef HAVE_DECOMPILE
+		c = getopt_long(argc, argv, "dg::c:y:apds:erm:f:?", long_options,
+				&option_index);
+#else
 		c = getopt_long(argc, argv, "dg::c:y:aps:erm:f:?", long_options,
 				&option_index);
+#endif
 
 		if (c == -1) break;
 
@@ -136,6 +156,12 @@ int main(int argc, char **argv) {
 			case 'p':
 				printcycles = true;
 				break;
+
+#ifdef HAVE_DECOMPILE
+			case 'd':
+				decompile_flag = true;
+				break;
+#endif
 
 			case 's':
 			{
