@@ -682,6 +682,10 @@ static void load_opcodes(void) {
 #endif
 }
 
+#ifdef __APPLE__
+#include "external/include/valgrind.h"
+#endif
+
 static void* sig_thread(void *arg) {
 	sigset_t *set = (sigset_t *) arg;
 	int s, sig;
@@ -695,6 +699,13 @@ static void* sig_thread(void *arg) {
 	for (;;) {
 		s = sigwait(set, &sig);
 		if (s != 0) {
+#ifdef __APPLE__
+			// Valgrind on OS X does not support sig wait
+			if (RUNNING_ON_VALGRIND) {
+				WARN("Running under valgrind, no signal handler available\n");
+				return NULL;
+			}
+#endif
 			ERR(E_UNKNOWN, "sigwait failed?\n");
 		}
 
