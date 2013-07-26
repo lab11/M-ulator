@@ -283,7 +283,8 @@ struct ice_instance* create_ice_instance(const char *host, int baud) {
 #endif
 	assert(0 == pthread_cond_init(&ice->pc, NULL));
 
-	register_periph_thread(start_ice, &(ice->en), ice);
+	struct periph_time_travel tt = PERIPH_TIME_TRAVEL_NONE;
+	register_periph_thread(start_ice, tt, &(ice->en), ice);
 	return ice;
 }
 

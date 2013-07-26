@@ -82,8 +82,7 @@ extern sem_t* end_tock_sem;
 #ifdef STAGE
 // Head of the registered opcodes list
 extern struct op *ops;
-void state_write_op(enum stage, struct op **loc, struct op *val)
-			__attribute__ ((nonnull (2)));
+void state_write_op(struct op **loc, struct op *val) __attribute__ ((nonnull (1)));
 #endif
 
 #endif // SIMULATOR_H

@@ -51,24 +51,7 @@
 #endif
 
 
-// state flags #defines:
-// Bottom byte aligns with enum stage
-#define STATE_STALL_PRE		PRE
-#define STATE_STALL_IF		IF
-#define STATE_STALL_ID		ID
-#define STATE_STALL_EX		EX
-#define STATE_STALL_PIPE	PIPE
-#define STATE_STALL_SIM		SIM
-#define STATE_STALL_UNK		UNK
-#define STATE_STALL_MASK	0xff
-
 #define STATE_IO_BARRIER	    0x100
-#ifndef NO_PIPELINE
-#define STATE_PIPELINE_FLUSH	   0x1000
-#define STATE_PIPELINE_RUNNING	   0x8000
-#endif
-#define STATE_PERIPH_WRITTEN	  0x10000
-#define STATE_BLOCKING_ASYNC	 0x800000
 
 struct state_change {
 	struct state_change *prev;
@@ -188,24 +171,6 @@ EXPORT void state_exit_debugging(void) {
 	DBG2("Exited debugging\n");
 }
 
-EXPORT void state_async_block_start(void) {
-	//WARN("nop\n");
-	DBG2("async_block started\n");
-}
-
-EXPORT void state_async_block_end(void) {
-	//WARN("nop\n");
-	DBG2("async_block ended\n");
-}
-
-static void state_block_async_io(void) {
-	//WARN("nop\n");
-}
-
-static void state_unblock_async_io(void) {
-	//WARN("nop\n");
-}
-
 static void _state_start_tick(void) {
 #ifdef HAVE_REPLAY
 	cycle_head = state_head;
@@ -232,9 +197,7 @@ static void _state_start_tick(void) {
 }
 
 EXPORT void state_start_tick(void) {
-	state_block_async_io();
 	_state_start_tick();
-	state_unblock_async_io();
 }
 
 EXPORT bool state_handle_exceptions(void) {
@@ -364,53 +327,37 @@ static int _state_tock(void) {
 
 EXPORT int state_tock(void) {
 	int ret;
-	state_block_async_io();
 	ret = _state_tock();
-	state_unblock_async_io();
 	return ret;
 }
 
-EXPORT uint32_t state_read(enum stage g __attribute__ ((unused)),
-		uint32_t *loc) {
+EXPORT uint32_t state_read(uint32_t *loc) {
 	return *loc;
 }
 
-EXPORT uint32_t state_read_async(enum stage g __attribute__ ((unused)),
-		bool in_block, uint32_t *loc) {
+EXPORT uint32_t state_read_async(uint32_t *loc) {
 	uint32_t ret;
-//	if (!in_block)
-//		pthread_mutex_lock(&async_mutex);
-	ret = state_read(g, loc);
-//	if (!in_block)
-//		pthread_mutex_unlock(&async_mutex);
+	ret = state_read(loc);
 	return ret;
 }
 
-EXPORT uint32_t* state_read_p(enum stage g __attribute__ ((unused)),
-		uint32_t **ploc) {
+EXPORT uint32_t* state_read_p(uint32_t **ploc) {
 	return *ploc;
 }
 
-EXPORT uint32_t* state_read_p_async(enum stage g __attribute__ ((unused)),
-		bool in_block, uint32_t **ploc) {
+EXPORT uint32_t* state_read_p_async(uint32_t **ploc) {
 	uint32_t *ret;
-//	if (!in_block)
-//		pthread_mutex_lock(&async_mutex);
 	ret = *ploc;
-//	if (!in_block)
-//		pthread_mutex_unlock(&async_mutex);
 	return ret;
 }
 
 #ifdef DEBUG1
-static void _state_write_dbg(enum stage g, bool async,
-		uint32_t *loc, uint32_t val,
+static void _state_write_dbg(bool async, uint32_t *loc, uint32_t val,
 		uint32_t** ploc, uint32_t* pval,
 		const char *file, const char* func,
 		const int line, const char *target) {
 #else
-static void _state_write(enum stage g, bool async,
-		uint32_t *loc, uint32_t val,
+static void _state_write(bool async, uint32_t *loc, uint32_t val,
 		uint32_t** ploc, uint32_t* pval) {
 #endif
 	// If debugger is changing values, write them directly. We do not track
@@ -479,68 +426,48 @@ static void _state_write(enum stage g, bool async,
 }
 
 #ifdef DEBUG1
-EXPORT void state_write_dbg(enum stage g, uint32_t *loc, uint32_t val,
+EXPORT void state_write_dbg(uint32_t *loc, uint32_t val,
 		const char *file, const char* func,
 		const int line, const char *target) {
-	_state_write_dbg(g, false, loc, val, NULL, NULL, file, func, line, target);
+	_state_write_dbg(false, loc, val, NULL, NULL, file, func, line, target);
 }
 
-EXPORT void state_write_p_dbg(enum stage g, uint32_t **ploc, uint32_t *pval,
+EXPORT void state_write_p_dbg(uint32_t **ploc, uint32_t *pval,
 		const char *file, const char* func,
 		const int line, const char *target) {
-	_state_write_dbg(g, false, NULL, 0, ploc, pval, file, func, line, target);
+	_state_write_dbg(false, NULL, 0, ploc, pval, file, func, line, target);
 }
 
-EXPORT void state_write_async_dbg(enum stage g, bool in_block,
-		uint32_t *loc, uint32_t val,
+EXPORT void state_write_async_dbg(uint32_t *loc, uint32_t val,
 		const char *file, const char* func,
 		const int line, const char *target) {
-//	if (!in_block)
-//		pthread_mutex_lock(&async_mutex);
-	_state_write_dbg(g, true, loc, val, NULL, NULL, file, func, line, target);
-//	if (!in_block)
-//		pthread_mutex_unlock(&async_mutex);
+	_state_write_dbg(true, loc, val, NULL, NULL, file, func, line, target);
 }
 
-EXPORT void state_write_p_async_dbg(enum stage g, bool in_block,
-		uint32_t **ploc, uint32_t *pval,
+EXPORT void state_write_p_async_dbg(uint32_t **ploc, uint32_t *pval,
 		const char *file, const char* func,
 		const int line, const char *target) {
-//	if (!in_block)
-//		pthread_mutex_lock(&async_mutex);
-	_state_write_dbg(g, true, NULL, 0, ploc, pval, file, func, line, target);
-//	if (!in_block)
-//		pthread_mutex_unlock(&async_mutex);
+	_state_write_dbg(true, NULL, 0, ploc, pval, file, func, line, target);
 }
 #else
-EXPORT void state_write(enum stage g, uint32_t *loc, uint32_t val) {
-	_state_write(g, false, loc, val, NULL, NULL);
+EXPORT void state_write(uint32_t *loc, uint32_t val) {
+	_state_write(false, loc, val, NULL, NULL);
 }
 
-EXPORT void state_write_p(enum stage g, uint32_t **ploc, uint32_t *pval) {
-	_state_write(g, false, NULL, 0, ploc, pval);
+EXPORT void state_write_p(uint32_t **ploc, uint32_t *pval) {
+	_state_write(false, NULL, 0, ploc, pval);
 }
 
-EXPORT void state_write_async(enum stage g, bool in_block,
-		uint32_t *loc, uint32_t val) {
-//	if (!in_block)
-//		pthread_mutex_lock(&async_mutex);
-	_state_write(g, true, loc, val, NULL, NULL);
-//	if (!in_block)
-//		pthread_mutex_unlock(&async_mutex);
+EXPORT void state_write_async(uint32_t *loc, uint32_t val) {
+	_state_write(true, loc, val, NULL, NULL);
 }
 
-EXPORT void state_write_p_async(enum stage g, bool in_block,
-		uint32_t **ploc, uint32_t *pval) {
-//	if (!in_block)
-//		pthread_mutex_lock(&async_mutex);
-	_state_write(g, true, NULL, 0, ploc, pval);
-//	if (!in_block)
-//		pthread_mutex_unlock(&async_mutex);
+EXPORT void state_write_p_async(uint32_t **ploc, uint32_t *pval) {
+	_state_write(true, NULL, 0, ploc, pval);
 }
 #endif
 
-EXPORT void state_write_op(enum stage g __attribute__ ((unused)), struct op **loc, struct op *val) {
+EXPORT void state_write_op(struct op **loc, struct op *val) {
 	// Lazy hack since every other bit of preserved state is a uint32_t[*]
 	// At some point in time state saving will likely have to be generalized,
 	// until then, however, this will suffice
@@ -560,10 +487,6 @@ EXPORT void state_write_op(enum stage g __attribute__ ((unused)), struct op **lo
 #endif // DEBUG1
 	state_next_id_ex_o = val;
 #endif // NO_PIPELINE
-}
-
-EXPORT void stall(enum stage g) {
-	CORE_ERR_not_implemented("stall\n");
 }
 
 #ifndef NO_PIPELINE

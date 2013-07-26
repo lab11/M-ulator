@@ -40,7 +40,7 @@ EXPORT void tick_id(void) {
 	}
 
 	SW(&id_ex_PC, if_id_PC);
-	state_write_op(STAGE, &id_ex_o, o);
+	state_write_op(&id_ex_o, o);
 	SW(&id_ex_inst, inst);
 
 	DBG2("end\n");

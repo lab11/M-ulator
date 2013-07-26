@@ -31,27 +31,6 @@
 #include "pretty_print.h"
 #endif
 
-enum stage {
-	PRE  = 0x1,
-	IF   = 0x2,
-	ID   = 0x4,
-	EX   = 0x8,
-	PIPE = 0x10,
-	SIM  = 0x20,
-	PERIPH = 0x40,
-	UNK  = 0x80,
-	/* MAX: 0xff */
-};
-
-#ifndef STAGE
-#pragma message "Assigning UNK stage"
-#define STAGE UNK
-#endif
-
-// Not 100% sure this is appropriate here, but no callers of this yet
-// XXX: Moved in core refactor - consider final placement
-void stall(enum stage);
-
 bool state_is_debugging(void);
 void state_start_tick(void);
 int state_tock(void);

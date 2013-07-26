@@ -37,6 +37,7 @@
 #include "id_stage.h"
 #include "ex_stage.h"
 #include "cpu/core.h"
+#include "cpu/periph.h"
 #include "cpu/registers.h"
 #include "cpu/common/rom.h"
 #include "cpu/common/ram.h"
@@ -752,6 +753,7 @@ static void* sig_thread(void *arg) {
 struct periph_thread {
 	struct periph_thread *next;
 	pthread_t (*fn)(void *);
+	struct periph_time_travel tt;
 	volatile bool *en;
 	void *arg;
 	pthread_t pthread;
@@ -760,9 +762,11 @@ struct periph_thread {
 static struct periph_thread periph_threads;
 
 EXPORT void register_periph_thread(
-		pthread_t (*fn)(void *), volatile bool *en, void *arg) {
+		pthread_t (*fn)(void *), struct periph_time_travel tt,
+		volatile bool *en, void *arg) {
 	if (periph_threads.fn == NULL) {
 		periph_threads.fn = fn;
+		periph_threads.tt = tt;
 		periph_threads.en = en;
 		periph_threads.arg = arg;
 	} else {
@@ -773,6 +777,7 @@ EXPORT void register_periph_thread(
 		cur = cur->next;
 		cur->next = NULL;
 		cur->fn = fn;
+		cur->tt = tt;
 		cur->en = en;
 		cur->arg = arg;
 	}
