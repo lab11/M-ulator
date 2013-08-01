@@ -106,17 +106,9 @@ EXPORT void CORE_reg_write(int r, uint32_t val) {
 	} else if (r == LR_REG) {
 		SW(&LR, val);
 	} else if (r == PC_REG) {
+		DBG2("Writing %08x to PC\n", val & 0xfffffffe);
 #ifdef NO_PIPELINE
-		/*
-		if (*state_flags_cur & STATE_DEBUGGING) {
-			SW(&pre_if_PC, val & 0xfffffffe);
-			SW(&if_id_PC, val & 0xfffffffe);
-			SW(&id_ex_PC, val & 0xfffffffe);
-		} else {
-		*/
-			SW(&pre_if_PC, val & 0xfffffffe);
-			ERR(E_UNKNOWN, "FIXME: Need to flush still now\n");
-		//}
+		pipeline_flush(val & 0xfffffffe);
 #else
 		if (state_is_debugging()) {
 			DBG2("PC write + debugging --> flush\n");

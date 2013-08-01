@@ -211,7 +211,11 @@ static void print_full_state(void) {
 		if (romfp) {
 			uint32_t rom[ROMSIZE >> 2] = {0};
 			for (i = ROMBOT; i < ROMBOT+ROMSIZE; i += 4)
+#ifdef DEBUG2
+				rom[(i-ROMBOT)/4] = read_word_quiet(i);
+#else
 				rom[(i-ROMBOT)/4] = read_word(i);
+#endif
 
 			i = fwrite(rom, ROMSIZE, 1, romfp);
 			printf("Wrote %8zu bytes to %-29s "\
@@ -231,7 +235,11 @@ static void print_full_state(void) {
 		if (ramfp) {
 			uint32_t ram[RAMSIZE >> 2] = {0};
 			for (i = RAMBOT; i < RAMBOT+RAMSIZE; i += 4)
+#ifdef DEBUG2
+				ram[(i-RAMBOT)/4] = read_word_quiet(i);
+#else
 				ram[(i-RAMBOT)/4] = read_word(i);
+#endif
 
 			i = fwrite(ram, RAMSIZE, 1, ramfp);
 			printf("Wrote %8zu bytes to %-29s "\
@@ -564,14 +572,20 @@ static int sim_execute(void) {
 	state_start_tick();
 	DBG1("tick_if\n");
 	tick_if();
+	state_tock();
+
+	state_start_tick();
 	DBG1("tick_id\n");
 	tick_id();
+	state_tock();
+
+	state_start_tick();
 	DBG1("tick_ex\n");
 	tick_ex();
 	if (!state_handle_exceptions()) {
 		state_tock();
 	} else {
-		assert(false && "wtf?");
+		CORE_ERR_not_implemented("excpetions (what to tock/save) in NO_PIPELINE");
 		INFO("state_tock skipped due to exceptions\n");
 	}
 #else

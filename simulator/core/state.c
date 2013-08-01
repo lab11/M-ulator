@@ -145,12 +145,16 @@ static inline unsigned state_id(void) {
 ////
 
 #ifdef HAVE_STDATOMIC
+#ifndef NO_PIPELINE
 static atomic_flag pipeline_flush_flag = ATOMIC_FLAG_INIT(false);
+#endif
 static atomic_bool debugging_bool = ATOMIC_BOOL_INIT(false);
 #elif defined(CLANG_ATOMIC)
+#ifndef NO_PIPELINE
 static int pipeline_flush_bool = false;
-static _Atomic(_Bool) debugging_bool;
+#endif
 
+static _Atomic(_Bool) debugging_bool;
 __attribute__ ((constructor))
 void clang_pipeline_debugging_atomic_bools_init(void) {
 	__c11_atomic_init(&debugging_bool, false);
@@ -201,6 +205,7 @@ EXPORT void state_start_tick(void) {
 }
 
 EXPORT bool state_handle_exceptions(void) {
+#ifndef NO_PIPELINE
 	bool pipeline;
 #ifdef HAVE_STDATOMIC
 	pipeline = atomic_flag_test_and_set(&pipeline_flush_flag);
@@ -215,6 +220,7 @@ EXPORT bool state_handle_exceptions(void) {
 		id_ex_o = find_op(INST_NOP);
 		return true;
 	}
+#endif
 
 	return false;
 }
@@ -501,7 +507,7 @@ EXPORT void state_pipeline_flush(uint32_t new_pc) {
 	assert((flag == false) && "duplicate pipeline flushes?");
 	state_pipeline_new_pc = new_pc;
 }
-#endif
+#endif // NO_PIPELINE
 
 #ifdef HAVE_REPLAY
 // Returns 0 on success

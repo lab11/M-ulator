@@ -44,17 +44,26 @@ uint32_t id_ex_PC;
 struct op* id_ex_o;
 uint32_t id_ex_inst;
 
-#ifndef NO_PIPELINE
-#include "simulator.h"
-
-void pipeline_flush(uint32_t new_pc) {
+// Available w/ and w/out pipeline so that NO_PIPELINE writes all the
+// stages PC's on an update so that any external architectural inspection
+// will return the correct value.
+EXPORT void pipeline_flush(uint32_t new_pc) {
 	DBG2("new_PC: %08x\n", new_pc);
+#ifdef NO_PIPELINE
+	SW(&pre_if_PC, new_pc);
+	SW(&if_id_PC, new_pc);
+	SW(&id_ex_PC, new_pc);
+#else
 	SW(&pre_if_PC, new_pc);
 	SW(&if_id_PC, STALL_PC);
 	SW(&if_id_inst, INST_NOP);
 	SW(&id_ex_PC, STALL_PC);
 	SW(&id_ex_inst, INST_NOP);
+#endif
 }
+
+#ifndef NO_PIPELINE
+#include "simulator.h"
 
 void* ticker(void *param) {
 	// Make a local copy so compiler can prove values never change
