@@ -4,8 +4,9 @@ SUBS += cli/built-in.o
 SUBS += cpu/built-in.o
 SUBS += core/built-in.o
 
-LDFLAGS += -lpython `python -c "import distutils.sysconfig; print distutils.sysconfig.get_config_var('LINKFORSHARED')"`
-LDFLAGS += `if [[ \`uname -s\` == "linux" ]]; then echo -lrt; fi`
+#LDFLAGS += -lpython `python -c "import distutils.sysconfig; print distutils.sysconfig.get_config_var('LINKFORSHARED')"`
+LDFLAGS += `python2-config --ldflags`
+LDFLAGS += `if [[ \`uname -s\` == "Linux" ]]; then echo -lrt; fi`
 
 : foreach *.c |> !cc |> {objs}
 : {objs} $(SUBS) |> !ld |> simulator

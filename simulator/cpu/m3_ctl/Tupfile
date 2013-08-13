@@ -1,4 +1,6 @@
 include_rules
 
+CFLAGS += `python2-config --includes`
+
 : foreach *.c |> !cc |> {objs}
 : {objs} $(SUBS) |> !ld_part |>
