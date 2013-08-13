@@ -55,7 +55,7 @@ extern int decompile_flag;
 	} while(0)
 void op_decompile(const char* syntax, ...);
 #else
-#define OP_DECOMPILE(...)
+#define OP_DECOMPILE(...) do {;} while(0) // avoid empty `if` block for compiler
 #endif
 
 #define register_opcode_mask_16(_o, _z, _f)\
