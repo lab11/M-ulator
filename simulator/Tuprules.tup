@@ -23,6 +23,10 @@ ifeq (@(DECOMPILE),y)
 CFLAGS += -DHAVE_DECOMPILE
 endif
 
+ifeq (@(HAVE_REPLAY),y)
+CFLAGS += -DHAVE_REPLAY
+endif
+
 ifeq (@(NO_PIPELINE),y)
 CFLAGS += -DNO_PIPELINE
 endif

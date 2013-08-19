@@ -108,10 +108,10 @@ EXPORT void CORE_reg_write(int r, uint32_t val) {
 	} else if (r == PC_REG) {
 		DBG2("Writing %08x to PC\n", val & 0xfffffffe);
 #ifdef NO_PIPELINE
-		pipeline_flush(val & 0xfffffffe);
+		pipeline_flush_exception_handler(val & 0xfffffffe);
 #else
 		if (state_is_debugging()) {
-			DBG2("PC write + debugging --> flush\n");
+			DBG1("PC write + debugging --> flush\n");
 			state_pipeline_flush(val & 0xfffffffe);
 		} else {
 			// Only flush if the new PC differs from predicted in pipeline:

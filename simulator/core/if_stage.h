@@ -22,6 +22,4 @@
 
 #include "common.h"
 
-void tick_if(void);
-
 #endif // IF_STAGE_H

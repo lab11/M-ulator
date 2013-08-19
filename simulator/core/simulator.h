@@ -64,15 +64,9 @@ extern int usetestflash;
 
 // Simulator state
 extern int cycle;
-#ifndef NO_PIPELINE
-extern bool stages_should_tock;
+#ifdef HAVE_REPLAY
+bool simulator_state_seek(int target);
 #endif
-
-// Simulator synchronization
-extern sem_t* ticker_ready_sem;
-extern sem_t* start_tick_sem;
-extern sem_t* end_tick_sem;
-extern sem_t* end_tock_sem;
 
 // XXX: Oh.. so hacky. Thrown in as stopgap while removing unnecessary
 // references to simulator.h

@@ -103,6 +103,11 @@ void	CORE_ERR_not_implemented(const char *opt_msg) __attribute__ ((noreturn));
 // UTILITY //
 /////////////
 
+#ifndef MAX
+#define MAX(_a, _b) (((_a) > (_b)) ? (_a) : (_b))
+#define MIN(_a, _b) (((_a) < (_b)) ? (_a) : (_b))
+#endif
+
 #define QUOTE(x)	#x
 #define VAL2STR(x)	QUOTE(x)
 

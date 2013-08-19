@@ -33,7 +33,7 @@
 
 bool state_is_debugging(void);
 void state_start_tick(void);
-int state_tock(void);
+void state_tock(void);
 #ifndef NO_PIPELINE
 void state_pipeline_flush(uint32_t new_pc);
 #endif
@@ -44,6 +44,6 @@ void state_async_block_end(void);
 void state_enter_debugging(void);
 void state_exit_debugging(void);
 
-int state_seek(int);
+int state_seek_for_calling_thread(int);
 
 #endif // STATE_H

@@ -22,6 +22,4 @@
 
 #include "common.h"
 
-void tick_id(void);
-
 #endif //ID_STAGE_H

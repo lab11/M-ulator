@@ -46,15 +46,22 @@ extern uint32_t id_ex_PC;
 extern struct op* id_ex_o;
 extern uint32_t id_ex_inst;
 
-void pipeline_flush(uint32_t new_pc);
+void register_pipeline_stage(int idx, const char* name, void (*tick_fn) (void),
+		int (*pipeline_flush_fn) (void* new_pc));
 
-struct ticker_params {
-	const char name[16];
-	void (*fn) (void);
-	bool always_tick;
-};
-void* ticker(void *);
+void pipeline_init(void);
+void pipeline_flush_exception_handler(uint32_t new_pc);
+void pipeline_stages_tick(void);
+void pipeline_stages_tock(void);
+#ifdef HAVE_REPLAY
+int  pipeline_state_seek(int target);
+#endif
 
 void pipeline_exception(uint16_t inst);
+
+#ifndef NO_PIPELINE
+void pipeline_thread_run_fn_void(void (*fn) (void));
+int pipeline_thread_run_fn_args(int (*fn) (void *), void *args);
+#endif
 
 #endif // PIPELINE_H

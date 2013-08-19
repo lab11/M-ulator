@@ -52,13 +52,6 @@
 static volatile sig_atomic_t sigint = 0;
 static volatile bool shell_running = false;
 
-/* Tick Control */
-EXPORT sem_t* ticker_ready_sem;
-EXPORT sem_t* start_tick_sem;
-EXPORT sem_t* end_tick_sem;
-EXPORT sem_t* end_tock_sem;
-#define NUM_TICKERS	3	// IF, ID, EX
-
 /* Peripherals */
 static void join_periph_threads (void);
 
@@ -91,9 +84,6 @@ static const uint32_t static_rom[80] = {0x20003FFC,0x55,0x51,0x51,0x51,0x51,0x51
 /* State */
 
 EXPORT int cycle = -1;
-#ifndef NO_PIPELINE
-EXPORT bool stages_should_tock = false;
-#endif
 static void sim_delay_reset(void);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -294,7 +284,7 @@ static void _shell(void) {
 			} else if (target == cycle) {
 				WARN("Ignoring seek to current cycle\n");
 			} else {
-				state_seek(target);
+				simulator_state_seek(target);
 				print_full_state();
 			}
 			return _shell();
@@ -464,6 +454,27 @@ static uint64_t last_cycle_time;
 static mach_timebase_info_data_t sTimebaseInfo;
 #endif
 
+#ifdef HAVE_REPLAY
+EXPORT bool simulator_state_seek(int target) {
+	WARN("Async peripheral state not changed\n");
+	int pipeline_cycle = pipeline_state_seek(target);
+	int simulator_cycle = state_seek_for_calling_thread(target);
+	if (pipeline_cycle != simulator_cycle) {
+		WARN("Pipeline and simulator core out of sync after seek\n");
+		ERR(E_UNKNOWN, "Pipeline cycle %d. Simulator cycle %d\n",
+				pipeline_cycle, simulator_cycle);
+	}
+	cycle = simulator_cycle;
+
+	if (cycle != target) {
+		WARN("Could not seek to cycle %d. Simulator left at cycle %d\n",
+				target, cycle);
+	}
+
+	return cycle != target;
+}
+#endif
+
 static void sim_delay_reset() {
 #if _POSIX_TIMERS > 0
 	// Perform check here to verify system (i) has CLOCK_REALTIME and (ii)
@@ -548,9 +559,15 @@ static int sim_execute(void) {
 	// cycles in a row? How do we allow this?
 	static uint32_t prev_pc = STALL_PC;
 
+	cycle++;
+	DBG2("Begin cycle %d.............................cycle %d\n", cycle, cycle);
+
+	// Simulator main thread ticks and tocks so that branch-to-self logic resets
+	state_start_tick();
+
 	uint32_t cur_pc = CORE_reg_read(PC_REG);
-	if ((prev_pc == cur_pc) && (prev_pc != STALL_PC)) {
-		DBG1("cycle: %d prev_pc: %08x cur_pc: %08x\n", cycle, prev_pc, cur_pc);
+	if ((SR(&prev_pc) == cur_pc) && (SR(&prev_pc) != STALL_PC)) {
+		DBG1("cycle: %d prev_pc: %08x cur_pc: %08x\n", cycle, SR(&prev_pc), cur_pc);
 		if (GDB_ATTACHED) {
 			INFO("Simulator determined PC 0x%08x is branch to self, breaking for gdb.\n", cur_pc);
 			shell();
@@ -559,71 +576,15 @@ static int sim_execute(void) {
 			sim_terminate();
 		}
 	} else {
-		prev_pc = cur_pc;
+		SW(&prev_pc, cur_pc);
 	}
-
-	cycle++;
-	DBG2("Begin cycle %d.............................cycle %d\n", cycle, cycle);
-
-#ifdef NO_PIPELINE
-	// Not the common code path, try to catch if things have changed
-	assert(NUM_TICKERS == 3);
-
-	state_start_tick();
-	DBG1("tick_if\n");
-	tick_if();
-	state_tock();
-
-	state_start_tick();
-	DBG1("tick_id\n");
-	tick_id();
-	state_tock();
-
-	state_start_tick();
-	DBG1("tick_ex\n");
-	tick_ex();
-	if (!state_handle_exceptions()) {
-		state_tock();
-	} else {
-		CORE_ERR_not_implemented("excpetions (what to tock/save) in NO_PIPELINE");
-		INFO("state_tock skipped due to exceptions\n");
-	}
-#else
-	int i;
 
 	// Start a clock tick
-	state_start_tick();
+	pipeline_stages_tick();
+	state_handle_exceptions();
+	pipeline_stages_tock();
 
-	// Start off each stage
-	for (i = 0; i < NUM_TICKERS; i++) {
-		sem_post(start_tick_sem);
-	}
-
-	// Wait for all stages to complete
-	for (i = 0; i < NUM_TICKERS; i++) {
-		sem_wait(end_tick_sem);
-	}
-
-	stages_should_tock = !state_handle_exceptions();
-
-	if (!stages_should_tock) {
-		// Latch hardware
-		state_tock();
-	} else {
-		assert(0 == state_tock());
-	}
-
-	// Notify stages this cycle is complete
-	for (i = 0; i < NUM_TICKERS; i++) {
-		sem_post(end_tock_sem);
-	}
-
-	for (i = 0; i < NUM_TICKERS; i++) {
-		sem_wait(ticker_ready_sem);
-	}
-#endif
-
-	__sync_synchronize();
+	state_tock();
 
 	if (cycle_time.tv_nsec)
 		sim_delay();
@@ -652,11 +613,9 @@ static void sim_reset(void) {
 	INFO("Asserting reset pin\n");
 	state_enter_debugging();
 	cycle = 0;
-	state_start_tick();
 	reset();
 	state_handle_exceptions();
 	state_exit_debugging();
-	__sync_synchronize();
 	INFO("De-asserting reset pin\n");
 
 	INFO("Entering main loop...\n");
@@ -821,43 +780,6 @@ EXPORT void simulator(const char *flash_file) {
 #else
 	assert(0 == prctl(PR_SET_NAME, thread_name, 0, 0, 0));
 #endif
-	// Init uninit'd globals
-#ifndef NO_PIPELINE
-	{
-		// OS X requires named semaphores, but we really don't want
-		// them, so use PID to create a unique namespace for this
-		// instance of the simulator
-		char name_buf[32];
-
-		sprintf(name_buf, "/%d-%s", getpid(), "ticker_ready_sem");
-		ticker_ready_sem = sem_open(name_buf, O_CREAT|O_EXCL, 0600, 0);
-		if (ticker_ready_sem == SEM_FAILED) {
-			WARN("%s\n", strerror(errno));
-			ERR(E_UNKNOWN, "Initilizing ticker_ready_sem\n");
-		}
-
-		sprintf(name_buf, "/%d-%s", getpid(), "start_tick_sem");
-		start_tick_sem = sem_open(name_buf, O_CREAT|O_EXCL, 0600, 0);
-		if (start_tick_sem == SEM_FAILED) {
-			WARN("%s\n", strerror(errno));
-			ERR(E_UNKNOWN, "Initilizing start_tick_sem\n");
-		}
-
-		sprintf(name_buf, "/%d-%s", getpid(), "end_tick_sem");
-		end_tick_sem = sem_open(name_buf, O_CREAT|O_EXCL, 0600, 0);
-		if (end_tick_sem == SEM_FAILED) {
-			WARN("%s\n", strerror(errno));
-			ERR(E_UNKNOWN, "Initilizing end_tick_sem\n");
-		}
-
-		sprintf(name_buf, "/%d-%s", getpid(), "end_tock_sem");
-		end_tock_sem = sem_open(name_buf, O_CREAT|O_EXCL, 0600, 0);
-		if (end_tock_sem == SEM_FAILED) {
-			WARN("%s\n", strerror(errno));
-			ERR(E_UNKNOWN, "Initilizing end_tock_sem\n");
-		}
-	}
-#endif
 
 	// Read in flash
 	if (usetestflash) {
@@ -925,37 +847,8 @@ EXPORT void simulator(const char *flash_file) {
 		}
 	}
 
-	// Spawn pipeline stage threads
 #ifndef NO_PIPELINE
-	pthread_t ifstage_pthread;
-	pthread_t idstage_pthread;
-	pthread_t exstage_pthread;
-	struct ticker_params ifstage_params = {
-		.name = "IF ticker",
-		.fn = tick_if,
-		.always_tick = false,
-	};
-	struct ticker_params idstage_params = {
-		.name = "ID ticker",
-		.fn = tick_id,
-		.always_tick = false,
-	};
-	struct ticker_params exstage_params = {
-		.name = "EX ticker",
-		.fn = tick_ex,
-		.always_tick = true,
-	};
-	pthread_create(&ifstage_pthread, NULL, ticker, &ifstage_params);
-	pthread_create(&idstage_pthread, NULL, ticker, &idstage_params);
-	pthread_create(&exstage_pthread, NULL, ticker, &exstage_params);
-
-	// Wait for threads to init; consume initial wakeups
-	{
-		int i;
-		for (i = 0; i < NUM_TICKERS; i++) {
-			sem_wait(ticker_ready_sem);
-		}
-	}
+	pipeline_init();
 #endif
 
 	power_on();
