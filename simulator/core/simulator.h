@@ -49,9 +49,6 @@
 void simulator(const char* flash_file);
 void sim_terminate(void) __attribute__ ((noreturn));
 bool state_handle_exceptions(void);
-#ifdef HAVE_REPLAY
-int state_seek(int);
-#endif
 
 // Simulator config
 extern int gdb_port;

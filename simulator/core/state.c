@@ -587,4 +587,8 @@ EXPORT int state_seek(int target_cycle) {
 		return 0;
 	}
 }
+#else
+EXPORT int state_seek(int cycle __attribute__ ((unused))) {
+	return -1;
+}
 #endif //HAVE_REPLAY

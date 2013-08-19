@@ -44,4 +44,6 @@ void state_async_block_end(void);
 void state_enter_debugging(void);
 void state_exit_debugging(void);
 
+int state_seek(int);
+
 #endif // STATE_H
