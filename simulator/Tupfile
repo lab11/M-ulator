@@ -10,7 +10,7 @@ endif
 
 ifeq (@(TUP_PLATFORM),linux)
 LDFLAGS += `python2-config --ldflags`
-LDFLAGS += -lrt
+LDFLAGS += -lrt -lm
 endif
 
 : foreach *.c |> !cc |> {objs}
