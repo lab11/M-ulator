@@ -19,9 +19,6 @@
 
 #define STAGE SIM
 
-#ifndef __APPLE__
-#include <sys/prctl.h>
-#endif
 #include <sys/stat.h>
 
 // XXX: Temporary fix, see note at end of simulator.h

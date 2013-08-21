@@ -21,9 +21,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#ifndef __APPLE__
-#include <sys/prctl.h>
-#endif
 
 #include "i2c.h"
 #include "ice_bridge.h"

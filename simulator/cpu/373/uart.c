@@ -17,9 +17,6 @@
  * along with Mulator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __APPLE__
-#include <sys/prctl.h>
-#endif
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <netinet/in.h>

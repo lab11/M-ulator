@@ -19,10 +19,6 @@
 
 #define STAGE PIPE
 
-#ifndef __APPLE__
-#include <sys/prctl.h>
-#endif
-
 #include "pipeline.h"
 #include "state_sync.h"
 #include "opcodes.h"

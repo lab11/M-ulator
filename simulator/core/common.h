@@ -34,7 +34,9 @@
 #include <time.h>
 #include <fcntl.h>
 #include <errno.h>
-
+#ifndef __APPLE__
+#include <sys/prctl.h>
+#endif
 
 #include <pthread.h>
 #include <semaphore.h>
