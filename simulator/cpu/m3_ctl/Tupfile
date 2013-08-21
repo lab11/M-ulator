@@ -1,6 +1,8 @@
 include_rules
 
+ifeq (@(TUP_PLATFORM),linux)
 CFLAGS += `python2-config --includes`
+endif
 
 : foreach *.c |> !cc |> {objs}
 : {objs} $(SUBS) |> !ld_part |>
