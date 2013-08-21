@@ -48,10 +48,10 @@ int		register_opcode_mask_32_ex(uint32_t ones_mask,
 
 #ifdef HAVE_DECOMPILE
 extern int decompile_flag;
-#define OP_DECOMPILE(_syntax, ...)\
+#define OP_DECOMPILE(...)\
 	do {\
 		if (decompile_flag)\
-			op_decompile(_syntax, __VA_ARGS__);\
+			op_decompile(__VA_ARGS__);\
 	} while(0)
 void op_decompile(const char* syntax, ...);
 #else

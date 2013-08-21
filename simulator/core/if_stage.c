@@ -24,6 +24,7 @@
 #include "opcodes.h"
 #include "state_sync.h"
 
+#include "cpu/core.h"
 #include "cpu/registers.h"
 #include "cpu/core.h"
 
@@ -97,7 +98,7 @@ static void branch_target_forward16(uint32_t target, uint32_t inst, uint32_t *pc
 	}
 }
 
-void tick_if(void) {
+static void tick_if(void) {
 	static uint32_t last_pc;
 	uint32_t inst = 0;
 
@@ -171,4 +172,22 @@ void tick_if(void) {
 	}
 
 	DBG2("end\n");
+}
+
+static int if_pipeline_flush(void* new_pc_void) {
+	uint32_t new_pc = *((uint32_t *) new_pc_void);
+#ifdef NO_PIPELINE
+	SW(&pre_if_PC, new_pc);
+	SW(&if_id_PC, new_pc);
+#else
+	SW(&pre_if_PC, new_pc);
+	SW(&if_id_PC, STALL_PC);
+	SW(&if_id_inst, INST_NOP);
+#endif
+	return 0;
+}
+
+__attribute__ ((constructor))
+void register_if_stage(void) {
+	register_pipeline_stage(0, "IF Stage", tick_if, if_pipeline_flush);
 }

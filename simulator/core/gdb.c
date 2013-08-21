@@ -91,8 +91,13 @@ EXPORT void gdb_init(int port) {
 
 	// Respond with out message
 	char *resp;
+#ifdef HAVE_REPLAY
 	assert(-1 != asprintf(&resp, "\
 qSupported:PacketSize=%x;ReverseContinue+;ReverseStep+", GDB_MSG_MAX - 1));
+#else
+	assert(-1 != asprintf(&resp, "\
+qSupported:PacketSize=%x", GDB_MSG_MAX - 1));
+#endif
 
 	gdb_send_message(resp);
 	free(resp);
@@ -280,9 +285,10 @@ static bool _wait_for_gdb(void) {
 
 		case 'b':
 		{
+#ifdef HAVE_REPLAY
 			if (cmd[1] == 's') {
 				if (cycle > 0) {
-					if (state_seek(cycle - 1)) {
+					if (simulator_state_seek(cycle - 1)) {
 						gdb_send_message("E00");
 						return true;
 					} else {
@@ -297,7 +303,7 @@ static bool _wait_for_gdb(void) {
 			} else
 			if (cmd[1] == 'c') {
 				if (cycle) {
-					if (state_seek(0)) {
+					if (simulator_state_seek(0)) {
 						gdb_send_message("E00");
 						return true;
 					} else {
@@ -312,6 +318,11 @@ static bool _wait_for_gdb(void) {
 			} else {
 				goto unknown_gdb;
 			}
+#else
+			WARN("Simulator was compiled without HAVE_REPLAY\n");
+			WARN("Time-travel is not supported\n");
+			goto unknown_gdb;
+#endif
 			break;
 		}
 

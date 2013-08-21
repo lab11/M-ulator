@@ -123,6 +123,7 @@ static void b_t3(uint32_t inst) {
 	if (in_ITblock())
 		CORE_ERR_unpredictable("b_t3 not allowed in IT block\n");
 
+	OP_DECOMPILE("B<c>.W <label>", imm32);
 	return b(cond, imm32);
 }
 

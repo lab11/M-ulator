@@ -368,6 +368,7 @@ EXPORT struct i2c_instance* create_i2c_instance(const char *periph_name,
 #endif
 	assert(0 == pthread_cond_init(&t->pc, NULL));
 
-	register_periph_thread(start_i2c, &(t->en), t);
+	struct periph_time_travel tt = PERIPH_TIME_TRAVEL_NONE;
+	register_periph_thread(start_i2c, tt, &(t->en), t);
 	return t;
 }

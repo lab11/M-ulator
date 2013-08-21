@@ -261,6 +261,7 @@ static void sub_imm_t3(uint32_t inst) {
 	if ((rd == 13) || ((rd == 15) && (S == 0)) || (rn == 15))
 		CORE_ERR_unpredictable("sub_imm_t3 bad regs\n");
 
+	OP_DECOMPILE("SUB{S}<c>.W <Rd>,<Rn>,#<const>", S, rd, rn, imm32);
 	return sub_imm(rd, rn, imm32, S);
 }
 

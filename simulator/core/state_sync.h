@@ -29,29 +29,28 @@
 #include "state.h"
 
 // Latchable state
-#define SR(_l) state_read(STAGE, (_l))
-uint32_t state_read(enum stage, uint32_t *loc) __attribute__ ((nonnull));
-#define SRP(_l) state_read_p(STAGE, (_l))
-uint32_t* state_read_p(enum stage, uint32_t **loc) __attribute__ ((nonnull));
+#define SR(_l) state_read((_l))
+uint32_t state_read(uint32_t *loc) __attribute__ ((nonnull));
+#define SRP(_l) state_read_p((_l))
+uint32_t* state_read_p(uint32_t **loc) __attribute__ ((nonnull));
 #ifdef DEBUG1
-#define SW(_l, _v) state_write_dbg(STAGE, (_l), (_v),\
+#define SW(_l, _v) state_write_dbg((_l), (_v),\
 		__FILE__, __func__, __LINE__, VAL2STR(_l))
-void state_write_dbg(enum stage, uint32_t *loc, uint32_t val,
+void state_write_dbg(uint32_t *loc, uint32_t val,
 		const char *file, const char *func,
 		const int line, const char *target) __attribute__ ((nonnull));
-#define SWP(_l, _v) state_write_p_dbg(STAGE, (_l), (_v),\
+#define SWP(_l, _v) state_write_p_dbg((_l), (_v),\
 		__FILE__, __func__, __LINE__, VAL2STR(_l))
-void state_write_p_dbg(enum stage, uint32_t **ploc, uint32_t *pval,
+void state_write_p_dbg(uint32_t **ploc, uint32_t *pval,
 		const char *file, const char* func,
 		const int line, const char *target)
-			__attribute__ ((nonnull (2, 4, 5, 7)));
+			__attribute__ ((nonnull (1, 3, 4, 6)));
 #else
-#define SW(_l, _v) state_write(STAGE, (_l), (_v))
-void state_write(enum stage, uint32_t *loc, uint32_t val)
+#define SW(_l, _v) state_write((_l), (_v))
+void state_write(uint32_t *loc, uint32_t val)
 	__attribute__ ((nonnull));
-#define SWP(_l, _v) state_write_p(STAGE, (_l), (_v))
-void state_write_p(enum stage, uint32_t **ploc, uint32_t *pval)
-	__attribute__ ((nonnull (2)));
+#define SWP(_l, _v) state_write_p((_l), (_v))
+void state_write_p(uint32_t **ploc, uint32_t *pval) __attribute__ ((nonnull (1)));
 #endif
 
 #endif // STATE_SYNC_H

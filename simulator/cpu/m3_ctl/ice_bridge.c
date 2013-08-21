@@ -157,8 +157,6 @@ static void create_ice_bridge(struct ice_instance* ice) {
 
 	PyEval_InitThreads();
 	ice->main_pythread_state = PyThreadState_Get();
-	// Once this is set, we can allow the main startup process to continue
-	pthread_cond_signal(&ice->pc);
 
 	PyRun_SimpleString("import sys");
 	PyRun_SimpleString("sys.path.append('../platforms/m3_ctl/programming/')");
@@ -215,6 +213,7 @@ static void create_ice_bridge(struct ice_instance* ice) {
 				ERR(E_UNKNOWN, "Failed to build args tuple\n");
 			}
 
+			INFO("Searching for ICE peripheral at `%s' ...\n", ice->host);
 			PyObject *ret;
 			ret = PyObject_CallObject(connect, args);
 			Py_DECREF(args);
@@ -240,6 +239,7 @@ static void destroy_ice_bridge(void) {
 static void *ice_thread(void *v_args) {
 	struct ice_instance *ice = (struct ice_instance*) v_args;
 	create_ice_bridge(ice);
+	pthread_cond_signal(&ice->pc);
 
 	while (ice->en) {
 		sleep(1);
@@ -283,7 +283,8 @@ struct ice_instance* create_ice_instance(const char *host, int baud) {
 #endif
 	assert(0 == pthread_cond_init(&ice->pc, NULL));
 
-	register_periph_thread(start_ice, &(ice->en), ice);
+	struct periph_time_travel tt = PERIPH_TIME_TRAVEL_NONE;
+	register_periph_thread(start_ice, tt, &(ice->en), ice);
 	return ice;
 }
 

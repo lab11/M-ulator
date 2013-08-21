@@ -26,6 +26,7 @@
 #include "simulator.h"
 #include "opcodes.h"
 
+#include "cpu/core.h"
 #include "cpu/registers.h"
 #include "cpu/misc.h"
 
@@ -36,43 +37,57 @@ static void execute(struct op *o, uint32_t inst) {
 		o->op32.fn(inst);
 }
 
-void tick_ex(void) {
+// "Private" export from state.c (hack)
+EXPORT struct op* state_read_op(struct op **loc);
+static void tick_ex(void) {
 	DBG2("start\n");
 
-	assert(NULL != id_ex_o);
-	assert(NULL != id_ex_o->name);
+	struct op* o = state_read_op(&id_ex_o);
+	uint32_t inst = SR(&id_ex_inst);
+
+	assert(NULL != o);
+	assert(NULL != o->name);
 
 	// Execute
 	if (in_ITblock()) {
 		if (eval_cond(CORE_apsr_read(), (read_itstate() & 0xf0) >> 4)) {
 			if (printcycles) {
 				printf("    P: %08d - 0x%08x : %04x (%s)\t%s\n",
-						cycle, id_ex_PC - 4, id_ex_inst, id_ex_o->name,
+						cycle, id_ex_PC - 4, inst, o->name,
 						"ITSTATE {executed}");
 			}
-			execute(id_ex_o, id_ex_inst);
+			execute(o, inst);
 		} else {
 			if (printcycles) {
 				printf("    P: %08d - 0x%08x : %04x (%s)\t%s\n",
-						cycle, id_ex_PC - 4, id_ex_inst, id_ex_o->name,
+						cycle, id_ex_PC - 4, inst, o->name,
 						"ITSTATE {skipped}");
 			}
-			//WARN("itstate skipped instruction\n");
+			DBG2("itstate skipped instruction\n");
 		}
 		IT_advance();
 	} else {
 		if (printcycles) {
-			if ((id_ex_PC == STALL_PC) && (id_ex_inst == INST_NOP)) {
+			if ((id_ex_PC == STALL_PC) && (inst == INST_NOP)) {
 				printf("    P: %08d - 0x%08x : <stall>\n",
 						cycle, id_ex_PC - 4);
 			} else {
 				printf("    P: %08d - 0x%08x : %04x (%s)\n",
 						cycle, id_ex_PC - 4,
-						id_ex_inst, id_ex_o->name);
+						inst, o->name);
 			}
 		}
-		execute(id_ex_o, id_ex_inst);
+		execute(o, inst);
 	}
 
 	DBG2("end\n");
+}
+
+static int ex_pipeline_flush(void* new_pc_void __attribute__ ((unused))) {
+	return 0;
+}
+
+__attribute__ ((constructor))
+void register_ex_stage(void) {
+	register_pipeline_stage(2, "EX Stage", tick_ex, ex_pipeline_flush);
 }

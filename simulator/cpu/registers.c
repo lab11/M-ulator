@@ -106,18 +106,12 @@ EXPORT void CORE_reg_write(int r, uint32_t val) {
 	} else if (r == LR_REG) {
 		SW(&LR, val);
 	} else if (r == PC_REG) {
+		DBG2("Writing %08x to PC\n", val & 0xfffffffe);
 #ifdef NO_PIPELINE
-		/*
-		if (*state_flags_cur & STATE_DEBUGGING) {
-			SW(&pre_if_PC, val & 0xfffffffe);
-			SW(&if_id_PC, val & 0xfffffffe);
-			SW(&id_ex_PC, val & 0xfffffffe);
-		} else {
-		*/
-			SW(&pre_if_PC, val & 0xfffffffe);
-		//}
+		pipeline_flush_exception_handler(val & 0xfffffffe);
 #else
 		if (state_is_debugging()) {
+			DBG1("PC write + debugging --> flush\n");
 			state_pipeline_flush(val & 0xfffffffe);
 		} else {
 			// Only flush if the new PC differs from predicted in pipeline:
@@ -211,6 +205,7 @@ EXPORT void CORE_control_write(union control_t val) {
 #endif
 
 static void reset_registers(void) {
+	DBG2("begin\n");
 	uint32_t vectortable = read_word(VECTOR_TABLE_OFFSET);
 
 	// R[0..12] = bits(32) UNKNOWN {nop}
@@ -249,6 +244,7 @@ static void reset_registers(void) {
 	SW(&faultmask, 0);
 	SW(&basepri, 0);
 	SW(&control.storage, 0);
+	DBG2("end\n");
 }
 
 __attribute__ ((constructor))

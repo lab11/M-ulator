@@ -65,8 +65,7 @@ static void ldr_imm_t1(uint16_t inst) {
 	bool add = true;
 	bool wback = false;
 
-	OP_DECOMPILE("LDR<c> <Rt>, [<Rn>{,#<imm5>}]", rt, rn, imm5,
-			CORE_reg_read(rn) + imm32);
+	OP_DECOMPILE("LDR<c> <Rt>, [<Rn>{,#<imm5>}]", rt, rn, imm5);
 	return ldr_imm(rt, rn, imm32, index, add, wback);
 }
 
@@ -275,6 +274,7 @@ static void ldrb_imm_t1(uint16_t inst) {
 	bool add = true;
 	bool wback = false;
 
+	OP_DECOMPILE("LDRB<c> <Rt>,[<Rn>{,#<imm5>}]", rt, rn, imm5);
 	return ldrb_imm(rt, rn, imm32, add, index, wback);
 }
 
@@ -292,6 +292,7 @@ static void ldrb_imm_t2(uint32_t inst) {
 	if (rt == 13)
 		CORE_ERR_unpredictable("reg 13 not allowed\n");
 
+	OP_DECOMPILE("LDRB<c>.W <Rt>,[<Rn>{,#<imm12>}]", rt, rn, imm12);
 	return ldrb_imm(rt, rn, imm32, add, index, wback);
 }
 

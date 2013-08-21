@@ -48,6 +48,9 @@ void register_memmap(
 // These functions you must implement in core.c 
 void		reset(void);
 
+#ifdef DEBUG2
+uint32_t	read_word_quiet(uint32_t addr);
+#endif
 uint32_t	read_word(uint32_t addr);
 void		write_word(uint32_t addr, uint32_t val);
 uint16_t	read_halfword(uint32_t addr);

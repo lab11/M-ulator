@@ -41,39 +41,54 @@ extern int raiseonerror; // storage in simulator.c
 // PRETTY PRINT MACROS //
 /////////////////////////
 
+#ifdef DEBUG1
+#define _PP_EXTRA(_msg_dest, _msg_type)\
+	do {\
+		char _t_name[16];\
+		if (0 == _DBG_T_NAME_HELPER(_t_name))\
+			fprintf(_msg_dest, "%s %.2s %c: ", PP_STRING, _t_name, _msg_type);\
+		else\
+			fprintf(_msg_dest, "%s -- %c: ", PP_STRING, _msg_type);\
+		fprintf(_msg_dest, "%s:%d\t%s:\t", __FILE__, __LINE__, __func__);\
+	} while (0)
+#else
+#define _PP_EXTRA(_msg_dest, _msg_type)\
+	fprintf(_msg_dest, "%s %c: ", PP_STRING, _msg_type)
+#endif
+
 #define INFO(...)\
 	do {\
-		flockfile(stdout);\
-		printf("\r"PP_STRING" I: "); printf(__VA_ARGS__);\
-		funlockfile(stdout);\
+		flockfile(stdout); flockfile(stderr);\
+		_PP_EXTRA(stdout, 'I'); printf(__VA_ARGS__);\
+		funlockfile(stderr); funlockfile(stdout);\
 	} while (0)
 #define WARN(...)\
 	do {\
-		flockfile(stderr);\
-		fprintf(stderr, PP_STRING" W: "); fprintf(stderr, __VA_ARGS__);\
-		funlockfile(stderr);\
+		flockfile(stdout); flockfile(stderr);\
+		_PP_EXTRA(stderr, 'W'); fprintf(stderr, __VA_ARGS__);\
+		funlockfile(stderr); funlockfile(stdout);\
 	} while (0)
 #define ERR(_e, ...)\
 	do {\
-		flockfile(stderr);\
+		flockfile(stdout); flockfile(stderr);\
 		fprintf(stderr, PP_STRING" E: *** Error: ");\
 		if (_e == E_NOT_IMPLEMENTED) {\
 			fprintf(stderr, "Not implemented error.\n");\
 		} else {\
 			fprintf(stderr, "Unknown error.\n");\
 		}\
-		fprintf(stderr, PP_STRING" E: ");\
+		_PP_EXTRA(stderr, 'E');\
 		fprintf(stderr, __VA_ARGS__);\
-		funlockfile(stderr);\
+		funlockfile(stderr); funlockfile(stdout);\
 		if (raiseonerror) raise(SIGTRAP);\
 		exit(_e);\
 	} while (0)
 #define TRAP(...)\
 	do {\
-		flockfile(stderr);\
-		fprintf(stderr, PP_STRING" T: ");\
+		flockfile(stdout); flockfile(stderr);\
+		_PP_EXTRA(stderr, 'T');\
 		fprintf(stderr, __VA_ARGS__);\
-		funlockfile(stderr);\
+		funlockfile(stderr); funlockfile(stdout);\
 		raise(SIGTRAP);\
 	} while (0)
 

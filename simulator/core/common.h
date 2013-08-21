@@ -104,10 +104,18 @@ void	CORE_ERR_not_implemented(const char *opt_msg) __attribute__ ((noreturn));
 // UTILITY //
 /////////////
 
+#ifndef MAX
+#define MAX(_a, _b) (((_a) > (_b)) ? (_a) : (_b))
+#define MIN(_a, _b) (((_a) < (_b)) ? (_a) : (_b))
+#endif
+
 #define QUOTE(x)	#x
 #define VAL2STR(x)	QUOTE(x)
 
 #define NSECS_PER_SEC 1000000000
+
+#define likely(x)      __builtin_expect(!!(x), 1)
+#define unlikely(x)    __builtin_expect(!!(x), 0)
 
 ///////////////
 // DEBUGGING //
@@ -122,15 +130,26 @@ void	CORE_ERR_not_implemented(const char *opt_msg) __attribute__ ((noreturn));
  * (debug2 ==> debug1)
  */
 
+
+#ifdef __APPLE__
+#define _DBG_T_NAME_HELPER(_t_buf) pthread_getname_np(pthread_self(), _t_buf, 16)
+#else
+#define _DBG_T_NAME_HELPER(_t_buf) prctl(PR_GET_NAME, _t_buf, 0, 0, 0)
+#endif
+
 #ifdef DEBUG1
 // "Level 1" debug, for statements that would print not more than
 // once to a dozen times during execution
 #define DBG1(...)\
 	do {\
-		flockfile(stdout);\
-		printf("111 D: %s:%d\t%s:\t", __FILE__, __LINE__, __func__); \
+		flockfile(stdout); flockfile(stderr);\
+		char _t_name[16];\
+		if (0 == _DBG_T_NAME_HELPER(_t_name))\
+			printf("111 %.2s D: %s:%d\t%s:\t", _t_name, __FILE__, __LINE__, __func__); \
+		else\
+			printf("111 -- D: %s:%d\t%s:\t", __FILE__, __LINE__, __func__); \
 		printf(__VA_ARGS__);\
-		funlockfile(stdout);\
+		funlockfile(stderr); funlockfile(stdout);\
 	} while (0)
 #else
 #define DBG1(...)
@@ -141,10 +160,14 @@ void	CORE_ERR_not_implemented(const char *opt_msg) __attribute__ ((noreturn));
 // be usefule for debugging
 #define DBG2(...)\
 	do {\
-		flockfile(stdout);\
-		printf("222 D: %s:%d\t%s:\t", __FILE__, __LINE__, __func__); \
+		flockfile(stdout); flockfile(stderr);\
+		char _t_name[16];\
+		if (0 == _DBG_T_NAME_HELPER(_t_name))\
+			printf("222 %.2s D: %s:%d\t%s:\t", _t_name, __FILE__, __LINE__, __func__); \
+		else\
+			printf("222 -- D: %s:%d\t%s:\t", __FILE__, __LINE__, __func__); \
 		printf(__VA_ARGS__);\
-		funlockfile(stdout);\
+		funlockfile(stderr); funlockfile(stdout);\
 	} while (0)
 #else
 #define DBG2(...)

@@ -160,11 +160,6 @@ static int print_optional_setflags(va_list args) {
 	return 2;
 }
 
-static void print_addr(va_list args) {
-	unsigned addr = va_arg(args, unsigned);
-	printf("(addr=%08x,val=%08x)", addr, read_word(addr));
-}
-
 static void _op_decompile(const char *syntax, va_list args) {
 	int len = strlen(syntax);
 	int space_cnt = 0;
@@ -187,9 +182,6 @@ static void _op_decompile(const char *syntax, va_list args) {
 			putchar_unlocked('\t');
 		else
 			putchar_unlocked(syntax[i]);
-
-		if (syntax[i] == ']')
-			print_addr(args);
 	}
 }
 

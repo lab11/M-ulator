@@ -48,6 +48,20 @@ static pthread_mutex_t poll_uart_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  poll_uart_cond  = PTHREAD_COND_INITIALIZER;
 static uint32_t poll_uart_client = INVALID_CLIENT;
 
+static pthread_rwlock_t poll_uart_rwlock = PTHREAD_RWLOCK_INITIALIZER;
+static inline uint32_t UART_SR(uint32_t *addr) {
+	uint32_t ret;
+	pthread_rwlock_rdlock(&poll_uart_rwlock);
+	ret = SR_A(addr);
+	pthread_rwlock_unlock(&poll_uart_rwlock);
+	return ret;
+}
+static inline void UART_SW(uint32_t *addr, uint32_t val) {
+	pthread_rwlock_wrlock(&poll_uart_rwlock);
+	SW_A(addr, val);
+	pthread_rwlock_unlock(&poll_uart_rwlock);
+}
+
 // circular buffer
 // head is location to read valid data from
 // tail is location to write data to
@@ -161,7 +175,7 @@ static void *poll_uart_thread(void *unused __attribute__ ((unused))) {
 			ERR(E_UNKNOWN, "%d UART: %s\n", __LINE__, strerror(errno));
 		}
 
-		SW_A(&poll_uart_client, client);
+		UART_SW(&poll_uart_client, client);
 
 		static uint8_t c;
 		static int ret;
@@ -172,7 +186,7 @@ static void *poll_uart_thread(void *unused __attribute__ ((unused))) {
 			nanosleep(&poll_uart_baud_sleep, NULL);
 
 			if (!poll_uart_enabled) {
-				SW_A(&poll_uart_client, INVALID_CLIENT);
+				UART_SW(&poll_uart_client, INVALID_CLIENT);
 				static const char *goodbye = "\
 \n\
 >>MSG<< An extra newline has been printed before this line\n\
@@ -195,31 +209,31 @@ static void *poll_uart_thread(void *unused __attribute__ ((unused))) {
 				break;
 			}
 
-			state_async_block_start();
+			pthread_rwlock_wrlock(&poll_uart_rwlock);
 
-			uint32_t* head = SRP_AB(&poll_uart_head);
-			uint32_t* tail = SRP_AB(&poll_uart_tail);
+			uint32_t* head = SRP_A(&poll_uart_head);
+			uint32_t* tail = SRP_A(&poll_uart_tail);
 
 			DBG1("recv start\thead: %td, tail: %td\n",
 					(head)?head - poll_uart_buffer:-1,
 					tail - poll_uart_buffer);
 
-			SW_AB(tail, c);
+			SW_A(tail, c);
 			if (NULL == head) {
 				head = tail;
-				SWP_AB(&poll_uart_head, head);
+				SWP_A(&poll_uart_head, head);
 			}
 			tail++;
 			if (tail == (poll_uart_buffer + POLL_UART_BUFSIZE))
 				tail = poll_uart_buffer;
-			SWP_AB(&poll_uart_tail, tail);
+			SWP_A(&poll_uart_tail, tail);
 
 			DBG1("recv end\thead: %td, tail: %td\t[%td=%c]\n",
 					(head)?head - poll_uart_buffer:-1,
 					tail - poll_uart_buffer,
 					tail-poll_uart_buffer-1, *(tail-1));
 
-			state_async_block_end();
+			pthread_rwlock_unlock(&poll_uart_rwlock);
 		}
 
 		if (ret == 0) {
@@ -227,7 +241,7 @@ static void *poll_uart_thread(void *unused __attribute__ ((unused))) {
 				"(no more data in but you can still send)\n");
 		} else {
 			WARN("Lost connection to UART client (%s)\n", strerror(errno));
-			SW_A(&poll_uart_client, INVALID_CLIENT);
+			UART_SW(&poll_uart_client, INVALID_CLIENT);
 		}
 	}
 }
@@ -235,10 +249,10 @@ static void *poll_uart_thread(void *unused __attribute__ ((unused))) {
 static uint8_t poll_uart_status_read(void) {
 	uint8_t ret = 0;
 
-	state_async_block_start();
-	ret |= (SRP_AB(&poll_uart_head) != NULL) << POLL_UART_RXBIT; // data avail?
-	ret |= (SR_AB(&poll_uart_client) == INVALID_CLIENT) << POLL_UART_TXBIT; // tx busy?
-	state_async_block_end();
+	pthread_rwlock_rdlock(&poll_uart_rwlock);
+	ret |= (SRP_A(&poll_uart_head) != NULL) << POLL_UART_RXBIT; // data avail?
+	ret |= (SR_A(&poll_uart_client) == INVALID_CLIENT) << POLL_UART_TXBIT; // tx busy?
+	pthread_rwlock_unlock(&poll_uart_rwlock);
 
 	// For lock contention
 	nanosleep(&poll_uart_baud_sleep, NULL);
@@ -248,23 +262,23 @@ static uint8_t poll_uart_status_read(void) {
 
 static void poll_uart_status_write(uint8_t val) {
 	if (val & POLL_UART_RSTBIT) {
-		state_async_block_start();
-		SWP_AB(&poll_uart_head, NULL);
-		SWP_AB(&poll_uart_tail, poll_uart_buffer);
-		state_async_block_end();
+		pthread_rwlock_wrlock(&poll_uart_rwlock);
+		SWP_A(&poll_uart_head, NULL);
+		SWP_A(&poll_uart_tail, poll_uart_buffer);
+		pthread_rwlock_unlock(&poll_uart_rwlock);
 	}
 }
 
 static uint8_t poll_uart_rxdata_read(void) {
 	uint8_t ret;
 
-	state_async_block_start();
-	if (NULL == SRP_AB(&poll_uart_head)) {
+	pthread_rwlock_wrlock(&poll_uart_rwlock);
+	if (NULL == SRP_A(&poll_uart_head)) {
 		DBG1("Poll UART RX attempt when RX Pending was false\n");
-		ret = SR_AB(&poll_uart_buffer[3]); // eh... rand? 3, why not?
+		ret = SR_A(&poll_uart_buffer[3]); // eh... rand? 3, why not?
 	} else {
-		uint32_t* head = SRP_AB(&poll_uart_head);
-		uint32_t* tail = SRP_AB(&poll_uart_tail);
+		uint32_t* head = SRP_A(&poll_uart_head);
+		uint32_t* tail = SRP_A(&poll_uart_tail);
 
 		ret = *head;
 
@@ -279,9 +293,9 @@ static uint8_t poll_uart_rxdata_read(void) {
 				tail - poll_uart_buffer,
 				(head)?head-poll_uart_buffer:-1,(head)?*head:'\0');
 
-		SWP_AB(&poll_uart_head, head);
+		SWP_A(&poll_uart_head, head);
 	}
-	state_async_block_end();
+	pthread_rwlock_unlock(&poll_uart_rwlock);
 
 	return ret;
 }
@@ -291,14 +305,14 @@ static void poll_uart_txdata_write(uint8_t val) {
 
 	static int ret;
 
-	uint32_t client = SR_A(&poll_uart_client);
+	uint32_t client = UART_SR(&poll_uart_client);
 	if (INVALID_CLIENT == client) {
 		DBG1("Poll UART TX ignored as client is busy\n");
 		// no connected client (TX is busy...) so drop
 	}
 	else if (-1 ==  ( ret = send(client, &val, 1, 0))  ) {
 		WARN("%d UART: %s\n", __LINE__, strerror(errno));
-		SW_A(&poll_uart_client, INVALID_CLIENT);
+		UART_SW(&poll_uart_client, INVALID_CLIENT);
 	}
 
 	DBG2("UART byte sent %c\n", val);
@@ -323,9 +337,6 @@ static bool uart_read_data(uint32_t addr __attribute__ ((unused)), uint8_t *val)
 
 static void uart_write_data(uint32_t addr __attribute__ ((unused)), uint8_t val) {
 	poll_uart_txdata_write(val);
-}
-
-static void print_poll_uart(void) {
 }
 
 static pthread_t start_poll_uart(void *unused __attribute__ ((unused))) {
@@ -356,6 +367,6 @@ void register_memmap_uart(void) {
 	register_memmap("Poll UART", true, 1, mem_fn,
 			POLL_UART_TXDATA, POLL_UART_TXDATA+1);
 
-	register_periph_printer(print_poll_uart);
-	register_periph_thread(start_poll_uart, &poll_uart_enabled, NULL);
+	struct periph_time_travel tt = PERIPH_TIME_TRAVEL_NONE;
+	register_periph_thread(start_poll_uart, tt, &poll_uart_enabled, NULL);
 }

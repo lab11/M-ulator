@@ -71,6 +71,7 @@ static void and_imm_t1(uint32_t inst) {
 	if ( ((rd == 13) || ((rd == 15) && (S == 0))) || BadReg(rn) )
 		CORE_ERR_unpredictable("Bad reg combo's in add_imm_t1\n");
 
+	OP_DECOMPILE("AND{S}<c> <Rd>,<Rn>,#<const>", setflags, rd, rn, imm32);
 	return and_imm(apsr, setflags, rd, rn, imm32, carry);
 }
 

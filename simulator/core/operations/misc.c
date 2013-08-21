@@ -123,6 +123,7 @@ static void movt_t1(uint32_t inst) {
 	if (BadReg(rd))
 		CORE_ERR_unpredictable("BadReg movt_t1\n");
 
+	OP_DECOMPILE("MOVT<c> <Rd>,#<imm16>", rd, imm16);
 	return movt(rd, imm16);
 }
 

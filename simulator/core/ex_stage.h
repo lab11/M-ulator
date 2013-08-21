@@ -22,6 +22,4 @@
 
 #include "common.h"
 
-void tick_ex(void);
-
 #endif //EX_STAGE_H

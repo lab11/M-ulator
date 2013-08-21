@@ -37,6 +37,7 @@
 #include "id_stage.h"
 #include "ex_stage.h"
 #include "cpu/core.h"
+#include "cpu/periph.h"
 #include "cpu/registers.h"
 #include "cpu/common/rom.h"
 #include "cpu/common/ram.h"
@@ -50,13 +51,6 @@
 
 static volatile sig_atomic_t sigint = 0;
 static volatile bool shell_running = false;
-
-/* Tick Control */
-EXPORT sem_t* ticker_ready_sem;
-EXPORT sem_t* start_tick_sem;
-EXPORT sem_t* end_tick_sem;
-EXPORT sem_t* end_tock_sem;
-#define NUM_TICKERS	3	// IF, ID, EX
 
 /* Peripherals */
 static void join_periph_threads (void);
@@ -207,7 +201,11 @@ static void print_full_state(void) {
 		if (romfp) {
 			uint32_t rom[ROMSIZE >> 2] = {0};
 			for (i = ROMBOT; i < ROMBOT+ROMSIZE; i += 4)
+#ifdef DEBUG2
+				rom[(i-ROMBOT)/4] = read_word_quiet(i);
+#else
 				rom[(i-ROMBOT)/4] = read_word(i);
+#endif
 
 			i = fwrite(rom, ROMSIZE, 1, romfp);
 			printf("Wrote %8zu bytes to %-29s "\
@@ -227,7 +225,11 @@ static void print_full_state(void) {
 		if (ramfp) {
 			uint32_t ram[RAMSIZE >> 2] = {0};
 			for (i = RAMBOT; i < RAMBOT+RAMSIZE; i += 4)
+#ifdef DEBUG2
+				ram[(i-RAMBOT)/4] = read_word_quiet(i);
+#else
 				ram[(i-RAMBOT)/4] = read_word(i);
+#endif
 
 			i = fwrite(ram, RAMSIZE, 1, ramfp);
 			printf("Wrote %8zu bytes to %-29s "\
@@ -259,6 +261,7 @@ static void _shell(void) {
 			sscanf(buf, "%*s %x", &dumpatpc);
 			return;
 
+#ifdef HAVE_REPLAY
 		case 'b':
 			sprintf(buf, "s %d", cycle - 1);
 			// fall thru
@@ -281,11 +284,12 @@ static void _shell(void) {
 			} else if (target == cycle) {
 				WARN("Ignoring seek to current cycle\n");
 			} else {
-				state_seek(target);
+				simulator_state_seek(target);
 				print_full_state();
 			}
 			return _shell();
 		}
+#endif
 
 		case 'q':
 		case 't':
@@ -354,8 +358,9 @@ static void _shell(void) {
 			printf("   <none>		Advance 1 cycle\n");
 			printf("   pc HEX_ADDR		Stop at pc\n");
 			printf("   cycle INTEGER	Stop at cycle\n");
+#ifdef HAVE_REPLAY
 			printf("   seek [INTEGER]	Seek to cycle\n");
-			printf("                        (forward 1 cycle default)\n");
+#endif
 #if defined (HAVE_ROM) && defined (PRINT_ROM_EN)
 			printf("   rom			Print ROM contents\n");
 #endif
@@ -449,6 +454,27 @@ static uint64_t last_cycle_time;
 static mach_timebase_info_data_t sTimebaseInfo;
 #endif
 
+#ifdef HAVE_REPLAY
+EXPORT bool simulator_state_seek(int target) {
+	WARN("Async peripheral state not changed\n");
+	int pipeline_cycle = pipeline_state_seek(target);
+	int simulator_cycle = state_seek_for_calling_thread(target);
+	if (pipeline_cycle != simulator_cycle) {
+		WARN("Pipeline and simulator core out of sync after seek\n");
+		ERR(E_UNKNOWN, "Pipeline cycle %d. Simulator cycle %d\n",
+				pipeline_cycle, simulator_cycle);
+	}
+	cycle = simulator_cycle;
+
+	if (cycle != target) {
+		WARN("Could not seek to cycle %d. Simulator left at cycle %d\n",
+				target, cycle);
+	}
+
+	return cycle != target;
+}
+#endif
+
 static void sim_delay_reset() {
 #if _POSIX_TIMERS > 0
 	// Perform check here to verify system (i) has CLOCK_REALTIME and (ii)
@@ -533,9 +559,15 @@ static int sim_execute(void) {
 	// cycles in a row? How do we allow this?
 	static uint32_t prev_pc = STALL_PC;
 
+	cycle++;
+	DBG2("Begin cycle %d.............................cycle %d\n", cycle, cycle);
+
+	// Simulator main thread ticks and tocks so that branch-to-self logic resets
+	state_start_tick();
+
 	uint32_t cur_pc = CORE_reg_read(PC_REG);
-	if ((prev_pc == cur_pc) && (prev_pc != STALL_PC)) {
-		DBG1("prev_pc: %08x cur_pc: %08x\n", prev_pc, cur_pc);
+	if ((SR(&prev_pc) == cur_pc) && (SR(&prev_pc) != STALL_PC)) {
+		DBG1("cycle: %d prev_pc: %08x cur_pc: %08x\n", cycle, SR(&prev_pc), cur_pc);
 		if (GDB_ATTACHED) {
 			INFO("Simulator determined PC 0x%08x is branch to self, breaking for gdb.\n", cur_pc);
 			shell();
@@ -544,54 +576,15 @@ static int sim_execute(void) {
 			sim_terminate();
 		}
 	} else {
-		prev_pc = cur_pc;
+		SW(&prev_pc, cur_pc);
 	}
-
-	cycle++;
-
-#ifdef NO_PIPELINE
-	// Not the common code path, try to catch if things have changed
-	assert(NUM_TICKERS == 3);
-
-	state_start_tick();
-	DBG1("tick_if\n");
-	tick_if();
-	DBG1("tick_id\n");
-	tick_id();
-	DBG1("tick_ex\n");
-	tick_ex();
-	state_tock();
-#else
-	// Now we're committed to starting the next cycle
-
-	int i;
 
 	// Start a clock tick
-	state_start_tick();
+	pipeline_stages_tick();
+	state_handle_exceptions();
+	pipeline_stages_tock();
 
-	// Don't let stages steal wakeups
-	for (i = 0; i < NUM_TICKERS; i++) {
-		sem_wait(ticker_ready_sem);
-	}
-
-	// Start off each stage
-	for (i = 0; i < NUM_TICKERS; i++) {
-		sem_post(start_tick_sem);
-	}
-
-	// Wait for all stages to complete
-	for (i = 0; i < NUM_TICKERS; i++) {
-		sem_wait(end_tick_sem);
-	}
-
-	// Latch hardware
 	state_tock();
-
-	// Notify stages this cycle is complete
-	for (i = 0; i < NUM_TICKERS; i++) {
-		sem_post(end_tock_sem);
-	}
-#endif
 
 	if (cycle_time.tv_nsec)
 		sim_delay();
@@ -618,10 +611,11 @@ static void sim_reset(void) {
 	}
 
 	INFO("Asserting reset pin\n");
+	state_enter_debugging();
 	cycle = 0;
-	state_start_tick();
 	reset();
-	state_tock();
+	state_handle_exceptions();
+	state_exit_debugging();
 	INFO("De-asserting reset pin\n");
 
 	INFO("Entering main loop...\n");
@@ -732,6 +726,7 @@ static void* sig_thread(void *arg) {
 struct periph_thread {
 	struct periph_thread *next;
 	pthread_t (*fn)(void *);
+	struct periph_time_travel tt;
 	volatile bool *en;
 	void *arg;
 	pthread_t pthread;
@@ -740,9 +735,11 @@ struct periph_thread {
 static struct periph_thread periph_threads;
 
 EXPORT void register_periph_thread(
-		pthread_t (*fn)(void *), volatile bool *en, void *arg) {
+		pthread_t (*fn)(void *), struct periph_time_travel tt,
+		volatile bool *en, void *arg) {
 	if (periph_threads.fn == NULL) {
 		periph_threads.fn = fn;
+		periph_threads.tt = tt;
 		periph_threads.en = en;
 		periph_threads.arg = arg;
 	} else {
@@ -753,6 +750,7 @@ EXPORT void register_periph_thread(
 		cur = cur->next;
 		cur->next = NULL;
 		cur->fn = fn;
+		cur->tt = tt;
 		cur->en = en;
 		cur->arg = arg;
 	}
@@ -776,42 +774,11 @@ static void flash_image(const uint8_t *image, const uint32_t num_bytes){
 }
 
 EXPORT void simulator(const char *flash_file) {
-	// Init uninit'd globals
-#ifndef NO_PIPELINE
-	{
-		// OS X requires named semaphores, but we really don't want
-		// them, so use PID to create a unique namespace for this
-		// instance of the simulator
-		char name_buf[32];
-
-		sprintf(name_buf, "/%d-%s", getpid(), "ticker_ready_sem");
-		ticker_ready_sem = sem_open(name_buf, O_CREAT|O_EXCL, 0600, 0);
-		if (ticker_ready_sem == SEM_FAILED) {
-			WARN("%s\n", strerror(errno));
-			ERR(E_UNKNOWN, "Initilizing ticker_ready_sem\n");
-		}
-
-		sprintf(name_buf, "/%d-%s", getpid(), "start_tick_sem");
-		start_tick_sem = sem_open(name_buf, O_CREAT|O_EXCL, 0600, 0);
-		if (start_tick_sem == SEM_FAILED) {
-			WARN("%s\n", strerror(errno));
-			ERR(E_UNKNOWN, "Initilizing start_tick_sem\n");
-		}
-
-		sprintf(name_buf, "/%d-%s", getpid(), "end_tick_sem");
-		end_tick_sem = sem_open(name_buf, O_CREAT|O_EXCL, 0600, 0);
-		if (end_tick_sem == SEM_FAILED) {
-			WARN("%s\n", strerror(errno));
-			ERR(E_UNKNOWN, "Initilizing end_tick_sem\n");
-		}
-
-		sprintf(name_buf, "/%d-%s", getpid(), "end_tock_sem");
-		end_tock_sem = sem_open(name_buf, O_CREAT|O_EXCL, 0600, 0);
-		if (end_tock_sem == SEM_FAILED) {
-			WARN("%s\n", strerror(errno));
-			ERR(E_UNKNOWN, "Initilizing end_tock_sem\n");
-		}
-	}
+	const char thread_name[16] = "Simulator main";
+#ifdef __APPLE__
+	assert(0 == pthread_setname_np(thread_name));
+#else
+	assert(0 == prctl(PR_SET_NAME, thread_name, 0, 0, 0));
 #endif
 
 	// Read in flash
@@ -880,14 +847,8 @@ EXPORT void simulator(const char *flash_file) {
 		}
 	}
 
-	// Spawn pipeline stage threads
 #ifndef NO_PIPELINE
-	pthread_t ifstage_pthread;
-	pthread_t idstage_pthread;
-	pthread_t exstage_pthread;
-	pthread_create(&ifstage_pthread, NULL, ticker, tick_if);
-	pthread_create(&idstage_pthread, NULL, ticker, tick_id);
-	pthread_create(&exstage_pthread, NULL, ticker, tick_ex);
+	pipeline_init();
 #endif
 
 	power_on();

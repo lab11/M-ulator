@@ -106,7 +106,7 @@ static void insert_memmap_behind(struct memmap **head, struct memmap *newmap,
 	cur->prev = newmap;
 }
 
-void register_memmap(
+EXPORT void register_memmap(
 		const char *name,
 		bool write,
 		short alignment,
@@ -305,10 +305,13 @@ EXPORT void print_memmap(void) {
 	printf("\n");
 }
 
-
+#ifdef DEBUG2
+static bool try_read_word(uint32_t addr, uint32_t *val, bool suppress) {
+	if (!suppress)
+		DBG2("addr %08x\n", addr);
+#else
 static bool try_read_word(uint32_t addr, uint32_t *val) {
-	DBG2("addr %08x\n", addr);
-
+#endif
 	struct memmap *cur = reads;
 	while (cur != NULL) {
 		if (cur->alignment == 4)
@@ -326,9 +329,25 @@ static bool try_read_word(uint32_t addr, uint32_t *val) {
 	*/
 }
 
-uint32_t read_word(uint32_t addr) {
+#ifdef DEBUG2
+EXPORT uint32_t read_word_quiet(uint32_t addr) {
 	uint32_t val;
+	if (try_read_word(addr, &val, true)) {
+		return val;
+	} else {
+		print_memmap();
+		CORE_ERR_invalid_addr(false, addr);
+	}
+}
+#endif
+
+EXPORT uint32_t read_word(uint32_t addr) {
+	uint32_t val;
+#ifdef DEBUG2
+	if (try_read_word(addr, &val, false)) {
+#else
 	if (try_read_word(addr, &val)) {
+#endif
 		return val;
 	} else {
 		print_memmap();
@@ -336,7 +355,7 @@ uint32_t read_word(uint32_t addr) {
 	}
 }
 
-void write_word(uint32_t addr, uint32_t val) {
+EXPORT void write_word(uint32_t addr, uint32_t val) {
 	DBG2("addr %08x val %08x\n", addr, val);
 
 	struct memmap *cur = writes;
@@ -356,7 +375,7 @@ void write_word(uint32_t addr, uint32_t val) {
 	*/
 }
 
-uint16_t read_halfword(uint32_t addr) {
+EXPORT uint16_t read_halfword(uint32_t addr) {
 	DBG2("addr %08x\n", addr);
 
 	if ((addr & 0x1) & TRAP_ALIGNMENT) {
@@ -388,7 +407,7 @@ uint16_t read_halfword(uint32_t addr) {
 	return ret;
 }
 
-void write_halfword(uint32_t addr, uint16_t val) {
+EXPORT void write_halfword(uint32_t addr, uint16_t val) {
 	DBG2("addr %08x val %04x\n", addr, val);
 
 	if ((addr & 0x1) & TRAP_ALIGNMENT) {
@@ -422,7 +441,7 @@ void write_halfword(uint32_t addr, uint16_t val) {
 	write_word(addr & 0xfffffffc, word);
 }
 
-bool try_read_byte(uint32_t addr, uint8_t* val) {
+EXPORT bool try_read_byte(uint32_t addr, uint8_t* val) {
 
 	struct memmap *cur = reads;
 	while (cur != NULL) {
@@ -433,7 +452,11 @@ bool try_read_byte(uint32_t addr, uint8_t* val) {
 	}
 
 	uint32_t word;
+#ifdef DEBUG2
+	if (!try_read_word(addr & 0xfffffffc, &word, false))
+#else
 	if (!try_read_word(addr & 0xfffffffc, &word))
+#endif
 		return false;
 
 	switch (addr & 0x3) {
@@ -457,7 +480,7 @@ bool try_read_byte(uint32_t addr, uint8_t* val) {
 	return true;
 }
 
-uint8_t read_byte(uint32_t addr) {
+EXPORT uint8_t read_byte(uint32_t addr) {
 	uint8_t val;
 	if (try_read_byte(addr, &val)) {
 		return val;
@@ -466,7 +489,7 @@ uint8_t read_byte(uint32_t addr) {
 	}
 }
 
-void write_byte(uint32_t addr, uint8_t val) {
+EXPORT void write_byte(uint32_t addr, uint8_t val) {
 	struct memmap *cur = writes;
 	while (cur != NULL) {
 		if (cur->alignment == 1)

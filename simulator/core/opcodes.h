@@ -45,7 +45,7 @@ struct op {
 	};
 };
 
-extern inline int get_opcode_masks(void);
+int get_opcode_masks(void);
 bool match_mask8(uint8_t inst, uint8_t ones_mask, uint8_t zeros_mask) __attribute__((const));
 bool match_mask16(uint16_t inst, uint16_t ones_mask, uint16_t zeros_mask) __attribute__((const));
 bool match_mask32(uint32_t inst, uint32_t ones_mask, uint32_t zeros_mask) __attribute__((const));
