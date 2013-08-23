@@ -91,8 +91,16 @@ void ThumbExpandImm_C(uint32_t imm12, bool carry_in, uint32_t *imm32, bool *carr
 		CORE_epsr_write(epsr);\
 	} while (0)
 
-#define SET_ISETSTATE(_i) // NOP for M profile
-#define GET_ISETSTATE	INST_SET_THUMB
+inline __attribute__ ((always_inline))
+void set_isetstate(uint32_t iset __attribute__ ((unused))) {
+	// NOP for M profile
+	return;
+}
+
+inline __attribute__ ((always_inline))
+uint32_t get_isetstate(void) {
+	return INST_SET_THUMB;
+}
 
 #endif //M_PROFILE
 

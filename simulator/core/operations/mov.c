@@ -20,6 +20,7 @@
 #include "opcodes.h"
 #include "helpers.h"
 
+#include "cpu/features.h"
 #include "cpu/registers.h"
 #include "cpu/misc.h"
 
@@ -39,7 +40,7 @@ static void mrs(uint8_t rd, uint8_t sysm) {
 			if (!(sysm & 0x4)) {
 				union apsr_t apsr = CORE_apsr_read();
 				rd_val |= (apsr.storage & 0xf8000000);
-				if (false /*HaveDSPext()*/) {
+				if (HaveDSPExt()) {
 					rd_val |= (apsr.storage & 0xf0000);
 				}
 			}
@@ -47,11 +48,11 @@ static void mrs(uint8_t rd, uint8_t sysm) {
 
 		case 0x1:
 			CORE_ERR_not_implemented("priviledge separation\n");
-			break;
+			//break;
 
 		case 0x2:
 			CORE_ERR_not_implemented("priviledge separation & FP\n");
-			break;
+			//break;
 
 		default:
 			CORE_ERR_unpredictable("bad sysm val\n");
@@ -79,7 +80,7 @@ static void msr(uint8_t rn, uint8_t mask, uint8_t sysm) {
 		case 0x0:
 			if (!(sysm & 0x4)) {
 				if (mask & 0x1) {
-					if (!(false /*HaveDSPExt()*/)) {
+					if (!(HaveDSPExt())) {
 						CORE_ERR_unpredictable("dsp?\n");
 					} else {
 						apsr.storage &= ~0xf0000;
@@ -96,11 +97,11 @@ static void msr(uint8_t rn, uint8_t mask, uint8_t sysm) {
 
 		case 0x1:
 			CORE_ERR_not_implemented("priviledge\n");
-			break;
+			//break;
 
 		case 0x2:
 			CORE_ERR_not_implemented("priviledge & others\n");
-			break;
+			//break;
 
 		default:
 			CORE_ERR_unpredictable("bad sysm\n");

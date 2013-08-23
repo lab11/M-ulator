@@ -138,10 +138,16 @@ int main(int argc, char **argv) {
 				break;
 
 			case 'c':
-				dumpatpc = strtol(optarg, NULL, 16);
+			{
+				long ret = strtol(optarg, NULL, 16);
+				dumpatpc = (unsigned) ret;
+				if (dumpatpc != ret)
+					ERR(E_UNKNOWN, "Requested cycle (%ld) too large\n", ret);
+
 				INFO("Simulator will pause at execute of PC %x\n",
 						dumpatpc);
 				break;
+			}
 
 			case 'y':
 				dumpatcycle = atoi(optarg);

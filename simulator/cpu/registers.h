@@ -29,7 +29,8 @@
 
 #ifdef A_PROFILE
 
-union __attribute__ ((__packed__)) apsr_t {
+//union __attribute__ ((__packed__)) apsr_t {
+union apsr_t {
 	uint32_t storage;
 	// "Current" program status register
 	//   0-4: M[4:0]	// Mode field: 10000 user  10001 FIQ 10010 IRQ 10011 svc
@@ -90,7 +91,8 @@ void		CORE_basepri_write(uint8_t);
 union control_t CORE_control_read(void);
 void		CORE_control_write(union control_t);
 
-union __attribute__ ((__packed__)) apsr_t {
+//union __attribute__ ((__packed__)) apsr_t {
+union apsr_t {
 	uint32_t storage;
 	//  0-15: <reserved>
 	// 16-19: GE[3:0]	// for DSP extension
@@ -113,7 +115,8 @@ union __attribute__ ((__packed__)) apsr_t {
 };
 
 
-union __attribute__ ((__packed__)) ipsr_t {
+//union __attribute__ ((__packed__)) ipsr_t {
+union ipsr_t {
 	uint32_t storage;
 	//   0-8: 0 or Exception Number
 	//  9-31: <reserved>
@@ -124,7 +127,8 @@ union __attribute__ ((__packed__)) ipsr_t {
 };
 
 
-union __attribute__ ((__packed__)) epsr_t {
+//union __attribute__ ((__packed__)) epsr_t {
+union epsr_t {
 	uint32_t storage;
 	//   0-9: <reserved>
 	// 10-15: ICI/IT	//
@@ -142,7 +146,8 @@ union __attribute__ ((__packed__)) epsr_t {
 	} bits;
 };
 
-union __attribute__ ((__packed__)) control_t {
+//union __attribute__ ((__packed__)) control_t {
+union control_t {
 	uint32_t storage;
 	struct {
 		unsigned nPRIV		:  1;

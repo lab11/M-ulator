@@ -65,10 +65,10 @@ static int handle_op(const char *syntax, va_list args) {
 	} else if (IS_OP("registers")) {
 		unsigned registers = va_arg(args, unsigned);
 		putchar_unlocked('{');
-		int i;
-		for (i=0; i<SP_REG; i++) {
-			if (registers & (1 << i)) {
-				printf("R%02d(=%08x),", i, CORE_reg_read(i));
+		int j;
+		for (j=0; j<SP_REG; j++) {
+			if (registers & (1 << j)) {
+				printf("R%02d(=%08x),", j, CORE_reg_read(j));
 			}
 		}
 		if (registers & (1 << SP_REG))
@@ -85,7 +85,7 @@ static int handle_op(const char *syntax, va_list args) {
 	return i;
 }
 
-static int print_it_inst(const char *syntax, va_list args) {
+static size_t print_it_inst(const char *syntax, va_list args) {
 	unsigned itstate = va_arg(args, unsigned);
 
 	uint8_t mask = itstate & 0xf;
@@ -161,10 +161,10 @@ static int print_optional_setflags(va_list args) {
 }
 
 static void _op_decompile(const char *syntax, va_list args) {
-	int len = strlen(syntax);
+	size_t len = strlen(syntax);
 	int space_cnt = 0;
 
-	int i;
+	unsigned i;
 	for (i=0; i<len; i++) {
 		if (syntax[i] == '<')
 			i += handle_op(syntax+i, args);

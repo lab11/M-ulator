@@ -190,7 +190,8 @@ static void print_full_state(void) {
 
 	{
 		const char *file;
-		size_t i;
+		size_t ret;
+		uint32_t i;
 
 #if defined (HAVE_ROM) && defined (PRINT_ROM_EN)
 		file = get_dump_name('o');
@@ -204,10 +205,10 @@ static void print_full_state(void) {
 				rom[(i-ROMBOT)/4] = read_word(i);
 #endif
 
-			i = fwrite(rom, ROMSIZE, 1, romfp);
+			ret = fwrite(rom, ROMSIZE, 1, romfp);
 			printf("Wrote %8zu bytes to %-29s "\
 					"(Use 'hexdump -C' to view)\n",
-					i*ROMSIZE, file);
+					ret*ROMSIZE, file);
 			fclose(romfp);
 		} else {
 			perror("No ROM dump");
@@ -228,10 +229,10 @@ static void print_full_state(void) {
 				ram[(i-RAMBOT)/4] = read_word(i);
 #endif
 
-			i = fwrite(ram, RAMSIZE, 1, ramfp);
+			ret = fwrite(ram, RAMSIZE, 1, ramfp);
 			printf("Wrote %8zu bytes to %-29s "\
 					"(Use 'hexdump -C' to view)\n",
-					i*RAMSIZE, file);
+					ret*RAMSIZE, file);
 			fclose(ramfp);
 		} else {
 			perror("No RAM dump");
@@ -314,9 +315,9 @@ static void _shell(void) {
 				assert(-1 != asprintf(&cmd, "hexdump -C %s", file));
 				FILE *out = popen(cmd, "r");
 
-				char buf[100];
-				while ( fgets(buf, 99, out) ) {
-					printf("%s", buf);
+				char hex_buf[100];
+				while ( fgets(hex_buf, 99, out) ) {
+					printf("%s", hex_buf);
 				}
 
 				pclose(out);
@@ -759,7 +760,7 @@ static void flash_image(const uint8_t *image, const uint32_t num_bytes){
 		flash_ROM(image, num_bytes);
 		return;
 	}
-#endif
+#else
 	// Enter debugging to circumvent state-tracking code and write directly
 	state_enter_debugging();
 	unsigned i;
@@ -768,6 +769,7 @@ static void flash_image(const uint8_t *image, const uint32_t num_bytes){
 	}
 	state_exit_debugging();
 	INFO("Wrote %d bytes to memory\n", num_bytes);
+#endif
 }
 
 EXPORT void simulator(const char *flash_file) {
@@ -813,7 +815,10 @@ EXPORT void simulator(const char *flash_file) {
 					ERR(E_BAD_FLASH, "Failed to read flash file '%s'\n",
 							flash_file);
 				}
-				flash_image(flash, ret);
+
+				uint32_t image_size = (uint32_t) ret;
+				assert(image_size == ret);
+				flash_image(flash, image_size);
 			}
 
 			INFO("Succesfully loaded image: %s\n", flash_file);

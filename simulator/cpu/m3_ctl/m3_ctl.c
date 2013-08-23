@@ -89,7 +89,6 @@ void register_reset_m3_ctl(void) {
 
 // XXX: External linkage, register hook?
 void recv_i2c_message(uint8_t addr, uint32_t length, uint8_t *data) {
-	CORE_ERR_not_implemented("FIXME: state tracking is a lie here, this is async thread\n");
 	switch (addr) {
 		case 0xe0:
 			// I2C_CHIP_ID_REG_WR? XXX: Flesh out I2C interface
@@ -178,6 +177,7 @@ void recv_i2c_message(uint8_t addr, uint32_t length, uint8_t *data) {
 		default:
 			CORE_ERR_unpredictable("M3 CTL recv i2c bad addr\n");
 	}
+	CORE_ERR_not_implemented("FIXME: state tracking is a lie here, this is async thread\n");
 }
 
 static void m3_ctl_send_i2c_message(uint8_t addr, uint32_t length, char *msg) {
@@ -316,7 +316,6 @@ static void dma_write(uint32_t addr, uint32_t val) {
 			buf[i] = read_word(source_addr + i*4);
 		}
 
-		CORE_ERR_not_implemented("Send I2C Message");
 		m3_ctl_send_i2c_message(i2c_addr, num_words*4, (char*) buf);
 	}
 }

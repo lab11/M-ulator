@@ -28,27 +28,26 @@ static void SelectInstrSet(uint8_t iset) {
 	switch (iset) {
 		case INST_SET_ARM:
 			DBG2("Set ISETSTATE to Arm\n");
-			if (GET_ISETSTATE == INST_SET_THUMBEE) {
+			if (get_isetstate() == INST_SET_THUMBEE) {
 				CORE_ERR_unpredictable("ThumbEE -> Arm trans\n");
 			} else {
-				SET_ISETSTATE(INST_SET_ARM);
+				set_isetstate(INST_SET_ARM);
 			}
 			break;
 		case INST_SET_THUMB:
 			DBG2("Set ISETSTATE to Thumb\n");
-			SET_ISETSTATE(INST_SET_THUMB);
+			set_isetstate(INST_SET_THUMB);
 			break;
 		case INST_SET_JAZELLE:
 			DBG2("Set ISETSTATE to Jazelle\n");
-			SET_ISETSTATE(INST_SET_JAZELLE);
+			set_isetstate(INST_SET_JAZELLE);
 			break;
 		case INST_SET_THUMBEE:
 			DBG2("Set ISETSTATE to ThumbEE\n");
-			SET_ISETSTATE(INST_SET_THUMBEE);
+			set_isetstate(INST_SET_THUMBEE);
 			break;
 		default:
 			CORE_ERR_unpredictable("Unknown iset\n");
-			break;
 	}
 }
 
@@ -154,7 +153,7 @@ static void bl_blx(uint32_t pc, uint8_t targetInstrSet, uint32_t imm32) {
 	DBG2("pc %08x targetInstrSet %x imm32 %d 0x%08x\n",
 			pc, targetInstrSet, imm32, imm32);
 
-	if (GET_ISETSTATE == INST_SET_ARM) {
+	if (get_isetstate() == INST_SET_ARM) {
 		lr = pc - 4;
 	} else {
 		lr = ((pc & 0xfffffffe) | 0x1);
@@ -204,7 +203,7 @@ static void bl_t1(uint32_t inst) {
 		CORE_ERR_unpredictable("bl_t1 in itstate, not ending\n");
 
 	OP_DECOMPILE("BL<c> <label>", imm32);
-	return bl_blx(CORE_reg_read(PC_REG), GET_ISETSTATE, imm32);
+	return bl_blx(CORE_reg_read(PC_REG), get_isetstate(), imm32);
 }
 
 static inline void blx_reg(uint8_t rm) {

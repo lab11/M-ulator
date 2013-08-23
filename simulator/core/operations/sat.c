@@ -26,10 +26,10 @@ static void SignedSatQ(int32_t i, uint8_t N, int32_t *result, bool *sat) {
 	int64_t extreme = ((1ULL << (N-1)) - 1);
 
 	if (i > extreme) {
-		*result = extreme;
+		*result = (int32_t) extreme;
 		*sat = true;
 	} else if (i < -extreme) {
-		*result = -extreme;
+		*result = (int32_t) -extreme;
 		*sat = true;
 	} else {
 		*result = i;
@@ -40,7 +40,7 @@ static void SignedSatQ(int32_t i, uint8_t N, int32_t *result, bool *sat) {
 static void UnsignedSatQ(int32_t i, uint8_t N, uint32_t *result, bool *sat) {
 	int64_t extreme = ((1ULL << N) - 1);
 	if (i > extreme) {
-		*result = extreme;
+		*result = (int32_t) extreme;
 		*sat = true;
 	} else if (i < 0) {
 		*result = 0;

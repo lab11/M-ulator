@@ -21,6 +21,7 @@
 #include "opcodes.h"
 #include "helpers.h"
 
+#include "cpu/features.h"
 #include "cpu/registers.h"
 #include "cpu/misc.h"
 
@@ -32,16 +33,6 @@ EXPORT bool CurrentModeIsPrivileged(void) {
 
 EXPORT int ExecutionPriority(void) {
 	CORE_ERR_not_implemented("ExecutionPriority\n");
-}
-
-EXPORT bool HaveDSPext(void) {
-	CORE_ERR_not_implemented("HaveDSPext\n");
-	return false;
-}
-
-EXPORT bool HaveFPExt(void) {
-	CORE_ERR_not_implemented("HaveFPExt\n");
-	return false;
 }
 
 // arm-v6-m, arm-v7-m
@@ -108,7 +99,7 @@ static void mrs_t1(uint32_t inst) {
 			if (SYSm2) {
 				rd_val &= ~0xf8000000;
 				rd_val |= (CORE_apsr_read().storage & 0xf8000000);
-				if (HaveDSPext()) {
+				if (HaveDSPExt()) {
 					rd_val &= ~0xf0000;
 					rd_val |= (CORE_apsr_read().storage & 0xf0000);
 				}
@@ -120,11 +111,11 @@ static void mrs_t1(uint32_t inst) {
 					case 0:
 						//rd_val = MSP;
 						CORE_ERR_not_implemented("MSP\n");
-						break;
+						//break;
 					case 1:
 						//rd_val = PSP;
 						CORE_ERR_not_implemented("PSP\n");
-						break;
+						//break;
 					default:
 						CORE_ERR_unpredictable("Bad SYSm\n");
 				}
@@ -183,7 +174,7 @@ static void msr_t1(uint32_t inst) {
 		case 0x3:
 			// _nzcvqg, Write the N, Z, C, V, Q, and GE[3:0] bits
 			CORE_ERR_not_implemented("DSP Extentions (msr_t1)\n");
-			break;
+			//break;
 		default:
 			CORE_ERR_unpredictable("Illegal mask (msr_t1)\n");
 	}
@@ -209,7 +200,7 @@ static void msr_t1(uint32_t inst) {
 		case 0:
 			if (SYSm2 == 0) {
 				if (mask0 == 1) {
-					if (!HaveDSPext())
+					if (!HaveDSPExt())
 						CORE_ERR_unpredictable("deep\n");
 					else {
 						apsr.storage &= ~0xf0000;
@@ -229,11 +220,11 @@ static void msr_t1(uint32_t inst) {
 					case 0:
 						//MSP = rn_val;
 						CORE_ERR_not_implemented("MSP\n");
-						break;
+						//break;
 					case 1:
 						//PSP = rn_val;
 						CORE_ERR_not_implemented("PSP\n");
-						break;
+						//break;
 					default:
 						CORE_ERR_unpredictable("Bad SYSm\n");
 				}

@@ -89,12 +89,12 @@ void BranchTo(uint32_t addr) {
 }
 
 void BranchWritePC(uint32_t addr) {
-	if (GET_ISETSTATE == INST_SET_ARM) {
+	if (get_isetstate() == INST_SET_ARM) {
 #ifdef M_PROFILE
 		assert(false && "Arm state in M profile?");
 #endif
 		BranchTo(addr & 0xfffffffc);
-	} else if (GET_ISETSTATE == INST_SET_JAZELLE) {
+	} else if (get_isetstate() == INST_SET_JAZELLE) {
 #ifdef M_PROFILE
 		assert(false && "Jazelle state in M profile?");
 #endif
@@ -156,7 +156,7 @@ void Shift_C(
 			case RRX:
 				//RRX_C(value, Nbits, amount, result, carry_out);
 				CORE_ERR_not_implemented("Shitf_C RRX\n");
-				break;
+				//break;
 			default:
 				CORE_ERR_unpredictable("Shift_C bad type\n");
 		}
@@ -177,7 +177,7 @@ void LSL_C(uint32_t x, int Nbits, uint8_t shift,
 	// use 64 bit type to catch overflow of shift to the 33rd bit
 	uint64_t extended_x = x;
 	extended_x <<= shift;
-	*result = extended_x & ((1ULL << Nbits) - 1);
+	*result = (uint32_t) (extended_x & ((1ULL << Nbits) - 1));
 	*carry_out = !!(extended_x & (1ULL << Nbits));
 }
 

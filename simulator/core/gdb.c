@@ -79,7 +79,7 @@ EXPORT void gdb_init(int port) {
 
 	// Get the initial gdb support message
 	const char *msg;
-	int len;
+	long len;
 	msg = gdb_get_message(&len);
 
 	DBG2("Got msg >>>%s<<<, len %d, strlen %zd\n", msg, len, strlen(msg));
@@ -105,12 +105,12 @@ qSupported:PacketSize=%x", GDB_MSG_MAX - 1));
 	INFO("Connection initialized successfully\n");
 }
 
-EXPORT char* gdb_get_message(int *ext_len) {
+EXPORT char* gdb_get_message(long *ext_len) {
 	static char buf[GDB_MSG_MAX];
 	memset(buf, 0, GDB_MSG_MAX);
 
 	int read = 0;
-	int len = 0;
+	long len = 0;
 
 	do {
 		if (read >= GDB_MSG_MAX) {
@@ -120,7 +120,7 @@ EXPORT char* gdb_get_message(int *ext_len) {
 			ERR(E_UNKNOWN, "Why did gdb ignore PacketSize??\n");
 		}
 
-		int ret;
+		ssize_t ret;
 		ret = recv(sock, buf+read, GDB_MSG_MAX-read, 0);
 
 		if (ret < 0) {
@@ -149,7 +149,7 @@ EXPORT char* gdb_get_message(int *ext_len) {
 
 	if (read > (len + 2)) {
 		WARN("Read beyond one message boundary\n");
-		WARN("read %d len %d (len + 2 %d)\n", read, len, len+2);
+		WARN("read %d len %ld (len + 2 %ld)\n", read, len, len+2);
 		WARN(">>>%s<<<\n", buf);
 		WARN("This should not be possible, as gdb commands are single messages\n");
 		ERR(E_UNPREDICTABLE, "Lost protocol sync?\n");
@@ -207,14 +207,14 @@ static void _gdb_send(const char c) {
 	}
 #endif
 
-	int ret = send(sock, &c, 1, 0);
+	ssize_t ret = send(sock, &c, 1, 0);
 	if (ret != 1) {
 		perror(PP_STRING" W");
 		ERR(E_UNKNOWN, "Failed to send message to gdb\n");
 	}
 }
 
-static void gdb_send(const char *msg, int len) {
+static void gdb_send(const char *msg, long len) {
 #ifdef DEBUG2
 	flockfile(stdout);
 #endif
@@ -273,7 +273,7 @@ static bool _wait_for_gdb(void) {
 	// we try to explicitly identify the messages we don't recognize, and bail
 	// out on completely new ones.
 	DBG1("Waiting for a message from gdb...\n");
-	int cmd_len;
+	long cmd_len;
 	char *cmd = gdb_get_message(&cmd_len);
 
 	switch (cmd[0]) {
@@ -318,12 +318,12 @@ static bool _wait_for_gdb(void) {
 			} else {
 				goto unknown_gdb;
 			}
+			break;
 #else
 			WARN("Simulator was compiled without HAVE_REPLAY\n");
 			WARN("Time-travel is not supported\n");
 			goto unknown_gdb;
 #endif
-			break;
 		}
 
 		case 'c':
@@ -335,7 +335,6 @@ static bool _wait_for_gdb(void) {
 				WARN("Request to continue at specific address currently unsupported, ignoring\n");
 				goto unknown_gdb;
 			}
-			break;
 		}
 
 		case 'g':
@@ -397,7 +396,6 @@ static bool _wait_for_gdb(void) {
 			// kill
 			INFO("Killed by remote debugger, dying\n");
 			sim_terminate();
-			break;
 		}
 
 		case 'm':
@@ -408,9 +406,9 @@ static bool _wait_for_gdb(void) {
 			const char *address = strtok(cmd+1, ",");
 			const char *length = strtok(NULL, ",");
 			assert(NULL != length);
-			int addr = strtol(address, NULL, 16);
-			int len = strtol(length, NULL, 16);
-			int resp_len = len * 2 + 1;
+			uint32_t addr = (uint32_t) strtoul(address, NULL, 16);
+			unsigned long len = strtoul(length, NULL, 16);
+			long resp_len = len * 2 + 1;
 
 			DBG2("addr %d (%s) len %d (%s)\n", addr, address, len, length);
 			{
@@ -449,8 +447,8 @@ static bool _wait_for_gdb(void) {
 			assert(NULL != length);
 			assert(NULL != bytes);
 
-			int addr = strtol(address, NULL, 16);
-			int len = strtol(length, NULL, 16);
+			uint32_t addr = (uint32_t) strtol(address, NULL, 16);
+			unsigned long len = strtoul(length, NULL, 16);
 
 			while (len) {
 				char buf[3] = {0};
@@ -542,7 +540,6 @@ static bool _wait_for_gdb(void) {
 			} else {
 				goto unknown_gdb;
 			}
-			break;
 		}
 
 		/* Okay, never mind this for now, this interface is just too
@@ -589,8 +586,8 @@ static bool _wait_for_gdb(void) {
 			const char *length = strtok(NULL, ":");
 			unsigned char *data = (unsigned char*) strtok(NULL, "");
 
-			unsigned addr = strtoul(address, NULL, 16);
-			unsigned len = strtoul(length, NULL, 16);
+			uint32_t addr = (uint32_t) strtoul(address, NULL, 16);
+			unsigned long len = strtoul(length, NULL, 16);
 
 #ifdef DEBG1
 			//                 X          addr       ,          length    :

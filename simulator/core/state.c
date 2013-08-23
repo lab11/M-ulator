@@ -461,7 +461,7 @@ EXPORT int state_seek_for_calling_thread(int target_cycle) {
 	return current_cycle;
 }
 #else
-EXPORT int state_seek(int cycle __attribute__ ((unused))) {
+EXPORT int state_seek(int target_cycle __attribute__ ((unused))) {
 	return -1;
 }
 #endif //HAVE_REPLAY

@@ -227,15 +227,15 @@ static void reset_registers(void) {
 
 	// ASPR = bits(32) UNKNOWN {nop}
 
-	union ipsr_t ipsr = CORE_ipsr_read();
-	ipsr.bits.exception = 0;
-	CORE_ipsr_write(ipsr);
+	union ipsr_t ipsr_temp = CORE_ipsr_read();
+	ipsr_temp.bits.exception = 0;
+	CORE_ipsr_write(ipsr_temp);
 
-	union epsr_t epsr = CORE_epsr_read();
-	epsr.bits.T = tbit;
-	epsr.bits.ICI_IT_top = 0;
-	epsr.bits.ICI_IT_bot = 0;
-	CORE_epsr_write(epsr);
+	union epsr_t epsr_temp = CORE_epsr_read();
+	epsr_temp.bits.T = tbit;
+	epsr_temp.bits.ICI_IT_top = 0;
+	epsr_temp.bits.ICI_IT_bot = 0;
+	CORE_epsr_write(epsr_temp);
 
 	///
 
@@ -252,11 +252,15 @@ static void register_reset_registers(void) {
 	assert(sizeof(union apsr_t) == 4);
 	{
 		union apsr_t a;
-		a.storage = 0xf8000000;
-		assert(a.bits.N == 1);
+		a.storage = 0x80000000;
+		assert(a.bits.N);
+		a.storage = 0x40000000;
 		assert(a.bits.Z);
+		a.storage = 0x20000000;
 		assert(a.bits.C);
+		a.storage = 0x10000000;
 		assert(a.bits.V);
+		a.storage = 0x08000000;
 		assert(a.bits.Q);
 	}
 	assert(sizeof(union ipsr_t) == 4);
@@ -266,6 +270,7 @@ static void register_reset_registers(void) {
 		assert(i.bits.exception = 0xa5);
 	}
 	assert(sizeof(union epsr_t) == 4);
+	assert(sizeof(union control_t) == 4);
 
 	register_reset(reset_registers);
 }

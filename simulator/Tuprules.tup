@@ -11,7 +11,18 @@ CFLAGS += -Wall -Wextra -Werror
 CFLAGS += -Wstrict-prototypes
 CFLAGS += -Wno-type-limits
 CFLAGS += -fno-strict-overflow
-CFLAGS += -Wno-unused-parameter
+CFLAGS += -Wformat=2 -Winit-self -Wmissing-include-dirs -Wunused-parameter
+CFLAGS += -Wundef -Wpointer-arith -Wbad-function-cast -Wcast-qual -Wfloat-equal
+CFLAGS += -Wwrite-strings -Waggregate-return -Wstrict-prototypes -Wmissing-declarations
+CFLAGS += -Wmissing-field-initializers -Wmissing-format-attribute -Wredundant-decls
+CFLAGS += -Wnested-externs -Winline -Wvolatile-register-var -Wdisabled-optimization
+CFLAGS += -Wunreachable-code -Wshorten-64-to-32 -Wshadow -Wpacked
+
+#-Wcast-align          -- non-templatized state causes lots of these, should be fixed someday
+#-Wconversion          -- introduces a lot of annoying cases, maybe revisit someday
+#-Wpadded              -- Most of these are just argument passing structs
+#-Wmissing-prototypes  -- all of the constructors are missing prototypes
+#-Wmissing-noreturn    -- causes too much noise on not implemented paths
 
 CFLAGS += -I$(TUP_CWD)
 CFLAGS += -pthread -D_GNU_SOURCE
@@ -44,7 +55,9 @@ CFLAGS += -DDEBUG1
 CFLAGS += -DDEBUG2
 endif
 
+ifeq (@(TUP_PLATFORM),linux)
 LDFLAGS += -pthread
+endif
 
 CC = cc
 LD = ld

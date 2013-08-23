@@ -175,7 +175,7 @@ static void *poll_uart_thread(void *unused __attribute__ ((unused))) {
 		UART_SW(&poll_uart_client, client);
 
 		static uint8_t c;
-		static int ret;
+		static ssize_t ret;
 		while (1) {
 			// n.b. If the baud rate is set to a speed s.t. polling
 			// becomes CPU intensive (not likely..), this could be
@@ -258,7 +258,7 @@ static uint8_t poll_uart_status_read(void) {
 }
 
 static void poll_uart_status_write(uint8_t val) {
-	if (val & POLL_UART_RSTBIT) {
+	if (val & (1 << POLL_UART_RSTBIT)) {
 		pthread_rwlock_wrlock(&poll_uart_rwlock);
 		SWP_A(&poll_uart_head, NULL);
 		SWP_A(&poll_uart_tail, poll_uart_buffer);
@@ -300,7 +300,7 @@ static uint8_t poll_uart_rxdata_read(void) {
 static void poll_uart_txdata_write(uint8_t val) {
 	DBG1("UART write byte: %c %x\n", val, val);
 
-	static int ret;
+	static ssize_t ret;
 
 	uint32_t client = UART_SR(&poll_uart_client);
 	if (INVALID_CLIENT == client) {

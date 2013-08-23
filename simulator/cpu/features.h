@@ -17,21 +17,18 @@
  * along with Mulator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef GDB_H
-#define GDB_H
+#ifndef FEATURES_H
+#define FEATURES_H
 
-#include "common.h"
+inline __attribute__ ((always_inline))
+bool HaveDSPExt(void) {
+	return false;
+}
 
-#ifndef PP_STRING
-#define PP_STRING "GDB"
-#include "pretty_print.h"
-#endif
+inline __attribute__ ((always_inline))
+bool HaveFPExt(void) {
+	return false;
+}
 
-void gdb_init(int);
-char* gdb_get_message(long*);
-void gdb_send_message(const char*);
+#endif // FEATURES_H
 
-void wait_for_gdb(void);
-void stop_and_wait_for_gdb(void);
-
-#endif //GDB_H
