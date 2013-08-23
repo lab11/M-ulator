@@ -33,9 +33,11 @@
 // but we can make unconditional branches quick
 static void branch_target_forward32(uint32_t target, uint32_t inst, uint32_t *pc) {
 #ifdef NO_PIPELINE
+	(void) target;
+	(void) inst;
+	(void) pc;
 	return;
-#endif
-
+#else
 	if (match_mask32(inst, 0xf0009000, 0x08004000)) {
 		DBG2("btf: b_t4\n");
 		// This is b_t4
@@ -74,6 +76,7 @@ static void branch_target_forward32(uint32_t target, uint32_t inst, uint32_t *pc
 		*pc = target + imm32;
 		return;
 	}
+#endif
 }
 
 static void branch_target_forward16(uint32_t target, uint32_t inst, uint32_t *pc) {

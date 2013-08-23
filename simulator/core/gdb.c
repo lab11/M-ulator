@@ -82,7 +82,7 @@ EXPORT void gdb_init(int port) {
 	long len;
 	msg = gdb_get_message(&len);
 
-	DBG2("Got msg >>>%s<<<, len %d, strlen %zd\n", msg, len, strlen(msg));
+	DBG2("Got msg >>>%s<<<, len %ld, strlen %zd\n", msg, len, strlen(msg));
 
 	if (0 != strncmp("qSupported", msg, strlen("qSupported"))) {
 		WARN("No support from gdb host for qSupported message\n");
@@ -173,7 +173,7 @@ EXPORT char* gdb_get_message(long *ext_len) {
 		send(sock, "+", 1, 0);
 	}
 
-	DBG2("Got message >>>%s<<<, len %d, my_csum %2x\n", buf, len+2, csum);
+	DBG2("Got message >>>%s<<<, len %ld, my_csum %2x\n", buf, len+2, csum);
 
 	if (NULL != ext_len)
 		*ext_len = len - 2; // omit $ and #
@@ -318,7 +318,6 @@ static bool _wait_for_gdb(void) {
 			} else {
 				goto unknown_gdb;
 			}
-			break;
 #else
 			WARN("Simulator was compiled without HAVE_REPLAY\n");
 			WARN("Time-travel is not supported\n");
@@ -410,7 +409,7 @@ static bool _wait_for_gdb(void) {
 			unsigned long len = strtoul(length, NULL, 16);
 			long resp_len = len * 2 + 1;
 
-			DBG2("addr %d (%s) len %d (%s)\n", addr, address, len, length);
+			DBG2("addr %d (%s) len %ld (%s)\n", addr, address, len, length);
 			{
 				char buf[resp_len];
 				char *head = buf;

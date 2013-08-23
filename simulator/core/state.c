@@ -314,6 +314,14 @@ static void _state_write_async(uint32_t *loc, uint32_t val,
 	_state_write(loc, val, ploc, pval);
 #endif
 
+#else // !HAVE_REPLAY
+#ifdef DEBUG1
+	// Suppress unused warnings in this compile option path
+	(void) file;
+	(void) func;
+	(void) line;
+	(void) target;
+#endif
 #endif // HAVE_REPLAY
 
 	// "state tock"
