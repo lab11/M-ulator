@@ -44,6 +44,7 @@ static void sdiv_t1(uint32_t inst) {
 	if (BadReg(rd) || BadReg(rn) || BadReg(rm))
 		CORE_ERR_unpredictable("sdiv_t1 case\n");
 
+	OP_DECOMPILE("SDIV<c> <Rd>,<Rn>,<Rm>", rd, rn, rm);
 	return sdiv(rd, rn, rm);
 }
 
@@ -69,6 +70,7 @@ static void udiv_t1(uint32_t inst) {
 	if (BadReg(rd) || BadReg(rn) || BadReg(rm))
 		CORE_ERR_unpredictable("bad reg\n");
 
+	OP_DECOMPILE("UDIV<c>, <Rd>,<Rn>,<Rm>", rd, rn, rm);
 	return udiv(rd, rn, rm);
 }
 
