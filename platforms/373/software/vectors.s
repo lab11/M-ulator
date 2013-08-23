@@ -47,6 +47,7 @@
 
 
 .align 2
+.thumb_func
 hang:   b .
 
 .align 2

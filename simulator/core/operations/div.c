@@ -21,16 +21,26 @@
 #include "helpers.h"
 
 #include "cpu/registers.h"
+#include "cpu/exception.h"
+
+//#include "cpu/common/private_peripheral_bus/ppb.h"
+//#define DIV_0_TRP (read_word(CONFIGURATION_CONTROL) & CONFIGURATION_CONTROL_DIV_0_TRAP_MASK)
+#define DIV_0_TRP 1
 
 static inline void sdiv(uint8_t rd, uint8_t rn, uint8_t rm) {
 	int32_t rn_val = CORE_reg_read(rn);
 	int32_t rm_val = CORE_reg_read(rm);
 
-	if (rm_val == 0)
-		CORE_ERR_not_implemented("Divide by 0 exception\n");
-
 	int32_t result;
-	result = rn_val / rm_val;
+
+	if (rm_val == 0) {
+		if (DIV_0_TRP)
+			return UsageFault_divide_by_0();
+		else
+			result = 0;
+	} else {
+		result = rn_val / rm_val;
+	}
 
 	CORE_reg_write(rd, result);
 }
@@ -48,15 +58,20 @@ static void sdiv_t1(uint32_t inst) {
 	return sdiv(rd, rn, rm);
 }
 
-static void udiv(uint8_t rd, uint8_t rn, uint8_t rm) {
+static inline void udiv(uint8_t rd, uint8_t rn, uint8_t rm) {
 	uint32_t rn_val = CORE_reg_read(rn);
 	uint32_t rm_val = CORE_reg_read(rm);
 
-	if (rm_val == 0)
-		CORE_ERR_not_implemented("Divide by 0 exception\n");
-
 	uint32_t result;
-	result = rn_val / rm_val;
+
+	if (rm_val == 0) {
+		if (DIV_0_TRP)
+			return UsageFault_divide_by_0();
+		else
+			result = 0;
+	} else {
+		result = rn_val / rm_val;
+	}
 
 	CORE_reg_write(rd, result);
 }

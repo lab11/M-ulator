@@ -166,6 +166,15 @@ EXPORT void state_start_tick(void) {
 #endif
 }
 
+#ifdef CYCLE_ACCURATE
+/* "private" export to cpu/exception.c */
+void state_take_exception(void (*fn) (void)) {
+}
+#else
+void state_take_exception(void) {
+}
+#endif
+
 EXPORT void state_write_op(struct op **loc, struct op *val);
 EXPORT bool state_handle_exceptions(void) {
 #ifndef NO_PIPELINE

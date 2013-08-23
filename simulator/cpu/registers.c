@@ -22,14 +22,15 @@
 #include "core/state_sync.h"
 #include "core/pipeline.h"
 
+#include "cpu/features.h"
 #include "cpu/core.h"
 #include "cpu/misc.h"
 #include "cpu/common/private_peripheral_bus/ppb.h"
 
-/* Ignore mode transitions for now */
+enum Mode CurrentMode;
 static uint32_t reg[SP_REG];	// SP,LR,PC not held here, so 13 registers
-static uint32_t sp_process;
-static uint32_t sp_main;
+       uint32_t sp_process; // "private" export
+       uint32_t sp_main; // "private" export
 static uint32_t *sp = &sp_main;
 static uint32_t lr;
 
@@ -46,6 +47,8 @@ static uint32_t lr;
 static union apsr_t apsr;
 static union ipsr_t ipsr;
 static union epsr_t epsr;
+
+union ufsr_t ufsr;
 
 static uint32_t primask;
 //     0: priority	The exception mask register, a 1-bit register.
@@ -169,6 +172,47 @@ EXPORT void CORE_epsr_write(union epsr_t val) {
 	SW(&epsr.storage, val.storage);
 }
 
+// <8:0> from IPSR
+// <26:24,15:10> from ESPR
+// <31:27>,[if DSP: <19:16>] from APSR
+static const uint32_t xPSR_ipsr_mask = 0x000001ff;
+static const uint32_t xPSR_epsr_mask = 0x0700fc00;
+static const uint32_t xPSR_apsr_dsp_mask = 0xf80f0000;
+static const uint32_t xPSR_apsr_nodsp_mask = 0xf8000000;
+
+EXPORT uint32_t CORE_xPSR_read(void) {
+	uint32_t xPSR = 0;
+	xPSR |= CORE_ipsr_read().storage & xPSR_ipsr_mask;
+	xPSR |= CORE_epsr_read().storage & xPSR_epsr_mask;
+	if (HaveDSPExt())
+		xPSR |= CORE_apsr_read().storage & xPSR_apsr_dsp_mask;
+	else
+		xPSR |= CORE_apsr_read().storage & xPSR_apsr_nodsp_mask;
+	return xPSR;
+}
+EXPORT void CORE_xPSR_write(uint32_t xPSR) {
+	union ipsr_t i = CORE_ipsr_read();
+	union epsr_t e = CORE_epsr_read();
+	union apsr_t a = CORE_apsr_read();
+
+	i.storage &= ~xPSR_ipsr_mask;
+	i.storage |= xPSR & xPSR_ipsr_mask;
+	CORE_ipsr_write(i);
+
+	e.storage &= ~xPSR_epsr_mask;
+	e.storage |= xPSR & xPSR_epsr_mask;
+	CORE_epsr_write(e);
+
+	uint32_t apsr_mask;
+	if (HaveDSPExt())
+		apsr_mask = xPSR_apsr_dsp_mask;
+	else
+		apsr_mask = xPSR_apsr_nodsp_mask;
+	a.storage &= ~apsr_mask;
+	a.storage |= xPSR & apsr_mask;
+	CORE_apsr_write(a);
+}
+
 EXPORT bool CORE_primask_read(void) {
 	return SR(&primask);
 }
@@ -193,14 +237,40 @@ EXPORT void CORE_basepri_write(uint8_t val) {
 	SW(&basepri, val);
 }
 
-EXPORT union control_t CORE_control_read(void) {
+EXPORT bool CORE_control_nPRIV_read(void) {
 	union control_t c;
 	c.storage = SR(&control.storage);
-	return c;
+	return c.nPRIV;
 }
 
-EXPORT void CORE_control_write(union control_t val) {
-	SW(&control.storage, val.storage);
+EXPORT void CORE_control_nPRIV_write(bool npriv) {
+	// Defines execution priviledge in Thread mode:
+	//  0 - Thread mode has privileged access
+	//  1 - Thread mode has unprivileged access
+	// Handler mode is always privileged
+	union control_t c;
+	c.storage = SR(&control.storage);
+	c.nPRIV = npriv;
+	SW(&control.storage, c.storage);
+}
+
+EXPORT bool CORE_control_SPSEL_read(void) {
+	union control_t c;
+	c.storage = SR(&control.storage);
+	return c.SPSEL;
+}
+
+EXPORT void CORE_control_SPSEL_write(bool spsel) {
+	union control_t c;
+	c.storage = SR(&control.storage);
+	c.SPSEL = spsel;
+	SW(&control.storage, c.storage);
+
+	if (CORE_CurrentMode_read() == Mode_Thread) {
+		SWP(&sp, (spsel) ? &sp_process : &sp_main);
+	} else {
+		CORE_ERR_unpredictable("SPSEL write in Handler mode\n");
+	}
 }
 #endif
 
@@ -224,6 +294,8 @@ static void reset_registers(void) {
 		WARN("Reset vector %08x at %08x invalid\n", tmp, vectortable+4);
 		CORE_ERR_unpredictable("Thumb bit must be set for M-series\n");
 	}
+
+	CORE_CurrentMode_write(Mode_Thread);
 
 	// ASPR = bits(32) UNKNOWN {nop}
 
@@ -271,6 +343,8 @@ static void register_reset_registers(void) {
 	}
 	assert(sizeof(union epsr_t) == 4);
 	assert(sizeof(union control_t) == 4);
+
+	assert(sizeof(union ufsr_t) == 4);
 
 	register_reset(reset_registers);
 }

@@ -140,12 +140,18 @@ static void mrs_t1(uint32_t inst) {
 						rd_val |= (CORE_faultmask_read() & 0x1);
 					break;
 				case 4:
+#ifdef HAVE_FP
 					if (HaveFPExt()) {
 						rd_val &= ~0x7;
-						rd_val |= (CORE_control_read().storage & 0x7);
-					} else {
+						rd_val |= CORE_control_nPRIV_read() << 0;
+						rd_val |= CORE_control_SPSEL_read() << 1;
+						rd_val |= CORE_control_FPCA_read() << 2;
+					} else
+#endif
+					{
 						rd_val &= ~0x3;
-						rd_val |= (CORE_control_read().storage & 0x3);
+						rd_val |= CORE_control_nPRIV_read() << 0;
+						rd_val |= CORE_control_SPSEL_read() << 1;
 					}
 					break;
 				default:

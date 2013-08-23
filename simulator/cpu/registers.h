@@ -27,6 +27,13 @@
 #include "core/pretty_print.h"
 #endif
 
+#include "core/state_sync.h"
+
+enum Mode {
+	Mode_Handler,
+	Mode_Thread,
+};
+
 #ifdef A_PROFILE
 
 //union __attribute__ ((__packed__)) apsr_t {
@@ -82,14 +89,34 @@ void		CORE_ipsr_write(union ipsr_t val);
 union epsr_t	CORE_epsr_read(void);
 void		CORE_epsr_write(union epsr_t val);
 
+uint32_t	CORE_xPSR_read(void);
+void		CORE_xPSR_write(uint32_t);
+
 bool		CORE_primask_read(void);
 void		CORE_primask_write(bool);
 bool		CORE_faultmask_read(void);
 void		CORE_faultmask_write(bool);
 uint8_t		CORE_basepri_read(void);
 void		CORE_basepri_write(uint8_t);
-union control_t CORE_control_read(void);
-void		CORE_control_write(union control_t);
+bool		CORE_control_nPRIV_read(void);
+void		CORE_control_nPRIV_write(bool npriv);
+bool		CORE_control_SPSEL_read(void);
+void		CORE_control_SPSEL_write(bool spsel);
+#ifdef HAVE_FP
+bool		CORE_control_FPCA_read(void);
+void		CORE_control_FPCA_write(bool fpca);
+#endif
+
+inline __attribute__ ((always_inline))
+enum Mode	CORE_CurrentMode_read(void) {
+	extern enum Mode CurrentMode;
+	return SR(&CurrentMode);
+}
+inline __attribute__ ((always_inline))
+void		CORE_CurrentMode_write(enum Mode mode) {
+	extern enum Mode CurrentMode;
+	return SW(&CurrentMode, mode);
+}
 
 //union __attribute__ ((__packed__)) apsr_t {
 union apsr_t {
@@ -158,8 +185,35 @@ union control_t {
 #else
 		unsigned reserved0	: 30;
 #endif
-	} bits;
+	};
 };
+
+
+union ufsr_t {
+	uint32_t storage;
+	struct {
+		unsigned UNDEFINSTR  :  1;
+		unsigned INVSTATE    :  1;
+		unsigned INVPC       :  1;
+		unsigned NOCP        :  1;
+		unsigned reserved0   :  4;
+		unsigned UNALIGNED   :  1;
+		unsigned DIVBYZERO   :  1;
+		unsigned reserved1   : 22;
+	};
+};
+inline __attribute__ ((always_inline))
+union ufsr_t CORE_ufsr_read(void) {
+	extern union ufsr_t ufsr;
+	union ufsr_t u;
+	u.storage = SR(&ufsr.storage);
+	return u;
+}
+inline __attribute__ ((always_inline))
+void CORE_ufsr_write(union ufsr_t u) {
+	extern union ufsr_t ufsr;
+	SW(&ufsr.storage, u.storage);
+}
 
 #endif // M_PROFILE
 
