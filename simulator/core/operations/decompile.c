@@ -21,6 +21,8 @@
 
 #include "core/common.h"
 
+#include "core/pipeline.h" // for STALL_PC
+
 #include "cpu/registers.h"
 #include "cpu/core.h"
 
@@ -190,7 +192,10 @@ EXPORT void op_decompile(const char* syntax, ...) {
 	va_list va_args;
 	va_start(va_args, syntax);
 	printf("DECOM: ");
-	_op_decompile(syntax, va_args);
+	if (CORE_reg_read(PC_REG) == STALL_PC)
+		printf("(STALL)");
+	else
+		_op_decompile(syntax, va_args);
 	putchar_unlocked('\n');
 	va_end(va_args);
 	funlockfile(stderr); funlockfile(stdout);
