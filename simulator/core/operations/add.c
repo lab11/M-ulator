@@ -57,6 +57,7 @@ static void adc_imm_t1(uint32_t inst) {
 	if (BadReg(rd) || BadReg(rn))
 		CORE_ERR_unpredictable("Bad reg\n");
 
+	OP_DECOMPILE("ADC{S}<c> <Rd>,<Rn>,#<const>", setflags, rd, rn, imm32);
 	return adc_imm(rd, rn, imm32, setflags);
 }
 
@@ -90,7 +91,35 @@ static void adc_reg_t1(uint16_t inst) {
 	uint8_t rm = (inst >> 3) & 0x7;
 	bool setflags = !in_ITblock();
 
+	if (in_ITblock())
+		OP_DECOMPILE("ADC<c> <Rdn>,<Rm>", rdn, rm);
+	else
+		OP_DECOMPILE("ADCS <Rdn>,<Rm>", rdn, rm);
+
 	return adc_reg(rdn, rdn, rm, setflags, SRType_LSL, 0);
+}
+
+// arm-v7-m
+static void adc_reg_t2(uint32_t inst) {
+	uint8_t rm   = inst & 0xf;
+	uint8_t type = (inst >> 4) & 0x3;
+	uint8_t imm2 = (inst >> 6) & 0x3;
+	uint8_t rd   = (inst >> 8) & 0xf;
+	uint8_t imm3 = (inst >> 12) & 0x7;
+	uint8_t rn   = (inst >> 16) & 0xf;
+	bool    S    = (inst >> 20) & 0x1;
+
+	bool setflags = S==1;
+	enum SRType shift_t;
+	uint8_t shift_n;
+	DecodeImmShift(type, imm2 | (imm3 << 2), &shift_t, &shift_n);
+
+	if (BadReg(rd) || BadReg(rn) || BadReg(rm))
+		CORE_ERR_unpredictable("adc_reg_t2 case\n");
+
+	OP_DECOMPILE("ADC{S}<c>.W <Rd>,<Rn>,<Rm>{,<shift>}",
+			setflags, rd, rn, rm, shift_t, shift_n);
+	return adc_reg(rd, rn, rm, setflags, shift_t, shift_n);
 }
 
 static void add_imm(uint8_t rn, uint8_t rd, uint32_t imm32, uint8_t setflags) {
@@ -187,6 +216,7 @@ static void add_imm_t4(uint32_t inst) {
 	if (rd >= 13)
 		CORE_ERR_unpredictable("add_imm_t4 case\n");
 
+	OP_DECOMPILE("ADDW<c> <Rd>,<Rn>,#<imm12>", rd, rn, imm32);
 	return add_imm(rn, rd, imm32, setflags);
 }
 
@@ -230,6 +260,10 @@ static void add_reg_t1(uint16_t inst) {
 
 	bool setflags = !in_ITblock();
 
+	if (in_ITblock())
+		OP_DECOMPILE("ADD<c> <Rd>,<Rn>,<Rm>", rd, rn, rm);
+	else
+		OP_DECOMPILE("ADDS <Rd>,<Rn>,<Rm>", rd, rn, rm);
 	return add_reg(rd, rn, rm, setflags, SRType_LSL, 0);
 }
 
@@ -255,6 +289,7 @@ static void add_reg_t2(uint16_t inst) {
 	if ((rd == 15) && in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("add_reg_t2 it\n");
 
+	OP_DECOMPILE("ADD<c> <Rdn>,<Rm>", rd, rm);
 	return add_reg(rd, rn, rm, setflags, shift_t, shift_n);
 }
 
@@ -278,6 +313,8 @@ static void add_reg_t3(uint32_t inst) {
 	if ((rd == 13) || ((rd == 15) && (S == 0)) || (rn == 15) || BadReg(rm))
 		CORE_ERR_unpredictable("bad regs\n");
 
+	OP_DECOMPILE("ADD{S}.W <Rd>,<Rn>,<Rm>{,<shift>}",
+			setflags, rd, rn, rm, shift_t, shift_n);
 	return add_reg(rd, rn, rm, setflags, shift_t, shift_n);
 }
 
@@ -322,6 +359,7 @@ static void add_sp_plus_imm_t2(uint16_t inst) {
 	bool setflags = false;
 	uint32_t imm32 = (imm7 << 2);
 
+	OP_DECOMPILE("ADD<c> SP,SP,#<imm7>", imm32);
 	return add_sp_plus_imm(rd, imm32, setflags);
 }
 
@@ -340,6 +378,8 @@ static void add_sp_plus_imm_t3(uint32_t inst) {
 	if ((rd == 15) && (S == 0))
 		CORE_ERR_unpredictable("r15 w/out S\n");
 
+	OP_DECOMPILE("ADD{S}<c>.W <Rd>,SP,#<const>",
+			setflags, rd, imm32);
 	return add_sp_plus_imm(rd, imm32, setflags);
 }
 
@@ -356,6 +396,7 @@ static void add_sp_plus_imm_t4(uint32_t inst) {
 	if (rd == 15)
 		CORE_ERR_unpredictable("bad reg 15\n");
 
+	OP_DECOMPILE("ADDW<c> <Rd>,SP,#<imm12>", rd, imm32);
 	return add_sp_plus_imm(rd, imm32, setflags);
 }
 
@@ -405,6 +446,7 @@ static void add_sp_plus_reg_t1(uint16_t inst) {
 	enum SRType shift_t = SRType_LSL;
 	uint8_t shift_n = 0;
 
+	OP_DECOMPILE("ADD<c> <Rdm>,SP,<Rdm>", rd, rd);
 	return add_sp_plus_reg(rd, rm, setflags, shift_t, shift_n);
 }
 
@@ -417,6 +459,7 @@ static void add_sp_plus_reg_t2(uint16_t inst) {
 	enum SRType shift_t = SRType_LSL;
 	uint8_t shift_n = 0;
 
+	OP_DECOMPILE("ADD<c> SP,<Rm>", rm);
 	return add_sp_plus_reg(rd, rm, setflags, shift_t, shift_n);
 }
 
@@ -440,6 +483,8 @@ static void add_sp_plug_reg_t3(uint32_t inst) {
 	   )
 		CORE_ERR_unpredictable("add_sp_plug_reg_t3 case\n");
 
+	OP_DECOMPILE("ADD{S}<c>.W <Rd>,SP,<Rm>{,<shift>}",
+			setflags, rd, rm, shift_t, shift_n);
 	return add_sp_plus_reg(rd, rm, setflags, shift_t, shift_n);
 }
 
@@ -460,6 +505,7 @@ static void adr_t1(uint16_t inst) {
 	uint32_t imm32 = imm8 << 2;
 	bool add = true;
 
+	OP_DECOMPILE("ADR<c> <Rd>,<label>", rd, imm32);
 	return adr(rd, add, imm32);
 }
 
@@ -476,6 +522,10 @@ static void adr_t2(uint32_t inst) {
 	if (rd > 13)
 		CORE_ERR_unpredictable("adr_t2 case\n");
 
+	if (imm32 == 0)
+		OP_DECOMPILE("SUB <Rd>,PC,#0", rd);
+	else
+		OP_DECOMPILE("ADR<c>.W <Rd>,<label>", rd, imm32);
 	return adr(rd, add, imm32);
 }
 
@@ -492,6 +542,7 @@ static void adr_t3(uint32_t inst) {
 	if (rd > 13)
 		CORE_ERR_unpredictable("adr_t2 case\n");
 
+	OP_DECOMPILE("ADR<c>.W <Rd>,<label>", rd, imm32);
 	return adr(rd, add, imm32);
 }
 
@@ -502,6 +553,9 @@ void register_opcodes_add(void) {
 
 	// adc_reg_t1: 0100 0001 01<x's>
 	register_opcode_mask_16(0x4140, 0xbe80, adc_reg_t1);
+
+	// adc_reg_t2: 1110 1011 010x xxxx 0<x's>
+	register_opcode_mask_32(0xeb400000, 0x14a08000, adc_reg_t2);
 
 	// add_imm_t1: 0001 110x xxxx xxxx
 	register_opcode_mask_16(0x1c00, 0xe200, add_imm_t1);

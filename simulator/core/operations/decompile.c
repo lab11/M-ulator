@@ -26,6 +26,8 @@
 #include "cpu/registers.h"
 #include "cpu/core.h"
 
+#include "helpers.h"
+
 static int handle_op(const char *syntax, va_list args) {
 	assert(syntax[0] == '<');
 	assert(syntax[1] != '>');
@@ -80,6 +82,24 @@ static int handle_op(const char *syntax, va_list args) {
 		if (registers & (1 << PC_REG))
 			printf("PC(=%08x),", CORE_reg_read(PC_REG));
 		putchar_unlocked('}');
+	} else if (IS_OP("shift")) {
+		enum SRType shift_t = va_arg(args, enum SRType);
+		uint8_t shift_n = va_arg(args, unsigned);
+		if (shift_t == SRType_LSL)
+			printf("LSL ");
+		else if (shift_t == SRType_LSR)
+			printf("LSR ");
+		else if (shift_t == SRType_ASR)
+			printf("ASR ");
+		else if (shift_t == SRType_ROR)
+			printf("ROR ");
+		else if (shift_t == SRType_RRX)
+			printf("RRX ");
+		else
+			assert(false && "Illegal shift type?");
+
+		if (shift_t != SRType_RRX)
+			printf("#%d", shift_n);
 	} else {
 		printf("<<unknown: '%s'>>", buf);
 	}
