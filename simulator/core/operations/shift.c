@@ -56,6 +56,14 @@ static void shift_imm_t1(uint16_t inst, enum SRType shift_t) {
 	uint8_t shift_n;
 	DecodeImmShift(SRType_ENUM_TO_MASK(shift_t), imm5, &shift_t, &shift_n);
 
+	if (shift_t == ASR)
+		OP_DECOMPILE("ASR<IT> <Rd>,<Rm>,#<imm5>", rd, rm, imm5);
+	if (shift_t == LSL)
+		OP_DECOMPILE("LSL<IT> <Rd>,<Rm>,#<imm5>", rd, rm, imm5);
+	if (shift_t == LSR)
+		OP_DECOMPILE("LSR<IT> <Rd>,<Rm>,#<imm5>", rd, rm, imm5);
+	if (shift_t == ROR)
+		OP_DECOMPILE("ROR<IT> <Rd>,<Rm>,#<imm5>", rd, rm, imm5);
 	return shift_imm(CORE_apsr_read(), setflags, rd, rm,
 			shift_t, shift_n);
 }
@@ -98,6 +106,14 @@ static void shift_imm_t2(uint32_t inst, enum SRType shift_t) {
 	if (BadReg(rd) || BadReg(rm))
 		CORE_ERR_unpredictable("BadReg in shift_imm_t2\n");
 
+	if (shift_t == ASR)
+		OP_DECOMPILE("ASR{S}<c>.W <Rd>,<Rm>,#<imm5>", setflags, rd, rm, imm5);
+	if (shift_t == LSL)
+		OP_DECOMPILE("LSL{S}<c>.W <Rd>,<Rm>,#<imm5>", setflags, rd, rm, imm5);
+	if (shift_t == LSR)
+		OP_DECOMPILE("LSR{S}<c>.W <Rd>,<Rm>,#<imm5>", setflags, rd, rm, imm5);
+	if (shift_t == ROR)
+		OP_DECOMPILE("ROR{S}<c>.W <Rd>,<Rm>,#<imm5>", setflags, rd, rm, imm5);
 	return shift_imm(apsr, setflags, rd, rm, shift_t, shift_n);
 }
 
@@ -146,6 +162,14 @@ static void shift_reg_t1(uint16_t inst, enum SRType shift_t) {
 	uint8_t rn = rdn;
 	bool setflags = !in_ITblock();
 
+	if (shift_t == ASR)
+		OP_DECOMPILE("ASR<IT> <Rdn>,<Rm>", rd, rm);
+	if (shift_t == LSL)
+		OP_DECOMPILE("LSL<IT> <Rdn>,<Rm>", rd, rm);
+	if (shift_t == LSR)
+		OP_DECOMPILE("LSR<IT> <Rdn>,<Rm>", rd, rm);
+	if (shift_t == ROR)
+		OP_DECOMPILE("ROR<IT> <Rdn>,<Rm>", rd, rm);
 	return shift_reg(rd, rn, rm, shift_t, setflags);
 }
 
@@ -160,6 +184,14 @@ static void shift_reg_t2(uint32_t inst, enum SRType shift_t) {
 	if ((rd > 13) || (rn > 13) || (rm > 13))
 		CORE_ERR_unpredictable("shift_reg_t2 case\n");
 
+	if (shift_t == ASR)
+		OP_DECOMPILE("ASR{S}<c>.W <Rd>,<Rn>,<Rm>", rd, rn, rm);
+	if (shift_t == LSL)
+		OP_DECOMPILE("LSL{S}<c>.W <Rd>,<Rn>,<Rm>", rd, rn, rm);
+	if (shift_t == LSR)
+		OP_DECOMPILE("LSR{S}<c>.W <Rd>,<Rn>,<Rm>", rd, rn, rm);
+	if (shift_t == ROR)
+		OP_DECOMPILE("ROR{S}<c>.W <Rd>,<Rn>,<Rm>", rd, rn, rm);
 	return shift_reg(rd, rn, rm, shift_t, setflags);
 }
 

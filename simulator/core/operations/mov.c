@@ -155,10 +155,7 @@ static void mov_imm_t1(uint16_t inst) {
 	union apsr_t apsr = CORE_apsr_read();
 	bool carry = apsr.bits.C;
 
-	if (in_ITblock())
-		OP_DECOMPILE("MOV<c> <Rd>,#<imm8>", rd, imm8);
-	else
-		OP_DECOMPILE("MOVS <Rd>,#<imm8>", rd, imm8);
+	OP_DECOMPILE("MOV<IT> <Rd>,#<imm8>", rd, imm8);
 	return mov_imm(apsr, setflags, imm32, rd, carry);
 }
 

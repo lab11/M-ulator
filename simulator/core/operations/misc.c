@@ -46,6 +46,7 @@ static void bfc_t1(uint32_t inst) {
 	if (rd > 13)
 		CORE_ERR_unpredictable("bfc_t1 case\n");
 
+	OP_DECOMPILE("BFC<c> <Rd>,#<lsb>,#<width>", rd, lsbit, msbit-lsbit+1);
 	return bfc(rd, msbit, lsbit);
 }
 
@@ -75,6 +76,8 @@ static void bfi_t1(uint32_t inst) {
 	if ((rd > 13) || (rn == 13))
 		CORE_ERR_unpredictable("bfi_t1 case\n");
 
+	OP_DECOMPILE("BFI<c> <Rd>,<Rn>,#<lsb>,#<width>",
+			rd, rn, lsbit, msbit-lsbit+1);
 	return bfi(rd, rn, msbit, lsbit);
 }
 

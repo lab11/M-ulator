@@ -25,6 +25,7 @@
 
 #include "cpu/registers.h"
 #include "cpu/core.h"
+#include "cpu/misc.h"
 
 #include "helpers.h"
 
@@ -43,9 +44,19 @@ static int handle_op(const char *syntax, va_list args) {
 #define IS_OP(_op) (0 == (strcmp(_op, buf)))
 	if (IS_OP("c")) {
 		;
-	} else if ((0 == strncmp("imm", buf, 3)) || IS_OP("const")) {
+	} else if ((0 == strncmp("imm", buf, 3))
+			|| IS_OP("const")
+			|| IS_OP("lsb")
+			|| IS_OP("width")
+		  ) {
 		unsigned imm = va_arg(args, unsigned);
 		printf("0x%x", imm);
+	} else if (IS_OP("IT")) {
+		// Fake option for inside IT block
+		if (in_ITblock())
+			printf("!!ERR: IT block decoding not impl!!");
+		else
+			printf("S");
 	} else if (IS_OP("label")) {
 		unsigned imm32 = va_arg(args, unsigned);
 		printf("0x%x", imm32);

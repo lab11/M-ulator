@@ -107,6 +107,7 @@ static void and_reg_t1(uint16_t inst) {
 	enum SRType shift_t = SRType_LSL;
 	uint8_t shift_n = 0;
 
+	OP_DECOMPILE("AND<IT> <Rdn>,Rm>", rdn, rm);
 	return and_reg(rd, rn, rm, setflags, shift_t, shift_n);
 }
 
@@ -130,6 +131,8 @@ static void and_reg_t2(uint32_t inst) {
 	if ((rd == 13) || ((rd == 15) && (S == 0)) || BadReg(rn) || BadReg(rm))
 		CORE_ERR_unpredictable("bad reg\n");
 
+	OP_DECOMPILE("AND{S}<c>.W <Rd>,<Rn>,<Rm>{,<shift>}",
+			setflags, rd, rn, rm, shift_t, shift_n);
 	return and_reg(rd, rn, rm, setflags, shift_t, shift_n);
 }
 
@@ -165,6 +168,8 @@ static void bic_imm_t1(uint32_t inst) {
 	if ((rd >= 13) || (rn >= 13))
 		CORE_ERR_unpredictable("bic_imm_t1 bad reg\n");
 
+	OP_DECOMPILE("BIC{S}<c> <Rd>,<Rn>,#<const>",
+			S, rn, rn, imm32);
 	return bic_imm(apsr, S, rd, rn, imm32, carry_out);
 }
 
@@ -199,6 +204,7 @@ static void bic_reg_t1(uint16_t inst) {
 	enum SRType shift_t = SRType_LSL;
 	uint8_t shift_n = 0;
 
+	OP_DECOMPILE("BIC<IT> <Rdn>,<Rm>", rdn, rm);
 	return bic_reg(rd, rn, rm, setflags, shift_t, shift_n);
 }
 
@@ -220,6 +226,8 @@ static void bic_reg_t2(uint32_t inst) {
 	if ((rd > 13) || (rn > 13) || (rm > 13))
 		CORE_ERR_unpredictable("bic_reg_t2 case\n");
 
+	OP_DECOMPILE("BIC{S}<c>.W <Rd>,<Rn>,<Rm>{,<shift>}",
+			setflags, rd, rn, rm, shift_t, shift_n);
 	return bic_reg(rd, rn, rm, setflags, shift_t, shift_n);
 }
 

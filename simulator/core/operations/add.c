@@ -91,10 +91,7 @@ static void adc_reg_t1(uint16_t inst) {
 	uint8_t rm = (inst >> 3) & 0x7;
 	bool setflags = !in_ITblock();
 
-	if (in_ITblock())
-		OP_DECOMPILE("ADC<c> <Rdn>,<Rm>", rdn, rm);
-	else
-		OP_DECOMPILE("ADCS <Rdn>,<Rm>", rdn, rm);
+	OP_DECOMPILE("ADC<IT> <Rdn>,<Rm>", rdn, rm);
 
 	return adc_reg(rdn, rdn, rm, setflags, SRType_LSL, 0);
 }
@@ -154,10 +151,7 @@ static void add_imm_t1(uint16_t inst) {
 	bool setflags = !in_ITblock();
 	uint32_t imm32 = imm3;
 
-	if (in_ITblock())
-		OP_DECOMPILE("ADD<c> <Rd>,<Rn>,#<imm3>", rd, rn, imm3);
-	else
-		OP_DECOMPILE("ADDS <Rd>,<Rn>,#<imm3>", rd, rn, imm3);
+	OP_DECOMPILE("ADD<IT> <Rd>,<Rn>,#<imm3>", rd, rn, imm3);
 	return add_imm(rn, rd, imm32, setflags);
 }
 
@@ -169,10 +163,7 @@ static void add_imm_t2(uint16_t inst) {
 	bool setflags = !in_ITblock();
 	uint32_t imm32 = imm8;
 
-	if (in_ITblock())
-		OP_DECOMPILE("ADD<c> <Rdn>,#<imm8>", rdn, imm8);
-	else
-		OP_DECOMPILE("ADDS <Rdn>,#<imm8>", rdn, imm8);
+	OP_DECOMPILE("ADD<IT> <Rdn>,#<imm8>", rdn, imm8);
 	return add_imm(rdn, rdn, imm32, setflags);
 }
 
@@ -260,10 +251,7 @@ static void add_reg_t1(uint16_t inst) {
 
 	bool setflags = !in_ITblock();
 
-	if (in_ITblock())
-		OP_DECOMPILE("ADD<c> <Rd>,<Rn>,<Rm>", rd, rn, rm);
-	else
-		OP_DECOMPILE("ADDS <Rd>,<Rn>,<Rm>", rd, rn, rm);
+	OP_DECOMPILE("ADD<IT> <Rd>,<Rn>,<Rm>", rd, rn, rm);
 	return add_reg(rd, rn, rm, setflags, SRType_LSL, 0);
 }
 
