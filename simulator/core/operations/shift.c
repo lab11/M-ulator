@@ -263,6 +263,7 @@ static void rrx_t1(uint32_t inst) {
 	if (BadReg(rd) || BadReg(rm))
 		CORE_ERR_unpredictable("rrx_t1 case\n");
 
+	OP_DECOMPILE("RRX{S}<c> <Rd>,<Rm>", setflags, rd, rm);
 	return rrx(rm, rd, setflags);
 }
 

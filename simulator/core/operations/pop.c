@@ -99,6 +99,7 @@ static void pop_t2(uint32_t inst) {
 	if ((registers & 0x8000) && in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("pop_t2 itstate\n");
 
+	OP_DECOMPILE("POP<c>.W <registers>", registers);
 	return pop(registers);
 }
 
@@ -110,6 +111,7 @@ static void pop_t3(uint32_t inst) {
 	if ((rt == 13) || ((rt == 15) && in_ITblock() && !last_in_ITblock()))
 		CORE_ERR_unpredictable("bad reg\n");
 
+	OP_DECOMPILE("POP<c>.W <registers>", registers);
 	return pop(registers);
 }
 

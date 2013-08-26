@@ -56,6 +56,7 @@ static void stmdb_t1(uint32_t inst) {
 	if (W && (registers & (1 << rn)))
 		CORE_ERR_unpredictable("stmdb_t1 wback overlaps regs\n");
 
+	OP_DECOMPILE("STMDB<c> <Rn>{!},<registers>", rn, W, registers);
 	stmdb(rn, registers, W);
 }
 
@@ -86,11 +87,12 @@ static void stm_t1(uint16_t inst) {
 	uint8_t rn = (inst >> 8) & 0x7;
 
 	uint16_t registers = register_list;
-	bool wback = false;
+	bool wback = true;
 
 	if (hamming(registers) < 1)
 		CORE_ERR_unpredictable("stm_t1 case\n");
 
+	OP_DECOMPILE("STM<c> <Rn>!,<registers>", rn, registers);
 	return stm(rn, registers, wback);
 }
 
@@ -110,6 +112,8 @@ static void stm_t2(uint32_t inst) {
 	if (wback && (registers & (1 << rn)))
 		CORE_ERR_unpredictable("wback conflict\n");
 
+	OP_DECOMPILE("STM<c>.W <Rn>{!},<registers>",
+			rn, wback, registers);
 	return stm(rn, registers, wback);
 }
 

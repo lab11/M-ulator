@@ -38,11 +38,16 @@ static void cbz_t1(uint16_t inst) {
 	bool op = (inst >> 11) & 0x1;
 
 	uint32_t imm32 = (i << 6) | (imm5 << 1);
+	bool nonzero = op == 1;
 
 	if (in_ITblock())
 		CORE_ERR_unpredictable("cb{n}z in IT block\n");
 
-	cbz(op == 1, rn, imm32);
+	if (nonzero)
+		OP_DECOMPILE("CBNZ <Rn>,<label>", rn, imm32);
+	else
+		OP_DECOMPILE("CBZ <Rn>,<label>", rn, imm32);
+	cbz(nonzero, rn, imm32);
 }
 
 __attribute__ ((constructor))

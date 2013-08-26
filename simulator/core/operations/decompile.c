@@ -39,6 +39,7 @@ static int handle_op(const char *syntax, va_list args) {
 		assert(syntax[i] != '\0');
 		buf[i-1] = syntax[i];
 		i++;
+		assert(i != (16 + 1));
 	}
 
 #define IS_OP(_op) (0 == (strcmp(_op, buf)))
@@ -47,6 +48,7 @@ static int handle_op(const char *syntax, va_list args) {
 	} else if ((0 == strncmp("imm", buf, 3))
 			|| IS_OP("const")
 			|| IS_OP("lsb")
+			|| IS_OP("option")
 			|| IS_OP("width")
 		  ) {
 		unsigned imm = va_arg(args, unsigned);
@@ -74,9 +76,18 @@ static int handle_op(const char *syntax, va_list args) {
 	} else if (IS_OP("Rt")) {
 		unsigned rt = va_arg(args, unsigned);
 		printf("R%02d(=%08x)", rt, CORE_reg_read(rt));
+	} else if (IS_OP("Rt2")) {
+		unsigned rt2 = va_arg(args, unsigned);
+		printf("R%02d(=%08x)", rt2, CORE_reg_read(rt2));
 	} else if (IS_OP("Rdn")) {
 		unsigned rdn = va_arg(args, unsigned);
 		printf("R%02d(=%08x)", rdn, CORE_reg_read(rdn));
+	} else if (IS_OP("RdLo")) {
+		unsigned rdlo = va_arg(args, unsigned);
+		printf("R%02d(=%08x)", rdlo, CORE_reg_read(rdlo));
+	} else if (IS_OP("RdHi")) {
+		unsigned rdhi = va_arg(args, unsigned);
+		printf("R%02d(=%08x)", rdhi, CORE_reg_read(rdhi));
 	} else if (IS_OP("registers")) {
 		unsigned registers = va_arg(args, unsigned);
 		putchar_unlocked('{');
@@ -113,6 +124,37 @@ static int handle_op(const char *syntax, va_list args) {
 			printf("#%d", shift_n);
 	} else {
 		printf("<<unknown: '%s'>>", buf);
+	}
+
+	return i;
+}
+
+static int print_sign(va_list args) {
+	bool add = va_arg(args, unsigned);
+	if (!add)
+		putchar_unlocked('-');
+	return 2;
+}
+
+static int handle_braces(const char *syntax, va_list args) {
+	assert(syntax[0] == '{');
+	assert(syntax[1] != '}');
+	int i = 1;
+
+	while (syntax[i] != '}') {
+		assert(syntax[i] != '\0');
+		if (syntax[i] == '<') {
+			i += handle_op(syntax+i, args);
+		} else if (0 == strncmp(syntax+i, "+/-", 3)) {
+			i += print_sign(args);
+		} else if (syntax[i] == '!') {
+			bool exc = va_arg(args, unsigned);
+			if (exc)
+				putchar_unlocked('!');
+		} else {
+			putchar_unlocked(syntax[i]);
+		}
+		i++;
 	}
 
 	return i;
@@ -186,6 +228,11 @@ static int print_sp(void) {
 	return 1;
 }
 
+static int print_pc(void) {
+	printf("PC(=%08x)", CORE_reg_read(PC_REG));
+	return 1;
+}
+
 static int print_optional_setflags(va_list args) {
 	bool setflags = va_arg(args, int);
 	if (setflags)
@@ -203,14 +250,16 @@ static void _op_decompile(const char *syntax, va_list args) {
 			i += handle_op(syntax+i, args);
 		else if (0 == strncmp(syntax+i, "IT", 2))
 			i += print_it_inst(syntax+i, args);
+		else if (0 == strncmp(syntax+i, "PC", 2))
+			i += print_pc();
 		else if (0 == strncmp(syntax+i, "SP", 2))
 			i += print_sp();
 		else if (0 == strncmp(syntax+i, "{S}", 3))
 			i += print_optional_setflags(args);
+		else if (0 == strncmp(syntax+i, "+/-", 3))
+			i += print_sign(args);
 		else if (syntax[i] == '{')
-			;
-		else if (syntax[i] == '}')
-			;
+			i += handle_braces(syntax+i, args);
 		else if ((syntax[i] == ' ') && (space_cnt++ == 0))
 			putchar_unlocked('\t');
 		else
@@ -225,6 +274,8 @@ EXPORT void op_decompile(const char* syntax, ...) {
 	printf("DECOM: ");
 	if (CORE_reg_read(PC_REG) == STALL_PC)
 		printf("(STALL)");
+	else if ((syntax[0] == '!') && (syntax[1] == '!'))
+		printf("%s", syntax);
 	else
 		_op_decompile(syntax, va_args);
 	putchar_unlocked('\n');

@@ -220,6 +220,7 @@ static void blx_reg_t1(uint16_t inst) {
 	if ((rm == 15) || (in_ITblock() && !last_in_ITblock()))
 		CORE_ERR_unpredictable("blx_reg_t1 case\n");
 
+	OP_DECOMPILE("BLX<c> <Rm>", rm);
 	return blx_reg(rm);
 }
 
@@ -234,6 +235,7 @@ static void bx_t1(uint16_t inst) {
 	if (in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("bx_t1 in it block\n");
 
+	OP_DECOMPILE("BX<c> <Rm>", rm);
 	return bx(rm);
 }
 
@@ -264,6 +266,10 @@ static void tbb_t1(uint32_t inst) {
 	if (in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("branch in IT\n");
 
+	if (is_tbh)
+		OP_DECOMPILE("TBH<c> [<Rn>,<Rm>,LSL #1]", rn, rm);
+	else
+		OP_DECOMPILE("TBB<c> [<Rn>,<Rm>]", rn, rm);
 	return tbb(rn, rm, is_tbh);
 }
 

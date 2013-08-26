@@ -52,6 +52,7 @@ static void cmn_imm_t1(uint32_t inst) {
 	if (rn == 15)
 		CORE_ERR_unpredictable("bad reg\n");
 
+	OP_DECOMPILE("CMN<c> <Rn>,#<const>", rn, imm32);
 	return cmn_imm(rn, imm32);
 }
 
@@ -83,6 +84,7 @@ static void cmn_reg_t1(uint16_t inst) {
 	enum SRType shift_t = SRType_LSL;
 	uint8_t shift_n = 0;
 
+	OP_DECOMPILE("CMN<c> <Rn>,<Rm>", rn, rm);
 	return cmn_reg(rn, rm, shift_t, shift_n);
 }
 
@@ -101,6 +103,7 @@ static void cmn_reg_t2(uint32_t inst) {
 	if ((rn == 15) || (rm > 13))
 		CORE_ERR_unpredictable("cmn_reg_t2 case\n");
 
+	OP_DECOMPILE("CMN<c>.W <Rn>,<Rm>{,<shift>}", rn, rm, shift_t, shift_n);
 	return cmn_reg(rn, rm, shift_t, shift_n);
 }
 
@@ -214,6 +217,7 @@ static void cmp_reg_t3(uint32_t inst) {
 	if ((rn == 15) || BadReg(rm))
 		CORE_ERR_unpredictable("bad regs\n");
 
+	OP_DECOMPILE("CMP<c>.W <Rn>,<Rm>{,<shift>}", rn, rm, shift_t, shift_n);
 	return cmp_reg(rn, rm, shift_t, shift_n);
 }
 
@@ -232,6 +236,8 @@ static void teq_imm_t1(uint32_t inst) {
 
 	if (BadReg(rn))
 		CORE_ERR_unpredictable("teq_imm_t1 case\n");
+
+	OP_DECOMPILE("TEQ<c> <Rn>,#<const>", rn, imm32);
 
 	//
 	uint32_t result = CORE_reg_read(rn) ^ imm32;
@@ -255,6 +261,8 @@ static void teq_reg_t1(uint32_t inst) {
 
 	if (BadReg(rn) || BadReg(rm))
 		CORE_ERR_unpredictable("teq_reg_t1 case\n");
+
+	OP_DECOMPILE("TEQ<c> <Rn>,<Rm>{,<shift>}", rn, rm, shift_t, shift_n);
 
 	//
 	union apsr_t apsr = CORE_apsr_read();
@@ -299,7 +307,8 @@ static void tst_imm_t1(uint32_t inst) {
 	if ((rn == 13) || (rn == 15))
 		CORE_ERR_unpredictable("bad reg\n");
 
-	tst_imm(apsr, rn, imm32, carry);
+	OP_DECOMPILE("TST<c> <Rn>,#<const>", rn, imm32);
+	return tst_imm(apsr, rn, imm32, carry);
 }
 
 static void tst_reg(uint8_t rn, uint8_t rm,
@@ -326,6 +335,7 @@ static void tst_reg_t1(uint16_t inst) {
 	enum SRType shift_t = SRType_LSL;
 	uint8_t shift_n = 0;
 
+	OP_DECOMPILE("TST<c> <Rn>,<Rm>", rn, rm);
 	return tst_reg(rn, rm, shift_t, shift_n);
 }
 
@@ -344,6 +354,8 @@ static void tst_reg_t2(uint32_t inst) {
 	if (BadReg(rn) || BadReg(rm))
 		CORE_ERR_unpredictable("tst_reg_t2 case\n");
 
+	OP_DECOMPILE("TST<c>.W <Rn>,<Rm>{,<shift>}",
+			rn, rm, shift_t, shift_n);
 	return tst_reg(rn, rm, shift_t, shift_n);
 }
 

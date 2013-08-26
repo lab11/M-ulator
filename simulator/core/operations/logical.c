@@ -265,6 +265,7 @@ static void eor_imm_t1(uint32_t inst) {
 	if ((rd == 13) || ((rd == 15) && (S == 0)) || BadReg(rn))
 		CORE_ERR_unpredictable("bad reg\n");
 
+	OP_DECOMPILE("EOR{S}<c> <Rd>,<Rn>,#<const>", rd, rn, imm32);
 	return eor_imm(rd, rn, imm32, carry, setflags, apsr);
 }
 
@@ -299,6 +300,7 @@ static void eor_reg_t1(uint16_t inst) {
 	enum SRType shift_t = SRType_LSL;
 	uint8_t shift_n = 0;
 
+	OP_DECOMPILE("EOR<IT> <Rdn>,<Rm>", rdn, rm);
 	return eor_reg(setflags, rd, rn, rm, shift_t, shift_n);
 }
 
@@ -324,6 +326,8 @@ static void eor_reg_t2(uint32_t inst) {
 		CORE_ERR_unpredictable("eor_reg_t2 bad reg\n");
 	}
 
+	OP_DECOMPILE("EOR{S}<c>.W <Rd>,<Rn>,<Rm>{,<shift>}",
+			S, rd, rn, rm, shift_t, shift_n);
 	return eor_reg(S, rd, rn, rm, shift_t, shift_n);
 }
 
@@ -358,6 +362,7 @@ static void mvn_imm_t1(uint32_t inst) {
 	if (rd > 13)
 		CORE_ERR_unpredictable("mvn_imm_t1 case\n");
 
+	OP_DECOMPILE("MVN{S}<c> <Rd>,#<const>", setflags, rd, imm32);
 	return mvn_imm(rd, setflags, apsr, imm32, carry);
 }
 
@@ -390,6 +395,7 @@ static void mvn_reg_t1(uint16_t inst) {
 	enum SRType shift_t = LSL;
 	uint8_t shift_n = 0;
 
+	OP_DECOMPILE("MVN<IT> <Rd>,<Rm>", rd, rm);
 	return mvn_reg(setflags, rd, rm, shift_t, shift_n);
 }
 
@@ -411,6 +417,8 @@ static void mvn_reg_t2(uint32_t inst) {
 		CORE_ERR_unpredictable("mvn_reg_t2 bad reg\n");
 	}
 
+	OP_DECOMPILE("MVN{S}<c>.W <Rd>,<Rm>{,<shift>}",
+			S, rd, rm, shift_t, shift_n);
 	return mvn_reg(S, rd, rm, shift_t, shift_n);
 }
 
@@ -446,6 +454,7 @@ static void orn_imm_t1(uint32_t inst) {
 	if ((rd > 13) || (rn == 1))
 		CORE_ERR_unpredictable("orn_imm_t1 case\n");
 
+	OP_DECOMPILE("ORN{S}<c> <Rd>,<Rn>,#<const>", rd, rn, imm32);
 	return orn_imm(rd, rn, setflags, apsr, imm32, carry);
 }
 
@@ -487,6 +496,8 @@ static void orn_reg_t1(uint32_t inst) {
 	if ((rd > 13) || (rn == 13) || (rm > 13))
 		CORE_ERR_unpredictable("orn_reg_t1 case\n");
 
+	OP_DECOMPILE("ORN{S}<c> <Rd>,<Rn>,<Rm>{,<shift>}",
+			setflags, rd, rn, rm, shift_t, shift_n);
 	return orn_reg(rd, rn, rm, setflags, shift_t, shift_n);
 }
 
@@ -522,6 +533,8 @@ static void orr_imm_t1(uint32_t inst) {
 	if ((rd > 13) || (rn == 13))
 		CORE_ERR_unpredictable("orr_imm_t1 case\n");
 
+	OP_DECOMPILE("ORR{S}<c> <Rd>,<Rn>,#<const>",
+			setflags, rd, rn, imm32);
 	return orr_imm(rd, rn, setflags, apsr, imm32, carry);
 }
 
@@ -529,6 +542,8 @@ static void orr_imm_t1(uint32_t inst) {
 static void orr_reg_t1(uint16_t inst) {
 	uint8_t rm = (inst & 0x38) >> 3;
 	uint8_t rd = (inst & 0x7) >> 0;
+
+	OP_DECOMPILE("ORR<IT> <Rdn>,<Rm>", rd, rm);
 
 	uint32_t result;
 	result = CORE_reg_read(rd) | CORE_reg_read(rm);
@@ -561,8 +576,6 @@ static void orr_reg(uint8_t setflags, uint8_t rd, uint8_t rn, uint8_t rm,
 		apsr.bits.C = carry_out;
 		CORE_apsr_write(apsr);
 	}
-
-	DBG2("orr_reg ran\n");
 }
 
 // arm-v7-m
@@ -586,6 +599,8 @@ static void orr_reg_t2(uint32_t inst) {
 	if ((rd >= 13) || (rn == 13) || (rm >= 13))
 		CORE_ERR_unpredictable("orr_reg_t2 bad reg\n");
 
+	OP_DECOMPILE("ORR{S}<c>.W <Rd>,<Rn>,<Rm>{,<shift>}",
+			S, rd, rn, rm, shift_t, shift_n);
 	return orr_reg(S, rd, rn, rm, shift_t, shift_n);
 }
 

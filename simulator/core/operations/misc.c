@@ -101,6 +101,7 @@ static void clz_t1(uint32_t inst) {
 	if ((rd > 13) || (rm > 13))
 		CORE_ERR_unpredictable("clz_t1 case\n");
 
+	OP_DECOMPILE("CLZ<c> <Rd>,<Rm>", rd, rm);
 	return clz(rd, rm);
 }
 
@@ -148,6 +149,7 @@ static void rbit_t1(uint32_t inst) {
 	if (BadReg(rd) || BadReg(rm))
 		CORE_ERR_unpredictable("rbit_t1 case\n");
 
+	OP_DECOMPILE("RBIT<c> <Rd>,<Rm>", rd, rm);
 	return rbit(rm, rd);
 }
 
@@ -168,6 +170,7 @@ static void rev_t1(uint16_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rm = (inst >> 3) & 0x7;
 
+	OP_DECOMPILE("REV<c> <Rd>,<Rm>", rd, rm);
 	return rev(rd, rm);
 }
 
@@ -185,6 +188,7 @@ static void rev_t2(uint32_t inst) {
 	if (BadReg(rd) || BadReg(rm))
 		CORE_ERR_unpredictable("rbit_t1 case\n");
 
+	OP_DECOMPILE("REV.W<c> <Rd>,<Rm>", rd, rm);
 	return rev(rd, rm);
 }
 
@@ -204,6 +208,8 @@ static void rev16(uint8_t rd, uint8_t rm) {
 static void rev16_t1(uint16_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rm = (inst >> 3) & 0x7;
+
+	OP_DECOMPILE("REV16<c> <Rd>,<Rm>", rd, rm);
 	return rev16(rd, rm);
 }
 
@@ -221,6 +227,7 @@ static void rev16_t2(uint32_t inst) {
 	if (BadReg(rd) || BadReg(rm))
 		CORE_ERR_unpredictable("rbit_t1 case\n");
 
+	OP_DECOMPILE("REV16<c>.W <Rd>,<Rm>", rd, rm);
 	return rev16(rd, rm);
 }
 
@@ -240,6 +247,8 @@ static void revsh(uint8_t rd, uint8_t rm) {
 static void revsh_t1(uint16_t inst) {
 	uint8_t rd = inst & 0x7;
 	uint8_t rm = (inst >> 3) & 0x7;
+
+	OP_DECOMPILE("REVSH<c> <Rd>,<Rm>", rd, rm);
 	return revsh(rd, rm);
 }
 
@@ -257,6 +266,7 @@ static void revsh_t2(uint32_t inst) {
 	if (BadReg(rd) || BadReg(rm))
 		CORE_ERR_unpredictable("rbit_t1 case\n");
 
+	OP_DECOMPILE("REVSH<c>.W <Rd>,<Rm>", rd, rm);
 	return revsh(rd, rm);
 }
 
@@ -288,6 +298,8 @@ static void sbfx_t1(uint32_t inst) {
 	if (BadReg(rd) || BadReg(rn))
 		CORE_ERR_unpredictable("bad reg\n");
 
+	OP_DECOMPILE("SBFX<c> <Rd>,<Rn>,#<lsb>,#<width>",
+			rd, rn, lsbit, widthminus1+1);
 	return sbfx(rd, rn, lsbit, widthminus1);
 }
 
@@ -315,6 +327,8 @@ static void ubfx_t1(uint32_t inst) {
 	if (BadReg(rd) || BadReg(rn))
 		CORE_ERR_unpredictable("bad reg\n");
 
+	OP_DECOMPILE("UBFX<c> <Rd>,<Rn>,#<lsb>,#<width>",
+			rd, rn, lsbit, widthminus1+1);
 	return ubfx(rd, rn, lsbit, widthminus1);
 }
 

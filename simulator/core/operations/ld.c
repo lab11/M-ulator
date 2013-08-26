@@ -65,7 +65,7 @@ static void ldr_imm_t1(uint16_t inst) {
 	bool add = true;
 	bool wback = false;
 
-	OP_DECOMPILE("LDR<c> <Rt>, [<Rn>{,#<imm5>}]", rt, rn, imm5);
+	OP_DECOMPILE("LDR<c> <Rt>, [<Rn>{,#<imm5>}]", rt, rn, imm32);
 	return ldr_imm(rt, rn, imm32, index, add, wback);
 }
 
@@ -80,6 +80,7 @@ static void ldr_imm_t2(uint16_t inst) {
 	bool add = true;
 	bool wback = false;
 
+	OP_DECOMPILE("LDR<c> <Rt>, [SP{,#<imm8>}]", rt, imm32);
 	return ldr_imm(rt, rn, imm32, index, add, wback);
 }
 
@@ -97,6 +98,7 @@ static void ldr_imm_t3(uint32_t inst) {
 	if ((rt == 15) && in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("invalid ldr imm to pc\n");
 
+	OP_DECOMPILE("LDR<c>.W <Rt>,[<Rn>{,#<imm12>}]", rt, rn, imm32);
 	ldr_imm(rt, rn, imm32, index, add, wback);
 }
 
@@ -117,6 +119,14 @@ static void ldr_imm_t4(uint32_t inst) {
 	if ((wback && (rn == rt)) || ((rt == 15) && in_ITblock() && !last_in_ITblock()))
 		CORE_ERR_unpredictable("bad regs\n");
 
+	if (index && !wback) // Offset
+		OP_DECOMPILE("LDR<c> <Rt>, [<Rn> {, #+/-<imm>}]", rt, rn, add, imm32);
+	else if (index && wback) // Pre-indexed
+		OP_DECOMPILE("LDR<c> <Rt>, [<Rn>, #+/-<imm>]!", rt, rn, add, imm32);
+	else if (!index && wback) // Post-indexed
+		OP_DECOMPILE("LDR<c> <Rt>, [<Rn>], #+/-<imm>", rt, rn, add, imm32);
+	else
+		OP_DECOMPILE("!!Error decoding LDR? Illegal combination!!");
 	return ldr_imm(rt, rn, imm32, index, add, wback);
 }
 
@@ -169,6 +179,7 @@ static void ldr_reg_t1(uint16_t inst) {
 	enum SRType shift_t = SRType_LSL;
 	uint8_t shift_n = 0;
 
+	OP_DECOMPILE("LDR<c> <Rt>,[<Rn>,<Rm>]", rt, rn, rm);
 	return ldr_reg(rt, rn, rm, index, add, wback, shift_t, shift_n);
 }
 
@@ -192,6 +203,8 @@ static void ldr_reg_t2(uint32_t inst) {
 	if ((rt == 15) && in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("it probs\n");
 
+	OP_DECOMPILE("LDR<c>.W <Rt>,[<Rn>,<Rm>{,LSL #<imm2>}]",
+			rt, rn, rm, imm2);
 	return ldr_reg(rt, rn, rm, index, add, wback, shift_t, shift_n);
 }
 
@@ -225,6 +238,7 @@ static void ldr_lit_t1(uint16_t inst) {
 
 	uint32_t imm32 = imm8 << 2;
 
+	OP_DECOMPILE("LDR<c> <Rt>,<label>", rt, imm32);
 	return ldr_lit(true, rt, imm32);
 }
 
@@ -238,8 +252,10 @@ static void ldr_lit_t2(uint32_t inst) {
 		CORE_ERR_unpredictable("ldr_lit_t2 PC in IT\n");
 
 	uint32_t imm32 = imm12;
+	bool add = U==1;
 
-	return ldr_lit(U, rt, imm32);
+	OP_DECOMPILE("LDR<c> <Rt>, [PC, #+/-<imm>]", rt, add, imm32);
+	return ldr_lit(add, rt, imm32);
 }
 
 static void ldrb_imm(uint8_t rt, uint8_t rn, uint32_t imm32, bool add, bool index, bool wback) {
@@ -306,6 +322,9 @@ static void ldrb_imm_t3(uint32_t inst) {
 	uint8_t rn = (inst >> 16) & 0xf;
 
 	uint32_t imm32 = imm8;
+	bool index = P;
+	bool add = U;
+	bool wback = W;
 
 	if ((rt == 13) && (W && (rn == rt)))
 		CORE_ERR_unpredictable("bad regs\n");
@@ -313,6 +332,14 @@ static void ldrb_imm_t3(uint32_t inst) {
 	if ((rt == 15) && ((P == 0) || (U == 1) || (W == 1)))
 		CORE_ERR_unpredictable("bad regs / flags\n");
 
+	if (index && !wback) // Offset
+		OP_DECOMPILE("LDRB<c> <Rt>, [<Rn> {, #+/-<imm>}]", rt, rn, add, imm32);
+	else if (index && wback) // Pre-indexed
+		OP_DECOMPILE("LDRB<c> <Rt>, [<Rn>, #+/-<imm>]!", rt, rn, add, imm32);
+	else if (!index && wback) // Post-indexed
+		OP_DECOMPILE("LDRB<c> <Rt>, [<Rn>], #+/-<imm>", rt, rn, add, imm32);
+	else
+		OP_DECOMPILE("!!Error decoding LDR? Illegal combination!!");
 	return ldrb_imm(rt, rn, imm32, U, P, W);
 }
 
@@ -340,6 +367,7 @@ static void ldrb_lit_t1(uint32_t inst) {
 	if (rt == 13)
 		CORE_ERR_unpredictable("ldrb_lit_t1 case\n");
 
+	OP_DECOMPILE("LDRB<c> <Rt>,[PC,#+/-<imm>]", rt, add, imm32);
 	return ldrb_lit(rt, imm32, add);
 }
 
@@ -381,6 +409,7 @@ static void ldrb_reg_t1(uint16_t inst) {
 	enum SRType shift_t = LSL;
 	uint8_t shift_n = 0;
 
+	OP_DECOMPILE("LDRB<c> <Rt>,[<Rn>,<Rm>]", rt, rn, rm);
 	return ldrb_reg(rt, rn, rm, shift_t, shift_n, index, add, wback);
 }
 
@@ -401,6 +430,8 @@ static void ldrb_reg_t2(uint32_t inst) {
 	if ((rt == 13) || BadReg(rm))
 		CORE_ERR_unpredictable("bad reg\n");
 
+	OP_DECOMPILE("LDRB<c>.W <Rt>,[<Rn>,<Rm>{,LSL #<imm2}]",
+			rt, rn, rm, imm2);
 	return ldrb_reg(rt, rn, rm, shift_t, shift_n, index, add, wback);
 }
 
@@ -415,25 +446,38 @@ static void ldrd_imm_t1(uint32_t inst) {
 	uint8_t P = !!(inst & 0x1000000);
 
 	uint32_t imm32 = imm8 << 2;
-	// index = P
-	// add = U
-	// wback = W
+	bool index = P;
+	bool add = U;
+	bool wback = W;
 
-	if (W && ((rn == rt) || (rn == rt2)))
+	if (wback && ((rn == rt) || (rn == rt2)))
 		CORE_ERR_unpredictable("ldrd_imm_t1 wbck + regs\n");
 
 	if ((rt >= 13) || (rt2 >= 13) || (rt == rt2))
 		CORE_ERR_unpredictable("ldrd_imm_t1 bad regs\n");
 
+	if (index && !wback) // Offset
+		OP_DECOMPILE("LDRD<c> <Rt>,<Rt2>,[<Rn> {, #+/-<imm>}]",
+				rt, rt2, rn, add, imm32);
+	else if (index && wback) // Pre-indexed
+		OP_DECOMPILE("LDRD<c> <Rt>,<Rt2>,[<Rn>, #+/-<imm>]!",
+				rt, rt2, rn, add, imm32);
+	else if (!index && wback) // Post-indexed
+		OP_DECOMPILE("LDRD<c> <Rt>,<Rt2>,[<Rn>], #+/-<imm>",
+				rt, rt2, rn, add, imm32);
+	else
+		OP_DECOMPILE("!!Error decoding LDR? Illegal combination!!");
+	////
+
 	uint32_t offset_addr;
-	if (U) {
+	if (add) {
 		offset_addr = CORE_reg_read(rn) + imm32;
 	} else {
 		offset_addr = CORE_reg_read(rn) - imm32;
 	}
 
 	uint32_t addr;
-	if (P) {
+	if (index) {
 		addr = offset_addr;
 	} else {
 		addr = CORE_reg_read(rn);
@@ -442,7 +486,7 @@ static void ldrd_imm_t1(uint32_t inst) {
 	CORE_reg_write(rt, read_word(addr));
 	CORE_reg_write(rt2, read_word(addr + 4));
 
-	if (W) {
+	if (wback) {
 		CORE_reg_write(rn, offset_addr);
 	}
 }
@@ -476,6 +520,7 @@ static void ldrd_lit_t1(uint32_t inst) {
 	if ((rt > 13) || (rt2 > 13) || (rt == rt2) || (W == 1))
 		CORE_ERR_unpredictable("ldrd_lit_t1 case\n");
 
+	OP_DECOMPILE("LDRD<c> <Rt>,<Rt2>,[PC,#+/-<imm>]", rt, rt2, add, imm32);
 	return ldrd_lit(rt, rt2, imm32, add);
 }
 
@@ -509,6 +554,7 @@ static void ldrh_imm_t1(uint16_t inst) {
 	bool add = true;
 	bool wback = false;
 
+	OP_DECOMPILE("LDRH <Rt>,[<Rn>{,#<imm5>}]", rt, rn, imm32);
 	return ldrh_imm(rt, rn, imm32, index, add, wback);
 }
 
@@ -526,6 +572,7 @@ static void ldrh_imm_t2(uint32_t inst) {
 	if (rt == 13)
 		CORE_ERR_unpredictable("ldrh_imm_t2 case\n");
 
+	OP_DECOMPILE("LDRH<c>.W <Rt>,[<Rn>{,#<imm12>}]", rt, rn, imm32);
 	return ldrh_imm(rt, rn, imm32, index, add, wback);
 }
 
@@ -548,6 +595,14 @@ static void ldrh_imm_t3(uint32_t inst) {
 	if ((rt == 15) && ((P == 0) || (U == 1) || (W == 1)))
 		CORE_ERR_unpredictable("ldrh_imm_t3 case 2\n");
 
+	if (index && !wback) // Offset
+		OP_DECOMPILE("LDRH<c> <Rt>, [<Rn> {, #+/-<imm>}]", rt, rn, add, imm32);
+	else if (index && wback) // Pre-indexed
+		OP_DECOMPILE("LDRH<c> <Rt>, [<Rn>, #+/-<imm>]!", rt, rn, add, imm32);
+	else if (!index && wback) // Post-indexed
+		OP_DECOMPILE("LDRH<c> <Rt>, [<Rn>], #+/-<imm>", rt, rn, add, imm32);
+	else
+		OP_DECOMPILE("!!Error decoding LDR? Illegal combination!!");
 	return ldrh_imm(rt, rn, imm32, index, add, wback);
 }
 
@@ -572,6 +627,7 @@ static void ldrh_lit_t1(uint32_t inst) {
 	if (rt == 13)
 		CORE_ERR_unpredictable("ldrh_lit_t1 case\n");
 
+	OP_DECOMPILE("LDRH<c> <Rt>, [PC, #+/-<imm>]", rt, imm32);
 	return ldrh_lit(rt, imm32, add);
 }
 
@@ -610,6 +666,7 @@ static void ldrh_reg_t1(uint16_t inst) {
 	enum SRType shift_t = SRType_LSL;
 	uint8_t shift_n = 0;
 
+	OP_DECOMPILE("LDRH<c> <Rt>,[<Rn>,<Rm>]", rt, rn, rm);
 	return ldrh_reg(rt, rn, rm, index, add, wback, shift_t, shift_n);
 }
 
@@ -629,6 +686,8 @@ static void ldrh_reg_t2(uint32_t inst) {
 	if ((rt == 13) || (rm > 13))
 		CORE_ERR_unpredictable("ldrh_reg_t2 case\n");
 
+	OP_DECOMPILE("LDRH<c>.W <Rt>,[<Rn>,<Rm>{,LSL #<imm2>}]",
+			rt, rn, rm, shift_n);
 	return ldrh_reg(rt, rn, rm, index, add, wback, shift_t, shift_n);
 }
 
@@ -664,6 +723,7 @@ static void ldrsb_imm_t1(uint32_t inst) {
 	if (rt == 13)
 		CORE_ERR_unpredictable("ldrsb_imm_t1 case\n");
 
+	OP_DECOMPILE("LDRSB<c> <Rt>,[<Rn>,#<imm12>]", rt, rn, imm32);
 	return ldrsb_imm(rt, rn, imm32, index, add, wback);
 }
 
@@ -686,6 +746,14 @@ static void ldrsb_imm_t2(uint32_t inst) {
 	if ((rt == 15) && ((P==0) || (U==1) || (W==1)))
 		CORE_ERR_unpredictable("ldrsb_imm_t2 case 2\n");
 
+	if (index && !wback) // Offset
+		OP_DECOMPILE("LDRSB<c> <Rt>, [<Rn> {, #+/-<imm>}]", rt, rn, add, imm32);
+	else if (index && wback) // Pre-indexed
+		OP_DECOMPILE("LDRSB<c> <Rt>, [<Rn>, #+/-<imm>]!", rt, rn, add, imm32);
+	else if (!index && wback) // Post-indexed
+		OP_DECOMPILE("LDRSB<c> <Rt>, [<Rn>], #+/-<imm>", rt, rn, add, imm32);
+	else
+		OP_DECOMPILE("!!Error decoding LDRSB? Illegal combination!!");
 	return ldrsb_imm(rt, rn, imm32, index, add, wback);
 }
 
@@ -712,6 +780,7 @@ static void ldrsb_lit_t1(uint32_t inst) {
 	if (rt == 13)
 		CORE_ERR_unpredictable("ldrsb_lit_t1 case\n");
 
+	OP_DECOMPILE("LDRSB<c> <Rt>,[PC,#+/-<imm>]", rt, add, imm32);
 	return ldrsb_lit(rt, imm32, add);
 }
 
@@ -755,6 +824,7 @@ static void ldrsb_reg_t1(uint16_t inst) {
 	enum SRType shift_t = SRType_LSL;
 	uint8_t shift_n = 0;
 
+	OP_DECOMPILE("LDRSB<c> <Rt>,[<Rn>,<Rm>]", rt, rn, rm);
 	return ldrsb_reg(rt, rn, rm, index, add, wback, shift_t, shift_n);
 }
 
@@ -775,6 +845,8 @@ static void ldrsb_reg_t2(uint32_t inst) {
 	if ((rt == 13) || (rm > 13))
 		CORE_ERR_unpredictable("ldrsb_reg_t2 case\n");
 
+	OP_DECOMPILE("LDRSB<c>.W <Rt>,[<Rn>,<Rm>{,LSL #<imm2>}]",
+			rt, rn, rm, shift_n);
 	return ldrsb_reg(rt, rn, rm, index, add, wback, shift_t, shift_n);
 }
 
@@ -810,6 +882,7 @@ static void ldrsh_imm_t1(uint32_t inst) {
 	if (rt == 13)
 		CORE_ERR_unpredictable("ldrsh_imm_t1 case\n");
 
+	OP_DECOMPILE("LDRSH<c> <Rt>,[<Rn>,#<imm12>", rt, rn, imm32);
 	return ldrsh_imm(rt, rn, imm32, index, add, wback);
 }
 
@@ -832,6 +905,14 @@ static void ldrsh_imm_t2(uint32_t inst) {
 	if ((rt == 15) && ((P==0) || (U==1) || (W==1)))
 		CORE_ERR_unpredictable("ldrsh_imm_t2 case 2\n");
 
+	if (index && !wback) // Offset
+		OP_DECOMPILE("LDRSH<c> <Rt>, [<Rn> {, #+/-<imm>}]", rt, rn, add, imm32);
+	else if (index && wback) // Pre-indexed
+		OP_DECOMPILE("LDRSH<c> <Rt>, [<Rn>, #+/-<imm>]!", rt, rn, add, imm32);
+	else if (!index && wback) // Post-indexed
+		OP_DECOMPILE("LDRSH<c> <Rt>, [<Rn>], #+/-<imm>", rt, rn, add, imm32);
+	else
+		OP_DECOMPILE("!!Error decoding LDRSH? Illegal combination!!");
 	return ldrsh_imm(rt, rn, imm32, index, add, wback);
 }
 
@@ -857,6 +938,7 @@ static void ldrsh_lit_t1(uint32_t inst) {
 	if (rt == 13)
 		CORE_ERR_unpredictable("ldrsh_lit_t1 case\n");
 
+	OP_DECOMPILE("LDRSH<c> <Rt>,[PC,#+/-<imm>", rt, add, imm32);
 	return ldrsh_lit(rt, imm32, add);
 }
 
@@ -894,6 +976,7 @@ static void ldrsh_reg_t1(uint16_t inst) {
 	enum SRType shift_t = SRType_LSL;
 	uint8_t shift_n = 0;
 
+	OP_DECOMPILE("LDRSH<c> <Rt>,[<Rn>,<Rm>]", rt, rn, rm);
 	return ldrsh_reg(rt, rn, rm, index, add, wback, shift_t, shift_n);
 }
 
@@ -910,6 +993,8 @@ static void ldrsh_reg_t2(uint32_t inst) {
 	enum SRType shift_t = SRType_LSL;
 	uint8_t shift_n = imm2;
 
+	OP_DECOMPILE("LDRSH<c>.W <Rt>,[<Rn>,<Rm>{,LSL #<imm2>}]",
+			rt, rn, rm, shift_n);
 	return ldrsh_reg(rt, rn, rm, index, add, wback, shift_t, shift_n);
 }
 

@@ -278,6 +278,7 @@ static void mov_reg_t3(uint32_t inst) {
 	if (!setflags && ((rd == 15) || (rm == 15) || ((rd == 13) && (rm == 13))))
 		CORE_ERR_unpredictable("mov_reg_t3 case 2\n");
 
+	OP_DECOMPILE("MOV{S}<c>.W <Rd>,<Rm>", setflags, rd, rm);
 	return mov_reg(rd, rm, setflags);
 }
 

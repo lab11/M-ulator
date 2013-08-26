@@ -29,32 +29,25 @@ static void str_imm_t1(uint16_t inst) {
 	uint8_t rn = (inst & 0x38) >> 3;
 	uint8_t rt = (inst & 0x7) >> 0;
 
+	OP_DECOMPILE("STR<c> <Rt>, [<Rn>{,#<imm5>}]", rt, rn, immed5 * 4U);
+
 	uint32_t address = CORE_reg_read(rn) + (immed5 * 4U);
 	uint32_t rt_val = CORE_reg_read(rt);
-	if ((address & 0x3) == 0) {
-		write_word(address, rt_val);
-	} else {
-		// misaligned
-		CORE_ERR_unpredictable("str_imm_t1, misaligned\n");
-	}
-
-	OP_DECOMPILE("STR<c> <Rt>, [<Rn>{,#<imm5>}]", rt, rn, immed5, address);
+	write_word(address, rt_val);
 }
 
 // arm-thumb
 static void str_imm_t2(uint16_t inst) {
-	uint8_t rd = (inst & 0x700) >> 8;
+	uint8_t rt = (inst & 0x700) >> 8;
 	uint16_t immed8 = inst & 0xff;
 
+	OP_DECOMPILE("STR<c> <Rt>,[SP,#<imm8>]", rt, immed8 << 2);
+
 	uint32_t sp = CORE_reg_read(SP_REG);
-	uint32_t rd_val = CORE_reg_read(rd);
+	uint32_t rt_val = CORE_reg_read(rt);
 
 	uint32_t address = sp + (immed8 << 2);
-	if ((address & 0x3) == 0) {
-		write_word(address, rd_val);
-	} else {
-		CORE_ERR_invalid_addr(true, address);
-	}
+	write_word(address, rt_val);
 }
 
 static void str_imm(uint8_t rt, uint8_t rn, uint32_t imm32,
@@ -94,6 +87,7 @@ static void str_imm_t3(uint32_t inst) {
 	if (rt == 15)
 		CORE_ERR_unpredictable("bad reg\n");
 
+	OP_DECOMPILE("STR<c>.W <Rt>,[<Rn>,#<imm12>]", rt, rn, imm32);
 	return str_imm(rt, rn, imm32, index, add, wback);
 }
 
@@ -114,6 +108,14 @@ static void str_imm_t4(uint32_t inst) {
 	if ((rt == 15) || (wback && (rn == rt)))
 		CORE_ERR_unpredictable("Bad regs\n");
 
+	if (index && !wback) // Offset
+		OP_DECOMPILE("STR<c> <Rt>,[<Rn>{, #+/-<imm>}]", rt, rn, add, imm32);
+	else if (index && wback) // Pre-indexed
+		OP_DECOMPILE("STR<c> <Rt>,[<Rn>, #+/-<imm>]!", rt, rn, add, imm32);
+	else if (!index && wback) // Post-indexed
+		OP_DECOMPILE("STR<c> <Rt>,[<Rn>], #+/-<imm>", rt, rn, add, imm32);
+	else // !index && !wback -- illegal
+		OP_DECOMPILE("!!STR !index && !wback illegal combination?");
 	return str_imm(rt, rn, imm32, index, add, wback);
 }
 
@@ -140,6 +142,7 @@ static void str_reg_t1(uint16_t inst) {
 	enum SRType shift_t = LSL;
 	uint8_t shift_n = 0;
 
+	OP_DECOMPILE("STR<c> <Rt>,[<Rn>,<Rm>]", rt, rn, rm);
 	return str_reg(rt, rn, rm, shift_t, shift_n);
 }
 
@@ -156,6 +159,8 @@ static void str_reg_t2(uint32_t inst) {
 	if ((rt == 15) || BadReg(rm))
 		CORE_ERR_unpredictable("bad reg\n");
 
+	OP_DECOMPILE("STR<c>.W <Rt>,[<Rn>,<Rm>{,LSL #<imm2>}]",
+			rt, rn, rm, shift_n);
 	return str_reg(rt, rn, rm, shift_t, shift_n);
 }
 
@@ -202,6 +207,7 @@ static void strb_imm_t1(uint16_t inst) {
 	bool add = true;
 	bool wback = false;
 
+	OP_DECOMPILE("STRB<c> <Rt>,[<Rn>,#<imm5>]", rt, rn, imm32);
 	return strb_imm(rt, rn, imm32, index, add, wback);
 }
 
@@ -223,6 +229,7 @@ static void strb_imm_t2(uint32_t inst) {
 	if (rt >= 13)
 		CORE_ERR_unpredictable("strb_imm_t2 rt in {13,15}\n");
 
+	OP_DECOMPILE("STRB<c>.W <Rt>,[<Rn>,#<imm12>]", rt, rn, imm32);
 	return strb_imm(rt, rn, imm32, index, add, wback);
 }
 
@@ -243,6 +250,14 @@ static void strb_imm_t3(uint32_t inst) {
 	if (BadReg(rt) || (wback && (rn == rt)))
 		CORE_ERR_unpredictable("bad reg\n");
 
+	if (index && !wback) // Offset
+		OP_DECOMPILE("STRB<c> <Rt>,[<Rn>{, #+/-<imm>}]", rt, rn, add, imm32);
+	else if (index && wback) // Pre-indexed
+		OP_DECOMPILE("STRB<c> <Rt>,[<Rn>, #+/-<imm>]!", rt, rn, add, imm32);
+	else if (!index && wback) // Post-indexed
+		OP_DECOMPILE("STRB<c> <Rt>,[<Rn>], #+/-<imm>", rt, rn, add, imm32);
+	else // !index && !wback -- illegal
+		OP_DECOMPILE("!!STRB !index && !wback illegal combination?");
 	return strb_imm(rt, rn, imm32, index, add, wback);
 }
 
@@ -267,6 +282,7 @@ static void strb_reg_t1(uint16_t inst) {
 	enum SRType shift_t = SRType_LSL;
 	uint8_t shift_n = 0;
 
+	OP_DECOMPILE("STRB<c> <Rt>,[<Rn>,<Rm>]", rt, rn, rm);
 	return strb_reg(rt, rn, rm, shift_t, shift_n);
 }
 
@@ -283,6 +299,8 @@ static void strb_reg_t2(uint32_t inst) {
 	if (BadReg(rt) || BadReg(rm))
 		CORE_ERR_unpredictable("strb_reg_t2 case\n");
 
+	OP_DECOMPILE("STRB<c>.W <Rt>,[<Rn>,<Rm>{,LSL #<imm2>}]",
+			rt, rn, rm, shift_n);
 	return strb_reg(rt, rn, rm, shift_t, shift_n);
 }
 
@@ -300,25 +318,34 @@ static void strd_imm_t1(uint32_t inst) {
 		CORE_ERR_unpredictable("strd_imm_t1 -> EX\n");
 
 	uint32_t imm32 = imm8 << 2;
-	// index = P
-	// add = U
-	// wback = W
+	bool index = P;
+	bool add = U;
+	bool wback = W;
 
-	if (W && ((rn == rt) || (rn == rt2)))
+	if (index && !wback) // Offset
+		OP_DECOMPILE("STRD<c> <Rt>,[<Rn>{, #+/-<imm>}]", rt, rn, add, imm8);
+	else if (index && wback) // Pre-indexed
+		OP_DECOMPILE("STRD<c> <Rt>,[<Rn>, #+/-<imm>]!", rt, rn, add, imm8);
+	else if (!index && wback) // Post-indexed
+		OP_DECOMPILE("STRD<c> <Rt>,[<Rn>], #+/-<imm>", rt, rn, add, imm8);
+	else // !index && !wback -- illegal
+		OP_DECOMPILE("!!STRD !index && !wback illegal combination?");
+
+	if (wback && ((rn == rt) || (rn == rt2)))
 		CORE_ERR_unpredictable("strd_imm_t1 wback + regs\n");
 
 	if ((rn == 15) || (rt >= 13) || (rt2 >= 13))
 		CORE_ERR_unpredictable("strd_imm_t1 bad regs\n");
 
 	uint32_t offset_addr;
-	if (U) {
+	if (add) {
 		offset_addr = CORE_reg_read(rn) + imm32;
 	} else {
 		offset_addr = CORE_reg_read(rn) - imm32;
 	}
 
 	uint32_t address;
-	if (P) {
+	if (index) {
 		address = offset_addr;
 	} else {
 		address = CORE_reg_read(rn);
@@ -327,7 +354,7 @@ static void strd_imm_t1(uint32_t inst) {
 	write_word(address, CORE_reg_read(rt));
 	write_word(address + 4, CORE_reg_read(rt2));
 
-	if (W) {
+	if (wback) {
 		CORE_reg_write(rn, offset_addr);
 	}
 }
@@ -367,6 +394,7 @@ static void strh_imm_t1(uint16_t inst) {
 	bool add = true;
 	bool wback = false;
 
+	OP_DECOMPILE("STRH<c> <Rt>,[<Rn>{,#<imm5>}]", rt, rn, imm32);
 	return strh_imm(rt, rn, imm32, index, add, wback);
 }
 
@@ -384,6 +412,7 @@ static void strh_imm_t2(uint32_t inst) {
 	if ((rt == 13) || (rt == 15))
 		CORE_ERR_unpredictable("Bad dest reg\n");
 
+	OP_DECOMPILE("STRH<c>.W <Rt>,[<Rn>{,#<imm12>}]", rt, rn, imm32);
 	return strh_imm(rt, rn, imm32, index, add, wback);
 }
 
@@ -404,6 +433,14 @@ static void strh_imm_t3(uint32_t inst) {
 	if (BadReg(rt) || (wback && (rn == rt)))
 		CORE_ERR_unpredictable("strh_imm_t3 case\n");
 
+	if (index && !wback) // Offset
+		OP_DECOMPILE("STRH<c> <Rt>,[<Rn>{, #+/-<imm>}]", rt, rn, add, imm32);
+	else if (index && wback) // Pre-indexed
+		OP_DECOMPILE("STRH<c> <Rt>,[<Rn>, #+/-<imm>]!", rt, rn, add, imm32);
+	else if (!index && wback) // Post-indexed
+		OP_DECOMPILE("STRH<c> <Rt>,[<Rn>], #+/-<imm>", rt, rn, add, imm32);
+	else // !index && !wback -- illegal
+		OP_DECOMPILE("!!STRH !index && !wback illegal combination?");
 	return strh_imm(rt, rn, imm32, index, add, wback);
 }
 
@@ -428,6 +465,7 @@ static void strh_reg_t1(uint16_t inst) {
 	enum SRType shift_t = SRType_LSL;
 	uint8_t shift_n = 0;
 
+	OP_DECOMPILE("STRH<c> <Rt>,[<Rn>,<Rm>]", rt, rn, rm);
 	return strh_reg(rt, rn, rm, shift_t, shift_n);
 }
 
@@ -444,6 +482,8 @@ static void strh_reg_t2(uint32_t inst) {
 	if (BadReg(rt) || BadReg(rm))
 		CORE_ERR_unpredictable("strh_reg_t2 case\n");
 
+	OP_DECOMPILE("STRH<c>.W <Rt>,[<Rn>,<Rm>{,LSL #<imm2>}]",
+			rt, rn, rm, shift_n);
 	return strh_reg(rt, rn, rm, shift_t, shift_n);
 }
 

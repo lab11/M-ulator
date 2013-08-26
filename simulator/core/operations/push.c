@@ -63,6 +63,7 @@ static void push_t2(uint32_t inst) {
 	if (hamming(registers) < 2)
 		CORE_ERR_unpredictable("Too few regs to push\n");
 
+	OP_DECOMPILE("PUSH<c> <registers>", registers);
 	push(registers);
 }
 
@@ -74,6 +75,7 @@ static void push_t3(uint32_t inst) {
 	if (BadReg(rt))
 		CORE_ERR_unpredictable("bad reg\n");
 
+	OP_DECOMPILE("PUSH<c> <registers>", registers);
 	push(registers);
 }
 

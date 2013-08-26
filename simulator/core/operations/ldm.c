@@ -124,6 +124,7 @@ static void ldmdb_t1(uint32_t inst) {
 	if (wback && (registers & (1 << rn)))
 		CORE_ERR_unpredictable("ldmdb_t1 case 3\n");
 
+	OP_DECOMPILE("LDMDB<c> <Rn>{!},<registers>", rn, wback, registers);
 	return ldmdb(rn, registers, wback);
 }
 

@@ -88,6 +88,8 @@ static void ssat_t1(uint32_t inst) {
 	if (BadReg(rd) || BadReg(rn))
 		CORE_ERR_unpredictable("ssat_t1 case\n");
 
+	OP_DECOMPILE("SSAT<c> <Rd>,#<imm5>,<Rn>{,<shift>}",
+			rd, saturate_to, rn, shift_t, shift_n);
 	return ssat(rd, rn, saturate_to, shift_t, shift_n);
 }
 
@@ -128,6 +130,8 @@ static void usat_t1(uint32_t inst) {
 	if (BadReg(rd) || BadReg(rn))
 		CORE_ERR_unpredictable("ssat_t1 case\n");
 
+	OP_DECOMPILE("USAT<c> <Rd>,#<imm5>,<Rn>{,<shift>}",
+			rd, saturate_to, rn, shift_t, shift_n);
 	return usat(rd, rn, saturate_to, shift_t, shift_n);
 }
 

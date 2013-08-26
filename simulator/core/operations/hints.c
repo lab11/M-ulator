@@ -26,6 +26,7 @@ static inline void dbg(uint8_t option __attribute__ ((unused))) {
 // arm-v7-m
 static void dbg_t1(uint32_t inst) {
 	uint8_t option = inst & 0xf;
+	OP_DECOMPILE("DBG<c> #<option>", option);
 	return dbg(option);
 }
 
@@ -51,11 +52,13 @@ static void sev(void) {
 
 // arm-v6-m, arm-v7-m
 static void sev_t1(uint16_t inst __attribute__ ((unused))) {
+	OP_DECOMPILE("SEV<c>");
 	return sev();
 }
 
 // arm-v7-m
 static void sev_t2(uint32_t inst __attribute__ ((unused))) {
+	OP_DECOMPILE("SEV<c>.W");
 	return sev();
 }
 
@@ -65,11 +68,13 @@ static void wfe(void) {
 
 // arm-v6-m, arm-v7-m
 static void wfe_t1(uint16_t inst __attribute__ ((unused))) {
+	OP_DECOMPILE("WFE<c>");
 	return wfe();
 }
 
 // arm-v7-m
 static void wfe_t2(uint32_t inst __attribute__ ((unused))) {
+	OP_DECOMPILE("WFE<c>.W");
 	return wfe();
 }
 
@@ -79,11 +84,13 @@ static void wfi(void) {
 
 // arm-v6-m, arm-v7-m
 static void wfi_t1(uint16_t inst __attribute__ ((unused))) {
+	OP_DECOMPILE("WFI<c>");
 	return wfi();
 }
 
 // arm-v7-m
 static void wfi_t2(uint32_t inst __attribute__ ((unused))) {
+	OP_DECOMPILE("WFI<c>.W");
 	return wfi();
 }
 
@@ -93,11 +100,13 @@ static void yield(void) {
 
 // arm-v6-m, arm-v7-m
 static void yield_t1(uint16_t inst __attribute__ ((unused))) {
+	OP_DECOMPILE("YIELD<c>");
 	return yield();
 }
 
 // arm-v7-m
 static void yield_t2(uint32_t inst __attribute__ ((unused))) {
+	OP_DECOMPILE("YIELD<c>.W");
 	return yield();
 }
 

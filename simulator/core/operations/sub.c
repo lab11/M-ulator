@@ -48,6 +48,7 @@ static void rsb_imm_t1(uint16_t inst) {
 	bool setflags = !in_ITblock();
 	uint32_t imm32 = 0;
 
+	OP_DECOMPILE("RSB<IT> <Rd>,<Rn>,#0", rd, rn);
 	return rsb_imm(rd, rn, imm32, setflags);
 }
 
@@ -66,6 +67,8 @@ static void rsb_imm_t2(uint32_t inst) {
 	if (BadReg(rd) || BadReg(rn))
 		CORE_ERR_unpredictable("rsb_imm_t2 case\n");
 
+	OP_DECOMPILE("RSB{S}<c>.W <Rd>,<Rn>,#<const>",
+			setflags, rd, rn, imm32);
 	return rsb_imm(rd, rn, imm32, setflags);
 }
 
@@ -111,6 +114,8 @@ static void rsb_reg_t1(uint32_t inst) {
 	if (BadReg(rd) || BadReg(rn) || BadReg(rm))
 		CORE_ERR_unpredictable("BadReg in rsb_reg_t1\n");
 
+	OP_DECOMPILE("RSB{S}<c> <Rd>,<Rn>,<Rm>{,<shift>}",
+			setflags, rd, rn, rm, shift_t, shift_n);
 	return rsb_reg(rd, rn, rm, setflags, shift_t, shift_n);
 }
 
@@ -147,6 +152,8 @@ static void sbc_imm_t1(uint32_t inst) {
 	if (BadReg(rd) || BadReg(rn))
 		CORE_ERR_unpredictable("sbc_imm_t1 case\n");
 
+	OP_DECOMPILE("SBC{S}<c> <Rd>,<Rn>,#<const>",
+			setflags, rd, rn, imm32);
 	return sbc_imm(rd, rn, setflags, imm32);
 }
 
@@ -179,6 +186,7 @@ static void sbc_reg_t1(uint16_t inst) {
 
 	bool setflags = !in_ITblock();
 
+	OP_DECOMPILE("SBC<IT> <Rdn>,<Rm>", rdn, rm);
 	return sbc_reg(rdn, rdn, rm, setflags, SRType_LSL, 0);
 }
 
@@ -200,6 +208,8 @@ static void sbc_reg_t2(uint32_t inst) {
 	if (BadReg(rd) || BadReg(rn) || BadReg(rm))
 		CORE_ERR_unpredictable("sbc_reg_t2 case\n");
 
+	OP_DECOMPILE("SBC{S}<c>.W <Rd>,<Rn>,<Rm>{,<shift>}",
+			setflags, rd, rn, rm, shift_t, shift_n);
 	return sbc_reg(rd, rn, rm, setflags, shift_t, shift_n);
 }
 
@@ -232,6 +242,7 @@ static void sub_imm_t1(uint16_t inst) {
 	bool setflags = !in_ITblock();
 	uint32_t imm32 = imm3;
 
+	OP_DECOMPILE("SUB<IT> <Rd>,<Rn>,#<imm3>", rd, rn, imm32);
 	return sub_imm(rd, rn, imm32, setflags);
 }
 
@@ -243,6 +254,7 @@ static void sub_imm_t2(uint16_t inst) {
 	bool setflags = !in_ITblock();
 	uint32_t imm32 = imm8;
 
+	OP_DECOMPILE("SUB<IT> <Rdn>,#<imm8>", rdn, imm32);
 	return sub_imm(rdn, rdn, imm32, setflags);
 }
 
@@ -279,6 +291,7 @@ static void sub_imm_t4(uint32_t inst) {
 	if (BadReg(rd))
 		CORE_ERR_unpredictable("sub_imm_t4 case\n");
 
+	OP_DECOMPILE("SUBW<c> <Rd>,<Rn>,#<imm12>", rd, rn, imm32);
 	return sub_imm(rd, rn, imm32, setflags);
 }
 
@@ -315,6 +328,7 @@ static void sub_reg_t1(uint16_t inst) {
 
 	bool setflags = !in_ITblock();
 
+	OP_DECOMPILE("SUB<IT> <Rd>,<Rn><Rm>", rd, rn, rm);
 	return sub_reg(rd, rn, rm, SRType_LSL, 0, setflags);
 }
 
@@ -337,6 +351,8 @@ static void sub_reg_t2(uint32_t inst) {
 	if ((rd == 13) || ((rd == 15) && (S == 0)) || (rn == 15) || BadReg(rm))
 		CORE_ERR_unpredictable("Bad reg\n");
 
+	OP_DECOMPILE("SUB{S}<c>.W <Rd>,<Rn>,<Rm>{,<shift>}",
+			setflags, rd, rn, rm, shift_t, shift_n);
 	return sub_reg(rd, rn, rm, shift_t, shift_n, setflags);
 }
 
@@ -384,6 +400,7 @@ static void sub_sp_imm_t2(uint32_t inst) {
 	if ((rd == 15) && (S == 0))
 		CORE_ERR_unpredictable("bad reg\n");
 
+	OP_DECOMPILE("SUB{S}<c>.W <Rd>,SP,#<const>", setflags, rd, imm32);
 	return sub_sp_imm(rd, imm32, setflags);
 }
 
@@ -399,6 +416,7 @@ static void sub_sp_imm_t3(uint32_t inst) {
 	if (BadReg(rd))
 		CORE_ERR_unpredictable("sub_sp_imm_t3 case\n");
 
+	OP_DECOMPILE("SUBW<c> <Rd>,SP,#<imm12>", rd, imm32);
 	return sub_sp_imm(rd, imm32, setflags);
 }
 
@@ -443,6 +461,8 @@ static void sub_sp_reg_t1(uint32_t inst) {
 	if ((rd == 15) || BadReg(rm))
 		CORE_ERR_unpredictable("sub_sp_reg_t1 case 2\n");
 
+	OP_DECOMPILE("SUB{S}<c> <Rd>,SP,<Rm>{,<shift>}",
+			setflags, rd, rm, shift_t, shift_n);
 	return sub_sp_reg(rd, rm, setflags, shift_t, shift_n);
 }
 

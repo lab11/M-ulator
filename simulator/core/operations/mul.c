@@ -46,6 +46,7 @@ static void mla_t1(uint32_t inst) {
 	if (BadReg(rd) || BadReg(rn) || BadReg(rm) || BadReg(ra))
 		CORE_ERR_unpredictable("bad reg\n");
 
+	OP_DECOMPILE("MLA<c> <Rd>,<Rn>,<Rm>,<Ra>", rd, rn, rm, ra);
 	return mla(rd, rn, rm, ra);
 }
 
@@ -71,6 +72,7 @@ static void mls_t1(uint32_t inst) {
 	if (BadReg(rd) || BadReg(rn) || BadReg(rm) || BadReg(ra))
 		CORE_ERR_unpredictable("bad reg\n");
 
+	OP_DECOMPILE("MLS<c> <Rd>,<Rn>,<Rm>,<Ra>", rd, rn, rm, ra);
 	return mls(rd, rn, rm, ra);
 }
 
@@ -95,6 +97,7 @@ static void mul_t1(uint16_t inst) {
 
 	bool setflags = !in_ITblock();
 
+	OP_DECOMPILE("MUL<IT> <Rdm>,<Rn>,<Rdm>", rdm, rn, rdm);
 	return mul(setflags, rdm, rn, rdm);
 }
 
@@ -108,6 +111,7 @@ static void mul_t2(uint32_t inst) {
 		CORE_ERR_unpredictable("mul_t2 bad reg\n");
 	}
 
+	OP_DECOMPILE("MUL<c> <Rd>,<Rn>,<Rm>", rd, rn, rm);
 	return mul(false, rd, rn, rm);
 }
 
@@ -137,6 +141,8 @@ static void smull_t1(uint32_t inst) {
 	if (rdhi == rdlo)
 		CORE_ERR_unpredictable("smull same hi lo regs\n");
 
+	OP_DECOMPILE("SMULL<c> <RdLo>,<RdHi>,<Rn>,<Rm>",
+			rdlo, rdhi, rn, rm);
 	return smull(rdlo, rdhi, rn, rm, setflags);
 }
 
@@ -151,6 +157,9 @@ static void umlal_t1(uint32_t inst) {
 		CORE_ERR_unpredictable("umlal_t1 case 1\n");
 	if (rdhi == rdlo)
 		CORE_ERR_unpredictable("umlal_t1 case 2\n");
+
+	OP_DECOMPILE("UMLAL<c> <RdLo>,<RdHi>,<Rn>,<Rm>",
+			rdlo, rdhi, rn, rm);
 
 	//
 	uint64_t rn_val = CORE_reg_read(rn);
@@ -190,6 +199,8 @@ static void umull_t1(uint32_t inst) {
 	if (rdhi == rdlo)
 		CORE_ERR_unpredictable("umull same hi lo regs\n");
 
+	OP_DECOMPILE("UMULL<c> <RdLo>,<RdHi>,<Rn>,<Rm>",
+			rdlo, rdhi, rn, rm);
 	return umull(rdlo, rdhi, rn, rm, setflags);
 }
 
