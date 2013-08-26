@@ -31,10 +31,19 @@
 #include "cpu/misc.h"
 
 static void execute(struct op *o, uint32_t inst) {
+#ifdef HAVE_DECOMPILE
+	extern bool decompile_ran;
+	if (decompile_flag)
+		decompile_ran = false;
+#endif
 	if (o->is16)
 		o->op16.fn(inst);
 	else
 		o->op32.fn(inst);
+#ifdef HAVE_DECOMPILE
+	if (decompile_flag && !decompile_ran)
+		WARN("Missing decompile for %s (%08x)\n", o->name, inst);
+#endif
 }
 
 // "Private" export from state.c (hack)
@@ -63,6 +72,12 @@ static void tick_ex(void) {
 						cycle, id_ex_PC - 4, inst, o->name,
 						"ITSTATE {skipped}");
 			}
+#ifdef HAVE_DECOMPILE
+			extern int decompile_flag;
+			if (decompile_flag) {
+				printf("DECOM: (IT Skipped)\n");
+			}
+#endif
 			DBG2("itstate skipped instruction\n");
 		}
 		IT_advance();

@@ -30,6 +30,8 @@
 #include "helpers.h"
 static const char* it_condition = "!!it_condition not initialized!!";
 
+EXPORT bool decompile_ran;
+
 static int handle_op(const char *syntax, va_list args) {
 	assert(syntax[0] == '<');
 	assert(syntax[1] != '>');
@@ -166,7 +168,6 @@ static size_t print_it_inst(const char *syntax, va_list args) {
 	unsigned itstate = va_arg(args, unsigned);
 
 	uint8_t mask = itstate & 0xf;
-	assert(mask != 0);
 	bool mask0 = !!(mask & 0x1);
 	bool mask1 = !!(mask & 0x2);
 	bool mask2 = !!(mask & 0x4);
@@ -175,24 +176,24 @@ static size_t print_it_inst(const char *syntax, va_list args) {
 	bool firstcond0 = !!(firstcond & 0x1);
 
 	printf("IT");
-	if (mask3) {
+	if (mask3 && !mask2 && !mask1 && !mask0) {
 		; // no x, y, or z
 	} else {
-		if (firstcond0)
+		if (firstcond0 == mask3)
 			putchar_unlocked('T');
 		else
 			putchar_unlocked('E');
-		if (mask2) {
+		if (mask2 && !mask1 && !mask0) {
 			; // no y or z
 		} else {
-			if (firstcond0)
+			if (firstcond0 == mask2)
 				putchar_unlocked('T');
 			else
 				putchar_unlocked('E');
-			if (mask1) {
+			if (mask1 && !mask0) {
 				; // no z
 			} else {
-				if (firstcond0)
+				if (firstcond0 == mask1)
 					putchar_unlocked('T');
 				else
 					putchar_unlocked('E');
@@ -292,6 +293,8 @@ EXPORT void op_decompile(const char* syntax, ...) {
 	putchar_unlocked('\n');
 	va_end(va_args);
 	funlockfile(stderr); funlockfile(stdout);
+
+	decompile_ran = true;
 }
 
 #endif // HAVE_DECOMPILE
