@@ -28,6 +28,7 @@
 #include "cpu/misc.h"
 
 #include "helpers.h"
+static const char* it_condition = "!!it_condition not initialized!!";
 
 static int handle_op(const char *syntax, va_list args) {
 	assert(syntax[0] == '<');
@@ -44,7 +45,8 @@ static int handle_op(const char *syntax, va_list args) {
 
 #define IS_OP(_op) (0 == (strcmp(_op, buf)))
 	if (IS_OP("c")) {
-		;
+		if (in_ITblock())
+			printf("%s", it_condition);
 	} else if ((0 == strncmp("imm", buf, 3))
 			|| IS_OP("const")
 			|| IS_OP("lsb")
@@ -56,7 +58,7 @@ static int handle_op(const char *syntax, va_list args) {
 	} else if (IS_OP("IT")) {
 		// Fake option for inside IT block
 		if (in_ITblock())
-			printf("!!ERR: IT block decoding not impl!!");
+			printf("%s", it_condition);
 		else
 			printf("S");
 	} else if (IS_OP("label")) {
@@ -172,7 +174,7 @@ static size_t print_it_inst(const char *syntax, va_list args) {
 	uint8_t firstcond = (itstate >> 4) & 0xf;
 	bool firstcond0 = !!(firstcond & 0x1);
 
-	printf("IT ");
+	printf("IT");
 	if (mask3) {
 		; // no x, y, or z
 	} else {
@@ -202,23 +204,32 @@ static size_t print_it_inst(const char *syntax, va_list args) {
 	putchar_unlocked('\t');
 
 	switch (firstcond) {
-		case  0: printf("EQ"); break;
-		case  1: printf("NE"); break;
-		case  2: printf("CS"); break;
-		case  3: printf("CC"); break;
-		case  4: printf("MI"); break;
-		case  5: printf("PL"); break;
-		case  6: printf("VS"); break;
-		case  7: printf("VC"); break;
-		case  8: printf("HI"); break;
-		case  9: printf("LS"); break;
-		case 10: printf("GE"); break;
-		case 11: printf("LT"); break;
-		case 12: printf("GT"); break;
-		case 13: printf("LE"); break;
-		case 14: printf("AL"); break;
+		case  0: it_condition = "EQ"; break;
+		case  1: it_condition = "NE"; break;
+		case  2: it_condition = "CS"; break;
+		case  3: it_condition = "CC"; break;
+		case  4: it_condition = "MI"; break;
+		case  5: it_condition = "PL"; break;
+		case  6: it_condition = "VS"; break;
+		case  7: it_condition = "VC"; break;
+		case  8: it_condition = "HI"; break;
+		case  9: it_condition = "LS"; break;
+		case 10: it_condition = "GE"; break;
+		case 11: it_condition = "LT"; break;
+		case 12: it_condition = "GT"; break;
+		case 13: it_condition = "LE"; break;
+		case 14: it_condition = "AL"; break;
 		case 15: assert(false && "illegal condition"); break;
 	}
+	printf("%s", it_condition);
+
+	union apsr_t apsr = CORE_apsr_read();
+	printf("(N=%d,Z=%d,C=%d,V=%d,Q=%d)",
+			apsr.bits.N,
+			apsr.bits.Z,
+			apsr.bits.C,
+			apsr.bits.V,
+			apsr.bits.Q);
 
 	return strlen(syntax);
 }
