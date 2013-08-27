@@ -13,5 +13,7 @@ LDFLAGS += `python2-config --ldflags`
 LDFLAGS += -lrt -lm
 endif
 
-: foreach *.c |> !cc |> {objs}
-: {objs} $(SUBS) |> !ld |> simulator
+#: foreach *.c |> !cc |> {objs}
+#: {objs} $(SUBS) |> !ld |> simulator
+#!ld = |> ^ LINK %o^ $(CC) $(LDFLAGS) %f -o %o |>
+: <objs> |> ^ LINK %o^ $(CC) $(LDFLAGS) %<objs> -o %o |> simulator

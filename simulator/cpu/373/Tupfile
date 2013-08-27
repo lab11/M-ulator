@@ -1,4 +1,5 @@
+ifeq (@(PLATFORM),373)
 include_rules
 
-: foreach *.c |> !cc |> {objs}
-: {objs} $(SUBS) |> !ld_part |>
+: foreach *.c |> !cc |> %B.o ../../<objs>
+endif

@@ -65,5 +65,3 @@ LD = ld
 
 &MEMMAP = cpu/@(PLATFORM)/memmap.h
 !cc = | &(MEMMAP) |> ^ CC %f^ $(CC) %f $(CFLAGS) -c -o %o |> %B.o
-!ld_part = |> ^ LINK SUBDIR^ $(LD) -r %f -o %o |> built-in.o
-!ld = |> ^ LINK %o^ $(CC) $(LDFLAGS) %f -o %o |>
