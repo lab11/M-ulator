@@ -326,10 +326,10 @@ static void ldrb_imm_t3(uint32_t inst) {
 	bool add = U;
 	bool wback = W;
 
-	if ((rt == 13) && (W && (rn == rt)))
+	if ((rt == 13) && (wback && (rn == rt)))
 		CORE_ERR_unpredictable("bad regs\n");
 
-	if ((rt == 15) && ((P == 0) || (U == 1) || (W == 1)))
+	if ((rt == 15) && ((index == 0) || (add == 1) || (wback == 1)))
 		CORE_ERR_unpredictable("bad regs / flags\n");
 
 	if (index && !wback) // Offset
@@ -340,7 +340,7 @@ static void ldrb_imm_t3(uint32_t inst) {
 		OP_DECOMPILE("LDRB<c> <Rt>, [<Rn>], #+/-<imm>", rt, rn, add, imm32);
 	else
 		OP_DECOMPILE("!!Error decoding LDR? Illegal combination!!");
-	return ldrb_imm(rt, rn, imm32, U, P, W);
+	return ldrb_imm(rt, rn, imm32, add, index, wback);
 }
 
 static inline void ldrb_lit(uint8_t rt, uint32_t imm32, bool add) {
