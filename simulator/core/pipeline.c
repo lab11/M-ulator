@@ -130,7 +130,7 @@ EXPORT void pipeline_init(void) {
 }
 
 EXPORT void pipeline_flush_exception_handler(uint32_t new_pc) {
-	DBG1("Pipeline Flush. new_PC: %08x\n", new_pc);
+	DBG2("Pipeline Flush. new_PC: %08x\n", new_pc);
 	for (int i=0; i < num_stages; i++) {
 		stages[i].args = &new_pc;
 		stages[i].run_fn_args = stages[i].pipeline_flush_fn;
@@ -140,7 +140,7 @@ EXPORT void pipeline_flush_exception_handler(uint32_t new_pc) {
 		sem_wait(stages[i].done);
 		stages[i].run_fn_args = NULL;
 	}
-	DBG1("flush done\n");
+	DBG2("flush done\n");
 }
 
 EXPORT void pipeline_stages_tick(void) {

@@ -411,7 +411,7 @@ static bool _wait_for_gdb(void) {
 		{
 			// kill
 			INFO("Killed by remote debugger, dying\n");
-			sim_terminate();
+			sim_terminate(true);
 		}
 
 		case 'm':

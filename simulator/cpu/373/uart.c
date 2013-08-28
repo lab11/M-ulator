@@ -32,6 +32,8 @@
 
 #define INVALID_CLIENT (UINT_MAX-1)
 
+#define THREAD_NAME "poll_uart_thread"
+
 pthread_t poll_uart_pthread;
 volatile bool poll_uart_enabled = false;
 
@@ -87,9 +89,9 @@ static void *poll_uart_thread(void *unused __attribute__ ((unused))) {
 	struct sockaddr_in server;
 
 #ifdef __APPLE__
-	if (0 != pthread_setname_np("poll_uart_thread"))
+	if (0 != pthread_setname_np(THREAD_NAME))
 #else
-	if (0 != prctl(PR_SET_NAME, "poll_uart_thread", 0, 0, 0))
+	if (0 != prctl(PR_SET_NAME, THREAD_NAME, 0, 0, 0))
 #endif
 		ERR(E_UNKNOWN, "Setting thread name: %s\n", strerror(errno));
 
@@ -366,5 +368,6 @@ void register_memmap_uart(void) {
 			POLL_UART_TXDATA, POLL_UART_TXDATA+1);
 
 	struct periph_time_travel tt = PERIPH_TIME_TRAVEL_NONE;
-	register_periph_thread(start_poll_uart, tt, &poll_uart_enabled, NULL);
+	register_periph_thread(start_poll_uart, THREAD_NAME,
+			tt, &poll_uart_enabled, NULL);
 }

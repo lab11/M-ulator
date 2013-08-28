@@ -47,7 +47,7 @@
 
 // The simulator core
 void simulator(const char* flash_file);
-void sim_terminate(void) __attribute__ ((noreturn));
+void sim_terminate(bool should_exit);
 bool state_handle_exceptions(void);
 
 // Simulator config

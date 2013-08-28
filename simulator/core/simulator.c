@@ -291,7 +291,7 @@ static void _shell(void) {
 
 		case 'q':
 		case 't':
-			sim_terminate();
+			sim_terminate(true);
 
 		case 'r':
 		{
@@ -573,7 +573,7 @@ static int sim_execute(void) {
 			shell();
 		} else {
 			INFO("Simulator determined PC 0x%08x is branch to self, terminating.\n", cur_pc);
-			sim_terminate();
+			sim_terminate(true);
 		}
 	} else {
 		SW(&prev_pc, cur_pc);
@@ -644,9 +644,11 @@ static void sim_reset(void) {
 	ERR(ret, "Terminating\n");
 }
 
-EXPORT void sim_terminate(void) {
+EXPORT void sim_terminate(bool should_exit) {
 	join_periph_threads();
 	INFO("Simulator shutdown successfully.\n");
+	if (!should_exit)
+		return;
 	if (returnr0) {
 		uint32_t r0 = CORE_reg_read(0);
 		DBG2("Return code is r0: %08x\n", r0);
@@ -727,6 +729,7 @@ static void* sig_thread(void *arg) {
 struct periph_thread {
 	struct periph_thread *next;
 	pthread_t (*fn)(void *);
+	const char *name;
 	struct periph_time_travel tt;
 	volatile bool *en;
 	void *arg;
@@ -736,10 +739,12 @@ struct periph_thread {
 static struct periph_thread periph_threads;
 
 EXPORT void register_periph_thread(
-		pthread_t (*fn)(void *), struct periph_time_travel tt,
+		pthread_t (*fn)(void *), const char *name,
+		struct periph_time_travel tt,
 		volatile bool *en, void *arg) {
 	if (periph_threads.fn == NULL) {
 		periph_threads.fn = fn;
+		periph_threads.name = name;
 		periph_threads.tt = tt;
 		periph_threads.en = en;
 		periph_threads.arg = arg;
@@ -751,6 +756,7 @@ EXPORT void register_periph_thread(
 		cur = cur->next;
 		cur->next = NULL;
 		cur->fn = fn;
+		cur->name = name;
 		cur->tt = tt;
 		cur->en = en;
 		cur->arg = arg;
@@ -873,6 +879,7 @@ static void join_periph_threads(void) {
 
 		struct periph_thread *cur = &periph_threads;
 		while (cur != NULL) {
+			DBG1("Shutting down peripheral: %s\n", cur->name);
 			*cur->en = false;
 			pthread_join(cur->pthread, NULL);
 			cur = cur->next;

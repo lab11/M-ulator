@@ -34,7 +34,8 @@ struct periph_time_travel {
 	int (*replay_p) (uint32_t **addr, uint32_t *val);
 };
 #define PERIPH_TIME_TRAVEL_NONE {NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL}
-void register_periph_thread(pthread_t (*fn)(void*), struct periph_time_travel tt,
+void register_periph_thread(pthread_t (*fn)(void*), const char *name,
+		struct periph_time_travel tt,
 		volatile bool *en, void* arg);
 
 #endif // PERIPH_H

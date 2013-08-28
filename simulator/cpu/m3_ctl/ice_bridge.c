@@ -293,7 +293,7 @@ struct ice_instance* create_ice_instance(const char *host, int baud) {
 	}
 
 	struct periph_time_travel tt = PERIPH_TIME_TRAVEL_NONE;
-	register_periph_thread(start_ice, tt, &(ice->en), ice);
+	register_periph_thread(start_ice, "m3_ctl: ice_bridge", tt, &(ice->en), ice);
 	return ice;
 }
 
