@@ -86,21 +86,6 @@ void		CORE_reg_write(int r, uint32_t val);
 uint32_t	CORE_xPSR_read(void);
 void		CORE_xPSR_write(uint32_t);
 
-bool		CORE_primask_read(void);
-void		CORE_primask_write(bool);
-bool		CORE_faultmask_read(void);
-void		CORE_faultmask_write(bool);
-uint8_t		CORE_basepri_read(void);
-void		CORE_basepri_write(uint8_t);
-bool		CORE_control_nPRIV_read(void);
-void		CORE_control_nPRIV_write(bool npriv);
-bool		CORE_control_SPSEL_read(void);
-void		CORE_control_SPSEL_write(bool spsel);
-#ifdef HAVE_FP
-bool		CORE_control_FPCA_read(void);
-void		CORE_control_FPCA_write(bool fpca);
-#endif
-
 export_inline enum Mode CORE_CurrentMode_read(void) {
 	extern enum Mode CurrentMode;
 	return SR(&CurrentMode);
@@ -220,7 +205,55 @@ union control_t {
 #endif
 	};
 };
+export_inline bool CORE_control_nPRIV_read(void) {
+	extern union control_t physical_control;
+	union control_t c;
+	c.storage = SR(&physical_control.storage);
+	return c.nPRIV;
+}
+export_inline void CORE_control_nPRIV_write(bool npriv) {
+	extern union control_t physical_control;
+	union control_t c;
+	c.storage = SR(&physical_control.storage);
+	c.nPRIV = npriv;
+	SW(&physical_control.storage, c.storage);
+}
+export_inline bool CORE_control_SPSEL_read(void) {
+	extern union control_t physical_control;
+	union control_t c;
+	c.storage = SR(&physical_control.storage);
+	return c.SPSEL;
+}
+void		CORE_control_SPSEL_write(bool spsel);
+#ifdef HAVE_FP
+bool		CORE_control_FPCA_read(void);
+void		CORE_control_FPCA_write(bool fpca);
+#endif
 
+export_inline bool CORE_primask_read(void) {
+	extern uint32_t physical_primask;
+	return SR(&physical_primask);
+}
+export_inline void CORE_primask_write(bool val) {
+	extern uint32_t physical_primask;
+	SW(&physical_primask, val);
+}
+export_inline uint8_t CORE_basepri_read(void) {
+	extern uint32_t physical_basepri;
+	return SR(&physical_basepri);
+}
+export_inline void CORE_basepri_write(uint8_t val) {
+	extern uint32_t physical_basepri;
+	SW(&physical_basepri, val);
+}
+export_inline bool CORE_faultmask_read(void) {
+	extern uint32_t physical_faultmask;
+	return SR(&physical_faultmask);
+}
+export_inline void CORE_faultmask_write(bool val) {
+	extern uint32_t physical_faultmask;
+	SW(&physical_faultmask, val);
+}
 
 union ufsr_t {
 	uint32_t storage;

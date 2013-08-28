@@ -50,10 +50,10 @@ EXPORT union epsr_t physical_epsr;
 
 union ufsr_t ufsr;
 
-static uint32_t primask;
+EXPORT uint32_t physical_primask;
 //     0: priority	The exception mask register, a 1-bit register.
 //			Setting PRIMASK to 1 raises the execution priority to 0.
-static uint32_t basepri;
+EXPORT uint32_t physical_basepri;
 /* The base priority mask, an 8-bit register. BASEPRI changes the priority
  * level required for exception preemption. It has an effect only when BASEPRI
  * has a lower value than the unmasked priority level of the currently
@@ -63,7 +63,7 @@ static uint32_t basepri;
  * Maximum supported priority value on page B1-636.  A value of zero disables
  * masking by BASEPRI.
  */
-static uint32_t faultmask;
+EXPORT uint32_t physical_faultmask;
 /* The fault mask, a 1-bit register. Setting FAULTMASK to 1 raises the
  * execution priority to -1, the priority of HardFault. Only privileged
  * software executing at a priority below -1 can set FAULTMASK to 1. This means
@@ -71,7 +71,7 @@ static uint32_t faultmask;
  * exception except NMI clears FAULTMASK to 0.
  */
 
-static union control_t control;
+EXPORT union control_t physical_control;
 //     0: nPRIV, thread mode only (0 == privileged, 1 == unprivileged)
 //     1: SPSEL, thread mode only (0 == use SP_main, 1 == use SP_process)
 //     2: FPCA, (1 if FP extension active)
@@ -175,58 +175,11 @@ EXPORT void CORE_xPSR_write(uint32_t xPSR) {
 	CORE_apsr_write(a);
 }
 
-EXPORT bool CORE_primask_read(void) {
-	return SR(&primask);
-}
-
-EXPORT void CORE_primask_write(bool val) {
-	SW(&primask, val);
-}
-
-EXPORT bool CORE_faultmask_read(void) {
-	return SR(&faultmask);
-}
-
-EXPORT void CORE_faultmask_write(bool val) {
-	SW(&faultmask, val);
-}
-
-EXPORT uint8_t CORE_basepri_read(void) {
-	return SR(&basepri);
-}
-
-EXPORT void CORE_basepri_write(uint8_t val) {
-	SW(&basepri, val);
-}
-
-EXPORT bool CORE_control_nPRIV_read(void) {
-	union control_t c;
-	c.storage = SR(&control.storage);
-	return c.nPRIV;
-}
-
-EXPORT void CORE_control_nPRIV_write(bool npriv) {
-	// Defines execution priviledge in Thread mode:
-	//  0 - Thread mode has privileged access
-	//  1 - Thread mode has unprivileged access
-	// Handler mode is always privileged
-	union control_t c;
-	c.storage = SR(&control.storage);
-	c.nPRIV = npriv;
-	SW(&control.storage, c.storage);
-}
-
-EXPORT bool CORE_control_SPSEL_read(void) {
-	union control_t c;
-	c.storage = SR(&control.storage);
-	return c.SPSEL;
-}
-
 EXPORT void CORE_control_SPSEL_write(bool spsel) {
 	union control_t c;
-	c.storage = SR(&control.storage);
+	c.storage = SR(&physical_control.storage);
 	c.SPSEL = spsel;
-	SW(&control.storage, c.storage);
+	SW(&physical_control.storage, c.storage);
 
 	if (CORE_CurrentMode_read() == Mode_Thread) {
 		SWP(&sp, (spsel) ? &sp_process : &sp_main);
@@ -274,10 +227,10 @@ static void reset_registers(void) {
 	///
 
 	// B1.4.3: The special-purpose mask registers
-	SW(&primask, 0);
-	SW(&faultmask, 0);
-	SW(&basepri, 0);
-	SW(&control.storage, 0);
+	SW(&physical_primask, 0);
+	SW(&physical_faultmask, 0);
+	SW(&physical_basepri, 0);
+	SW(&physical_control.storage, 0);
 	DBG2("end\n");
 }
 
