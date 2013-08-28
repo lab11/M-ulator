@@ -580,12 +580,12 @@ static int sim_execute(void) {
 		SW(&prev_pc, cur_pc);
 	}
 
+	state_tock();
+
 	// Start a clock tick
 	pipeline_stages_tick();
 	state_handle_exceptions();
 	pipeline_stages_tock();
-
-	state_tock();
 
 	if (cycle_time.tv_nsec)
 		sim_delay();
