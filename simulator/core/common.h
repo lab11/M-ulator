@@ -119,6 +119,8 @@ void	CORE_ERR_not_implemented(const char *opt_msg) __attribute__ ((noreturn));
 #define likely(x)      __builtin_expect(!!(x), 1)
 #define unlikely(x)    __builtin_expect(!!(x), 0)
 
+#define export_inline  inline __attribute__ ((always_inline))
+
 ///////////////
 // DEBUGGING //
 ///////////////

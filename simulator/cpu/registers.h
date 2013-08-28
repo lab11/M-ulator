@@ -82,12 +82,6 @@ union apsr_t {
 
 uint32_t	CORE_reg_read(int r);
 void		CORE_reg_write(int r, uint32_t val);
-union apsr_t	CORE_apsr_read(void);
-void		CORE_apsr_write(union apsr_t val);
-union ipsr_t	CORE_ipsr_read(void);
-void		CORE_ipsr_write(union ipsr_t val);
-union epsr_t	CORE_epsr_read(void);
-void		CORE_epsr_write(union epsr_t val);
 
 uint32_t	CORE_xPSR_read(void);
 void		CORE_xPSR_write(uint32_t);
@@ -107,13 +101,11 @@ bool		CORE_control_FPCA_read(void);
 void		CORE_control_FPCA_write(bool fpca);
 #endif
 
-inline __attribute__ ((always_inline))
-enum Mode	CORE_CurrentMode_read(void) {
+export_inline enum Mode CORE_CurrentMode_read(void) {
 	extern enum Mode CurrentMode;
 	return SR(&CurrentMode);
 }
-inline __attribute__ ((always_inline))
-void		CORE_CurrentMode_write(enum Mode mode) {
+export_inline void CORE_CurrentMode_write(enum Mode mode) {
 	extern enum Mode CurrentMode;
 	return SW(&CurrentMode, mode);
 }
@@ -140,6 +132,26 @@ union apsr_t {
 		unsigned N		:  1;
 	} bits;
 };
+export_inline union apsr_t CORE_apsr_read(void) {
+	extern union apsr_t physical_apsr;
+	union apsr_t a;
+	a.storage = SR(&physical_apsr.storage);
+	return a;
+}
+export_inline void CORE_apsr_write(union apsr_t val) {
+	extern union apsr_t physical_apsr;
+	uint8_t in_ITblock(void);
+
+	if (in_ITblock()) {
+		DBG1("WARN update of apsr in IT block\n");
+	}
+#ifdef M_PROFILE
+	if (val.storage & 0x07f0ffff) {
+		DBG1("WARN update of reserved APSR bits\n");
+	}
+#endif
+	SW(&physical_apsr.storage, val.storage);
+}
 
 
 //union __attribute__ ((__packed__)) ipsr_t {
@@ -152,6 +164,16 @@ union ipsr_t {
 		unsigned reserved0	: 23;
 	} bits;
 };
+export_inline union ipsr_t CORE_ipsr_read(void) {
+	extern union ipsr_t physical_ipsr;
+	union ipsr_t i;
+	i.storage = SR(&physical_ipsr.storage);
+	return i;
+}
+export_inline void CORE_ipsr_write(union ipsr_t val) {
+	extern union ipsr_t physical_ipsr;
+	SW(&physical_ipsr.storage, val.storage);
+}
 
 
 //union __attribute__ ((__packed__)) epsr_t {
@@ -172,6 +194,17 @@ union epsr_t {
 		unsigned reserved2	:  5;
 	} bits;
 };
+export_inline union epsr_t CORE_epsr_read(void) {
+	extern union epsr_t physical_epsr;
+	union epsr_t e;
+	e.storage = SR(&physical_epsr.storage);
+	return e;
+}
+export_inline void CORE_epsr_write(union epsr_t val) {
+	extern union epsr_t physical_epsr;
+	SW(&physical_epsr.storage, val.storage);
+}
+
 
 //union __attribute__ ((__packed__)) control_t {
 union control_t {
@@ -202,15 +235,13 @@ union ufsr_t {
 		unsigned reserved1   : 22;
 	};
 };
-inline __attribute__ ((always_inline))
-union ufsr_t CORE_ufsr_read(void) {
+export_inline union ufsr_t CORE_ufsr_read(void) {
 	extern union ufsr_t ufsr;
 	union ufsr_t u;
 	u.storage = SR(&ufsr.storage);
 	return u;
 }
-inline __attribute__ ((always_inline))
-void CORE_ufsr_write(union ufsr_t u) {
+export_inline void CORE_ufsr_write(union ufsr_t u) {
 	extern union ufsr_t ufsr;
 	SW(&ufsr.storage, u.storage);
 }

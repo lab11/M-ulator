@@ -44,9 +44,9 @@ static uint32_t lr;
 
 #ifdef M_PROFILE
 
-static union apsr_t apsr;
-static union ipsr_t ipsr;
-static union epsr_t epsr;
+EXPORT union apsr_t physical_apsr;
+EXPORT union ipsr_t physical_ipsr;
+EXPORT union epsr_t physical_epsr;
 
 union ufsr_t ufsr;
 
@@ -133,45 +133,7 @@ EXPORT void CORE_reg_write(int r, uint32_t val) {
 	}
 }
 
-EXPORT union apsr_t CORE_apsr_read(void) {
-	union apsr_t a;
-	a.storage = SR(&apsr.storage);
-	return a;
-}
-
-EXPORT void CORE_apsr_write(union apsr_t val) {
-	if (in_ITblock()) {
-		WARN("WARN update of apsr in IT block\n");
-	}
 #ifdef M_PROFILE
-	if (val.storage & 0x07f0ffff) {
-		DBG1("WARN update of reserved APSR bits\n");
-	}
-#endif
-	SW(&apsr.storage, val.storage);
-}
-
-#ifdef M_PROFILE
-EXPORT union ipsr_t CORE_ipsr_read(void) {
-	union ipsr_t i;
-	i.storage = SR(&ipsr.storage);
-	return i;
-}
-
-EXPORT void CORE_ipsr_write(union ipsr_t val) {
-	SW(&ipsr.storage, val.storage);
-}
-
-EXPORT union epsr_t CORE_epsr_read(void) {
-	union epsr_t e;
-	e.storage = SR(&epsr.storage);
-	return e;
-}
-
-EXPORT void CORE_epsr_write(union epsr_t val) {
-	SW(&epsr.storage, val.storage);
-}
-
 // <8:0> from IPSR
 // <26:24,15:10> from ESPR
 // <31:27>,[if DSP: <19:16>] from APSR
