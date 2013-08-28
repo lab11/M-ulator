@@ -31,15 +31,36 @@
 # if __has_include(<stdatomic.h>)
 #  include <stdatomic.h>
 #  define HAVE_STDATOMIC
-# else
+# elif 0 // as of 3.4 clang BUG's at -O1+ with atomics
 #  define CLANG_ATOMIC
    typedef enum memory_order {
    	  memory_order_relaxed, memory_order_consume, memory_order_acquire,
    	    memory_order_release, memory_order_acq_rel, memory_order_seq_cst
    } memory_order;
-#  define atomic_fetch_add(_p, _i) __c11_atomic_fetch_add(_p, _i, memory_order_seq_cst)
-#  define atomic_store(_p, _i)     __c11_atomic_store(_p, _i, memory_order_seq_cst)
-#  define atomic_load(_p)          __c11_atomic_load(_p, memory_order_seq_cst)
+#  define atomic_store(_p, _i)         __c11_atomic_store(_p, _i, memory_order_seq_cst)
+#  define atomic_load(_p)              __c11_atomic_load(_p, memory_order_seq_cst)
+#  define atomic_flag_test_and_set(_p) __sync_lock_test_and_set(_p, 1)
+#  define atomic_flag_clear(_p)        __sync_lock_release(_p)
+# else
+#  define NO_ATOMIC
+   pthread_mutex_t no_atomic_mutex = PTHREAD_MUTEX_INITIALIZER;
+#  define atomic_store(_p, _i) atomic_store_compat(_p, _i)
+   static void atomic_store_compat(bool *p, bool val) {
+	   pthread_mutex_lock(&no_atomic_mutex);
+	   *p = val;
+	   pthread_mutex_unlock(&no_atomic_mutex);
+   }
+#  define atomic_load(_p) atomic_load_compat(_p)
+   static bool atomic_load_compat(bool *p) {
+	   bool temp;
+	   pthread_mutex_lock(&no_atomic_mutex);
+	   temp = *p;
+	   pthread_mutex_unlock(&no_atomic_mutex);
+	   return temp;
+   }
+   // but these gcc extensions seem to work
+#  define atomic_flag_test_and_set(_p) __sync_lock_test_and_set(_p, 1)
+#  define atomic_flag_clear(_p)        __sync_lock_release(_p)
 # endif
 # if __has_include(<threads.h>)
 #  include <threads.h>
@@ -100,20 +121,26 @@ static thread_local struct state_change writes[STATE_MAX_WRITES];
 ////
 
 #ifdef HAVE_STDATOMIC
-#ifndef NO_PIPELINE
-static atomic_flag pipeline_flush_flag = ATOMIC_FLAG_INIT(false);
-#endif
-static atomic_bool debugging_bool = ATOMIC_BOOL_INIT(false);
-#elif defined(CLANG_ATOMIC)
-#ifndef NO_PIPELINE
-static int pipeline_flush_bool = false;
-#endif
+ #ifndef NO_PIPELINE
+  static atomic_flag pipeline_flush_flag = ATOMIC_FLAG_INIT(false);
+ #endif
 
-static _Atomic(_Bool) debugging_bool;
-__attribute__ ((constructor))
-void clang_pipeline_debugging_atomic_bools_init(void) {
-	__c11_atomic_init(&debugging_bool, false);
-}
+ static atomic_bool debugging_bool = ATOMIC_BOOL_INIT(false);
+#elif defined(CLANG_ATOMIC)
+ #ifndef NO_PIPELINE
+  static bool pipeline_flush_flag = false;
+ #endif
+
+ static _Atomic(bool) debugging_bool;
+ __attribute__ ((constructor))
+ void clang_pipeline_debugging_atomic_bools_init(void) {
+	 __c11_atomic_init(&debugging_bool, false);
+ }
+#elif defined(NO_ATOMIC)
+ #ifndef NO_PIPELINE
+  static bool pipeline_flush_flag = false;
+ #endif
+ static bool debugging_bool;
 #endif
 
 EXPORT bool state_is_debugging(void) {
@@ -179,13 +206,8 @@ EXPORT void state_write_op(struct op **loc, struct op *val);
 EXPORT bool state_handle_exceptions(void) {
 #ifndef NO_PIPELINE
 	bool pipeline;
-#ifdef HAVE_STDATOMIC
 	pipeline = atomic_flag_test_and_set(&pipeline_flush_flag);
 	atomic_flag_clear(&pipeline_flush_flag);
-#elif defined(CLANG_ATOMIC)
-	pipeline = __sync_lock_test_and_set(&pipeline_flush_bool, 1);
-	__sync_lock_release(&pipeline_flush_bool);
-#endif
 	if (pipeline) {
 		DBG2("Exception: Pipeline Flush\n");
 		pipeline_flush_exception_handler(state_pipeline_new_pc);
@@ -408,11 +430,7 @@ EXPORT void state_write_op(struct op **loc, struct op *val) {
 EXPORT void state_pipeline_flush(uint32_t new_pc) {
 	DBG2("pipeline flush. new_pc: %08x\n", new_pc);
 	bool flag;
-#ifdef HAVE_STDATOMIC
 	flag = atomic_flag_test_and_set(&pipeline_flush_flag);
-#elif defined(CLANG_ATOMIC)
-	flag = __sync_lock_test_and_set(&pipeline_flush_bool, 1);
-#endif
 	assert((flag == false) && "duplicate pipeline flushes?");
 	state_pipeline_new_pc = new_pc;
 }

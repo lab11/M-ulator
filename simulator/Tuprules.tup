@@ -43,6 +43,18 @@ ifeq (@(NO_PIPELINE),y)
 CFLAGS += -DNO_PIPELINE
 endif
 
+ifeq (@(FAVOR_SPEED),y)
+CFLAGS += -DFAVOR_SPEED
+endif
+
+ifeq (@(OPTIMIZE),y)
+ifeq (@(TUP_PLATFORM),macosx)
+CFLAGS += -O4
+else
+CFLAGS += -O3
+endif
+endif
+
 ifeq (@(DEBUG_SYMBOLS),y)
 CFLAGS  += -g
 LDFLAGS += -g
