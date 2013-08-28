@@ -28,19 +28,11 @@
 #include "cpu/common/private_peripheral_bus/ppb.h"
 
 enum Mode CurrentMode;
-static uint32_t reg[SP_REG];	// SP,LR,PC not held here, so 13 registers
+EXPORT uint32_t physical_reg[SP_REG];	// SP,LR,PC not held here, so 13 registers
        uint32_t sp_process; // "private" export
        uint32_t sp_main; // "private" export
-static uint32_t *sp = &sp_main;
-static uint32_t lr;
-
-#define SP	(*sp)
-#define LR	(lr)
-#ifdef NO_PIPELINE
-#define PC	(pre_if_PC)
-#else
-#define PC	(id_ex_PC)
-#endif
+EXPORT uint32_t *physical_sp_p = &sp_main;
+EXPORT uint32_t physical_lr;
 
 #ifdef M_PROFILE
 
@@ -81,33 +73,12 @@ EXPORT union control_t physical_control;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/* ARMv7-M implementations treat SP bits [1:0] as RAZ/WI.
- * ARM strongly recommends that software treats SP bits [1:0]
- * as SBZP for maximum portability across ARMv7 profiles.
- */
-EXPORT uint32_t CORE_reg_read(int r) {
-	assert(r >= 0 && r < 16 && "CORE_reg_read");
-	if (r == SP_REG) {
-		return SR(&SP) & 0xfffffffc;
-	} else if (r == LR_REG) {
-		return SR(&LR);
-	} else if (r == PC_REG) {
-#ifdef NO_PIPELINE
-		return SR(&id_ex_PC) & 0xfffffffe;
-#else
-		return SR(&PC) & 0xfffffffe;
-#endif
-	} else {
-		return SR(&reg[r]);
-	}
-}
-
 EXPORT void CORE_reg_write(int r, uint32_t val) {
 	assert(r >= 0 && r < 16 && "CORE_reg_write");
 	if (r == SP_REG) {
-		SW(&SP, val & 0xfffffffc);
+		SW(physical_sp_p, val & 0xfffffffc);
 	} else if (r == LR_REG) {
-		SW(&LR, val);
+		SW(&physical_lr, val);
 	} else if (r == PC_REG) {
 		DBG2("Writing %08x to PC\n", val & 0xfffffffe);
 #ifdef NO_PIPELINE
@@ -129,7 +100,7 @@ EXPORT void CORE_reg_write(int r, uint32_t val) {
 #endif
 	}
 	else {
-		SW(&(reg[r]), val);
+		SW(&(physical_reg[r]), val);
 	}
 }
 
@@ -182,7 +153,7 @@ EXPORT void CORE_control_SPSEL_write(bool spsel) {
 	SW(&physical_control.storage, c.storage);
 
 	if (CORE_CurrentMode_read() == Mode_Thread) {
-		SWP(&sp, (spsel) ? &sp_process : &sp_main);
+		SWP(&physical_sp_p, (spsel) ? &sp_process : &sp_main);
 	} else {
 		CORE_ERR_unpredictable("SPSEL write in Handler mode\n");
 	}

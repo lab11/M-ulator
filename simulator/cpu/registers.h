@@ -80,7 +80,28 @@ union apsr_t {
 
 #ifdef M_PROFILE
 
-uint32_t	CORE_reg_read(int r);
+/* ARMv7-M implementations treat SP bits [1:0] as RAZ/WI.
+ * ARM strongly recommends that software treats SP bits [1:0]
+ * as SBZP for maximum portability across ARMv7 profiles.
+ */
+export_inline uint32_t CORE_reg_read(int r) {
+	extern uint32_t physical_reg[SP_REG];
+	extern uint32_t *physical_sp_p;
+	extern uint32_t physical_lr;
+	extern uint32_t id_ex_PC;
+
+	assert(r >= 0 && r < 16 && "CORE_reg_read");
+	if (r == SP_REG) {
+		return SR(physical_sp_p) & 0xfffffffc;
+	} else if (r == LR_REG) {
+		return SR(&physical_lr);
+	} else if (r == PC_REG) {
+		return SR(&id_ex_PC) & 0xfffffffe;
+	} else {
+		return SR(&physical_reg[r]);
+	}
+}
+
 void		CORE_reg_write(int r, uint32_t val);
 
 uint32_t	CORE_xPSR_read(void);
