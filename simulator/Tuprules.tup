@@ -45,6 +45,7 @@ endif
 
 ifeq (@(FAVOR_SPEED),y)
 CFLAGS += -DFAVOR_SPEED
+CFLAGS += -DNDEBUG
 endif
 
 ifeq (@(OPTIMIZE),y)

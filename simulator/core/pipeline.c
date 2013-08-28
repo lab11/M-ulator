@@ -87,17 +87,11 @@ static void* ticker(void *idx_void) {
 	int idx = *((int *) idx_void);
 
 #ifdef __APPLE__
-	assert(0 == pthread_setname_np(stages[idx].name));
-#ifdef DEBUG1
-	{
-	char buf[16];
-	assert(0 == pthread_getname_np(pthread_self(), buf, 16));
-	assert(0 == strcmp(buf, stages[idx].name));
-	}
-#endif // DEBUG1
+	if (0 != pthread_setname_np(stages[idx].name))
 #else
-	assert(0 == prctl(PR_SET_NAME, stages[idx].name, 0, 0, 0));
+	if (0 != prctl(PR_SET_NAME, stages[idx].name, 0, 0, 0))
 #endif // __APPLE__
+		ERR(E_UNKNOWN, "Unexpected error setting thread name: %s", strerror(errno));
 
 	sem_post(stages[idx].done);
 

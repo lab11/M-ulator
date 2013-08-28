@@ -236,10 +236,11 @@ static void* i2c_thread(void *v_args) {
 	strncpy(thread_name+strlen("i2c: "), t->name, 16-strlen("i2c: "));
 
 #ifdef __APPLE__
-	assert(0 == pthread_setname_np(thread_name));
+	if (0 != pthread_setname_np(thread_name))
 #else
-	assert(0 == prctl(PR_SET_NAME, thread_name, 0, 0, 0));
+	if (0 != prctl(PR_SET_NAME, thread_name, 0, 0, 0))
 #endif
+		ERR(E_UNKNOWN, "Setting thread name: %s\n", strerror(errno));
 
 	t->sock = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (-1 == t->sock) {
@@ -354,16 +355,25 @@ EXPORT struct i2c_instance* create_i2c_instance(const char *periph_name,
 	t->is_sending = false;
 	t->is_active_message = false;
 
+	{
+		int ret;
 #ifdef DEBUG1
-	pthread_mutexattr_t attr;
-	assert(0 == pthread_mutexattr_init(&attr));
-	assert(0 == pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK));
-	assert(0 == pthread_mutex_init(&t->pm, &attr));
-	assert(0 == pthread_mutexattr_destroy(&attr));
+		pthread_mutexattr_t attr;
+		if (0 != (ret = pthread_mutexattr_init(&attr)) )
+			ERR(E_UNKNOWN, "pthread_mutexattr_init: %s", strerror(ret));
+		if (0 != (ret = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK)) )
+			ERR(E_UNKNOWN, "pthread_mutexattr_settype: %s", strerror(ret));
+		if (0 != (ret = pthread_mutex_init(&t->pm, &attr)) )
+			ERR(E_UNKNOWN, "pthread_mutex_init: %s", strerror(ret));
+		if (0 != (ret = pthread_mutexattr_destroy(&attr)) )
+			ERR(E_UNKNOWN, "pthread_mutexattr_destory: %s", strerror(ret));
 #else
-	assert(0 == pthread_mutex_init(&t->pm, NULL));
+		if (0 != (ret = pthread_mutex_init(&t->pm, NULL)) )
+			ERR(E_UNKNOWN, "pthread_mutex_init: %s", strerror(ret));
 #endif
-	assert(0 == pthread_cond_init(&t->pc, NULL));
+		if (0 != (ret = pthread_cond_init(&t->pc, NULL)) )
+			ERR(E_UNKNOWN, "pthread_cond_init: %s", strerror(ret));
+	}
 
 	struct periph_time_travel tt = PERIPH_TIME_TRAVEL_NONE;
 	register_periph_thread(start_i2c, tt, &(t->en), t);

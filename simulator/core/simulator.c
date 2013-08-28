@@ -312,7 +312,8 @@ static void _shell(void) {
 
 			if (file) {
 				char *cmd;
-				assert(-1 != asprintf(&cmd, "hexdump -C %s", file));
+				if (-1 == asprintf(&cmd, "hexdump -C %s", file))
+					ERR(E_UNKNOWN, "Failure allocating cmd string\n");
 				FILE *out = popen(cmd, "r");
 
 				char hex_buf[100];
@@ -478,7 +479,8 @@ static void sim_delay_reset() {
 	// Perform check here to verify system (i) has CLOCK_REALTIME and (ii)
 	// supports clock_gettime. This prevents requiring the check in the
 	// main loop.
-	assert(0 == clock_gettime(CLOCK_REALTIME, &last_cycle_time));
+	if (0 != clock_gettime(CLOCK_REALTIME, &last_cycle_time))
+		ERR(E_UNKNOWN, "clock_gettime failed unexpectedly: %s", strerror(errno));
 	last_cycle_time.tv_nsec = -1;
 #elif __APPLE__
 	mach_timebase_info(&sTimebaseInfo);
@@ -683,10 +685,11 @@ static void* sig_thread(void *arg) {
 	int s, sig;
 
 #ifdef __APPLE__
-	assert(0 == pthread_setname_np("signal handler"));
+	if (0 != pthread_setname_np("signal handler"))
 #else
-	assert(0 == prctl(PR_SET_NAME, "signal handler", 0, 0, 0));
+	if (0 != prctl(PR_SET_NAME, "signal handler", 0, 0, 0))
 #endif
+		ERR(E_UNKNOWN, "Unexpected error setting thread name: %s\n", strerror(errno));
 
 	for (;;) {
 		s = sigwait(set, &sig);
@@ -775,10 +778,11 @@ static void flash_image(const uint8_t *image, const uint32_t num_bytes){
 EXPORT void simulator(const char *flash_file) {
 	const char thread_name[16] = "Simulator main";
 #ifdef __APPLE__
-	assert(0 == pthread_setname_np(thread_name));
+	if (0 != pthread_setname_np(thread_name))
 #else
-	assert(0 == prctl(PR_SET_NAME, thread_name, 0, 0, 0));
+	if (0 != prctl(PR_SET_NAME, thread_name, 0, 0, 0))
 #endif
+		ERR(E_UNKNOWN, "Unexpected error setting thread name: %s\n", strerror(errno));
 
 	// Read in flash
 	if (usetestflash) {
@@ -833,7 +837,11 @@ EXPORT void simulator(const char *flash_file) {
 	sigset_t set;
 	sigemptyset(&set);
 	sigaddset(&set, SIGINT);
-	assert(0 == pthread_sigmask(SIG_BLOCK, &set, NULL));
+	{
+		int ret;
+		if (0 != (ret = pthread_sigmask(SIG_BLOCK, &set, NULL)) )
+			ERR(E_UNKNOWN, "pthread_sigmask: %s", strerror(ret));
+	}
 
 	// Spawn signal handling thread
 	pthread_t sig_pthread;

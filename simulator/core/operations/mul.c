@@ -115,7 +115,8 @@ static void mul_t2(uint32_t inst) {
 	return mul(false, rd, rn, rm);
 }
 
-static void smull(uint8_t rdlo, uint8_t rdhi, uint8_t rn, uint8_t rm, bool setflags) {
+static void smull(uint8_t rdlo, uint8_t rdhi, uint8_t rn, uint8_t rm,
+		bool setflags __attribute__ ((unused))) {
 	assert(setflags == false);
 
 	int64_t rn_val = CORE_reg_read(rn);
@@ -173,7 +174,8 @@ static void umlal_t1(uint32_t inst) {
 	CORE_reg_write(rdlo, result & 0xffffffff);
 }
 
-static void umull(uint8_t rdlo, uint8_t rdhi, uint8_t rn, uint8_t rm, bool setflags) {
+static void umull(uint8_t rdlo, uint8_t rdhi, uint8_t rn, uint8_t rm,
+		bool setflags __attribute__ ((unused))) {
 	assert(setflags == false);
 
 	uint64_t rn_val = CORE_reg_read(rn);

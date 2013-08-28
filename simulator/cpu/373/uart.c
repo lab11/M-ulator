@@ -87,10 +87,11 @@ static void *poll_uart_thread(void *unused __attribute__ ((unused))) {
 	struct sockaddr_in server;
 
 #ifdef __APPLE__
-	assert(0 == pthread_setname_np("poll_uart_thread"));
+	if (0 != pthread_setname_np("poll_uart_thread"))
 #else
-	assert(0 == prctl(PR_SET_NAME, "poll_uart_thread", 0, 0, 0));
+	if (0 != prctl(PR_SET_NAME, "poll_uart_thread", 0, 0, 0))
 #endif
+		ERR(E_UNKNOWN, "Setting thread name: %s\n", strerror(errno));
 
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (-1 == sock) {

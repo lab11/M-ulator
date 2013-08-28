@@ -73,9 +73,18 @@ EXPORT void gdb_init(int port) {
 	}
 
 	// Grab the opening '+'
-	char c;
-	assert(1 == recv(sock, &c, 1, 0));
-	assert(c == '+');
+	{
+		char c;
+		ssize_t ret = recv(sock, &c, 1, 0);
+		if (ret != 1) {
+			ERR(E_UNKNOWN, "Unexpected error during gdb connection:\n%s",
+					strerror(errno));
+		}
+		if (c != '+') {
+			WARN("Unexpected character during initial gdb connection\n");
+			ERR(E_UNKNOWN, "Expected '+', got '%c'", c);
+		}
+	}
 
 	// Get the initial gdb support message
 	const char *msg;
@@ -92,12 +101,13 @@ EXPORT void gdb_init(int port) {
 	// Respond with out message
 	char *resp;
 #ifdef HAVE_REPLAY
-	assert(-1 != asprintf(&resp, "\
-qSupported:PacketSize=%x;ReverseContinue+;ReverseStep+", GDB_MSG_MAX - 1));
+	if (-1 == asprintf(&resp, "\
+qSupported:PacketSize=%x;ReverseContinue+;ReverseStep+", GDB_MSG_MAX - 1))
 #else
-	assert(-1 != asprintf(&resp, "\
-qSupported:PacketSize=%x", GDB_MSG_MAX - 1));
+	if (-1 == asprintf(&resp, "\
+qSupported:PacketSize=%x", GDB_MSG_MAX - 1))
 #endif
+		ERR(E_UNKNOWN, "Error allocating response string\n");
 
 	gdb_send_message(resp);
 	free(resp);
@@ -155,7 +165,10 @@ EXPORT char* gdb_get_message(long *ext_len) {
 		ERR(E_UNPREDICTABLE, "Lost protocol sync?\n");
 	} else
 	if (read < (len + 2)) {
-		assert(recv(sock, buf+read, (len+2)-read, MSG_WAITALL) == (len+2)-read);
+		ssize_t ret;
+		ret = recv(sock, buf+read, (len+2)-read, MSG_WAITALL);
+		if (ret != (len+2)-read)
+			ERR(E_UNKNOWN, "Communication error with gdb: %s\n", strerror(errno));
 	}
 
 	unsigned char csum = 0;
@@ -255,7 +268,11 @@ EXPORT void gdb_send_message(const char *msg) {
 	_gdb_send(csum_str[1]);
 
 	char c;
-	assert(1 == recv(sock, &c, 1, 0));
+	ssize_t ret;
+	ret = recv(sock, &c, 1, 0);
+	if (ret != 1)
+		ERR(E_UNKNOWN, "Communication with gdb failed: %s", strerror(errno));
+
 	if (c == '+')
 		return;
 	else if (c == '-')

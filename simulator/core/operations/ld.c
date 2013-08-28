@@ -371,8 +371,9 @@ static void ldrb_lit_t1(uint32_t inst) {
 	return ldrb_lit(rt, imm32, add);
 }
 
-static void ldrb_reg(uint8_t rt, uint8_t rn, uint8_t rm, enum SRType shift_t,
-		uint8_t shift_n, bool index, bool add, bool wback) {
+static void ldrb_reg(uint8_t rt, uint8_t rn, uint8_t rm,
+		enum SRType shift_t, uint8_t shift_n,
+		bool index, bool add, bool wback __attribute__ ((unused))) {
 	assert(wback == false);
 
 	uint32_t rm_val = CORE_reg_read(rm);
@@ -785,7 +786,7 @@ static void ldrsb_lit_t1(uint32_t inst) {
 }
 
 static void ldrsb_reg(uint8_t rt, uint8_t rn, uint8_t rm,
-		bool index, bool add, bool wback,
+		bool index, bool add, bool wback __attribute__ ((unused)),
 		enum SRType shift_t, uint8_t shift_n) {
 	assert(wback == false);
 

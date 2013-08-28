@@ -272,16 +272,25 @@ struct ice_instance* create_ice_instance(const char *host, int baud) {
 
 	ice->sim_main_thread = 0;
 
+	{
+		int ret;
 #ifdef DEBUG1
-	pthread_mutexattr_t attr;
-	assert(0 == pthread_mutexattr_init(&attr));
-	assert(0 == pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK));
-	assert(0 == pthread_mutex_init(&ice->pm, &attr));
-	assert(0 == pthread_mutexattr_destroy(&attr));
+		pthread_mutexattr_t attr;
+		if (0 != (ret = pthread_mutexattr_init(&attr)) )
+			ERR(E_UNKNOWN, "pthread_mutexattr_init: %s", strerror(ret));
+		if (0 != (ret = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK)) )
+			ERR(E_UNKNOWN, "pthread_mutexattr_settype: %s", strerror(ret));
+		if (0 != (ret = pthread_mutex_init(&ice->pm, &attr)) )
+			ERR(E_UNKNOWN, "pthread_mutex_init: %s", strerror(ret));
+		if (0 != (ret = pthread_mutexattr_destroy(&attr)) )
+			ERR(E_UNKNOWN, "pthread_mutexattr_destroy: %s", strerror(ret));
 #else
-	assert(0 == pthread_mutex_init(&ice->pm, NULL));
+		if (0 != (ret = pthread_mutex_init(&ice->pm, NULL)) )
+			ERR(E_UNKNOWN, "pthread_mutex_init: %s", strerror(ret));
 #endif
-	assert(0 == pthread_cond_init(&ice->pc, NULL));
+		if (0 != (ret = pthread_cond_init(&ice->pc, NULL)) )
+			ERR(E_UNKNOWN, "pthread_cond_init: %s", strerror(ret));
+	}
 
 	struct periph_time_travel tt = PERIPH_TIME_TRAVEL_NONE;
 	register_periph_thread(start_ice, tt, &(ice->en), ice);

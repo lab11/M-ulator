@@ -119,7 +119,7 @@ uint8_t eval_cond(union apsr_t apsr, uint8_t cond) {
 			ret = true;
 			break;
 		default:
-			assert(false); return 0;
+			CORE_ERR_unpredictable("Bad condition in eval_cond\n");
 	}
 
 	if ((cond & 0x1) && (cond != 0xf))

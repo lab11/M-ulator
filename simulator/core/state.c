@@ -409,12 +409,12 @@ EXPORT void state_write_p_async(uint32_t **ploc, uint32_t *pval) {
 // Lazy hack since every other bit of preserved state is a uint32_t[*]
 // At some point in time state saving will likely have to be generalized,
 // until then, however, this will suffice
-EXPORT struct op* state_read_op(struct op **loc) {
+EXPORT struct op* state_read_op(struct op **loc __attribute__ ((unused))) {
 	assert(loc == &id_ex_o);
 	return id_ex_o;
 }
 
-EXPORT void state_write_op(struct op **loc, struct op *val) {
+EXPORT void state_write_op(struct op **loc __attribute__ ((unused)), struct op *val) {
 	assert(loc == &id_ex_o);
 #ifdef NO_PIPELINE
 	id_ex_o = val;
