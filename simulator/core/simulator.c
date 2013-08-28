@@ -20,6 +20,7 @@
 #define STAGE SIM
 
 #include <sys/stat.h>
+#include <sys/time.h>
 
 // XXX: Temporary fix, see note at end of simulator.h
 #define PP_STRING "---"
@@ -592,6 +593,8 @@ static int sim_execute(void) {
 	return SUCCESS;
 }
 
+static struct timeval sim_execute_time_start = {0, 0};
+
 static void sim_reset(void) __attribute__ ((noreturn));
 static void sim_reset(void) {
 	int ret;
@@ -617,6 +620,8 @@ static void sim_reset(void) {
 	state_handle_exceptions();
 	state_exit_debugging();
 	INFO("De-asserting reset pin\n");
+
+	gettimeofday(&sim_execute_time_start, NULL);
 
 	INFO("Entering main loop...\n");
 	do {
@@ -645,6 +650,15 @@ static void sim_reset(void) {
 }
 
 EXPORT void sim_terminate(bool should_exit) {
+	if ((sim_execute_time_start.tv_sec != 0) && (sim_execute_time_start.tv_usec != 0)) {
+		const double usec_per_sec = 1000000;
+		struct timeval end;
+		gettimeofday(&end, NULL);
+		double elapsed = (double) (end.tv_sec - sim_execute_time_start.tv_sec);
+		elapsed += (double) ((end.tv_usec - sim_execute_time_start.tv_usec) / usec_per_sec);
+		double freq = cycle / elapsed;
+		INFO("Approximate average frequency: %f hz\n", freq);
+	}
 	join_periph_threads();
 	INFO("Simulator shutdown successfully.\n");
 	if (!should_exit)
