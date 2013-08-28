@@ -493,7 +493,7 @@ static void sim_delay_warn(long ns) {
 	static int warn_count = 0;
 	if (warn_count < 5) {
 		WARN("Timing requirement missed\n");
-		WARN("Cycle exceeded requested time by %ld ns\n", ns);
+		WARN("Cycle %d exceeded requested time by %ld ns\n", cycle, ns);
 		warn_count++;
 	} else if (warn_count++ == 5) {
 		WARN("Timing requirement missed\n");
