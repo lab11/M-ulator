@@ -30,9 +30,16 @@
 
 // Latchable state
 #define SR(_l) state_read((_l))
-uint32_t state_read(uint32_t *loc) __attribute__ ((nonnull));
+export_inline uint32_t state_read(uint32_t *loc) __attribute__ ((nonnull));
+export_inline uint32_t state_read(uint32_t *loc) {
+	return *loc;
+}
 #define SRP(_l) state_read_p((_l))
-uint32_t* state_read_p(uint32_t **loc) __attribute__ ((nonnull));
+export_inline uint32_t* state_read_p(uint32_t **loc) __attribute__ ((nonnull));
+export_inline uint32_t* state_read_p(uint32_t **ploc) {
+	return *ploc;
+}
+
 #ifdef DEBUG1
 #define SW(_l, _v) state_write_dbg((_l), (_v),\
 		__FILE__, __func__, __LINE__, VAL2STR(_l))

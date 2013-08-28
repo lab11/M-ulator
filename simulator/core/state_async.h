@@ -30,9 +30,16 @@
 
 // Latchable state
 #define SR_A(_l) state_read_async((_l))
-uint32_t state_read_async(uint32_t *loc) __attribute__ ((nonnull));
+export_inline uint32_t state_read_async(uint32_t *loc) __attribute__ ((nonnull));
+export_inline uint32_t state_read_async(uint32_t *loc) {
+	return *loc;
+}
 #define SRP_A(_l) state_read_p_async((_l))
-uint32_t* state_read_p_async(uint32_t **loc) __attribute__ ((nonnull));
+export_inline uint32_t* state_read_p_async(uint32_t **loc) __attribute__ ((nonnull));
+export_inline uint32_t* state_read_p_async(uint32_t **ploc) {
+	return *ploc;
+}
+
 #ifdef DEBUG1
 #define SW_A(_l, _v) state_write_async_dbg((_l), (_v),\
 		__FILE__, __func__, __LINE__, VAL2STR(_l))

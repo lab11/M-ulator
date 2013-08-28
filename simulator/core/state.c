@@ -241,26 +241,6 @@ EXPORT void state_tock(void) {
 #undef W
 }
 
-EXPORT uint32_t state_read(uint32_t *loc) {
-	return *loc;
-}
-
-EXPORT uint32_t state_read_async(uint32_t *loc) {
-	uint32_t ret;
-	ret = state_read(loc);
-	return ret;
-}
-
-EXPORT uint32_t* state_read_p(uint32_t **ploc) {
-	return *ploc;
-}
-
-EXPORT uint32_t* state_read_p_async(uint32_t **ploc) {
-	uint32_t *ret;
-	ret = *ploc;
-	return ret;
-}
-
 #ifdef DEBUG1
 static void _state_write_dbg(uint32_t *loc, uint32_t val,
 		uint32_t** ploc, uint32_t* pval,
