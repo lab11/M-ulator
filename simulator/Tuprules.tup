@@ -77,4 +77,9 @@ CC = cc
 LD = ld
 
 &MEMMAP = cpu/@(PLATFORM)/memmap.h
+
+ifeq (@(DEBUG_SYMBOLS),y)
+!cc = | &(MEMMAP) |> ^c CC %f^ $(CC) %f $(CFLAGS) -c -o %o |> %B.o
+else
 !cc = | &(MEMMAP) |> ^ CC %f^ $(CC) %f $(CFLAGS) -c -o %o |> %B.o
+endif
