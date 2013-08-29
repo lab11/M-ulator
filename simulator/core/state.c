@@ -428,6 +428,10 @@ EXPORT int state_seek_for_calling_thread(int target_cycle) {
 		return current_cycle;
 	}
 
+#ifdef NO_PIPELINE
+	WARN("TODO: Cycle seek logic in NO_PIPELINE doesn't account multiple links / cycle\n");
+#endif
+
 	if (target_cycle > current_cycle) {
 		DBG1("seeking forward from %d to %d\n", current_cycle, target_cycle);
 		while (target_cycle > current_cycle) {
