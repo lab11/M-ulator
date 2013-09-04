@@ -141,8 +141,10 @@ static void ExceptionTaken(enum ExceptionType type) {
 	epsr.bits.T = tbit;
 	epsr.bits.ICI_IT_top = 0;
 	epsr.bits.ICI_IT_bot = 0;
-	if (0 /* HaveFPExt */)
-		; // CONTROL.FPCA = 1
+#ifdef HAVE_FP
+	if (HaveFPExt())
+		CORE_control_FPCA_write(1);
+#endif
 	CORE_control_SPSEL_write(0);
 	if (ExceptionActive[type] == 0)
 		ExceptionActiveBitCount++;
@@ -185,8 +187,10 @@ static void PopStack(uint32_t frameptr, uint32_t exc_return) {
 	uint32_t xPSR =        read_word(frameptr+0x1c);
 	CORE_xPSR_write(xPSR);
 
+#ifdef HAVE_FP
 	if (0 /* FP */)
 		; // ...
+#endif
 
 	uint32_t spmask = (!!(xPSR & 0x200) && forcealign) << 2;
 

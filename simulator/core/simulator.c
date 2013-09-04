@@ -446,7 +446,7 @@ EXPORT void CORE_ERR_not_implemented_real(const char *f, int l, const char *opt_
 
 #if _POSIX_TIMERS > 0
 static struct timespec last_cycle_time;
-#elif __APPLE__
+#elif defined __APPLE__
 #include <CoreServices/CoreServices.h>
 #include <mach/mach.h>
 #include <mach/mach_time.h>
@@ -483,7 +483,7 @@ static void sim_delay_reset() {
 	if (0 != clock_gettime(CLOCK_REALTIME, &last_cycle_time))
 		ERR(E_UNKNOWN, "clock_gettime failed unexpectedly: %s", strerror(errno));
 	last_cycle_time.tv_nsec = -1;
-#elif __APPLE__
+#elif defined __APPLE__
 	mach_timebase_info(&sTimebaseInfo);
 	last_cycle_time = -1;
 #endif
@@ -519,7 +519,7 @@ static void sim_delay(void) {
 		}
 	}
 	clock_gettime(CLOCK_REALTIME, &last_cycle_time);
-#elif __APPLE__
+#elif defined __APPLE__
 	/* https://developer.apple.com/library/mac/#qa/qa1398/_index.html */
 	if (last_cycle_time != (uint64_t) -1) {
 		uint64_t this_cycle_time, elapsed;

@@ -13,17 +13,22 @@ CFLAGS += -Wno-type-limits
 CFLAGS += -fno-strict-overflow
 CFLAGS += -Wformat=2 -Winit-self -Wmissing-include-dirs -Wunused-parameter
 CFLAGS += -Wundef -Wpointer-arith -Wbad-function-cast -Wcast-qual -Wfloat-equal
-CFLAGS += -Wwrite-strings -Waggregate-return -Wstrict-prototypes -Wmissing-declarations
-CFLAGS += -Wmissing-field-initializers -Wmissing-format-attribute -Wredundant-decls
-CFLAGS += -Wnested-externs -Winline -Wvolatile-register-var -Wdisabled-optimization
-CFLAGS += -Wshorten-64-to-32 -Wshadow -Wpacked
+CFLAGS += -Wwrite-strings -Waggregate-return -Wstrict-prototypes
+CFLAGS += -Wmissing-field-initializers -Wmissing-format-attribute
+CFLAGS += -Winline -Wvolatile-register-var -Wdisabled-optimization
+CFLAGS += -Wshadow -Wpacked
 
-#-Wcast-align          -- non-templatized state causes lots of these, should be fixed someday
-#-Wconversion          -- introduces a lot of annoying cases, maybe revisit someday
-#-Wunreachable-code    -- just too annoying to have during development
-#-Wpadded              -- Most of these are just argument passing structs
-#-Wmissing-prototypes  -- all of the constructors are missing prototypes
-#-Wmissing-noreturn    -- causes too much noise on not implemented paths
+#-Wshorten-64-to-32     -- clang only
+
+#-Wcast-align           -- non-templatized state causes lots of these, should be fixed someday
+#-Wconversion           -- introduces a lot of annoying cases, maybe revisit someday
+#-Wunreachable-code     -- just too annoying to have during development
+#-Wpadded               -- Most of these are just argument passing structs
+#-Wnested-externs       -- I use these extensively, despite the seemingly weird scope rules
+#-Wredundant-decls      -- ^^ which leads to a ton of noise with this warning
+#-Wmissing-prototypes   -- all of the constructors are missing prototypes
+#-Wmissing-declarations -- gcc considers the constructors as missing decl's
+#-Wmissing-noreturn     -- causes too much noise on not implemented paths
 
 CFLAGS += -I$(TUP_CWD)
 CFLAGS += -pthread -D_GNU_SOURCE
