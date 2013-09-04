@@ -28,20 +28,20 @@
 static void pop_t1(uint16_t inst) {
 	uint32_t sp = CORE_reg_read(SP_REG);
 
-	int hamming = 0;
+	int hamm = 0;
 	{
 		int reg_list = inst & 0xff;
 		OP_DECOMPILE("POP<c> <registers>", reg_list);
-		for (hamming = 0; reg_list; hamming++) {
+		for (hamm = 0; reg_list; hamm++) {
 			reg_list &= (reg_list - 1); // clears LSB
 		}
-		hamming += !!(inst & 0x100); // PC?
+		hamm += !!(inst & 0x100); // PC?
 
-		assert((hamming > 0) && (hamming <= 9));
+		assert((hamm > 0) && (hamm <= 9));
 	}
 
 	uint32_t start_address = sp;
-	uint32_t end_address = sp + 4*hamming;
+	uint32_t end_address = sp + 4*hamm;
 	uint32_t address = start_address;
 
 	int i;
