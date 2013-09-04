@@ -24,6 +24,47 @@
 #include "cpu/core.h"
 #include "cpu/misc.h"
 
+// arm-thumb
+static void pop_t1(uint16_t inst) {
+	uint32_t sp = CORE_reg_read(SP_REG);
+
+	int hamming = 0;
+	{
+		int reg_list = inst & 0xff;
+		OP_DECOMPILE("POP<c> <registers>", reg_list);
+		for (hamming = 0; reg_list; hamming++) {
+			reg_list &= (reg_list - 1); // clears LSB
+		}
+		hamming += !!(inst & 0x100); // PC?
+
+		assert((hamming > 0) && (hamming <= 9));
+	}
+
+	uint32_t start_address = sp;
+	uint32_t end_address = sp + 4*hamming;
+	uint32_t address = start_address;
+
+	int i;
+	for (i = 0; i < 8; i++) {
+		if (inst & (1 << i)) {
+			CORE_reg_write(i, read_word(address));
+			address += 4;
+		}
+	}
+	if (inst & 0x100) {
+		uint32_t val = read_word(address);
+		// val &= 0xfffffffe	// simulator allows thumb bit
+		CORE_reg_write(PC_REG, val);
+		address += 4;
+	}
+
+	assert ((end_address == address) && "Sanity check");
+	CORE_reg_write(SP_REG, end_address);
+
+	DBG2("pop {%sregisters %02x (bitwise)}\n",
+			(inst & 0x100)?"PC and ":"", inst & 0xff);
+}
+
 static void pop(uint16_t registers) {
 	uint32_t address = CORE_reg_read(SP_REG);
 
@@ -40,17 +81,6 @@ static void pop(uint16_t registers) {
 	}
 
 	CORE_reg_write(SP_REG, CORE_reg_read(SP_REG) + 4 * hamming(registers));
-}
-
-// arm-thumb
-static void pop_t1(uint16_t inst) {
-	uint16_t reg_list = inst & 0x7f;
-	bool P = (inst >> 7) & 0x1;
-
-	uint16_t registers = (P << 15) | reg_list;
-
-	OP_DECOMPILE("POP<c> <registers>", registers);
-	return pop(registers);
 }
 
 // arm-v7-m
