@@ -205,6 +205,8 @@ static void PopStack(uint32_t frameptr, uint32_t exc_return) {
 		case 0xd:	// returning to Thread using Process stack
 			sp = &sp_process;
 			break;
+		default:
+			CORE_ERR_unpredictable("Bad exception return\n");
 	}
 	SW(sp, (SR(sp) + framesize) | spmask);
 

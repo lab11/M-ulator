@@ -48,14 +48,14 @@ static pthread_cond_t  poll_uart_cond  = PTHREAD_COND_INITIALIZER;
 static uint32_t poll_uart_client = INVALID_CLIENT;
 
 static pthread_rwlock_t poll_uart_rwlock = PTHREAD_RWLOCK_INITIALIZER;
-static inline uint32_t UART_SR(uint32_t *addr) {
+static uint32_t UART_SR(uint32_t *addr) {
 	uint32_t ret;
 	pthread_rwlock_rdlock(&poll_uart_rwlock);
 	ret = SR_A(addr);
 	pthread_rwlock_unlock(&poll_uart_rwlock);
 	return ret;
 }
-static inline void UART_SW(uint32_t *addr, uint32_t val) {
+static void UART_SW(uint32_t *addr, uint32_t val) {
 	pthread_rwlock_wrlock(&poll_uart_rwlock);
 	SW_A(addr, val);
 	pthread_rwlock_unlock(&poll_uart_rwlock);

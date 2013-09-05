@@ -37,8 +37,8 @@
    	  memory_order_relaxed, memory_order_consume, memory_order_acquire,
    	    memory_order_release, memory_order_acq_rel, memory_order_seq_cst
    } memory_order;
-#  define atomic_store(_p, _i)         __c11_atomic_store(_p, _i, memory_order_seq_cst)
-#  define atomic_load(_p)              __c11_atomic_load(_p, memory_order_seq_cst)
+#  define atomic_store(_p, _i)         __c11_atomic_store(_p, _i, memory_order_release)
+#  define atomic_load(_p)              __c11_atomic_load(_p, memory_order_acquire)
 #  define atomic_flag_test_and_set(_p) __sync_lock_test_and_set(_p, 1)
 #  define atomic_flag_clear(_p)        __sync_lock_release(_p)
 # else
@@ -67,8 +67,23 @@
 # else
 #  define thread_local __thread
 # endif
+#elif defined __GNUC__
+# if __GNUC__ != 4
+#  error GCC 4.x required
+# endif
+# if __GNUC_MINOR__ < 8
+#  define thread_local __thread
+# endif
+# if __GNUC_MINOR__ < 7
+#  error GCC 4.7+ required for __atomic support (though you could work around this if motivated)
+# endif
+# define GCC_ATOMIC
+# define atomic_store(_p, _i)         __atomic_store_n(_p, _i, __ATOMIC_RELEASE)
+# define atomic_load(_p)              __atomic_load_n(_p, __ATOMIC_ACQUIRE)
+# define atomic_flag_test_and_set(_p) __atomic_test_and_set(_p, __ATOMIC_SEQ_CST)
+# define atomic_flag_clear(_p)        __atomic_clear(_p, __ATOMIC_SEQ_CST)
 #else
-# error No C11 atomic / thread support?
+# error Unknown compiler. No C11 atomic / thread support?
 #endif
 
 #ifndef NO_PIPELINE
@@ -136,6 +151,12 @@ static thread_local struct state_change writes[STATE_MAX_WRITES];
  void clang_pipeline_debugging_atomic_bools_init(void) {
 	 __c11_atomic_init(&debugging_bool, false);
  }
+#elif defined(GCC_ATOMIC)
+ #ifndef NO_PIPELINE
+  static bool pipeline_flush_flag = false;
+ #endif
+
+  static bool debugging_bool = false;
 #elif defined(NO_ATOMIC)
  #ifndef NO_PIPELINE
   static bool pipeline_flush_flag = false;
@@ -411,7 +432,8 @@ EXPORT void state_pipeline_flush(uint32_t new_pc) {
 	DBG2("pipeline flush. new_pc: %08x\n", new_pc);
 	bool flag;
 	flag = atomic_flag_test_and_set(&pipeline_flush_flag);
-	assert((flag == false) && "duplicate pipeline flushes?");
+	if (flag != false)
+		CORE_ERR_unpredictable("Internal Error: Duplicate pipeline flushes?\n");
 	state_pipeline_new_pc = new_pc;
 }
 #endif // NO_PIPELINE

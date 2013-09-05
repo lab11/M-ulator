@@ -77,10 +77,11 @@
 // ERROR FUNCTIONS //
 ///////////////////////////////
 
-// Runtime Errors (CORR_ERR_... return codes)
+// Runtime Errors (CORE_ERR_... return codes)
 #define E_INVALID_ADDR		100
 #define E_BAD_OPCODE		101
 #define E_UNPREDICTABLE		102
+#define E_RUNTIME		103
 
 // Generic warning primative, will not cause exit
 void	CORE_WARN(const char *);
@@ -96,7 +97,11 @@ void	CORE_ERR_invalid_addr(uint8_t is_write, uint32_t addr) __attribute__ ((nore
 void	CORE_ERR_illegal_instr(uint32_t instr) __attribute__ ((noreturn));
 
 // Thrown when an undefined or unpredictable state is encountered
+// *** This error may be optimized out (ignored) ***
 void	CORE_ERR_unpredictable(const char *opt_msg) __attribute__ ((noreturn));
+
+// General error for an unrecoverable case
+void	CORE_ERR_runtime(const char *opt_msg) __attribute__ ((noreturn));
 
 // Useful for incremental work, indicates that everything up until this
 // point has completed successfully
@@ -224,6 +229,11 @@ void	CORE_ERR_illegal_instr_real(const char*, int, uint32_t)
 #define CORE_ERR_unpredictable(_o)\
 	CORE_ERR_unpredictable_real(__FILE__, __LINE__, (_o))
 void	CORE_ERR_unpredictable_real(const char*, int, const char *)
+		__attribute__ ((noreturn));
+
+#define CORE_ERR_runtime(_o)\
+	CORE_ERR_runtime_real(__FILE__, __LINE__, (_o))
+void	CORE_ERR_runtime_real(const char*, int, const char *)
 		__attribute__ ((noreturn));
 
 #define CORE_ERR_not_implemented(_o)\

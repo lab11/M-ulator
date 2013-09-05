@@ -435,6 +435,10 @@ EXPORT void CORE_ERR_unpredictable_real(const char *f, int l, const char *opt_ms
 	ERR(E_UNPREDICTABLE, "%s:%d\tCORE_ERR_unpredictable -- %s\n", f, l, opt_msg);
 }
 
+EXPORT void CORE_ERR_runtime_real(const char *f, int l, const char *opt_msg) {
+	ERR(E_RUNTIME, "%s:%d\tCORE_ERR_runtime -- %s\n", f, l, opt_msg);
+}
+
 EXPORT void CORE_ERR_not_implemented_real(const char *f, int l, const char *opt_msg) {
 	ERR(E_NOT_IMPLEMENTED, "%s:%d\tCORE_ERR_not_implemented -- %s\n", f, l, opt_msg);
 }
