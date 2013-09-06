@@ -752,6 +752,7 @@ struct periph_thread {
 	volatile bool *en;
 	void *arg;
 	pthread_t pthread;
+	bool active;
 };
 
 static struct periph_thread periph_threads;
@@ -766,6 +767,7 @@ EXPORT void register_periph_thread(
 		periph_threads.tt = tt;
 		periph_threads.en = en;
 		periph_threads.arg = arg;
+		periph_threads.active = false;
 	} else {
 		struct periph_thread *cur = &periph_threads;
 		while (cur->next != NULL)
@@ -778,6 +780,7 @@ EXPORT void register_periph_thread(
 		cur->tt = tt;
 		cur->en = en;
 		cur->arg = arg;
+		cur->active = false;
 	}
 }
 
@@ -877,6 +880,7 @@ EXPORT void simulator(const char *flash_file) {
 		while (cur != NULL) {
 			*cur->en = true;
 			cur->pthread = cur->fn(cur->arg);
+			cur->active = true;
 			cur = cur->next;
 		}
 	}
@@ -899,7 +903,10 @@ static void join_periph_threads(void) {
 		while (cur != NULL) {
 			DBG1("Shutting down peripheral: %s\n", cur->name);
 			*cur->en = false;
-			pthread_join(cur->pthread, NULL);
+			if (cur->active) {
+				pthread_join(cur->pthread, NULL);
+				cur->active = false;
+			}
 			cur = cur->next;
 		}
 	}
