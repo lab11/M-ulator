@@ -20,7 +20,7 @@ ASFLAGS += -mthumb --warn -mcpu=cortex-m0
 
 # Attempt to divine ARM toolchain
 SHELL=/bin/bash
-CROSS_COMPILE=$(shell if `hash arm-linux-gnueabi-gcc >& /dev/null`; then echo arm-linux-gnueabi; elif `hash arm-none-linux-gnueabi-gcc >& /dev/null`; then echo arm-none-linux-gnueabi; elif `hash arm-none-eabi-gcc >& /dev/null`; then echo arm-none-eabi; else echo -n ""; fi)
+CROSS_COMPILE=$(shell if `hash arm-linux-gnueabi-gcc >& /dev/null`; then echo arm-linux-gnueabi; elif `hash arm-linux-gnu-gcc >& /dev/null`; then echo arm-linux-gnu; elif `hash arm-none-linux-gnueabi-gcc >& /dev/null`; then echo arm-none-linux-gnueabi; elif `hash arm-none-eabi-gcc >& /dev/null`; then echo arm-none-eabi; else echo -n ""; fi)
 
 ifeq (,$(CROSS_COMPILE))
 SPACE_HACK=
@@ -28,6 +28,8 @@ SPACE_HACK=
   $(info )
   $(info  For debian based systems:)
   $(info  $(SPACE_HACK)   sudo apt-get install gcc-arm-linux-gnueabi)
+  $(info  For rpm based systems:)
+  $(info  $(SPACE_HACK)   sudo yum install gcc-arm-linux-gnu)
   $(info  For Mac OS X (assuming port (macports.org)))
   $(info  $(SPACE_HACK)   sudo port install arm-none-eabi-gcc)
   $(info  For more details / other systems, see the ``Installation'' section of)
