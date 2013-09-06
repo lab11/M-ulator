@@ -319,7 +319,6 @@ static void* i2c_thread(void *v_args) {
 
 i2c_shutdown:
 	assert(!t->en);
-	pthread_mutex_unlock(&t->pm);
 	INFO("Bus interface '%s' shut down\n", thread_name);
 	free(t->host);
 	free(t);
