@@ -54,10 +54,36 @@ CFLAGS += -DNDEBUG
 endif
 
 ifeq (@(OPTIMIZE),y)
+# This is a poor proxy for clang vs gcc, but tup doesn't seem to have a great
+# way of detecting which compiler is currently running
 ifeq (@(TUP_PLATFORM),macosx)
 CFLAGS += -O4
 else
-CFLAGS += -O3
+OPTFLAGS += -O3
+
+OPTFLAGS += -fgcse-sm -fgcse-las -fgcse-after-reload
+OPTFLAGS += -funsafe-loop-optimizations -Wunsafe-loop-optimizations
+OPTFLAGS += -fsched-pressure -fsched-spec-load -fsched-spec-load-dangerous
+OPTFLAGS += -fsched2-use-superblocks
+OPTFLAGS += -fipa-pta
+OPTFLAGS += -floop-interchange -floop-strip-mine -floop-block
+OPTFLAGS += -fgraphite-identity -floop-flatten
+OPTFLAGS += -ftree-loop-im -ftree-loop-ivcanon -fivopts
+OPTFLAGS += -fvect-cost-model -fvariable-expansion-in-unroller
+OPTFLAGS += -freorder-blocks-and-partition
+OPTFLAGS += -fweb -ftracer -frename-registers
+OPTFLAGS += -fbranch-target-load-optimize -fbranch-target-load-optimize2
+#OPTFLAGS += -fsection-anchors -- not on x64
+
+OPTFLAGS += -ffast-math
+
+OPTFLAGS += -fno-fat-lto-objects
+
+CFLAGS  += $(OPTFLAGS)
+ifneq (@(DEBUG_SYMBOLS),y)
+CFLAGS += -flto
+LDFLAGS += $(OPTFLAGS) -flto
+endif
 endif
 endif
 
