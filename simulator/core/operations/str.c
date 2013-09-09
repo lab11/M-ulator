@@ -488,7 +488,7 @@ static void strh_reg_t2(uint32_t inst) {
 }
 
 __attribute__ ((constructor))
-void register_opcodes_str(void) {
+static void register_opcodes_str(void) {
 	// str_imm_t1: 0110 0<x's>
 	register_opcode_mask_16(0x6000, 0x9800, str_imm_t1);
 

@@ -333,7 +333,7 @@ static void ubfx_t1(uint32_t inst) {
 }
 
 __attribute__ ((constructor))
-void register_opcodes_misc(void) {
+static void register_opcodes_misc(void) {
 	// bfc_t1: 1111 0011 0110 1111 0xxx xxxx xx0x xxxx
 	register_opcode_mask_32(0xf36f0000, 0x0c908020, bfc_t1);
 

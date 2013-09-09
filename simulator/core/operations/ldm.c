@@ -130,7 +130,7 @@ static void ldmdb_t1(uint32_t inst) {
 
 
 __attribute__ ((constructor))
-void register_opcodes_ldm(void) {
+static void register_opcodes_ldm(void) {
 	// ldm_t1: 1100 1<x's>
 	register_opcode_mask_16(0xc800, 0x3000, ldm_t1);
 

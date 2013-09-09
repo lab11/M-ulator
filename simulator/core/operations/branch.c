@@ -274,7 +274,7 @@ static void tbb_t1(uint32_t inst) {
 }
 
 __attribute__ ((constructor))
-void register_opcodes_branch(void) {
+static void register_opcodes_branch(void) {
 	// b_t1: 1101 <x's>
 	//   ex: xxxx 1111 <x's>
 	register_opcode_mask_16_ex(0xd000, 0x2000, b_t1,

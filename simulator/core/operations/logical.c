@@ -605,7 +605,7 @@ static void orr_reg_t2(uint32_t inst) {
 }
 
 __attribute__ ((constructor))
-void register_opcodes_logical(void) {
+static void register_opcodes_logical(void) {
 	// and_imm_t1: 1111 0x00 000x xxxx 0<x's>
 	register_opcode_mask_32_ex(0xf0000000, 0x0be08000, and_imm_t1,
 			0x00100f00, 0x0,

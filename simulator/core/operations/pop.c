@@ -116,7 +116,7 @@ static void pop_t3(uint32_t inst) {
 }
 
 __attribute__ ((constructor))
-void register_opcodes_pop(void) {
+static void register_opcodes_pop(void) {
 	// pop_t1: 1011 110<x's>
 	register_opcode_mask_16(0xbc00, 0x4200, pop_t1);
 

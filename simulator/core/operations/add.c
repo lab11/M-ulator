@@ -535,7 +535,7 @@ static void adr_t3(uint32_t inst) {
 }
 
 __attribute__ ((constructor))
-void register_opcodes_add(void) {
+static void register_opcodes_add(void) {
 	// adc_imm_t1: 1111 0x01 010x xxxx 0xxx xxxx xxxx xxxx
 	register_opcode_mask_32(0xf1400000, 0x0aa08000, adc_imm_t1);
 

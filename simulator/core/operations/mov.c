@@ -283,7 +283,7 @@ static void mov_reg_t3(uint32_t inst) {
 }
 
 __attribute__ ((constructor))
-void register_opcodes_mov(void) {
+static void register_opcodes_mov(void) {
 	// mrs_t1: 1111 0011 1110 1111 1000 xxxx xxxx xxxx
 	register_opcode_mask_32(0xf3ef8000, 0x0c107000, mrs_t1);
 

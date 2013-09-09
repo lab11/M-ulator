@@ -268,7 +268,7 @@ static void rrx_t1(uint32_t inst) {
 }
 
 __attribute__ ((constructor))
-void register_opcodes_shift(void) {
+static void register_opcodes_shift(void) {
 	// asr_imm_t1: 0001 0xxx xxxx xxxx
 	register_opcode_mask_16(0x1000, 0xe800, asr_imm_t1);
 

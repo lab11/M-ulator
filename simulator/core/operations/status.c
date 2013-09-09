@@ -285,7 +285,7 @@ static void msr_t1(uint32_t inst) {
 
 
 __attribute__ ((constructor))
-void register_opcodes_status(void) {
+static void register_opcodes_status(void) {
 	// cps_t1: 1011 0110 011x 00xx
 	register_opcode_mask_16(0xb660, 0x498c, cps_t1);
 

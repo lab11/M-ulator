@@ -1000,7 +1000,7 @@ static void ldrsh_reg_t2(uint32_t inst) {
 }
 
 __attribute__ ((constructor))
-void register_opcodes_ld(void) {
+static void register_opcodes_ld(void) {
 	// ldr_imm_t1: 0110 1<x's>
 	register_opcode_mask_16(0x6800, 0x9000, ldr_imm_t1);
 

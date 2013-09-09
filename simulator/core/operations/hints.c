@@ -111,7 +111,7 @@ static void yield_t2(uint32_t inst __attribute__ ((unused))) {
 }
 
 __attribute__ ((constructor))
-void register_opcodes_hints(void) {
+static void register_opcodes_hints(void) {
 	// dbg_t1: 1111 0011 1010 1111 1000 0000 1111 xxxx
 	register_opcode_mask_32(0xf3af80f0, 0x0c507f00, dbg_t1);
 

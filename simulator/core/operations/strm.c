@@ -118,7 +118,7 @@ static void stm_t2(uint32_t inst) {
 }
 
 __attribute__ ((constructor))
-void register_opcodes_strm(void) {
+static void register_opcodes_strm(void) {
 	// 1110 1001 00x0 xxxx 0x0x xxxx xxxx xxxx
 	//             1  1101
 	register_opcode_mask_32_ex(0xe9000000, 0x16d0a000, stmdb_t1,

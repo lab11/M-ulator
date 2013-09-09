@@ -31,7 +31,7 @@ static void it(uint16_t inst) {
 }
 
 __attribute__ ((constructor))
-void register_opcodes_it(void) {
+static void register_opcodes_it(void) {
 	// it_t1: 1011 1111 xxxx xxxx
 	register_opcode_mask_16_ex(0xbf00, 0x4000, it,
 			0x0000, 0x000f,

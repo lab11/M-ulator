@@ -467,7 +467,7 @@ static void sub_sp_reg_t1(uint32_t inst) {
 }
 
 __attribute__ ((constructor))
-void register_opcodes_sub(void) {
+static void register_opcodes_sub(void) {
 	// (pre-UAL name: neg)
 	// rsb_imm_t1: 0100 0010 01<x's>
 	register_opcode_mask_16(0x4240, 0xbd80, rsb_imm_t1);

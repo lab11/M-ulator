@@ -136,7 +136,7 @@ static void usat_t1(uint32_t inst) {
 }
 
 __attribute__ ((constructor))
-void register_opcodes_sat(void) {
+static void register_opcodes_sat(void) {
 	// ssat_t1: 1111 0011 00x0 xxxx 0xxx xxxx xx0x xxxx
 	register_opcode_mask_32(0xf3000000, 0x0cd08020, ssat_t1);
 

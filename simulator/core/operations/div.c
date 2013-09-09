@@ -90,7 +90,7 @@ static void udiv_t1(uint32_t inst) {
 }
 
 __attribute__ ((constructor))
-void register_opcodes_div(void) {
+static void register_opcodes_div(void) {
 	// sdiv_t1: 1111 1011 1001 xxxx 1111 xxxx 1111 xxxx
 	register_opcode_mask_32(0xfb90f0f0, 0x04600000, sdiv_t1);
 
