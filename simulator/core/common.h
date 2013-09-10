@@ -202,6 +202,12 @@ void	CORE_ERR_not_implemented(const char *opt_msg) __attribute__ ((noreturn));
 // MACRO TRICKS //
 //////////////////
 
+#ifdef __has_feature
+# if !__has_feature(cxx_static_assert)
+#  define static_assert _Static_assert
+# endif
+#endif
+
 #define CORE_WARN(_m)\
 	CORE_WARN_real(__FILE__, __LINE__, (_m))
 void	CORE_WARN_real(const char*, int, const char *);
