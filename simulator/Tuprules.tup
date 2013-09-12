@@ -72,7 +72,7 @@ OPTFLAGS += -ftree-loop-im -ftree-loop-ivcanon -fivopts
 OPTFLAGS += -fvect-cost-model -fvariable-expansion-in-unroller
 OPTFLAGS += -freorder-blocks-and-partition
 OPTFLAGS += -fweb -ftracer -frename-registers
-OPTFLAGS += -fbranch-target-load-optimize -fbranch-target-load-optimize2
+OPTFLAGS += -fbranch-target-load-optimize2
 #OPTFLAGS += -fsection-anchors -- not on x64
 
 OPTFLAGS += -ffast-math
