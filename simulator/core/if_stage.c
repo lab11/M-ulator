@@ -80,6 +80,9 @@ static void branch_target_forward32(uint32_t target, uint32_t inst, uint32_t *pc
 }
 
 static void branch_target_forward16(uint32_t target, uint32_t inst, uint32_t *pc) {
+#ifdef NOPIPELINE
+	WARN("FIXME: This shouldn't be here in NOPIPELINE\n");
+#endif
 	if (match_mask32(inst, 0xe000, 0x1000)) {
 		DBG2("btf: b_t2\n");
 		// This is b_t2
@@ -136,9 +139,6 @@ static void tick_if(void) {
 			case 0xf000:
 			case 0xf800:
 			{
-				// 32-bit thumb inst
-				DBG2("inst %04x is 32-bit\n", inst);
-
 				SW(&last_pc, pc);
 				pc = pc + 2;
 

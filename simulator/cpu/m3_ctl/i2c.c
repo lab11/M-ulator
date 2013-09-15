@@ -375,6 +375,6 @@ EXPORT struct i2c_instance* create_i2c_instance(const char *periph_name,
 	}
 
 	struct periph_time_travel tt = PERIPH_TIME_TRAVEL_NONE;
-	register_periph_thread(start_i2c, "m3_ctl: ice", tt, &(t->en), t);
+	register_periph_thread(start_i2c, "m3_ctl: ice", tt, &(t->en), 0, t);
 	return t;
 }

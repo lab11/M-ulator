@@ -1,4 +1,4 @@
-BINS = blink.bin echo.bin echo_str.bin fib.bin div0.bin
+BINS = blink.bin echo.bin echo_str.bin fib.bin div0.bin print_on_int.bin
 
 all: $(BINS) basic.bin tests
 
@@ -7,6 +7,8 @@ blink.bin: lib/led.o
 echo.bin: lib/uart.o
 
 echo_str.bin: lib/uart.o lib/printf.o
+
+print_on_int.bin: lib/uart.o
 
 ################################################################################
 ## DO NOT EDIT ANYTHING BELOW THIS LINE

@@ -24,31 +24,81 @@
 .syntax unified
 .thumb
 
-.word   0x20007ffc  /* stack top address */
-.word   _start      /* 1 Reset */
-.word   hang        /* 2 NMI */
-.word   hang        /* 3 HardFault */
-.word   hang        /* 4 MemManage */
-.word   hang        /* 5 BusFault */
-.word   hang        /* 6 UsageFault */
-.word   hang        /* 7 RESERVED */
-.word   hang        /* 8 RESERVED */
-.word   hang        /* 9 RESERVED*/
-.word   hang        /* 10 RESERVED */
-.word   hang        /* 11 SVCall */
-.word   hang        /* 12 Debug Monitor */
-.word   hang        /* 13 RESERVED */
-.word   hang        /* 14 PendSV */
-.word   hang        /* 15 SysTick */
-.word   hang        /* 16 External Interrupt(0) */
-.word   hang        /* 17 External Interrupt(1) */
-.word   hang        /* 18 External Interrupt(2) */
-.word   hang        /* 19 ...   */
+.word   0x20007ffc          /* stack top address */
+.word   _start              /* 1 Reset */
+.word   handler_nmi         /* 2 NMI */
+.word   handler_hard        /* 3 HardFault */
+.word   handler_memmange    /* 4 MemManage */
+.word   handler_bus         /* 5 BusFault */
+.word   handler_usage       /* 6 UsageFault */
+.word   hang                /* 7 RESERVED */
+.word   hang                /* 8 RESERVED */
+.word   hang                /* 9 RESERVED*/
+.word   hang                /* 10 RESERVED */
+.word   handler_svcall      /* 11 SVCall */
+.word   handler_debug_mon   /* 12 Debug Monitor */
+.word   hang                /* 13 RESERVED */
+.word   handler_pendsv      /* 14 PendSV */
+.word   handler_systick     /* 15 SysTick */
+.word   handler_ext_int_0   /* 16 External Interrupt(0) */
+.word   hang                /* 17 External Interrupt(1) */
+.word   hang                /* 18 External Interrupt(2) */
+.word   hang                /* 19 ...   */
 
 
 .align 2
 .thumb_func
 hang:   b .
+
+.thumb_func
+.weak handler_nmi
+handler_nmi:
+    b hang
+
+.thumb_func
+.weak handler_hard
+handler_hard:
+    b hang
+
+.thumb_func
+.weak handler_memmange
+handler_memmange:
+    b hang
+
+.thumb_func
+.weak handler_bus
+handler_bus:
+    b hang
+
+.thumb_func
+.weak handler_usage
+handler_usage:
+    b hang
+
+.thumb_func
+.weak handler_svcall
+handler_svcall:
+    b hang
+
+.thumb_func
+.weak handler_debug_mon
+handler_debug_mon:
+    b hang
+
+.thumb_func
+.weak handler_pendsv
+handler_pendsv:
+    b hang
+
+.thumb_func
+.weak handler_systick
+handler_systick:
+    b hang
+
+.thumb_func
+.weak handler_ext_int_0
+handler_ext_int_0:
+    b hang
 
 .align 2
 .thumb_func

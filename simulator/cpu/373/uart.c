@@ -301,7 +301,7 @@ static uint8_t poll_uart_rxdata_read(void) {
 }
 
 static void poll_uart_txdata_write(uint8_t val) {
-	DBG1("UART write byte: %c %x\n", val, val);
+	DBG2("UART write byte: %c %x\n", val, val);
 
 	static ssize_t ret;
 
@@ -369,5 +369,5 @@ void register_memmap_uart(void) {
 
 	struct periph_time_travel tt = PERIPH_TIME_TRAVEL_NONE;
 	register_periph_thread(start_poll_uart, THREAD_NAME,
-			tt, &poll_uart_enabled, NULL);
+			tt, &poll_uart_enabled, 0, NULL);
 }

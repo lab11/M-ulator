@@ -22,8 +22,8 @@
 #include "core/state_sync.h"
 #include "core/pipeline.h"
 
-#include "cpu/features.h"
 #include "cpu/core.h"
+#include "cpu/features.h"
 #include "cpu/misc.h"
 #include "cpu/common/private_peripheral_bus/ppb.h"
 
@@ -146,17 +146,30 @@ EXPORT void CORE_xPSR_write(uint32_t xPSR) {
 	CORE_apsr_write(a);
 }
 
-EXPORT void CORE_control_SPSEL_write(bool spsel) {
+static void control_SPSEL_write(bool spsel, bool force, enum Mode forced_mode) {
 	union control_t c;
 	c.storage = SR(&physical_control.storage);
 	c.SPSEL = spsel;
 	SW(&physical_control.storage, c.storage);
 
-	if (CORE_CurrentMode_read() == Mode_Thread) {
+	enum Mode mode = (force) ? forced_mode : CORE_CurrentMode_read();
+	(void) mode;
+
+	// XXX: I'm confused on exactly the semantics here, esp w.r.t. exceptions
+	//if (mode == Mode_Thread) {
 		SWP(&physical_sp_p, (spsel) ? &sp_process : &sp_main);
-	} else {
-		CORE_ERR_unpredictable("SPSEL write in Handler mode\n");
-	}
+	//} else {
+	//	CORE_ERR_unpredictable("SPSEL write in Handler mode\n");
+	//}
+}
+
+EXPORT void CORE_control_SPSEL_write(bool spsel) {
+	control_SPSEL_write(spsel, false, 0);
+}
+
+EXPORT void CORE_update_mode_and_SPSEL(enum Mode mode, bool spsel) {
+	CORE_CurrentMode_write(mode);
+	control_SPSEL_write(spsel, true, mode);
 }
 #endif
 

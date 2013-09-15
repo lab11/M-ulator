@@ -38,12 +38,10 @@ static int  ExceptionActiveBitCount;
 static bool ExceptionActive[MAX_EXCEPTION_TYPE];
 
 
-static uint32_t ReturnAddress(enum ExceptionType type, bool precise) {
+static uint32_t ReturnAddress(enum ExceptionType type, bool precise,
+		uint32_t fault_inst, uint32_t next_inst) {
 	// NOTE: ReturnAddress() is always halfword aligned - bit<0> is always zero
 	// xPSR.IT bits saved to the stack are consistent with ReturnAddress()
-
-	uint32_t fault_inst = CORE_reg_read(PC_REG);
-	uint32_t next_inst = fault_inst + 4; // XXX variable inst widths
 
 	switch (type) {
 		case NMI:
@@ -75,7 +73,8 @@ static uint32_t ReturnAddress(enum ExceptionType type, bool precise) {
 	}
 }
 
-static void PushStack(enum ExceptionType type, bool precise) {
+static void PushStack(enum ExceptionType type, bool precise,
+		uint32_t fault_inst, uint32_t next_inst) {
 	uint8_t framesize;
 	bool forcealign;
 	bool frameptralign;
@@ -110,7 +109,7 @@ static void PushStack(enum ExceptionType type, bool precise) {
 	write_word(frameptr+0x0c, CORE_reg_read(3));
 	write_word(frameptr+0x10, CORE_reg_read(12));
 	write_word(frameptr+0x14, CORE_reg_read(LR_REG));
-	write_word(frameptr+0x18, ReturnAddress(type, precise));
+	write_word(frameptr+0x18, ReturnAddress(type, precise, fault_inst, next_inst));
 	write_word(frameptr+0x1c, CORE_xPSR_read() | (frameptralign << 9));
 
 	if (0 /* FP */) {
@@ -130,9 +129,10 @@ static void ExceptionTaken(enum ExceptionType type) {
 
 	uint32_t vectortable = read_word(VECTOR_TABLE_OFFSET);
 	tmp = read_word(vectortable+4*type);
+	DBG1("Exception setting PC to %08x\n", tmp & 0xfffffffe);
 	CORE_reg_write(PC_REG, tmp & 0xfffffffe);
 	tbit = tmp & 0x1;
-	CORE_CurrentMode_write(Mode_Handler);
+	CORE_update_mode_and_SPSEL(Mode_Handler, 0);
 
 	union ipsr_t ipsr = CORE_ipsr_read();
 	union epsr_t epsr = CORE_epsr_read();
@@ -145,7 +145,6 @@ static void ExceptionTaken(enum ExceptionType type) {
 	if (HaveFPExt())
 		CORE_control_FPCA_write(1);
 #endif
-	CORE_control_SPSEL_write(0);
 	if (ExceptionActive[type] == 0)
 		ExceptionActiveBitCount++;
 	ExceptionActive[type] = 1;
@@ -160,12 +159,16 @@ static void ExceptionTaken(enum ExceptionType type) {
 	CORE_epsr_write(epsr);
 }
 
-static void ExceptionEntry(enum ExceptionType type, bool precise) {
-	PushStack(type, precise);
+static void ExceptionEntry(enum ExceptionType type, bool precise,
+		uint32_t fault_inst, uint32_t next_inst) {
+	if (unlikely(type >= MAX_EXCEPTION_TYPE))
+		CORE_ERR_runtime("Exception number too high\n");
+	PushStack(type, precise, fault_inst, next_inst);
 	ExceptionTaken(type);
 }
 
-static void PopStack(uint32_t frameptr, uint32_t exc_return) {
+static uint32_t PopStack(uint32_t frameptr, uint32_t exc_return) {
+	uint32_t new_pc;
 	uint8_t framesize;
 	bool forcealign;
 
@@ -183,7 +186,8 @@ static void PopStack(uint32_t frameptr, uint32_t exc_return) {
 	CORE_reg_write(3,      read_word(frameptr+0x0c));
 	CORE_reg_write(12,     read_word(frameptr+0x10));
 	CORE_reg_write(LR_REG, read_word(frameptr+0x14));
-	CORE_reg_write(PC_REG, read_word(frameptr+0x18));
+	new_pc =               read_word(frameptr+0x18);
+	CORE_reg_write(PC_REG, new_pc);
 	uint32_t xPSR =        read_word(frameptr+0x1c);
 	CORE_xPSR_write(xPSR);
 
@@ -210,7 +214,7 @@ static void PopStack(uint32_t frameptr, uint32_t exc_return) {
 	}
 	SW(sp, (SR(sp) + framesize) | spmask);
 
-	return;
+	return new_pc;
 }
 
 static void DeActivate(enum ExceptionType ReturningExceptionNumber) {
@@ -252,8 +256,7 @@ void ExceptionReturn(uint32_t exc_return) {
 		switch (exc_return & 0xf) {
 			case 0x1:	// return to Handler
 				frameptr = SR(&sp_main);
-				CORE_CurrentMode_write(Mode_Handler);
-				CORE_control_SPSEL_write(0);
+				CORE_update_mode_and_SPSEL(Mode_Handler, 0);
 				break;
 			case 0x9:	// return to Thread using Main stack
 				if ((NestedActivation != 1) && (CCR_NONBASETHRDENA == 0)) {
@@ -264,8 +267,7 @@ void ExceptionReturn(uint32_t exc_return) {
 					return;
 				} else {
 					frameptr = SR(&sp_main);
-					CORE_CurrentMode_write(Mode_Thread);
-					CORE_control_SPSEL_write(0);
+					CORE_update_mode_and_SPSEL(Mode_Thread, 0);
 				}
 				break;
 			case 0xd:	// returning to Thread using Process stack
@@ -277,8 +279,7 @@ void ExceptionReturn(uint32_t exc_return) {
 					return;
 				} else {
 					frameptr = SR(&sp_process);
-					CORE_CurrentMode_write(Mode_Thread);
-					CORE_control_SPSEL_write(1);
+					CORE_update_mode_and_SPSEL(Mode_Thread, 1);
 				}
 				break;
 			default:
@@ -289,12 +290,13 @@ void ExceptionReturn(uint32_t exc_return) {
 				return;
 		}
 
+		uint32_t new_pc;
 		DeActivate(ReturningExceptionNumber);
-		PopStack(frameptr, exc_return);
+		new_pc = PopStack(frameptr, exc_return);
 
 		if ((CORE_CurrentMode_read() == Mode_Handler) && (ipsr.bits.exception == 0)) {
 			set_ufsr_invpc(1);
-			PushStack(UsageFault, true);	// undo PopStack
+			PushStack(UsageFault, true, new_pc, new_pc);	// undo PopStack
 			CORE_reg_write(LR_REG, 0xf0000000 | exc_return);
 			ExceptionTaken(UsageFault); // return IPSR inconsistent
 			return;
@@ -302,7 +304,7 @@ void ExceptionReturn(uint32_t exc_return) {
 
 		if ((CORE_CurrentMode_read() == Mode_Thread) && (ipsr.bits.exception != 0)) {
 			set_ufsr_invpc(1);
-			PushStack(UsageFault, true);	// undo PopStack
+			PushStack(UsageFault, true, new_pc, new_pc);	// undo PopStack
 			CORE_reg_write(LR_REG, 0xf0000000 | exc_return);
 			ExceptionTaken(UsageFault); // return IPSR inconsistent
 			return;
@@ -432,7 +434,9 @@ void UsageFault_divide_by_0(void) {
 	//status UFSR.DIVBYZERO;
 	//vector DEMCR.VC_CHKERR;
 	// If the CCR.DIV_0_TRP bit is set to 1, this occurs when the processor attempts to execute SDIV or UDIV with a divisor of 0.
-	return generic_exception(UsageFault, true);
+	WARN("TODO: Sort through how PC's work in precise exceptions\n");
+	uint32_t fault_pc = CORE_reg_read(PC_REG);
+	return generic_exception(UsageFault, true, fault_pc, fault_pc);
 }
 
 
@@ -450,7 +454,12 @@ void generic_exception(enum ExceptionType type, bool precise) {
 	state_take_exception(exception_entry_fn);
 }
 #else
-void generic_exception(enum ExceptionType type, bool precise) {
-	ExceptionEntry(type, precise);
+void generic_exception(enum ExceptionType type, bool precise,
+		uint32_t fault_inst, uint32_t next_inst) {
+	ExceptionEntry(type, precise, fault_inst, next_inst);
+}
+
+void exception_return(uint32_t exception_return_pc) {
+	ExceptionReturn(exception_return_pc);
 }
 #endif

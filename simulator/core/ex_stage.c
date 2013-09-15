@@ -48,8 +48,13 @@ static void execute(struct op *o, uint32_t inst) {
 
 // "Private" export from state.c (hack)
 EXPORT struct op* state_read_op(struct op **loc);
+// Private export from state.c
+       bool state_ex_stage_take_async_exception(uint32_t next_pc);
 static void tick_ex(void) {
 	DBG2("start\n");
+
+	if (state_ex_stage_take_async_exception(SR(&id_ex_PC) - 4))
+		return;
 
 	struct op* o = state_read_op(&id_ex_o);
 	uint32_t inst = SR(&id_ex_inst);

@@ -20,6 +20,7 @@
 #include "opcodes.h"
 #include "helpers.h"
 
+#include "cpu/exception.h"
 #include "cpu/registers.h"
 
 /* From Bit Twiddling Hacks:
@@ -73,11 +74,13 @@ void LoadWritePC(uint32_t addr) {
 }
 
 void BXWritePC(uint32_t addr) {
-	// XXX: Mode handler / Exception stuff
-
-	SET_THUMB_BIT(addr & 0x1);
-
-	BranchTo(addr & 0xfffffffe);
+	if ((CORE_CurrentMode_read() == Mode_Handler)
+			&& ((addr & 0xf0000000) == 0xf0000000)) {
+		exception_return(addr);
+	} else {
+		SET_THUMB_BIT(addr & 0x1);
+		BranchTo(addr & 0xfffffffe);
+	}
 }
 
 void BLXWritePC(uint32_t addr __attribute__ ((unused))) {

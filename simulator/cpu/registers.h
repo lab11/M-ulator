@@ -246,6 +246,8 @@ export_inline bool CORE_control_SPSEL_read(void) {
 	return c.SPSEL;
 }
 void		CORE_control_SPSEL_write(bool spsel);
+// XXX: Workaround for SR/SW of dependent actions:
+void CORE_update_mode_and_SPSEL(enum Mode mode, bool spsel);
 #ifdef HAVE_FP
 bool		CORE_control_FPCA_read(void);
 void		CORE_control_FPCA_write(bool fpca);

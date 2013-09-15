@@ -27,6 +27,8 @@
 #include "opcodes.h"
 #include "pipeline.h"
 
+#include "cpu/exception.h"
+
 #if defined(__has_include)
 # if __has_include(<stdatomic.h>)
 #  include <stdatomic.h>
@@ -141,15 +143,18 @@ static thread_local struct state_change writes[STATE_MAX_WRITES];
  #endif
 
  static atomic_bool debugging_bool = ATOMIC_BOOL_INIT(false);
+ static atomic_bool async_exception_bool = ATOMIC_BOOL_INIT(false);
 #elif defined(CLANG_ATOMIC)
  #ifndef NO_PIPELINE
   static bool pipeline_flush_flag = false;
  #endif
 
  static _Atomic(bool) debugging_bool;
+ static _Atomic(bool) async_exception_bool;
  __attribute__ ((constructor))
- void clang_pipeline_debugging_atomic_bools_init(void) {
+ static void clang_pipeline_atomic_bools_init(void) {
 	 __c11_atomic_init(&debugging_bool, false);
+	 __c11_atomic_init(&async_exception_bool, false);
  }
 #elif defined(GCC_ATOMIC)
  #ifndef NO_PIPELINE
@@ -157,12 +162,29 @@ static thread_local struct state_change writes[STATE_MAX_WRITES];
  #endif
 
   static bool debugging_bool = false;
+  static bool async_exception_bool = false;
 #elif defined(NO_ATOMIC)
  #ifndef NO_PIPELINE
   static bool pipeline_flush_flag = false;
  #endif
  static bool debugging_bool;
+ static bool async_exception_bool = false;
 #endif
+
+
+static unsigned pending_async_exception;
+static sem_t *pending_async_exception_sem;
+__attribute__ ((constructor))
+static void pending_async_exception_sem_init(void) {
+	char name_buf[32];
+	snprintf(name_buf, 32, "/%d-pending-async", getpid());
+	pending_async_exception_sem = sem_open(name_buf, O_CREAT|O_EXCL, 0600, 1);
+	if (pending_async_exception_sem == SEM_FAILED)
+		ERR(E_UNKNOWN, "Creating pending async sem: %s\n", strerror(errno));
+}
+
+///////
+
 
 EXPORT bool state_is_debugging(void) {
 	return atomic_load(&debugging_bool);
@@ -176,6 +198,23 @@ EXPORT void state_enter_debugging(void) {
 EXPORT void state_exit_debugging(void) {
 	atomic_store(&debugging_bool, false);
 	DBG2("Exited debugging\n");
+}
+
+EXPORT void state_assert_interrupt_async(unsigned interrupt) {
+	sem_wait(pending_async_exception_sem);
+	pending_async_exception = interrupt;
+	atomic_store(&async_exception_bool, true);
+}
+
+// Private export to ex_stage
+/*  */ bool state_ex_stage_take_async_exception(uint32_t next_pc) {
+	if (unlikely(atomic_load(&async_exception_bool))) {
+		atomic_store(&async_exception_bool, false);
+		generic_exception(pending_async_exception, false, next_pc, next_pc);
+		sem_post(pending_async_exception_sem);
+		return true;
+	}
+	return false;
 }
 
 EXPORT void state_start_tick(void) {

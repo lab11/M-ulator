@@ -41,10 +41,16 @@ enum ExceptionType {
 	PendSV = 14,
 	SysTick = 15,
 	/* 16+ --> ExternalInterrupt0+ */
+	ExtInt0 = 16,
+	ExtInt1 = 17,
+	ExtInt2 = 18,
+	ExtInt3 = 19,
 	MAX_EXCEPTION_TYPE
 };
 
-void generic_exception(enum ExceptionType, bool precise);
+void generic_exception(enum ExceptionType, bool precise,
+		uint32_t fault_inst, uint32_t next_inst);
+void exception_return(uint32_t exception_return_pc);
 
 void UsageFault_divide_by_0(void);
 

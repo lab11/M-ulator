@@ -36,6 +36,7 @@ struct periph_time_travel {
 #define PERIPH_TIME_TRAVEL_NONE {NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL}
 void register_periph_thread(pthread_t (*fn)(void*), const char *name,
 		struct periph_time_travel tt,
-		volatile bool *en, void* arg);
+		volatile bool *en, int fd,
+		void* arg);
 
 #endif // PERIPH_H

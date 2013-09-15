@@ -59,4 +59,6 @@ void state_write_async(uint32_t *loc, uint32_t val) __attribute__ ((nonnull));
 void state_write_p_async(uint32_t **ploc, uint32_t *pval) __attribute__ ((nonnull (1)));
 #endif
 
+void state_assert_interrupt_async(unsigned interrupt);
+
 #endif // STATE_ASYNC_H
