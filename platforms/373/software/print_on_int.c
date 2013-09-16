@@ -22,6 +22,7 @@
 
 #include "lib/uart.h"
 #include "lib/printf.h"
+#include "lib/gpio.h"
 
 static volatile int flag = 0;
 
@@ -31,6 +32,8 @@ void handler_ext_int_0(void) {
 }
 
 int main() {
+	gpio_conf_setto(1, GENERIC_GPIO_CONF_INT_EDGX_EN_MASK);
+
 	UART_write_str("Waiting for event on GPIO 0\n");
 	//UART_write_str("W\n");
 

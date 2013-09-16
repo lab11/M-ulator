@@ -38,18 +38,15 @@
 #ifdef GENERIC_GPIO_BASE
 
 #if GENERIC_GPIO_ALIGNMENT == 4
-#define align_t uint32_t
 #define R_fn R_fn32
 #define W_fn W_fn32
 #elif GENERIC_GPIO_ALIGNMENT == 2
-#define align_t uint16_t
 #define R_fn R_fn16
 #define W_fn W_fn16
 #warn Peripheral architecture does not currently support halfword access
 #warn (though it could, without too much effort if necessary)
 #error Invalid GENERIC_GPIO_ALIGNMENT
 #elif GENERIC_GPIO_ALIGNMENT == 1
-#define align_t uint8_t
 #define R_fn R_fn8
 #define W_fn W_fn8
 #else
@@ -90,6 +87,8 @@ static enum gpio_value {
 	GPIO_VAL_LOW,
 	GPIO_VAL_HIGH,
 } gpio_vals[GENERIC_GPIO_COUNT];
+
+static uint8_t gpio_confs[GENERIC_GPIO_COUNT];
 
 static char gpio_val_to_char(const enum gpio_value val) {
 	if (val == GPIO_VAL_FLOATING) return 'x';
@@ -228,9 +227,7 @@ static void remove_gpio_out_files(int gpio) {
 	free(gpio_path);
 }
 
-static void update_gpio_dir(int gpio, enum gpio_direction dir) {
-	pthread_mutex_lock(&generic_gpio_mutex);
-
+static void _update_gpio_dir(int gpio, enum gpio_direction dir) {
 	bool have_i = false;
 	bool have_o = false;
 	bool need_i = false;
@@ -264,19 +261,20 @@ static void update_gpio_dir(int gpio, enum gpio_direction dir) {
 		remove_gpio_out_files(gpio);
 
 	gpio_dirs[gpio] = dir;
+}
 
+static void update_gpio_dir(int gpio, enum gpio_direction dir) {
+	pthread_mutex_lock(&generic_gpio_mutex);
+	_update_gpio_dir(gpio, dir);
 	pthread_mutex_unlock(&generic_gpio_mutex);
 }
 
-static bool gpio_read(uint32_t addr, align_t *val) {
+static bool gpio_read(uint32_t addr, gpio_align_t *val) {
 	bool ret;
 	int idx;
 
 	idx = (addr - GENERIC_GPIO_BASE) / GENERIC_GPIO_ALIGNMENT;
-	if (idx > GENERIC_GPIO_COUNT) {
-		WARN("Bad gpio idx: %d\n", idx);
-		CORE_ERR_unpredictable("Illegal gpio idx\n");
-	}
+	assert(idx < GENERIC_GPIO_COUNT); // Should be limited by memmap
 
 	pthread_mutex_lock(&generic_gpio_mutex);
 	ret = gpio_vals[idx];
@@ -286,19 +284,18 @@ static bool gpio_read(uint32_t addr, align_t *val) {
 	return true;
 }
 
-static void gpio_write(uint32_t addr, align_t val) {
+static void gpio_write(uint32_t addr, gpio_align_t val) {
 	int idx;
 
 	idx = (addr - GENERIC_GPIO_BASE) / GENERIC_GPIO_ALIGNMENT;
-	if (idx > GENERIC_GPIO_COUNT) {
-		WARN("Bad gpio idx: %d\n", idx);
-		CORE_ERR_unpredictable("Illegal gpio idx\n");
-	}
+	assert(idx < GENERIC_GPIO_COUNT); // Should be limited by memmap
 
 	update_gpio_val(idx, val);
 }
 
 static void gpio_written_async(int gpio, int fd) {
+	bool should_interrupt = false;
+	enum gpio_value old_val, new_val;
 	char val;
 
 	if (read(fd, &val, 1) < 0)
@@ -308,13 +305,67 @@ static void gpio_written_async(int gpio, int fd) {
 	if (isspace(val))
 		return;
 
-	update_gpio_val(gpio, gpio_char_to_val(val));
+	pthread_mutex_lock(&generic_gpio_mutex);
+	old_val = gpio_vals[gpio];
+	_update_gpio_val(gpio, gpio_char_to_val(val));
+	new_val = gpio_vals[gpio];
 
+	if ((new_val == GPIO_VAL_LOW) &&
+			(gpio_confs[gpio] & GENERIC_GPIO_CONF_INT_LVL0_EN_MASK))
+		should_interrupt = true;
+	if ((new_val == GPIO_VAL_HIGH) &&
+			(gpio_confs[gpio] & GENERIC_GPIO_CONF_INT_LVL1_EN_MASK))
+		should_interrupt = true;
+	if ((new_val == GPIO_VAL_LOW) && (old_val != GPIO_VAL_LOW) &&
+			(gpio_confs[gpio] & GENERIC_GPIO_CONF_INT_EDG0_EN_MASK))
+		should_interrupt = true;
+	if ((new_val == GPIO_VAL_HIGH) && (old_val != GPIO_VAL_HIGH) &&
+			(gpio_confs[gpio] & GENERIC_GPIO_CONF_INT_EDG1_EN_MASK))
+		should_interrupt = true;
+	pthread_mutex_unlock(&generic_gpio_mutex);
+
+	if (should_interrupt) {
 #ifdef GENERIC_GPIO_COALESCE_INTERRUPTS
-	state_assert_interrupt_async(GENERIC_GPIO_INTERRUPT_BASE);
+		state_assert_interrupt_async(GENERIC_GPIO_INTERRUPT_BASE);
 #else
-	state_assert_interrupt_async(GENERIC_GPIO_INTERRUPT_BASE + gpio);
+		state_assert_interrupt_async(GENERIC_GPIO_INTERRUPT_BASE + gpio);
 #endif
+	}
+}
+
+static bool gpio_conf_read(uint32_t addr, gpio_align_t *val) {
+	int idx;
+
+	idx = (addr - GENERIC_GPIO_CONF_BASE) / GENERIC_GPIO_ALIGNMENT;
+	assert(idx < GENERIC_GPIO_COUNT); // Should be limited by memmap
+
+	pthread_mutex_lock(&generic_gpio_mutex);
+	*val = gpio_confs[idx];
+	pthread_mutex_unlock(&generic_gpio_mutex);
+
+	return true;
+}
+
+static void gpio_conf_write(uint32_t addr, gpio_align_t new_conf) {
+	int idx;
+
+	idx = (addr - GENERIC_GPIO_CONF_BASE) / GENERIC_GPIO_ALIGNMENT;
+	assert(idx < GENERIC_GPIO_COUNT); // Should be limited by memmap
+
+	pthread_mutex_lock(&generic_gpio_mutex);
+	uint8_t orig_conf = gpio_confs[idx];
+
+	if ((orig_conf & GENERIC_GPIO_CONF_OUTPUT_EN_MASK) != (new_conf & GENERIC_GPIO_CONF_OUTPUT_EN_MASK))
+		_update_gpio_dir(idx, (new_conf & GENERIC_GPIO_CONF_OUTPUT_EN_MASK) ? GPIO_DIR_OUTPUT : GPIO_DIR_INPUT);
+	// GENERIC_GPIO_CONF_INT*_EN_MASK only checked on interrupt trigger
+	if ((orig_conf & GENERIC_GPIO_CONF_PULLUP_EN_MASK) != (new_conf & GENERIC_GPIO_CONF_PULLUP_EN_MASK))
+		ERR(E_NOT_IMPLEMENTED, "GPIO Pullup\n");
+	if ((orig_conf & GENERIC_GPIO_CONF_PULLDOWN_EN_MASK) != (new_conf & GENERIC_GPIO_CONF_PULLDOWN_EN_MASK))
+		ERR(E_NOT_IMPLEMENTED, "GPIO Pulldown\n");
+
+	gpio_confs[idx] = new_conf;
+	DBG1("gpio %d configuration updated to 0x%02x\n", idx, new_conf);
+	pthread_mutex_unlock(&generic_gpio_mutex);
 }
 
 static void* generic_gpio_thread(void *unused __attribute__ ((unused))) {
@@ -396,6 +447,14 @@ static void register_memmap_gpio(void) {
 	mem_fn. W_fn = gpio_write;
 	register_memmap("GPIO", true, GENERIC_GPIO_ALIGNMENT,
 			mem_fn, GENERIC_GPIO_BASE, GENERIC_GPIO_TOP);
+
+	mem_fn. R_fn = gpio_conf_read;
+	register_memmap("GPIO Conf", false, GENERIC_GPIO_ALIGNMENT,
+			mem_fn, GENERIC_GPIO_CONF_BASE, GENERIC_GPIO_CONF_TOP);
+
+	mem_fn. W_fn = gpio_conf_write;
+	register_memmap("GPIO Conf", true, GENERIC_GPIO_ALIGNMENT,
+			mem_fn, GENERIC_GPIO_CONF_BASE, GENERIC_GPIO_CONF_TOP);
 
 	int pipe_fds[2];
 	if (pipe(pipe_fds) < 0)
