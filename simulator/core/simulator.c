@@ -841,6 +841,16 @@ EXPORT void simulator(const char *flash_file) {
 						strerror(errno));
 			}
 
+#ifdef HAVE_ROM
+			if (flash_stat.st_size > ROMSIZE)
+				ERR(E_BAD_FLASH, "Request file size (%08zx) exceeds rom size (%08x)\n",
+						flash_stat.st_size, ROMSIZE);
+#else
+			if (flash_stat.st_size > RAMSIZE)
+				ERR(E_BAD_FLASH, "Request file size (%08zx) exceeds ram size (%08x)\n",
+						flash_stat.st_size, RAMSIZE);
+#endif
+
 			{
 				uint8_t flash[flash_stat.st_size];
 
