@@ -860,13 +860,15 @@ EXPORT void simulator(const char *flash_file) {
 			}
 
 #ifdef HAVE_ROM
+			// There is no portable format specifier for an off_t, but it is defined to
+			// be signed. So we cast is to a long long and move on with life.
 			if (flash_stat.st_size > ROMSIZE)
-				ERR(E_BAD_FLASH, "Request file size (%08zx) exceeds rom size (%08x)\n",
-						flash_stat.st_size, ROMSIZE);
+				ERR(E_BAD_FLASH, "Request file size (%08llx) exceeds rom size (%08x)\n",
+						(long long) flash_stat.st_size, ROMSIZE);
 #else
 			if (flash_stat.st_size > RAMSIZE)
-				ERR(E_BAD_FLASH, "Request file size (%08zx) exceeds ram size (%08x)\n",
-						flash_stat.st_size, RAMSIZE);
+				ERR(E_BAD_FLASH, "Request file size (%08llx) exceeds ram size (%08x)\n",
+						(long long) flash_stat.st_size, RAMSIZE);
 #endif
 
 			{
