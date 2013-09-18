@@ -479,6 +479,29 @@ EXPORT bool simulator_state_seek(int target) {
 }
 #endif
 
+static struct timeval sim_execute_time_start = {0, 0};
+static bool sim_awake = true;
+static double sim_elapsed;
+EXPORT void sim_sleep(void) {
+	if (!sim_awake) {
+		WARN("Multiple calls to sim_sleep; freq likely broken\n");
+		return;
+	}
+	sim_awake = false;
+
+	const double usec_per_sec = 1000000;
+	struct timeval end;
+	gettimeofday(&end, NULL);
+	double elapsed = (double) (end.tv_sec - sim_execute_time_start.tv_sec);
+	elapsed += (double) ((end.tv_usec - sim_execute_time_start.tv_usec) / usec_per_sec);
+	sim_elapsed += elapsed;
+}
+
+EXPORT void sim_wakeup(void) {
+	sim_awake = true;
+	gettimeofday(&sim_execute_time_start, NULL);
+}
+
 static void sim_delay_reset() {
 #if _POSIX_TIMERS > 0
 	// Perform check here to verify system (i) has CLOCK_REALTIME and (ii)
@@ -509,7 +532,7 @@ static void sim_delay_warn(long ns) {
 
 static void sim_delay(void) {
 #if _POSIX_TIMERS > 0
-	if (last_cycle_time.tv_nsec != -1) {
+	if (likely(last_cycle_time.tv_nsec != -1)) {
 		struct timespec this_cycle_time;
 		clock_gettime(CLOCK_REALTIME, &this_cycle_time);
 
@@ -525,7 +548,7 @@ static void sim_delay(void) {
 	clock_gettime(CLOCK_REALTIME, &last_cycle_time);
 #elif defined __APPLE__
 	/* https://developer.apple.com/library/mac/#qa/qa1398/_index.html */
-	if (last_cycle_time != (uint64_t) -1) {
+	if (likely(last_cycle_time != (uint64_t) -1)) {
 		uint64_t this_cycle_time, elapsed;
 		uint64_t elapsedNano;
 		long delay;
@@ -597,8 +620,6 @@ static int sim_execute(void) {
 	return SUCCESS;
 }
 
-static struct timeval sim_execute_time_start = {0, 0};
-
 static void sim_reset(void) __attribute__ ((noreturn));
 static void sim_reset(void) {
 	int ret;
@@ -655,14 +676,11 @@ static void sim_reset(void) {
 
 EXPORT void sim_terminate(bool should_exit) {
 	if ((sim_execute_time_start.tv_sec != 0) && (sim_execute_time_start.tv_usec != 0)) {
-		const double usec_per_sec = 1000000;
-		struct timeval end;
-		gettimeofday(&end, NULL);
-		double elapsed = (double) (end.tv_sec - sim_execute_time_start.tv_sec);
-		elapsed += (double) ((end.tv_usec - sim_execute_time_start.tv_usec) / usec_per_sec);
-		double freq = cycle / elapsed;
+		sim_sleep();
+		double freq = cycle / sim_elapsed;
 		INFO("Approximate average frequency: %f hz\n", freq);
 	}
+	INFO("Simulator executed %d cycle%s\n", cycle, (cycle == 1) ? "":"s");
 	join_periph_threads();
 	INFO("Simulator shutdown successfully.\n");
 	if (!should_exit)

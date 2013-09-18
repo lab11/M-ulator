@@ -143,18 +143,18 @@ static thread_local struct state_change writes[STATE_MAX_WRITES];
  #endif
 
  static atomic_bool debugging_bool = ATOMIC_BOOL_INIT(false);
- static atomic_bool async_exception_bool = ATOMIC_BOOL_INIT(false);
+ static atomic_bool wfi_bool = ATOMIC_BOOL_INIT(false);
 #elif defined(CLANG_ATOMIC)
  #ifndef NO_PIPELINE
   static bool pipeline_flush_flag = false;
  #endif
 
  static _Atomic(bool) debugging_bool;
- static _Atomic(bool) async_exception_bool;
+ static _Atomic(bool) wfi_bool;
  __attribute__ ((constructor))
  static void clang_pipeline_atomic_bools_init(void) {
 	 __c11_atomic_init(&debugging_bool, false);
-	 __c11_atomic_init(&async_exception_bool, false);
+	 __c11_atomic_init(&wfi_bool, false);
  }
 #elif defined(GCC_ATOMIC)
  #ifndef NO_PIPELINE
@@ -162,25 +162,32 @@ static thread_local struct state_change writes[STATE_MAX_WRITES];
  #endif
 
   static bool debugging_bool = false;
-  static bool async_exception_bool = false;
+  static bool wfi_bool = false;
 #elif defined(NO_ATOMIC)
  #ifndef NO_PIPELINE
   static bool pipeline_flush_flag = false;
  #endif
  static bool debugging_bool;
- static bool async_exception_bool = false;
+ static bool wfi_bool = false;
 #endif
 
 
 static unsigned pending_async_exception;
-static sem_t *pending_async_exception_sem;
+static sem_t *set_pending_async_exception_sem;
+static sem_t *pending_exception_sem;
 __attribute__ ((constructor))
-static void pending_async_exception_sem_init(void) {
+static void async_exception_sems_init(void) {
 	char name_buf[32];
-	snprintf(name_buf, 32, "/%d-pending-async", getpid());
-	pending_async_exception_sem = sem_open(name_buf, O_CREAT|O_EXCL, 0600, 1);
-	if (pending_async_exception_sem == SEM_FAILED)
+
+	snprintf(name_buf, 32, "/%d-set-pending-async", getpid());
+	set_pending_async_exception_sem = sem_open(name_buf, O_CREAT|O_EXCL, 0600, 1);
+	if (set_pending_async_exception_sem == SEM_FAILED)
 		ERR(E_UNKNOWN, "Creating pending async sem: %s\n", strerror(errno));
+
+	snprintf(name_buf, 32, "/%d-pending-sem", getpid());
+	pending_exception_sem = sem_open(name_buf, O_CREAT|O_EXCL, 0600, 0);
+	if (pending_exception_sem == SEM_FAILED)
+		ERR(E_UNKNOWN, "Creating pending exc sem: %s\n", strerror(errno));
 }
 
 ///////
@@ -200,21 +207,83 @@ EXPORT void state_exit_debugging(void) {
 	DBG2("Exited debugging\n");
 }
 
+/* Async interrupts and WFI:
+ *
+ * There is some delicacy here to ensure that an interrupt to wake up the WFI
+ * core isn't lost. The theory of how we handle WFI is for the WFI instruction
+ * itself to block during its execution until an interrupt occurs. The WFI then
+ * completes its execution and on the next cycle, the async exception will be
+ * entered when the ex_stage starts to execute. To simplify things, we only
+ * allow one exception to "pend" at a time, which isn't that big a deal as it
+ * will be (unconditionally) exectued on the next cycle anyway (see next)
+ *
+ * Under the current design, exception priority isn't handled. In particular,
+ * if an async exception is ever ready to fire, it will immediately fire. This
+ * is technically very wrong, but current simulated programs shouldn't ever hit
+ * this in practice so it's good enough for now.
+ *
+ * The last detail is handling interruptions to the interpreter's shell (or gdb,
+ * should probably figure out how exactly to make that happen). In the pipelined
+ * case, this is easy. The stages are all stalled (their tock methods are not
+ * called), the shell flag is set, and things carry on their merry way.
+ * The no_pipeline case, is, of course, harder.
+ *
+ * Actually, none of that above paragraph matters because SIGINT is blocked on
+ * every thread except the signal handling thread, so the sem_wait is actually
+ * uninterruptible. We'll just go ahead and call that a TODO for now.
+ */
+
 EXPORT void state_assert_interrupt_async(unsigned interrupt) {
-	sem_wait(pending_async_exception_sem);
+	if (0 != sem_trywait(set_pending_async_exception_sem)) {
+		WARN("Detected nested async interrupts.\n");
+		WARN("Simulator does not currently handle interrupt priority correctly\n");
+		WARN("If you were counting on this, things will likely break in funny ways\n");
+		WARN("If your handlers can nest interchangeably, however, then you should be fine\n");
+		WARN("(for some definition of fine)\n");
+		sem_wait(set_pending_async_exception_sem);
+	}
 	pending_async_exception = interrupt;
-	atomic_store(&async_exception_bool, true);
+	sem_post(pending_exception_sem);
 }
 
 // Private export to ex_stage
 /*  */ bool state_ex_stage_take_async_exception(uint32_t next_pc) {
-	if (unlikely(atomic_load(&async_exception_bool))) {
-		atomic_store(&async_exception_bool, false);
-		generic_exception(pending_async_exception, false, next_pc, next_pc);
-		sem_post(pending_async_exception_sem);
+	bool interrupted = false;
+	bool signaled = false;
+	int ret;
+
+	if (unlikely(atomic_load(&wfi_bool))) {
+		sim_sleep();
+		ret = sem_wait(pending_exception_sem);
+		if (ret == 0) {
+			atomic_store(&wfi_bool, false);
+			sim_wakeup();
+		}
+	} else {
+		ret = sem_trywait(pending_exception_sem);
+	}
+	if (unlikely(ret == 0))
+		interrupted = true;
+	else if (unlikely(errno == EINTR))
+		signaled = true;
+	else if (unlikely(errno != EAGAIN))
+		ERR(E_UNKNOWN,"trywait pending_exception_sem: %d: %s\n", errno, strerror(errno));
+
+	if (unlikely(interrupted)) {
+		unsigned exception = pending_async_exception;
+		sem_post(set_pending_async_exception_sem);
+		generic_exception(exception, false, next_pc, next_pc);
 		return true;
 	}
+	if (unlikely(signaled)) {
+		WARN("TODO: Handle break to shell during a wfi instruction\n");
+		ERR(E_NOT_IMPLEMENTED, "EINTR during sem_{try}wait\n");
+	}
 	return false;
+}
+
+EXPORT void state_wait_for_interrupt(void) {
+	atomic_store(&wfi_bool, true);
 }
 
 EXPORT void state_start_tick(void) {

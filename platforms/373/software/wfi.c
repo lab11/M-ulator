@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012  Pat Pannuto <pat.pannuto@gmail.com>
+/* Copyright (c) 2011-2013  Pat Pannuto <pat.pannuto@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -20,28 +20,20 @@
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "lib/uart.h"
-#include "lib/printf.h"
 #include "lib/gpio.h"
 
 static volatile int flag = 0;
 
-void handler_ext_int_1(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_1(void) {
+void handler_ext_int_0(void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_0(void) {
 	flag = 1;
 }
 
 int main() {
-	gpio_conf_setto(1, GENERIC_GPIO_CONF_INT_EDGX_EN_MASK);
-
-	UART_write_str("Waiting for event on GPIO 1\n");
-	//UART_write_str("W\n");
+	gpio_conf_setto(0, GENERIC_GPIO_CONF_INT_EDGX_EN_MASK);
 
 	while (!flag)
 		asm("wfi;");
-
-	UART_write_str("GPIO 1 interrupt fired.\n");
-	//UART_write_str("Int\n");
 
 	return 0;
 }

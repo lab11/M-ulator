@@ -60,4 +60,6 @@ void state_write(uint32_t *loc, uint32_t val)
 void state_write_p(uint32_t **ploc, uint32_t *pval) __attribute__ ((nonnull (1)));
 #endif
 
+void state_wait_for_interrupt(void);
+
 #endif // STATE_SYNC_H

@@ -41,9 +41,9 @@
 .word   handler_pendsv      /* 14 PendSV */
 .word   handler_systick     /* 15 SysTick */
 .word   handler_ext_int_0   /* 16 External Interrupt(0) */
-.word   hang                /* 17 External Interrupt(1) */
-.word   hang                /* 18 External Interrupt(2) */
-.word   hang                /* 19 ...   */
+.word   handler_ext_int_1   /* 17 External Interrupt(1) */
+.word   handler_ext_int_2   /* 18 External Interrupt(2) */
+.word   handler_ext_int_3   /* 19 ...   */
 
 
 .align 2
@@ -98,7 +98,22 @@ handler_systick:
 .thumb_func
 .weak handler_ext_int_0
 handler_ext_int_0:
-    b hang
+    bx lr
+
+.thumb_func
+.weak handler_ext_int_1
+handler_ext_int_1:
+    bx lr
+
+.thumb_func
+.weak handler_ext_int_2
+handler_ext_int_2:
+    bx lr
+
+.thumb_func
+.weak handler_ext_int_3
+handler_ext_int_3:
+    bx lr
 
 .align 2
 .thumb_func

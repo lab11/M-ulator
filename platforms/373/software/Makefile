@@ -1,4 +1,4 @@
-BINS = blink.bin echo.bin echo_str.bin fib.bin div0.bin print_on_int.bin
+BINS = blink.bin echo.bin echo_str.bin fib.bin div0.bin print_on_int.bin wfi.bin
 
 all: $(BINS) basic.bin tests
 

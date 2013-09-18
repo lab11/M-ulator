@@ -19,6 +19,8 @@
 
 #include "opcodes.h"
 
+#include "core/state_sync.h"
+
 static inline void dbg(uint8_t option __attribute__ ((unused))) {
 	// NOP-compatible hint
 }
@@ -79,7 +81,7 @@ static void wfe_t2(uint32_t inst __attribute__ ((unused))) {
 }
 
 static void wfi(void) {
-	CORE_ERR_not_implemented("Wait For Interrupt");
+	state_wait_for_interrupt();
 }
 
 // arm-v6-m, arm-v7-m

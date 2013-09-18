@@ -67,6 +67,8 @@ extern int cycle;
 #ifdef HAVE_REPLAY
 bool simulator_state_seek(int target);
 #endif
+void sim_sleep(void);
+void sim_wakeup(void);
 
 // XXX: Oh.. so hacky. Thrown in as stopgap while removing unnecessary
 // references to simulator.h
