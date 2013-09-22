@@ -17,7 +17,7 @@ endif
 #: {objs} $(SUBS) |> !ld |> simulator
 #!ld = |> ^ LINK %o^ $(CC) $(LDFLAGS) %f -o %o |>
 ifeq (@(DEBUG_SYMBOLS),y)
-: <objs> |> ^c LINK %o^ $(CC) $(LDFLAGS) %<objs> -o %o |> simulator
+: <objs> |> ^c LINK %o^ $(CC) %<objs> $(LDFLAGS) -o %o |> simulator
 else
-: <objs> |> ^ LINK %o^ $(CC) $(LDFLAGS) %<objs> -o %o |> simulator
+: <objs> |> ^ LINK %o^ $(CC) %<objs> $(LDFLAGS) -o %o |> simulator
 endif
