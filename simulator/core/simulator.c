@@ -939,8 +939,12 @@ static void join_periph_threads(void) {
 			DBG1("Shutting down peripheral: %s\n", cur->name);
 			if (cur->en)
 				*cur->en = false;
-			if (cur->fd)
-				write(cur->fd, "S", 1);
+			if (cur->fd) {
+				if (write(cur->fd, "S", 1) != 0) {
+					ERR(E_UNKNOWN, "thread kill pipe: %s\n",
+							strerror(errno));
+				}
+			}
 			if (cur->active) {
 				pthread_join(cur->pthread, NULL);
 				cur->active = false;
