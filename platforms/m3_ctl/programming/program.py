@@ -57,6 +57,11 @@ elif t == 'bin':
 else:
     logging.error("No file type set?")
 
+if (len(hexencoded) % 4 == 0) and (len(hexencoded) % 8 != 0):
+    # Image is halfword-aligned. Some tools generate these, but our system
+    # assumes things are word-aligned. We pad an extra nop to the end to fix
+    hexencoded += '46C0' # nop; (mov r8, r8)
+
 if (len(hexencoded) % 8) != 0:
     logging.warn("Binfile is not word-aligned. This is not a valid image")
     sys.exit(3)
