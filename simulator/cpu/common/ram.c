@@ -31,6 +31,11 @@
 #define ADDR_TO_IDX(_addr, _bot) ((_addr - _bot) >> 2)
 static uint32_t ram[RAMSIZE >> 2] = {0};
 
+EXPORT void flash_RAM(const uint8_t *image, int offset, uint32_t nbytes) {
+	memcpy(ram+offset, image, nbytes);
+	INFO("Flashed %d bytes to RAM\n", nbytes);
+}
+
 static bool ram_read(uint32_t addr, uint32_t *val) {
 #ifdef DEBUG1
 	assert((addr >= RAMBOT) && (addr < RAMTOP) && "CORE_ram_read");

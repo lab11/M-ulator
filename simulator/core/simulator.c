@@ -816,9 +816,12 @@ EXPORT void register_periph_thread(
 static void flash_image(const uint8_t *image, const uint32_t num_bytes){
 #if defined (HAVE_ROM)
 	if (ROMBOT == 0x0) {
-		flash_ROM(image, num_bytes);
+		flash_ROM(image, 0, num_bytes);
 		return;
 	}
+#elif defined (HAVE_RAM)
+	flash_RAM(image, 0, num_bytes);
+	return;
 #else
 	// Enter debugging to circumvent state-tracking code and write directly
 	state_enter_debugging();
