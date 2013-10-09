@@ -73,13 +73,13 @@ extern int raiseonerror; // storage in simulator.c
 		flockfile(stdout); flockfile(stderr);\
 		_PP_EXTRA(stderr, 'E');\
 		fprintf(stderr, "Simulator shutting down due to error...\n");\
-		funlockfile(stderr); funlockfile(stdout);\
-		void sim_terminate(bool);\
-		sim_terminate(false);\
-		flockfile(stdout); flockfile(stderr);\
 		_PP_EXTRA(stderr, 'E');\
 		fprintf(stderr, __VA_ARGS__);\
 		funlockfile(stderr); funlockfile(stdout);\
+		void sim_terminate(bool);\
+		sim_terminate(false);\
+		_PP_EXTRA(stderr, 'E');\
+		fprintf(stderr, __VA_ARGS__);\
 		_PP_EXTRA(stderr, 'E');\
 		fprintf(stderr, "*** Error: ");\
 		if (_e == E_NOT_IMPLEMENTED) {\
