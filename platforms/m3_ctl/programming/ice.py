@@ -109,7 +109,7 @@ class ICE(object):
                     str(msg_type))
             logging.warn("Known Types:")
             for t,f in self.msg_handler.iteritems():
-                logging.warn("%s\t%s" % (t + f))
+                logging.warn("%s\t%s" % (t, str(f)))
             logging.warn("         Dropping packet:")
             logging.warn("")
             logging.warn("    Type: %s" % (msg_type))
