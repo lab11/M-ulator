@@ -227,7 +227,6 @@ static void create_ice_bridge(struct ice_instance* ice) {
 		}
 	}
 
-	PyEval_ReleaseLock();
 	INFO("Ice Bridge initialized\n");
 }
 
@@ -241,10 +240,12 @@ static void *ice_thread(void *v_args) {
 	create_ice_bridge(ice);
 	pthread_cond_signal(&ice->pc);
 
+	Py_BEGIN_ALLOW_THREADS;
 	char buf;
 	if (read(ice->term_fd, &buf, 1) < 0)
 		WARN("Error on ice_thread shutdown monitor: %s\n",
 				strerror(errno));
+	Py_END_ALLOW_THREADS;
 
 	destroy_ice_bridge();
 	pthread_exit(NULL);
