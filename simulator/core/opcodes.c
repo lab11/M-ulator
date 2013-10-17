@@ -384,6 +384,7 @@ EXPORT int register_opcode_mask_32_real(uint32_t ones_mask, uint32_t zeros_mask,
 ////
 
 EXPORT void opcode_statistics(void) {
+#ifdef DEBUG1
 	int hist16[12] = {};
 	int hist32_11101[12] = {};
 	int hist32_11110[12] = {};
@@ -432,21 +433,22 @@ EXPORT void opcode_statistics(void) {
 	}
 
 	flockfile(stdout); flockfile(stderr);
-	printf("--- I: hist16       ");
+	_PP_EXTRA(stdout, 'D'); printf("hist16       ");
 	for (i = 0; i < 12; i++)
 		printf(" %2d: %3d", i, hist16[i]);
 	printf("\n");
-	printf("--- I: hist32_11101 ");
+	_PP_EXTRA(stdout, 'D'); printf("hist32_11101 ");
 	for (i = 0; i < 12; i++)
 		printf(" %2d: %3d", i, hist32_11101[i]);
 	printf("\n");
-	printf("--- I: hist32_11110 ");
+	_PP_EXTRA(stdout, 'D'); printf("hist32_11110 ");
 	for (i = 0; i < 12; i++)
 		printf(" %2d: %3d", i, hist32_11110[i]);
 	printf("\n");
-	printf("--- I: hist32_11111 ");
+	_PP_EXTRA(stdout, 'D'); printf("hist32_11111 ");
 	for (i = 0; i < 12; i++)
 		printf(" %2d: %3d", i, hist32_11111[i]);
 	printf("\n");
 	funlockfile(stderr); funlockfile(stdout);
+#endif
 }
