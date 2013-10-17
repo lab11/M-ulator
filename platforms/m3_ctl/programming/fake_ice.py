@@ -44,6 +44,7 @@ logger.debug("mask %s ones %02x zeros %02x", i2c_mask, i2c_mask_ones, i2c_mask_z
 i2c_speed_in_khz = DEFAULT_I2C_SPEED_IN_KHZ
 
 flow_clock_in_hz = DEFAULT_FLOW_CLOCK_IN_HZ
+flow_onoff = False
 
 vset_0p6 = DEFAULT_VSET_0P6
 vset_1p2 = DEFAULT_VSET_1P2
@@ -144,9 +145,14 @@ while True:
     msg = s.read(length)
 
     if msg_type == 'V':
-        respond('0001'.decode('hex'))
+        respond('00020001'.decode('hex'))
     elif msg_type == 'v':
-        if msg == '0001'.decode('hex'):
+        if msg == '0002'.decode('hex'):
+            minor = 2
+            ack()
+            logger.info("Negotiated to protocol version 0.2")
+        elif msg == '0001'.decode('hex'):
+            minor = 1
             ack()
             logger.info("Negotiated to protocol version 0.1")
         else:
@@ -222,6 +228,13 @@ while True:
             resp += chr((div >> 8) & 0xff)
             resp += chr(div & 0xff)
             respond(resp)
+        elif msg[0] == 'o':
+            if minor > 1:
+                logger.info("Responded to query for FLOW power (%s)", ('off','on')[flow_onoff])
+                respond(chr(flow_onoff))
+            else:
+                logger.error("Request for protocol 0.2 command (Oo), but the")
+                logger.error("negotiated protocol was 0.1")
         else:
             logger.error("bad 'O' subtype: " + msg[0])
     elif msg_type == 'o':
@@ -229,10 +242,18 @@ while True:
             logger.error("bad 'o' message length: " + str(len(msg)))
             raise Exception
         if msg[0] == 'c':
-            div = (ord(msg[0]) << 16) | (ord(msg[1]) << 8) | ord(msg[2])
+            div = (ord(msg[1]) << 16) | (ord(msg[2]) << 8) | ord(msg[3])
             flow_clock_in_hz = 2e6 / div
             logger.info("Set FLOW clock to %.2f Hz", flow_clock_in_hz)
             ack()
+        elif msg[0] == 'o':
+            if minor > 1:
+                flow_onoff = bool(ord(msg[1]))
+                logger.info("Set FLOW power to %s", ('off','on')[flow_onoff])
+                ack()
+            else:
+                logger.error("Request for protocol 0.2 command (Oo), but the")
+                logger.error("negotiated protocol was 0.1")
         else:
             logger.error("bad 'o' subtype: " + msg[0])
     elif msg_type == 'G':
