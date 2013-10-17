@@ -22,6 +22,8 @@ logger.info("-" * 80)
 logger.info("-- M3 ICE Interface Board Simulator")
 logger.info("")
 
+from ice import ICE
+
 if len(sys.argv) > 1:
     serial_port = sys.argv[1]
 else:
@@ -155,8 +157,8 @@ while True:
         if not i2c_match:
             if not match_mask(ord(msg[0]), i2c_mask_ones, i2c_mask_zeros):
                 logger.info("I2C address %02x did not match mask %02x %02x",
-                        ord(msg[0], i2c_mask_ones, i2c_mask_zeros))
-                nak()
+                        ord(msg[0]), i2c_mask_ones, i2c_mask_zeros)
+                respond(chr(0), ack=False)
                 continue
             i2c_match = True
         if len(msg) != 255:
@@ -193,7 +195,7 @@ while True:
         elif msg[0] == 'a':
             i2c_mask_ones = ord(msg[1])
             i2c_mask_zeros = ord(msg[2])
-            logger.info("ICE I2C Mask set to %02x ones, %02x zeros",
+            logger.info("ICE I2C mask set to 0x%02x ones, 0x%02x zeros",
                     i2c_mask_ones, i2c_mask_zeros)
             ack()
         else:
@@ -265,7 +267,7 @@ while True:
         if len(msg) < 3:
             logger.error("Bad 'P' message length: " + str(len(msg)))
             raise Exception
-        pwr_idx = ord(msg[0])
+        pwr_idx = ord(msg[1])
         if pwr_idx not in (0,1,2):
             logger.error("Illegal power index: %d", pwr_idx)
             raise Exception
@@ -300,34 +302,35 @@ while True:
         if len(msg) < 3:
             logger.error("Bad 'p' message length: " + str(len(msg)))
             raise Exception
-        pwr_idx = ord(msg[0])
+        pwr_idx = ord(msg[1])
         if pwr_idx not in (0,1,2):
             logger.error("Illegal power index: %d", pwr_idx)
             raise Exception
         if msg[0] == 'v':
-            if pwr_idx is 0:
-                vset_0p6 = ord(msg[1])
+            if pwr_idx is ICE.POWER_0P6:
+                vset_0p6 = ord(msg[2])
                 logger.info("Set 0.6V rail to vset=%d, vout=%.2f", vset_0p6,
                         (0.537 + 0.0185 * vset_0p6) * DEFAULT_POWER_0P6)
-            elif pwr_idx is 1:
-                vset_1p2 = ord(msg[1])
+            elif pwr_idx is ICE.POWER_1P2:
+                vset_1p2 = ord(msg[2])
                 logger.info("Set 1.2V rail to vset=%d, vout=%.2f", vset_1p2,
                         (0.537 + 0.0185 * vset_1p2) * DEFAULT_POWER_1P2)
-            elif pwr_idx is 2:
-                vset_vbatt = ord(msg[1])
+            elif pwr_idx is ICE.POWER_VBATT:
+                vset_vbatt = ord(msg[2])
                 logger.info("Set VBatt rail to vset=%d, vout=%.2f", vset_vbatt,
                         (0.537 + 0.0185 * vset_vbatt) * DEFAULT_POWER_VBATT)
             ack()
         elif msg[0] == 'o':
-            if pwr_idx is 0:
-                power_0p6_on = bool(msg[1])
+            if pwr_idx is ICE.POWER_0P6:
+                power_0p6_on = bool(ord(msg[2]))
                 logger.info("Set 0.6V rail %s", ('off','on')[power_0p6_on])
-            elif pwr_idx is 1:
-                power_1p2_on = bool(msg[1])
+            elif pwr_idx is ICE.POWER_1P2:
+                power_1p2_on = bool(ord(msg[2]))
                 logger.info("Set 1.2V rail %s", ('off','on')[power_1p2_on])
-            elif pwr_idx is 2:
-                power_vbatt_on = bool(msg[1])
-                logger.info("Set vbatt rail %s", ('off','on')[power_vbatt_on])
+            elif pwr_idx is ICE.POWER_VBATT:
+                power_vbatt_on = bool(ord(msg[2]))
+                logger.info("Set VBatt rail %s", ('off','on')[power_vbatt_on])
+            ack()
         else:
             logger.error("bad 'p' subtype: " + msg[0])
             raise Exception
