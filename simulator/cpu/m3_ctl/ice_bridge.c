@@ -189,7 +189,6 @@ EXPORT unsigned ice_i2c_send(struct ice_instance* ice,
 
 	exit_python();
 
-	INFO("ret_len: %d\n", ret_len);
 	return ret_len;
 }
 
