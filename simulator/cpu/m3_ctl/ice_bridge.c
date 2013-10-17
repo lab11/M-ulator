@@ -152,6 +152,47 @@ EXPORT void ice_gpio_int(struct ice_instance* ice, uint8_t idx, bool val) {
 	ERR(E_NOT_IMPLEMENTED, "ice_gpio_int %p %d %d\n", ice, idx, val);
 }
 
+EXPORT unsigned ice_i2c_send(struct ice_instance* ice,
+		uint8_t addr, char *data, int len) {
+	static PyObject *py_i2c_send = NULL;
+
+	enter_python(ice);
+
+	if (py_i2c_send == NULL) {
+		py_i2c_send = get_py_ice_function(ice, "i2c_send");
+		if (py_i2c_send == NULL) {
+			ERR(E_NOT_IMPLEMENTED, "Soft I2C emulation?\n");
+		}
+	}
+
+	//     |  i2c_send(self, addr, data)
+	PyObject *args;
+	args = Py_BuildValue("(bs#)", addr, data, len);
+	if (args == NULL) {
+		if (PyErr_Occurred()) PyErr_Print();
+		ERR(E_UNKNOWN, "Failed to build args tuple\n");
+	}
+
+	PyObject *ret;
+	ret = PyObject_CallObject(py_i2c_send, args);
+	Py_DECREF(args);
+	if (ret == NULL) {
+		if (PyErr_Occurred()) PyErr_Print();
+		ERR(E_UNKNOWN, "Send I2C message failed\n");
+	}
+
+	unsigned ret_len;
+	if (PyArg_Parse(ret, "I", &ret_len) != true) {
+		if (PyErr_Occurred()) PyErr_Print();
+		ERR(E_UNKNOWN, "Parsing i2c_send return\n");
+	}
+
+	exit_python();
+
+	INFO("ret_len: %d\n", ret_len);
+	return ret_len;
+}
+
 static void create_ice_bridge(struct ice_instance* ice) {
 	Py_InitializeEx(0);
 

@@ -153,7 +153,9 @@ while True:
     elif msg_type == 'd':
         i2c_msg += msg
         if not i2c_match:
-            if not match_mask(msg[0], i2c_mask_ones, i2c_mask_zeros):
+            if not match_mask(ord(msg[0]), i2c_mask_ones, i2c_mask_zeros):
+                logger.info("I2C address %02x did not match mask %02x %02x",
+                        ord(msg[0], i2c_mask_ones, i2c_mask_zeros))
                 nak()
                 continue
             i2c_match = True

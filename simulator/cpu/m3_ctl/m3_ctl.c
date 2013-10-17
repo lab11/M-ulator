@@ -183,10 +183,13 @@ void recv_i2c_message(uint8_t addr, uint32_t length, uint8_t *data) {
 static void m3_ctl_send_i2c_message(uint8_t addr, uint32_t length, char *msg) {
 	static int tries = 0;
 
-	bool acked;
-	acked = i2c_send_message(i2c, addr, length, msg);
+	//bool acked;
+	//acked = i2c_send_message(i2c, addr, length, msg);
+	unsigned bytes_sent;
+	bytes_sent = ice_i2c_send(ice, addr, msg, length);
 
-	if (!acked) {
+	//if (!acked) {
+	if (bytes_sent != (length + 1)) {
 		tries += 1;
 		if (tries > 3) {
 			TRAP("I2C Send Max Tries exceeded. Cont to retry\n");

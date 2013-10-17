@@ -262,7 +262,7 @@ class ICE(object):
         ack,resp = self.send_message(msg_type, msg)
         if ack == 1:
             return sent + ord(resp)
-        sent += len(resp)
+        sent += len(msg)
         return sent
 
     ## GOC ##
