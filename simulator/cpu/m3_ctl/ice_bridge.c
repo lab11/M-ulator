@@ -259,6 +259,21 @@ static void create_ice_bridge(struct ice_instance* ice) {
 			Py_DECREF(args);
 			if (ret == NULL) {
 				if (PyErr_Occurred()) PyErr_Print();
+				WARN("\n");
+				WARN("TODO: Option mechanism for setting the path to the serial port where\n");
+				WARN("      ICE is located. This is currently hardcoded to /tmp/com1.\n");
+				WARN("      Setting up a simlink (e.g. ln -s /dev/ttyUSB0 /tmp/com1) is\n");
+				WARN("      an effective workaround for now.\n");
+				WARN("\n");
+				WARN("This module requires support from an external hardware board (ICE).\n");
+				WARN("This external board facilitates all of the memory-mapped peripherals\n");
+				WARN("(e.g. GPIOs, bus interfaces). If a hardware board is unavailable or\n");
+				WARN("unnecessary, a software ICE emulator is available at\n");
+				WARN("    M-ulator/platforms/m3_ctl/programming/fake_ice.py\n");
+				WARN("This emulator will provide the necessary support for M3 peripherals\n");
+				WARN("and will print useful information on what the core is doing (e.g.\n");
+				WARN("when a GPIO is written).\n");
+				WARN("\n");
 				ERR(E_UNKNOWN, "ICE connect failed\n");
 			}
 		} else {
