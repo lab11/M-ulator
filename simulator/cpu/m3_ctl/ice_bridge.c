@@ -28,7 +28,7 @@
 #include "cpu/periph.h"
 
 struct ice_instance {
-	volatile bool en;
+	int term_fd;
 
 	const char* host;
 	uint16_t baud;
@@ -241,9 +241,10 @@ static void *ice_thread(void *v_args) {
 	create_ice_bridge(ice);
 	pthread_cond_signal(&ice->pc);
 
-	while (ice->en) {
-		sleep(1);
-	}
+	char buf;
+	if (read(ice->term_fd, &buf, 1) < 0)
+		WARN("Error on ice_thread shutdown monitor: %s\n",
+				strerror(errno));
 
 	destroy_ice_bridge();
 	pthread_exit(NULL);
@@ -266,7 +267,12 @@ struct ice_instance* create_ice_instance(const char *host, int baud) {
 	struct ice_instance* ice = malloc(sizeof(struct ice_instance));
 	assert((ice != NULL) && "Allocating ice instance storage");
 
-	ice->en = false;
+	int pipe_fds[2];
+	if (pipe(pipe_fds) < 0)
+		ERR(E_UNKNOWN, "Creating ICE termination pipe: %s\n",
+				strerror(errno));
+	ice->term_fd = pipe_fds[0];
+
 	ice->host = host;
 	ice->baud = baud;
 
@@ -293,7 +299,7 @@ struct ice_instance* create_ice_instance(const char *host, int baud) {
 	}
 
 	struct periph_time_travel tt = PERIPH_TIME_TRAVEL_NONE;
-	register_periph_thread(start_ice, "m3_ctl: ice_bridge", tt, &(ice->en), 0, ice);
+	register_periph_thread(start_ice, "m3_ctl: ice_bridge", tt, NULL, pipe_fds[1], ice);
 	return ice;
 }
 
