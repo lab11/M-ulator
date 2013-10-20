@@ -1,0 +1,383 @@
+\subsection{Version 0.1}
+\label{protocol-0-1}
+
+\setcounter{tocdepth}{4}
+\etocsettocstyle
+    {\subsection*{\contentsname}\hrule\medskip
+        \everypar{\rightskip.1\linewidth}}
+    {\nobreak\medskip\hrule\bigskip}
+
+\localtableofcontents
+
+\subsubsection{\texttt{0x64 `d'} -- Discrete interface I2C message}
+{\em Synchronous Request, Asynchronous Message}
+\begin{itemize}
+  \item[]
+    \begin{bytefield}{40}
+      \colorbitbox{lightgreen}{8}{`d'} &
+      \colorbitbox{lightred}{8}{Event ID} &
+      \colorbitbox{lightcyan}{8}{Length} &
+      \bitbox{4}{Data...}
+    \end{bytefield}
+  \item The bytes in this message compose an I2C transaction.
+  \item The length field of this message necessarily limits the maximum
+    message size to 255 bytes (addr + 254 data). Longer messages should
+    be fragmented.
+  \item The sentinel value {\tt 255} for length indicates a {\em
+    fragmented} message.
+  \item[]
+    \begin{itemize}
+      \item A message fragment {\bf MUST} be exactly 255 bytes long.
+      \item A fragment message {\bf MUST} be followed by another
+        fragment, or terminated by a regular {\bf d}iscrete message.
+        \begin{itemize}
+          \item The ICE board is permitted to interleave other,
+            non-I2C related messages (e.g. GPIO events).
+        \end{itemize}
+      \item A series of message fragments {\bf MUST} always be
+        terminated by a discrete with an explicit length. An I2C transaction of
+        length 0 is permitted, e.g.:
+        \begin{itemize}
+          \item An I2C transaction of length 510 (1 byte addr + 509 bytes
+            of data) would be {\bf three} messages. The first of length
+            255 (addr + bytes 0-253), the second of length 255 (bytes
+            254-508), and the third of length 0 (there is no more
+            data, but the fragment series must be terminated).
+        \end{itemize}
+      \item Fragments are treated as one logical message, but individual I2C bus
+        transactions, by an ICE board.  In practice this means:
+        \begin{itemize}
+          \item Each fragment message must be individually ACK'd by ICE.
+            \begin{itemize}
+              \item A NAK'd fragment message ends an I2C message.
+              \item The NAK offset is relative to the current fragment, not
+                the whole I2C transaction.
+            \end{itemize}
+          \item Only the first fragment includes the I2C address.
+          \item A stop bit should {\bf NOT} be generated after a
+            fragment, instead the I2C clock should be stretched until the
+            next fragment has arrived.
+        \end{itemize}
+    \end{itemize}
+  \item ICE will response with an ACK once every byte from an individual `d'
+    message has been ACK'd on the I2C bus.
+  \item If a byte is NAK'd on the I2C bus, ICE will respond with a NAK message
+    of length 1 indicating the index of the first NAK'd byte (e.g. if the
+    address is NAK'd, it will return 0).
+    \begin{itemize}
+      \item[]
+        \begin{bytefield}{32}
+          \colorbitbox{lightgreen}{8}{NAK (0x01)} &
+          \colorbitbox{lightred}{8}{Event ID} &
+          \colorbitbox{lightcyan}{8}{Len (Must be 1)} &
+          \bitbox{8}{Index of Byte NAK'd}
+        \end{bytefield}
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{\texttt{0x49 `I'} -- Query I2C Configuration}
+{\em Synchronous Request}
+\begin{itemize}
+  \item[]
+    \begin{bytefield} \\
+      \colorbitbox{lightgreen}{8}{0x49} &
+      \colorbitbox{lightred}{8}{Event ID} &
+      \colorbitbox{lightcyan}{8}{Len (Must be 1)} &
+      \colorbitbox{lightergreen}{8}{Parameter} &
+    \end{bytefield}
+  \item These messages complement the set I2C messages.
+  \item The `Parameter' field is the parameter specifier to query.
+  \item An ACK response should mimic the corresponding set message.
+  \item The following would query/response the address mask:
+    \begin{quote}
+      \begin{bytefield} \\
+        \colorbitbox{lightgreen}{8}{0x49} &
+        \colorbitbox{lightred}{8}{Event ID} &
+        \colorbitbox{lightcyan}{8}{0x01} &
+        \colorbitbox{lightergreen}{8}{0x61} &
+      \end{bytefield}
+
+      \begin{bytefield} \\
+        \colorbitbox{lightgreen}{8}{ACK (0x00)} &
+        \colorbitbox{lightred}{8}{Event ID} &
+        \colorbitbox{lightcyan}{8}{0x02} &
+        \bitbox{8}{Ones Mask} &
+        \bitbox{8}{Zeros Mask} &
+      \end{bytefield}
+    \end{quote}
+\end{itemize}
+
+\subsubsection{\texttt{0x69 `i'} -- Set I2C Configuration}
+{\em Synchronous Request}
+\begin{itemize}
+  \item The first byte of the message shall define which parameter is to
+    be configured.
+
+  \paragraph{\texttt{0x69 0x63 `ic'} -- Set I2C Clock Speed}
+    \begin{itemize}
+      \item[]
+        \begin{bytefield} \\
+          \colorbitbox{lightgreen}{8}{`i'} &
+          \colorbitbox{lightred}{8}{Event ID} &
+          \colorbitbox{lightcyan}{8}{Len (Must be 2)} &
+          \colorbitbox{lightergreen}{8}{`c'} &
+          \bitbox{8}{Clock Speed}
+        \end{bytefield}
+      \item {\bf Default:} {\tt 0x32} (50, 100~kHz)
+      \item This shall be followed by a single byte
+        valued N, where N~*~2~kHz yeilds the desired clock speed. Values of N
+        greater than 200 (400~kHz) exceed the I2C spec and may be rejected.
+    \end{itemize}
+  \paragraph{\texttt{0x69 0x61 `ia'} -- Set ICE I2C Address}
+    \begin{itemize}
+      \item[]
+        \begin{bytefield} \\
+          \colorbitbox{lightgreen}{8}{`i'} &
+          \colorbitbox{lightred}{8}{Event ID} &
+          \colorbitbox{lightcyan}{8}{Len (Must be 3)} &
+          \colorbitbox{lightergreen}{8}{`a'} &
+          \bitbox{8}{Ones Mask} &
+          \bitbox{8}{Zeros Mask}
+        \end{bytefield}
+      \item {\bf Default:} {\tt 0xff 0xff} (disabled)
+      \item This shall be followed by two bytes,
+        first the {\em ones mask} and then the {\em zeroes mask} as outlined below.
+        The command sets the address mask that ICE board should pretend to be a device
+        for. Coneceptually the mask is of the form {\tt 10xx010x}, where x's signify
+        don't care. This is conveyed as a {\em ones mask} and a {\em zeroes mask},
+        where each mask defines the bits that must be a one or zero respectively. For
+        the given example, the ones mask would be {\tt 10000100} and the zeroes mask
+        {\tt 01001010}, generating a transaction of \mbox{\tt 0x61 0x84 0x4a}.
+      \item To disable address-faking, set any bit
+        as both required-one and required-zero. This impossible situation is a legal
+        setting that will never match.
+        \begin{itemize}
+          \item {\em Note:} While it is
+            permissable to set the last bit must-be-zero (writeable-only) or must-be-one
+            (readable-only), it is almost certainly an error to do so.
+        \end{itemize}
+    \end{itemize}
+  \paragraph{\texttt{0x69} Responses}
+    \begin{itemize}
+      \item NAKs for this message shall be composed of an error
+        code, followed by an optional explanitory string.
+        \begin{itemize}
+          \item[]
+            \begin{bytefield} \\
+              \colorbitbox{lightgreen}{8}{NAK (0x01)} &
+              \colorbitbox{lightred}{8}{Event ID} &
+              \colorbitbox{lightcyan}{8}{Len (Min: 1)} &
+              \colorbitbox{lightblue}{8}{EINVAL (0x16)} &
+              \bitbox{8}{[{\tt "Out of Range"}]} &
+            \end{bytefield}
+          \item {\texttt {\textbf EINVAL (22,0x16):}} Invalid argument.
+          \item[]
+            \begin{bytefield} \\
+              \colorbitbox{lightgreen}{8}{NAK (0x01)} &
+              \colorbitbox{lightred}{8}{Event ID} &
+              \colorbitbox{lightcyan}{8}{Len (Min: 1)} &
+              \colorbitbox{lightblue}{8}{ENODEV (0x13)} &
+            \end{bytefield}
+          \item {\texttt {\textbf ENODEV (19,0x13):}} The
+            implementation does not support changing or querying this parameter. Unless
+            otherwise specified, it {\bf MUST} be hardcoded to the default.
+        \end{itemize}
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{\texttt{0x66 `f'} -- FLOW (GOC) interface message}
+{\em Synchronous Request}
+\begin{itemize}
+  \item FLOW messages are formatted the exact same as `d'iscrete messages.
+\end{itemize}
+
+\subsubsection{\texttt{0x4f `O'} -- Query optical (FLOW (GOC)) Configuration}
+{\em Synchronous Request}
+\begin{itemize}
+  \item[]
+    \begin{bytefield} \\
+      \colorbitbox{lightgreen}{8}{`O' (0x4f)} &
+      \colorbitbox{lightred}{8}{Event ID} &
+      \colorbitbox{lightcyan}{8}{Len (Must be 1)} &
+      \colorbitbox{lightergreen}{8}{Parameter} &
+    \end{bytefield}
+  \item These messages complement the set I2C messages.
+  \item The `Parameter' field is the parameter specifier to query.
+  \item An ACK response should mimic the corresponding set message.
+\end{itemize}
+
+\subsubsection{\texttt{0x6f `o'} -- Set optical (FLOW (GOC)) Configuration}
+{\em Synchronous Request}
+\begin{itemize}
+  \item The first byte of the message shall define which parameter is to
+    be configured.
+    \paragraph{\texttt{0x6f 0x63 `oc'}: Clock Speed (Divider)}
+      \begin{itemize}
+        \item[]
+          \begin{bytefield} \\
+            \colorbitbox{lightgreen}{8}{`o'} &
+            \colorbitbox{lightred}{8}{Event ID} &
+            \colorbitbox{lightcyan}{8}{Len (Must be 4)} &
+            \colorbitbox{lightergreen}{8}{`c'} &
+            \bitbox{8}{Clock Divider}
+          \end{bytefield}
+        \item {\bf Default:} {\tt 0x30D400} (2~MHz / 0x30D400 = .625~Hz)
+        \item This shall be followed by a three byte
+          value N (MSB-first), where 2~MHz / N yields the desired clock speed.
+      \end{itemize}
+  \paragraph{\texttt{0x6f} Responses}
+    \begin{itemize}
+      \item NAKs for this message shall be composed of an error
+        code, followed by an optional explanitory string.
+        \begin{itemize}
+          \item[]
+            \begin{bytefield} \\
+              \colorbitbox{lightgreen}{8}{NAK (0x01)} &
+              \colorbitbox{lightred}{8}{Event ID} &
+              \colorbitbox{lightcyan}{8}{Len (Min: 1)} &
+              \colorbitbox{lightblue}{8}{EINVAL (0x16)} &
+              \bitbox{8}{[{\tt "Out of Range"}]} &
+            \end{bytefield}
+          \item {\texttt {\textbf EINVAL (22,0x16):}} Invalid argument.
+        \end{itemize}
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{\texttt{0x47 `G'} -- Query GPIO State / Configuration}
+{\em Synchronous Request}
+\begin{itemize}
+  \item[]
+    \begin{bytefield} \\
+      \colorbitbox{lightgreen}{8}{`G' (0x47)} &
+      \colorbitbox{lightred}{8}{Event ID} &
+      \colorbitbox{lightcyan}{8}{Len (Must be 2)} &
+      \colorbitbox{lightergreen}{8}{Parameter} &
+      \bitbox{8}{GPIO IDX}
+    \end{bytefield}
+  \item These messages complement the set GPIO (`g') messages.
+  \item The `Parameter' field is the parameter specifier to query.
+  \item An ACK response should mimic the corresponding set message.
+\end{itemize}
+
+\subsubsection{\texttt{0x67 `g'} -- Set / Configure GPIO}
+{\em Synchronous Request, Asynchronous Message}
+\begin{itemize}
+  \item The first byte of this message shall be a specificer, indicating
+    what type of GPIO action is requested.
+  \paragraph{\texttt{0x67 0x6c `gl'} -- GPIO Level}
+    \begin{itemize}
+      \item The first byte of the message shall be an integer
+        indicating the GPIO index to set. The second byte shall be
+        valued {\tt 0} or {\tt 1}, depending on the desired GPIO
+        state.
+      \item[]
+        \begin{bytefield} \\
+          \colorbitbox{lightgreen}{8}{`o' (0x67)} &
+          \colorbitbox{lightred}{8}{Event ID} &
+          \colorbitbox{lightcyan}{8}{Len (Must be 3)} &
+          \colorbitbox{lightergreen}{8}{`l' (0x6c)} &
+          \bitbox{8}{GPIO IDX} &
+          \bitbox{8}{GPIO Val}
+        \end{bytefield}
+    \end{itemize}
+  \paragraph{\texttt{0x67 0x64 `gd'} -- GPIO direction}
+    \begin{itemize}
+      \item The first byte of the message shall be an integer
+        indicating the GPIO index to set the direction of. The second
+        byte shall be valued:
+        \begin{itemize}
+          \item 0: Input
+          \item 1: Output
+          \item 2: TriState (\textsc{DEFAULT})
+        \end{itemize}
+      \item[]
+        \begin{bytefield} \\
+          \colorbitbox{lightgreen}{8}{`o' (0x67)} &
+          \colorbitbox{lightred}{8}{Event ID} &
+          \colorbitbox{lightcyan}{8}{Len (Must be 3))} &
+          \colorbitbox{lightergreen}{8}{`d' (0x64)} &
+          \bitbox{8}{GPIO IDX} &
+          \bitbox{8}{GPIO Direction}
+        \end{bytefield}
+    \end{itemize}
+  \paragraph{\texttt{0x67} Responses}
+    \begin{itemize}
+      \item {\texttt {\textbf ENODEV (19,0x13):}} The requested
+        GPIO does not exist.
+      \item[]
+        \begin{bytefield} \\
+          \colorbitbox{lightgreen}{8}{NAK (0x01)} &
+          \colorbitbox{lightred}{8}{Event ID} &
+          \colorbitbox{lightcyan}{8}{Len (Min: 1)} &
+          \colorbitbox{lightblue}{8}{ENODEV (0x13)} &
+          \bitbox{8}{[{\tt "No such GPIO"}]} &
+        \end{bytefield}
+      \item {\texttt {\textbf EINVAL (22,0x16):}} The requested GPIO
+        exists, but cannot be configured this way at this time.
+      \item[]
+        \begin{bytefield} \\
+          \colorbitbox{lightgreen}{8}{NAK (0x01)} &
+          \colorbitbox{lightred}{8}{Event ID} &
+          \colorbitbox{lightcyan}{8}{Len (Min: 1)} &
+          \colorbitbox{lightblue}{8}{EINVAL (0x16)} &
+          \bitbox{8}{[{\tt "GPIO is input"}]} &
+        \end{bytefield}
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{\texttt{0x50 `P'} -- Query Power State}
+{\em Synchronous Request}
+\begin{itemize}
+  \item[]
+    \begin{bytefield} \\
+      \colorbitbox{lightgreen}{8}{`P' (0x50)} &
+      \colorbitbox{lightred}{8}{Event ID} &
+      \colorbitbox{lightcyan}{8}{Len (Must be 1)} &
+      \colorbitbox{lightergreen}{8}{Parameter} &
+      \bitbox{8}{PWR IDX}
+    \end{bytefield}
+  \item These messages complement the Set Power (`p') messages.
+  \item The `Parameter' field is the parameter specifier to query.
+  \item An ACK response should mimic the corresponding set message.
+\end{itemize}
+
+\subsubsection{\texttt{0x70 `p'} -- Set Power State}
+{\em Synchronous Request, Asynchronous Message}
+\begin{itemize}
+  \item Set Power State messages allow direct control of set-point voltage and on/off states for various power domains on the ICE board.  The first byte of this message shall be a specificer, indicating which parameter is requested.  The second byte of the message shall be the power domain identifier.  Currently implemented power domain identifiers are:
+   \begin{itemize}
+     \item 0: M3 0.6V (0.675V Default)
+     \item 1: M3 1.2V (1.2V Default)
+     \item 2: M3 VBatt (3.8V Default)
+   \end{itemize}
+  \paragraph{\texttt{0x70 0x76 `pv'} -- Voltage State}
+    \begin{itemize}
+      \item The first byte of the message shall be a single byte indicating the power domain identifier to set.  The second byte ($v\_set$) shall specify the voltage according to the equation:
+$$V_{out} = (0.537 + 0.0185*v\_set)*V_{default}$$
+      Valid values for $v\_set$ range from {\tt 0} to {\tt 31}
+      \item[]
+        \begin{bytefield} \\
+          \colorbitbox{lightgreen}{8}{`p' (0x70)} &
+          \colorbitbox{lightred}{8}{Event ID} &
+          \colorbitbox{lightcyan}{8}{Len (Must be 3)} &
+          \colorbitbox{lightergreen}{8}{`v' (0x76)} &
+          \bitbox{8}{PWR IDX} &
+          \bitbox{8}{$v\_set$}
+        \end{bytefield}
+    \end{itemize}
+  \paragraph{\texttt{0x70 0x6f `po'} -- On/Off State}
+    \begin{itemize}
+      \item The first byte of the message shall be a single byte indicating the power domain identifier to set.  The second byte shall be
+        valued {\tt 0} or {\tt 1}, depending on the desired On/Off
+        state.
+      \item[]
+        \begin{bytefield} \\
+          \colorbitbox{lightgreen}{8}{`p' (0x70)} &
+          \colorbitbox{lightred}{8}{Event ID} &
+          \colorbitbox{lightcyan}{8}{Len (Must be 3)} &
+          \colorbitbox{lightergreen}{8}{`o' (0x6f)} &
+          \bitbox{8}{PWR IDX} &
+          \bitbox{8}{On/Off}
+        \end{bytefield}
+    \end{itemize}
+\end{itemize}

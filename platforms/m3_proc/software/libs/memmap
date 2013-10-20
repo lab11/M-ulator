@@ -1,0 +1,16 @@
+MEMORY
+{
+	RRAM (wx) : ORIGIN = 0, LENGTH = 3K
+}
+
+SECTIONS
+{
+	.text :
+	{
+		*(.vectors)
+		*(.text)
+	} > RRAM
+	
+	.data : { *(.data) } > RRAM
+	.bss : { *.(bss) } > RRAM
+}
