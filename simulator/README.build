@@ -22,3 +22,7 @@ will be placed. To build the simulator, simply run:
 
 If you make any modifications to the simulator itself, you only need to run the
 update command (`tup upd`) to rebuild the simulator.
+
+Once you have the simulator built, you can run your programs on it, e.g.:
+
+    $ /M-ulator/simulator > build-m3_ctl-release/simulator -f ../platforms/m3_ctl/software/blink/blink.bin
