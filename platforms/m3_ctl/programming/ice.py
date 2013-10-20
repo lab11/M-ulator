@@ -9,29 +9,35 @@ import struct
 import time
 from copy import copy
 import logging
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+logger = logging.getLogger('ice')
 
 try:
     import threading
     import Queue
 except ImportError:
-    logging.warn("Your python installation does not support threads.")
-    logging.warn("")
-    logging.warn("Please install a version of python that supports threading.")
+    logger.warn("Your python installation does not support threads.")
+    logger.warn("")
+    logger.warn("Please install a version of python that supports threading.")
     raise
 
 try:
     import serial
 except ImportError:
-    logging.warn("You do not have the pyserial library installed.")
-    logging.warn("")
-    logging.warn("For installation instructions + see:")
-    logging.warn("\thttp://pyserial.sourceforge.net/pyserial.html#installation")
+    logger.warn("You do not have the pyserial library installed.")
+    logger.warn("")
+    logger.warn("For installation instructions + see:")
+    logger.warn("\thttp://pyserial.sourceforge.net/pyserial.html#installation")
     raise
 
 ################################################################################
 
 class ICE(object):
     VERSIONS = ((0,1),(0,2))
+    VERSION_0_2_METHODS = (
+            'goc_get_onoff',
+            'goc_set_onoff',
+            )
     ONEYEAR = 365 * 24 * 60 * 60
 
     class ICE_Error(Exception):
@@ -63,6 +69,16 @@ class ICE(object):
         '''
         pass
 
+    class VersionError(ICE_Error):
+        '''
+        A method was called that this ICE board does not support.
+        '''
+
+    def __getattr__(self, name):
+        if (self.minor < 2) and (name in VERSION_0_2_METHODS):
+            raise VersionError, "ICE >= v0.2 required. Connected to ICE v0." + str(self.minor)
+        return object.__getattr__(name)
+
     def __init__(self):
         '''
         An ICE object.
@@ -88,7 +104,7 @@ class ICE(object):
         '''
         self.dev = serial.Serial(serial_device, baudrate)
         if self.dev.isOpen():
-            logging.info("Connected to serial device at " + self.dev.portstr)
+            logger.info("Connected to serial device at " + self.dev.portstr)
         else:
             raise self.ICE_Error, "Failed to connect to serial device"
 
@@ -105,17 +121,17 @@ class ICE(object):
             t.daemon = True
             t.start()
         except KeyError:
-            logging.warn("WARNING: No handler registered for message type: " +
+            logger.warn("WARNING: No handler registered for message type: " +
                     str(msg_type))
-            logging.warn("Known Types:")
+            logger.warn("Known Types:")
             for t,f in self.msg_handler.iteritems():
-                logging.warn("%s\t%s" % (t + f))
-            logging.warn("         Dropping packet:")
-            logging.warn("")
-            logging.warn("    Type: %s" % (msg_type))
-            logging.warn("Event ID: %d" % (event_id))
-            logging.warn("  Length: %d" % (length))
-            logging.warn(" Message:" + msg.encode('hex'))
+                logger.warn("%s\t%s" % (t, str(f)))
+            logger.warn("         Dropping packet:")
+            logger.warn("")
+            logger.warn("    Type: %s" % (msg_type))
+            logger.warn("Event ID: %d" % (event_id))
+            logger.warn("  Length: %d" % (length))
+            logger.warn(" Message:" + msg.encode('hex'))
 
     def communicator(self):
         while True:
@@ -126,13 +142,13 @@ class ICE(object):
             msg = self.dev.read(length)
 
             if event_id == self.last_event_id:
-                logging.warn("WARNING: Duplicate event_id! THIS IS A BUG [somewhere]!!")
-                logging.warn("         Dropping packet:")
-                logging.warn("")
-                logging.warn("    Type: %d" % (msg_type))
-                logging.warn("Event ID: %d" % (event_id))
-                logging.warn("  Length: %d" % (length))
-                logging.warn(" Message:" + msg.encode('hex'))
+                logger.warn("WARNING: Duplicate event_id! THIS IS A BUG [somewhere]!!")
+                logger.warn("         Dropping packet:")
+                logger.warn("")
+                logger.warn("    Type: %d" % (msg_type))
+                logger.warn("Event ID: %d" % (event_id))
+                logger.warn("  Length: %d" % (length))
+                logger.warn(" Message:" + msg.encode('hex'))
             else:
                 self.last_event_id = event_id
 
@@ -140,21 +156,21 @@ class ICE(object):
                 # Ack / Nack response from a synchronous message
                 try:
                     if msg_type == 0:
-                        logging.debug("Got an ACK packet. Event: " + str(event_id))
+                        logger.debug("Got an ACK packet. Event: " + str(event_id))
                     else:
-                        logging.info("Got a NAK packet. Event:" + str(event_id))
+                        logger.info("Got a NAK packet. Event:" + str(event_id))
                     self.sync_queue.put((msg_type, msg))
                 except Queue.Full:
-                    logging.warn("WARNING: Synchronization lost. Unsolicited ACK/NAK.")
-                    logging.warn("         Dropping packet:")
-                    logging.warn("")
-                    logging.warn("    Type: %s" % (["ACK","NAK"][msg_type]))
-                    logging.warn("Event ID: %d" % (event_id))
-                    logging.warn("  Length: %d" % (length))
-                    logging.warn(" Message:" + msg.encode('hex'))
+                    logger.warn("WARNING: Synchronization lost. Unsolicited ACK/NAK.")
+                    logger.warn("         Dropping packet:")
+                    logger.warn("")
+                    logger.warn("    Type: %s" % (["ACK","NAK"][msg_type]))
+                    logger.warn("Event ID: %d" % (event_id))
+                    logger.warn("  Length: %d" % (length))
+                    logger.warn(" Message:" + msg.encode('hex'))
             else:
                 msg_type = chr(msg_type)
-                logging.debug("Got an async message of type: " + msg_type)
+                logger.debug("Got an async message of type: " + msg_type)
                 self.spawn_handler(msg_type, event_id, length, msg)
 
     def d_defragger(self, msg_type, event_id, length, msg):
@@ -174,12 +190,12 @@ class ICE(object):
             # XXX: Make version dependent
             if length != 255:
                 sys.stdout.flush()
-                logging.debug("Got a complete I2C transaction of length %d bytes. Forwarding..." % (len(self.d_frag)))
+                logger.debug("Got a complete I2C transaction of length %d bytes. Forwarding..." % (len(self.d_frag)))
                 sys.stdout.flush()
                 self.spawn_handler('d+', event_id, len(self.d_frag), copy(self.d_frag))
                 self.d_frag = ''
             else:
-                logging.debug("Got a fragment message... thus far %d bytes received:" % (len(self.d_frag)))
+                logger.debug("Got a fragment message... thus far %d bytes received:" % (len(self.d_frag)))
 
     def send_message(self, msg_type, msg='', length=None):
         if len(msg_type) != 1:
@@ -214,16 +230,16 @@ class ICE(object):
         This function is called automatically by __init__ and should not be
         called directly.
         '''
-        logging.info("This library supports versions...")
+        logger.info("This library supports versions...")
         for major, minor in ICE.VERSIONS:
-            logging.info("\t%d.%d" % (major, minor))
+            logger.info("\t%d.%d" % (major, minor))
 
-        logging.debug("Sending version probe")
+        logger.debug("Sending version probe")
         resp = self.send_message_until_acked('V')
         if (len(resp) is 0) or (len(resp) % 2):
             raise self.FormatError, "Version response: " + resp
 
-        logging.info("This ICE board supports versions...")
+        logger.info("This ICE board supports versions...")
         self.major = None
         self.minor = None
         while len(resp) > 0:
@@ -232,12 +248,16 @@ class ICE(object):
             if self.major is None and (major, minor) in ICE.VERSIONS:
                 self.major = major
                 self.minor = minor
-                logging.info("\t%d.%d **Chosen version" % (major, minor))
+                logger.info("\t%d.%d **Chosen version" % (major, minor))
             else:
-                logging.info("\t%d.%d" % (major, minor))
+                logger.info("\t%d.%d" % (major, minor))
 
         if self.major is None:
-            logging.warn("No versions in common. Version negotiation failed.")
+            logger.warn("No versions in common. Version negotiation failed.")
+            raise self.ICE_Error
+
+        if self.major != 0:
+            logger.error("Major version number bump. Need to re-examine python versioning")
             raise self.ICE_Error
 
         self.send_message_until_acked('v', struct.pack("BB", self.major, self.minor))
@@ -250,19 +270,19 @@ class ICE(object):
         FRAG_SIZE = 255
 
         sent = 0
-        logging.debug("Sending %d byte message (in %d byte fragments)" % (len(msg), FRAG_SIZE))
+        logger.debug("Sending %d byte message (in %d byte fragments)" % (len(msg), FRAG_SIZE))
         while len(msg) >= FRAG_SIZE:
             ack,resp = self.send_message(msg_type, msg[0:FRAG_SIZE])
             if ack == 1: # (NAK)
                 return sent + ord(resp)
             msg = msg[FRAG_SIZE:]
             sent += FRAG_SIZE
-            logging.debug("\tSent %d byte s, %d remaining" % (sent, len(msg)))
-        logging.debug("Sending last messag e, %d bytes long" % (len(msg)))
+            logger.debug("\tSent %d byte s, %d remaining" % (sent, len(msg)))
+        logger.debug("Sending last messag e, %d bytes long" % (len(msg)))
         ack,resp = self.send_message(msg_type, msg)
         if ack == 1:
             return sent + ord(resp)
-        sent += len(resp)
+        sent += len(msg)
         return sent
 
     ## GOC ##
@@ -276,7 +296,7 @@ class ICE(object):
 
         num_bits = len(msg) * 8
         t = num_bits / freq
-        logging.info("Sleeping for %f seconds while it blinks..." % (t))
+        logger.info("Sleeping for %f seconds while it blinks..." % (t))
         while (t > 1):
             sys.stdout.write("\r\t\t\t\t\t\t")
             sys.stdout.write("\r\t%f remaining..." % (t))
@@ -325,6 +345,27 @@ class ICE(object):
         self.send_message_until_acked('o', msg)
 
         self.goc_freq = freq_in_hz
+
+    def goc_get_onoff(self, onoff):
+        '''
+        Get the current ambient GOC power.
+        '''
+        resp = self.send_message_until_acked('O', struct.pack("B", ord('o')))
+        if len(resp) != 1:
+            raise self.FormatError, "Wrong response length from `Oo': " + str(resp)
+        onoff = struct.unpack("B", resp)
+        return bool(onoff)
+
+    def goc_set_onoff(self, onoff):
+        '''
+        Turn the GOC light on or off.
+
+        The GOC will blink as normal when goc_send is called, this simply sets
+        the state of the GOC light when it's not doing anything else (e.g. so
+        you can leave the light on for charging or something similar)
+        '''
+        msg = struct.pack("BB", ord('o'), onoff)
+        self.send_message_until_acked('o', msg)
 
     def i2c_send(self, addr, data):
         '''
@@ -561,4 +602,4 @@ class ICE(object):
         self.send_message_until_acked('p', struct.pack("BBB", ord('o'), rail, onoff))
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
+    logger.setLevel(level=logging.DEBUG)

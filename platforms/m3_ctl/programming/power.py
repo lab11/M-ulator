@@ -7,7 +7,8 @@ import os
 import time
 import argparse
 import logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+logger = logging.getLogger('program')
 
 from ice import ICE
 ice = ICE()
@@ -26,28 +27,28 @@ ice.connect(args.SERIAL)
 
 if args.V1P2 is not None:
     if args.V1P2 == 0:
-        logging.info("Turning off 1.2V")
+        logger.info("Turning off 1.2V")
         ice.power_set_onoff(ICE.POWER_1P2, False)
     else:
-        logging.info("Turning on 1.2V to " + str(args.V1P2))
+        logger.info("Turning on 1.2V to " + str(args.V1P2))
         ice.power_set_voltage(ICE.POWER_1P2, args.V1P2)
         ice.power_set_onoff(ICE.POWER_1P2, True)
 
 if args.V0P6 is not None:
     if args.V0P6 == 0:
-        logging.info("Turning off 0.6V")
+        logger.info("Turning off 0.6V")
         ice.power_set_onoff(ICE.POWER_0P6, False)
     else:
-        logging.info("Turning on 0.6V to " + str(args.V0P6))
+        logger.info("Turning on 0.6V to " + str(args.V0P6))
         ice.power_set_voltage(ICE.POWER_0P6, args.V0P6)
         ice.power_set_onoff(ICE.POWER_0P6, True)
 
 if args.VBATT is not None:
     if args.VBATT == 0:
-        logging.info("Turning off VBatt")
+        logger.info("Turning off VBatt")
         ice.power_set_onoff(ICE.POWER_VBATT, False)
     else:
-        logging.info("Turning on VBatt to " + str(args.VBATT))
+        logger.info("Turning on VBatt to " + str(args.VBATT))
         ice.power_set_voltage(ICE.POWER_VBATT, args.VBATT)
         ice.power_set_onoff(ICE.POWER_VBATT, True)
 

@@ -1,5 +1,9 @@
-\subsection{Version 0.1}
-\label{protocol-0-1}
+\subsection{Version 0.2}
+\label{protocol-0-2}
+
+Version 0.2 is a strict superset of version 0.1. 0.2 adds two new messages:
+{\tt `Oo'} and {\tt `oo'}. These messages allow the default on/off state of
+the FLOW light to be set.
 
 \setcounter{tocdepth}{4}
 \etocsettocstyle
@@ -201,7 +205,7 @@
       \colorbitbox{lightcyan}{8}{Len (Must be 1)} &
       \colorbitbox{lightergreen}{8}{Parameter} &
     \end{bytefield}
-  \item These messages complement the set I2C messages.
+  \item These messages complement the set {\tt `o'} messages.
   \item The `Parameter' field is the parameter specifier to query.
   \item An ACK response should mimic the corresponding set message.
 \end{itemize}
@@ -224,6 +228,22 @@
         \item {\bf Default:} {\tt 0x30D400} (2~MHz / 0x30D400 = .625~Hz)
         \item This shall be followed by a three byte
           value N (MSB-first), where 2~MHz / N yields the desired clock speed.
+      \end{itemize}
+    \paragraph{\texttt{0x6f 0x6f `oo'}: Light On/Off}
+      \begin{itemize}
+        \item[]
+          \begin{bytefield} \\
+            \colorbitbox{lightgreen}{8}{`o'} &
+            \colorbitbox{lightred}{8}{Event ID} &
+            \colorbitbox{lightcyan}{8}{Len (Must be 2)} &
+            \colorbitbox{lightergreen}{8}{`o'} &
+            \bitbox{8}{On / Off}
+          \end{bytefield}
+        \item {\bf Default:} {\tt 0x0} (Off)
+        \item This shall be followed by either a {\tt 0} or a {\tt 1}
+          indicating whether the default state of the light should be on or
+          off. If the default is set to on, the light shall remain illuminated
+          until set to off or a GOC pulse temporarily turns if off.
       \end{itemize}
   \paragraph{\texttt{0x6f} Responses}
     \begin{itemize}

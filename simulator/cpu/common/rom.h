@@ -34,7 +34,7 @@
 #include "core/pretty_print.h"
 #endif
 
-void flash_ROM(const uint8_t *image, const uint32_t nbytes);
+void flash_ROM(const uint8_t *image, int offset, uint32_t nbytes);
 
 #endif // ROMBOT
 // Only include this peripheral if requested in the platform memmap.h //

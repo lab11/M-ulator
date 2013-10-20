@@ -31,6 +31,21 @@
 #define ADDR_TO_IDX(_addr, _bot) ((_addr - _bot) >> 2)
 static uint32_t ram[RAMSIZE >> 2] = {0};
 
+#ifndef FAVOR_SPEED
+// Detect attempts to overwrite flashed code (most likely an error)
+static uint32_t code_bot = 0;
+static uint32_t code_top = 0;
+#endif
+
+EXPORT void flash_RAM(const uint8_t *image, int offset, uint32_t nbytes) {
+	memcpy(ram+offset, image, nbytes);
+#ifndef FAVOR_SPEED
+	code_bot = offset;
+	code_top = offset+nbytes;
+#endif
+	INFO("Flashed %d bytes to RAM\n", nbytes);
+}
+
 static bool ram_read(uint32_t addr, uint32_t *val) {
 #ifdef DEBUG1
 	assert((addr >= RAMBOT) && (addr < RAMTOP) && "CORE_ram_read");
@@ -47,6 +62,17 @@ static bool ram_read(uint32_t addr, uint32_t *val) {
 static void ram_write(uint32_t addr, uint32_t val) {
 #ifdef DEBUG1
 	assert((addr >= RAMBOT) && (addr < RAMTOP) && "CORE_ram_write");
+#endif
+#ifndef FAVOR_SPEED
+	if (code_bot != code_top) {
+		if ((addr >= code_bot) && (addr < code_top)) {
+			WARN("Attempt to write to address %08x\n", addr);
+			WARN("Which is inside flashed code image (%08x-%08x)\n",
+					code_bot, code_top);
+			WARN("This is almost certainly an error (stack overflow)\n");
+			CORE_ERR_invalid_addr(true, addr);
+		}
+	}
 #endif
 	if ((addr >= RAMBOT) && (addr < RAMTOP) && (0 == (addr & 0x3))) {
 		SW(&ram[ADDR_TO_IDX(addr, RAMBOT)],val);

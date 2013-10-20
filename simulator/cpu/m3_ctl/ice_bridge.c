@@ -28,7 +28,7 @@
 #include "cpu/periph.h"
 
 struct ice_instance {
-	volatile bool en;
+	int term_fd;
 
 	const char* host;
 	uint16_t baud;
@@ -152,6 +152,46 @@ EXPORT void ice_gpio_int(struct ice_instance* ice, uint8_t idx, bool val) {
 	ERR(E_NOT_IMPLEMENTED, "ice_gpio_int %p %d %d\n", ice, idx, val);
 }
 
+EXPORT unsigned ice_i2c_send(struct ice_instance* ice,
+		uint8_t addr, char *data, int len) {
+	static PyObject *py_i2c_send = NULL;
+
+	enter_python(ice);
+
+	if (py_i2c_send == NULL) {
+		py_i2c_send = get_py_ice_function(ice, "i2c_send");
+		if (py_i2c_send == NULL) {
+			ERR(E_NOT_IMPLEMENTED, "Soft I2C emulation?\n");
+		}
+	}
+
+	//     |  i2c_send(self, addr, data)
+	PyObject *args;
+	args = Py_BuildValue("(bs#)", addr, data, len);
+	if (args == NULL) {
+		if (PyErr_Occurred()) PyErr_Print();
+		ERR(E_UNKNOWN, "Failed to build args tuple\n");
+	}
+
+	PyObject *ret;
+	ret = PyObject_CallObject(py_i2c_send, args);
+	Py_DECREF(args);
+	if (ret == NULL) {
+		if (PyErr_Occurred()) PyErr_Print();
+		ERR(E_UNKNOWN, "Send I2C message failed\n");
+	}
+
+	unsigned ret_len;
+	if (PyArg_Parse(ret, "I", &ret_len) != true) {
+		if (PyErr_Occurred()) PyErr_Print();
+		ERR(E_UNKNOWN, "Parsing i2c_send return\n");
+	}
+
+	exit_python();
+
+	return ret_len;
+}
+
 static void create_ice_bridge(struct ice_instance* ice) {
 	Py_InitializeEx(0);
 
@@ -219,6 +259,21 @@ static void create_ice_bridge(struct ice_instance* ice) {
 			Py_DECREF(args);
 			if (ret == NULL) {
 				if (PyErr_Occurred()) PyErr_Print();
+				WARN("\n");
+				WARN("TODO: Option mechanism for setting the path to the serial port where\n");
+				WARN("      ICE is located. This is currently hardcoded to /tmp/com1.\n");
+				WARN("      Setting up a simlink (e.g. ln -s /dev/ttyUSB0 /tmp/com1) is\n");
+				WARN("      an effective workaround for now.\n");
+				WARN("\n");
+				WARN("This module requires support from an external hardware board (ICE).\n");
+				WARN("This external board facilitates all of the memory-mapped peripherals\n");
+				WARN("(e.g. GPIOs, bus interfaces). If a hardware board is unavailable or\n");
+				WARN("unnecessary, a software ICE emulator is available at\n");
+				WARN("    M-ulator/platforms/m3_ctl/programming/fake_ice.py\n");
+				WARN("This emulator will provide the necessary support for M3 peripherals\n");
+				WARN("and will print useful information on what the core is doing (e.g.\n");
+				WARN("when a GPIO is written).\n");
+				WARN("\n");
 				ERR(E_UNKNOWN, "ICE connect failed\n");
 			}
 		} else {
@@ -227,7 +282,6 @@ static void create_ice_bridge(struct ice_instance* ice) {
 		}
 	}
 
-	PyEval_ReleaseLock();
 	INFO("Ice Bridge initialized\n");
 }
 
@@ -241,9 +295,12 @@ static void *ice_thread(void *v_args) {
 	create_ice_bridge(ice);
 	pthread_cond_signal(&ice->pc);
 
-	while (ice->en) {
-		sleep(1);
-	}
+	Py_BEGIN_ALLOW_THREADS;
+	char buf;
+	if (read(ice->term_fd, &buf, 1) < 0)
+		WARN("Error on ice_thread shutdown monitor: %s\n",
+				strerror(errno));
+	Py_END_ALLOW_THREADS;
 
 	destroy_ice_bridge();
 	pthread_exit(NULL);
@@ -266,7 +323,12 @@ struct ice_instance* create_ice_instance(const char *host, int baud) {
 	struct ice_instance* ice = malloc(sizeof(struct ice_instance));
 	assert((ice != NULL) && "Allocating ice instance storage");
 
-	ice->en = false;
+	int pipe_fds[2];
+	if (pipe(pipe_fds) < 0)
+		ERR(E_UNKNOWN, "Creating ICE termination pipe: %s\n",
+				strerror(errno));
+	ice->term_fd = pipe_fds[0];
+
 	ice->host = host;
 	ice->baud = baud;
 
@@ -293,7 +355,7 @@ struct ice_instance* create_ice_instance(const char *host, int baud) {
 	}
 
 	struct periph_time_travel tt = PERIPH_TIME_TRAVEL_NONE;
-	register_periph_thread(start_ice, "m3_ctl: ice_bridge", tt, &(ice->en), 0, ice);
+	register_periph_thread(start_ice, "m3_ctl: ice_bridge", tt, NULL, pipe_fds[1], ice);
 	return ice;
 }
 

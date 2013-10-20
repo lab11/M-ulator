@@ -32,6 +32,7 @@ struct ice_instance;
 void ice_gpio_out(struct ice_instance* ice, uint8_t idx, bool val);
 void ice_gpio_dir(struct ice_instance* ice, uint8_t idx, bool val);
 void ice_gpio_int(struct ice_instance* ice, uint8_t idx, bool val);
+unsigned ice_i2c_send(struct ice_instance* ice, uint8_t addr, char *data, int len);
 
 // This function *MUST* be called from a peripheral's constructor
 struct ice_instance* create_ice_instance(const char *host, int baud);

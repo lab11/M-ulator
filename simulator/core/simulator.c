@@ -675,6 +675,13 @@ static void sim_reset(void) {
 }
 
 EXPORT void sim_terminate(bool should_exit) {
+	static bool terminating = false;
+	if (terminating) {
+		WARN("Nested calls to terminate. Dying\n");
+		exit(EXIT_FAILURE);
+	}
+	terminating = true;
+
 	if ((sim_execute_time_start.tv_sec != 0) && (sim_execute_time_start.tv_usec != 0)) {
 		sim_sleep();
 		double freq = cycle / sim_elapsed;
@@ -809,9 +816,12 @@ EXPORT void register_periph_thread(
 static void flash_image(const uint8_t *image, const uint32_t num_bytes){
 #if defined (HAVE_ROM)
 	if (ROMBOT == 0x0) {
-		flash_ROM(image, num_bytes);
+		flash_ROM(image, 0, num_bytes);
 		return;
 	}
+#elif defined (HAVE_RAM)
+	flash_RAM(image, 0, num_bytes);
+	return;
 #else
 	// Enter debugging to circumvent state-tracking code and write directly
 	state_enter_debugging();
@@ -940,7 +950,7 @@ static void join_periph_threads(void) {
 			if (cur->en)
 				*cur->en = false;
 			if (cur->fd) {
-				if (write(cur->fd, "S", 1) != 0) {
+				if (write(cur->fd, "S", 1) != 1) {
 					ERR(E_UNKNOWN, "thread kill pipe: %s\n",
 							strerror(errno));
 				}

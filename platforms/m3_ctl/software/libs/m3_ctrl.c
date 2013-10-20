@@ -21,6 +21,8 @@
 int write_i2c_message(uint8_t addr, uint8_t length, uint32_t data) {
 	if ((length < 1) || (length > 4))
 		return -1;
+	if (length == 4)
+		length = 0;
 
 	uint32_t _addr = 0xa0000000;
 	_addr |= (length << 10);
