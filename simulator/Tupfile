@@ -5,7 +5,7 @@ SUBS += cpu/built-in.o
 SUBS += core/built-in.o
 
 ifeq (@(TUP_PLATFORM),macosx)
-LDFLAGS += -lpython `python -c "import distutils.sysconfig; print distutils.sysconfig.get_config_var('LINKFORSHARED')"`
+LDFLAGS += `python-config --ldflags`
 endif
 
 ifeq (@(TUP_PLATFORM),linux)
