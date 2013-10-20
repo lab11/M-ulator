@@ -198,8 +198,8 @@ static void create_ice_bridge(struct ice_instance* ice) {
 	PyEval_InitThreads();
 	ice->main_pythread_state = PyThreadState_Get();
 
-	PyRun_SimpleString("import sys");
-	PyRun_SimpleString("sys.path.append('../platforms/m3_ctl/programming/')");
+	PyRun_SimpleString("import sys, os");
+	PyRun_SimpleString("sys.path.append(os.getcwd().split('M-ulator')[0] + 'M-ulator/platforms/m3_ctl/programming/')");
 
 	PyObject *py_ice_module;
 	{
