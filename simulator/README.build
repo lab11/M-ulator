@@ -1,6 +1,23 @@
 Building the simulator
 ======================
 
+Requirements
+------------
+
+The simulator embeds Python. This requries that you have a working Python
+install (you probably have this) and the Python development headers (you
+probably don't have this). They are easy to install:
+
+ * __debian-based__: sudo apt-get install python-dev
+ * __rpm-based__: sudo yum install python-devel
+
+The simulator does not use a traditional automake system. It was simply too
+hard to maintain, especially with the compile-time core selection. Please read
+the next section for a basic primer on tup.
+
+Tup 101
+-------
+
 The simulator uses `tup` as a build engine. For instructions on installing tup,
 please see the tup homepage: http://gittup.org/tup/
 
