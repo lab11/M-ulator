@@ -1,4 +1,4 @@
-ifeq (@(PLATFORM),m3_ctl)
+ifeq (@(PLATFORM),m3_ctl_v3)
 include_rules
 
 ifeq (@(TUP_PLATFORM),linux)
