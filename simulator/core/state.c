@@ -73,8 +73,10 @@
 # if __GNUC__ != 4
 #  error GCC 4.x required
 # endif
-# if __GNUC_MINOR__ < 8
+# if __GNUC_MINOR__ < 9
 #  define thread_local __thread
+# else
+#  include <threads.h>
 # endif
 # if __GNUC_MINOR__ < 7
 #  error GCC 4.7+ required for __atomic support (though you could work around this if motivated)
