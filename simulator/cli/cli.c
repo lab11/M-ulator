@@ -29,6 +29,8 @@
 #include <ctype.h>
 #include <math.h>
 
+#include STATIC_ROM_HEADER
+
 static void usage_fail(int retcode) {
 	printf("\nUSAGE: ./simulator [OPTS]\n\n");
 	printf("\
@@ -80,8 +82,18 @@ static void usage_fail(int retcode) {
 \t\tFlash FILE into ROM before executing\n\
 \t\t(this file is likely somthing.bin)\n\
 \t--usetestflash\n\
-\t\tFlash the program ROM with a copy of the echo program\n\
-\t\tbefore running. Conflicts with -f\n\
+\t\tFlash the simulator with a built-in test program before running\n\
+\t\tConflicts with -f. The test flash program is:\n"
+	      );
+#ifdef STATIC_ROM_BLURB
+	printf("%s", STATIC_ROM_BLURB);
+#else
+	printf("\
+\t\t\tNo information available.\n\
+\t\t\tPlease #define STATIC_ROM_BLURB in static_rom.h\n"
+	      );
+#endif
+	printf("\
 \n\
 "\
 	       );

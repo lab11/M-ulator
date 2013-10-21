@@ -25,4 +25,7 @@
 #define STATIC_ROM_NUM_BYTES (97 * 4)
 uint32_t static_rom[97];
 
+#define STATIC_ROM_BLURB "\
+\t\t\tblink.bin: Turns on and off GPIO's 0 and 1\n"
+
 #endif // STATIC_ROM_H
