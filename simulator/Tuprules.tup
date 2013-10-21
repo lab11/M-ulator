@@ -35,6 +35,7 @@ CFLAGS += -pthread -D_GNU_SOURCE
 
 CFLAGS += -D@(CPU_PROFILE)
 CFLAGS += -DMEMMAP_HEADER='"cpu/@(PLATFORM)/memmap.h"'
+CFLAGS += -DSTATIC_ROM_HEADER='"cpu/@(PLATFORM)/static_rom.h"'
 
 ifeq (@(DECOMPILE),y)
 CFLAGS += -DHAVE_DECOMPILE

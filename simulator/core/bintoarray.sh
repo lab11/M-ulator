@@ -12,5 +12,17 @@ fi
 hex=$(hexdump $1 -v -e '/4 "%X\n"' | sed s/^/0x/ | tr '\n' ',')
 size=$(hexdump $1 -v -e '/4 "%X\n"' | sed s/^/0x/ | wc -l)
 
+echo ""
+echo "*** For header file: ***"
+echo "// bintoarray.sh; \"$(basename $1)\""
+echo "#include <stdint.h>"
 echo "#define STATIC_ROM_NUM_BYTES ($size * 4)"
-echo "static uint32_t static_rom[$size] = {$hex};"
+echo "uint32_t static_rom[$size];"
+
+echo ""
+echo "*** For source file: ***"
+echo "// bintoarray.sh; \"$(basename $1)\""
+echo "#include <stdint.h>"
+echo "uint32_t static_rom[$size] = {$hex};"
+
+echo ""
