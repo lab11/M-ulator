@@ -26,7 +26,11 @@ try:
 except ImportError:
     logger.warn("You do not have the pyserial library installed.")
     logger.warn("")
-    logger.warn("For installation instructions + see:")
+    logger.warn("For debian-based systems (e.g. Ubuntu):")
+    logger.warn("\tsudo apt-get install pyserial")
+    logger.warn("For rpm-based systems (e.g. Red Hat):")
+    logger.warn("\tsudo yum install pyserial")
+    logger.warn("For more installation instructions + see:")
     logger.warn("\thttp://pyserial.sourceforge.net/pyserial.html#installation")
     raise
 
