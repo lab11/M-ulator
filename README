@@ -1,11 +1,11 @@
 ********************************************************************************
-         MMM      MMM
-         MMM      MMM
-          M M    M M
-          M M   M  M
-          M  M M   M
-         MMM  M   MMM
-  {e/si} MMM      MMM ulator
+         MMM       MMM
+         MMM       MMM
+          M M     M M
+          M  M   M  M
+          M   M M   M
+         MMM   M   MMM
+  {e/si} MMM       MMM ulator
 ********************************************************************************
 
 This project is a highly extensible {ARM} {e,si}mulator. It is capable of both
@@ -16,29 +16,25 @@ In addition, this project is used as a teaching tool for embedded systems
 courses (currently at University of Michigan and University of Utah), both to
 understand internal core design and higher-level MCU usage.
 
-The project has reached a state of 'largely usable', but has a plethora of known
-issues and future goals which have not yet been implemented. A starter list is
-included in this README.
-
-The simulator is built using `tup`, a make replacement. For details, please see
-the tup homepage: http://gittup.org/tup/
-
 ********************************************************************************
 
 PROJECT LAYOUT:
 
-  * The simulator/ directory contains the code to simulate the ARM core. You
-    will need to set the 'PLATFORM' variable to indicate which platform
-    (currently only 373 or M3) you wish to {e,si}mulate. For more details see
-    simulator/README
+  * The simulator/ directory contains the code to simulate a processor.
+    The simulator is built using `tup`, a make replacement. For details, please
+    see simulator/README.build and the tup homepage: http://gittup.org/tup/
+    Core selection is achieved using tup variants. By default, a pipelined
+    version of every supported core is created, see the simulator/configs/
+    directory for other options.
       -- The simulator is licensed under the GPLv3 --
 
-  * The programs/ directory holds a small array of test programs that can be
-    run on the simulated cores. Platform selectivity / integration is not yet
-    intelligent (read: existent).
-      -- The programs are licensed under the MIT/XWin license --
+  * The platforms directory contains additional support for the various cores.
+    In particular, it contains software desgined to run on each of the unique
+    cores supported by the simulator. In addition, the M3 platform contains some
+    tools for programming M3 chips and in-circuit emulation.
+      -- The platforms are licensed under the MIT/XWin license --
 
-  * The docs/ directory holds the course materials and some amount of dated
+  * The docs/ directories hold the course materials and some amount of dated
     information on the simulator design. It is not particularly useful currently
       -- Documentation, course materials licensed under the MIT/Xwin license --
 
@@ -46,19 +42,18 @@ PROJECT LAYOUT:
 
 KNOWN ISSUES:
 
+  * There is little documentation currently available. Hopefully things are
+    mostly intuitive / have good error messages. Github issues are appreciated
+    if there are any particular pain points that need addressing.
+  * Interrupts may be unreliable -- the code path is not heavily tested, though
+    no known bugs currently exist.
   * Course documentation is out of date, does not reflect current projects
       - Or even all of the original projects for that matter
-  * In-circuit emulation code is largely off-master branch still
-  * In-circuit emulation requires external hardware support, currently this is
-    stored elsewhere, perhaps it should be included in this repository somehow
 
 FUTURE FEATURES / GOALS:
 
-  * More flexible peripheral registration
-  * Better method of core selection
   * General clean-up of configuration options
   * Automated testing
-      - In particular of all of the various compilation methods/options
   * Larger / more interesting peripheral library
   * Better gdb / recovery semantics
       - This likely correlates with BusFault-style work
