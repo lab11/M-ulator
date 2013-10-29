@@ -260,7 +260,7 @@ void ThumbExpandImm_C(
 				*imm32 |= ((imm12 & 0xff) << 24);
 				break;
 			default:
-				assert(false);
+				CORE_ERR_unpredictable("Illegal bits in ThumbExpandImm_C\n");
 		}
 
 		*carry_out = carry_in;
