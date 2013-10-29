@@ -8,6 +8,7 @@ the FLOW light to be set.
   \item {\tt `?c'}. This message queries the capabilities of the ICE board.
   \item {\tt `B'}, {\tt `b'}, {\tt `M'}, and {\tt `m'}. These messages control
     the MBus interface.
+  \item {\tt `e'}. This command injects messages on the {\tt EIN} debug port.
 \end{itemize}
 
 \setcounter{tocdepth}{4}
@@ -575,6 +576,13 @@ the FLOW light to be set.
             otherwise specified, it {\bf MUST} be hardcoded to the default.
         \end{itemize}
     \end{itemize}
+\end{itemize}
+
+\subsubsection{\texttt{0x65 `e'} -- \texttt{EIN} debug port message}
+{\em Synchronous Request}
+\begin{itemize}
+  \item \texttt{EIN} debug port messages are formatted the exact same as
+    `d'iscrete messages.
 \end{itemize}
 
 \subsubsection{\texttt{0x47 `G'} -- Query GPIO State / Configuration}

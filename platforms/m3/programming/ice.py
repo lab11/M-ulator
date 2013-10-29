@@ -41,6 +41,7 @@ class ICE(object):
     VERSION_0_2_METHODS = (
             'goc_get_onoff',
             'goc_set_onoff',
+            'ein_send',
             )
     ONEYEAR = 365 * 24 * 60 * 60
 
@@ -371,6 +372,23 @@ class ICE(object):
         msg = struct.pack("BB", ord('o'), onoff)
         self.send_message_until_acked('o', msg)
 
+    ## EIN DEBUG ##
+    def ein_send(self, msg):
+        '''
+        Sends a message via the EIN Debug port.
+
+        Takes a raw byte stream (e.g. "0xaa".decode('hex')).
+        Returns the number of bytes actually sent.
+
+        Long messages may be fragmented between the ICE library and the ICE
+        FPGA. These fragments will be combined on the ICE board. There should be
+        no interruption in message transmission.
+        '''
+        ret = self._fragment_sender('e', msg)
+        return ret
+
+
+    ## I2C ##
     def i2c_send(self, addr, data):
         '''
         Sends an I2C message.
@@ -390,7 +408,6 @@ class ICE(object):
         msg = struct.pack("B", addr) + data
         return self._fragment_sender('d', msg)
 
-    ## I2C ##
     def i2c_get_speed(self):
         '''
         Get the clock speed of the ICE I2C driver in kHz.
