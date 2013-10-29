@@ -1,9 +1,12 @@
 \subsection{Version 0.2}
 \label{protocol-0-2}
 
-Version 0.2 is a strict superset of version 0.1. 0.2 adds two new messages:
-{\tt `Oo'} and {\tt `oo'}. These messages allow the default on/off state of
+Version 0.2 adds the following new messages:
+\begin{itemize}
+  \item {\tt `Oo'} and {\tt `oo'}. These messages allow the default on/off state of
 the FLOW light to be set.
+  \item {\tt `?c'}. This message queries the capabilities of the ICE board.
+\end{itemize}
 
 \setcounter{tocdepth}{4}
 \etocsettocstyle
@@ -12,6 +15,45 @@ the FLOW light to be set.
     {\nobreak\medskip\hrule\bigskip}
 
 \localtableofcontents
+
+\subsubsection{\texttt{0x3f `?'} -- Query ICE}
+{\em Synchronous Request}
+\begin{itemize}
+  \item The first byte of this message shall be a specificer, indicating
+    what type of query is requested.
+  \paragraph{\texttt{0x3f 0x63 `?c'} -- Query capabilities}
+    \begin{itemize}
+      \item This message shall query the capabilities of this ICE board. Not
+        all boards have every hardware frontend. Use this message to query the
+        capabilities of a given ICE board.
+      \item[]
+        \begin{bytefield} \\
+          \colorbitbox{lightgreen}{8}{`?' (0x3f)} &
+          \colorbitbox{lightred}{8}{Event ID} &
+          \colorbitbox{lightcyan}{8}{Len (Must be 1)} &
+          \colorbitbox{lightergreen}{8}{`c' (0x63)}
+        \end{bytefield}
+      \item This message shall be responded to with a list of all top-level
+        identifiers that the ICE board is capable of acting usefully upon.
+        That is, if the ICE firmware understands {\tt `d'} messages but does
+        not have an I2C frontend {\tt `d'} shall be omitted. Sub-types are not
+        specified by this command. That is, if a version 0.2 ICE includes
+        {\tt `o'} in its response it is assumed to understand both the
+        {\tt `oc'} and {\tt `oo'} messages.
+      \item Both set and query commands should be included in this list. That
+        is, if a FLOW/GOC frontend is present, but {\tt `o'} and {\tt `O'}
+        should be included.
+      \item As example, a version 0.2 ICE with no physical I2C frontend would
+        respond:
+      \item[]
+        \begin{bytefield} \\
+          \colorbitbox{lightgreen}{8}{ACK (0x00)} &
+          \colorbitbox{lightred}{8}{Event ID} &
+          \colorbitbox{lightcyan}{8}{Len (10)} &
+          \bitbox{20}{\texttt{`?IifOoGgPp' (0x3f4969664f6f47675070)}} &
+        \end{bytefield}
+    \end{itemize}
+\end{itemize}
 
 \subsubsection{\texttt{0x64 `d'} -- Discrete interface I2C message}
 {\em Synchronous Request, Asynchronous Message}
