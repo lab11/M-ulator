@@ -131,8 +131,8 @@ the FLOW light to be set.
     \begin{bytefield} \\
       \colorbitbox{lightgreen}{8}{0x49} &
       \colorbitbox{lightred}{8}{Event ID} &
-      \colorbitbox{lightcyan}{8}{Len (Must be 1)} &
-      \colorbitbox{lightergreen}{8}{Parameter} &
+      \colorbitbox{lightcyan}{8}{Length} &
+      \bitbox{8}{Parameter} &
     \end{bytefield}
   \item These messages complement the set I2C messages.
   \item The `Parameter' field is the parameter specifier to query.
@@ -248,7 +248,7 @@ the FLOW light to be set.
       \colorbitbox{lightgreen}{8}{`O' (0x4f)} &
       \colorbitbox{lightred}{8}{Event ID} &
       \colorbitbox{lightcyan}{8}{Len (Must be 1)} &
-      \colorbitbox{lightergreen}{8}{Parameter} &
+      \bitbox{8}{Parameter} &
     \end{bytefield}
   \item These messages complement the set {\tt `o'} messages.
   \item The `Parameter' field is the parameter specifier to query.
@@ -344,8 +344,8 @@ the FLOW light to be set.
     \begin{bytefield} \\
       \colorbitbox{lightgreen}{8}{`M' (0x4d)} &
       \colorbitbox{lightred}{8}{Event ID} &
-      \colorbitbox{lightcyan}{8}{Len (Must be 1)} &
-      \colorbitbox{lightergreen}{8}{Parameter} &
+      \colorbitbox{lightcyan}{8}{Length} &
+      \bitbox{8}{Parameter} &
     \end{bytefield}
   \item These messages complement the set of {\tt `m'} messages.
   \item The `Parameter' field is the parameter specifier to query.

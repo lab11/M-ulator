@@ -39,9 +39,15 @@ except ImportError:
 class ICE(object):
     VERSIONS = ((0,1),(0,2))
     VERSION_0_2_METHODS = (
+            'query_capabilities',
             'goc_get_onoff',
             'goc_set_onoff',
+            'mbus_send',
+            'mbus_set_full_prefix',
+            'mbus_get_full_prefix',
             'ein_send',
+            'b_defragger',
+            'B_defragger',
             )
     ONEYEAR = 365 * 24 * 60 * 60
 
@@ -96,9 +102,15 @@ class ICE(object):
         self.sync_queue = Queue.Queue(1)
 
         self.msg_handler = {}
-        self.msg_handler['d'] = self.d_defragger
-        self.d_frag = ''
         self.d_lock = threading.Lock()
+        self.d_frag = ''
+        self.msg_handler['d'] = self.d_defragger
+        self.b_lock = threading.Lock()
+        self.b_frag = ''
+        self.msg_handler['b'] = self.b_defragger
+        self.B_lock = threading.Lock()
+        self.B_frag = ''
+        self.msg_handler['B'] = self.B_defragger
 
     def connect(self, serial_device, baudrate=115200):
         '''
@@ -178,6 +190,36 @@ class ICE(object):
                 logger.debug("Got an async message of type: " + msg_type)
                 self.spawn_handler(msg_type, event_id, length, msg)
 
+    def string_to_masks(self, mask_string):
+        ones = 0
+        zeros = 0
+        idx = len(mask_string)
+        for c in mask_string:
+            idx -= 1
+            if c == '1':
+                ones |= (1 << idx)
+            elif c == '0':
+                zeros |= (1 << idx)
+            elif c in ('x', 'X', ' '):
+                continue
+            else:
+                raise self.FormatError, "Illegal character: >>>" + c + "<<<"
+
+    def masks_to_strings(self, ones, zeros, length):
+        s = ''
+        for l in xrange(length):
+            o = bool(ones & (1 << l))
+            z = bool(zeros & (1 << l))
+            if o and z:
+                raise self.FormatError, "masks_to_strings has req 1 and req 0?"
+            if o:
+                s += '1'
+            elif z:
+                s += '0'
+            else:
+                s += 'x'
+        return s
+
     def d_defragger(self, msg_type, event_id, length, msg):
         '''
         Helper function to defragment 'd' type I2C messages before forwarding.
@@ -200,7 +242,55 @@ class ICE(object):
                 self.spawn_handler('d+', event_id, len(self.d_frag), copy(self.d_frag))
                 self.d_frag = ''
             else:
-                logger.debug("Got a fragment message... thus far %d bytes received:" % (len(self.d_frag)))
+                logger.debug("Got an I2C fragment... thus far %d bytes received:" % (len(self.d_frag)))
+
+    def b_defragger(self, msg_type, event_id, length, msg):
+        '''
+        Helper function to defragment 'b' type MBus messages before forwarding.
+
+        This helper is installed by default for 'b' messages. It will attempt to
+        call a helper registered under the name 'b+' when a complete message has
+        been received. The message will be assigned the event id of the last
+        received fragment.
+
+        It may be safely overridden.
+        '''
+        with self.b_lock:
+            assert msg_type == 'b'
+            self.b_frag += msg
+            # XXX: Make version dependent
+            if length != 255:
+                sys.stdout.flush()
+                logger.debug("Got a complete MBus message of length %d bytes. Forwarding..." % (len(self.b_frag)))
+                sys.stdout.flush()
+                self.spawn_handler('b+', event_id, len(self.b_frag), copy(self.b_frag))
+                self.b_frag = ''
+            else:
+                logger.debug("Got a MBus fragment... thus far %d bytes received:" % (len(self.b_frag)))
+
+    def B_defragger(self, msg_type, event_id, length, msg):
+        '''
+        Helper function to defragment 'B' type snooped MBus messages before forwarding.
+
+        This helper is installed by default for 'B' messages. It will attempt to
+        call a helper registered under the name 'B+' when a complete message has
+        been received. The message will be assigned the event id of the last
+        received fragment.
+
+        It may be safely overridden.
+        '''
+        with self.B_lock:
+            assert msg_type == 'B'
+            self.B_frag += msg
+            # XXX: Make version dependent
+            if length != 255:
+                sys.stdout.flush()
+                logger.debug("Got a complete snooped MBus message. Length %d bytes. Forwarding..." % (len(self.B_frag)))
+                sys.stdout.flush()
+                self.spawn_handler('B+', event_id, len(self.B_frag), copy(self.B_frag))
+                self.B_frag = ''
+            else:
+                logger.debug("Got a snoop MBus fragment... thus far %d bytes received:" % (len(self.B_frag)))
 
     def send_message(self, msg_type, msg='', length=None):
         if len(msg_type) != 1:
@@ -290,6 +380,19 @@ class ICE(object):
         sent += len(msg)
         return sent
 
+    ## QUERY ICE ##
+    def query_capabilities(self):
+        '''
+        Queries ICE board for available hardware frontends.
+
+        This interface is very raw and needs to be wrapped in something more
+        user-friendly and library-esque. It currently returns the raw array of
+        characters from the ICE board, which requires the caller to know the
+        ICE protocol.
+        '''
+        resp = self.send_message_until_acked('?', struct.pack("B", ord('c')))
+        return resp
+
     ## GOC ##
     GOC_SPEED_DEFAULT_HZ = .625
 
@@ -372,22 +475,6 @@ class ICE(object):
         msg = struct.pack("BB", ord('o'), onoff)
         self.send_message_until_acked('o', msg)
 
-    ## EIN DEBUG ##
-    def ein_send(self, msg):
-        '''
-        Sends a message via the EIN Debug port.
-
-        Takes a raw byte stream (e.g. "0xaa".decode('hex')).
-        Returns the number of bytes actually sent.
-
-        Long messages may be fragmented between the ICE library and the ICE
-        FPGA. These fragments will be combined on the ICE board. There should be
-        no interruption in message transmission.
-        '''
-        ret = self._fragment_sender('e', msg)
-        return ret
-
-
     ## I2C ##
     def i2c_send(self, addr, data):
         '''
@@ -457,9 +544,6 @@ class ICE(object):
         elif ret == errno.ENODEV:
             raise self.ICE_Error, "Changing I2C speed not supported."
 
-    def _i2c_set_address(self, ones, zeros):
-        self.send_message_until_acked('i', struct.pack("BBB", ord('a'), ones, zeros))
-
     def i2c_set_address(self, address=None):
         '''
         Set the I2C address(es) of the ICE peripheral.
@@ -472,28 +556,99 @@ class ICE(object):
 
         Spaces are permitted and ignored. To disable this feature, set the
         address to None.
+
+        Default Value: DISABLED.
         '''
         if address is None:
-            return self._i2c_set_address(0xff, 0xff)
+            ones, zeros = (0xff, 0xff)
+        else:
+            if len(address) != 8:
+                raise self.FormatError, "Address must be exactly 8 bits"
+            ones, zeros = self.string_to_masks(address)
+        self.send_message_until_acked('i', struct.pack("BBB", ord('a'), ones, zeros))
 
-        ones = 0
-        zeros = 0
-        idx = 8
-        for c in address:
-            idx -= 1
-            if c == '1':
-                ones |= (1 << idx)
-            elif c == '0':
-                zeros |= (1 << idx)
-            elif c in ('x', 'X', ' '):
-                continue
-            else:
-                raise self.FormatError, "Illegal character: >>>" + c + "<<<"
+    ## MBus ##
+    def mbus_send(self, addr, data):
+        '''
+        Sends an MBus message.
 
-        if idx != 0:
-            raise self.FormatError, "Address must be exactly 8 bits"
+        Addr may be a short address or long address. In either case, it should
+        be packed binary data (e.g. struct.pack or 'a5'.decode('hex'))
+        Data should be packed binary data, as returned by struct.pack
 
-        return self._i2c_set_address(ones, zeros)
+        The return value is the number of bytes actually sent *including the
+        address byte(s)*.
+
+        Long messages may be fragmented between the ICE library and the ICE
+        FPGA. On the wire, this should not be noticeable as the PC<-->ICE bridge
+        is much faster than the MBus. If this is an issue, you must keep the
+        transaction size below the ICE fragmentation limit (less than 255 bytes
+        for combined address + data).
+        '''
+        return self._fragment_sender('b', addr+data)
+
+    def mbus_set_full_prefix(self, prefix=None):
+        '''
+        Set the full prefix(es) of the ICE peripheral.
+
+        The ICE board will ACK messages sent to any address that matches the
+        mask set by this function. The special character 'x' is used to signify
+        don't-care bits.
+
+        Spaces are permitted and ignored. To disable this feature, set the
+        address to None.
+
+        Default Value: DISABLED.
+        '''
+        if prefix is None:
+            ones, zeros = (0xfffff, 0xfffff)
+        else:
+            if len(prefix) != 20:
+                raise self.FormatError, "Prefix must be exactly 20 bits"
+            ones, zeros = self.string_to_masks(prefix)
+        ones <<= 4
+        zeros <<= 4
+        self.send_message_until_acked('m', struct.pack("B"*(1+6),
+            ord('l'),
+            (ones >> 16) & 0xff,
+            (ones >> 8) & 0xff,
+            ones & 0xff,
+            (zeros >> 16) & 0xff,
+            (zeros >> 8) & 0xff,
+            zeros & 0xff,
+            ))
+
+    def mbus_get_full_prefix(self):
+        '''
+        Get the full prefix(es) set for ICE.
+        '''
+        resp = self.send_message_until_acked('M', struct.pack("B", ord('l')))
+        if len(resp) != 6:
+            raise self.FormatError, "Full prefix response should be 6 bytes"
+        o_hig, o_mid, o_low, z_hig, z_mid, z_low = struct.unpack("BBBBBB", resp)
+        ones = o_low | o_mid << 8 | o_hig << 16
+        zeros = z_low | z_mid << 8 | z_hig << 16
+        ones >>= 4
+        zeros >>= 4
+        if ones == 0xfffff and zeros == 0xfffff:
+            return None
+        else:
+            return self.masks_to_strings(ones, zeros, 20)
+
+    ## EIN DEBUG ##
+    def ein_send(self, msg):
+        '''
+        Sends a message via the EIN Debug port.
+
+        Takes a raw byte stream (e.g. "0xaa".decode('hex')).
+        Returns the number of bytes actually sent.
+
+        Long messages may be fragmented between the ICE library and the ICE
+        FPGA. These fragments will be combined on the ICE board. There should be
+        no interruption in message transmission.
+        '''
+        ret = self._fragment_sender('e', msg)
+        return ret
 
     ## GPIO ##
     GPIO_INPUT = 0
