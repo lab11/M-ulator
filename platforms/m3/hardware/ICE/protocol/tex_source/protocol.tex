@@ -5,6 +5,8 @@
 \usepackage{xspace}
 \usepackage{color}
 \usepackage{comment}
+\usepackage{soul} % provides \hl{}
+\newcommand{\hlc}[2][yellow]{{\sethlcolor{#1}\hl{#2}}}
 
 \usepackage[colorlinks=true]{hyperref}
 
@@ -315,6 +317,11 @@ The following protocols are currently well-defined:
 \label{sec:revisions}
 
 \begin{itemize}
+
+\item Revision 0.2.7 -- Oct 29, 2013
+\subitem Add `?c' message
+\subitem Add `B', `b', `M', and `m' messages
+\subitem Add `e' message
 
 \item Revision 0.2.6 -- Oct 17, 2013
 \subitem Add `Oo' and `oo' messages

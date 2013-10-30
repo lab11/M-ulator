@@ -1,9 +1,15 @@
 \subsection{Version 0.2}
 \label{protocol-0-2}
 
-Version 0.2 is a strict superset of version 0.1. 0.2 adds two new messages:
-{\tt `Oo'} and {\tt `oo'}. These messages allow the default on/off state of
+Version 0.2 adds the following new messages:
+\begin{itemize}
+  \item {\tt `Oo'} and {\tt `oo'}. These messages allow the default on/off state of
 the FLOW light to be set.
+  \item {\tt `?c'}. This message queries the capabilities of the ICE board.
+  \item {\tt `B'}, {\tt `b'}, {\tt `M'}, and {\tt `m'}. These messages control
+    the MBus interface.
+  \item {\tt `e'}. This command injects messages on the {\tt EIN} debug port.
+\end{itemize}
 
 \setcounter{tocdepth}{4}
 \etocsettocstyle
@@ -12,6 +18,45 @@ the FLOW light to be set.
     {\nobreak\medskip\hrule\bigskip}
 
 \localtableofcontents
+
+\subsubsection{\texttt{0x3f `?'} -- Query ICE}
+{\em Synchronous Request}
+\begin{itemize}
+  \item The first byte of this message shall be a specificer, indicating
+    what type of query is requested.
+  \paragraph{\texttt{0x3f 0x63 `?c'} -- Query capabilities}
+    \begin{itemize}
+      \item This message shall query the capabilities of this ICE board. Not
+        all boards have every hardware frontend. Use this message to query the
+        capabilities of a given ICE board.
+      \item[]
+        \begin{bytefield} \\
+          \colorbitbox{lightgreen}{8}{`?' (0x3f)} &
+          \colorbitbox{lightred}{8}{Event ID} &
+          \colorbitbox{lightcyan}{8}{Len (Must be 1)} &
+          \colorbitbox{lightergreen}{8}{`c' (0x63)}
+        \end{bytefield}
+      \item This message shall be responded to with a list of all top-level
+        identifiers that the ICE board is capable of acting usefully upon.
+        That is, if the ICE firmware understands {\tt `d'} messages but does
+        not have an I2C frontend {\tt `d'} shall be omitted. Sub-types are not
+        specified by this command. That is, if a version 0.2 ICE includes
+        {\tt `o'} in its response it is assumed to understand both the
+        {\tt `oc'} and {\tt `oo'} messages.
+      \item Both set and query commands should be included in this list. That
+        is, if a FLOW/GOC frontend is present, but {\tt `o'} and {\tt `O'}
+        should be included.
+      \item As example, a version 0.2 ICE with no physical I2C frontend would
+        respond:
+      \item[]
+        \begin{bytefield} \\
+          \colorbitbox{lightgreen}{8}{ACK (0x00)} &
+          \colorbitbox{lightred}{8}{Event ID} &
+          \colorbitbox{lightcyan}{8}{Len (10)} &
+          \bitbox{20}{\texttt{`?IifOoGgPp' (0x3f4969664f6f47675070)}} &
+        \end{bytefield}
+    \end{itemize}
+\end{itemize}
 
 \subsubsection{\texttt{0x64 `d'} -- Discrete interface I2C message}
 {\em Synchronous Request, Asynchronous Message}
@@ -261,6 +306,283 @@ the FLOW light to be set.
           \item {\texttt {\textbf EINVAL (22,0x16):}} Invalid argument.
         \end{itemize}
     \end{itemize}
+\end{itemize}
+
+\subsubsection{\texttt{0x42 `B'} -- MBus Snooped Message}
+{\em Asynchronous Message}
+\begin{itemize}
+    % As always, feel free to modify any of this to be easier to match your
+    % current implementation.
+  \item MBus messages are formatted the exact same as `d'iscrete messages.
+  \item This message is sent only from the ICE board to report messages it has
+    snooped (but not ACK'd).
+  \item Messages that match both the ICE address and the snoop address (that
+    is, would generate both {\tt `b'} and {\tt `B'} messages) shall not report
+    snoop messages.
+  \item The ICE board shall not \hl{(or shall if it's easier, I really don't
+    care)} report snoop messages for message that it is sending.
+  \item At the end of the message, snoop messages shall append one additional
+    byte. This additional byte shall indicate the control bits of the snooped
+    message. Control Bit~0 shall be mapped to bit \hl{7 or 0} and Control
+    Bit~1 shall be mapped to bit \hl{6 or 1}. The remaining bits are undefined.
+\end{itemize}
+
+\subsubsection{\texttt{0x62 `b'} -- MBus Message}
+{\em Synchronous Request, Asynchronous Message}
+\begin{itemize}
+  \item MBus messages are formatted the exact same as `d'iscrete messages.
+  \item This command may be sent to the ICE board to send a message.
+  \item This message is sent from the ICE board to report messages sent to
+    ICE. That is messages that matched the address masks assigned to ICE and
+    that ICE has ACK'd on the bus.
+\end{itemize}
+
+\subsubsection{\texttt{0x4d `M'} -- Query MBus Configuration}
+{\em Synchronous Request}
+\begin{itemize}
+  \item[]
+    \begin{bytefield} \\
+      \colorbitbox{lightgreen}{8}{`M' (0x4d)} &
+      \colorbitbox{lightred}{8}{Event ID} &
+      \colorbitbox{lightcyan}{8}{Len (Must be 1)} &
+      \colorbitbox{lightergreen}{8}{Parameter} &
+    \end{bytefield}
+  \item These messages complement the set of {\tt `m'} messages.
+  \item The `Parameter' field is the parameter specifier to query.
+  \item An ACK response should mimic the corresponding set message.
+\end{itemize}
+
+\subsubsection{\texttt{0x6d `m'} -- Set MBus Configuration}
+{\em Synchronous Request}
+\begin{itemize}
+  \item The first byte of the message shall define which parameter is to
+    be configured.
+    \paragraph{\texttt{0x6d 0x6c `ml'}: Set MBus Full Prefix}
+      \begin{itemize}
+        \item[]
+          \begin{bytefield} \\
+            \colorbitbox{lightgreen}{8}{`m'} &
+            \colorbitbox{lightred}{8}{Event ID} &
+            \colorbitbox{lightcyan}{8}{Len (Must be 7)} &
+            \colorbitbox{lightergreen}{8}{`l'} &
+            \bitbox{8}{Ones Mask} &
+            \bitbox{8}{Zeros Mask}
+          \end{bytefield}
+        \item {\bf Default:} {\tt 0xfffff0 0xfffff0} (Disabled)
+        \item This shall be followed by 6 bytes. The first three bytes shall
+          be considered the ones mask the second three bytes shall be
+          considered the zeros mask. The masks are 20~bits long, the bottom
+          4~bits of the transmitted masks shall be ignored.
+      \end{itemize}
+    \paragraph{\texttt{0x6d 0x73 `ms'}: Set MBus Short Prefix}
+      \begin{itemize}
+        \item[]
+          \begin{bytefield} \\
+            \colorbitbox{lightgreen}{8}{`m'} &
+            \colorbitbox{lightred}{8}{Event ID} &
+            \colorbitbox{lightcyan}{8}{Len (Must be 3)} &
+            \colorbitbox{lightergreen}{8}{`l'} &
+            \bitbox{8}{Ones Mask} &
+            \bitbox{8}{Zeros Mask}
+          \end{bytefield}
+        \item {\bf Default:} {\tt 0xf0 0xf0} (Disabled)
+        \item This shall be followed by 2 bytes. The first byte shall
+          be considered the ones mask the second byte shall be
+          considered the zeros mask. The masks are 4~bits long, the bottom
+          4~bits of the transmitted masks shall be ignored.
+        \item {\bf NOTE:} Changing the short prefix after enumeration is a
+          violation of the MBus protocol. The ICE board will permit this, but
+          it may have unexpected consequences.
+      \end{itemize}
+    \paragraph{\texttt{0x6d 0x4c `mL'}: Set MBus Snoop Full Prefix}
+      \begin{itemize}
+        \item[]
+          \begin{bytefield} \\
+            \colorbitbox{lightgreen}{8}{`m'} &
+            \colorbitbox{lightred}{8}{Event ID} &
+            \colorbitbox{lightcyan}{8}{Len (Must be 7)} &
+            \colorbitbox{lightergreen}{8}{`l'} &
+            \bitbox{8}{Ones Mask} &
+            \bitbox{8}{Zeros Mask}
+          \end{bytefield}
+        \item {\bf Default:} {\tt 0xfffff0 0xfffff0} (Disabled)
+        \item This shall be followed by 6 bytes. The first three bytes shall
+          be considered the ones mask the second three bytes shall be
+          considered the zeros mask. The masks are 20~bits long, the bottom
+          4~bits of the transmitted masks shall be ignored.
+        \item Messages matching the snoop prefix shall be reported by a
+          {\tt `B'} message but will not be ACK'd on the physical bus by ICE.
+        \item In the case of a conflict between a snoop and a match, the match
+          takes precedence and ICE will ACK the message.
+      \end{itemize}
+    \paragraph{\texttt{0x6d 0x53 `mS'}: Set MBus Snoop Short Prefix}
+      \begin{itemize}
+        \item[]
+          \begin{bytefield} \\
+            \colorbitbox{lightgreen}{8}{`m'} &
+            \colorbitbox{lightred}{8}{Event ID} &
+            \colorbitbox{lightcyan}{8}{Len (Must be 3)} &
+            \colorbitbox{lightergreen}{8}{`S'} &
+            \bitbox{8}{Ones Mask} &
+            \bitbox{8}{Zeros Mask}
+          \end{bytefield}
+        \item {\bf Default:} {\tt 0xf0 0xf0} (Disabled)
+        \item This shall be followed by 2 bytes. The first byte shall
+          be considered the ones mask the second byte shall be
+          considered the zeros mask. The masks are 4~bits long, the bottom
+          4~bits of the transmitted masks shall be ignored.
+        \item Messages matching the snoop prefix shall be reported by a
+          {\tt `B'} message but will not be ACK'd on the physical bus by ICE.
+        \item In the case of a conflict between a snoop and a match, the match
+          takes precedence and ICE will ACK the message.
+      \end{itemize}
+    \paragraph{\texttt{0x6d 0x73 `mb'}: Set MBus Broadcast Mask}
+      \begin{itemize}
+        \item[]
+          \begin{bytefield} \\
+            \colorbitbox{lightgreen}{8}{`m'} &
+            \colorbitbox{lightred}{8}{Event ID} &
+            \colorbitbox{lightcyan}{8}{Len (Must be 1)} &
+            \colorbitbox{lightergreen}{8}{`b'} &
+            \bitbox{8}{Ones Mask} &
+            \bitbox{8}{Zeros Mask}
+          \end{bytefield}
+        \item {\bf Default:} {\tt 0x0f 0x0f} (Disabled)
+        \item This shall be followed by 2 bytes. The first byte shall
+          be considered the ones mask the second byte shall be
+          considered the zeros mask. The masks are 4~bits long, the top
+          4~bits of the transmitted masks shall be ignored.
+        \item These masks are the set of broadcast channels that the ICE board
+          should ACK on the physical MBus.
+      \end{itemize}
+    \paragraph{\texttt{0x6d 0x53 `mB'}: Set MBus Snoop Broadcast Mask}
+      \begin{itemize}
+        \item[]
+          \begin{bytefield} \\
+            \colorbitbox{lightgreen}{8}{`m'} &
+            \colorbitbox{lightred}{8}{Event ID} &
+            \colorbitbox{lightcyan}{8}{Len (Must be 1)} &
+            \colorbitbox{lightergreen}{8}{`B'} &
+            \bitbox{8}{Ones Mask} &
+            \bitbox{8}{Zeros Mask}
+          \end{bytefield}
+        \item {\bf Default:} {\tt 0x0f 0x0f} (Disabled)
+        \item This shall be followed by 2 bytes. The first byte shall
+          be considered the ones mask the second byte shall be
+          considered the zeros mask. The masks are 4~bits long, the top
+          4~bits of the transmitted masks shall be ignored.
+        \item These masks are the set of broadcast channels that the ICE board
+          will not ACK on the physical MBus but will report as a snooped
+          message (a {\tt `B'} message).
+        \item In the case of a conflict between a snoop and a match, the match
+          takes precedence and ICE will ACK the message.
+      \end{itemize}
+    \paragraph{\texttt{0x6d 0x6d `mm'}: Set master mode on/off}
+      \begin{itemize}
+        \item[]
+          \begin{bytefield} \\
+            \colorbitbox{lightgreen}{8}{`m'} &
+            \colorbitbox{lightred}{8}{Event ID} &
+            \colorbitbox{lightcyan}{8}{Len (Must be 2)} &
+            \colorbitbox{lightergreen}{8}{`m'} &
+            \bitbox{8}{\texttt{0x00} or \texttt{0x01}}
+          \end{bytefield}
+        \item {\bf Default:} {\tt 0x0} (Off)
+        \item Boolean whether ICE should act as the MBus master node (1 - on)
+          or as a MBus member node (0 - off).
+      \end{itemize}
+    \paragraph{\texttt{0x6d 0x63 `mc'}: Clock Speed}
+      \begin{itemize}
+        \item[]
+          \begin{bytefield} \\
+            \colorbitbox{lightgreen}{8}{`o'} &
+            \colorbitbox{lightred}{8}{Event ID} &
+            \colorbitbox{lightcyan}{8}{Len (??)} &
+            \colorbitbox{lightergreen}{8}{`c'} &
+            \bitbox{8}{???}
+          \end{bytefield}
+        \item {\bf Default:} \hl{XXX}
+        \item \hl{XXX: However you would like to specify this in HW. Something
+            that gives a pretty wide range (say 1~kHz -- 10~MHz) would be
+          good. Precision is not as important.}
+        \item This configuration is meaningful only if ICE is configured as
+          the MBus master node (see {\tt `mm'}).
+      \end{itemize}
+    \paragraph{\texttt{0x6d 0x69 `mi'}: Set should interrupt}
+      \begin{itemize}
+        \item[]
+          \begin{bytefield} \\
+            \colorbitbox{lightgreen}{8}{`m'} &
+            \colorbitbox{lightred}{8}{Event ID} &
+            \colorbitbox{lightcyan}{8}{Len (Must be 2)} &
+            \colorbitbox{lightergreen}{8}{`i'} &
+            \bitbox{8}{{\tt SHOULD\_INT}}
+          \end{bytefield}
+        \item {\bf Default:} {\tt 0x0} (Off)
+        \item Configures whether ICE should interrupt the bus to transmit its
+          next message. Possible values:
+          \begin{itemize}
+            \item[0] Do not interrupt
+            \item[1] Interrupt (if necessary) for next message only. That is,
+              this value is reset to 0 after the next {\tt `b'} command sent
+              to ICE is handled.
+            \item[2] Interrupt for all messages
+          \end{itemize}
+      \end{itemize}
+    \paragraph{\texttt{0x6d 0x69 `mp'}: Set should use priority arbitration}
+      \begin{itemize}
+        \item[]
+          \begin{bytefield} \\
+            \colorbitbox{lightgreen}{8}{`m'} &
+            \colorbitbox{lightred}{8}{Event ID} &
+            \colorbitbox{lightcyan}{8}{Len (Must be 2)} &
+            \colorbitbox{lightergreen}{8}{`p'} &
+            \bitbox{8}{{\tt SHOULD\_PRIO}}
+          \end{bytefield}
+        \item {\bf Default:} {\tt 0x0} (Off)
+        \item Configures whether ICE should send a high priority message for
+          the next message. Possible values:
+          \begin{itemize}
+            \item[0] Do not send priority message.
+            \item[1] Send priority for next message only. That is, this value
+              is reset to 0 after the next {\tt `b'} command sent to ICE is
+              handled.
+            \item[2] Send all messages as high priority.
+          \end{itemize}
+      \end{itemize}
+  \paragraph{\texttt{0x6d} Responses}
+    \begin{itemize}
+      \item NAKs for this message shall be composed of an error
+        code, followed by an optional explanitory string.
+        \begin{itemize}
+          \item[]
+            \begin{bytefield} \\
+              \colorbitbox{lightgreen}{8}{NAK (0x01)} &
+              \colorbitbox{lightred}{8}{Event ID} &
+              \colorbitbox{lightcyan}{8}{Len (Min: 1)} &
+              \colorbitbox{lightblue}{8}{EINVAL (0x16)} &
+              \bitbox{8}{[{\tt "Out of Range"}]} &
+            \end{bytefield}
+          \item {\texttt {\textbf EINVAL (22,0x16):}} Invalid argument.
+          \item[]
+            \begin{bytefield} \\
+              \colorbitbox{lightgreen}{8}{NAK (0x01)} &
+              \colorbitbox{lightred}{8}{Event ID} &
+              \colorbitbox{lightcyan}{8}{Len (Min: 1)} &
+              \colorbitbox{lightblue}{8}{ENODEV (0x13)} &
+            \end{bytefield}
+          \item {\texttt {\textbf ENODEV (19,0x13):}} The
+            implementation does not support changing or querying this parameter. Unless
+            otherwise specified, it {\bf MUST} be hardcoded to the default.
+        \end{itemize}
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{\texttt{0x65 `e'} -- \texttt{EIN} debug port message}
+{\em Synchronous Request}
+\begin{itemize}
+  \item \texttt{EIN} debug port messages are formatted the exact same as
+    `d'iscrete messages.
 \end{itemize}
 
 \subsubsection{\texttt{0x47 `G'} -- Query GPIO State / Configuration}
