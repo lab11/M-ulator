@@ -1,5 +1,5 @@
 //*******************************************************************
-//Author: ZhiYoong Foo
+// Author: Zhiyoong Foo
 //Description: Code for IAI demonstration
 //             Takes NUM_SAMPLES readings of Temperature from SNSv1
 //             Stores into array
