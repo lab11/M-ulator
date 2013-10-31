@@ -377,7 +377,7 @@ class ICE(object):
 
     def _fragment_sender(self, msg_type, msg):
         '''
-        Internal. (helper for {i2c,goc}_send
+        Internal. (helper for {i2c,goc,ein,mbus}_send)
         '''
         # XXX: Make version dependent?
         FRAG_SIZE = 255
