@@ -85,10 +85,10 @@ class ICE(object):
         A method was called that this ICE board does not support.
         '''
 
-    def __getattr__(self, name):
-        if (self.minor < 2) and (name in VERSION_0_2_METHODS):
-            raise VersionError, "ICE >= v0.2 required. Connected to ICE v0." + str(self.minor)
-        return object.__getattr__(name)
+    #def __getattr__(self, name):
+    #    if (self.minor < 2) and (name in VERSION_0_2_METHODS):
+    #        raise VersionError, "ICE >= v0.2 required. Connected to ICE v0." + str(self.minor)
+    #    return object.__getattr__(name)
 
     def __init__(self):
         '''
