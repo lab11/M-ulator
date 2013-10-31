@@ -45,6 +45,24 @@ class ICE(object):
             'mbus_send',
             'mbus_set_full_prefix',
             'mbus_get_full_prefix',
+            'mbus_set_short_prefix',
+            'mbus_get_short_prefix',
+            'mbus_set_full_snoop_prefix',
+            'mbus_get_full_snoop_prefix',
+            'mbus_set_short_snoop_prefix',
+            'mbus_get_short_snoop_prefix',
+            'mbus_set_broadcast_channel_mask',
+            'mbus_get_broadcast_channel_mask',
+            'mbus_set_broadcast_channel_snoop_mask',
+            'mbus_get_broadcast_channel_snoop_mask',
+            'mbus_get_master_onoff',
+            'mbus_set_master_onoff',
+            'mbus_get_mbus_clock',
+            'mbus_set_mbus_clock',
+            'mbus_get_should_interrupt',
+            'mbus_set_should_interrupt',
+            'mbus_get_use_priority',
+            'mbus_set_use_priority',
             'ein_send',
             'b_defragger',
             'B_defragger',
@@ -454,7 +472,7 @@ class ICE(object):
 
         self.goc_freq = freq_in_hz
 
-    def goc_get_onoff(self, onoff):
+    def goc_get_onoff(self):
         '''
         Get the current ambient GOC power.
         '''
@@ -634,6 +652,285 @@ class ICE(object):
             return None
         else:
             return self.masks_to_strings(ones, zeros, 20)
+
+    def mbus_set_short_prefix(self, prefix=None):
+        '''
+        Set the short prefix(es) of the ICE peripheral.
+
+        Default Value: DISABLED.
+        '''
+        if prefix is None:
+            ones, zeros = (0xf, 0xf)
+        else:
+            if len(prefix) != 4:
+                raise self.FormatError, "Prefix must be exactly 4 bits"
+            ones, zeros = self.string_to_masks(prefix)
+        ones <<= 4
+        zeros <<= 4
+        self.send_message_until_acked('m', struct.pack("B"*(1+2),
+            ord('s'),
+            ones,
+            zeros,
+            ))
+
+    def mbus_get_short_prefix(self):
+        '''
+        Get the short prefix(es) set for ICE.
+        '''
+        resp = self.send_message_until_acked('M', struct.pack("B", ord('s')))
+        if len(resp) != 2:
+            raise self.FormatError, "Full prefix response should be 2 bytes"
+        ones, zeros = struct.unpack("BB", resp)
+        ones >>= 4
+        zeros >>= 4
+        if ones == 0xf and zeros == 0xf:
+            return None
+        else:
+            return self.masks_to_strings(ones, zeros, 4)
+
+    def mbus_set_full_snoop_prefix(self, prefix=None):
+        '''
+        Set the full snoop prefix(es) of the ICE peripheral.
+
+        The ICE board will report, but not ACK, any messages sent to any address
+        that matches the mask set by this function. The special character 'x' is
+        used to signify don't-care bits.
+
+        Spaces are permitted and ignored. To disable this feature, set the
+        address to None.
+
+        Default Value: DISABLED.
+        '''
+        if prefix is None:
+            ones, zeros = (0xfffff, 0xfffff)
+        else:
+            if len(prefix) != 20:
+                raise self.FormatError, "Prefix must be exactly 20 bits"
+            ones, zeros = self.string_to_masks(prefix)
+        ones <<= 4
+        zeros <<= 4
+        self.send_message_until_acked('m', struct.pack("B"*(1+6),
+            ord('L'),
+            (ones >> 16) & 0xff,
+            (ones >> 8) & 0xff,
+            ones & 0xff,
+            (zeros >> 16) & 0xff,
+            (zeros >> 8) & 0xff,
+            zeros & 0xff,
+            ))
+
+    def mbus_get_full_snoop_prefix(self):
+        '''
+        Get the full snoop prefix(es) set for ICE.
+        '''
+        resp = self.send_message_until_acked('M', struct.pack("B", ord('L')))
+        if len(resp) != 6:
+            raise self.FormatError, "Full prefix response should be 6 bytes"
+        o_hig, o_mid, o_low, z_hig, z_mid, z_low = struct.unpack("BBBBBB", resp)
+        ones = o_low | o_mid << 8 | o_hig << 16
+        zeros = z_low | z_mid << 8 | z_hig << 16
+        ones >>= 4
+        zeros >>= 4
+        if ones == 0xfffff and zeros == 0xfffff:
+            return None
+        else:
+            return self.masks_to_strings(ones, zeros, 20)
+
+    def mbus_set_short_snoop_prefix(self, prefix=None):
+        '''
+        Set the short snoop prefix(es) of the ICE peripheral.
+
+        Default Value: DISABLED.
+        '''
+        if prefix is None:
+            ones, zeros = (0xf, 0xf)
+        else:
+            if len(prefix) != 4:
+                raise self.FormatError, "Prefix must be exactly 4 bits"
+            ones, zeros = self.string_to_masks(prefix)
+        ones <<= 4
+        zeros <<= 4
+        self.send_message_until_acked('m', struct.pack("B"*(1+2),
+            ord('S'),
+            ones,
+            zeros,
+            ))
+
+    def mbus_get_short_snoop_prefix(self):
+        '''
+        Get the short prefix(es) set for ICE.
+        '''
+        resp = self.send_message_until_acked('M', struct.pack("B", ord('S')))
+        if len(resp) != 2:
+            raise self.FormatError, "Full prefix response should be 2 bytes"
+        ones, zeros = struct.unpack("BB", resp)
+        ones >>= 4
+        zeros >>= 4
+        if ones == 0xf and zeros == 0xf:
+            return None
+        else:
+            return self.masks_to_strings(ones, zeros, 4)
+
+    def mbus_set_broadcast_channel_mask(self, mask=None):
+        '''
+        Set the broadcast mask for ICE board.
+
+        The ICE board will report and ACK any messages sent to broadcast
+        channels that match the mask set by this function. The special character 'x' is
+        used to signify don't-care bits.
+
+        Spaces are permitted and ignored. To disable this feature, set the
+        address to None.
+
+        Default Value: DISABLED.
+        '''
+        if prefix is None:
+            ones, zeros = (0xf, 0xf)
+        else:
+            if len(prefix) != 4:
+                raise self.FormatError, "Prefix must be exactly 4 bits"
+            ones, zeros = self.string_to_masks(prefix)
+        self.send_message_until_acked('m', struct.pack("B"*(1+2),
+            ord('b'),
+            ones,
+            zeros,
+            ))
+
+    def mbus_get_broadcast_channel_mask(self):
+        '''
+        Get the broadcast mask for ICE.
+        '''
+        resp = self.send_message_until_acked('M', struct.pack("B", ord('b')))
+        if len(resp) != 2:
+            raise self.FormatError, "Broadcast mask response should be 2 bytes"
+        ones, zeros = struct.unpack("BB", resp)
+        if ones == 0xf and zeros == 0xf:
+            return None
+        else:
+            return self.masks_to_strings(ones, zeros, 4)
+
+    def mbus_set_broadcast_channel_snoop_mask(self, mask=None):
+        '''
+        Set the broadcast snoop mask for ICE board.
+
+        The ICE board will report, but not ACK, any messages sent to broadcast
+        channels that match the mask set by this function. The special character 'x' is
+        used to signify don't-care bits.
+
+        Spaces are permitted and ignored. To disable this feature, set the
+        address to None.
+
+        Default Value: DISABLED.
+        '''
+        if prefix is None:
+            ones, zeros = (0xf, 0xf)
+        else:
+            if len(prefix) != 4:
+                raise self.FormatError, "Prefix must be exactly 4 bits"
+            ones, zeros = self.string_to_masks(prefix)
+        self.send_message_until_acked('m', struct.pack("B"*(1+2),
+            ord('B'),
+            ones,
+            zeros,
+            ))
+
+    def mbus_get_broadcast_channel_snoop_mask(self):
+        '''
+        Get the broadcast snoop mask for ICE.
+        '''
+        resp = self.send_message_until_acked('M', struct.pack("B", ord('B')))
+        if len(resp) != 2:
+            raise self.FormatError, "Broadcast mask response should be 2 bytes"
+        ones, zeros = struct.unpack("BB", resp)
+        if ones == 0xf and zeros == 0xf:
+            return None
+        else:
+            return self.masks_to_strings(ones, zeros, 4)
+
+    def mbus_get_master_onoff(self):
+        '''
+        Get whether ICE is acting as MBus master node.
+        '''
+        resp = self.send_message_until_acked('M', struct.pack("B", ord('m')))
+        if len(resp) != 1:
+            raise self.FormatError, "Wrong response length from `Mm': " + str(resp)
+        onoff = struct.unpack("B", resp)
+        return bool(onoff)
+
+    def mbus_set_master_onoff(self, onoff):
+        '''
+        Set whether ICE acts as MBus master node.
+
+        DEFAULT: OFF
+        '''
+        msg = struct.pack("BB", ord('c'), onoff)
+        self.send_message_until_acked('m', msg)
+
+    def mbus_get_clock(self):
+        '''
+        Get ICE MBus clock speed. Only meaningful is ICE is MBus master.
+        '''
+        raise NotImplementedError
+        #resp = self.send_message_until_acked('M', struct.pack("B", ord('c')))
+        #if len(resp) != 1:
+        #    raise self.FormatError, "Wrong response length from `Mc': " + str(resp)
+        #onoff = struct.unpack("B", resp)
+        #return bool(onoff)
+        #return resp
+
+    def mbus_set_clock(self, clock_speed):
+        '''
+        Set ICE MBus clock speed. Only meaningful is ICE is MBus master.
+
+        DEFAULT: XXX
+        '''
+        #msg = struct.pack("BB", ord('c'), onoff)
+        #self.send_message_until_acked('m', msg)
+        raise NotImplementedError
+
+    def mbus_get_should_interrupt(self):
+        '''
+        Get ICE MBus should interrupt setting.
+
+        TODO: Fix interface (enums?)
+        '''
+        resp = self.send_message_until_acked('M', struct.pack("B", ord('i')))
+        #if len(resp) != 1:
+        #    raise self.FormatError, "Wrong response length from `Mc': " + str(resp)
+        #onoff = struct.unpack("B", resp)
+        #return bool(onoff)
+        return resp
+
+    def mbus_set_should_interrupt(self, should_interrupt):
+        '''
+        Set ICE MBus should interrupt setting.
+
+        DEFAULT: Off
+        '''
+        msg = struct.pack("BB", ord('i'), onoff)
+        self.send_message_until_acked('m', msg)
+
+    def mbus_get_use_priority(self):
+        '''
+        Get ICE MBus use priority setting.
+
+        TODO: Fix interface (enums?)
+        '''
+        resp = self.send_message_until_acked('M', struct.pack("B", ord('p')))
+        #if len(resp) != 1:
+        #    raise self.FormatError, "Wrong response length from `Mc': " + str(resp)
+        #onoff = struct.unpack("B", resp)
+        #return bool(onoff)
+        return resp
+
+    def mbus_set_use_priority(self, use_priority):
+        '''
+        Set ICE MBus use priority setting.
+
+        DEFAULT: Off
+        '''
+        msg = struct.pack("BB", ord('p'), onoff)
+        self.send_message_until_acked('m', msg)
 
     ## EIN DEBUG ##
     def ein_send(self, msg):
