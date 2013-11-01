@@ -430,7 +430,7 @@ class ICE(object):
 
         Internal. This function is not meant to be called directly.
         '''
-        self.send_message_until_acked('_', struct.pack("!H", div))
+        self.send_message_until_acked('_', struct.pack("!BH", ord('b'), div))
 
     def ice_set_baudrate_to_115200(self):
         self.ice_set_baudrate(0x00AE)
