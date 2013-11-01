@@ -39,7 +39,9 @@ except ImportError:
 class ICE(object):
     VERSIONS = ((0,1),(0,2))
     VERSION_0_2_METHODS = (
-            'query_capabilities',
+            'ice_query_capabilities',
+            'ice_get_baudrate',
+            'ice_set_baudrate',
             'goc_get_onoff',
             'goc_set_onoff',
             'mbus_send',
@@ -398,8 +400,8 @@ class ICE(object):
         sent += len(msg)
         return sent
 
-    ## QUERY ICE ##
-    def query_capabilities(self):
+    ## QUERY / CONFIGURE ICE ##
+    def ice_query_capabilities(self):
         '''
         Queries ICE board for available hardware frontends.
 
@@ -410,6 +412,31 @@ class ICE(object):
         '''
         resp = self.send_message_until_acked('?', struct.pack("B", ord('c')))
         return resp
+
+    def ice_get_baudrate(self):
+        '''
+        Gets the current baud rate of the ICE bridge in Hz.
+
+        XXX: Returns raw FPGA<>IC bridge value, not the value that the PC should
+        set. The baudrate functions need.. enums?
+        '''
+        resp = self.send_message_until_acked('?', struct.pack("B", ord('b')))
+        div = struct.unpack("!H", resp)
+        return 20e6 / div
+
+    def ice_set_baudrate(self, divider):
+        '''
+        Sets a new baud rate for the ICE bridge.
+
+        Internal. This function is not meant to be called directly.
+        '''
+        self.send_message_until_acked('_', struct.pack("!H", div))
+
+    def ice_set_baudrate_to_115200(self):
+        return self.ice_set_baudrate(0x00AE)
+
+    def ice_set_baudrate_to_3_megabaud(self):
+        return self.ice_set_baudrate(0x0007)
 
     ## GOC ##
     GOC_SPEED_DEFAULT_HZ = .625
