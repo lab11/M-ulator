@@ -320,7 +320,7 @@ the FLOW light to be set.
   \paragraph{\texttt{0x6f} Responses}
     \begin{itemize}
       \item NAKs for this message shall be composed of an error
-        code, followed by an optional explanitory string.
+        code, followed by an optional explanatory string.
         \begin{itemize}
           \item[]
             \begin{bytefield} \\
@@ -334,6 +334,44 @@ the FLOW light to be set.
         \end{itemize}
     \end{itemize}
 \end{itemize}
+
+\subsubsection{\texttt{0x75 `u'} -- Set UART Configuration}
+{\em Synchronous Request}
+\begin{itemize}
+  \item The first byte of the message shall define which parameter is to
+    be configured.
+    \paragraph{\texttt{0x75 0x64 `ud'}: Baud Rate (Divider)}
+      \begin{itemize}
+        \item[]
+          \begin{bytefield} \\
+            \colorbitbox{lightgreen}{8}{`u'} &
+            \colorbitbox{lightred}{8}{Event ID} &
+            \colorbitbox{lightcyan}{8}{Len (Must be 3)} &
+            \colorbitbox{lightergreen}{8}{`d'} &
+            \bitbox{8}{Clock Divider}
+          \end{bytefield}
+        \item {\bf Default:} {\tt 0x00AE} (20~MHz / 0x00AE $\approx$ 115200~Hz)
+        \item This shall be followed by a two byte
+          value N (MSB-first), where $N = \lceil\frac{20~MHz}{Baud Rate}\rceil$.
+      \end{itemize}
+  \paragraph{\texttt{0x6f} Responses}
+    \begin{itemize}
+      \item NAKs for this message shall be composed of an error
+        code, followed by an optional explanatory string.
+        \begin{itemize}
+          \item[]
+            \begin{bytefield} \\
+              \colorbitbox{lightgreen}{8}{NAK (0x01)} &
+              \colorbitbox{lightred}{8}{Event ID} &
+              \colorbitbox{lightcyan}{8}{Len (Min: 1)} &
+              \colorbitbox{lightblue}{8}{EINVAL (0x16)} &
+              \bitbox{8}{[{\tt "Out of Range"}]} &
+            \end{bytefield}
+          \item {\texttt {\textbf EINVAL (22,0x16):}} Invalid argument.
+        \end{itemize}
+    \end{itemize}
+\end{itemize}
+
 
 \subsubsection{\texttt{0x42 `B'} -- MBus Snooped Message}
 {\em Asynchronous Message}
