@@ -433,10 +433,12 @@ class ICE(object):
         self.send_message_until_acked('_', struct.pack("!H", div))
 
     def ice_set_baudrate_to_115200(self):
-        return self.ice_set_baudrate(0x00AE)
+        self.ice_set_baudrate(0x00AE)
+        self.dev.baudrate = 115200
 
     def ice_set_baudrate_to_3_megabaud(self):
-        return self.ice_set_baudrate(0x0007)
+        self.ice_set_baudrate(0x0007)
+        self.dev.baudrate = 3000000
 
     ## GOC ##
     GOC_SPEED_DEFAULT_HZ = .625
