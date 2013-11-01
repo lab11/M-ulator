@@ -5,7 +5,8 @@ Version 0.2 adds the following new messages:
 \begin{itemize}
   \item {\tt `Oo'} and {\tt `oo'}. These messages allow the default on/off state of
 the FLOW light to be set.
-  \item {\tt `?c'}. This message queries the capabilities of the ICE board.
+  \item {\tt `??'}. This message queries the capabilities of the ICE board.
+  \item {\tt `?B'}, {\tt `?b'}. These messages get and set the ICE baud rate.
   \item {\tt `B'}, {\tt `b'}, {\tt `M'}, and {\tt `m'}. These messages control
     the MBus interface.
   \item {\tt `e'}. This command injects messages on the {\tt EIN} debug port.
@@ -24,7 +25,7 @@ the FLOW light to be set.
 \begin{itemize}
   \item The first byte of this message shall be a specificer, indicating
     what type of query is requested.
-  \paragraph{\texttt{0x3f 0x63 `?c'} -- Query capabilities}
+  \paragraph{\texttt{0x3f 0x3f `??'} -- Query capabilities}
     \begin{itemize}
       \item This message shall query the capabilities of this ICE board. Not
         all boards have every hardware frontend. Use this message to query the
@@ -34,7 +35,7 @@ the FLOW light to be set.
           \colorbitbox{lightgreen}{8}{`?' (0x3f)} &
           \colorbitbox{lightred}{8}{Event ID} &
           \colorbitbox{lightcyan}{8}{Len (Must be 1)} &
-          \colorbitbox{lightergreen}{8}{`c' (0x63)}
+          \colorbitbox{lightergreen}{8}{`?' (0x3f)}
         \end{bytefield}
       \item This message shall be responded to with a list of all top-level
         identifiers that the ICE board is capable of acting usefully upon.
@@ -54,6 +55,32 @@ the FLOW light to be set.
           \colorbitbox{lightred}{8}{Event ID} &
           \colorbitbox{lightcyan}{8}{Len (10)} &
           \bitbox{20}{\texttt{`?IifOoGgPp' (0x3f4969664f6f47675070)}} &
+        \end{bytefield}
+    \end{itemize}
+  \paragraph{\texttt{0x3f 0x42 `?B'} -- Query baudrate}
+    \begin{itemize}
+      \item This message shall mirror the {\tt `?b'} message and report the
+        currently set baud rate.
+      \item Or maybe it should report all the supported baud rates. If you're
+        sending / receiving messages in the first place, you probably already
+        know the baud rate.
+    \end{itemize}
+  \paragraph{\texttt{0x3f 0x62 `?b'} -- Set baudrate}
+    \begin{itemize}
+      \item This message shall set the baud rate for future messages. The new
+        baud rate shall take effect \hl{immediately OR? after the ACK for this
+        request}. (Probably should take effect after ACK'ing so that you can
+        NACK an illegal / unsupported value?).
+      \item The baud rate shall be specified as.... {\hl a divisor?}.
+      \item \textbf{Default Value:} \hl{Whatever value corrolates to 115200.}
+      \item The following message would set the ICE speed to 3 Megabaud:
+      \item[]
+        \begin{bytefield} \\
+          \colorbitbox{lightgreen}{8}{`?' (0x3f)} &
+          \colorbitbox{lightred}{8}{Event ID} &
+          \colorbitbox{lightcyan}{8}{Length} &
+          \colorbitbox{lightergreen}{8}{`b' (0x62)}
+          \bitbox{8}{\hl{VALUE}}
         \end{bytefield}
     \end{itemize}
 \end{itemize}
