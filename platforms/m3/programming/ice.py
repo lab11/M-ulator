@@ -424,7 +424,7 @@ class ICE(object):
         div = struct.unpack("!H", resp)
         return 20e6 / div
 
-    def ice_set_baudrate(self, divider):
+    def ice_set_baudrate(self, div):
         '''
         Sets a new baud rate for the ICE bridge.
 
