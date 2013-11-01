@@ -68,6 +68,7 @@ class ICE(object):
             'ein_send',
             'b_defragger',
             'B_defragger',
+            'B_formatter',
             )
     ONEYEAR = 365 * 24 * 60 * 60
 
@@ -131,6 +132,8 @@ class ICE(object):
         self.B_lock = threading.Lock()
         self.B_frag = ''
         self.msg_handler['B'] = self.B_defragger
+        self.B_formatter_success_only = True
+        self.msg_handler['B+'] = self.B_formatter
 
     def connect(self, serial_device, baudrate=115200):
         '''
@@ -311,6 +314,49 @@ class ICE(object):
                 self.B_frag = ''
             else:
                 logger.debug("Got a snoop MBus fragment... thus far %d bytes received:" % (len(self.B_frag)))
+
+    def B_formatter(self, msg_type, event_id, length, msg):
+        '''
+        Helper function that parses 'B+' snooped MBus messages before forwarding.
+
+        This helper is installed by default for 'B+' messages. It will attempt
+        to call a helper registered under the name 'B++' when a complete message
+        has been received. B++ messages do not have the standard signature,
+        instead they expect a callback of the form:
+
+            Bpp_callback(address, data, control_bit_0, control_bit_1)
+              or
+            Bpp_callback(address, data)
+
+        If the second form is used, the member variable
+        "B_formatter_success_only" (default True) controls whether all messages
+        are forwarded or only messages that were ACK'd.
+
+        This function may be safely overridden.
+        '''
+        assert msg_type == 'B+'
+        addr = msg[0]
+        if (addr & 0xf0) == 0xf:
+            addr = msg[0:3]
+            msg = msg[4:]
+        else:
+            msg = msg[1:]
+        control = msg[-2:]
+        msg = msg[:-2]
+        try:
+            msg_handler['B++'](addr, data, control[0], control[1])
+        except TypeError:
+            if not self.B_formatter_success_only or (control[0] and not control[1]):
+                msg_handler['B++'](addr, data)
+        except KeyError:
+            logger.warn("No handler registered for B++ (formatted, snooped MBus) messages")
+            logger.warn("Dropping message:")
+            logger.warn("\taddr: " + addr.decode('hex'))
+            logger.warn("\tdata: " + data.decode('hex'))
+            logger.warn("\tCB 0: " + control[0].decode('hex'))
+            logger.warn("\tCB 1: " + control[1].decode('hex'))
+            logger.warn("")
+
 
     def send_message(self, msg_type, msg='', length=None):
         if len(msg_type) != 1:

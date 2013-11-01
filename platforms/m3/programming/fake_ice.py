@@ -2,6 +2,7 @@
 
 MAX_GPIO = 24
 DEFAULT_SERIAL = '/tmp/com2'
+DEFAULT_BAUD_DIVIDER = 0x00AE
 DEFAULT_I2C_MASK = '1001100x'
 DEFAULT_I2C_SPEED_IN_KHZ = 100
 DEFAULT_FLOW_CLOCK_IN_HZ = .625
@@ -28,6 +29,8 @@ if len(sys.argv) > 1:
     serial_port = sys.argv[1]
 else:
     serial_port = DEFAULT_SERIAL
+
+baud_divider = DEFAULT_BAUD_DIVIDER
 
 if len(sys.argv) > 2:
     i2c_mask = sys.argv[2]
@@ -134,227 +137,281 @@ def ack():
 def nak():
     respond('', ack=False)
 
+class UnknownCommandException(Exception):
+    pass
+
+
 i2c_msg = ''
 i2c_match = False
 flow_msg = ''
+ein_msg = ''
 while True:
-    msg_type, event_id, length = s.read(3)
-    logger.debug("Got a message of type: " + msg_type)
-    event_id = ord(event_id)
-    length = ord(length)
-    msg = s.read(length)
+    def min_proto(proto):
+        if minor < proto:
+            logger.error("Request for protocol 0.2 command, but the")
+            logger.error("negotiated protocol was 0.1")
+            raise UnknownCommandException
 
-    if msg_type == 'V':
-        respond('00020001'.decode('hex'))
-    elif msg_type == 'v':
-        if msg == '0002'.decode('hex'):
-            minor = 2
-            ack()
-            logger.info("Negotiated to protocol version 0.2")
-        elif msg == '0001'.decode('hex'):
-            minor = 1
-            ack()
-            logger.info("Negotiated to protocol version 0.1")
-        else:
-            logger.error("Request for unknown version: " + msg)
-            raise Exception
-    elif msg_type == 'd':
-        i2c_msg += msg
-        if not i2c_match:
-            if not match_mask(ord(msg[0]), i2c_mask_ones, i2c_mask_zeros):
-                logger.info("I2C address %02x did not match mask %02x %02x",
-                        ord(msg[0]), i2c_mask_ones, i2c_mask_zeros)
-                respond(chr(0), ack=False)
-                continue
-            i2c_match = True
-        if len(msg) != 255:
-            logger.info("Got i2c message:")
-            logger.info("  addr: " + i2c_msg[0].encode('hex'))
-            logger.info("  data: " + i2c_msg[1:].encode('hex'))
-            i2c_msg = ''
-            i2c_match = False
-        else:
-            logger.debug("Got i2c fragment")
-        ack()
-    elif msg_type == 'I':
-        if len(msg) < 3:
-            logger.error("bad 'I' message length: " + str(len(msg)))
-            raise Exception
-        if msg[0] == 'c':
-            logger.info("Responded to query for I2C bus speed (%d kHz)", i2c_speed_in_khz)
-            respond(chr(i2c_speed_in_khz / 2))
-        elif msg[0] == 'a':
-            logger.info("Responded to query for ICE I2C mask (%02x ones %02x zeros)",
-                    i2c_mask_ones, i2c_mask_zeros)
-            respond(chr(i2c_mask_ones) + chr(i2c_mask_zeros))
-        else:
-            logger.error("bad 'I' subtype: " + msg[0])
-            raise Exception
-    elif msg_type == 'i':
-        if len(msg) < 3:
-            logger.error("bad 'i' message length: " + str(len(msg)))
-            raise Exception
-        if msg[0] == 'c':
-            i2c_speed_in_khz = ord(msg[1]) * 2
-            logger.info("I2C Bus Speed set to %d kHz", i2c_speed_in_khz)
-            ack()
-        elif msg[0] == 'a':
-            i2c_mask_ones = ord(msg[1])
-            i2c_mask_zeros = ord(msg[2])
-            logger.info("ICE I2C mask set to 0x%02x ones, 0x%02x zeros",
-                    i2c_mask_ones, i2c_mask_zeros)
-            ack()
-        else:
-            logger.error("bad 'i' subtype: " + msg[0])
-            raise Exception
-    elif msg_type == 'f':
-        flow_msg += msg
-        if len(msg) != 255:
-            logger.info("Got flow message:")
-            logger.info("  addr: " + flow_msg[0].encode('hex'))
-            logger.info("  data: " + flow_msg[1:].encode('hex'))
-            flow_msg = ''
-        else:
-            logger.debug("Got flow fragment")
-        ack()
-    elif msg_type == 'O':
-        if len(msg) != 5:
-            logger.error("bad 'O' message length: " + str(len(msg)))
-            raise Exception
-        if msg[0] == 'c':
-            logger.info("Responded to query for FLOW clock (%.2f Hz)", flow_clock_in_hz)
-            div = 2e6 / flow_clock_in_hz
-            resp = chr((div >> 16) & 0xff)
-            resp += chr((div >> 8) & 0xff)
-            resp += chr(div & 0xff)
-            respond(resp)
-        elif msg[0] == 'o':
-            if minor > 1:
-                logger.info("Responded to query for FLOW power (%s)", ('off','on')[flow_onoff])
-                respond(chr(flow_onoff))
+    try:
+        msg_type, event_id, length = s.read(3)
+        logger.debug("Got a message of type: " + msg_type)
+        event_id = ord(event_id)
+        length = ord(length)
+        msg = s.read(length)
+
+        if msg_type == 'V':
+            respond('00020001'.decode('hex'))
+        elif msg_type == 'v':
+            if msg == '0002'.decode('hex'):
+                minor = 2
+                ack()
+                logger.info("Negotiated to protocol version 0.2")
+            elif msg == '0001'.decode('hex'):
+                minor = 1
+                ack()
+                logger.info("Negotiated to protocol version 0.1")
             else:
-                logger.error("Request for protocol 0.2 command (Oo), but the")
-                logger.error("negotiated protocol was 0.1")
-        else:
-            logger.error("bad 'O' subtype: " + msg[0])
-    elif msg_type == 'o':
-        if len(msg) != 5:
-            logger.error("bad 'o' message length: " + str(len(msg)))
-            raise Exception
-        if msg[0] == 'c':
-            div = (ord(msg[1]) << 16) | (ord(msg[2]) << 8) | ord(msg[3])
-            flow_clock_in_hz = 2e6 / div
-            logger.info("Set FLOW clock to %.2f Hz", flow_clock_in_hz)
+                logger.error("Request for unknown version: " + msg)
+                raise Exception
+        elif msg_type == '?':
+            min_proto(2)
+            if msg[0] == '?':
+                logger.info("Responded to query for ICE capabilities")
+                respond("?_dIifOoBbMmeGgPp")
+            elif msg[0] == 'b':
+                logger.info("Responded to query for ICE baudrate (divider: 0x%04X)" % (baud_divider))
+                respond(chr((baud_divider >> 8) & 0xff) + chr(baud_divider & 0xff))
+            else:
+                logger.error("bad '?' subtype: " + msg[0])
+                raise UnknownCommandException
+        elif msg_type == '_':
+            min_proto(2)
+            if msg[0] == 'b':
+                high = int(msg[1], 16)
+                low = int(msg[0], 16)
+                new_div = low | (high << 8)
+                if new_div not in (0x00AE, 0x0007):
+                    logger.error("Bad baudrate divider: 0x%04X" % (new_div))
+                    raise Exception
+                ack()
+                if new_div == 0x00AE:
+                    s.baudrate = 115200
+                elif new_div == 0x0007:
+                    s.baudrate = 3000000
+            else:
+                logger.error("bad '_' subtype: " + msg[0])
+                raise UnknownCommandException
+        elif msg_type == 'd':
+            i2c_msg += msg
+            if not i2c_match:
+                if not match_mask(ord(msg[0]), i2c_mask_ones, i2c_mask_zeros):
+                    logger.info("I2C address %02x did not match mask %02x %02x",
+                            ord(msg[0]), i2c_mask_ones, i2c_mask_zeros)
+                    respond(chr(0), ack=False)
+                    continue
+                i2c_match = True
+            if len(msg) != 255:
+                logger.info("Got i2c message:")
+                logger.info("  addr: " + i2c_msg[0].encode('hex'))
+                logger.info("  data: " + i2c_msg[1:].encode('hex'))
+                i2c_msg = ''
+                i2c_match = False
+            else:
+                logger.debug("Got i2c fragment")
             ack()
-        elif msg[0] == 'o':
-            if minor > 1:
-                flow_onoff = bool(ord(msg[1]))
-                logger.info("Set FLOW power to %s", ('off','on')[flow_onoff])
+        elif msg_type == 'I':
+            if len(msg) < 3:
+                logger.error("bad 'I' message length: " + str(len(msg)))
+                raise Exception
+            if msg[0] == 'c':
+                logger.info("Responded to query for I2C bus speed (%d kHz)", i2c_speed_in_khz)
+                respond(chr(i2c_speed_in_khz / 2))
+            elif msg[0] == 'a':
+                logger.info("Responded to query for ICE I2C mask (%02x ones %02x zeros)",
+                        i2c_mask_ones, i2c_mask_zeros)
+                respond(chr(i2c_mask_ones) + chr(i2c_mask_zeros))
+            else:
+                logger.error("bad 'I' subtype: " + msg[0])
+                raise Exception
+        elif msg_type == 'i':
+            if len(msg) < 3:
+                logger.error("bad 'i' message length: " + str(len(msg)))
+                raise Exception
+            if msg[0] == 'c':
+                i2c_speed_in_khz = ord(msg[1]) * 2
+                logger.info("I2C Bus Speed set to %d kHz", i2c_speed_in_khz)
+                ack()
+            elif msg[0] == 'a':
+                i2c_mask_ones = ord(msg[1])
+                i2c_mask_zeros = ord(msg[2])
+                logger.info("ICE I2C mask set to 0x%02x ones, 0x%02x zeros",
+                        i2c_mask_ones, i2c_mask_zeros)
                 ack()
             else:
-                logger.error("Request for protocol 0.2 command (Oo), but the")
-                logger.error("negotiated protocol was 0.1")
-        else:
-            logger.error("bad 'o' subtype: " + msg[0])
-    elif msg_type == 'G':
-        if len(msg) != 3:
-            logger.error("bad 'G' message length: " + str(len(msg)))
-            raise Exception
-        if msg[0] == 'l':
-            logger.info("Responded to request for GPIO %d Dir (%s)", ord(msg[1]), gpios[ord(msg[1])])
-            respond(chr(gpios[ord(msg[1])].level))
-        elif msg[0] == 'd':
-            logger.info("Responded to request for GPIO %d Level (%s)", ord(msg[1]), gpios[ord(msg[1])])
-            respond(chr(gpios[ord(msg[1])].direction))
-        else:
-            logger.error("bad 'G' subtype: " + msg[0])
-            raise Exception
-    elif msg_type == 'g':
-        if len(msg) != 3:
-            logger.error("bad 'g' message length: " + str(len(msg)))
-            raise Exception
-        if msg[0] == 'l':
-            gpios[ord(msg[1])].level = (ord(msg[2]) == True)
-            logger.info("Set GPIO %d Level: %s", ord(msg[1]), gpios[ord(msg[1])])
+                logger.error("bad 'i' subtype: " + msg[0])
+                raise Exception
+        elif msg_type == 'f':
+            flow_msg += msg
+            if len(msg) != 255:
+                logger.info("Got flow message:")
+                logger.info("  addr: " + flow_msg[0].encode('hex'))
+                logger.info("  data: " + flow_msg[1:].encode('hex'))
+                flow_msg = ''
+            else:
+                logger.debug("Got flow fragment")
             ack()
-        elif msg[0] == 'd':
-            gpios[ord(msg[1])].direction = ord(msg[2])
-            logger.info("Set GPIO %d Dir: %s", ord(msg[1]), gpios[ord(msg[1])])
+        elif msg_type == 'O':
+            if len(msg) != 5:
+                logger.error("bad 'O' message length: " + str(len(msg)))
+                raise Exception
+            if msg[0] == 'c':
+                logger.info("Responded to query for FLOW clock (%.2f Hz)", flow_clock_in_hz)
+                div = 2e6 / flow_clock_in_hz
+                resp = chr((div >> 16) & 0xff)
+                resp += chr((div >> 8) & 0xff)
+                resp += chr(div & 0xff)
+                respond(resp)
+            elif msg[0] == 'o':
+                if minor > 1:
+                    logger.info("Responded to query for FLOW power (%s)", ('off','on')[flow_onoff])
+                    respond(chr(flow_onoff))
+                else:
+                    logger.error("Request for protocol 0.2 command (Oo), but the")
+                    logger.error("negotiated protocol was 0.1")
+            else:
+                logger.error("bad 'O' subtype: " + msg[0])
+        elif msg_type == 'o':
+            if len(msg) != 5:
+                logger.error("bad 'o' message length: " + str(len(msg)))
+                raise Exception
+            if msg[0] == 'c':
+                div = (ord(msg[1]) << 16) | (ord(msg[2]) << 8) | ord(msg[3])
+                flow_clock_in_hz = 2e6 / div
+                logger.info("Set FLOW clock to %.2f Hz", flow_clock_in_hz)
+                ack()
+            elif msg[0] == 'o':
+                if minor > 1:
+                    flow_onoff = bool(ord(msg[1]))
+                    logger.info("Set FLOW power to %s", ('off','on')[flow_onoff])
+                    ack()
+                else:
+                    logger.error("Request for protocol 0.2 command (Oo), but the")
+                    logger.error("negotiated protocol was 0.1")
+            else:
+                logger.error("bad 'o' subtype: " + msg[0])
+        elif msg_type == 'e':
+            ein_msg += msg
+            if len(msg) != 255:
+                logger.info("Got ein message:")
+                logger.info("   " + ein_msg.encode('hex'))
+                ein_msg = ''
+            else:
+                logger.debug("Got ein fragment")
             ack()
+        elif msg_type == 'G':
+            if len(msg) != 3:
+                logger.error("bad 'G' message length: " + str(len(msg)))
+                raise Exception
+            if msg[0] == 'l':
+                logger.info("Responded to request for GPIO %d Dir (%s)", ord(msg[1]), gpios[ord(msg[1])])
+                respond(chr(gpios[ord(msg[1])].level))
+            elif msg[0] == 'd':
+                logger.info("Responded to request for GPIO %d Level (%s)", ord(msg[1]), gpios[ord(msg[1])])
+                respond(chr(gpios[ord(msg[1])].direction))
+            else:
+                logger.error("bad 'G' subtype: " + msg[0])
+                raise Exception
+        elif msg_type == 'g':
+            if len(msg) != 3:
+                logger.error("bad 'g' message length: " + str(len(msg)))
+                raise Exception
+            if msg[0] == 'l':
+                gpios[ord(msg[1])].level = (ord(msg[2]) == True)
+                logger.info("Set GPIO %d Level: %s", ord(msg[1]), gpios[ord(msg[1])])
+                ack()
+            elif msg[0] == 'd':
+                gpios[ord(msg[1])].direction = ord(msg[2])
+                logger.info("Set GPIO %d Dir: %s", ord(msg[1]), gpios[ord(msg[1])])
+                ack()
+            else:
+                logger.error("bad 'g' subtype: " + msg[0])
+                raise Exception
+        elif msg_type == 'P':
+            if len(msg) < 3:
+                logger.error("Bad 'P' message length: " + str(len(msg)))
+                raise Exception
+            pwr_idx = ord(msg[1])
+            if pwr_idx not in (0,1,2):
+                logger.error("Illegal power index: %d", pwr_idx)
+                raise Exception
+            if msg[0] == 'v':
+                if pwr_idx is 0:
+                    logger.info("Query 0.6V rail (vset=%d, vout=%.2f)", vset_0p6,
+                            (0.537 + 0.0185 * vset_0p6) * DEFAULT_POWER_0P6)
+                    respond(chr(vset_0p6))
+                elif pwr_idx is 1:
+                    logger.info("Query 1.2V rail (vset=%d, vout=%.2f)", vset_1p2,
+                            (0.537 + 0.0185 * vset_1p2) * DEFAULT_POWER_1P2)
+                    respond(chr(vset_1p2))
+                elif pwr_idx is 2:
+                    logger.info("Query VBatt rail (vset=%d, vout=%.2f)", vset_vbatt,
+                            (0.537 + 0.0185 * vset_vbatt) * DEFAULT_POWER_VBATT)
+                    respond(chr(vset_vbatt))
+                ack()
+            elif msg[0] == 'o':
+                if pwr_idx is 0:
+                    logger.info("Query 0.6V rail (%s)", ('off','on')[power_0p6_on])
+                    respond(chr(power_0p6_on))
+                elif pwr_idx is 1:
+                    logger.info("Query 1.2V rail (%s)", ('off','on')[power_1p2_on])
+                    respond(chr(power_1p2_on))
+                elif pwr_idx is 2:
+                    logger.info("Query vbatt rail (%s)", ('off','on')[power_vbatt_on])
+                    respond(chr(power_vbatt_on))
+            else:
+                logger.error("bad 'p' subtype: " + msg[0])
+                raise Exception
+        elif msg_type == 'p':
+            if len(msg) < 3:
+                logger.error("Bad 'p' message length: " + str(len(msg)))
+                raise Exception
+            pwr_idx = ord(msg[1])
+            if pwr_idx not in (0,1,2):
+                logger.error("Illegal power index: %d", pwr_idx)
+                raise Exception
+            if msg[0] == 'v':
+                if pwr_idx is ICE.POWER_0P6:
+                    vset_0p6 = ord(msg[2])
+                    logger.info("Set 0.6V rail to vset=%d, vout=%.2f", vset_0p6,
+                            (0.537 + 0.0185 * vset_0p6) * DEFAULT_POWER_0P6)
+                elif pwr_idx is ICE.POWER_1P2:
+                    vset_1p2 = ord(msg[2])
+                    logger.info("Set 1.2V rail to vset=%d, vout=%.2f", vset_1p2,
+                            (0.537 + 0.0185 * vset_1p2) * DEFAULT_POWER_1P2)
+                elif pwr_idx is ICE.POWER_VBATT:
+                    vset_vbatt = ord(msg[2])
+                    logger.info("Set VBatt rail to vset=%d, vout=%.2f", vset_vbatt,
+                            (0.537 + 0.0185 * vset_vbatt) * DEFAULT_POWER_VBATT)
+                ack()
+            elif msg[0] == 'o':
+                if pwr_idx is ICE.POWER_0P6:
+                    power_0p6_on = bool(ord(msg[2]))
+                    logger.info("Set 0.6V rail %s", ('off','on')[power_0p6_on])
+                elif pwr_idx is ICE.POWER_1P2:
+                    power_1p2_on = bool(ord(msg[2]))
+                    logger.info("Set 1.2V rail %s", ('off','on')[power_1p2_on])
+                elif pwr_idx is ICE.POWER_VBATT:
+                    power_vbatt_on = bool(ord(msg[2]))
+                    logger.info("Set VBatt rail %s", ('off','on')[power_vbatt_on])
+                ack()
+            else:
+                logger.error("bad 'p' subtype: " + msg[0])
+                raise UnknownCommandException
         else:
-            logger.error("bad 'g' subtype: " + msg[0])
-            raise Exception
-    elif msg_type == 'P':
-        if len(msg) < 3:
-            logger.error("Bad 'P' message length: " + str(len(msg)))
-            raise Exception
-        pwr_idx = ord(msg[1])
-        if pwr_idx not in (0,1,2):
-            logger.error("Illegal power index: %d", pwr_idx)
-            raise Exception
-        if msg[0] == 'v':
-            if pwr_idx is 0:
-                logger.info("Query 0.6V rail (vset=%d, vout=%.2f)", vset_0p6,
-                        (0.537 + 0.0185 * vset_0p6) * DEFAULT_POWER_0P6)
-                respond(chr(vset_0p6))
-            elif pwr_idx is 1:
-                logger.info("Query 1.2V rail (vset=%d, vout=%.2f)", vset_1p2,
-                        (0.537 + 0.0185 * vset_1p2) * DEFAULT_POWER_1P2)
-                respond(chr(vset_1p2))
-            elif pwr_idx is 2:
-                logger.info("Query VBatt rail (vset=%d, vout=%.2f)", vset_vbatt,
-                        (0.537 + 0.0185 * vset_vbatt) * DEFAULT_POWER_VBATT)
-                respond(chr(vset_vbatt))
-            ack()
-        elif msg[0] == 'o':
-            if pwr_idx is 0:
-                logger.info("Query 0.6V rail (%s)", ('off','on')[power_0p6_on])
-                respond(chr(power_0p6_on))
-            elif pwr_idx is 1:
-                logger.info("Query 1.2V rail (%s)", ('off','on')[power_1p2_on])
-                respond(chr(power_1p2_on))
-            elif pwr_idx is 2:
-                logger.info("Query vbatt rail (%s)", ('off','on')[power_vbatt_on])
-                respond(chr(power_vbatt_on))
-        else:
-            logger.error("bad 'p' subtype: " + msg[0])
-            raise Exception
-    elif msg_type == 'p':
-        if len(msg) < 3:
-            logger.error("Bad 'p' message length: " + str(len(msg)))
-            raise Exception
-        pwr_idx = ord(msg[1])
-        if pwr_idx not in (0,1,2):
-            logger.error("Illegal power index: %d", pwr_idx)
-            raise Exception
-        if msg[0] == 'v':
-            if pwr_idx is ICE.POWER_0P6:
-                vset_0p6 = ord(msg[2])
-                logger.info("Set 0.6V rail to vset=%d, vout=%.2f", vset_0p6,
-                        (0.537 + 0.0185 * vset_0p6) * DEFAULT_POWER_0P6)
-            elif pwr_idx is ICE.POWER_1P2:
-                vset_1p2 = ord(msg[2])
-                logger.info("Set 1.2V rail to vset=%d, vout=%.2f", vset_1p2,
-                        (0.537 + 0.0185 * vset_1p2) * DEFAULT_POWER_1P2)
-            elif pwr_idx is ICE.POWER_VBATT:
-                vset_vbatt = ord(msg[2])
-                logger.info("Set VBatt rail to vset=%d, vout=%.2f", vset_vbatt,
-                        (0.537 + 0.0185 * vset_vbatt) * DEFAULT_POWER_VBATT)
-            ack()
-        elif msg[0] == 'o':
-            if pwr_idx is ICE.POWER_0P6:
-                power_0p6_on = bool(ord(msg[2]))
-                logger.info("Set 0.6V rail %s", ('off','on')[power_0p6_on])
-            elif pwr_idx is ICE.POWER_1P2:
-                power_1p2_on = bool(ord(msg[2]))
-                logger.info("Set 1.2V rail %s", ('off','on')[power_1p2_on])
-            elif pwr_idx is ICE.POWER_VBATT:
-                power_vbatt_on = bool(ord(msg[2]))
-                logger.info("Set VBatt rail %s", ('off','on')[power_vbatt_on])
-            ack()
-        else:
-            logger.error("bad 'p' subtype: " + msg[0])
-            raise Exception
-    else:
-        logger.error("Unknown msg type: " + msg_type)
-        raise Exception
+            logger.error("Unknown msg type: " + msg_type)
+            raise UnknownCommandException
+    except UnknownCommandException:
+        nak()
+    except NameError:
+        logger.error("Commands issued before version negotiation?")
+        raise
