@@ -13,8 +13,9 @@ DEFAULT_VSET_0P6 = 19
 DEFAULT_VSET_1P2 = 25
 DEFAULT_VSET_VBATT = 25
 
-import sys
-import serial
+import sys, serial
+from time import sleep
+
 import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger('fake_ice')
@@ -281,9 +282,6 @@ while True:
             else:
                 logger.error("bad 'O' subtype: " + msg[0])
         elif msg_type == 'o':
-            if len(msg) != 5:
-                logger.error("bad 'o' message length: " + str(len(msg)))
-                raise Exception
             if msg[0] == 'c':
                 div = (ord(msg[1]) << 16) | (ord(msg[2]) << 8) | ord(msg[3])
                 flow_clock_in_hz = 2e6 / div

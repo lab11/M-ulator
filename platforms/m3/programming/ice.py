@@ -493,7 +493,7 @@ class ICE(object):
         try:
             freq = self.goc_freq
         except AttributeError:
-            freq = GOC_SPEED_DEFAULT_HZ
+            freq = self.GOC_SPEED_DEFAULT_HZ
 
         num_bits = len(msg) * 8
         t = num_bits / freq
