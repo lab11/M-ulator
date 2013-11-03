@@ -167,52 +167,58 @@ static void poweron_frame_controller(){
 
 }
 
-static void poweron_array_adc(){
+static void start_md(){
 
-  // Release IMG Presleep 
-  // 2:20
-  mdreg_2 &= ~(1<<20);
-  write_mbus_register(MD_ADDR,0x2,mdreg_2);
-  delay(WAKEUP_DELAY);
-
-  // Release IMG Sleep
-  // 2:19
-  mdreg_2 &= ~(1<<19);
-  write_mbus_register(MD_ADDR,0x2,mdreg_2);
-  delay(WAKEUP_DELAY);
-
-  // Release ADC Isolation
-  // 7:17
-  mdreg_7 &= ~(1<<17);
+  // Optionally release MD GPIO Isolation
+  // 7:16
+  mdreg_7 &= ~(1<<16);
   write_mbus_register(MD_ADDR,0x7,mdreg_7);
   delay (3);
 
-  // Release ADC Wrapper Reset
-  // 6:0
-  mdreg_6 &= ~(1<<0);
-  write_mbus_register(MD_ADDR,0x6,mdreg_6);
-  delay (3);
+  // Start MD
+  // 0:1
+  mdreg_0 |= (1<<1);
+  write_mbus_register(MD_ADDR,0x0,mdreg_0);
+  delay (0x80); // about 6ms
 
-  // Start ADC Clock
-  // 5:12
-  mdreg_5 |= (1<<12);
-  write_mbus_register(MD_ADDR,0x5,mdreg_5);
+  mdreg_0 &= ~(1<<1);
+  write_mbus_register(MD_ADDR,0x0,mdreg_0);
+
+  delay(0x8000); // about 1s
+
+  // Enable MD Flag
+  // 1:3
+  mdreg_1 |= (1<<3);
+  write_mbus_register(MD_ADDR,0x1,mdreg_1);
   delay (3);
 
 }
 
-static void capture_image_single(){
+static void clear_md_flag(){
 
-  // Capture Image
-  // 0:0
-  mdreg_0 |= (1<<0);
+  // Stop MD
+  // 0:2
+  mdreg_0 |= (1<<2);
   write_mbus_register(MD_ADDR,0x0,mdreg_0);
-  delay(0x80); // about 4ms
+  delay (0x80); // about 6ms
 
-  mdreg_0 &= ~(1<<0);
+  mdreg_0 &= ~(1<<2);
   write_mbus_register(MD_ADDR,0x0,mdreg_0);
 
-  delay(0x20000); // about 2s
+  // Clear MD Flag
+  // 1:4
+  mdreg_1 |= (1<<4);
+  write_mbus_register(MD_ADDR,0x1,mdreg_1);
+  delay (0x80); // about 6ms
+  
+  mdreg_1 &= ~(1<<4);
+  write_mbus_register(MD_ADDR,0x1,mdreg_1);
+
+  // Disable MD Flag
+  // 1:3
+  mdreg_1 &= ~(1<<3);
+  write_mbus_register(MD_ADDR,0x1,mdreg_1);
+  delay (3);
 
 }
 
@@ -233,9 +239,6 @@ int main() {
 
   // Enumeration
   enumerate(MD_ADDR);
-//  delay (1); //Need to Delay in between for some reason.
-//  enumerate(SNS_ADDR);
-//  delay (1);
 
   // Initialize
   initialize_md_reg();
@@ -243,17 +246,13 @@ int main() {
   // Release power gates, isolation, and reset for frame controller
   poweron_frame_controller();
 
-  // Release power gates, isolation, and reset for imager array
-  poweron_array_adc();
+  // Start motion detection
+  start_md();
+
+  //sleep();
+  // clear_md_flag();
 
   delay(WAKEUP_DELAY_FINAL);
-
-  // Capture a single image
-  capture_image_single();
-  capture_image_single();
-  capture_image_single();
-  capture_image_single();
-  capture_image_single();
 
   while (1){}
 

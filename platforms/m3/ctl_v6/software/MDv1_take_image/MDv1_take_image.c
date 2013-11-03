@@ -207,12 +207,12 @@ static void capture_image_single(){
   // 0:0
   mdreg_0 |= (1<<0);
   write_mbus_register(MD_ADDR,0x0,mdreg_0);
-  delay(0x80); // about 4ms
+  delay(0x80); // about 6ms
 
   mdreg_0 &= ~(1<<0);
   write_mbus_register(MD_ADDR,0x0,mdreg_0);
 
-  delay(0x20000); // about 2s
+  delay(0x10000); // about 3s
 
 }
 
@@ -249,11 +249,10 @@ int main() {
   delay(WAKEUP_DELAY_FINAL);
 
   // Capture a single image
-  capture_image_single();
-  capture_image_single();
-  capture_image_single();
-  capture_image_single();
-  capture_image_single();
+  
+  while (1){
+    capture_image_single();
+  }
 
   while (1){}
 
