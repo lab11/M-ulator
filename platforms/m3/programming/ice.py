@@ -39,7 +39,9 @@ except ImportError:
 class ICE(object):
     VERSIONS = ((0,1),(0,2))
     VERSION_0_2_METHODS = (
-            'query_capabilities',
+            'ice_query_capabilities',
+            'ice_get_baudrate',
+            'ice_set_baudrate',
             'goc_get_onoff',
             'goc_set_onoff',
             'mbus_send',
@@ -66,6 +68,7 @@ class ICE(object):
             'ein_send',
             'b_defragger',
             'B_defragger',
+            'B_formatter',
             )
     ONEYEAR = 365 * 24 * 60 * 60
 
@@ -129,6 +132,8 @@ class ICE(object):
         self.B_lock = threading.Lock()
         self.B_frag = ''
         self.msg_handler['B'] = self.B_defragger
+        self.B_formatter_success_only = True
+        self.msg_handler['B+'] = self.B_formatter
 
     def connect(self, serial_device, baudrate=115200):
         '''
@@ -312,6 +317,49 @@ class ICE(object):
             else:
                 logger.debug("Got a snoop MBus fragment... thus far %d bytes received:" % (len(self.B_frag)))
 
+    def B_formatter(self, msg_type, event_id, length, msg):
+        '''
+        Helper function that parses 'B+' snooped MBus messages before forwarding.
+
+        This helper is installed by default for 'B+' messages. It will attempt
+        to call a helper registered under the name 'B++' when a complete message
+        has been received. B++ messages do not have the standard signature,
+        instead they expect a callback of the form:
+
+            Bpp_callback(address, data, control_bit_0, control_bit_1)
+              or
+            Bpp_callback(address, data)
+
+        If the second form is used, the member variable
+        "B_formatter_success_only" (default True) controls whether all messages
+        are forwarded or only messages that were ACK'd.
+
+        This function may be safely overridden.
+        '''
+        assert msg_type == 'B+'
+        addr = msg[0]
+        if (addr & 0xf0) == 0xf:
+            addr = msg[0:3]
+            msg = msg[4:]
+        else:
+            msg = msg[1:]
+        control = msg[-2:]
+        msg = msg[:-2]
+        try:
+            msg_handler['B++'](addr, data, control[0], control[1])
+        except TypeError:
+            if not self.B_formatter_success_only or (control[0] and not control[1]):
+                msg_handler['B++'](addr, data)
+        except KeyError:
+            logger.warn("No handler registered for B++ (formatted, snooped MBus) messages")
+            logger.warn("Dropping message:")
+            logger.warn("\taddr: " + addr.decode('hex'))
+            logger.warn("\tdata: " + data.decode('hex'))
+            logger.warn("\tCB 0: " + control[0].decode('hex'))
+            logger.warn("\tCB 1: " + control[1].decode('hex'))
+            logger.warn("")
+
+
     def send_message(self, msg_type, msg='', length=None):
         if len(msg_type) != 1:
             raise self.FormatError, "msg_type must be exactly 1 character"
@@ -379,7 +427,7 @@ class ICE(object):
 
     def _fragment_sender(self, msg_type, msg):
         '''
-        Internal. (helper for {i2c,goc}_send
+        Internal. (helper for {i2c,goc,ein,mbus}_send)
         '''
         # XXX: Make version dependent?
         FRAG_SIZE = 255
@@ -400,8 +448,8 @@ class ICE(object):
         sent += len(msg)
         return sent
 
-    ## QUERY ICE ##
-    def query_capabilities(self):
+    ## QUERY / CONFIGURE ICE ##
+    def ice_query_capabilities(self):
         '''
         Queries ICE board for available hardware frontends.
 
@@ -412,6 +460,40 @@ class ICE(object):
         '''
         resp = self.send_message_until_acked('?', struct.pack("B", ord('?')))
         return resp
+
+    def ice_get_baudrate(self):
+        '''
+        Gets the current baud rate of the ICE bridge in Hz.
+
+        XXX: Returns the ideal value, not the exact speed. Not sure which is
+        more correct / more useful.
+        '''
+        resp = self.send_message_until_acked('?', struct.pack("B", ord('b')))
+        div = struct.unpack("!H", resp)[0]
+
+        if div == 0x00AE:
+            return 1152200
+        elif div == 0x0007:
+            return 3000000
+        else:
+            raise self.FormatError, "Unknown baud divider?"
+
+
+    def ice_set_baudrate(self, div):
+        '''
+        Sets a new baud rate for the ICE bridge.
+
+        Internal. This function is not meant to be called directly.
+        '''
+        self.send_message_until_acked('_', struct.pack("!BH", ord('b'), div))
+
+    def ice_set_baudrate_to_115200(self):
+        self.ice_set_baudrate(0x00AE)
+        self.dev.baudrate = 115200
+
+    def ice_set_baudrate_to_3_megabaud(self):
+        self.ice_set_baudrate(0x0007)
+        self.dev.baudrate = 3000000
 
     ## GOC ##
     GOC_SPEED_DEFAULT_HZ = .625

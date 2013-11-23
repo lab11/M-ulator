@@ -53,34 +53,65 @@ the FLOW light to be set.
         \begin{bytefield} \\
           \colorbitbox{lightgreen}{8}{ACK (0x00)} &
           \colorbitbox{lightred}{8}{Event ID} &
-          \colorbitbox{lightcyan}{8}{Len (10)} &
-          \bitbox{20}{\texttt{`?IifOoGgPp' (0x3f4969664f6f47675070)}} &
+          \colorbitbox{lightcyan}{8}{Len (11)} &
+          \bitbox{20}{\texttt{`?\_IifOoGgPp' (0x3f5f4969664f6f47675070)}} &
         \end{bytefield}
     \end{itemize}
-  \paragraph{\texttt{0x3f 0x42 `?B'} -- Query baudrate}
+  \paragraph{\texttt{0x3f 0x42 `?b'} -- Query baudrate}
     \begin{itemize}
-      \item This message shall mirror the {\tt `?b'} message and report the
+      \item This message shall mirror the {\tt `\_b'} message and report the
         currently set baud rate.
-      \item Or maybe it should report all the supported baud rates. If you're
-        sending / receiving messages in the first place, you probably already
-        know the baud rate.
     \end{itemize}
-  \paragraph{\texttt{0x3f 0x62 `?b'} -- Set baudrate}
+  \paragraph{\texttt{0x3f} Responses}
     \begin{itemize}
+      \item NAKs for this message shall be composed of an error
+        code, followed by an optional explanatory string.
+        \begin{itemize}
+          \item[]
+            \begin{bytefield} \\
+              \colorbitbox{lightgreen}{8}{NAK (0x01)} &
+              \colorbitbox{lightred}{8}{Event ID} &
+              \colorbitbox{lightcyan}{8}{Len (Min: 1)} &
+              \colorbitbox{lightblue}{8}{EINVAL (0x16)} &
+              \bitbox{8}{[{\tt "Out of Range"}]} &
+            \end{bytefield}
+          \item {\texttt {\textbf EINVAL (22,0x16):}} Invalid argument.
+        \end{itemize}
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{\texttt{0x5f `\_'} -- Configure ICE}
+{\em Synchronous Request}
+\begin{itemize}
+  \item The first byte of this message shall be a specificer, indicating
+    what type of query is requested.
+  \item {\tt `\_'} commands are setters for the {\tt '?'} getters if
+    appropriate.
+  \paragraph{\texttt{0x5f 0x62 `\_b'} -- Set baudrate}
+    \begin{itemize}
+        \item[]
+          \begin{bytefield} \\
+            \colorbitbox{lightgreen}{8}{`\_'} &
+            \colorbitbox{lightred}{8}{Event ID} &
+            \colorbitbox{lightcyan}{8}{Len (Must be 3)} &
+            \colorbitbox{lightergreen}{8}{`b'} &
+            \bitbox{8}{Clock Divider}
+          \end{bytefield}
       \item This message shall set the baud rate for future messages. The new
         baud rate shall take effect \hl{immediately OR? after the ACK for this
         request}. (Probably should take effect after ACK'ing so that you can
         NACK an illegal / unsupported value?).
-      \item The baud rate shall be specified as.... {\hl a divisor?}.
-      \item \textbf{Default Value:} \hl{Whatever value corrolates to 115200.}
+      \item This shall be followed by a two byte
+        value N (MSB-first), where $N = \lceil\frac{20~MHz}{Baud Rate}\rceil$.
+      \item {\bf Default:} {\tt 0x00AE} (20~MHz / 0x00AE $\approx$ 115200~Hz)
       \item The following message would set the ICE speed to 3 Megabaud:
       \item[]
         \begin{bytefield} \\
-          \colorbitbox{lightgreen}{8}{`?' (0x3f)} &
+          \colorbitbox{lightgreen}{8}{`\_' (0x5f)} &
           \colorbitbox{lightred}{8}{Event ID} &
-          \colorbitbox{lightcyan}{8}{Length} &
+          \colorbitbox{lightcyan}{8}{Length (3)} &
           \colorbitbox{lightergreen}{8}{`b' (0x62)}
-          \bitbox{8}{\hl{VALUE}}
+          \bitbox{8}{0x0007}
         \end{bytefield}
     \end{itemize}
 \end{itemize}
@@ -316,43 +347,6 @@ the FLOW light to be set.
           indicating whether the default state of the light should be on or
           off. If the default is set to on, the light shall remain illuminated
           until set to off or a GOC pulse temporarily turns if off.
-      \end{itemize}
-  \paragraph{\texttt{0x6f} Responses}
-    \begin{itemize}
-      \item NAKs for this message shall be composed of an error
-        code, followed by an optional explanatory string.
-        \begin{itemize}
-          \item[]
-            \begin{bytefield} \\
-              \colorbitbox{lightgreen}{8}{NAK (0x01)} &
-              \colorbitbox{lightred}{8}{Event ID} &
-              \colorbitbox{lightcyan}{8}{Len (Min: 1)} &
-              \colorbitbox{lightblue}{8}{EINVAL (0x16)} &
-              \bitbox{8}{[{\tt "Out of Range"}]} &
-            \end{bytefield}
-          \item {\texttt {\textbf EINVAL (22,0x16):}} Invalid argument.
-        \end{itemize}
-    \end{itemize}
-\end{itemize}
-
-\subsubsection{\texttt{0x75 `u'} -- Set UART Configuration}
-{\em Synchronous Request}
-\begin{itemize}
-  \item The first byte of the message shall define which parameter is to
-    be configured.
-    \paragraph{\texttt{0x75 0x64 `ud'}: Baud Rate (Divider)}
-      \begin{itemize}
-        \item[]
-          \begin{bytefield} \\
-            \colorbitbox{lightgreen}{8}{`u'} &
-            \colorbitbox{lightred}{8}{Event ID} &
-            \colorbitbox{lightcyan}{8}{Len (Must be 3)} &
-            \colorbitbox{lightergreen}{8}{`d'} &
-            \bitbox{8}{Clock Divider}
-          \end{bytefield}
-        \item {\bf Default:} {\tt 0x00AE} (20~MHz / 0x00AE $\approx$ 115200~Hz)
-        \item This shall be followed by a two byte
-          value N (MSB-first), where $N = \lceil\frac{20~MHz}{Baud Rate}\rceil$.
       \end{itemize}
   \paragraph{\texttt{0x6f} Responses}
     \begin{itemize}

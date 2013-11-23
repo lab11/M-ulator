@@ -12,18 +12,22 @@ import inspect
 from ice import ICE
 
 class ICETests(object):
+    class TestFailedException(Exception):
+        pass
+
     def test_query_capabilities(self, ice):
         logger.info("Test ??")
-        caps = ice.query_capabilities()
+        caps = ice.ice_query_capabilities()
         logger.debug("ICE Capability String: " + caps)
 
-    def test_query_baudrate(self, ice):
-        logger.info("Test ?B")
-        logger.error("?B Not Implemented -- skipping")
-
-    def test_set_baudrate(self, ice):
+    def test_baudrate(self, ice):
         logger.info("Test ?b")
-        logger.error("?b Not Implemented -- skipping")
+        ice.ice_set_baudrate_to_3_megabaud()
+        baud = ice.ice_get_baudrate()
+        if baud != 3000000:
+            logger.error("Set/get baudrate mismatch")
+            logger.error("Expected 3000000, got " + str(baud))
+            raise self.TestFailedException
 
     def test_discrete_i2c(self, ice):
         logger.info("Test d")
