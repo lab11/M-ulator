@@ -211,6 +211,7 @@ class ICE(object):
     def string_to_masks(self, mask_string):
         ones = 0
         zeros = 0
+        mask_string = mask_string.replace(' ','')
         idx = len(mask_string)
         for c in mask_string:
             idx -= 1
@@ -218,10 +219,11 @@ class ICE(object):
                 ones |= (1 << idx)
             elif c == '0':
                 zeros |= (1 << idx)
-            elif c in ('x', 'X', ' '):
+            elif c in ('x', 'X'):
                 continue
             else:
                 raise self.FormatError, "Illegal character: >>>" + c + "<<<"
+        return ones,zeros
 
     def masks_to_strings(self, ones, zeros, length):
         s = ''
@@ -231,11 +233,11 @@ class ICE(object):
             if o and z:
                 raise self.FormatError, "masks_to_strings has req 1 and req 0?"
             if o:
-                s += '1'
+                s = '1' + s
             elif z:
-                s += '0'
+                s = '0' + s
             else:
-                s += 'x'
+                s = 'x' + s
         return s
 
     def d_defragger(self, msg_type, event_id, length, msg):
@@ -408,7 +410,7 @@ class ICE(object):
         characters from the ICE board, which requires the caller to know the
         ICE protocol.
         '''
-        resp = self.send_message_until_acked('?', struct.pack("B", ord('c')))
+        resp = self.send_message_until_acked('?', struct.pack("B", ord('?')))
         return resp
 
     ## GOC ##
@@ -418,7 +420,7 @@ class ICE(object):
         try:
             freq = self.goc_freq
         except AttributeError:
-            freq = GOC_SPEED_DEFAULT_HZ
+            freq = ICE.GOC_SPEED_DEFAULT_HZ
 
         num_bits = len(msg) * 8
         t = num_bits / freq
@@ -457,6 +459,18 @@ class ICE(object):
             ret = self._fragment_sender('f', msg)
         return ret
 
+    def goc_get_frequency(self):
+        '''
+        Gets the GOC frequency.
+        '''
+        resp = self.send_message_until_acked('O', struct.pack("B", ord('c')))
+        if len(resp) != 3:
+            raise self.FormatError, "Wrong response length from `Oc': " + str(resp)
+        setting = struct.unpack("!I", "\x00"+resp)[0]
+        NOMINAL = int(2e6)
+        freq_in_hz = NOMINAL / setting
+        return freq_in_hz
+
     def goc_set_frequency(self, freq_in_hz):
         '''
         Sets the GOC frequency.
@@ -479,7 +493,7 @@ class ICE(object):
         resp = self.send_message_until_acked('O', struct.pack("B", ord('o')))
         if len(resp) != 1:
             raise self.FormatError, "Wrong response length from `Oo': " + str(resp)
-        onoff = struct.unpack("B", resp)
+        onoff = struct.unpack("B", resp)[0]
         return bool(onoff)
 
     def goc_set_onoff(self, onoff):
@@ -521,7 +535,7 @@ class ICE(object):
         if ack == 0:
             if len(msg) != 1:
                 raise self.FormatError
-            return struct.unpack("B", msg) * 2
+            return struct.unpack("B", msg)[0] * 2
 
         ret = ord(msg[0])
         msg = msg[1:]
@@ -561,6 +575,19 @@ class ICE(object):
             raise self.ICE_Error, "ICE reports: Invalid argument."
         elif ret == errno.ENODEV:
             raise self.ICE_Error, "Changing I2C speed not supported."
+
+    def i2c_get_address(self):
+        '''
+        Get the I2C address(es) of the ICE peripheral.
+        '''
+        resp = self.send_message_until_acked('I', struct.pack("B", ord('a')))
+        if len(resp) != 2:
+            raise self.FormatError, "i2c address response should be 2 bytes"
+        ones, zeros = struct.unpack("BB", resp)
+        if ones == 0xff and zeros == 0xff:
+            return None
+        else:
+            return self.masks_to_strings(ones, zeros, 8)
 
     def i2c_set_address(self, address=None):
         '''
@@ -603,7 +630,8 @@ class ICE(object):
         transaction size below the ICE fragmentation limit (less than 255 bytes
         for combined address + data).
         '''
-        return self._fragment_sender('b', addr+data)
+        msg = struct.pack("B", addr) + data
+        return self._fragment_sender('b', msg)
 
     def mbus_set_full_prefix(self, prefix=None):
         '''
@@ -784,12 +812,12 @@ class ICE(object):
 
         Default Value: DISABLED.
         '''
-        if prefix is None:
+        if mask is None:
             ones, zeros = (0xf, 0xf)
         else:
-            if len(prefix) != 4:
+            if len(mask) != 4:
                 raise self.FormatError, "Prefix must be exactly 4 bits"
-            ones, zeros = self.string_to_masks(prefix)
+            ones, zeros = self.string_to_masks(mask)
         self.send_message_until_acked('m', struct.pack("B"*(1+2),
             ord('b'),
             ones,
@@ -822,12 +850,12 @@ class ICE(object):
 
         Default Value: DISABLED.
         '''
-        if prefix is None:
+        if mask is None:
             ones, zeros = (0xf, 0xf)
         else:
-            if len(prefix) != 4:
+            if len(mask) != 4:
                 raise self.FormatError, "Prefix must be exactly 4 bits"
-            ones, zeros = self.string_to_masks(prefix)
+            ones, zeros = self.string_to_masks(mask)
         self.send_message_until_acked('m', struct.pack("B"*(1+2),
             ord('B'),
             ones,
@@ -854,7 +882,7 @@ class ICE(object):
         resp = self.send_message_until_acked('M', struct.pack("B", ord('m')))
         if len(resp) != 1:
             raise self.FormatError, "Wrong response length from `Mm': " + str(resp)
-        onoff = struct.unpack("B", resp)
+        onoff = struct.unpack("B", resp)[0]
         return bool(onoff)
 
     def mbus_set_master_onoff(self, onoff):
@@ -863,7 +891,7 @@ class ICE(object):
 
         DEFAULT: OFF
         '''
-        msg = struct.pack("BB", ord('c'), onoff)
+        msg = struct.pack("BB", ord('m'), onoff)
         self.send_message_until_acked('m', msg)
 
     def mbus_get_clock(self):
@@ -874,7 +902,7 @@ class ICE(object):
         #resp = self.send_message_until_acked('M', struct.pack("B", ord('c')))
         #if len(resp) != 1:
         #    raise self.FormatError, "Wrong response length from `Mc': " + str(resp)
-        #onoff = struct.unpack("B", resp)
+        #onoff = struct.unpack("B", resp)[0]
         #return bool(onoff)
         #return resp
 
@@ -895,9 +923,10 @@ class ICE(object):
         TODO: Fix interface (enums?)
         '''
         resp = self.send_message_until_acked('M', struct.pack("B", ord('i')))
+        resp = ord(resp)
         #if len(resp) != 1:
         #    raise self.FormatError, "Wrong response length from `Mc': " + str(resp)
-        #onoff = struct.unpack("B", resp)
+        #onoff = struct.unpack("B", resp)[0]
         #return bool(onoff)
         return resp
 
@@ -907,7 +936,7 @@ class ICE(object):
 
         DEFAULT: Off
         '''
-        msg = struct.pack("BB", ord('i'), onoff)
+        msg = struct.pack("BB", ord('i'), should_interrupt)
         self.send_message_until_acked('m', msg)
 
     def mbus_get_use_priority(self):
@@ -917,9 +946,10 @@ class ICE(object):
         TODO: Fix interface (enums?)
         '''
         resp = self.send_message_until_acked('M', struct.pack("B", ord('p')))
+        resp = ord(resp)
         #if len(resp) != 1:
         #    raise self.FormatError, "Wrong response length from `Mc': " + str(resp)
-        #onoff = struct.unpack("B", resp)
+        #onoff = struct.unpack("B", resp)[0]
         #return bool(onoff)
         return resp
 
@@ -929,7 +959,7 @@ class ICE(object):
 
         DEFAULT: Off
         '''
-        msg = struct.pack("BB", ord('p'), onoff)
+        msg = struct.pack("BB", ord('p'), use_priority)
         self.send_message_until_acked('m', msg)
 
     ## EIN DEBUG ##
@@ -961,7 +991,7 @@ class ICE(object):
         if len(resp) != 1:
             raise self.FormatError, "Too long of a response from `Gl#':" + str(resp)
 
-        return bool(struct.unpack("B", resp))
+        return bool(struct.unpack("B", resp)[0])
 
     def gpio_get_direction(self, gpio_idx):
         '''
@@ -977,7 +1007,7 @@ class ICE(object):
         if len(resp) != 1:
             raise self.FormatError, "Too long of a response from `Gl#':" + str(resp)
 
-        direction = struct.unpack("B", resp)
+        direction = struct.unpack("B", resp)[0]
         if direction not in (ICE.GPIO_INPUT, ICE.GPIO_OUTPUT, ICE.GPIO_TRISTATE):
             raise self.FormatError, "Unknown direction: " + str(direction)
 
@@ -1022,9 +1052,9 @@ class ICE(object):
             raise self.ParameterError, "Invalid rail: " + str(rail)
 
         resp = self.send_message_until_acked('P', struct.pack("BB", ord('v'), rail))
-        if len(resp) != 1:
-            raise self.FormatError, "Too long of a response from `Pv#':" + str(resp)
-        raw = struct.unpack("B", resp)
+        if len(resp) != 2:
+            raise self.FormatError, "Wrong response length from `Pv#':" + str(resp)
+        rail, raw = struct.unpack("BB", resp)
 
         # Vout = (0.537 + 0.0185 * v_set) * Vdefault
         default_voltage = (ICE.POWER_0P6_DEFAULT, ICE.POWER_1P2_DEFAULT,
@@ -1044,7 +1074,7 @@ class ICE(object):
         resp = self.send_message_until_acked('P', struct.pack("BB", ord('o'), rail))
         if len(resp) != 1:
             raise self.FormatError, "Too long of a response from `Po#':" + str(resp)
-        onoff = struct.unpack("B", resp)
+        onoff = struct.unpack("B", resp)[0]
         return bool(onoff)
 
     def power_set_voltage(self, rail, output_voltage):

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# self-test: socat -x pty,link=com1,raw,echo=0 pty,link=com2,raw,echo=0
+# self-test: socat -x pty,link=/tmp/com1,raw,echo=0 pty,link=/tmp/com2,raw,echo=0
 
 from math import ceil
 from time import sleep

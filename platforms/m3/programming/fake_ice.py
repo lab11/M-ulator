@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+CAPABILITES = "?dIifOoBbMmeGgPp"
 MAX_GPIO = 24
 DEFAULT_SERIAL = '/tmp/com2'
 DEFAULT_I2C_MASK = '1001100x'
@@ -11,6 +12,18 @@ DEFAULT_POWER_VBATT = 3.8
 DEFAULT_VSET_0P6 = 19
 DEFAULT_VSET_1P2 = 25
 DEFAULT_VSET_VBATT = 25
+DEFAULT_MBUS_FULL_PREFIX_ONES = 0xfffff0
+DEFAULT_MBUS_FULL_PREFIX_ZEROS = 0xfffff0
+DEFAULT_MBUS_SHORT_PREFIX_ONES = 0xf0
+DEFAULT_MBUS_SHORT_PREFIX_ZEROS = 0xf0
+DEFAULT_MBUS_SNOOP_FULL_PREFIX_ONES = 0xfffff0
+DEFAULT_MBUS_SNOOP_FULL_PREFIX_ZEROS = 0xfffff0
+DEFAULT_MBUS_SNOOP_SHORT_PREFIX_ONES = 0xf0
+DEFAULT_MBUS_SNOOP_SHORT_PREFIX_ZEROS = 0xf0
+DEFAULT_MBUS_BROADCAST_MASK_ONES = 0x0f
+DEFAULT_MBUS_BROADCAST_MASK_ZEROS = 0x0f
+DEFAULT_MBUS_SNOOP_BROADCAST_MASK_ONES = 0x0f
+DEFAULT_MBUS_SNOOP_BROADCAST_MASK_ZEROS = 0x0f
 
 import sys
 import serial
@@ -52,6 +65,22 @@ vset_vbatt = DEFAULT_VSET_VBATT
 power_0p6_on = False
 power_1p2_on = False
 power_vbatt_on = False
+
+mbus_full_prefix_ones = DEFAULT_MBUS_FULL_PREFIX_ONES
+mbus_full_prefix_zeros = DEFAULT_MBUS_FULL_PREFIX_ZEROS
+mbus_short_prefix_ones = DEFAULT_MBUS_SHORT_PREFIX_ONES
+mbus_short_prefix_zeros = DEFAULT_MBUS_SHORT_PREFIX_ZEROS
+mbus_snoop_full_prefix_ones = DEFAULT_MBUS_SNOOP_FULL_PREFIX_ONES
+mbus_snoop_full_prefix_zeros = DEFAULT_MBUS_SNOOP_FULL_PREFIX_ZEROS
+mbus_snoop_short_prefix_ones = DEFAULT_MBUS_SNOOP_SHORT_PREFIX_ONES
+mbus_snoop_short_prefix_zeros = DEFAULT_MBUS_SNOOP_SHORT_PREFIX_ZEROS
+mbus_broadcast_mask_ones = DEFAULT_MBUS_BROADCAST_MASK_ONES
+mbus_broadcast_mask_zeros = DEFAULT_MBUS_BROADCAST_MASK_ZEROS
+mbus_snoop_broadcast_mask_ones = DEFAULT_MBUS_SNOOP_BROADCAST_MASK_ONES
+mbus_snoop_broadcast_mask_zeros = DEFAULT_MBUS_SNOOP_BROADCAST_MASK_ZEROS
+mbus_ismaster = False
+mbus_should_interrupt = 0
+mbus_should_prio = 0
 
 def match_mask(val, ones, zeros):
     return ((val & ones) == ones) and ((~val & zeros) == zeros)
@@ -137,6 +166,8 @@ def nak():
 i2c_msg = ''
 i2c_match = False
 flow_msg = ''
+ein_msg = ''
+mbus_msg = ''
 while True:
     msg_type, event_id, length = s.read(3)
     logger.debug("Got a message of type: " + msg_type)
@@ -158,6 +189,30 @@ while True:
         else:
             logger.error("Request for unknown version: " + msg)
             raise Exception
+
+    elif msg_type == '?':
+        if msg[0] == '?':
+            logger.info("Responded to query capabilites with " + CAPABILITES)
+            respond(CAPABILITES)
+        else:
+            logger.error("Bad '?' subtype: " + msg[0])
+    elif msg_type == 'b':
+        mbus_msg += msg
+        if len(msg) != 255:
+            logger.info("Got a MBus message:")
+            logger.info("   message: " + mbus_msg.encode('hex'))
+            mbus_msg = ''
+            if mbus_should_interrupt:
+                logger.info("Message would have interrupted")
+                if mbus_should_interrupt == 1:
+                    mbus_should_interrupt = 0
+            if mbus_should_prio:
+                logger.info("Message would have been sent high priority")
+                if mbus_should_prio == 1:
+                    mbus_should_prio = 0
+        else:
+            logger.debug("Got MBus fragment")
+        ack()
     elif msg_type == 'd':
         i2c_msg += msg
         if not i2c_match:
@@ -176,10 +231,48 @@ while True:
         else:
             logger.debug("Got i2c fragment")
         ack()
-    elif msg_type == 'I':
-        if len(msg) < 3:
-            logger.error("bad 'I' message length: " + str(len(msg)))
+    elif msg_type == 'e':
+        ein_msg += msg
+        if len(msg) != 255:
+            logger.info("Got a EIN message:")
+            logger.info("  message: " + ein_msg.encode('hex'))
+            ein_msg = ''
+        else:
+            logger.debug("Got EIN fragment")
+        ack()
+    elif msg_type == 'f':
+        flow_msg += msg
+        if len(msg) != 255:
+            logger.info("Got flow message:")
+            logger.info("  addr: " + flow_msg[0].encode('hex'))
+            logger.info("  data: " + flow_msg[1:].encode('hex'))
+            flow_msg = ''
+        else:
+            logger.debug("Got flow fragment")
+        ack()
+    elif msg_type == 'G':
+        if msg[0] == 'l':
+            logger.info("Responded to request for GPIO %d Dir (%s)", ord(msg[1]), gpios[ord(msg[1])])
+            respond(chr(gpios[ord(msg[1])].level))
+        elif msg[0] == 'd':
+            logger.info("Responded to request for GPIO %d Level (%s)", ord(msg[1]), gpios[ord(msg[1])])
+            respond(chr(gpios[ord(msg[1])].direction))
+        else:
+            logger.error("bad 'G' subtype: " + msg[0])
             raise Exception
+    elif msg_type == 'g':
+        if msg[0] == 'l':
+            gpios[ord(msg[1])].level = (ord(msg[2]) == True)
+            logger.info("Set GPIO %d Level: %s", ord(msg[1]), gpios[ord(msg[1])])
+            ack()
+        elif msg[0] == 'd':
+            gpios[ord(msg[1])].direction = ord(msg[2])
+            logger.info("Set GPIO %d Dir: %s", ord(msg[1]), gpios[ord(msg[1])])
+            ack()
+        else:
+            logger.error("bad 'g' subtype: " + msg[0])
+            raise Exception
+    elif msg_type == 'I':
         if msg[0] == 'c':
             logger.info("Responded to query for I2C bus speed (%d kHz)", i2c_speed_in_khz)
             respond(chr(i2c_speed_in_khz / 2))
@@ -191,9 +284,6 @@ while True:
             logger.error("bad 'I' subtype: " + msg[0])
             raise Exception
     elif msg_type == 'i':
-        if len(msg) < 3:
-            logger.error("bad 'i' message length: " + str(len(msg)))
-            raise Exception
         if msg[0] == 'c':
             i2c_speed_in_khz = ord(msg[1]) * 2
             logger.info("I2C Bus Speed set to %d kHz", i2c_speed_in_khz)
@@ -207,23 +297,125 @@ while True:
         else:
             logger.error("bad 'i' subtype: " + msg[0])
             raise Exception
-    elif msg_type == 'f':
-        flow_msg += msg
-        if len(msg) != 255:
-            logger.info("Got flow message:")
-            logger.info("  addr: " + flow_msg[0].encode('hex'))
-            logger.info("  data: " + flow_msg[1:].encode('hex'))
-            flow_msg = ''
+    elif msg_type == 'M':
+        if msg[0] == 'l':
+            logger.info("Responded to query for MBus full prefix mask (%06x ones %06x zeros)",
+                    mbus_full_prefix_ones, mbus_full_prefix_zeros)
+            r = chr((mbus_full_prefix_ones >> 16) & 0xff)
+            r += chr((mbus_full_prefix_ones >> 8) & 0xff)
+            r += chr((mbus_full_prefix_ones >> 0) & 0xff)
+            r += chr((mbus_full_prefix_zeros >> 16) & 0xff)
+            r += chr((mbus_full_prefix_zeros >>  8) & 0xff)
+            r += chr((mbus_full_prefix_zeros >>  0) & 0xff)
+            respond(r)
+        elif msg[0] == 's':
+            logger.info("Responded to query for MBus short prefix mask (%02x ones %06x zeros)",
+                    mbus_short_prefix_ones, mbus_short_prefix_zeros)
+            respond(chr(mbus_short_prefix_ones) + chr(mbus_short_prefix_zeros))
+        elif msg[0] == 'L':
+            logger.info("Responded to query for MBus snoop full prefix mask (%06x ones %06x zeros)",
+                    mbus_snoop_full_prefix_ones, mbus_snoop_full_prefix_zeros)
+            r = chr((mbus_snoop_full_prefix_ones >> 16) & 0xff)
+            r += chr((mbus_snoop_full_prefix_ones >> 8) & 0xff)
+            r += chr((mbus_snoop_full_prefix_ones >> 0) & 0xff)
+            r += chr((mbus_snoop_full_prefix_zeros >> 16) & 0xff)
+            r += chr((mbus_snoop_full_prefix_zeros >>  8) & 0xff)
+            r += chr((mbus_snoop_full_prefix_zeros >>  0) & 0xff)
+            respond(r)
+        elif msg[0] == 'S':
+            logger.info("Responded to query for MBus snoop short prefix mask (%02x ones %06x zeros)",
+                    mbus_snoop_short_prefix_ones, mbus_snoop_short_prefix_zeros)
+            respond(chr(mbus_snoop_short_prefix_ones) + chr(mbus_snoop_short_prefix_zeros))
+        elif msg[0] == 'b':
+            logger.info("Responded to query for MBus broadcast mask (%02x ones %02x zeros)",
+                    mbus_broadcast_mask_ones, mbus_broadcast_mask_zeros)
+            respond(chr(mbus_broadcast_mask_ones) + chr(mbus_broadcast_mask_zeros))
+        elif msg[0] == 'B':
+            logger.info("Responded to query for MBus snoop broadcast mask (%02x ones %02x zeros)",
+                    mbus_snoop_broadcast_mask_ones, mbus_snoop_broadcast_mask_zeros)
+            respond(chr(mbus_snoop_broadcast_mask_ones) + chr(mbus_snoop_broadcast_mask_zeros))
+        elif msg[0] == 'm':
+            logger.info("Responded to query for MBus master state (%s)",
+                    ("off", "on")[mbus_ismaster])
+            respond(chr(mbus_ismaster))
+        elif msg[0] == 'c':
+            raise NotImplementedError, "MBus clock not defined"
+        elif msg[0] == 'i':
+            logger.info("Responded to query for MBus should interrupt (%d)",
+                    mbus_should_interrupt)
+            respond(chr(mbus_should_interrupt))
+        elif msg[0] == 'p':
+            logger.info("Responded to query for MBus should use priority arb (%d)",
+                    mbus_should_prio)
+            respond(chr(mbus_should_prio))
         else:
-            logger.debug("Got flow fragment")
-        ack()
+            logger.error("bad 'M' subtype: " + msg[0])
+    elif msg_type == 'm':
+        if msg[0] == 'l':
+            mbus_full_prefix_ones = ord(msg[3])
+            mbus_full_prefix_ones |= ord(msg[2]) << 8
+            mbus_full_prefix_ones |= ord(msg[1]) << 16
+            mbus_full_prefix_zeros = ord(msg[6])
+            mbus_full_prefix_zeros |= ord(msg[5]) << 8
+            mbus_full_prefix_zeros |= ord(msg[4]) << 16
+            logger.info("MBus full prefix mask set to ones %06x zeros %06x",
+                    mbus_full_prefix_ones, mbus_full_prefix_zeros)
+            ack()
+        elif msg[0] == 's':
+            mbus_short_prefix_ones = ord(msg[1])
+            mbus_short_prefix_zeros = ord(msg[2])
+            logger.info("MBus short prefix mask set to ones %02x zeros %02x",
+                    mbus_short_prefix_ones, mbus_short_prefix_zeros)
+            ack()
+        elif msg[0] == 'L':
+            mbus_snoop_full_prefix_ones = ord(msg[3])
+            mbus_snoop_full_prefix_ones |= ord(msg[2]) << 8
+            mbus_snoop_full_prefix_ones |= ord(msg[1]) << 16
+            mbus_snoop_full_prefix_zeros = ord(msg[6])
+            mbus_snoop_full_prefix_zeros |= ord(msg[5]) << 8
+            mbus_snoop_full_prefix_zeros |= ord(msg[4]) << 16
+            logger.info("MBus snoop full prefix mask set to ones %06x zeros %06x",
+                    mbus_snoop_full_prefix_ones, mbus_snoop_full_prefix_zeros)
+            ack()
+        elif msg[0] == 'S':
+            mbus_snoop_short_prefix_ones = ord(msg[1])
+            mbus_snoop_short_prefix_zeros = ord(msg[2])
+            logger.info("MBus snoop short prefix mask set to ones %02x zeros %02x",
+                    mbus_snoop_short_prefix_ones, mbus_snoop_short_prefix_zeros)
+            ack()
+        elif msg[0] == 'b':
+            mbus_broadcast_mask_ones = ord(msg[1])
+            mbus_broadcast_mask_zeros = ord(msg[2])
+            logger.info("MBus broadcast mask set to ones %02x zeros %02x",
+                    mbus_broadcast_mask_ones, mbus_broadcast_mask_zeros)
+            ack()
+        elif msg[0] == 'B':
+            mbus_snoop_broadcast_mask_ones = ord(msg[1])
+            mbus_snoop_broadcast_mask_zeros = ord(msg[2])
+            logger.info("MBus snoop broadcast mask set to ones %02x zeros %02x",
+                    mbus_snoop_broadcast_mask_ones, mbus_snoop_broadcast_mask_zeros)
+            ack()
+        elif msg[0] == 'm':
+            mbus_ismaster = bool(msg[1])
+            logger.info("MBus master mode set " + ("off", "on")[mbus_ismaster])
+            ack()
+        elif msg[0] == 'c':
+            raise NotImplementedError, "MBus clock not defined"
+        elif msg[0] == 'i':
+            mbus_should_interrupt = ord(msg[1])
+            logger.info("MBus should interrupt set to %d", mbus_should_interrupt)
+            ack()
+        elif msg[0] == 'p':
+            mbus_should_prio = ord(msg[1])
+            logger.info("MBus should use priority arbitration set to %d",
+                    mbus_should_prio)
+            ack()
+        else:
+            logger.error("bad 'm' subtype: " + msg[0])
     elif msg_type == 'O':
-        if len(msg) != 5:
-            logger.error("bad 'O' message length: " + str(len(msg)))
-            raise Exception
         if msg[0] == 'c':
             logger.info("Responded to query for FLOW clock (%.2f Hz)", flow_clock_in_hz)
-            div = 2e6 / flow_clock_in_hz
+            div = int(2e6 / flow_clock_in_hz)
             resp = chr((div >> 16) & 0xff)
             resp += chr((div >> 8) & 0xff)
             resp += chr(div & 0xff)
@@ -238,9 +430,6 @@ while True:
         else:
             logger.error("bad 'O' subtype: " + msg[0])
     elif msg_type == 'o':
-        if len(msg) != 5:
-            logger.error("bad 'o' message length: " + str(len(msg)))
-            raise Exception
         if msg[0] == 'c':
             div = (ord(msg[1]) << 16) | (ord(msg[2]) << 8) | ord(msg[3])
             flow_clock_in_hz = 2e6 / div
@@ -256,38 +445,7 @@ while True:
                 logger.error("negotiated protocol was 0.1")
         else:
             logger.error("bad 'o' subtype: " + msg[0])
-    elif msg_type == 'G':
-        if len(msg) != 3:
-            logger.error("bad 'G' message length: " + str(len(msg)))
-            raise Exception
-        if msg[0] == 'l':
-            logger.info("Responded to request for GPIO %d Dir (%s)", ord(msg[1]), gpios[ord(msg[1])])
-            respond(chr(gpios[ord(msg[1])].level))
-        elif msg[0] == 'd':
-            logger.info("Responded to request for GPIO %d Level (%s)", ord(msg[1]), gpios[ord(msg[1])])
-            respond(chr(gpios[ord(msg[1])].direction))
-        else:
-            logger.error("bad 'G' subtype: " + msg[0])
-            raise Exception
-    elif msg_type == 'g':
-        if len(msg) != 3:
-            logger.error("bad 'g' message length: " + str(len(msg)))
-            raise Exception
-        if msg[0] == 'l':
-            gpios[ord(msg[1])].level = (ord(msg[2]) == True)
-            logger.info("Set GPIO %d Level: %s", ord(msg[1]), gpios[ord(msg[1])])
-            ack()
-        elif msg[0] == 'd':
-            gpios[ord(msg[1])].direction = ord(msg[2])
-            logger.info("Set GPIO %d Dir: %s", ord(msg[1]), gpios[ord(msg[1])])
-            ack()
-        else:
-            logger.error("bad 'g' subtype: " + msg[0])
-            raise Exception
     elif msg_type == 'P':
-        if len(msg) < 3:
-            logger.error("Bad 'P' message length: " + str(len(msg)))
-            raise Exception
         pwr_idx = ord(msg[1])
         if pwr_idx not in (0,1,2):
             logger.error("Illegal power index: %d", pwr_idx)
@@ -296,16 +454,15 @@ while True:
             if pwr_idx is 0:
                 logger.info("Query 0.6V rail (vset=%d, vout=%.2f)", vset_0p6,
                         (0.537 + 0.0185 * vset_0p6) * DEFAULT_POWER_0P6)
-                respond(chr(vset_0p6))
+                respond(chr(pwr_idx) + chr(vset_0p6))
             elif pwr_idx is 1:
                 logger.info("Query 1.2V rail (vset=%d, vout=%.2f)", vset_1p2,
                         (0.537 + 0.0185 * vset_1p2) * DEFAULT_POWER_1P2)
-                respond(chr(vset_1p2))
+                respond(chr(pwr_idx) + chr(vset_1p2))
             elif pwr_idx is 2:
                 logger.info("Query VBatt rail (vset=%d, vout=%.2f)", vset_vbatt,
                         (0.537 + 0.0185 * vset_vbatt) * DEFAULT_POWER_VBATT)
-                respond(chr(vset_vbatt))
-            ack()
+                respond(chr(pwr_idx) + chr(vset_vbatt))
         elif msg[0] == 'o':
             if pwr_idx is 0:
                 logger.info("Query 0.6V rail (%s)", ('off','on')[power_0p6_on])
@@ -320,9 +477,6 @@ while True:
             logger.error("bad 'p' subtype: " + msg[0])
             raise Exception
     elif msg_type == 'p':
-        if len(msg) < 3:
-            logger.error("Bad 'p' message length: " + str(len(msg)))
-            raise Exception
         pwr_idx = ord(msg[1])
         if pwr_idx not in (0,1,2):
             logger.error("Illegal power index: %d", pwr_idx)
