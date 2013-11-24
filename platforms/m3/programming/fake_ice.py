@@ -156,6 +156,7 @@ def respond(msg, ack=True):
         s.write(chr(1))
     s.write(chr(event))
     event += 1
+    event %= 256
     s.write(chr(len(msg)))
     if len(msg):
         s.write(msg)
