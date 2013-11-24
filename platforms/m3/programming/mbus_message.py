@@ -36,6 +36,9 @@ class mbus_message_generator(m3_common):
     def set_master(self):
         self.ice.mbus_set_master_onoff(True)
 
+    def set_slave(self):
+        self.ice.mbus_set_master_onoff(False)
+
 m = mbus_message_generator()
 
 def default_value(prompt, default, extra=None):
@@ -48,14 +51,17 @@ def default_value(prompt, default, extra=None):
     else:
         return r
 
-def do_default(prompt, fn):
+def do_default(prompt, fn, else_fn=None):
     y = default_value(prompt, 'Y', '/n')
     if y[0] not in ('n', 'N'):
         fn()
+    else:
+        if else_fn:
+            else_fn()
 
 do_default("Run power-on sequence", m.power_on)
 do_default("Reset M3", m.reset_m3)
-do_default("Act as MBus master", m.set_master)
+do_default("Act as MBus master", m.set_master, m.set_slave)
 
 while True:
     try:
