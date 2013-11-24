@@ -700,7 +700,7 @@ class ICE(object):
         for combined address + data).
         '''
         self.min_version(0.2)
-        msg = struct.pack("B", addr) + data
+        msg = addr + data
         return self._fragment_sender('b', msg)
 
     def mbus_set_full_prefix(self, prefix=None):

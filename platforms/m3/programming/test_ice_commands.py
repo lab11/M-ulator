@@ -34,8 +34,8 @@ class ICETests(object):
         ret = ice.i2c_send(0xa5, "12345678".decode('hex'))
         if ret != 5:
             logger.error("Failed to send whole short I2C message")
-            logger.info("Did you set fake_ice to ACK all addresses?")
-            logger.info("That is: ./fake_ice.py /tmp/com2 xxxxxxxx")
+            logger.info("  Did you set fake_ice to ACK all addresses?")
+            logger.info("  That is: ./fake_ice.py /tmp/com2 xxxxxxxx")
         ret = ice.i2c_send(0x69, ("ab"*511).decode('hex'))
         if ret != (1+511):
             logger.error("Failed to send whole long I2C message")
@@ -83,10 +83,10 @@ class ICETests(object):
 
     def test_mbus_message(self, ice):
         logger.info("Test b")
-        ret = ice.mbus_send(0x5a, "87654321".decode('hex'))
+        ret = ice.mbus_send("5a".decode('hex'), "87654321".decode('hex'))
         if ret != 5:
             logger.error("Failed to send whole short MBus message")
-        ret = ice.mbus_send(0x69, ("ab"*511).decode('hex'))
+        ret = ice.mbus_send("69".decode('hex'), ("ab"*511).decode('hex'))
         if ret != (1+511):
             logger.error("Failed to send whole long MBus message")
 
@@ -163,7 +163,7 @@ class ICETests(object):
         if i != 1:
             logger.error("Set/get mismatch mbus should int (1)")
             logger.error("Expected 1  Got " + str(i))
-        ice.mbus_send(0xec, "beef".decode('hex'))
+        ice.mbus_send("ec".decode('hex'), "beef".decode('hex'))
         i = ice.mbus_get_should_interrupt()
         if i != 0:
             logger.error("Should interrupt clear failed")
@@ -172,7 +172,7 @@ class ICETests(object):
         i = ice.mbus_get_should_interrupt()
         if i != 2:
             logger.error("Set/get mismatch mbus should int (2)")
-        ice.mbus_send(0xec, "beef".decode('hex'))
+        ice.mbus_send("ec".decode('hex'), "beef".decode('hex'))
         i = ice.mbus_get_should_interrupt()
         if i != 2:
             logger.error("Should interrupt persistance failed")
@@ -184,7 +184,7 @@ class ICETests(object):
         i = ice.mbus_get_use_priority()
         if i != 1:
             logger.error("Set/get mismatch mbus should int (1)")
-        ice.mbus_send(0xdb, "bead".decode('hex'))
+        ice.mbus_send("db".decode('hex'), "bead".decode('hex'))
         i = ice.mbus_get_use_priority()
         if i != 0:
             logger.error("Should use_priority clear failed")
@@ -193,7 +193,7 @@ class ICETests(object):
         i = ice.mbus_get_use_priority()
         if i != 2:
             logger.error("Set/get mismatch mbus should int (2)")
-        ice.mbus_send(0xec, "beef".decode('hex'))
+        ice.mbus_send("ec".decode('hex'), "beef".decode('hex'))
         i = ice.mbus_get_use_priority()
         if i != 2:
             logger.error("Should use_priority persistance failed")
