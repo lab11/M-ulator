@@ -443,7 +443,7 @@ while True:
                         mbus_snoop_broadcast_mask_ones, mbus_snoop_broadcast_mask_zeros)
                 ack()
             elif msg[0] == 'm':
-                mbus_ismaster = bool(msg[1])
+                mbus_ismaster = bool(ord(msg[1]))
                 logger.info("MBus master mode set " + ("off", "on")[mbus_ismaster])
                 ack()
             elif msg[0] == 'c':
