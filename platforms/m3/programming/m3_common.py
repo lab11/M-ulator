@@ -21,11 +21,14 @@ class m3_common(object):
             self.read_binfile()
             self.ice = ICE()
             self.callback_q = Queue()
-            self.ice.msg_handler[self.MSG_TYPE] = self.callback_helper
+            self.install_handler()
             self.ice.connect(self.serial_path)
         except NameError:
             logger.error("Abstract element missing.")
             raise
+
+    def install_handler(self):
+        self.ice.msg_handler[self.MSG_TYPE] = self.callback_helper
 
     def callback_helper(self, msg_type, event_id, length, msg):
         logger.debug("Callback: msg len " + str(len(msg)))

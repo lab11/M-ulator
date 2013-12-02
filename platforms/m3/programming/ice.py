@@ -38,38 +38,6 @@ except ImportError:
 
 class ICE(object):
     VERSIONS = ((0,1),(0,2))
-    VERSION_0_2_METHODS = (
-            'ice_query_capabilities',
-            'ice_get_baudrate',
-            'ice_set_baudrate',
-            'goc_get_onoff',
-            'goc_set_onoff',
-            'mbus_send',
-            'mbus_set_full_prefix',
-            'mbus_get_full_prefix',
-            'mbus_set_short_prefix',
-            'mbus_get_short_prefix',
-            'mbus_set_full_snoop_prefix',
-            'mbus_get_full_snoop_prefix',
-            'mbus_set_short_snoop_prefix',
-            'mbus_get_short_snoop_prefix',
-            'mbus_set_broadcast_channel_mask',
-            'mbus_get_broadcast_channel_mask',
-            'mbus_set_broadcast_channel_snoop_mask',
-            'mbus_get_broadcast_channel_snoop_mask',
-            'mbus_get_master_onoff',
-            'mbus_set_master_onoff',
-            'mbus_get_mbus_clock',
-            'mbus_set_mbus_clock',
-            'mbus_get_should_interrupt',
-            'mbus_set_should_interrupt',
-            'mbus_get_use_priority',
-            'mbus_set_use_priority',
-            'ein_send',
-            'b_defragger',
-            'B_defragger',
-            'B_formatter',
-            )
     ONEYEAR = 365 * 24 * 60 * 60
 
     class ICE_Error(Exception):
@@ -105,11 +73,10 @@ class ICE(object):
         '''
         A method was called that this ICE board does not support.
         '''
-
-    #def __getattr__(self, name):
-    #    if (self.minor < 2) and (name in VERSION_0_2_METHODS):
-    #        raise VersionError, "ICE >= v0.2 required. Connected to ICE v0." + str(self.minor)
-    #    return object.__getattr__(name)
+        def __init__(self, required_version, current_version):
+            self.required_version = required_version
+            self.current_version = current_version
+            super(ICE.VersionError, self).__init__()
 
     def __init__(self):
         '''
@@ -216,6 +183,7 @@ class ICE(object):
     def string_to_masks(self, mask_string):
         ones = 0
         zeros = 0
+        mask_string = mask_string.replace(' ','')
         idx = len(mask_string)
         for c in mask_string:
             idx -= 1
@@ -223,10 +191,11 @@ class ICE(object):
                 ones |= (1 << idx)
             elif c == '0':
                 zeros |= (1 << idx)
-            elif c in ('x', 'X', ' '):
+            elif c in ('x', 'X'):
                 continue
             else:
                 raise self.FormatError, "Illegal character: >>>" + c + "<<<"
+        return ones,zeros
 
     def masks_to_strings(self, ones, zeros, length):
         s = ''
@@ -236,11 +205,11 @@ class ICE(object):
             if o and z:
                 raise self.FormatError, "masks_to_strings has req 1 and req 0?"
             if o:
-                s += '1'
+                s = '1' + s
             elif z:
-                s += '0'
+                s = '0' + s
             else:
-                s += 'x'
+                s = 'x' + s
         return s
 
     def d_defragger(self, msg_type, event_id, length, msg):
@@ -278,6 +247,7 @@ class ICE(object):
 
         It may be safely overridden.
         '''
+        self.min_version(0.2)
         with self.b_lock:
             assert msg_type == 'b'
             self.b_frag += msg
@@ -302,6 +272,7 @@ class ICE(object):
 
         It may be safely overridden.
         '''
+        self.min_version(0.2)
         with self.B_lock:
             assert msg_type == 'B'
             self.B_frag += msg
@@ -334,6 +305,7 @@ class ICE(object):
 
         This function may be safely overridden.
         '''
+        self.min_version(0.2)
         assert msg_type == 'B+'
         addr = msg[0]
         if (addr & 0xf0) == 0xf:
@@ -423,6 +395,18 @@ class ICE(object):
 
         self.send_message_until_acked('v', struct.pack("BB", self.major, self.minor))
 
+    def min_version(self, required_version):
+        if required_version > 1:
+            logger.error("Need to fix this versioning system. Major version number bumped")
+            raise self.ICE_Error
+        required_version = int(required_version * 10)
+        try:
+            if self.minor < required_version:
+                raise self.VersionError(required_version, self.minor)
+        except AttributeError:
+            logger.error("Attempt to call method before version negotiation?")
+            raise
+
     def _fragment_sender(self, msg_type, msg):
         '''
         Internal. (helper for {i2c,goc,ein,mbus}_send)
@@ -456,19 +440,28 @@ class ICE(object):
         characters from the ICE board, which requires the caller to know the
         ICE protocol.
         '''
-        resp = self.send_message_until_acked('?', struct.pack("B", ord('c')))
+        self.min_version(0.2)
+        resp = self.send_message_until_acked('?', struct.pack("B", ord('?')))
         return resp
 
     def ice_get_baudrate(self):
         '''
         Gets the current baud rate of the ICE bridge in Hz.
 
-        XXX: Returns raw FPGA<>IC bridge value, not the value that the PC should
-        set. The baudrate functions need.. enums?
+        XXX: Returns the ideal value, not the exact speed. Not sure which is
+        more correct / more useful.
         '''
+        self.min_version(0.2)
         resp = self.send_message_until_acked('?', struct.pack("B", ord('b')))
-        div = struct.unpack("!H", resp)
-        return 20e6 / div
+        div = struct.unpack("!H", resp)[0]
+
+        if div == 0x00AE:
+            return 1152200
+        elif div == 0x0007:
+            return 3000000
+        else:
+            raise self.FormatError, "Unknown baud divider?"
+
 
     def ice_set_baudrate(self, div):
         '''
@@ -476,6 +469,7 @@ class ICE(object):
 
         Internal. This function is not meant to be called directly.
         '''
+        self.min_version(0.2)
         self.send_message_until_acked('_', struct.pack("!BH", ord('b'), div))
 
     def ice_set_baudrate_to_115200(self):
@@ -493,7 +487,7 @@ class ICE(object):
         try:
             freq = self.goc_freq
         except AttributeError:
-            freq = self.GOC_SPEED_DEFAULT_HZ
+            freq = ICE.GOC_SPEED_DEFAULT_HZ
 
         num_bits = len(msg) * 8
         t = num_bits / freq
@@ -532,6 +526,18 @@ class ICE(object):
             ret = self._fragment_sender('f', msg)
         return ret
 
+    def goc_get_frequency(self):
+        '''
+        Gets the GOC frequency.
+        '''
+        resp = self.send_message_until_acked('O', struct.pack("B", ord('c')))
+        if len(resp) != 3:
+            raise self.FormatError, "Wrong response length from `Oc': " + str(resp)
+        setting = struct.unpack("!I", "\x00"+resp)[0]
+        NOMINAL = int(2e6)
+        freq_in_hz = NOMINAL / setting
+        return freq_in_hz
+
     def goc_set_frequency(self, freq_in_hz):
         '''
         Sets the GOC frequency.
@@ -551,10 +557,11 @@ class ICE(object):
         '''
         Get the current ambient GOC power.
         '''
+        self.min_version(0.2)
         resp = self.send_message_until_acked('O', struct.pack("B", ord('o')))
         if len(resp) != 1:
             raise self.FormatError, "Wrong response length from `Oo': " + str(resp)
-        onoff = struct.unpack("B", resp)
+        onoff = struct.unpack("B", resp)[0]
         return bool(onoff)
 
     def goc_set_onoff(self, onoff):
@@ -565,6 +572,7 @@ class ICE(object):
         the state of the GOC light when it's not doing anything else (e.g. so
         you can leave the light on for charging or something similar)
         '''
+        self.min_version(0.2)
         msg = struct.pack("BB", ord('o'), onoff)
         self.send_message_until_acked('o', msg)
 
@@ -596,7 +604,7 @@ class ICE(object):
         if ack == 0:
             if len(msg) != 1:
                 raise self.FormatError
-            return struct.unpack("B", msg) * 2
+            return struct.unpack("B", msg)[0] * 2
 
         ret = ord(msg[0])
         msg = msg[1:]
@@ -636,6 +644,19 @@ class ICE(object):
             raise self.ICE_Error, "ICE reports: Invalid argument."
         elif ret == errno.ENODEV:
             raise self.ICE_Error, "Changing I2C speed not supported."
+
+    def i2c_get_address(self):
+        '''
+        Get the I2C address(es) of the ICE peripheral.
+        '''
+        resp = self.send_message_until_acked('I', struct.pack("B", ord('a')))
+        if len(resp) != 2:
+            raise self.FormatError, "i2c address response should be 2 bytes"
+        ones, zeros = struct.unpack("BB", resp)
+        if ones == 0xff and zeros == 0xff:
+            return None
+        else:
+            return self.masks_to_strings(ones, zeros, 8)
 
     def i2c_set_address(self, address=None):
         '''
@@ -678,7 +699,9 @@ class ICE(object):
         transaction size below the ICE fragmentation limit (less than 255 bytes
         for combined address + data).
         '''
-        return self._fragment_sender('b', addr+data)
+        self.min_version(0.2)
+        msg = addr + data
+        return self._fragment_sender('b', msg)
 
     def mbus_set_full_prefix(self, prefix=None):
         '''
@@ -693,6 +716,7 @@ class ICE(object):
 
         Default Value: DISABLED.
         '''
+        self.min_version(0.2)
         if prefix is None:
             ones, zeros = (0xfffff, 0xfffff)
         else:
@@ -715,6 +739,7 @@ class ICE(object):
         '''
         Get the full prefix(es) set for ICE.
         '''
+        self.min_version(0.2)
         resp = self.send_message_until_acked('M', struct.pack("B", ord('l')))
         if len(resp) != 6:
             raise self.FormatError, "Full prefix response should be 6 bytes"
@@ -734,6 +759,7 @@ class ICE(object):
 
         Default Value: DISABLED.
         '''
+        self.min_version(0.2)
         if prefix is None:
             ones, zeros = (0xf, 0xf)
         else:
@@ -752,6 +778,7 @@ class ICE(object):
         '''
         Get the short prefix(es) set for ICE.
         '''
+        self.min_version(0.2)
         resp = self.send_message_until_acked('M', struct.pack("B", ord('s')))
         if len(resp) != 2:
             raise self.FormatError, "Full prefix response should be 2 bytes"
@@ -776,6 +803,7 @@ class ICE(object):
 
         Default Value: DISABLED.
         '''
+        self.min_version(0.2)
         if prefix is None:
             ones, zeros = (0xfffff, 0xfffff)
         else:
@@ -798,6 +826,7 @@ class ICE(object):
         '''
         Get the full snoop prefix(es) set for ICE.
         '''
+        self.min_version(0.2)
         resp = self.send_message_until_acked('M', struct.pack("B", ord('L')))
         if len(resp) != 6:
             raise self.FormatError, "Full prefix response should be 6 bytes"
@@ -817,6 +846,7 @@ class ICE(object):
 
         Default Value: DISABLED.
         '''
+        self.min_version(0.2)
         if prefix is None:
             ones, zeros = (0xf, 0xf)
         else:
@@ -835,6 +865,7 @@ class ICE(object):
         '''
         Get the short prefix(es) set for ICE.
         '''
+        self.min_version(0.2)
         resp = self.send_message_until_acked('M', struct.pack("B", ord('S')))
         if len(resp) != 2:
             raise self.FormatError, "Full prefix response should be 2 bytes"
@@ -859,12 +890,13 @@ class ICE(object):
 
         Default Value: DISABLED.
         '''
-        if prefix is None:
+        self.min_version(0.2)
+        if mask is None:
             ones, zeros = (0xf, 0xf)
         else:
-            if len(prefix) != 4:
+            if len(mask) != 4:
                 raise self.FormatError, "Prefix must be exactly 4 bits"
-            ones, zeros = self.string_to_masks(prefix)
+            ones, zeros = self.string_to_masks(mask)
         self.send_message_until_acked('m', struct.pack("B"*(1+2),
             ord('b'),
             ones,
@@ -875,6 +907,7 @@ class ICE(object):
         '''
         Get the broadcast mask for ICE.
         '''
+        self.min_version(0.2)
         resp = self.send_message_until_acked('M', struct.pack("B", ord('b')))
         if len(resp) != 2:
             raise self.FormatError, "Broadcast mask response should be 2 bytes"
@@ -897,12 +930,13 @@ class ICE(object):
 
         Default Value: DISABLED.
         '''
-        if prefix is None:
+        self.min_version(0.2)
+        if mask is None:
             ones, zeros = (0xf, 0xf)
         else:
-            if len(prefix) != 4:
+            if len(mask) != 4:
                 raise self.FormatError, "Prefix must be exactly 4 bits"
-            ones, zeros = self.string_to_masks(prefix)
+            ones, zeros = self.string_to_masks(mask)
         self.send_message_until_acked('m', struct.pack("B"*(1+2),
             ord('B'),
             ones,
@@ -913,6 +947,7 @@ class ICE(object):
         '''
         Get the broadcast snoop mask for ICE.
         '''
+        self.min_version(0.2)
         resp = self.send_message_until_acked('M', struct.pack("B", ord('B')))
         if len(resp) != 2:
             raise self.FormatError, "Broadcast mask response should be 2 bytes"
@@ -926,10 +961,11 @@ class ICE(object):
         '''
         Get whether ICE is acting as MBus master node.
         '''
+        self.min_version(0.2)
         resp = self.send_message_until_acked('M', struct.pack("B", ord('m')))
         if len(resp) != 1:
             raise self.FormatError, "Wrong response length from `Mm': " + str(resp)
-        onoff = struct.unpack("B", resp)
+        onoff = struct.unpack("B", resp)[0]
         return bool(onoff)
 
     def mbus_set_master_onoff(self, onoff):
@@ -938,18 +974,20 @@ class ICE(object):
 
         DEFAULT: OFF
         '''
-        msg = struct.pack("BB", ord('c'), onoff)
+        self.min_version(0.2)
+        msg = struct.pack("BB", ord('m'), onoff)
         self.send_message_until_acked('m', msg)
 
     def mbus_get_clock(self):
         '''
         Get ICE MBus clock speed. Only meaningful is ICE is MBus master.
         '''
+        self.min_version(0.2)
         raise NotImplementedError
         #resp = self.send_message_until_acked('M', struct.pack("B", ord('c')))
         #if len(resp) != 1:
         #    raise self.FormatError, "Wrong response length from `Mc': " + str(resp)
-        #onoff = struct.unpack("B", resp)
+        #onoff = struct.unpack("B", resp)[0]
         #return bool(onoff)
         #return resp
 
@@ -959,6 +997,7 @@ class ICE(object):
 
         DEFAULT: XXX
         '''
+        self.min_version(0.2)
         #msg = struct.pack("BB", ord('c'), onoff)
         #self.send_message_until_acked('m', msg)
         raise NotImplementedError
@@ -969,10 +1008,12 @@ class ICE(object):
 
         TODO: Fix interface (enums?)
         '''
+        self.min_version(0.2)
         resp = self.send_message_until_acked('M', struct.pack("B", ord('i')))
+        resp = ord(resp)
         #if len(resp) != 1:
         #    raise self.FormatError, "Wrong response length from `Mc': " + str(resp)
-        #onoff = struct.unpack("B", resp)
+        #onoff = struct.unpack("B", resp)[0]
         #return bool(onoff)
         return resp
 
@@ -982,7 +1023,8 @@ class ICE(object):
 
         DEFAULT: Off
         '''
-        msg = struct.pack("BB", ord('i'), onoff)
+        self.min_version(0.2)
+        msg = struct.pack("BB", ord('i'), should_interrupt)
         self.send_message_until_acked('m', msg)
 
     def mbus_get_use_priority(self):
@@ -991,10 +1033,12 @@ class ICE(object):
 
         TODO: Fix interface (enums?)
         '''
+        self.min_version(0.2)
         resp = self.send_message_until_acked('M', struct.pack("B", ord('p')))
+        resp = ord(resp)
         #if len(resp) != 1:
         #    raise self.FormatError, "Wrong response length from `Mc': " + str(resp)
-        #onoff = struct.unpack("B", resp)
+        #onoff = struct.unpack("B", resp)[0]
         #return bool(onoff)
         return resp
 
@@ -1004,7 +1048,8 @@ class ICE(object):
 
         DEFAULT: Off
         '''
-        msg = struct.pack("BB", ord('p'), onoff)
+        self.min_version(0.2)
+        msg = struct.pack("BB", ord('p'), use_priority)
         self.send_message_until_acked('m', msg)
 
     ## EIN DEBUG ##
@@ -1019,6 +1064,7 @@ class ICE(object):
         FPGA. These fragments will be combined on the ICE board. There should be
         no interruption in message transmission.
         '''
+        self.min_version(0.2)
         ret = self._fragment_sender('e', msg)
         return ret
 
@@ -1036,7 +1082,7 @@ class ICE(object):
         if len(resp) != 1:
             raise self.FormatError, "Too long of a response from `Gl#':" + str(resp)
 
-        return bool(struct.unpack("B", resp))
+        return bool(struct.unpack("B", resp)[0])
 
     def gpio_get_direction(self, gpio_idx):
         '''
@@ -1052,7 +1098,7 @@ class ICE(object):
         if len(resp) != 1:
             raise self.FormatError, "Too long of a response from `Gl#':" + str(resp)
 
-        direction = struct.unpack("B", resp)
+        direction = struct.unpack("B", resp)[0]
         if direction not in (ICE.GPIO_INPUT, ICE.GPIO_OUTPUT, ICE.GPIO_TRISTATE):
             raise self.FormatError, "Unknown direction: " + str(direction)
 
@@ -1097,9 +1143,9 @@ class ICE(object):
             raise self.ParameterError, "Invalid rail: " + str(rail)
 
         resp = self.send_message_until_acked('P', struct.pack("BB", ord('v'), rail))
-        if len(resp) != 1:
-            raise self.FormatError, "Too long of a response from `Pv#':" + str(resp)
-        raw = struct.unpack("B", resp)
+        if len(resp) != 2:
+            raise self.FormatError, "Wrong response length from `Pv#':" + str(resp)
+        rail, raw = struct.unpack("BB", resp)
 
         # Vout = (0.537 + 0.0185 * v_set) * Vdefault
         default_voltage = (ICE.POWER_0P6_DEFAULT, ICE.POWER_1P2_DEFAULT,
@@ -1119,7 +1165,7 @@ class ICE(object):
         resp = self.send_message_until_acked('P', struct.pack("BB", ord('o'), rail))
         if len(resp) != 1:
             raise self.FormatError, "Too long of a response from `Po#':" + str(resp)
-        onoff = struct.unpack("B", resp)
+        onoff = struct.unpack("B", resp)[0]
         return bool(onoff)
 
     def power_set_voltage(self, rail, output_voltage):
