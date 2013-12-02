@@ -4,7 +4,7 @@
 Version 0.2 adds the following new messages:
 \begin{itemize}
   \item {\tt `Oo'} and {\tt `oo'}. These messages allow the default on/off state of
-the FLOW light to be set.
+the GOC light to be set.
   \item {\tt `??'}. This message queries the capabilities of the ICE board.
   \item {\tt `?B'}, {\tt `?b'}. These messages get and set the ICE baud rate.
   \item {\tt `B'}, {\tt `b'}, {\tt `M'}, and {\tt `m'}. These messages control
@@ -45,7 +45,7 @@ the FLOW light to be set.
         {\tt `o'} in its response it is assumed to understand both the
         {\tt `oc'} and {\tt `oo'} messages.
       \item Both set and query commands should be included in this list. That
-        is, if a FLOW/GOC frontend is present, but {\tt `o'} and {\tt `O'}
+        is, if a GOC frontend is present, both {\tt `o'} and {\tt `O'}
         should be included.
       \item As example, a version 0.2 ICE with no physical I2C frontend would
         respond:
@@ -292,13 +292,13 @@ the FLOW light to be set.
     \end{itemize}
 \end{itemize}
 
-\subsubsection{\texttt{0x66 `f'} -- FLOW (GOC) interface message}
+\subsubsection{\texttt{0x66 `f'} -- Debug (GOC/EIN) interface message}
 {\em Synchronous Request}
 \begin{itemize}
-  \item FLOW messages are formatted the exact same as `d'iscrete messages.
+  \item Debug interface messages are formatted the exact same as `d'iscrete messages.
 \end{itemize}
 
-\subsubsection{\texttt{0x4f `O'} -- Query optical (FLOW (GOC)) Configuration}
+\subsubsection{\texttt{0x4f `O'} -- Query debug (GOC/EIN) Configuration}
 {\em Synchronous Request}
 \begin{itemize}
   \item[]
@@ -313,7 +313,7 @@ the FLOW light to be set.
   \item An ACK response should mimic the corresponding set message.
 \end{itemize}
 
-\subsubsection{\texttt{0x6f `o'} -- Set optical (FLOW (GOC)) Configuration}
+\subsubsection{\texttt{0x6f `o'} -- Set debug (GOC/EIN) Configuration}
 {\em Synchronous Request}
 \begin{itemize}
   \item The first byte of the message shall define which parameter is to
@@ -332,7 +332,24 @@ the FLOW light to be set.
         \item This shall be followed by a three byte
           value N (MSB-first), where 2~MHz / N yields the desired clock speed.
       \end{itemize}
-    \paragraph{\texttt{0x6f 0x6f `oo'}: Light On/Off}
+    \paragraph{\texttt{0x6f 0x70 `op'}: Debug mode}
+      \begin{itemize}
+        \item[]
+          \begin{bytefield} \\
+            \colorbitbox{lightgreen}{8}{`o'} &
+            \colorbitbox{lightred}{8}{Event ID} &
+            \colorbitbox{lightcyan}{8}{Len (Must be 2)} &
+            \colorbitbox{lightergreen}{8}{`p'} &
+            \bitbox{8}{GOC / EIN}
+          \end{bytefield}
+        \item {\bf Default:} {\tt 0x0} (EIN)
+        \item Specifies which interface to use when transferring debug data.  Possible values:
+          \begin{itemize}
+            \item[0] EIN
+            \item[1] GOC
+          \end{itemize}
+      \end{itemize}
+    \paragraph{\texttt{0x6f 0x6f `oo'}: GOC light On/Off}
       \begin{itemize}
         \item[]
           \begin{bytefield} \\
@@ -635,13 +652,6 @@ the FLOW light to be set.
             otherwise specified, it {\bf MUST} be hardcoded to the default.
         \end{itemize}
     \end{itemize}
-\end{itemize}
-
-\subsubsection{\texttt{0x65 `e'} -- \texttt{EIN} debug port message}
-{\em Synchronous Request}
-\begin{itemize}
-  \item \texttt{EIN} debug port messages are formatted the exact same as
-    `d'iscrete messages.
 \end{itemize}
 
 \subsubsection{\texttt{0x47 `G'} -- Query GPIO State / Configuration}
