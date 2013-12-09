@@ -102,6 +102,8 @@ class ICE(object):
         self.B_formatter_success_only = True
         self.msg_handler['B+'] = self.B_formatter
 
+        self.goc_ein_toggle = -1
+
     def connect(self, serial_device, baudrate=115200):
         '''
         Opens a connection to the ICE board.
@@ -480,6 +482,21 @@ class ICE(object):
         self.ice_set_baudrate(0x0007)
         self.dev.baudrate = 3000000
 
+    ## GOC VS EIN HANDLING ##
+    def set_goc_ein(self, goc=0, ein=0):
+        if goc == ein:
+            raise self.ICE_Error, "Internal consistency goc vs ein failure"
+        if ein:
+            if self.goc_ein_toggle == 0:
+                return
+            self.send_message_until_acked('o', struct.pack("BB", ord('p'), 0))
+            self.goc_ein_toggle = 0
+        else:
+            if self.goc_ein_toggle == 1:
+                return
+            self.send_message_until_acked('o', struct.pack("BB", ord('p'), 1))
+            self.goc_ein_toggle = 1
+
     ## GOC ##
     GOC_SPEED_DEFAULT_HZ = .625
 
@@ -514,6 +531,8 @@ class ICE(object):
         significantly lower bandwidth of the GOC interface, there should be no
         interruption in message transmission.
         '''
+        self.set_goc_ein(goc=1)
+
         if show_progress:
             e = threading.Event()
             t = threading.Thread(target=self._goc_display_delay, args=(msg,e))
@@ -530,6 +549,8 @@ class ICE(object):
         '''
         Gets the GOC frequency.
         '''
+        self.set_goc_ein(goc=1)
+
         resp = self.send_message_until_acked('O', struct.pack("B", ord('c')))
         if len(resp) != 3:
             raise self.FormatError, "Wrong response length from `Oc': " + str(resp)
@@ -542,6 +563,8 @@ class ICE(object):
         '''
         Sets the GOC frequency.
         '''
+        self.set_goc_ein(goc=1)
+
         # Send a 3-byte value N, where 2 MHz / N == clock speed
         NOMINAL = int(2e6)
         setting = NOMINAL / freq_in_hz;
@@ -557,6 +580,8 @@ class ICE(object):
         '''
         Get the current ambient GOC power.
         '''
+        self.set_goc_ein(goc=1)
+
         self.min_version(0.2)
         resp = self.send_message_until_acked('O', struct.pack("B", ord('o')))
         if len(resp) != 1:
@@ -572,6 +597,8 @@ class ICE(object):
         the state of the GOC light when it's not doing anything else (e.g. so
         you can leave the light on for charging or something similar)
         '''
+        self.set_goc_ein(goc=1)
+
         self.min_version(0.2)
         msg = struct.pack("BB", ord('o'), onoff)
         self.send_message_until_acked('o', msg)
@@ -1064,8 +1091,10 @@ class ICE(object):
         FPGA. These fragments will be combined on the ICE board. There should be
         no interruption in message transmission.
         '''
+        self.set_goc_ein(ein=1)
+
         self.min_version(0.2)
-        ret = self._fragment_sender('e', msg)
+        ret = self._fragment_sender('f', msg)
         return ret
 
     ## GPIO ##

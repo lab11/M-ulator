@@ -288,12 +288,12 @@ while True:
         elif msg_type == 'f':
             flow_msg += msg
             if len(msg) != 255:
-                logger.info("Got flow message:")
+                logger.info("Got f-type message in %s mode:", ('EIN','GOC')[ein_goc_toggle])
                 logger.info("  addr: " + flow_msg[0].encode('hex'))
                 logger.info("  data: " + flow_msg[1:].encode('hex'))
                 flow_msg = ''
             else:
-                logger.debug("Got flow fragment")
+                logger.debug("Got f-type fragment in %s mode", ('EIN','GOC')[ein_goc_toggle])
             ack()
         elif msg_type == 'G':
             if msg[0] == 'l':
@@ -488,6 +488,11 @@ while True:
                     flow_onoff = bool(ord(msg[1]))
                     logger.info("Set FLOW power to %s", ('off','on')[flow_onoff])
                     ack()
+            elif msg[0] == 'p':
+                min_proto(2)
+                ein_goc_toggle = bool(ord(msg[1]))
+                logger.info("Set GOC/EIN toggle to %s mode", ('EIN','GOC')[ein_goc_toggle])
+                ack()
             else:
                 logger.error("bad 'o' subtype: " + msg[0])
         elif msg_type == 'P':
