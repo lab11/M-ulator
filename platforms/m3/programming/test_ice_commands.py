@@ -272,6 +272,10 @@ ice.connect(sys.argv[1])
 
 logger.info('')
 logger.info('Begin running tests')
+try:
+    logger.info('  Attached ICE supports: %s', ice.capabilities)
+except AttributeError:
+    logger.info('  Attached ICE does not support querying capabilities')
 logger.info('')
 
 i = ICETests()
@@ -282,6 +286,9 @@ for f in all_functions:
             f[1](ice)
         except ice.VersionError:
             logger.info("%s skipped. Not supported in attached ICE version", f[0])
+        except ice.CapabilityError as e:
+            logger.info("%s skipped. Required capability %s is not supported",
+                    f[0], e.required_capability)
     else:
         logger.warn("Non-test method: " + f[0])
 
