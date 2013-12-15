@@ -814,8 +814,9 @@ class ICE(object):
         be packed binary data (e.g. struct.pack or 'a5'.decode('hex'))
         Data should be packed binary data, as returned by struct.pack
 
-        The return value is the number of bytes actually sent *including the
-        address byte(s)*.
+        The return value is the number of bytes actually sent *including four
+        bytes for the address, regardless of whether a short or long address was
+        actually sent*.
 
         Long messages may be fragmented between the ICE library and the ICE
         FPGA. On the wire, this should not be noticeable as the PC<-->ICE bridge
@@ -824,6 +825,10 @@ class ICE(object):
         for combined address + data).
         '''
         self.min_version(0.2)
+        if len(addr) > 4:
+            raise self.FormatError, "Address too long"
+        while len(addr) < 4:
+            addr = '\x00' + addr
         msg = addr + data
         return self._fragment_sender('b', msg)
 

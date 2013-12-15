@@ -87,10 +87,11 @@ class ICETests(object):
     def test_mbus_message(self, ice):
         logger.info("Test b")
         ret = ice.mbus_send("5a".decode('hex'), "87654321".decode('hex'))
-        if ret != 5:
+        # ret value from addr is always 4
+        if ret != 8:
             logger.error("Failed to send whole short MBus message")
         ret = ice.mbus_send("69".decode('hex'), ("ab"*511).decode('hex'))
-        if ret != (1+511):
+        if ret != (4+511):
             logger.error("Failed to send whole long MBus message")
 
     def test_mbus_full_prefix(self, ice):
