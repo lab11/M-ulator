@@ -98,9 +98,8 @@ the GOC light to be set.
             \bitbox{8}{Clock Divider}
           \end{bytefield}
       \item This message shall set the baud rate for future messages. The new
-        baud rate shall take effect \hl{immediately OR? after the ACK for this
-        request}. (Probably should take effect after ACK'ing so that you can
-        NACK an illegal / unsupported value?).
+        baud rate shall take effect after the ACK for this
+        request.
       \item This shall be followed by a two byte
         value N (MSB-first), where $N = \lceil\frac{20~MHz}{Baud Rate}\rceil$.
       \item {\bf Default:} {\tt 0x00AE} (20~MHz / 0x00AE $\approx$ 115200~Hz)
@@ -387,26 +386,34 @@ the GOC light to be set.
 \subsubsection{\texttt{0x42 `B'} -- MBus Snooped Message}
 {\em Asynchronous Message}
 \begin{itemize}
-    % As always, feel free to modify any of this to be easier to match your
-    % current implementation.
-  \item MBus messages are formatted the exact same as `d'iscrete messages.
+  \item[]
+    \begin{bytefield} \\
+      \colorbitbox{lightgreen}{8}{`B'} &
+      \colorbitbox{lightred}{8}{Event ID} &
+      \colorbitbox{lightcyan}{8}{Len (Min: 5)} &
+      \colorbitbox{lightergreen}{8}{MBus Address} &
+      \bitbox{8}{MBus Data} &
+      \bitbox{8}{MBus Control}
+    \end{bytefield}
+  \item This shall be followed by a 32-bit MBus destination address as well as optional data.
+    The current MBus implementation operates on 4-byte words, so the data field length must be a multiple of four.
+    As with discrete ({\tt `d'}) messages, the length field limits the maximum message size to 255 bytes.  Longer messages should be fragmented.
+  \item At the end of the message, snoop messages shall append one additional
+    byte. This additional byte shall indicate the control bits of the snooped
+    message. Control Bit~0 shall be mapped to bit 0 and Control
+    Bit~1 shall be mapped to bit 1. The remaining bits are undefined.
   \item This message is sent only from the ICE board to report messages it has
     snooped (but not ACK'd).
   \item Messages that match both the ICE address and the snoop address (that
     is, would generate both {\tt `b'} and {\tt `B'} messages) shall not report
     snoop messages.
-  \item The ICE board shall not \hl{(or shall if it's easier, I really don't
-    care)} report snoop messages for message that it is sending.
-  \item At the end of the message, snoop messages shall append one additional
-    byte. This additional byte shall indicate the control bits of the snooped
-    message. Control Bit~0 shall be mapped to bit \hl{7 or 0} and Control
-    Bit~1 shall be mapped to bit \hl{6 or 1}. The remaining bits are undefined.
+  \item The ICE board shall not report snoop messages for message that it is sending.
 \end{itemize}
 
 \subsubsection{\texttt{0x62 `b'} -- MBus Message}
 {\em Synchronous Request, Asynchronous Message}
 \begin{itemize}
-  \item MBus messages are formatted the exact same as `d'iscrete messages.
+  \item MBus messages are formatted the exact same as `MBus Snooped' ({\tt `B'}) messages.
   \item This command may be sent to the ICE board to send a message.
   \item This message is sent from the ICE board to report messages sent to
     ICE. That is messages that matched the address masks assigned to ICE and
@@ -573,14 +580,12 @@ the GOC light to be set.
           \begin{bytefield} \\
             \colorbitbox{lightgreen}{8}{`o'} &
             \colorbitbox{lightred}{8}{Event ID} &
-            \colorbitbox{lightcyan}{8}{Len (??)} &
+            \colorbitbox{lightcyan}{8}{Len (4)} &
             \colorbitbox{lightergreen}{8}{`c'} &
-            \bitbox{8}{???}
+            \bitbox{8}{Clock Divider}
           \end{bytefield}
-        \item {\bf Default:} \hl{XXX}
-        \item \hl{XXX: However you would like to specify this in HW. Something
-            that gives a pretty wide range (say 1~kHz -- 10~MHz) would be
-          good. Precision is not as important.}
+        \item {\bf Default:} {\tt 0x000020} (10~MHz / 0x000020 = 312.5~kHz)
+        \item This shall be followed by a three byte value N (MSB-first), where 10~MHz / N yields the desired clock speed.
         \item This configuration is meaningful only if ICE is configured as
           the MBus master node (see {\tt `mm'}).
       \end{itemize}
@@ -661,12 +666,10 @@ the GOC light to be set.
     \begin{bytefield} \\
       \colorbitbox{lightgreen}{8}{`G' (0x47)} &
       \colorbitbox{lightred}{8}{Event ID} &
-      \colorbitbox{lightcyan}{8}{Len (Must be 2)} &
-      \colorbitbox{lightergreen}{8}{Parameter} &
+      \colorbitbox{lightcyan}{8}{Len (Must be 1)} &
       \bitbox{8}{GPIO IDX}
     \end{bytefield}
   \item These messages complement the set GPIO (`g') messages.
-  \item The `Parameter' field is the parameter specifier to query.
   \item An ACK response should mimic the corresponding set message.
 \end{itemize}
 
@@ -677,63 +680,78 @@ the GOC light to be set.
     what type of GPIO action is requested.
   \paragraph{\texttt{0x67 0x6c `gl'} -- GPIO Level}
     \begin{itemize}
-      \item The first byte of the message shall be an integer
-        indicating the GPIO index to set. The second byte shall be
-        valued {\tt 0} or {\tt 1}, depending on the desired GPIO
-        state.
       \item[]
         \begin{bytefield} \\
           \colorbitbox{lightgreen}{8}{`o' (0x67)} &
           \colorbitbox{lightred}{8}{Event ID} &
-          \colorbitbox{lightcyan}{8}{Len (Must be 3)} &
+          \colorbitbox{lightcyan}{8}{Len (Must be 4)} &
           \colorbitbox{lightergreen}{8}{`l' (0x6c)} &
-          \bitbox{8}{GPIO IDX} &
-          \bitbox{8}{GPIO Val}
+          \bitbox{8}{GPIO Mask}
         \end{bytefield}
+      \item {\bf Default:} {\tt 0x000000} (All low)
+      \item This shall be followed by a three byte bitmask indicating the desired output level of all 24 GPIO.  This is only reflected in those GPIO which are configured as output. Each bit shall be valued:
+      \begin{itemize}
+        \item 0: Low (0.0 V)
+        \item 1: High (1.2 V)
+      \end{itemize}
     \end{itemize}
-  \paragraph{\texttt{0x67 0x64 `gd'} -- GPIO direction}
+  \paragraph{\texttt{0x67 0x64 `gd'} -- GPIO Direction}
     \begin{itemize}
-      \item The first byte of the message shall be an integer
-        indicating the GPIO index to set the direction of. The second
-        byte shall be valued:
-        \begin{itemize}
-          \item 0: Input
-          \item 1: Output
-          \item 2: TriState (\textsc{DEFAULT})
-        \end{itemize}
       \item[]
         \begin{bytefield} \\
           \colorbitbox{lightgreen}{8}{`o' (0x67)} &
           \colorbitbox{lightred}{8}{Event ID} &
-          \colorbitbox{lightcyan}{8}{Len (Must be 3))} &
+          \colorbitbox{lightcyan}{8}{Len (Must be 4))} &
           \colorbitbox{lightergreen}{8}{`d' (0x64)} &
-          \bitbox{8}{GPIO IDX} &
-          \bitbox{8}{GPIO Direction}
+          \bitbox{8}{GPIO Mask}
         \end{bytefield}
+      \item {\bf Default:} {\tt 0x000000} (All input)
+      \item This shall be followed by a three byte bitmask indicating the desired direction of all 24 GPIO.  The output level of each GPIO which are configured as output are set via the `Set GPIO Level' ({\tt `gl'}) command.  Each bit shall be valued:
+        \begin{itemize}
+          \item 0: Input (DEFAULT)
+          \item 1: Output
+        \end{itemize}
     \end{itemize}
-  \paragraph{\texttt{0x67} Responses}
+  \paragraph{\texttt{0x67 0x69 `gi'} -- GPIO Interrupt Enable}
     \begin{itemize}
-      \item {\texttt {\textbf ENODEV (19,0x13):}} The requested
-        GPIO does not exist.
       \item[]
         \begin{bytefield} \\
-          \colorbitbox{lightgreen}{8}{NAK (0x01)} &
+          \colorbitbox{lightgreen}{8}{`o' (0x67)} &
           \colorbitbox{lightred}{8}{Event ID} &
-          \colorbitbox{lightcyan}{8}{Len (Min: 1)} &
-          \colorbitbox{lightblue}{8}{ENODEV (0x13)} &
-          \bitbox{8}{[{\tt "No such GPIO"}]} &
+          \colorbitbox{lightcyan}{8}{Len (Must be 4))} &
+          \colorbitbox{lightergreen}{8}{`d' (0x64)} &
+          \bitbox{8}{GPIO Mask}
         \end{bytefield}
-      \item {\texttt {\textbf EINVAL (22,0x16):}} The requested GPIO
-        exists, but cannot be configured this way at this time.
-      \item[]
-        \begin{bytefield} \\
-          \colorbitbox{lightgreen}{8}{NAK (0x01)} &
-          \colorbitbox{lightred}{8}{Event ID} &
-          \colorbitbox{lightcyan}{8}{Len (Min: 1)} &
-          \colorbitbox{lightblue}{8}{EINVAL (0x16)} &
-          \bitbox{8}{[{\tt "GPIO is input"}]} &
-        \end{bytefield}
+      \item {\bf Default:} {\tt 0x000000} (All interrupts disabled)
+      \item This shall be followed by a three byte bitmask indicating whether a change in each GPIO bit wil generate an GPIO level change message.  Only those GPIO which are configured as input will generate interrupts.  Each bit shall be valued:
+        \begin{itemize}
+          \item 0: Interrupt Disabled (DEFAULT)
+          \item 1: Interrupt Enabled
+        \end{itemize}
     \end{itemize}
+%  \paragraph{\texttt{0x67} Responses}
+%    \begin{itemize}
+%      \item {\texttt {\textbf ENODEV (19,0x13):}} The requested
+%        GPIO does not exist.
+%      \item[]
+%        \begin{bytefield} \\
+%          \colorbitbox{lightgreen}{8}{NAK (0x01)} &
+%          \colorbitbox{lightred}{8}{Event ID} &
+%          \colorbitbox{lightcyan}{8}{Len (Min: 1)} &
+%          \colorbitbox{lightblue}{8}{ENODEV (0x13)} &
+%          \bitbox{8}{[{\tt "No such GPIO"}]} &
+%        \end{bytefield}
+%      \item {\texttt {\textbf EINVAL (22,0x16):}} The requested GPIO
+%        exists, but cannot be configured this way at this time.
+%      \item[]
+%        \begin{bytefield} \\
+%          \colorbitbox{lightgreen}{8}{NAK (0x01)} &
+%          \colorbitbox{lightred}{8}{Event ID} &
+%          \colorbitbox{lightcyan}{8}{Len (Min: 1)} &
+%          \colorbitbox{lightblue}{8}{EINVAL (0x16)} &
+%          \bitbox{8}{[{\tt "GPIO is input"}]} &
+%        \end{bytefield}
+%    \end{itemize}
 \end{itemize}
 
 \subsubsection{\texttt{0x50 `P'} -- Query Power State}
