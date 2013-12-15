@@ -232,6 +232,13 @@ class ICETests(object):
         if ice.gpio_get_direction(1) != ice.GPIO_TRISTATE:
             logger.error("Set/get mismatch gpio 1 (to tri)")
 
+    def test_gpio_interrupt_mask(self, ice):
+        logger.info("Test gi")
+        TARGET_GPIO_INT_MASK = 0xa53
+        ice.gpio_set_interrupt_enable_mask(TARGET_GPIO_INT_MASK)
+        if ice.gpio_get_interrupt_enable_mask != TARGET_GPIO_INT_MASK:
+            logger.error("Set/get mismatch gpio interrupt mask")
+
     def test_voltage_state(self, ice):
         logger.info("Test pv")
         ice.power_set_voltage(ice.POWER_0P6, 0.6)

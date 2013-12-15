@@ -108,6 +108,25 @@ class ICE(object):
             return wrapped_fn
         return wrapped_fn_factory
 
+    def max_proto_version(version):
+        '''
+        Decorator for library calls that verifies the requested call is
+        supported by the protocol version negotiated by the current ICE board.
+        '''
+        def wrapped_fn_factory(fn_being_decorated):
+            def wrapped_fn(self, *args, **kwargs):
+                if not hasattr(self, "minor"):
+                    raise self.ICE_Error, "ICE must be connected first"
+                major, minor = map(int, version.split('.'))
+                if major != 0:
+                    raise self.ICE_Error, "Major version bump?"
+                if self.minor > minor:
+                    raise self.VersionError(minor, self.minor)
+                return fn_being_decorated(self, *args, **kwargs)
+            wrapped_fn.__name__ = 'max_proto_version{'+fn_being_decorated.__name__+'}'
+            return wrapped_fn
+        return wrapped_fn_factory
+
     def capability(cap):
         '''
         Decorator for library calls that verifies the requested call is
@@ -1242,25 +1261,20 @@ class ICE(object):
         return ret
 
     ## GPIO ##
+    # XXX TODO XXX: parameter based method version selection
     GPIO_INPUT = 0
     GPIO_OUTPUT = 1
     GPIO_TRISTATE = 2
 
-    @min_proto_version("0.1")
-    @capability('G')
     def gpio_get_level(self, gpio_idx):
         '''
         Query whether a gpio is high or low. (high=True)
         '''
-        resp = self.send_message_until_acked('G',
-                struct.pack('BB', ord('l'), gpio_idx))
-        if len(resp) != 1:
-            raise self.FormatError, "Too long of a response from `Gl#':" + str(resp)
+        if self.minor == 1:
+            return self.gpio_get_level_0_1(gpio_idx)
+        else:
+            return self.gpio_get_level_0_2(gpio_idx)
 
-        return bool(struct.unpack("B", resp)[0])
-
-    @min_proto_version("0.1")
-    @capability('g')
     def gpio_get_direction(self, gpio_idx):
         '''
         Query gpio pin setup.
@@ -1270,10 +1284,50 @@ class ICE(object):
             ICE.GPIO_OUTPUT
             ICE.GPIO_TRISTATE
         '''
+        if self.minor == 1:
+            return self.gpio_get_direction_0_1(gpio_idx)
+        else:
+            return self.gpio_get_direction_0_2(gpio_idx)
+
+    def gpio_set_level(self, gpio_idx, level):
+        '''
+        Set gpio level. (high=True)
+        '''
+        if self.minor == 1:
+            return self.gpio_set_level_0_1(gpio_idx, level)
+        else:
+            return self.gpio_set_level_0_2(gpio_idx, level)
+
+    def gpio_set_direction(self, gpio_idx, direction):
+        '''
+        Setup a GPIO pin.
+        '''
+        if direction not in (ICE.GPIO_INPUT, ICE.GPIO_OUTPUT, ICE.GPIO_TRISTATE):
+            raise self.ParameterError, "Unknown direction: " + str(direction)
+        if self.minor == 1:
+            return self.gpio_set_direction_0_1(gpio_idx, direction)
+        else:
+            return self.gpio_set_direction_0_2(gpio_idx, direction)
+
+    @min_proto_version("0.1")
+    @max_proto_version("0.1")
+    @capability('G')
+    def gpio_get_level_0_1(self, gpio_idx):
+        resp = self.send_message_until_acked('G',
+                struct.pack('BB', ord('l'), gpio_idx))
+        if len(resp) != 1:
+            raise self.FormatError, "Too long of a response from `Gl#':" + str(resp)
+
+        return bool(struct.unpack("B", resp)[0])
+
+    @min_proto_version("0.1")
+    @max_proto_version("0.1")
+    @capability('G')
+    def gpio_get_direction_0_1(self, gpio_idx):
         resp = self.send_message_until_acked('G',
                 struct.pack('BB', ord('d'), gpio_idx))
         if len(resp) != 1:
-            raise self.FormatError, "Too long of a response from `Gl#':" + str(resp)
+            raise self.FormatError, "Too long of a response from `Gd#':" + str(resp)
 
         direction = struct.unpack("B", resp)[0]
         if direction not in (ICE.GPIO_INPUT, ICE.GPIO_OUTPUT, ICE.GPIO_TRISTATE):
@@ -1282,25 +1336,98 @@ class ICE(object):
         return direction
 
     @min_proto_version("0.1")
-    @capability('G')
-    def gpio_set_level(self, gpio_idx, level):
-        '''
-        Set gpio level. (high=True)
-        '''
+    @max_proto_version("0.1")
+    @capability('g')
+    def gpio_set_level_0_1(self, gpio_idx, level):
         self.send_message_until_acked('g',
                 struct.pack('BBB', ord('l'), gpio_idx, level))
 
     @min_proto_version("0.1")
+    @max_proto_version("0.1")
     @capability('g')
-    def gpio_set_direction(self, gpio_idx, direction):
-        '''
-        Setup a GPIO pin.
-        '''
-        if direction not in (ICE.GPIO_INPUT, ICE.GPIO_OUTPUT, ICE.GPIO_TRISTATE):
-            raise self.ParameterError, "Unknown direction: " + str(direction)
-
+    def gpio_set_direction_0_1(self, gpio_idx, direction):
         self.send_message_until_acked('g',
                 struct.pack('BBB', ord('d'), gpio_idx, direction))
+
+    def _gpio_get_level_0_2(self):
+        resp = self.send_message_until_acked('G', struct.pack('B', ord('l')))
+        if len(resp) != 3:
+            raise self.FormatError, "Bad response from `Gl':" + str(resp)
+        high,mid,low = map(ord, resp)
+        return low | (mid << 8) | (high << 16)
+
+    @min_proto_version("0.2")
+    @capability('G')
+    def gpio_get_level_0_2(self, gpio_idx):
+        if gpio_idx >= 24:
+            raise self.ParameterError, "Request for illegal gpio idx"
+        return (self._gpio_get_level_0_2() >> gpio_idx) & 0x1
+
+    def _gpio_get_direction_0_2(self):
+        resp = self.send_message_until_acked('G', struct.pack('B', ord('d')))
+        if len(resp) != 3:
+            raise self.FormatError, "Bad response from `Gd#':" + str(resp)
+        high,mid,low = map(ord, resp)
+        return low | (mid << 8) | (high << 16)
+
+    @min_proto_version("0.2")
+    @capability('G')
+    def gpio_get_direction_0_2(self, gpio_idx):
+        if gpio_idx >= 24:
+            raise self.ParameterError, "Request for illegal gpio idx"
+
+        if ((self._gpio_get_direction_0_2() >> gpio_idx) & 0x1) == 0:
+            return ICE.GPIO_INPUT
+        else:
+            return ICE.GPIO_OUTPUT
+
+    @min_proto_version("0.2")
+    @capability('g')
+    def gpio_set_level_0_2(self, gpio_idx, level):
+        mask = self._gpio_get_level_0_2()
+        if level:
+            mask |= (1 << gpio_idx)
+        else:
+            mask &= ~(1 << gpio_idx)
+        self.send_message_until_acked('g',
+                struct.pack('BBBB', ord('l'),
+                    (mask >> 16) & 0xff,
+                    (mask >> 8) & 0xff,
+                    mask & 0xff))
+
+    @min_proto_version("0.2")
+    @capability('g')
+    def gpio_set_direction_0_2(self, gpio_idx, direction):
+        mask = self._gpio_get_direction_0_2()
+        if direction == ICE.GPIO_OUTPUT:
+            mask |= (1 << gpio_idx)
+        elif direction in (ICE.GPIO_INPUT, ICE.GPIO_TRISTATE):
+            mask &= ~(1 << gpio_idx)
+        else:
+            raise self.ParameterError, "Illegal GPIO direction"
+        self.send_message_until_acked('g',
+                struct.pack('BBBB', ord('d'),
+                    (mask >> 16) & 0xff,
+                    (mask >> 8) & 0xff,
+                    mask & 0xff))
+
+    @min_proto_version("0.2")
+    @capability('G')
+    def gpio_get_interrupt_enable_mask(self):
+        resp = self.send_message_until_acked('G', struct.pack('B', ord('i')))
+        if len(resp) != 3:
+            raise self.FormatError, "Bad response from `Gi':" + str(resp)
+        high,mid,low = map(ord, resp)
+        return low | (mid << 8) | (high << 16)
+
+    @min_proto_version("0.2")
+    @capability('g')
+    def gpio_set_interrupt_enable_mask(self, mask):
+        self.send_message_until_acked('g',
+                struct.pack('BBBB', ord('i'),
+                    (mask >> 16) & 0xff,
+                    (mask >> 8) & 0xff,
+                    mask & 0xff))
 
     ## POWER ##
     POWER_0P6 = 0
