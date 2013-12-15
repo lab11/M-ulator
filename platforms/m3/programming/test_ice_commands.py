@@ -21,6 +21,9 @@ class ICETests(object):
         logger.debug("ICE Capability String: " + caps)
 
     def test_baudrate(self, ice):
+        if sys.platform.lower() == 'darwin':
+            logger.warn("test_baudrate skipped on OS X")
+            return
         logger.info("Test ?b")
         ice.ice_set_baudrate_to_3_megabaud()
         baud = ice.ice_get_baudrate()
