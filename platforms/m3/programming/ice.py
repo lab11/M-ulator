@@ -71,12 +71,61 @@ class ICE(object):
 
     class VersionError(ICE_Error):
         '''
-        A method was called that this ICE board does not support.
+        A method was called that attached ICE version does not support.
         '''
         def __init__(self, required_version, current_version):
             self.required_version = required_version
             self.current_version = current_version
             super(ICE.VersionError, self).__init__()
+
+    class CapabilityError(ICE_Error):
+        '''
+        A method was called that the attached ICE board does not have hardware
+        frontend for.
+        '''
+        def __init__(self, required_capability, capabilities):
+            self.required_capability = required_capability
+            self.capabilities = capabilities
+            super(ICE.CapabilityError, self).__init__()
+
+    ## Support decorators:
+    def min_proto_version(version):
+        '''
+        Decorator for library calls that verifies the requested call is
+        supported by the protocol version negotiated by the current ICE board.
+        '''
+        def wrapped_fn_factory(fn_being_decorated):
+            def wrapped_fn(self, *args, **kwargs):
+                if not hasattr(self, "minor"):
+                    raise self.ICE_Error, "ICE must be connected first"
+                major, minor = map(int, version.split('.'))
+                if major != 0:
+                    raise self.ICE_Error, "Major version bump?"
+                if self.minor < minor:
+                    raise self.VersionError(minor, self.minor)
+                return fn_being_decorated(self, *args, **kwargs)
+            wrapped_fn.__name__ = 'min_proto_version{'+fn_being_decorated.__name__+'}'
+            return wrapped_fn
+        return wrapped_fn_factory
+
+    def capability(cap):
+        '''
+        Decorator for library calls that verifies the requested call is
+        supported by the capabilities reported by the current ICE board.
+        '''
+        def wrapped_fn_factory(fn_being_decorated):
+            def wrapped_fn(self, *args, **kwargs):
+                try:
+                    if cap not in self.capabilities:
+                        raise self.CapabilityError(cap, self.capabilities)
+                except AttributeError:
+                    if 'ice_query_capabilities' not in fn_being_decorated.__name__:
+                        logger.error("Version decorator must precede capability")
+                        raise
+                return fn_being_decorated(self, *args, **kwargs)
+            wrapped_fn.__name__ = 'capability{'+fn_being_decorated.__name__+'}'
+            return wrapped_fn
+        return wrapped_fn_factory
 
     def __init__(self):
         '''
@@ -238,6 +287,7 @@ class ICE(object):
             else:
                 logger.debug("Got an I2C fragment... thus far %d bytes received:" % (len(self.d_frag)))
 
+    @min_proto_version("0.2")
     def b_defragger(self, msg_type, event_id, length, msg):
         '''
         Helper function to defragment 'b' type MBus messages before forwarding.
@@ -249,7 +299,6 @@ class ICE(object):
 
         It may be safely overridden.
         '''
-        self.min_version(0.2)
         with self.b_lock:
             assert msg_type == 'b'
             self.b_frag += msg
@@ -263,6 +312,7 @@ class ICE(object):
             else:
                 logger.debug("Got a MBus fragment... thus far %d bytes received:" % (len(self.b_frag)))
 
+    @min_proto_version("0.2")
     def B_defragger(self, msg_type, event_id, length, msg):
         '''
         Helper function to defragment 'B' type snooped MBus messages before forwarding.
@@ -274,7 +324,6 @@ class ICE(object):
 
         It may be safely overridden.
         '''
-        self.min_version(0.2)
         with self.B_lock:
             assert msg_type == 'B'
             self.B_frag += msg
@@ -288,6 +337,7 @@ class ICE(object):
             else:
                 logger.debug("Got a snoop MBus fragment... thus far %d bytes received:" % (len(self.B_frag)))
 
+    @min_proto_version("0.2")
     def B_formatter(self, msg_type, event_id, length, msg):
         '''
         Helper function that parses 'B+' snooped MBus messages before forwarding.
@@ -307,7 +357,6 @@ class ICE(object):
 
         This function may be safely overridden.
         '''
-        self.min_version(0.2)
         assert msg_type == 'B+'
         addr = msg[0]
         if (addr & 0xf0) == 0xf:
@@ -363,7 +412,8 @@ class ICE(object):
         Establish communication with an ICE board.
 
         This function is called automatically by __init__ and should not be
-        called directly.
+        called directly. For ICE versions >= 0.2, this function automatically
+        calls ice_query_capabilities and sets up the ICE library appropriately.
         '''
         logger.info("This library supports versions...")
         for major, minor in ICE.VERSIONS:
@@ -396,6 +446,12 @@ class ICE(object):
             raise self.ICE_Error
 
         self.send_message_until_acked('v', struct.pack("BB", self.major, self.minor))
+
+        if self.minor >= 2:
+            logger.debug("ICE version supports capabilities, querying")
+            self.ice_query_capabilities()
+        else:
+            logger.debug("Version 0.1 does not have capability support, skipping")
 
     def min_version(self, required_version):
         if required_version > 1:
@@ -433,19 +489,26 @@ class ICE(object):
         return sent
 
     ## QUERY / CONFIGURE ICE ##
+    @min_proto_version("0.2")
+    @capability('?')
     def ice_query_capabilities(self):
         '''
         Queries ICE board for available hardware frontends.
+
+        The ICE library will be configured to raise an ICE.CapabilityError
+        if a request that is unsupported by this hardware is requested.
 
         This interface is very raw and needs to be wrapped in something more
         user-friendly and library-esque. It currently returns the raw array of
         characters from the ICE board, which requires the caller to know the
         ICE protocol.
         '''
-        self.min_version(0.2)
         resp = self.send_message_until_acked('?', struct.pack("B", ord('?')))
+        self.capabilities = resp
         return resp
 
+    @min_proto_version("0.2")
+    @capability('?')
     def ice_get_baudrate(self):
         '''
         Gets the current baud rate of the ICE bridge in Hz.
@@ -464,7 +527,8 @@ class ICE(object):
         else:
             raise self.FormatError, "Unknown baud divider?"
 
-
+    @min_proto_version("0.2")
+    @capability('_')
     def ice_set_baudrate(self, div):
         '''
         Sets a new baud rate for the ICE bridge.
@@ -474,10 +538,14 @@ class ICE(object):
         self.min_version(0.2)
         self.send_message_until_acked('_', struct.pack("!BH", ord('b'), div))
 
+    @min_proto_version("0.2")
+    @capability('_')
     def ice_set_baudrate_to_115200(self):
         self.ice_set_baudrate(0x00AE)
         self.dev.baudrate = 115200
 
+    @min_proto_version("0.2")
+    @capability('_')
     def ice_set_baudrate_to_3_megabaud(self):
         self.ice_set_baudrate(0x0007)
         self.dev.baudrate = 3000000
@@ -486,6 +554,13 @@ class ICE(object):
     def set_goc_ein(self, goc=0, ein=0):
         if goc == ein:
             raise self.ICE_Error, "Internal consistency goc vs ein failure"
+
+        if self.minor == 1:
+            if goc == 1:
+                return
+            else:
+                raise self.ICE_Error, "Attempt to call set_goc_ein for ein with protocol version 1"
+
         if ein:
             if self.goc_ein_toggle == 0:
                 return
@@ -519,6 +594,8 @@ class ICE(object):
             time.sleep(1)
         time.sleep(t)
 
+    @min_proto_version("0.1")
+    @capability('f')
     def goc_send(self, msg, show_progress=True):
         '''
         Blinks a message via GOC.
@@ -545,6 +622,8 @@ class ICE(object):
             ret = self._fragment_sender('f', msg)
         return ret
 
+    @min_proto_version("0.1")
+    @capability('O')
     def goc_get_frequency(self):
         '''
         Gets the GOC frequency.
@@ -559,6 +638,8 @@ class ICE(object):
         freq_in_hz = NOMINAL / setting
         return freq_in_hz
 
+    @min_proto_version("0.1")
+    @capability('o')
     def goc_set_frequency(self, freq_in_hz):
         '''
         Sets the GOC frequency.
@@ -576,6 +657,8 @@ class ICE(object):
 
         self.goc_freq = freq_in_hz
 
+    @min_proto_version("0.2")
+    @capability('O')
     def goc_get_onoff(self):
         '''
         Get the current ambient GOC power.
@@ -589,6 +672,8 @@ class ICE(object):
         onoff = struct.unpack("B", resp)[0]
         return bool(onoff)
 
+    @min_proto_version("0.2")
+    @capability('o')
     def goc_set_onoff(self, onoff):
         '''
         Turn the GOC light on or off.
@@ -604,6 +689,8 @@ class ICE(object):
         self.send_message_until_acked('o', msg)
 
     ## I2C ##
+    @min_proto_version("0.1")
+    @capability('d')
     def i2c_send(self, addr, data):
         '''
         Sends an I2C message.
@@ -623,6 +710,8 @@ class ICE(object):
         msg = struct.pack("B", addr) + data
         return self._fragment_sender('d', msg)
 
+    @min_proto_version("0.1")
+    @capability('I')
     def i2c_get_speed(self):
         '''
         Get the clock speed of the ICE I2C driver in kHz.
@@ -641,6 +730,8 @@ class ICE(object):
         else:
             raise self.ICE_Error, "Unknown Error"
 
+    @min_proto_version("0.1")
+    @capability('i')
     def i2c_set_speed(self, speed):
         '''
         Set the clock speed of the ICE I2C driver in kHz.
@@ -672,6 +763,8 @@ class ICE(object):
         elif ret == errno.ENODEV:
             raise self.ICE_Error, "Changing I2C speed not supported."
 
+    @min_proto_version("0.1")
+    @capability('I')
     def i2c_get_address(self):
         '''
         Get the I2C address(es) of the ICE peripheral.
@@ -685,6 +778,8 @@ class ICE(object):
         else:
             return self.masks_to_strings(ones, zeros, 8)
 
+    @min_proto_version("0.1")
+    @capability('i')
     def i2c_set_address(self, address=None):
         '''
         Set the I2C address(es) of the ICE peripheral.
@@ -709,6 +804,8 @@ class ICE(object):
         self.send_message_until_acked('i', struct.pack("BBB", ord('a'), ones, zeros))
 
     ## MBus ##
+    @min_proto_version("0.2")
+    @capability('b')
     def mbus_send(self, addr, data):
         '''
         Sends an MBus message.
@@ -730,6 +827,8 @@ class ICE(object):
         msg = addr + data
         return self._fragment_sender('b', msg)
 
+    @min_proto_version("0.2")
+    @capability('m')
     def mbus_set_full_prefix(self, prefix=None):
         '''
         Set the full prefix(es) of the ICE peripheral.
@@ -762,6 +861,8 @@ class ICE(object):
             zeros & 0xff,
             ))
 
+    @min_proto_version("0.2")
+    @capability('M')
     def mbus_get_full_prefix(self):
         '''
         Get the full prefix(es) set for ICE.
@@ -780,6 +881,8 @@ class ICE(object):
         else:
             return self.masks_to_strings(ones, zeros, 20)
 
+    @min_proto_version("0.2")
+    @capability('m')
     def mbus_set_short_prefix(self, prefix=None):
         '''
         Set the short prefix(es) of the ICE peripheral.
@@ -801,6 +904,8 @@ class ICE(object):
             zeros,
             ))
 
+    @min_proto_version("0.2")
+    @capability('M')
     def mbus_get_short_prefix(self):
         '''
         Get the short prefix(es) set for ICE.
@@ -817,6 +922,8 @@ class ICE(object):
         else:
             return self.masks_to_strings(ones, zeros, 4)
 
+    @min_proto_version("0.2")
+    @capability('m')
     def mbus_set_full_snoop_prefix(self, prefix=None):
         '''
         Set the full snoop prefix(es) of the ICE peripheral.
@@ -849,6 +956,8 @@ class ICE(object):
             zeros & 0xff,
             ))
 
+    @min_proto_version("0.2")
+    @capability('M')
     def mbus_get_full_snoop_prefix(self):
         '''
         Get the full snoop prefix(es) set for ICE.
@@ -867,6 +976,8 @@ class ICE(object):
         else:
             return self.masks_to_strings(ones, zeros, 20)
 
+    @min_proto_version("0.2")
+    @capability('m')
     def mbus_set_short_snoop_prefix(self, prefix=None):
         '''
         Set the short snoop prefix(es) of the ICE peripheral.
@@ -888,6 +999,8 @@ class ICE(object):
             zeros,
             ))
 
+    @min_proto_version("0.2")
+    @capability('M')
     def mbus_get_short_snoop_prefix(self):
         '''
         Get the short prefix(es) set for ICE.
@@ -904,6 +1017,8 @@ class ICE(object):
         else:
             return self.masks_to_strings(ones, zeros, 4)
 
+    @min_proto_version("0.2")
+    @capability('m')
     def mbus_set_broadcast_channel_mask(self, mask=None):
         '''
         Set the broadcast mask for ICE board.
@@ -930,6 +1045,8 @@ class ICE(object):
             zeros,
             ))
 
+    @min_proto_version("0.2")
+    @capability('M')
     def mbus_get_broadcast_channel_mask(self):
         '''
         Get the broadcast mask for ICE.
@@ -944,6 +1061,8 @@ class ICE(object):
         else:
             return self.masks_to_strings(ones, zeros, 4)
 
+    @min_proto_version("0.2")
+    @capability('m')
     def mbus_set_broadcast_channel_snoop_mask(self, mask=None):
         '''
         Set the broadcast snoop mask for ICE board.
@@ -970,6 +1089,8 @@ class ICE(object):
             zeros,
             ))
 
+    @min_proto_version("0.2")
+    @capability('M')
     def mbus_get_broadcast_channel_snoop_mask(self):
         '''
         Get the broadcast snoop mask for ICE.
@@ -984,6 +1105,8 @@ class ICE(object):
         else:
             return self.masks_to_strings(ones, zeros, 4)
 
+    @min_proto_version("0.2")
+    @capability('M')
     def mbus_get_master_onoff(self):
         '''
         Get whether ICE is acting as MBus master node.
@@ -995,6 +1118,8 @@ class ICE(object):
         onoff = struct.unpack("B", resp)[0]
         return bool(onoff)
 
+    @min_proto_version("0.2")
+    @capability('m')
     def mbus_set_master_onoff(self, onoff):
         '''
         Set whether ICE acts as MBus master node.
@@ -1005,6 +1130,8 @@ class ICE(object):
         msg = struct.pack("BB", ord('m'), onoff)
         self.send_message_until_acked('m', msg)
 
+    @min_proto_version("0.2")
+    @capability('M')
     def mbus_get_clock(self):
         '''
         Get ICE MBus clock speed. Only meaningful is ICE is MBus master.
@@ -1018,6 +1145,8 @@ class ICE(object):
         #return bool(onoff)
         #return resp
 
+    @min_proto_version("0.2")
+    @capability('m')
     def mbus_set_clock(self, clock_speed):
         '''
         Set ICE MBus clock speed. Only meaningful is ICE is MBus master.
@@ -1029,6 +1158,8 @@ class ICE(object):
         #self.send_message_until_acked('m', msg)
         raise NotImplementedError
 
+    @min_proto_version("0.2")
+    @capability('M')
     def mbus_get_should_interrupt(self):
         '''
         Get ICE MBus should interrupt setting.
@@ -1044,6 +1175,8 @@ class ICE(object):
         #return bool(onoff)
         return resp
 
+    @min_proto_version("0.2")
+    @capability('m')
     def mbus_set_should_interrupt(self, should_interrupt):
         '''
         Set ICE MBus should interrupt setting.
@@ -1054,6 +1187,8 @@ class ICE(object):
         msg = struct.pack("BB", ord('i'), should_interrupt)
         self.send_message_until_acked('m', msg)
 
+    @min_proto_version("0.2")
+    @capability('M')
     def mbus_get_use_priority(self):
         '''
         Get ICE MBus use priority setting.
@@ -1069,6 +1204,8 @@ class ICE(object):
         #return bool(onoff)
         return resp
 
+    @min_proto_version("0.2")
+    @capability('m')
     def mbus_set_use_priority(self, use_priority):
         '''
         Set ICE MBus use priority setting.
@@ -1080,6 +1217,8 @@ class ICE(object):
         self.send_message_until_acked('m', msg)
 
     ## EIN DEBUG ##
+    @min_proto_version("0.2")
+    @capability('f')
     def ein_send(self, msg):
         '''
         Sends a message via the EIN Debug port.
@@ -1102,6 +1241,8 @@ class ICE(object):
     GPIO_OUTPUT = 1
     GPIO_TRISTATE = 2
 
+    @min_proto_version("0.1")
+    @capability('G')
     def gpio_get_level(self, gpio_idx):
         '''
         Query whether a gpio is high or low. (high=True)
@@ -1113,6 +1254,8 @@ class ICE(object):
 
         return bool(struct.unpack("B", resp)[0])
 
+    @min_proto_version("0.1")
+    @capability('g')
     def gpio_get_direction(self, gpio_idx):
         '''
         Query gpio pin setup.
@@ -1133,6 +1276,8 @@ class ICE(object):
 
         return direction
 
+    @min_proto_version("0.1")
+    @capability('G')
     def gpio_set_level(self, gpio_idx, level):
         '''
         Set gpio level. (high=True)
@@ -1140,6 +1285,8 @@ class ICE(object):
         self.send_message_until_acked('g',
                 struct.pack('BBB', ord('l'), gpio_idx, level))
 
+    @min_proto_version("0.1")
+    @capability('g')
     def gpio_set_direction(self, gpio_idx, direction):
         '''
         Setup a GPIO pin.
@@ -1159,6 +1306,8 @@ class ICE(object):
     POWER_1P2_DEFAULT = 1.2
     POWER_VBATT_DEFAULT = 3.8
 
+    @min_proto_version("0.1")
+    @capability('P')
     def power_get_voltage(self, rail):
         '''
         Query the current voltage setting of a power rail.
@@ -1182,6 +1331,8 @@ class ICE(object):
         vout = (0.537 + 0.0185 * raw) * default_voltage
         return vout
 
+    @min_proto_version("0.1")
+    @capability('P')
     def power_get_onoff(self, rail):
         '''
         Query the current on/off setting of a power rail.
@@ -1197,6 +1348,8 @@ class ICE(object):
         onoff = struct.unpack("B", resp)[0]
         return bool(onoff)
 
+    @min_proto_version("0.1")
+    @capability('p')
     def power_set_voltage(self, rail, output_voltage):
         '''
         Set the voltage setting of a power rail. Units are V.
@@ -1215,6 +1368,8 @@ class ICE(object):
 
         self.send_message_until_acked('p', struct.pack("BBB", ord('v'), rail, vset))
 
+    @min_proto_version("0.1")
+    @capability('p')
     def power_set_onoff(self, rail, onoff):
         '''
         Turn a power rail on or off (on=True).
