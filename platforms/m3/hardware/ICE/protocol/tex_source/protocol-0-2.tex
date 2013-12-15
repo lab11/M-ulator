@@ -452,6 +452,7 @@ the GOC light to be set.
             \bitbox{8}{Zeros Mask}
           \end{bytefield}
         \item {\bf Default:} {\tt 0xfffff0 0xfffff0} (Disabled)
+        \item \hl{NOTE: This command is not supported by the current MBus implementation.}
         \item This shall be followed by 6 bytes. The first three bytes shall
           be considered the ones mask the second three bytes shall be
           considered the zeros mask. The masks are 20~bits long, the bottom
@@ -469,6 +470,7 @@ the GOC light to be set.
             \bitbox{8}{Zeros Mask}
           \end{bytefield}
         \item {\bf Default:} {\tt 0xf0 0xf0} (Disabled)
+        \item \hl{NOTE: This command is not supported by the current MBus implementation.}
         \item This shall be followed by 2 bytes. The first byte shall
           be considered the ones mask the second byte shall be
           considered the zeros mask. The masks are 4~bits long, the bottom
@@ -489,6 +491,7 @@ the GOC light to be set.
             \bitbox{8}{Zeros Mask}
           \end{bytefield}
         \item {\bf Default:} {\tt 0xfffff0 0xfffff0} (Disabled)
+        \item \hl{NOTE: This command is not supported by the current MBus implementation.}
         \item This shall be followed by 6 bytes. The first three bytes shall
           be considered the ones mask the second three bytes shall be
           considered the zeros mask. The masks are 20~bits long, the bottom
@@ -510,6 +513,7 @@ the GOC light to be set.
             \bitbox{8}{Zeros Mask}
           \end{bytefield}
         \item {\bf Default:} {\tt 0xf0 0xf0} (Disabled)
+        \item \hl{NOTE: This command is not supported by the current MBus implementation.}
         \item This shall be followed by 2 bytes. The first byte shall
           be considered the ones mask the second byte shall be
           considered the zeros mask. The masks are 4~bits long, the bottom
@@ -531,6 +535,7 @@ the GOC light to be set.
             \bitbox{8}{Zeros Mask}
           \end{bytefield}
         \item {\bf Default:} {\tt 0x0f 0x0f} (Disabled)
+        \item \hl{NOTE: This command is not supported by the current MBus implementation.}
         \item This shall be followed by 2 bytes. The first byte shall
           be considered the ones mask the second byte shall be
           considered the zeros mask. The masks are 4~bits long, the top
@@ -550,6 +555,7 @@ the GOC light to be set.
             \bitbox{8}{Zeros Mask}
           \end{bytefield}
         \item {\bf Default:} {\tt 0x0f 0x0f} (Disabled)
+        \item \hl{NOTE: This command is not supported by the current MBus implementation.}
         \item This shall be followed by 2 bytes. The first byte shall
           be considered the ones mask the second byte shall be
           considered the zeros mask. The masks are 4~bits long, the top
@@ -600,6 +606,7 @@ the GOC light to be set.
             \bitbox{8}{{\tt SHOULD\_INT}}
           \end{bytefield}
         \item {\bf Default:} {\tt 0x0} (Off)
+        \item \hl{NOTE: This command is not supported by the current MBus implementation.}
         \item Configures whether ICE should interrupt the bus to transmit its
           next message. Possible values:
           \begin{itemize}
@@ -610,7 +617,7 @@ the GOC light to be set.
             \item[2] Interrupt for all messages
           \end{itemize}
       \end{itemize}
-    \paragraph{\texttt{0x6d 0x69 `mp'}: Set should use priority arbitration}
+    \paragraph{\texttt{0x6d 0x70 `mp'}: Set should use priority arbitration}
       \begin{itemize}
         \item[]
           \begin{bytefield} \\
@@ -621,14 +628,10 @@ the GOC light to be set.
             \bitbox{8}{{\tt SHOULD\_PRIO}}
           \end{bytefield}
         \item {\bf Default:} {\tt 0x0} (Off)
-        \item Configures whether ICE should send a high priority message for
-          the next message. Possible values:
+        \item Configures whether ICE should send high priority MBus messages. Possible values:
           \begin{itemize}
             \item[0] Do not send priority message.
-            \item[1] Send priority for next message only. That is, this value
-              is reset to 0 after the next {\tt `b'} command sent to ICE is
-              handled.
-            \item[2] Send all messages as high priority.
+            \item[1] Send all messages as high priority.
           \end{itemize}
       \end{itemize}
   \paragraph{\texttt{0x6d} Responses}
