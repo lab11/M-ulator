@@ -14,6 +14,19 @@ from ice import ICE
 class m3_common(object):
     TITLE = "Generic M3 Programmer"
 
+    @staticmethod
+    def printing_sleep(seconds):
+        if seconds < 1:
+            sleep(seconds)
+            return
+        while (seconds > 0):
+            sys.stdout.write("\rSleeping %d s" % (int(seconds)) + ' '*20)
+            sys.stdout.flush()
+            sleep(min(1, seconds))
+            seconds -= 1
+        sys.stdout.write('\r' + ' '*80 + '\r')
+        sys.stdout.flush()
+
     def __init__(self):
         try:
             self.print_banner()
