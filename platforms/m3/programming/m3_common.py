@@ -1,18 +1,26 @@
 #!/usr/bin/env python
 
+import os
 import sys
 import socket
 from Queue import Queue
 from time import sleep
 
 import logging
-logging.basicConfig(level=logging.INFO, format="%(message)s")
-logger = logging.getLogger('m3_common')
+#logger = logging.getLogger('m3_common')
 
 from ice import ICE
 
 class m3_common(object):
     TITLE = "Generic M3 Programmer"
+
+    @staticmethod
+    def configure_root_logger():
+        try:
+            os.environ['ICE_DEBUG']
+            logging.basicConfig(level=logging.DEBUG)
+        except KeyError:
+            logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     @staticmethod
     def printing_sleep(seconds):

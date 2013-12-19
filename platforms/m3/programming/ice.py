@@ -9,8 +9,7 @@ import struct
 import time
 from copy import copy
 import logging
-logging.basicConfig(level=logging.INFO, format="%(message)s")
-logger = logging.getLogger('ice')
+logger = logging.getLogger(__name__)
 
 try:
     import threading
