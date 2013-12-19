@@ -500,7 +500,7 @@ class ICE(object):
             msg = msg[FRAG_SIZE:]
             sent += FRAG_SIZE
             logger.debug("\tSent %d byte s, %d remaining" % (sent, len(msg)))
-        logger.debug("Sending last messag e, %d bytes long" % (len(msg)))
+        logger.debug("Sending last message fragment, %d bytes long" % (len(msg)))
         ack,resp = self.send_message(msg_type, msg)
         if ack == 1:
             return sent + ord(resp)
@@ -585,11 +585,13 @@ class ICE(object):
                 return
             self.send_message_until_acked('o', struct.pack("BB", ord('p'), 0))
             self.goc_ein_toggle = 0
+            logger.debug("Set goc/ein toggle to ein")
         else:
             if self.goc_ein_toggle == 1:
                 return
             self.send_message_until_acked('o', struct.pack("BB", ord('p'), 1))
             self.goc_ein_toggle = 1
+            logger.debug("Set goc/ein toggle to goc")
 
     ## GOC ##
     GOC_SPEED_DEFAULT_HZ = .625
@@ -675,6 +677,7 @@ class ICE(object):
         self.send_message_until_acked('o', msg)
 
         self.goc_freq = freq_in_hz
+        logger.debug("GOC frequency set to %f" % (freq_in_hz))
 
     @min_proto_version("0.2")
     @capability('O')
