@@ -667,7 +667,10 @@ class ICE(object):
         self.set_goc_ein(goc=1)
 
         # Send a 3-byte value N, where 2 MHz / N == clock speed
-        NOMINAL = int(2e6)
+        if self.minor == 1:
+            NOMINAL = int(2e6)
+        else:
+            NOMINAL = int(4e6)
         setting = NOMINAL / freq_in_hz;
         packed = struct.pack("!I", setting)
         if packed[0] != '\x00':

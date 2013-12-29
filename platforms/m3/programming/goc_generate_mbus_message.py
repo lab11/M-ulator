@@ -26,11 +26,6 @@ except IndexError:
     sys.exit(1)
 
 ice.goc_set_onoff(False)
-m3_common.printing_sleep(2)
-ice.goc_set_onoff(True)
-m3_common.printing_sleep(2)
-ice.goc_set_onoff(False)
-m3_common.printing_sleep(2)
 
 logger.info("Turning all M3 power rails on")
 ice.power_set_voltage(0,0.6)
@@ -142,3 +137,5 @@ write_msg_via_goc(ice, hexencoded)
 logger.info("")
 logger.info("Message Sent.")
 logger.info("")
+
+ice.goc_set_onoff(False)
