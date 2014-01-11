@@ -42,6 +42,14 @@ int read_mbus_register(uint32_t enum_addr, uint8_t reg, uint8_t return_addr){
   return 0;
 }
 
+int read_mbus_register_RADv4(uint32_t enum_addr, uint8_t reg, uint8_t return_addr){
+  uint32_t _mbus_addr = 1;
+  uint32_t _mbus_data = (return_addr << 16);
+  _mbus_addr |= (enum_addr << 4);
+  _mbus_data |= (reg << 24);
+  write_mbus_message(_mbus_addr,_mbus_data);
+  return 0;
+}
 //////////////////////////
 //PROCv6 SPECIFIC COMMANDS
 //////////////////////////
