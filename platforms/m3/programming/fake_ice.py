@@ -107,9 +107,10 @@ class Gpio(object):
     GPIO_OUTPUT   = 1
     GPIO_TRISTATE = 2
 
-    def __init__(self, direction=GPIO_TRISTATE, level=False):
+    def __init__(self, direction=GPIO_INPUT, level=False, interrupt=False):
         self.direction = direction
         self.level = level
+        self.interrupt = interrupt
 
     def __str__(self):
         s = ''
@@ -129,6 +130,9 @@ class Gpio(object):
         else:
             s += '0'
 
+        if self.interrupt:
+            s += '(int_en)'
+
         return s
 
     def __repr__(self):
@@ -141,6 +145,9 @@ class Gpio(object):
         if name is 'level':
             if value not in (True, False):
                 raise ValueError, "GPIO level must be true or false. Got", value
+        if name is 'interrupt':
+            if value not in (True, False):
+                raise ValueError, "GPIO interrupt must be true or false. Got", value
         object.__setattr__(self, name, value)
 
 event = 0
@@ -288,35 +295,86 @@ while True:
         elif msg_type == 'f':
             flow_msg += msg
             if len(msg) != 255:
-                logger.info("Got flow message:")
+                logger.info("Got f-type message in %s mode:", ('EIN','GOC')[ein_goc_toggle])
                 logger.info("  addr: " + flow_msg[0].encode('hex'))
                 logger.info("  data: " + flow_msg[1:].encode('hex'))
                 flow_msg = ''
             else:
-                logger.debug("Got flow fragment")
+                logger.debug("Got f-type fragment in %s mode", ('EIN','GOC')[ein_goc_toggle])
             ack()
         elif msg_type == 'G':
-            if msg[0] == 'l':
-                logger.info("Responded to request for GPIO %d Dir (%s)", ord(msg[1]), gpios[ord(msg[1])])
-                respond(chr(gpios[ord(msg[1])].level))
-            elif msg[0] == 'd':
-                logger.info("Responded to request for GPIO %d Level (%s)", ord(msg[1]), gpios[ord(msg[1])])
-                respond(chr(gpios[ord(msg[1])].direction))
+            # GPIO changed completely between v0.1 and v0.2
+            if minor == 1:
+                if msg[0] == 'l':
+                    logger.info("Responded to request for GPIO %d Dir (%s)", ord(msg[1]), gpios[ord(msg[1])])
+                    respond(chr(gpios[ord(msg[1])].level))
+                elif msg[0] == 'd':
+                    logger.info("Responded to request for GPIO %d Level (%s)", ord(msg[1]), gpios[ord(msg[1])])
+                    respond(chr(gpios[ord(msg[1])].direction))
+                else:
+                    logger.error("bad 'G' subtype: " + msg[0])
+                    raise Exception
             else:
-                logger.error("bad 'G' subtype: " + msg[0])
-                raise Exception
+                if msg[0] == 'l':
+                    mask = 0
+                    for i in xrange(len(gpios)):
+                        mask |= (gpios[i].level << i)
+                    logger.info("Responded to request for GPIO level mask (%06x)", mask)
+                    respond(chr((mask >> 16) & 0xff) + chr((mask >> 8) & 0xff) + chr(mask >> 8))
+                elif msg[0] == 'd':
+                    mask = 0
+                    for i in xrange(len(gpios)):
+                        mask |= (gpios[i].direction << i)
+                    logger.info("Responded to request for GPIO direction mask (%06x)", mask)
+                    respond(chr((mask >> 16) & 0xff) + chr((mask >> 8) & 0xff) + chr(mask >> 8))
+                elif msg[0] == 'i':
+                    mask = 0
+                    for i in xrange(len(gpios)):
+                        mask |= (gpios[i].interrupt << i)
+                    logger.info("Responded to request for GPIO interrupt mask (%06x)", mask)
+                    respond(chr((mask >> 16) & 0xff) + chr((mask >> 8) & 0xff) + chr(mask >> 8))
+                else:
+                    logger.error("bad 'G' subtype: " + msg[0])
+                    raise Exception
         elif msg_type == 'g':
-            if msg[0] == 'l':
-                gpios[ord(msg[1])].level = (ord(msg[2]) == True)
-                logger.info("Set GPIO %d Level: %s", ord(msg[1]), gpios[ord(msg[1])])
-                ack()
-            elif msg[0] == 'd':
-                gpios[ord(msg[1])].direction = ord(msg[2])
-                logger.info("Set GPIO %d Dir: %s", ord(msg[1]), gpios[ord(msg[1])])
-                ack()
+            # GPIO changed completely between v0.1 and v0.2
+            if minor == 1:
+                if msg[0] == 'l':
+                    gpios[ord(msg[1])].level = (ord(msg[2]) == True)
+                    logger.info("Set GPIO %d Level: %s", ord(msg[1]), gpios[ord(msg[1])])
+                    ack()
+                elif msg[0] == 'd':
+                    gpios[ord(msg[1])].direction = ord(msg[2])
+                    logger.info("Set GPIO %d Dir: %s", ord(msg[1]), gpios[ord(msg[1])])
+                    ack()
+                else:
+                    logger.error("bad 'g' subtype: " + msg[0])
+                    raise Exception
             else:
-                logger.error("bad 'g' subtype: " + msg[0])
-                raise Exception
+                if msg[0] == 'l':
+                    high,mid,low = map(ord, msg[1:])
+                    mask = low | mid << 8 | high << 16
+                    for i in xrange(24):
+                        gpios[i].level = (mask >> i) & 0x1
+                    logger.info("Set GPIO level mask to: %06x", mask)
+                    ack()
+                elif msg[0] == 'd':
+                    high,mid,low = map(ord, msg[1:])
+                    mask = low | mid << 8 | high << 16
+                    for i in xrange(24):
+                        gpios[i].direction = (mask >> i) & 0x1
+                    logger.info("Set GPIO direction mask to: %06x", mask)
+                    ack()
+                elif msg[0] == 'i':
+                    high,mid,low = map(ord, msg[1:])
+                    mask = low | mid << 8 | high << 16
+                    for i in xrange(24):
+                        gpios[i].interrupt = (mask >> i) & 0x1
+                    logger.info("Set GPIO interrupt mask to: %06x", mask)
+                    ack()
+                else:
+                    logger.error("bad 'g' subtype: " + msg[0])
+                    raise Exception
         elif msg_type == 'I':
             if msg[0] == 'c':
                 logger.info("Responded to query for I2C bus speed (%d kHz)", i2c_speed_in_khz)
@@ -488,6 +546,11 @@ while True:
                     flow_onoff = bool(ord(msg[1]))
                     logger.info("Set FLOW power to %s", ('off','on')[flow_onoff])
                     ack()
+            elif msg[0] == 'p':
+                min_proto(2)
+                ein_goc_toggle = bool(ord(msg[1]))
+                logger.info("Set GOC/EIN toggle to %s mode", ('EIN','GOC')[ein_goc_toggle])
+                ack()
             else:
                 logger.error("bad 'o' subtype: " + msg[0])
         elif msg_type == 'P':

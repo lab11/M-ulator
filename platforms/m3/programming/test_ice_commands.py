@@ -21,6 +21,9 @@ class ICETests(object):
         logger.debug("ICE Capability String: " + caps)
 
     def test_baudrate(self, ice):
+        if sys.platform.lower() == 'darwin':
+            logger.warn("test_baudrate skipped on OS X")
+            return
         logger.info("Test ?b")
         ice.ice_set_baudrate_to_3_megabaud()
         baud = ice.ice_get_baudrate()
@@ -84,10 +87,11 @@ class ICETests(object):
     def test_mbus_message(self, ice):
         logger.info("Test b")
         ret = ice.mbus_send("5a".decode('hex'), "87654321".decode('hex'))
-        if ret != 5:
+        # ret value from addr is always 4
+        if ret != 8:
             logger.error("Failed to send whole short MBus message")
         ret = ice.mbus_send("69".decode('hex'), ("ab"*511).decode('hex'))
-        if ret != (1+511):
+        if ret != (4+511):
             logger.error("Failed to send whole long MBus message")
 
     def test_mbus_full_prefix(self, ice):
@@ -228,6 +232,13 @@ class ICETests(object):
         if ice.gpio_get_direction(1) != ice.GPIO_TRISTATE:
             logger.error("Set/get mismatch gpio 1 (to tri)")
 
+    def test_gpio_interrupt_mask(self, ice):
+        logger.info("Test gi")
+        TARGET_GPIO_INT_MASK = 0xa53
+        ice.gpio_set_interrupt_enable_mask(TARGET_GPIO_INT_MASK)
+        if ice.gpio_get_interrupt_enable_mask != TARGET_GPIO_INT_MASK:
+            logger.error("Set/get mismatch gpio interrupt mask")
+
     def test_voltage_state(self, ice):
         logger.info("Test pv")
         ice.power_set_voltage(ice.POWER_0P6, 0.6)
@@ -272,6 +283,10 @@ ice.connect(sys.argv[1])
 
 logger.info('')
 logger.info('Begin running tests')
+try:
+    logger.info('  Attached ICE supports: %s', ice.capabilities)
+except AttributeError:
+    logger.info('  Attached ICE does not support querying capabilities')
 logger.info('')
 
 i = ICETests()
@@ -282,6 +297,9 @@ for f in all_functions:
             f[1](ice)
         except ice.VersionError:
             logger.info("%s skipped. Not supported in attached ICE version", f[0])
+        except ice.CapabilityError as e:
+            logger.info("%s skipped. Required capability %s is not supported",
+                    f[0], e.required_capability)
     else:
         logger.warn("Non-test method: " + f[0])
 
