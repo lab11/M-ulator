@@ -6,11 +6,12 @@
 
 //Defines for easy handling
 #define MD_ADDR 0x4           //MDv1 Short Address
+#define RAD_ADDR 0x2           //RADIO Short Address
 //#define SNS_ADDR 0x4           //SNSv1 Short Address
 
-#define MBUS_DELAY 20
+#define MBUS_DELAY 1000
 //#define WAKEUP_DELAY 1000 // 50ms
-#define WAKEUP_DELAY 300000 // 15s
+#define WAKEUP_DELAY 400000 // 20s
 #define WAKEUP_DELAY_FINAL 100000	// Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
 #define DELAY_1 20000 // 1s
 #define INT_TIME 5
@@ -23,8 +24,8 @@
 #define VDD_CC_1P2 1
 #define VNW_1P2 1
 
-#define SEL_CC 2
-#define SEL_CC_B 5
+#define SEL_CC 3
+#define SEL_CC_B 4
 
 // FILL THIS OUT
 #define SEL_VREF 0
@@ -46,7 +47,7 @@
 #define SEL_CLK_DIV 3
 #define SEL_CLK_RING_4US 0
 #define SEL_CLK_DIV_4US 1
-#define SEL_CLK_RING_ADC 0
+#define SEL_CLK_RING_ADC 0 
 #define SEL_CLK_DIV_ADC 1
 #define SEL_CLK_RING_LC 0
 #define SEL_CLK_DIV_LC 0
@@ -172,6 +173,34 @@ static void poweron_frame_controller(){
 
 }
 
+static void poweron_frame_controller_short(){
+
+  // Release MD Presleep (this also releases reset due to a design bug)
+  // 2:22
+  mdreg_2 &= ~(1<<22);
+  write_mbus_register(MD_ADDR,0x2,mdreg_2);
+  delay (MBUS_DELAY);
+
+  // Release MD Sleep
+  // 2:21
+  mdreg_2 &= ~(1<<21);
+  write_mbus_register(MD_ADDR,0x2,mdreg_2);
+  delay (MBUS_DELAY);
+
+  // Release MD Isolation
+  // 7:15
+  mdreg_7 &= ~(1<<15);
+  write_mbus_register(MD_ADDR,0x7,mdreg_7);
+  delay (MBUS_DELAY);
+
+  // Start MD Clock
+  // 5:11
+  mdreg_5 |= (1<<11);
+  write_mbus_register(MD_ADDR,0x5,mdreg_5);
+  delay (MBUS_DELAY);
+
+}
+
 static void start_md(){
 
   // Optionally release MD GPIO Isolation
@@ -179,17 +208,20 @@ static void start_md(){
   mdreg_7 &= ~(1<<16);
   write_mbus_register(MD_ADDR,0x7,mdreg_7);
   delay (MBUS_DELAY);
+  delay(10000); // about 0.5s
 
   // Start MD
   // 0:1
   mdreg_0 |= (1<<1);
   write_mbus_register(MD_ADDR,0x0,mdreg_0);
-  //delay (0x80); // about 6ms
-  delay(20000); // about 1.5s
+  delay (MBUS_DELAY);
+  delay(10000); // about 0.5s
 
   mdreg_0 &= ~(1<<1);
   write_mbus_register(MD_ADDR,0x0,mdreg_0);
   delay (MBUS_DELAY);
+
+  delay(10000); // about 0.5s
 
   // Enable MD Flag
   // 1:3
@@ -205,6 +237,7 @@ static void clear_md_flag(){
   // 0:2
   mdreg_0 |= (1<<2);
   write_mbus_register(MD_ADDR,0x0,mdreg_0);
+  delay (MBUS_DELAY);
   delay (0x80); // about 6ms
 
   mdreg_0 &= ~(1<<2);
@@ -215,6 +248,7 @@ static void clear_md_flag(){
   // 1:4
   mdreg_1 |= (1<<4);
   write_mbus_register(MD_ADDR,0x1,mdreg_1);
+  delay (MBUS_DELAY);
   delay (0x80); // about 6ms
   
   mdreg_1 &= ~(1<<4);
@@ -234,25 +268,45 @@ int main() {
 //  uint32_t temp_data[NUM_SAMPLES]; //Temperature Data
 //  uint32_t radio_data; //Radio Data
 
+  uint32_t exec_marker;
+  uint32_t first_exec;
+
+  delay(DELAY_1);
+
+  //Check if it is the first execution
+  exec_marker = *((volatile uint32_t *) 0x00000720);
+  if (exec_marker != 0x12345678){
+    first_exec = 1;
+    //Mark execution
+    *((volatile uint32_t *) 0x00000720) = 0x12345678;
+  }else{
+    first_exec = 0;
+  }
+
+  delay(DELAY_1);
+
   // Interrupts
   clear_all_pend_irq();
   enable_all_irq();
 
+  if (first_exec == 1){
+
   // Enumeration
   enumerate(MD_ADDR);
-  
   delay(DELAY_1);
-
+  enumerate(RAD_ADDR);
+  delay(DELAY_1);
+  
   // Set PMU Strength & division threshold
   // Change PMU_CTRL Register
   // 0x0F770029 = Original
-  // 0x2F773829 = Active clock only
-  // 0x2F770079 = Sleep only (CTRv7)
-  // 0x2F773069 = Both active & sleep clocks for CTRv6; fastest active ring is not stable
-  // 0x2F773079 = Both active & sleep clocks for CTRv7; fastest active ring is not stable
-  *((volatile uint32_t *) 0xA200000C) = 0x2F77307A;
+  // 0x2F77302A = Active clock only
+  // 0x2F77007A = Sleep only (CTRv7)
+  // 0x2F77306A = Both active & sleep clocks for CTRv6; fastest active ring is not stable
+  // 0x2F77307A = Both active & sleep clocks for CTRv7; fastest active ring is not stable
+  // 0x2FEFXXXX = Harvesting settings
+  *((volatile uint32_t *) 0xA200000C) = 0x2FEF307A;
 
-  delay(DELAY_1);
   delay(DELAY_1);
   delay(DELAY_1);
 
@@ -260,9 +314,11 @@ int main() {
   // Change GOC_CTRL Register
   // 0x00A02932 = Original
   // 0x00A02332 = Fastest MBUS clk
-  *((volatile uint32_t *) 0xA2000008) = 0x00A02332;
+  //*((volatile uint32_t *) 0xA2000008) = 0x00A02332;
   
   delay(DELAY_1);
+
+  } // if first_exec
 
   // This is required if this program is used for sleep/wakeup cycling
   clear_md_flag();
@@ -271,14 +327,24 @@ int main() {
   initialize_md_reg();
 
   // Release power gates, isolation, and reset for frame controller
-  poweron_frame_controller();
+  if (first_exec){
+    poweron_frame_controller();
+  }else{
+    poweron_frame_controller_short();
+  }
 
   // Start motion detection
   start_md();
 
-  sleep();
+  delay(DELAY_1);
+  clear_md_flag();
+  delay(DELAY_1);
+  start_md();
 
   delay(DELAY_1);
+
+  // Don't use sleep with CTRv6 or CTRv7 unfibbed
+  //sleep();
 
   while (1){}
 
