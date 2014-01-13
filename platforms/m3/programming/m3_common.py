@@ -7,7 +7,7 @@ from Queue import Queue
 from time import sleep
 
 import logging
-#logger = logging.getLogger('m3_common')
+logger = logging.getLogger('m3_common')
 
 from ice import ICE
 
