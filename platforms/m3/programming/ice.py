@@ -569,7 +569,7 @@ class ICE(object):
         self.dev.baudrate = 3000000
 
     ## GOC VS EIN HANDLING ##
-    def set_goc_ein(self, goc=0, ein=0):
+    def set_goc_ein(self, goc=0, ein=0, restore_clock_freq=True):
         if goc == ein:
             raise self.ICE_Error, "Internal consistency goc vs ein failure"
 
@@ -580,17 +580,53 @@ class ICE(object):
                 raise self.ICE_Error, "Attempt to call set_goc_ein for ein with protocol version 1"
 
         if ein:
+            # Set to EIN mode
             if self.goc_ein_toggle == 0:
+                # Already in ein mode, nothing to do
                 return
+            if self.goc_ein_toggle == 1:
+                # If we were set to GOC mode, capture the clock frequency
+                self.goc_freq_divisor = self.goc_ein_get_freq_divisor()
+            if restore_clock_freq:
+                try:
+                    self.goc_ein_set_freq_divisor(self.ein_freq_divisor)
+                    logger.debug("Restored previous EIN clock frequency")
+                except AttributeError:
+                    self.goc_ein_set_freq_divisor(self.EIN_DEFAULT_DIVISOR)
+                    logger.debug("Set EIN to default clock frequency")
             self.send_message_until_acked('o', struct.pack("BB", ord('p'), 0))
             self.goc_ein_toggle = 0
             logger.debug("Set goc/ein toggle to ein")
         else:
+            # Set to GOC mode
             if self.goc_ein_toggle == 1:
                 return
+            if self.goc_ein_toggle == 0:
+                self.ein_freq_divisor = self.goc_ein_get_freq_divisor()
+            if restore_clock_freq:
+                try:
+                    self.goc_ein_set_freq_divisor(self.goc_freq_divisor)
+                    logger.debug("Restored previous GOC clock frequency")
+                except AttributeError:
+                    self.goc_ein_set_freq_divisor(self._goc_freq_in_hz_to_divisor(self.GOC_SPEED_DEFAULT_HZ))
+                    logger.debug("Set GOC to default clock frequency")
             self.send_message_until_acked('o', struct.pack("BB", ord('p'), 1))
             self.goc_ein_toggle = 1
             logger.debug("Set goc/ein toggle to goc")
+
+    def goc_ein_get_freq_divisor(self):
+        resp = self.send_message_until_acked('O', struct.pack("B", ord('c')))
+        if len(resp) != 3:
+            raise self.FormatError, "Wrong response length from `Oc': " + str(resp)
+        setting = struct.unpack("!I", "\x00"+resp)[0]
+        return setting
+
+    def goc_ein_set_freq_divisor(self, divisor):
+        packed = struct.pack("!I", divisor)
+        if packed[0] != '\x00':
+            raise self.ParameterError, "Out of range."
+        msg = struct.pack("B", ord('c')) + packed[1:]
+        self.send_message_until_acked('o', msg)
 
     ## GOC ##
     GOC_SPEED_DEFAULT_HZ = .625
@@ -650,13 +686,17 @@ class ICE(object):
         '''
         self.set_goc_ein(goc=1)
 
-        resp = self.send_message_until_acked('O', struct.pack("B", ord('c')))
-        if len(resp) != 3:
-            raise self.FormatError, "Wrong response length from `Oc': " + str(resp)
-        setting = struct.unpack("!I", "\x00"+resp)[0]
+        setting = self.goc_ein_get_freq_divisor()
         NOMINAL = int(2e6)
         freq_in_hz = NOMINAL / setting
         return freq_in_hz
+
+    def _goc_freq_in_hz_to_divisor(self, freq_in_hz):
+        if self.minor == 1:
+            NOMINAL = int(2e6)
+        else:
+            NOMINAL = int(4e6)
+        return NOMINAL / freq_in_hz;
 
     @min_proto_version("0.1")
     @capability('o')
@@ -667,16 +707,7 @@ class ICE(object):
         self.set_goc_ein(goc=1)
 
         # Send a 3-byte value N, where 2 MHz / N == clock speed
-        if self.minor == 1:
-            NOMINAL = int(2e6)
-        else:
-            NOMINAL = int(4e6)
-        setting = NOMINAL / freq_in_hz;
-        packed = struct.pack("!I", setting)
-        if packed[0] != '\x00':
-            raise self.ParameterError, "Out of range."
-        msg = struct.pack("B", ord('c')) + packed[1:]
-        self.send_message_until_acked('o', msg)
+        self.goc_ein_set_freq_divisor(self._goc_freq_in_hz_to_divisor(freq_in_hz))
 
         self.goc_freq = freq_in_hz
         logger.debug("GOC frequency set to %f" % (freq_in_hz))
@@ -1246,6 +1277,8 @@ class ICE(object):
         self.send_message_until_acked('m', msg)
 
     ## EIN DEBUG ##
+    EIN_DEFAULT_DIVISOR = 0xFA0
+
     @min_proto_version("0.2")
     @capability('f')
     def ein_send(self, msg):
