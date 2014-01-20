@@ -22,6 +22,7 @@ class mbus_message_generator(m3_common):
 
     def install_handler(self):
         self.ice.msg_handler['B++'] = self.Bpp_callback
+        self.ice.msg_handler['b++'] = self.Bpp_callback
 
     def Bpp_callback(address, data, control_bit_0, control_bit_1):
         logger.info("Received MBus message:")

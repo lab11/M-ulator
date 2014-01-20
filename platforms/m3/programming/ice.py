@@ -168,6 +168,7 @@ class ICE(object):
         self.msg_handler['B'] = self.B_defragger
         self.B_formatter_success_only = True
         self.msg_handler['B+'] = self.B_formatter
+        self.msg_handler['b+'] = self.b_formatter
 
         self.goc_ein_toggle = -1
 
@@ -357,6 +358,14 @@ class ICE(object):
 
     @min_proto_version("0.2")
     def B_formatter(self, msg_type, event_id, length, msg):
+        return self.common_bB_formatter(msg_type, event_id, length, msg, 'B++')
+
+    @min_proto_version("0.2")
+    def b_formatter(self, msg_type, event_id, length, msg):
+        return self.common_bB_formatter(msg_type, event_id, length, msg, 'b++')
+
+    @min_proto_version("0.2")
+    def common_bB_formatter(self, msg_type, event_id, length, msg, b_type):
         '''
         Helper function that parses 'B+' snooped MBus messages before forwarding.
 
@@ -375,7 +384,6 @@ class ICE(object):
 
         This function may be safely overridden.
         '''
-        assert msg_type == 'B+'
         addr = msg[0]
         if (addr & 0xf0) == 0xf:
             addr = msg[0:3]
@@ -385,10 +393,10 @@ class ICE(object):
         control = msg[-2:]
         msg = msg[:-2]
         try:
-            msg_handler['B++'](addr, data, control[0], control[1])
+            msg_handler[b_type](addr, data, control[0], control[1])
         except TypeError:
             if not self.B_formatter_success_only or (control[0] and not control[1]):
-                msg_handler['B++'](addr, data)
+                msg_handler[b_type](addr, data)
         except KeyError:
             logger.warn("No handler registered for B++ (formatted, snooped MBus) messages")
             logger.warn("Dropping message:")
