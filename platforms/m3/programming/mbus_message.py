@@ -24,12 +24,14 @@ class mbus_message_generator(m3_common):
         self.ice.msg_handler['B++'] = self.Bpp_callback
         self.ice.msg_handler['b++'] = self.Bpp_callback
 
-    def Bpp_callback(address, data, control_bit_0, control_bit_1):
+    def Bpp_callback(self, address, data, broadcast, success):
+        logger.info("")
         logger.info("Received MBus message:")
-        logger.info("  address: " + address)
-        logger.info("     data: " + data)
-        logger.info("      CB0: " + control_bit_0)
-        logger.info("      CB1: " + control_bit_1)
+        logger.info("  address: " + address.encode('hex'))
+        logger.info("     data: " + data.encode('hex'))
+        logger.info("broadcast: " + str(broadcast))
+        logger.info("  success: " + str(success))
+        logger.info("")
 
     def read_binfile(self):
         pass
@@ -64,11 +66,37 @@ do_default("Run power-on sequence", m.power_on)
 do_default("Reset M3", m.reset_m3)
 do_default("Act as MBus master", m.set_master, m.set_slave)
 
+def build_mbus_message():
+    logging.info("Build your MBus message. All values hex. Leading 0x optional. Ctrl-C to Quit.")
+    addr = default_value("Address      ", "0xA5").replace('0x','').decode('hex')
+    data = default_value("   Data", "0x12345678").replace('0x','').decode('hex')
+    return add, data
+
+def get_mbus_message_to_send():
+    logging.info("Which message would you like to send?")
+    logging.info("\t0) Custom")
+    logging.info("\t1) Enumerate          (0xF0000000, 0x24000000)")
+    logging.info("\t2) SNS Config Bits    (0x40, 0x0423dfef)")
+    logging.info("\t2) SNS Sample Setup   (0x40, 0x030bf0f0)")
+    logging.info("\t3) SNS Sample Start   (0x40, 0x030af0f0)")
+    selection = default_value("Choose a message type", "-1")
+    if selection == '0':
+        return build_mbus_message()
+    elif selection == '1':
+        return ("F0000000".decode('hex'), "24000000".decode('hex'))
+    elif selection == '2':
+        return ("40".decode('hex'), "0423dfef".decode('hex'))
+    elif selection == '3':
+        return ("40".decode('hex'), "030bf0f0".decode('hex'))
+    elif selection == '4':
+        return ('40'.decode('hex'), '030af0f0'.decode('hex'))
+    else:
+        logging.info("Please choose one of the numbered options")
+        return get_mbus_message_to_send()
+
 while True:
     try:
-        logging.info("Build your MBus message. All values hex. Leading 0x optional. Ctrl-C to Quit.")
-        addr = default_value("Address      ", "0xA5").replace('0x','').decode('hex')
-        data = default_value("   Data", "0x12345678").replace('0x','').decode('hex')
+        addr, data = get_mbus_message_to_send()
         m.ice.mbus_send(addr, data)
     except KeyboardInterrupt:
         break

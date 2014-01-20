@@ -319,13 +319,13 @@ class ICE(object):
         It may be safely overridden.
         '''
         with self.b_lock:
+            logger.debug("\tmsg_type: %s, event_id: %s, length: %s, msg: %s"
+                    % (msg_type, event_id, length, repr(msg)))
             assert msg_type == 'b'
             self.b_frag += msg
             # XXX: Make version dependent
             if length != 255:
-                sys.stdout.flush()
                 logger.debug("Got a complete MBus message of length %d bytes. Forwarding..." % (len(self.b_frag)))
-                sys.stdout.flush()
                 self.spawn_handler('b+', event_id, len(self.b_frag), copy(self.b_frag))
                 self.b_frag = ''
             else:
@@ -384,19 +384,20 @@ class ICE(object):
 
         This function may be safely overridden.
         '''
-        addr = msg[0]
-        if (addr & 0xf0) == 0xf:
-            addr = msg[0:3]
-            msg = msg[4:]
-        else:
-            msg = msg[1:]
-        control = msg[-2:]
-        msg = msg[:-2]
+        addr = msg[0:4]
+        data = msg[4:-1]
+        cb = ord(msg[-1:])
+        # 2 broadcast, 3 success / fail
+        broadcast = bool(cb & 0x4)
+        success = not(bool(cb & 0x8))
         try:
-            msg_handler[b_type](addr, data, control[0], control[1])
+            self.msg_handler[b_type](addr, data, broadcast, success)
         except TypeError:
-            if not self.B_formatter_success_only or (control[0] and not control[1]):
-                msg_handler[b_type](addr, data)
+            logger.debug("Type error")
+            if not self.B_formatter_success_only or (success):
+                self.msg_handler[b_type](addr, data)
+            else:
+                logger.debug("no call")
         except KeyError:
             logger.warn("No handler registered for B++ (formatted, snooped MBus) messages")
             logger.warn("Dropping message:")
