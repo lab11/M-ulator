@@ -191,6 +191,10 @@ class ICE(object):
 
         self.negotiate_version()
 
+        if self.minor == 2:
+            # V2 ICE sets GOC on by default, which is annoying. Correct that.
+            self.goc_set_onoff(False)
+
     def spawn_handler(self, msg_type, event_id, length, msg):
         try:
             t = threading.Thread(target=self.msg_handler[msg_type],

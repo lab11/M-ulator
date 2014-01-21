@@ -96,7 +96,6 @@ class goc_programmer_for_mbus(goc_programmer):
     MSG_TYPE = 'b+'
 
 g = goc_programmer_for_i2c()
-g.ice.goc_set_onoff(False)
 g.power_on()
 g.reset_m3()
 logger.info("** Setting ICE to slave mode")
