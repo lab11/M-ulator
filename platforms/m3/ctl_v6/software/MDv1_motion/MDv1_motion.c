@@ -265,9 +265,6 @@ static void clear_md_flag(){
 
 int main() {
   
-//  uint32_t temp_data[NUM_SAMPLES]; //Temperature Data
-//  uint32_t radio_data; //Radio Data
-
   uint32_t exec_marker;
   uint32_t first_exec;
 
@@ -291,32 +288,32 @@ int main() {
 
   if (first_exec == 1){
 
-  // Enumeration
-  enumerate(MD_ADDR);
-  delay(DELAY_1);
-  enumerate(RAD_ADDR);
-  delay(DELAY_1);
+    // Enumeration
+    enumerate(MD_ADDR);
+    delay(DELAY_1);
+    enumerate(RAD_ADDR);
+    delay(DELAY_1);
+    
+    // Set PMU Strength & division threshold
+    // Change PMU_CTRL Register
+    // 0x0F770029 = Original
+    // 0x2F77302A = Active clock only
+    // 0x2F77007A = Sleep only (CTRv7)
+    // 0x2F77306A = Both active & sleep clocks for CTRv6; fastest active ring is not stable
+    // 0x2F77307A = Both active & sleep clocks for CTRv7; fastest active ring is not stable
+    // 0x2FEFXXXX = Harvesting settings
+    *((volatile uint32_t *) 0xA200000C) = 0x2FEF307A;
   
-  // Set PMU Strength & division threshold
-  // Change PMU_CTRL Register
-  // 0x0F770029 = Original
-  // 0x2F77302A = Active clock only
-  // 0x2F77007A = Sleep only (CTRv7)
-  // 0x2F77306A = Both active & sleep clocks for CTRv6; fastest active ring is not stable
-  // 0x2F77307A = Both active & sleep clocks for CTRv7; fastest active ring is not stable
-  // 0x2FEFXXXX = Harvesting settings
-  *((volatile uint32_t *) 0xA200000C) = 0x2FEF307A;
-
-  delay(DELAY_1);
-  delay(DELAY_1);
-
-  // Set MBUS Clock faster
-  // Change GOC_CTRL Register
-  // 0x00A02932 = Original
-  // 0x00A02332 = Fastest MBUS clk
-  //*((volatile uint32_t *) 0xA2000008) = 0x00A02332;
+    delay(DELAY_1);
+    delay(DELAY_1);
   
-  delay(DELAY_1);
+    // Set MBUS Clock faster
+    // Change GOC_CTRL Register
+    // 0x00A02932 = Original
+    // 0x00A02332 = Fastest MBUS clk
+    //*((volatile uint32_t *) 0xA2000008) = 0x00A02332;
+    
+    delay(DELAY_1);
 
   } // if first_exec
 
@@ -344,7 +341,7 @@ int main() {
   delay(DELAY_1);
 
   // Don't use sleep with CTRv6 or CTRv7 unfibbed
-  //sleep();
+  sleep();
 
   while (1){}
 
