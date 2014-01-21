@@ -110,6 +110,8 @@ else:
 
 g.power_on()
 g.reset_m3()
+logger.info("** Setting ICE to slave mode")
+g.ice.mbus_set_master_onoff(False)
 g.set_slow_frequency()
 g.wake_chip()
 g.set_fast_frequency()
@@ -122,6 +124,7 @@ logger.info("")
 
 if run_after:
     logger.info("Program is running on the chip.")
+    sleep(1000)
     sys.exit(0)
 
 ########################################
