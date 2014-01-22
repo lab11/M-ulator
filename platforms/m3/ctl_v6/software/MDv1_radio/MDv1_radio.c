@@ -15,11 +15,11 @@
 #define RAD_ADDR 0x2           //RADIO Short Address
 //#define SNS_ADDR 0x4           //SNSv1 Short Address
 
-#define MBUS_DELAY 1000
+#define MBUS_DELAY 1000 // default 1000
 //#define WAKEUP_DELAY 1000 // 50ms
 #define WAKEUP_DELAY 400000 // 20s
 #define WAKEUP_DELAY_FINAL 100000	// Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
-#define DELAY_1 20000 // 1s
+#define DELAY_1 2000 // default 20000: 1s
 #define INT_TIME 5
 #define MD_INT_TIME 35
 #define MD_TH 10
@@ -385,6 +385,7 @@ int main() {
     // 0x2F77306A = Both active & sleep clocks for CTRv6; fastest active ring is not stable
     // 0x2F77307A = Both active & sleep clocks for CTRv7; fastest active ring is not stable
     // 0x2FEFXXXX = Harvesting settings
+    // 0x6XXXXXXX = PRCv8 fixed 5x PMU configuration
     *((volatile uint32_t *) 0xA200000C) = 0x2FEF307A;
   
     delay(DELAY_1);
