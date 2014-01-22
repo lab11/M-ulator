@@ -63,7 +63,7 @@ def write_msg_via_goc(ice, hexencoded, run_after=False):
     logger.info("Sending passcode to GOC")
     logger.debug("Sending:" + passcode_string)
     ice.goc_send(passcode_string.decode('hex'))
-    m3_common.printing_sleep(4.0)
+    m3_common.printing_sleep(2.0)
     print
 
     # Up ICE sending frequency to 5Hz
@@ -124,12 +124,15 @@ def write_msg_via_goc(ice, hexencoded, run_after=False):
     logger.info("Sending program to GOC")
     logger.debug("Sending: " + message)
     ice.goc_send(message.decode('hex'))
-    m3_common.printing_sleep(1.0)
+    #m3_common.printing_sleep(1.0)
 
     logger.info("Sending extra blink to end transaction")
     extra = "80"
     logger.debug("Sending: " + extra)
     ice.goc_send(extra.decode('hex'))
+
+logger.info("Set ICE to MBus slave mode")
+ice.mbus_set_master_onoff(False)
 
 hexencoded = "a512345678"
 write_msg_via_goc(ice, hexencoded)
@@ -139,3 +142,5 @@ logger.info("Message Sent.")
 logger.info("")
 
 ice.goc_set_onoff(False)
+
+time.sleep(100)

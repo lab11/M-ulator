@@ -8,8 +8,8 @@ import time
 import mimetypes
 import Queue
 import logging
-logging.basicConfig(level=logging.INFO, format="%(message)s")
-logger = logging.getLogger('goc')
+logging.basicConfig(level=logging.DEBUG, format="%(message)s")
+logger = logging.getLogger('ein')
 
 logger.info("-" * 80)
 logger.info("-- M3 EIN Debug Port Programmer")
@@ -171,8 +171,7 @@ def write_bin_via_ein(ice, hexencoded, run_after):
     sleep(1.0)
 
     if run_after:
-        logger.info("Run After Programming specified. Chip should be running.  Exiting.")
-        sys.exit(0)
+        logger.info("Run After Programming specified. Chip should be running.")
 
 def validate_bin(ice, hexencoded, offset=0):
     logger.error("Need to update to MBus")
@@ -222,28 +221,32 @@ def validate_bin(ice, hexencoded, offset=0):
     logger.info("Programming validated successfully")
     return True
 
+logger.info("Setting ICE board as MBus slave")
+ice.mbus_set_master_onoff(False)
+
 write_bin_via_ein(ice, hexencoded, run_after)
 
 logger.info("")
 logger.info("Programming complete.")
 logger.info("")
 
-resp = raw_input("Would you like to read back the program via I2C to validate? [Y/n] ")
-if not (len(resp) != 0 and resp[0] in ('n', 'N')):
-    junk_dma_done_msg = "%08X" % (socket.htonl(0x20000000))
-    logger.info("Sending junk message (DMA Done, 0 bytes to addr 0) to ensure chip is awake")
-    logger.debug("Sending: 0xAA " + junk_dma_done_msg)
-    ice.i2c_send(0xaa, junk_dma_done_msg.decode('hex'))
-    sleep(1.0)
-    if validate_bin(ice, hexencoded) is False:
-        logger.warn("Validation failed. Dying")
+if not run_after:
+    resp = raw_input("Would you like to read back the program via I2C to validate? [Y/n] ")
+    if not (len(resp) != 0 and resp[0] in ('n', 'N')):
+        junk_dma_done_msg = "%08X" % (socket.htonl(0x20000000))
+        logger.info("Sending junk message (DMA Done, 0 bytes to addr 0) to ensure chip is awake")
+        logger.debug("Sending: 0xAA " + junk_dma_done_msg)
+        ice.i2c_send(0xaa, junk_dma_done_msg.decode('hex'))
+        sleep(1.0)
+        if validate_bin(ice, hexencoded) is False:
+            logger.warn("Validation failed. Dying")
+            sys.exit()
+
+    resp = raw_input("Would you like to send the DMA start interrupt? [Y/n] ")
+    if len(resp) != 0 and resp[0] in ('n', 'N'):
         sys.exit()
 
-resp = raw_input("Would you like to send the DMA start interrupt? [Y/n] ")
-if len(resp) != 0 and resp[0] in ('n', 'N'):
-    sys.exit()
-
-logger.info("Sending 0x88 0x00000000")
-ice.i2c_send(0x88, "00000000".decode('hex'))
+    logger.info("Sending 0x88 0x00000000")
+    ice.i2c_send(0x88, "00000000".decode('hex'))
 
 sleep(10000)
