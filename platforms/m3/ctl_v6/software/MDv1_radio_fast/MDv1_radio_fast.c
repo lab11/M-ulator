@@ -15,11 +15,11 @@
 #define RAD_ADDR 0x2           //RADIO Short Address
 //#define SNS_ADDR 0x4           //SNSv1 Short Address
 
-#define MBUS_DELAY 1000 // default 1000
+#define MBUS_DELAY 100 // default 1000
 //#define WAKEUP_DELAY 1000 // 50ms
 #define WAKEUP_DELAY 400000 // 20s
 #define WAKEUP_DELAY_FINAL 100000	// Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
-#define DELAY_1 2000 // default 20000: 1s
+#define DELAY_1 200 // default 20000: 1s
 #define INT_TIME 5
 #define MD_INT_TIME 35
 #define MD_TH 10
@@ -214,20 +214,20 @@ static void start_md(){
   mdreg_7 &= ~(1<<16);
   write_mbus_register(MD_ADDR,0x7,mdreg_7);
   delay (MBUS_DELAY);
-  delay(10000); // about 0.5s
+  delay(100); // about 0.5s
 
   // Start MD
   // 0:1
   mdreg_0 |= (1<<1);
   write_mbus_register(MD_ADDR,0x0,mdreg_0);
   delay (MBUS_DELAY);
-  delay(10000); // about 0.5s
+  delay(100); // about 0.5s
 
   mdreg_0 &= ~(1<<1);
   write_mbus_register(MD_ADDR,0x0,mdreg_0);
   delay (MBUS_DELAY);
 
-  delay(10000); // about 0.5s
+  delay(100); // about 0.5s
 
   // Enable MD Flag
   // 1:3
@@ -327,7 +327,7 @@ static uint32_t gen_radio_data(uint32_t data_in) {
 static void send_radio_data(uint32_t radio_data){
   int32_t i; //loop var
   uint32_t j; //loop var
-  for(j=0;j<3;j++){ //Packet Loop
+  for(j=0;j<1;j++){ //Packet Loop
     for(i=15;i>=0;i--){ //Bit Loop
       delay (10);
       if ((radio_data>>i)&1) write_mbus_register(RAD_ADDR,0x27,0x1);
@@ -410,7 +410,7 @@ int main() {
     delay(MBUS_DELAY);
 
     //Current Limiter  
-    uint32_t _rad_r26 = 0x0;
+    uint32_t _rad_r26 = 0x2F; // default 0
     write_mbus_register(RAD_ADDR,0x26,_rad_r26);  
     delay(MBUS_DELAY);
     //Tune Power
