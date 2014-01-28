@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
 import sys, socket
-from time import sleep
 
 import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger('goc_programmer')
 
 from m3_common import m3_common
+sleep = m3_common.printing_sleep
 
 class goc_programmer(m3_common):
     TITLE = "GOC Programmer"
