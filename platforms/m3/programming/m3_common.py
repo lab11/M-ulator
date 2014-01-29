@@ -4,7 +4,7 @@ import os
 import sys
 import socket
 from Queue import Queue
-from time import sleep
+import time
 
 import logging
 logger = logging.getLogger('m3_common')
@@ -25,15 +25,101 @@ class m3_common(object):
     @staticmethod
     def printing_sleep(seconds):
         if seconds < 1:
-            sleep(seconds)
+            time.sleep(seconds)
             return
         while (seconds > 0):
             sys.stdout.write("\rSleeping %d s" % (int(seconds)) + ' '*20)
             sys.stdout.flush()
-            sleep(min(1, seconds))
+            time.sleep(min(1, seconds))
             seconds -= 1
         sys.stdout.write('\r' + ' '*80 + '\r')
         sys.stdout.flush()
+
+    @staticmethod
+    def default_value(prompt, default, extra=None, invert=False):
+        if invert and (extra is None):
+            raise RuntimeError, "invert & !extra ?"
+        if extra:
+            r = raw_input(prompt + ' [' + default + extra + ']: ')
+        else:
+            r = raw_input(prompt + ' [' + default + ']: ')
+        if len(r) == 0:
+            if invert:
+                return extra
+            return default
+        else:
+            return r
+
+    @staticmethod
+    def do_default(prompt, fn, else_fn=None):
+        y = m3_common.default_value(prompt, 'Y', '/n')
+        if y[0] not in ('n', 'N'):
+            fn()
+        else:
+            if else_fn:
+                else_fn()
+
+    @staticmethod
+    def dont_do_default(prompt, fn, else_fn=None):
+        resp = m3_common.default_value(prompt, 'y/', 'N', invert=True)
+        if resp[0] in ('y', 'Y'):
+            fn()
+        else:
+            if else_fn:
+                else_fn()
+
+    @staticmethod
+    def build_injection_message(hexencoded, run_after=False):
+        chip_id_mask = 0                # [0:3] Chip ID Mask
+        reset = 0                       #   [4] Reset Request
+        chip_id_coding = 0              #   [5] Chip ID coding
+        is_i2c = 0                      #   [6] Indicates transmission is I2C message [addr+data]
+        run_after = not not run_after   #   [7] Run code after programming?
+        # Byte 0: Control
+        control = chip_id_mask | (reset << 4) | (chip_id_coding << 5) | (is_i2c << 6) | (run_after << 7)
+
+        # Byte 1,2: Chip ID
+        chip_id = 0
+
+        # Byte 3,4: Memory Address
+        mem_addr = 0
+
+        # Byte 5,6: Program Lengh
+        length = len(hexencoded) >> 3   # hex exapnded -> bytes, /2
+        length = socket.htons(length)
+
+        # Byte 7: bit-wise XOR parity of header
+        header_parity = 0
+        for byte in (
+                control,
+                (chip_id >> 8) & 0xff,
+                chip_id & 0xff,
+                (mem_addr >> 8) & 0xff,
+                mem_addr & 0xff,
+                (length >> 8) & 0xff,
+                length & 0xff,
+                ):
+            header_parity ^= byte
+
+        # Byte 8: bit-wise XOR parity of data
+        data_parity = 0
+        for byte in [hexencoded[x:x+2] for x in xrange(0, len(hexencoded), 2)]:
+            b = int(byte, 16)
+            data_parity ^= b
+
+        # Bytes 9+: Data
+
+        # Assemble message:
+        message = "%02X%04X%04X%04X%02X%02X%s" % (
+                control,
+                chip_id,
+                mem_addr,
+                length,
+                header_parity,
+                data_parity,
+                hexencoded)
+
+        return message
 
     def __init__(self):
         try:
@@ -114,20 +200,111 @@ class m3_common(object):
         self.ice.power_set_voltage(2,3.8)
         logger.info("Turning 3.8 on")
         self.ice.power_set_onoff(2,True)
-        sleep(1.0)
+        m3_common.printing_sleep(1.0)
         logger.info("Turning 1.2 on")
         self.ice.power_set_onoff(1,True)
-        sleep(1.0)
+        m3_common.printing_sleep(1.0)
         logger.info("Turning 0.6 on")
         self.ice.power_set_onoff(0,True)
-        sleep(1.0)
+        m3_common.printing_sleep(1.0)
         logger.info("Waiting 8 seconds for power rails to settle")
-        sleep(8.0)
+        m3_common.printing_sleep(8.0)
 
     def reset_m3(self):
         logger.info("M3 0.6V => OFF (reset controller)")
         self.ice.power_set_onoff(0,False)
-        sleep(2.0)
+        m3_common.printing_sleep(2.0)
         logger.info("M3 0.6V => ON")
         self.ice.power_set_onoff(0,True)
-        sleep(2.0)
+        m3_common.printing_sleep(2.0)
+
+    def validate_bin(self): #, hexencoded, offset=0):
+        raise NotImplementedError("Need to update for MBus. Let me know if needed.")
+        logger.info("Configuring ICE to ACK adress 1001 100x")
+        ice.i2c_set_address("1001100x") # 0x98
+
+        logger.info("Running Validation sequence:")
+        logger.info("\t DMA read at address 0x%x, length %d" % (offset, len(hexencoded)/2))
+        logger.info("\t<Receive I2C message for DMA data>")
+        logger.info("\tCompare received data and validate it was programmed correctly")
+
+        length = len(hexencoded)/8
+        offset = offset
+        data = 0x80000000 | (length << 16) | offset
+        dma_read_req = "%08X" % (socket.htonl(data))
+        logger.debug("Sending: " + dma_read_req)
+        ice.i2c_send(0xaa, dma_read_req.decode('hex'))
+
+        logger.info("Chip Program Dump Response:")
+        chip_bin = validate_q.get(True, ice.ONEYEAR)
+        logger.debug("Raw chip bin response len " + str(len(chip_bin)))
+        chip_bin = chip_bin.encode('hex')
+        logger.debug("Chip bin len %d val: %s" % (len(chip_bin), chip_bin))
+
+        #1,2-addr ...
+        chip_bin = chip_bin[2:]
+
+        # Consistent capitalization
+        chip_bin = chip_bin.upper()
+        hexencoded = hexencoded.upper()
+
+        for b in range(len(hexencoded)):
+            try:
+                if hexencoded[b] != chip_bin[b]:
+                    logger.warn("ERR: Mismatch at half-byte" + str(b))
+                    logger.warn("Expected:" + hexencoded[b])
+                    logger.warn("Got:" + chip_bin[b])
+                    return False
+            except IndexError:
+                logger.warn("ERR: Length mismatch")
+                logger.warn("Expected %d bytes" % (len(hexencoded)/2))
+                logger.warn("Got %d bytes" % (len(chip_bin)/2))
+                logger.warn("All prior bytes validated correctly")
+                return False
+
+        logger.info("Programming validated successfully")
+        return True
+
+    def hang_for_messages(self):
+        logger.info("Script is waiting to print any MBus messages.")
+        logger.info("To quit, press Ctrl-C")
+        try:
+            time.sleep(1000)
+        except KeyboardInterrupt:
+            logger.info("Exiting.")
+
+
+class goc_programmer(m3_common):
+    TITLE = "GOC Programmer"
+    SLOW_FREQ_IN_HZ = 0.625
+
+    def set_slow_frequency(self):
+        self.ice.goc_set_frequency(self.SLOW_FREQ_IN_HZ)
+
+    def wake_chip(self):
+        passcode_string = "7394"
+        logger.info("Sending passcode to GOC")
+        logger.debug("Sending:" + passcode_string)
+        self.ice.goc_send(passcode_string.decode('hex'))
+        self.printing_sleep(4.0)
+
+    def set_fast_frequency(self):
+        self.ice.goc_set_frequency(8*self.SLOW_FREQ_IN_HZ)
+
+    def send_goc_message(self, message):
+        logger.info("Sending GOC message")
+        logger.debug("Sending: " + message)
+        self.ice.goc_send(message.decode('hex'))
+        self.printing_sleep(1.0)
+
+        logger.info("Sending extra blink to end transaction")
+        extra = "80"
+        logger.debug("Sending: " + extra)
+        self.ice.goc_send(extra.decode('hex'))
+
+    def validate_bin(self):
+        raise NotImplementedError("If you need this, let me know")
+
+    def DMA_start_interrupt(self):
+        logger.info("Sending 0x88 0x00000000")
+        self.send("88".decode('hex'), "00000000".decode('hex'))

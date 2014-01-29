@@ -1,13 +1,12 @@
 #!/usr/bin/python
 
 import sys
-from time import sleep
-
 import logging
-logging.basicConfig(level=logging.INFO, format="%(message)s")
-logger = logging.getLogger('mbus_message')
 
 from m3_common import m3_common
+
+m3_common.configure_root_logger()
+logger = logging.getLogger(__name__)
 
 class mbus_message_generator(m3_common):
     TITLE = "MBus Message Generator"
@@ -44,32 +43,14 @@ class mbus_message_generator(m3_common):
 
 m = mbus_message_generator()
 
-def default_value(prompt, default, extra=None):
-    if extra:
-        r = raw_input(prompt + ' [' + default + extra + ']: ')
-    else:
-        r = raw_input(prompt + ' [' + default + ']: ')
-    if len(r) == 0:
-        return default
-    else:
-        return r
-
-def do_default(prompt, fn, else_fn=None):
-    y = default_value(prompt, 'Y', '/n')
-    if y[0] not in ('n', 'N'):
-        fn()
-    else:
-        if else_fn:
-            else_fn()
-
-do_default("Run power-on sequence", m.power_on)
-do_default("Reset M3", m.reset_m3)
-do_default("Act as MBus master", m.set_master, m.set_slave)
+m3_common.do_default("Run power-on sequence", m.power_on)
+m3_common.do_default("Reset M3", m.reset_m3)
+m3_common.do_default("Act as MBus master", m.set_master, m.set_slave)
 
 def build_mbus_message():
     logging.info("Build your MBus message. All values hex. Leading 0x optional. Ctrl-C to Quit.")
-    addr = default_value("Address      ", "0xA5").replace('0x','').decode('hex')
-    data = default_value("   Data", "0x12345678").replace('0x','').decode('hex')
+    addr = m3_common.default_value("Address      ", "0xA5").replace('0x','').decode('hex')
+    data = m3_common.default_value("   Data", "0x12345678").replace('0x','').decode('hex')
     return add, data
 
 def get_mbus_message_to_send():
@@ -79,7 +60,7 @@ def get_mbus_message_to_send():
     logging.info("\t2) SNS Config Bits    (0x40, 0x0423dfef)")
     logging.info("\t2) SNS Sample Setup   (0x40, 0x030bf0f0)")
     logging.info("\t3) SNS Sample Start   (0x40, 0x030af0f0)")
-    selection = default_value("Choose a message type", "-1")
+    selection = m3_common.default_value("Choose a message type", "-1")
     if selection == '0':
         return build_mbus_message()
     elif selection == '1':
