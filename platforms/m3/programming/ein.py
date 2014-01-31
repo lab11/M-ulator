@@ -46,7 +46,8 @@ else:
     run_after = 1
 
 message = e.build_injection_message(e.hexencoded, run_after)
-e.ice.ein_send(message)
+logger.debug("Sending: " + message)
+e.ice.ein_send(message.decode('hex'))
 
 logger.info("")
 logger.info("Programming complete.")
