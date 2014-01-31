@@ -296,8 +296,7 @@ while True:
             flow_msg += msg
             if len(msg) != 255:
                 logger.info("Got f-type message in %s mode:", ('EIN','GOC')[ein_goc_toggle])
-                logger.info("  addr: " + flow_msg[0].encode('hex'))
-                logger.info("  data: " + flow_msg[1:].encode('hex'))
+                logger.info("  message: " + flow_msg.encode('hex'))
                 flow_msg = ''
             else:
                 logger.debug("Got f-type fragment in %s mode", ('EIN','GOC')[ein_goc_toggle])
