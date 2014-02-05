@@ -153,7 +153,7 @@ int main() {
     delay(MBUS_DELAY);
 
     //Current Limiter  
-    uint32_t _rad_r26 = 0x3C;
+    uint32_t _rad_r26 = 0x2F; // 0x2F = 36uA
     write_mbus_register(RAD_ADDR,0x26,_rad_r26);  
     delay(MBUS_DELAY);
     //Tune Power
@@ -161,16 +161,16 @@ int main() {
     write_mbus_register(RAD_ADDR,0x20,_rad_r20);
     delay(MBUS_DELAY);
     //Tune Freq:
-    //		Tb011: 0x2F=914.2 0x2E=015.4 0x2D=016.5  (est. 0x32=910.9)
+    //		Tb011: 0x2F=914.2 0x2E=915.4 0x2D=916.5  (est. 0x32=910.9)
     //		Tb023: 0x2F=915 0x2D=918
     //		Tb024: 0x2F=913 0x2D=915
     //
     //Tune Freq 1
-    uint32_t _rad_r21 = 0x3;
+    uint32_t _rad_r21 = 0x2;
     write_mbus_register(RAD_ADDR,0x21,_rad_r21);
     delay(MBUS_DELAY);
     //Tune Freq 2
-    uint32_t _rad_r22 = 0x2;
+    uint32_t _rad_r22 = 0xE;
     write_mbus_register(RAD_ADDR,0x22,_rad_r22);
     delay(MBUS_DELAY);
     //Tune TX Time
