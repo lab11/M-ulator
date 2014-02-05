@@ -4,12 +4,16 @@ import os
 import sys
 import socket
 from Queue import Queue
+import argparse
 import time
 
 import logging
 logger = logging.getLogger('m3_common')
 
 from ice import ICE
+
+# Do this after ICE since ICE prints a nice help if pyserial is missing
+import serial.tools.list_ports
 
 class m3_common(object):
     TITLE = "Generic M3 Programmer"
@@ -149,14 +153,53 @@ class m3_common(object):
         logger.info(" -- " + self.TITLE)
         logger.info("")
 
-    def parse_args(self):
-        if len(sys.argv) not in (3,):
-            logger.info("USAGE: %s BINFILE SERAIL_DEVICE\n" % (sys.argv[0]))
-            logger.info("")
-            sys.exit(2)
+    def add_parse_args(self):
+        self.parser.add_argument("BINFILE", help="Program to flash")
+        self.parser.add_argument("SERIAL", help="Path to ICE serial device", nargs='?')
 
-        self.binfile = sys.argv[1]
-        self.serial_path = sys.argv[2]
+    def parse_args(self):
+        self.parser = argparse.ArgumentParser()
+        self.add_parse_args()
+
+        self.args = self.parser.parse_args()
+        if self.args.SERIAL is None:
+            self.serial_path = self.guess_serial()
+        else:
+            self.serial_path = self.args.SERIAL
+
+    def guess_serial(self):
+        candidates = []
+        for s in serial.tools.list_ports.comports():
+            s = s[0]
+            if 'bluetooth' in s.lower():
+                continue
+            candidates.append(s)
+        if len(candidates) == 0:
+            # In many cases when debugging, we'll be using the fake_ice at '/tmp/com1'
+            if os.path.exists('/tmp/com1'):
+                candidates.append('/tmp/com1')
+        if len(candidates) == 0:
+            logger.error("Could not find the serial port ICE is attached to.\n")
+            self.parser.print_help()
+            sys.exit(1)
+        elif len(candidates) == 1:
+            logger.info("Guessing ICE is at: " + candidates[0])
+            return candidates[0]
+        else:
+            def pick_serial():
+                logger.info("Multiple possible serial ports found:")
+                for i in xrange(len(candidates)):
+                    logger.info("\t[{}] {}".format(i, candidates[i]))
+                try:
+                    resp = raw_input("Choose a serial port (Ctrl-C to quit): ").strip()
+                except KeyboardInterrupt:
+                    sys.exit(1)
+                try:
+                    return candidates[int(resp)]
+                except:
+                    logger.info("Please choose one of the available serial ports.")
+                    return pick_serial()
+            return pick_serial()
 
     def read_binfile(self):
         def guess_type_is_hex(binfile):
@@ -167,18 +210,18 @@ class m3_common(object):
                         return False
             return True
 
-        if guess_type_is_hex(self.binfile):
+        if guess_type_is_hex(self.args.BINFILE):
             logger.info("Guessing hex-encoded stream for NI setup")
             logger.info("  ** This means one byte (two hex characters) per line")
             logger.info("  ** and these are the first two characters on each line.")
             logger.info("  ** If it needs to parse something more complex, let me know.")
-            binfd = open(self.binfile, 'r')
+            binfd = open(self.args.BINFILE, 'r')
             self.hexencoded = ""
             for line in binfd:
                 self.hexencoded += line[0:2].upper()
         else:
             logger.info("Guessing compiled binary")
-            binfd = open(self.binfile, 'rb')
+            binfd = open(self.args.BINFILE, 'rb')
             self.hexencoded = binfd.read().encode("hex").upper()
 
         if (len(self.hexencoded) % 4 == 0) and (len(self.hexencoded) % 8 != 0):
