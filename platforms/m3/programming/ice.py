@@ -635,6 +635,14 @@ class ICE(object):
         setting = struct.unpack("!I", "\x00"+resp)[0]
         return setting
 
+    @min_proto_version("0.3")
+    def goc_ein_get_freq_divisor_min_0_3(self):
+        resp = self.send_message_until_acked('O', struct.pack("B", ord('c')))
+        if len(resp) != 4:
+            raise self.FormatError, "Wrong response length from `Oc': " + str(resp)
+        setting = struct.unpack("!I", resp)[0]
+        return setting
+
     def goc_ein_get_freq_divisor(self):
         if self.minor > 2:
             return goc_ein_get_freq_divisor_min_0_3()
@@ -647,6 +655,14 @@ class ICE(object):
         if packed[0] != '\x00':
             raise self.ParameterError, "Out of range."
         msg = struct.pack("B", ord('c')) + packed[1:]
+        self.send_message_until_acked('o', msg)
+
+    @min_proto_version("0.3")
+    def goc_ein_set_freq_divisor_min_0_3(self, divisor):
+        packed = struct.pack("!I", divisor)
+        if packed[0] != '\x00':
+            raise self.ParameterError, "Out of range."
+        msg = struct.pack("B", ord('c')) + packed
         self.send_message_until_acked('o', msg)
 
     def goc_ein_set_freq_divisor(self, divisor):
