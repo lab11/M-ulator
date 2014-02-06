@@ -661,7 +661,6 @@ class ICE(object):
     def goc_ein_set_freq_divisor_min_0_3(self, divisor):
         packed = struct.pack("!I", divisor)
         msg = struct.pack("B", ord('c')) + packed
-        logger.debug("goc_ein_set_freq_divisor_min_0_3 sending: " + msg.encode('hex'))
         self.send_message_until_acked('o', msg)
 
     def goc_ein_set_freq_divisor(self, divisor):

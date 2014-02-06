@@ -199,9 +199,13 @@ while True:
         msg = s.read(length)
 
         if msg_type == 'V':
-            respond('00020001'.decode('hex'))
+            respond('000300020001'.decode('hex'))
         elif msg_type == 'v':
-            if msg == '0002'.decode('hex'):
+            if msg == '0003'.decode('hex'):
+                minor = 3
+                ack()
+                logger.info("Negotiated to protocol version 0.3")
+            elif msg == '0002'.decode('hex'):
                 minor = 2
                 ack()
                 logger.info("Negotiated to protocol version 0.2")
@@ -520,6 +524,8 @@ while True:
             if msg[0] == 'c':
                 logger.info("Responded to query for FLOW clock (%.2f Hz)", flow_clock_in_hz)
                 div = int(2e6 / flow_clock_in_hz)
+                if minor >= 3:
+                    resp = chr((div >> 24) & 0xff)
                 resp = chr((div >> 16) & 0xff)
                 resp += chr((div >> 8) & 0xff)
                 resp += chr(div & 0xff)
@@ -535,7 +541,10 @@ while True:
                 logger.error("bad 'O' subtype: " + msg[0])
         elif msg_type == 'o':
             if msg[0] == 'c':
-                div = (ord(msg[1]) << 16) | (ord(msg[2]) << 8) | ord(msg[3])
+                if minor >= 3:
+                    div = (ord(msg[1] << 24) | ord(msg[2]) << 16) | (ord(msg[3]) << 8) | ord(msg[4])
+                else:
+                    div = (ord(msg[1]) << 16) | (ord(msg[2]) << 8) | ord(msg[3])
                 flow_clock_in_hz = 2e6 / div
                 logger.info("Set FLOW clock to %.2f Hz", flow_clock_in_hz)
                 ack()
