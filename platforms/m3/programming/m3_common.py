@@ -134,9 +134,15 @@ class m3_common(object):
             self.callback_q = Queue()
             self.install_handler()
             self.ice.connect(self.serial_path)
+            self.wakeup_goc_circuit()
         except NameError:
             logger.error("Abstract element missing.")
             raise
+
+    def wakeup_goc_circuit(self):
+        # Fix an ICE issue where the power rails must be poked for
+        # the GOC circuitry to wake up
+        self.ice.power_set_onoff(ICE.POWER_0P6, self.ice.power_get_onoff(ICE.POWER_0P6))
 
     def install_handler(self):
         self.ice.msg_handler[self.MSG_TYPE] = self.callback_helper
