@@ -142,7 +142,7 @@ class m3_common(object):
     def wakeup_goc_circuit(self):
         # Fix an ICE issue where the power rails must be poked for
         # the GOC circuitry to wake up
-        self.ice.power_set_voltage(self.ice.POWER_0P6, self.ice.POWER_0P6_DEFAULT)
+        self.ice.power_set_onoff(self.ice.POWER_GOC, True)
 
     def install_handler(self):
         self.ice.msg_handler[self.MSG_TYPE] = self.callback_helper

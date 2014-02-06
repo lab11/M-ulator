@@ -1512,6 +1512,7 @@ class ICE(object):
     POWER_0P6 = 0
     POWER_1P2 = 1
     POWER_VBATT = 2
+    POWER_GOC = 3
 
     POWER_0P6_DEFAULT = 0.675
     POWER_1P2_DEFAULT = 1.2
@@ -1550,7 +1551,7 @@ class ICE(object):
 
         Returns a boolean, on=True.
         '''
-        if rail not in (ICE.POWER_0P6, ICE.POWER_1P2, ICE.POWER_VBATT):
+        if rail not in (ICE.POWER_0P6, ICE.POWER_1P2, ICE.POWER_VBATT, ICE.POWER_GOC):
             raise self.ParameterError, "Invalid rail: " + str(rail)
 
         resp = self.send_message_until_acked('P', struct.pack("BB", ord('o'), rail))
@@ -1585,7 +1586,7 @@ class ICE(object):
         '''
         Turn a power rail on or off (on=True).
         '''
-        if rail not in (ICE.POWER_0P6, ICE.POWER_1P2, ICE.POWER_VBATT):
+        if rail not in (ICE.POWER_0P6, ICE.POWER_1P2, ICE.POWER_VBATT, ICE.POWER_GOC):
             raise self.ParameterError, "Invalid rail: " + str(rail)
 
         self.send_message_until_acked('p', struct.pack("BBB", ord('o'), rail, onoff))

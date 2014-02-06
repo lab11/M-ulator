@@ -69,6 +69,7 @@ vset_vbatt = DEFAULT_VSET_VBATT
 power_0p6_on = False
 power_1p2_on = False
 power_vbatt_on = False
+power_goc_on = False
 
 mbus_full_prefix_ones = DEFAULT_MBUS_FULL_PREFIX_ONES
 mbus_full_prefix_zeros = DEFAULT_MBUS_FULL_PREFIX_ZEROS
@@ -589,14 +590,14 @@ while True:
                 elif pwr_idx is 2:
                     logger.info("Query vbatt rail (%s)", ('off','on')[power_vbatt_on])
                     respond(chr(power_vbatt_on))
+                elif pwr_idx is 3:
+                    logger.info("Query goc rail (%s)", ('off','on')[power_goc_on])
+                    respond(chr(power_goc_on))
             else:
                 logger.error("bad 'p' subtype: " + msg[0])
                 raise Exception
         elif msg_type == 'p':
             pwr_idx = ord(msg[1])
-            if pwr_idx not in (0,1,2):
-                logger.error("Illegal power index: %d", pwr_idx)
-                raise Exception
             if msg[0] == 'v':
                 if pwr_idx is ICE.POWER_0P6:
                     vset_0p6 = ord(msg[2])
@@ -610,6 +611,9 @@ while True:
                     vset_vbatt = ord(msg[2])
                     logger.info("Set VBatt rail to vset=%d, vout=%.2f", vset_vbatt,
                             (0.537 + 0.0185 * vset_vbatt) * DEFAULT_POWER_VBATT)
+                else:
+                    logger.error("Illegal power index: %d", pwr_idx)
+                    raise Exception
                 ack()
             elif msg[0] == 'o':
                 if pwr_idx is ICE.POWER_0P6:
@@ -621,6 +625,12 @@ while True:
                 elif pwr_idx is ICE.POWER_VBATT:
                     power_vbatt_on = bool(ord(msg[2]))
                     logger.info("Set VBatt rail %s", ('off','on')[power_vbatt_on])
+                elif minor >= 3 and pwr_idx is ICE.POWER_GOC:
+                    power_goc_on = bool(ord(msg[2]))
+                    logger.info("Set GOC circuit %s", ('off','on')[power_goc_on])
+                else:
+                    logger.error("Illegal power index: %d", pwr_idx)
+                    raise Exception
                 ack()
             else:
                 logger.error("bad 'p' subtype: " + msg[0])
