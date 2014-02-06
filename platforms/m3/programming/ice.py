@@ -660,9 +660,8 @@ class ICE(object):
     @min_proto_version("0.3")
     def goc_ein_set_freq_divisor_min_0_3(self, divisor):
         packed = struct.pack("!I", divisor)
-        if packed[0] != '\x00':
-            raise self.ParameterError, "Out of range."
         msg = struct.pack("B", ord('c')) + packed
+        logger.debug("goc_ein_set_freq_divisor_min_0_3 sending: " + msg.encode('hex'))
         self.send_message_until_acked('o', msg)
 
     def goc_ein_set_freq_divisor(self, divisor):
