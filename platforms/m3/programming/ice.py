@@ -645,9 +645,9 @@ class ICE(object):
 
     def goc_ein_get_freq_divisor(self):
         if self.minor > 2:
-            return goc_ein_get_freq_divisor_min_0_3()
+            return self.goc_ein_get_freq_divisor_min_0_3()
         else:
-            return goc_ein_get_freq_divisor_max_0_2()
+            return self.goc_ein_get_freq_divisor_max_0_2()
 
     @max_proto_version("0.2")
     def goc_ein_set_freq_divisor_max_0_2(self, divisor):
@@ -667,9 +667,9 @@ class ICE(object):
 
     def goc_ein_set_freq_divisor(self, divisor):
         if self.minor > 2:
-            return goc_ein_set_freq_divisor_min_0_3()
+            return self.goc_ein_set_freq_divisor_min_0_3(divisor)
         else:
-            return goc_ein_set_freq_divisor_max_0_2()
+            return self.goc_ein_set_freq_divisor_max_0_2(divisor)
 
     ## GOC ##
     GOC_SPEED_DEFAULT_HZ = .625
