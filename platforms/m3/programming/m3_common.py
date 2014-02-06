@@ -142,6 +142,7 @@ class m3_common(object):
     def wakeup_goc_circuit(self):
         # Fix an ICE issue where the power rails must be poked for
         # the GOC circuitry to wake up
+        self.ice.goc_set_onoff(False)
         self.ice.power_set_onoff(self.ice.POWER_GOC, True)
 
     def install_handler(self):
@@ -325,7 +326,7 @@ class m3_common(object):
 
 class goc_programmer(m3_common):
     TITLE = "GOC Programmer"
-    SLOW_FREQ_IN_HZ = 0.625
+    SLOW_FREQ_IN_HZ = 0.1
 
     def set_slow_frequency(self):
         self.ice.goc_set_frequency(self.SLOW_FREQ_IN_HZ)
