@@ -627,19 +627,33 @@ class ICE(object):
             self.goc_ein_toggle = 1
             logger.debug("Set goc/ein toggle to goc")
 
-    def goc_ein_get_freq_divisor(self):
+    @max_proto_version("0.2")
+    def goc_ein_get_freq_divisor_max_0_2(self):
         resp = self.send_message_until_acked('O', struct.pack("B", ord('c')))
         if len(resp) != 3:
             raise self.FormatError, "Wrong response length from `Oc': " + str(resp)
         setting = struct.unpack("!I", "\x00"+resp)[0]
         return setting
 
-    def goc_ein_set_freq_divisor(self, divisor):
+    def goc_ein_get_freq_divisor(self):
+        if self.minor > 2:
+            return goc_ein_get_freq_divisor_min_0_3()
+        else:
+            return goc_ein_get_freq_divisor_max_0_2()
+
+    @max_proto_version("0.2")
+    def goc_ein_set_freq_divisor_max_0_2(self, divisor):
         packed = struct.pack("!I", divisor)
         if packed[0] != '\x00':
             raise self.ParameterError, "Out of range."
         msg = struct.pack("B", ord('c')) + packed[1:]
         self.send_message_until_acked('o', msg)
+
+    def goc_ein_set_freq_divisor(self, divisor):
+        if self.minor > 2:
+            return goc_ein_set_freq_divisor_min_0_3()
+        else:
+            return goc_ein_set_freq_divisor_max_0_2()
 
     ## GOC ##
     GOC_SPEED_DEFAULT_HZ = .625
