@@ -326,7 +326,7 @@ class m3_common(object):
 
 class goc_programmer(m3_common):
     TITLE = "GOC Programmer"
-    SLOW_FREQ_IN_HZ = 0.1
+    SLOW_FREQ_IN_HZ = 0.625
 
     def set_slow_frequency(self):
         self.ice.goc_set_frequency(self.SLOW_FREQ_IN_HZ)

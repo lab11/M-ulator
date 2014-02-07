@@ -2,6 +2,7 @@
 
 import sys, socket
 import logging
+import argparse
 
 from m3_common import m3_common, goc_programmer
 
@@ -13,10 +14,18 @@ class mbus_message(goc_programmer):
     MSG_TYPE = 'b+'
 
     def parse_args(self):
-        if len(sys.argv) not in (2,):
-            logger.error("USAGE: %s ICE_SERIAL_PORT" % (sys.argv[0]))
-            sys.exit(2)
-        self.serial_path = sys.argv[1]
+        self.parser = argparse.ArgumentParser()
+        self.parser.add_argument('-g', '--goc-speed',
+        help="GOC Slow Speed in Hz. The fast speed will be 8x faster."\
+                " Defaults to " + str(self.SLOW_FREQ_IN_HZ) + " Hz.",
+                default=self.SLOW_FREQ_IN_HZ)
+        self.parser.add_argument("SERIAL", help="Path to ICE serial device", nargs='?')
+        self.args = self.parser.parse_args()
+        if self.args.SERIAL is None:
+            self.serial_path = self.guess_serial()
+        else:
+            self.serial_path = self.args.SERIAL
+        self.SLOW_FREQ_IN_HZ = float(self.args.goc_speed)
 
     def read_binfile(self):
         pass
