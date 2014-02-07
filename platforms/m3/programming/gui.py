@@ -4,6 +4,7 @@
 import sys, os, time
 import glob
 import Tkinter as Tk
+import ttk
 import tkFileDialog, tkMessageBox
 import ConfigParser
 
@@ -32,6 +33,16 @@ def make_modal(window):
 	window.transient(root)
 	window.grab_set()
 	root.wait_window()
+
+def add_returns(widget, callback):
+	widget.bind("<Return>", event_lambda(callback))
+	widget.bind("<KP_Enter>", event_lambda(callback))
+
+class ButtonWithReturns(ttk.Button):
+	# n.b.: ttk.Button is an old-style class
+	def __init__(self, *args, **kwargs):
+		ttk.Button.__init__(self, *args, **kwargs)
+		add_returns(self, kwargs['command'])
 
 class M3Gui(object):
 	BUTTON_WIDTH = 25
@@ -62,32 +73,33 @@ class ConfigPane(M3Gui):
 			self.listbox.bind('<<ListboxSelect>>', self.listbox_selection)
 			self.listbox.bind('<Button-1>', self.listbox_click)
 			self.listbox.bind('<Return>', self.listbox_return)
+			self.listbox.bind('<KP_Enter>', self.listbox_return)
 			self.listbox.pack()
 
 			self.status_label_text = Tk.StringVar()
-			self.status_label = Tk.Label(self.top, textvariable=self.status_label_text)
+			self.status_label = ttk.Label(self.top, textvariable=self.status_label_text)
 
 			self.cwd = os.getcwd()
 
-			self.quit_btn = Tk.Button(self.top,
+			self.quit_btn = ButtonWithReturns(self.top,
 					text="Quit",
 					command=quit_all,
 					)
 			self.quit_btn.pack(side=Tk.LEFT)
 
-			self.change_directory_btn = Tk.Button(self.top,
+			self.change_directory_btn = ButtonWithReturns(self.top,
 					text="Change Directory",
 					command=self.change_directory,
 					)
 			self.change_directory_btn.pack(side=Tk.LEFT)
 
-			self.new_user_btn = Tk.Button(self.top,
+			self.new_user_btn = ButtonWithReturns(self.top,
 					text="New User",
 					command=self.new_user,
 					)
 			self.new_user_btn.pack(side=Tk.LEFT)
 
-			self.select_user_btn = Tk.Button(self.top,
+			self.select_user_btn = ButtonWithReturns(self.top,
 					text="Use Selected",
 					command=self.use_selected,
 					state=Tk.DISABLED,
@@ -106,10 +118,12 @@ class ConfigPane(M3Gui):
 			if len(users) == 0:
 				self.status_label_text.set("No config files found. Create a "\
 				"new one or change the search directory.")
+				self.new_user_btn.focus_set()
 			else:
 				self.status_label_text.set("Select user or create new user.")
 				for u in users:
 					self.listbox.insert(Tk.END, os.path.splitext(os.path.basename(u))[0])
+				self.listbox.focus_set()
 
 		def listbox_selection(self, event):
 			if len(self.listbox.curselection()):
@@ -158,6 +172,7 @@ class ConfigPane(M3Gui):
 				if len(uniq):
 					new.destroy()
 					self.uniqname = uniq
+					self.config_file = os.path.join(self.cwd, self.uniqname + '.ini')
 					self.config = ConfigParser.SafeConfigParser()
 					self.edit_configuration()
 				else:
@@ -167,35 +182,36 @@ class ConfigPane(M3Gui):
 			new = Tk.Toplevel(self.top)
 			new.title('Create New User')
 
-			row0 = Tk.Frame(new)
+			row0 = ttk.Frame(new)
 			row0.pack()
 
-			label = Tk.Label(row0, text="uniqname")
+			label = ttk.Label(row0, text="uniqname")
 			label.pack(side=Tk.LEFT)
 
-			entry = Tk.Entry(row0)
+			entry = ttk.Entry(row0)
 			entry.pack(fill=Tk.X)
+			entry.bind("<Return>", event_lambda(create_new_user))
+			entry.bind("<KP_Enter>", event_lambda(create_new_user))
+			entry.focus_set()
 
-			row1 = Tk.Frame(new, bg='red')
+			row1 = ttk.Frame(new)
 			row1.pack(fill=Tk.X)
 
-			create = Tk.Button(row1, text="Create", command=create_new_user)
-			create.bind("<Return>", event_lambda(create_new_user))
+			create = ButtonWithReturns(row1, text="Create", command=create_new_user)
 			create.pack(side=Tk.RIGHT, anchor='e')
 
-			cancel = Tk.Button(row1, text="Cancel", command=destroy_new_user)
-			cancel.bind("<Return>", event_lambda(destroy_new_user))
+			cancel = ButtonWithReturns(row1, text="Cancel", command=destroy_new_user)
 			cancel.pack(side=Tk.RIGHT, anchor='e')
 
 			make_modal(new)
 
 		def use_selected(self):
 			self.uniqname = self.listbox.get(self.listbox.curselection()[0])
-			self.config_file = os.path.join(self.cwd, self.uniqname)
+			self.config_file = os.path.join(self.cwd, self.uniqname + '.ini')
 			self.config = ConfigParser.SafeConfigParser()
 			self.config.read(self.config_file)
 			try:
-				last_update = self.config.get('DEFAULT', 'last-updated')
+				last_update = self.config.getint('DEFAULT', 'last-updated')
 				cur_time = int(time.time())
 				if cur_time - last_update > M3Gui.ONE_DAY:
 					tkMessageBox.showinfo("Stale config file",
@@ -208,14 +224,13 @@ class ConfigPane(M3Gui):
 						"Configuration file corrupt."\
 						" Please update your configuration.")
 				self.edit_configuration()
-			# XXX: here
-			#self.top.destroy()
+			self.top.destroy()
 
 		def edit_configuration(self):
 			default_notes = '< Write some notes about what you are doing this session >'
 
 			def edit_save_conf():
-				ws = ws_option.get()
+				ws = ws_var.get()
 				cs = cs_var.get()
 				notes = notes_text.get(1.0, Tk.END).strip()
 				if ws[0] == '<':
@@ -225,18 +240,19 @@ class ConfigPane(M3Gui):
 				if cs[0] == '<':
 					tkMessageBox.showerror("No Chips / Stack Selected",
 							"Please select the chips / stacks you are currently"\
-							"using for testing.")
+							" using for testing.")
 					return
 				if len(notes) < 10 or notes.strip() == default_notes:
 					tkMessageBox.showerror("No testing notes added",
 							"Please add some notes on what you are currently"\
-							"working on. Add some detail -- it may be important"\
-							"for you to be able to look this up in the future")
+							" working on. Add some detail -- it may be important"\
+							" for you to be able to look this up in the future")
 					return
 				self.config.set('DEFAULT', 'workstation', ws)
 				self.config.set('DEFAULT', 'chips', cs)
 				self.config.set('DEFAULT', 'notes', notes)
-				self.config.set('DEFAULT', 'last-updated', int(time.time()))
+				self.config.set('DEFAULT', 'last-updated', str(int(time.time())))
+				self.config.write(open(self.config_file, 'w'))
 				self.top.destroy()
 
 			def notes_clear_default_text(event):
@@ -245,73 +261,158 @@ class ConfigPane(M3Gui):
 					notes_text.delete(1.0, Tk.END)
 
 			edit = Tk.Toplevel(self.top)
+			focused = False
 
-			label = Tk.Label(edit, text="Editing configuration for " + self.uniqname)
+			label = ttk.Label(edit, text="Editing configuration for " + self.uniqname)
 			label.grid(row=0, columnspan=2)
 
-			ws_label = Tk.Label(edit, text="Workstation")
-			ws_label.grid(row=1, column=0)
+			ws_label = ttk.Label(edit, text="Workstation")
+			ws_label.grid(row=1, column=0, sticky='e')
 
 			ws_var = Tk.StringVar(edit)
-			try:
-				ws_var.set(self.config.get('DEFAULT', 'workstation'))
-			except ConfigParser.NoOptionError:
-				ws_var.set('< Select Workstation >')
 
 			# XXX Config
 			ws_list = ['Workstation 1', 'Workstation 2', 'Workstation 3']
 			ws_option = Tk.OptionMenu(edit, ws_var, *ws_list)
 			ws_option.grid(row=1, column=1)
 
-			cs_label = Tk.Label(edit, text="Chips / Stacks")
-			cs_label.grid(row=2, column=0)
+			try:
+				ws_var.set(self.config.get('DEFAULT', 'workstation'))
+			except ConfigParser.NoOptionError:
+				ws_var.set('< Select Workstation >')
+				if not focused:
+					ws_option.focus_set()
+					focused = True
+
+			def chip_stack_selector(selected_label):
+				def use_selected_chips_stacks():
+					def s(t):
+						r = list(t.selection())
+						r.sort()
+						return r
+					l = '\n'.join(s(chips_tree) + s(stacks_tree))
+					if len(l) == 0:
+						tkMessageBox.showerror('No Chips Selected', 'You must'\
+								' select at least on chip or stack.')
+						return
+					selected_label.set(l)
+					selector.destroy()
+
+				selector = Tk.Toplevel(edit)
+
+				# XXX Config
+				chips = (
+						('PRCv8', range(5)),
+						('CTLv7', range(10)),
+						('MDv3', range(2,8)),
+						)
+				stacks = (
+						('STv1', range(5)),
+						('STv2', range(2,4)),
+						)
+
+				title = ttk.Label(selector, text="Select the chips and / or"\
+						" stacks you are currently testing. Hold the Shift or"\
+						" Control keys to select multiple.")
+				title.grid(row=0, columnspan=2, stick='we')
+
+				chips_tree = ttk.Treeview(selector, height=40)
+				for model, numbers in chips:
+					chips_tree.insert('', 'end', model, text=model, open=True)
+					for n in numbers:
+						name = model + '-' + str(n)
+						chips_tree.insert(model, 'end', name, text=name)
+				chips_tree.grid(row=1, column=0, sticky='ns')
+
+				stacks_tree = ttk.Treeview(selector, height=40)
+				for model, numbers in stacks:
+					stacks_tree.insert('', 'end', model, text=model, open=True)
+					for n in numbers:
+						name = model + '-' + str(n)
+						stacks_tree.insert(model, 'end', name, text=name)
+				stacks_tree.grid(row=1, column=1, sticky='ns')
+
+				chips_clear = ButtonWithReturns(selector, text="Clear Selections",
+						command=lambda t=chips_tree : t.selection_set(''))
+				chips_clear.grid(row=2, column=0, sticky='we')
+
+				stacks_clear = ButtonWithReturns(selector, text="Clear Selections",
+						command=lambda t=stacks_tree : t.selection_set(''))
+				stacks_clear.grid(row=2, column=1, sticky='we')
+
+				select = ButtonWithReturns(selector, text="Use selected",
+						command=use_selected_chips_stacks)
+				select.grid(row=3, column=1, sticky='e')
+
+				cancel = ButtonWithReturns(selector, text="Cancel",
+						command=lambda w=selector : selector.destroy())
+				cancel.grid(row=3, column=0, sticky='e')
+
+
+			cs_label = ttk.Label(edit, text="Chips / Stacks")
+			cs_label.grid(row=2, column=0, sticky='ne')
 
 			cs_var = Tk.StringVar(edit)
+
+			cs_active_label = ttk.Label(edit, textvariable=cs_var)
+			cs_active_label.grid(row=2, column=1)
+
+			cs_btn = ButtonWithReturns(edit, text="Select Chips / Stacks",
+					command=lambda l=cs_var : chip_stack_selector(l))
+			cs_btn.grid(row=3, columnspan=2, sticky='we')
+
 			try:
 				cs_var.set(self.config.get('DEFAULT', 'chips'))
 			except ConfigParser.NoOptionError:
 				cs_var.set('< No Chips / Stacks Selected >')
+				if not focused:
+					cs_btn.focus_set()
+					focused = True
 
-			cs_active_label = Tk.Label(edit, textvariable=cs_var)
-			cs_active_label.grid(row=2, column=1)
-
-			cs_btn = Tk.Button(edit, text="Select Chips / Stacks")
-			cs_btn.grid(row=3, columnspan=2, sticky='we')
-
-			notes_label = Tk.Label(edit, text="Notes:")
+			notes_label = ttk.Label(edit, text="Notes:")
 			notes_label.grid(row=4, columnspan=2, sticky='w')
 
 			notes_text = Tk.Text(edit)
+			notes_text.bind('<FocusIn>', notes_clear_default_text)
+			notes_text.grid(row=5, columnspan=2, sticky='we')
+
 			try:
 				notes_text.insert(Tk.INSERT, self.config.get('DEFAULT', 'notes'))
 			except ConfigParser.NoOptionError:
 				notes_text.insert(Tk.INSERT, default_notes)
-			notes_text.bind('<FocusIn>', notes_clear_default_text)
-			notes_text.grid(row=5, columnspan=2, sticky='we')
+				if not focused:
+					notes_text.focus_set()
+					focused = True
 
-			save_conf_btn = Tk.Button(edit, text="Save Configuration",
+			save_conf_btn = ButtonWithReturns(edit, text="Save Configuration",
 					command=edit_save_conf)
-			save_conf_btn.grid(row=6, columnspan=2, stick='e')
+			save_conf_btn.grid(row=6, column=1, sticky='e')
+			if not focused:
+				save_conf_btn.focus_set()
+
+			cancel_btn = ButtonWithReturns(edit, text="Cancel",
+					command=lambda : edit.destroy())
+			cancel_btn.grid(row=6, column=0, sticky='w')
 
 	class CurrentUser(M3Gui):
 		def __init__(self, parent):
 			self.parent = parent
 
-			self.user_label = Tk.Label(parent, text="User Unknown")
+			self.user_label = ttk.Label(parent, text="User Unknown")
 			self.user_label.pack(fill=Tk.X)
 
 	class SoftwareVersion(M3Gui):
 		def __init__(self, parent):
 			self.parent = parent
 
-			self.current_label = Tk.Label(parent,
+			self.current_label = ttk.Label(parent,
 					text="Software Version Unknown")
 			self.current_label.pack(fill=Tk.X)
-			self.start_label = Tk.Label(parent, text="Start Date: <Unknown>")
+			self.start_label = ttk.Label(parent, text="Start Date: <Unknown>")
 			self.start_label.pack(fill=Tk.X)
-			self.end_label = Tk.Label(parent, text="End Date: <Unknown>")
+			self.end_label = ttk.Label(parent, text="End Date: <Unknown>")
 			self.end_label.pack(fill=Tk.X)
-			self.software_version_btn = Tk.Button(parent, text="Choose software version")
+			self.software_version_btn = ButtonWithReturns(parent, text="Choose software version")
 			self.software_version_btn.pack(fill=Tk.X)
 
 	def __init__(self, parent):
@@ -319,7 +420,7 @@ class ConfigPane(M3Gui):
 
 		self.configuration = self.Configuration(parent)
 
-		self.config_container = Tk.Frame(parent,
+		self.config_container = ttk.Frame(parent,
 				height=800,
 				width=200,
 				borderwidth=5,
@@ -338,7 +439,7 @@ class ConfigPane(M3Gui):
 		self.current_user = self.CurrentUser(self.config_container)
 		self.software_version = self.SoftwareVersion(self.config_container)
 
-		self.select_chips = Tk.Button(self.config_container)
+		self.select_chips = ButtonWithReturns(self.config_container)
 		self.select_chips['text'] = 'Select Chips'
 		self.select_chips['background'] = 'green'
 		self.select_chips.configure(
@@ -348,7 +449,7 @@ class ConfigPane(M3Gui):
 				)
 		self.select_chips.pack(fill=Tk.X)
 
-		self.button_color = Tk.Button(self.config_container,
+		self.button_color = ttk.Button(self.config_container,
 				text="Color",
 				command = lambda
 				arg1='name', arg2='command' :
@@ -381,7 +482,7 @@ class MainPane(M3Gui):
 	def __init__(self, parent):
 		self.parent = parent
 
-		self.mainpane = Tk.Frame(parent,
+		self.mainpane = ttk.Frame(parent,
 				borderwidth=5,
 				relief=Tk.RIDGE,
 				height=800,
