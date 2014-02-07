@@ -543,7 +543,7 @@ while True:
         elif msg_type == 'o':
             if msg[0] == 'c':
                 if minor >= 3:
-                    div = (ord(msg[1] << 24) | ord(msg[2]) << 16) | (ord(msg[3]) << 8) | ord(msg[4])
+                    div = (ord(msg[1]) << 24) | (ord(msg[2]) << 16) | (ord(msg[3]) << 8) | ord(msg[4])
                 else:
                     div = (ord(msg[1]) << 16) | (ord(msg[2]) << 8) | ord(msg[3])
                 flow_clock_in_hz = 2e6 / div
