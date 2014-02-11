@@ -1,16 +1,19 @@
 \subsection{Version 0.3}
 \label{protocol-0-3}
 
-Version 0.3 modifies the following messages:
 \begin{itemize}
-  \item {\tt `oc'}. EIN Clock Divider -- argument increased to 3 bytes to allow for slower GOC/EIN speeds.
+\item Version 0.3 modifies the following messages:
+\begin{itemize}
+  \item {\tt `oc'}: EIN Clock Divider -- argument increased to 3 bytes to allow for slower GOC/EIN speeds.
+  \item {\tt `p'}: Set Power State -- Additional voltage domain added for USB GOC light.
 \end{itemize}
 
-Version 0.3 deprecates support for the following messages:
+\item Version 0.3 deprecates support for the following messages:
 \begin{itemize}
   \item {\tt `d'}: Discrete interface I2C message
   \item {\tt `I'}: Query I2C Configuration
   \item {\tt `i'}: Set I2C Configuration
+\end{itemize}
 \end{itemize}
 
 \setcounter{tocdepth}{4}
@@ -607,6 +610,7 @@ Version 0.3 deprecates support for the following messages:
      \item 0: M3 0.6V (0.675V Default)
      \item 1: M3 1.2V (1.2V Default)
      \item 2: M3 VBatt (3.8V Default)
+     \item 3: GOC USB Voltage (5.0V Default)
    \end{itemize}
   \paragraph{\texttt{0x70 0x76 `pv'} -- Voltage State}
     \begin{itemize}
