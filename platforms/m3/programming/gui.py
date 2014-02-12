@@ -5,12 +5,20 @@ import sys, os, time
 from datetime import datetime
 import glob
 import ConfigParser
-from Queue import Queue
+import Queue
 import argparse
 import Tkinter as Tk
 import ttk
 import tkFileDialog, tkMessageBox
 from idlelib.WidgetRedirector import WidgetRedirector
+
+from ice import ICE
+import serial
+
+from m3_common import m3_common
+import logging
+m3_common.configure_root_logger()
+logger = logging.getLogger(__name__)
 
 def event_lambda(f, *args, **kwargs):
 	"""Helper function to wrap lambdas for events in a one-liner interface"""
@@ -84,7 +92,6 @@ class Configuration(M3Gui):
 
 		self.uniqname_var = Tk.StringVar()
 		self.ws_var = Tk.StringVar()
-		self.ws_var.set("foo")
 		self.cs_var = Tk.StringVar()
 		self.notes_var = Tk.StringVar()
 
@@ -206,7 +213,7 @@ class Configuration(M3Gui):
 			self.populate_users_list()
 			return
 		else:
-			print(new_dir)
+			logger.error('Illegar dir: ' + str(new_dir))
 			tkMessageBox.showerror("Illegal Directory", "Please select a "\
 			"directory that actually exists. (As an aside: How did you "\
 			"manage to select one that doesn't exist?)")
@@ -276,8 +283,6 @@ class Configuration(M3Gui):
 							" all information is still correct.")
 					self.edit_configuration()
 				self.ws_var.set(self.config.get('DEFAULT', 'workstation'))
-				print('in conf', self.ws_var)
-				print(self.ws_var.get())
 				self.cs_var.set(self.config.get('DEFAULT', 'chips'))
 				self.notes_var.set(self.config.get('DEFAULT', 'notes'))
 			except ConfigParser.NoOptionError:
@@ -533,8 +538,10 @@ class ConfigPane(M3Gui):
 		ttk.Label(self.config_container, text="Config Last Updated:").pack(side=Tk.BOTTOM, anchor='sw')
 
 class MainPane(M3Gui):
-	def __init__(self, parent):
+	def __init__(self, parent, args, config):
 		self.parent = parent
+		self.args = args
+		self.config = config
 
 		self.mainpane = ttk.Frame(parent,
 				borderwidth=5,
@@ -552,13 +559,155 @@ class MainPane(M3Gui):
 				side=Tk.LEFT,
 				)
 
+		# Bar holding ICE status / info / etc
+		self.icepane = ttk.Frame(self.mainpane)
+		self.icepane.pack(fill=Tk.X)
+
+		def serial_port_changed(varName, index, mode):
+			if self.port_selector_var.get() == 'Select serial port':
+				return
+			if hasattr(serial_port_changed, 'last'):
+				if serial_port_changed.last == self.port_selector_var.get() and\
+				self.ice.is_connected():
+					# Selected same item; no-op
+					return
+			serial_port_changed.last = self.port_selector_var.get()
+
+			def serial_port_changed_helper():
+				# Need to execute outside the scope of the StringVar set
+				# callback so that the UI tracer is called. Some care in the
+				# implementation of this is necessary to avoid recursion
+				if hasattr(self, 'ice'):
+					logger.debug('Serial Port Changed. Destroying old ICE instance')
+					self.ice.destroy()
+				self.ice = ICE()
+				try:
+					self.ice.connect(self.port_selector_var.get())
+					self.ice_status_var.set(\
+							'Connected to ICE version {}.{} at {}'.format(
+								self.ice.major,
+								self.ice.minor,
+								self.ice.dev.portstr
+								)
+							)
+					logger.debug('updated status')
+				except serial.SerialException as e:
+					logger.error(e)
+					self.port_selector_var.set('Select serial port')
+
+			self.port_selector.after_idle(serial_port_changed_helper)
+
+		self.port_selector_var = Tk.StringVar()
+		port_list = m3_common.get_serial_candidates()
+		port_list.sort()
+		try:
+			last_serial = self.config.get('DEFAULT', 'serial_port')
+			# Entry 0 is the default and is consumed, it will not appear in
+			# the dropdown unless a second copy is provided which we only
+			# need to do if it wasn't already in the list of discovered ports
+			if last_serial not in port_list:
+				port_list.insert(0, last_serial)
+			port_list.insert(0, last_serial)
+			self.port_selector_var.set(last_serial)
+		except ConfigParser.NoOptionError:
+			port_list.insert(0, 'Select serial port')
+		port_list.append("Refresh List...")
+		port_list.append("Add Serial Port...")
+		self.port_selector_var.trace('w', serial_port_changed)
+		self.port_selector = ttk.OptionMenu(self.icepane,
+				self.port_selector_var, *port_list)
+		self.port_selector.pack(side=Tk.LEFT)
+
+		self.ice_status_var = Tk.StringVar()
+		self.ice_status_var.set('Not connected to ICE.')
+		ttk.Label(self.icepane, textvariable=self.ice_status_var
+				).pack(fill='x')
+
+		# Bar with program selection, buttons, etc
 		self.modepane = ttk.Frame(self.mainpane)
 		self.modepane.pack(fill=Tk.X)
 
+		self.mode_var = Tk.IntVar()
+		self.mode_var.set(-1)
+		self.modes = {
+				0 : 'Program via EIN',
+				1 : 'MBus messages via EIN',
+				2 : 'Program via GOC',
+				3 : 'MBus messages via GOC',
+				}
+		for i in xrange(len(self.modes)):
+			Tk.Radiobutton(self.modepane, text=self.modes[i],
+					variable=self.mode_var, value=i,# indicatoron=0,
+					).pack(side=Tk.LEFT)
+
+		# Interface for live session
 		ttk.Label(self.mainpane, text="Action Pane").pack(padx='5m', anchor='w')
 		self.actionpane = ttk.Frame(self.mainpane)
 		self.actionpane.pack(fill=Tk.X)
 
+		self.terminal_out = ReadOnlyText(self.actionpane)
+		self.terminal_out.pack(fill=Tk.BOTH, expand=Tk.YES)
+
+		class DisplayLogger(logging.StreamHandler):
+			def __init__(self, window):
+				super(DisplayLogger, self).__init__()
+				self.window = window
+				self.window.tag_config('info', foreground='green')
+				self.window.tag_config('warn', foreground='yellow')
+				self.window.tag_config( 'err', foreground='red')
+				self.window.tag_config( 'dbg', foreground='cyan')
+
+				self.queue = Queue.Queue()
+				self.process_events()
+
+			def process_events(self):
+				try:
+					while True:
+						self.queue.get_nowait()()
+				except Queue.Empty:
+					pass
+				self.window.after(100, self.process_events)
+
+			def emit(self, record):
+				def emit_idle(record):
+					try:
+						level,name,msg = self.format(record).split(':', 2)
+
+						if level == 'DEBUG':
+							self.window.insert(Tk.END, ' DBG ', 'dbg')
+						elif level == 'INFO':
+							self.window.insert(Tk.END, 'INFO ', 'info')
+						elif level == 'WARNING':
+							self.window.insert(Tk.END, 'WARN ', 'warn')
+						elif level == 'ERROR':
+							self.window.insert(Tk.END, ' ERR ', 'err')
+						elif level == 'CRITICAL':
+							self.window.insert(Tk.END, 'CRIT ')
+
+						self.window.insert(Tk.END, '{0: >8}: '.format(name[:16]))
+
+						self.window.insert(Tk.END, msg)
+					except (KeyboardInterrupt, SystemExit):
+						raise
+					except:
+						self.handleError(record)
+				self.queue.put(lambda record=record : emit_idle(record))
+
+		FORMAT = "%(levelname)s:%(name)s:%(message)s\n"
+		self.terminal_logger_formatter = logging.Formatter(fmt=FORMAT)
+		self.terminal_logger_handler = DisplayLogger(window=self.terminal_out)
+		self.terminal_logger_handler.setFormatter(self.terminal_logger_formatter)
+		# TODO: This won't affect any newly created loggers. This should also
+		# modify the logging configuration to add our handler as another
+		# handler that is installed by default. But I don't know how to do that
+		# and it doesn't matter yet, so... tomorrow Pat's problem.
+		for l in logging.Logger.manager.loggerDict.values():
+			l.addHandler(self.terminal_logger_handler)
+
+		self.terminal_in = ttk.Entry(self.actionpane)
+		self.terminal_in.pack(fill=Tk.X)
+
+		# Monitor window for MBus messages
 		ttk.Label(self.mainpane, text="MBus Monitor").pack(padx='5m', anchor='w')
 		self.monitorpane = ttk.Frame(self.mainpane)
 		self.monitorpane.pack(fill=Tk.X)
@@ -580,12 +729,14 @@ if __name__ == '__main__':
 			padding=(0, 5, 0, 5),
 			)
 
-	root.title("Root Window")
+	root.title("M3 ICE Interface Controller")
 	root.bind("<Escape>", lambda event : root.destroy())
 	root.withdraw()
-	config = ConfigPane(root, args)
-	mainpane = MainPane(root)
-	root.geometry("800x800")
+	configpane = ConfigPane(root, args)
+	logger.debug('configpane created')
+	mainpane = MainPane(root, args, configpane.configuration.config)
+	logger.debug('mainpane created')
+	root.geometry("1200x800")
 	root.deiconify()
-	print("mainloop running...")
+	logger.debug('entering mainloop')
 	root.mainloop()

@@ -174,17 +174,21 @@ class m3_common(object):
         else:
             self.serial_path = self.args.SERIAL
 
-    def guess_serial(self):
+    @staticmethod
+    def get_serial_candidates():
         candidates = []
         for s in serial.tools.list_ports.comports():
             s = s[0]
             if 'bluetooth' in s.lower():
                 continue
             candidates.append(s)
-        if len(candidates) == 0:
-            # In many cases when debugging, we'll be using the fake_ice at '/tmp/com1'
-            if os.path.exists('/tmp/com1'):
-                candidates.append('/tmp/com1')
+        # In many cases when debugging, we'll be using the fake_ice at '/tmp/com1'
+        if os.path.exists('/tmp/com1'):
+            candidates.append('/tmp/com1')
+        return candidates
+
+    def guess_serial(self):
+        candidates = self.get_serial_candidates()
         if len(candidates) == 0:
             logger.error("Could not find the serial port ICE is attached to.\n")
             self.parser.print_help()

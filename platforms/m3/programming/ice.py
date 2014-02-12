@@ -179,12 +179,14 @@ class ICE(object):
         The ICE object configuration (e.g. message handlers) cannot be safely
         changed after this method is invoked.
         '''
-        self.dev = serial.Serial(serial_device, baudrate)
+        self.dev = serial.Serial(serial_device, baudrate, timeout=.1)
         if self.dev.isOpen():
             logger.info("Connected to serial device at " + self.dev.portstr)
         else:
             raise self.ICE_Error, "Failed to connect to serial device"
 
+        self.communicator_stop_request = threading.Event()
+        self.communicator_stop_response = threading.Event()
         self.comm_thread = threading.Thread(target=self.communicator)
         self.comm_thread.daemon = True
         self.comm_thread.start()
@@ -194,6 +196,15 @@ class ICE(object):
         if self.minor == 2:
             # V2 ICE sets GOC on by default, which is annoying. Correct that.
             self.goc_set_onoff(False)
+
+    def is_connected(self):
+        return hasattr(self, 'dev')
+
+    def destroy(self):
+        if hasattr(self, 'dev'):
+            self.communicator_stop_request.set()
+            self.communicator_stop_response.wait()
+            self.dev.close()
 
     def spawn_handler(self, msg_type, event_id, length, msg):
         try:
@@ -215,8 +226,13 @@ class ICE(object):
             logger.warn(" Message:" + msg.encode('hex'))
 
     def communicator(self):
-        while True:
-            msg_type, event_id, length = self.dev.read(3)
+        while not self.communicator_stop_request.isSet():
+            try:
+                # Read has a timeout of .1 s. Polling is the easiest way to
+                # do x-platform cancellation
+                msg_type, event_id, length = self.dev.read(3)
+            except ValueError:
+                continue
             msg_type = ord(msg_type)
             event_id = ord(event_id)
             length = ord(length)
@@ -253,6 +269,7 @@ class ICE(object):
                 msg_type = chr(msg_type)
                 logger.debug("Got an async message of type: " + msg_type)
                 self.spawn_handler(msg_type, event_id, length, msg)
+        self.communicator_stop_response.set()
 
     def string_to_masks(self, mask_string):
         ones = 0
