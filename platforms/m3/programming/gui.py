@@ -1,7 +1,7 @@
 #!/usr/bin/env python2
 # vim: sts=4 ts=4 sw=4 noet:
 
-import sys, os, time
+import sys, os, time, errno
 from datetime import datetime
 import glob
 import ConfigParser
@@ -325,6 +325,12 @@ class Configuration(M3Gui):
 			self.config.set('DEFAULT', 'notes', notes)
 			self.last_updated = int(time.time())
 			self.config.set('DEFAULT', 'last-updated', str(self.last_updated))
+			# mkdir -p
+			try:
+				os.mkdir(os.path.dirname(self.config_file))
+			except OSError as e:
+				if e.errno != errno.EEXIST:
+					raise
 			self.config.write(open(self.config_file, 'w'))
 			try:
 				self.top.destroy()
