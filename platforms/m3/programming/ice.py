@@ -746,15 +746,18 @@ class ICE(object):
         self.set_goc_ein(goc=1)
 
         setting = self.goc_ein_get_freq_divisor()
-        NOMINAL = int(2e6)
+        if self.minor == 1:
+            NOMINAL = 2e6
+        else:
+            NOMINAL = 4e6
         freq_in_hz = NOMINAL / setting
         return freq_in_hz
 
     def _goc_freq_in_hz_to_divisor(self, freq_in_hz):
         if self.minor == 1:
-            NOMINAL = int(2e6)
+            NOMINAL = 2e6
         else:
-            NOMINAL = int(4e6)
+            NOMINAL = 4e6
         return NOMINAL / freq_in_hz;
 
     @min_proto_version("0.1")
