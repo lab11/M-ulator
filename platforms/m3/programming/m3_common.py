@@ -212,7 +212,8 @@ class m3_common(object):
                     return pick_serial()
             return pick_serial()
 
-    def read_binfile(self):
+    @staticmethod
+    def read_binfile_static(binfile):
         def guess_type_is_hex(binfile):
             for line in open(binfile):
                 for c in line.strip():
@@ -221,31 +222,36 @@ class m3_common(object):
                         return False
             return True
 
-        if guess_type_is_hex(self.args.BINFILE):
+        if guess_type_is_hex(binfile):
             logger.info("Guessing hex-encoded stream for NI setup")
             logger.info("  ** This means one byte (two hex characters) per line")
             logger.info("  ** and these are the first two characters on each line.")
             logger.info("  ** If it needs to parse something more complex, let me know.")
-            binfd = open(self.args.BINFILE, 'r')
-            self.hexencoded = ""
+            binfd = open(binfile, 'r')
+            hexencoded = ""
             for line in binfd:
-                self.hexencoded += line[0:2].upper()
+                hexencoded += line[0:2].upper()
         else:
             logger.info("Guessing compiled binary")
-            binfd = open(self.args.BINFILE, 'rb')
-            self.hexencoded = binfd.read().encode("hex").upper()
+            binfd = open(binfile, 'rb')
+            hexencoded = binfd.read().encode("hex").upper()
 
-        if (len(self.hexencoded) % 4 == 0) and (len(self.hexencoded) % 8 != 0):
+        if (len(hexencoded) % 4 == 0) and (len(hexencoded) % 8 != 0):
             # Image is halfword-aligned. Some tools generate these, but our system
             # assumes things are word-aligned. We pad an extra nop to the end to fix
             logger.info("Padding halfword aligned image with NOP to make word-aligned.")
-            self.hexencoded += '46C0' # nop; (mov r8, r8)
+            hexencoded += '46C0' # nop; (mov r8, r8)
 
-        if (len(self.hexencoded) % 8) != 0:
+        if (len(hexencoded) % 8) != 0:
             logger.warn("Binfile is not word-aligned. This is not a valid image")
             sys.exit(3)
         else:
-            logger.info("Binfile is %d bytes long\n" % (len(self.hexencoded) / 2))
+            logger.info("Binfile is %d bytes long\n" % (len(hexencoded) / 2))
+
+        return hexencoded
+
+    def read_binfile(self):
+        self.hexencoded = m3_common.read_binfile_static(self.args.BINFILE)
 
     def power_on(self):
         logger.info("Turning all M3 power rails on")

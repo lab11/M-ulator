@@ -104,6 +104,15 @@ class Configuration(M3Gui):
 		else:
 			self.select_user()
 
+		self.config.sync = lambda self=self :\
+			self.config.write(open(self.config_file, 'w'))
+
+		old_set = self.config.set
+		def new_set(cat, key, val):
+			old_set(cat, key, val)
+			self.config.sync()
+		self.config.set = new_set
+
 	def select_user(self):
 		def quit():
 			self.top.destroy()
@@ -602,7 +611,6 @@ class MainPane(M3Gui):
 							)
 					self.config.set('DEFAULT', 'serial_port',
 							self.port_selector_var.get())
-					logger.debug('updated status')
 				except serial.SerialException as e:
 					logger.error(e)
 					self.port_selector_var.set('Select serial port')
@@ -644,6 +652,52 @@ class MainPane(M3Gui):
 		self.ice_status_var.set('Not connected to ICE.')
 		ttk.Label(self.icepane, textvariable=self.ice_status_var
 				).pack(fill='x')
+
+		# Bar holding program image / etc
+		self.progpane = ttk.Frame(self.mainpane)
+		self.progpane.pack(fill=Tk.X)
+
+		def prog_changed():
+			new_file = tkFileDialog.askopenfilename(
+					filetypes=(
+						('program', '*.bin'),
+						('program', '*.hex'),
+						('program', '*.txt'),
+						),
+					parent=self.prog_button,
+					title="Select program image",
+					)
+			if new_file == '':
+				return
+			return change_file(new_file)
+
+		def change_file(new_file, force_select=False):
+			if force_select:
+				self.prog_button_var.set('Select program image...')
+				self.prog_info_var.set('')
+				return
+			try:
+				self.prog = m3_common.read_binfile_static(new_file)
+				self.prog_info_var.set('Image is {} bytes'.format(len(self.prog) / 2))
+				self.prog_button_var.set(new_file)
+				self.config.set('DEFAULT', 'program', new_file)
+			except IOError:
+				self.prog_button_var.set('Select program image...')
+				self.prog_info_var.set('Bad file: ' + new_file)
+
+		self.prog_button_var = Tk.StringVar()
+		#self.prog_button_var.trace('w', prog_changed)
+		self.prog_button = ttk.Button(self.progpane,
+				textvariable=self.prog_button_var, command=prog_changed)
+		self.prog_button.pack(side=Tk.LEFT)
+
+		self.prog_info_var = Tk.StringVar()
+		ttk.Label(self.progpane, textvariable=self.prog_info_var).pack(side=Tk.LEFT)
+
+		try:
+			change_file(self.config.get('DEFAULT', 'program'))
+		except ConfigParser.NoOptionError:
+			change_file('', force_select=True)
 
 		# Bar with program selection, buttons, etc
 		self.modepane = ttk.Frame(self.mainpane)
