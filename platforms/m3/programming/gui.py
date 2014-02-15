@@ -51,9 +51,6 @@ def add_escape(widget, callback):
 class ButtonWithReturns(ttk.Button):
 	# n.b.: ttk.Button is an old-style class
 	def __init__(self, *args, **kwargs):
-		if 'style' not in kwargs:
-			pass
-			#kwargs['style'] = 'Dfl.TButton'
 		ttk.Button.__init__(self, *args, **kwargs)
 		try:
 			add_returns(self, kwargs['command'])
@@ -184,8 +181,11 @@ class Configuration(M3Gui):
 			self.new_user_btn.focus_set()
 		else:
 			self.status_label_text.set("Select user or create new user.")
+			self.users = []
 			for u in users:
-				self.listbox.insert(Tk.END, os.path.splitext(os.path.basename(u))[0])
+				u = os.path.splitext(os.path.basename(u))[0]
+				self.listbox.insert(Tk.END, u)
+				self.users.append(u)
 			self.listbox.focus_set()
 
 	def listbox_selection(self, event):
@@ -231,12 +231,15 @@ class Configuration(M3Gui):
 	def new_user(self):
 		def create_new_user():
 			uniq = entry.get()
-			if len(uniq):
+			if uniq in self.users:
+				tkMessageBox.showerror("Duplicate User",
+						"A user with that uniqname already exists.")
+			elif len(uniq):
 				new.destroy()
 				self.uniqname_var.set(uniq)
 				self.config_file = os.path.join(self.config_dir, uniq + '.ini')
 				self.config = ConfigParser.SafeConfigParser()
-				self.edit_configuration()
+				self.edit_configuration(cancellable=True)
 			else:
 				tkMessageBox.showerror("Blank uniqname",
 						"Please enter a uniqname.")
@@ -280,7 +283,7 @@ class Configuration(M3Gui):
 		self.config = ConfigParser.SafeConfigParser()
 		self.config.read(self.config_file)
 		if force_edit:
-			self.edit_configuration()
+			self.edit_configuration(cancellable=False)
 		else:
 			try:
 				self.last_updated = self.config.getint('DEFAULT', 'last-updated')
@@ -290,7 +293,7 @@ class Configuration(M3Gui):
 							"Configuration file has not been"\
 							" updated in over 24 hours. Please verify that"\
 							" all information is still correct.")
-					self.edit_configuration()
+					self.edit_configuration(cancellable=False)
 				self.ws_var.set(self.config.get('DEFAULT', 'workstation'))
 				self.cs_var.set(self.config.get('DEFAULT', 'chips'))
 				self.notes_var.set(self.config.get('DEFAULT', 'notes'))
@@ -298,13 +301,13 @@ class Configuration(M3Gui):
 				tkMessageBox.showwarning("Bad config file",
 						"Configuration file corrupt."\
 						" Please update your configuration.")
-				self.edit_configuration()
+				self.edit_configuration(cancellable=False)
 		try:
 			self.top.destroy()
 		except AttributeError:
 			pass
 
-	def edit_configuration(self):
+	def edit_configuration(self, cancellable):
 		default_notes = '< Write some notes about what you are doing this session >'
 
 		def edit_save_conf():
@@ -357,6 +360,14 @@ class Configuration(M3Gui):
 			edit = Tk.Toplevel(self.parent)
 		edit.title("Edit Configuration")
 		focused = False
+
+		def exit_handler():
+			if cancellable:
+				edit.destroy()
+			else:
+				sys.exit()
+		edit.protocol("WM_DELETE_WINDOW", exit_handler)
+		edit.bind("<Escape>", lambda event : exit_handler())
 
 		label = ttk.Label(edit,
 				text="Editing configuration for " + self.uniqname_var.get())
@@ -487,9 +498,10 @@ class Configuration(M3Gui):
 		if not focused:
 			save_conf_btn.focus_set()
 
-		cancel_btn = ButtonWithReturns(edit, text="Cancel",
-				command=lambda : edit.destroy())
-		cancel_btn.grid(row=6, column=0, sticky='w')
+		if cancellable:
+			cancel_btn = ButtonWithReturns(edit, text="Cancel",
+					command=lambda : edit.destroy())
+			cancel_btn.grid(row=6, column=0, sticky='w')
 
 class ConfigPane(M3Gui):
 	def __init__(self, parent, args):
@@ -520,7 +532,8 @@ class ConfigPane(M3Gui):
 				)
 
 		ButtonWithReturns(self.config_container, text="Edit Configuration",
-				command=lambda : self.configuration.edit_configuration(),
+				command=lambda :\
+				self.configuration.edit_configuration(cancellable=True),
 				).pack(fill=Tk.X)
 
 		ttk.Label(self.config_container, text="User:").pack(anchor='w')
@@ -547,7 +560,10 @@ class ConfigPane(M3Gui):
 		def pretty_time(unix_time):
 			return datetime.fromtimestamp(unix_time).strftime("%Y-%m-%d %H:%M:%S")
 		self.lastup_var = Tk.StringVar(self.config_container)
-		self.lastup_var.set(pretty_time(self.configuration.last_updated))
+		if hasattr(self.configuration, 'last_updated'):
+			self.lastup_var.set(pretty_time(self.configuration.last_updated))
+		else:
+			self.lastup_var.set('Error! Corrupt configuration file')
 		self.lastup_label = ttk.Label(self.config_container, textvariable=self.lastup_var)
 		self.lastup_label.pack(side=Tk.BOTTOM, padx='5m', anchor='sw')
 		ttk.Label(self.config_container, text="Config Last Updated:").pack(side=Tk.BOTTOM, anchor='sw')
