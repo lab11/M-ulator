@@ -203,14 +203,17 @@ while True:
             respond('000300020001'.decode('hex'))
         elif msg_type == 'v':
             if msg == '0003'.decode('hex'):
+                CLOCK_FREQ = 4e6
                 minor = 3
                 ack()
                 logger.info("Negotiated to protocol version 0.3")
             elif msg == '0002'.decode('hex'):
+                CLOCK_FREQ = 4e6
                 minor = 2
                 ack()
                 logger.info("Negotiated to protocol version 0.2")
             elif msg == '0001'.decode('hex'):
+                CLOCK_FREQ = 2e6
                 minor = 1
                 ack()
                 logger.info("Negotiated to protocol version 0.1")
@@ -524,10 +527,11 @@ while True:
         elif msg_type == 'O':
             if msg[0] == 'c':
                 logger.info("Responded to query for FLOW clock (%.2f Hz)", flow_clock_in_hz)
-                div = int(2e6 / flow_clock_in_hz)
+                div = int(CLOCK_FREQ / flow_clock_in_hz)
+                resp = ''
                 if minor >= 3:
-                    resp = chr((div >> 24) & 0xff)
-                resp = chr((div >> 16) & 0xff)
+                    resp += chr((div >> 24) & 0xff)
+                resp += chr((div >> 16) & 0xff)
                 resp += chr((div >> 8) & 0xff)
                 resp += chr(div & 0xff)
                 respond(resp)
@@ -546,7 +550,7 @@ while True:
                     div = (ord(msg[1]) << 24) | (ord(msg[2]) << 16) | (ord(msg[3]) << 8) | ord(msg[4])
                 else:
                     div = (ord(msg[1]) << 16) | (ord(msg[2]) << 8) | ord(msg[3])
-                flow_clock_in_hz = 2e6 / div
+                flow_clock_in_hz = CLOCK_FREQ / div
                 logger.info("Set FLOW clock to %.2f Hz", flow_clock_in_hz)
                 ack()
             elif msg[0] == 'o':
