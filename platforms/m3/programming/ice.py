@@ -205,6 +205,7 @@ class ICE(object):
             self.communicator_stop_request.set()
             self.communicator_stop_response.wait()
             self.dev.close()
+            logger.info("Connection to " + self.dev.portstr + " closed.")
 
     def spawn_handler(self, msg_type, event_id, length, msg):
         try:

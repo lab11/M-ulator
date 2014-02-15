@@ -572,6 +572,10 @@ class MainPane(M3Gui):
 		def serial_port_changed(varName, index, mode):
 			if self.port_selector_var.get() == 'Select serial port':
 				return
+			if self.port_selector_var.get() == 'Refresh List...':
+				self.port_selector.after_idle(lambda :
+					populate_serial_port_list(use_config=False))
+				return
 			if hasattr(serial_port_changed, 'last'):
 				if serial_port_changed.last == self.port_selector_var.get() and\
 				self.ice.is_connected():
@@ -596,6 +600,8 @@ class MainPane(M3Gui):
 								self.ice.dev.portstr
 								)
 							)
+					self.config.set('DEFAULT', 'serial_port',
+							self.port_selector_var.get())
 					logger.debug('updated status')
 				except serial.SerialException as e:
 					logger.error(e)
@@ -603,25 +609,35 @@ class MainPane(M3Gui):
 
 			self.port_selector.after_idle(serial_port_changed_helper)
 
+		def populate_serial_port_list(use_config=True):
+			port_list = m3_common.get_serial_candidates()
+			port_list.sort()
+			try:
+				if use_config is False:
+					raise ValueError
+				last_serial = self.config.get('DEFAULT', 'serial_port')
+				if last_serial not in port_list:
+					port_list.insert(0, last_serial)
+				self.port_selector_var.set(last_serial)
+			except (ConfigParser.NoOptionError, ValueError):
+				if hasattr(self, 'ice') and self.ice.is_connected():
+					self.port_selector_var.set(self.ice.dev.portstr)
+				else:
+					self.port_selector_var.set('Select serial port')
+			port_list.append("Refresh List...")
+			#port_list.append("Add Serial Port...")
+
+			# update the actual menu
+			menu = self.port_selector['menu']
+			menu.delete(0, 'end')
+			for p in port_list:
+				menu.add_command(label=p,
+						command=Tk._setit(self.port_selector_var, p))
+
 		self.port_selector_var = Tk.StringVar()
-		port_list = m3_common.get_serial_candidates()
-		port_list.sort()
-		try:
-			last_serial = self.config.get('DEFAULT', 'serial_port')
-			# Entry 0 is the default and is consumed, it will not appear in
-			# the dropdown unless a second copy is provided which we only
-			# need to do if it wasn't already in the list of discovered ports
-			if last_serial not in port_list:
-				port_list.insert(0, last_serial)
-			port_list.insert(0, last_serial)
-			self.port_selector_var.set(last_serial)
-		except ConfigParser.NoOptionError:
-			port_list.insert(0, 'Select serial port')
-		port_list.append("Refresh List...")
-		port_list.append("Add Serial Port...")
 		self.port_selector_var.trace('w', serial_port_changed)
-		self.port_selector = ttk.OptionMenu(self.icepane,
-				self.port_selector_var, *port_list)
+		self.port_selector = ttk.OptionMenu(self.icepane, self.port_selector_var)
+		populate_serial_port_list()
 		self.port_selector.pack(side=Tk.LEFT)
 
 		self.ice_status_var = Tk.StringVar()
