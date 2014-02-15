@@ -71,6 +71,9 @@ class M3Gui(object):
 	BUTTON_PADX  = "2m"
 	BUTTON_PADY  = "1m"
 
+	LABEL_PADX   = "2m"
+	LABEL_PADY   = "1m"
+
 	FRAME_PADX   = "3m"
 	FRAME_PADY   = "2m"
 	FRAME_IPADX  = "3m"
@@ -591,8 +594,10 @@ class MainPane(M3Gui):
 				)
 
 		# Bar holding ICE status / info / etc
-		self.icepane = ttk.Frame(self.mainpane)
-		self.icepane.pack(fill=Tk.X)
+		self.icepane = ttk.LabelFrame(self.mainpane, text="ICE")
+		self.icepane.pack(fill='x', expand=1,
+				padx=self.FRAME_PADX, pady=self.FRAME_PADY,
+				ipadx=self.FRAME_IPADX, ipady=self.FRAME_IPADY)
 
 		def serial_port_changed(varName, index, mode):
 			if self.port_selector_var.get() == 'Select serial port':
@@ -667,11 +672,12 @@ class MainPane(M3Gui):
 		self.ice_status_var = Tk.StringVar()
 		self.ice_status_var.set('Not connected to ICE.')
 		ttk.Label(self.icepane, textvariable=self.ice_status_var
-				).pack(fill='x')
+				).pack(fill='y', expand=1, anchor='e')
 
 		# Bar holding program image / etc
-		self.progpane = ttk.Frame(self.mainpane)
-		self.progpane.pack(fill=Tk.X)
+		self.progpane = ttk.LabelFrame(self.mainpane, text="Program")
+		self.progpane.pack(fill=Tk.X, expand=1,
+				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
 
 		def prog_changed():
 			new_file = tkFileDialog.askopenfilename(
@@ -702,13 +708,13 @@ class MainPane(M3Gui):
 				self.prog_info_var.set('Bad file: ' + new_file)
 
 		self.prog_button_var = Tk.StringVar()
-		#self.prog_button_var.trace('w', prog_changed)
 		self.prog_button = ttk.Button(self.progpane,
 				textvariable=self.prog_button_var, command=prog_changed)
 		self.prog_button.pack(side=Tk.LEFT)
 
 		self.prog_info_var = Tk.StringVar()
-		ttk.Label(self.progpane, textvariable=self.prog_info_var).pack(side=Tk.LEFT)
+		ttk.Label(self.progpane, textvariable=self.prog_info_var
+				).pack(fill='y', expand=1, anchor='e')
 
 		try:
 			change_file(self.config.get('DEFAULT', 'program'))
@@ -717,7 +723,8 @@ class MainPane(M3Gui):
 
 		# Bar with program selection, buttons, etc
 		self.modepane = ttk.Frame(self.mainpane)
-		self.modepane.pack(fill=Tk.X)
+		self.modepane.pack(fill=Tk.X, expand=1,
+				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
 
 		self.mode_var = Tk.IntVar()
 		self.mode_var.set(-1)
@@ -733,9 +740,9 @@ class MainPane(M3Gui):
 					).pack(side=Tk.LEFT)
 
 		# Interface for live session
-		ttk.Label(self.mainpane, text="Action Pane").pack(padx='5m', anchor='w')
-		self.actionpane = ttk.Frame(self.mainpane)
-		self.actionpane.pack(fill=Tk.X)
+		self.actionpane = ttk.LabelFrame(self.mainpane, text='Action Pane')
+		self.actionpane.pack(fill='both', expand=1,
+				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
 
 		self.terminal_out = ReadOnlyText(self.actionpane)
 		self.terminal_out.pack(fill=Tk.BOTH, expand=Tk.YES)
@@ -800,9 +807,9 @@ class MainPane(M3Gui):
 		self.terminal_in.pack(fill=Tk.X)
 
 		# Monitor window for MBus messages
-		ttk.Label(self.mainpane, text="MBus Monitor").pack(padx='5m', anchor='w')
-		self.monitorpane = ttk.Frame(self.mainpane)
-		self.monitorpane.pack(fill=Tk.X)
+		self.monitorpane = ttk.LabelFrame(self.mainpane, text="MBus Monitor")
+		self.monitorpane.pack(fill=Tk.X, expand=1,
+				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
 
 		self.mbus_monitor = ReadOnlyText(self.monitorpane)
 		self.mbus_monitor.pack(fill=Tk.BOTH, expand=Tk.YES)
@@ -815,11 +822,15 @@ if __name__ == '__main__':
 
 	root = Tk.Tk()
 
-	ttk.Style().configure("TButton",
-			backgroound='red',
-			fg='blue',
-			padding=(0, 5, 0, 5),
-			)
+	style = ttk.Style()
+	ttk.Style().theme_use('alt')
+
+	#print(style.layout('TLabel'))
+	#print(style.element_options('Label.border'))
+	#print(style.element_options('Label.padding'))
+	#print(style.element_options('Label.label'))
+	#style.configure('TLabel', background='blue', foreground='green', padding=5)
+	style.configure('TLabel', padding=2)
 
 	root.title("M3 ICE Interface Controller")
 	root.bind("<Escape>", lambda event : root.destroy())
