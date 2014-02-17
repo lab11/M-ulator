@@ -258,8 +258,7 @@ class Configuration(M3Gui):
 
 		entry = ttk.Entry(row0)
 		entry.pack(fill=Tk.X)
-		entry.bind("<Return>", event_lambda(create_new_user))
-		entry.bind("<KP_Enter>", event_lambda(create_new_user))
+		add_returns(entry, create_new_user)
 		entry.focus_set()
 
 		row1 = ttk.Frame(new)
@@ -593,6 +592,9 @@ class MainPane(M3Gui):
 				side=Tk.LEFT,
 				)
 
+		self.on_ice_connect = []
+		self.on_ice_disconnect = []
+
 		# Bar holding ICE status / info / etc
 		self.icepane = ttk.LabelFrame(self.mainpane, text="ICE")
 		self.icepane.pack(fill='x', expand=1,
@@ -620,6 +622,8 @@ class MainPane(M3Gui):
 				if hasattr(self, 'ice'):
 					logger.debug('Serial Port Changed. Destroying old ICE instance')
 					self.ice.destroy()
+					for f in self.on_ice_disconnect:
+						f()
 				self.ice = ICE()
 				try:
 					self.ice.connect(self.port_selector_var.get())
@@ -632,9 +636,12 @@ class MainPane(M3Gui):
 							)
 					self.config.set('DEFAULT', 'serial_port',
 							self.port_selector_var.get())
+					for f in self.on_ice_connect:
+						f()
 				except serial.SerialException as e:
 					logger.error(e)
 					self.port_selector_var.set('Select serial port')
+					self.ice_status_var.set('Not connected to ICE')
 
 			self.port_selector.after_idle(serial_port_changed_helper)
 
@@ -670,7 +677,7 @@ class MainPane(M3Gui):
 		self.port_selector.pack(side=Tk.LEFT)
 
 		self.ice_status_var = Tk.StringVar()
-		self.ice_status_var.set('Not connected to ICE.')
+		self.ice_status_var.set('Not connected to ICE')
 		ttk.Label(self.icepane, textvariable=self.ice_status_var
 				).pack(fill='y', expand=1, anchor='e')
 
@@ -720,6 +727,92 @@ class MainPane(M3Gui):
 			change_file(self.config.get('DEFAULT', 'program'))
 		except ConfigParser.NoOptionError:
 			change_file('', force_select=True)
+
+		# Bar with GOC configuration
+		self.gocpane = ttk.LabelFrame(self.mainpane, text="GOC Configuration")
+		self.gocpane.pack(fill='x', expand=1,
+				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
+
+		def apply_goc_freq(new_freq=None):
+			if new_freq is None:
+				freq = self.goc_freq_entry.get()
+				if len(freq) == 0:
+					return
+				freq = float(freq)
+			else:
+				freq = new_freq
+			self.ice.goc_set_frequency(freq)
+			self.goc_freq_var.set(str(self.ice.goc_get_frequency()))
+			self.config.set('DEFAULT', 'goc_freq', freq)
+			if new_freq is None:
+				self.goc_freq_entry.delete(0, Tk.END)
+				self.goc_freq_btn.focus_set()
+
+		self.gocframe1 = ttk.Frame(self.gocpane)
+		self.gocframe1.pack(fill='x', expand=1)
+		ttk.Label(self.gocframe1, text="Slow Frequency: ").pack(side='left')
+		self.goc_freq_entry = ttk.Entry(self.gocframe1)
+		add_returns(self.goc_freq_entry, apply_goc_freq)
+		self.goc_freq_entry.pack(side='left')
+		ttk.Label(self.gocframe1, text="Hz").pack(side='left')
+		self.goc_freq_btn = ButtonWithReturns(self.gocframe1, text="Apply",
+				command=apply_goc_freq)
+		self.goc_freq_btn.pack(side='left')
+		self.goc_freq_var = Tk.StringVar()
+		try:
+			apply_goc_freq(self.config.getfloat('DEFAULT', 'goc_freq'))
+		except ConfigParser.NoOptionError:
+			self.goc_freq_var.set('ICE disconnected')
+		self.on_ice_connect.append(lambda :\
+				self.goc_freq_var.set(str(self.ice.goc_get_frequency())+' Hz'))
+		self.on_ice_disconnect.append(lambda :\
+				self.goc_freq_var.set('ICE disconnected'))
+		ttk.Label(self.gocframe1, textvariable=self.goc_freq_var).pack(anchor='e')
+
+		def apply_goc_pol(is_normal):
+			if is_normal:
+				self.ice.goc_set_onoff(False)
+			else:
+				self.ice.goc_set_onoff(True)
+			self.config.set('DEFAULT', 'goc_pol', 'normal')
+			if self.ice.goc_get_onoff() == False:
+				self.goc_pol_lbl.set('Normal')
+				self.goc_pol_normal.select()
+			else:
+				self.goc_pol_lbl.set('Inverse')
+				self.goc_pol_inverse.select()
+
+		self.gocframe2 = ttk.Frame(self.gocpane)
+		self.gocframe2.pack(fill='x', expand=1)
+		ttk.Label(self.gocframe2, text="Polarity: ").pack(side='left')
+		self.goc_pol_var = Tk.IntVar()
+		self.goc_pol_var.set(0)
+		self.goc_pol_normal = Tk.Radiobutton(self.gocframe2, text="Normal",
+				variable=self.goc_pol_var, value=0, command = lambda :\
+						apply_goc_pol(is_normal=True))
+		self.goc_pol_normal.pack(side='left')
+		self.goc_pol_inverse = Tk.Radiobutton(self.gocframe2, text="Inverse",
+				variable=self.goc_pol_var, value=1, command = lambda :\
+						apply_goc_pol(is_normal=False))
+		self.goc_pol_inverse.pack(side='left')
+		self.goc_pol_lbl = Tk.StringVar()
+		try:
+			pol = self.config.get('DEFAULT', 'goc_pol')
+			if pol not in ('normal', 'inverse'):
+				logger.error('Bad polarity setting in config file: %s', pol)
+				logger.error('Ignoring bad setting and setting polarity to normal')
+				pol = 'normal'
+			if pol == 'normal':
+				apply_goc_pol(True)
+			else:
+				apply_goc_pol(False)
+		except ConfigParser.NoOptionError:
+			self.goc_pol_lbl.set('ICE disconnected')
+		self.on_ice_connect.append(lambda :\
+				apply_goc_pol(not self.ice.goc_get_onoff()))
+		self.on_ice_disconnect.append(lambda :\
+				self.goc_pol_lbl.set('ICE disconnected'))
+		ttk.Label(self.gocframe2, textvariable=self.goc_pol_lbl).pack(anchor='e')
 
 		# Bar with program selection, buttons, etc
 		self.modepane = ttk.Frame(self.mainpane)
