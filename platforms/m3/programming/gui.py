@@ -744,6 +744,12 @@ class MainPane(M3Gui):
 				self.goc_freq_entry.delete(0, Tk.END)
 				self.goc_freq_btn.focus_set()
 
+		def on_ice_connect_goc_freq():
+			try:
+				apply_goc_freq(self.config.get('DEFAULT', 'goc_freq'))
+			except ConfigParser.NoOptionError:
+				apply_goc_freq(None)
+
 		self.gocframe1 = ttk.Frame(self.gocpane)
 		self.gocframe1.pack(fill='x', expand=1)
 		ttk.Label(self.gocframe1, text="Slow Frequency: ").pack(side='left')
@@ -755,12 +761,8 @@ class MainPane(M3Gui):
 				command=apply_goc_freq)
 		self.goc_freq_btn.pack(side='left')
 		self.goc_freq_var = Tk.StringVar()
-		try:
-			apply_goc_freq(self.config.getfloat('DEFAULT', 'goc_freq'))
-		except ConfigParser.NoOptionError:
-			self.goc_freq_var.set('ICE disconnected')
-		self.on_ice_connect.append(lambda :\
-				self.goc_freq_var.set(str(self.ice.goc_get_frequency())+' Hz'))
+		self.goc_freq_var.set('ICE disconnected')
+		self.on_ice_connect.append(on_ice_connect_goc_freq)
 		self.on_ice_disconnect.append(lambda :\
 				self.goc_freq_var.set('ICE disconnected'))
 		ttk.Label(self.gocframe1, textvariable=self.goc_freq_var).pack(anchor='e')
@@ -778,6 +780,20 @@ class MainPane(M3Gui):
 				self.goc_pol_lbl.set('Inverse')
 				self.goc_pol_inverse.select()
 
+		def on_ice_connect_goc_pol(pol=None):
+			try:
+				pol = self.config.get('DEFAULT', 'goc_pol')
+				if pol not in ('normal', 'inverse'):
+					logger.error('Bad polarity setting in config file: %s', pol)
+					logger.error('Ignoring bad setting and setting polarity to normal')
+					pol = 'normal'
+				if pol == 'normal':
+					apply_goc_pol(True)
+				else:
+					apply_goc_pol(False)
+			except ConfigParser.NoOptionError:
+				apply_goc_pol(not self.ice.goc_get_onoff())
+
 		self.gocframe2 = ttk.Frame(self.gocpane)
 		self.gocframe2.pack(fill='x', expand=1)
 		ttk.Label(self.gocframe2, text="Polarity: ").pack(side='left')
@@ -792,20 +808,8 @@ class MainPane(M3Gui):
 						apply_goc_pol(is_normal=False))
 		self.goc_pol_inverse.pack(side='left')
 		self.goc_pol_lbl = Tk.StringVar()
-		try:
-			pol = self.config.get('DEFAULT', 'goc_pol')
-			if pol not in ('normal', 'inverse'):
-				logger.error('Bad polarity setting in config file: %s', pol)
-				logger.error('Ignoring bad setting and setting polarity to normal')
-				pol = 'normal'
-			if pol == 'normal':
-				apply_goc_pol(True)
-			else:
-				apply_goc_pol(False)
-		except ConfigParser.NoOptionError:
-			self.goc_pol_lbl.set('ICE disconnected')
-		self.on_ice_connect.append(lambda :\
-				apply_goc_pol(not self.ice.goc_get_onoff()))
+		self.goc_pol_lbl.set('ICE disconnected')
+		self.on_ice_connect.append(on_ice_connect_goc_pol)
 		self.on_ice_disconnect.append(lambda :\
 				self.goc_pol_lbl.set('ICE disconnected'))
 		ttk.Label(self.gocframe2, textvariable=self.goc_pol_lbl).pack(anchor='e')
