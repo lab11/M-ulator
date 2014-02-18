@@ -740,15 +740,15 @@ class MainPane(M3Gui):
 			else:
 				freq = new_freq
 			self.ice.goc_set_frequency(freq)
-			self.goc_freq_var.set(str(self.ice.goc_get_frequency()))
-			self.config.set('DEFAULT', 'goc_freq', freq)
+			self.goc_freq_var.set(str(self.ice.goc_get_frequency()) + ' Hz')
+			self.config.set('DEFAULT', 'goc_freq', str(freq))
 			if new_freq is None:
 				self.goc_freq_entry.delete(0, Tk.END)
 				self.goc_freq_btn.focus_set()
 
 		def on_ice_connect_goc_freq():
 			try:
-				apply_goc_freq(self.config.get('DEFAULT', 'goc_freq'))
+				apply_goc_freq(self.config.getfloat('DEFAULT', 'goc_freq'))
 			except ConfigParser.NoOptionError:
 				apply_goc_freq(None)
 
