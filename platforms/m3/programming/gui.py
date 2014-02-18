@@ -745,11 +745,9 @@ class MainPane(M3Gui):
 				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
 
 		def apply_goc_freq(new_freq=None):
+			logger.debug('apply_goc_freq(new_freq={})'.format(new_freq))
 			if new_freq is None:
-				freq = self.goc_freq_entry.get()
-				if len(freq) == 0:
-					return
-				freq = float(freq)
+				freq = self.ice.goc_get_frequency()
 			else:
 				freq = new_freq
 			self.ice.goc_set_frequency(freq)
@@ -760,6 +758,7 @@ class MainPane(M3Gui):
 				self.goc_freq_btn.focus_set()
 
 		def on_ice_connect_goc_freq():
+			logger.debug('on_ice_connect_goc_freq')
 			try:
 				apply_goc_freq(self.config.getfloat('DEFAULT', 'goc_freq'))
 			except ConfigParser.NoOptionError:
