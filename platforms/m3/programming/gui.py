@@ -304,10 +304,6 @@ class Configuration(M3Gui):
 						"Configuration file corrupt."\
 						" Please update your configuration.")
 				self.edit_configuration(cancellable=False)
-		try:
-			self.top.destroy()
-		except AttributeError:
-			pass
 
 	def edit_configuration(self, cancellable):
 		default_notes = '< Write some notes about what you are doing this session >'
