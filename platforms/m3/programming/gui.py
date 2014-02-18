@@ -1,7 +1,7 @@
 #!/usr/bin/env python2
 # vim: sts=4 ts=4 sw=4 noet:
 
-import sys, os, time, errno
+import sys, os, platform, time, errno
 from datetime import datetime
 import glob
 import ConfigParser
@@ -994,4 +994,6 @@ if __name__ == '__main__':
 	root.geometry("1200x800")
 	root.deiconify()
 	logger.debug('entering mainloop')
+	if platform.system().lower() == 'darwin':
+		os.system('''/usr/bin/osascript -e 'tell app "Finder" to set frontmost of process "Python" to true' ''')
 	root.mainloop()
