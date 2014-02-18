@@ -283,11 +283,13 @@ class Configuration(M3Gui):
 		#make_modal(new)
 
 	def use_selected(self, force_edit=False):
+		logger.debug('use_selected(force_edit={})'.format(force_edit))
 		self.uniqname_var.set(self.listbox.get(self.listbox.curselection()[0]))
 		self.config_file = os.path.join(self.config_dir, self.uniqname_var.get() + '.ini')
 		self.parse_config(force_edit=force_edit)
 
 	def parse_config(self, force_edit=False):
+		logger.debug('parse_config(force_eidt={})'.format(force_edit))
 		self.config = ConfigParser.SafeConfigParser()
 		self.config.read(self.config_file)
 		if force_edit:
@@ -457,7 +459,7 @@ class Configuration(M3Gui):
 					command=lambda t=stacks_tree : t.selection_set(''))
 			stacks_clear.grid(row=2, column=1, sticky='we')
 
-			select = ButtonWithReturns(selector, text="Use selected",
+			select = ButtonWithReturns(selector, text="Use Selected",
 					command=use_selected_chips_stacks)
 			select.grid(row=3, column=1, sticky='e')
 
