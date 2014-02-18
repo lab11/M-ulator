@@ -203,9 +203,15 @@ class Configuration(M3Gui):
 		try:
 			if event.time - self.last_listbox_click_time < M3Gui.DOUBLE_CLICK_TIMEOUT:
 				if len(self.listbox.curselection()):
-					self.use_selected()
+					try:
+						if event.time - self.last_listbox_click_selection_time < 10 * M3Gui.DOUBLE_CLICK_TIMEOUT:
+							self.use_selected()
+					except AttributeError:
+						pass
+					self.last_listbox_click_selection_time = event.time
 		except AttributeError:
-			self.last_listbox_click_time = event.time
+			pass
+		self.last_listbox_click_time = event.time
 
 	def listbox_return(self, event):
 		if len(self.listbox.curselection()):
@@ -363,6 +369,7 @@ class Configuration(M3Gui):
 			if cancellable:
 				edit.destroy()
 			else:
+				self.top.destroy()
 				sys.exit()
 		edit.protocol("WM_DELETE_WINDOW", exit_handler)
 		edit.bind("<Escape>", lambda event : exit_handler())
