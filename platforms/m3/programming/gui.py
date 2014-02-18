@@ -839,13 +839,21 @@ class MainPane(M3Gui):
 		self.actionpane.pack(fill='both', expand=1,
 				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
 
-		self.terminal_out = ReadOnlyText(self.actionpane)
+		self.terminal_out_yscrollbar = Tk.Scrollbar(self.actionpane)
+		self.terminal_out_yscrollbar.pack(side=Tk.RIGHT, fill=Tk.Y)
+
+		self.terminal_out = ReadOnlyText(self.actionpane, wrap=Tk.NONE)
 		self.terminal_out.pack(fill=Tk.BOTH, expand=Tk.YES)
 
+		self.terminal_out.config(yscrollcommand=self.terminal_out_yscrollbar.set)
+		self.terminal_out_yscrollbar.config(command=self.terminal_out.yview)
+
 		class DisplayLogger(logging.StreamHandler):
-			def __init__(self, window):
+			def __init__(self, window, yscrollbar):
 				super(DisplayLogger, self).__init__()
 				self.window = window
+				self.yscrollbar = yscrollbar
+
 				self.window.tag_config('info', foreground='green')
 				self.window.tag_config('warn', foreground='yellow')
 				self.window.tag_config( 'err', foreground='red')
@@ -880,7 +888,27 @@ class MainPane(M3Gui):
 
 						self.window.insert(Tk.END, '{0: >8}: '.format(name[:16]))
 
+						pos = self.yscrollbar.get()[1]
+						# For w/e reason, when the scrollbar fills the window
+						# it's position != 1.0, instead it's some (mercifully
+						# constant) float between 0 and 1. We record the
+						# original value and treat it as a position of 1.0 until
+						# it's deviated to something else to compensate
+						try:
+							if pos == self.first_pos:
+								pos = 1.0
+							elif pos == 1.0:
+								# Once the scrollbar is big enough, it will
+								# naturally reach 1.0, so we set the 'first_pos'
+								# to an impossible value that will never match
+								self.first_pos = 1.1
+						except AttributeError:
+							self.first_pos = pos
 						self.window.insert(Tk.END, msg)
+						if pos == 1.0:
+							# Autoscroll to the bottom automatically iff the
+							# scrollbar was already at the bottom
+							self.window.yview(Tk.END)
 					except (KeyboardInterrupt, SystemExit):
 						raise
 					except:
@@ -889,7 +917,10 @@ class MainPane(M3Gui):
 
 		FORMAT = "%(levelname)s:%(name)s:%(message)s\n"
 		self.terminal_logger_formatter = logging.Formatter(fmt=FORMAT)
-		self.terminal_logger_handler = DisplayLogger(window=self.terminal_out)
+		self.terminal_logger_handler = DisplayLogger(
+				window=self.terminal_out,
+				yscrollbar=self.terminal_out_yscrollbar,
+				)
 		self.terminal_logger_handler.setFormatter(self.terminal_logger_formatter)
 		# TODO: This won't affect any newly created loggers. This should also
 		# modify the logging configuration to add our handler as another
