@@ -692,53 +692,6 @@ class MainPane(M3Gui):
 		ttk.Label(self.icepane, textvariable=self.ice_status_var
 				).pack(fill='y', expand=1, anchor='e')
 
-		# Bar holding program image / etc
-		self.progpane = ttk.LabelFrame(self.mainpane, text="Program")
-		self.progpane.pack(fill=Tk.X, expand=1,
-				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
-
-		def prog_changed():
-			new_file = tkFileDialog.askopenfilename(
-					filetypes=(
-						('program', '*.bin'),
-						('program', '*.hex'),
-						('program', '*.txt'),
-						),
-					parent=self.prog_button,
-					title="Select program image",
-					)
-			if new_file == '':
-				return
-			return change_file(new_file)
-
-		def change_file(new_file, force_select=False):
-			if force_select:
-				self.prog_button_var.set('Select program image...')
-				self.prog_info_var.set('')
-				return
-			try:
-				self.prog = m3_common.read_binfile_static(new_file)
-				self.prog_info_var.set('Image is {} bytes'.format(len(self.prog) / 2))
-				self.prog_button_var.set(new_file)
-				self.config.set('DEFAULT', 'program', new_file)
-			except IOError:
-				self.prog_button_var.set('Select program image...')
-				self.prog_info_var.set('Bad file: ' + new_file)
-
-		self.prog_button_var = Tk.StringVar()
-		self.prog_button = ttk.Button(self.progpane,
-				textvariable=self.prog_button_var, command=prog_changed)
-		self.prog_button.pack(side=Tk.LEFT)
-
-		self.prog_info_var = Tk.StringVar()
-		ttk.Label(self.progpane, textvariable=self.prog_info_var
-				).pack(fill='y', expand=1, anchor='e')
-
-		try:
-			change_file(self.config.get('DEFAULT', 'program'))
-		except ConfigParser.NoOptionError:
-			change_file('', force_select=True)
-
 		# Bar with GOC configuration
 		self.gocpane = ttk.LabelFrame(self.mainpane, text="GOC Configuration")
 		self.gocpane.pack(fill='x', expand=1,
@@ -828,36 +781,81 @@ class MainPane(M3Gui):
 				self.goc_pol_lbl.set('ICE disconnected'))
 		ttk.Label(self.gocframe2, textvariable=self.goc_pol_lbl).pack(anchor='e')
 
-		# Bar with commands
-		self.commandpane = ttk.LabelFrame(self.mainpane, text="Commands")
-		self.commandpane.pack(fill='x', expand=1,
+		# Bar holding program image / etc
+		self.progpane = ttk.LabelFrame(self.mainpane, text="Program")
+		self.progpane.pack(fill=Tk.X, expand=1,
 				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
 
-		self.modeframe = ttk.Frame(self.commandpane)
-		self.modeframe.pack(fill='x', expand=1)
-		self.mode_var = Tk.IntVar()
-		self.mode_var.set(-1)
-		self.modes = {
-				0 : 'Send commands via EIN',
-				1 : 'Send commands via GOC',
-				}
-		for i in xrange(len(self.modes)):
-			Tk.Radiobutton(self.modeframe, text=self.modes[i],
-					variable=self.mode_var, value=i,# indicatoron=0,
-					).pack(side=Tk.LEFT)
+		self.progframe = ttk.Frame(self.progpane)
+		self.progframe.pack(fill='x', expand=1,
+				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
 
-		self.programframe = ttk.Frame(self.commandpane)
-		self.programframe.pack(fill='x', expand=1)
-		ttk.Button(self.programframe, text='Send program via XXX').pack(side='right')
+		def prog_changed():
+			new_file = tkFileDialog.askopenfilename(
+					filetypes=(
+						('program', '*.bin'),
+						('program', '*.hex'),
+						('program', '*.txt'),
+						),
+					parent=self.prog_button,
+					title="Select program image",
+					)
+			if new_file == '':
+				return
+			return change_file(new_file)
 
-		self.messageframe = ttk.Frame(self.commandpane)
+		def change_file(new_file, force_select=False):
+			if force_select:
+				self.prog_button_var.set('Select program image...')
+				self.prog_info_var.set('')
+				return
+			try:
+				self.prog = m3_common.read_binfile_static(new_file)
+				self.prog_info_var.set('Image is {} bytes'.format(len(self.prog) / 2))
+				self.prog_button_var.set(new_file)
+				self.config.set('DEFAULT', 'program', new_file)
+			except IOError:
+				self.prog_button_var.set('Select program image...')
+				self.prog_info_var.set('Bad file: ' + new_file)
+
+		self.prog_button_var = Tk.StringVar()
+		self.prog_button = ttk.Button(self.progframe,
+				textvariable=self.prog_button_var, command=prog_changed)
+		self.prog_button.pack(side=Tk.LEFT)
+
+		self.prog_info_var = Tk.StringVar()
+		ttk.Label(self.progframe, textvariable=self.prog_info_var
+				).pack(fill='y', expand=1, anchor='e')
+
+		try:
+			change_file(self.config.get('DEFAULT', 'program'))
+		except ConfigParser.NoOptionError:
+			change_file('', force_select=True)
+
+		self.progactionframe = ttk.Frame(self.progpane)
+		self.progactionframe.pack(fill='x', expand=1,
+				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
+		ttk.Button(self.progactionframe, text='Flash program via EIN').pack(side='right')
+		ttk.Button(self.progactionframe, text='Flash program via GOC').pack(side='right')
+
+		# Bar with commands
+		self.messagepane = ttk.LabelFrame(self.mainpane, text="Custom Messages")
+		self.messagepane.pack(fill='x', expand=1,
+				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
+
+		self.messageframe = ttk.Frame(self.messagepane)
 		self.messageframe.pack(fill='x', expand=1)
 		ttk.Label(self.messageframe, text='Address').pack(side='left')
 		ttk.Entry(self.messageframe).pack(side='left')
 		ttk.Label(self.messageframe, text='Data').pack(side='left')
 		ttk.Entry(self.messageframe).pack(side='left')
 		ttk.Label(self.messageframe, text='(All values hex)').pack(side='left')
-		ttk.Button(self.messageframe, text='Send message via XXX').pack(side='right')
+
+		self.messageactionframe = ttk.Frame(self.messagepane)
+		self.messageactionframe.pack(fill='x', expand=1,
+				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
+		ttk.Button(self.messageactionframe, text='Send message via EIN').pack(side='right')
+		ttk.Button(self.messageactionframe, text='Send message via GOC').pack(side='right')
 
 		# Interface for live session
 		self.actionpane = ttk.LabelFrame(self.mainpane, text='Action Pane')
