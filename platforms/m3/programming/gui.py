@@ -648,6 +648,8 @@ class MainPane(M3Gui):
 				if use_config is False:
 					raise ValueError
 				last_serial = self.config.get('DEFAULT', 'serial_port')
+				if not os.path.exists(last_serial):
+					raise ValueError
 				if last_serial not in port_list:
 					port_list.insert(0, last_serial)
 				self.port_selector_var.set(last_serial)
