@@ -8,9 +8,9 @@
 #define MD_ADDR 0x4           //MDv1 Short Address
 //#define SNS_ADDR 0x4           //SNSv1 Short Address
 
-#define WAKEUP_DELAY 1	// Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
+#define WAKEUP_DELAY 10000	
 #define WAKEUP_DELAY_FINAL 100000	// 100000=1.6s Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
-#define INT_TIME 5
+#define INT_TIME 8
 #define MD_INT_TIME 35
 #define MD_TH 5
 #define MD_MASK 0x3FF
@@ -25,7 +25,7 @@
 #define SEL_VBN 3
 #define SEL_VBP 3
 #define SEL_VB_RAMP 15
-#define SEL_RAMP 1
+#define SEL_RAMP 2
 
 #define SEL_ADC 1
 #define SEL_ADC_B 6

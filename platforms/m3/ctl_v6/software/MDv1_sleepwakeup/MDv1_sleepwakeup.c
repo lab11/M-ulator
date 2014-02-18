@@ -80,7 +80,7 @@ int main() {
   // 0x2F770079 = Sleep only (CTRv7)
   // 0x2F773069 = Both active & sleep clocks for CTRv6; fastest active ring is not stable
   // 0x2F773079 = Both active & sleep clocks for CTRv7; fastest active ring is not stable
-  *((volatile uint32_t *) 0xA200000C) = 0x2F77307A;
+  //*((volatile uint32_t *) 0xA200000C) = 0x2F77307A;
   
   delay(DELAY_1);
   delay(DELAY_1);

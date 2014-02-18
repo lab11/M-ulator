@@ -82,9 +82,19 @@ int main() {
 //	asm ("wfi;");
 
 	uint32_t regval = *((volatile uint32_t *) 0xA0001028 );		// Read original reg value
+
 	write_mbus_message( 0x03, regval );
-	regval |= 0x00000003;						// Set bits [1:0]
+	write_mbus_message( 0x03, regval );
+	write_mbus_message( 0x03, regval );
+	//regval |= 0x00000030;						// Set bits
+	regval = 0xFFFFFFF;
 	*((volatile uint32_t *) 0xA2000008) = regval;			// Write updated reg value
+	*((volatile uint32_t *) 0xA2000008) = regval;			// Write updated reg value
+	
+	uint32_t regval2 = *((volatile uint32_t *) 0xA0001028 );		// Read updated reg value
+	write_mbus_message( 0x03, regval2 );
+	write_mbus_message( 0x03, regval2 );
+	write_mbus_message( 0x03, regval2 );
 
 	while(1);
 
