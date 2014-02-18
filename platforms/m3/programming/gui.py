@@ -816,23 +816,36 @@ class MainPane(M3Gui):
 				self.goc_pol_lbl.set('ICE disconnected'))
 		ttk.Label(self.gocframe2, textvariable=self.goc_pol_lbl).pack(anchor='e')
 
-		# Bar with program selection, buttons, etc
-		self.modepane = ttk.Frame(self.mainpane)
-		self.modepane.pack(fill=Tk.X, expand=1,
+		# Bar with commands
+		self.commandpane = ttk.LabelFrame(self.mainpane, text="Commands")
+		self.commandpane.pack(fill='x', expand=1,
 				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
 
+		self.modeframe = ttk.Frame(self.commandpane)
+		self.modeframe.pack(fill='x', expand=1)
 		self.mode_var = Tk.IntVar()
 		self.mode_var.set(-1)
 		self.modes = {
-				0 : 'Program via EIN',
-				1 : 'MBus messages via EIN',
-				2 : 'Program via GOC',
-				3 : 'MBus messages via GOC',
+				0 : 'Send commands via EIN',
+				1 : 'Send commands via GOC',
 				}
 		for i in xrange(len(self.modes)):
-			Tk.Radiobutton(self.modepane, text=self.modes[i],
+			Tk.Radiobutton(self.modeframe, text=self.modes[i],
 					variable=self.mode_var, value=i,# indicatoron=0,
 					).pack(side=Tk.LEFT)
+
+		self.programframe = ttk.Frame(self.commandpane)
+		self.programframe.pack(fill='x', expand=1)
+		ttk.Button(self.programframe, text='Send program via XXX').pack(side='right')
+
+		self.messageframe = ttk.Frame(self.commandpane)
+		self.messageframe.pack(fill='x', expand=1)
+		ttk.Label(self.messageframe, text='Address').pack(side='left')
+		ttk.Entry(self.messageframe).pack(side='left')
+		ttk.Label(self.messageframe, text='Data').pack(side='left')
+		ttk.Entry(self.messageframe).pack(side='left')
+		ttk.Label(self.messageframe, text='(All values hex)').pack(side='left')
+		ttk.Button(self.messageframe, text='Send message via XXX').pack(side='right')
 
 		# Interface for live session
 		self.actionpane = ttk.LabelFrame(self.mainpane, text='Action Pane')
