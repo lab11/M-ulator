@@ -308,6 +308,13 @@ while True:
                 flow_msg = ''
             else:
                 logger.debug("Got f-type fragment in %s mode", ('EIN','GOC')[ein_goc_toggle])
+            if ein_goc_toggle:
+                t = (len(msg)*8) / flow_clock_in_hz
+                logger.info("Sleeping for {} seconds to mimic GOC".format(t))
+                try:
+                    sleep(t)
+                except KeyboardInterrupt:
+                    pass
             ack()
         elif msg_type == 'G':
             # GPIO changed completely between v0.1 and v0.2

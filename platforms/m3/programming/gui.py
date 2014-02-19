@@ -1,6 +1,7 @@
 #!/usr/bin/env python2
 # vim: sts=4 ts=4 sw=4 noet:
 
+import threading
 import sys, os, platform, time, errno
 from datetime import datetime
 import glob
@@ -873,27 +874,86 @@ class MainPane(M3Gui):
 		else:
 			self.prog_run_after_no.select()
 
-		def wake_chip():
-			passcode_string = "7394"
-			logger.info("Sending passcode ({}) to GOC".format(passcode_string))
-			self.ice.goc_send(passcode_string.decode('hex'), show_progress=False)
+
+		def async_call(root, fns):
+			def async_fn_wrapper(fn, e):
+				fn()
+				e.set()
+
+			def async_fn_done_check(root, e, cb, pb, fns):
+				if e.is_set():
+					cb.select()
+					if pb is not None:
+						pb.stop()
+						pb.step(pb['maximum']-pb['value']-.1)
+					async_call(root, fns)
+				else:
+					root.after(50, lambda : async_fn_done_check(root, e, cb, pb, fns))
+
+			if len(fns) == 0:
+				root.destroy()
+				return
+
+			cb, pb, fn = fns.pop(0)
+			e = threading.Event()
+			t = threading.Thread(target=async_fn_wrapper, args=(fn, e))
+			t.daemon = True
+			t.start()
+			if pb is not None:
+				pb.start()
+
+			root.after(50, lambda : async_fn_done_check(root, e, cb, pb, fns))
 
 		def load_program_via_goc():
+			goc_win = Tk.Toplevel(self.parent)
+			goc_win.title('Program via GOC')
+
+			fns = []
 			slow_freq = float(self.goc_freq_var.get().split()[0])
-			self.ice.goc_set_frequency(slow_freq)
-			wake_chip()
 
-			logger.info("Sending GOC message")
-			self.ice.goc_set_frequency(8*slow_freq) # TODO: Expose multiplier?
-			self.ice.goc_send(m3_common.build_injection_message(
-				self.prog,
-				bool(self.prog_run_after_var.get()),
-				).decode('hex'), show_progress=False)
+			c1 = Tk.Checkbutton(goc_win, #state=Tk.DISABLED,
+					text="Set GOC frequency to {}".format(slow_freq))
+			c1.pack(fill='x', expand=1, anchor='w')
+			fns.append((c1, None, lambda f=slow_freq :\
+					self.ice.goc_set_frequency(f)))
 
-			logger.info("Sending extra blink to end transaction")
-			extra = "80"
-			logger.debug("Sending: " + extra)
-			self.ice.goc_send(extra.decode('hex'), show_progress=False)
+			c2 = Tk.Checkbutton(goc_win, #state=Tk.DISABLED,
+					text="Wake chip via GOC")
+			c2.pack(fill='x', expand=1, anchor='w')
+			p2 = ttk.Progressbar(goc_win, length=300,
+					maximum=((2*8)/slow_freq)/.050)
+			p2.pack()
+			fns.append((c2, p2, lambda :\
+					self.ice.goc_send("7394".decode('hex'), False)))
+
+			c3 = Tk.Checkbutton(goc_win, #state=Tk.DISABLED,
+					text="Set GOC frequency to {}".format(8*slow_freq))
+			c3.pack(fill='x', expand=1, anchor='w')
+			fns.append((c3, None, lambda f=slow_freq*8:\
+					self.ice.goc_set_frequency(f)))
+
+			prog = m3_common.build_injection_message(
+					self.prog,
+					bool(self.prog_run_after_var.get()),
+					).decode('hex')
+			est_time = (len(prog)*8)/(8*slow_freq)
+			c4 = Tk.Checkbutton(goc_win, #state=Tk.DISABLED,
+					text="Send GOC message (~{} seconds)".format(est_time))
+			c4.pack(fill='x', expand=1, anchor='w')
+			p4 = ttk.Progressbar(goc_win, length=300, maximum=(est_time/.050))
+			p4.pack()
+			fns.append((c4, p4, lambda m=prog:\
+					self.ice.goc_send(m, False)))
+
+			c5 = Tk.Checkbutton(goc_win, #state=Tk.DISABLED,
+					text="Send extra blink to end transaction")
+			c5.pack(fill='x', expand=1, anchor='w')
+			p5 = ttk.Progressbar(goc_win)
+			p5.pack()
+			fns.append((c5, p5, lambda :\
+					self.ice.goc_send("80".decode('hex'), False)))
+
+			async_call(goc_win, fns)
 
 		self.prog_flash_ein = ButtonWithReturns(self.progactionframe,
 				state=Tk.DISABLED, text='Load program via EIN',
