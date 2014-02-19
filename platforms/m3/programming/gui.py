@@ -52,6 +52,9 @@ def add_escape(widget, callback):
 def pretty_time(unix_time):
 	return datetime.fromtimestamp(unix_time).strftime("%Y-%m-%d %H:%M:%S")
 
+def fname_time(unix_time):
+	return datetime.fromtimestamp(unix_time).strftime("%Y-%m-%d-%H-%M-%S")
+
 class ButtonWithReturns(ttk.Button):
 	# n.b.: ttk.Button is an old-style class
 	def __init__(self, *args, **kwargs):
@@ -1227,6 +1230,19 @@ class MainPane(M3Gui):
 		#self.mbus_monitor = ReadOnlyText(self.monitorpane)
 		#self.mbus_monitor.pack(fill=Tk.BOTH, expand=Tk.YES)
 
+def setup_file_logger(config_file, uniq):
+	path = os.path.join(os.path.dirname(config_file), uniq)
+	try:
+		os.mkdir(path)
+	except OSError as e:
+		if e.errno != errno.EEXIST:
+			raise
+	logfile = os.path.join(path, fname_time(time.time()))
+	file_handler = logging.FileHandler(logfile, delay=True)
+	file_handler.level = logging.DEBUG
+	for l in logging.Logger.manager.loggerDict.values():
+		l.addHandler(file_handler)
+
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-c', '--config', help="Configuration file to select."\
@@ -1250,6 +1266,11 @@ if __name__ == '__main__':
 	root.withdraw()
 	configpane = ConfigPane(root, args)
 	logger.debug('configpane created')
+	setup_file_logger(
+			configpane.configuration.config_file,
+			configpane.configuration.uniqname_var.get(),
+			)
+	logger.debug('file logger set up')
 	mainpane = MainPane(root, args, configpane.configuration.config)
 	logger.debug('mainpane created')
 	root.geometry("1400x900")
