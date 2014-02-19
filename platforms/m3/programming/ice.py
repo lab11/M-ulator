@@ -206,6 +206,7 @@ class ICE(object):
             self.communicator_stop_response.wait()
             self.dev.close()
             logger.info("Connection to " + self.dev.portstr + " closed.")
+            del(self.dev)
 
     def spawn_handler(self, msg_type, event_id, length, msg):
         try:
@@ -234,6 +235,8 @@ class ICE(object):
                 msg_type, event_id, length = self.dev.read(3)
             except ValueError:
                 continue
+            except (serial.SerialException, OSError):
+                break
             msg_type = ord(msg_type)
             event_id = ord(event_id)
             length = ord(length)
@@ -271,6 +274,8 @@ class ICE(object):
                 logger.debug("Got an async message of type: " + msg_type)
                 self.spawn_handler(msg_type, event_id, length, msg)
         self.communicator_stop_response.set()
+        if hasattr(self, 'on_disconnect'):
+            self.on_disconnect()
 
     def string_to_masks(self, mask_string):
         ones = 0

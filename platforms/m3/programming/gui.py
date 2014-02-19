@@ -605,6 +605,16 @@ class MainPane(M3Gui):
 		self.on_ice_connect = []
 		self.on_ice_disconnect = []
 
+		self.async_event_queue = Queue.Queue()
+		def async_event_handler():
+			try:
+				while True:
+					self.async_event_queue.get_nowait()()
+			except Queue.Empty:
+				pass
+			self.parent.after(50, async_event_handler)
+		self.parent.after_idle(async_event_handler)
+
 		# Bar holding ICE status / info / etc
 		self.icepane = ttk.LabelFrame(self.mainpane, text="ICE")
 		self.icepane.pack(fill='x', expand=1,
@@ -612,6 +622,7 @@ class MainPane(M3Gui):
 				ipadx=self.FRAME_IPADX, ipady=self.FRAME_IPADY)
 
 		def serial_port_changed(varName, index, mode):
+			logger.debug('serial_port_changed: {}'.format(self.port_selector_var.get()))
 			if self.port_selector_var.get() == 'Select serial port':
 				return
 			if self.port_selector_var.get() == 'Refresh List...':
@@ -621,6 +632,7 @@ class MainPane(M3Gui):
 			if hasattr(serial_port_changed, 'last'):
 				if serial_port_changed.last == self.port_selector_var.get() and\
 				self.ice.is_connected():
+					logger.debug('serial port unchanged; ignore')
 					# Selected same item; no-op
 					return
 			serial_port_changed.last = self.port_selector_var.get()
@@ -631,10 +643,21 @@ class MainPane(M3Gui):
 				# implementation of this is necessary to avoid recursion
 				if hasattr(self, 'ice'):
 					logger.debug('Serial Port Changed. Destroying old ICE instance')
+					# No need to call this at this point
+					del(self.ice.on_disconnect)
 					self.ice.destroy()
 					for f in self.on_ice_disconnect:
-						f()
+						self.parent.after_idle(f)
+
+				# This disconnect framework is fragile at best (HACK)
+				def ice_on_disconnect():
+					logger.debug('ice_on_disconnect')
+					self.ice.destroy()
+					self.async_event_queue.put(lambda :\
+							serial_port_changed(None, None, None))
+
 				self.ice = ICE()
+				self.ice.on_disconnect = ice_on_disconnect
 				try:
 					self.ice.connect(self.port_selector_var.get())
 					self.ice_status_var.set(\
@@ -647,7 +670,7 @@ class MainPane(M3Gui):
 					self.config.set('DEFAULT', 'serial_port',
 							self.port_selector_var.get())
 					for f in self.on_ice_connect:
-						f()
+						self.parent.after_idle(f)
 				except serial.SerialException as e:
 					logger.error(e)
 					self.port_selector_var.set('Select serial port')
