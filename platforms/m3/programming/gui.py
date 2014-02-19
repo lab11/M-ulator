@@ -48,6 +48,9 @@ def add_returns(widget, callback):
 def add_escape(widget, callback):
 	widget.bind("<Escape>", event_lambda(callback))
 
+def pretty_time(unix_time):
+	return datetime.fromtimestamp(unix_time).strftime("%Y-%m-%d %H:%M:%S")
+
 class ButtonWithReturns(ttk.Button):
 	# n.b.: ttk.Button is an old-style class
 	def __init__(self, *args, **kwargs):
@@ -567,9 +570,6 @@ class ConfigPane(M3Gui):
 			textvariable=self.configuration.notes_var, wraplength=150)
 		self.notes_label.pack(padx='5m', anchor='w')
 
-
-		def pretty_time(unix_time):
-			return datetime.fromtimestamp(unix_time).strftime("%Y-%m-%d %H:%M:%S")
 		self.lastup_var = Tk.StringVar(self.config_container)
 		if hasattr(self.configuration, 'last_updated'):
 			self.lastup_var.set(pretty_time(self.configuration.last_updated))
@@ -702,7 +702,7 @@ class MainPane(M3Gui):
 			if new_freq is None:
 				freq = self.ice.goc_get_frequency()
 			else:
-				freq = new_freq
+				freq = float(new_freq)
 			self.ice.goc_set_frequency(freq)
 			self.goc_freq_var.set(str(self.ice.goc_get_frequency()) + ' Hz')
 			self.config.set('DEFAULT', 'goc_freq', str(freq))
@@ -721,11 +721,12 @@ class MainPane(M3Gui):
 		self.gocframe1.pack(fill='x', expand=1)
 		ttk.Label(self.gocframe1, text="Slow Frequency: ").pack(side='left')
 		self.goc_freq_entry = ttk.Entry(self.gocframe1)
-		add_returns(self.goc_freq_entry, apply_goc_freq)
+		add_returns(self.goc_freq_entry,
+				lambda : apply_goc_freq(self.goc_freq_entry.get()))
 		self.goc_freq_entry.pack(side='left')
 		ttk.Label(self.gocframe1, text="Hz").pack(side='left')
 		self.goc_freq_btn = ButtonWithReturns(self.gocframe1, text="Apply",
-				command=apply_goc_freq)
+				command=lambda : apply_goc_freq(self.goc_freq_entry.get()))
 		self.goc_freq_btn.pack(side='left')
 		self.goc_freq_var = Tk.StringVar()
 		self.goc_freq_var.set('ICE disconnected')
@@ -805,18 +806,36 @@ class MainPane(M3Gui):
 			return change_file(new_file)
 
 		def change_file(new_file, force_select=False):
+			self.prog_flash_ein.configure(state=Tk.DISABLED)
+			self.prog_flash_goc.configure(state=Tk.DISABLED)
 			if force_select:
 				self.prog_button_var.set('Select program image...')
 				self.prog_info_var.set('')
 				return
 			try:
 				self.prog = m3_common.read_binfile_static(new_file)
-				self.prog_info_var.set('Image is {} bytes'.format(len(self.prog) / 2))
+				if self.prog is None:
+					return change_file(None, True)
+				info = 'Image is {} bytes.\nLast updated at {}'.format(
+						len(self.prog) / 2,
+						pretty_time(os.path.getmtime(new_file)),
+						)
+				self.prog_info_var.set(info)
 				self.prog_button_var.set(new_file)
 				self.config.set('DEFAULT', 'program', new_file)
+				self.prog_flash_ein.configure(state=Tk.NORMAL)
+				self.prog_flash_goc.configure(state=Tk.NORMAL)
+				self.prog_button.after(100, prog_file_watcher)
 			except IOError:
 				self.prog_button_var.set('Select program image...')
 				self.prog_info_var.set('Bad file: ' + new_file)
+
+		def prog_file_watcher():
+			p = self.prog_button_var.get()
+			if os.path.exists(p):
+				change_file(p)
+			else:
+				change_file(None, True)
 
 		self.prog_button_var = Tk.StringVar()
 		self.prog_button = ttk.Button(self.progframe,
@@ -824,38 +843,193 @@ class MainPane(M3Gui):
 		self.prog_button.pack(side=Tk.LEFT)
 
 		self.prog_info_var = Tk.StringVar()
-		ttk.Label(self.progframe, textvariable=self.prog_info_var
-				).pack(fill='y', expand=1, anchor='e')
+		ttk.Label(self.progframe, textvariable=self.prog_info_var,
+				justify=Tk.RIGHT).pack(fill='y', expand=1, anchor='e')
+
+		self.progactionframe = ttk.Frame(self.progpane)
+		self.progactionframe.pack(fill='x', expand=1,
+				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
+
+		ttk.Label(self.progactionframe, text='Run After Programming:'
+				).pack(side='left')
+		self.prog_run_after_var = Tk.IntVar()
+		self.prog_run_after_yes = Tk.Radiobutton(self.progactionframe,
+				text="Yes", variable=self.prog_run_after_var, value=1,
+				command = lambda :\
+						self.config.set('DEFAULT', 'prog_run_after', str(True)))
+		self.prog_run_after_yes.pack(side='left')
+		self.prog_run_after_no  = Tk.Radiobutton(self.progactionframe,
+				text="No",  variable=self.prog_run_after_var, value=0,
+				command = lambda :\
+						self.config.set('DEFAULT', 'prog_run_after', str(False)))
+		self.prog_run_after_no.pack(side='left')
+
+		try:
+			runafter = self.config.getboolean('DEFAULT', 'prog_run_after')
+		except ConfigParser.NoOptionError:
+			runafter = True
+		if runafter:
+			self.prog_run_after_yes.select()
+		else:
+			self.prog_run_after_no.select()
+
+		def wake_chip():
+			passcode_string = "7394"
+			logger.info("Sending passcode ({}) to GOC".format(passcode_string))
+			self.ice.goc_send(passcode_string.decode('hex'), show_progress=False)
+
+		def load_program_via_goc():
+			slow_freq = float(self.goc_freq_var.get().split()[0])
+			self.ice.goc_set_frequency(slow_freq)
+			wake_chip()
+
+			logger.info("Sending GOC message")
+			self.ice.goc_set_frequency(8*slow_freq) # TODO: Expose multiplier?
+			self.ice.goc_send(m3_common.build_injection_message(
+				self.prog,
+				bool(self.prog_run_after_var.get()),
+				).decode('hex'), show_progress=False)
+
+			logger.info("Sending extra blink to end transaction")
+			extra = "80"
+			logger.debug("Sending: " + extra)
+			self.ice.goc_send(extra.decode('hex'), show_progress=False)
+
+		self.prog_flash_ein = ButtonWithReturns(self.progactionframe,
+				state=Tk.DISABLED, text='Load program via EIN',
+				command = lambda :\
+						self.ice.ein_send(m3_common.build_injection_message(
+							self.prog,
+							bool(self.prog_run_after_var.get()),
+							).decode('hex')
+						)
+				)
+		self.prog_flash_ein.pack(side='right')
+		self.prog_flash_goc = ButtonWithReturns(self.progactionframe,
+				state=Tk.DISABLED, text='Load program via GOC',
+				command = load_program_via_goc)
+		self.prog_flash_goc.pack(side='right')
 
 		try:
 			change_file(self.config.get('DEFAULT', 'program'))
 		except ConfigParser.NoOptionError:
 			change_file('', force_select=True)
 
-		self.progactionframe = ttk.Frame(self.progpane)
-		self.progactionframe.pack(fill='x', expand=1,
-				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
-		ttk.Button(self.progactionframe, text='Flash program via EIN').pack(side='right')
-		ttk.Button(self.progactionframe, text='Flash program via GOC').pack(side='right')
-
 		# Bar with commands
 		self.messagepane = ttk.LabelFrame(self.mainpane, text="Custom Messages")
 		self.messagepane.pack(fill='x', expand=1,
 				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
 
+		def validate_command():
+			addr = self.message_addr.get().strip()
+			data = self.message_data.get().strip()
+
+			self.message_send_ein.configure(state=Tk.DISABLED)
+			self.message_send_goc.configure(state=Tk.DISABLED)
+
+			if len(addr) == 0:
+				self.message_contents_var.set('Empty Address')
+			elif len(addr) % 2:
+				self.message_contents_var.set('Addr: Bad hex value (odd length?)')
+			elif len(data) == 0:
+				self.message_contents_var.set('Empty Data')
+			elif len(data) % 2:
+				self.message_contents_var.set('Data: Bad hex value (odd length?)')
+			else:
+				try:
+					addr.decode('hex')
+				except TypeError:
+					self.message_contents_var.set('Addr: Non-hex character found')
+					return
+				try:
+					data.decode('hex')
+				except TypeError:
+					self.message_contents_var.set('Data: Non-hex character found')
+					return
+				msg = ''
+				if len(addr) == 2:
+					msg += 'Short Addr ' + addr
+				else:
+					msg += 'Long Addr ' + addr
+				msg += ' + {} byte{} of data'.format(
+						len(data)/2,
+						('s','')[len(data) == 2],
+						)
+				self.message_contents_var.set(msg)
+				self.message_send_ein.configure(state=Tk.NORMAL)
+				self.message_send_goc.configure(state=Tk.NORMAL)
+
 		self.messageframe = ttk.Frame(self.messagepane)
 		self.messageframe.pack(fill='x', expand=1)
 		ttk.Label(self.messageframe, text='Address').pack(side='left')
-		ttk.Entry(self.messageframe).pack(side='left')
+		self.message_addr = ttk.Entry(self.messageframe)
+		self.message_addr.pack(side='left')
+		self.message_addr.bind('<Key>', lambda e :\
+				self.message_addr.after_idle(validate_command))
 		ttk.Label(self.messageframe, text='Data').pack(side='left')
-		ttk.Entry(self.messageframe).pack(side='left')
+		self.message_data = ttk.Entry(self.messageframe)
+		self.message_data.pack(side='left')
+		self.message_data.bind('<Key>', lambda e :\
+				self.message_data.after_idle(validate_command))
 		ttk.Label(self.messageframe, text='(All values hex)').pack(side='left')
+
+		self.message_contents_var = Tk.StringVar()
+		self.message_contents_var.set("Empty Address")
+		ttk.Label(self.messageframe, textvariable=self.message_contents_var
+				).pack(side='right')
+
+		def send_command(addr, data, method):
+			method(addr, data)
+
 
 		self.messageactionframe = ttk.Frame(self.messagepane)
 		self.messageactionframe.pack(fill='x', expand=1,
 				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
-		ttk.Button(self.messageactionframe, text='Send message via EIN').pack(side='right')
-		ttk.Button(self.messageactionframe, text='Send message via GOC').pack(side='right')
+
+		def select_preprogrammed_command(cmd):
+			if cmd == 'Select Common Message...':
+				return
+			addr, data = map(str.strip, cmd.split('(')[1][:-1].split(','))
+			self.message_addr.delete(0, Tk.END)
+			self.message_addr.insert(0, addr[2:])
+			self.message_data.delete(0, Tk.END)
+			self.message_data.insert(0, data[2:])
+			validate_command()
+
+		self.message_defaults_var = Tk.StringVar()
+		default_messages = ("Select Common Message...",
+				"Enumerate          (0xF0000000, 0x24000000)",
+				"SNS Config Bits    (0x40, 0x0423dfef)",
+				"SNS Sample Setup   (0x40, 0x030bf0f0)",
+				"SNS Sample Start   (0x40, 0x030af0f0)",
+				)
+		self.message_defaults = ttk.OptionMenu(self.messageactionframe,
+				self.message_defaults_var, *default_messages,
+				command = select_preprogrammed_command)
+		self.message_defaults.pack(side='left')
+
+		self.message_send_ein = ButtonWithReturns(self.messageactionframe,
+				text='Send message via EIN',
+				state=Tk.DISABLED,
+				command = lambda :\
+						send_command(
+							self.message_addr.get(),
+							self.message_data.get(),
+							self.ice.ein_send,
+							)
+						)
+		self.message_send_ein.pack(side='right')
+		self.message_send_goc = ButtonWithReturns(self.messageactionframe,
+				text='Send message via GOC',
+				state=Tk.DISABLED,
+				command = lambda :\
+						send_command(
+							self.message_addr.get(),
+							self.message_data.get(),
+							self.ice.goc_send,
+							)
+						)
+		self.message_send_goc.pack(side='right')
 
 		# Interface for live session
 		self.actionpane = ttk.LabelFrame(self.mainpane, text='Action Pane')
@@ -956,12 +1130,12 @@ class MainPane(M3Gui):
 		self.terminal_in.pack(fill=Tk.X)
 
 		# Monitor window for MBus messages
-		self.monitorpane = ttk.LabelFrame(self.mainpane, text="MBus Monitor")
-		self.monitorpane.pack(fill=Tk.X, expand=1,
-				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
+		#self.monitorpane = ttk.LabelFrame(self.mainpane, text="MBus Monitor")
+		#self.monitorpane.pack(fill=Tk.X, expand=1,
+		#		padx=self.FRAME_PADX, pady=self.FRAME_PADY)
 
-		self.mbus_monitor = ReadOnlyText(self.monitorpane)
-		self.mbus_monitor.pack(fill=Tk.BOTH, expand=Tk.YES)
+		#self.mbus_monitor = ReadOnlyText(self.monitorpane)
+		#self.mbus_monitor.pack(fill=Tk.BOTH, expand=Tk.YES)
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
@@ -988,7 +1162,7 @@ if __name__ == '__main__':
 	logger.debug('configpane created')
 	mainpane = MainPane(root, args, configpane.configuration.config)
 	logger.debug('mainpane created')
-	root.geometry("1200x800")
+	root.geometry("1400x900")
 	root.deiconify()
 	logger.debug('entering mainloop')
 	if platform.system().lower() == 'darwin':
