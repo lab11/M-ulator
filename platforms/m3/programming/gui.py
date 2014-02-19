@@ -3,6 +3,7 @@
 
 import threading
 import sys, os, platform, time, errno
+import logging
 from datetime import datetime
 import glob
 import ConfigParser
@@ -13,13 +14,14 @@ import ttk
 import tkFileDialog, tkMessageBox
 from idlelib.WidgetRedirector import WidgetRedirector
 
+from m3_logging import get_logger, log_level_from_environment
+logger = get_logger(__name__)
+logger.debug('Got gui.py logger')
+
 from ice import ICE
 import serial
 
 from m3_common import m3_common
-import logging
-m3_common.configure_root_logger()
-logger = logging.getLogger(__name__)
 
 def event_lambda(f, *args, **kwargs):
 	"""Helper function to wrap lambdas for events in a one-liner interface"""
@@ -1211,6 +1213,7 @@ class MainPane(M3Gui):
 				window=self.terminal_out,
 				yscrollbar=self.terminal_out_yscrollbar,
 				)
+		self.terminal_logger_handler.level = log_level_from_environment()
 		self.terminal_logger_handler.setFormatter(self.terminal_logger_formatter)
 		# TODO: This won't affect any newly created loggers. This should also
 		# modify the logging configuration to add our handler as another
@@ -1239,8 +1242,10 @@ def setup_file_logger(config_file, uniq):
 		if e.errno != errno.EEXIST and os.path.isdir(path):
 			raise
 	logfile = os.path.join(path, fname)
+	file_formatter = logging.Formatter("%(levelname)s|%(name)s|%(lineno)s|%(message)s")
 	file_handler = logging.FileHandler(logfile, delay=True)
 	file_handler.level = logging.DEBUG
+	file_handler.formatter = file_formatter
 	for l in logging.Logger.manager.loggerDict.values():
 		l.addHandler(file_handler)
 

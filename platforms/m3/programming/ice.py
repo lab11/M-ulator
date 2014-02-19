@@ -8,8 +8,10 @@ import socket
 import struct
 import time
 from copy import copy
-import logging
-logger = logging.getLogger(__name__)
+
+from m3_logging import get_logger
+logger = get_logger(__name__)
+logger.debug('Got ice.py logger')
 
 try:
     import threading

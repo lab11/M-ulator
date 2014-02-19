@@ -7,8 +7,9 @@ from Queue import Queue
 import argparse
 import time
 
-import logging
-logger = logging.getLogger('m3_common')
+from m3_logging import get_logger
+logger = get_logger(__name__)
+logger.debug('Got m3_common.py logger')
 
 from ice import ICE
 
@@ -17,14 +18,6 @@ import serial.tools.list_ports
 
 class m3_common(object):
     TITLE = "Generic M3 Programmer"
-
-    @staticmethod
-    def configure_root_logger():
-        try:
-            os.environ['ICE_DEBUG']
-            logging.basicConfig(level=logging.DEBUG)
-        except KeyError:
-            logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     @staticmethod
     def printing_sleep(seconds):
