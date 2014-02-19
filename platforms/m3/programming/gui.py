@@ -3,6 +3,7 @@
 
 import threading
 import sys, os, platform, time, errno
+import subprocess
 import logging
 from datetime import datetime
 import glob
@@ -23,6 +24,10 @@ import serial
 
 from m3_common import m3_common
 
+if sys.hexversion < 0x02070000:
+	logger.error('Python Version 2.7+ is required')
+	sys.exit(1)
+
 def event_lambda(f, *args, **kwargs):
 	"""Helper function to wrap lambdas for events in a one-liner interface"""
 	return lambda event, f=f, args=args, kwargs=kwargs : f(*args, **kwargs)
@@ -42,7 +47,7 @@ def report_event(event):
 def make_modal(window, parent):
 	window.transient(parent)
 	window.grab_set()
-	parent.wait_window()
+	parent.wait_window(window)
 
 def add_returns(widget, callback):
 	widget.bind("<Return>", event_lambda(callback))
@@ -985,6 +990,14 @@ class MainPane(M3Gui):
 
 			async_call(goc_win, fns)
 
+		def load_program_via_ein():
+			self.ice.ein_send(m3_common.build_injection_message(
+				self.prog,
+				bool(self.prog_run_after_var.get()),
+				).decode('hex')
+			)
+			logger.info('EIN programming complete.')
+
 		def load_program_via_goc():
 			prog = m3_common.build_injection_message(
 					self.prog,
@@ -992,19 +1005,81 @@ class MainPane(M3Gui):
 					).decode('hex')
 			return inject_message_via_goc(prog)
 
+		def load_program_wrapper(fn):
+			prog = self.prog_button_var.get()
+			base = os.path.splitext(prog)[0]
+			if os.path.exists(base + '.c'):
+				source = base + '.c'
+			elif os.path.exists(base + '.s'):
+				source = base + '.s'
+			else:
+				source = None
+
+			def recompile_program(source, prog, win):
+				def compile_program(base_dir, prog):
+					cmd = ['make', '-C', base_dir, prog]
+					logger.debug("Running: " + ' '.join(cmd))
+					try:
+						output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+					except subprocess.CalledProcessError, e:
+						logger.warn('Build failure. Command was: ' + ' '.join(cmd))
+						logger.warn('Build output:\n' + e.output[:-1])
+						raise
+					logger.debug(output)
+
+				prog_name = os.path.basename(prog)
+				base_dir = os.path.dirname(prog)
+				prog_dir = ''
+				while True:
+					for m in ('makefile', 'Makefile'):
+						makefile = os.path.join(base_dir, m)
+						if os.path.exists(makefile):
+							try:
+								prog_path = os.path.join(prog_dir, prog_name)
+								compile_program(base_dir, prog_path)
+								logger.info(prog_name + ' built successfully.')
+								win.destroy()
+								return
+							except subprocess.CalledProcessError:
+								pass
+					new_bd, new_pd = os.path.split(base_dir)
+					if new_bd == base_dir:
+						tkMessageBox.showerror('Build Error',
+								'Could not re-build program. You will have to'\
+										' compile this by hand (sorry).')
+						break
+					else:
+						base_dir = new_bd
+						prog_dir = os.path.join(new_pd, prog_dir)
+				win.build_failed = True
+				win.destroy()
+
+			if source is not None:
+				logger.debug('Program source file: ' + source)
+				if os.path.getmtime(prog) < os.path.getmtime(source):
+					win = Tk.Toplevel(self.parent)
+					win.title('Program out of date')
+					ttk.Label(win, text='Program source is older than program.'\
+							' Would you like to re-compile before loading?').pack()
+					ButtonWithReturns(win, text="No", command = lambda :\
+							win.destroy()).pack(side='right')
+					ButtonWithReturns(win, text="Yes", command = lambda :\
+							recompile_program(source, prog, win)).pack(side='right')
+					make_modal(win, self.parent)
+					if hasattr(win, 'build_failed'):
+						logger.warn('Programming aborted.')
+						return
+			else:
+				logger.warn('Could not find program source file')
+			fn()
+
 		self.prog_flash_ein = ButtonWithReturns(self.progactionframe,
 				state=Tk.DISABLED, text='Load program via EIN',
-				command = lambda :\
-						self.ice.ein_send(m3_common.build_injection_message(
-							self.prog,
-							bool(self.prog_run_after_var.get()),
-							).decode('hex')
-						)
-				)
+				command = lambda : load_program_wrapper(load_program_via_ein))
 		self.prog_flash_ein.pack(side='right')
 		self.prog_flash_goc = ButtonWithReturns(self.progactionframe,
 				state=Tk.DISABLED, text='Load program via GOC',
-				command = load_program_via_goc)
+				command = lambda : load_program_wrapper(load_program_via_goc))
 		self.prog_flash_goc.pack(side='right')
 
 		try:
