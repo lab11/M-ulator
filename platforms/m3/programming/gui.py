@@ -1231,13 +1231,14 @@ class MainPane(M3Gui):
 		#self.mbus_monitor.pack(fill=Tk.BOTH, expand=Tk.YES)
 
 def setup_file_logger(config_file, uniq):
-	path = os.path.join(os.path.dirname(config_file), uniq)
+	fname = fname_time(time.time())
+	path = os.path.join(os.path.dirname(config_file), uniq, fname.split('-')[0], fname.split('-')[1])
 	try:
-		os.mkdir(path)
+		os.makedirs(path)
 	except OSError as e:
-		if e.errno != errno.EEXIST:
+		if e.errno != errno.EEXIST and os.path.isdir(path):
 			raise
-	logfile = os.path.join(path, fname_time(time.time()))
+	logfile = os.path.join(path, fname)
 	file_handler = logging.FileHandler(logfile, delay=True)
 	file_handler.level = logging.DEBUG
 	for l in logging.Logger.manager.loggerDict.values():
