@@ -932,9 +932,9 @@ class MainPane(M3Gui):
 
 			root.after(50, lambda : async_fn_done_check(root, e, cb, pb, fns))
 
-		def load_program_via_goc():
+		def inject_message_via_goc(message):
 			goc_win = Tk.Toplevel(self.parent)
-			goc_win.title('Program via GOC')
+			goc_win.title('GOC Status Window')
 
 			fns = []
 			slow_freq = float(self.goc_freq_var.get().split()[0])
@@ -949,7 +949,7 @@ class MainPane(M3Gui):
 					text="Wake chip via GOC")
 			c2.pack(fill='x', expand=1, anchor='w')
 			p2 = ttk.Progressbar(goc_win, length=300,
-					maximum=((2*8)/slow_freq)/.050)
+					maximum=((2*8)/slow_freq)/.055)
 			p2.pack()
 			fns.append((c2, p2, lambda :\
 					self.ice.goc_send("7394".decode('hex'), False)))
@@ -960,28 +960,32 @@ class MainPane(M3Gui):
 			fns.append((c3, None, lambda f=slow_freq*8:\
 					self.ice.goc_set_frequency(f)))
 
-			prog = m3_common.build_injection_message(
-					self.prog,
-					bool(self.prog_run_after_var.get()),
-					).decode('hex')
-			est_time = (len(prog)*8)/(8*slow_freq)
+			est_time = (len(message)*8)/(8*slow_freq)
 			c4 = Tk.Checkbutton(goc_win, #state=Tk.DISABLED,
 					text="Send GOC message (~{} seconds)".format(est_time))
 			c4.pack(fill='x', expand=1, anchor='w')
-			p4 = ttk.Progressbar(goc_win, length=300, maximum=(est_time/.050))
+			p4 = ttk.Progressbar(goc_win, length=300, maximum=(est_time/.055))
 			p4.pack()
-			fns.append((c4, p4, lambda m=prog:\
+			fns.append((c4, p4, lambda m=message:\
 					self.ice.goc_send(m, False)))
 
 			c5 = Tk.Checkbutton(goc_win, #state=Tk.DISABLED,
 					text="Send extra blink to end transaction")
 			c5.pack(fill='x', expand=1, anchor='w')
-			p5 = ttk.Progressbar(goc_win)
+			p5 = ttk.Progressbar(goc_win, length=300,
+					maximum=((2*8)/(8*slow_freq))/.055)
 			p5.pack()
 			fns.append((c5, p5, lambda :\
 					self.ice.goc_send("80".decode('hex'), False)))
 
 			async_call(goc_win, fns)
+
+		def load_program_via_goc():
+			prog = m3_common.build_injection_message(
+					self.prog,
+					bool(self.prog_run_after_var.get()),
+					).decode('hex')
+			return inject_message_via_goc(prog)
 
 		self.prog_flash_ein = ButtonWithReturns(self.progactionframe,
 				state=Tk.DISABLED, text='Load program via EIN',
@@ -1102,16 +1106,19 @@ class MainPane(M3Gui):
 							)
 						)
 		self.message_send_mbus.pack(side='right')
+
+		def send_message_via_goc():
+			msg = m3_common.build_injection_message(
+					self.message_addr.get() + self.message_data.get(),
+					False,
+					).decode('hex')
+			return inject_message_via_goc(msg)
+
 		self.message_send_goc = ButtonWithReturns(self.messageactionframe,
 				text='Send message via GOC',
 				state=Tk.DISABLED,
-				command = lambda :\
-						send_command(
-							self.message_addr.get(),
-							self.message_data.get(),
-							self.ice.goc_send,
-							)
-						)
+				command = send_message_via_goc,
+				)
 		self.message_send_goc.pack(side='right')
 
 		# Interface for live session
