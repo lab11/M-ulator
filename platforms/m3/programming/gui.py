@@ -1007,7 +1007,7 @@ class MainPane(M3Gui):
 			addr = self.message_addr.get().strip()
 			data = self.message_data.get().strip()
 
-			self.message_send_ein.configure(state=Tk.DISABLED)
+			self.message_send_mbus.configure(state=Tk.DISABLED)
 			self.message_send_goc.configure(state=Tk.DISABLED)
 
 			if len(addr) == 0:
@@ -1039,7 +1039,7 @@ class MainPane(M3Gui):
 						('s','')[len(data) == 2],
 						)
 				self.message_contents_var.set(msg)
-				self.message_send_ein.configure(state=Tk.NORMAL)
+				self.message_send_mbus.configure(state=Tk.NORMAL)
 				self.message_send_goc.configure(state=Tk.NORMAL)
 
 		self.messageframe = ttk.Frame(self.messagepane)
@@ -1060,10 +1060,6 @@ class MainPane(M3Gui):
 		self.message_contents_var.set("Empty Address")
 		ttk.Label(self.messageframe, textvariable=self.message_contents_var
 				).pack(side='right')
-
-		def send_command(addr, data, method):
-			method(addr, data)
-
 
 		self.messageactionframe = ttk.Frame(self.messagepane)
 		self.messageactionframe.pack(fill='x', expand=1,
@@ -1091,17 +1087,16 @@ class MainPane(M3Gui):
 				command = select_preprogrammed_command)
 		self.message_defaults.pack(side='left')
 
-		self.message_send_ein = ButtonWithReturns(self.messageactionframe,
-				text='Send message via EIN',
+		self.message_send_mbus = ButtonWithReturns(self.messageactionframe,
+				text='Send message via MBus',
 				state=Tk.DISABLED,
 				command = lambda :\
-						send_command(
-							self.message_addr.get(),
-							self.message_data.get(),
-							self.ice.ein_send,
+						self.ice.mbus_send(
+							self.message_addr.get().decode('hex'),
+							self.message_data.get().decode('hex'),
 							)
 						)
-		self.message_send_ein.pack(side='right')
+		self.message_send_mbus.pack(side='right')
 		self.message_send_goc = ButtonWithReturns(self.messageactionframe,
 				text='Send message via GOC',
 				state=Tk.DISABLED,
