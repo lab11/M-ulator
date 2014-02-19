@@ -108,6 +108,9 @@ class Configuration(M3Gui):
 		else:
 			self.select_user()
 
+		if hasattr(self, 'quit'):
+			return
+
 		self.config.sync = lambda self=self :\
 			self.config.write(open(self.config_file, 'w'))
 
@@ -174,6 +177,8 @@ class Configuration(M3Gui):
 
 		self.top.bind("<Escape>", lambda event : quit())
 		self.top.grab_set()
+		if platform.system().lower() == 'darwin':
+			os.system('''/usr/bin/osascript -e 'tell app "Finder" to set frontmost of process "Python" to true' ''')
 		self.parent.wait_window(self.top)
 
 	def populate_users_list(self):
