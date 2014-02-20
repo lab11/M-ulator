@@ -666,6 +666,7 @@ class ICE(object):
         if len(resp) != 4:
             raise self.FormatError, "Wrong response length from `Oc': " + str(resp)
         setting = struct.unpack("!I", resp)[0]
+        logger.debug('got divisor value {}'.format(setting))
         return setting
 
     def goc_ein_get_freq_divisor(self):
@@ -684,6 +685,7 @@ class ICE(object):
 
     @min_proto_version("0.3")
     def goc_ein_set_freq_divisor_min_0_3(self, divisor):
+        logger.debug('set divisor to {}'.format(divisor))
         packed = struct.pack("!I", divisor)
         msg = struct.pack("B", ord('c')) + packed
         self.send_message_until_acked('o', msg)
@@ -751,6 +753,14 @@ class ICE(object):
         Gets the GOC frequency.
         '''
         self.set_goc_ein(goc=1)
+
+        if self.minor == 3:
+            logger.warn('ICE Firmware v0.3 reports wrong goc freq value.'\
+                    ' Returning cached value.')
+            try:
+                return self.goc_freq
+            except AttributeError:
+                logger.warn('No cached value. Querying ICE. Value is junk')
 
         setting = self.goc_ein_get_freq_divisor()
         if self.minor == 1:

@@ -1313,6 +1313,8 @@ class MainPane(M3Gui):
 				return
 
 			cb, pb, fn = fns.pop(0)
+			# Calling GOC commands too fast makes the ICE board hang?
+			time.sleep(.1)
 			e = threading.Event()
 			t = threading.Thread(target=async_fn_wrapper, args=(fn, e))
 			t.daemon = True
@@ -1340,7 +1342,7 @@ class MainPane(M3Gui):
 						text="Wake chip via GOC")
 				c2.pack(fill='x', expand=1, anchor='w')
 				p2 = ttk.Progressbar(goc_win, length=300,
-						maximum=((2*8)/slow_freq)/.055)
+						maximum=((2*8)/slow_freq)/.050)
 				p2.pack()
 				fns.append((c2, p2, lambda :\
 						self.ice.goc_send("7394".decode('hex'), False)))
@@ -1355,7 +1357,7 @@ class MainPane(M3Gui):
 			c4 = Tk.Checkbutton(goc_win, #state=Tk.DISABLED,
 					text="Send GOC message (~{} seconds)".format(est_time))
 			c4.pack(fill='x', expand=1, anchor='w')
-			p4 = ttk.Progressbar(goc_win, length=300, maximum=(est_time/.055))
+			p4 = ttk.Progressbar(goc_win, length=300, maximum=(est_time/.050))
 			p4.pack()
 			fns.append((c4, p4, lambda m=message:\
 					self.ice.goc_send(m, False)))
@@ -1364,7 +1366,7 @@ class MainPane(M3Gui):
 					text="Send extra blink to end transaction")
 			c5.pack(fill='x', expand=1, anchor='w')
 			p5 = ttk.Progressbar(goc_win, length=300,
-					maximum=((2*8)/(8*slow_freq))/.055)
+					maximum=((2*8)/(8*slow_freq))/.050)
 			p5.pack()
 			fns.append((c5, p5, lambda :\
 					self.ice.goc_send("80".decode('hex'), False)))
