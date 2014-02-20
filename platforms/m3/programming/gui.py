@@ -374,6 +374,14 @@ class Configuration(M3Gui):
 		except AttributeError:
 			pass
 
+	def log_configuration(self):
+		logger.info("Configuration:")
+		logger.info("\tUser: {}".format(self.uniqname_var.get()))
+		logger.info("\tWorkstation: {}".format(self.ws_var.get()))
+		logger.info("\tChips / Stacks: {}".format(
+			self.cs_var.get().replace('\n',' ')))
+		logger.info("\tNotes: {}".format(self.notes_var.get()))
+
 	def edit_configuration(self, cancellable):
 		default_notes = '< Write some notes about what you are doing this session >'
 
@@ -411,6 +419,7 @@ class Configuration(M3Gui):
 				if e.errno != errno.EEXIST:
 					raise
 			self.config.write(open(self.config_file, 'w'))
+			self.log_configuration()
 			try:
 				self.top.destroy()
 			except AttributeError:
@@ -1394,6 +1403,7 @@ def setup_file_logger(config_file, uniq):
 	file_handler.formatter = file_formatter
 	for l in logging.Logger.manager.loggerDict.values():
 		l.addHandler(file_handler)
+	setup_file_logger.logfile = logfile
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
@@ -1423,6 +1433,8 @@ if __name__ == '__main__':
 			configpane.configuration.uniqname_var.get(),
 			)
 	logger.debug('file logger set up')
+	# Log configuration to file
+	configpane.configuration.log_configuration()
 	mainpane = MainPane(root, args, configpane.configuration.config)
 	logger.debug('mainpane created')
 	root.geometry("1400x900")
@@ -1430,4 +1442,5 @@ if __name__ == '__main__':
 	logger.debug('entering mainloop')
 	if platform.system().lower() == 'darwin':
 		os.system('''/usr/bin/osascript -e 'tell app "Finder" to set frontmost of process "Python" to true' ''')
+	logger.info('Saving session to ' + setup_file_logger.logfile)
 	root.mainloop()
