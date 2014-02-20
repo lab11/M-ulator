@@ -455,8 +455,25 @@ class Configuration(M3Gui):
 
 		ws_var_new = Tk.StringVar(edit)
 
-		# XXX Config
-		ws_list = ['Workstation 1', 'Workstation 2', 'Workstation 3']
+		ws_file = os.path.join(os.path.dirname(self.config_file), 'workstations.txt')
+		ws_list = []
+		try:
+			for line in open(ws_file):
+				line = line.strip()
+				if line[0] == '#':
+					continue
+				ws_list.append(line)
+		except IOError:
+			tkMessageBox.showerror('Missing Workstation List',
+					'Configs directory is missing required file:'\
+					' "workstations.txt".')
+			self.parent.destroy()
+			sys.exit()
+		if len(ws_list) == 0:
+			tkMessageBox.showerror('Empty Workstation List',
+					'There must be at least one entry in workstations.txt')
+			self.parent.destroy()
+			sys.exit()
 		ws_option = Tk.OptionMenu(edit, ws_var_new, *ws_list)
 		ws_option.grid(row=1, column=1)
 
