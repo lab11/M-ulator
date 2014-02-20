@@ -846,6 +846,18 @@ class MainPane(M3Gui):
 			selectme.select()
 			update_power_text(rail, onoff, var)
 
+			if onoff:
+				SETTLE_TIME_IN_SEC = 4
+				win = Tk.Toplevel(self.parent)
+				win.title = "Applying power setting"
+				ttk.Label(win, text="Waiting for power rail to settle...").pack()
+				pb = ttk.Progressbar(win, length=300, maximum=SETTLE_TIME_IN_SEC / .050)
+				pb.pack()
+				pb.start()
+				win.after(SETTLE_TIME_IN_SEC * 1000, lambda : win.destroy())
+				self.parent.wait_visibility(win)
+				make_modal(win, self.parent)
+
 		def apply_voltage(rail, voltage, onoff, var):
 			self.ice.power_set_voltage(rail, float(voltage))
 			update_power_text(rail, onoff, var)
