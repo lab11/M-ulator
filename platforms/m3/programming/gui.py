@@ -839,22 +839,24 @@ class MainPane(M3Gui):
 				lbl = "Power On: {} V"
 			else:
 				lbl = "Power Off (Would be {} V)"
-			var.set(lbl.format(self.ice.power_get_voltage(rail)))
+			lbl = lbl.format(self.ice.power_get_voltage(rail))
+			var.set(lbl)
+			logger.info(lbl)
 
-		def apply_power_onoff(rail, onoff, selectme, var):
+		def apply_power_onoff(rail, onoff, selectme, var,
+				force_settle=False, settle_time=4):
 			self.ice.power_set_onoff(rail, onoff)
 			selectme.select()
 			update_power_text(rail, onoff, var)
 
-			if onoff:
-				SETTLE_TIME_IN_SEC = 4
+			if onoff or force_settle:
 				win = Tk.Toplevel(self.parent)
 				win.title = "Applying power setting"
 				ttk.Label(win, text="Waiting for power rail to settle...").pack()
-				pb = ttk.Progressbar(win, length=300, maximum=SETTLE_TIME_IN_SEC / .050)
+				pb = ttk.Progressbar(win, length=300, maximum=settle_time/ .050)
 				pb.pack()
 				pb.start()
-				win.after(SETTLE_TIME_IN_SEC * 1000, lambda : win.destroy())
+				win.after(settle_time * 1000, lambda : win.destroy())
 				self.parent.wait_visibility(win)
 				make_modal(win, self.parent)
 
@@ -977,6 +979,37 @@ class MainPane(M3Gui):
 
 		self.on_ice_connect.append(on_ice_connect_power)
 		self.on_ice_disconnect.append(on_ice_disconnect_power)
+
+		def power_all_off():
+			apply_power_onoff(self.ice.POWER_0P6, False, self.power0P6_off,
+					self.power0P6_var)
+			apply_power_onoff(self.ice.POWER_1P2, False, self.power1P2_off,
+					self.power1P2_var)
+			apply_power_onoff(self.ice.POWER_VBATT, False, self.powervbatt_off,
+					self.powervbatt_var)
+
+		def power_on_sequence():
+			apply_power_onoff(self.ice.POWER_0P6, True, self.power0P6_on,
+					self.power0P6_var)
+			apply_power_onoff(self.ice.POWER_1P2, True, self.power1P2_on,
+					self.power1P2_var)
+			apply_power_onoff(self.ice.POWER_VBATT, True, self.powervbatt_on,
+					self.powervbatt_var)
+
+		def reset_sequence():
+			apply_power_onoff(self.ice.POWER_0P6, False, self.power0P6_off,
+					self.power0P6_var, force_settle=True, settle_time=1)
+			apply_power_onoff(self.ice.POWER_0P6, True, self.power0P6_on,
+					self.power0P6_var, force_settle=True)
+
+		self.powerframe4 = ttk.Frame(self.powerpane)
+		self.powerframe4.pack(fill='x', expand=1)
+		ButtonWithReturns(self.powerframe4, text="Run M3 Reset Sequence",
+				command = reset_sequence).pack(side='right')
+		ButtonWithReturns(self.powerframe4, text="Run Power-On Sequence",
+				command = power_on_sequence).pack(side='right')
+		ButtonWithReturns(self.powerframe4, text="Power all Off",
+				command = power_all_off).pack(side='right')
 
 		# Bar with GOC configuration
 		self.gocpane = ttk.LabelFrame(self.mainpane, text="GOC Configuration")
