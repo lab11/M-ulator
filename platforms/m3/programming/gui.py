@@ -1131,6 +1131,7 @@ class MainPane(M3Gui):
 		def change_file(new_file, force_select=False):
 			self.prog_flash_ein.configure(state=Tk.DISABLED)
 			self.prog_flash_goc.configure(state=Tk.DISABLED)
+			self.prog_flash_goc_no_wakeup.configure(state=Tk.DISABLED)
 			if force_select:
 				self.prog_button_var.set('Select program image...')
 				self.prog_info_var.set('')
@@ -1148,6 +1149,7 @@ class MainPane(M3Gui):
 				self.config.set('DEFAULT', 'program', new_file)
 				self.prog_flash_ein.configure(state=Tk.NORMAL)
 				self.prog_flash_goc.configure(state=Tk.NORMAL)
+				self.prog_flash_goc_no_wakeup.configure(state=Tk.NORMAL)
 				self.prog_button.after(100, prog_file_watcher)
 			except IOError:
 				self.prog_button_var.set('Select program image...')
@@ -1226,27 +1228,28 @@ class MainPane(M3Gui):
 
 			root.after(50, lambda : async_fn_done_check(root, e, cb, pb, fns))
 
-		def inject_message_via_goc(message):
+		def inject_message_via_goc(message, wakeup):
 			goc_win = Tk.Toplevel(self.parent)
 			goc_win.title('GOC Status Window')
 
 			fns = []
 			slow_freq = float(self.goc_freq_var.get().split()[0])
 
-			c1 = Tk.Checkbutton(goc_win, #state=Tk.DISABLED,
-					text="Set GOC frequency to {}".format(slow_freq))
-			c1.pack(fill='x', expand=1, anchor='w')
-			fns.append((c1, None, lambda f=slow_freq :\
-					self.ice.goc_set_frequency(f)))
+			if wakeup:
+				c1 = Tk.Checkbutton(goc_win, #state=Tk.DISABLED,
+						text="Set GOC frequency to {}".format(slow_freq))
+				c1.pack(fill='x', expand=1, anchor='w')
+				fns.append((c1, None, lambda f=slow_freq :\
+						self.ice.goc_set_frequency(f)))
 
-			c2 = Tk.Checkbutton(goc_win, #state=Tk.DISABLED,
-					text="Wake chip via GOC")
-			c2.pack(fill='x', expand=1, anchor='w')
-			p2 = ttk.Progressbar(goc_win, length=300,
-					maximum=((2*8)/slow_freq)/.055)
-			p2.pack()
-			fns.append((c2, p2, lambda :\
-					self.ice.goc_send("7394".decode('hex'), False)))
+				c2 = Tk.Checkbutton(goc_win, #state=Tk.DISABLED,
+						text="Wake chip via GOC")
+				c2.pack(fill='x', expand=1, anchor='w')
+				p2 = ttk.Progressbar(goc_win, length=300,
+						maximum=((2*8)/slow_freq)/.055)
+				p2.pack()
+				fns.append((c2, p2, lambda :\
+						self.ice.goc_send("7394".decode('hex'), False)))
 
 			c3 = Tk.Checkbutton(goc_win, #state=Tk.DISABLED,
 					text="Set GOC frequency to {}".format(8*slow_freq))
@@ -1282,12 +1285,15 @@ class MainPane(M3Gui):
 			)
 			logger.info('EIN programming complete.')
 
-		def load_program_via_goc():
+		def load_program_via_goc(wakeup=True):
 			prog = m3_common.build_injection_message(
 					self.prog,
 					bool(self.prog_run_after_var.get()),
 					).decode('hex')
-			return inject_message_via_goc(prog)
+			return inject_message_via_goc(prog, wakeup=wakeup)
+
+		def load_program_via_goc_no_wakeup():
+			return load_program_via_goc(wakeup=False)
 
 		def load_program_wrapper(fn):
 			prog = self.prog_button_var.get()
@@ -1397,6 +1403,10 @@ class MainPane(M3Gui):
 				state=Tk.DISABLED, text='Load program via GOC',
 				command = lambda : load_program_wrapper(load_program_via_goc))
 		self.prog_flash_goc.pack(side='right')
+		self.prog_flash_goc_no_wakeup = ButtonWithReturns(self.progactionframe,
+				state=Tk.DISABLED, text='Load program via GOC (skip wakeup)',
+				command = lambda : load_program_wrapper(load_program_via_goc_no_wakeup))
+		self.prog_flash_goc_no_wakeup.pack(side='right')
 
 		try:
 			change_file(self.config.get('DEFAULT', 'program'))
@@ -1414,6 +1424,7 @@ class MainPane(M3Gui):
 
 			self.message_send_mbus.configure(state=Tk.DISABLED)
 			self.message_send_goc.configure(state=Tk.DISABLED)
+			self.message_send_goc_no_wakeup.configure(state=Tk.DISABLED)
 
 			if len(addr) == 0:
 				self.message_contents_var.set('Empty Address')
@@ -1446,6 +1457,7 @@ class MainPane(M3Gui):
 				self.message_contents_var.set(msg)
 				self.message_send_mbus.configure(state=Tk.NORMAL)
 				self.message_send_goc.configure(state=Tk.NORMAL)
+				self.message_send_goc_no_wakeup.configure(state=Tk.NORMAL)
 
 		self.messageframe = ttk.Frame(self.messagepane)
 		self.messageframe.pack(fill='x', expand=1)
@@ -1503,12 +1515,15 @@ class MainPane(M3Gui):
 						)
 		self.message_send_mbus.pack(side='right')
 
-		def send_message_via_goc():
+		def send_message_via_goc(wakeup=True):
 			msg = m3_common.build_injection_message(
 					self.message_addr.get() + self.message_data.get(),
 					False,
 					).decode('hex')
-			return inject_message_via_goc(msg)
+			return inject_message_via_goc(msg, wakeup=wakeup)
+
+		def send_message_via_goc_no_wakeup():
+			return send_message_via_goc(wakeup=False)
 
 		self.message_send_goc = ButtonWithReturns(self.messageactionframe,
 				text='Send message via GOC',
@@ -1516,6 +1531,13 @@ class MainPane(M3Gui):
 				command = send_message_via_goc,
 				)
 		self.message_send_goc.pack(side='right')
+
+		self.message_send_goc_no_wakeup = ButtonWithReturns(self.messageactionframe,
+				text='Send message via GOC (skip wakeup)',
+				state=Tk.DISABLED,
+				command = send_message_via_goc_no_wakeup,
+				)
+		self.message_send_goc_no_wakeup.pack(side='right')
 
 		# Interface for live session
 		self.actionpane = ttk.LabelFrame(self.mainpane, text='Action Pane')
