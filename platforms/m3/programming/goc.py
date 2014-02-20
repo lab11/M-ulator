@@ -3,12 +3,12 @@
 import sys, socket
 
 import time
-import logging
 
 from m3_common import m3_common, goc_programmer
 
-m3_common.configure_root_logger()
-logger = logging.getLogger(__name__)
+import m3_logging
+logger = m3_logging.get_logger(__name__)
+logger.debug('Got goc.py logger')
 
 class goc_programmer_for_i2c(goc_programmer):
     MSG_TYPE = 'd+'
