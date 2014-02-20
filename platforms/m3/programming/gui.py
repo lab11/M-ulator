@@ -99,6 +99,16 @@ def pretty_time(unix_time):
 def fname_time(unix_time):
 	return datetime.fromtimestamp(unix_time).strftime("%Y-%m-%d-%H-%M-%S")
 
+
+class GuiError(Exception):
+	pass
+
+class QuitError(GuiError):
+	pass
+
+class CancelledError(GuiError):
+	pass
+
 class ButtonWithReturns(ttk.Button):
 	# n.b.: ttk.Button is an old-style class
 	def __init__(self, *args, **kwargs):
@@ -109,6 +119,14 @@ class ButtonWithReturns(ttk.Button):
 		except KeyError:
 			pass
 
+class ButtonWithReturnsAndEscape(ButtonWithReturns):
+	def __init__(self, *args, **kwargs):
+		ButtonWithReturns.__init__(self, *args, **kwargs)
+		try:
+			add_escape(self, kwargs['command'])
+		except KeyError:
+			pass
+
 # From tkinter.unpythonic.net/wiki/ReadOnlyText
 class ReadOnlyText(Tk.Text):
 	def __init__(self, *args, **kwargs):
@@ -116,6 +134,73 @@ class ReadOnlyText(Tk.Text):
 		self.redirector = WidgetRedirector(self)
 		self.insert = self.redirector.register("insert", lambda *args, **kw: "break")
 		self.delete = self.redirector.register("delete", lambda *args, **kw: "break")
+
+def async_call(parent, fn, timeout_in_ms=500, cancellable=False):
+	def async_fn_wrapper(fn, comp_event, comp_queue):
+		try:
+			ret = fn()
+			comp_queue.put(True)
+			comp_queue.put(ret)
+		except Exception, e:
+			comp_queue.put(False)
+			comp_queue.put(e)
+		comp_event.set()
+
+	def async_timeout(comp_var):
+		comp_var.set(-1)
+
+	def async_comp_check(comp_var, comp_event):
+		if comp_event.is_set():
+			comp_var.set(1)
+		else:
+			parent.after(10, lambda :\
+					async_comp_check(comp_var, comp_event))
+
+	comp_var = Tk.IntVar()
+	comp_var.set(0)
+	comp_event = threading.Event()
+	comp_queue = Queue.Queue()
+
+	t = threading.Thread(target=async_fn_wrapper,
+			args=(fn, comp_event, comp_queue))
+	t.daemon = True
+	t.start()
+
+	parent.after(timeout_in_ms, lambda : async_timeout(comp_var))
+	parent.after(10, lambda : async_comp_check(comp_var, comp_event))
+
+	parent.wait_variable(comp_var)
+	if comp_var.get() == -1:
+		win = Tk.Toplevel(parent)
+		win.title = "Long Running Task..."
+		ttk.Label(win, text="A requested command is taking too long to run",
+				).pack()
+		ttk.Label(win, text="The long-running command is:").pack()
+		ttk.Label(win, text=str(m3_logging.fn_to_source(fn))).pack()
+
+		if cancellable:
+			def cancel_async_call(win):
+				win.destroy()
+				# XXX Cancel thread
+				raise CancelledError()
+			ButtonWithReturnsAndEscape(win, text="Cancel",
+					command=lambda:cancel_async_call(win)).pack(side='left')
+
+		def quit_from_async_call(win):
+			root.destroy()
+			raise QuitError()
+		ButtonWithReturns(win, text="Quit Program",
+				command=lambda:quit_from_async_call(win)).pack(side='right')
+
+		# If the task does eventually complete, we should quit
+		comp_var.trace('w', lambda varName, index, mode : win.destroy())
+
+		make_modal(win, parent)
+
+	if comp_queue.get_nowait():
+		return comp_queue.get_nowait()
+	else:
+		raise comp_queue.get_nowait()
 
 class M3Gui(object):
 	BUTTON_WIDTH = 25
@@ -776,7 +861,11 @@ class MainPane(M3Gui):
 				self.ice = ICE()
 				self.ice.on_disconnect = ice_on_disconnect
 				try:
-					self.ice.connect(self.port_selector_var.get())
+					port = self.port_selector_var.get()
+					async_call(
+							self.parent,
+							lambda : self.ice.connect(port),
+							)
 					self.ice_status_var.set(\
 							'Connected to ICE version {}.{} at {}'.format(
 								self.ice.major,
@@ -802,6 +891,11 @@ class MainPane(M3Gui):
 				if use_config is False:
 					raise ValueError
 				last_serial = self.config.get('DEFAULT', 'serial_port')
+				# We delete this here such that if it fails to connect the key
+				# will not be present on the next run on the program. If it does
+				# connect, the key is re-written on the connect path anyway
+				self.config.remove_option('DEFAULT', 'serial_port')
+				self.config.sync()
 				if not os.path.exists(last_serial):
 					raise ValueError
 				if last_serial not in port_list:
@@ -1199,7 +1293,7 @@ class MainPane(M3Gui):
 			self.prog_run_after_no.select()
 
 
-		def async_call(root, fns):
+		def goc_async_calls(root, fns):
 			def async_fn_wrapper(fn, e):
 				fn()
 				e.set()
@@ -1210,7 +1304,7 @@ class MainPane(M3Gui):
 					if pb is not None:
 						pb.stop()
 						pb.step(pb['maximum']-pb['value']-.1)
-					async_call(root, fns)
+					goc_async_calls(root, fns)
 				else:
 					root.after(50, lambda : async_fn_done_check(root, e, cb, pb, fns))
 
@@ -1275,7 +1369,7 @@ class MainPane(M3Gui):
 			fns.append((c5, p5, lambda :\
 					self.ice.goc_send("80".decode('hex'), False)))
 
-			async_call(goc_win, fns)
+			goc_async_calls(goc_win, fns)
 
 		def load_program_via_ein():
 			self.ice.ein_send(m3_common.build_injection_message(

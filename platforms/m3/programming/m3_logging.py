@@ -51,22 +51,26 @@ def is_lambda(fn):
 	# let's roll with it for now
 	return isinstance(fn, type(lambda: None)) and fn.__name__ == '<lambda>'
 
+def fn_to_source(fn):
+	if is_lambda(fn):
+		source = inspect.getsource(fn).strip()
+		source = source.replace('\\\n', '')
+		source = source.replace('\n', '')
+		source = source.replace('\t', ' ')
+		while source.find('  ') != -1:
+			source = source.replace('  ', ' ')
+		if source.find('command') != -1:
+			source = source[source.find('command'):]
+		return source
+	else:
+		return fn.__name__
+
 import inspect
 def trace(fn):
 	"""Decorator that logger.trace()'s function calls and their arguments"""
 	def inner(*args, **kwargs):
-		if is_lambda(fn):
-			source = inspect.getsource(fn).strip()
-			source = source.replace('\\\n', '')
-			source = source.replace('\n', '')
-			source = source.replace('\t', ' ')
-			while source.find('  ') != -1:
-				source = source.replace('  ', ' ')
-			if source.find('command') != -1:
-				source = source[source.find('command'):]
-			logger.trace('{} *args={} **kwargs={}'.format(source, args, kwargs))
-		else:
-			logger.trace('{} *args={} **kwargs={}'.format(fn.__name__, args, kwargs))
+		source = fn_to_source(fn)
+		logger.trace('{} *args={} **kwargs={}'.format(source, args, kwargs))
 		#for frame in inspect.stack():
 		#	logger.trace(frame)
 		#	logger.trace(inspect.getframeinfo(frame[0]))
