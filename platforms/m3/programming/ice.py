@@ -9,8 +9,8 @@ import struct
 import time
 from copy import copy
 
-from m3_logging import get_logger
-logger = get_logger(__name__)
+import m3_logging
+logger = m3_logging.get_logger(__name__)
 logger.debug('Got ice.py logger')
 
 try:

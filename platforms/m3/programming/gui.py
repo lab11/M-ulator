@@ -5,6 +5,7 @@ import threading
 import sys, os, platform, time, errno
 import subprocess
 import logging
+import inspect
 from datetime import datetime
 import glob
 import ConfigParser
@@ -15,11 +16,16 @@ import ttk
 import tkFileDialog, tkMessageBox
 from idlelib.WidgetRedirector import WidgetRedirector
 
-from m3_logging import get_logger, log_level_from_environment
-logger = get_logger(__name__)
+import m3_logging
+logger = m3_logging.get_logger(__name__)
 logger.debug('Got gui.py logger')
 
+
 from ice import ICE
+for name,method in inspect.getmembers(ICE, inspect.ismethod):
+	setattr(ICE, name, m3_logging.trace(getattr(ICE, name)))
+
+# Import serial after ice as ice prints a nice message about pyserial
 import serial
 
 from m3_common import m3_common
@@ -27,6 +33,37 @@ from m3_common import m3_common
 if sys.hexversion < 0x02070000:
 	logger.error('Python Version 2.7+ is required')
 	sys.exit(1)
+
+orig_init = Tk.Widget.__init__
+def new_init(self, *args, **kwargs):
+	#logger.trace('new_init self {}'.format(repr(self)))
+	bound = False
+	for arg in args:
+		try:
+			if 'command' in arg:
+				bound = True
+				arg['command'] = m3_logging.trace(arg['command'])
+		except TypeError:
+			pass
+	try:
+		kwargs['kw']['command'] = m3_logging.trace(kwargs['kw']['command'])
+		bound = True
+	except KeyError:
+		pass
+	#if bound:
+	#	logger.trace('Bound a method')
+	#else:
+	#	logger.trace('Did not bind a method')
+	#	logger.trace('new_init. args {} ||| kwargs{}'.format(args, kwargs))
+	orig_init(self, *args, **kwargs)
+
+	orig_bind = self.bind
+	def new_bind(self, fn):
+		#logger.trace('new_bind. args{} ||| kwargs{}'.format(args, kwargs))
+		#logger.trace('new_bind self {}'.format(repr(self)))
+		orig_bind(self, m3_logging.trace(fn))
+	self.bind = new_bind
+Tk.Widget.__init__ = new_init
 
 def event_lambda(f, *args, **kwargs):
 	"""Helper function to wrap lambdas for events in a one-liner interface"""
@@ -65,6 +102,7 @@ def fname_time(unix_time):
 class ButtonWithReturns(ttk.Button):
 	# n.b.: ttk.Button is an old-style class
 	def __init__(self, *args, **kwargs):
+		#logger.trace('ButtonWithReturns self {}'.format(repr(self)))
 		ttk.Button.__init__(self, *args, **kwargs)
 		try:
 			add_returns(self, kwargs['command'])
@@ -1288,8 +1326,9 @@ class MainPane(M3Gui):
 				window=self.terminal_out,
 				yscrollbar=self.terminal_out_yscrollbar,
 				)
-		self.terminal_logger_handler.level = log_level_from_environment()
+		self.terminal_logger_handler.level = m3_logging.log_level_from_environment()
 		self.terminal_logger_handler.setFormatter(self.terminal_logger_formatter)
+		self.terminal_logger_handler.addFilter(m3_logging.no_trace_filter)
 		# TODO: This won't affect any newly created loggers. This should also
 		# modify the logging configuration to add our handler as another
 		# handler that is installed by default. But I don't know how to do that
@@ -1317,7 +1356,7 @@ def setup_file_logger(config_file, uniq):
 		if e.errno != errno.EEXIST and os.path.isdir(path):
 			raise
 	logfile = os.path.join(path, fname)
-	file_formatter = logging.Formatter("%(levelname)s|%(name)s|%(lineno)s|%(message)s")
+	file_formatter = m3_logging.DefaultFormatter("%(levelname)s|%(name)s|%(lineno)s|%(message)s")
 	file_handler = logging.FileHandler(logfile, delay=True)
 	file_handler.level = logging.DEBUG
 	file_handler.formatter = file_formatter
