@@ -1083,8 +1083,7 @@ class MainPane(M3Gui):
 					new_bd, new_pd = os.path.split(base_dir)
 					if new_bd == base_dir:
 						tkMessageBox.showerror('Build Error',
-								'Could not re-build program. You will have to'\
-										' compile this by hand (sorry).')
+								'Compilation failed. Check output window for details.')
 						break
 					else:
 						base_dir = new_bd
@@ -1107,6 +1106,39 @@ class MainPane(M3Gui):
 					if hasattr(win, 'build_failed'):
 						logger.warn('Programming aborted.')
 						return
+
+				if os.path.getmtime(prog) < os.path.getmtime(source):
+					logger.warn('Program source is newer than compiled program')
+					logger.warn('The following output may be incorrect as a result.')
+
+				try:
+					path,name = os.path.split(source)
+					cmd = ('git', 'log', '-n', '1', '--pretty=format:%H', name)
+					output = subprocess.check_output(
+							cmd,
+							stderr=subprocess.STDOUT,
+							cwd = os.path.dirname(source),
+							)
+					logger.info(name + ' revision: ' + output)
+				except subprocess.CalledProcessError, e:
+					logger.warn('Failed to get current revision. Command was: '+\
+							' '.join(cmd))
+					logger.warn('Command output:\n' + e.output[:-1])
+				try:
+					path,name = os.path.split(source)
+					cmd = ('git', 'diff', name)
+					output = subprocess.check_output(
+							cmd,
+							stderr=subprocess.STDOUT,
+							cwd = os.path.dirname(source),
+							)
+					if len(output):
+						logger.info(name + ' has uncommitted changes:\n' + output)
+					else:
+						logger.debug(name + ' has no uncommitted changes.')
+				except subprocess.CalledProcessError, e:
+					logger.warn('Failed to get diff. Command was: '+ ' '.join(cmd))
+					logger.warn('Command output:\n' + e.output[:-1])
 			else:
 				logger.warn('Could not find program source file')
 			fn()
