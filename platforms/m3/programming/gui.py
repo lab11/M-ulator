@@ -1741,6 +1741,11 @@ class MainPane(M3Gui):
 		#self.mbus_monitor.pack(fill=Tk.BOTH, expand=Tk.YES)
 
 def setup_file_logger(config_file, uniq):
+	class SyncingFileHandler(logging.FileHandler):
+		def emit(self, record):
+			super(SyncingFileHandler, self).emit(record)
+			os.fsync(self.stream)
+
 	fname = fname_time(time.time())
 	path = os.path.join(os.path.dirname(config_file), uniq, fname.split('-')[0], fname.split('-')[1])
 	try:
@@ -1750,7 +1755,7 @@ def setup_file_logger(config_file, uniq):
 			raise
 	logfile = os.path.join(path, fname)
 	file_formatter = m3_logging.DefaultFormatter("%(levelname)s|%(name)s|%(lineno)s|%(message)s")
-	file_handler = logging.FileHandler(logfile, delay=True)
+	file_handler = SyncingFileHandler(logfile, delay=True)
 	file_handler.level = logging.DEBUG
 	file_handler.formatter = file_formatter
 	for l in logging.Logger.manager.loggerDict.values():
