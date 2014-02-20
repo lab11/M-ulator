@@ -168,6 +168,9 @@ class Configuration(M3Gui):
 			self.config.sync()
 		self.config.set = new_set
 
+		if hasattr(self, 'top'):
+			del(self.top)
+
 	def select_user(self):
 		def quit():
 			self.top.destroy()
@@ -335,9 +338,7 @@ class Configuration(M3Gui):
 		cancel.pack(side=Tk.RIGHT, anchor='e')
 
 		new.bind("<Escape>", lambda event : new.destroy())
-		new.grab_set()
-		self.top.wait_window(new)
-		#make_modal(new)
+		make_modal(new, self.top)
 
 	def use_selected(self, force_edit=False):
 		logger.debug('use_selected(force_edit={})'.format(force_edit))
@@ -431,9 +432,10 @@ class Configuration(M3Gui):
 				notes_text.delete(1.0, Tk.END)
 
 		try:
-			edit = Tk.Toplevel(self.top)
+			edit_parent = self.top
 		except AttributeError:
-			edit = Tk.Toplevel(self.parent)
+			edit_parent = self.parent
+		edit = Tk.Toplevel(edit_parent)
 		edit.title("Edit Configuration")
 		focused = False
 
@@ -630,6 +632,8 @@ class Configuration(M3Gui):
 			cancel_btn = ButtonWithReturns(edit, text="Cancel",
 					command=lambda : edit.destroy())
 			cancel_btn.grid(row=6, column=0, sticky='w')
+
+		make_modal(edit, edit_parent)
 
 class ConfigPane(M3Gui):
 	def __init__(self, parent, args):
