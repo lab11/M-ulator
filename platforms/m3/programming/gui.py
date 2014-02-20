@@ -460,7 +460,7 @@ class Configuration(M3Gui):
 		try:
 			for line in open(ws_file):
 				line = line.strip()
-				if line[0] == '#':
+				if len(line) == 0 or line[0] == '#':
 					continue
 				ws_list.append(line)
 		except IOError:
@@ -501,17 +501,51 @@ class Configuration(M3Gui):
 
 			selector = Tk.Toplevel(edit)
 			selector.title("Chip / Stack Selector")
+			add_escape(selector, lambda : selector.destroy())
+
+			def parse_cs_file(f):
+				l = []
+				try:
+					for line in open(f):
+						line = line.strip()
+						if len(line) == 0 or line[0] == '#':
+							continue
+						if not line[0].isdigit():
+							logger.warn("Ignoring bad chip/stack entry: " + line)
+						else:
+							try:
+								ll = []
+								num,txt = line.split(None, 1)
+								for s in num.split(','):
+									try:
+										start,end = s.split('-')
+									except ValueError:
+										start = s
+										end = s
+									for i in xrange(int(start), int(end)+1):
+										ll.append("{}".format(i))
+								l.append((txt, ll))
+							except:
+								logger.warn("Ignoring bad chip/stack entry: " + line)
+				except IOError:
+					tkMessageBox.showerror('Missing Chip / Stack List',
+							'Configs directory is missing required file: ' + f)
+					self.parent.destroy()
+					sys.exit()
+				return l
 
 			# XXX Config
-			chips = (
-					('PRCv8', range(5)),
-					('CTLv7', range(10)),
-					('MDv3', range(2,8)),
-					)
-			stacks = (
-					('STv1', range(5)),
-					('STv2', range(2,4)),
-					)
+			chipsf = os.path.join(os.path.dirname(self.config_file), 'chips.txt')
+			chips = parse_cs_file(chipsf)
+			stacksf = os.path.join(os.path.dirname(self.config_file), 'stacks.txt')
+			stacks = parse_cs_file(stacksf)
+
+			if (len(chips) is 0) and (len(stacks) is 0):
+				tkMessageBox.showerror("Empty Chips and Stacks",
+						'At least one chip or stack must be defined.'\
+								' Both chips.txt and stacks.txt are empty.')
+				self.parent.destroy()
+				sys.exit()
 
 			title = ttk.Label(selector, text="Select the chips and / or"\
 					" stacks you are currently testing. Hold the Shift or"\
@@ -547,7 +581,7 @@ class Configuration(M3Gui):
 			select.grid(row=3, column=1, sticky='e')
 
 			cancel = ButtonWithReturns(selector, text="Cancel",
-					command=lambda w=selector : selector.destroy())
+					command=lambda : selector.destroy())
 			cancel.grid(row=3, column=0, sticky='e')
 
 
