@@ -829,6 +829,143 @@ class MainPane(M3Gui):
 		ttk.Label(self.icepane, textvariable=self.ice_status_var
 				).pack(fill='y', expand=1, anchor='e')
 
+		# Bar with Power control information
+		self.powerpane = ttk.LabelFrame(self.mainpane, text="Power Control")
+		self.powerpane.pack(fill='x', expand=1,
+				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
+
+		def update_power_text(rail, onoff, var):
+			if onoff:
+				lbl = "Power On: {} V"
+			else:
+				lbl = "Power Off (Would be {} V)"
+			var.set(lbl.format(self.ice.power_get_voltage(rail)))
+
+		def apply_power_onoff(rail, onoff, selectme, var):
+			self.ice.power_set_onoff(rail, onoff)
+			selectme.select()
+			update_power_text(rail, onoff, var)
+
+		def apply_voltage(rail, voltage, onoff, var):
+			self.ice.power_set_voltage(rail, float(voltage))
+			update_power_text(rail, onoff, var)
+
+		def on_ice_connect_power():
+			apply_power_onoff(self.ice.POWER_0P6, False, self.power0P6_off, self.power0P6_var)
+			apply_power_onoff(self.ice.POWER_1P2, False, self.power1P2_off, self.power1P2_var)
+			apply_power_onoff(self.ice.POWER_VBATT, False, self.powervbatt_off, self.powervbatt_var)
+
+			def apply_cfg(rail, key, dfl, var):
+				try:
+					voltage = self.config.getfloat('DEFAULT', key)
+				except ConfigParser.NoOptionError:
+					voltage = dfl
+				apply_voltage(rail, voltage, False, var)
+
+			for rail, key, dfl, var in (
+					(self.ice.POWER_0P6,  'power_0P6',
+						self.ice.POWER_0P6_DEFAULT, self.power0P6_var),
+					(self.ice.POWER_1P2,  'power_1P2',
+						self.ice.POWER_1P2_DEFAULT, self.power1P2_var),
+					(self.ice.POWER_VBATT,'power_vbatt',
+						self.ice.POWER_VBATT_DEFAULT, self.powervbatt_var),
+					):
+				apply_cfg(rail, key, dfl, var)
+
+		def on_ice_disconnect_power():
+			for v in (self.power0P6_var, self.power1P2_var, self.powervbatt_var):
+				v.set('ICE disconnected')
+
+		self.powerframe1 = ttk.Frame(self.powerpane)
+		self.powerframe1.pack(fill='x', expand=1)
+		ttk.Label(self.powerframe1, text="0.6 V Rail:").pack(side='left')
+		self.power0P6_onoff = Tk.IntVar()
+		self.power0P6_onoff.set(0)
+		self.power0P6_off = Tk.Radiobutton(self.powerframe1, text="Off",
+				variable=self.power0P6_onoff, value=0, command = lambda :\
+						apply_power_onoff(self.ice.POWER_0P6, False,
+							self.power0P6_off, self.power0P6_var))
+		self.power0P6_off.pack(side='left')
+		self.power0P6_on = Tk.Radiobutton(self.powerframe1, text="On",
+				variable=self.power0P6_onoff, value=1, command = lambda :\
+						apply_power_onoff(self.ice.POWER_0P6, True,
+							self.power0P6_on, self.power0P6_var))
+		self.power0P6_on.pack(side='left')
+		self.power0P6_entry = ttk.Entry(self.powerframe1)
+		add_returns(self.power0P6_entry,
+				lambda : apply_voltage(self.ice.POWER_0P6, self.power0P6_entry.get(),
+					self.power0P6_onoff.get(), self.power0P6_var))
+		self.power0P6_entry.pack(side='left')
+		self.power0P6_btn = ButtonWithReturns(self.powerframe1, text="Apply",
+				command =\
+				lambda : apply_voltage(self.ice.POWER_0P6, self.power0P6_entry.get(),
+					self.power0P6_onoff.get(), self.power0P6_var))
+		self.power0P6_btn.pack(side='left')
+		self.power0P6_var = Tk.StringVar()
+		self.power0P6_var.set('ICE disconnected')
+		ttk.Label(self.powerframe1, textvariable=self.power0P6_var).pack(anchor='e')
+
+		self.powerframe2 = ttk.Frame(self.powerpane)
+		self.powerframe2.pack(fill='x', expand=1)
+		ttk.Label(self.powerframe2, text="1.2 V Rail:").pack(side='left')
+		self.power1P2_onoff = Tk.IntVar()
+		self.power1P2_onoff.set(0)
+		self.power1P2_off = Tk.Radiobutton(self.powerframe2, text="Off",
+				variable=self.power1P2_onoff, value=0, command = lambda :\
+						apply_power_onoff(self.ice.POWER_1P2, False,
+							self.power1P2_off, self.power1P2_var))
+		self.power1P2_off.pack(side='left')
+		self.power1P2_on = Tk.Radiobutton(self.powerframe2, text="On",
+				variable=self.power1P2_onoff, value=1, command = lambda :\
+						apply_power_onoff(self.ice.POWER_1P2, True,
+							self.power1P2_on, self.power1P2_var))
+		self.power1P2_on.pack(side='left')
+		self.power1P2_entry = ttk.Entry(self.powerframe2)
+		add_returns(self.power1P2_entry,
+				lambda : apply_voltage(self.ice.POWER_1P2, self.power1P2_entry.get(),
+					self.power1P2_onoff.get(), self.power1P2_var))
+		self.power1P2_entry.pack(side='left')
+		self.power1P2_btn = ButtonWithReturns(self.powerframe2, text="Apply",
+				command =\
+				lambda : apply_voltage(self.ice.POWER_1P2, self.power1P2_entry.get(),
+					self.power1P2_onoff.get(), self.power1P2_var))
+		self.power1P2_btn.pack(side='left')
+		self.power1P2_var = Tk.StringVar()
+		self.power1P2_var.set('ICE disconnected')
+		ttk.Label(self.powerframe2, textvariable=self.power1P2_var).pack(anchor='e')
+
+		self.powerframe3 = ttk.Frame(self.powerpane)
+		self.powerframe3.pack(fill='x', expand=1)
+		ttk.Label(self.powerframe3, text="VBatt Rail:").pack(side='left')
+		self.powervbatt_onoff = Tk.IntVar()
+		self.powervbatt_onoff.set(0)
+		self.powervbatt_off = Tk.Radiobutton(self.powerframe3, text="Off",
+				variable=self.powervbatt_onoff, value=0, command = lambda :\
+						apply_power_onoff(self.ice.POWER_VBATT, False,
+							self.powervbatt_off, self.powervbatt_var))
+		self.powervbatt_off.pack(side='left')
+		self.powervbatt_on = Tk.Radiobutton(self.powerframe3, text="On",
+				variable=self.powervbatt_onoff, value=1, command = lambda :\
+						apply_power_onoff(self.ice.POWER_VBATT, True,
+							self.powervbatt_on, self.powervbatt_var))
+		self.powervbatt_on.pack(side='left')
+		self.powervbatt_entry = ttk.Entry(self.powerframe3)
+		add_returns(self.powervbatt_entry,
+				lambda : apply_voltage(self.ice.POWER_VBATT, self.powervbatt_entry.get(),
+					self.powervbatt_onoff.get(), self.powervbatt_var))
+		self.powervbatt_entry.pack(side='left')
+		self.powervbatt_btn = ButtonWithReturns(self.powerframe3, text="Apply",
+				command =\
+				lambda : apply_voltage(self.ice.POWER_VBATT, self.powervbatt_entry.get(),
+					self.powervbatt_onoff.get(), self.powervbatt_var))
+		self.powervbatt_btn.pack(side='left')
+		self.powervbatt_var = Tk.StringVar()
+		self.powervbatt_var.set('ICE disconnected')
+		ttk.Label(self.powerframe3, textvariable=self.powervbatt_var).pack(anchor='e')
+
+		self.on_ice_connect.append(on_ice_connect_power)
+		self.on_ice_disconnect.append(on_ice_disconnect_power)
+
 		# Bar with GOC configuration
 		self.gocpane = ttk.LabelFrame(self.mainpane, text="GOC Configuration")
 		self.gocpane.pack(fill='x', expand=1,
