@@ -1428,9 +1428,6 @@ class MainPane(M3Gui):
 		for l in logging.Logger.manager.loggerDict.values():
 			l.addHandler(self.terminal_logger_handler)
 
-		self.terminal_in = ttk.Entry(self.actionpane)
-		self.terminal_in.pack(fill=Tk.X)
-
 		# Monitor window for MBus messages
 		#self.monitorpane = ttk.LabelFrame(self.mainpane, text="MBus Monitor")
 		#self.monitorpane.pack(fill=Tk.X, expand=1,
