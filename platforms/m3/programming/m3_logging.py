@@ -8,6 +8,36 @@ logging.captureWarnings(True)
 TRACE_LEVEL=25
 logging.addLevelName(TRACE_LEVEL, 'TRACE')
 
+def split_line_logger(lvl, self, message, *args, **kwargs):
+	#print('lvl: {}, message: {}'.format(lvl, message))
+	for msg in message.split('\n'):
+		if self.isEnabledFor(lvl):
+			self._log(lvl, msg, args, **kwargs)
+
+#for lvl,logger in (
+#		(logging.DEBUG,   'debug'),
+#		(logging.INFO,    'info'),
+#		(logging.WARN,    'warn'),
+#		(logging.ERROR,   'error'),
+#		(logging.CRITICAL,'critical'),
+#		(TRACE_LEVEL,     'trace'),
+#		):
+#	setattr(logging.Logger, logger, lambda self, message, *args, **kwargs :\
+#			split_line_logger(lvl, self, message, *args, **kwargs))
+
+setattr(logging.Logger, 'debug', lambda self, message, *args, **kwargs :\
+		split_line_logger(logging.DEBUG, self, message, *args, **kwargs))
+setattr(logging.Logger, 'info', lambda self, message, *args, **kwargs :\
+		split_line_logger(logging.INFO, self, message, *args, **kwargs))
+setattr(logging.Logger, 'warn', lambda self, message, *args, **kwargs :\
+		split_line_logger(logging.WARN, self, message, *args, **kwargs))
+setattr(logging.Logger, 'error', lambda self, message, *args, **kwargs :\
+		split_line_logger(logging.ERROR, self, message, *args, **kwargs))
+setattr(logging.Logger, 'critical', lambda self, message, *args, **kwargs :\
+		split_line_logger(logging.CRITICAL, self, message, *args, **kwargs))
+setattr(logging.Logger, 'trace', lambda self, message, *args, **kwargs :\
+		split_line_logger(TRACE_LEVEL, self, message, *args, **kwargs))
+
 class DefaultFormatter(logging.Formatter):
 	def __init__(self, fmt="%(levelname)s\t%(message)s"):
 		super(DefaultFormatter, self).__init__(fmt)
