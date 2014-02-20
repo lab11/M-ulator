@@ -1560,10 +1560,17 @@ class ICE(object):
         if rail not in (ICE.POWER_0P6, ICE.POWER_1P2, ICE.POWER_VBATT):
             raise self.ParameterError, "Invalid rail: " + str(rail)
 
-        resp = self.send_message_until_acked('P', struct.pack("BB", ord('v'), rail))
-        if len(resp) != 2:
-            raise self.FormatError, "Wrong response length from `Pv#':" + str(resp)
-        rail, raw = struct.unpack("BB", resp)
+        logger.warn("ICE Firmware <= 0.3 cannot query voltage. Returning cached value.")
+        try:
+            raw = getattr(self, 'power_{}'.format(rail))
+        except AttributeError:
+            logger.warn("No cached value, returning default")
+            raw = (1 - 0.537) / 0.0185
+
+        #resp = self.send_message_until_acked('P', struct.pack("BB", ord('v'), rail))
+        #if len(resp) != 2:
+        #    raise self.FormatError, "Wrong response length from `Pv#':" + str(resp)
+        #rail, raw = struct.unpack("BB", resp)
 
         # Vout = (0.537 + 0.0185 * v_set) * Vdefault
         default_voltage = (ICE.POWER_0P6_DEFAULT, ICE.POWER_1P2_DEFAULT,
@@ -1607,6 +1614,7 @@ class ICE(object):
             raise self.ParameterError, "Voltage exceeds range. vset: " + str(vset)
 
         self.send_message_until_acked('p', struct.pack("BBB", ord('v'), rail, vset))
+        setattr(self, 'power_{}'.format(rail), vset)
 
     @min_proto_version("0.1")
     @capability('p')
