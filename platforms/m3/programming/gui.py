@@ -1306,19 +1306,36 @@ class MainPane(M3Gui):
 		else:
 			self.prog_run_after_no.select()
 
+		def goc_cancel(goc_root, cancel_var):
+			cancel_var.set(1)
+			goc_root.destroy()
+			win = ModalWindow(self.parent, height=200, width=400)
+			win.title = "ICE Reset Required"
+			ButtonWithReturns(win,
+					text="I have pressed the ICE reset button",
+					command = lambda : win.destroy()).pack(
+							fill='both', expand=1, padx=10, pady=10)
+			win.go_modal()
+			logger.debug('ICE Reset confirmed')
 
-		def goc_async_calls(root, fns):
+			port = self.port_selector_var.get()
+			self.port_selector_var.set('Select serial port')
+			self.port_selector_var.set(port)
+
+		def goc_async_calls(root, fns, cancel_var):
 			def async_fn_wrapper(fn, e):
 				fn()
 				e.set()
 
 			def async_fn_done_check(root, e, cb, pb, fns):
-				if e.is_set():
+				if cancel_var.get():
+					return
+				elif e.is_set():
 					cb.select()
 					if pb is not None:
 						pb.stop()
 						pb.step(pb['maximum']-pb['value']-.1)
-					goc_async_calls(root, fns)
+					goc_async_calls(root, fns, cancel_var)
 				else:
 					root.after(50, lambda : async_fn_done_check(root, e, cb, pb, fns))
 
@@ -1393,7 +1410,14 @@ class MainPane(M3Gui):
 			fns.append((c5, p5, lambda :\
 					self.ice.goc_send("80".decode('hex'), False)))
 
-			goc_async_calls(goc_win, fns)
+			cancel_var = Tk.IntVar()
+			cancel_var.set(0)
+			ButtonWithReturnsAndEscape(goc_win,
+					text="Cancel (Requires ICE Reset)",
+					command=lambda : goc_cancel(goc_win, cancel_var),
+					).pack(padx=5, pady=15)
+
+			goc_async_calls(goc_win, fns, cancel_var)
 
 		def load_program_via_ein():
 			self.ice.ein_send(m3_common.build_injection_message(
