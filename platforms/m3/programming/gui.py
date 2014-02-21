@@ -81,11 +81,6 @@ def report_event(event):
 			"EventKeySymbol={}".format(event.keysym)
 			)
 
-def make_modal(window, parent):
-	window.transient(parent)
-	window.grab_set()
-	parent.wait_window(window)
-
 def add_returns(widget, callback):
 	widget.bind("<Return>", event_lambda(callback))
 	widget.bind("<KP_Enter>", event_lambda(callback))
@@ -108,6 +103,26 @@ class QuitError(GuiError):
 
 class CancelledError(GuiError):
 	pass
+
+class ModalWindow(Tk.Toplevel):
+	def __init__(self, parent, cancellable=False, *args, **kwargs):
+		Tk.Toplevel.__init__(self, parent, *args, **kwargs)
+		if cancellable:
+			self.bind("<Escape>", lambda event : self.destroy())
+			self.protocol('WM_DELETE_WINDOW', lambda : self.destroy())
+		else:
+			self.protocol('WM_DELETE_WINDOW', lambda : None)
+
+	def go_modal(self):
+		self.transient(self.master)
+		self.grab_set()
+		self.master.wait_window(self)
+
+
+def make_modal(window, parent):
+	window.transient(parent)
+	window.grab_set()
+	parent.wait_window(window)
 
 class ButtonWithReturns(ttk.Button):
 	# n.b.: ttk.Button is an old-style class
@@ -171,7 +186,7 @@ def async_call(parent, fn, timeout_in_ms=500, cancellable=False):
 
 	parent.wait_variable(comp_var)
 	if comp_var.get() == -1:
-		win = Tk.Toplevel(parent)
+		win = ModalWindow(parent)
 		win.title = "Long Running Task..."
 		ttk.Label(win, text="A requested command is taking too long to run",
 				).pack()
@@ -195,7 +210,7 @@ def async_call(parent, fn, timeout_in_ms=500, cancellable=False):
 		# If the task does eventually complete, we should quit
 		comp_var.trace('w', lambda varName, index, mode : win.destroy())
 
-		make_modal(win, parent)
+		win.go_modal()
 
 	if comp_queue.get_nowait():
 		return comp_queue.get_nowait()
@@ -398,7 +413,7 @@ class Configuration(M3Gui):
 				tkMessageBox.showerror("Blank uniqname",
 						"Please enter a uniqname.")
 
-		new = Tk.Toplevel(self.top)
+		new = ModalWindow(self.top, cancellable=True)
 		new.title('Create New User')
 
 		row0 = ttk.Frame(new)
@@ -422,8 +437,7 @@ class Configuration(M3Gui):
 				command=lambda : new.destroy())
 		cancel.pack(side=Tk.RIGHT, anchor='e')
 
-		new.bind("<Escape>", lambda event : new.destroy())
-		make_modal(new, self.top)
+		new.go_modal()
 
 	def use_selected(self, force_edit=False):
 		logger.debug('use_selected(force_edit={})'.format(force_edit))
@@ -948,7 +962,7 @@ class MainPane(M3Gui):
 			update_power_text(rail, onoff, var)
 
 			if onoff or force_settle:
-				win = Tk.Toplevel(self.parent)
+				win = ModalWindow(self.parent)
 				win.title = "Applying power setting"
 				ttk.Label(win, text="Waiting for power rail to settle...").pack()
 				pb = ttk.Progressbar(win, length=300, maximum=settle_time/ .050)
@@ -956,7 +970,7 @@ class MainPane(M3Gui):
 				pb.start()
 				win.after(settle_time * 1000, lambda : win.destroy())
 				self.parent.wait_visibility(win)
-				make_modal(win, self.parent)
+				win.go_modal()
 
 		def apply_voltage(rail, voltage, onoff, var):
 			self.ice.power_set_voltage(rail, float(voltage))
@@ -1323,9 +1337,10 @@ class MainPane(M3Gui):
 				pb.start()
 
 			root.after(50, lambda : async_fn_done_check(root, e, cb, pb, fns))
+			root.go_modal()
 
 		def inject_message_via_goc(message, wakeup):
-			goc_win = Tk.Toplevel(self.parent)
+			goc_win = ModalWindow(self.parent)
 			goc_win.title('GOC Status Window')
 
 			fns = []
@@ -1449,15 +1464,15 @@ class MainPane(M3Gui):
 			if source is not None:
 				logger.debug('Program source file: ' + source)
 				if os.path.getmtime(prog) < os.path.getmtime(source):
-					win = Tk.Toplevel(self.parent)
+					win = ModalWindow(self.parent)
 					win.title('Program out of date')
 					ttk.Label(win, text='Program source is older than program.'\
 							' Would you like to re-compile before loading?').pack()
-					ButtonWithReturns(win, text="No", command = lambda :\
+					ButtonWithReturnsAndEscape(win, text="No", command = lambda :\
 							win.destroy()).pack(side='right')
 					ButtonWithReturns(win, text="Yes", command = lambda :\
 							recompile_program(source, prog, win)).pack(side='right')
-					make_modal(win, self.parent)
+					win.go_modal()
 					if hasattr(win, 'build_failed'):
 						logger.warn('Programming aborted.')
 						return
