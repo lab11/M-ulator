@@ -1347,6 +1347,13 @@ class MainPane(M3Gui):
 				fns.append((c2, p2, lambda :\
 						self.ice.goc_send("7394".decode('hex'), False)))
 
+				c6 = Tk.Checkbutton(goc_win, #state=Tk.DISABLED,
+						text="Delay for ~2 sec")
+				c6.pack(fill='x', expand=1, anchor='w')
+				p6 = ttk.Progressbar(goc_win, length=300, maximum=(2/.050))
+				p6.pack()
+				fns.append((c6, p6, lambda : time.sleep(2)))
+
 			c3 = Tk.Checkbutton(goc_win, #state=Tk.DISABLED,
 					text="Set GOC frequency to {}".format(8*slow_freq))
 			c3.pack(fill='x', expand=1, anchor='w')
