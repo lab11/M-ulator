@@ -1,7 +1,6 @@
 //*******************************************************************
-//Author: Yoonmyung Lee / ZhiYoong Foo
-//Description:	Post-tapeout Verification for PRCv8 (NOV 2013)
-//		#05 - TIMERS
+//Author: Gyouho Kim
+//Description:	testing if register write works
 //*******************************************************************
 #include "m3_proc.h"
 
