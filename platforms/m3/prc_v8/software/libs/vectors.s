@@ -35,107 +35,32 @@
 .thumb_func
 hang:   b .
 
-.thumb_func
-.weak handler_nmi
-handler_nmi:
-    b hang
-
-.thumb_func
-.weak handler_hard
-handler_hard:
-    b hang
-
-.thumb_func
-.weak handler_memmange
-handler_memmange:
-    b hang
-
-.thumb_func
-.weak handler_bus
-handler_bus:
-    b hang
-
-.thumb_func
-.weak handler_usage
-handler_usage:
-    b hang
-
-.thumb_func
-.weak handler_svcall
-handler_svcall:
-    b hang
-
-.thumb_func
-.weak handler_debug_mon
-handler_debug_mon:
-    b hang
-
-.thumb_func
-.weak handler_pendsv
-handler_pendsv:
-    b hang
-
-.thumb_func
-.weak handler_systick
-handler_systick:
-    b hang
-
-.thumb_func
-.weak handler_ext_int_0
-handler_ext_int_0:
-    bx lr
-
-.thumb_func
-.weak handler_ext_int_1
-handler_ext_int_1:
-    bx lr
-
-.thumb_func
-.weak handler_ext_int_2
-handler_ext_int_2:
-    bx lr
-
-.thumb_func
-.weak handler_ext_int_3
-handler_ext_int_3:
-    bx lr
-
-.thumb_func
-.weak handler_ext_int_4
-handler_ext_int_4:
-    bx lr
-
-.thumb_func
-.weak handler_ext_int_5
-handler_ext_int_5:
-    bx lr
-
-.thumb_func
-.weak handler_ext_int_6
-handler_ext_int_6:
-    bx lr
-
-.thumb_func
-.weak handler_ext_int_7
-handler_ext_int_7:
-    bx lr
-
-.thumb_func
-.weak handler_ext_int_8
-handler_ext_int_8:
-    bx lr
-
-.thumb_func
-.weak handler_ext_int_9
-handler_ext_int_9:
-    bx lr
+.weak handler_nmi, hang
+.weak handler_hard, hang
+.weak handler_memmange, hang
+.weak handler_bus, hang
+.weak handler_usage, hang
+.weak handler_svcall, hang
+.weak handler_debug_mon, hang
+.weak handler_pendsv, hang
+.weak handler_systick, hang
+.weak handler_ext_int_0, hang
+.weak handler_ext_int_1, hang
+.weak handler_ext_int_2, hang
+.weak handler_ext_int_3, hang
+.weak handler_ext_int_4, hang
+.weak handler_ext_int_5, hang
+.weak handler_ext_int_6, hang
+.weak handler_ext_int_7, hang
+.weak handler_ext_int_8, hang
+.weak handler_ext_int_9, hang
 
 .text
-.type _start,#function
+.func _start
 .global _start
 _start:
-	bl main
-	movs r0, #2	@ PMU sleep request is '2'
-//	bl PMU_req
-	b _start	@ expect to never get here, but just in case
+	bl main		@ call main() function
+	b _start	@ expect to never get here, but just in case restart
+.endfunc
+
 .end
