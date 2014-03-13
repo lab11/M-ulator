@@ -19,7 +19,7 @@
 
 #define RAD_BIT_DELAY 0x54     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 600  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
-#define RAD_SAMPLE_DELAY 4     //2//213       //Wake up timer tuning: # of wake up timer cycles to sleep
+#define RAD_SAMPLE_DELAY 213     //2//213       //Wake up timer tuning: # of wake up timer cycles to sleep
 //#define RAD_SAMPLE_DELAY 40000 //10000   //Radio tuning: Delay between samples sent (NUM_SAMPLES sent)
 
 //************************************
@@ -142,8 +142,8 @@ int main() {
   if ( exec_marker != 0x12345678 ) {
 
     //Mark execution
-    *((volatile uint32_t *) 0x00000720) = 0x12345678;
-    *((volatile uint32_t *) 0x00000730) = 0x00000010;
+    *((volatile uint32_t *) 0x00000720) = 0x12345678;	// exec_marker
+    *((volatile uint32_t *) 0x00000730) = 0x00000010;	// exec_counter
 
     //Enumeration
     enumerate(RAD_ADDR);
@@ -170,6 +170,8 @@ int main() {
     uint32_t _rad_r20 = 0x1F;
     write_mbus_register(RAD_ADDR,0x20,_rad_r20);
     delay(MBUS_DELAY);
+
+    // For Hassan's receiver board, Use 0x20 for Tb-stacks
     //Tune Freq 1
     uint32_t _rad_r21 = 0x2;
     write_mbus_register(RAD_ADDR,0x21,_rad_r21);
@@ -178,10 +180,12 @@ int main() {
     uint32_t _rad_r22 = 0x0;
     write_mbus_register(RAD_ADDR,0x22,_rad_r22);
     delay(MBUS_DELAY);
+
     //Tune TX Time
-    uint32_t _rad_r25 = 0x4;
+    uint32_t _rad_r25 = 0x3;
     write_mbus_register(RAD_ADDR,0x25,_rad_r25);
     delay(MBUS_DELAY);
+
     //Zero the TX register
     write_mbus_register(RAD_ADDR,0x27,0x0);
     delay(MBUS_DELAY);
