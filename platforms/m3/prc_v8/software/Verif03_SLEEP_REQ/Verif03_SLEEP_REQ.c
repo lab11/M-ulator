@@ -87,7 +87,7 @@ int main() {
 	// Enter sleep by SW
 	write_mbus_message( 0x03, 0x12345678 );
 	delay( 100000 );
-	set_wakeup_timer( 0x04, 1, 1 );
+	set_wakeup_timer( 0x02, 1, 1 );
 	sleep_req_by_sw();
 	while(1);
 }

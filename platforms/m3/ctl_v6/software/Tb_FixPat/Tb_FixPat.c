@@ -11,8 +11,8 @@
 #define MBUS_DELAY 50 //Amount of delay between successive messages
 
 #define RAD_BIT_DELAY 0x54     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
-#define RAD_PACKET_DELAY 1000  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
-#define RAD_SAMPLE_DELAY 2     //2       //Wake up timer tuning: # of wake up timer cycles to sleep
+#define RAD_PACKET_DELAY 600  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
+#define RAD_SAMPLE_DELAY 20     //2       //Wake up timer tuning: # of wake up timer cycles to sleep
 //#define RAD_SAMPLE_DELAY 40000 //10000   //Radio tuning: Delay between samples sent (NUM_SAMPLES sent)
 
 //************************************
@@ -164,7 +164,7 @@ int main() {
     //		Tb011: 0x2F=914.2 0x2E=915.4 0x2D=916.5  (est. 0x32=910.9)
     //		Tb023: 0x2F=915 0x2D=918
     //		Tb024: 0x2F=913 0x2D=915
-    //
+    //		MRI01: 0x37=915
     //Tune Freq 1
     uint32_t _rad_r21 = 0x2;
     write_mbus_register(RAD_ADDR,0x21,_rad_r21);

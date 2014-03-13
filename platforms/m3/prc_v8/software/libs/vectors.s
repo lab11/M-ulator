@@ -23,13 +23,13 @@
 .word   handler_ext_int_0   /* 16 External Interrupt(0) */
 .word   handler_ext_int_1   /* 17 External Interrupt(1) */
 .word   handler_ext_int_2   /* 18 External Interrupt(2) */
-.word   handler_ext_int_3   /* 18 External Interrupt(3) */
-.word   handler_ext_int_4   /* 18 External Interrupt(4) */
-.word   handler_ext_int_5   /* 18 External Interrupt(5) */
-.word   handler_ext_int_6   /* 18 External Interrupt(6) */
-.word   handler_ext_int_7   /* 18 External Interrupt(7) */
-.word   handler_ext_int_8   /* 18 External Interrupt(8) */
-.word   handler_ext_int_9   /* 18 External Interrupt(9) */
+.word   handler_ext_int_3   /* 19 External Interrupt(3) */
+.word   handler_ext_int_4   /* 20 External Interrupt(4) */
+.word   handler_ext_int_5   /* 21 External Interrupt(5) */
+.word   handler_ext_int_6   /* 22 External Interrupt(6) */
+.word   handler_ext_int_7   /* 23 External Interrupt(7) */
+.word   handler_ext_int_8   /* 24 External Interrupt(8) */
+.word   handler_ext_int_9   /* 25 External Interrupt(9) */
 
 .align 2
 .thumb_func

@@ -8,6 +8,11 @@
 #define RAD_ADDR 0x9
 #define SNS_ADDR 0xA
 
+#define TIMER0_PERIOD 40000
+#define TIMER1_PERIOD 100000
+#define TIMER2_PERIOD 10000
+#define TIMER3_PERIOD 20000
+
 //Interrupt Handlers ************************************************
 void handler_ext_int_0(void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_1(void) __attribute__ ((interrupt ("IRQ")));
@@ -39,20 +44,22 @@ void handler_ext_int_5(void){
 }
 void handler_ext_int_6(void){
   *((volatile uint32_t *) 0xE000E280) = 0x40;
+  config_timer( 0, 1, 0, 0, TIMER0_PERIOD );
+  write_mbus_message( 0x04, 0x4444 );
 }
-void handler_ext_int_7(void){
+void handler_ext_int_7(void){	// WATCHDOG!!!
   *((volatile uint32_t *) 0xE000E280) = 0x80;
-  config_timer( 1, 1, 0, 0, 10000 );
+  config_timer( 1, 1, 0, 0, TIMER1_PERIOD );
   write_mbus_message( 0x01, 0x1111 );
 }
 void handler_ext_int_8(void){
   *((volatile uint32_t *) 0xE000E280) = 0x100;
-  config_timer( 2, 1, 0, 5000, 15000 );
+  config_timer( 2, 1, 0, 10000, TIMER2_PERIOD+10000 );
   write_mbus_message( 0x02, 0x2222 );
 }
 void handler_ext_int_9(void){
   *((volatile uint32_t *) 0xE000E280) = 0x200;
-  config_timer( 3, 1, 0, 0, 2000 );
+  config_timer( 3, 1, 0, 0, TIMER3_PERIOD );
   write_mbus_message( 0x03, 0x3333 );
 }
 
@@ -80,10 +87,13 @@ int main() {
 //	asm ("wfi;");
 //	enumerate(SNS_ADDR);
 //	asm ("wfi;");
-	config_timer( 1, 1, 0,    0, 10000  );
-	config_timer( 2, 1, 0, 5000, 15000  );
-	config_timer( 3, 1, 0,    0, 2000   );
-	config_timer( 0, 1, 0,    0, 100000 );
+	config_timer( 1, 1, 0,     0, TIMER1_PERIOD );  //==> Watchdog!!!!
+	delay(50);
+	config_timer( 2, 1, 0, 10000, TIMER2_PERIOD+10000  );
+	delay(50);
+	config_timer( 3, 1, 0,     0, TIMER3_PERIOD );
+	delay(50);
+	config_timer( 0, 1, 0,     0, TIMER0_PERIOD );
 
 	while(1);
 

@@ -84,11 +84,16 @@ int main() {
 	// Count down and power on reset
 	int8_t i;
 	for( i=10; i>=0; --i ){
-		delay( 100000 );
+		delay( 10000 );
 		write_mbus_message( 0x03, i);
 	}
 
 	pon_reset();
-	while(1);
+	while(1){
+		for( i=10; i>=0; --i ){
+			delay( 10000 );
+			write_mbus_message( 0x03, i);
+		}
+	}
 
 }

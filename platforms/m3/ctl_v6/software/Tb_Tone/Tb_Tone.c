@@ -155,14 +155,21 @@ int main() {
     //           Tb011: 0x2F=914.2 0x2E=915.4     0x2D=916.5 0x2B=918.8
     //           Tb023: 0x2F=    0x2D=918
     //           Tb024: 0x2F=913 0x2D=915
-
+    // @4.3V     MRI01: (x1 g-slide) 0x2E=925.0 0x34=918.7 0x35=917.6 0x36=915.9 0x37=915.0 0x38=914.1
+    //                  (x3 g-slide)                       0x35=916.4 0x36=915.4 0x37=914.2 
+    //                  (x5 g-slide)                       0x35=916.1 0x36=915.1 0x37=914.0      
+    // @4.3V     MRI02: (x1 g-slide)                       0x35=916.9 0x36=916.3 0x37=915.3 0x38=     
+    //                  (x3 g-slide)                       0x35=917.0 0x36=916.2 0x37=915.2      
+    //                  (x5 g-slide)                       0x35=916.7 0x36=915.7 0x37=914.6@4.3           
+    //                                                                           0x37=914.9@4.2           
+    //                                                                           0x37=915.3@4.1           
     //Tune Freq 1
-    uint32_t _rad_r21 = 0x2;
+    uint32_t _rad_r21 = 0x3;
     write_mbus_register(RAD_ADDR,0x21,_rad_r21);
     delay(MBUS_DELAY);
 
     //Tune Freq 2
-    uint32_t _rad_r22 = 0xE;
+    uint32_t _rad_r22 = 0x5;
     write_mbus_register(RAD_ADDR,0x22,_rad_r22);
     delay(MBUS_DELAY);
 

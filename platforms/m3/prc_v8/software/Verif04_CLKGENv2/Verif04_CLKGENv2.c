@@ -85,20 +85,39 @@ int main() {
 	uint8_t fastmode;
 	int8_t div_cm;
 //	int8_t div_mbus;
-	int8_t ring;
+	uint8_t ring;
 
-	for( fastmode=0; fastmode<=1; ++fastmode ){
+	// MAX set up for MBus: fast=1, div_mbus=1, ring=1 Corresponds to 2.93MHz
+	// MAX set up for Core: fast=1, div_cm=0, ring=3 Corresponds to 7.23MHz
+	for( fastmode=1; fastmode<=1; ++fastmode ){
 		for( div_cm=3; div_cm>=0; --div_cm ){
-			for( ring=3; ring>=0; --ring ){
-				delay(100000);
-				set_clkfreq( fastmode, div_cm, div_cm, ring);
-				delay(100000);
-				write_mbus_message( 0x03, (fastmode<<6)|(div_cm<<4)|(div_cm<<4)|ring );
+			for( ring=0; ring<=3; ++ring ){
+				delay(10000);
+				set_clkfreq( fastmode, div_cm, 3, ring);
+				delay(10000);
+				write_mbus_message( 0x03, (fastmode<<12)|(div_cm<<8)|(3<<4)|ring );
 			}
 		}
 	}
+/*	for( fastmode=0; fastmode<=1; ++fastmode ){
+		for( div_cm=3; div_cm>=0; --div_cm ){
+			for( ring=0; ring<=3; ++ring ){
+				delay(10000);
+				set_clkfreq( fastmode, div_cm, div_cm, ring);
+				delay(10000);
+				write_mbus_message( 0x03, (fastmode<<12)|(div_cm<<8)|(div_cm<<4)|ring );
+			}
+		}
+	}
+*/
+/*	while(1){
+				delay(10000);
+				set_clkfreq( 1, 3, 2, 3);
+				delay(10000);
+				write_mbus_message( 0x03, (fastmode<<12)|(div_cm<<8)|(div_cm<<4)|ring );
 
-
+	}
+*/
 	sleep();
 	while(1);
 
