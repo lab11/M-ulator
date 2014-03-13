@@ -19,7 +19,7 @@
 //#define WAKEUP_DELAY 1000 // 50ms
 #define WAKEUP_DELAY 400000 // 20s
 #define WAKEUP_DELAY_FINAL 100000	// Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
-#define DELAY_1 2000 // default 20000: 1s
+#define DELAY_1 20000 // default 20000: 1s
 #define INT_TIME 5
 #define MD_INT_TIME 35
 #define MD_TH 10
@@ -353,6 +353,7 @@ int main() {
 
   delay(DELAY_1);
 
+
   //Check if it is the first execution
   exec_marker = *((volatile uint32_t *) 0x00000720);
   if (exec_marker != 0x12345678){
@@ -418,11 +419,11 @@ int main() {
     write_mbus_register(RAD_ADDR,0x20,_rad_r20);
     delay(MBUS_DELAY);
     //Tune Freq 1
-    uint32_t _rad_r21 = 0x1;
+    uint32_t _rad_r21 = 0x2; // default 1
     write_mbus_register(RAD_ADDR,0x21,_rad_r21);
     delay(MBUS_DELAY);
     //Tune Freq 2
-    uint32_t _rad_r22 = 0xE;
+    uint32_t _rad_r22 = 0x0; // default E
     write_mbus_register(RAD_ADDR,0x22,_rad_r22);
     delay(MBUS_DELAY);
     //Tune TX Time
@@ -436,6 +437,7 @@ int main() {
   } // if first_exec
 
   else{
+    
 
     //Fire off data to radio
     radio_data = gen_radio_data(0x1234);

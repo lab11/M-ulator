@@ -4,7 +4,7 @@
 ## variable. If you wish to add extras {AS,C}FLAGS, please do so here
 ################################################################################
 
-CFLAGS := -Os
+CFLAGS :=
 ASFLAGS :=
 
 ##########################
@@ -12,8 +12,8 @@ ASFLAGS :=
 
 #CFLAGS  += -Wall -Wextra -Werror -mthumb -mcpu=cortex-m0 -ffreestanding
 # Don't care about the warnings not compiling. It's annoying.
-CFLAGS  += -Wall -Wextra -mthumb -mcpu=cortex-m0 -ffreestanding
-LDFLAGS += -static --gc-sections -S
+CFLAGS  += -Os -Wall -Wextra -mthumb -mcpu=cortex-m0 -ffreestanding -fdata-sections -ffunction-sections
+LDFLAGS += -Os -static -S -nostartfiles -nodefaultlibs -nostdlib --gc-sections -e _start #-dead_strip #-why_live read_mbus_register_RADv4
 ASFLAGS += -mthumb --warn -mcpu=cortex-m0
 
 # Experiments in not linking unused sections
@@ -70,7 +70,7 @@ DIRS := $(patsubst %/,%,$(filter-out libs/,$(filter-out include/,$(wildcard */))
 BINS := $(foreach var,$(DIRS),$(var)/$(var).bin)
 HEXS := $(foreach var,$(DIRS),$(var)/$(var).hex)
 
-.PRECIOUS: $(LIBS)
+.PRECIOUS: $(LIBS) $(BINS)
 
 .PHONY: all
 
@@ -95,7 +95,7 @@ $(DIRS):
 
 # Mind the order here to align -T$^
 %.elf:	libs/memmap $(LIBS) %.o
-	$(LD) -T$^ -o $@
+	$(LD) $(LDFLAGS) -T$^ -o $@
 
 
 ##########

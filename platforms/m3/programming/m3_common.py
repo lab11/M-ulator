@@ -4,23 +4,20 @@ import os
 import sys
 import socket
 from Queue import Queue
+import argparse
 import time
 
-import logging
-logger = logging.getLogger('m3_common')
+from m3_logging import get_logger
+logger = get_logger(__name__)
+logger.debug('Got m3_common.py logger')
 
 from ice import ICE
 
+# Do this after ICE since ICE prints a nice help if pyserial is missing
+import serial.tools.list_ports
+
 class m3_common(object):
     TITLE = "Generic M3 Programmer"
-
-    @staticmethod
-    def configure_root_logger():
-        try:
-            os.environ['ICE_DEBUG']
-            logging.basicConfig(level=logging.DEBUG)
-        except KeyError:
-            logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     @staticmethod
     def printing_sleep(seconds):
@@ -130,9 +127,16 @@ class m3_common(object):
             self.callback_q = Queue()
             self.install_handler()
             self.ice.connect(self.serial_path)
+            self.wakeup_goc_circuit()
         except NameError:
             logger.error("Abstract element missing.")
             raise
+
+    def wakeup_goc_circuit(self):
+        # Fix an ICE issue where the power rails must be poked for
+        # the GOC circuitry to wake up
+        self.ice.goc_set_onoff(False)
+        self.ice.power_set_onoff(self.ice.POWER_GOC, True)
 
     def install_handler(self):
         self.ice.msg_handler[self.MSG_TYPE] = self.callback_helper
@@ -149,16 +153,60 @@ class m3_common(object):
         logger.info(" -- " + self.TITLE)
         logger.info("")
 
+    def add_parse_args(self):
+        self.parser.add_argument("BINFILE", help="Program to flash")
+        self.parser.add_argument("SERIAL", help="Path to ICE serial device", nargs='?')
+
     def parse_args(self):
-        if len(sys.argv) not in (3,):
-            logger.info("USAGE: %s BINFILE SERAIL_DEVICE\n" % (sys.argv[0]))
-            logger.info("")
-            sys.exit(2)
+        self.parser = argparse.ArgumentParser()
+        self.add_parse_args()
 
-        self.binfile = sys.argv[1]
-        self.serial_path = sys.argv[2]
+        self.args = self.parser.parse_args()
+        if self.args.SERIAL is None:
+            self.serial_path = self.guess_serial()
+        else:
+            self.serial_path = self.args.SERIAL
 
-    def read_binfile(self):
+    @staticmethod
+    def get_serial_candidates():
+        candidates = []
+        for s in serial.tools.list_ports.comports():
+            s = s[0]
+            if 'bluetooth' in s.lower():
+                continue
+            candidates.append(s)
+        # In many cases when debugging, we'll be using the fake_ice at '/tmp/com1'
+        if os.path.exists('/tmp/com1'):
+            candidates.append('/tmp/com1')
+        return candidates
+
+    def guess_serial(self):
+        candidates = self.get_serial_candidates()
+        if len(candidates) == 0:
+            logger.error("Could not find the serial port ICE is attached to.\n")
+            self.parser.print_help()
+            sys.exit(1)
+        elif len(candidates) == 1:
+            logger.info("Guessing ICE is at: " + candidates[0])
+            return candidates[0]
+        else:
+            def pick_serial():
+                logger.info("Multiple possible serial ports found:")
+                for i in xrange(len(candidates)):
+                    logger.info("\t[{}] {}".format(i, candidates[i]))
+                try:
+                    resp = raw_input("Choose a serial port (Ctrl-C to quit): ").strip()
+                except KeyboardInterrupt:
+                    sys.exit(1)
+                try:
+                    return candidates[int(resp)]
+                except:
+                    logger.info("Please choose one of the available serial ports.")
+                    return pick_serial()
+            return pick_serial()
+
+    @staticmethod
+    def read_binfile_static(binfile):
         def guess_type_is_hex(binfile):
             for line in open(binfile):
                 for c in line.strip():
@@ -167,31 +215,30 @@ class m3_common(object):
                         return False
             return True
 
-        if guess_type_is_hex(self.binfile):
-            logger.info("Guessing hex-encoded stream for NI setup")
-            logger.info("  ** This means one byte (two hex characters) per line")
-            logger.info("  ** and these are the first two characters on each line.")
-            logger.info("  ** If it needs to parse something more complex, let me know.")
-            binfd = open(self.binfile, 'r')
-            self.hexencoded = ""
+        if guess_type_is_hex(binfile):
+            binfd = open(binfile, 'r')
+            hexencoded = ""
             for line in binfd:
-                self.hexencoded += line[0:2].upper()
+                hexencoded += line[0:2].upper()
         else:
-            logger.info("Guessing compiled binary")
-            binfd = open(self.binfile, 'rb')
-            self.hexencoded = binfd.read().encode("hex").upper()
+            binfd = open(binfile, 'rb')
+            hexencoded = binfd.read().encode("hex").upper()
 
-        if (len(self.hexencoded) % 4 == 0) and (len(self.hexencoded) % 8 != 0):
+        if (len(hexencoded) % 4 == 0) and (len(hexencoded) % 8 != 0):
             # Image is halfword-aligned. Some tools generate these, but our system
             # assumes things are word-aligned. We pad an extra nop to the end to fix
-            logger.info("Padding halfword aligned image with NOP to make word-aligned.")
-            self.hexencoded += '46C0' # nop; (mov r8, r8)
+            hexencoded += '46C0' # nop; (mov r8, r8)
 
-        if (len(self.hexencoded) % 8) != 0:
+        if (len(hexencoded) % 8) != 0:
             logger.warn("Binfile is not word-aligned. This is not a valid image")
+            return None
+
+        return hexencoded
+
+    def read_binfile(self):
+        self.hexencoded = m3_common.read_binfile_static(self.args.BINFILE)
+        if self.hexencoded is None:
             sys.exit(3)
-        else:
-            logger.info("Binfile is %d bytes long\n" % (len(self.hexencoded) / 2))
 
     def power_on(self):
         logger.info("Turning all M3 power rails on")

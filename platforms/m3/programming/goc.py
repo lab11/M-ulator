@@ -3,12 +3,12 @@
 import sys, socket
 
 import time
-import logging
 
 from m3_common import m3_common, goc_programmer
 
-m3_common.configure_root_logger()
-logger = logging.getLogger(__name__)
+import m3_logging
+logger = m3_logging.get_logger(__name__)
+logger.debug('Got goc.py logger')
 
 class goc_programmer_for_i2c(goc_programmer):
     MSG_TYPE = 'd+'
@@ -26,6 +26,17 @@ class goc_programmer_for_i2c(goc_programmer):
 
 class goc_programmer_for_mbus(goc_programmer):
     MSG_TYPE = 'b+'
+
+    def add_parse_args(self):
+        super(goc_programmer_for_mbus, self).add_parse_args()
+        self.parser.add_argument('-g', '--goc-speed',
+                help="GOC Slow Speed in Hz. The fast speed will be 8x faster."\
+                        " Defaults to " + str(self.SLOW_FREQ_IN_HZ) + " Hz.",
+                        default=self.SLOW_FREQ_IN_HZ)
+
+    def parse_args(self):
+        super(goc_programmer_for_mbus, self).parse_args()
+        self.SLOW_FREQ_IN_HZ = float(self.args.goc_speed)
 
     def send(self, addr, data):
         return self.ice.mbus_send(addr, data)

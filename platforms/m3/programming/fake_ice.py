@@ -69,6 +69,7 @@ vset_vbatt = DEFAULT_VSET_VBATT
 power_0p6_on = False
 power_1p2_on = False
 power_vbatt_on = False
+power_goc_on = False
 
 mbus_full_prefix_ones = DEFAULT_MBUS_FULL_PREFIX_ONES
 mbus_full_prefix_zeros = DEFAULT_MBUS_FULL_PREFIX_ZEROS
@@ -199,13 +200,20 @@ while True:
         msg = s.read(length)
 
         if msg_type == 'V':
-            respond('00020001'.decode('hex'))
+            respond('000300020001'.decode('hex'))
         elif msg_type == 'v':
-            if msg == '0002'.decode('hex'):
+            if msg == '0003'.decode('hex'):
+                CLOCK_FREQ = 4e6
+                minor = 3
+                ack()
+                logger.info("Negotiated to protocol version 0.3")
+            elif msg == '0002'.decode('hex'):
+                CLOCK_FREQ = 4e6
                 minor = 2
                 ack()
                 logger.info("Negotiated to protocol version 0.2")
             elif msg == '0001'.decode('hex'):
+                CLOCK_FREQ = 2e6
                 minor = 1
                 ack()
                 logger.info("Negotiated to protocol version 0.1")
@@ -300,6 +308,13 @@ while True:
                 flow_msg = ''
             else:
                 logger.debug("Got f-type fragment in %s mode", ('EIN','GOC')[ein_goc_toggle])
+            if ein_goc_toggle:
+                t = (len(msg)*8) / flow_clock_in_hz
+                logger.info("Sleeping for {} seconds to mimic GOC".format(t))
+                try:
+                    sleep(t)
+                except KeyboardInterrupt:
+                    pass
             ack()
         elif msg_type == 'G':
             # GPIO changed completely between v0.1 and v0.2
@@ -519,8 +534,11 @@ while True:
         elif msg_type == 'O':
             if msg[0] == 'c':
                 logger.info("Responded to query for FLOW clock (%.2f Hz)", flow_clock_in_hz)
-                div = int(2e6 / flow_clock_in_hz)
-                resp = chr((div >> 16) & 0xff)
+                div = int(CLOCK_FREQ / flow_clock_in_hz)
+                resp = ''
+                if minor >= 3:
+                    resp += chr((div >> 24) & 0xff)
+                resp += chr((div >> 16) & 0xff)
                 resp += chr((div >> 8) & 0xff)
                 resp += chr(div & 0xff)
                 respond(resp)
@@ -535,8 +553,11 @@ while True:
                 logger.error("bad 'O' subtype: " + msg[0])
         elif msg_type == 'o':
             if msg[0] == 'c':
-                div = (ord(msg[1]) << 16) | (ord(msg[2]) << 8) | ord(msg[3])
-                flow_clock_in_hz = 2e6 / div
+                if minor >= 3:
+                    div = (ord(msg[1]) << 24) | (ord(msg[2]) << 16) | (ord(msg[3]) << 8) | ord(msg[4])
+                else:
+                    div = (ord(msg[1]) << 16) | (ord(msg[2]) << 8) | ord(msg[3])
+                flow_clock_in_hz = CLOCK_FREQ / div
                 logger.info("Set FLOW clock to %.2f Hz", flow_clock_in_hz)
                 ack()
             elif msg[0] == 'o':
@@ -580,14 +601,14 @@ while True:
                 elif pwr_idx is 2:
                     logger.info("Query vbatt rail (%s)", ('off','on')[power_vbatt_on])
                     respond(chr(power_vbatt_on))
+                elif pwr_idx is 3:
+                    logger.info("Query goc rail (%s)", ('off','on')[power_goc_on])
+                    respond(chr(power_goc_on))
             else:
                 logger.error("bad 'p' subtype: " + msg[0])
                 raise Exception
         elif msg_type == 'p':
             pwr_idx = ord(msg[1])
-            if pwr_idx not in (0,1,2):
-                logger.error("Illegal power index: %d", pwr_idx)
-                raise Exception
             if msg[0] == 'v':
                 if pwr_idx is ICE.POWER_0P6:
                     vset_0p6 = ord(msg[2])
@@ -601,6 +622,9 @@ while True:
                     vset_vbatt = ord(msg[2])
                     logger.info("Set VBatt rail to vset=%d, vout=%.2f", vset_vbatt,
                             (0.537 + 0.0185 * vset_vbatt) * DEFAULT_POWER_VBATT)
+                else:
+                    logger.error("Illegal power index: %d", pwr_idx)
+                    raise Exception
                 ack()
             elif msg[0] == 'o':
                 if pwr_idx is ICE.POWER_0P6:
@@ -612,6 +636,12 @@ while True:
                 elif pwr_idx is ICE.POWER_VBATT:
                     power_vbatt_on = bool(ord(msg[2]))
                     logger.info("Set VBatt rail %s", ('off','on')[power_vbatt_on])
+                elif minor >= 3 and pwr_idx is ICE.POWER_GOC:
+                    power_goc_on = bool(ord(msg[2]))
+                    logger.info("Set GOC circuit %s", ('off','on')[power_goc_on])
+                else:
+                    logger.error("Illegal power index: %d", pwr_idx)
+                    raise Exception
                 ack()
             else:
                 logger.error("bad 'p' subtype: " + msg[0])

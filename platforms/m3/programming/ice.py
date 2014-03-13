@@ -8,8 +8,10 @@ import socket
 import struct
 import time
 from copy import copy
-import logging
-logger = logging.getLogger(__name__)
+
+import m3_logging
+logger = m3_logging.get_logger(__name__)
+logger.debug('Got ice.py logger')
 
 try:
     import threading
@@ -36,7 +38,7 @@ except ImportError:
 ################################################################################
 
 class ICE(object):
-    VERSIONS = ((0,1),(0,2))
+    VERSIONS = ((0,1),(0,2),(0,3))
     ONEYEAR = 365 * 24 * 60 * 60
 
     class ICE_Error(Exception):
@@ -179,12 +181,14 @@ class ICE(object):
         The ICE object configuration (e.g. message handlers) cannot be safely
         changed after this method is invoked.
         '''
-        self.dev = serial.Serial(serial_device, baudrate)
+        self.dev = serial.Serial(serial_device, baudrate, timeout=.1)
         if self.dev.isOpen():
             logger.info("Connected to serial device at " + self.dev.portstr)
         else:
             raise self.ICE_Error, "Failed to connect to serial device"
 
+        self.communicator_stop_request = threading.Event()
+        self.communicator_stop_response = threading.Event()
         self.comm_thread = threading.Thread(target=self.communicator)
         self.comm_thread.daemon = True
         self.comm_thread.start()
@@ -194,6 +198,17 @@ class ICE(object):
         if self.minor == 2:
             # V2 ICE sets GOC on by default, which is annoying. Correct that.
             self.goc_set_onoff(False)
+
+    def is_connected(self):
+        return hasattr(self, 'dev')
+
+    def destroy(self):
+        if hasattr(self, 'dev'):
+            self.communicator_stop_request.set()
+            self.communicator_stop_response.wait()
+            self.dev.close()
+            logger.info("Connection to " + self.dev.portstr + " closed.")
+            del(self.dev)
 
     def spawn_handler(self, msg_type, event_id, length, msg):
         try:
@@ -215,8 +230,15 @@ class ICE(object):
             logger.warn(" Message:" + msg.encode('hex'))
 
     def communicator(self):
-        while True:
-            msg_type, event_id, length = self.dev.read(3)
+        while not self.communicator_stop_request.isSet():
+            try:
+                # Read has a timeout of .1 s. Polling is the easiest way to
+                # do x-platform cancellation
+                msg_type, event_id, length = self.dev.read(3)
+            except ValueError:
+                continue
+            except (serial.SerialException, OSError):
+                break
             msg_type = ord(msg_type)
             event_id = ord(event_id)
             length = ord(length)
@@ -253,6 +275,9 @@ class ICE(object):
                 msg_type = chr(msg_type)
                 logger.debug("Got an async message of type: " + msg_type)
                 self.spawn_handler(msg_type, event_id, length, msg)
+        self.communicator_stop_response.set()
+        if hasattr(self, 'on_disconnect'):
+            self.on_disconnect()
 
     def string_to_masks(self, mask_string):
         ones = 0
@@ -627,19 +652,49 @@ class ICE(object):
             self.goc_ein_toggle = 1
             logger.debug("Set goc/ein toggle to goc")
 
-    def goc_ein_get_freq_divisor(self):
+    @max_proto_version("0.2")
+    def goc_ein_get_freq_divisor_max_0_2(self):
         resp = self.send_message_until_acked('O', struct.pack("B", ord('c')))
         if len(resp) != 3:
             raise self.FormatError, "Wrong response length from `Oc': " + str(resp)
         setting = struct.unpack("!I", "\x00"+resp)[0]
         return setting
 
-    def goc_ein_set_freq_divisor(self, divisor):
+    @min_proto_version("0.3")
+    def goc_ein_get_freq_divisor_min_0_3(self):
+        resp = self.send_message_until_acked('O', struct.pack("B", ord('c')))
+        if len(resp) != 4:
+            raise self.FormatError, "Wrong response length from `Oc': " + str(resp)
+        setting = struct.unpack("!I", resp)[0]
+        logger.debug('got divisor value {}'.format(setting))
+        return setting
+
+    def goc_ein_get_freq_divisor(self):
+        if self.minor > 2:
+            return self.goc_ein_get_freq_divisor_min_0_3()
+        else:
+            return self.goc_ein_get_freq_divisor_max_0_2()
+
+    @max_proto_version("0.2")
+    def goc_ein_set_freq_divisor_max_0_2(self, divisor):
         packed = struct.pack("!I", divisor)
         if packed[0] != '\x00':
             raise self.ParameterError, "Out of range."
         msg = struct.pack("B", ord('c')) + packed[1:]
         self.send_message_until_acked('o', msg)
+
+    @min_proto_version("0.3")
+    def goc_ein_set_freq_divisor_min_0_3(self, divisor):
+        logger.debug('set divisor to {}'.format(divisor))
+        packed = struct.pack("!I", divisor)
+        msg = struct.pack("B", ord('c')) + packed
+        self.send_message_until_acked('o', msg)
+
+    def goc_ein_set_freq_divisor(self, divisor):
+        if self.minor > 2:
+            return self.goc_ein_set_freq_divisor_min_0_3(divisor)
+        else:
+            return self.goc_ein_set_freq_divisor_max_0_2(divisor)
 
     ## GOC ##
     GOC_SPEED_DEFAULT_HZ = .625
@@ -699,16 +754,27 @@ class ICE(object):
         '''
         self.set_goc_ein(goc=1)
 
+        if self.minor == 3:
+            logger.warn('ICE Firmware v0.3 reports wrong goc freq value.'\
+                    ' Returning cached value.')
+            try:
+                return self.goc_freq
+            except AttributeError:
+                logger.warn('No cached value. Querying ICE. Value is junk')
+
         setting = self.goc_ein_get_freq_divisor()
-        NOMINAL = int(2e6)
+        if self.minor == 1:
+            NOMINAL = 2e6
+        else:
+            NOMINAL = 4e6
         freq_in_hz = NOMINAL / setting
         return freq_in_hz
 
     def _goc_freq_in_hz_to_divisor(self, freq_in_hz):
         if self.minor == 1:
-            NOMINAL = int(2e6)
+            NOMINAL = 2e6
         else:
-            NOMINAL = int(4e6)
+            NOMINAL = 4e6
         return NOMINAL / freq_in_hz;
 
     @min_proto_version("0.1")
@@ -1484,6 +1550,7 @@ class ICE(object):
     POWER_0P6 = 0
     POWER_1P2 = 1
     POWER_VBATT = 2
+    POWER_GOC = 3
 
     POWER_0P6_DEFAULT = 0.675
     POWER_1P2_DEFAULT = 1.2
@@ -1503,10 +1570,17 @@ class ICE(object):
         if rail not in (ICE.POWER_0P6, ICE.POWER_1P2, ICE.POWER_VBATT):
             raise self.ParameterError, "Invalid rail: " + str(rail)
 
-        resp = self.send_message_until_acked('P', struct.pack("BB", ord('v'), rail))
-        if len(resp) != 2:
-            raise self.FormatError, "Wrong response length from `Pv#':" + str(resp)
-        rail, raw = struct.unpack("BB", resp)
+        logger.warn("ICE Firmware <= 0.3 cannot query voltage. Returning cached value.")
+        try:
+            raw = getattr(self, 'power_{}'.format(rail))
+        except AttributeError:
+            logger.warn("No cached value, returning default")
+            raw = (1 - 0.537) / 0.0185
+
+        #resp = self.send_message_until_acked('P', struct.pack("BB", ord('v'), rail))
+        #if len(resp) != 2:
+        #    raise self.FormatError, "Wrong response length from `Pv#':" + str(resp)
+        #rail, raw = struct.unpack("BB", resp)
 
         # Vout = (0.537 + 0.0185 * v_set) * Vdefault
         default_voltage = (ICE.POWER_0P6_DEFAULT, ICE.POWER_1P2_DEFAULT,
@@ -1522,7 +1596,7 @@ class ICE(object):
 
         Returns a boolean, on=True.
         '''
-        if rail not in (ICE.POWER_0P6, ICE.POWER_1P2, ICE.POWER_VBATT):
+        if rail not in (ICE.POWER_0P6, ICE.POWER_1P2, ICE.POWER_VBATT, ICE.POWER_GOC):
             raise self.ParameterError, "Invalid rail: " + str(rail)
 
         resp = self.send_message_until_acked('P', struct.pack("BB", ord('o'), rail))
@@ -1550,6 +1624,7 @@ class ICE(object):
             raise self.ParameterError, "Voltage exceeds range. vset: " + str(vset)
 
         self.send_message_until_acked('p', struct.pack("BBB", ord('v'), rail, vset))
+        setattr(self, 'power_{}'.format(rail), vset)
 
     @min_proto_version("0.1")
     @capability('p')
@@ -1557,7 +1632,7 @@ class ICE(object):
         '''
         Turn a power rail on or off (on=True).
         '''
-        if rail not in (ICE.POWER_0P6, ICE.POWER_1P2, ICE.POWER_VBATT):
+        if rail not in (ICE.POWER_0P6, ICE.POWER_1P2, ICE.POWER_VBATT, ICE.POWER_GOC):
             raise self.ParameterError, "Invalid rail: " + str(rail)
 
         self.send_message_until_acked('p', struct.pack("BBB", ord('o'), rail, onoff))

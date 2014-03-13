@@ -5,9 +5,10 @@ MEMORY
 
 SECTIONS
 {
+	/* .vectors : { KEEP(*(.vectors)) } > RRAM */
 	.text :
 	{
-		*(.vectors)
+		KEEP(*(.vectors))
 		*(.text)
 	} > RRAM
 	
