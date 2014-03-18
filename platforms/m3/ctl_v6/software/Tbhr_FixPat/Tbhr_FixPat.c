@@ -12,8 +12,8 @@
 #define MBUS_DELAY 50 //Amount of delay between successive messages
 
 #define RAD_BIT_DELAY 0x54     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
-#define RAD_PACKET_DELAY 600  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
-#define RAD_SAMPLE_DELAY 4     //2       //Wake up timer tuning: # of wake up timer cycles to sleep
+#define RAD_PACKET_DELAY 1000 //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
+#define RAD_SAMPLE_DELAY 3     //2       //Wake up timer tuning: # of wake up timer cycles to sleep
 //#define RAD_SAMPLE_DELAY 40000 //10000   //Radio tuning: Delay between samples sent (NUM_SAMPLES sent)
 
 //************************************
@@ -206,7 +206,7 @@ int main() {
     //Grab Data after IRQ
     //temp_data = *((volatile uint32_t *) IMSG0);
     // Send 1111(preamble)_1101_100x_xxxx (ECC 5-bit)
-    temp_data = 0x0000006C;
+    temp_data = 0x00000036;
     //Disable
 //    _sns_r3 = (0x3<<17)|(0x1<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
 //    delay(MBUS_DELAY);

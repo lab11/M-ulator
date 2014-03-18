@@ -163,7 +163,7 @@ int main() {
     delay(MBUS_DELAY);
 
     //Current Limiter  
-    uint32_t _rad_r26 = 0x2F;
+    uint32_t _rad_r26 = 0x1F;
     write_mbus_register(RAD_ADDR,0x26,_rad_r26);  
     delay(MBUS_DELAY);
     //Tune Power

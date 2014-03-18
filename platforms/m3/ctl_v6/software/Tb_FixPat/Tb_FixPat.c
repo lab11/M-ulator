@@ -11,8 +11,8 @@
 #define MBUS_DELAY 50 //Amount of delay between successive messages
 
 #define RAD_BIT_DELAY 0x54     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
-#define RAD_PACKET_DELAY 600  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
-#define RAD_SAMPLE_DELAY 20     //2       //Wake up timer tuning: # of wake up timer cycles to sleep
+#define RAD_PACKET_DELAY 800  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
+#define RAD_SAMPLE_DELAY 3     //2       //Wake up timer tuning: # of wake up timer cycles to sleep
 //#define RAD_SAMPLE_DELAY 40000 //10000   //Radio tuning: Delay between samples sent (NUM_SAMPLES sent)
 
 //************************************
