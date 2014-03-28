@@ -163,7 +163,7 @@ int main() {
     delay(MBUS_DELAY);
 
     //Current Limiter  
-    uint32_t _rad_r26 = 0x2F;
+    uint32_t _rad_r26 = 0x1F; // 2F is 30uA, 1F is 3uA
     write_mbus_register(RAD_ADDR,0x26,_rad_r26);  
     delay(MBUS_DELAY);
     //Tune Power
@@ -226,7 +226,7 @@ int main() {
 
     if( exec_count ){
     	//Set up wake up register
-    	*((volatile uint32_t *) 0xA2000010) = 0x00008000 + 3;
+    	*((volatile uint32_t *) 0xA2000010) = 0x00008000 + 21;
     	*((volatile uint32_t *) 0x00000730) = exec_count - 1;
     }
     else {
