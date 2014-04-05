@@ -161,12 +161,12 @@ int main() {
     //           0x14 = 947 MHz
 
     //Tune Freq 1
-    uint32_t _rad_r21 = 0x3;
+    uint32_t _rad_r21 = 0x0;
     write_mbus_register(RAD_ADDR,0x21,_rad_r21);
     delay(MBUS_DELAY);
 
     //Tune Freq 2
-    uint32_t _rad_r22 = 0xE;
+    uint32_t _rad_r22 = 0x0;
     write_mbus_register(RAD_ADDR,0x22,_rad_r22);
     delay(MBUS_DELAY);
 
