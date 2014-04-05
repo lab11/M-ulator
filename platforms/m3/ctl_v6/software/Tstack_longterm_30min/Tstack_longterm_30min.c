@@ -226,7 +226,7 @@ int main() {
 
     if( exec_count ){
     	//Set up wake up register
-    	*((volatile uint32_t *) 0xA2000010) = 0x00008000 + 21;
+    	*((volatile uint32_t *) 0xA2000010) = 0x00008000 + 3;
     	*((volatile uint32_t *) 0x00000730) = exec_count - 1;
     }
     else {
