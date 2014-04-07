@@ -235,7 +235,7 @@ int main() {
     // Change PMU_CTRL Register
     // 0x0F770029 = Original
     // Increase sleep oscillator frequency to provide enough power for temp sensor
-    *((volatile uint32_t *) 0xA200000C) = 0xF770059;
+    *((volatile uint32_t *) 0xA200000C) = 0xF770069;
 
     //Enable T Sensor
     _sns_r3 = (0x3<<17)|(0x0<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
