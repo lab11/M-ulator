@@ -133,11 +133,13 @@ int main() {
 
   uint32_t temp_data;
   uint32_t radio_data;
-  uint32_t exec_marker;
-  uint32_t exec_temp_marker;
-  uint32_t exec_count;
+  static uint32_t exec_marker;
+  static uint32_t exec_temp_marker;
+  static uint32_t exec_count;
   uint32_t _sns_r3; 
-  
+
+  // static uint32_t temp_stored_data [255:0];
+
   //Clear All Pending Interrupts
   *((volatile uint32_t *) 0xE000E280) = 0xF;
   //Enable Interrupts
@@ -145,12 +147,11 @@ int main() {
 
 
   //Check if it is the first execution
-  exec_marker = *((volatile uint32_t*) 0x00000720);
   if ( exec_marker != 0x12345678 ) {
 
     //Mark execution
-    *((volatile uint32_t *) 0x00000720) = 0x12345678;
-    *((volatile uint32_t *) 0x00000730) = 0x00000010;
+    exec_marker = 0x12345678;
+    exec_count = 16;
 
     //Enumeration
     enumerate(RAD_ADDR);
@@ -216,16 +217,13 @@ int main() {
   //Enable Interrupts
   *((volatile uint32_t *) 0xE000E100) = 0xF;
 
-  exec_temp_marker = *((volatile uint32_t*) 0x00000750);
-
-
   // Check if wakeup is due to temperature sensor interrupt
   // If so, then skip this section
 
   if ( exec_temp_marker != 0x87654321 ) {
 
     // Set exec_temp_marker
-    *((volatile uint32_t *) 0x00000750) = 0x87654321;
+    exec_temp_marker = 0x87654321;
 
     // Debug pointer
     //delay(MBUS_DELAY);
@@ -235,7 +233,7 @@ int main() {
     // Change PMU_CTRL Register
     // 0x0F770029 = Original
     // Increase sleep oscillator frequency to provide enough power for temp sensor
-    *((volatile uint32_t *) 0xA200000C) = 0xF770069;
+    *((volatile uint32_t *) 0xA200000C) = 0xF77006B;
 
     //Enable T Sensor
     _sns_r3 = (0x3<<17)|(0x0<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
@@ -267,7 +265,7 @@ int main() {
   write_mbus_register(SNS_ADDR,3,_sns_r3);
 
   // Reset exec_temp_marker
-  *((volatile uint32_t *) 0x00000750) = 0;
+  exec_temp_marker = 0;
 
   //Fire off data to radio
   radio_data = gen_radio_data(temp_data>>5);
@@ -278,8 +276,6 @@ int main() {
   //write_mbus_register(RAD_ADDR,0x27,0x1);
   //Dont need to delay. Radio TX is slow.
   //delay(10000);
-
-  exec_count = *((volatile uint32_t *) 0x00000730);
 
   // Check if this cycle belongs to initial 16 cycles
   if( exec_count ){
