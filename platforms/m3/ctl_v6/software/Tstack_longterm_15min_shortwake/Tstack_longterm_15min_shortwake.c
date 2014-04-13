@@ -21,7 +21,7 @@
 #define RAD_BIT_DELAY 40     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 600  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
 #define RAD_SAMPLE_DELAY 320     //2//213:10min       //Wake up timer tuning: # of wake up timer cycles to sleep
-#define RAD_SAMPLE_DELAY_INITIAL 10 // Wake up timer duration for initial periods
+#define RAD_SAMPLE_DELAY_INITIAL 20 // Wake up timer duration for initial periods
 //#define RAD_SAMPLE_DELAY 40000 //10000   //Radio tuning: Delay between samples sent (NUM_SAMPLES sent)
 
 //************************************
