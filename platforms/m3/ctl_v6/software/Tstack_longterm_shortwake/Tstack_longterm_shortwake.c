@@ -281,7 +281,7 @@ int main() {
   if( exec_count ){
   	// Set up wake up timer register
   	*((volatile uint32_t *) 0xA2000010) = 0x00008000 + RAD_SAMPLE_DELAY_INITIAL;
-  	*((volatile uint32_t *) 0x00000730) = exec_count - 1;
+  	exec_count = exec_count - 1;
   }
   else {
 	*((volatile uint32_t *) 0xA2000010) = 0x00008000 + RAD_SAMPLE_DELAY;
