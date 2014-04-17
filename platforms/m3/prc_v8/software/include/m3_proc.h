@@ -13,13 +13,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// All functions return 0 on sucess, non-zero on failure.
-int write_mbus_message(uint32_t addr, uint32_t data);
-int enumerate(uint32_t addr);
-int sleep();
-int write_mbus_register(uint32_t enum_addr, uint8_t reg, uint32_t data);
-int read_mbus_register(uint32_t enum_addr, uint8_t reg, uint8_t return_addr);
-
 // Possible reg values:
 // Read-Only
 //   4'b0000~4'b0011: (Non-INT) MSG REG 0~3
@@ -40,3 +33,4 @@ void sleep_req_by_sw( void );
 
 
 #endif // M3_H
+
