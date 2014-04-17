@@ -23,8 +23,8 @@ typedef union snsv2_r0{
   };
   uint32_t as_int;
 } snsv2_r0_t;
-#define SNSv2_R0_DEFAULT {0x0, 0x7, 0x0, 0x1, 0x0, 0x1, 0x1, 0x4, 0x0, 0x0, 0x6, 0x6, 0x1, 0x0}
-_Static_assert(sizeof(snsv2_r0_t) == 14, "Pinned Structure Size");
+#define SNSv2_R0_DEFAULT {{0x0, 0x7, 0x0, 0x1, 0x0, 0x1, 0x1, 0x4, 0x0, 0x0, 0x6, 0x6, 0x1, 0x0}}
+_Static_assert(sizeof(snsv2_r0_t) == 4, "Punned Structure Size");
 
 //Register 1
 typedef union snsv2_r1{
@@ -35,7 +35,8 @@ typedef union snsv2_r1{
   }; 
   uint32_t as_int;
 } snsv2_r1_t;
-#define SNSv2_R1_DEFAULT {0x20, 0xF, 0x0}
+#define SNSv2_R1_DEFAULT {{0x20, 0xF, 0x0}}
+_Static_assert(sizeof(snsv2_r1_t) == 4, "Punned Structure Size");
 
 //Register 2
 //Read Only
@@ -53,6 +54,7 @@ typedef union snsv2_r3{
   uint32_t as_int;
 } snsv2_r3_t;
 #define SNSv2_R3_DEFAULT {0x0, 0xF, 0x0, 0xF, 0x1, 0x2}
+_Static_assert(sizeof(snsv2_r3_t) == 4, "Punned Structure Size");
 
 //Register 4
 typedef union snsv2_r4{
@@ -65,6 +67,7 @@ typedef union snsv2_r4{
   uint32_t as_int;
 } snsv2_r4_t;
 #define SNSv2_R4_DEFAULT {0x3, 0x2, 0x7F, 0x8F}
+_Static_assert(sizeof(snsv2_r4_t) == 4, "Punned Structure Size");
 
 //Register 5
 //Read Only
@@ -79,6 +82,7 @@ typedef union snsv2_r6{
   uint32_t as_int;
 } snsv2_r6_t;
 #define SNSv2_R6_DEFAULT {0x14, 0x15, 0x9}
+_Static_assert(sizeof(snsv2_r6_t) == 4, "Punned Structure Size");
 
 //Register 7
 typedef union snsv2_r7{
@@ -88,4 +92,5 @@ typedef union snsv2_r7{
   };
   uint32_t as_int;
 } snsv2_r7_t;
-#define SNSv2_R7_DEFAULT {0x1, 0x3}
+#define SNSv2_R7_DEFAULT {{0x1, 0x3}}
+_Static_assert(sizeof(snsv2_r7_t) == 4, "Punned Structure Size");
