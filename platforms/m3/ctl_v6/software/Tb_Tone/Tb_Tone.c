@@ -169,7 +169,7 @@ int main() {
     delay(MBUS_DELAY);
 
     //Tune Freq 2
-    uint32_t _rad_r22 = 0x5;
+    uint32_t _rad_r22 = 0x7;
     write_mbus_register(RAD_ADDR,0x22,_rad_r22);
     delay(MBUS_DELAY);
 
