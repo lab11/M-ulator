@@ -2,8 +2,8 @@
 //Author: ZhiYoong Foo
 //Description: SNSv2 Functionality Tests
 //*******************************************************************
-#include "m3_proc.h"
-#include "m3_proc.h"
+#include "mbus.h"
+#include "PRCv8.h"
 
 #define SNS_ADDR 0x4
 
@@ -25,13 +25,6 @@ void handler_ext_int_2(void){
 }
 void handler_ext_int_3(void){
   *((volatile uint32_t *) 0xE000E280) = 0x8;
-}
-
-//Internal Functions
-static void delay(unsigned ticks) {
-  unsigned i;
-  for (i=0; i < ticks; i++)
-    asm("nop;");
 }
 
 int main() {

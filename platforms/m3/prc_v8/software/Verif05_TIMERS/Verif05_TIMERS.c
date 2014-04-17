@@ -3,7 +3,8 @@
 //Description:	Post-tapeout Verification for PRCv8 (NOV 2013)
 //		#05 - TIMERS
 //*******************************************************************
-#include "m3_proc.h"
+#include "mbus.h"
+#include "PRCv8.h"
 
 #define RAD_ADDR 0x9
 #define SNS_ADDR 0xA
@@ -61,14 +62,6 @@ void handler_ext_int_9(void){
   *((volatile uint32_t *) 0xE000E280) = 0x200;
   config_timer( 3, 1, 0, 0, TIMER3_PERIOD );
   write_mbus_message( 0x03, 0x3333 );
-}
-
-
-//Internal Functions ************************************************
-void delay(unsigned ticks) {
-	unsigned i;
-	for (i=0; i < ticks; i++)
-	asm("nop;");
 }
 
 

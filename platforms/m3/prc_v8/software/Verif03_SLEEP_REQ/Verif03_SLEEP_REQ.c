@@ -3,7 +3,8 @@
 //Description:	Post-tapeout Verification for PRCv8 (NOV 2013)
 //		#03 - SLEEP REQ by SW
 //*******************************************************************
-#include "m3_proc.h"
+#include "mbus.h"
+#include "PRCv8.h"
 
 #define RAD_ADDR 0x9
 #define SNS_ADDR 0xA
@@ -56,13 +57,6 @@ void handler_ext_int_9(void){
     write_mbus_register(SNS_ADDR,3,0xA);
 }
 
-
-//Internal Functions ************************************************
-static void delay(unsigned ticks) {
-	unsigned i;
-	for (i=0; i < ticks; i++)
-	asm("nop;");
-}
 
 //*******************************************************************
 //Main **************************************************************

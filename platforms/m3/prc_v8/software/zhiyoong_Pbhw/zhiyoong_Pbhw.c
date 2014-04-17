@@ -5,7 +5,7 @@
 //			Pbhw Stack Assembly Plan (PRS-BAT-PRC-DCP-SNS-HRV-RAD-SOL).pdf
 //*******************************************************************
 #include "mbus.h"
-#include "m3_proc.h"
+#include "PRCv8.h"
 #include "SNSv2.h"
 #include "HRVv1.h"
 #include "RADv5.h"
@@ -32,13 +32,6 @@ void handler_ext_int_2(void){
 }
 void handler_ext_int_3(void){
   *((volatile uint32_t *) 0xE000E280) = 0x8;
-}
-
-//Internal Functions
-static void delay(unsigned ticks) {
-  unsigned i;
-  for (i=0; i < ticks; i++)
-    asm("nop;");
 }
 
 int main() {
@@ -68,11 +61,11 @@ int main() {
     enumerated = 0xDEADBEEF;
     //Enumeration
     enumerate(RAD_ADDR);
-    asm ("wfi;");
+    WFI();
     enumerate(SNS_ADDR);
-    asm ("wfi;");
+    WFI();
     enumerate(HRV_ADDR);
-    asm ("wfi;");
+    WFI();
     delay(10000);
   }
 

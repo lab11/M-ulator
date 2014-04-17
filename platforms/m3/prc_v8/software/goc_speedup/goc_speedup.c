@@ -2,17 +2,7 @@
 //Author: Gyouho Kim
 //Description: Program for speeding up GOC frequency up to 880bps	
 //*******************************************************************
-//#include "m3_proc.h"
-#include <stdint.h>
-#include <stdbool.h>
-
-//Internal Functions ************************************************
-void delay(unsigned ticks) {
-	unsigned i;
-	for (i=0; i < ticks; i++)
-	asm("nop;");
-}
-
+#include "PRCv8.h"
 
 //*******************************************************************
 //Main **************************************************************
