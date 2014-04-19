@@ -17,9 +17,9 @@
 
 #define RAD_BIT_DELAY 40     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 600  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
-#define RAD_SAMPLE_DELAY 320     //2//213:10min       //Wake up timer tuning: # of wake up timer cycles to sleep
-#define RAD_SAMPLE_DELAY_INITIAL 20 // Wake up timer duration for initial periods
-//#define RAD_SAMPLE_DELAY 40000 //10000   //Radio tuning: Delay between samples sent (NUM_SAMPLES sent)
+#define TEMP_WAKEUP_CYCLE 20     //2//213:10min       //Wake up timer tuning: # of wake up timer cycles to sleep
+#define TEMP_WAKEUP_CYCLE_INITIAL 2 // Wake up timer duration for initial periods
+#define NUM_INITIAL_CYCLE 2 // Number of initial cycles
 
 //***************************************************
 // Global variables
@@ -28,15 +28,15 @@
   static uint32_t exec_temp_marker;
   static uint32_t exec_count;
   
-  // static uint32_t temp_stored_data [255:0];
+  static uint32_t temp_stored_data[255] = {0};
   uint32_t _sns_r3; 
   uint32_t temp_data;
   uint32_t radio_data;
 
-//************************************
+//***************************************************
 //Interrupt Handlers
 //Must clear pending bit!
-//************************************
+//***************************************************
 void handler_ext_int_0(void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_1(void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_2(void) __attribute__ ((interrupt ("IRQ")));
@@ -54,7 +54,10 @@ void handler_ext_int_3(void){
   *((volatile uint32_t *) 0xE000E280) = 0x8;
 }
 
+
+//***************************************************
 // Internal Functions
+//***************************************************
 static void delay(unsigned ticks) {
   unsigned i;
   for (i=0; i < ticks; i++)
@@ -112,7 +115,7 @@ static void setup_radio(void) {
 
 
 //***************************************************
-// Configuration setup for temperature sensor (SNSv2)
+// Configuration for temperature sensor (SNSv2)
 //***************************************************
 static void setup_tempsensor(void) {
 
@@ -193,7 +196,7 @@ static uint32_t gen_radio_data(uint32_t data_in) {
 static void send_radio_data(uint32_t radio_data){
   int32_t i; //loop var
   uint32_t j; //loop var
-  for(j=0;j<1;j++){ //Packet Loop
+  for(j=0;j<3;j++){ //Packet Loop
     for(i=15;i>=0;i--){ //Bit Loop
       delay (10);
       if ((radio_data>>i)&1) write_mbus_register(RAD_ADDR,0x27,0x1);
@@ -212,6 +215,22 @@ static void send_radio_data(uint32_t radio_data){
 }
 
 //***************************************************
+// End of Program Sleep Operation
+//***************************************************
+static void operation_sleep(void){
+
+  // Reset wakeup counter
+  // This is required to go back to sleep!!
+  *((volatile uint32_t *) 0xA2000014) = 0x1;
+
+  // Go to Sleep
+  delay(MBUS_DELAY);
+  sleep();
+  while(1);
+
+}
+
+//***************************************************
 // Temperature measurement operation (SNSv2)
 //***************************************************
 static void operation_temp(void){
@@ -221,6 +240,9 @@ static void operation_temp(void){
 
   if ( exec_temp_marker != 0x87654321 ) {
 
+    // This wakeup is just to enable temp sensor
+    exec_count = exec_count - 1;
+
     // Set exec_temp_marker
     exec_temp_marker = 0x87654321;
 
@@ -229,12 +251,7 @@ static void operation_temp(void){
     delay(MBUS_DELAY);
     write_mbus_register(SNS_ADDR,3,_sns_r3);
     
-    // Reset wakeup counter
-    // This is required to go back to sleep!!
-    *((volatile uint32_t *) 0xA2000014) = 0x1;
-
-    sleep();
-    while(1);
+    operation_sleep();
   }
 
   delay(MBUS_DELAY);
@@ -259,24 +276,38 @@ static void operation_temp(void){
 
 
   // Check if this cycle belongs to initial cycles
-  if( exec_count ){
+  if (exec_count < NUM_INITIAL_CYCLE){
   	// Set up wake up timer register
-  	*((volatile uint32_t *) 0xA2000010) = 0x00008000 + RAD_SAMPLE_DELAY_INITIAL;
-  	exec_count = exec_count - 1;
+  	*((volatile uint32_t *) 0xA2000010) = 0x00008000 + TEMP_WAKEUP_CYCLE_INITIAL;
   }
   else {
-	*((volatile uint32_t *) 0xA2000010) = 0x00008000 + RAD_SAMPLE_DELAY;
+	*((volatile uint32_t *) 0xA2000010) = 0x00008000 + TEMP_WAKEUP_CYCLE;
   }
 
-  // Reset wakeup counter
-  *((volatile uint32_t *) 0xA2000014) = 0x1;
+  operation_sleep();
 
-  // Go to Sleep
-  delay(MBUS_DELAY);
-  sleep();
-  while(1);
+}
+
+//***************************************************
+// Temperature measurement operation (SNSv2)
+//***************************************************
+static void operation_radio(void){
+
+  // Transmit temp data
+  // Reset temp pointer
 
 
+
+  // Check if this cycle belongs to initial cycles
+  if (exec_count < NUM_INITIAL_CYCLE){
+  	// Set up wake up timer register
+  	*((volatile uint32_t *) 0xA2000010) = 0x00008000 + TEMP_WAKEUP_CYCLE_INITIAL;
+  }
+  else {
+	*((volatile uint32_t *) 0xA2000010) = 0x00008000 + 5;
+  }
+
+  operation_sleep();
 }
 
 
@@ -284,8 +315,6 @@ static void operation_temp(void){
 // Main
 //***************************************************
 int main() {
-
-
 
   //Clear All Pending Interrupts
   *((volatile uint32_t *) 0xE000E280) = 0xF;
@@ -305,9 +334,13 @@ int main() {
     // Decrease 5x division switching threshold
     *((volatile uint32_t *) 0xA200000C) = 0xF77004B;
 
+    // Speed up GOC frontend to match PMU frequency
+    *((volatile uint32_t *) 0xA2000008) = 0x0020290C;
+
+
     //Mark execution
     exec_marker = 0x12345678;
-    exec_count = 16;
+    exec_count = 0;
 
     //Enumeration
     enumerate(RAD_ADDR);
@@ -321,6 +354,11 @@ int main() {
 
     // Setup T Sensor
     setup_tempsensor();
+
+  }else{
+
+    exec_count = exec_count + 1;
+
   }
 
   // Non-initial wakeup routine 
@@ -328,10 +366,13 @@ int main() {
   // Check if wakeup is due to MBUS interrupt message
   uint32_t wakeup_data = *((volatile uint32_t *) IMSG0);
   
+  // IMSG0 is now reserved for GOC-triggered wakeup
+  // The corresponding MBUS address is 0x14
   // 8 MSB bits of the wakeup data are used for function ID
   switch(wakeup_data>>24){
     case 0x01:
       // Transmit data via radio and go to sleep
+      operation_radio();
 
     case 0x02:
       // Do something and go to sleep
@@ -349,12 +390,13 @@ int main() {
   
   // Note: Program should send system to sleep in the switch statement
   // Program should not reach this point
-
+/*
   // Reset wakeup counter
   // This is required to go back to sleep!!
   *((volatile uint32_t *) 0xA2000014) = 0x1;
 
   sleep();
+*/
   while(1);
 
 }
