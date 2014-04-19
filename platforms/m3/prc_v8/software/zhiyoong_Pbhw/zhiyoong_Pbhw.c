@@ -43,8 +43,8 @@ int main() {
   //SNSv2 Register Declerations
   //Set to defaults
   snsv2_r0_t snsv2_r0 = SNSv2_R0_DEFAULT;
-  snsv2_r1_t snsv2_r1 = SNSv2_R1_DEFAULT;;
-  snsv2_r7_t snsv2_r7 = SNSv2_R7_DEFAULT;;
+  snsv2_r1_t snsv2_r1 = SNSv2_R1_DEFAULT;
+  snsv2_r7_t snsv2_r7 = SNSv2_R7_DEFAULT;
   
   //Clear All Pending Interrupts
   *((volatile uint32_t *) 0xE000E280) = 0xF;
@@ -85,7 +85,6 @@ int main() {
   delay(10000);
   
   //SNSv2 R1;
-  //(0x0<<18)|(0xF<<9)|(0x20<<0);
   snsv2_r1.CDC_S_period = 0x1A;
   snsv2_r1.CDC_R_period = 0xC;
   write_mbus_register(SNS_ADDR,1,snsv2_r1.as_int);
@@ -95,14 +94,14 @@ int main() {
   //Disable ext_reset
   snsv2_r0.CDC_EXT_RESET = 0x0;
   write_mbus_register(SNS_ADDR,0,snsv2_r0.as_int);
-  asm( "wfi;" );
+  WFI();
   
   //Disable & Enable CDC_CLK
   uint32_t i = 0;
   for (i=0; i<NUM_SAMPLES; i++){
     snsv2_r0.CDC_CLK = 0x1;
     write_mbus_register(SNS_ADDR,0,snsv2_r0.as_int);
-    asm( "wfi;" );
+    WFI();
     snsv2_r0.CDC_CLK = 0x0;
     write_mbus_register(SNS_ADDR,0,snsv2_r0.as_int);
     cdc_data[i] = *((volatile uint32_t *) 0xA0001014);
@@ -111,7 +110,7 @@ int main() {
   delay(1000);
   for (i=0; i<NUM_SAMPLES; i++){
     delay(1000);
-    write_mbus_register(0x5,0,cdc_data[i]);
+    write_mbus_register(0x7,0,cdc_data[i]);
   }
 
   sleep();

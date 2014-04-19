@@ -30,6 +30,9 @@
 .word   handler_ext_int_7   /* 23 External Interrupt(7) */
 .word   handler_ext_int_8   /* 24 External Interrupt(8) */
 .word   handler_ext_int_9   /* 25 External Interrupt(9) */
+.word   handler_ext_int_10   /* 26 External Interrupt(10) - Not real: used for ondemend GOC request buffer*/
+.word   handler_ext_int_11   /* 27 External Interrupt(11) - Not real: used for ondemend GOC request buffer*/
+
 
 .align 2
 .thumb_func
@@ -54,6 +57,8 @@ hang:   b .
 .weak handler_ext_int_7, hang
 .weak handler_ext_int_8, hang
 .weak handler_ext_int_9, hang
+.weak handler_ext_int_10, hang
+.weak handler_ext_int_11, hang
 
 .text
 .func _start

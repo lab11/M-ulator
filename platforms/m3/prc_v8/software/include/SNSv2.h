@@ -87,10 +87,10 @@ _Static_assert(sizeof(snsv2_r6_t) == 4, "Punned Structure Size");
 //Register 7
 typedef union snsv2_r7{
   struct{
-    unsigned REFGENREV_CDC_OFF	: 1;
     unsigned REFGENREV_SEL	: 3;
+    unsigned REFGENREV_CDC_OFF	: 1;
   };
   uint32_t as_int;
 } snsv2_r7_t;
-#define SNSv2_R7_DEFAULT {{0x1, 0x3}}
+#define SNSv2_R7_DEFAULT {{0x3, 0x1}}
 _Static_assert(sizeof(snsv2_r7_t) == 4, "Punned Structure Size");
