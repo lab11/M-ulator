@@ -3,20 +3,12 @@
 //Description:	Post-tapeout Verification for PRCv8 (NOV 2013)
 //		#05 - TIMERS
 //*******************************************************************
-#include "m3_proc.h"
+#include "PRCv8.h"
 
 #define RAD_ADDR 0x9
 #define SNS_ADDR 0xA
 
 #define DELAY_1 2000 //20000 // 1s
-
-
-//Internal Functions ************************************************
-void delay(unsigned ticks) {
-	unsigned i;
-	for (i=0; i < ticks; i++)
-	asm("nop;");
-}
 
 
 //*******************************************************************

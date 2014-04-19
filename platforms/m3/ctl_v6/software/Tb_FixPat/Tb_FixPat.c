@@ -166,11 +166,11 @@ int main() {
     //		Tb024: 0x2F=913 0x2D=915
     //		MRI01: 0x37=915
     //Tune Freq 1
-    uint32_t _rad_r21 = 0x2;
+    uint32_t _rad_r21 = 0x3;
     write_mbus_register(RAD_ADDR,0x21,_rad_r21);
     delay(MBUS_DELAY);
     //Tune Freq 2
-    uint32_t _rad_r22 = 0xE;
+    uint32_t _rad_r22 = 0x5;
     write_mbus_register(RAD_ADDR,0x22,_rad_r22);
     delay(MBUS_DELAY);
     //Tune TX Time

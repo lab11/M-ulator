@@ -3,7 +3,8 @@
 //Description:	Test code for WatchDog Timer (Nov 2013 Tape out)
 //		Configure WD timer and let it fail
 //*******************************************************************
-#include "m3_proc.h"
+#include "mbus.h"
+#include "PRCv8.h"
 
 #define RAD_ADDR 0x9
 #define SNS_ADDR 0xA
@@ -50,13 +51,6 @@ void handler_ext_int_9(void){
   *((volatile uint32_t *) 0xE000E280) = 0x200;
 }
 
-
-//Internal Functions
-static void delay(unsigned ticks) {
-	unsigned i;
-	for (i=0; i < ticks; i++)
-	asm("nop;");
-}
 
 int main() {
 	//config_timer( timer_id, go, roi, init_val, sat_val )
