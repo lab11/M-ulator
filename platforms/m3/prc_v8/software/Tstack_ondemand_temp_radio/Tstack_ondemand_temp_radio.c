@@ -30,7 +30,7 @@
   static uint32_t exec_temp_marker;
   static uint32_t exec_count;
   
-  static uint32_t temp_stored_data[255] = {0};
+  //static uint32_t temp_stored_data[255] = {0};
   uint32_t _sns_r3; 
   uint32_t temp_data;
   uint32_t radio_data;
@@ -261,7 +261,7 @@ static void operation_sleep(void){
   *((volatile uint32_t *) 0xA2000014) = 0x1;
 
   // Reset IRQ10VEC
-  *((volatile uint32_t *) IRQ10VEC/*IMSG0*/) = 0;
+  *((volatile uint32_t *) IRQ10VEC) = 0;
 
   // Go to Sleep
   delay(MBUS_DELAY);
@@ -361,7 +361,6 @@ int main() {
   //Enable Interrupts
   *((volatile uint32_t *) 0xE000E100) = 0xF;
 
-
   //Check if it is the first execution
   if ( exec_marker != 0x12345678 ) {
 
@@ -401,44 +400,40 @@ int main() {
 
   }
 
-  // Non-initial wakeup routine 
+  // Repeating wakeup routine 
 
   // Check if wakeup is due to GOC interrupt
-  uint32_t wakeup_data = *((volatile uint32_t *) IRQ10VEC);
-  
-  // 0x68 is now reserved for GOC-triggered wakeup (Named IRQ10VEC)
+  // 0x68 is reserved for GOC-triggered wakeup (Named IRQ10VEC)
   // 8 MSB bits of the wakeup data are used for function ID
-  switch(wakeup_data>>24){
-    case 0x01:
+
+  uint32_t wakeup_data = *((volatile uint32_t *) IRQ10VEC);
+  uint32_t wakeup_data_header = wakeup_data>>24;
+
+  if(wakeup_data_header == 1){
       // Transmit data via radio and go to sleep
       operation_radio();
 
-    case 0x02:
+
+  }else if(wakeup_data_header == 2){
       // Do something and go to sleep
       operation_sleep();
 
-    case 0x03:
+  }else if(wakeup_data_header == 3){
       // Do something and go to sleep
       operation_sleep();
 
-    case 0x04:
+  }else if(wakeup_data_header == 4){
       // Do something and go to sleep
       operation_sleep();
 
-    default:
+  }else{
       // Default case 
       operation_temp();
   }
-  
+
   // Note: Program should send system to sleep in the switch statement
   // Program should not reach this point
-/*
-  // Reset wakeup counter
-  // This is required to go back to sleep!!
-  *((volatile uint32_t *) 0xA2000014) = 0x1;
 
-  sleep();
-*/
   while(1);
 
 }
