@@ -260,7 +260,7 @@ static void operation_sleep(void){
   // This is required to go back to sleep!!
   *((volatile uint32_t *) 0xA2000014) = 0x1;
 
-  // Check if wakeup is due to MBUS interrupt message
+  // Reset IRQ10VEC
   *((volatile uint32_t *) IRQ10VEC/*IMSG0*/) = 0;
 
   // Go to Sleep
@@ -403,11 +403,10 @@ int main() {
 
   // Non-initial wakeup routine 
 
-  // Check if wakeup is due to MBUS interrupt message
-  uint32_t wakeup_data = *((volatile uint32_t *) IRQ10VEC/*IMSG0*/);
+  // Check if wakeup is due to GOC interrupt
+  uint32_t wakeup_data = *((volatile uint32_t *) IRQ10VEC);
   
-  // IMSG0 is now reserved for GOC-triggered wakeup
-  // The corresponding MBUS address is 0x14
+  // 0x68 is now reserved for GOC-triggered wakeup (Named IRQ10VEC)
   // 8 MSB bits of the wakeup data are used for function ID
   switch(wakeup_data>>24){
     case 0x01:
@@ -416,15 +415,18 @@ int main() {
 
     case 0x02:
       // Do something and go to sleep
+      operation_sleep();
 
     case 0x03:
       // Do something and go to sleep
+      operation_sleep();
 
     case 0x04:
       // Do something and go to sleep
+      operation_sleep();
 
     default:
-      // Default case: 
+      // Default case 
       operation_temp();
   }
   
