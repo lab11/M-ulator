@@ -19,9 +19,10 @@
 
 #define RAD_BIT_DELAY 40     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 600  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
-#define TEMP_WAKEUP_CYCLE 20     //2//213:10min       //Wake up timer tuning: # of wake up timer cycles to sleep
+#define TEMP_WAKEUP_CYCLE 10     //2//213:10min       //Wake up timer tuning: # of wake up timer cycles to sleep
 #define TEMP_WAKEUP_CYCLE_INITIAL 2 // Wake up timer duration for initial periods
 #define NUM_INITIAL_CYCLE 2 // Number of initial cycles
+#define DATA_BUFFER_SIZE 256
 
 //***************************************************
 // Global variables
@@ -30,7 +31,8 @@
   static uint32_t exec_temp_marker;
   static uint32_t exec_count;
   
-  //static uint32_t temp_stored_data[255] = {0};
+  static uint32_t temp_data_stored[DATA_BUFFER_SIZE] = {0};
+  static uint32_t temp_data_count;
   uint32_t _sns_r3; 
   uint32_t temp_data;
   uint32_t radio_data;
@@ -95,12 +97,6 @@ void handler_ext_int_11(void){
 //***************************************************
 // Internal Functions
 //***************************************************
-/*static void delay(unsigned ticks) {
-  unsigned i;
-  for (i=0; i < ticks; i++)
-    asm("nop;");
-}
-*/
 
 //***************************************************
 // Configuration setup for radio (RADv5)
@@ -233,7 +229,7 @@ static uint32_t gen_radio_data(uint32_t data_in) {
 static void send_radio_data(uint32_t radio_data){
   int32_t i; //loop var
   uint32_t j; //loop var
-  for(j=0;j<3;j++){ //Packet Loop
+  for(j=0;j<1;j++){ //Packet Loop
     for(i=15;i>=0;i--){ //Bit Loop
       delay (10);
       if ((radio_data>>i)&1) write_mbus_register(RAD_ADDR,0x27,0x1);
@@ -296,10 +292,17 @@ static void operation_temp(void){
 
   delay(MBUS_DELAY);
 
-  //Grab Data after IRQ
+  // Grab Data after IRQ
   temp_data = *((volatile uint32_t *) IMSG1);
 
-  //Disable T Sensor
+  // Store in memory
+  // If the buffer is full, then skip
+  if (temp_data_count<DATA_BUFFER_SIZE){
+    temp_data_stored[temp_data_count] = temp_data;
+    temp_data_count = temp_data_count + 1;
+  }
+
+  // Disable T Sensor
   _sns_r3 = (0x3<<17)|(0x1<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
   delay(MBUS_DELAY);
   write_mbus_register(SNS_ADDR,3,_sns_r3);
@@ -307,21 +310,21 @@ static void operation_temp(void){
   // Reset exec_temp_marker
   exec_temp_marker = 0;
 
-
+/*
   //Fire off data to radio
   radio_data = gen_radio_data(temp_data>>5);
   delay(MBUS_DELAY);
 
   send_radio_data(radio_data);
+*/
 
-
-  // Check if this cycle belongs to initial cycles
+  // Set up wake up timer register
+  // Initial cycles have different wakeup time
   if (exec_count < NUM_INITIAL_CYCLE){
-  	// Set up wake up timer register
-  	*((volatile uint32_t *) 0xA2000010) = 0x00008000 + TEMP_WAKEUP_CYCLE_INITIAL;
+    set_wakeup_timer(TEMP_WAKEUP_CYCLE_INITIAL,1,0);
   }
   else {
-	*((volatile uint32_t *) 0xA2000010) = 0x00008000 + TEMP_WAKEUP_CYCLE;
+    set_wakeup_timer(TEMP_WAKEUP_CYCLE,1,0);
   }
 
   operation_sleep();
@@ -333,21 +336,24 @@ static void operation_temp(void){
 //***************************************************
 static void operation_radio(void){
 
-  // Transmit temp data
-  // Reset temp pointer
+  //Fire off stored data to radio
+  uint32_t i;
+  for (i=0;i<temp_data_count;i++){
 
-
-
-  // Check if this cycle belongs to initial cycles
-  if (exec_count < NUM_INITIAL_CYCLE){
-  	// Set up wake up timer register
-  	*((volatile uint32_t *) 0xA2000010) = 0x00008000 + TEMP_WAKEUP_CYCLE_INITIAL;
-  }
-  else {
-	*((volatile uint32_t *) 0xA2000010) = 0x00008000 + 5;
+    radio_data = gen_radio_data(temp_data_stored[i]>>5);
+    delay(MBUS_DELAY);
+  
+    send_radio_data(radio_data);
+    delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
   }
 
-  operation_sleep();
+  delay(MBUS_DELAY);
+
+  // Reset temp_data_count
+  temp_data_count = 0;
+
+  operation_temp();
+  //operation_sleep();
 }
 
 
@@ -394,9 +400,16 @@ int main() {
     // Setup T Sensor
     setup_tempsensor();
 
+    // Initialize program variables
+    temp_data_count = 0;
+
   }else{
 
+    // Repeating wakeup routine 
     exec_count = exec_count + 1;
+
+    // Disable wakeup timer
+    set_wakeup_timer(0,0,1);
 
   }
 
@@ -412,7 +425,6 @@ int main() {
   if(wakeup_data_header == 1){
       // Transmit data via radio and go to sleep
       operation_radio();
-
 
   }else if(wakeup_data_header == 2){
       // Do something and go to sleep
