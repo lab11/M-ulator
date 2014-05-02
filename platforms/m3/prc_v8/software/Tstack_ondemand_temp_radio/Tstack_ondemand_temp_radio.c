@@ -1,11 +1,15 @@
 //*******************************************************************
-//Author: Yoonmyung Lee
+//Author: Gyouho Kim
+//        Yoonmyung Lee
 //        Zhiyoong Foo
-//        Gyouho Kim
 //
 //Date: April 2014
 //
 //Description: 	Derived from Tstack_longterm_shortwake code
+// Main functionality is to periodically measure temperature data 
+// and store the data. When triggered by GOC interrupt (IRQ10VEC), 
+// and all the stored data is transmitted out
+// Initially, the temp measurement interval is short for testing purposes
 //
 //*******************************************************************
 #include "mbus.h"
@@ -27,12 +31,12 @@
 //***************************************************
 // Global variables
 //***************************************************
-  static uint32_t exec_marker;
-  static uint32_t exec_temp_marker;
-  static uint32_t exec_count;
+  volatile uint32_t exec_marker;
+  volatile uint32_t exec_temp_marker;
+  volatile uint32_t exec_count;
   
-  static uint32_t temp_data_stored[DATA_BUFFER_SIZE] = {0};
-  static uint32_t temp_data_count;
+  volatile uint32_t temp_data_stored[DATA_BUFFER_SIZE] = {0};
+  volatile uint32_t temp_data_count;
   uint32_t _sns_r3; 
   uint32_t temp_data;
   uint32_t radio_data;
@@ -258,6 +262,9 @@ static void operation_sleep(void){
 
   // Reset IRQ10VEC
   *((volatile uint32_t *) IRQ10VEC) = 0;
+  
+  // Disable RADIO tx
+  write_mbus_register(RAD_ADDR,0x27,0x0);
 
   // Go to Sleep
   delay(MBUS_DELAY);
@@ -318,6 +325,7 @@ static void operation_temp(void){
   send_radio_data(radio_data);
 */
 
+
   // Set up wake up timer register
   // Initial cycles have different wakeup time
   if (exec_count < NUM_INITIAL_CYCLE){
@@ -377,7 +385,7 @@ int main() {
     // 0x0F770029 = Original
     // Increase sleep oscillator frequency for GOC and temp sensor
     // Decrease 5x division switching threshold
-    *((volatile uint32_t *) 0xA200000C) = 0xF77004B;
+    *((volatile uint32_t *) 0xA200000C) = 0x0F77004B;
 
     // Speed up GOC frontend to match PMU frequency
     *((volatile uint32_t *) 0xA2000008) = 0x0020290C;
