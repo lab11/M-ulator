@@ -164,7 +164,7 @@ int main() {
     //                                                                           0x37=914.9@4.2           
     //                                                                           0x37=915.3@4.1           
     //Tune Freq 1
-    uint32_t _rad_r21 = 0x3;
+    uint32_t _rad_r21 = 0x0;
     write_mbus_register(RAD_ADDR,0x21,_rad_r21);
     delay(MBUS_DELAY);
 
