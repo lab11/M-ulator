@@ -28,20 +28,36 @@ static void delay(unsigned ticks) {
 int main() {
 
 
-    //Enumeration
     delay(MBUS_DELAY);
-    enumerate(SNS_ADDR);
 
     delay(4);
     delay(2);
-    //delay(2);
 
+    enumerate(SNS_ADDR);
+    //*((volatile uint32_t *) 0xA200000C) = 0x0F773029;
+
+    delay(20000);
     // Dummy MBUS Msg to invalid address
     write_mbus_register(0x38,0x23,0x0);
     delay(MBUS_DELAY);
-    enumerate(RAD_ADDR);
+    write_mbus_register(0x38,0x23,0x0);
+    delay(MBUS_DELAY);
+    write_mbus_register(0x38,0x23,0x0);
+    delay(MBUS_DELAY);
+    write_mbus_register(0x38,0x23,0x0);
+    delay(MBUS_DELAY);
+    write_mbus_register(0x38,0x23,0x0);
+    delay(MBUS_DELAY);
+    delay(20000);
+    //enumerate(RAD_ADDR);
 
 
+
+    // Set PMU Strength & division threshold
+    // Change PMU_CTRL Register
+    // 0x0F770029 = Original
+    // Increase sleep oscillator frequency to provide enough power for temp sensor
+    //*((volatile uint32_t *) 0xA200000C) = 0xF77007B;
 
     //Set up wake up register
     *((volatile uint32_t *) 0xA2000010) = 0x00008000 + 3;
