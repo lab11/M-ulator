@@ -225,9 +225,11 @@ static void operation_init(void){
     execution_count_irq = 0;
     //Enumeration
     enumerate(SNS_ADDR);
-    WFI();
+    delay(1000);
+    //WFI();
     enumerate(RAD_ADDR);
-    WFI();
+    delay(1000);
+    //WFI();
     //Set & Forget!
     snsv2_r1_t snsv2_r1 = SNSv2_R1_DEFAULT;
     snsv2_r7_t snsv2_r7 = SNSv2_R7_DEFAULT;
@@ -438,7 +440,7 @@ int main() {
 
   if(wakeup_data_header == 1){
     // Debug mode: Transmit something via radio 16 times and go to sleep w/o timer
-    if (execution_count_irq < 16){
+    if (execution_count_irq < 4){
       execution_count_irq++;
       // radio
       send_radio_data(0xF0F0F0F0);
@@ -448,36 +450,32 @@ int main() {
       operation_sleep_noirqreset();
 
     }else{
-      //radio;
       execution_count_irq = 0;
       operation_sleep();
     }
 
   }else if(wakeup_data_header == 2){
-    operation_sleep();
-
-  }else if(wakeup_data_header == 3){
-    operation_sleep();
-
-  }else if(wakeup_data_header == 4){
-    operation_sleep();
+    // Proceed to continuous mode
 
   }else{
-    // Default case 
-    operation_cdc_timeout();
-    operation_cdc_reset();
-    operation_cdc_run();
-    operation_tx_cdc_results();
-  
-    if(execution_count < 8){
-      execution_count++;
-      set_wakeup_timer (WAKEUP_PERIOD_CONT_INITIAL, 0x1, 0x0);
-    }
-    else{
-      set_wakeup_timer (WAKEUP_PERIOD_CONT, 0x1, 0x0);
-    }
-    operation_sleep();
+    // Proceed to continuous mode
+
   }
+
+  // Continuous cdc measurement mode 
+  operation_cdc_timeout();
+  operation_cdc_reset();
+  operation_cdc_run();
+  operation_tx_cdc_results();
+
+  if(execution_count < 8){
+    execution_count++;
+    set_wakeup_timer (WAKEUP_PERIOD_CONT_INITIAL, 0x1, 0x0);
+  }
+  else{
+    set_wakeup_timer (WAKEUP_PERIOD_CONT, 0x1, 0x0);
+  }
+  operation_sleep();
 
   while(1);
 
