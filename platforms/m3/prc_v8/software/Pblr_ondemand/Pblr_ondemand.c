@@ -20,7 +20,7 @@
 #define INITIAL_SLEEP_TIME 10 //Initial Sleep Time for Baking
 #define CDC_TIMEOUT 0x20 //Timeout for CDC
 #define CDC_SAMPLE_TIME 0x3 //Time between CDC Samples
-#define WAKEUP_PERIOD_CONT_INITIAL 4  // Wakeup period for initial portion of continuous pressure sensing
+#define WAKEUP_PERIOD_CONT_INITIAL 3  // Wakeup period for initial portion of continuous pressure sensing
 #define WAKEUP_PERIOD_CONT 244 // 213:10min Wakeup period for continous pressure sensing
 
 
@@ -191,7 +191,8 @@ static void operation_sleep(void){
 
   // Reset wakeup counter
   // This is required to go back to sleep!!
-  set_wakeup_timer (0xFFF, 0x0, 0x1);
+  //set_wakeup_timer (0xFFF, 0x0, 0x1);
+  *((volatile uint32_t *) 0xA2000014) = 0x1;
 
   // Reset IRQ10VEC
   *((volatile uint32_t *) IRQ10VEC/*IMSG0*/) = 0;
@@ -215,6 +216,19 @@ static void operation_sleep_noirqreset(void){
 }
 
 static void operation_init(void){
+
+  // Set PMU Strength & division threshold
+  // Change PMU_CTRL Register
+  // 0x0F770029 = Original
+  // Increase sleep oscillator frequency for GOC and temp sensor
+  // Decrease 5x division switching threshold
+  *((volatile uint32_t *) 0xA200000C) = 0x0F77004B;
+
+  // Speed up GOC frontend to match PMU frequency
+  *((volatile uint32_t *) 0xA2000008) = 0x0020290C;
+
+  delay(1000);
+
   //Enumerate & Initialize Registers
   if (enumerated != 0xDEADBEEF){
     Pblr_state = 0x0;
@@ -440,7 +454,7 @@ int main() {
 
   if(wakeup_data_header == 1){
     // Debug mode: Transmit something via radio 16 times and go to sleep w/o timer
-    if (execution_count_irq < 4){
+    if (execution_count_irq < 8){
       execution_count_irq++;
       // radio
       send_radio_data(0xF0F0F0F0);
@@ -451,6 +465,11 @@ int main() {
 
     }else{
       execution_count_irq = 0;
+      // radio
+      send_radio_data(0xF0F0F0F0);
+      // Disable Timer
+      set_wakeup_timer (0, 0x0, 0x0);
+      // Go to sleep without timer
       operation_sleep();
     }
 
@@ -468,6 +487,7 @@ int main() {
   operation_cdc_run();
   operation_tx_cdc_results();
 
+  set_wakeup_timer (0xFFF, 0x0, 0x1);
   if(execution_count < 8){
     execution_count++;
     set_wakeup_timer (WAKEUP_PERIOD_CONT_INITIAL, 0x1, 0x0);
