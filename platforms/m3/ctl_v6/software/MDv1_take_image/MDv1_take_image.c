@@ -10,7 +10,7 @@
 
 #define WAKEUP_DELAY 10000	
 #define WAKEUP_DELAY_FINAL 100000	// 100000=1.6s Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
-#define INT_TIME 8
+#define INT_TIME 8 // 8 corresponds to ~3sec integration time with CLK_RING/CLK_DIV: 2/3
 #define MD_INT_TIME 35
 #define MD_TH 5
 #define MD_MASK 0x3FF
@@ -229,7 +229,12 @@ int main() {
   // Change GOC_CTRL Register
   // 0x00A02932 = Original
   // 0x00A02332 = Fastest MBUS clk
-  *((volatile uint32_t *) 0xA2000008) = 0x00A02332;
+  //*((volatile uint32_t *) 0xA2000008) = 0x00A02332;
+
+  // For PRCv8
+  // Default is 0x0202903
+  *((volatile uint32_t *) 0xA2000008) = 0x0202303;
+
 
   // Enumeration
   enumerate(MD_ADDR);
