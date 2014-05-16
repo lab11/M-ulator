@@ -225,7 +225,7 @@ static void operation_init(void){
   *((volatile uint32_t *) 0xA200000C) = 0x0F77004B;
 
   // Speed up GOC frontend to match PMU frequency
-  *((volatile uint32_t *) 0xA2000008) = 0x0020290C;
+  *((volatile uint32_t *) 0xA2000008) = 0x0020290A;
 
   delay(1000);
 
@@ -374,10 +374,12 @@ static void operation_cdc_run(){
 	write_mbus_register(SNS_ADDR,0,snsv2_r0.as_int);
 	cdc_data[cdc_data_index] = (*((volatile uint32_t *) 0xA0001014)>>2);
 	cdc_data_index++;
-	//Go back to sleep
-	set_wakeup_timer (0xFFF, 0x0, 0x1);
-	set_wakeup_timer (CDC_SAMPLE_TIME, 0x1, 0x0);
-	operation_sleep();
+        if (NUM_SAMPLES > 1) {
+  	  //Go back to sleep
+	  set_wakeup_timer (0xFFF, 0x0, 0x1);
+	  set_wakeup_timer (CDC_SAMPLE_TIME, 0x1, 0x0);
+	  operation_sleep();
+        }
       }
     }
   }
@@ -454,7 +456,7 @@ int main() {
 
   if(wakeup_data_header == 1){
     // Debug mode: Transmit something via radio 16 times and go to sleep w/o timer
-    if (execution_count_irq < 8){
+    if (execution_count_irq < 6){
       execution_count_irq++;
       // radio
       send_radio_data(0xF0F0F0F0);
@@ -476,6 +478,12 @@ int main() {
   }else if(wakeup_data_header == 2){
     // Proceed to continuous mode
 
+  }else if(wakeup_data_header == 3){
+    // Disable Timer
+    set_wakeup_timer (0, 0x0, 0x0);
+    // Go to sleep without timer
+    operation_sleep();
+
   }else{
     // Proceed to continuous mode
 
@@ -488,7 +496,7 @@ int main() {
   operation_tx_cdc_results();
 
   set_wakeup_timer (0xFFF, 0x0, 0x1);
-  if(execution_count < 8){
+  if(execution_count < 16){
     execution_count++;
     set_wakeup_timer (WAKEUP_PERIOD_CONT_INITIAL, 0x1, 0x0);
   }
