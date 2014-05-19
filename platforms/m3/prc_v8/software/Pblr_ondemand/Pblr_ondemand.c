@@ -453,10 +453,13 @@ int main() {
 
   uint32_t wakeup_data = *((volatile uint32_t *) IRQ10VEC);
   uint32_t wakeup_data_header = wakeup_data>>24;
+  uint32_t wakeup_data_field_0 = wakeup_data & 0xFF;
+  uint32_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;
+  uint32_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
 
   if(wakeup_data_header == 1){
-    // Debug mode: Transmit something via radio 16 times and go to sleep w/o timer
-    if (execution_count_irq < 6){
+    // Debug mode: Transmit something via radio 8 times and go to sleep w/o timer
+    if (execution_count_irq < 8){
       execution_count_irq++;
       // radio
       send_radio_data(0xF0F0F0F0);
@@ -484,6 +487,27 @@ int main() {
     // Go to sleep without timer
     operation_sleep();
 
+  }else if(wakeup_data_header == 4){
+    // Debug mode: Transmit something via radio 160 times and go to sleep w/o timer
+    if (execution_count_irq < 160){
+      execution_count_irq++;
+      // radio
+      send_radio_data(0xF0F0F0F0);
+      // set timer
+      set_wakeup_timer (WAKEUP_PERIOD_CONT_INITIAL, 0x1, 0x0);
+      // go to sleep and wake up with same condition
+      operation_sleep_noirqreset();
+
+    }else{
+      execution_count_irq = 0;
+      // radio
+      send_radio_data(0xF0F0F0F0);
+      // Disable Timer
+      set_wakeup_timer (0, 0x0, 0x0);
+      // Go to sleep without timer
+      operation_sleep();
+    }
+
   }else{
     // Proceed to continuous mode
 
@@ -496,7 +520,7 @@ int main() {
   operation_tx_cdc_results();
 
   set_wakeup_timer (0xFFF, 0x0, 0x1);
-  if(execution_count < 16){
+  if(execution_count < 12){
     execution_count++;
     set_wakeup_timer (WAKEUP_PERIOD_CONT_INITIAL, 0x1, 0x0);
   }
