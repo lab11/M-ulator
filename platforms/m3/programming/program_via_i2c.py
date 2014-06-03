@@ -3,7 +3,7 @@
 # self-test: socat -x pty,link=/tmp/com1,raw,echo=0 pty,link=/tmp/com2,raw,echo=0
 
 from math import ceil
-from time import sleep
+from m3_common import printing_sleep as sleep
 import socket
 import sys
 import os
