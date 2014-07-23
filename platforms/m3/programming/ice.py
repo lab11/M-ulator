@@ -140,8 +140,9 @@ class ICE(object):
                         raise self.CapabilityError(cap, self.capabilities)
                 except AttributeError:
                     if 'ice_query_capabilities' not in fn_being_decorated.__name__:
-                        logger.error("Version decorator must precede capability")
-                        raise
+                        if self.minor != 1:
+                            logger.error("Version decorator must precede capability")
+                            raise
                 return fn_being_decorated(self, *args, **kwargs)
             wrapped_fn.__name__ = 'capability{'+fn_being_decorated.__name__+'}'
             return wrapped_fn
