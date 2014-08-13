@@ -13,8 +13,9 @@
 //
 //*******************************************************************
 #include "mbus.h"
+#include "SNSv2.h"
 #include "PRCv8.h"
-//#include "m3_proc.h"
+#include "RADv5.h"
 
 #define RAD_ADDR 0x3
 #define SNS_ADDR 0x4
@@ -24,8 +25,8 @@
 #define RAD_BIT_DELAY 40     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 600  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
 #define TEMP_WAKEUP_CYCLE 10     //2//213:10min       //Wake up timer tuning: # of wake up timer cycles to sleep
-#define TEMP_WAKEUP_CYCLE_INITIAL 2 // Wake up timer duration for initial periods
-#define NUM_INITIAL_CYCLE 2 // Number of initial cycles
+#define TEMP_WAKEUP_CYCLE_INITIAL 3 // Wake up timer duration for initial periods
+#define NUM_INITIAL_CYCLE 3 // Number of initial cycles
 #define DATA_BUFFER_SIZE 256
 
 //***************************************************
@@ -34,6 +35,7 @@
   volatile uint32_t exec_marker;
   volatile uint32_t exec_temp_marker;
   volatile uint32_t exec_count;
+  volatile uint32_t exec_count_irq;
   
   volatile uint32_t temp_data_stored[DATA_BUFFER_SIZE] = {0};
   volatile uint32_t temp_data_count;
@@ -273,6 +275,18 @@ static void operation_sleep(void){
 
 }
 
+static void operation_sleep_noirqreset(void){
+
+  // Reset wakeup counter
+  // This is required to go back to sleep!!
+  *((volatile uint32_t *) 0xA2000014) = 0x1;
+
+  // Go to Sleep
+  sleep();
+  while(1);
+
+}
+
 //***************************************************
 // Temperature measurement operation (SNSv2)
 //***************************************************
@@ -371,9 +385,16 @@ static void operation_radio(void){
 int main() {
 
   //Clear All Pending Interrupts
-  *((volatile uint32_t *) 0xE000E280) = 0xF;
+  *((volatile uint32_t *) 0xE000E280) = 0x3FF;
   //Enable Interrupts
-  *((volatile uint32_t *) 0xE000E100) = 0xF;
+  *((volatile uint32_t *) 0xE000E100) = 0x3FF;
+
+  //Set PMU Division to 5
+  //*((volatile uint32_t *) 0xA200000C) = 0x4F770029; 
+  //Set PMU Division to 6
+  //*((volatile uint32_t *) 0xA200000C) = 0x0F77002B;
+
+
 
   //Check if it is the first execution
   if ( exec_marker != 0x12345678 ) {
@@ -394,6 +415,7 @@ int main() {
     //Mark execution
     exec_marker = 0x12345678;
     exec_count = 0;
+    exec_count_irq = 0;
 
     //Enumeration
     enumerate(RAD_ADDR);
@@ -431,20 +453,40 @@ int main() {
   uint32_t wakeup_data_header = wakeup_data>>24;
 
   if(wakeup_data_header == 1){
-      // Transmit data via radio and go to sleep
-      operation_radio();
+    // Debug mode: Transmit something via radio 16 times and go to sleep w/o timer
+    if (exec_count_irq < 16){
+      exec_count_irq++;
+      // radio
+//    send_radio_data(0xF0F0F0F0);
+      send_radio_data (gen_radio_data(0x6C));
+      // set timer
+      set_wakeup_timer (TEMP_WAKEUP_CYCLE_INITIAL, 0x1, 0x0);
+      // go to sleep and wake up with same condition
+      operation_sleep_noirqreset();
+    }else{
+      exec_count_irq = 0;
+      // radio
+//    send_radio_data(0xF0F0F0F0);
+      send_radio_data (gen_radio_data(0x6C));
+      // Disable Timer
+      set_wakeup_timer (0, 0x0, 0x0);
+      // Go to sleep without timer
+      operation_sleep();
+    }
 
   }else if(wakeup_data_header == 2){
-      // Do something and go to sleep
-      operation_sleep();
+      // Temp operation
+      operation_temp();
 
   }else if(wakeup_data_header == 3){
-      // Do something and go to sleep
+      // Disable Timer
+      set_wakeup_timer (0, 0x0, 0x0);
+      // Go to sleep without timer
       operation_sleep();
 
   }else if(wakeup_data_header == 4){
-      // Do something and go to sleep
-      operation_sleep();
+      // Transmit data via radio and go to sleep
+      operation_radio();
 
   }else{
       // Default case 

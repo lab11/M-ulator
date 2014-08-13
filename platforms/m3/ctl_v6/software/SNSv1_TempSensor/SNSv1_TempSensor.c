@@ -8,16 +8,23 @@
 #define MD_ADDR 0x4           //MDv1 Short Address
 //#define SNS_ADDR 0x4           //SNSv1 Short Address
 
-#define WAKEUP_DELAY 10000	
-#define WAKEUP_DELAY_FINAL 100000	// 100000=1.6s Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
-#define INT_TIME 8 // 8 corresponds to ~3sec integration time with CLK_RING/CLK_DIV: 2/3
+#define MBUS_DELAY 20
+//#define WAKEUP_DELAY 1000 // 50ms
+#define WAKEUP_DELAY 300000 // 15s
+#define WAKEUP_DELAY_FINAL 100000	// Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
+#define DELAY_1 20000 // 1s
+#define INT_TIME 5
 #define MD_INT_TIME 35
-#define MD_TH 5
+#define MD_TH 10
 #define MD_MASK 0x3FF
 #define MD_LOWRES 1
+#define MD_TOPAD_SEL 0 // 1: thresholding, 0: no thresholding
 
 #define VDD_CC_1P2 1
 #define VNW_1P2 1
+
+#define SEL_CC 2
+#define SEL_CC_B 5
 
 // FILL THIS OUT
 #define SEL_VREF 0
@@ -25,14 +32,12 @@
 #define SEL_VBN 3
 #define SEL_VBP 3
 #define SEL_VB_RAMP 15
-#define SEL_RAMP 2
+#define SEL_RAMP 1
 
 #define SEL_ADC 1
 #define SEL_ADC_B 6
 #define SEL_PULSE 1
 #define SEL_PULSE_COL 0
-#define SEL_CC 2
-#define SEL_CC_B 5
 #define PULSE_SKIP 0
 #define PULSE_SKIP_COL 0
 #define TAVG 0
@@ -106,7 +111,7 @@ static void clear_all_pend_irq(){
 //************************************
 
   uint32_t mdreg_0 = ((MD_INT_TIME<<13)|(INT_TIME<<(3+1)));
-  uint32_t mdreg_1 = (((!IMG_8BIT)<<16)|(0x1<<12)|(MD_TH<<5)|(!MD_LOWRES<<2)|(MD_LOWRES<<1));
+  uint32_t mdreg_1 = (((!IMG_8BIT)<<16)|(MD_TOPAD_SEL<<12)|(MD_TH<<5)|(!MD_LOWRES<<2)|(MD_LOWRES<<1));
   uint32_t mdreg_2 = ((0x1F<<19)|(0x3<<12)|(MD_MASK));
   uint32_t mdreg_3 = ((SEL_RAMP<<18)|(SEL_VB_RAMP<<14)|(SEL_VBP<<12)|(SEL_VBN<<10)|(SEL_VREFP<<7)|(SEL_VREF<<4)|(!VNW_1P2<<3)|(VNW_1P2<<2)|(!VDD_CC_1P2<<1)|(VDD_CC_1P2<<0)); // is this inversion safe??
   uint32_t mdreg_4 = ((!TAVG<<19)|(TAVG<<18)|(PULSE_SKIP_COL<<17)|(PULSE_SKIP<<16)|(SEL_CC_B<<13)|(SEL_CC<<10)|(SEL_PULSE_COL<<8)|(SEL_PULSE<<6)|(SEL_ADC_B<<3)|(SEL_ADC<<0));
@@ -119,23 +124,23 @@ static void initialize_md_reg(){
 
   //Write Registers;
   write_mbus_register(MD_ADDR,0x0,mdreg_0);
-  delay (3);
+  delay (MBUS_DELAY);
   write_mbus_register(MD_ADDR,0x1,mdreg_1);
-  delay (3);
+  delay (MBUS_DELAY);
   write_mbus_register(MD_ADDR,0x2,mdreg_2);
-  delay (3);
+  delay (MBUS_DELAY);
   write_mbus_register(MD_ADDR,0x3,mdreg_3);
-  delay (3);
+  delay (MBUS_DELAY);
   write_mbus_register(MD_ADDR,0x4,mdreg_4);
-  delay (3);
+  delay (MBUS_DELAY);
   write_mbus_register(MD_ADDR,0x5,mdreg_5);
-  delay (3);
+  delay (MBUS_DELAY);
   write_mbus_register(MD_ADDR,0x6,mdreg_6);
-  delay (3);
+  delay (MBUS_DELAY);
   write_mbus_register(MD_ADDR,0x7,mdreg_7);
-  delay (3);
+  delay (MBUS_DELAY);
   write_mbus_register(MD_ADDR,0x8,mdreg_8);
-  delay (3);
+  delay (MBUS_DELAY);
 
 }
 
@@ -157,62 +162,70 @@ static void poweron_frame_controller(){
   // 7:15
   mdreg_7 &= ~(1<<15);
   write_mbus_register(MD_ADDR,0x7,mdreg_7);
-  delay (3);
+  delay (MBUS_DELAY);
 
   // Start MD Clock
   // 5:11
   mdreg_5 |= (1<<11);
   write_mbus_register(MD_ADDR,0x5,mdreg_5);
-  delay (3);
+  delay (MBUS_DELAY);
 
 }
 
-static void poweron_array_adc(){
+static void start_md(){
 
-  // Release IMG Presleep 
-  // 2:20
-  mdreg_2 &= ~(1<<20);
-  write_mbus_register(MD_ADDR,0x2,mdreg_2);
-  delay(WAKEUP_DELAY);
-
-  // Release IMG Sleep
-  // 2:19
-  mdreg_2 &= ~(1<<19);
-  write_mbus_register(MD_ADDR,0x2,mdreg_2);
-  delay(WAKEUP_DELAY);
-
-  // Release ADC Isolation
-  // 7:17
-  mdreg_7 &= ~(1<<17);
+  // Optionally release MD GPIO Isolation
+  // 7:16
+  mdreg_7 &= ~(1<<16);
   write_mbus_register(MD_ADDR,0x7,mdreg_7);
-  delay (3);
+  delay (MBUS_DELAY);
 
-  // Release ADC Wrapper Reset
-  // 6:0
-  mdreg_6 &= ~(1<<0);
-  write_mbus_register(MD_ADDR,0x6,mdreg_6);
-  delay (3);
+  // Start MD
+  // 0:1
+  mdreg_0 |= (1<<1);
+  write_mbus_register(MD_ADDR,0x0,mdreg_0);
+  //delay (0x80); // about 6ms
+  delay(20000); // about 1.5s
 
-  // Start ADC Clock
-  // 5:12
-  mdreg_5 |= (1<<12);
-  write_mbus_register(MD_ADDR,0x5,mdreg_5);
-  delay (3);
+  mdreg_0 &= ~(1<<1);
+  write_mbus_register(MD_ADDR,0x0,mdreg_0);
+  delay (MBUS_DELAY);
+
+  // Enable MD Flag
+  // 1:3
+  mdreg_1 |= (1<<3);
+  write_mbus_register(MD_ADDR,0x1,mdreg_1);
+  delay (MBUS_DELAY);
 
 }
 
-static void capture_image_single(){
+static void clear_md_flag(){
 
-  // Capture Image
-  // 0:0
-  mdreg_0 |= (1<<0);
+  // Stop MD
+  // 0:2
+  mdreg_0 |= (1<<2);
   write_mbus_register(MD_ADDR,0x0,mdreg_0);
-  delay(0x80); // about 6ms
+  delay (0x80); // about 6ms
 
-  mdreg_0 &= ~(1<<0);
+  mdreg_0 &= ~(1<<2);
   write_mbus_register(MD_ADDR,0x0,mdreg_0);
+  delay (MBUS_DELAY);
 
-  delay(0x10000); // about 3s
+  // Clear MD Flag
+  // 1:4
+  mdreg_1 |= (1<<4);
+  write_mbus_register(MD_ADDR,0x1,mdreg_1);
+  delay (0x80); // about 6ms
+  
+  mdreg_1 &= ~(1<<4);
+  write_mbus_register(MD_ADDR,0x1,mdreg_1);
+  delay (MBUS_DELAY);
+
+  // Disable MD Flag
+  // 1:3
+  mdreg_1 &= ~(1<<3);
+  write_mbus_register(MD_ADDR,0x1,mdreg_1);
+  delay (MBUS_DELAY);
 
 }
 
@@ -221,44 +234,17 @@ int main() {
 //  uint32_t temp_data[NUM_SAMPLES]; //Temperature Data
 //  uint32_t radio_data; //Radio Data
 
-  // Interrupts
-  clear_all_pend_irq();
-  enable_all_irq();
+  // Set PMU Strength & division threshold
+  // Change PMU_CTRL Register
+  // 0x0F770029 = Original
+  // 0x2F773829 = Active clock only
+  // 0x2F770079 = Sleep only (CTRv7)
+  // 0x2F773069 = Both active & sleep clocks for CTRv6; fastest active ring is not stable
+  // 0x2F773079 = Both active & sleep clocks for CTRv7; fastest active ring is not stable
+  *((volatile uint32_t *) 0xA200000C) = 0x2F773069;
 
-  // Set MBUS Clock faster
-  // Change GOC_CTRL Register
-  // 0x00A02932 = Original
-  // 0x00A02332 = Fastest MBUS clk
-  //*((volatile uint32_t *) 0xA2000008) = 0x00A02332;
-
-  // For PRCv8
-  // Default is 0x0202903
-  *((volatile uint32_t *) 0xA2000008) = 0x0202303;
-
-
-  // Enumeration
-  enumerate(MD_ADDR);
-//  delay (1); //Need to Delay in between for some reason.
-//  enumerate(SNS_ADDR);
-//  delay (1);
-
-  // Initialize
-  initialize_md_reg();
-
-  // Release power gates, isolation, and reset for frame controller
-  poweron_frame_controller();
-
-  // Release power gates, isolation, and reset for imager array
-  poweron_array_adc();
-
-  delay(WAKEUP_DELAY_FINAL);
-
-  // Capture a single image
-  
-  while (1){
-    capture_image_single();
-  }
-
-  while (1){}
+  delay(DELAY_1);
+  delay(DELAY_1);
+  delay(DELAY_1);
 
 }

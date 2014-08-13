@@ -16,21 +16,25 @@ from ice import ICE
 # Do this after ICE since ICE prints a nice help if pyserial is missing
 import serial.tools.list_ports
 
+def printing_sleep(seconds):
+    try:
+        os.environ['ICE_NOSLEEP']
+        return
+    except KeyError:
+        pass
+    if seconds < 1:
+        time.sleep(seconds)
+        return
+    while (seconds > 0):
+        sys.stdout.write("\rSleeping %d s" % (int(seconds)) + ' '*20)
+        sys.stdout.flush()
+        time.sleep(min(1, seconds))
+        seconds -= 1
+    sys.stdout.write('\r' + ' '*80 + '\r')
+    sys.stdout.flush()
+
 class m3_common(object):
     TITLE = "Generic M3 Programmer"
-
-    @staticmethod
-    def printing_sleep(seconds):
-        if seconds < 1:
-            time.sleep(seconds)
-            return
-        while (seconds > 0):
-            sys.stdout.write("\rSleeping %d s" % (int(seconds)) + ' '*20)
-            sys.stdout.flush()
-            time.sleep(min(1, seconds))
-            seconds -= 1
-        sys.stdout.write('\r' + ' '*80 + '\r')
-        sys.stdout.flush()
 
     @staticmethod
     def default_value(prompt, default, extra=None, invert=False):
@@ -247,23 +251,23 @@ class m3_common(object):
         self.ice.power_set_voltage(2,3.8)
         logger.info("Turning 3.8 on")
         self.ice.power_set_onoff(2,True)
-        m3_common.printing_sleep(1.0)
+        printing_sleep(1.0)
         logger.info("Turning 1.2 on")
         self.ice.power_set_onoff(1,True)
-        m3_common.printing_sleep(1.0)
+        printing_sleep(1.0)
         logger.info("Turning 0.6 on")
         self.ice.power_set_onoff(0,True)
-        m3_common.printing_sleep(1.0)
+        printing_sleep(1.0)
         logger.info("Waiting 8 seconds for power rails to settle")
-        m3_common.printing_sleep(8.0)
+        printing_sleep(8.0)
 
     def reset_m3(self):
         logger.info("M3 0.6V => OFF (reset controller)")
         self.ice.power_set_onoff(0,False)
-        m3_common.printing_sleep(2.0)
+        printing_sleep(2.0)
         logger.info("M3 0.6V => ON")
         self.ice.power_set_onoff(0,True)
-        m3_common.printing_sleep(2.0)
+        printing_sleep(2.0)
 
     def validate_bin(self): #, hexencoded, offset=0):
         raise NotImplementedError("Need to update for MBus. Let me know if needed.")
@@ -333,7 +337,7 @@ class goc_programmer(m3_common):
         logger.info("Sending passcode to GOC")
         logger.debug("Sending:" + passcode_string)
         self.ice.goc_send(passcode_string.decode('hex'))
-        self.printing_sleep(4.0)
+        printing_sleep(4.0)
 
     def set_fast_frequency(self):
         self.ice.goc_set_frequency(8*self.SLOW_FREQ_IN_HZ)
@@ -342,7 +346,7 @@ class goc_programmer(m3_common):
         logger.info("Sending GOC message")
         logger.debug("Sending: " + message)
         self.ice.goc_send(message.decode('hex'))
-        self.printing_sleep(1.0)
+        printing_sleep(1.0)
 
         logger.info("Sending extra blink to end transaction")
         extra = "80"

@@ -29,9 +29,9 @@ DEFAULT_MBUS_SNOOP_BROADCAST_MASK_ZEROS = 0x0f
 import sys, serial
 from time import sleep
 
-import logging
-logging.basicConfig(level=logging.INFO, format="%(message)s")
-logger = logging.getLogger('fake_ice')
+import m3_logging
+logger = m3_logging.get_logger(__name__)
+logger.debug('Got goc.py logger')
 
 logger.info("-" * 80)
 logger.info("-- M3 ICE Interface Board Simulator")
@@ -39,17 +39,20 @@ logger.info("")
 
 from ice import ICE
 
-if len(sys.argv) > 1:
-    serial_port = sys.argv[1]
-else:
-    serial_port = DEFAULT_SERIAL
+import argparse
+parser = argparse.ArgumentParser()
+
+parser.add_argument("-i", "--ice-version", default=3, type=int, help="Maximum ICE Version to emulate (1, 2, or 3)")
+parser.add_argument("-s", "--serial", default=DEFAULT_SERIAL, help="Serial port to connect to")
+parser.add_argument("--i2c-mask", default=DEFAULT_I2C_MASK, help="Address mask for fake_ice i2c address")
+parser.add_argument("-a", "--ack-all", action="store_true", help="Only supports i2c at the moment")
+
+args = parser.parse_args()
+serial_port = args.serial
+i2c_mask = args.i2c_mask
 
 baud_divider = DEFAULT_BAUD_DIVIDER
 
-if len(sys.argv) > 2:
-    i2c_mask = sys.argv[2]
-else:
-    i2c_mask = DEFAULT_I2C_MASK
 i2c_mask_ones = 0
 i2c_mask_zeros = 0
 for bit in i2c_mask:
@@ -58,6 +61,7 @@ for bit in i2c_mask:
     i2c_mask_ones |= (bit == '1')
     i2c_mask_zeros |= (bit == '0')
 logger.debug("mask %s ones %02x zeros %02x", i2c_mask, i2c_mask_ones, i2c_mask_zeros)
+
 i2c_speed_in_khz = DEFAULT_I2C_SPEED_IN_KHZ
 
 flow_clock_in_hz = DEFAULT_FLOW_CLOCK_IN_HZ
@@ -88,6 +92,8 @@ mbus_should_interrupt = 0
 mbus_should_prio = 0
 
 def match_mask(val, ones, zeros):
+    if args.ack_all:
+        return True
     return ((val & ones) == ones) and ((~val & zeros) == zeros)
 
 try:
@@ -181,7 +187,7 @@ class UnknownCommandException(Exception):
 
 
 i2c_msg = ''
-i2c_match = False
+i2c_match = True
 flow_msg = ''
 ein_msg = ''
 mbus_msg = ''
@@ -200,7 +206,14 @@ while True:
         msg = s.read(length)
 
         if msg_type == 'V':
-            respond('000300020001'.decode('hex'))
+            if args.ice_version == 1:
+                respond('0001'.decode('hex'))
+            elif args.ice_version == 2:
+                respond('0001'.decode('hex'))
+            elif args.ice_version == 3:
+                respond('000300020001'.decode('hex'))
+            else:
+                raise ValueError("Unknown ice version: %d" % (args.ice_version))
         elif msg_type == 'v':
             if msg == '0003'.decode('hex'):
                 CLOCK_FREQ = 4e6

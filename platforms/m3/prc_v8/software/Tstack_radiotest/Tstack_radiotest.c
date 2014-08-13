@@ -13,19 +13,21 @@
 //
 //*******************************************************************
 #include "mbus.h"
+#include "SNSv2.h"
 #include "PRCv8.h"
-//#include "m3_proc.h"
+#include "RADv5.h"
 
 #define RAD_ADDR 0x3
 #define SNS_ADDR 0x4
+#define HRV_ADDR 0x5
 
 #define MBUS_DELAY 100 //Amount of delay between successive messages
 
 #define RAD_BIT_DELAY 40     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 600  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
 #define TEMP_WAKEUP_CYCLE 10     //2//213:10min       //Wake up timer tuning: # of wake up timer cycles to sleep
-#define TEMP_WAKEUP_CYCLE_INITIAL 2 // Wake up timer duration for initial periods
-#define NUM_INITIAL_CYCLE 2 // Number of initial cycles
+#define TEMP_WAKEUP_CYCLE_INITIAL 3 // Wake up timer duration for initial periods
+#define NUM_INITIAL_CYCLE 3 // Number of initial cycles
 #define DATA_BUFFER_SIZE 256
 
 //***************************************************
@@ -34,9 +36,8 @@
   volatile uint32_t exec_marker;
   volatile uint32_t exec_temp_marker;
   volatile uint32_t exec_count;
+  volatile uint32_t exec_count_irq;
   
-  volatile uint32_t temp_data_stored[DATA_BUFFER_SIZE] = {0};
-  volatile uint32_t temp_data_count;
   uint32_t _sns_r3; 
   uint32_t temp_data;
   uint32_t radio_data;
@@ -128,7 +129,7 @@ static void setup_radio(void) {
   delay(MBUS_DELAY);
   
   
-  // For board level testing, 00 corresponds to 902MHz
+  // For board level testing, 00 corresponds to 915MHz
   //Tune Freq 1
   uint32_t _rad_r21 = 0x0;
   write_mbus_register(RAD_ADDR,0x21,_rad_r21);
@@ -152,30 +153,6 @@ static void setup_radio(void) {
 
 
 //***************************************************
-// Configuration for temperature sensor (SNSv2)
-//***************************************************
-static void setup_tempsensor(void) {
-
-  //************************************
-  //SNSv1 Register Defaults
-  //uint32_t _sns_r0 = (0x0<<22)|(0x1<<21)|(0x6<<18)|(0x6<<15)|(0x0<<14)|(0x0<<12)|(0x4<<9)|(0x1<<8)|(0x1<<7)|(0x0<<6)|(0x1<<5)|(0x0<<4)|(0x7<<1)|(0x0<<0);
-  //uint32_t _sns_r1 = (0x0<<18)|(0xF<<9)|(0x20<<0);
-  //uint32_t _sns_r3 = (0x2<<17)|(0x1<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
-  //************************************
-  //Setup T Sensor
-  _sns_r3 = (0x3<<17)|(0x1<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
-  write_mbus_register(SNS_ADDR,3,_sns_r3);
-  delay(MBUS_DELAY);
-
-  // Change mbus interrupt address for temp sensor and cdc to 0x15 and 0x16
-  uint32_t _sns_r6 = (0x9<<16)|(0x16<<8)|(0x15<<0);
-  write_mbus_register(SNS_ADDR,6,_sns_r6);
-  delay(MBUS_DELAY);
-
-}
-
-
-//***************************************************
 //Data Setup for Radio (Initial Setup) & ECC [SECDED]
 //***************************************************
 //0xFXXX => Radio Preamble (bits 12-15)
@@ -188,7 +165,7 @@ static void setup_tempsensor(void) {
 //B1 = B11^B9 ^B8 ^B6 ^B5
 //B0 = B11^B10^B9 ^B8 ^B7 ^B6 ^B5 ^B4 ^B3 ^B2 ^B1
 //Must be done in order (B0 is dependent on B1,2,3,4))
-static uint32_t gen_radio_data(uint32_t data_in) {
+/*static uint32_t gen_radio_data(uint32_t data_in) {
   uint32_t data_out =  0xF000 | (data_in<<5);;
   uint32_t B4 = 
     ((data_out>>11)&0x1) ^ 
@@ -222,6 +199,7 @@ static uint32_t gen_radio_data(uint32_t data_in) {
   data_out |= (B4<<4)|(B3<<3)|(B2<<2)|(B1<<1)|(B0<<0);
   return data_out;
 }
+*/
 
 //***************************************************
 //Send Radio Data MSB-->LSB
@@ -234,7 +212,7 @@ static void send_radio_data(uint32_t radio_data){
   int32_t i; //loop var
   uint32_t j; //loop var
   for(j=0;j<1;j++){ //Packet Loop
-    for(i=15;i>=0;i--){ //Bit Loop
+    for(i=31;i>=0;i--){ //Bit Loop
       delay (10);
       if ((radio_data>>i)&1) write_mbus_register(RAD_ADDR,0x27,0x1);
       else                   write_mbus_register(RAD_ADDR,0x27,0x0);
@@ -243,7 +221,7 @@ static void send_radio_data(uint32_t radio_data){
       //write_mbus_register(RAD_ADDR,0x27,0x1);
 
       //Must clear register
-      delay (RAD_BIT_DELAY);
+      delay(RAD_BIT_DELAY);
       write_mbus_register(RAD_ADDR,0x27,0x0);
       delay(RAD_BIT_DELAY); //Set delay between sending subsequent bit
     }
@@ -273,95 +251,16 @@ static void operation_sleep(void){
 
 }
 
-//***************************************************
-// Temperature measurement operation (SNSv2)
-//***************************************************
-static void operation_temp(void){
+static void operation_sleep_noirqreset(void){
 
-  // Check if wakeup is due to temperature sensor interrupt
-  // If so, then skip this section
+  // Reset wakeup counter
+  // This is required to go back to sleep!!
+  *((volatile uint32_t *) 0xA2000014) = 0x1;
 
-  if ( exec_temp_marker != 0x87654321 ) {
+  // Go to Sleep
+  sleep();
+  while(1);
 
-    // This wakeup is just to enable temp sensor
-    exec_count = exec_count - 1;
-
-    // Set exec_temp_marker
-    exec_temp_marker = 0x87654321;
-
-    //Enable T Sensor
-    _sns_r3 = (0x3<<17)|(0x0<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
-    delay(MBUS_DELAY);
-    write_mbus_register(SNS_ADDR,3,_sns_r3);
-    
-    operation_sleep();
-  }
-
-  delay(MBUS_DELAY);
-
-  // Grab Data after IRQ
-  temp_data = *((volatile uint32_t *) IMSG1);
-
-  // Store in memory
-  // If the buffer is full, then skip
-  if (temp_data_count<DATA_BUFFER_SIZE){
-    temp_data_stored[temp_data_count] = temp_data;
-    temp_data_count = temp_data_count + 1;
-  }
-
-  // Disable T Sensor
-  _sns_r3 = (0x3<<17)|(0x1<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
-  delay(MBUS_DELAY);
-  write_mbus_register(SNS_ADDR,3,_sns_r3);
-
-  // Reset exec_temp_marker
-  exec_temp_marker = 0;
-
-/*
-  //Fire off data to radio
-  radio_data = gen_radio_data(temp_data>>5);
-  delay(MBUS_DELAY);
-
-  send_radio_data(radio_data);
-*/
-
-
-  // Set up wake up timer register
-  // Initial cycles have different wakeup time
-  if (exec_count < NUM_INITIAL_CYCLE){
-    set_wakeup_timer(TEMP_WAKEUP_CYCLE_INITIAL,1,0);
-  }
-  else {
-    set_wakeup_timer(TEMP_WAKEUP_CYCLE,1,0);
-  }
-
-  operation_sleep();
-
-}
-
-//***************************************************
-// Temperature measurement operation (SNSv2)
-//***************************************************
-static void operation_radio(void){
-
-  //Fire off stored data to radio
-  uint32_t i;
-  for (i=0;i<temp_data_count;i++){
-
-    radio_data = gen_radio_data(temp_data_stored[i]>>5);
-    delay(MBUS_DELAY);
-  
-    send_radio_data(radio_data);
-    delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
-  }
-
-  delay(MBUS_DELAY);
-
-  // Reset temp_data_count
-  temp_data_count = 0;
-
-  operation_temp();
-  //operation_sleep();
 }
 
 
@@ -371,9 +270,16 @@ static void operation_radio(void){
 int main() {
 
   //Clear All Pending Interrupts
-  *((volatile uint32_t *) 0xE000E280) = 0xF;
+  *((volatile uint32_t *) 0xE000E280) = 0x3FF;
   //Enable Interrupts
-  *((volatile uint32_t *) 0xE000E100) = 0xF;
+  *((volatile uint32_t *) 0xE000E100) = 0x3FF;
+
+  //Set PMU Division to 5
+  //*((volatile uint32_t *) 0xA200000C) = 0x4F770029; 
+  //Set PMU Division to 6
+  //*((volatile uint32_t *) 0xA200000C) = 0x0F77002B;
+
+
 
   //Check if it is the first execution
   if ( exec_marker != 0x12345678 ) {
@@ -394,66 +300,83 @@ int main() {
     //Mark execution
     exec_marker = 0x12345678;
     exec_count = 0;
+    exec_count_irq = 0;
 
-    //Enumeration
-    enumerate(RAD_ADDR);
+    //Enumeration (SNS->HRV->RAD)
+    enumerate(SNS_ADDR);
     asm ("wfi;");
     delay(MBUS_DELAY);
-    enumerate(SNS_ADDR);
+    enumerate(HRV_ADDR);
+    asm ("wfi;");
+    delay(MBUS_DELAY);
+    enumerate(RAD_ADDR);
     asm ("wfi;");
 
     // Setup Radio
     setup_radio();
 
-    // Setup T Sensor
-    setup_tempsensor();
-
-    // Initialize program variables
-    temp_data_count = 0;
-
   }else{
-
-    // Repeating wakeup routine 
-    exec_count = exec_count + 1;
 
     // Disable wakeup timer
     set_wakeup_timer(0,0,1);
 
   }
 
-  // Repeating wakeup routine 
+  send_radio_data(0xFAAA5533);
+  set_wakeup_timer(2/*TEMP_WAKEUP_CYCLE*/,1,0);
+  operation_sleep();
 
+
+  // Repeating wakeup routine 
+/*
   // Check if wakeup is due to GOC interrupt
   // 0x68 is reserved for GOC-triggered wakeup (Named IRQ10VEC)
   // 8 MSB bits of the wakeup data are used for function ID
-
   uint32_t wakeup_data = *((volatile uint32_t *) IRQ10VEC);
   uint32_t wakeup_data_header = wakeup_data>>24;
 
   if(wakeup_data_header == 1){
-      // Transmit data via radio and go to sleep
-      operation_radio();
+    // Debug mode: Transmit something via radio 16 times and go to sleep w/o timer
+    if (exec_count_irq < 16){
+      exec_count_irq++;
+      // radio
+//    send_radio_data(0xF0F0F0F0);
+      send_radio_data (gen_radio_data(0x6C));
+      // set timer
+      set_wakeup_timer (TEMP_WAKEUP_CYCLE_INITIAL, 0x1, 0x0);
+      // go to sleep and wake up with same condition
+      operation_sleep_noirqreset();
+    }else{
+      exec_count_irq = 0;
+      // radio
+//    send_radio_data(0xF0F0F0F0);
+      send_radio_data (gen_radio_data(0x6C));
+      // Disable Timer
+      set_wakeup_timer (0, 0x0, 0x0);
+      // Go to sleep without timer
+      operation_sleep();
+    }
 
   }else if(wakeup_data_header == 2){
-      // Do something and go to sleep
-      operation_sleep();
+      operation_radiotest();
 
   }else if(wakeup_data_header == 3){
-      // Do something and go to sleep
+      // Disable Timer
+      set_wakeup_timer (0, 0x0, 0x0);
+      // Go to sleep without timer
       operation_sleep();
 
   }else if(wakeup_data_header == 4){
-      // Do something and go to sleep
-      operation_sleep();
+      // radiotest
+      operation_radiotest();
 
   }else{
       // Default case 
-      operation_temp();
+      operation_radiotest();
   }
 
   // Note: Program should send system to sleep in the switch statement
   // Program should not reach this point
-
+*/
   while(1);
-
 }

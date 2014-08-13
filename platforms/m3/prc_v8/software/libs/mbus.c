@@ -33,7 +33,7 @@ int write_mbus_register(uint32_t enum_addr, uint8_t reg, uint32_t data){
   uint32_t _mbus_addr = 0;
   uint32_t _mbus_data = 0;
   _mbus_addr |= (enum_addr << 4);
-  _mbus_data |= (reg << 24) | data;
+  _mbus_data |= (reg << 24) | (data&0xFFFFFF); //Only use bottom 24 bits!
   write_mbus_message(_mbus_addr,_mbus_data);
   return 0;
 }

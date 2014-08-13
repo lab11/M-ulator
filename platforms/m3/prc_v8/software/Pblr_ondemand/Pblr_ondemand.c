@@ -1,37 +1,40 @@
 //*******************************************************************
 //Author: ZhiYoong Foo
-//Description:  Pbhw Functionality Tests
+//        Gyouho Kim
+//Description:  Derived from zhiyoong_Pblr.c and Tstack_ondemand_temp_radio.c
 //		Moving towards Mouse Implantation
-//Stacking Diagram: 	\m3_shared\m3_orders\Order to Advotech\140207 - PRCv8 Tbh(3) Tbhr(3) Tbhlw(3) Pbhw(3)\
-//			Pbhw Stack Assembly Plan (PRS-BAT-PRC-DCP-SNS-HRV-RAD-SOL).pdf
+//Stacking Diagram: 	\m3_shared\m3_orders\Order to Advotech\140317 - Pblr\
+//			Pblr Stack Assembly Plan (BAT-CTR-DCP-SNS-RAD-SOL).pdf
 //*******************************************************************
 #include "mbus.h"
 #include "PRCv8.h"
 #include "SNSv2.h"
-#include "HRVv1.h"
 #include "RADv5.h"
 
 #define RAD_ADDR 0x4
 #define SNS_ADDR 0x5
-#define HRV_ADDR 0x6
 
 #define NUM_SAMPLES 1         //Number of CDC samples to take
-//#define RAD_BIT_DELAY 40       //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
-#define RAD_BIT_DELAY 100       //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
+#define RAD_BIT_DELAY 40       //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 600   //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
-#define RAD_SAMPLE_DELAY 213   //2//213:10min       //Wake up timer tuning: # of wake up timer cycles to sleep
-#define RAD_SAMPLE_DELAY_INITIAL 3 // Wake up timer duration for initial periods
+#define INITIAL_SLEEP_TIME 10 //Initial Sleep Time for Baking
 #define CDC_TIMEOUT 0x20 //Timeout for CDC
 #define CDC_SAMPLE_TIME 0x3 //Time between CDC Samples
+#define WAKEUP_PERIOD_CONT_INITIAL 3  // Wakeup period for initial portion of continuous pressure sensing
+#define WAKEUP_PERIOD_CONT 244 // 213:10min Wakeup period for continous pressure sensing
+
+
 //***************************************************
 // Global variables
 //***************************************************
 //Test Declerations
 volatile uint32_t enumerated;
-volatile uint32_t Pbhw_state;
+volatile uint32_t Pblr_state;
 volatile uint32_t cdc_data[NUM_SAMPLES];
 volatile uint32_t cdc_data_index;
 volatile uint32_t num_timeouts;
+volatile uint32_t execution_count;
+volatile uint32_t execution_count_irq;
 volatile snsv2_r0_t snsv2_r0;
 
 //***************************************************
@@ -89,7 +92,7 @@ void handler_ext_int_3(void){
 //D[14]:20: 10100
 //D[15]:21: 10101
 static uint32_t gen_radio_data(uint32_t data_in) {
-  uint32_t data_out =  0x3C0000 | data_in<<6;
+  uint32_t data_out =  0x3C00000 | data_in<<6;
   uint32_t P5 = 
     ((data_in>>15)&0x1) ^ 
     ((data_in>>14)&0x1) ^ 
@@ -167,7 +170,7 @@ static uint32_t gen_radio_data(uint32_t data_in) {
 static void send_radio_data(uint32_t radio_data){
   int32_t i; //loop var
   uint32_t j; //loop var
-  for(j=0;j<100;j++){ //Packet Loop
+  for(j=0;j<1;j++){ //Packet Loop
     for(i=25;i>=0;i--){ //Bit Loop
       delay (10);
       if ((radio_data>>i)&1) write_mbus_register(RAD_ADDR,0x27,0x1);
@@ -177,7 +180,7 @@ static void send_radio_data(uint32_t radio_data){
       write_mbus_register(RAD_ADDR,0x27,0x0);
       delay(RAD_BIT_DELAY); //Set delay between sending subsequent bit
     }
-    delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
+    //delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
   }
 }
 
@@ -188,6 +191,7 @@ static void operation_sleep(void){
 
   // Reset wakeup counter
   // This is required to go back to sleep!!
+  //set_wakeup_timer (0xFFF, 0x0, 0x1);
   *((volatile uint32_t *) 0xA2000014) = 0x1;
 
   // Reset IRQ10VEC
@@ -199,20 +203,47 @@ static void operation_sleep(void){
 
 }
 
+static void operation_sleep_noirqreset(void){
+
+  // Reset wakeup counter
+  // This is required to go back to sleep!!
+  *((volatile uint32_t *) 0xA2000014) = 0x1;
+
+  // Go to Sleep
+  sleep();
+  while(1);
+
+}
+
 static void operation_init(void){
+
+  // Set PMU Strength & division threshold
+  // Change PMU_CTRL Register
+  // 0x0F770029 = Original
+  // Increase sleep oscillator frequency for GOC and temp sensor
+  // Decrease 5x division switching threshold
+  *((volatile uint32_t *) 0xA200000C) = 0x0F77004B;
+
+  // Speed up GOC frontend to match PMU frequency
+  *((volatile uint32_t *) 0xA2000008) = 0x0020290A;
+
+  delay(1000);
+
   //Enumerate & Initialize Registers
   if (enumerated != 0xDEADBEEF){
-    Pbhw_state = 0x0;
+    Pblr_state = 0x0;
     enumerated = 0xDEADBEEF;
     cdc_data_index = 0;
     num_timeouts = 0;
+    execution_count = 0;
+    execution_count_irq = 0;
     //Enumeration
-    enumerate(RAD_ADDR);
-    WFI();
     enumerate(SNS_ADDR);
-    WFI();
-    enumerate(HRV_ADDR);
-    WFI();
+    delay(1000);
+    //WFI();
+    enumerate(RAD_ADDR);
+    delay(1000);
+    //WFI();
     //Set & Forget!
     snsv2_r1_t snsv2_r1 = SNSv2_R1_DEFAULT;
     snsv2_r7_t snsv2_r7 = SNSv2_R7_DEFAULT;
@@ -246,15 +277,14 @@ static void operation_init(void){
     snsv2_r0.CDC_Bias_1st = 0x7;
     snsv2_r0.CDC_EXT_RESET = 0x1;
     snsv2_r0.CDC_CLK = 0x0;
-    write_mbus_register(SNS_ADDR,0x0,snsv2_r0.as_int);
+    write_mbus_register(SNS_ADDR,0,snsv2_r0.as_int);
     delay(1000);
     //RADv5 R23
     radv5_r23.RADIO_EXT_CTRL_EN_1P2 = 0x0; //Ext Ctrl En
     write_mbus_register(RAD_ADDR,0x23,radv5_r23.as_int);
     delay(1000);
     //RADv5 R26
-    //    radv5_r26.RADIO_TUNE_CURRENT_LIMITER_1P2 = 0x1F; //Current Limiter 2F = 30uA, 1F = 3uA
-    radv5_r26.RADIO_TUNE_CURRENT_LIMITER_1P2 = 0x3C; //Current Limiter 2F = 30uA, 1F = 3uA
+    radv5_r26.RADIO_TUNE_CURRENT_LIMITER_1P2 = 0x1F; //Current Limiter 2F = 30uA, 1F = 3uA
     write_mbus_register(RAD_ADDR,0x26,radv5_r26.as_int);
     delay(1000);
     //RADv5 R20
@@ -266,7 +296,7 @@ static void operation_init(void){
     write_mbus_register(RAD_ADDR,0x21,radv5_r21.as_int);
     delay(1000);
     //RADv5 R22
-    radv5_r22.RADIO_TUNE_FREQ2_1P2 = 0x7; //Tune Freq 2
+    radv5_r22.RADIO_TUNE_FREQ2_1P2 = 0x0; //Tune Freq 2 //0x0,0x0 = 902MHz on Pblr005
     write_mbus_register(RAD_ADDR,0x22,radv5_r22.as_int);
     delay(1000);
     //RADv5 R25
@@ -276,10 +306,12 @@ static void operation_init(void){
     //RADv5 R27
     radv5_r27.RADIO_DATA_1P2 = 0x0; //Zero the TX register
     write_mbus_register(RAD_ADDR,0x27,radv5_r27.as_int);
-
+    /*
     set_wakeup_timer (0xFFF, 0x0, 0x1);
-    set_wakeup_timer (0x3, 0x1, 0x0);
+    set_wakeup_timer (INITIAL_SLEEP_TIME, 0x1, 0x0);
     operation_sleep();
+    */
+    sleep();
   }
 }
 
@@ -287,9 +319,9 @@ static void operation_cdc_reset(){
   //Not Reset
   //Not Running
   //Not Done
-  if(((Pbhw_state&0x3) == 0x0) && 
+  if(((Pblr_state&0x3) == 0x0) && 
      (cdc_data_index != NUM_SAMPLES)){
-    Pbhw_state |= (0x1<<0);
+    Pblr_state |= (0x1<<0);
     snsv2_r0.CDC_EXT_RESET = 0x0;
     snsv2_r0.CDC_CLK = 0x0;
     write_mbus_register(SNS_ADDR,0,snsv2_r0.as_int);
@@ -299,7 +331,7 @@ static void operation_cdc_reset(){
     operation_sleep();
   }
   else{
-    Pbhw_state &= ~(0x1<<0);
+    Pblr_state &= ~(0x1<<0);
   }
 }
 
@@ -307,8 +339,8 @@ static void operation_cdc_run(){
   //Not done taking samples
   if (cdc_data_index != NUM_SAMPLES){
     //Not Running (ie: First Sample)
-    if(((Pbhw_state>>1)&0x1) == 0x0){
-      Pbhw_state |= (0x1<<1);
+    if(((Pblr_state>>1)&0x1) == 0x0){
+      Pblr_state |= (0x1<<1);
       //Enable CDC_CLK
       snsv2_r0.CDC_CLK = 0x1;
       write_mbus_register(SNS_ADDR,0,snsv2_r0.as_int);
@@ -323,10 +355,10 @@ static void operation_cdc_run(){
       snsv2_r0.CDC_CLK = 0x0;
       write_mbus_register(SNS_ADDR,0,snsv2_r0.as_int);
       //Check if data is valid
-      Pbhw_state &= ~(0x1<<2);
-      Pbhw_state |= ((((*((volatile uint32_t *) 0xA0001014))>>1)&0x1) << 2);
+      Pblr_state &= ~(0x1<<2);
+      Pblr_state |= ((((*((volatile uint32_t *) 0xA0001014))>>1)&0x1) << 2);
       //If not valid
-      if(((Pbhw_state>>2)&0x1) == 0x0){
+      if(((Pblr_state>>2)&0x1) == 0x0){
 	//Take another sample
 	snsv2_r0.CDC_CLK = 0x1;
 	write_mbus_register(SNS_ADDR,0,snsv2_r0.as_int);
@@ -336,16 +368,18 @@ static void operation_cdc_run(){
 	operation_sleep();
       }
       else{
-	Pbhw_state &= ~(0x1<<1);
+	Pblr_state &= ~(0x1<<1);
 	//Reset CDC
 	snsv2_r0.CDC_EXT_RESET = 0x1;
 	write_mbus_register(SNS_ADDR,0,snsv2_r0.as_int);
 	cdc_data[cdc_data_index] = (*((volatile uint32_t *) 0xA0001014)>>2);
 	cdc_data_index++;
-	//Go back to sleep
-	set_wakeup_timer (0xFFF, 0x0, 0x1);
-	set_wakeup_timer (CDC_SAMPLE_TIME, 0x1, 0x0);
-	operation_sleep();
+        if (NUM_SAMPLES > 1) {
+  	  //Go back to sleep
+	  set_wakeup_timer (0xFFF, 0x0, 0x1);
+	  set_wakeup_timer (CDC_SAMPLE_TIME, 0x1, 0x0);
+	  operation_sleep();
+        }
       }
     }
   }
@@ -356,20 +390,20 @@ static void operation_cdc_timeout(){
      (((*((volatile uint32_t *) 0xA0001034)>>15) & 0x1) == 0x1)){
     num_timeouts++;
     //Failed during reset
-    if(((Pbhw_state>>0)&0x3) == 0x1){
+    if(((Pblr_state>>0)&0x3) == 0x1){
       delay(10000);
       write_mbus_register(0x8,0,0xDEADBEEA);
       delay(10000);
-      Pbhw_state &= ~(0x0<<0);
+      Pblr_state &= ~(0x0<<0);
       snsv2_r0.CDC_EXT_RESET = 0x1;
       write_mbus_register(SNS_ADDR,0,snsv2_r0.as_int);
     }
     //Failed during run
-    else if(((Pbhw_state>>1)&0x1) == 0x1){
+    else if(((Pblr_state>>1)&0x1) == 0x1){
       delay(10000);
       write_mbus_register(0x8,0,0xDEADBEEB);
       delay(10000);
-      Pbhw_state &= ~(0x1<<1);
+      Pblr_state &= ~(0x1<<1);
       snsv2_r0.CDC_EXT_RESET = 0x1;
       snsv2_r0.CDC_CLK = 0x0;
       write_mbus_register(SNS_ADDR,0,snsv2_r0.as_int);
@@ -385,10 +419,21 @@ static void operation_cdc_timeout(){
   set_wakeup_timer (0xFFF, 0x0, 0x1);
 }
 
+static void operation_tx_cdc_results(){
+
+  uint32_t i;
+  for (i=0; i<NUM_SAMPLES; i++){
+    delay(10000);
+    send_radio_data(gen_radio_data(cdc_data[i]));
+  }
+
+  cdc_data_index = 0;
+
+}
+
+
 int main() {
   
-  //Set to defaults
-
   //Clear All Pending Interrupts
   *((volatile uint32_t *) 0xE000E280) = 0xF;
   //Enable Interrupts
@@ -399,44 +444,92 @@ int main() {
   //Set PMU Division to 6
   //*((volatile uint32_t *) 0xA200000C) = 0x0F77002B;
   
+  // This is only performed once
   operation_init();
-
-  operation_cdc_timeout();
-
-  operation_cdc_reset();
   
-  operation_cdc_run();
+  // Check if wakeup is due to GOC interrupt
+  // 0x68 is reserved for GOC-triggered wakeup (Named IRQ10VEC)
+  // 8 MSB bits of the wakeup data are used for function ID
 
-  //chuck off into the void
-  uint32_t i;
-  for (i=0; i<NUM_SAMPLES; i++){
-    delay(5000);
-    write_mbus_register(0x7,0,cdc_data[i]);
-  }
-  for (i=0; i<NUM_SAMPLES; i++){
-    delay(5000);
-    write_mbus_register(0x8,0,gen_radio_data(cdc_data[i]));
-  }
-  delay(5000);
-  write_mbus_register(0x8,0,num_timeouts);
-  /*
-    for (i=0; i<NUM_SAMPLES; i++){
-    delay(10000);
-    send_radio_data(gen_radio_data(cdc_data[i]));
+  uint32_t wakeup_data = *((volatile uint32_t *) IRQ10VEC);
+  uint32_t wakeup_data_header = wakeup_data>>24;
+  uint32_t wakeup_data_field_0 = wakeup_data & 0xFF;
+  uint32_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;
+  uint32_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
+
+  if(wakeup_data_header == 1){
+    // Debug mode: Transmit something via radio 8 times and go to sleep w/o timer
+    if (execution_count_irq < 8){
+      execution_count_irq++;
+      // radio
+      send_radio_data(0xF0F0F0F0);
+      // set timer
+      set_wakeup_timer (WAKEUP_PERIOD_CONT_INITIAL, 0x1, 0x0);
+      // go to sleep and wake up with same condition
+      operation_sleep_noirqreset();
+
+    }else{
+      execution_count_irq = 0;
+      // radio
+      send_radio_data(0xF0F0F0F0);
+      // Disable Timer
+      set_wakeup_timer (0, 0x0, 0x0);
+      // Go to sleep without timer
+      operation_sleep();
     }
-  */
-  cdc_data_index = 0;
-  while(1){
-    for (i=0; i<NUM_SAMPLES; i++){
-      delay(5000);
-      send_radio_data(gen_radio_data(cdc_data[i]));
+
+  }else if(wakeup_data_header == 2){
+    // Proceed to continuous mode
+
+  }else if(wakeup_data_header == 3){
+    // Disable Timer
+    set_wakeup_timer (0, 0x0, 0x0);
+    // Go to sleep without timer
+    operation_sleep();
+
+  }else if(wakeup_data_header == 4){
+    // Debug mode: Transmit something via radio 160 times and go to sleep w/o timer
+    if (execution_count_irq < 160){
+      execution_count_irq++;
+      // radio
+      send_radio_data(0xF0F0F0F0);
+      // set timer
+      set_wakeup_timer (WAKEUP_PERIOD_CONT_INITIAL, 0x1, 0x0);
+      // go to sleep and wake up with same condition
+      operation_sleep_noirqreset();
+
+    }else{
+      execution_count_irq = 0;
+      // radio
+      send_radio_data(0xF0F0F0F0);
+      // Disable Timer
+      set_wakeup_timer (0, 0x0, 0x0);
+      // Go to sleep without timer
+      operation_sleep();
     }
+
+  }else{
+    // Proceed to continuous mode
+
   }
-  delay(5000);
+
+  // Continuous cdc measurement mode 
+  operation_cdc_timeout();
+  operation_cdc_reset();
+  operation_cdc_run();
+  operation_tx_cdc_results();
+
   set_wakeup_timer (0xFFF, 0x0, 0x1);
-  set_wakeup_timer (0x4, 0x1, 0x0);
+  if(execution_count < 12){
+    execution_count++;
+    set_wakeup_timer (WAKEUP_PERIOD_CONT_INITIAL, 0x1, 0x0);
+  }
+  else{
+    set_wakeup_timer (WAKEUP_PERIOD_CONT, 0x1, 0x0);
+  }
   operation_sleep();
 
-  while (1){}
+  while(1);
+
 }
 

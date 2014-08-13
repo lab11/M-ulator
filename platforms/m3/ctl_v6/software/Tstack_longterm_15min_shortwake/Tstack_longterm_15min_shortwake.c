@@ -21,7 +21,7 @@
 #define RAD_BIT_DELAY 40     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 600  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
 #define RAD_SAMPLE_DELAY 320     //2//213:10min       //Wake up timer tuning: # of wake up timer cycles to sleep
-#define RAD_SAMPLE_DELAY_INITIAL 20 // Wake up timer duration for initial periods
+#define RAD_SAMPLE_DELAY_INITIAL 3 // Wake up timer duration for initial periods
 //#define RAD_SAMPLE_DELAY 40000 //10000   //Radio tuning: Delay between samples sent (NUM_SAMPLES sent)
 
 //************************************
@@ -110,7 +110,7 @@ static uint32_t gen_radio_data(uint32_t data_in) {
 static void send_radio_data(uint32_t radio_data){
   int32_t i; //loop var
   uint32_t j; //loop var
-  for(j=0;j<1;j++){ //Packet Loop
+  for(j=0;j<3;j++){ //Packet Loop
     for(i=15;i>=0;i--){ //Bit Loop
       delay (10);
       if ((radio_data>>i)&1) write_mbus_register(RAD_ADDR,0x27,0x1);
@@ -124,7 +124,7 @@ static void send_radio_data(uint32_t radio_data){
       write_mbus_register(RAD_ADDR,0x27,0x0);
       delay(RAD_BIT_DELAY); //Set delay between sending subsequent bit
     }
-    //delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
+    delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
   }
 }
 
@@ -151,7 +151,7 @@ int main() {
 
     //Mark execution
     exec_marker = 0x12345678;
-    exec_count = 16;
+    exec_count = 16000;
 
     //Enumeration
     enumerate(RAD_ADDR);
