@@ -4,7 +4,7 @@
 
 /* Interrupt Vector Table */
 .section .vectors
-.word	0x0c00	@ stack top
+.word	0x0800	@ stack top
 .word	_start	@ reset vector
 .word   handler_nmi         /* 2 NMI */
 .word   handler_hard        /* 3 HardFault */
