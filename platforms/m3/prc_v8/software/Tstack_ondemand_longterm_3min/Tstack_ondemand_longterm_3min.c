@@ -25,7 +25,7 @@
 
 #define RAD_BIT_DELAY 40     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 600  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
-#define TEMP_WAKEUP_CYCLE 100     //2//213:10min       //Wake up timer tuning: # of wake up timer cycles to sleep
+#define TEMP_WAKEUP_CYCLE 200 // 500 is ~10 min for sleep osc set up "3"  //Wake up timer tuning: # of wake up timer cycles to sleep
 #define TEMP_WAKEUP_CYCLE_INITIAL 3 // Wake up timer duration for initial periods
 #define NUM_INITIAL_CYCLE 3 // Number of initial cycles
 #define DATA_BUFFER_SIZE 256
@@ -236,7 +236,7 @@ static uint32_t gen_radio_data(uint32_t data_in) {
 static void send_radio_data(uint32_t radio_data){
   int32_t i; //loop var
   uint32_t j; //loop var
-  for(j=0;j<3;j++){ //Packet Loop
+  for(j=0;j<1;j++){ //Packet Loop
     for(i=15;i>=0;i--){ //Bit Loop
       delay (10);
       if ((radio_data>>i)&1) write_mbus_register(RAD_ADDR,0x27,0x1);
@@ -358,12 +358,12 @@ static void operation_temp(void){
 // Temperature measurement operation (SNSv2)
 //***************************************************
 static void operation_radio(void){
-
+/*
   //Fire off stored data to radio
   uint32_t i;
   for (i=0;i<temp_data_count;i++){
 
-    radio_data = gen_radio_data(temp_data_stored[i]>>3);
+    radio_data = gen_radio_data(temp_data_stored[i]>>5);
     delay(MBUS_DELAY);
   
     send_radio_data(radio_data);
@@ -376,7 +376,87 @@ static void operation_radio(void){
   temp_data_count = 0;
 
   operation_temp();
-  //operation_sleep();
+*/
+  //Fire off data to radio
+  radio_data = gen_radio_data(exec_count);
+  delay(MBUS_DELAY);
+
+  send_radio_data(radio_data);
+  delay(MBUS_DELAY);
+  
+  set_wakeup_timer(TEMP_WAKEUP_CYCLE_INITIAL,1,0);
+  operation_sleep();
+}
+
+//***************************************************
+// Longterm Temperature measurement operation (SNSv2)
+//***************************************************
+static void operation_longterm_3min(void){
+
+  // Check if wakeup is due to temperature sensor interrupt
+  // If so, then skip this section
+
+  if ( exec_temp_marker != 0x87654321 ) {
+    // Restore PMU sleep OSC freq to minimize sleep power
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77005B;
+
+    // This wakeup is just to enable temp sensor
+    exec_count = exec_count - 1;
+
+    // Set exec_temp_marker
+    exec_temp_marker = 0x87654321;
+
+    //Enable T Sensor
+    _sns_r3 = (0x3<<17)|(0x0<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
+    delay(MBUS_DELAY);
+    write_mbus_register(SNS_ADDR,3,_sns_r3);
+    
+    operation_sleep();
+  }
+
+  delay(MBUS_DELAY);
+
+  // Grab Data after IRQ
+  temp_data = *((volatile uint32_t *) IMSG1);
+
+/*
+  // Store in memory
+  // If the buffer is full, then skip
+  if (temp_data_count<DATA_BUFFER_SIZE){
+    temp_data_stored[temp_data_count] = temp_data;
+    temp_data_count = temp_data_count + 1;
+  }
+*/
+
+  // Disable T Sensor
+  _sns_r3 = (0x3<<17)|(0x1<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
+  delay(MBUS_DELAY);
+  write_mbus_register(SNS_ADDR,3,_sns_r3);
+
+  // Reset exec_temp_marker
+  exec_temp_marker = 0;
+
+  //Fire off data to radio
+  radio_data = gen_radio_data(temp_data>>3);
+  delay(MBUS_DELAY);
+
+  send_radio_data(radio_data);
+
+
+  // Set up wake up timer register
+  // Initial cycles have different wakeup time
+//  if (exec_count < NUM_INITIAL_CYCLE){
+//    set_wakeup_timer(TEMP_WAKEUP_CYCLE_INITIAL,1,0);
+//  }
+//  else {
+    set_wakeup_timer(TEMP_WAKEUP_CYCLE,1,0);
+//  }
+
+  // Restore PMU sleep OSC freq to minimize sleep power
+  *((volatile uint32_t *) 0xA200000C) = 0x8F77003B;
+
+  operation_sleep();
+
 }
 
 
@@ -420,14 +500,14 @@ int main() {
 
     //Enumeration
     enumerate(SNS_ADDR);
-    asm ("wfi;");
-    delay(MBUS_DELAY*10);
+//  asm ("wfi;");
+    delay(MBUS_DELAY*50);
     enumerate(HRV_ADDR);
-    asm ("wfi;");
-    delay(MBUS_DELAY*10);
+//  asm ("wfi;");
+    delay(MBUS_DELAY*50);
     enumerate(RAD_ADDR);
-    asm ("wfi;");
-    delay(MBUS_DELAY*10);
+//  asm ("wfi;");
+    delay(MBUS_DELAY*50);
 
     // Setup Radio
     setup_radio();
@@ -481,13 +561,11 @@ int main() {
 
   }else if(wakeup_data_header == 2){
       // Temp operation
-      // Restore PMU sleep clock to minimize standby power
-      *((volatile uint32_t *) 0xA200000C) = 0x8F77002B;
-      delay(MBUS_DELAY);
-      operation_temp();
+      operation_longterm_3min();
+      //operation_temp();
 
   }else if(wakeup_data_header == 3){
-      // Make PMU sleep clock faster for faster programming
+      // Make PMU sleep OSC freq faster for next command 
       *((volatile uint32_t *) 0xA200000C) = 0x8F77004B;
       // Disable Timer
       set_wakeup_timer (0, 0x0, 0x0);
@@ -495,8 +573,12 @@ int main() {
       operation_sleep();
 
   }else if(wakeup_data_header == 4){
-      // Transmit data via radio and go to sleep
-      operation_radio();
+      // Restore PMU sleep OSC freq to minimize sleep power
+      *((volatile uint32_t *) 0xA200000C) = 0x8F77004B;
+      delay(MBUS_DELAY);
+      // Temp operation
+      operation_longterm_3min();
+      //operation_temp();
 
   }else if(wakeup_data_header == 5){
       // Invalidate All MBus Addr
@@ -506,7 +588,8 @@ int main() {
 
   }else{
       // Default case 
-      operation_temp();
+      //operation_temp();
+      operation_longterm_3min();
   }
 
   // Note: Program should send system to sleep in the switch statement
