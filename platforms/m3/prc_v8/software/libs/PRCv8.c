@@ -50,6 +50,10 @@ void set_wakeup_timer( uint16_t timestamp, uint8_t on, uint8_t reset ) {
 		*((volatile uint32_t *) 0xA2000014) = 0x01;
 }
 
+void reset_wakeup_timer( ) {
+		*((volatile uint32_t *) 0xA2000014) = 0x01;
+}
+
 void set_clkfreq( uint8_t fastmode, uint8_t div_cm, uint8_t div_mbus, uint8_t ring ) {
 	uint32_t regval = *((volatile uint32_t *) 0xA0001028 );		// Read original reg value
 	regval &= 0xFF7FC0FF;

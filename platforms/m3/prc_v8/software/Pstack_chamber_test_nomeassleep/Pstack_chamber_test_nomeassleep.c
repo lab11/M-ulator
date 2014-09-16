@@ -12,9 +12,9 @@
 #include "RADv5.h"
 
 // uncomment this for debug mbus message
-//#define DEBUG_MBUS_MSG
+#define DEBUG_MBUS_MSG
 // uncomment this for debug radio message
-#define DEBUG_RADIO_MSG
+//#define DEBUG_RADIO_MSG
 
 // uncomment this to only transmit average
 //#define TX_AVERAGE
