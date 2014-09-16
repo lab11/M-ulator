@@ -35,7 +35,7 @@ typedef union snsv3_r1{
   }; 
   uint32_t as_int;
 } snsv3_r1_t;
-#define SNSv3_R1_DEFAULT {{0x20, 0xF, 0x0}}
+#define SNSv3_R1_DEFAULT {0x20, 0xF, 0x0}
 _Static_assert(sizeof(snsv3_r1_t) == 4, "Punned Structure Size");
 
 //Register 0x2

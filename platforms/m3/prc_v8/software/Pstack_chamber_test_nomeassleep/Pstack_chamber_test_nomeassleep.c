@@ -12,9 +12,9 @@
 #include "RADv5.h"
 
 // uncomment this for debug mbus message
-//#define DEBUG_MBUS_MSG
+#define DEBUG_MBUS_MSG
 // uncomment this for debug radio message
-#define DEBUG_RADIO_MSG
+//#define DEBUG_RADIO_MSG
 
 // uncomment this to only transmit average
 //#define TX_AVERAGE
@@ -425,7 +425,7 @@ static void operation_cdc_run(){
                 if( MBus_msg_flag ){
                     MBus_msg_flag = 0;
                     Pstack_state = PSTK_RESET;
-                    break;
+                    return;
                 }
                 else{
                     delay(100);
@@ -481,7 +481,7 @@ static void operation_cdc_run(){
                                 write_mbus_message(0xA1, 0x00020000);
                             #endif
                             release_cdc_meas();
-                            break;
+                            return;
                         }
                     }
                     release_cdc_meas();
