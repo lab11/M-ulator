@@ -32,10 +32,10 @@
 // Radio configurations
 #define RAD_BIT_DELAY       12      //40      //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_NUM      3      //How many times identical data will be TXed
-#define RAD_PACKET_DELAY    80    //1000    //Radio tuning: Delay between packets sent
+#define RAD_PACKET_DELAY    300    // Can go down as low as 100  //Radio tuning: Delay between packets sent
 
 // CDC configurations
-#define NUM_SAMPLES         3      //Number of CDC samples to take (only 2^n allowed: 2, 4, 8, 16...)
+#define NUM_SAMPLES         10     //Number of CDC samples to take (only 2^n allowed for averaging: 2, 4, 8, 16...)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 #define CDC_TIMEOUT         0x3    //Timeout for CDC
 
@@ -421,11 +421,11 @@ static void operation_cdc_run(){
                 write_mbus_message(0xA0, 0x0000001);
             #endif
             release_cdc_reset();
-            for( count=0; count<200; count++ ){
+            for( count=0; count<300; count++ ){
                 if( MBus_msg_flag ){
                     MBus_msg_flag = 0;
                     Pstack_state = PSTK_RESET;
-                    break;
+                    return;
                 }
                 else{
                     delay(100);
@@ -449,7 +449,7 @@ static void operation_cdc_run(){
                 write_mbus_message(0xA0, 0x00010002);
             #endif
             fire_cdc_meas();
-            for( count=0; count<200; count++ ){
+            for( count=0; count<300; count++ ){
                 if( MBus_msg_flag ){
                     MBus_msg_flag = 0;
                     read_data = *((volatile uint32_t *) 0xA0001014);
@@ -481,11 +481,14 @@ static void operation_cdc_run(){
                                 write_mbus_message(0xA1, 0x00020000);
                             #endif
                             release_cdc_meas();
-                            break;
+                            return;
                         }
                     }
-                    release_cdc_meas();
-                    break;
+                    else{
+                        // If CDC data is invalid
+                        release_cdc_meas();
+                        return;
+                    }
                 }
                 else{
                     delay(100);
