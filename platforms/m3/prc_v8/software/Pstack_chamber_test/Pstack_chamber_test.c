@@ -32,11 +32,11 @@
 // Radio configurations
 #define RAD_BIT_DELAY       12      //40      //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_NUM      3      //How many times identical data will be TXed
-#define RAD_PACKET_DELAY    600    //1000    //Radio tuning: Delay between packets sent
+#define RAD_PACKET_DELAY    100    //1000    //Radio tuning: Delay between packets sent
 
 // CDC configurations
-#define NUM_SAMPLES         1      //Number of CDC samples to take (only 2^n allowed: 2, 4, 8, 16...)
-#define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR
+#define NUM_SAMPLES         3      //Number of CDC samples to take (only 2^n allowed: 2, 4, 8, 16...)
+#define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 #define CDC_TIMEOUT         0x3    //Timeout for CDC
 
 // Sleep-Wakeup control
@@ -291,7 +291,7 @@ static void operation_tx_cdc_results(){
 #else
     for (i=0; i<NUM_SAMPLES; i++){
     #if NUM_SAMPLES>1
-        delay(RAD_PACKET_DELAY*3);
+        delay(RAD_PACKET_DELAY);
     #endif
         send_radio_data(gen_radio_data(cdc_data[i]));
     }
@@ -306,7 +306,8 @@ static void operation_init(void){
     // 0x0F770029 = Original
     // Increase sleep oscillator frequency for GOC and temp sensor
     // Decrease 5x division switching threshold
-    *((volatile uint32_t *) 0xA200000C) = 0x0F77004B;
+    set_pmu_sleep_clk_high();
+//    *((volatile uint32_t *) 0xA200000C) = 0x0F77004B;
   
     // Speed up GOC frontend to match PMU frequency
     *((volatile uint32_t *) 0xA2000008) = 0x0020290A;
@@ -429,7 +430,6 @@ static void operation_cdc_run(){
                 #endif
                 #ifdef DEBUG_RADIO_MSG
                     send_radio_data(gen_radio_data(0x5544));	// for radio debug (25'b1111_1010101010101_00_XXXXXX)
-                    send_radio_data(gen_radio_data(0x5544));	// for radio debug (25'b1111_1010101010101_00_XXXXXX)
                 #endif
                 assert_cdc_reset();
                 // Set up timer
@@ -458,7 +458,6 @@ static void operation_cdc_run(){
                     write_mbus_message(0xA0, 0x00020002);
                 #endif
                 #ifdef DEBUG_RADIO_MSG
-                    send_radio_data(gen_radio_data(0x5555));	// for radio debug (25'b1111_1010101010101_01_XXXXXX)
                     send_radio_data(gen_radio_data(0x5555));	// for radio debug (25'b1111_1010101010101_01_XXXXXX)
                 #endif
                 assert_cdc_reset();

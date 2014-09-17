@@ -23,7 +23,7 @@
 
 #define MBUS_DELAY 100 //Amount of delay between successive messages
 
-#define RAD_BIT_DELAY 40     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
+#define RAD_BIT_DELAY 12     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 600  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
 #define TEMP_WAKEUP_CYCLE 10     //2//213:10min       //Wake up timer tuning: # of wake up timer cycles to sleep
 #define TEMP_WAKEUP_CYCLE_INITIAL 3 // Wake up timer duration for initial periods
@@ -141,7 +141,7 @@ static void setup_radio(void) {
   delay(MBUS_DELAY);
  
   //Tune TX Time
-  uint32_t _rad_r25 = 0x4;
+  uint32_t _rad_r25 = 0x5;
   write_mbus_register(RAD_ADDR,0x25,_rad_r25);
   delay(MBUS_DELAY);
 
@@ -213,7 +213,7 @@ static void send_radio_data(uint32_t radio_data){
   uint32_t j; //loop var
   for(j=0;j<1;j++){ //Packet Loop
     for(i=31;i>=0;i--){ //Bit Loop
-      delay (10);
+      delay(10);
       if ((radio_data>>i)&1) write_mbus_register(RAD_ADDR,0x27,0x1);
       else                   write_mbus_register(RAD_ADDR,0x27,0x0);
 
@@ -304,13 +304,13 @@ int main() {
 
     //Enumeration (SNS->HRV->RAD)
     enumerate(SNS_ADDR);
-    asm ("wfi;");
-    delay(MBUS_DELAY);
+//    asm ("wfi;");
+    delay(MBUS_DELAY*20);
     enumerate(HRV_ADDR);
-    asm ("wfi;");
-    delay(MBUS_DELAY);
+//    asm ("wfi;");
+    delay(MBUS_DELAY*20);
     enumerate(RAD_ADDR);
-    asm ("wfi;");
+//    asm ("wfi;");
 
     // Setup Radio
     setup_radio();
@@ -322,8 +322,12 @@ int main() {
 
   }
 
-  send_radio_data(0xFAAA5533);
-  set_wakeup_timer(2/*TEMP_WAKEUP_CYCLE*/,1,0);
+  uint32_t data = 0xFFFF0000;
+
+
+  send_radio_data(data + exec_count);
+  exec_count++;
+  set_wakeup_timer(12/*TEMP_WAKEUP_CYCLE*/,1,0);
   operation_sleep();
 
 
