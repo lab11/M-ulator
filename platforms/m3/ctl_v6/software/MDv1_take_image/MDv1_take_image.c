@@ -216,6 +216,16 @@ static void capture_image_single(){
 
 }
 
+static void capture_image_start(){
+
+  // Capture Image
+  // 0:0
+  mdreg_0 |= (1<<0);
+  write_mbus_register(MD_ADDR,0x0,mdreg_0);
+  delay(0x80); // about 6ms
+
+}
+
 int main() {
   
 //  uint32_t temp_data[NUM_SAMPLES]; //Temperature Data
@@ -253,11 +263,14 @@ int main() {
 
   delay(WAKEUP_DELAY_FINAL);
 
+  capture_image_start();
+
   // Capture a single image
-  
+  /*
   while (1){
     capture_image_single();
   }
+  */
 
   while (1){}
 

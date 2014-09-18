@@ -10,7 +10,7 @@
 
 #define WAKEUP_DELAY 10000	
 #define WAKEUP_DELAY_FINAL 100000	// 100000=1.6s Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
-#define INT_TIME 8 // 8 corresponds to ~3sec integration time with CLK_RING/CLK_DIV: 2/3
+#define INT_TIME 3 // 3 corresponds to ~12msec integration time with CLK_RING/CLK_DIV: 2/3
 #define MD_INT_TIME 35
 #define MD_TH 5
 #define MD_MASK 0x3FF
@@ -242,6 +242,8 @@ int main() {
 //  enumerate(SNS_ADDR);
 //  delay (1);
 
+  delay(0x10000); // about 3s
+
   // Initialize
   initialize_md_reg();
 
@@ -255,8 +257,11 @@ int main() {
 
   // Capture a single image
   
-  while (1){
+  unsigned int i = 20;
+
+  while (i>0){
     capture_image_single();
+    i--;
   }
 
   while (1){}

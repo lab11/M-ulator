@@ -1,10 +1,24 @@
-//*******************************************************************
-//Author: Yoonmyung Lee
-//Description:  Test code for Pstack in pressure chamber
-//              Based on Pstack ondemand v1.2
-//Stacking Diagram: 	\m3_shared\m3_orders\Order to Advotech\140520 - Pbhlr(10) Tbhlr(10) through RTI\
-//			Pbhlr (pre RTI) Stack Assembly Plan (BAT-PRC-DCP-SNS-HRV-RAD-SOL).pdf
-//*******************************************************************
+//****************************************************************************************************
+//Author:       Yoonmyung Lee
+//              ZhiYoong Foo
+//              Gyouho Kim
+//Description:  Derived from zhiyoong_Pblr.c and Tstack_ondemand_temp_radio.c
+//              Moving towards Mouse Implantation
+//              Revision 1.3
+//              - System stays awake during CDC reset/measurement
+//              - Data processing function added  (process_data)
+//              Revision 1.2
+//              - Rename states / subfunctions for readability
+//              - state machine merged to operation_cdc_run();
+//              - Take average for measurement result TX (#TX_AVERAGE)
+//              - Debug flags (#DEBUG_MBUS_MSG / #DEBUG_RADIO_MSG)
+//              Revision 1.1 - optimization for implant
+//              - HRV layer related configuration added
+//              - Removed unnecessary debug functions
+//              - Multiple CDC measurement and averaging
+//Stack Diagram:\m3_shared\m3_orders\Order to Advotech\140520 - Pbhlr(10) Tbhlr(10) through RTI\
+//              Pbhlr (pre RTI) Stack Assembly Plan (BAT-PRC-DCP-SNS-HRV-RAD-SOL).pdf
+//****************************************************************************************************
 #include "mbus.h"
 #include "PRCv8.h"
 #include "SNSv2.h"
@@ -14,7 +28,7 @@
 // uncomment this for debug mbus message
 //#define DEBUG_MBUS_MSG
 // uncomment this for debug radio message
-#define DEBUG_RADIO_MSG
+//#define DEBUG_RADIO_MSG
 
 // uncomment this to only transmit average
 //#define TX_AVERAGE
@@ -31,17 +45,18 @@
 
 // Radio configurations
 #define RAD_BIT_DELAY       12      //40      //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
-#define RAD_PACKET_NUM      3      //How many times identical data will be TXed
-#define RAD_PACKET_DELAY    100    //1000    //Radio tuning: Delay between packets sent
+#define RAD_PACKET_NUM      1      //How many times identical data will be TXed
+#define RAD_PACKET_DELAY    300    // Can go down as low as 100  //Radio tuning: Delay between packets sent
 
 // CDC configurations
-#define NUM_SAMPLES         3      //Number of CDC samples to take (only 2^n allowed: 2, 4, 8, 16...)
+#define NUM_SAMPLES         3      //Number of CDC samples to take (only 2^n allowed for averaging: 2, 4, 8, 16...)
+#define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 #define CDC_TIMEOUT         0x3    //Timeout for CDC
 
 // Sleep-Wakeup control
 #define WAKEUP_PERIOD_CONT_INIT    3    // Wakeup period for initial portion of continuous pressure sensing
-#define WAKEUP_PERIOD_CONT         3   //244  // 213:10min Wakeup period for continous pressure sensing
+#define WAKEUP_PERIOD_CONT         340   //200=350sec with slow PMU sleep clk
 
 
 //***************************************************
@@ -51,10 +66,12 @@
 volatile uint32_t enumerated;
 volatile uint32_t Pstack_state;
 volatile uint32_t cdc_data[NUM_SAMPLES];
+volatile uint32_t cdc_data_tx[NUM_SAMPLES_TX];
 volatile uint32_t cdc_data_index;
 volatile uint32_t num_timeouts;
 volatile uint32_t execution_count;
 volatile uint32_t execution_count_irq;
+volatile uint32_t MBus_msg_flag;
 volatile snsv2_r0_t snsv2_r0;
 
 //***************************************************
@@ -66,16 +83,20 @@ void handler_ext_int_1(void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_2(void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_3(void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_0(void){
-  *((volatile uint32_t *) 0xE000E280) = 0x1;
+    *((volatile uint32_t *) 0xE000E280) = 0x1;
+    MBus_msg_flag = 0x10;
 }
 void handler_ext_int_1(void){
-  *((volatile uint32_t *) 0xE000E280) = 0x2;
+    *((volatile uint32_t *) 0xE000E280) = 0x2;
+    MBus_msg_flag = 0x11;
 }
 void handler_ext_int_2(void){
-  *((volatile uint32_t *) 0xE000E280) = 0x4;
+    *((volatile uint32_t *) 0xE000E280) = 0x4;
+    MBus_msg_flag = 0x12;
 }
 void handler_ext_int_3(void){
-  *((volatile uint32_t *) 0xE000E280) = 0x8;
+    *((volatile uint32_t *) 0xE000E280) = 0x8;
+    MBus_msg_flag = 0x13;
 }
 
 //***************************************************
@@ -195,7 +216,7 @@ static void send_radio_data(uint32_t radio_data){
       if ((radio_data>>i)&1) write_mbus_register(RAD_ADDR,0x27,0x1);
       else                   write_mbus_register(RAD_ADDR,0x27,0x0);
       //Must clear register
-      delay (RAD_BIT_DELAY);
+      delay(RAD_BIT_DELAY);
       write_mbus_register(RAD_ADDR,0x27,0x0);
       delay(RAD_BIT_DELAY); //Set delay between sending subsequent bit
     }
@@ -209,17 +230,22 @@ static void send_radio_data(uint32_t radio_data){
 // Subfunctions:
 // check_timeout
 //    check if current timestamp register indicates timeout
+//    no longer used in v1.3 (system stays awake during cdc reset/measurement
 // assert/release_cdc_reset
 //
 // fire_cdc_meas
 //
 // set_pmu_sleep_clk_high/low
 //
+// process_data
+//
 //***************************************************
+/*
 static uint32_t check_timeout(){
     return (  ((*((volatile uint32_t *) 0xA0001030) & 0x7FFF) == CDC_TIMEOUT) &&
               (*((volatile uint32_t *) 0xA0001034) & 0x8000) );
 }
+*/
 static void assert_cdc_reset(){
     snsv2_r0.CDC_EXT_RESET = 0x1;	// Assert reset
     snsv2_r0.CDC_CLK = 0x0;
@@ -245,6 +271,25 @@ inline static void set_pmu_sleep_clk_high(){
 }
 inline static void set_pmu_sleep_clk_low(){
     *((volatile uint32_t *) 0xA200000C) = 0x0F77003B;
+}
+static void process_data(){
+    uint8_t i;
+    uint8_t j;
+    uint32_t temp;
+    // bubble sort
+    for( i=0; i<NUM_SAMPLES; ++i ){
+        for( j=i+1; j<NUM_SAMPLES; ++j){
+            if( cdc_data[j] > cdc_data[i] ){
+                temp = cdc_data[i];
+                cdc_data[i] = cdc_data[j];
+                cdc_data[j] = temp;
+            }
+        }
+    }
+
+    // Assuming NUM_SAMPLES = 3, NUM_SAMPLES_TX = 1
+    cdc_data_tx[0] = cdc_data[1];
+
 }
 
 //***************************************************
@@ -289,11 +334,11 @@ static void operation_tx_cdc_results(){
     average = average >> NUM_SAMPLES_2PWR;  //(avoiding division operation)
     send_radio_data(gen_radio_data(average));
 #else
-    for (i=0; i<NUM_SAMPLES; i++){
-    #if NUM_SAMPLES>1
+    for (i=0; i<NUM_SAMPLES_TX; i++){
+    #if NUM_SAMPLES_TX>1
         delay(RAD_PACKET_DELAY);
     #endif
-        send_radio_data(gen_radio_data(cdc_data[i]));
+        send_radio_data(gen_radio_data(cdc_data_tx[i]));
     }
 #endif     
     cdc_data_index = 0;
@@ -321,15 +366,16 @@ static void operation_init(void){
     num_timeouts = 0;
     execution_count = 0;
     execution_count_irq = 0;
+    MBus_msg_flag = 0;
     //Enumeration
     enumerate(SNS_ADDR);
-    delay(3000);
+    delay(1000);
     //WFI();
     enumerate(HRV_ADDR);
-    delay(3000);
+    delay(1000);
     //WFI();
     enumerate(RAD_ADDR);
-    delay(3000);
+    delay(1000);
     //WFI();
     //Set & Forget!
     snsv2_r1_t snsv2_r1 = SNSv2_R1_DEFAULT;
@@ -400,125 +446,107 @@ static void operation_init(void){
     */
   
     //FOR DEBUG, sleep is removed
-    //sleep();
+    sleep();
 }
 
 static void operation_cdc_run(){
     uint32_t read_data;
-  
+    uint32_t count; 
+
     switch( Pstack_state ){
   
         case PSTK_IDLE:
-            // Fire reset
-            Pstack_state = PSTK_RESET;
+            // Release reset
             #ifdef DEBUG_MBUS_MSG
                 write_mbus_message(0xA0, 0x0000001);
             #endif
             release_cdc_reset();
-            // Set up timer
-            set_wakeup_timer (CDC_TIMEOUT, 0x1, 0x0);
-            operation_sleep();
+            for( count=0; count<1000; count++ ){
+                if( MBus_msg_flag ){
+                    MBus_msg_flag = 0;
+                    Pstack_state = PSTK_RESET;
+                    return;
+                }
+                else{
+                    delay(30);
+                }
+            }
+
+            // Reset Time out
+            #ifdef DEBUG_MBUS_MSG
+                write_mbus_message(0xA0, 0x00010000);
+            #endif
+            #ifdef DEBUG_RADIO_MSG
+                send_radio_data(gen_radio_data(0x5544));	// for radio debug (25'b1111_1010101010101_00_XXXXXX)
+            #endif
+            assert_cdc_reset();
+            delay(500);
             break;
   
         case PSTK_RESET:
-            if( check_timeout() ){
-                // If timed out, redo reset
-                num_timeouts++;
-                Pstack_state = PSTK_IDLE;
-                #ifdef DEBUG_MBUS_MSG
-                    write_mbus_message(0xA0, 0x00010000);
-                #endif
-                #ifdef DEBUG_RADIO_MSG
-                    send_radio_data(gen_radio_data(0x5544));	// for radio debug (25'b1111_1010101010101_00_XXXXXX)
-                #endif
-                assert_cdc_reset();
-                // Set up timer
-                set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
-                operation_sleep();
-            }
-            else{
-                // If no time out 
-                Pstack_state = PSTK_MEAS;
-                #ifdef DEBUG_MBUS_MSG
-                    write_mbus_message(0xA0, 0x00010002);
-                #endif
-                fire_cdc_meas();
-                // Set up timer
-                set_wakeup_timer (CDC_TIMEOUT, 0x1, 0x0);
-                operation_sleep();
-            }
-            break;
-       
-        case PSTK_MEAS:
-            if( check_timeout() ){
-                // If timed out, restart from reset
-                num_timeouts++;
-                Pstack_state = PSTK_RESET;
-                #ifdef DEBUG_MBUS_MSG
-                    write_mbus_message(0xA0, 0x00020002);
-                #endif
-                #ifdef DEBUG_RADIO_MSG
-                    send_radio_data(gen_radio_data(0x5555));	// for radio debug (25'b1111_1010101010101_01_XXXXXX)
-                #endif
-                assert_cdc_reset();
-                release_cdc_reset();
-                // Set up timer
-                set_wakeup_timer (CDC_TIMEOUT, 0x1, 0x0);
-                operation_sleep();
-            }
-            else{
-                // If no time out 
-                read_data = *((volatile uint32_t *) 0xA0001014);
-  
-                if( read_data & 0x02 ) {
-                    // If CDC data is valid
-                    // Process Data
-                    cdc_data[cdc_data_index] = read_data;
-                    ++cdc_data_index;
-                    if( cdc_data_index == NUM_SAMPLES ){
-                        // Collected all data for radio TX
-                        execution_count++;
-                        operation_tx_cdc_results();
-                        #ifdef DEBUG_MBUS_MSG
-                            write_mbus_message(0xA0, 0x00020000);
-                        #endif
-                        // Enter long sleep
-                        Pstack_state = PSTK_IDLE;
-                        assert_cdc_reset();
-                        set_pmu_sleep_clk_low();
-                        if( execution_count <10 )
-                            set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
-                        else
-                            set_wakeup_timer (WAKEUP_PERIOD_CONT, 0x1, 0x0);
-                        operation_sleep();
+            // If no time out 
+            #ifdef DEBUG_MBUS_MSG
+                write_mbus_message(0xA0, 0x00010002);
+            #endif
+            fire_cdc_meas();
+            for( count=0; count<1000; count++ ){
+                if( MBus_msg_flag ){
+                    MBus_msg_flag = 0;
+                    read_data = *((volatile uint32_t *) 0xA0001014);
+                    if( read_data & 0x02 ) {
+                        // If CDC data is valid
+                        // Process Data
+                        cdc_data[cdc_data_index] = read_data;
+                        ++cdc_data_index;
+                        if( cdc_data_index == NUM_SAMPLES ){
+                            // Collected all data for radio TX
+                            execution_count++;
+                            process_data();
+                            operation_tx_cdc_results();
+                            #ifdef DEBUG_MBUS_MSG
+                                write_mbus_message(0xA0, 0x00020000);
+                            #endif
+                            // Enter long sleep
+                            Pstack_state = PSTK_IDLE;
+                            assert_cdc_reset();
+                            if( execution_count <10 )
+                                set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+                            else
+                                set_wakeup_timer (WAKEUP_PERIOD_CONT, 0x1, 0x0);
+                            operation_sleep();
+                        }
+                        else{
+                            // Need more data for radio TX
+                            #ifdef DEBUG_MBUS_MSG
+                                write_mbus_message(0xA1, 0x00020000);
+                            #endif
+                            release_cdc_meas();
+                            return;
+                        }
                     }
                     else{
-                        // Need more data for radio TX
-                        #ifdef DEBUG_MBUS_MSG
-                            write_mbus_message(0xA1, 0x00020000);
-                        #endif
-                        // Fire next measurement
-                        Pstack_state = PSTK_MEAS;
+                        // If CDC data is invalid
                         release_cdc_meas();
-                        fire_cdc_meas();
-                        set_wakeup_timer (CDC_TIMEOUT, 0x1, 0x0);
-                        operation_sleep();
+                        return;
                     }
                 }
-                else {
-                    // If CDC data is invalid
-                    // Fire next measurement
-                    Pstack_state = PSTK_MEAS;
-                    release_cdc_meas();
-                    #ifdef DEBUG_MBUS_MSG
-                        write_mbus_message(0xA0, 0x00020001);
-                    #endif
-                    fire_cdc_meas();
-                    set_wakeup_timer (CDC_TIMEOUT, 0x1, 0x0);
-                    operation_sleep();
+                else{
+                    delay(30);
                 }
             }
+
+            // Measurement Time out
+            #ifdef DEBUG_MBUS_MSG
+                write_mbus_message(0xA0, 0x00020002);
+            #endif
+            #ifdef DEBUG_RADIO_MSG
+                send_radio_data(gen_radio_data(0x5555));	// for radio debug (25'b1111_1010101010101_01_XXXXXX)
+            #endif
+            Pstack_state = PSTK_IDLE;
+            assert_cdc_reset();
+            delay(500);
             break;
+       
         default:  // THIS SHOULD NOT HAPPEN
             // Reset CDC
             Pstack_state = PSTK_IDLE;
@@ -547,7 +575,6 @@ int main() {
     }
 
 
-/*  
     // Check if wakeup is due to GOC interrupt  
     // 0x68 is reserved for GOC-triggered wakeup (Named IRQ10VEC)
     // 8 MSB bits of the wakeup data are used for function ID
@@ -563,7 +590,7 @@ int main() {
         if (execution_count_irq < 10){
             execution_count_irq++;
             // radio
-            send_radio_data(0xFFF0F000+execution_count_irq);
+            send_radio_data(gen_radio_data(0xFF00+execution_count_irq));	
             // set timer
             set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
             // go to sleep and wake up with same condition
@@ -572,7 +599,7 @@ int main() {
         }else{
             execution_count_irq = 0;
             // radio
-            send_radio_data(0xFFF0F000+execution_count_irq);
+            send_radio_data(gen_radio_data(0xFF00+execution_count_irq));	
             // Disable Timer
             set_wakeup_timer (0, 0x0, 0x0);
             // Go to sleep without timer
@@ -581,6 +608,7 @@ int main() {
     }
     else if(wakeup_data_header == 2){
         // Proceed to continuous mode
+        set_pmu_sleep_clk_low();
     }
     else if(wakeup_data_header == 3){
         // Disable Timer
@@ -594,7 +622,7 @@ int main() {
         if (execution_count_irq < 160){
             execution_count_irq++;
             // radio
-            send_radio_data(0xFFF0F000+execution_count_irq);
+            send_radio_data(gen_radio_data(0xF300+execution_count_irq));	
             // set timer
             set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
             // go to sleep and wake up with same condition
@@ -603,18 +631,19 @@ int main() {
         else{
             execution_count_irq = 0;
             // radio
-            send_radio_data(0xFFF0F000+execution_count_irq);
+            send_radio_data(gen_radio_data(0xF300+execution_count_irq));	
             // Disable Timer
             set_wakeup_timer (0, 0x0, 0x0);
             // Go to sleep without timer
             operation_sleep();
         }
     }
-    else{
-        // Proceed to continuous mode
+
+    // Proceed to continuous mode
+    while(1){
+        operation_cdc_run();
     }
-*/
-    operation_cdc_run();
+
 
     // Should not reach here
     Pstack_state = PSTK_IDLE;

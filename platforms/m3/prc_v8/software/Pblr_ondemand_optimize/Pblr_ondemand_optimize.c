@@ -311,7 +311,7 @@ static void operation_init(void){
     set_wakeup_timer (INITIAL_SLEEP_TIME, 0x1, 0x0);
     operation_sleep();
     */
-    sleep();
+    //sleep();
   }
 }
 
@@ -489,6 +489,7 @@ int main() {
 
   }
 
+  
   // Continuous cdc measurement mode 
   operation_cdc_timeout();
   operation_cdc_reset();
@@ -503,6 +504,12 @@ int main() {
   else{
     set_wakeup_timer (WAKEUP_PERIOD_CONT, 0x1, 0x0);
   }
+  operation_sleep();
+  
+
+  // Disable Timer
+  set_wakeup_timer (0, 0x0, 0x0);
+  // Go to sleep without timer
   operation_sleep();
 
   while(1);

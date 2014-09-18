@@ -1,6 +1,7 @@
 //*******************************************************************
-//Author: ZhiYoong Foo
-//Description: PRCv8 header file
+//Author: Yoonmyung Lee
+//        Zhiyoong Foo
+//Description: PRCv9 header file
 //*******************************************************************
 
 #ifndef M3_H
@@ -35,9 +36,9 @@ void delay(unsigned ticks);
 void WFI();
 void config_timer( uint8_t timer_id, uint8_t go, uint8_t roi, uint32_t init_val, uint32_t sat_val);
 void set_wakeup_timer( uint16_t timestamp, uint8_t on, uint8_t reset );
-void reset_wakeup_timer( void );
 void set_clkfreq( uint8_t fastmode, uint8_t div_cm, uint8_t div_mbus, uint8_t ring );
 void pmu_div5_ovrd( uint8_t ovrd );
+void pmu_div6_ovrd( uint8_t ovrd );
 void pmu_set_force_wake( uint8_t set );
 void pon_reset( void );
 void sleep_req_by_sw( void );

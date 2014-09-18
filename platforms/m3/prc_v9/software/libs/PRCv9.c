@@ -1,9 +1,10 @@
 //*******************************************************************
-//Author: ZhiYoong Foo
-//Description: PRCv8 lib file
+//Author: Yoonmyung Lee
+//        ZhiYoong Foo
+//Description: PRCv9 lib file
 //*******************************************************************
 
-#include "PRCv8.h"
+#include "PRCv9.h"
 
 // [31:4] = 28'hA200000
 //  [3:2] = Target register
@@ -50,10 +51,6 @@ void set_wakeup_timer( uint16_t timestamp, uint8_t on, uint8_t reset ) {
 		*((volatile uint32_t *) 0xA2000014) = 0x01;
 }
 
-void reset_wakeup_timer( ) {
-		*((volatile uint32_t *) 0xA2000014) = 0x01;
-}
-
 void set_clkfreq( uint8_t fastmode, uint8_t div_cm, uint8_t div_mbus, uint8_t ring ) {
 	uint32_t regval = *((volatile uint32_t *) 0xA0001028 );		// Read original reg value
 	regval &= 0xFF7FC0FF;
@@ -63,10 +60,23 @@ void set_clkfreq( uint8_t fastmode, uint8_t div_cm, uint8_t div_mbus, uint8_t ri
 
 void pmu_div5_ovrd( uint8_t ovrd ) {
 	uint32_t regval = *((volatile uint32_t *) 0xA000102C );		// Read original reg value
-	if( ovrd )
-		regval |= 0x40000000;					// Set bit 30
+	if( ovrd ){
+		regval |= 0x40000000;					// Set bit 30 and reset bit 31
+                regval &= 0x7FFFFFFF;
+        }
 	else
-		regval &= 0xBFFFFFFF;					// Reset bit 30
+		regval &= 0x3FFFFFFF;					// Reset bit 30 and bit 31
+	*((volatile uint32_t *) 0xA200000C) = regval;			// Write updated reg value
+}
+
+void pmu_div6_ovrd( uint8_t ovrd ) {
+	uint32_t regval = *((volatile uint32_t *) 0xA000102C );		// Read original reg value
+	if( ovrd ){
+		regval |= 0x80000000;					// Set bit 31 and reset bit 30
+                regval &= 0xBFFFFFFF;
+        }
+	else
+		regval &= 0x3FFFFFFF;					// Reset bit 31 and bit 30
 	*((volatile uint32_t *) 0xA200000C) = regval;			// Write updated reg value
 }
 

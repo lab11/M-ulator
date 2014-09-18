@@ -3,7 +3,7 @@
 //        Yoonmyung Lee
 //        Zhiyoong Foo
 //
-//Date: April 2014
+//Date: May 2014
 //
 //Description: 	Derived from Tstack_longterm_shortwake code
 // Main functionality is to periodically measure temperature data 
@@ -17,14 +17,15 @@
 #include "PRCv8.h"
 #include "RADv5.h"
 
-#define RAD_ADDR 0x3
-#define SNS_ADDR 0x4
+#define RAD_ADDR 0x5
+#define SNS_ADDR 0x3
+#define HRV_ADDR 0x4
 
 #define MBUS_DELAY 100 //Amount of delay between successive messages
 
 #define RAD_BIT_DELAY 40     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 600  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
-#define TEMP_WAKEUP_CYCLE 10     //2//213:10min       //Wake up timer tuning: # of wake up timer cycles to sleep
+#define TEMP_WAKEUP_CYCLE 100     //2//213:10min       //Wake up timer tuning: # of wake up timer cycles to sleep
 #define TEMP_WAKEUP_CYCLE_INITIAL 3 // Wake up timer duration for initial periods
 #define NUM_INITIAL_CYCLE 3 // Number of initial cycles
 #define DATA_BUFFER_SIZE 256
@@ -130,7 +131,7 @@ static void setup_radio(void) {
   delay(MBUS_DELAY);
   
   
-  // For board level testing, 00 corresponds to 902MHz
+  // For board level testing, 00 corresponds to 898~900MHz
   //Tune Freq 1
   uint32_t _rad_r21 = 0x0;
   write_mbus_register(RAD_ADDR,0x21,_rad_r21);
@@ -235,7 +236,7 @@ static uint32_t gen_radio_data(uint32_t data_in) {
 static void send_radio_data(uint32_t radio_data){
   int32_t i; //loop var
   uint32_t j; //loop var
-  for(j=0;j<1;j++){ //Packet Loop
+  for(j=0;j<3;j++){ //Packet Loop
     for(i=15;i>=0;i--){ //Bit Loop
       delay (10);
       if ((radio_data>>i)&1) write_mbus_register(RAD_ADDR,0x27,0x1);
@@ -249,7 +250,7 @@ static void send_radio_data(uint32_t radio_data){
       write_mbus_register(RAD_ADDR,0x27,0x0);
       delay(RAD_BIT_DELAY); //Set delay between sending subsequent bit
     }
-    //delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
+    delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
   }
 }
 
@@ -362,7 +363,7 @@ static void operation_radio(void){
   uint32_t i;
   for (i=0;i<temp_data_count;i++){
 
-    radio_data = gen_radio_data(temp_data_stored[i]>>5);
+    radio_data = gen_radio_data(temp_data_stored[i]>>3);
     delay(MBUS_DELAY);
   
     send_radio_data(radio_data);
@@ -406,7 +407,7 @@ int main() {
     // 0x0F770029 = Original
     // Increase sleep oscillator frequency for GOC and temp sensor
     // Decrease 5x division switching threshold
-    *((volatile uint32_t *) 0xA200000C) = 0x0F77004B;
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77004B;
 
     // Speed up GOC frontend to match PMU frequency
     *((volatile uint32_t *) 0xA2000008) = 0x0020290C;
@@ -418,11 +419,15 @@ int main() {
     exec_count_irq = 0;
 
     //Enumeration
-    enumerate(RAD_ADDR);
-    asm ("wfi;");
-    delay(MBUS_DELAY);
     enumerate(SNS_ADDR);
     asm ("wfi;");
+    delay(MBUS_DELAY*10);
+    enumerate(HRV_ADDR);
+    asm ("wfi;");
+    delay(MBUS_DELAY*10);
+    enumerate(RAD_ADDR);
+    asm ("wfi;");
+    delay(MBUS_DELAY*10);
 
     // Setup Radio
     setup_radio();
@@ -458,7 +463,7 @@ int main() {
       exec_count_irq++;
       // radio
 //    send_radio_data(0xF0F0F0F0);
-      send_radio_data (gen_radio_data(0x6C));
+      send_radio_data (gen_radio_data(0x36));
       // set timer
       set_wakeup_timer (TEMP_WAKEUP_CYCLE_INITIAL, 0x1, 0x0);
       // go to sleep and wake up with same condition
@@ -467,7 +472,7 @@ int main() {
       exec_count_irq = 0;
       // radio
 //    send_radio_data(0xF0F0F0F0);
-      send_radio_data (gen_radio_data(0x6C));
+      send_radio_data (gen_radio_data(0x36));
       // Disable Timer
       set_wakeup_timer (0, 0x0, 0x0);
       // Go to sleep without timer
@@ -476,9 +481,14 @@ int main() {
 
   }else if(wakeup_data_header == 2){
       // Temp operation
+      // Restore PMU sleep clock to minimize standby power
+      *((volatile uint32_t *) 0xA200000C) = 0x8F77002B;
+      delay(MBUS_DELAY);
       operation_temp();
 
   }else if(wakeup_data_header == 3){
+      // Make PMU sleep clock faster for faster programming
+      *((volatile uint32_t *) 0xA200000C) = 0x8F77004B;
       // Disable Timer
       set_wakeup_timer (0, 0x0, 0x0);
       // Go to sleep without timer
@@ -488,6 +498,12 @@ int main() {
       // Transmit data via radio and go to sleep
       operation_radio();
 
+  }else if(wakeup_data_header == 5){
+      // Invalidate All MBus Addr
+      write_mbus_message(0x0, 0x3F000000);
+      exec_marker = 0x0;
+      operation_sleep();
+
   }else{
       // Default case 
       operation_temp();
@@ -496,6 +512,7 @@ int main() {
   // Note: Program should send system to sleep in the switch statement
   // Program should not reach this point
 
+  operation_sleep();
   while(1);
 
 }
