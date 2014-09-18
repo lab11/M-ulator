@@ -377,10 +377,10 @@ int main() {
     // 0x0F770029 = Original
     // Increase sleep oscillator frequency for GOC and temp sensor
     // Decrease 5x division switching threshold
-    *((volatile uint32_t *) 0xA200000C) = 0xF77004B;
+    *((volatile uint32_t *) 0xA200000C) = 0x4F771829;
 
     // Speed up GOC frontend to match PMU frequency
-    *((volatile uint32_t *) 0xA2000008) = 0x0020290C;
+    *((volatile uint32_t *) 0xA2000008) = 0x00A03C32;
 
 
     //Mark execution
