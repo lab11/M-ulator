@@ -19,7 +19,7 @@
 #define PSTK_CDC_MEAS   0x2
 
 // Others
-#define NUM_SAMPLES       5         //Number of CDC samples to take
+#define NUM_SAMPLES       50         //Number of CDC samples to take
 #define WAKEUP_PERIOD   0x5
 
 //***************************************************
@@ -202,71 +202,39 @@ static void cdc_run(){
         case PSTK_IDLE:
             Pstack_state = PSTK_CDC_RST;
 
-    write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
-    snsv3_r1_t snsv3_r1 = SNSv3_R1_DEFAULT;
-    snsv3_r1.CDC_S_period = 0x1A;
-    snsv3_r1.CDC_R_period = 0xC;
-    snsv3_r1.CDC_CR_ext = 0x0;
-    write_mbus_register(SNS_ADDR,1,snsv3_r1.as_int);
-    write_mbus_register(SNS_ADDR,0,snsv3_r0.as_int);
+		write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
+		snsv3_r1_t snsv3_r1 = SNSv3_R1_DEFAULT;
+		snsv3_r1.CDC_S_period = 0x1A;
+		snsv3_r1.CDC_R_period = 0xC;
+		snsv3_r1.CDC_CR_ext = 0x0;
+		write_mbus_register(SNS_ADDR,1,snsv3_r1.as_int);
+		write_mbus_register(SNS_ADDR,0,snsv3_r0.as_int);
 
-#ifdef SNSv3_DEBUG
-        write_mbus_message(0xBB, 0x11111111);
-			delay(5000);
-            read_mbus_register(SNS_ADDR,0x0,0x10);
-			delay(5000);
-            read_mbus_register(SNS_ADDR,0x7,0x10);
-			delay(5000);
-#endif
-            snsv3_r7.ADC_LDO_ADC_LDO_ENB = 0x0;
-            write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
-            delay(50000);
-            read_mbus_register(SNS_ADDR,0x7,0x10);
-			delay(5000);
+		snsv3_r7.CDC_LDO_CDC_LDO_ENB = 0x0;
+		write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
+		delay(50000);
+		read_mbus_register(SNS_ADDR,0x7,0x10);
+		delay(5000);
 
-#ifdef SNSv3_DEBUG
-        write_mbus_message(0xBB, 0x22222222);
-			delay(5000);
-            read_mbus_register(SNS_ADDR,0x0,0x10);
-			delay(5000);
-            read_mbus_register(SNS_ADDR,0x7,0x10);
-			delay(5000);
-#endif
-            snsv3_r7.CDC_LDO_CDC_LDO_ENB = 0x0;
-            write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
-            delay(50000);
-            read_mbus_register(SNS_ADDR,0x7,0x10);
-			delay(5000);
+            	snsv3_r7.ADC_LDO_ADC_LDO_ENB = 0x0;
+            	write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
+            	delay(50000);
+            	read_mbus_register(SNS_ADDR,0x7,0x10);
+		delay(5000);
 
-#ifdef SNSv3_DEBUG
-        write_mbus_message(0xBB, 0x33333333);
-  			delay(5000);
-            read_mbus_register(SNS_ADDR,0x0,0x10);
-			delay(5000);
-            read_mbus_register(SNS_ADDR,0x7,0x10);
-			delay(5000);
-#endif
-            snsv3_r7.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
-            write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
-            delay(50000);
-            read_mbus_register(SNS_ADDR,0x7,0x10);
-			delay(5000);
+		snsv3_r7.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
+		write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
+		delay(50000);
+		read_mbus_register(SNS_ADDR,0x7,0x10);
+		delay(5000);
 
-#ifdef SNSv3_DEBUG
-        write_mbus_message(0xBB, 0x44444444);
-			delay(5000);
-            read_mbus_register(SNS_ADDR,0x0,0x10);
-			delay(5000);
-            read_mbus_register(SNS_ADDR,0x7,0x10);
-			delay(5000);
-#endif
-            snsv3_r7.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
-            write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
-            delay(5000);
-            read_mbus_register(SNS_ADDR,0x0,0x10);
-			delay(5000);
-            read_mbus_register(SNS_ADDR,0x7,0x10);
-			delay(5000);
+		snsv3_r7.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
+		write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
+		delay(50000);
+		read_mbus_register(SNS_ADDR,0x0,0x10);
+		delay(5000);
+		read_mbus_register(SNS_ADDR,0x7,0x10);
+		delay(5000);
     
 
 		// Release CDC isolation
@@ -329,7 +297,13 @@ static void cdc_run(){
                             #endif
                             for( i=0; i<NUM_SAMPLES; ++i){
                                 delay(6000);
-                                write_mbus_message(0x77, cdc_data[i]);
+				// Modify data to be more readable
+				// CDC_DOUT is shifted to start at LSB
+				// Valid bit is moved to 28th bit
+				uint32_t cdc_data_modified;
+				cdc_data_modified = cdc_data[i]>>5;
+				cdc_data_modified = cdc_data_modified | ((0x2 & cdc_data[i])<<27);
+                                write_mbus_message(0x77, cdc_data_modified);
                             }
                             cdc_data_index = 0;
                             assert_cdc_reset();
