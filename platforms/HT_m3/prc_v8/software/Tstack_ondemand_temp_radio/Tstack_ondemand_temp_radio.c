@@ -15,7 +15,7 @@
 #define RAD_ADDR 0x3
 #define SNS_ADDR 0x4
 
-#define MBUS_DELAY 100 //Amount of delay between successive messages
+#define MBUS_DELAY 200 //Amount of delay between successive messages
 
 #define RAD_BIT_DELAY 40     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 600  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
@@ -377,10 +377,10 @@ int main() {
     // 0x0F770029 = Original
     // Increase sleep oscillator frequency for GOC and temp sensor
     // Decrease 5x division switching threshold
-    *((volatile uint32_t *) 0xA200000C) = 0x4F771829;
+    //*((volatile uint32_t *) 0xA200000C) = 0x4F771829;
 
     // Speed up GOC frontend to match PMU frequency
-    *((volatile uint32_t *) 0xA2000008) = 0x00A03C03;
+    //*((volatile uint32_t *) 0xA2000008) = 0x00A03C03;
 
 
     //Mark execution
@@ -389,10 +389,10 @@ int main() {
 
     //Enumeration
     enumerate(RAD_ADDR);
-    asm ("wfi;");
+    //asm ("wfi;");
     delay(MBUS_DELAY);
     enumerate(SNS_ADDR);
-    asm ("wfi;");
+    //asm ("wfi;");
 
     // Setup Radio
     setup_radio();
