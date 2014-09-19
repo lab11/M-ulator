@@ -19,9 +19,9 @@
 
 #define RAD_BIT_DELAY 40     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 600  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
-#define TEMP_WAKEUP_CYCLE 10     //2//213:10min       //Wake up timer tuning: # of wake up timer cycles to sleep
-#define TEMP_WAKEUP_CYCLE_INITIAL 2 // Wake up timer duration for initial periods
-#define NUM_INITIAL_CYCLE 2 // Number of initial cycles
+#define TEMP_WAKEUP_CYCLE 400     //800:2min       //Wake up timer tuning: # of wake up timer cycles to sleep
+#define TEMP_WAKEUP_CYCLE_INITIAL 50 // Wake up timer duration for initial periods
+#define NUM_INITIAL_CYCLE 8 // Number of initial cycles
 #define DATA_BUFFER_SIZE 256
 
 //***************************************************
@@ -380,7 +380,7 @@ int main() {
     *((volatile uint32_t *) 0xA200000C) = 0x4F771829;
 
     // Speed up GOC frontend to match PMU frequency
-    *((volatile uint32_t *) 0xA2000008) = 0x00A03C32;
+    *((volatile uint32_t *) 0xA2000008) = 0x00A03C03;
 
 
     //Mark execution
