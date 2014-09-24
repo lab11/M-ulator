@@ -325,7 +325,8 @@ int main() {
   uint32_t data = 0xFFFF0000;
 
 
-  send_radio_data(data + exec_count);
+  //send_radio_data(data + exec_count);
+  send_radio_data(0xFFFFFFFF);
   exec_count++;
   set_wakeup_timer(12/*TEMP_WAKEUP_CYCLE*/,1,0);
   operation_sleep();

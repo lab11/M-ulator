@@ -1,6 +1,8 @@
 //*******************************************************************
 //Author: Yoonmyung Lee
+//        Gyouho Kim
 //Description: SNSv3 Functionality Tests
+//             w/ updates from SNSv3_test_gyouho
 //*******************************************************************
 #include "mbus.h"
 #include "PRCv9.h"
@@ -19,9 +21,8 @@
 #define PSTK_CDC_MEAS   0x2
 
 // Others
-#define NUM_SAMPLES       50         //Number of CDC samples to take
-#define WAKEUP_PERIOD   0x5
-#define MBUS_DELAY 50
+#define NUM_SAMPLES     20         //Number of CDC samples to take
+#define WAKEUP_PERIOD   0x3
 
 //***************************************************
 // Global variables
@@ -145,7 +146,7 @@ void initialize(){
     Pstack_state = PSTK_IDLE; 	//0x0;
     MBus_msg_flag = 0;
     cdc_data_index = 0;
-    //snsv3_r0 = SNSv3_R0_DEFAULT;
+//    snsv3_r0 = SNSv3_R0_DEFAULT;
 
     //Enumeration
     enumerate(SNS_ADDR);
@@ -153,31 +154,25 @@ void initialize(){
     delay(100);
 
     //CDC init--------------------------------------
-    //snsv3_r0_t snsv3_r0 = SNSv3_R0_DEFAULT;
-    //snsv3_r1_t snsv3_r1 = SNSv3_R1_DEFAULT;
-    //snsv3_r7_t snsv3_r7 = SNSv3_R7_DEFAULT;
 
     // SNSv3_R7
-    //snsv3_r7.as_int = 0x00000000;
     snsv3_r7.CDC_LDO_CDC_LDO_ENB      = 0x1;
     snsv3_r7.CDC_LDO_CDC_LDO_DLY_ENB  = 0x1;
     snsv3_r7.ADC_LDO_ADC_LDO_ENB      = 0x1;
     snsv3_r7.ADC_LDO_ADC_LDO_DLY_ENB  = 0x1;
 
-    snsv3_r7.ADC_LDO_ADC_VREF_MUX_SEL = 0x3; // 2
-    snsv3_r7.ADC_LDO_ADC_VREF_SEL     = 0x20; // 4
-    
-    snsv3_r7.CDC_LDO_CDC_VREF_MUX_SEL = 0x0; // non-default // 2
-    snsv3_r7.CDC_LDO_CDC_VREF_SEL     = 0x10; // non-default // 4
+    // Set ADC LDO to around 1.37V: 0x3//0x20
+    snsv3_r7.ADC_LDO_ADC_VREF_MUX_SEL = 0x3;
+    snsv3_r7.ADC_LDO_ADC_VREF_SEL     = 0x20;
+
+    // Set CDC LDO to around 1.03V: 0x0//0x10
+    snsv3_r7.CDC_LDO_CDC_VREF_MUX_SEL = 0x0;
+    snsv3_r7.CDC_LDO_CDC_VREF_SEL     = 0x10;
 
     snsv3_r7.LC_CLK_CONF              = 0x9; // default = 0x9
     write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
-    write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
-    write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
-    write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
 
     // SNSv3_R1
-    //snsv3_r1.as_int = 0x00000000;
     snsv3_r1.CDC_S_period = 0x1A;
     snsv3_r1.CDC_R_period = 0xC;
     snsv3_r1.CDC_CR_ext = 0x0;
@@ -185,14 +180,13 @@ void initialize(){
 
 
     // SNSv3_R0 (need to be initialized here)
-    //snsv3_r0.as_int = 0x00000000; //SNSv3_R0_DEFAULT;
     snsv3_r0.CDC_ext_select_CR = 0x0;
     snsv3_r0.CDC_max_select = 0x7;
     snsv3_r0.CDC_ext_max = 0x0;
     snsv3_r0.CDC_CR_fixB = 0x1;
     snsv3_r0.CDC_ext_clk = 0x0;
     snsv3_r0.CDC_outck_in = 0x1;
-    snsv3_r0.CDC_on_adap = 0x1;		//0x0 (default 0x1)
+    snsv3_r0.CDC_on_adap = 0x0;		//0x0 (default 0x1)
     snsv3_r0.CDC_s_recycle = 0x1;	//0x1 (default 0x4)
     snsv3_r0.CDC_Td = 0x0;
     snsv3_r0.CDC_OP_on = 0x0;
@@ -200,9 +194,6 @@ void initialize(){
     snsv3_r0.CDC_Bias_1st = 0x7;
     snsv3_r0.CDC_EXT_RESET = 0x1;
     snsv3_r0.CDC_CLK = 0x0;
-    write_mbus_register(SNS_ADDR,0,snsv3_r0.as_int);
-    write_mbus_register(SNS_ADDR,0,snsv3_r0.as_int);
-    write_mbus_register(SNS_ADDR,0,snsv3_r0.as_int);
     write_mbus_register(SNS_ADDR,0,snsv3_r0.as_int);
 }
 
@@ -213,22 +204,16 @@ static void cdc_run(){
     switch( Pstack_state ){
 
         case PSTK_IDLE:
-		Pstack_state = PSTK_CDC_RST;
-		
+            Pstack_state = PSTK_CDC_RST;
+
 		reset_timeout_count = 0;
 
 		snsv3_r7.CDC_LDO_CDC_LDO_ENB = 0x0;
-		//write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
-		//delay(20000);
-
             	snsv3_r7.ADC_LDO_ADC_LDO_ENB = 0x0;
             	write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
             	delay(20000);
 
 		snsv3_r7.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
-		//write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
-		//delay(20000);
-
 		snsv3_r7.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
 		write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
 		delay(20000);
@@ -236,7 +221,7 @@ static void cdc_run(){
 		// Release CDC isolation
 		snsv3_r0.CDC_on_adap = 0x0; // This is used for isolation after FIB
     		write_mbus_register(SNS_ADDR,0,snsv3_r0.as_int);
-        break;
+            break;
 
         case PSTK_CDC_RST:
             // Release reset
@@ -269,7 +254,6 @@ static void cdc_run(){
 		set_wakeup_timer (WAKEUP_PERIOD, 0x1, 0x0);
 		operation_sleep();
 
-
 		// Assert CDC isolation
 		snsv3_r0.CDC_on_adap = 0x1; // This is used for isolation after FIB
 		write_mbus_register(SNS_ADDR,0,snsv3_r0.as_int);
@@ -299,7 +283,7 @@ static void cdc_run(){
                 write_mbus_message(0xAA, 0x22222222);
             #endif
             fire_cdc_meas();
-            for( count=0; count<2000; count++ ){
+            for( count=0; count<1000; count++ ){
                 if( MBus_msg_flag ){
                     MBus_msg_flag = 0;
                     read_data = *((volatile uint32_t *) 0xA0001014);
@@ -314,7 +298,7 @@ static void cdc_run(){
                                 write_mbus_message(0xAA, 0x44444444);
                             #endif
                             for( i=0; i<NUM_SAMPLES; ++i){
-                                delay(2000);
+                                delay(3000);
 				// Modify data to be more readable
 				// CDC_DOUT is shifted to start at LSB
 				// Valid bit is moved to 28th bit
@@ -333,14 +317,9 @@ static void cdc_run(){
                             Pstack_state = PSTK_IDLE;
                             #ifdef DEBUG_MBUS_MSG
                                 write_mbus_message(0xAA, 0x55555555);
-				delay(5000);
+								delay(5000);
+                                read_mbus_register(SNS_ADDR,0,0x10);
                             #endif
-
-			    // Assert CDC isolation
-			    snsv3_r0.CDC_on_adap = 0x1; // This is used for isolation after FIB
-    			    write_mbus_register(SNS_ADDR,0,snsv3_r0.as_int);
-				
-				
                             snsv3_r7.CDC_LDO_CDC_LDO_DLY_ENB = 0x1;
                             snsv3_r7.ADC_LDO_ADC_LDO_DLY_ENB = 0x1;
                             write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
@@ -355,6 +334,7 @@ static void cdc_run(){
                             // Need more data for radio TX
                             #ifdef DEBUG_MBUS_MSG
                                 write_mbus_message(0xAA, 0x33333333);
+                                read_mbus_register(SNS_ADDR,0,0x10);
                             #endif
                             release_cdc_meas();
                             return;

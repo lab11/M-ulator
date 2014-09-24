@@ -19,8 +19,8 @@
 
 #define RAD_BIT_DELAY 40     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 600  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
-#define TEMP_WAKEUP_CYCLE 200     //800:2min       //Wake up timer tuning: # of wake up timer cycles to sleep
-#define TEMP_WAKEUP_CYCLE_INITIAL 10 // Wake up timer duration for initial periods
+#define TEMP_WAKEUP_CYCLE 40     //800:2min       //Wake up timer tuning: # of wake up timer cycles to sleep
+#define TEMP_WAKEUP_CYCLE_INITIAL 8 // Wake up timer duration for initial periods
 #define NUM_INITIAL_CYCLE 8 // Number of initial cycles
 #define DATA_BUFFER_SIZE 120 // Max. possible temp reading is 166. (4Bx166=664Bytes)
 
