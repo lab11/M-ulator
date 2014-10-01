@@ -19,10 +19,12 @@
 #define	PSTK_IDLE       0x0
 #define PSTK_CDC_RST    0x1
 #define PSTK_CDC_MEAS   0x2
+#define PSTK_CDC_READ   0x3
 
 // Others
 #define NUM_SAMPLES     20         //Number of CDC samples to take
-#define WAKEUP_PERIOD   0x3
+#define WAKEUP_PERIOD   3
+#define MBUS_DELAY	1000
 
 //***************************************************
 // Global variables
@@ -165,9 +167,9 @@ void initialize(){
     snsv3_r7.ADC_LDO_ADC_VREF_MUX_SEL = 0x3;
     snsv3_r7.ADC_LDO_ADC_VREF_SEL     = 0x20;
 
-    // Set CDC LDO to around 1.03V: 0x0//0x10
+    // Set CDC LDO to around 1.03V: 0x0//0x20
     snsv3_r7.CDC_LDO_CDC_VREF_MUX_SEL = 0x0;
-    snsv3_r7.CDC_LDO_CDC_VREF_SEL     = 0x10;
+    snsv3_r7.CDC_LDO_CDC_VREF_SEL     = 0x20;
 
     snsv3_r7.LC_CLK_CONF              = 0x9; // default = 0x9
     write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
@@ -186,7 +188,7 @@ void initialize(){
     snsv3_r0.CDC_CR_fixB = 0x1;
     snsv3_r0.CDC_ext_clk = 0x0;
     snsv3_r0.CDC_outck_in = 0x1;
-    snsv3_r0.CDC_on_adap = 0x0;		//0x0 (default 0x1)
+    snsv3_r0.CDC_on_adap = 0x1;		//0x0 (default 0x1)
     snsv3_r0.CDC_s_recycle = 0x1;	//0x1 (default 0x4)
     snsv3_r0.CDC_Td = 0x0;
     snsv3_r0.CDC_OP_on = 0x0;
@@ -201,36 +203,34 @@ static void cdc_run(){
     uint32_t read_data;
     uint32_t count,i; 
 
-    switch( Pstack_state ){
-
-        case PSTK_IDLE:
-            Pstack_state = PSTK_CDC_RST;
+	if (Pstack_state == PSTK_IDLE){
+		Pstack_state = PSTK_CDC_RST;
 
 		reset_timeout_count = 0;
 
 		snsv3_r7.CDC_LDO_CDC_LDO_ENB = 0x0;
             	snsv3_r7.ADC_LDO_ADC_LDO_ENB = 0x0;
             	write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
-            	delay(20000);
+            	delay(10000);
 
 		snsv3_r7.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
 		snsv3_r7.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
 		write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
-		delay(20000);
+		delay(10000);
     
 		// Release CDC isolation
 		snsv3_r0.CDC_on_adap = 0x0; // This is used for isolation after FIB
     		write_mbus_register(SNS_ADDR,0,snsv3_r0.as_int);
-            break;
 
-        case PSTK_CDC_RST:
+	}else if (Pstack_state == PSTK_CDC_RST){
+//        case PSTK_CDC_RST:
             // Release reset
             #ifdef DEBUG_MBUS_MSG
                 write_mbus_message(0xAA, 0x11111111);
             #endif
             MBus_msg_flag = 0;
             release_cdc_reset();
-            for( count=0; count<4000; count++ ){
+            for( count=0; count<2000; count++ ){
                 if( MBus_msg_flag ){
                     MBus_msg_flag = 0;
                     Pstack_state = PSTK_CDC_MEAS;
@@ -251,23 +251,8 @@ static void cdc_run(){
 		Pstack_state = PSTK_IDLE;
 
 		// Put system to sleep to reset the layer controller
-		set_wakeup_timer (WAKEUP_PERIOD, 0x1, 0x0);
+		set_wakeup_timer (5, 0x1, 0x0);
 		operation_sleep();
-
-		// Assert CDC isolation
-		snsv3_r0.CDC_on_adap = 0x1; // This is used for isolation after FIB
-		write_mbus_register(SNS_ADDR,0,snsv3_r0.as_int);
-		
-		// Assert CDC reset
-            	assert_cdc_reset();
-
-		// Disable all LDO's
-		snsv3_r7.CDC_LDO_CDC_LDO_DLY_ENB = 0x1;
-		snsv3_r7.ADC_LDO_ADC_LDO_DLY_ENB = 0x1;
-		snsv3_r7.CDC_LDO_CDC_LDO_ENB = 0x1;
-		snsv3_r7.ADC_LDO_ADC_LDO_ENB = 0x1;
-		write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
-            	delay(10000);
 
 	    }else{
 		// Try one more time
@@ -275,16 +260,33 @@ static void cdc_run(){
             	assert_cdc_reset();
             	delay(10000);
 	    }
-            break;
 
-        case PSTK_CDC_MEAS:
+	}else if (Pstack_state == PSTK_CDC_MEAS){
+//        case PSTK_CDC_MEAS:
             // If no time out 
             #ifdef DEBUG_MBUS_MSG
                 write_mbus_message(0xAA, 0x22222222);
+                write_mbus_message(0xAA, 0x22222222);
+                write_mbus_message(0xAA, 0x22222222);
             #endif
-            fire_cdc_meas();
+
+		Pstack_state = PSTK_CDC_READ;
+		fire_cdc_meas();
+        
+		// Put system to sleep to reset the layer controller
+		//set_wakeup_timer (5, 0x1, 0x0);
+		//operation_sleep();
+
+	}else if (Pstack_state == PSTK_CDC_READ){
+//	case PSTK_CDC_READ:
+
             for( count=0; count<1000; count++ ){
                 if( MBus_msg_flag ){
+		    #ifdef DEBUG_MBUS_MSG
+			write_mbus_message(0xAA, 0x33333333);
+			write_mbus_message(0xAA, 0x33333333);
+			write_mbus_message(0xAA, 0x33333333);
+		    #endif
                     MBus_msg_flag = 0;
                     read_data = *((volatile uint32_t *) 0xA0001014);
                     if( read_data & 0x02 ) {
@@ -296,9 +298,13 @@ static void cdc_run(){
                             // Collected all data for radio TX
                             #ifdef DEBUG_MBUS_MSG
                                 write_mbus_message(0xAA, 0x44444444);
+				delay(MBUS_DELAY);
                             #endif
                             for( i=0; i<NUM_SAMPLES; ++i){
-                                delay(3000);
+                                delay(MBUS_DELAY);
+                                delay(MBUS_DELAY);
+                                delay(MBUS_DELAY);
+                                delay(MBUS_DELAY);
 				// Modify data to be more readable
 				// CDC_DOUT is shifted to start at LSB
 				// Valid bit is moved to 28th bit
@@ -308,6 +314,7 @@ static void cdc_run(){
 				cdc_data_modified = cdc_data_modified | ((0x2 & cdc_data[i])<<27);
 				cdc_data_modified = cdc_data_modified | ((0x1C & cdc_data[i])<<22);
                                 write_mbus_message(0x77, cdc_data_modified);
+                                //write_mbus_message(0x78, cdc_data[i]);
                             }
                             cdc_data_index = 0;
                             assert_cdc_reset();
@@ -320,29 +327,48 @@ static void cdc_run(){
 								delay(5000);
                                 read_mbus_register(SNS_ADDR,0,0x10);
                             #endif
+			    // Assert CDC isolation
+			    // FIXME: somehow if I enable the following two lines,
+			    // the CDC code becomes stuck at ~0E11 and CR 6!!!!!
+			    snsv3_r0.CDC_on_adap = 0x1; // This is used for isolation after FIB
+    			    write_mbus_register(SNS_ADDR,0,snsv3_r0.as_int);
+
+			    // Turn off LDO's
                             snsv3_r7.CDC_LDO_CDC_LDO_DLY_ENB = 0x1;
                             snsv3_r7.ADC_LDO_ADC_LDO_DLY_ENB = 0x1;
-                            write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
                             snsv3_r7.CDC_LDO_CDC_LDO_ENB = 0x1;
                             snsv3_r7.ADC_LDO_ADC_LDO_ENB = 0x1;
                             write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
-                            // Enter long sleep
+                            
+			    // Enter long sleep
                             set_wakeup_timer (WAKEUP_PERIOD, 0x1, 0x0);
                             operation_sleep();
+			    //return;
                         }
                         else{
                             // Need more data for radio TX
-                            #ifdef DEBUG_MBUS_MSG
-                                write_mbus_message(0xAA, 0x33333333);
-                                read_mbus_register(SNS_ADDR,0,0x10);
-                            #endif
                             release_cdc_meas();
+
+			    // Reset CDC and re-measure
+			    Pstack_state = PSTK_CDC_RST;
+			    release_cdc_meas();
+			    assert_cdc_reset();
+			    delay(500);
                             return;
                         }
                     }
                     else{
                         // If CDC data is invalid
-                        release_cdc_meas();
+                        #ifdef DEBUG_MBUS_MSG
+                            write_mbus_message(0xAA, 0x3333FFFF);
+                            write_mbus_message(0xAA, 0x3333FFFF);
+                            write_mbus_message(0xAA, 0x3333FFFF);
+                        #endif
+			release_cdc_meas();
+			Pstack_state = PSTK_CDC_RST;
+			release_cdc_meas();
+			assert_cdc_reset();
+			delay(500);
                         return;
                     }
                 }
@@ -359,17 +385,16 @@ static void cdc_run(){
             release_cdc_meas();
             assert_cdc_reset();
             delay(500);
-            break;
 
-        default:  // THIS SHOULD NOT HAPPEN
+	}else{
+        //default:  // THIS SHOULD NOT HAPPEN
             // Reset CDC
             Pstack_state = PSTK_IDLE;
             assert_cdc_reset();
             set_wakeup_timer (WAKEUP_PERIOD, 0x1, 0x0);
             operation_sleep();
-            break;
-    }
-}
+    	}
+} // cdc_run
 
 
 //***************************************************************************************
