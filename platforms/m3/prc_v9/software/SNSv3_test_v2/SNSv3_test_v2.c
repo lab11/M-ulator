@@ -305,6 +305,7 @@ static void cdc_run(){
                                 delay(MBUS_DELAY);
                                 delay(MBUS_DELAY);
                                 delay(MBUS_DELAY);
+                                delay(MBUS_DELAY);
 				// Modify data to be more readable
 				// CDC_DOUT is shifted to start at LSB
 				// Valid bit is moved to 28th bit
