@@ -32,6 +32,7 @@
   static uint32_t exec_temp_marker;
   static uint32_t exec_count;
   static uint32_t high_temp_triggered;
+  static uint32_t radio_marker;
  
   static uint32_t temp_data_stored[DATA_BUFFER_SIZE] = {0};
   static uint32_t temp_data_count;
@@ -298,11 +299,9 @@ static void operation_temp(void){
   temp_data = *((volatile uint32_t *) IMSG1);
 
   // If the temp exceeds 60C(dec:1800, hex:708), save 120 data from the temp, then no more overwriting.
-  if (temp_data>0x708){
-    high_temp_triggered = high_temp_triggered+1;
-    if (high_temp_triggered==1) {
-      temp_data_count = 0;
-    }
+  if ((temp_data>0x708) && !high_temp_triggered){
+    high_temp_triggered = 1;
+    temp_data_count = 0;
   }
 
   // Store in memory
@@ -367,7 +366,7 @@ static void operation_radio(void){
   // Reset temp_data_count
   temp_data_count = 0;
 
-  operation_temp();
+  //operation_temp();
   //operation_sleep();
 }
 
@@ -402,6 +401,7 @@ int main() {
     exec_marker = 0x12345678;
     exec_count = 0;
     high_temp_triggered = 0;
+    radio_marker = 0;
 
     //Enumeration
     enumerate(RAD_ADDR);
@@ -438,12 +438,17 @@ int main() {
   uint32_t wakeup_data = *((volatile uint32_t *) IRQ10VEC);
   uint32_t wakeup_data_header = wakeup_data>>24;
 
+
+  if(radio_marker){
+      operation_radio();
+  }
+
   if(wakeup_data_header == 1){
       // Transmit data via radio and go to sleep
       // Wait for 1 wakeup cycle to prepare radio receiving setup(radio board, etc).
+      radio_marker = 1;
       set_wakeup_timer(TEMP_WAKEUP_CYCLE,1,0);
       operation_sleep();
-      operation_radio();
 
   }else if(wakeup_data_header == 2){
       // Do something and go to sleep
