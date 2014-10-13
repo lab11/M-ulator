@@ -324,6 +324,14 @@ static void operation_temp(void){
   // Reset exec_temp_marker
   exec_temp_marker = 0;
 
+  ///////////////////////////////////////////
+  // Just for board level testing purpose  //
+  //  if (temp_data_count == 20){              //
+  //    radio_marker = 1;                      //
+  //  }					   //
+  //
+  ///////////////////////////////////////////
+
 /*
   //Fire off data to radio
   radio_data = gen_radio_data(temp_data>>5);
