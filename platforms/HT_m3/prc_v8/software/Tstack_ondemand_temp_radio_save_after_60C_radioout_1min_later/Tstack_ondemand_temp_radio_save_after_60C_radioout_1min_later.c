@@ -442,6 +442,7 @@ int main() {
       // Transmit data via radio and go to sleep
       // Wait for 1 wakeup cycle to prepare radio receiving setup(radio board, etc).
       set_wakeup_timer(TEMP_WAKEUP_CYCLE,1,0);
+      operation_sleep();
       operation_radio();
 
   }else if(wakeup_data_header == 2){
