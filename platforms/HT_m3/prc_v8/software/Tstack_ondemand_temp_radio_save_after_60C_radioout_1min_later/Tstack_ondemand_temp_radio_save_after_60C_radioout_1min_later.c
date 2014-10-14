@@ -19,7 +19,7 @@
 #define MBUS_DELAY 200 //Amount of delay between successive messages
 
 #define RAD_BIT_DELAY 40     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
-#define RAD_PACKET_DELAY 600  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
+#define RAD_PACKET_DELAY 6000  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
 #define TEMP_WAKEUP_CYCLE 200     //800:2min       //Wake up timer tuning: # of wake up timer cycles to sleep
 #define TEMP_WAKEUP_CYCLE_INITIAL 10 // Wake up timer duration for initial periods
 #define NUM_INITIAL_CYCLE 8 // Number of initial cycles
@@ -449,12 +449,18 @@ int main() {
 
   if(radio_marker){
       operation_radio();
+      radio_marker = 0;
   }
 
   if(wakeup_data_header == 1){
       // Transmit data via radio and go to sleep
       // Wait for 1 wakeup cycle to prepare radio receiving setup(radio board, etc).
       radio_marker = 1;
+/*
+      while (1){
+      	operation_radio();
+      }
+*/
       set_wakeup_timer(TEMP_WAKEUP_CYCLE,1,0);
       operation_sleep();
 
