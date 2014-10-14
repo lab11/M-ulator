@@ -456,20 +456,20 @@ int main() {
       // Transmit data via radio and go to sleep
       // Wait for 1 wakeup cycle to prepare radio receiving setup(radio board, etc).
       radio_marker = 1;
-/*
-      while (1){
-      	operation_radio();
-      }
-*/
       set_wakeup_timer(TEMP_WAKEUP_CYCLE,1,0);
       operation_sleep();
 
   }else if(wakeup_data_header == 2){
-      // Do something and go to sleep
-      operation_sleep();
+      // Radio Debugging
+      uint8_t i; 
+      for (i=0;i<16;i++){
+	operation_radio();
+      }
+      operation_temp();
 
   }else if(wakeup_data_header == 3){
-      // Do something and go to sleep
+      // Go to sleep w/o Timer
+      set_wakeup_timer(0,0,0);
       operation_sleep();
 
   }else if(wakeup_data_header == 4){
