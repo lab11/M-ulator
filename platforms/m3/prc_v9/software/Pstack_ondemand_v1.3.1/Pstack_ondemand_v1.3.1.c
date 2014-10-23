@@ -5,7 +5,7 @@
 //Description:  Derived from zhiyoong_Pblr.c and Tstack_ondemand_temp_radio.c
 //              Moving towards Mouse Implantation
 //		Revision 1.3.1
-// 		- Using PRCv9, but SNSv2
+// 		- Using PRCv9, but SNSv2 not SNSv3
 //              Revision 1.3
 //              - System stays awake during CDC reset/measurement
 //              - Data processing function added  (process_data)
@@ -590,10 +590,10 @@ int main() {
 
     if(wakeup_data_header == 1){
         // Debug mode: Transmit something via radio 10 times and go to sleep w/o timer
-        if (execution_count_irq < 10){
+        if (execution_count_irq < 20){
             execution_count_irq++;
             // radio
-            send_radio_data(gen_radio_data(0xFF00+execution_count_irq));	
+            send_radio_data(gen_radio_data(0xF0F0+execution_count_irq));	
             // set timer
             set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
             // go to sleep and wake up with same condition
@@ -602,7 +602,7 @@ int main() {
         }else{
             execution_count_irq = 0;
             // radio
-            send_radio_data(gen_radio_data(0xFF00+execution_count_irq));	
+            send_radio_data(gen_radio_data(0xF0F0+execution_count_irq));	
             // Disable Timer
             set_wakeup_timer (0, 0x0, 0x0);
             // Go to sleep without timer
@@ -610,10 +610,15 @@ int main() {
         }
     }
     else if(wakeup_data_header == 2){
-        // Proceed to continuous mode
+	// Slow down PMU sleep osc and go to sleep for further programming
+        // Disable Timer
+        set_wakeup_timer (0, 0x0, 0x0);
         set_pmu_sleep_clk_low();
+        // Go to sleep without timer
+        operation_sleep();
     }
     else if(wakeup_data_header == 3){
+	// Speed up PMU sleep osc and go to sleep for further programming
         // Disable Timer
         set_wakeup_timer (0, 0x0, 0x0);
         set_pmu_sleep_clk_high();
