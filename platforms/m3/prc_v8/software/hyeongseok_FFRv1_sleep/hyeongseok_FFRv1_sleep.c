@@ -73,7 +73,7 @@ int main() {
 
 
     //FFRv1 R0
-    ffrv1_r0.TX_VCO_b = 0x70; //Tuning at 10GHz
+    ffrv1_r0.TX_VCO_b = 0x60; //Tuning at 10GHz
     ffrv1_r0.TX_pulse_b = 0xF ; //max pulse width
     write_mbus_register(FFR_ADDR,0,ffrv1_r0.as_int);
   
