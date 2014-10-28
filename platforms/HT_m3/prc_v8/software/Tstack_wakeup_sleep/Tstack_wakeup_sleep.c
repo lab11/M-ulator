@@ -31,73 +31,6 @@
   static uint32_t exec_temp_marker;
   static uint32_t exec_count;
   
-  static uint32_t temp_data_stored[DATA_BUFFER_SIZE] = {0};
-  static uint32_t temp_data_count;
-  uint32_t _sns_r3; 
-  uint32_t temp_data;
-  uint32_t radio_data;
-
-//***************************************************
-//Interrupt Handlers
-//Must clear pending bit!
-//***************************************************
-void handler_ext_int_0(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_1(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_2(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_3(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_4(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_5(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_6(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_7(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_8(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_9(void) __attribute__ ((interrupt ("IRQ")));
-// INT vector 10 and 11 is not real interrupt vectors
-// These vector location (0x0068 and 0x006C) are used as on demaned request parameter buffer
-void handler_ext_int_10(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_11(void) __attribute__ ((interrupt ("IRQ")));
-
-void handler_ext_int_0(void){
-  *((volatile uint32_t *) 0xE000E280) = 0x1;
-}
-void handler_ext_int_1(void){
-  *((volatile uint32_t *) 0xE000E280) = 0x2;
-}
-void handler_ext_int_2(void){
-  *((volatile uint32_t *) 0xE000E280) = 0x4;
-}
-void handler_ext_int_3(void){
-  *((volatile uint32_t *) 0xE000E280) = 0x8;
-}
-void handler_ext_int_4(void){
-  *((volatile uint32_t *) 0xE000E280) = 0x10;
-}
-void handler_ext_int_5(void){
-  *((volatile uint32_t *) 0xE000E280) = 0x20;
-}
-void handler_ext_int_6(void){
-  *((volatile uint32_t *) 0xE000E280) = 0x40;
-}
-void handler_ext_int_7(void){
-  *((volatile uint32_t *) 0xE000E280) = 0x80;
-}
-void handler_ext_int_8(void){
-  *((volatile uint32_t *) 0xE000E280) = 0x100;
-}
-void handler_ext_int_9(void){
-  *((volatile uint32_t *) 0xE000E280) = 0x200;
-}
-void handler_ext_int_10(void){
-  *((volatile uint32_t *) 0xE000E280) = 0x400;
-}
-void handler_ext_int_11(void){
-  *((volatile uint32_t *) 0xE000E280) = 0x800;
-}
-
-
-//***************************************************
-// Internal Functions
-//***************************************************
-
 
 //***************************************************
 // End of Program Sleep Operation
@@ -112,7 +45,7 @@ static void operation_sleep(void){
   *((volatile uint32_t *) IRQ10VEC) = 0;
 
   // Go to Sleep
-  delay(MBUS_DELAY);
+  //delay(MBUS_DELAY);
   sleep();
   while(1);
 
@@ -128,7 +61,7 @@ int main() {
   // Repeating wakeup routine 
 
   delay(10000);
-  set_wakeup_timer(50,1,0);
+  set_wakeup_timer(500,1,0);
   operation_sleep();
 
   while(1);
