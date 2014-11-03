@@ -23,8 +23,8 @@
 
 #define RAD_BIT_DELAY 12     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 600  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
-#define TEMP_WAKEUP_CYCLE 500 // 500 is ~10 min for sleep osc set up "3"  //Wake up timer tuning: # of wake up timer cycles to sleep
-#define TEMP_WAKEUP_CYCLE_INITIAL 50 // 50 is about 3 sec for default HT; Wake up timer duration for initial periods
+#define TEMP_WAKEUP_CYCLE 500 // Wake up timer tuning: # of wake up timer cycles to sleep
+#define TEMP_WAKEUP_CYCLE_INITIAL 50 // 50 is about 7 sec for default HT; Wake up timer duration for initial periods
 #define NUM_INITIAL_CYCLE 8 // Number of initial cycles
 #define DATA_BUFFER_SIZE 120
 
@@ -398,12 +398,15 @@ int main() {
     // Setup T Sensor
     setup_tempsensor();
 
+    // Go to sleep without timer
+    operation_sleep();
+
   }else{
 
     // Repeating wakeup routine 
     exec_count = exec_count + 1;
 
-    // Disable wakeup timer
+    // Reset wakeup timer
     set_wakeup_timer(0,0,1);
 
   }
