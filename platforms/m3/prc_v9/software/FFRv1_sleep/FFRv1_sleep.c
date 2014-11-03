@@ -9,7 +9,7 @@
 #include "FFRv1.h"
 
 #define FFR_ADDR 0x4
-#define WAKEUP_PERIOD 2
+#define WAKEUP_PERIOD 1
 
 //***************************************************
 // Global variables
@@ -104,7 +104,7 @@ int main() {
   ffrv1_r2.TX_FSM_START = 1;
   write_mbus_register(FFR_ADDR,2,ffrv1_r2.as_int);
   read_mbus_register(FFR_ADDR,2, 0x13);
-  delay(10000); 
+  delay(3000); 
   //   read_mbus_register(FFR_ADDR,2, 0x13);
   //   delay(10000);
 
