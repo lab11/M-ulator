@@ -164,6 +164,40 @@ static int handle_braces(const char *syntax, va_list args) {
 	return i;
 }
 
+static const char* cond_to_str(uint8_t cond) {
+	WARN("cond: %x %d\n", cond, cond);
+	switch (cond) {
+		case  0: return "EQ";
+		case  1: return "NE";
+		case  2: return "CS";
+		case  3: return "CC";
+		case  4: return "MI";
+		case  5: return "PL";
+		case  6: return "VS";
+		case  7: return "VC";
+		case  8: return "HI";
+		case  9: return "LS";
+		case 10: return "GE";
+		case 11: return "LT";
+		case 12: return "GT";
+		case 13: return "LE";
+		case 14: return "AL";
+		case 15: return "  "; // unconditional branch
+		default:
+			 assert(false && "illegal condition"); return "!!";
+	}
+}
+
+static size_t print_bcond(const char *syntax, va_list args) {
+	unsigned cond = va_arg(args, unsigned);
+
+	assert(0 == strncmp(syntax, "B<c>", 4));
+
+	putchar_unlocked('B');
+	printf("%s", cond_to_str(cond));
+	return 3;
+}
+
 static size_t print_it_inst(const char *syntax, va_list args) {
 	unsigned itstate = va_arg(args, unsigned);
 
@@ -204,24 +238,7 @@ static size_t print_it_inst(const char *syntax, va_list args) {
 
 	putchar_unlocked('\t');
 
-	switch (firstcond) {
-		case  0: it_condition = "EQ"; break;
-		case  1: it_condition = "NE"; break;
-		case  2: it_condition = "CS"; break;
-		case  3: it_condition = "CC"; break;
-		case  4: it_condition = "MI"; break;
-		case  5: it_condition = "PL"; break;
-		case  6: it_condition = "VS"; break;
-		case  7: it_condition = "VC"; break;
-		case  8: it_condition = "HI"; break;
-		case  9: it_condition = "LS"; break;
-		case 10: it_condition = "GE"; break;
-		case 11: it_condition = "LT"; break;
-		case 12: it_condition = "GT"; break;
-		case 13: it_condition = "LE"; break;
-		case 14: it_condition = "AL"; break;
-		case 15: assert(false && "illegal condition"); break;
-	}
+	it_condition = cond_to_str(firstcond);
 	printf("%s", it_condition);
 
 	union apsr_t apsr = CORE_apsr_read();
@@ -258,7 +275,17 @@ static void _op_decompile(const char *syntax, va_list args) {
 
 	unsigned i;
 	for (i=0; i<len; i++) {
-		if (syntax[i] == '<')
+		/* The current handling of conditions is a little hack-y.
+		   In particular, in the M profile, only branch instructions
+		   or instructions inside of an IT block are permitted to have
+		   conditions attached to them, thus the decompile ignores
+		   the <c> directive outside of IT blocks. This works for
+		   everything but B<c>, which we detect explicitly. When/if
+		   this expands beyond the M profile, this will need to be
+		   adjusted. */
+		if ( (i == 0) && (0 == strncmp(syntax+i, "B<c>", 4)) )
+			i += print_bcond(syntax+i, args);
+		else if (syntax[i] == '<')
 			i += handle_op(syntax+i, args);
 		else if (0 == strncmp(syntax+i, "IT", 2))
 			i += print_it_inst(syntax+i, args);
