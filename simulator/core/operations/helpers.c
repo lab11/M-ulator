@@ -45,18 +45,45 @@ uint32_t reverse_bits(uint32_t v) {
 	return c;
 }
 
+/*
 // Only supports N == 32 bits
-void AddWithCarry(uint32_t x, uint32_t y, bool carry_in,
+void AddWithCarry(int32_t x, int32_t y, bool carry_in,
 		uint32_t *result, bool *carry_out, bool *overflow_out) {
-	uint64_t unsigned_sum = x + y + carry_in;
-	int64_t signed_sum = ((int32_t) x) + ((int32_t) y) + carry_in;
+	//uint64_t unsigned_sum = ((uint64_t) x) + ((uint64_t) y) + ((uint64_t) carry_in);
+	uint64_t unsigned_sum = ((uint64_t) ((uint32_t) x)) + ((uint64_t) ((uint32_t) y)) + ((uint64_t) carry_in);
+	int64_t signed_sum = (((int64_t) x) + ((int64_t) y)) + ((uint64_t) carry_in);
 
 	*result = (uint32_t) unsigned_sum; // 64->32 truncation
+	*carry_out    = !(           *result  == unsigned_sum);
+	*overflow_out = !(((int32_t) *result) == signed_sum);
+
+	WARN("x %08x, y %08x, carry %d\n", x, y, carry_in);
+	WARN("usum %09"PRIx64", ssum %09"PRIx64", result %08x, carry %d, ovflw %d\n",
+			unsigned_sum, signed_sum, *result, *carry_out, *overflow_out);
+}
+*/
+
+void AddWithCarry(uint32_t x, uint32_t y, bool carry_in,
+		uint32_t *result, bool *carry_out, bool *overflow_out) {
+	uint64_t ux64 = x;
+	uint64_t uy64 = y;
+	int64_t  sx64 = x;
+	int64_t  sy64 = y;
+
+	uint64_t usum = ux64 + uy64 + carry_in;
+	int64_t  ssum = sx64 + sy64 + carry_in;
+
+	*result = usum;
+
+	if (*result == usum) *carry_out = 0;
+	else                 *carry_out = 1;
+
+	if (*result == ssum) *overflow_out = 0;
+	else                 *overflow_out = 1;
 
 	DBG2("x %08x, y %08x, carry %d\n", x, y, carry_in);
-	DBG2("usum %09"PRIx64", ssum %09"PRIx64"\n", unsigned_sum, signed_sum);
-	*carry_out    = !((uint32_t) *result == (uint32_t) unsigned_sum);
-	*overflow_out = !( (int32_t) *result ==  (int32_t) signed_sum);
+	DBG2("usum %09"PRIx64", ssum %09"PRIx64", result %08x, carry %d, ovflw %d\n",
+			usum, ssum, *result, *carry_out, *overflow_out);
 }
 
 uint32_t SignExtend(uint32_t val, uint8_t bits) {

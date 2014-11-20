@@ -7,7 +7,7 @@ should begin with a global `main` label which serves as entry point. These
 tests assume the following instructions are well behaved:
 
     * `MOVS`, `MOVW`, `MOVT`
-    * `CMP`
+    * `CMP` (all forms)
     * `B<c>`, `BX LR`
 
 Upon completion (or failure) a test should set a return code into `R0` (e.g.
