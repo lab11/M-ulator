@@ -43,17 +43,20 @@ void handler_ext_int_6(void){
 }
 void handler_ext_int_7(void){
   *((volatile uint32_t *) 0xE000E280) = 0x80;
-	config_timer( 1, 0, 0, 4000, 6000 );
+	config_timer( 1, 0, 0, 40000, 60000 );
+	delay(100);
     write_mbus_register(SNS_ADDR,1,0xA);
 }
 void handler_ext_int_8(void){
   *((volatile uint32_t *) 0xE000E280) = 0x100;
-	config_timer( 2, 0, 0, 4000, 6000 );
+	config_timer( 2, 0, 0, 40000, 60000 );
+	delay(100);
     write_mbus_register(SNS_ADDR,2,0xA);
 }
 void handler_ext_int_9(void){
   *((volatile uint32_t *) 0xE000E280) = 0x200;
-	config_timer( 3, 1, 1,    0, 3000 );
+	config_timer( 3, 1, 1,    0, 300000 );
+	delay(100);
     write_mbus_register(SNS_ADDR,3,0xA);
 }
 
@@ -73,8 +76,8 @@ int main() {
 
 	//config_timer( timer_id, go, roi, init_val, sat_val )
 	//Config WD timer to 3000 cycles
-	config_timer( 1, 1, 0, 1000, 3000 );
-	config_timer( 2, 1, 0, 4000, 6000 );
-	config_timer( 3, 1, 1,    0, 3000 );
+	config_timer( 1, 1, 0, 10000, 30000 );
+	config_timer( 2, 1, 0, 40000, 60000 );
+	config_timer( 3, 1, 1,    00, 300000 );
 	while(1);
 }

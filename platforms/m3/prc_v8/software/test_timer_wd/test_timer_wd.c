@@ -55,7 +55,8 @@ void handler_ext_int_9(void){
 int main() {
 	//config_timer( timer_id, go, roi, init_val, sat_val )
 	//Config WD timer to 3000 cycles
-	config_timer( 0, 1, 0, 0, 3000 );
+	config_timer( 0, 1, 1, 0, 10000 );
+	write_mbus_register(0xDD,0x12,0x345678);	
 	while(1);
 
 

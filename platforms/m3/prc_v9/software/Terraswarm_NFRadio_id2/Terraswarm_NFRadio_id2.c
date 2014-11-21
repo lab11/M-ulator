@@ -23,7 +23,7 @@
 
 #define	RAD_BIT_DELAY			12	//0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define	RAD_PACKET_DELAY		600	//1000    //Radio tuning: Delay between packets sent (3 packets / sample)
-#define	WAKEUP_CYCLE			6	//213:10min       //Wake up timer tuning: # of wake up timer cycles to sleep
+#define	WAKEUP_CYCLE			10//6	//213:10min       //Wake up timer tuning: # of wake up timer cycles to sleep
 #define	WAKEUP_CYCLE_INITIAL	3	// Wake up timer duration for initial periods
 #define	NUM_INITIAL_CYCLE 		3	// Number of initial cycles
 #define	DATA_BUFFER_SIZE 		256
@@ -152,14 +152,14 @@ static void setup_radio(void) {
 	delay(MBUS_DELAY);
   
   
-	// For board level testing, 00 corresponds to 915MHz
+	// For board level testing, 00 corresponds to 905MHz
 	//Tune Freq 1
 	uint32_t _rad_r21 = 0x0;
 	write_mbus_register(RAD_ADDR,0x21,_rad_r21);
 	delay(MBUS_DELAY);
 
 	//Tune Freq 2
-	uint32_t _rad_r22 = 0x0;
+	uint32_t _rad_r22 = 0xA;
 	write_mbus_register(RAD_ADDR,0x22,_rad_r22);
 	delay(MBUS_DELAY);
  
@@ -180,7 +180,7 @@ static void setup_radio(void) {
 // Output[29:26] = 4 bit  preamble
 // Output[25:22] = 4 bit  counter
 // Output[21:20] = 2 bit  stack ID
-// Output[19:6]  = 16 bit temperature value
+// Output[19:6]  = 14 bit temperature value
 // Output[5:0]   = 6 bit  ECC for (4 bit counter + 2 bit Stack ID + 14 bit data) portion
 
 //ECC Algorithm: (P = parity) (D = data)
@@ -219,84 +219,85 @@ static uint32_t gen_radio_data(uint32_t data_in, uint32_t count) {
 	uint32_t data_in_trim = data_in & 0x00003FFF;
 	uint32_t stack_id_trim = STACK_ID & 0x3;
 	uint32_t data_out =  0x3C000000 | count_trim<<22 | stack_id_trim<<20 | data_in_trim<<6;
+	uint32_t ecc_data_in = count_trim<<16 | stack_id_trim<<14 | data_in_trim;	
 	uint32_t P5 = 
-		((data_in>>19)&0x1) ^ 
-		((data_in>>18)&0x1) ^ 
-		((data_in>>17)&0x1) ^ 
-		((data_in>>16)&0x1) ^ 
-		((data_in>>15)&0x1) ^ 
-		((data_in>>14)&0x1) ^ 
-		((data_in>>13)&0x1) ^ 
-		((data_in>>12)&0x1) ^ 
-		((data_in>>11)&0x1);
+		((ecc_data_in>>19)&0x1) ^ 
+		((ecc_data_in>>18)&0x1) ^ 
+		((ecc_data_in>>17)&0x1) ^ 
+		((ecc_data_in>>16)&0x1) ^ 
+		((ecc_data_in>>15)&0x1) ^ 
+		((ecc_data_in>>14)&0x1) ^ 
+		((ecc_data_in>>13)&0x1) ^ 
+		((ecc_data_in>>12)&0x1) ^ 
+		((ecc_data_in>>11)&0x1);
 	uint32_t P4 = 
-		((data_in>>19)&0x1) ^ 
-		((data_in>>18)&0x1) ^ 
-		((data_in>>10)&0x1) ^ 
-		((data_in>>9 )&0x1) ^ 
-		((data_in>>8 )&0x1) ^ 
-		((data_in>>7 )&0x1) ^ 
-		((data_in>>6 )&0x1) ^ 
-		((data_in>>5 )&0x1) ^ 
-		((data_in>>4 )&0x1);
+		((ecc_data_in>>19)&0x1) ^ 
+		((ecc_data_in>>18)&0x1) ^ 
+		((ecc_data_in>>10)&0x1) ^ 
+		((ecc_data_in>>9 )&0x1) ^ 
+		((ecc_data_in>>8 )&0x1) ^ 
+		((ecc_data_in>>7 )&0x1) ^ 
+		((ecc_data_in>>6 )&0x1) ^ 
+		((ecc_data_in>>5 )&0x1) ^ 
+		((ecc_data_in>>4 )&0x1);
 	uint32_t P3 = 
-		((data_in>>17)&0x1) ^ 
-		((data_in>>16)&0x1) ^ 
-		((data_in>>15)&0x1) ^ 
-		((data_in>>14)&0x1) ^ 
-		((data_in>>10)&0x1) ^ 
-		((data_in>>9 )&0x1) ^ 
-		((data_in>>8 )&0x1) ^ 
-		((data_in>>7 )&0x1) ^ 
-		((data_in>>3 )&0x1) ^ 
-		((data_in>>2 )&0x1) ^ 
-		((data_in>>1 )&0x1);
+		((ecc_data_in>>17)&0x1) ^ 
+		((ecc_data_in>>16)&0x1) ^ 
+		((ecc_data_in>>15)&0x1) ^ 
+		((ecc_data_in>>14)&0x1) ^ 
+		((ecc_data_in>>10)&0x1) ^ 
+		((ecc_data_in>>9 )&0x1) ^ 
+		((ecc_data_in>>8 )&0x1) ^ 
+		((ecc_data_in>>7 )&0x1) ^ 
+		((ecc_data_in>>3 )&0x1) ^ 
+		((ecc_data_in>>2 )&0x1) ^ 
+		((ecc_data_in>>1 )&0x1);
 	uint32_t P2 = 
-		((data_in>>17)&0x1) ^ 
-		((data_in>>16)&0x1) ^ 
-		((data_in>>13)&0x1) ^ 
-		((data_in>>12)&0x1) ^ 
-		((data_in>>10)&0x1) ^ 
-		((data_in>>9 )&0x1) ^ 
-		((data_in>>6 )&0x1) ^ 
-		((data_in>>5 )&0x1) ^ 
-		((data_in>>3 )&0x1) ^ 
-		((data_in>>2 )&0x1) ^ 
-		((data_in>>0 )&0x1);
+		((ecc_data_in>>17)&0x1) ^ 
+		((ecc_data_in>>16)&0x1) ^ 
+		((ecc_data_in>>13)&0x1) ^ 
+		((ecc_data_in>>12)&0x1) ^ 
+		((ecc_data_in>>10)&0x1) ^ 
+		((ecc_data_in>>9 )&0x1) ^ 
+		((ecc_data_in>>6 )&0x1) ^ 
+		((ecc_data_in>>5 )&0x1) ^ 
+		((ecc_data_in>>3 )&0x1) ^ 
+		((ecc_data_in>>2 )&0x1) ^ 
+		((ecc_data_in>>0 )&0x1);
 	uint32_t P1 = 
-		((data_in>>19)&0x1) ^ 
-		((data_in>>17)&0x1) ^ 
-		((data_in>>15)&0x1) ^ 
-		((data_in>>13)&0x1) ^ 
-		((data_in>>11)&0x1) ^ 
-		((data_in>>10)&0x1) ^ 
-		((data_in>>8 )&0x1) ^
-		((data_in>>6 )&0x1) ^ 
-		((data_in>>4 )&0x1) ^ 
-		((data_in>>3 )&0x1) ^ 
-		((data_in>>1 )&0x1) ^ 
-		((data_in>>0 )&0x1);
+		((ecc_data_in>>19)&0x1) ^ 
+		((ecc_data_in>>17)&0x1) ^ 
+		((ecc_data_in>>15)&0x1) ^ 
+		((ecc_data_in>>13)&0x1) ^ 
+		((ecc_data_in>>11)&0x1) ^ 
+		((ecc_data_in>>10)&0x1) ^ 
+		((ecc_data_in>>8 )&0x1) ^
+		((ecc_data_in>>6 )&0x1) ^ 
+		((ecc_data_in>>4 )&0x1) ^ 
+		((ecc_data_in>>3 )&0x1) ^ 
+		((ecc_data_in>>1 )&0x1) ^ 
+		((ecc_data_in>>0 )&0x1);
 	uint32_t P0 = 
-		((data_in>>19)&0x1) ^ 
-		((data_in>>18)&0x1) ^ 
-		((data_in>>17)&0x1) ^ 
-		((data_in>>16)&0x1) ^ 
-		((data_in>>15)&0x1) ^ 
-		((data_in>>14)&0x1) ^ 
-		((data_in>>13)&0x1) ^ 
-		((data_in>>12)&0x1) ^ 
-		((data_in>>11)&0x1) ^ 
-		((data_in>>10)&0x1) ^ 
-		((data_in>>9)&0x1) ^ 
-		((data_in>>8)&0x1) ^ 
-		((data_in>>7)&0x1) ^ 
-		((data_in>>6)&0x1) ^ 
-		((data_in>>5)&0x1) ^ 
-		((data_in>>4)&0x1) ^ 
-		((data_in>>3)&0x1) ^ 
-		((data_in>>2)&0x1) ^ 
-		((data_in>>1)&0x1) ^ 
-		((data_in>>0)&0x1) ^ 
+		((ecc_data_in>>19)&0x1) ^ 
+		((ecc_data_in>>18)&0x1) ^ 
+		((ecc_data_in>>17)&0x1) ^ 
+		((ecc_data_in>>16)&0x1) ^ 
+		((ecc_data_in>>15)&0x1) ^ 
+		((ecc_data_in>>14)&0x1) ^ 
+		((ecc_data_in>>13)&0x1) ^ 
+		((ecc_data_in>>12)&0x1) ^ 
+		((ecc_data_in>>11)&0x1) ^ 
+		((ecc_data_in>>10)&0x1) ^ 
+		((ecc_data_in>>9)&0x1) ^ 
+		((ecc_data_in>>8)&0x1) ^ 
+		((ecc_data_in>>7)&0x1) ^ 
+		((ecc_data_in>>6)&0x1) ^ 
+		((ecc_data_in>>5)&0x1) ^ 
+		((ecc_data_in>>4)&0x1) ^ 
+		((ecc_data_in>>3)&0x1) ^ 
+		((ecc_data_in>>2)&0x1) ^ 
+		((ecc_data_in>>1)&0x1) ^ 
+		((ecc_data_in>>0)&0x1) ^ 
 		P5 ^ P4 ^ P3 ^ P2 ^ P1 ;
 	data_out |= (P5<<5)|(P4<<4)|(P3<<3)|(P2<<2)|(P1<<1)|(P0<<0);
 	return data_out;

@@ -166,8 +166,8 @@ void initialize(){
 	snsv3_r7.CDC_LDO_CDC_VREF_SEL     = 0x4; // non-default
 	snsv3_r7.ADC_LDO_ADC_LDO_ENB      = 0x1;
 	snsv3_r7.ADC_LDO_ADC_LDO_DLY_ENB  = 0x1;
-	snsv3_r7.ADC_LDO_ADC_VREF_MUX_SEL = 0x3;
-	snsv3_r7.ADC_LDO_ADC_VREF_SEL     = 0x4;
+	snsv3_r7.ADC_LDO_ADC_VREF_MUX_SEL = 0x0;
+	snsv3_r7.ADC_LDO_ADC_VREF_SEL     = 0x1;
 	snsv3_r7.LC_CLK_CONF              = 0x9; // default = 0x9
 	write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
 
@@ -386,7 +386,7 @@ int main() {
     *((volatile uint32_t *) 0xE000E100) = 0x3FF;
 
     //Initialize
-    if( enumerated != 0xABCDEF01 )
+    //if( enumerated != 0xABCDEF01 )
         initialize();  
 
     while(1){

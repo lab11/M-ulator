@@ -18,7 +18,7 @@ int enumerate(uint32_t addr);
 int sleep();
 int write_mbus_register(uint32_t enum_addr, uint8_t reg, uint32_t data);
 int read_mbus_register(uint32_t enum_addr, uint8_t reg, uint8_t return_addr);
-int write_mbus_message(uint32_t addr, uint32_t data);
+static int write_mbus_message(uint32_t addr, uint32_t data);
 
 // Possible reg values:
 // Read-Only

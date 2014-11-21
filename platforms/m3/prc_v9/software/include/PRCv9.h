@@ -42,6 +42,7 @@ void pmu_div6_ovrd( uint8_t ovrd );
 void pmu_set_force_wake( uint8_t set );
 void pon_reset( void );
 void sleep_req_by_sw( void );
+uint32_t generate_ECC( uint32_t data_in ); 
 
 #endif // M3_H
 
