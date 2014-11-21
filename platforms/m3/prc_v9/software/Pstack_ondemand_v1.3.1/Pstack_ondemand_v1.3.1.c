@@ -40,6 +40,8 @@
 #define HRV_ADDR 0x6
 #define RAD_ADDR 0x4
 
+#define	MBUS_DELAY 100 //Amount of delay between successive messages
+
 // Pstack states
 #define	PSTK_IDLE       0x0
 #define PSTK_RESET      0x1
@@ -48,7 +50,6 @@
 // Radio configurations
 #define RAD_BIT_DELAY       12      //40      //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_NUM      1      //How many times identical data will be TXed
-#define RAD_PACKET_DELAY    300    // Can go down as low as 100  //Radio tuning: Delay between packets sent
 
 // CDC configurations
 #define NUM_SAMPLES         3      //Number of CDC samples to take (only 2^n allowed for averaging: 2, 4, 8, 16...)
@@ -57,7 +58,7 @@
 #define CDC_TIMEOUT         0x3    //Timeout for CDC
 
 // Sleep-Wakeup control
-#define WAKEUP_PERIOD_CONT_INIT    3    // Wakeup period for initial portion of continuous pressure sensing
+#define WAKEUP_PERIOD_CONT_INIT    1    // 2: 6 sec at 4V, 9 sec at 3.8V ;Wakeup period for initial portion of continuous pressure sensing
 #define WAKEUP_PERIOD_CONT         340   //200=350sec with slow PMU sleep clk
 
 
@@ -213,8 +214,9 @@ static uint32_t gen_radio_data(uint32_t data_in) {
 static void send_radio_data(uint32_t radio_data){
   int32_t i; //loop var
   uint32_t j; //loop var
-  for(j=0;j<RAD_PACKET_NUM;j++){ //Packet Loop
+  for(j=0;j<1;j++){ //Packet Loop
     for(i=25;i>=0;i--){ //Bit Loop
+      delay(10);
       if ((radio_data>>i)&1) write_mbus_register(RAD_ADDR,0x27,0x1);
       else                   write_mbus_register(RAD_ADDR,0x27,0x0);
       //Must clear register
@@ -222,9 +224,6 @@ static void send_radio_data(uint32_t radio_data){
       write_mbus_register(RAD_ADDR,0x27,0x0);
       delay(RAD_BIT_DELAY); //Set delay between sending subsequent bit
     }
-#if RAD_PACKET_NUM > 1
-    delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
-#endif
   }
 }
 
@@ -270,11 +269,11 @@ static void release_cdc_meas(){
 }
 inline static void set_pmu_sleep_clk_low(){
     // PRCv9 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77003B;
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77003B; // 0x8F77003B: use GOC x0.6-2
 }
 inline static void set_pmu_sleep_clk_high(){
     // PRCv9 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77004B;
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77004B; // 0x8F77004B: use GOC x10-25
 }
 static void process_data(){
     uint8_t i;
@@ -327,6 +326,15 @@ static void operation_sleep_noirqreset(void){
 
 }
 
+static void operation_sleep_notimer(void){
+    
+  // Disable Timer
+  set_wakeup_timer (0, 0x0, 0x0);
+  // Go to sleep without timer
+  operation_sleep();
+
+}
+
 static void operation_tx_cdc_results(){
     uint32_t i; 
     uint32_t average;
@@ -371,14 +379,14 @@ static void operation_init(void){
     execution_count_irq = 0;
     MBus_msg_flag = 0;
     //Enumeration
+    enumerate(RAD_ADDR);
+    delay(MBUS_DELAY*20);
+    //WFI();
     enumerate(SNS_ADDR);
-    delay(1000);
+    delay(MBUS_DELAY*20);
     //WFI();
     enumerate(HRV_ADDR);
-    delay(1000);
-    //WFI();
-    enumerate(RAD_ADDR);
-    delay(1000);
+    delay(MBUS_DELAY*20);
     //WFI();
     //Set & Forget!
     snsv2_r1_t snsv2_r1 = SNSv2_R1_DEFAULT;
@@ -589,11 +597,12 @@ int main() {
     //uint32_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
 
     if(wakeup_data_header == 1){
-        // Debug mode: Transmit something via radio 10 times and go to sleep w/o timer
-        if (execution_count_irq < 20){
+        // Debug mode: Transmit something via radio 16 times and go to sleep w/o timer
+        delay(5000);
+        if (execution_count_irq < 32){
             execution_count_irq++;
             // radio
-            send_radio_data(gen_radio_data(0xF0F0+execution_count_irq));	
+            send_radio_data(0x3EBE800+execution_count_irq);	
             // set timer
             set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
             // go to sleep and wake up with same condition
@@ -602,28 +611,21 @@ int main() {
         }else{
             execution_count_irq = 0;
             // radio
-            send_radio_data(gen_radio_data(0xF0F0+execution_count_irq));	
-            // Disable Timer
-            set_wakeup_timer (0, 0x0, 0x0);
+            send_radio_data(0x3EBE800+execution_count_irq);	
             // Go to sleep without timer
-            operation_sleep();
+            operation_sleep_notimer();
         }
     }
     else if(wakeup_data_header == 2){
-	// Slow down PMU sleep osc and go to sleep for further programming
-        // Disable Timer
-        set_wakeup_timer (0, 0x0, 0x0);
+	// Slow down PMU sleep osc and run CDC code
         set_pmu_sleep_clk_low();
-        // Go to sleep without timer
-        operation_sleep();
+        operation_cdc_run();
     }
     else if(wakeup_data_header == 3){
 	// Speed up PMU sleep osc and go to sleep for further programming
-        // Disable Timer
-        set_wakeup_timer (0, 0x0, 0x0);
         set_pmu_sleep_clk_high();
         // Go to sleep without timer
-        operation_sleep();
+        operation_sleep_notimer();
     }
     else if(wakeup_data_header == 4){
         // Debug mode: Transmit something via radio 160 times and go to sleep w/o timer
@@ -645,6 +647,9 @@ int main() {
             // Go to sleep without timer
             operation_sleep();
         }
+    }
+    else if(wakeup_data_header == 4){
+
     }
 
     // Proceed to continuous mode
