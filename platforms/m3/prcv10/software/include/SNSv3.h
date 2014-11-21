@@ -24,7 +24,7 @@ typedef union snsv3_r0{
   uint32_t as_int;
 } snsv3_r0_t;
 #define SNSv3_R0_DEFAULT {{0x0, 0x7, 0x0, 0x1, 0x0, 0x1, 0x1, 0x4, 0x0, 0x0, 0x6, 0x6, 0x1, 0x0}}
-_Static_assert(sizeof(snsv3_r0_t) == 4, "Punned Structure Size");
+//_Static_assert(sizeof(snsv3_r0_t) == 4, "Punned Structure Size");
 
 //Register 0x1
 typedef union snsv3_r1{
@@ -36,7 +36,7 @@ typedef union snsv3_r1{
   uint32_t as_int;
 } snsv3_r1_t;
 #define SNSv3_R1_DEFAULT {0x20, 0xF, 0x0}
-_Static_assert(sizeof(snsv3_r1_t) == 4, "Punned Structure Size");
+//_Static_assert(sizeof(snsv3_r1_t) == 4, "Punned Structure Size");
 
 //Register 0x2
 //Read Only
@@ -54,7 +54,7 @@ typedef union snsv3_r3{
   uint32_t as_int;
 } snsv3_r3_t;
 #define SNSv3_R3_DEFAULT {0x0, 0xF, 0x0, 0xF, 0x1, 0x2}
-_Static_assert(sizeof(snsv3_r3_t) == 4, "Punned Structure Size");
+//_Static_assert(sizeof(snsv3_r3_t) == 4, "Punned Structure Size");
 
 //Register 0x4
 typedef union snsv3_r4{
@@ -67,7 +67,7 @@ typedef union snsv3_r4{
   uint32_t as_int;
 } snsv3_r4_t;
 #define SNSv3_R4_DEFAULT {0x3, 0x2, 0x7F, 0x8F}
-_Static_assert(sizeof(snsv3_r4_t) == 4, "Punned Structure Size");
+//_Static_assert(sizeof(snsv3_r4_t) == 4, "Punned Structure Size");
 
 //Register 0x5
 //Read Only
@@ -82,7 +82,7 @@ typedef union snsv3_r6{
   uint32_t as_int;
 } snsv3_r6_t;
 #define SNSv3_R6_DEFAULT {0x14, 0x15, 0x16}
-_Static_assert(sizeof(snsv3_r6_t) == 4, "Punned Structure Size");
+//_Static_assert(sizeof(snsv3_r6_t) == 4, "Punned Structure Size");
 
 //Register 0x7
 typedef union snsv3_r7{
@@ -100,7 +100,7 @@ typedef union snsv3_r7{
   uint32_t as_int;
 } snsv3_r7_t;
 #define SNSv3_R7_DEFAULT {{0x1, 0x1, 0x2, 0x04, 0x1, 0x1, 0x2, 0x04, 0x9}}
-_Static_assert(sizeof(snsv3_r7_t) == 4, "Punned Structure Size");
+//_Static_assert(sizeof(snsv3_r7_t) == 4, "Punned Structure Size");
 
 //Register 0x8
 typedef union snsv3_r8{
@@ -119,7 +119,7 @@ typedef union snsv3_r8{
   uint32_t as_int;
 } snsv3_r8_t;
 #define SNSv3_R8_DEFAULT {{0x1, 0x1, 0x0, 0x0, 0x1, 0x0, 0x0, 0x6, 0x1, 0x0}}
-_Static_assert(sizeof(snsv3_r8_t) == 4, "Punned Structure Size");
+//_Static_assert(sizeof(snsv3_r8_t) == 4, "Punned Structure Size");
   
 //Register 0x9
 typedef union snsv3_r9{
@@ -131,7 +131,7 @@ typedef union snsv3_r9{
   uint32_t as_int;
 } snsv3_r9_t;
 #define SNSv3_R9_DEFAULT {{0x1F, 0x1F, 0x0}}
-_Static_assert(sizeof(snsv3_r9_t) == 4, "Punned Structure Size");
+//_Static_assert(sizeof(snsv3_r9_t) == 4, "Punned Structure Size");
 
 //Register 0xA
 //Read Only
