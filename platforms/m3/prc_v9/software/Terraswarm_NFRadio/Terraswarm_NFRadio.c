@@ -1,20 +1,18 @@
 //*******************************************************************
-//Author: Gyouho Kim
-//        Yoonmyung Lee
+//Author: Yoonmyung Lee
+//        Gyouho Kim
 //        Zhiyoong Foo
 //
-//Date: April 2014
+//Date: October 2014
 //
-//Description: 	Derived from Tstack_longterm_shortwake code
-// Main functionality is to periodically measure temperature data 
-// and store the data. When triggered by GOC interrupt (IRQ10VEC), 
-// and all the stored data is transmitted out
-// Initially, the temp measurement interval is short for testing purposes
+//Description: 	Demonstration code for Terraswarm near-field radio
+//              To be used with USRP radio receiver
+//              Measures & Transmitts temperature every configurable period
 //
 //*******************************************************************
 #include "mbus.h"
-#include "SNSv2.h"
-#include "PRCv8.h"
+#include "SNSv3.h"
+#include "PRCv9.h"
 #include "RADv5.h"
 
 #define RAD_ADDR 0x3
@@ -25,7 +23,7 @@
 
 #define RAD_BIT_DELAY 12     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 600  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
-#define TEMP_WAKEUP_CYCLE 10     //2//213:10min       //Wake up timer tuning: # of wake up timer cycles to sleep
+#define TEMP_WAKEUP_CYCLE 4     //2//213:10min       //Wake up timer tuning: # of wake up timer cycles to sleep
 #define TEMP_WAKEUP_CYCLE_INITIAL 3 // Wake up timer duration for initial periods
 #define NUM_INITIAL_CYCLE 3 // Number of initial cycles
 #define DATA_BUFFER_SIZE 256
@@ -303,14 +301,11 @@ int main() {
     exec_count_irq = 0;
 
     //Enumeration (SNS->HRV->RAD)
+    enumerate(RAD_ADDR);
+    delay(MBUS_DELAY*20);
     enumerate(SNS_ADDR);
-//    asm ("wfi;");
     delay(MBUS_DELAY*20);
     enumerate(HRV_ADDR);
-//    asm ("wfi;");
-    delay(MBUS_DELAY*20);
-    enumerate(RAD_ADDR);
-//    asm ("wfi;");
 
     // Setup Radio
     setup_radio();
@@ -328,7 +323,7 @@ int main() {
   send_radio_data(data + exec_count);
   //send_radio_data(0xFFFFFFFF);
   exec_count++;
-  set_wakeup_timer(12/*TEMP_WAKEUP_CYCLE*/,1,0);
+  set_wakeup_timer(TEMP_WAKEUP_CYCLE,1,0);
   operation_sleep();
 
 
