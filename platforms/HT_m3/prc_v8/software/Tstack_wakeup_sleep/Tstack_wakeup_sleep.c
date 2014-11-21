@@ -61,7 +61,7 @@ int main() {
   // Repeating wakeup routine 
 
   delay(10000);
-  set_wakeup_timer(500,1,0);
+  set_wakeup_timer(100,1,0);
   operation_sleep();
 
   while(1);

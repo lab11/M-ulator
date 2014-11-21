@@ -1,0 +1,6 @@
+include ../Tuprules.tup
+
+: foreach *.s |> !arm_as |>
+: foreach *.o |> !arm_ld |>
+: foreach *.elf |> !arm_dump |>
+: foreach *.elf |> !arm_bin |>

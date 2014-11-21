@@ -78,7 +78,7 @@ static void b_t1(uint16_t inst) {
 	if (in_ITblock())
 		CORE_ERR_unpredictable("b_t1 UNPREDICTABLE (b in IT block)\n");
 
-	OP_DECOMPILE("B<c> <label>", imm32);
+	OP_DECOMPILE("B<c> <label>", cond, imm32);
 	return b(cond, imm32);
 }
 
@@ -91,7 +91,7 @@ static void b_t2(uint16_t inst) {
 	if (in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("b_t2 in it block\n");
 
-	OP_DECOMPILE("B<c> <label>", imm32);
+	OP_DECOMPILE("B<c> <label>", 0xf, imm32);
 	return b(0xf, imm32);
 }
 
@@ -122,7 +122,7 @@ static void b_t3(uint32_t inst) {
 	if (in_ITblock())
 		CORE_ERR_unpredictable("b_t3 not allowed in IT block\n");
 
-	OP_DECOMPILE("B<c>.W <label>", imm32);
+	OP_DECOMPILE("B<c>.W <label>", cond, imm32);
 	return b(cond, imm32);
 }
 
@@ -144,7 +144,7 @@ static void b_t4(uint32_t inst) {
 	if (in_ITblock() && !last_in_ITblock())
 		CORE_ERR_unpredictable("bad it time\n");
 
-	OP_DECOMPILE("B<c>.W <label>", imm32);
+	OP_DECOMPILE("B<c>.W <label>", 0xf, imm32);
 	return b(0xf, imm32);
 }
 
