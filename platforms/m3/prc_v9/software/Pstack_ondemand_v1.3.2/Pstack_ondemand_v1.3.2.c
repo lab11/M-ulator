@@ -79,7 +79,7 @@ volatile uint32_t execution_count_irq;
 volatile uint32_t MBus_msg_flag;
 volatile snsv2_r0_t snsv2_r0;
 
-volatile uint32_t WAKEUP_PERIOD_CONT;         340   //200=350sec with slow PMU sleep clk
+volatile uint32_t WAKEUP_PERIOD_CONT; 
 
 //***************************************************
 //Interrupt Handlers
@@ -460,7 +460,7 @@ static void operation_init(void){
     operation_sleep();
     */
   
-    WAKEUP_PERIOD_CONT = 340;   //200=350sec with slow PMU sleep clk
+    WAKEUP_PERIOD_CONT = 5;   //200=350sec with slow PMU sleep clk
     
     //FOR DEBUG, sleep is removed
     sleep();
@@ -591,7 +591,6 @@ int main() {
         operation_init();
     }
 
-
     // Check if wakeup is due to GOC interrupt  
     // 0x68 is reserved for GOC-triggered wakeup (Named IRQ10VEC)
     // 8 MSB bits of the wakeup data are used for function ID
@@ -603,9 +602,9 @@ int main() {
     uint32_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
 
     if(wakeup_data_header == 1){
-        // Debug mode: Transmit something via radio 16 times and go to sleep w/o timer
-        delay(5000);
-        if (execution_count_irq < 32){
+        // Debug mode: Transmit something via radio and go to sleep w/o timer
+        delay(3000);
+        if (execution_count_irq < wakeup_data_field_0){
             execution_count_irq++;
             // radio
             send_radio_data(0x3EBE800+execution_count_irq);	
@@ -623,37 +622,49 @@ int main() {
         }
     }
     else if(wakeup_data_header == 2){
-		// Slow down PMU sleep osc and run CDC code
+		// Slow down PMU sleep osc and run CDC code with desired wakeup period
+        // wakeup_data[15:0] is the user-specified period
+    	WAKEUP_PERIOD_CONT = wakeup_data_field_0 + (wakeup_data_field_1<<8);
         set_pmu_sleep_clk_low();
+        execution_count = 0;
         operation_cdc_run();
     }
     else if(wakeup_data_header == 3){
+		// Stop CDC program and transmit the execution count n times
+        if (execution_count_irq < wakeup_data_field_0){
+            execution_count_irq++;
+            // radio
+            send_radio_data(0x3EBE800+execution_count_irq);	
+			delay(MBUS_DELAY*10);
+            send_radio_data(0x3EBE800+execution_count);	
+            // set timer
+            set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+            // go to sleep and wake up with same condition
+            operation_sleep_noirqreset();
+
+        }else{
+            execution_count_irq = 0;
+            execution_count = 0;
+            // Go to sleep without timer
+            operation_sleep_notimer();
+        }
+    }
+    else if(wakeup_data_header == 4){
 		// Speed up PMU sleep osc and go to sleep for further programming
         set_pmu_sleep_clk_high();
         // Go to sleep without timer
         operation_sleep_notimer();
     }
-    else if(wakeup_data_header == 4){
-        // Debug mode: Transmit something via radio 160 times and go to sleep w/o timer
-        if (execution_count_irq < 160){
-            execution_count_irq++;
-            // radio
-            send_radio_data(gen_radio_data(0xF300+execution_count_irq));	
-            // set timer
-            set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
-            // go to sleep and wake up with same condition
-            operation_sleep_noirqreset();
-        }
-        else{
-            execution_count_irq = 0;
-            // radio
-            send_radio_data(gen_radio_data(0xF300+execution_count_irq));	
-            // Go to sleep without timer
-            operation_sleep_notimer();
-        }
+    else if(wakeup_data_header == 5){
+		// Slow down PMU sleep osc and go to sleep for further programming
+        set_pmu_sleep_clk_low();
+        // Go to sleep without timer
+        operation_sleep_notimer();
     }
     else if(wakeup_data_header == 10){
 		// Change the sleep period
+        // wakeup_data[15:0] is the user-specified period
+		// wakeup_data[23:16] determines whether to resume CDC operation or not
     	WAKEUP_PERIOD_CONT = wakeup_data_field_0 + (wakeup_data_field_1<<8);
 		
 		if (wakeup_data_field_2){
@@ -662,11 +673,7 @@ int main() {
 		}else{
             // Go to sleep without timer
             operation_sleep_notimer();
-
 		}
-       
-
-
     }
 
     // Proceed to continuous mode
