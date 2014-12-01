@@ -488,8 +488,8 @@ int main() {
   if(wakeup_data_header == 1){
     // Debug mode: Transmit something via radio n times and go to sleep w/o timer
     // wakeup_data[7:0] is the # of transmissions
-    // wakeup_data[15:8] is the user-specified period / 10
-    TEMP_WAKEUP_CYCLE_INITIAL = 10*wakeup_data_field_1;
+    // wakeup_data[15:8] is the user-specified period
+    TEMP_WAKEUP_CYCLE_INITIAL = wakeup_data_field_1;
 
     if (exec_count_irq < wakeup_data_field_0){
       exec_count_irq++;
@@ -515,10 +515,10 @@ int main() {
 
   }else if(wakeup_data_header == 2){
       // Reset temp data count and proceed to default temp operation
-      // wakeup_data[15:0] is the user-specified period / 10
-      // wakeup_data[24:16] is the initial user-specified period / 10
-      TEMP_WAKEUP_CYCLE = 10*(wakeup_data_field_0 + (wakeup_data_field_1<<8));
-      TEMP_WAKEUP_CYCLE_INITIAL = 10*wakeup_data_field_2;
+      // wakeup_data[15:0] is the user-specified period
+      // wakeup_data[24:16] is the initial user-specified period
+      TEMP_WAKEUP_CYCLE = wakeup_data_field_0 + (wakeup_data_field_1<<8);
+      TEMP_WAKEUP_CYCLE_INITIAL = wakeup_data_field_2;
       temp_data_count = 0;
       exec_count = exec_count + 1;
 
@@ -532,9 +532,9 @@ int main() {
   }else if(wakeup_data_header == 3){
     // Transmit the temp data count of the temp function 4 times
     // wakeup_data[7:0] is the # of transmissions
-    // wakeup_data[15:8] is the user-specified period / 10
+    // wakeup_data[15:8] is the user-specified period 
 
-    TEMP_WAKEUP_CYCLE_INITIAL = 10*wakeup_data_field_1;
+    TEMP_WAKEUP_CYCLE_INITIAL = wakeup_data_field_1;
 
     if (exec_count_irq < wakeup_data_field_0){
       exec_count_irq++;
@@ -571,9 +571,9 @@ int main() {
 
   }else if(wakeup_data_header == 4){
     // Transmit the stored temp data
-    // wakeup_data[15:8] is the user-specified period / 10
+    // wakeup_data[15:8] is the user-specified period 
 
-    TEMP_WAKEUP_CYCLE_INITIAL = 10*wakeup_data_field_1;
+    TEMP_WAKEUP_CYCLE_INITIAL = wakeup_data_field_1;
 
     if (exec_count_irq < 3){
       exec_count_irq++;
