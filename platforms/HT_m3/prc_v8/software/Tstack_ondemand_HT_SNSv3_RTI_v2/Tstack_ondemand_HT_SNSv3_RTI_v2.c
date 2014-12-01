@@ -488,6 +488,9 @@ int main() {
   if(wakeup_data_header == 1){
     // Debug mode: Transmit something via radio n times and go to sleep w/o timer
     // wakeup_data[7:0] is the # of transmissions
+    // wakeup_data[15:8] is the user-specified period / 10
+    TEMP_WAKEUP_CYCLE_INITIAL = 10*wakeup_data_field_1;
+
     if (exec_count_irq < wakeup_data_field_0){
       exec_count_irq++;
       // radio

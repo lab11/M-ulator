@@ -50,7 +50,7 @@
 #define PSTK_MEAS       0x2
 
 // Radio configurations
-#define RAD_BIT_DELAY       12      //40      //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
+#define RAD_BIT_DELAY       13      //40      //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_NUM      1      //How many times identical data will be TXed
 
 // CDC configurations
