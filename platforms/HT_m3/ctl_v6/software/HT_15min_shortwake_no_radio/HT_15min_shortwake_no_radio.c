@@ -21,7 +21,8 @@
 
 #define RAD_BIT_DELAY 40     //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 600  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
-#define RAD_SAMPLE_DELAY 400     //2//    //Wake up timer tuning: # of wake up timer cycles to sleep
+//#define RAD_SAMPLE_DELAY 500     //2//    //Wake up timer tuning: # of wake up timer cycles to sleep
+#define RAD_SAMPLE_DELAY 50     //2//    //Wake up timer tuning: # of wake up timer cycles to sleep
 #define RAD_SAMPLE_DELAY_INITIAL 20 // 20:3sec Wake up timer duration for initial periods
 //#define RAD_SAMPLE_DELAY 40000 //10000   //Radio tuning: Delay between samples sent (NUM_SAMPLES sent)
 
@@ -53,6 +54,22 @@ static void delay(unsigned ticks) {
     asm("nop;");
 }
 
+//************************************
+//Timer Function
+//************************************
+void config_timer( uint8_t timer_id, uint8_t go, uint8_t roi, uint32_t init_val, uint32_t sat_val) {
+	uint32_t _addr = 0xA5000000;
+	_addr |= (timer_id<<4);
+	// GO  = 0x0
+	// SAT = 0x4
+	// ROI = 0x8
+	// CNT = 0xC
+	*((volatile uint32_t *) (_addr | 0x0) ) = 0x0;		// stop timer first
+	*((volatile uint32_t *) (_addr | 0x4) ) = sat_val;	// set up values	
+	*((volatile uint32_t *) (_addr | 0x8) ) = roi;
+	*((volatile uint32_t *) (_addr | 0xC) ) = init_val;
+	*((volatile uint32_t *) (_addr | 0x0) ) = go;		// run
+}
 //***************************************************
 //Data Setup for Radio (Initial Setup) & ECC [SECDED]
 //***************************************************
@@ -148,8 +165,6 @@ int main() {
   *((volatile uint32_t *) 0xE000E100) = 0xF;
 
 
-  *((volatile uint32_t *) 0xA200000C) = 0x4F771829;
-//  *((volatile uint32_t *) 0xA2000008) = 0x00203903;
   delay(MBUS_DELAY);
 
   //Check if it is the first execution
@@ -158,7 +173,8 @@ int main() {
     exec_marker = 0x12345678;
     exec_count = 16;
 
-    *((volatile uint32_t *) 0xA200000C) = 0x4F771829;
+    *((volatile uint32_t *) 0xA200000C) = 0x4F773829;
+    *((volatile uint32_t *) 0xA2000008) = 0x00203C03;
     delay(MBUS_DELAY);
 
     //Enumeration
@@ -166,7 +182,6 @@ int main() {
 //    asm ("wfi;");
 //    delay(MBUS_DELAY);
     enumerate(SNS_ADDR);
-    asm ("wfi;");
     delay(MBUS_DELAY);
 
     //************************************
@@ -205,14 +220,17 @@ int main() {
     // 0x0F770029 = Original
     // Increase sleep oscillator frequency to provide enough power for temp sensor
 //    *((volatile uint32_t *) 0xA200000C) = 0xF77006B;
-    *((volatile uint32_t *) 0xA200000C) = 0x4F771829;
+    *((volatile uint32_t *) 0xA200000C) = 0x4F773829;
+    *((volatile uint32_t *) 0xA2000008) = 0x00203C03;
     delay(MBUS_DELAY);
 
     //Enable T Sensor
     _sns_r3 = (0x3<<17)|(0x0<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
     delay(MBUS_DELAY);
     write_mbus_register(SNS_ADDR,3,_sns_r3);
-    
+    config_timer( 0, 0, 0, 0, 0xFFFF); 
+//    delay(100000000); 
+    delay(10000);
     //asm("wfi;");
 	
     // Reset wakeup counter
@@ -226,7 +244,6 @@ int main() {
   // Set PMU Strength & division threshold
   // Change PMU_CTRL Register
   // 0x0F770029 = Original
-  *((volatile uint32_t *) 0xA200000C) = 0x4F771829;
   delay(MBUS_DELAY);
 
   //Grab Data after IRQ
@@ -266,6 +283,7 @@ int main() {
   // Go to Sleep
   delay(MBUS_DELAY);
   sleep();
+  
   while(1);
 
   /*

@@ -25,7 +25,8 @@
 
 #define RAD_BIT_DELAY 4     //Use 12 for default CPU frequency  //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 2000  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
-#define TEMP_WAKEUP_CYCLE 2500 // 400 is about 1 min; Wake up timer tuning: # of wake up timer cycles to sleep
+//#define TEMP_WAKEUP_CYCLE 2500 // 400 is about 1 min; Wake up timer tuning: # of wake up timer cycles to sleep
+#define TEMP_WAKEUP_CYCLE 300 //used 1000 for 4V VBAT, 300 for 3.8V VBAT
 #define TEMP_WAKEUP_CYCLE_INITIAL 50 // 100 is about 7 sec for default PRCv8H; Wake up timer duration for initial periods
 #define NUM_INITIAL_CYCLE 8 // Number of initial cycles in the temp measuring function
 #define DATA_BUFFER_SIZE 120  
@@ -412,15 +413,19 @@ int main() {
     // Change PMU_CTRL Register
     // PRCv8H Default: 
     // Speed up Active SCN clock
-    *((volatile uint32_t *) 0xA200000C) = 0x4F772029;
+    *((volatile uint32_t *) 0xA200000C) = 0x4F773829;
     delay(MBUS_DELAY);
 
     // Change GOC_CTRL Register
     // Change CPU & MBUS clock divider settings, and ring select
-    // PRCv8H Default: 
+    // PRCv8 Default: 
+    //*((volatile uint32_t *) 0xA2000008) = 0x00203C03;
+    // PRCv8H Default:
     *((volatile uint32_t *) 0xA2000008) = 0x00203C03;
     delay(MBUS_DELAY);
 
+    // Added for Debug:Myungjoon
+    delay(10000);
 
     //Mark execution
     exec_marker = 0x12345678;
@@ -445,6 +450,9 @@ int main() {
     operation_sleep_notimer();
 
   }else{
+
+    // Added for Debug:Myungjoon
+    delay(2000);
 
     // Reset wakeup timer
     set_wakeup_timer(0,0,1); 
