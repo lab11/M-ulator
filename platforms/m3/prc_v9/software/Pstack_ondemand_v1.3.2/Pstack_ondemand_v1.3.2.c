@@ -513,7 +513,7 @@ static void operation_cdc_run(){
                     if( read_data & 0x02 ) {
                         // If CDC data is valid
                         // Process Data
-                        cdc_data[cdc_data_index] = read_data;
+                        cdc_data[cdc_data_index] = read_data>>2;
                         ++cdc_data_index;
                         if( cdc_data_index == NUM_SAMPLES ){
                             // Collected all data for radio TX

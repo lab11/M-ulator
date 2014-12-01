@@ -3,6 +3,9 @@
 //        Yoonmyung Lee
 //        Zhiyoong Foo
 //
+// Dec 2014: Derived from Tstack_ondemand_HT_SNSv3_RTI.c
+//           Adding configurable wakeup period from trigger
+//           Improved radio transmission sequence to minimize power
 // Oct 2014: Derived from Tstack_ondemand_HT_SNSv3.c
 //           & Tstack_ondemand_radio_temp.c
 //           Modifying code for latest HT stacks with PRCv8HL and SNSv3
@@ -26,8 +29,8 @@
 #define RAD_BIT_DELAY 4     //Use 12 for default CPU frequency  //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 2000  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
 //#define TEMP_WAKEUP_CYCLE 2500 // 400 is about 1 min; Wake up timer tuning: # of wake up timer cycles to sleep
-#define TEMP_WAKEUP_CYCLE 300 //used 1000 for 4V VBAT, 300 for 3.8V VBAT for 1 min wakeup period
-#define TEMP_WAKEUP_CYCLE_INITIAL 50 // 100 is about 7 sec for default PRCv8H; Wake up timer duration for initial periods
+//#define TEMP_WAKEUP_CYCLE 300 //used 1000 for 4V VBAT, 300 for 3.8V VBAT for 1 min wakeup period
+//#define TEMP_WAKEUP_CYCLE_INITIAL 50 // 100 is about 7 sec for default PRCv8H; Wake up timer duration for initial periods
 #define NUM_INITIAL_CYCLE 8 // Number of initial cycles in the temp measuring function
 #define DATA_BUFFER_SIZE 120  
 
@@ -38,14 +41,17 @@
   volatile uint32_t exec_temp_marker;
   volatile uint32_t exec_count;
   volatile uint32_t exec_count_irq;
-  
-  static volatile uint32_t temp_data_stored[DATA_BUFFER_SIZE] = {0};
-  static volatile uint32_t temp_data_count;
-  static volatile uint32_t radio_tx_count;
+
+  uint32_t temp_data_stored[DATA_BUFFER_SIZE] = {0};
+  uint32_t temp_data_count;
+  uint32_t radio_tx_count;
   uint32_t _sns_r3; 
   uint32_t temp_data;
   uint32_t radio_data;
 
+  uint32_t TEMP_WAKEUP_CYCLE; //used 1000 for 4V VBAT, 300 for 3.8V VBAT for 1 min wakeup period
+  uint32_t TEMP_WAKEUP_CYCLE_INITIAL; // 100 is about 7 sec for default PRCv8H; Wake up timer duration for initial periods
+  
 //***************************************************
 //Interrupt Handlers
 //Must clear pending bit!
@@ -336,7 +342,7 @@ static void operation_temp(void){
   // Store in memory
   // If the buffer is full, then skip
   if (temp_data_count<DATA_BUFFER_SIZE){
-    temp_data_stored[temp_data_count] = temp_data>>1;
+    temp_data_stored[temp_data_count] = temp_data>>3;
     temp_data_count = temp_data_count + 1;
     radio_tx_count = temp_data_count;
   }
@@ -349,17 +355,11 @@ static void operation_temp(void){
   // Reset exec_temp_marker
   exec_temp_marker = 0;
 
-/*
-  //Fire off data to radio
-  radio_data = gen_radio_data(temp_data>>3);
-  delay(MBUS_DELAY);
-
-  send_radio_data(radio_data);
-*/
-
   // Set up wake up timer register
   // Initial cycles have different wakeup time
   if (temp_data_count < NUM_INITIAL_CYCLE){
+    // Send some signal
+    send_radio_data(0xFAFA);
     set_wakeup_timer(TEMP_WAKEUP_CYCLE_INITIAL,1,0);
   }
   else {
@@ -373,8 +373,7 @@ static void operation_temp(void){
 static void operation_radio(void){
 
   //Fire off stored data to radio
-  
-  radio_data = gen_radio_data(temp_data_stored[radio_tx_count]>>5);
+  radio_data = gen_radio_data(temp_data_stored[radio_tx_count]);
   delay(MBUS_DELAY);
 
   send_radio_data(radio_data);
@@ -458,6 +457,8 @@ int main() {
     // Initialize variables
     temp_data_count = 0;
     radio_tx_count = 0;
+    TEMP_WAKEUP_CYCLE = 300;
+    TEMP_WAKEUP_CYCLE_INITIAL = 50;
 
     // Go to sleep without timer
     operation_sleep_notimer();
@@ -480,10 +481,14 @@ int main() {
 
   uint32_t wakeup_data = *((volatile uint32_t *) IRQ10VEC);
   uint32_t wakeup_data_header = wakeup_data>>24;
+  uint32_t wakeup_data_field_0 = wakeup_data & 0xFF;
+  uint32_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;
+  uint32_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
 
   if(wakeup_data_header == 1){
-    // Debug mode: Transmit something via radio 10 times and go to sleep w/o timer
-    if (exec_count_irq < 12){
+    // Debug mode: Transmit something via radio n times and go to sleep w/o timer
+    // wakeup_data[7:0] is the # of transmissions
+    if (exec_count_irq < wakeup_data_field_0){
       exec_count_irq++;
       // radio
       send_radio_data(0xFA00+exec_count_irq);
@@ -507,6 +512,10 @@ int main() {
 
   }else if(wakeup_data_header == 2){
       // Reset temp data count and proceed to default temp operation
+      // wakeup_data[15:0] is the user-specified period / 10
+      // wakeup_data[24:16] is the initial user-specified period / 10
+      TEMP_WAKEUP_CYCLE = 10*(wakeup_data_field_0 + (wakeup_data_field_1<<8));
+      TEMP_WAKEUP_CYCLE_INITIAL = 10*wakeup_data_field_2;
       temp_data_count = 0;
       exec_count = exec_count + 1;
 
@@ -518,9 +527,13 @@ int main() {
       operation_temp();
 
   }else if(wakeup_data_header == 3){
-
     // Transmit the temp data count of the temp function 4 times
-    if (exec_count_irq < 4){
+    // wakeup_data[7:0] is the # of transmissions
+    // wakeup_data[15:8] is the user-specified period / 10
+
+    TEMP_WAKEUP_CYCLE_INITIAL = 10*wakeup_data_field_1;
+
+    if (exec_count_irq < wakeup_data_field_0){
       exec_count_irq++;
       // radio
       send_radio_data(0xF000+temp_data_count);
@@ -555,6 +568,10 @@ int main() {
 
   }else if(wakeup_data_header == 4){
     // Transmit the stored temp data
+    // wakeup_data[15:8] is the user-specified period / 10
+
+    TEMP_WAKEUP_CYCLE_INITIAL = 10*wakeup_data_field_1;
+
     if (exec_count_irq < 3){
       exec_count_irq++;
       // radio
@@ -570,8 +587,9 @@ int main() {
     }
 
   }else if(wakeup_data_header == 5){
-    // Decrease sleep oscillator frequency
-    *((volatile uint32_t *) 0xA200000C) = 0x4F772009;
+    // Explicitly reset temp counters
+    temp_data_count = 0;
+    radio_tx_count = 0;
     // Go to sleep without timer
     operation_sleep_notimer();
 
