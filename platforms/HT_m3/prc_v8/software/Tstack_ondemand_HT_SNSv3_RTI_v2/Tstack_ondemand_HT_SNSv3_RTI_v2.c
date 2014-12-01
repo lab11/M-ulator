@@ -26,7 +26,7 @@
 #define RAD_BIT_DELAY 4     //Use 12 for default CPU frequency  //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 2000  //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
 //#define TEMP_WAKEUP_CYCLE 2500 // 400 is about 1 min; Wake up timer tuning: # of wake up timer cycles to sleep
-#define TEMP_WAKEUP_CYCLE 300 //used 1000 for 4V VBAT, 300 for 3.8V VBAT
+#define TEMP_WAKEUP_CYCLE 300 //used 1000 for 4V VBAT, 300 for 3.8V VBAT for 1 min wakeup period
 #define TEMP_WAKEUP_CYCLE_INITIAL 50 // 100 is about 7 sec for default PRCv8H; Wake up timer duration for initial periods
 #define NUM_INITIAL_CYCLE 8 // Number of initial cycles in the temp measuring function
 #define DATA_BUFFER_SIZE 120  
@@ -41,6 +41,7 @@
   
   static volatile uint32_t temp_data_stored[DATA_BUFFER_SIZE] = {0};
   static volatile uint32_t temp_data_count;
+  static volatile uint32_t radio_tx_count;
   uint32_t _sns_r3; 
   uint32_t temp_data;
   uint32_t radio_data;
@@ -337,6 +338,7 @@ static void operation_temp(void){
   if (temp_data_count<DATA_BUFFER_SIZE){
     temp_data_stored[temp_data_count] = temp_data>>1;
     temp_data_count = temp_data_count + 1;
+    radio_tx_count = temp_data_count;
   }
 
   // Disable T Sensor
@@ -358,8 +360,6 @@ static void operation_temp(void){
   // Set up wake up timer register
   // Initial cycles have different wakeup time
   if (temp_data_count < NUM_INITIAL_CYCLE){
-    // Send some signal
-    send_radio_data(0xFAFA);
     set_wakeup_timer(TEMP_WAKEUP_CYCLE_INITIAL,1,0);
   }
   else {
@@ -373,31 +373,28 @@ static void operation_temp(void){
 static void operation_radio(void){
 
   //Fire off stored data to radio
-  uint32_t i;
-  delay(10000); // FIXME: should not be used in real test
-  send_radio_data(0xFAFA);
-  delay(10000); // FIXME: should not be used in real test
-  send_radio_data(0xFAFA);
   
-  for (i=temp_data_count;i>0;i--){
-
-    radio_data = gen_radio_data(temp_data_stored[i]>>5);
-    delay(MBUS_DELAY);
-  
-    send_radio_data(radio_data);
-    delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
-    delay(10000); // FIXME: should not be used in real test
-  }
-
-  delay(10000); // FIXME: should not be used in real test
-  send_radio_data(0xFAFA);
-  delay(10000); // FIXME: should not be used in real test
-  send_radio_data(0xFAFA);
-
+  radio_data = gen_radio_data(temp_data_stored[radio_tx_count]>>5);
   delay(MBUS_DELAY);
 
-  // Go to sleep without timer
-  operation_sleep_notimer();
+  send_radio_data(radio_data);
+  delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
+  send_radio_data(radio_data);
+
+  if (radio_tx_count > 0){
+    radio_tx_count--;
+    // set timer
+    set_wakeup_timer (TEMP_WAKEUP_CYCLE_INITIAL, 0x1, 0x0);
+    // go to sleep and wake up with same condition
+    operation_sleep_noirqreset();
+
+  }else{
+    // This is also the end of this IRQ routine
+    exec_count_irq = 0;
+    // Go to sleep without timer
+    radio_tx_count = temp_data_count; // allows data to be sent more than once
+    operation_sleep_notimer();
+  }
 
 }
 
@@ -458,6 +455,10 @@ int main() {
     // Setup T Sensor
     setup_tempsensor();
 
+    // Initialize variables
+    temp_data_count = 0;
+    radio_tx_count = 0;
+
     // Go to sleep without timer
     operation_sleep_notimer();
 
@@ -509,6 +510,11 @@ int main() {
       temp_data_count = 0;
       exec_count = exec_count + 1;
 
+      // Send some signal
+      send_radio_data(0xFAFA);
+      delay(MBUS_DELAY);
+      send_radio_data(0xFAFA);
+
       operation_temp();
 
   }else if(wakeup_data_header == 3){
@@ -549,11 +555,23 @@ int main() {
 
   }else if(wakeup_data_header == 4){
     // Transmit the stored temp data
-    operation_radio();
+    if (exec_count_irq < 3){
+      exec_count_irq++;
+      // radio
+      send_radio_data(0xFA00+exec_count_irq);
+
+      // set timer
+      set_wakeup_timer (TEMP_WAKEUP_CYCLE_INITIAL, 0x1, 0x0);
+      // go to sleep and wake up with same condition
+      operation_sleep_noirqreset();
+
+    }else{
+      operation_radio();
+    }
 
   }else if(wakeup_data_header == 5){
-    // Explicitly reset temp counters
-    temp_data_count = 0;
+    // Decrease sleep oscillator frequency
+    *((volatile uint32_t *) 0xA200000C) = 0x4F772009;
     // Go to sleep without timer
     operation_sleep_notimer();
 
