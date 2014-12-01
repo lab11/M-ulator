@@ -39,8 +39,8 @@
   volatile uint32_t exec_count;
   volatile uint32_t exec_count_irq;
   
-  static volatile uint32_t temp_data_stored[DATA_BUFFER_SIZE] = {0};
-  static volatile uint32_t temp_data_count;
+  uint32_t temp_data_stored[DATA_BUFFER_SIZE] = {0};
+  uint32_t temp_data_count;
   uint32_t _sns_r3; 
   uint32_t temp_data;
   uint32_t radio_data;
@@ -335,7 +335,8 @@ static void operation_temp(void){
   // Store in memory
   // If the buffer is full, then skip
   if (temp_data_count<DATA_BUFFER_SIZE){
-    temp_data_stored[temp_data_count] = temp_data>>1;
+    temp_data_stored[temp_data_count] = temp_data;
+    //temp_data_stored[temp_data_count] = temp_data_count;
     temp_data_count = temp_data_count + 1;
   }
 
