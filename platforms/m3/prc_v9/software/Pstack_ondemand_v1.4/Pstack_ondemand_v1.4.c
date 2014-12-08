@@ -366,7 +366,6 @@ static void operation_tx_cdc_results(){
         send_radio_data(gen_radio_data(cdc_data_tx[i]));
     }
 #endif     
-    cdc_data_index = 0;
 }
 
 static void operation_tx_stored(void){
@@ -557,8 +556,8 @@ static void operation_cdc_run(){
 						read_data_modified = read_data_modified | ((0x1C & read_data)<<22);
 
                         cdc_data[cdc_data_index] = read_data_modified;
-
                         ++cdc_data_index;
+
                         if(cdc_data_index == NUM_SAMPLES){
                             // Collected all data for radio TX
                             exec_count++;
@@ -575,16 +574,20 @@ static void operation_cdc_run(){
                             if (radio_tx_option){
                             	operation_tx_cdc_results();
                             }
+    						cdc_data_index = 0;
                             #ifdef DEBUG_MBUS_MSG
                                 write_mbus_message(0xA0, 0x00020000);
                             #endif
                             // Enter long sleep
                             Pstack_state = PSTK_IDLE;
                             assert_cdc_reset();
-                            if(exec_count < 8)
+                            if(exec_count < 8){
+								// Send some signal
+								send_radio_data(0x3EBE800);
                                 set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
-                            else
+                            }else{
                                 set_wakeup_timer (WAKEUP_PERIOD_CONT, 0x1, 0x0);
+							}
                             operation_sleep();
                         }
                         else{
@@ -708,9 +711,9 @@ int main() {
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
             // radio
-            send_radio_data(0x3EBE800+exec_count_irq);	
-			delay(MBUS_DELAY*10);
-            send_radio_data(0x3EBE800+exec_count);	
+            //send_radio_data(0x3EBE800+exec_count_irq);	
+			//delay(MBUS_DELAY*10);
+            send_radio_data(0x3EBE800+cdc_storage_count);	
             // set timer
             set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
             // go to sleep and wake up with same condition
@@ -718,7 +721,6 @@ int main() {
 
         }else{
             exec_count_irq = 0;
-            exec_count = 0;
             // Go to sleep without timer
             operation_sleep_notimer();
         }
@@ -752,6 +754,27 @@ int main() {
         radio_tx_option = 1;
 
         set_pmu_sleep_clk_low();
+        delay(MBUS_DELAY*10);
+        exec_count = 0;
+        cdc_storage_count = 0;
+
+        // Send some signal
+        send_radio_data(0x3EBE803);
+        delay(MBUS_DELAY);
+        send_radio_data(0x3EBE803);
+
+        // Run CDC Program
+        operation_cdc_run();
+
+    }else if(wakeup_data_header == 6){
+        // Same as operation #5, but w/o slowing down the PMU
+        // wakeup_data[15:0] is the user-specified period
+        // wakeup_data[24:16] is the initial user-specified period
+    	WAKEUP_PERIOD_CONT = wakeup_data_field_0 + (wakeup_data_field_1<<8);
+        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_2;
+        radio_tx_option = 1;
+
+        //set_pmu_sleep_clk_low();
         delay(MBUS_DELAY*10);
         exec_count = 0;
         cdc_storage_count = 0;
