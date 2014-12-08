@@ -31,7 +31,7 @@
 //#define TEMP_WAKEUP_CYCLE 2500 // 400 is about 1 min; Wake up timer tuning: # of wake up timer cycles to sleep
 //#define TEMP_WAKEUP_CYCLE 300 //used 1000 for 4V VBAT, 300 for 3.8V VBAT for 1 min wakeup period
 //#define TEMP_WAKEUP_CYCLE_INITIAL 50 // 100 is about 7 sec for default PRCv8H; Wake up timer duration for initial periods
-#define NUM_INITIAL_CYCLE 8 // Number of initial cycles in the temp measuring function
+#define NUM_INITIAL_CYCLE 6 // Number of initial cycles in the temp measuring function
 #define DATA_BUFFER_SIZE 120  
 
 //***************************************************
@@ -378,6 +378,7 @@ static void operation_radio(void){
 
   send_radio_data(radio_data);
   delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
+  delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
   send_radio_data(radio_data);
 
   if (radio_tx_count > 0){
@@ -433,7 +434,7 @@ int main() {
     delay(MBUS_DELAY);
 
     // Added for Debug:Myungjoon
-    delay(10000);
+    delay(2000);
 
     //Mark execution
     exec_marker = 0x12345678;
@@ -466,7 +467,7 @@ int main() {
   }else{
 
     // Added for Debug:Myungjoon
-    delay(2000);
+    delay(1000);
 
     // Reset wakeup timer
     set_wakeup_timer(0,0,1); 

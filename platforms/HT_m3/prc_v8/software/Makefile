@@ -69,8 +69,9 @@ HEADERS := $(wildcard include/*.h)
 DIRS := $(patsubst %/,%,$(filter-out libs/,$(filter-out include/,$(wildcard */))))
 BINS := $(foreach var,$(DIRS),$(var)/$(var).bin)
 HEXS := $(foreach var,$(DIRS),$(var)/$(var).hex)
+HEXS := $(foreach var,$(DIRS),$(var)/$(var).elf)
 
-.PRECIOUS: $(LIBS) $(BINS)
+.PRECIOUS: $(LIBS) $(BINS) $(ELFS)
 
 .PHONY: all
 
