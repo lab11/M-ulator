@@ -706,7 +706,13 @@ int main() {
 	// Stop CDC program and transmit the execution count n times
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period 
+        // wakeup_data[24:16] indicates whether or not to speed up PMU sleep clock
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+
+		if (wakeup_data_field_2){
+			// Speed up PMU sleep osc
+			set_pmu_sleep_clk_high();
+		}
 
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
