@@ -6,10 +6,10 @@
 //              Moving towards Mouse Implantation
 //              Revision 1.4
 //              - Now pressure measurements are stored and radioed out only when triggered
-//		Revision 1.3.2
-// 		- Adding feature to change program parameter through GOC IRQ
-//		Revision 1.3.1
-// 		- Using PRCv9, but SNSv2 not SNSv3
+//				Revision 1.3.2
+// 				- Adding feature to change program parameter through GOC IRQ
+//				Revision 1.3.1
+// 				- Using PRCv9, but SNSv2 not SNSv3
 //              Revision 1.3
 //              - System stays awake during CDC reset/measurement
 //              - Data processing function added  (process_data)
@@ -64,8 +64,8 @@
 #define CDC_STORAGE_SIZE 120  
 
 // Sleep-Wakeup control
-//#define WAKEUP_PERIOD_CONT_INIT    1    // 2: 6 sec at 4V, 9 sec at 3.8V ;Wakeup period for initial portion of continuous pressure sensing
-//#define WAKEUP_PERIOD_CONT         340   //200=350sec with slow PMU sleep clk
+//#define WAKEUP_PERIOD_CONT_INIT    1    // 2: 6 sec at 4V, 9 sec at 3.8V; Wakeup period for initial portion of continuous pressure sensing
+//#define WAKEUP_PERIOD_CONT         340   //20: ~47 sec 
 
 //***************************************************
 // Global variables
@@ -89,6 +89,7 @@
   uint32_t cdc_storage_count;
   uint32_t radio_tx_count;
   uint32_t radio_tx_option;
+  uint32_t radio_tx_numdata;
 
 //***************************************************
 //Interrupt Handlers
@@ -370,29 +371,35 @@ static void operation_tx_cdc_results(){
 
 static void operation_tx_stored(void){
 
-  //Fire off stored data to radio
-  uint32_t data = gen_radio_data(cdc_storage[radio_tx_count]);
-  delay(MBUS_DELAY);
+	//Fire off stored data to radio
+	uint32_t data = gen_radio_data(cdc_storage[radio_tx_count]);
+	delay(MBUS_DELAY);
 
-  send_radio_data(data);
-  delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
-  delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
-  send_radio_data(data);
+	send_radio_data(data);
+	delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
+	delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
+	delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
+	send_radio_data(data);
 
-  if (radio_tx_count > 0){
-    radio_tx_count--;
-    // set timer
-    set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
-    // go to sleep and wake up with same condition
-    operation_sleep_noirqreset();
+	if (((!radio_tx_numdata)&&(radio_tx_count > 0)) | ((radio_tx_numdata)&&((radio_tx_numdata+radio_tx_count) > cdc_storage_count))){
+		radio_tx_count--;
+		// set timer
+		set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+		// go to sleep and wake up with same condition
+		operation_sleep_noirqreset();
 
-  }else{
-    // This is also the end of this IRQ routine
-    exec_count_irq = 0;
-    // Go to sleep without timer
-    radio_tx_count = cdc_storage_count; // allows data to be sent more than once
-    operation_sleep_notimer();
-  }
+	}else{
+		delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
+		delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
+		delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
+		send_radio_data(0x3EBE800);
+
+		// This is also the end of this IRQ routine
+		exec_count_irq = 0;
+		// Go to sleep without timer
+		radio_tx_count = cdc_storage_count; // allows data to be sent more than once
+		operation_sleep_notimer();
+	}
 
 }
 
@@ -490,8 +497,8 @@ static void operation_init(void){
     write_mbus_register(RAD_ADDR,0x27,radv5_r27.as_int);
   
     // Initialize other global variables
-    WAKEUP_PERIOD_CONT = 10;   // 1: 3-5 sec with PRCv9
-    WAKEUP_PERIOD_CONT_INIT = 1;   // 1: 3-5 sec with PRCv9
+    WAKEUP_PERIOD_CONT = 100;   // 1: 2-4 sec with PRCv9
+    WAKEUP_PERIOD_CONT_INIT = 1;   // 0x1E (30): ~1 min with PRCv9
     cdc_storage_count = 0;
     radio_tx_count = 0;
     radio_tx_option = 0;
@@ -733,8 +740,10 @@ int main() {
 
     }else if(wakeup_data_header == 4){
         // Transmit the stored temp data
+        // wakeup_data[7:0] is the # of data to transmit; if zero, all stored data is sent
         // wakeup_data[15:8] is the user-specified period 
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+		radio_tx_numdata = wakeup_data_field_0;
     
         if (exec_count_irq < 3){
           exec_count_irq++;
