@@ -207,6 +207,65 @@ static void poweron_frame_controller_short(){
 
 }
 
+static void poweron_array_adc(){
+
+  // Release IMG Presleep 
+  // 2:20
+  mdreg_2 &= ~(1<<20);
+  write_mbus_register(MD_ADDR,0x2,mdreg_2);
+  delay(WAKEUP_DELAY);
+
+  // Release IMG Sleep
+  // 2:19
+  mdreg_2 &= ~(1<<19);
+  write_mbus_register(MD_ADDR,0x2,mdreg_2);
+  delay(WAKEUP_DELAY);
+
+  // Release ADC Isolation
+  // 7:17
+  mdreg_7 &= ~(1<<17);
+  write_mbus_register(MD_ADDR,0x7,mdreg_7);
+  delay (3);
+
+  // Release ADC Wrapper Reset
+  // 6:0
+  mdreg_6 &= ~(1<<0);
+  write_mbus_register(MD_ADDR,0x6,mdreg_6);
+  delay (3);
+
+  // Start ADC Clock
+  // 5:12
+  mdreg_5 |= (1<<12);
+  write_mbus_register(MD_ADDR,0x5,mdreg_5);
+  delay (3);
+
+}
+
+static void capture_image_single(){
+
+  // Capture Image
+  // 0:0
+  mdreg_0 |= (1<<0);
+  write_mbus_register(MD_ADDR,0x0,mdreg_0);
+  delay(0x80); // about 6ms
+
+  mdreg_0 &= ~(1<<0);
+  write_mbus_register(MD_ADDR,0x0,mdreg_0);
+
+  delay(0x10000); // about 3s
+
+}
+
+static void capture_image_start(){
+
+  // Capture Image
+  // 0:0
+  mdreg_0 |= (1<<0);
+  write_mbus_register(MD_ADDR,0x0,mdreg_0);
+  delay(0x80); // about 6ms
+
+}
+
 static void start_md(){
 
   // Optionally release MD GPIO Isolation
@@ -347,18 +406,13 @@ int main() {
 		// Set MBUS Clock faster
 		// Change GOC_CTRL Register
 		// PRCv9 Default: 0x00202903
-		// 0x00A02932 = Original
-		// 0x00A02332 = Fastest MBUS clk
-		//*((volatile uint32_t *) 0xA2000008) = 0x00A02332;
+		// 0x00202303 = Fastest MBUS clk
+		// 0x00201303 = Fastest MBUS clk, faster CPU
+		*((volatile uint32_t *) 0xA2000008) = 0x00201303;
 		
 		delay(DELAY_1);
 
 	} // if first_exec
-
-	//delay(0x10000); // about 3s
-
-	// This is required if this program is used for sleep/wakeup cycling
-	clear_md_flag();
 
 	// Initialize
 	initialize_md_reg();
@@ -370,15 +424,19 @@ int main() {
 	  poweron_frame_controller_short();
 	}
 
-	// Start motion detection
-	start_md();
+	// Release power gates, isolation, and reset for imager array
+	poweron_array_adc();
 
-	delay(DELAY_1);
-	clear_md_flag();
-	delay(DELAY_1);
-	start_md();
+	delay(WAKEUP_DELAY_FINAL);
 
-	delay(DELAY_1);
+	capture_image_start();
+
+	// Capture a single image
+	/*
+	while (1){
+	  capture_image_single();
+	}
+	*/
 
 	//operation_sleep_notimer();
 
