@@ -144,8 +144,8 @@ static thread_local struct state_change writes[STATE_MAX_WRITES];
   static atomic_flag pipeline_flush_flag = ATOMIC_FLAG_INIT; // false
  #endif
 
- static atomic_bool debugging_bool = ATOMIC_BOOL_INIT(false);
- static atomic_bool wfi_bool = ATOMIC_BOOL_INIT(false);
+ static atomic_bool debugging_bool = ATOMIC_VAR_INIT(false);
+ static atomic_bool wfi_bool = ATOMIC_VAR_INIT(false);
 #elif defined(CLANG_ATOMIC)
  #ifndef NO_PIPELINE
   static bool pipeline_flush_flag = false;
