@@ -141,7 +141,7 @@ static thread_local struct state_change writes[STATE_MAX_WRITES];
 
 #ifdef HAVE_STDATOMIC
  #ifndef NO_PIPELINE
-  static atomic_flag pipeline_flush_flag = ATOMIC_FLAG_INIT(false);
+  static atomic_flag pipeline_flush_flag = ATOMIC_FLAG_INIT; // false
  #endif
 
  static atomic_bool debugging_bool = ATOMIC_BOOL_INIT(false);
