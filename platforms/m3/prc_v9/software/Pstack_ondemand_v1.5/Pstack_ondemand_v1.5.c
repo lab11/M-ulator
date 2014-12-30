@@ -55,7 +55,7 @@
 #define PSTK_CDC_RST    0x1
 #define PSTK_CDC_MEAS   0x2
 #define PSTK_CDC_READ   0x3
-#define CDC_TIMEOUT_COUNT 200
+#define CDC_TIMEOUT_COUNT 1000
 
 // Radio configurations
 #define RAD_BIT_DELAY       13     //40      //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
@@ -68,7 +68,7 @@
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 #define CDC_TIMEOUT         0x3    //Timeout for CDC
 
-#define CDC_STORAGE_SIZE 8  
+#define CDC_STORAGE_SIZE 40  
 
 // Sleep-Wakeup control
 //#define WAKEUP_PERIOD_CONT_INIT    1    // 2: 6 sec at 4V, 9 sec at 3.8V; Wakeup period for initial portion of continuous pressure sensing
@@ -367,9 +367,7 @@ static void operation_tx_stored(void){
 	delay(MBUS_DELAY);
 
 	send_radio_data(data);
-	delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
-	delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
-	delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
+	delay(RAD_PACKET_DELAY*3); //Set delays between sending subsequent packet
 	send_radio_data(data);
 
 	if (((!radio_tx_numdata)&&(radio_tx_count > 0)) | ((radio_tx_numdata)&&((radio_tx_numdata+radio_tx_count) > cdc_storage_count))){
@@ -380,9 +378,7 @@ static void operation_tx_stored(void){
 		operation_sleep_noirqreset();
 
 	}else{
-		delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
-		delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
-		delay(RAD_PACKET_DELAY); //Set delays between sending subsequent packet
+		delay(RAD_PACKET_DELAY*3); //Set delays between sending subsequent packet
 		send_radio_data(0x3EBE800);
 
 		// This is also the end of this IRQ routine
@@ -553,7 +549,7 @@ static void operation_cdc_run(){
 				return;
 			}
 			else{
-				delay(MBUS_DELAY);
+				delay(30);
 			}
 		}
 
@@ -567,14 +563,14 @@ static void operation_cdc_run(){
 			Pstack_state = PSTK_IDLE;
 
 			// Put system to sleep to reset the layer controller
-			set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+			set_wakeup_timer (1, 0x1, 0x0);
 			operation_sleep();
 
 	    }else{
 		// Try one more time
 	    	reset_timeout_count++;
-            	assert_cdc_reset();
-            	delay(MBUS_DELAY);
+			assert_cdc_reset();
+			delay(MBUS_DELAY*10);
 	    }
 
 	}else if (Pstack_state == PSTK_CDC_MEAS){
@@ -623,24 +619,25 @@ static void operation_cdc_run(){
 						#ifdef DEBUG_MBUS_MSG
 						write_mbus_message(0xAA, 0x44444444);
 						delay(MBUS_DELAY);
-						uint32_t i;
-						for( i=0; i<NUM_SAMPLES; ++i){
-							delay(MBUS_DELAY*20);
-							write_mbus_message(0x77, cdc_data[i]);
+						uint32_t i, j;
+						for( j=0; j<5; ++j){
+							for( i=0; i<NUM_SAMPLES; ++i){
+								delay(MBUS_DELAY*20);
+								write_mbus_message(0x77, cdc_data[i]);
+							}
 						}
 						#endif
 
 						exec_count++;
 						process_data();
 
-/* FIXME
 						// Store in memory; unless buffer is full
 						if (cdc_storage_count < CDC_STORAGE_SIZE){
 							cdc_storage[cdc_storage_count] = cdc_data_tx[0];
 							cdc_storage_count++;
 							radio_tx_count = cdc_storage_count;
 						}
-*/				
+
 						// Optionally transmit the data
 						if (radio_tx_option){
 							operation_tx_cdc_results();
@@ -717,6 +714,10 @@ static void operation_cdc_run(){
 		release_cdc_meas();
 		assert_cdc_reset();
 		delay(MBUS_DELAY);
+
+		// Put system to sleep to reset the layer controller
+		set_wakeup_timer (1, 0x1, 0x0);
+		operation_sleep();
 
 	}else{
         //default:  // THIS SHOULD NOT HAPPEN
@@ -795,6 +796,9 @@ int main() {
         send_radio_data(0x3EBE803);
         delay(MBUS_DELAY);
         send_radio_data(0x3EBE803);
+
+		// Reset IRQ10VEC
+		*((volatile uint32_t *) IRQ10VEC/*IMSG0*/) = 0;
 
         // Run CDC Program
         operation_cdc_run();
