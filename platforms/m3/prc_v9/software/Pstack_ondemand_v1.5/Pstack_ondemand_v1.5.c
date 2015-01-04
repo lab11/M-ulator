@@ -36,7 +36,7 @@
 #include "RADv5.h"
 
 // uncomment this for debug mbus message
-#define DEBUG_MBUS_MSG
+//#define DEBUG_MBUS_MSG
 // uncomment this for debug radio message
 //#define DEBUG_RADIO_MSG
 
@@ -525,7 +525,7 @@ static void operation_cdc_run(){
 
 		snsv3_r7.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
 		write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
-		delay(MBUS_DELAY); // This delay is required to avoid current spike
+		delay(500); // This delay is required to avoid current spike
 		snsv3_r7.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
 		write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
 		delay(MBUS_DELAY);
@@ -702,7 +702,7 @@ static void operation_cdc_run(){
 					return;
 				}
 			}else{
-				delay(MBUS_DELAY);
+				delay(30);
 			}
 		} // for
 
@@ -740,6 +740,10 @@ int main() {
     //Enable Interrupts
     *((volatile uint32_t *) 0xE000E100) = 0xF;
   
+	//Config watchdog timer to about 10 sec: 1,000,000 with default PRCv9
+	//config_timer( timer_id, go, roi, init_val, sat_val )
+	config_timer( 0, 1, 0, 0, 1000000 );
+
     // Initialization sequence
     if (enumerated != 0xDEADBEEF){
         // Set up PMU/GOC register in PRC layer (every time)
