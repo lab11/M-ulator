@@ -48,14 +48,17 @@
 #define HRV_ADDR 0x6
 #define RAD_ADDR 0x4
 
+// CDC parameters
 #define	MBUS_DELAY 100 //Amount of delay between successive messages
+#define	LDO_DELAY 1000 // 1000: 150msec
+#define CDC_TIMEOUT_COUNT 1000
+#define WAKEUP_PERIOD_RESET 10
 
 // Pstack states
 #define	PSTK_IDLE       0x0
 #define PSTK_CDC_RST    0x1
 #define PSTK_CDC_MEAS   0x2
 #define PSTK_CDC_READ   0x3
-#define CDC_TIMEOUT_COUNT 1000
 
 // Radio configurations
 #define RAD_BIT_DELAY       13     //40      //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
@@ -83,7 +86,7 @@
 	volatile uint32_t cdc_data[NUM_SAMPLES];
 	volatile uint32_t cdc_data_tx[NUM_SAMPLES_TX];
 	volatile uint32_t cdc_data_index;
-	volatile uint8_t reset_timeout_count;
+	volatile uint8_t cdc_reset_timeout_count;
 	volatile uint32_t num_timeouts;
 	volatile uint32_t exec_count;
 	volatile uint32_t exec_count_irq;
@@ -516,19 +519,19 @@ static void operation_cdc_run(){
 	if (Pstack_state == PSTK_IDLE){
 		Pstack_state = PSTK_CDC_RST;
 
-		reset_timeout_count = 0;
+		cdc_reset_timeout_count = 0;
 
 		snsv3_r7.CDC_LDO_CDC_LDO_ENB = 0x0;
 		snsv3_r7.ADC_LDO_ADC_LDO_ENB = 0x0;
 		write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
-		delay(MBUS_DELAY);
+		delay(LDO_DELAY);
 
 		snsv3_r7.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
 		write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
-		delay(500); // This delay is required to avoid current spike
+		delay(LDO_DELAY); // This delay is required to avoid current spike
 		snsv3_r7.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
 		write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
-		delay(MBUS_DELAY);
+		delay(LDO_DELAY);
     
 		// Release CDC isolation
 		snsv3_r0.CDC_on_adap = 0x0; // This is used for isolation after FIB
@@ -545,7 +548,9 @@ static void operation_cdc_run(){
 		for( count=0; count<CDC_TIMEOUT_COUNT; count++ ){
 			if( MBus_msg_flag ){
 				MBus_msg_flag = 0;
+				cdc_reset_timeout_count = 0;
 				Pstack_state = PSTK_CDC_MEAS;
+
 				return;
 			}
 			else{
@@ -557,18 +562,24 @@ static void operation_cdc_run(){
 		#ifdef DEBUG_MBUS_MSG
 			write_mbus_message(0xAA, 0xFAFAFAFA);
 		#endif
-		if (reset_timeout_count > 0){
+		if (cdc_reset_timeout_count > 0){
 		
 			write_mbus_message(0xAA, 0xFFFFFFFF);
 			Pstack_state = PSTK_IDLE;
+			cdc_reset_timeout_count++;
 
-			// Put system to sleep to reset the layer controller
-			set_wakeup_timer (1, 0x1, 0x0);
-			operation_sleep();
+			if (cdc_reset_timeout_count > 20){
+				// CDC is not resetting for some reason. Go to sleep forever
+				operation_sleep_notimer();
+			}else{
+				// Put system to sleep to reset the layer controller
+				set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x0);
+				operation_sleep();
+			}
 
 	    }else{
 		// Try one more time
-	    	reset_timeout_count++;
+	    	cdc_reset_timeout_count++;
 			assert_cdc_reset();
 			delay(MBUS_DELAY*10);
 	    }
@@ -584,6 +595,9 @@ static void operation_cdc_run(){
 
 		Pstack_state = PSTK_CDC_READ;
 		fire_cdc_meas();
+		
+		// FIXME
+		//delay(20000);
         
 		// Put system to sleep to reset the layer controller
 		//set_wakeup_timer (5, 0x1, 0x0);
@@ -668,7 +682,7 @@ static void operation_cdc_run(){
 						write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
 									
 						// Enter long sleep
-						if(exec_count < 8){
+						if(exec_count < 8){ 
 							// Send some signal
 							send_radio_data(0x3EBE800);
 							set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
@@ -686,6 +700,7 @@ static void operation_cdc_run(){
 						release_cdc_meas();
 						assert_cdc_reset();
 						delay(MBUS_DELAY);
+						
 						return;
 					}
 				}else{ // If CDC data invalid
@@ -716,7 +731,7 @@ static void operation_cdc_run(){
 		delay(MBUS_DELAY);
 
 		// Put system to sleep to reset the layer controller
-		set_wakeup_timer (1, 0x1, 0x0);
+		set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x0);
 		operation_sleep();
 
 	}else{
@@ -805,6 +820,7 @@ int main() {
 		*((volatile uint32_t *) IRQ10VEC/*IMSG0*/) = 0;
 
         // Run CDC Program
+		cdc_reset_timeout_count = 0;
         operation_cdc_run();
 
     }else if(wakeup_data_header == 3){
@@ -882,6 +898,7 @@ int main() {
         send_radio_data(0x3EBE803);
 
         // Run CDC Program
+		cdc_reset_timeout_count = 0;
         operation_cdc_run();
 
     }else if(wakeup_data_header == 6){
@@ -903,6 +920,7 @@ int main() {
         send_radio_data(0x3EBE803);
 
         // Run CDC Program
+		cdc_reset_timeout_count = 0;
         operation_cdc_run();
 
     }else if(wakeup_data_header == 0x10){
