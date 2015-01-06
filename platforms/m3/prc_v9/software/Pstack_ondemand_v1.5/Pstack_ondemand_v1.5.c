@@ -71,7 +71,7 @@
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 #define CDC_TIMEOUT         0x3    //Timeout for CDC
 
-#define CDC_STORAGE_SIZE 40  
+#define CDC_STORAGE_SIZE 20  
 
 // Sleep-Wakeup control
 //#define WAKEUP_PERIOD_CONT_INIT    1    // 2: 6 sec at 4V, 9 sec at 3.8V; Wakeup period for initial portion of continuous pressure sensing
@@ -840,7 +840,7 @@ int main() {
             // radio
             //send_radio_data(0x3EBE800+exec_count_irq);	
 			//delay(MBUS_DELAY*10);
-            send_radio_data(0x3EBE800+cdc_storage_count);	
+            send_radio_data(0x3EBE800+exec_count);	
             // set timer
             set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
             // go to sleep and wake up with same condition
@@ -852,7 +852,6 @@ int main() {
             operation_sleep_notimer();
         }
 
-/* FIXME
     }else if(wakeup_data_header == 4){
         // Transmit the stored temp data
         // wakeup_data[7:0] is the # of data to transmit; if zero, all stored data is sent
@@ -878,6 +877,8 @@ int main() {
         }else{
           operation_tx_stored();
 		}
+
+/* FIXME
     }else if(wakeup_data_header == 5){
         // Same as operation #2, but transmitting radio every cdc measurement
 		// Slow down PMU sleep osc and run CDC code with desired wakeup period
