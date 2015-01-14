@@ -9,7 +9,7 @@
 #include "SNSv3.h"
 
 // uncomment this for debug mbus message
-#define DEBUG_MBUS_MSG
+//#define DEBUG_MBUS_MSG
 //#define SNSv3_DEBUG
 
 // MBus Address
@@ -23,8 +23,8 @@
 #define PSTK_CDC_READ   0x3
 
 // Others
-#define NUM_SAMPLES     20         //Number of CDC samples to take
-#define WAKEUP_PERIOD   3
+#define NUM_SAMPLES     250         //Number of CDC samples to take
+#define WAKEUP_PERIOD   1
 #define MBUS_DELAY	1000
 
 //***************************************************
@@ -253,7 +253,7 @@ static void cdc_run(){
 		Pstack_state = PSTK_IDLE;
 
 		// Put system to sleep to reset the layer controller
-		set_wakeup_timer (5, 0x1, 0x0);
+		set_wakeup_timer (1, 0x1, 0x0);
 		operation_sleep();
 
 	    }else{
@@ -302,27 +302,25 @@ static void cdc_run(){
                                 write_mbus_message(0xAA, 0x44444444);
 				delay(MBUS_DELAY);
                             #endif
+/*
                             for( i=0; i<NUM_SAMPLES; ++i){
                                 delay(MBUS_DELAY);
                                 delay(MBUS_DELAY);
-                                delay(MBUS_DELAY);
-                                delay(MBUS_DELAY);
-                                delay(MBUS_DELAY);
-				// Modify data to be more readable
-				// CDC_DOUT is shifted to start at LSB
-				// Valid bit is moved to 28th bit
-				// CR data is moved to 24th
-				uint32_t cdc_data_modified;
-				cdc_data_modified = cdc_data[i]>>5;
-				cdc_data_modified = cdc_data_modified | ((0x2 & cdc_data[i])<<27);
-				cdc_data_modified = cdc_data_modified | ((0x1C & cdc_data[i])<<22);
+								// Modify data to be more readable
+								// CDC_DOUT is shifted to start at LSB
+								// Valid bit is moved to 28th bit
+								// CR data is moved to 24th
+								uint32_t cdc_data_modified;
+								cdc_data_modified = cdc_data[i]>>5;
+								cdc_data_modified = cdc_data_modified | ((0x2 & cdc_data[i])<<27);
+								cdc_data_modified = cdc_data_modified | ((0x1C & cdc_data[i])<<22);
                                 write_mbus_message(0x77, cdc_data_modified);
                                 //write_mbus_message(0x78, cdc_data[i]);
                             }
                             cdc_data_index = 0;
                             assert_cdc_reset();
                             release_cdc_meas();
-
+*/
                             // Finalize CDC operation
                             Pstack_state = PSTK_IDLE;
                             #ifdef DEBUG_MBUS_MSG
