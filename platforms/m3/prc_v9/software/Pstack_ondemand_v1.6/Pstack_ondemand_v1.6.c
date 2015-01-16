@@ -81,27 +81,29 @@
 // Global variables
 //***************************************************
 	//Test Declerations
-	uint32_t enumerated;
-	uint8_t Pstack_state;
-	uint32_t cdc_data[NUM_SAMPLES];
-	uint32_t cdc_data_tx[NUM_SAMPLES_TX];
-	uint32_t cdc_data_index;
-	uint32_t cdc_reset_timeout_count;
-	uint32_t exec_count;
-	uint32_t exec_count_irq;
-	uint32_t MBus_msg_flag;
+	// "static" limits the variables to this file, giving compiler more freedom
+	// "volatile" should only be used for MMIO
+	static uint32_t enumerated;
+	static uint8_t Pstack_state;
+	static uint32_t cdc_data[NUM_SAMPLES];
+	static uint32_t cdc_data_tx[NUM_SAMPLES_TX];
+	static uint32_t cdc_data_index;
+	static uint32_t cdc_reset_timeout_count;
+	static uint32_t exec_count;
+	static uint32_t exec_count_irq;
+	static uint32_t MBus_msg_flag;
 	volatile snsv3_r0_t snsv3_r0;
 	volatile snsv3_r1_t snsv3_r1;
 	volatile snsv3_r7_t snsv3_r7;
   
-	uint32_t WAKEUP_PERIOD_CONT; 
-	uint32_t WAKEUP_PERIOD_CONT_INIT; 
+	static uint32_t WAKEUP_PERIOD_CONT; 
+	static uint32_t WAKEUP_PERIOD_CONT_INIT; 
 
-	uint32_t cdc_storage[CDC_STORAGE_SIZE] = {0};
-	uint32_t cdc_storage_count;
-	uint32_t radio_tx_count;
-	uint32_t radio_tx_option;
-	uint32_t radio_tx_numdata;
+	static uint32_t cdc_storage[CDC_STORAGE_SIZE] = {0};
+	static uint32_t cdc_storage_count;
+	static uint32_t radio_tx_count;
+	static uint32_t radio_tx_option;
+	static uint32_t radio_tx_numdata;
 
 //***************************************************
 //Interrupt Handlers
