@@ -28,10 +28,10 @@
 #define PSTK_LDO2   0x5
 
 // Others
-#define NUM_SAMPLES     3         //Number of CDC samples to take -- minimum 3 required for stable measurement
-#define WAKEUP_PERIOD   2
+#define NUM_SAMPLES     20         //Number of CDC samples to take -- minimum 3 required for stable measurement
+#define WAKEUP_PERIOD   4
 #define MBUS_DELAY	1000
-#define LDO_DELAY 10000
+#define LDO_DELAY 500
 #define TIMEOUT_DELAY 100
 
 //***************************************************
@@ -214,6 +214,9 @@ static void cdc_run(){
 
 	if (Pstack_state == PSTK_IDLE){
 		Pstack_state = PSTK_LDO1;
+		#ifdef DEBUG_MBUS_MSG
+			write_mbus_message(0xAA, 0x0);
+		#endif
 
 		reset_timeout_count = 0;
 
@@ -231,6 +234,8 @@ static void cdc_run(){
 		#endif
 		Pstack_state = PSTK_LDO2;
 		snsv3_r7.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
+		write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
+		delay(LDO_DELAY); // This delay is required to avoid current spike
 		snsv3_r7.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
 		write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
 		//delay(LDO_DELAY);
