@@ -924,12 +924,14 @@ int main() {
         // Go to sleep without timer
         operation_sleep_notimer();
 
+*/
     }else if(wakeup_data_header == 0x11){
 		// Slow down PMU sleep osc and go to sleep for further programming
         set_pmu_sleep_clk_low();
         // Go to sleep without timer
         operation_sleep_notimer();
-*/
+
+/*
     }else if(wakeup_data_header == 0x12){
 		// Change the sleep period
         // wakeup_data[15:0] is the user-specified period
@@ -943,6 +945,7 @@ int main() {
             // Go to sleep without timer
             operation_sleep_notimer();
 		}
+*/
     }
 
     // Proceed to continuous mode
