@@ -1,7 +1,7 @@
 //****************************************************************************************************
-//Author:       Yoonmyung Lee
+//Author:       Gyouho Kim
 //              ZhiYoong Foo
-//              Gyouho Kim
+//				Yoonmyung Lee
 //Description:  Derived from zhiyoong_Pblr.c and Tstack_ondemand_temp_radio.c
 //              Moving towards Mouse Implantation
 //				Revision 1.6
@@ -32,7 +32,6 @@
 //****************************************************************************************************
 #include "mbus.h"
 #include "PRCv9.h"
-//#include "SNSv2.h"
 #include "SNSv3.h"
 #include "HRVv1.h"
 #include "RADv5.h"
@@ -75,7 +74,7 @@
 #define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 
-#define CDC_STORAGE_SIZE 20  
+#define CDC_STORAGE_SIZE 40  
 
 //***************************************************
 // Global variables
@@ -641,17 +640,18 @@ static void operation_cdc_run(){
 
 					if( cdc_data_index == NUM_SAMPLES ){
 						// Collected all data for radio TX
-						//#ifdef DEBUG_MBUS_MSG
-						write_mbus_message(0xAA, 0x44444444);
-						delay(MBUS_DELAY);
-						uint32_t i, j;
-						for( j=0; j<1; ++j){
-							for( i=0; i<NUM_SAMPLES; ++i){
-								delay(MBUS_DELAY*10);
-								write_mbus_message(0x77, cdc_data[i]);
+						// FIXME: comment out ifdef here to observe cdc data on MBUS
+						#ifdef DEBUG_MBUS_MSG
+							write_mbus_message(0xAA, 0x44444444);
+							delay(MBUS_DELAY);
+							uint32_t i, j;
+							for( j=0; j<1; ++j){
+								for( i=0; i<NUM_SAMPLES; ++i){
+									delay(MBUS_DELAY*10);
+									write_mbus_message(0x77, cdc_data[i]);
+								}
 							}
-						}
-						//#endif
+						#endif
 						exec_count++;
 						process_data();
 
@@ -791,7 +791,7 @@ int main() {
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
-        delay(1000);
+        delay(MBUS_DELAY);
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
             // radio
@@ -818,14 +818,9 @@ int main() {
         radio_tx_option = 0;
 
         set_pmu_sleep_clk_low();
-        delay(MBUS_DELAY*10);
+        delay(MBUS_DELAY);
         exec_count = 0;
         cdc_storage_count = 0;
-
-        // Send some signal
-        send_radio_data(0x3EBE803);
-        delay(MBUS_DELAY);
-        send_radio_data(0x3EBE803);
 
 		// Reset IRQ10VEC
 		*((volatile uint32_t *) IRQ10VEC/*IMSG0*/) = 0;
