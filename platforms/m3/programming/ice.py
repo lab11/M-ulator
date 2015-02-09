@@ -8,6 +8,7 @@ import socket
 import struct
 import time
 from copy import copy
+import functools
 
 import m3_logging
 logger = m3_logging.get_logger(__name__)
@@ -96,6 +97,7 @@ class ICE(object):
         supported by the protocol version negotiated by the current ICE board.
         '''
         def wrapped_fn_factory(fn_being_decorated):
+            @functools.wraps(fn_being_decorated)
             def wrapped_fn(self, *args, **kwargs):
                 if not hasattr(self, "minor"):
                     raise self.ICE_Error, "ICE must be connected first"
@@ -105,7 +107,6 @@ class ICE(object):
                 if self.minor < minor:
                     raise self.VersionError(minor, self.minor)
                 return fn_being_decorated(self, *args, **kwargs)
-            wrapped_fn.__name__ = 'min_proto_version{'+fn_being_decorated.__name__+'}'
             return wrapped_fn
         return wrapped_fn_factory
 
@@ -115,6 +116,7 @@ class ICE(object):
         supported by the protocol version negotiated by the current ICE board.
         '''
         def wrapped_fn_factory(fn_being_decorated):
+            @functools.wraps(fn_being_decorated)
             def wrapped_fn(self, *args, **kwargs):
                 if not hasattr(self, "minor"):
                     raise self.ICE_Error, "ICE must be connected first"
@@ -124,7 +126,6 @@ class ICE(object):
                 if self.minor > minor:
                     raise self.VersionError(minor, self.minor)
                 return fn_being_decorated(self, *args, **kwargs)
-            wrapped_fn.__name__ = 'max_proto_version{'+fn_being_decorated.__name__+'}'
             return wrapped_fn
         return wrapped_fn_factory
 
@@ -134,6 +135,7 @@ class ICE(object):
         supported by the capabilities reported by the current ICE board.
         '''
         def wrapped_fn_factory(fn_being_decorated):
+            @functools.wraps(fn_being_decorated)
             def wrapped_fn(self, *args, **kwargs):
                 try:
                     if cap not in self.capabilities:
@@ -144,7 +146,6 @@ class ICE(object):
                             logger.error("Version decorator must precede capability")
                             raise
                 return fn_being_decorated(self, *args, **kwargs)
-            wrapped_fn.__name__ = 'capability{'+fn_being_decorated.__name__+'}'
             return wrapped_fn
         return wrapped_fn_factory
 
