@@ -1275,7 +1275,7 @@ class ICE(object):
     @capability('M')
     def mbus_get_clock(self):
         '''
-        Get ICE MBus clock speed. Only meaningful is ICE is MBus master.
+        Get ICE MBus clock speed. Only meaningful if ICE is MBus master.
         '''
         self.min_version(0.2)
         raise NotImplementedError
@@ -1290,7 +1290,7 @@ class ICE(object):
     @capability('m')
     def mbus_set_clock(self, clock_speed):
         '''
-        Set ICE MBus clock speed. Only meaningful is ICE is MBus master.
+        Set ICE MBus clock speed. Only meaningful if ICE is MBus master.
 
         DEFAULT: XXX
         '''
