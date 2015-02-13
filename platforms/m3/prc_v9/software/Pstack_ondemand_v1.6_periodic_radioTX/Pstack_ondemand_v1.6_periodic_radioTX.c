@@ -428,7 +428,8 @@ static void operation_init(void){
   
     // Speed up GOC frontend to match PMU frequency
     // PRCv9 Default: 0x00202903
-    *((volatile uint32_t *) 0xA2000008) = 0x0020290A;
+//    *((volatile uint32_t *) 0xA2000008) = 0x0020290A;
+    *((volatile uint32_t *) 0xA2000008) = 0x00202908;
   
     delay(100);
   
@@ -518,7 +519,7 @@ static void operation_init(void){
     write_mbus_register(RAD_ADDR,0x22,radv5_r22.as_int);
     delay(MBUS_DELAY);
     //RADv5 R25
-    radv5_r25.RADIO_TUNE_TX_TIME_1P2 = 0x5; //Tune TX Time
+    radv5_r25.RADIO_TUNE_TX_TIME_1P2 = 0x4; //Tune TX Time
     write_mbus_register(RAD_ADDR,0x25,radv5_r25.as_int);
     delay(MBUS_DELAY);
     //RADv5 R27
@@ -530,7 +531,7 @@ static void operation_init(void){
     WAKEUP_PERIOD_CONT_INIT = 1;   // 0x1E (30): ~1 min with PRCv9
     cdc_storage_count = 0;
     radio_tx_count = 0;
-    radio_tx_option = 0;
+    radio_tx_option = 1;			// New In V1.6_periodic_radioTX
     
     // Go to sleep without timer
     operation_sleep_notimer();
@@ -690,9 +691,9 @@ static void operation_cdc_run(){
 						}
 
 						// Optionally transmit the data
-						if (radio_tx_option){
-							operation_tx_cdc_results();
-						}
+						//if (radio_tx_option){
+						//	operation_tx_cdc_results();
+						//}
 						cdc_data_index = 0;
 						
 						// Finalize CDC operation
@@ -716,15 +717,15 @@ static void operation_cdc_run(){
 						// Enter long sleep
 						if(exec_count < 8){ 
 							// Send some signal
-							send_radio_data(0x03EBE800);
+							send_radio_data(0x03EBE800+radio_tx_option);
 							set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
 						}else{
-							cdc_data_tx[0] |= 0xF0000000;
-							send_radio_data_32bit(cdc_data_tx[0]);
-						//	delay(1000);
-						//	send_radio_data_32bit(cdc_data_tx[0]);
-						//	delay(1000);
-						//	send_radio_data_32bit(cdc_data_tx[0]);
+							if( radio_tx_option ){
+								cdc_data_tx[0] |= 0xF0000000;
+								send_radio_data_32bit(cdc_data_tx[0]);
+								delay(1000);
+								send_radio_data_32bit(cdc_data_tx[0]);
+							}
 							set_wakeup_timer (WAKEUP_PERIOD_CONT, 0x1, 0x0);
 						}
 						operation_sleep();
@@ -844,7 +845,7 @@ int main() {
         // wakeup_data[24:16] is the initial user-specified period
     	WAKEUP_PERIOD_CONT = wakeup_data_field_0 + (wakeup_data_field_1<<8);
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_2;
-        radio_tx_option = 0;
+        //radio_tx_option = 0;
 
         set_pmu_sleep_clk_low();
         delay(MBUS_DELAY);
@@ -887,7 +888,7 @@ int main() {
             operation_sleep_notimer();
         }
 
-    }else if(wakeup_data_header == 4){
+/*    }else if(wakeup_data_header == 4){
         // Transmit the stored temp data
         // wakeup_data[7:0] is the # of data to transmit; if zero, all stored data is sent
         // wakeup_data[15:8] is the user-specified period 
@@ -912,6 +913,7 @@ int main() {
         }else{
           operation_tx_stored();
 		}
+*/
 
 /* FIXME
     }else if(wakeup_data_header == 5){
@@ -981,6 +983,35 @@ int main() {
             operation_sleep_notimer();
 		}
 */
+    }else if(wakeup_data_header == 0x13){
+		// Set/reset periodic radio TX mode
+        // wakeup_data[7:0] is the # of transmissions
+		// wakeup_data[15:8] is period
+		// wakeup_data[23:16] is radio_tx_option.
+        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+
+        if( wakeup_data_field_2 )
+			radio_tx_option = 1;
+		else 
+			radio_tx_option = 0;
+        delay(MBUS_DELAY);
+        if (exec_count_irq < wakeup_data_field_0){
+            exec_count_irq++;
+            // radio
+            send_radio_data(0x3EBE800+radio_tx_option);	
+            // set timer
+            set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+            // go to sleep and wake up with same condition
+            operation_sleep_noirqreset();
+
+        }else{
+            exec_count_irq = 0;
+            // radio
+            send_radio_data(0x3EBE800+radio_tx_option);	
+            // Go to sleep without timer
+            operation_sleep_notimer();
+        }
+			
     }
 
     // Proceed to continuous mode
