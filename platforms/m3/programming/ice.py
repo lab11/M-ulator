@@ -535,6 +535,9 @@ class ICE(object):
         while len(msg) >= FRAG_SIZE:
             ack,resp = self.send_message(msg_type, msg[0:FRAG_SIZE])
             if ack == 1: # (NAK)
+                if len(resp) == 0:
+                    logger.warning("ICE NAK'd request to send with no length sent field, assuming 0")
+                    return sent + 0
                 return sent + ord(resp)
             msg = msg[FRAG_SIZE:]
             sent += FRAG_SIZE
@@ -542,6 +545,9 @@ class ICE(object):
         logger.debug("Sending last message fragment, %d bytes long" % (len(msg)))
         ack,resp = self.send_message(msg_type, msg)
         if ack == 1:
+            if len(resp) == 0:
+                logger.warning("ICE NAK'd request to send with no length sent field, assuming 0")
+                return sent + 0
             return sent + ord(resp)
         sent += len(msg)
         return sent
