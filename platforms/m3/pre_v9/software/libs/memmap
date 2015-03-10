@@ -1,6 +1,6 @@
 MEMORY
 {
-	RRAM (wx) : ORIGIN = 0, LENGTH = 3K
+	RRAM (wx) : ORIGIN = 0, LENGTH = 8K
 }
 
 SECTIONS
