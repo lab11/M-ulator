@@ -70,7 +70,7 @@
 #define RAD_PACKET_NUM      1      //How many times identical data will be TXed
 
 // CDC configurations
-#define NUM_SAMPLES         3      //Number of CDC samples to take (only 2^n allowed for averaging: 2, 4, 8, 16...)
+#define NUM_SAMPLES         20      //Number of CDC samples to take (only 2^n allowed for averaging: 2, 4, 8, 16...)
 #define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 
@@ -438,12 +438,12 @@ static void operation_init(void){
     snsv3_r7.ADC_LDO_ADC_LDO_DLY_ENB  = 0x1;
 
     // Set ADC LDO to around 1.37V: 0x3//0x20
-    snsv3_r7.ADC_LDO_ADC_VREF_MUX_SEL = 0x3;
-    snsv3_r7.ADC_LDO_ADC_VREF_SEL     = 0x20;
+    snsv3_r7.ADC_LDO_ADC_VREF_MUX_SEL = 0x0;
+    snsv3_r7.ADC_LDO_ADC_VREF_SEL     = 0x4;
 
     // Set CDC LDO to around 1.03V: 0x0//0x20
     snsv3_r7.CDC_LDO_CDC_VREF_MUX_SEL = 0x0;
-    snsv3_r7.CDC_LDO_CDC_VREF_SEL     = 0x20;
+    snsv3_r7.CDC_LDO_CDC_VREF_SEL     = 0x1;
 
     snsv3_r7.LC_CLK_CONF              = 0x9; // default = 0x9
     write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
@@ -466,8 +466,8 @@ static void operation_init(void){
     snsv3_r0.CDC_s_recycle = 0x1;	//0x1 (default 0x4)
     snsv3_r0.CDC_Td = 0x0;
     snsv3_r0.CDC_OP_on = 0x0;
-    snsv3_r0.CDC_Bias_2nd = 0x7;
-    snsv3_r0.CDC_Bias_1st = 0x7;
+    snsv3_r0.CDC_Bias_1st = 0x6;
+    snsv3_r0.CDC_Bias_2nd = 0x4;
     snsv3_r0.CDC_EXT_RESET = 0x1;
     snsv3_r0.CDC_CLK = 0x0;
     write_mbus_register(SNS_ADDR,0,snsv3_r0.as_int);
@@ -694,10 +694,11 @@ static void operation_cdc_run(){
 						//write_mbus_register(SNS_ADDR,0,snsv3_r0.as_int);
 
 						// Turn off LDO's
+						// FIXME
 						cdc_ldo_off();
 									
 						// Enter long sleep
-						if(exec_count < 8){ 
+						if(exec_count < 1){ 
 							// Send some signal
 							send_radio_data(0x3EBE800);
 							set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);

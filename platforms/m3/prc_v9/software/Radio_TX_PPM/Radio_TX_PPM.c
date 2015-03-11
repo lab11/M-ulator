@@ -22,8 +22,8 @@
 	
 // Radio TX related definition
 #define	TIME_FACTOR				50	//45 //43
-#define TIME_FACTOR_11			55
-#define TIME_FACTOR_09			45
+#define TIME_FACTOR_11			70  // 55
+#define TIME_FACTOR_09			30  // 45
 #define	HEADER_LENGTH			16
 #define	DATA_LENGTH				16
 

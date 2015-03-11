@@ -1,14 +1,15 @@
 //*******************************************************************
 //Author: 		Gyouho Kim, ZhiYoong Foo
-//Description: 	Code for Image capturing with MDLAYER
+//Description: 	Code for Image capturing with MDv2
 // 12/17/2014:	Derived from MDv1_motion.c
 //*******************************************************************
 #include "mbus.h"
 #include "PRCv9.h"
-#include "SNSv2.h"
+#include "SNSv3.h"
 #include "HRVv1.h"
 #include "RADv5.h"
 
+// Enumeration Sequence: PRC -> MD -> RAD
 #define MD_ADDR 0x4           //MDv1 Short Address
 #define RAD_ADDR 0x2           //RADIO Short Address
 //#define SNS_ADDR 0x4           //SNSv1 Short Address
@@ -16,12 +17,12 @@
 #define MBUS_DELAY 1000
 #define WAKEUP_DELAY 4000 // 20s
 #define WAKEUP_DELAY_FINAL 10000	// Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
-#define DELAY_1 20000 // 1s
+#define DELAY_1 10000 // 1s
 #define INT_TIME 5
-#define MD_INT_TIME 35
+#define MD_INT_TIME 15
 #define MD_TH 10
 #define MD_MASK 0x3FF
-#define MD_LOWRES 1
+#define MD_LOWRES 0
 #define MD_TOPAD_SEL 0 // 1: thresholding, 0: no thresholding
 
 #define VDD_CC_1P2 1
@@ -141,7 +142,7 @@ static void initialize_md_reg(){
 
 static void poweron_frame_controller(){
 
-  // Release MD Presleep (this also releases reset due to a design bug)
+  // Release MD Presleep 
   // 2:22
   mdreg_2 &= ~(1<<22);
   write_mbus_register(MD_ADDR,0x2,mdreg_2);
@@ -166,7 +167,7 @@ static void poweron_frame_controller(){
   delay (MBUS_DELAY);
 
   // Start MD Clock
-  // 5:11
+  // 5:12
   mdreg_5 |= (1<<12);
   write_mbus_register(MD_ADDR,0x5,mdreg_5);
   delay (MBUS_DELAY);
@@ -175,7 +176,7 @@ static void poweron_frame_controller(){
 
 static void poweron_frame_controller_short(){
 
-  // Release MD Presleep (this also releases reset due to a design bug)
+  // Release MD Presleep
   // 2:22
   mdreg_2 &= ~(1<<22);
   write_mbus_register(MD_ADDR,0x2,mdreg_2);
@@ -200,7 +201,7 @@ static void poweron_frame_controller_short(){
   delay (MBUS_DELAY);
 
   // Start MD Clock
-  // 5:11
+  // 5:12
   mdreg_5 |= (1<<12);
   write_mbus_register(MD_ADDR,0x5,mdreg_5);
   delay (MBUS_DELAY);
@@ -380,7 +381,7 @@ int main() {
 
 	delay(DELAY_1);
 
-	//operation_sleep_notimer();
+	operation_sleep_notimer();
 
 	while(1);
 
