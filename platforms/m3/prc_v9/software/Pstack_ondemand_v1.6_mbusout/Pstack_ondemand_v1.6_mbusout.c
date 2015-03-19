@@ -638,12 +638,12 @@ static void operation_cdc_run(){
 					// If CDC data is valid
 					// Process Data
 					// CDC_DOUT is shifted to start at [0]
-					// CR_DATA is moved to start at [24]
-					// Valid bit is moved to [28]
+					// CR_DATA is moved to start at [16]
+					// Valid bit is moved to [24]
 					uint32_t read_data_modified;
-					read_data_modified = read_data>>5;
-					read_data_modified = read_data_modified | ((0x2 & read_data)<<27);
-					read_data_modified = read_data_modified | ((0x1C & read_data)<<22);
+					read_data_modified = (0x3FFE0 & read_data)>>5;
+					read_data_modified = read_data_modified | ((0x2 & read_data)<<23);
+					read_data_modified = read_data_modified | ((0x1C & read_data)<<14);
 
 					cdc_data[cdc_data_index] = read_data_modified;
 					++cdc_data_index;

@@ -338,7 +338,9 @@ int main() {
 		// Set PMU Strength & division threshold
 		// Change PMU_CTRL Register
 		// PRCv9 Default: 0x8F770049
-		*((volatile uint32_t *) 0xA200000C) = 0x8F770079;
+		// Fastest sleep osc: 0x8F770079
+		// Fastest sleep & active osc: 0x4F773879
+		*((volatile uint32_t *) 0xA200000C) = 0x4F773879;
 	  
 		delay(DELAY_1);
 	  
@@ -347,6 +349,7 @@ int main() {
 		// PRCv9 Default: 0x00202903
 		// 0x00202303 = Fastest MBUS clk
 		// 0x00201303 = Fastest MBUS clk, faster CPU
+		// 0x00200303 = Fastest MBUS clk, fastest CPU
 		*((volatile uint32_t *) 0xA2000008) = 0x00201303;
 		
 		delay(DELAY_1);
