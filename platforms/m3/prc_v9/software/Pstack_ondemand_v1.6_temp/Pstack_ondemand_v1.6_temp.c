@@ -79,6 +79,7 @@
 	static uint32_t radio_tx_numdata;
 
 	static uint32_t _sns_r3;
+	static uint32_t _sns_r4;
   	static uint32_t exec_temp_marker;
 
 
@@ -269,6 +270,10 @@ inline static void set_pmu_sleep_clk_high(){
     // PRCv9 Default: 0x8F770049
     *((volatile uint32_t *) 0xA200000C) = 0x8F77004B; // 0x8F77004B: use GOC x10-25
 }
+inline static void set_pmu_sleep_clk_higher(){
+    // PRCv9 Default: 0x8F770049
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77006B; // 0x8F77004B: use GOC x10-25
+}
 static void process_data(){
     uint8_t i;
     uint8_t j;
@@ -415,8 +420,11 @@ static void operation_init(void){
 	//uint32_t _sns_r3 = (0x2<<17)|(0x1<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
 	//************************************
 	//Setup T Sensor
-	_sns_r3 = (0x3<<17)|(0x1<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
+	_sns_r3 = (0x5<<17)|(0x1<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
+	_sns_r4 = (0x8F<<14)|(0x7F<<6)|(0x2<<3)|(0x5<<0);
 	write_mbus_register(SNS_ADDR,3,_sns_r3);
+	delay(MBUS_DELAY);
+	write_mbus_register(SNS_ADDR,4,_sns_r4);
 	delay(MBUS_DELAY);
 
 	// Change mbus interrupt address for temp sensor and cdc to 0x15 and 0x16
@@ -487,11 +495,13 @@ static void operation_temp(void){
     // Set exec_temp_marker
     exec_temp_marker = 0x87654321;
 
-    //Enable T Sensor
-    _sns_r3 = (0x3<<17)|(0x0<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
+    // Enable T Sensor
+    _sns_r3 = (0x5<<17)|(0x0<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
     delay(MBUS_DELAY);
     write_mbus_register(SNS_ADDR,3,_sns_r3);
     
+	// Make sure PMU can sustain temp sensor in sleep
+  	set_pmu_sleep_clk_higher();
     operation_sleep();
   }
 
@@ -510,12 +520,15 @@ static void operation_temp(void){
   }
 
   // Disable T Sensor
-  _sns_r3 = (0x3<<17)|(0x1<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
+  _sns_r3 = (0x5<<17)|(0x1<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
   delay(MBUS_DELAY);
   write_mbus_register(SNS_ADDR,3,_sns_r3);
 
   // Reset exec_temp_marker
   exec_temp_marker = 0;
+
+  // Enter long sleep with low leakage
+  set_pmu_sleep_clk_low();
 
   // Set up wake up timer register
   // Initial cycles have different wakeup time
@@ -593,7 +606,6 @@ int main() {
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_2;
         radio_tx_option = 0;
 
-        set_pmu_sleep_clk_low();
         delay(MBUS_DELAY);
         exec_count = 0;
         cdc_storage_count = 0;
