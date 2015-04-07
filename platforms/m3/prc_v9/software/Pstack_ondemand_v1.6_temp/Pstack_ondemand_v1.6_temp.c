@@ -18,7 +18,7 @@
 // uncomment this to only transmit average
 //#define TX_AVERAGE
 
-// Stack order  PRC->SNS->HRV->RAD
+// Stack order  PRC->RAD->SNS->HRV
 #define SNS_ADDR 0x5
 #define HRV_ADDR 0x6
 #define RAD_ADDR 0x4
@@ -272,7 +272,7 @@ inline static void set_pmu_sleep_clk_high(){
 }
 inline static void set_pmu_sleep_clk_higher(){
     // PRCv9 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77006B; // 0x8F77004B: use GOC x10-25
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77007B; // 0x8F77004B: use GOC x10-25
 }
 static void process_data(){
     uint8_t i;
@@ -502,6 +502,7 @@ static void operation_temp(void){
     
 	// Make sure PMU can sustain temp sensor in sleep
   	set_pmu_sleep_clk_higher();
+    delay(MBUS_DELAY);
     operation_sleep();
   }
 
@@ -509,7 +510,7 @@ static void operation_temp(void){
   exec_count++;
 
   // Grab Data after IRQ
-  uint32_t temp_data = *((volatile uint32_t *) IMSG1);
+  uint32_t temp_data = *((volatile uint32_t *) IMSG1); // 0x15
 
   // Store in memory
   // If the buffer is full, then skip

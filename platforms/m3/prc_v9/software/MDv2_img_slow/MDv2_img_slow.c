@@ -63,11 +63,11 @@
 #define ROW_SKIP 0
 #define COL_SKIP 0
 #define IMG_8BIT 1
-#define ROW_IDX_EN 1
+#define ROW_IDX_EN 0
 #define MD_RETURN_ADDR 0x17
 
-#define START_COL_IDX 10 // in words
-#define COLS_TO_READ 19 // in # of words: 39 for full frame, 19 for half
+#define START_COL_IDX 0 // in words
+#define COLS_TO_READ 39 // in # of words: 39 for full frame, 19 for half
 
 //***************************************************
 // Global variables
@@ -375,8 +375,8 @@ int main() {
 		// Fastest sleep osc: 0x8F770079
 		// Fastest sleep & active osc: 0x4F773879
 		//*((volatile uint32_t *) 0xA200000C) = 0x8F770079; // Works well with 1.2/0.6V override
-		*((volatile uint32_t *) 0xA200000C) = 0x4F771879; // works well with 1.2V override; if 1.2V is not overriden, system still works, but MD donesn't ACK --> MBUS voltage issue again!
-		//*((volatile uint32_t *) 0xA200000C) = 0x4F772879; // mbus fails with 1.2V override
+		//*((volatile uint32_t *) 0xA200000C) = 0x4F771879; // works well with 1.2V override; if 1.2V is not overriden, system still works, but MD donesn't ACK --> MBUS voltage issue again!
+		*((volatile uint32_t *) 0xA200000C) = 0x8F772879; // works without any override!
 	  
 		delay(DELAY_1);
 	  

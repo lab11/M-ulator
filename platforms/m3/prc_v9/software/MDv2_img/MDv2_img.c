@@ -56,8 +56,8 @@
 #define SEL_CLK_RING_LC 0
 #define SEL_CLK_DIV_LC 0
 
-#define START_ROW_IDX 0
-#define END_ROW_IDX 0xA0
+#define START_ROW_IDX 40 // 0
+#define END_ROW_IDX 120 // 160
 
 #define ROW_SKIP 0
 #define COL_SKIP 0
@@ -65,8 +65,8 @@
 #define ROW_IDX_EN 0
 #define MD_RETURN_ADDR 0x17
 
-#define START_COL_IDX 0
-#define COLS_TO_READ 0x27
+#define START_COL_IDX 0 // in words
+#define COLS_TO_READ 39 // in # of words: 39 for full frame, 19 for half
 
 //***************************************************
 // Global variables
