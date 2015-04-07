@@ -1,19 +1,20 @@
 //*******************************************************************
 //Author: 		Gyouho Kim, ZhiYoong Foo
-//Description: 	Code for Image capturing with MDLAYER
+//Description: 	Code for Image capturing with MDv2
 // 12/17/2014:	Derived from MDv1_motion.c
 //*******************************************************************
 #include "mbus.h"
 #include "PRCv9.h"
-#include "SNSv2.h"
+#include "SNSv3.h"
 #include "HRVv1.h"
 #include "RADv5.h"
 
-#define MD_ADDR 0x4           //MDv1 Short Address
-#define RAD_ADDR 0x2           //RADIO Short Address
-//#define SNS_ADDR 0x4           //SNSv1 Short Address
+// Enumeration Sequence: PRC -> MD -> RAD
+#define MD_ADDR 0x4		// MD Short Address
+#define RAD_ADDR 0x2	// RAD Short Address
+//#define SNS_ADDR 0x3  // SNSv1 Short Address
 
-#define MBUS_DELAY 1000
+#define MBUS_DELAY 500
 #define WAKEUP_DELAY 4000 // 20s
 #define WAKEUP_DELAY_FINAL 10000	// Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
 #define DELAY_1 20000 // 1s
@@ -166,7 +167,7 @@ static void poweron_frame_controller(){
   delay (MBUS_DELAY);
 
   // Start MD Clock
-  // 5:11
+  // 5:12
   mdreg_5 |= (1<<12);
   write_mbus_register(MD_ADDR,0x5,mdreg_5);
   delay (MBUS_DELAY);
@@ -175,7 +176,7 @@ static void poweron_frame_controller(){
 
 static void poweron_frame_controller_short(){
 
-  // Release MD Presleep (this also releases reset due to a design bug)
+  // Release MD Presleep
   // 2:22
   mdreg_2 &= ~(1<<22);
   write_mbus_register(MD_ADDR,0x2,mdreg_2);
@@ -200,7 +201,7 @@ static void poweron_frame_controller_short(){
   delay (MBUS_DELAY);
 
   // Start MD Clock
-  // 5:11
+  // 5:12
   mdreg_5 |= (1<<12);
   write_mbus_register(MD_ADDR,0x5,mdreg_5);
   delay (MBUS_DELAY);
@@ -225,21 +226,54 @@ static void poweron_array_adc(){
   // 7:17
   mdreg_7 &= ~(1<<17);
   write_mbus_register(MD_ADDR,0x7,mdreg_7);
-  delay (3);
+  delay (MBUS_DELAY);
 
   // Release ADC Wrapper Reset
   // 6:0
   mdreg_6 &= ~(1<<0);
   write_mbus_register(MD_ADDR,0x6,mdreg_6);
-  delay (3);
+  delay (MBUS_DELAY);
 
   // Start ADC Clock
-  // 5:12
-  mdreg_5 |= (1<<12);
+  // 5:13
+  mdreg_5 |= (1<<13);
   write_mbus_register(MD_ADDR,0x5,mdreg_5);
-  delay (3);
+  delay (MBUS_DELAY);
 
 }
+
+static void poweroff_array_adc(){
+
+  // Stop ADC Clock
+  // 5:13
+  mdreg_5 &= ~(1<<13);
+  write_mbus_register(MD_ADDR,0x5,mdreg_5);
+  delay (MBUS_DELAY);
+
+  // Assert ADC Wrapper Reset
+  // 6:0
+  mdreg_6 |= 1<<0;
+  write_mbus_register(MD_ADDR,0x6,mdreg_6);
+  delay (MBUS_DELAY);
+
+  // Assert ADC Isolation
+  // 7:17
+  mdreg_7 |= 1<<17;
+  write_mbus_register(MD_ADDR,0x7,mdreg_7);
+  delay (MBUS_DELAY);
+
+  // Assert IMG Presleep 
+  // 2:20
+  mdreg_2 |= 1<<20;
+
+  // Assert IMG Sleep
+  // 2:19
+  mdreg_2 |= 1<<19;
+  write_mbus_register(MD_ADDR,0x2,mdreg_2);
+  delay (MBUS_DELAY);
+
+}
+
 
 static void capture_image_single(){
 
@@ -252,7 +286,7 @@ static void capture_image_single(){
   mdreg_0 &= ~(1<<0);
   write_mbus_register(MD_ADDR,0x0,mdreg_0);
 
-  delay(0x10000); // about 3s
+  delay(DELAY_1); // about 1s
 
 }
 
@@ -263,68 +297,6 @@ static void capture_image_start(){
   mdreg_0 |= (1<<0);
   write_mbus_register(MD_ADDR,0x0,mdreg_0);
   delay(0x80); // about 6ms
-
-}
-
-static void start_md(){
-
-  // Optionally release MD GPIO Isolation
-  // 7:16
-  mdreg_7 &= ~(1<<16);
-  write_mbus_register(MD_ADDR,0x7,mdreg_7);
-  delay (MBUS_DELAY);
-  delay(10000); // about 0.5s
-
-  // Start MD
-  // 0:1
-  mdreg_0 |= (1<<1);
-  write_mbus_register(MD_ADDR,0x0,mdreg_0);
-  delay (MBUS_DELAY);
-  delay(10000); // about 0.5s
-
-  mdreg_0 &= ~(1<<1);
-  write_mbus_register(MD_ADDR,0x0,mdreg_0);
-  delay (MBUS_DELAY);
-
-  delay(10000); // about 0.5s
-
-  // Enable MD Flag
-  // 1:3
-  mdreg_1 |= (1<<3);
-  write_mbus_register(MD_ADDR,0x1,mdreg_1);
-  delay (MBUS_DELAY);
-
-}
-
-static void clear_md_flag(){
-
-  // Stop MD
-  // 0:2
-  mdreg_0 |= (1<<2);
-  write_mbus_register(MD_ADDR,0x0,mdreg_0);
-  delay (MBUS_DELAY);
-  delay (0x80); // about 6ms
-
-  mdreg_0 &= ~(1<<2);
-  write_mbus_register(MD_ADDR,0x0,mdreg_0);
-  delay (MBUS_DELAY);
-
-  // Clear MD Flag
-  // 1:4
-  mdreg_1 |= (1<<4);
-  write_mbus_register(MD_ADDR,0x1,mdreg_1);
-  delay (MBUS_DELAY);
-  delay (0x80); // about 6ms
-  
-  mdreg_1 &= ~(1<<4);
-  write_mbus_register(MD_ADDR,0x1,mdreg_1);
-  delay (MBUS_DELAY);
-
-  // Disable MD Flag
-  // 1:3
-  mdreg_1 &= ~(1<<3);
-  write_mbus_register(MD_ADDR,0x1,mdreg_1);
-  delay (MBUS_DELAY);
 
 }
 
@@ -399,7 +371,11 @@ int main() {
 		// Set PMU Strength & division threshold
 		// Change PMU_CTRL Register
 		// PRCv9 Default: 0x8F770049
-		*((volatile uint32_t *) 0xA200000C) = 0x8F770079;
+		// Fastest sleep osc: 0x8F770079
+		// Fastest sleep & active osc: 0x4F773879
+		//*((volatile uint32_t *) 0xA200000C) = 0x8F770079; // Works well with 1.2/0.6V override
+		*((volatile uint32_t *) 0xA200000C) = 0x4F771879; // works well with 1.2V override; if 1.2V is not overriden, system still works, but MD donesn't ACK --> MBUS voltage issue again!
+		//*((volatile uint32_t *) 0xA200000C) = 0x4F772879; // mbus fails with 1.2V override
 	  
 		delay(DELAY_1);
 	  
@@ -408,7 +384,8 @@ int main() {
 		// PRCv9 Default: 0x00202903
 		// 0x00202303 = Fastest MBUS clk
 		// 0x00201303 = Fastest MBUS clk, faster CPU
-		*((volatile uint32_t *) 0xA2000008) = 0x00201303;
+		// 0x00200303 = Fastest MBUS clk, fastest CPU
+		*((volatile uint32_t *) 0xA2000008) = 0x00202303;
 		
 		delay(DELAY_1);
 
@@ -429,16 +406,18 @@ int main() {
 
 	delay(WAKEUP_DELAY_FINAL);
 
-	capture_image_start();
+	//capture_image_start();
 
 	// Capture a single image
-	/*
-	while (1){
+	
+	//while (1){
 	  capture_image_single();
-	}
-	*/
+	//}
+	
+	poweroff_array_adc();
 
-	//operation_sleep_notimer();
+    set_wakeup_timer(2, 0x1, 0x0);
+	operation_sleep();
 
 	while(1);
 

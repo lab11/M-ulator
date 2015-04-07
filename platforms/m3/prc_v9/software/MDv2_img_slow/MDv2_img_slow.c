@@ -10,19 +10,20 @@
 #include "RADv5.h"
 
 // Enumeration Sequence: PRC -> MD -> RAD
-#define MD_ADDR 0x4           //MDv1 Short Address
-#define RAD_ADDR 0x2           //RADIO Short Address
-//#define SNS_ADDR 0x4           //SNSv1 Short Address
+#define MD_ADDR 0x4		// MD Short Address
+#define RAD_ADDR 0x2	// RAD Short Address
+//#define SNS_ADDR 0x3  // SNSv1 Short Address
 
-#define MBUS_DELAY 1000
-#define WAKEUP_DELAY 4000 // 20s
+#define MBUS_DELAY 500
+#define WAKEUP_DELAY 20000 // 20s
 #define WAKEUP_DELAY_FINAL 10000	// Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
 #define DELAY_1 10000 // 1s
+#define DELAY_IMG 40000 // 1s
 #define INT_TIME 5
-#define MD_INT_TIME 15
+#define MD_INT_TIME 35
 #define MD_TH 10
 #define MD_MASK 0x3FF
-#define MD_LOWRES 0
+#define MD_LOWRES 1
 #define MD_TOPAD_SEL 0 // 1: thresholding, 0: no thresholding
 
 #define VDD_CC_1P2 1
@@ -48,25 +49,25 @@
 #define TAVG 0
 
 #define SEL_CLK_RING 2
-#define SEL_CLK_DIV 3
+#define SEL_CLK_DIV 4
 #define SEL_CLK_RING_4US 0
 #define SEL_CLK_DIV_4US 1
-#define SEL_CLK_RING_ADC 0 
+#define SEL_CLK_RING_ADC 2 
 #define SEL_CLK_DIV_ADC 1
 #define SEL_CLK_RING_LC 0
-#define SEL_CLK_DIV_LC 0
+#define SEL_CLK_DIV_LC 1
 
-#define START_ROW_IDX 0
-#define END_ROW_IDX 0xA0
+#define START_ROW_IDX 40
+#define END_ROW_IDX 120 // 160
 
 #define ROW_SKIP 0
 #define COL_SKIP 0
 #define IMG_8BIT 1
-#define ROW_IDX_EN 0
+#define ROW_IDX_EN 1
 #define MD_RETURN_ADDR 0x17
 
-#define START_COL_IDX 0
-#define COLS_TO_READ 0x27
+#define START_COL_IDX 10 // in words
+#define COLS_TO_READ 19 // in # of words: 39 for full frame, 19 for half
 
 //***************************************************
 // Global variables
@@ -142,7 +143,7 @@ static void initialize_md_reg(){
 
 static void poweron_frame_controller(){
 
-  // Release MD Presleep 
+  // Release MD Presleep (this also releases reset due to a design bug)
   // 2:22
   mdreg_2 &= ~(1<<22);
   write_mbus_register(MD_ADDR,0x2,mdreg_2);
@@ -208,65 +209,95 @@ static void poweron_frame_controller_short(){
 
 }
 
-static void start_md(){
+static void poweron_array_adc(){
 
-  // Optionally release MD GPIO Isolation
-  // 7:16
-  mdreg_7 &= ~(1<<16);
+  // Release IMG Presleep 
+  // 2:20
+  mdreg_2 &= ~(1<<20);
+  write_mbus_register(MD_ADDR,0x2,mdreg_2);
+  delay(WAKEUP_DELAY);
+
+  // Release IMG Sleep
+  // 2:19
+  mdreg_2 &= ~(1<<19);
+  write_mbus_register(MD_ADDR,0x2,mdreg_2);
+  delay(WAKEUP_DELAY);
+
+  // Release ADC Isolation
+  // 7:17
+  mdreg_7 &= ~(1<<17);
   write_mbus_register(MD_ADDR,0x7,mdreg_7);
   delay (MBUS_DELAY);
-  delay(10000); // about 0.5s
 
-  // Start MD
-  // 0:1
-  mdreg_0 |= (1<<1);
-  write_mbus_register(MD_ADDR,0x0,mdreg_0);
-  delay (MBUS_DELAY);
-  delay(10000); // about 0.5s
-
-  mdreg_0 &= ~(1<<1);
-  write_mbus_register(MD_ADDR,0x0,mdreg_0);
+  // Release ADC Wrapper Reset
+  // 6:0
+  mdreg_6 &= ~(1<<0);
+  write_mbus_register(MD_ADDR,0x6,mdreg_6);
   delay (MBUS_DELAY);
 
-  delay(10000); // about 0.5s
-
-  // Enable MD Flag
-  // 1:3
-  mdreg_1 |= (1<<3);
-  write_mbus_register(MD_ADDR,0x1,mdreg_1);
+  // Start ADC Clock
+  // 5:13
+  mdreg_5 |= (1<<13);
+  write_mbus_register(MD_ADDR,0x5,mdreg_5);
   delay (MBUS_DELAY);
 
 }
 
-static void clear_md_flag(){
+static void poweroff_array_adc(){
 
-  // Stop MD
-  // 0:2
-  mdreg_0 |= (1<<2);
+  // Stop ADC Clock
+  // 5:13
+  mdreg_5 &= ~(1<<13);
+  write_mbus_register(MD_ADDR,0x5,mdreg_5);
+  delay (MBUS_DELAY);
+
+  // Assert ADC Wrapper Reset
+  // 6:0
+  mdreg_6 |= 1<<0;
+  write_mbus_register(MD_ADDR,0x6,mdreg_6);
+  delay (MBUS_DELAY);
+
+  // Assert ADC Isolation
+  // 7:17
+  mdreg_7 |= 1<<17;
+  write_mbus_register(MD_ADDR,0x7,mdreg_7);
+  delay (MBUS_DELAY);
+
+  // Assert IMG Presleep 
+  // 2:20
+  mdreg_2 |= 1<<20;
+
+  // Assert IMG Sleep
+  // 2:19
+  mdreg_2 |= 1<<19;
+  write_mbus_register(MD_ADDR,0x2,mdreg_2);
+  delay (MBUS_DELAY);
+
+}
+
+
+static void capture_image_single(){
+
+  // Capture Image
+  // 0:0
+  mdreg_0 |= (1<<0);
   write_mbus_register(MD_ADDR,0x0,mdreg_0);
-  delay (MBUS_DELAY);
-  delay (0x80); // about 6ms
+  delay(0x80); // about 6ms
 
-  mdreg_0 &= ~(1<<2);
+  mdreg_0 &= ~(1<<0);
   write_mbus_register(MD_ADDR,0x0,mdreg_0);
-  delay (MBUS_DELAY);
 
-  // Clear MD Flag
-  // 1:4
-  mdreg_1 |= (1<<4);
-  write_mbus_register(MD_ADDR,0x1,mdreg_1);
-  delay (MBUS_DELAY);
-  delay (0x80); // about 6ms
-  
-  mdreg_1 &= ~(1<<4);
-  write_mbus_register(MD_ADDR,0x1,mdreg_1);
-  delay (MBUS_DELAY);
+  delay(DELAY_IMG); 
 
-  // Disable MD Flag
-  // 1:3
-  mdreg_1 &= ~(1<<3);
-  write_mbus_register(MD_ADDR,0x1,mdreg_1);
-  delay (MBUS_DELAY);
+}
+
+static void capture_image_start(){
+
+  // Capture Image
+  // 0:0
+  mdreg_0 |= (1<<0);
+  write_mbus_register(MD_ADDR,0x0,mdreg_0);
+  delay(0x80); // about 6ms
 
 }
 
@@ -341,25 +372,27 @@ int main() {
 		// Set PMU Strength & division threshold
 		// Change PMU_CTRL Register
 		// PRCv9 Default: 0x8F770049
-		*((volatile uint32_t *) 0xA200000C) = 0x8F770079;
+		// Fastest sleep osc: 0x8F770079
+		// Fastest sleep & active osc: 0x4F773879
+		//*((volatile uint32_t *) 0xA200000C) = 0x8F770079; // Works well with 1.2/0.6V override
+		*((volatile uint32_t *) 0xA200000C) = 0x4F771879; // works well with 1.2V override; if 1.2V is not overriden, system still works, but MD donesn't ACK --> MBUS voltage issue again!
+		//*((volatile uint32_t *) 0xA200000C) = 0x4F772879; // mbus fails with 1.2V override
 	  
 		delay(DELAY_1);
 	  
 		// Set MBUS Clock faster
 		// Change GOC_CTRL Register
 		// PRCv9 Default: 0x00202903
-		// 0x00A02932 = Original
-		// 0x00A02332 = Fastest MBUS clk
-		//*((volatile uint32_t *) 0xA2000008) = 0x00A02332;
+		// 0x00202303 = Fastest MBUS clk
+		// 0x00201303 = Fastest MBUS clk, faster CPU
+		// 0x00200303 = Fastest MBUS clk, fastest CPU
+		//*((volatile uint32_t *) 0xA2000008) = 0x00202303;
+		*((volatile uint32_t *) 0xA2000008) = 0x00202603;
+		
 		
 		delay(DELAY_1);
 
 	} // if first_exec
-
-	//delay(0x10000); // about 3s
-
-	// This is required if this program is used for sleep/wakeup cycling
-	clear_md_flag();
 
 	// Initialize
 	initialize_md_reg();
@@ -371,17 +404,23 @@ int main() {
 	  poweron_frame_controller_short();
 	}
 
-	// Start motion detection
-	start_md();
+	// Release power gates, isolation, and reset for imager array
+	poweron_array_adc();
 
-	delay(DELAY_1);
-	clear_md_flag();
-	delay(DELAY_1);
-	start_md();
+	delay(WAKEUP_DELAY_FINAL);
 
-	delay(DELAY_1);
+	//capture_image_start();
 
-	operation_sleep_notimer();
+	// Capture a single image
+	
+	//while (1){
+	  capture_image_single();
+	//}
+	
+	poweroff_array_adc();
+
+    set_wakeup_timer(2, 0x1, 0x0);
+	operation_sleep();
 
 	while(1);
 
