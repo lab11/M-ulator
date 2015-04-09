@@ -99,6 +99,8 @@ $(DIRS):
 %.elf:	libs/memmap $(LIBS) %.o
 	$(LD) $(LDFLAGS) -T$^ "$$(echo $$(arm-none-eabi-gcc -print-libgcc-file-name) | tr -d '\r')" -o $@
 
+.PRECIOUS: %.elf
+
 
 ##########
 ## Cleanup

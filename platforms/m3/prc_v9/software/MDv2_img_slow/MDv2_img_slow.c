@@ -15,9 +15,10 @@
 //#define SNS_ADDR 0x3  // SNSv1 Short Address
 
 #define MBUS_DELAY 500
-#define WAKEUP_DELAY 4000 // 20s
+#define WAKEUP_DELAY 20000 // 20s
 #define WAKEUP_DELAY_FINAL 10000	// Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
-#define DELAY_1 20000 // 1s
+#define DELAY_1 10000 // 1s
+#define DELAY_IMG 40000 // 1s
 #define INT_TIME 5
 #define MD_INT_TIME 35
 #define MD_TH 10
@@ -48,15 +49,15 @@
 #define TAVG 0
 
 #define SEL_CLK_RING 2
-#define SEL_CLK_DIV 3
+#define SEL_CLK_DIV 4
 #define SEL_CLK_RING_4US 0
 #define SEL_CLK_DIV_4US 1
-#define SEL_CLK_RING_ADC 0 
+#define SEL_CLK_RING_ADC 2 
 #define SEL_CLK_DIV_ADC 1
 #define SEL_CLK_RING_LC 0
-#define SEL_CLK_DIV_LC 0
+#define SEL_CLK_DIV_LC 1
 
-#define START_ROW_IDX 40 // 0
+#define START_ROW_IDX 40
 #define END_ROW_IDX 120 // 160
 
 #define ROW_SKIP 0
@@ -286,7 +287,7 @@ static void capture_image_single(){
   mdreg_0 &= ~(1<<0);
   write_mbus_register(MD_ADDR,0x0,mdreg_0);
 
-  delay(DELAY_1); // about 1s
+  delay(DELAY_IMG); 
 
 }
 
@@ -374,8 +375,8 @@ int main() {
 		// Fastest sleep osc: 0x8F770079
 		// Fastest sleep & active osc: 0x4F773879
 		//*((volatile uint32_t *) 0xA200000C) = 0x8F770079; // Works well with 1.2/0.6V override
-		*((volatile uint32_t *) 0xA200000C) = 0x4F771879; // works well with 1.2V override; if 1.2V is not overriden, system still works, but MD donesn't ACK --> MBUS voltage issue again!
-		//*((volatile uint32_t *) 0xA200000C) = 0x4F772879; // mbus fails with 1.2V override
+		//*((volatile uint32_t *) 0xA200000C) = 0x4F771879; // works well with 1.2V override; if 1.2V is not overriden, system still works, but MD donesn't ACK --> MBUS voltage issue again!
+		*((volatile uint32_t *) 0xA200000C) = 0x8F772879; // works without any override!
 	  
 		delay(DELAY_1);
 	  
@@ -385,7 +386,9 @@ int main() {
 		// 0x00202303 = Fastest MBUS clk
 		// 0x00201303 = Fastest MBUS clk, faster CPU
 		// 0x00200303 = Fastest MBUS clk, fastest CPU
-		*((volatile uint32_t *) 0xA2000008) = 0x00202303;
+		//*((volatile uint32_t *) 0xA2000008) = 0x00202303;
+		*((volatile uint32_t *) 0xA2000008) = 0x00202603;
+		
 		
 		delay(DELAY_1);
 
