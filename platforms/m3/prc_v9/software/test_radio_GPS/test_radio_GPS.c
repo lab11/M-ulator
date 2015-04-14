@@ -1,8 +1,8 @@
 //****************************************************************************************************
 //Author:       Gyouho Kim
 //              ZhiYoong Foo
-//Description:  Derived from Pstack_ondemand_v1.6.c & Tstack_ondemand_HT_SNSv3_RTI.c
-//				Using only temp measurement, due to CDC instability
+//				Yoonmyung Lee
+//Description:  Derived from Pstack_ondemand_v1.6.c
 //****************************************************************************************************
 #include "mbus.h"
 #include "PRCv9.h"
@@ -19,9 +19,9 @@
 //#define TX_AVERAGE
 
 // Stack order  PRC->RAD->SNS->HRV
+#define RAD_ADDR 0x4
 #define SNS_ADDR 0x5
 #define HRV_ADDR 0x6
-#define RAD_ADDR 0x4
 
 // CDC parameters
 #define	MBUS_DELAY 100 //Amount of delay between successive messages
@@ -39,7 +39,7 @@
 #define PSTK_LDO2  	 	0x5
 
 // Radio configurations
-#define RAD_BIT_DELAY       13     //40      //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
+//#define RAD_BIT_DELAY       13     //40      //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 	2000      //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
 #define RAD_PACKET_NUM      1      //How many times identical data will be TXed
 
@@ -48,7 +48,7 @@
 #define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 
-#define CDC_STORAGE_SIZE 40  
+#define CDC_STORAGE_SIZE 0  
 
 //***************************************************
 // Global variables
@@ -71,17 +71,13 @@
   
 	static uint32_t WAKEUP_PERIOD_CONT; 
 	static uint32_t WAKEUP_PERIOD_CONT_INIT; 
+    static uint32_t RAD_BIT_DELAY; //40      //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 
 	static uint32_t cdc_storage[CDC_STORAGE_SIZE] = {0};
 	static uint32_t cdc_storage_count;
 	static uint32_t radio_tx_count;
 	static uint32_t radio_tx_option;
 	static uint32_t radio_tx_numdata;
-
-	static uint32_t _sns_r3;
-	static uint32_t _sns_r4;
-  	static uint32_t exec_temp_marker;
-
 
 //***************************************************
 //Interrupt Handlers
@@ -221,12 +217,11 @@ static void send_radio_data(uint32_t radio_data){
   int32_t i; //loop var
   uint32_t j; //loop var
   for(j=0;j<1;j++){ //Packet Loop
-    for(i=25;i>=0;i--){ //Bit Loop
-      delay(10);
+    for(i=31;i>=0;i--){ //Bit Loop
       if ((radio_data>>i)&1) write_mbus_register(RAD_ADDR,0x27,0x1);
       else                   write_mbus_register(RAD_ADDR,0x27,0x0);
       //Must clear register
-      delay(RAD_BIT_DELAY);
+      delay(RAD_BIT_DELAY); 
       write_mbus_register(RAD_ADDR,0x27,0x0);
       delay(RAD_BIT_DELAY); //Set delay between sending subsequent bit
     }
@@ -269,10 +264,6 @@ inline static void set_pmu_sleep_clk_low(){
 inline static void set_pmu_sleep_clk_high(){
     // PRCv9 Default: 0x8F770049
     *((volatile uint32_t *) 0xA200000C) = 0x8F77004B; // 0x8F77004B: use GOC x10-25
-}
-inline static void set_pmu_sleep_clk_higher(){
-    // PRCv9 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77007B; // 0x8F77004B: use GOC x10-25
 }
 static void process_data(){
     uint8_t i;
@@ -400,7 +391,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Pstack_state = PSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBAAF;
+    enumerated = 0xDEADBEEF;
     cdc_data_index = 0;
     exec_count = 0;
     exec_count_irq = 0;
@@ -413,25 +404,47 @@ static void operation_init(void){
     enumerate(HRV_ADDR);
     delay(MBUS_DELAY*10);
 
-	//************************************
-	//SNSv1 Register Defaults
-	//uint32_t _sns_r0 = (0x0<<22)|(0x1<<21)|(0x6<<18)|(0x6<<15)|(0x0<<14)|(0x0<<12)|(0x4<<9)|(0x1<<8)|(0x1<<7)|(0x0<<6)|(0x1<<5)|(0x0<<4)|(0x7<<1)|(0x0<<0);
-	//uint32_t _sns_r1 = (0x0<<18)|(0xF<<9)|(0x20<<0);
-	//uint32_t _sns_r3 = (0x2<<17)|(0x1<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
-	//************************************
-	//Setup T Sensor
-	_sns_r3 = (0x5<<17)|(0x1<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
-	_sns_r4 = (0x8F<<14)|(0x7F<<6)|(0x2<<3)|(0x5<<0);
-	write_mbus_register(SNS_ADDR,3,_sns_r3);
-	delay(MBUS_DELAY);
-	write_mbus_register(SNS_ADDR,4,_sns_r4);
-	delay(MBUS_DELAY);
+    // CDC Settings --------------------------------------
+    // SNSv3_R7
+    snsv3_r7.CDC_LDO_CDC_LDO_ENB      = 0x1;
+    snsv3_r7.CDC_LDO_CDC_LDO_DLY_ENB  = 0x1;
+    snsv3_r7.ADC_LDO_ADC_LDO_ENB      = 0x1;
+    snsv3_r7.ADC_LDO_ADC_LDO_DLY_ENB  = 0x1;
 
-	// Change mbus interrupt address for temp sensor and cdc to 0x15 and 0x16
-	uint32_t _sns_r6 = (0x9<<16)|(0x16<<8)|(0x15<<0);
-	write_mbus_register(SNS_ADDR,6,_sns_r6);
-	delay(MBUS_DELAY);
+    // Set ADC LDO to around 1.37V: 0x3//0x20
+    snsv3_r7.ADC_LDO_ADC_VREF_MUX_SEL = 0x3;
+    snsv3_r7.ADC_LDO_ADC_VREF_SEL     = 0x20;
 
+    // Set CDC LDO to around 1.03V: 0x0//0x20
+    snsv3_r7.CDC_LDO_CDC_VREF_MUX_SEL = 0x0;
+    snsv3_r7.CDC_LDO_CDC_VREF_SEL     = 0x20;
+
+    snsv3_r7.LC_CLK_CONF              = 0x9; // default = 0x9
+    write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
+
+    // SNSv3_R1
+    snsv3_r1.CDC_S_period = 0x1A;
+    snsv3_r1.CDC_R_period = 0xC;
+    snsv3_r1.CDC_CR_ext = 0x0;
+    write_mbus_register(SNS_ADDR,1,snsv3_r1.as_int);
+
+
+    // SNSv3_R0 (need to be initialized here)
+    snsv3_r0.CDC_ext_select_CR = 0x0;
+    snsv3_r0.CDC_max_select = 0x7;
+    snsv3_r0.CDC_ext_max = 0x0;
+    snsv3_r0.CDC_CR_fixB = 0x1;
+    snsv3_r0.CDC_ext_clk = 0x0;
+    snsv3_r0.CDC_outck_in = 0x1;
+    snsv3_r0.CDC_on_adap = 0x1;		//0x0 (default 0x1)
+    snsv3_r0.CDC_s_recycle = 0x1;	//0x1 (default 0x4)
+    snsv3_r0.CDC_Td = 0x0;
+    snsv3_r0.CDC_OP_on = 0x0;
+    snsv3_r0.CDC_Bias_2nd = 0x7;
+    snsv3_r0.CDC_Bias_1st = 0x7;
+    snsv3_r0.CDC_EXT_RESET = 0x1;
+    snsv3_r0.CDC_CLK = 0x0;
+    write_mbus_register(SNS_ADDR,0,snsv3_r0.as_int);
 
     // Radio Settings --------------------------------------
     radv5_r23_t radv5_r23; //Ext Ctrl En
@@ -472,6 +485,7 @@ static void operation_init(void){
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 100;   // 1: 2-4 sec with PRCv9
     WAKEUP_PERIOD_CONT_INIT = 1;   // 0x1E (30): ~1 min with PRCv9
+	RAD_BIT_DELAY = 13;
     cdc_storage_count = 0;
     radio_tx_count = 0;
     radio_tx_option = 0;
@@ -480,72 +494,6 @@ static void operation_init(void){
     operation_sleep_notimer();
 }
 
-//***************************************************
-// Temperature measurement operation (SNSv2)
-//***************************************************
-static void operation_temp(void){
-
-  // Check if wakeup is due to temperature sensor interrupt
-  // If so, then skip this section
-
-  if ( exec_temp_marker != 0x87654321 ) {
-    // Restore PMU sleep OSC freq to minimize sleep power
-    //*((volatile uint32_t *) 0xA200000C) = 0x8F77005B;
-
-    // Set exec_temp_marker
-    exec_temp_marker = 0x87654321;
-
-    // Enable T Sensor
-    _sns_r3 = (0x5<<17)|(0x0<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
-    delay(MBUS_DELAY);
-    write_mbus_register(SNS_ADDR,3,_sns_r3);
-    
-	// Make sure PMU can sustain temp sensor in sleep
-  	set_pmu_sleep_clk_higher();
-    delay(MBUS_DELAY);
-    operation_sleep();
-  }
-
-  delay(MBUS_DELAY);
-  exec_count++;
-
-  // Grab Data after IRQ
-  uint32_t temp_data = *((volatile uint32_t *) IMSG1); // 0x15
-
-  // Store in memory
-  // If the buffer is full, then skip
-  if (cdc_storage_count<CDC_STORAGE_SIZE){
-    cdc_storage[cdc_storage_count] = temp_data>>3;
-	cdc_storage_count++;
-	radio_tx_count = cdc_storage_count;
-  }
-
-  // Disable T Sensor
-  _sns_r3 = (0x5<<17)|(0x1<<16)|(0xF<<12)|(0x0<<8)|(0xF<<4)|(0x0<<0);
-  delay(MBUS_DELAY);
-  write_mbus_register(SNS_ADDR,3,_sns_r3);
-
-  // Reset exec_temp_marker
-  exec_temp_marker = 0;
-
-  // Enter long sleep with low leakage
-  set_pmu_sleep_clk_low();
-  delay(MBUS_DELAY);
-
-  // Set up wake up timer register
-  // Initial cycles have different wakeup time
-  if (exec_count < 8){
-    // Send some signal
-    send_radio_data(0x3EBE800);
-    set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT,1,0);
-  }
-  else {
-    set_wakeup_timer(WAKEUP_PERIOD_CONT,1,0);
-  }
-
-  operation_sleep();
-
-}
 
 //***************************************************************************************
 // MAIN function starts here             
@@ -562,7 +510,7 @@ int main() {
 	config_timer( 0, 1, 0, 0, 1000000 );
 
     // Initialization sequence
-    if (enumerated != 0xDEADBAAF){
+    if (enumerated != 0xDEADBEEF){
         // Set up PMU/GOC register in PRC layer (every time)
         // Enumeration & RAD/SNS layer register configuration
         operation_init();
@@ -581,12 +529,21 @@ int main() {
         // Debug mode: Transmit something via radio and go to sleep w/o timer
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period
+		// wakeup_data[23:16] is the bit distance
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+		RAD_BIT_DELAY = wakeup_data_field_2;
         delay(MBUS_DELAY);
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
             // radio
-            send_radio_data(0x3EBE800+exec_count_irq);	
+			// Timestamp header is 0xF0
+            send_radio_data(0xF0A0A0A0);	
+			delay(2000);
+            send_radio_data(0xF0A0A0A0);	
+			delay(2000);
+			// Data header is 0xFF
+            send_radio_data(0xFFA0A0A0);	
+			delay(2000);
             // set timer
             set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
             // go to sleep and wake up with same condition
@@ -608,6 +565,7 @@ int main() {
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_2;
         radio_tx_option = 0;
 
+        set_pmu_sleep_clk_low();
         delay(MBUS_DELAY);
         exec_count = 0;
         cdc_storage_count = 0;
@@ -617,7 +575,7 @@ int main() {
 
         // Run CDC Program
 		cdc_reset_timeout_count = 0;
-        operation_temp();
+        //operation_cdc_run();
 
     }else if(wakeup_data_header == 3){
 		// Stop CDC program and transmit the execution count n times
@@ -648,43 +606,11 @@ int main() {
             operation_sleep_notimer();
         }
 
-    }else if(wakeup_data_header == 4){
-        // Transmit the stored temp data
-        // wakeup_data[7:0] is the # of data to transmit; if zero, all stored data is sent
-        // wakeup_data[15:8] is the user-specified period 
-        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
-
-		radio_tx_numdata = wakeup_data_field_0;
-		// Make sure the requested numdata makes sense
-		if (radio_tx_numdata >= cdc_storage_count){
-			radio_tx_numdata = 0;
-		}
-    
-        if (exec_count_irq < 3){
-          exec_count_irq++;
-          // radio
-          send_radio_data(0x3EBE800+exec_count_irq);
-    
-          // set timer
-          set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
-          // go to sleep and wake up with same condition
-          operation_sleep_noirqreset();
-    
-        }else{
-          operation_tx_stored();
-		}
-
-    }else if(wakeup_data_header == 0x11){
-		// Slow down PMU sleep osc and go to sleep for further programming
-        set_pmu_sleep_clk_low();
-        // Go to sleep without timer
-        operation_sleep_notimer();
-
     }
 
     // Proceed to continuous mode
     while(1){
-        operation_temp();
+        //operation_cdc_run();
     }
 
     // Should not reach here
