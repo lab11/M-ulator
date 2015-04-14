@@ -97,6 +97,8 @@ $(DIRS):
 %.elf:	libs/memmap $(LIBS) %.o
 	$(LD) $(LDFLAGS) -T$^ "$$(echo $$($(CC) -print-libgcc-file-name) | tr -d '\r')" -o $@
 
+.PRECIOUS: %.elf
+
 
 ##########
 ## Cleanup

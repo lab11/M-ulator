@@ -5,11 +5,6 @@
 # /simulator/
 /simulator/simulator
 
-# /platforms/373/software/
-/platforms/373/software/*.list
-/platforms/373/software/*.elf
-/platforms/373/software/*.bin
-
-# /platforms/373/software/tests/
-/platforms/373/software/tests/*.elf
-/platforms/373/software/tests/*.bin
+*.elf
+*.list
+*.bin
