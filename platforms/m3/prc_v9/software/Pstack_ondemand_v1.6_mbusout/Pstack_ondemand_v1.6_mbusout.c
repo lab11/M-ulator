@@ -438,12 +438,12 @@ static void operation_init(void){
     snsv3_r7.ADC_LDO_ADC_LDO_DLY_ENB  = 0x1;
 
     // Set ADC LDO to around 1.37V: 0x3//0x20
-    snsv3_r7.ADC_LDO_ADC_VREF_MUX_SEL = 0x2;
+    snsv3_r7.ADC_LDO_ADC_VREF_MUX_SEL = 0x3;
     snsv3_r7.ADC_LDO_ADC_VREF_SEL     = 0x2;
 
     // Set CDC LDO to around 1.03V: 0x0//0x20
-    snsv3_r7.CDC_LDO_CDC_VREF_MUX_SEL = 0x1;
-    snsv3_r7.CDC_LDO_CDC_VREF_SEL     = 0x2;
+    snsv3_r7.CDC_LDO_CDC_VREF_MUX_SEL = 0x2;
+    snsv3_r7.CDC_LDO_CDC_VREF_SEL     = 0x8;
 
     snsv3_r7.LC_CLK_CONF              = 0x9; // default = 0x9
     write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
