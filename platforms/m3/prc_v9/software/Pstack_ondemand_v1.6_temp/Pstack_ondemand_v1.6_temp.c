@@ -400,7 +400,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Pstack_state = PSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEEF;
+    enumerated = 0xDEADBAAF;
     cdc_data_index = 0;
     exec_count = 0;
     exec_count_irq = 0;
@@ -530,6 +530,7 @@ static void operation_temp(void){
 
   // Enter long sleep with low leakage
   set_pmu_sleep_clk_low();
+  delay(MBUS_DELAY);
 
   // Set up wake up timer register
   // Initial cycles have different wakeup time
@@ -561,7 +562,7 @@ int main() {
 	config_timer( 0, 1, 0, 0, 1000000 );
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEEF){
+    if (enumerated != 0xDEADBAAF){
         // Set up PMU/GOC register in PRC layer (every time)
         // Enumeration & RAD/SNS layer register configuration
         operation_init();
