@@ -261,6 +261,7 @@ uint32_t FLSMBusGPIO_rxMsg () {
 			else if (numRxBit < 72) { GPIO_RxData1 = ((GPIO_RxData1 << 1) | rxBit); }
 			else if (numRxBit < 104) { GPIO_RxData2 = ((GPIO_RxData2 << 1) | rxBit); }
 			else return 999; // Overflow
+			numRxBit++;
 		}
 
 		if (isLast==1) break;
@@ -288,13 +289,70 @@ uint32_t FLSMBusGPIO_rxMsg () {
 //***************************************************************************************
 
 int main() {
+	volatile uint32_t temp_addr_0;
+	volatile uint32_t temp_data_0;
+	volatile uint32_t i;
 
 	//initialize	
 	if( enumerated != 0xABCDEF01 ) initialize();
 	FLSMBusGPIO_initialization();
 
-	FLSMBusGPIO_send8bit (0x00, 0x24000000); // Enumeration
-	FLSMBusGPIO_rxMsg (); // Rx Response
+	// Enumerate FLS
+	FLSMBusGPIO_send8bit (0x00, 0x24000000);
+	FLSMBusGPIO_rxMsg(); // Rx Response
+
+	// Turn on the Flash
+	FLSMBusGPIO_send32bit (0x40, 0x11000003);
+	FLSMBusGPIO_rxMsg();
+
+	// Set CRT_TUNE=0x3F
+	FLSMBusGPIO_send32bit (0x40, 0x0A00023F);
+
+	for (i=0; i<40; i=i+4) {
+		// Read-Out SRAM
+		FLSMBusGPIO_send64bit (0x43, (i << 24), i);
+		FLSMBusGPIO_rxMsg();
+	
+		// Store result
+		temp_addr_0 = GPIO_RxAddr;
+		temp_data_0 = GPIO_RxData0;
+	
+		// send MBus message for snooping
+		write_mbus_message(0xFF, temp_addr_0);
+		write_mbus_message(0xFF, temp_data_0);
+	}
+
+	// Copy Flash -> SRAM (Length = 0x7FE)
+	FLSMBusGPIO_send32bit (0x40, 0x0500FFE3);
+	FLSMBusGPIO_rxMsg(); // Rx Interrupt
+
+
+	for (i=0; i<40; i=i+4) {
+		// Read-Out SRAM
+		FLSMBusGPIO_send64bit (0x43, (i << 24), i);
+		FLSMBusGPIO_rxMsg();
+	
+		// Store result
+		temp_addr_0 = GPIO_RxAddr;
+		temp_data_0 = GPIO_RxData0;
+	
+		// send MBus message for snooping
+		write_mbus_message(0xFF, temp_addr_0);
+		write_mbus_message(0xFF, temp_data_0);
+	}
+
+
+
+	// Turn off the Flash
+	FLSMBusGPIO_send32bit (0x40, 0x11000002);
+	FLSMBusGPIO_rxMsg();
+
+	// Make FLS go to sleep
+	FLSMBusGPIO_send8bit (0x01, 0x00000000);
+
+	// System goes to sleep
+	sleep();
+
 
 	while(1){
 		delay(5000); //1s
