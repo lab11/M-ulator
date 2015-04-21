@@ -14,6 +14,13 @@ int write_mbus_message(uint32_t addr, uint32_t data) {
   return 0;
 }
 
+int write_mbus_msg(uint32_t short_prefix, uint32_t fuid, uint32_t data) {
+	uint32_t _mbus_addr = 0x00000000;
+	uint32_t _mbus_data = data;
+	_mbus_addr = (short_prefix << 4) | fuid;
+	return write_mbus_message(_mbus_addr, _mbus_data);
+}
+
 //Enumerates
 int enumerate(uint32_t addr) {
   uint32_t _mbus_data = 0x20000000;
