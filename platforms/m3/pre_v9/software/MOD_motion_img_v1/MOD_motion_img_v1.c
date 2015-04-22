@@ -559,11 +559,11 @@ static void send_radio_data(uint32_t radio_data){
 
 inline static void set_pmu_sleep_clk_low(){
     // PRCv9 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77003B; // 0x8F77003B: use GOC x0.6-2
+    *((volatile uint32_t *) 0xA200000C) = 0x8F770039; // 0x8F770039: use GOC x0.6-2
 }
-inline static void set_pmu_sleep_clk_high(){
+inline static void set_pmu_sleep_clk_default(){
     // PRCv9 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77004B; // 0x8F77004B: use GOC x10-25
+    *((volatile uint32_t *) 0xA200000C) = 0x8F770049; // 0x8F770049: use GOC x10-25
 }
 
 //***************************************************
@@ -601,6 +601,10 @@ static void operation_sleep_notimer(void){
     
   // Disable Timer
   set_wakeup_timer (0, 0x0, 0x0);
+  
+	// Reset IRQ10VEC
+  *((volatile uint32_t *) IRQ10VEC/*IMSG0*/) = 0;
+
   // Go to sleep without timer
   operation_sleep();
 
@@ -612,7 +616,7 @@ static void operation_init(void){
     // PMU_CTRL Register
     // PRCv9 Default: 0x8F770049
     // Decrease 5x division switching threshold
-    *((volatile uint32_t *) 0xA200000C) = 0x8F770049;
+	set_pmu_sleep_clk_default();
   
     // Speed up GOC frontend to match PMU frequency
 	// Speed up MBUS
@@ -751,7 +755,7 @@ static void operation_md(void){
 
 	}else{
 		// Restore PMU_CTRL setting
-    	*((volatile uint32_t *) 0xA200000C) = 0x8F77004B;
+		set_pmu_sleep_clk_default();
 	}
 
 	// Go to sleep w/o timer
@@ -777,8 +781,6 @@ int main() {
 
     // Initialization sequence
     if (enumerated != 0xDEADBEEE){
-        // Set up PMU/GOC register in PRC layer (every time)
-        // Enumeration & RAD/SNS layer register configuration
         operation_init();
     }
 
@@ -800,7 +802,7 @@ int main() {
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
             // radio
-            send_radio_data(0xFAFA00000+exec_count_irq);	
+            send_radio_data(0xFAFA0000+exec_count_irq);	
             // set timer
             set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
             // go to sleep and wake up with same condition
@@ -809,7 +811,7 @@ int main() {
         }else{
             exec_count_irq = 0;
             // radio
-            send_radio_data(0xFAFA00000+exec_count_irq);	
+            send_radio_data(0xFAFA0000+exec_count_irq);	
             // Go to sleep without timer
             operation_sleep_notimer();
         }
@@ -831,7 +833,7 @@ int main() {
         if (exec_count_irq < 4){
             exec_count_irq++;
             // radio
-            send_radio_data(0xFAFA00000+(wakeup_data_field_2 & 0xF));	
+            send_radio_data(0xFAFA0000+(wakeup_data_field_2 & 0xF));	
             // set timer
             set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
             // go to sleep and wake up with same condition
@@ -849,6 +851,30 @@ int main() {
         }
    
     }else if(wakeup_data_header == 3){
+		// Stop MD program and transmit the execution count n times
+        // wakeup_data[7:0] is the # of transmissions
+        // wakeup_data[15:8] is the user-specified period 
+        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+		
+		clear_md_flag();
+		initialize_md_reg();
+        set_pmu_sleep_clk_default();
+
+        if (exec_count_irq < wakeup_data_field_0){
+            exec_count_irq++;
+            // radio
+            send_radio_data(0xFAFA0000+md_count);	
+            // set timer
+            set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+            // go to sleep and wake up with same condition
+            operation_sleep_noirqreset();
+
+        }else{
+            exec_count_irq = 0;
+            // Go to sleep without timer
+            operation_sleep_notimer();
+        }
+
 
 
     }else if(wakeup_data_header == 4){
@@ -856,6 +882,12 @@ int main() {
     }else if(wakeup_data_header == 0x11){
 		// Slow down PMU sleep osc and go to sleep for further programming
         set_pmu_sleep_clk_low();
+        // Go to sleep without timer
+        operation_sleep_notimer();
+
+    }else if(wakeup_data_header == 0x12){
+		// Restore PMU sleep osc and go to sleep for further programming
+        set_pmu_sleep_clk_default();
         // Go to sleep without timer
         operation_sleep_notimer();
     }
