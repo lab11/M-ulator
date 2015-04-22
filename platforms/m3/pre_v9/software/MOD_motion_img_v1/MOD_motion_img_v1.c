@@ -565,6 +565,10 @@ inline static void set_pmu_sleep_clk_default(){
     // PRCv9 Default: 0x8F770049
     *((volatile uint32_t *) 0xA200000C) = 0x8F770049; // 0x8F770049: use GOC x10-25
 }
+inline static void set_pmu_sleep_clk_fastest(){
+    // PRCv9 Default: 0x8F770049
+    *((volatile uint32_t *) 0xA200000C) = 0x8F770079; // 0x8F770079: use GOC x70-230
+}
 
 //***************************************************
 // End of Program Sleep Operation
@@ -708,7 +712,7 @@ static void operation_md(void){
 		write_mbus_message(0xAA, 0x22222222);
 		clear_md_flag();
         // radio
-        send_radio_data(0xFAFA0F0F0);	
+        send_radio_data(0xFAFAF0F0);	
 	}
 
 	if (md_capture_img){
@@ -735,10 +739,7 @@ static void operation_md(void){
 
 	if (md_start_motion){
 		// Only need to set sleep PMU settings
-		// PMU_CTRL Register
-		// PRCv9 Default: 0x8F770049
-		// Decrease 5x division switching threshold
-		*((volatile uint32_t *) 0xA200000C) = 0x8F770079;
+        set_pmu_sleep_clk_fastest();
 		
 		delay(DELAY_1);
 		md_count++;
@@ -824,13 +825,10 @@ int main() {
 		// 						1: md only, 2: img only, 3: md+img
         // wakeup_data[23:20] indicates whether or not to radio out the result
 
-		// Reset IRQ10VEC
-		*((volatile uint32_t *) IRQ10VEC) = 0;
-
 		MD_INT_TIME = wakeup_data_field_0;
 		INT_TIME = wakeup_data_field_1;
 
-        if (exec_count_irq < 4){
+        if (exec_count_irq < 3){
             exec_count_irq++;
             // radio
             send_radio_data(0xFAFA0000+(wakeup_data_field_2 & 0xF));	
@@ -841,11 +839,14 @@ int main() {
 
         }else{
             exec_count_irq = 0;
+			// Reset IRQ10VEC
+			*((volatile uint32_t *) IRQ10VEC) = 0;
+
 			// Run Program
 			exec_count = 0;
 			md_count = 0;
-			md_start_motion = ((wakeup_data_field_2 & 0xF) == 0x1);
-			md_capture_img = ((wakeup_data_field_2 & 0xF) == 0x2);
+			md_start_motion = (wakeup_data_field_2 & 0x1);
+			md_capture_img = (wakeup_data_field_2 & 0x2)>>1;
 			radio_tx_option = (wakeup_data_field_2 >> 4) & 0x1;
 			operation_md();
         }
@@ -859,6 +860,8 @@ int main() {
 		clear_md_flag();
 		initialize_md_reg();
         set_pmu_sleep_clk_default();
+		md_start_motion = 0;
+		md_capture_img = 0;
 
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
@@ -888,6 +891,11 @@ int main() {
     }else if(wakeup_data_header == 0x12){
 		// Restore PMU sleep osc and go to sleep for further programming
         set_pmu_sleep_clk_default();
+        // Go to sleep without timer
+        operation_sleep_notimer();
+
+    }else if(wakeup_data_header == 0x13){
+        set_pmu_sleep_clk_fastest();
         // Go to sleep without timer
         operation_sleep_notimer();
     }
