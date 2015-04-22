@@ -71,25 +71,27 @@ int main() {
 	volatile uint32_t temp_addr_0;
 	volatile uint32_t temp_data_0;
 	volatile uint32_t i;
+	volatile uint32_t fls_enum = 4;
 
 	//initialize	
 	if( enumerated != 0xABCDEF01 ) initialize();
 	FLSMBusGPIO_initialization();
 
 	// Enumerate FLS
-	FLSMBusGPIO_sendMBus8bit (0x00, 0x24000000);
+	FLSMBusGPIO_enumeration(fls_enum);
 	FLSMBusGPIO_rxMsg(); // Rx Response
 
 	// Turn on the Flash
-	FLSMBusGPIO_sendMBus32bit (0x40, 0x11000003);
-	FLSMBusGPIO_rxMsg();
+	FLSMBusGPIO_turnOnFlash(fls_enum);
+	FLSMBusGPIO_rxMsg(); // Rx Interrupt
 
-	// Set CRT_TUNE=0x3F
-	FLSMBusGPIO_sendMBus32bit (0x40, 0x0A00023F);
+	// Set Optimum Tuning Bits
+	FLSMBusGPIO_setOptTune(fls_enum);
 
+	// Read-out SRAM (first 10 words)
 	for (i=0; i<40; i=i+4) {
 		// Read-Out SRAM
-		FLSMBusGPIO_sendMBus64bit (0x43, (i << 24), i);
+		FLSMBusGPIO_readMem (fls_enum, i, 0, i);
 		FLSMBusGPIO_rxMsg();
 	
 		// Store result
@@ -102,13 +104,13 @@ int main() {
 	}
 
 	// Copy Flash -> SRAM (Length = 0x7FE)
-	FLSMBusGPIO_sendMBus32bit (0x40, 0x0500FFE3);
+	FLSMBusGPIO_doCopyFlash2SRAM(fls_enum, 0x7FE);
 	FLSMBusGPIO_rxMsg(); // Rx Interrupt
 
-
+	// Read-out SRAM (first 10 words)
 	for (i=0; i<40; i=i+4) {
 		// Read-Out SRAM
-		FLSMBusGPIO_sendMBus64bit (0x43, (i << 24), i);
+		FLSMBusGPIO_readMem (fls_enum, i, 0, i);
 		FLSMBusGPIO_rxMsg();
 	
 		// Store result
@@ -121,15 +123,14 @@ int main() {
 	}
 
 	// Turn off the Flash
-	FLSMBusGPIO_sendMBus32bit (0x40, 0x11000002);
+	FLSMBusGPIO_turnOffFlash(fls_enum);
 	FLSMBusGPIO_rxMsg();
 
-	// Make FLS go to sleep
-	FLSMBusGPIO_sendMBus8bit (0x01, 0x00000000);
+	// Make FLS Layer go to sleep
+	FLSMBusGPIO_sleep();
 
 	// System goes to sleep
 	sleep();
-
 
 	while(1){
 		delay(5000); //1s

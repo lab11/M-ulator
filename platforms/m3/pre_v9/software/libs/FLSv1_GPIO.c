@@ -10,25 +10,82 @@ void FLSMBusGPIO_initialization(){
 	//            1 (input) (ex. FLS_COUT, FLS_DOUT)
 	volatile uint32_t gpio_dir = (0x00000000 | (1 << FLS_COUT) | (1 << FLS_DOUT));
 	init_GPIO(gpio_dir);
-	RxAddr = 0x00000000;
-	RxData0 = 0x00000000;
-	RxData1 = 0x00000000;
-	RxData2 = 0x00000000;
+	FLSMBusGPIO_RxAddr = 0x00000000;
+	FLSMBusGPIO_RxData0 = 0x00000000;
+	FLSMBusGPIO_RxData1 = 0x00000000;
+	FLSMBusGPIO_RxData2 = 0x00000000;
 }
-
 uint32_t FLSMBusGPIO_getRxAddr() {
-	return RxAddr;
+	return FLSMBusGPIO_RxAddr;
 }
 uint32_t FLSMBusGPIO_getRxData0() {
-	return RxData0;
+	return FLSMBusGPIO_RxData0;
 }
 uint32_t FLSMBusGPIO_getRxData1() {
-	return RxData1;
+	return FLSMBusGPIO_RxData1;
 }
 uint32_t FLSMBusGPIO_getRxData2() {
-	return RxData2;
+	return FLSMBusGPIO_RxData2;
 }
-
+void FLSMBusGPIO_sleep() {
+	FLSMBusGPIO_sendMBus8bit (0x01, 0x00000000);
+}
+void FLSMBusGPIO_enumeration(volatile uint32_t fls_enum) {
+	FLSMBusGPIO_sendMBus8bit (0x00, (0x20000000 | (fls_enum << 24)));
+}
+void FLSMBusGPIO_writeReg(volatile uint32_t short_prefix, volatile uint32_t reg_addr, volatile uint32_t reg_data) {
+	FLSMBusGPIO_sendMBus32bit ((short_prefix << 4), ((reg_addr << 24) | reg_data));
+}
+void FLSMBusGPIO_readReg(volatile uint32_t short_prefix, volatile uint32_t reg_addr, volatile uint32_t length_1, volatile uint32_t reply_addr, volatile uint32_t dest_reg_addr) {
+	FLSMBusGPIO_sendMBus32bit (((short_prefix << 4) | 0x1), ((reg_addr << 24) | (length_1 << 16) | (reply_addr << 8) | dest_reg_addr));
+}
+void FLSMBusGPIO_writeMem32(volatile uint32_t short_prefix, volatile uint32_t mem_start_addr, volatile uint32_t mem_data) {
+	FLSMBusGPIO_sendMBus64bit (((short_prefix << 4) | 0x2), mem_start_addr, mem_data);
+}
+void FLSMBusGPIO_writeMem64(volatile uint32_t short_prefix, volatile uint32_t mem_start_addr, volatile uint32_t mem_data_0, volatile uint32_t mem_data_1) {
+	FLSMBusGPIO_sendMBus96bit (((short_prefix << 4) | 0x2), mem_start_addr, mem_data_0, mem_data_1);
+}
+void FLSMBusGPIO_readMem(volatile uint32_t short_prefix, volatile uint32_t reply_addr, volatile uint32_t length_1, volatile uint32_t mem_start_addr) {
+	FLSMBusGPIO_sendMBus64bit (((short_prefix << 4) | 0x3), ((reply_addr << 24) | length_1), mem_start_addr);
+}
+void FLSMBusGPIO_turnOnFlash(volatile uint32_t fls_enum) {
+	FLSMBusGPIO_writeReg(fls_enum, 0x11, 0x000003);
+	FLSMBusGPIO_writeReg(fls_enum, 0x09, 0x0000003F);
+}
+void FLSMBusGPIO_turnOffFlash(volatile uint32_t fls_enum) {
+	FLSMBusGPIO_writeReg(fls_enum, 0x11, 0x000002);
+	FLSMBusGPIO_writeReg(fls_enum, 0x09, 0x00000000);
+}
+void FLSMBusGPIO_setIRQAddr(volatile uint32_t fls_enum, volatile uint32_t short_addr, volatile uint32_t reg_addr) {
+	FLSMBusGPIO_writeReg(fls_enum, 0x0C, ((short_addr << 8) | (reg_addr << 0 )));
+}
+void FLSMBusGPIO_setOptTune(volatile uint32_t fls_enum) {
+	// Set Tprog=0x5, Tcyc=0x00C0 
+	FLSMBusGPIO_writeReg(fls_enum, 0x02, ((0x5 << 16) | (0x00C0 << 0 )));
+	// Set VTG_TUNE = 0x8, CRT_TUNE=0x3F 
+	FLSMBusGPIO_writeReg(fls_enum, 0x0A, ((0x8 << 6) | (0x3F << 0 )));
+}
+void FLSMBusGPIO_setFlashStartAddr(volatile uint32_t fls_enum, volatile uint32_t flash_start_addr) {
+	FLSMBusGPIO_writeReg(fls_enum, 0x07, flash_start_addr);
+}
+void FLSMBusGPIO_setSRAMStartAddr(volatile uint32_t fls_enum, volatile uint32_t sram_start_addr) {
+	FLSMBusGPIO_writeReg(fls_enum, 0x07, sram_start_addr);
+}
+void FLSMBusGPIO_setExtStreamLength(volatile uint32_t fls_enum, volatile uint32_t length) {
+	FLSMBusGPIO_writeReg(fls_enum, 0x03, (length << 0));
+}
+void FLSMBusGPIO_doCopyFlash2SRAM(volatile uint32_t fls_enum, volatile uint32_t length) {
+	FLSMBusGPIO_writeReg(fls_enum, 0x05, ((0x1 << 15) | (length << 4) | (0x1 << 1) | (0x1 << 0)));
+}
+void FLSMBusGPIO_doCopySRAM2Flash(volatile uint32_t fls_enum, volatile uint32_t length) {
+	FLSMBusGPIO_writeReg(fls_enum, 0x05, ((0x1 << 15) | (length << 4) | (0x2 << 1) | (0x1 << 0)));
+}
+void FLSMBusGPIO_doEraseFlash(volatile uint32_t fls_enum) {
+	FLSMBusGPIO_writeReg(fls_enum, 0x05, ((0x1 << 15) | (0x4 << 1) | (0x1 << 0)));
+}
+void FLSMBusGPIO_doExtStream(volatile uint32_t fls_enum) {
+	FLSMBusGPIO_writeReg(fls_enum, 0x05, ((0x1 << 15) | (0x6 << 1) | (0x1 << 0)));
+}
 void FLSMBusGPIO_resetCinDin () {
 	set_GPIO_2bits(FLS_CIN, FLS_DIN);
 	delay(GPIO_MBus_HalfCycle);
@@ -149,13 +206,13 @@ uint32_t FLSMBusGPIO_dataFwd () {
 }
 
 uint32_t FLSMBusGPIO_rxMsg () {
-	// Received Addr is stored in RxAddr
-	// Received Data is stored in RxData0, RxData1, RxData2
+	// Received Addr is stored in FLSMBusGPIO_RxAddr
+	// Received Data is stored in FLSMBusGPIO_RxData0, FLSMBusGPIO_RxData1, FLSMBusGPIO_RxData2
 	volatile uint32_t clockNotForwarded = 0;
 	volatile uint32_t isLast = 0;
 	volatile uint32_t rxBit = 0;
 	volatile uint32_t numRxBit = 0;
-	RxAddr = 0x00000000;
+	FLSMBusGPIO_RxAddr = 0x00000000;
 
 	while(1) {
 		if (FLSMBusGPIO_getCoutDout()==1) {
@@ -179,10 +236,10 @@ uint32_t FLSMBusGPIO_rxMsg () {
 		delay(GPIO_MBus_HalfCycle);
 
 		if (clockNotForwarded==0) {
-			if (numRxBit < 8) { RxAddr = ((RxAddr << 1) | rxBit); }
-			else if (numRxBit < 40) { RxData0 = ((RxData0 << 1) | rxBit); }
-			else if (numRxBit < 72) { RxData1 = ((RxData1 << 1) | rxBit); }
-			else if (numRxBit < 104) { RxData2 = ((RxData2 << 1) | rxBit); }
+			if (numRxBit < 8) { FLSMBusGPIO_RxAddr = ((FLSMBusGPIO_RxAddr << 1) | rxBit); }
+			else if (numRxBit < 40) { FLSMBusGPIO_RxData0 = ((FLSMBusGPIO_RxData0 << 1) | rxBit); }
+			else if (numRxBit < 72) { FLSMBusGPIO_RxData1 = ((FLSMBusGPIO_RxData1 << 1) | rxBit); }
+			else if (numRxBit < 104) { FLSMBusGPIO_RxData2 = ((FLSMBusGPIO_RxData2 << 1) | rxBit); }
 			else return 999; // Overflow
 			numRxBit++;
 		}
