@@ -1,7 +1,6 @@
 //*******************************************************************
 //Author: Yejoong Kim
-//Description: PRCv9E Extended Layer for controlling Flash thru GPIO
-//Note: Based on PREv9_TEST_SYS_TKJANG
+//Description: PRCv9E and MDv2 with FLSv1L(GPIO)
 //*******************************************************************
 #include "mbus.h"
 #include "PRCv9E.h"
@@ -47,7 +46,7 @@ void handler_ext_int_11(void){ *((volatile uint32_t *) 0xE000E280) = 0x800; }
 // Subfunctions
 //***************************************************
 
-void initialize(){
+void initialize(volatile uint32_t md_enum, volatile uint32_t fls_enum){
 
 	enumerated = 0xABCDEF01;
 	//Clear All Pending Interrupts
@@ -60,7 +59,15 @@ void initialize(){
 	*((volatile uint32_t *) 0xA2000008) = 0x120F903;	//Isolation disable
 	//Truning off the watch dog
 	*((volatile uint32_t *) 0xA5000000) = 0;
-	write_mbus_message(0x13,0xEEEEEEEE);
+	//FLSMBusGPIO Initialization
+	FLSMBusGPIO_initialization();
+	// Enumerate FLS
+	FLSMBusGPIO_enumeration(fls_enum);
+	FLSMBusGPIO_rxMsg(); // Rx Response
+	// Set Optimum Tuning Bits
+	FLSMBusGPIO_setOptTune(fls_enum);
+	//Enumerate MDv2
+	enumerate(md_enum);
 }
 
 //***************************************************************************************
@@ -71,22 +78,62 @@ int main() {
 	volatile uint32_t temp_addr_0;
 	volatile uint32_t temp_data_0;
 	volatile uint32_t i;
-	volatile uint32_t fls_enum = 4;
+	volatile uint32_t md_enum = 4;
+	volatile uint32_t fls_enum = 8;
 
-	//initialize	
-	if( enumerated != 0xABCDEF01 ) initialize();
-	FLSMBusGPIO_initialization();
+	//Initialize and Enumerate
+	if( enumerated != 0xABCDEF01 ) initialize(md_enum, fls_enum);
 
-	// Enumerate FLS
-	FLSMBusGPIO_enumeration(fls_enum);
-	FLSMBusGPIO_rxMsg(); // Rx Response
+	// Set Flash Ext Streaming Length
+	FLSMBusGPIO_setExtStreamLength(fls_enum, 6);
 
+	// Give a "Go Flash Ext Streaming" command
+	FLSMBusGPIO_doExtStream(fls_enum);
+
+	// Register Read from MDv2 chip. This and the response should be recorded in the Flash SRAM
+	read_mbus_register (md_enum, 0x01, 0x5F);
+	delay(1000);
+	read_mbus_register (md_enum, 0x02, 0x6F);
+	delay(1000);
+	read_mbus_register (md_enum, 0x03, 0x7F);
+	delay(1000);
+
+	// Give some delay to finish the above Query response (maybe unnecessary..)
+	delay (1000);
+
+	// Receive the interrupt from Flash. The payload should be 0x82 (pass) or 0x80 (timeout)
+	FLSMBusGPIO_rxMsg();
+
+  	// Store result
+  	temp_addr_0 = FLSMBusGPIO_getRxAddr();
+  	temp_data_0 = FLSMBusGPIO_getRxData0();
+  
+  	// send MBus message for snooping
+  	write_mbus_message(0x66, temp_addr_0);
+  	write_mbus_message(0x66, temp_data_0);
+
+
+	// Read-out SRAM from Flash
+	for (i=0; i<40; i=i+4) {
+		// Read-Out SRAM
+		FLSMBusGPIO_readMem (fls_enum, i, 0, i);
+		FLSMBusGPIO_rxMsg();
+	
+		// Store result
+		temp_addr_0 = FLSMBusGPIO_getRxAddr();
+		temp_data_0 = FLSMBusGPIO_getRxData0();
+	
+		// send MBus message for snooping
+		write_mbus_message(0x77, temp_addr_0);
+		write_mbus_message(0x77, temp_data_0);
+	}
+	
+
+
+/*
 	// Turn on the Flash
 	FLSMBusGPIO_turnOnFlash(fls_enum);
 	FLSMBusGPIO_rxMsg(); // Rx Interrupt
-
-	// Set Optimum Tuning Bits
-	FLSMBusGPIO_setOptTune(fls_enum);
 
 	// Read-out SRAM (first 10 words)
 	for (i=0; i<40; i=i+4) {
@@ -103,7 +150,7 @@ int main() {
 		write_mbus_message(0xFF, temp_data_0);
 	}
 
-	// Copy Flash -> SRAM (Length = 0x7FE)
+	// Copy Flash -> SRAM
 	FLSMBusGPIO_doCopyFlash2SRAM(fls_enum, 0x7FE);
 	FLSMBusGPIO_rxMsg(); // Rx Interrupt
 
@@ -125,6 +172,7 @@ int main() {
 	// Turn off the Flash
 	FLSMBusGPIO_turnOffFlash(fls_enum);
 	FLSMBusGPIO_rxMsg();
+*/
 
 	// Make FLS Layer go to sleep
 	FLSMBusGPIO_sleep();

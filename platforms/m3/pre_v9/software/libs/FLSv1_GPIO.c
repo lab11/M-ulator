@@ -213,6 +213,9 @@ uint32_t FLSMBusGPIO_rxMsg () {
 	volatile uint32_t rxBit = 0;
 	volatile uint32_t numRxBit = 0;
 	FLSMBusGPIO_RxAddr = 0x00000000;
+	FLSMBusGPIO_RxData0 = 0x00000000;
+	FLSMBusGPIO_RxData1 = 0x00000000;
+	FLSMBusGPIO_RxData2 = 0x00000000;
 
 	while(1) {
 		if (FLSMBusGPIO_getCoutDout()==1) {
