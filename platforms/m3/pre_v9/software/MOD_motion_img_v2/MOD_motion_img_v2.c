@@ -5,7 +5,9 @@
 //Description:  Derived from Pstack_ondemand_v1.6.c
 //              For MOD Imaging System Demo
 //				Revision 2
-//				- Integrating Yejoong's PRE code for MBUS bit-bang
+//				- Adding FLSv1 support with Yejoong's code
+//				Revision 1
+//				- Basic functionality without interfacing with FLSv1
 //****************************************************************************************************
 #include "mbus.h"
 #include "PRCv9E.h"
@@ -26,15 +28,11 @@
 #define HRV_ADDR 0x6
 
 // Common parameters
-#define	MBUS_DELAY 500 //Amount of delay between successive messages
-#define WAKEUP_DELAY 20000 // 20s
-#define WAKEUP_DELAY_FINAL 10000	// Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
-#define DELAY_1 10000 // 0.5s
+#define	MBUS_DELAY 200 //Amount of delay between successive messages
+#define WAKEUP_DELAY 10000 // 20s
+#define WAKEUP_DELAY_FINAL 5000	// Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
+#define DELAY_1 5000 // 5000: 0.5s
 #define DELAY_IMG 40000 // 1s
-
-// MD States
-#define MD_ENABLE	0
-#define IMG			1
 
 // MDv2 configurations
 //#define INT_TIME 5
@@ -259,40 +257,6 @@ static void poweron_frame_controller(){
 
 }
 
-static void poweron_frame_controller_short(){
-
-  // Release MD Presleep
-  // 2:22
-  mdreg_2 &= ~(1<<22);
-  write_mbus_register(MD_ADDR,0x2,mdreg_2);
-  delay (MBUS_DELAY);
-
-  // Release MD Sleep
-  // 2:21
-  mdreg_2 &= ~(1<<21);
-  write_mbus_register(MD_ADDR,0x2,mdreg_2);
-  delay (MBUS_DELAY);
-
-  // Release MD Isolation
-  // 7:15
-  mdreg_7 &= ~(1<<15);
-  write_mbus_register(MD_ADDR,0x7,mdreg_7);
-  delay (MBUS_DELAY);
-
-  // Release MD Reset
-  // 2:23
-  mdreg_2 &= ~(1<<23);
-  write_mbus_register(MD_ADDR,0x2,mdreg_2);
-  delay (MBUS_DELAY);
-
-  // Start MD Clock
-  // 5:12
-  mdreg_5 |= (1<<12);
-  write_mbus_register(MD_ADDR,0x5,mdreg_5);
-  delay (MBUS_DELAY);
-
-}
-
 static void poweron_array_adc(){
 
   // Release IMG Presleep 
@@ -392,20 +356,20 @@ static void start_md(){
   mdreg_7 &= ~(1<<16);
   write_mbus_register(MD_ADDR,0x7,mdreg_7);
   delay (MBUS_DELAY);
-  delay(10000); // about 0.5s
+  delay(DELAY_1); // about 0.5s
 
   // Start MD
   // 0:1
   mdreg_0 |= (1<<1);
   write_mbus_register(MD_ADDR,0x0,mdreg_0);
   delay (MBUS_DELAY);
-  delay(10000); // about 0.5s
+  delay(DELAY_1); // about 0.5s
 
   mdreg_0 &= ~(1<<1);
   write_mbus_register(MD_ADDR,0x0,mdreg_0);
   delay (MBUS_DELAY);
 
-  delay(10000); // about 0.5s
+  delay(DELAY_1); // about 0.5s
 
   // Enable MD Flag
   // 1:3
@@ -697,7 +661,7 @@ static void operation_init(void){
 	md_count = 0;
 
 	INT_TIME = 5;
-	MD_INT_TIME = 10;
+	MD_INT_TIME = 15;
 
     // Go to sleep without timer
     operation_sleep_notimer();
@@ -707,6 +671,7 @@ static void operation_md(void){
 
 	// Release power gates, isolation, and reset for frame controller
 	if (md_count == 0) {
+		initialize_md_reg();
 		poweron_frame_controller();
 	}else{
 		// This wakeup is due to motion detection
@@ -832,7 +797,7 @@ int main() {
 		MD_INT_TIME = wakeup_data_field_0;
 		INT_TIME = wakeup_data_field_1;
 
-        if (exec_count_irq < 3){
+        if (exec_count_irq < 2){
             exec_count_irq++;
             // radio
             send_radio_data(0xFAFA0000+(wakeup_data_field_2 & 0xF));	
