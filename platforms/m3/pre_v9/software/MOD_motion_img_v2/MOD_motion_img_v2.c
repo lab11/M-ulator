@@ -4,8 +4,8 @@
 //              ZhiYoong Foo
 //Description:  Derived from Pstack_ondemand_v1.6.c
 //              For MOD Imaging System Demo
-//				Revision 1
-//				- Basic functionality without interfacing with FLSv1
+//				Revision 2
+//				- Integrating Yejoong's PRE code for MBUS bit-bang
 //****************************************************************************************************
 #include "mbus.h"
 #include "PRCv9E.h"
