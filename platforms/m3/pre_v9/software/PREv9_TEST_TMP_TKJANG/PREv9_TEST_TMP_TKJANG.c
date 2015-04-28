@@ -5,35 +5,34 @@
 #include "mbus.h"
 #include "PRCv9E.h"
 
-#define SPI_DELAY 20
-#define MBUS_DELAY 10000
+#define SPI_DELAY 5
 #define TEST_ITR  4
 
 // SPI setting
-#define SPI_MOSI  0
-#define SPI_MISO  1	// SPI MISO, Expended in binary
-#define SPI_CLK   4
+#define SPI_MOSI  1
+#define SPI_MISO  0	// SPI MISO, Expended in binary
+#define SPI_CLK   5
 
 // SPI0: Timer setting
-#define SPI_SS_TIMER    15
+#define SPI_SS_TIMER    13
 
 // SPI1: SRAM setting
-#define SPI_0 	0	// SPI: MOSI, SQI: SIO0, Marked: MOSI
-#define SPI_1 	1	// SPI: MISO, SQI: SIO1, Marked: MISO
+#define SPI_0 	1	// SPI: MOSI, SQI: SIO0, Marked: MOSI
+#define SPI_1 	0	// SPI: MISO, SQI: SIO1, Marked: MISO
 #define SPI_2 	2	// SPI: N/A,  SQI: SIO2, Marked: MOSI1
-#define SPI_3 	5	// SPI: HOLD, SQI: SOI3, Marked: MOSI2
-#define SPI_SS_SRAM 	14
-#define MUX_SEL	13	// 0: From M3, 1: From AFE
+#define SPI_3 	4	// SPI: HOLD, SQI: SOI3, Marked: MOSI2
+#define SPI_SS_SRAM 	7
+#define MUX_SEL	6	// 0: From M3, 1: From AFE
 
 
 // SPI2: Flash setting
 #define SPI_SS_FLASH	12
 
 // SPI3: AFE setting
-#define SPI_SS_AFE	7
+#define SPI_SS_AFE	15
 
 
-#define SLEEP_TIME	20
+#define SLEEP_TIME	2
 
 // SRAM Commands
 #define SRAM_READ	0x00000003
@@ -103,13 +102,7 @@ void handler_ext_int_11(void){ *((volatile uint32_t *) 0xE000E280) = 0x800; }
 // Subfunctions
 //***************************************************
 
-void initialize(){
-	enumerated = 0xABCDEF01;
-	write_mbus_message(0x13,0xEEEEEEEE);
-	GPIO_WRITE = 0;
-	//Truning off the watch dog
-//	*((volatile uint32_t *) 0xA5000000) = 0;
-}
+
 
 void GPIO_ctrl(volatile uint32_t data){ 
 	GPIO_WRITE = data;
@@ -247,7 +240,7 @@ uint32_t readSPI(volatile uint32_t readBit){
 	for(i = 0; i < readBit; i++){
 		GPIO_set(SPI_CLK);
 		delay(SPI_DELAY);
-		if(*GPIO & 2) readData = readData | (1 << (readBit-i-1));
+		if(*GPIO & 1) readData = readData | (1 << (readBit-i-1));
 //		if(*GPIO & 256) readData = readData | (1 << (readBit-i-1));	// MISO 0x100
 		delay(SPI_DELAY);
 		GPIO_kill(SPI_CLK);
@@ -265,10 +258,10 @@ uint32_t readSQI(volatile uint32_t readBit){
 	for(i = 0; i < readBit; i=i+4){
 		GPIO_set(SPI_CLK);
 		delay(SPI_DELAY);
-		if(*GPIO & 32) readData = readData | (1 << (readBit-i-1));
+		if(*GPIO & 16) readData = readData | (1 << (readBit-i-1));		//Change here to meet the board layout
 		if(*GPIO & 4) readData = readData | (1 << (readBit-i-2));
-		if(*GPIO & 2) readData = readData | (1 << (readBit-i-3));
-		if(*GPIO & 1) readData = readData | (1 << (readBit-i-4));
+		if(*GPIO & 1) readData = readData | (1 << (readBit-i-3));
+		if(*GPIO & 2) readData = readData | (1 << (readBit-i-4));
 		delay(SPI_DELAY);
 		GPIO_kill(SPI_CLK);
 		delay(SPI_DELAY);
@@ -293,7 +286,7 @@ uint32_t readWriteSPI(volatile uint32_t data, volatile uint32_t writeBit){
 		delay(SPI_DELAY);
 		GPIO_kill(SPI_CLK);
 		delay(SPI_DELAY);
-		if(*GPIO & 2) readData = readData | (1 << (writeBit-i-1));
+		if(*GPIO & 1) readData = readData | (1 << (writeBit-i-1));
 		pos = pos >> 1;
 	}
 //	GPIO_kill(SPI_MOSI);
@@ -363,6 +356,17 @@ uint32_t readFlashIden(){
 	return readData;
 }
 
+void initialize(){
+	volatile uint32_t i;
+	volatile uint32_t time;
+	volatile uint32_t date;
+
+	enumerated = 0xABCDEF01;
+	write_mbus_message(0x13,0xEEEEEEEE);
+	GPIO_WRITE = 0;
+	//Truning off the watch dog
+	*((volatile uint32_t *) 0xA5000000) = 0;
+}
 
 //***************************************************************************************
 // MAIN function starts here             
@@ -402,175 +406,14 @@ int main() {
 	
 
 	initSPIMode();
-	delay(MBUS_DELAY);
+	delay(5000);
 
-//***********************************************************************************
-// FLASH write & read test
-//***********************************************************************************  
-/*
-	//Flash write enable
-	startSPI(2);
-	writeSPI(FLASH_WRITE_EN, 8);
-	endSPI(2);
-
-	delay(MBUS_DELAY);
-	readData = readFlashStat();
-//	readData = readFlashIden();
-	write_mbus_message(0x13, 0xBEEF);
-	write_mbus_message(0x13, readData);
-	write_mbus_message(0x13, 0xBEEF);
-
-	startSPI(2);				// Flash SPI start
-	writeSPI(FLASH_PAGE_PROGRAM, 8);	// Command to initiate the Page program
-	writeSPI(flashAddr, 24);		// Address starts from 0x000000
-	for(i = 0; i < TEST_ITR; i++){
-		writeSPI(writeData, 8);
-		writeData = writeData + 1;
-	}
-	endSPI(2);
-
-	delay(MBUS_DELAY);
-	startSPI(2);
-	writeSPI(FLASH_READ_DATA_BYTE, 8);
-	writeSPI(flashAddr, 24);		// Address starts from 0x000000
-	for(i = 0; i< TEST_ITR; i++){
-		readData = readSPI(8);
-		write_mbus_message(0x13, readData);
-		delay(MBUS_DELAY);
-	}
-	endSPI(2);
-*/
-//***********************************************************************************
-// SRAM write & read test
-//***********************************************************************************  
-//	initSPIMode();
-//	delay(MBUS_DELAY);
-
-/*
-	sramInst  = SRAM_WRITE;
-	GPIO_kill(MUX_SEL);		// SRAM access from M3
-
-	setWRMR();
-	delay(MBUS_DELAY);
-	
-	readData = readRDMR();
-	delay(MBUS_DELAY);
-
-	write_mbus_message(0x13, 0xDEAD);
-	delay(MBUS_DELAY);
-	write_mbus_message(0x13, readData);
-	delay(MBUS_DELAY);
-	write_mbus_message(0x13, 0xDEAD);
-	delay(MBUS_DELAY);
-
-//SRAM write
-	startSRAM(sramInst, sramAddr);
-	for(i = 0; i < TEST_ITR; i++){
-		writeSPI(writeData, 8);
-		writeData = writeData + 1;
-	}
-	endSRAM();
-	delay(1000);
-
-//SRAM read	
-	sramInst = SRAM_READ;
-	startSRAM(sramInst, sramAddr);
-	for(i = 0; i < TEST_ITR; i++){
-		readData = readSPI(8);
-		write_mbus_message(0x13, readData);
-		delay(MBUS_DELAY);
-	}
-	endSRAM();
-	delay(1000);
-*/
-
-//SRAM change to SQI
-	toSQI();
-	initSQIModeWrite();
-
-//SRAM write SQI	
-	sramInst = SRAM_WRITE;
-	startSRAMSQI(sramInst, sramAddr);
-//	for(i = 0; i < TEST_ITR; i++){
 	while(1){
-		writeSQI(writeData, 8);
-		writeData = writeData + 1;
+		GPIO_set(SPI_SS_AFE);
+		write_mbus_message(0x13, 0xDDDDDDDD);
+		delay(10000);
+		GPIO_kill(SPI_SS_AFE);
+		write_mbus_message(0x13, 0xEEEEEEEE);
+		delay(10000);
 	}
-	endSRAM();
-	delay(1000);
-
-//SRAM read SQI	
-	sramInst = SRAM_READ;
-	startSRAMSQI(sramInst, sramAddr);
-
-	*GPIODIR = 0x0027;
-
-	for(i = 0; i < TEST_ITR; i++){
-		readData = readSQI(8);
-		write_mbus_message(0x13, readData);
-		delay(MBUS_DELAY);
-	}
-	endSRAM();
-	delay(1000);
-	
-	*GPIODIR = 0x0000;
-	toSPI();
-	initSPIMode();
-
-//***********************************************************************************
-// TIMER write & read test
-//***********************************************************************************  
-	initSPIMode();
-//	while(timerAddr < 0x22){
-//	while(timerAddr < 0x07){
-//	while(1){
-		time = 0;
-		date = 0;
-		timerAddr = 0;
-//		delay(MBUS_DELAY);
-//		write_mbus_message(0x13, 0xDDDDDDDD);
-		for(i = 0; i < 4; i++){
-			startSPI(0);	// kill chip select of Timer
-			writeSPI((0x0000007F&timerAddr), 8);	// send offset address starting with 0 (read mode)
-			readData = readSPI(8);			// read data;
-			endSPI(0);
-			delay(100);
-			time = time | (readData << (8*i));
-			timerAddr = timerAddr + 1;
-		}
-		delay(MBUS_DELAY);
-		write_mbus_message(0x13, time);
-
-		for(i = 0; i < 4; i++){
-			startSPI(0);	// kill chip select of Timer
-			writeSPI((0x0000007F&timerAddr), 8);	// send offset address starting with 0 (read mode)
-			readData = readSPI(8);			// read data;
-			endSPI(0);
-			delay(100);
-			date = date | (readData << (8*i));
-			timerAddr = timerAddr + 1;
-		}
-
-		delay(MBUS_DELAY);
-		write_mbus_message(0x13, date);
-
-//		write_mbus_message(0x13, timerAddr | 0xAA000000);
-//		delay(100);
-//		write_mbus_message(0x13, readData);
-//		delay(100);
-//		timerAddr = timerAddr + 1;
-//		if(timerAddr > 0x06) timerAddr = 0x00;
-////		timerAddr = 1;
-//	}
-
-//	write_mbus_message(0x13, 0xDDDD);
-
-
-	// Reset wakeup counter
-	// This is required to go back to sleep!!
-	set_wakeup_timer(SLEEP_TIME, 0x1, 0x0);
-	*((volatile uint32_t *) 0xA2000014) = 0x1;
-	sleep();
-
-	while(1);
 }
