@@ -12,6 +12,7 @@
 #define FLS_COUT 14
 #define FLS_DOUT 15
 
+// Delay
 #define GPIO_MBus_HalfCycle 10
 #define GPIO_MBus_RxBeginDelay 100
 
@@ -171,6 +172,9 @@ void FLSMBusGPIO_doExtStream(volatile uint32_t fls_enum);
 // Direct MBus Control
 //*******************************************************************
 
+// Reset MBus
+void FLSMBusGPIO_resetMBus ();
+
 //Send 8-bit Addr, 8-bit Data
 void FLSMBusGPIO_sendMBus8bit (volatile uint32_t short_prefix, volatile uint32_t data_0);
 
@@ -185,6 +189,9 @@ void FLSMBusGPIO_sendMBus96bit (volatile uint32_t short_prefix, volatile uint32_
 
 //Receive an incoming MBus Msg
 uint32_t FLSMBusGPIO_rxMsg ();
+
+// Force Stop
+void FLSMBusGPIO_forceStop ();
 
 
 //*******************************************************************

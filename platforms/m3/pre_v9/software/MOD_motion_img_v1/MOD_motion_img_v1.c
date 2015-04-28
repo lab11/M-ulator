@@ -740,12 +740,9 @@ int main() {
     //Enable Interrupts
     *((volatile uint32_t *) 0xE000E100) = 0xF;
   
-	// Config watchdog timer to about 10 sec: 1,000,000 with default PRCv9
+	// Config watchdog timer to about 30 sec: 3,000,000 with default PRCv9
 	//config_timer( timer_id, go, roi, init_val, sat_val )
-	//config_timer( 0, 1, 0, 0, 1000000 );
-
-	// Turn watchdog timer off
-	config_timer( 0, 0, 0, 0, 1000000 );
+	config_timer( 0, 1, 0, 0, 3000000 );
 
     // Initialization sequence
     if (enumerated != 0xDEADBEEE){

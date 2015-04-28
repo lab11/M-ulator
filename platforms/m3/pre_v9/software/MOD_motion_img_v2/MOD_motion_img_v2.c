@@ -4,15 +4,16 @@
 //              ZhiYoong Foo
 //Description:  Derived from Pstack_ondemand_v1.6.c
 //              For MOD Imaging System Demo
-//				Revision 2
-//				- Adding FLSv1 support with Yejoong's code
-//				Revision 1
+//				4/27/2015: Revision 2
+//				- Adding FLSv1 SRAM write/read
+//				4/22/2015: Revision 1
 //				- Basic functionality without interfacing with FLSv1
 //****************************************************************************************************
 #include "mbus.h"
 #include "PRCv9E.h"
 #include "HRVv1.h"
 #include "RADv5.h"
+#include "FLSv1_GPIO.h"
 
 // uncomment this for debug mbus message
 //#define DEBUG_MBUS_MSG
@@ -26,6 +27,7 @@
 #define MD_ADDR 0x4		// MD Short Address
 #define RAD_ADDR 0x5
 #define HRV_ADDR 0x6
+#define FLS_ADDR 0x7
 
 // Common parameters
 #define	MBUS_DELAY 200 //Amount of delay between successive messages
@@ -33,6 +35,11 @@
 #define WAKEUP_DELAY_FINAL 5000	// Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
 #define DELAY_1 5000 // 5000: 0.5s
 #define DELAY_IMG 40000 // 1s
+
+
+// FLSv1 configurations
+#define FLS_RECORD_LENGTH 0x1FFE // Maximum
+//#define FLS_RECORD_LENGTH 0x10 
 
 // MDv2 configurations
 //#define INT_TIME 5
@@ -339,6 +346,47 @@ static void capture_image_single(){
 
 }
 
+static void capture_image_single_with_flash(){
+	volatile uint32_t temp_numBit;
+	volatile uint32_t temp_addr;
+	volatile uint32_t temp_data;
+
+	write_mbus_message(0xEE, 0x12341234);
+	FLSMBusGPIO_initialization();
+
+	// Set Flash Ext Streaming Length
+	FLSMBusGPIO_setExtStreamLength(FLS_ADDR, FLS_RECORD_LENGTH);
+	// Give a "Go Flash Ext Streaming" command
+	FLSMBusGPIO_doExtStream(FLS_ADDR);
+
+
+	// Capture Image
+	// 0:0
+	mdreg_0 |= (1<<0);
+	write_mbus_register(MD_ADDR,0x0,mdreg_0);
+	delay(0x80); // about 6ms
+
+	mdreg_0 &= ~(1<<0);
+	write_mbus_register(MD_ADDR,0x0,mdreg_0);
+
+	delay(DELAY_IMG); // about 1s
+
+
+	// Receive the interrupt from Flash. The payload should be 0x82 (pass) or 0x80 (timeout)
+	write_mbus_message(0xEE, 0x22222222);
+	temp_numBit = FLSMBusGPIO_rxMsg();
+	temp_addr = FLSMBusGPIO_getRxAddr(); // Optional
+	temp_data = FLSMBusGPIO_getRxData0(); // Optional
+	write_mbus_message(0xEE, temp_addr); // Optional
+	write_mbus_message(0xEE, temp_data); // Optional
+	write_mbus_message(0xEE, temp_numBit); // Optional
+
+  	// Store result
+  	//temp_addr_0 = FLSMBusGPIO_getRxAddr();
+  	//temp_data_0 = FLSMBusGPIO_getRxData0();
+  
+}
+
 static void capture_image_start(){
 
   // Capture Image
@@ -581,7 +629,10 @@ static void operation_sleep_notimer(void){
 
 }
 
-static void operation_init(void){
+static void operation_temp(void){
+	volatile uint32_t temp_addr;
+	volatile uint32_t temp_data;
+	volatile uint32_t temp_numBit;
   
     // Set PMU Strength & division threshold
     // PMU_CTRL Register
@@ -595,7 +646,66 @@ static void operation_init(void){
     // PRCv9 Default: 0x00202903
     //*((volatile uint32_t *) 0xA2000008) = 0x00202908;
 	*((volatile uint32_t *) 0xA2000008) = 0x00202608;
+
+	// MEM&CORE CLK /16
+	*((volatile uint32_t *) 0xA2000008) = 0x120F903;	//Isolation disable
   
+    delay(DELAY_1);
+  
+    //Enumerate & Initialize Registers
+    enumerated = 0xDEADBEEE;
+    exec_count = 0;
+    exec_count_irq = 0;
+    MBus_msg_flag = 0;
+
+
+	// Initialize FLSv1 through GPIO
+	FLSMBusGPIO_initialization();
+	FLSMBusGPIO_forceStop();
+	FLSMBusGPIO_enumeration(FLS_ADDR);
+	FLSMBusGPIO_enumeration(FLS_ADDR);
+	temp_numBit = FLSMBusGPIO_rxMsg();
+	temp_addr = FLSMBusGPIO_getRxAddr();
+	temp_data = FLSMBusGPIO_getRxData0();
+		write_mbus_message(0xEE, 0x00000000); delay(1000);
+		write_mbus_message(0xEE, temp_addr); delay(1000);
+		write_mbus_message(0xEE, 0x11111111); delay(1000);
+		write_mbus_message(0xEE, temp_data); delay(1000);
+		write_mbus_message(0xEE, 0x22222222); delay(1000);
+		write_mbus_message(0xEE, temp_numBit); delay(1000);
+
+
+	// Set Optimum Tuning Bits
+	FLSMBusGPIO_setOptTune(FLS_ADDR);
+
+	// Put FLS back to sleep
+	FLSMBusGPIO_sleep();
+
+    // Go to sleep without timer
+    operation_sleep_notimer();
+}
+
+static void operation_init(void){
+	volatile uint32_t temp_addr;
+	volatile uint32_t temp_data;
+	volatile uint32_t temp_numBit;
+  
+    // Set PMU Strength & division threshold
+    // PMU_CTRL Register
+    // PRCv9 Default: 0x8F770049
+    // Decrease 5x division switching threshold
+	set_pmu_sleep_clk_default();
+  
+    // Speed up GOC frontend to match PMU frequency
+	// Speed up MBUS
+	// GOC_CTRL Register
+    // PRCv9 Default: 0x00202903
+	//*((volatile uint32_t *) 0xA2000008) = 0x00202608;
+  
+	// For PREv9E GPIO Isolation disable >> bits 16, 17, 24
+	*((volatile uint32_t *) 0xA2000008) = 0x0120E608;
+
+
     delay(DELAY_1);
   
     //Enumerate & Initialize Registers
@@ -650,6 +760,41 @@ static void operation_init(void){
 	// Initialize MDv2
 	initialize_md_reg();
 
+	// Initialize FLSv1 through GPIO
+	FLSMBusGPIO_initialization();
+	FLSMBusGPIO_forceStop();
+	FLSMBusGPIO_enumeration(FLS_ADDR);
+	FLSMBusGPIO_enumeration(FLS_ADDR);
+	temp_numBit = FLSMBusGPIO_rxMsg();
+	temp_addr = FLSMBusGPIO_getRxAddr(); // Optional
+	temp_data = FLSMBusGPIO_getRxData0(); // Optional
+	write_mbus_message(0xEE, temp_addr); // Optional
+	write_mbus_message(0xEE, temp_data); // Optional
+	write_mbus_message(0xEE, temp_numBit); // Optional
+
+	// Set Optimum Tuning Bits
+	FLSMBusGPIO_setOptTune(FLS_ADDR);
+
+	// Receive Sleep Msg
+	temp_numBit = FLSMBusGPIO_rxMsg();
+	temp_addr = FLSMBusGPIO_getRxAddr(); // Optional
+	temp_data = FLSMBusGPIO_getRxData0(); // Optional
+	write_mbus_message(0xEE, temp_addr); // Optional
+	write_mbus_message(0xEE, temp_data); // Optional
+	write_mbus_message(0xEE, temp_numBit); // Optional
+
+	delay (1000);
+/*
+	// Check 0x0E Register
+	FLSMBusGPIO_readReg(FLS_ADDR, 0x0E, 0, 0xFF, 0xFE);
+	temp_numBit = FLSMBusGPIO_rxMsg();
+	temp_addr = FLSMBusGPIO_getRxAddr(); // Optional
+	temp_data = FLSMBusGPIO_getRxData0(); // Optional
+	write_mbus_message(0xEE, temp_addr); // Optional
+	write_mbus_message(0xEE, temp_data); // Optional
+	write_mbus_message(0xEE, temp_numBit); // Optional
+*/
+
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 100;   // 1: 2-4 sec with PRCv9
     WAKEUP_PERIOD_CONT_INIT = 1;   // 0x1E (30): ~1 min with PRCv9
@@ -662,6 +807,9 @@ static void operation_init(void){
 
 	INT_TIME = 5;
 	MD_INT_TIME = 15;
+
+	// Put FLS back to sleep
+	FLSMBusGPIO_sleep();
 
     // Go to sleep without timer
     operation_sleep_notimer();
@@ -700,7 +848,7 @@ static void operation_md(void){
 		if (radio_tx_option){
 			//capture_image_single_radio(); // FIXME
 		}else{
-			capture_image_single();
+			capture_image_single_with_flash();
 		}
 		
 		poweroff_array_adc();
@@ -728,6 +876,11 @@ static void operation_md(void){
 		set_pmu_sleep_clk_default();
 	}
 
+	if (md_capture_img){
+		// Make FLS Layer go to sleep through GPIO
+		FLSMBusGPIO_sleep();
+	}
+
 	// Go to sleep w/o timer
 	operation_sleep_notimer();
 }
@@ -742,16 +895,14 @@ int main() {
     //Enable Interrupts
     *((volatile uint32_t *) 0xE000E100) = 0xF;
   
-	// Config watchdog timer to about 10 sec: 1,000,000 with default PRCv9
+	// Config watchdog timer to about 30 sec: 3,000,000 with default PRCv9
 	//config_timer( timer_id, go, roi, init_val, sat_val )
-	//config_timer( 0, 1, 0, 0, 1000000 );
-
-	// Turn watchdog timer off
-	config_timer( 0, 0, 0, 0, 1000000 );
+//	config_timer( 0, 1, 0, 0, 3000000 );
 
     // Initialization sequence
     if (enumerated != 0xDEADBEEE){
         operation_init();
+//        operation_temp();
     }
 
     // Check if wakeup is due to GOC interrupt  
