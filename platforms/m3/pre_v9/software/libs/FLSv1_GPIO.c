@@ -5,6 +5,7 @@
 
 #include "FLSv1_GPIO.h"
 
+
 void FLSMBusGPIO_initialization(){
 	// GPIO_DIR = 0 (output) (ex. FLS_CIN, FLS_DIN)
 	//            1 (input) (ex. FLS_COUT, FLS_DOUT)
@@ -205,6 +206,25 @@ uint32_t FLSMBusGPIO_dataFwd () {
 	return rxBit;
 }
 
+void FLSMBusGPIO_resetMBus () {
+	volatile uint32_t numToggles = 6;
+	volatile uint32_t i;
+
+	kill_GPIO_bit(FLS_DIN);
+	set_GPIO_bit(FLS_CIN);
+
+	for (i=0; i<numToggles; i++) {
+		delay(GPIO_MBus_HalfCycle);
+		delay(GPIO_MBus_HalfCycle);
+		kill_GPIO_bit(FLS_DIN);
+		delay(GPIO_MBus_HalfCycle);
+		delay(GPIO_MBus_HalfCycle);
+		set_GPIO_bit(FLS_DIN);
+	}
+	delay(GPIO_MBus_HalfCycle);
+	delay(GPIO_MBus_HalfCycle);
+}
+
 uint32_t FLSMBusGPIO_rxMsg () {
 	// Received Addr is stored in FLSMBusGPIO_RxAddr
 	// Received Data is stored in FLSMBusGPIO_RxData0, FLSMBusGPIO_RxData1, FLSMBusGPIO_RxData2
@@ -213,13 +233,18 @@ uint32_t FLSMBusGPIO_rxMsg () {
 	volatile uint32_t rxBit = 0;
 	volatile uint32_t numRxBit = 0;
 	FLSMBusGPIO_RxAddr = 0x00000000;
+	FLSMBusGPIO_RxData0 = 0x00000000;
+	FLSMBusGPIO_RxData1 = 0x00000000;
+	FLSMBusGPIO_RxData2 = 0x00000000;
 
+	//write_mbus_message(0xEE, 0x44444444);
 	while(1) {
 		if (FLSMBusGPIO_getCoutDout()==1) {
 			delay(GPIO_MBus_RxBeginDelay); // Optional Delay
 			break;
 		}
 	}
+	//write_mbus_message(0xEE, 0x55555555);
 
 	FLSMBusGPIO_toggleCinDin (0x00000004, 3); // Arbitration Sequence
 
@@ -234,6 +259,8 @@ uint32_t FLSMBusGPIO_rxMsg () {
 
 		set_GPIO_bit(FLS_CIN);
 		delay(GPIO_MBus_HalfCycle);
+
+		if (FLSMBusGPIO_getCout()==0) return 9999;
 
 		if (clockNotForwarded==0) {
 			if (numRxBit < 8) { FLSMBusGPIO_RxAddr = ((FLSMBusGPIO_RxAddr << 1) | rxBit); }
@@ -264,3 +291,20 @@ uint32_t FLSMBusGPIO_rxMsg () {
 	return numRxBit;
 }
 
+void FLSMBusGPIO_forceStop () {
+	volatile uint32_t rxBit;
+
+	FLSMBusGPIO_interjection();
+
+	kill_GPIO_bit(FLS_CIN); rxBit = FLSMBusGPIO_dataFwd(); delay(GPIO_MBus_HalfCycle);
+	set_GPIO_bit(FLS_CIN); delay(GPIO_MBus_HalfCycle);
+
+	kill_GPIO_bit(FLS_CIN); rxBit = FLSMBusGPIO_dataFwd(); delay(GPIO_MBus_HalfCycle);
+	set_GPIO_bit(FLS_CIN); delay(GPIO_MBus_HalfCycle);
+
+	kill_GPIO_bit(FLS_CIN); kill_GPIO_bit(FLS_DIN); delay(GPIO_MBus_HalfCycle); // Acknowledge
+	set_GPIO_bit(FLS_CIN); delay(GPIO_MBus_HalfCycle);
+
+	kill_GPIO_bit(FLS_CIN); set_GPIO_bit(FLS_DIN); delay(GPIO_MBus_HalfCycle);
+	set_GPIO_bit(FLS_CIN); delay(GPIO_MBus_HalfCycle);
+}
