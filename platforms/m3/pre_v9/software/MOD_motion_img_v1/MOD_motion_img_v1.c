@@ -792,7 +792,7 @@ int main() {
 		MD_INT_TIME = wakeup_data_field_0;
 		INT_TIME = wakeup_data_field_1;
 
-        if (exec_count_irq < 2){
+        if (exec_count_irq < 1){
             exec_count_irq++;
             // radio
             send_radio_data(0xFAFA0000+(wakeup_data_field_2 & 0xF));	
