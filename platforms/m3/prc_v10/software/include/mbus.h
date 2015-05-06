@@ -147,3 +147,35 @@ void mbus_remote_register_read(
 		uint8_t local_reg_addr
 		);
 
+/**
+ * @brief DMA memory from this node to a remote node
+ *
+ * @param remote_mbus_address       MBus address of the remote node to write to
+ * @param remote_memory_address     Memory address on the remote node to write to
+ * @param local_address             Memory address on this node to read from
+ * @param length_in_words_minus_one The number of WORDS of memory to transfer MINUS ONE
+ */
+void mbus_DMA_local_to_remote(
+		uint8_t   remote_mbus_address,
+		uint32_t* remote_memory_address,
+		uint32_t* local_address,
+		uint32_t  length_in_words_minus_one
+		);
+
+/**
+ * @brief DMA memory from a remote node to any node
+ *
+ * @param source_mbus_address        MBus address of the remote node to read from
+ * @param source_memory_address      Memory address on the remote node to read from
+ * @param destination_mbus_address   MBus address of the node to write to
+ * @param destination_memory_address Memory address on this node to write to
+ * @param length_in_words_minus_one  The number of WORDS of memory to transfer MINUS ONE
+ */
+void mbus_DMA_remote_to_any(
+		uint8_t   source_mbus_address,
+		uint32_t* source_memory_address,
+		uint8_t   destination_mbus_address,
+		uint32_t* destination_memory_address,
+		uint32_t  length_in_words_minus_one
+		);
+

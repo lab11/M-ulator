@@ -125,6 +125,36 @@ void mbus_remote_register_read(
 			remote_prefix, remote_reg_addr, local_reg_addr, 0);
 }
 
+void mbus_DMA_local_to_remote(
+		uint8_t   remote_mbus_address,
+		uint32_t* remote_memory_address,
+		uint32_t* local_address,
+		uint32_t  length_in_words_minus_one
+		) {
+	*MBUS_CMD0 = ( ((uint32_t) remote_mbus_address) << 24 ) | (length_in_words_minus_one & 0xFFFFF);
+	*MBUS_CMD1 = (uint32_t) local_address;
+	*MBUS_CMD2 = (uint32_t) remote_memory_address;
+
+	*MBUS_FUID_LEN = MPQ_MEM_BULK_WRITE | (0x3 << 4);
+
+	// TODO: async / or sync wait for confirm?
+}
+
+void mbus_DMA_remote_to_any(
+		uint8_t   source_mbus_address,
+		uint32_t* source_memory_address,
+		uint8_t   destination_mbus_address,
+		uint32_t* destination_memory_address,
+		uint32_t  length_in_words_minus_one
+		) {
+	uint32_t payload[3] = {
+		( ((uint32_t) destination_mbus_address) << 24 ) | (length_in_words_minus_one & 0xFFFFF),
+		(uint32_t) source_memory_address,
+		(uint32_t) destination_memory_address,
+	};
+	mbus_write_message(source_mbus_address, payload, 3);
+}
+
 
 //Reads Register <reg> on <enum_addr> layer and returns data to <return_addr>
 //ONLY FOR RADv4!
