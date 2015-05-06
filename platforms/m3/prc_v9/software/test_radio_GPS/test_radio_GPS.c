@@ -397,11 +397,9 @@ static void operation_init(void){
     exec_count_irq = 0;
     MBus_msg_flag = 0;
     //Enumeration
-    enumerate(RAD_ADDR);
-    delay(MBUS_DELAY*10);
     enumerate(SNS_ADDR);
     delay(MBUS_DELAY*10);
-    enumerate(HRV_ADDR);
+    enumerate(RAD_ADDR);
     delay(MBUS_DELAY*10);
 
     // CDC Settings --------------------------------------
@@ -531,7 +529,9 @@ int main() {
         // wakeup_data[15:8] is the user-specified period
 		// wakeup_data[23:16] is the bit distance
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
-		RAD_BIT_DELAY = wakeup_data_field_2;
+		if (wakeup_data_field_2 != 0){
+			RAD_BIT_DELAY = wakeup_data_field_2;
+		}
         delay(MBUS_DELAY);
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
