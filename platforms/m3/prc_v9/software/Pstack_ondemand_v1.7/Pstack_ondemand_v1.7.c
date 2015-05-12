@@ -1,7 +1,6 @@
 //****************************************************************************************************
 //Author:       Gyouho Kim
 //              ZhiYoong Foo
-//				Yoonmyung Lee
 //Description:  Derived from zhiyoong_Pblr.c and Tstack_ondemand_temp_radio.c
 //              Moving towards Mouse Implantation
 //				Revision 1.7
@@ -75,7 +74,7 @@
 #define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 
-#define CDC_STORAGE_SIZE 40  
+#define CDC_STORAGE_SIZE 30  
 
 //***************************************************
 // Global variables
@@ -570,17 +569,17 @@ static void operation_cdc_run(){
 		MBus_msg_flag = 0;
 		release_cdc_reset();
 		for( count=0; count<CDC_TIMEOUT_COUNT; count++ ){
-			if( MBus_msg_flag ){
-				MBus_msg_flag = 0;
+			// New for P1.7
+			read_mbus_register(SNS_ADDR,2,0x15);
+			delay(MBUS_DELAY);
+			read_data = *((volatile uint32_t *) 0xA0001014);
+			if( read_data & 0x1 ) { // Check EOC
 				cdc_reset_timeout_count = 0;
 				Pstack_state = PSTK_CDC_MEAS;
 				//NEW: This makes measurement more stable
 				set_wakeup_timer (1, 0x1, 0x0);
 				operation_sleep();
 				return;
-			}
-			else{
-				delay(30);
 			}
 		}
 
@@ -627,14 +626,16 @@ static void operation_cdc_run(){
 	}else if (Pstack_state == PSTK_CDC_READ){
 		//	case PSTK_CDC_READ:
 		for( count=0; count<CDC_TIMEOUT_COUNT; count++ ){
-			if( MBus_msg_flag ){
+			// New for P1.7
+			read_mbus_register(SNS_ADDR,2,0x15);
+			delay(MBUS_DELAY);
+			read_data = *((volatile uint32_t *) 0xA0001014);
+			if( read_data & 0x1 ) { // Check EOC
 				#ifdef DEBUG_MBUS_MSG
 					write_mbus_message(0xAA, 0x33333333);
 					write_mbus_message(0xAA, 0x33333333);
 					write_mbus_message(0xAA, 0x33333333);
 				#endif
-				MBus_msg_flag = 0;
-				read_data = *((volatile uint32_t *) 0xA0001014);
 				if( read_data & 0x02 ) {
 					// If CDC data is valid
 					// Process Data
