@@ -37,7 +37,7 @@
 #include "RADv5.h"
 
 // uncomment this for debug mbus message
-//#define DEBUG_MBUS_MSG
+#define DEBUG_MBUS_MSG
 // uncomment this for debug radio message
 //#define DEBUG_RADIO_MSG
 
@@ -656,10 +656,11 @@ static void operation_cdc_run(){
 					cdc_data[cdc_data_index] = read_data_modified;
 					cdc_data_index++;
 
-					if( cdc_data_index == NUM_SAMPLES ){
+					//if( cdc_data_index == NUM_SAMPLES ){ FIXME
+					if( 0 ){
 						// Collected all data for radio TX
 						// FIXME: comment out ifdef here to observe cdc data on MBUS
-						#ifdef DEBUG_MBUS_MSG
+						//#ifdef DEBUG_MBUS_MSG
 							write_mbus_message(0xAA, 0xFFFFFFFF);
 							delay(MBUS_DELAY);
 							uint32_t i, j;
@@ -667,7 +668,7 @@ static void operation_cdc_run(){
 								delay(MBUS_DELAY*10);
 								write_mbus_message(0x77, cdc_data[i]);
 							}
-						#endif
+						//#endif
 						exec_count++;
 						process_data();
 
@@ -777,7 +778,9 @@ int main() {
   
 	//Config watchdog timer to about 10 sec: 1,000,000 with default PRCv9
 	//config_timer( timer_id, go, roi, init_val, sat_val )
-	config_timer( 0, 1, 0, 0, 1000000 );
+	//config_timer( 0, 1, 0, 0, 1000000 );
+	// FIXME
+	config_timer( 0, 0, 0, 0, 1000000 );
 
     // Initialization sequence
     if (enumerated != 0xDEADBEEF){

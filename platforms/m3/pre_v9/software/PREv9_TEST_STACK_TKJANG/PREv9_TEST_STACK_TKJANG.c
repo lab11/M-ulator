@@ -563,6 +563,7 @@ int main() {
 	date = 0;
 	timerAddr = 0;
 	write_mbus_message(0x13, 0xDDDDDDDD);
+	while(1){
 	for(i = 0; i < 4; i++){
 		startSPI(0);	// kill chip select of Timer
 		writeSPI((0x0000007F&timerAddr), 8);	// send offset address starting with 0 (read mode)
@@ -584,11 +585,12 @@ int main() {
 	}
 
 	write_mbus_message(0x13, date);
-
+	delay(10000);
+	}
 	// Reset wakeup counter
 	// This is required to go back to sleep!!
 	set_wakeup_timer(SLEEP_TIME, 0x1, 0x0);
-	*((volatile uint32_t *) 0xA2000014) = 0x20;
+	*((volatile uint32_t *) 0xA2000014) = 0x01;
 	sleep();
 	while(1);
 }
