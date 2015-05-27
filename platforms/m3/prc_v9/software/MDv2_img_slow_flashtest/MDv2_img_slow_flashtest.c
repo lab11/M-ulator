@@ -392,6 +392,18 @@ int main() {
 		
 		delay(DELAY_1);
 
+		// Flash Config
+		// Set Tprog=0x5, Tcyc=0x01C0 
+		write_mbus_register(FLS_ADDR,0x02,((0x5 << 16) | (0x01C0 << 0 )));
+		delay (MBUS_DELAY);
+		// Set VTG_TUNE = 0x8, CRT_TUNE=0x3F 
+		write_mbus_register(FLS_ADDR,0x0A,((0x8 << 6) | (0x3F << 0 )));
+		delay (MBUS_DELAY);
+		// Set IRQ Addr 14 (short addr), 00 (reg addr)
+		write_mbus_register(FLS_ADDR,0x0C,((0x14 << 8) | (0x00 << 0 )));
+		delay (MBUS_DELAY);
+
+
 	} // if first_exec
 
 	// Initialize
@@ -419,7 +431,42 @@ int main() {
 	
 	poweroff_array_adc();
 
-    set_wakeup_timer(2, 0x1, 0x0);
+
+	//* Write to Flash *//
+		// Turn on Flash
+		write_mbus_register(FLS_ADDR,0x11,0x000003);
+		delay (MBUS_DELAY);
+		asm( "wfi;" );
+		// Connect Large Cap
+		write_mbus_register(FLS_ADDR,0x09,0x00003F);
+		delay (MBUS_DELAY);
+	
+		// SRAM Start Address (maybe unnecessary, since it's already reset to 0)
+		//write_mbus_register(FLS_ADDR,0x06,0x000000);
+		//delay (MBUS_DELAY);
+		// Flash Start Address (maybe unnecessary, since it's already reset to 0)
+		//write_mbus_register(FLS_ADDR,0x07,0x000000);
+		//delay (MBUS_DELAY);
+	
+		// Erase
+		write_mbus_register(FLS_ADDR,0x05,((0x1 << 15) | (0x4 << 1) | (0x1 << 0)));
+		delay (MBUS_DELAY);
+		asm( "wfi;" );
+		
+		// Copy SRAM to Flash (8kB)
+		write_mbus_register(FLS_ADDR,0x05,((0x1 << 15) | (0x7FE << 4) | (0x2 << 1) | (0x1 << 0)));
+		delay (MBUS_DELAY);
+		asm( "wfi;" );
+	
+		// Turn Off Flash
+		write_mbus_register(FLS_ADDR,0x11,0x000002);
+		delay (MBUS_DELAY);
+		asm( "wfi;" );
+		// Disconnect Large Cap
+		write_mbus_register(FLS_ADDR,0x09,0x000000);
+		delay (MBUS_DELAY);
+
+    set_wakeup_timer(2000, 0x1, 0x0);
 	operation_sleep();
 
 	while(1);
