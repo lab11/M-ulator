@@ -37,7 +37,7 @@
 #include "RADv5.h"
 
 // uncomment this for debug mbus message
-//#define DEBUG_MBUS_MSG
+#define DEBUG_MBUS_MSG
 // uncomment this for debug radio message
 //#define DEBUG_RADIO_MSG
 
@@ -411,8 +411,7 @@ static void operation_init(void){
   
     // Speed up GOC frontend to match PMU frequency
     // PRCv9 Default: 0x00202903
-    *((volatile uint32_t *) 0xA2000008) = 0x00202508;
-	
+    *((volatile uint32_t *) 0xA2000008) = 0x00202908;
   
     delay(100);
   
@@ -575,7 +574,7 @@ static void operation_cdc_run(){
 
 		MBus_msg_flag = 0;
 		release_cdc_reset();
-		delay(MBUS_DELAY*5);
+		delay(MBUS_DELAY*10);
 		for( count=0; count<CDC_TIMEOUT_COUNT; count++ ){
 			// New for P1.7
 			read_mbus_register(SNS_ADDR,2,0x15);
@@ -615,7 +614,7 @@ static void operation_cdc_run(){
 		// Try one more time
 	    	cdc_reset_timeout_count++;
 			assert_cdc_reset();
-			delay(MBUS_DELAY*5);
+			delay(MBUS_DELAY*10);
 	    }
 
 	}else if (Pstack_state == PSTK_CDC_MEAS){
@@ -627,7 +626,7 @@ static void operation_cdc_run(){
 
 		Pstack_state = PSTK_CDC_READ;
 		fire_cdc_meas();
-		delay(MBUS_DELAY*5);
+		delay(MBUS_DELAY*10);
 		
 	}else if (Pstack_state == PSTK_CDC_READ){
 		//	case PSTK_CDC_READ:
@@ -657,10 +656,10 @@ static void operation_cdc_run(){
 					cdc_data[cdc_data_index] = read_data_modified;
 					cdc_data_index++;
 
-					if( cdc_data_index == NUM_SAMPLES ){
+					if( cdc_data_index == NUM_SAMPLES ){ 
 						// Collected all data for radio TX
 						// FIXME: comment out ifdef here to observe cdc data on MBUS
-						#ifdef DEBUG_MBUS_MSG
+						//#ifdef DEBUG_MBUS_MSG
 							write_mbus_message(0xAA, 0xFFFFFFFF);
 							delay(MBUS_DELAY);
 							uint32_t i, j;
@@ -668,7 +667,7 @@ static void operation_cdc_run(){
 								delay(MBUS_DELAY*10);
 								write_mbus_message(0x77, cdc_data[i]);
 							}
-						#endif
+						//#endif
 						exec_count++;
 						process_data();
 
@@ -778,7 +777,9 @@ int main() {
   
 	//Config watchdog timer to about 10 sec: 1,000,000 with default PRCv9
 	//config_timer( timer_id, go, roi, init_val, sat_val )
-	config_timer( 0, 1, 0, 0, 1000000 );
+	//config_timer( 0, 1, 0, 0, 1000000 );
+	// FIXME
+	config_timer( 0, 1, 0, 0, 100000000 );
 
     // Initialization sequence
     if (enumerated != 0xDEADBEEF){
@@ -834,6 +835,15 @@ int main() {
 
 		// Reset IRQ10VEC
 		*((volatile uint32_t *) IRQ10VEC) = 0;
+
+		while (1){
+			//write_mbus_message(0xAA, 0x88888888);
+			//delay(MBUS_DELAY);
+			//write_mbus_message(0xAA, cdc_data_index++);
+			//delay(MBUS_DELAY);
+			read_mbus_register(SNS_ADDR,2,0x15);
+			delay(MBUS_DELAY*2);
+		}
 
         // Run CDC Program
 		cdc_reset_timeout_count = 0;
