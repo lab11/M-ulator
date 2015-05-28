@@ -740,39 +740,45 @@ static void operation_init(void){
 	initialize_md_reg();
 
 	// Initialize FLSv1 through GPIO
+	
+// ---- Code Used Before (When we didn't know how to handle 'Arb No Response') ----
+//	FLSMBusGPIO_initialization();
+//	FLSMBusGPIO_forceStop();
+//	FLSMBusGPIO_enumeration(FLS_ADDR);
+//	FLSMBusGPIO_enumeration(FLS_ADDR);
+//	temp_numBit = FLSMBusGPIO_rxMsg();
+//	temp_addr = FLSMBusGPIO_getRxAddr(); // Optional
+//	temp_data = FLSMBusGPIO_getRxData0(); // Optional
+//	write_mbus_message(0xEE, temp_addr); // Optional
+//	write_mbus_message(0xEE, temp_data); // Optional
+//	write_mbus_message(0xEE, temp_numBit); // Optional
+//	// Set Optimum Tuning Bits
+//	FLSMBusGPIO_setOptTune(FLS_ADDR);
+//	// Receive Sleep Msg
+//	temp_numBit = FLSMBusGPIO_rxMsg();
+//	temp_addr = FLSMBusGPIO_getRxAddr(); // Optional
+//	temp_data = FLSMBusGPIO_getRxData0(); // Optional
+//	write_mbus_message(0xEE, temp_addr); // Optional
+//	write_mbus_message(0xEE, temp_data); // Optional
+//	write_mbus_message(0xEE, temp_numBit); // Optional
+//	---- END OF Code Used Before ----
+
+// ---- Code That Should Work ----
 	FLSMBusGPIO_initialization();
-	FLSMBusGPIO_forceStop();
-	FLSMBusGPIO_enumeration(FLS_ADDR);
-	FLSMBusGPIO_enumeration(FLS_ADDR);
-	temp_numBit = FLSMBusGPIO_rxMsg();
-	temp_addr = FLSMBusGPIO_getRxAddr(); // Optional
-	temp_data = FLSMBusGPIO_getRxData0(); // Optional
-	write_mbus_message(0xEE, temp_addr); // Optional
-	write_mbus_message(0xEE, temp_data); // Optional
-	write_mbus_message(0xEE, temp_numBit); // Optional
-
-	// Set Optimum Tuning Bits
-	FLSMBusGPIO_setOptTune(FLS_ADDR);
-
-	// Receive Sleep Msg
-	temp_numBit = FLSMBusGPIO_rxMsg();
-	temp_addr = FLSMBusGPIO_getRxAddr(); // Optional
-	temp_data = FLSMBusGPIO_getRxData0(); // Optional
-	write_mbus_message(0xEE, temp_addr); // Optional
-	write_mbus_message(0xEE, temp_data); // Optional
-	write_mbus_message(0xEE, temp_numBit); // Optional
+	temp_numBit = FLSMBusGPIO_rxMsg(); // Rx Wake-Up
+	temp_numBit = FLSMBusGPIO_rxMsg(); // Rx Sleep Msg
+		//write_mbus_message(0xEE, FLSMBusGPIO_getRxAddr()); // Optional
+		//write_mbus_message(0xEE, FLSMBusGPIO_getRxData0()); // Optional
+		//write_mbus_message(0xEE, temp_numBit); // Optional
+	FLSMBusGPIO_enumeration(FLS_ADDR); // Enumeration
+	temp_numBit = FLSMBusGPIO_rxMsg(); // Rx Enumeration Response
+		//write_mbus_message(0xEE, FLSMBusGPIO_getRxAddr()); // Optional
+		//write_mbus_message(0xEE, FLSMBusGPIO_getRxData0()); // Optional
+		//write_mbus_message(0xEE, temp_numBit); // Optional
+	FLSMBusGPIO_setOptTune(FLS_ADDR); // Set Optimum Tuning Bits
+// ---- END OF Code That Should Work ----
 
 	delay (1000);
-/*
-	// Check 0x0E Register
-	FLSMBusGPIO_readReg(FLS_ADDR, 0x0E, 0, 0xFF, 0xFE);
-	temp_numBit = FLSMBusGPIO_rxMsg();
-	temp_addr = FLSMBusGPIO_getRxAddr(); // Optional
-	temp_data = FLSMBusGPIO_getRxData0(); // Optional
-	write_mbus_message(0xEE, temp_addr); // Optional
-	write_mbus_message(0xEE, temp_data); // Optional
-	write_mbus_message(0xEE, temp_numBit); // Optional
-*/
 
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 100;   // 1: 2-4 sec with PRCv9
