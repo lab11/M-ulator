@@ -12,8 +12,8 @@
 #include "FLSv1_GPIO.h"
 
 // GPIO Pin Assignment
-#define MOD_DI 		0
-#define MOD_DO 		1
+#define MOD_DO 		6
+#define MOD_DI 		1
 #define MOD_CLK		2
 #define MOD_RST		4
 #define MOD_SCAN	5
@@ -28,7 +28,7 @@
 #define DELAY_1 5000 // 5000: 0.5s
 #define DELAY_IMG 40000 // 1s
 			
-#define MOD_GPIO_DELAY 100 
+#define MOD_GPIO_DELAY 10 
 
 // FLSv1 configurations
 #define FLS_RECORD_LENGTH 0x1FFE // In words; # of words stored -2
@@ -143,8 +143,8 @@ void MOD_GPIO_toggle (volatile uint32_t data, volatile uint32_t numBit) {
 	volatile uint32_t pos = 1 << (numBit - 1);
 
 	for (i=0; i<numBit; i++){
-		if (data & pos) set_GPIO_bit(MOD_DIN);
-		else kill_GPIO_bit(MOD_DIN);
+		if (data & pos) set_GPIO_bit(MOD_DI);
+		else kill_GPIO_bit(MOD_DI);
 		delay(MOD_GPIO_DELAY);
 		kill_GPIO_bit(MOD_CLK);
 		delay(MOD_GPIO_DELAY);
@@ -158,7 +158,7 @@ void MOD_GPIO_sof () {
 	// DIN goes high while CLK low, followed by posedge clk
 	kill_GPIO_bit(MOD_CLK);
 	delay(MOD_GPIO_DELAY);
-	set_GPIO_bit(MOD_DIN);
+	set_GPIO_bit(MOD_DI);
 	delay(MOD_GPIO_DELAY);
 	set_GPIO_bit(MOD_CLK);
 	delay(MOD_GPIO_DELAY);
@@ -166,25 +166,35 @@ void MOD_GPIO_sof () {
 
 void MOD_GPIO_eof () {
 	// DIN goes high, negedge clk, then goes low while clk low
-	set_GPIO_bit(MOD_DIN);
+	set_GPIO_bit(MOD_DI);
 	delay(MOD_GPIO_DELAY);
 	kill_GPIO_bit(MOD_CLK);
 	delay(MOD_GPIO_DELAY);
-	kill_GPIO_bit(MOD_DIN);
+	kill_GPIO_bit(MOD_DI);
 	delay(MOD_GPIO_DELAY);
+}
+
+uint32_t MOD_GPIO_get_do () {
+	volatile uint32_t mask = (1 << MOD_DO);
+	volatile uint32_t data = ((get_GPIO_DATA() & mask) >> MOD_DO);
+	return data;
 }
 
 void MOD_GPIO_ack () {
 	uint32_t i;
-	for (i=0; i<10; i++){
+	uint32_t rxBit = 0;
+	for (i=0; i<100; i++){
+		rxBit = MOD_GPIO_get_do();
 		if (rxBit){ 
 			// Acknowledge received
+			write_mbus_message(0xAA, get_GPIO_DATA());
 			MOD_GPIO_toggle(0,1);
 			return;
 		}
+		delay(MOD_GPIO_DELAY);
 	}
 	// Timed out
-	MOD_GPIO_reset;
+	MOD_GPIO_reset();
 }
 
 void MOD_GPIO_sendMSG (volatile uint32_t data_0) {
@@ -195,7 +205,29 @@ void MOD_GPIO_sendMSG (volatile uint32_t data_0) {
 }
 
 static void operation_modena(void){
+	write_mbus_message(0xAA, 0x1);
+	//set_GPIO_RAW(0xFFFFFFFF);
+	MOD_GPIO_reset();
+	//set_GPIO_RAW(0);
     MOD_GPIO_sendMSG(0x55);
+}
+
+static void operation_test_gpio(void){
+	write_mbus_message(0xAA, get_GPIO_DATA());
+	set_GPIO_RAW(0xFFFFFFFF);
+	delay(1000);
+	write_mbus_message(0xAA, get_GPIO_DATA());
+	set_GPIO_RAW(0x0);
+	delay(1000);
+	write_mbus_message(0xAA, get_GPIO_DATA());
+	uint8_t i;
+	for (i=0; i<15; i++){
+		uint32_t temp = get_GPIO_DATA();
+		set_GPIO_bit(i);
+		delay(1000);
+		write_mbus_message(0xAA, temp);
+	}
+	
 }
 
 //************************************
@@ -282,9 +314,6 @@ static void operation_sleep_notimer(void){
 }
 
 static void operation_init(void){
-	volatile uint32_t temp_addr;
-	volatile uint32_t temp_data;
-	volatile uint32_t temp_numBit;
   
     // Set PMU Strength & division threshold
     // PMU_CTRL Register
@@ -301,9 +330,10 @@ static void operation_init(void){
 	// For PREv9E GPIO Isolation disable >> bits 16, 17, 24
 	*((volatile uint32_t *) 0xA2000008) = 0x0120E608;
 
-
     delay(DELAY_1);
   
+	//write_mbus_message(0xAA, 0x2);
+
     //Enumerate & Initialize Registers
     enumerated = 0xDEADBEEE;
     exec_count = 0;
@@ -312,31 +342,6 @@ static void operation_init(void){
     //Enumeration
     enumerate(RAD_ADDR);
     delay(MBUS_DELAY*2);
-
-	// Initialize FLSv1 through GPIO
-	FLSMBusGPIO_initialization();
-	FLSMBusGPIO_forceStop();
-	FLSMBusGPIO_enumeration(FLS_ADDR);
-	FLSMBusGPIO_enumeration(FLS_ADDR);
-	temp_numBit = FLSMBusGPIO_rxMsg();
-	temp_addr = FLSMBusGPIO_getRxAddr(); // Optional
-	temp_data = FLSMBusGPIO_getRxData0(); // Optional
-	write_mbus_message(0xEE, temp_addr); // Optional
-	write_mbus_message(0xEE, temp_data); // Optional
-	write_mbus_message(0xEE, temp_numBit); // Optional
-
-	// Set Optimum Tuning Bits
-	FLSMBusGPIO_setOptTune(FLS_ADDR);
-
-	// Receive Sleep Msg
-	temp_numBit = FLSMBusGPIO_rxMsg();
-	temp_addr = FLSMBusGPIO_getRxAddr(); // Optional
-	temp_data = FLSMBusGPIO_getRxData0(); // Optional
-	write_mbus_message(0xEE, temp_addr); // Optional
-	write_mbus_message(0xEE, temp_data); // Optional
-	write_mbus_message(0xEE, temp_numBit); // Optional
-
-	delay (1000);
 
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 100;   // 1: 2-4 sec with PRCv9
@@ -348,14 +353,13 @@ static void operation_init(void){
 	md_capture_img = 0;
 	md_count = 0;
 
-	INT_TIME = 5;
-	MD_INT_TIME = 15;
-
-	// Put FLS back to sleep
-	FLSMBusGPIO_sleep();
-
     // Go to sleep without timer
-    operation_sleep_notimer();
+    //operation_sleep_notimer();
+	MOD_GPIO_initialization();
+	while(1){
+	    //operation_modena(); 
+	    operation_test_gpio(); 
+	}
 }
 
 //***************************************************************************************
@@ -373,9 +377,9 @@ int main() {
 	config_timer( 0, 0, 0, 0, 3000000 );
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEEE){
+    //if (enumerated != 0xDEADBEEE){
         operation_init();
-    }
+    //}
 
     // Check if wakeup is due to GOC interrupt  
     // 0x68 is reserved for GOC-triggered wakeup (Named IRQ10VEC)
@@ -410,67 +414,8 @@ int main() {
         }
    
     }else if(wakeup_data_header == 2){
-		// Start motion detection
-        // wakeup_data[7:0] is the md integration period
-        // wakeup_data[15:8] is the img integration period
-        // wakeup_data[19:16] indicates whether or not to to take an image
-		// 						1: md only, 2: img only, 3: md+img
-        // wakeup_data[23:20] indicates whether or not to radio out the result
-
-		MD_INT_TIME = wakeup_data_field_0;
-		INT_TIME = wakeup_data_field_1;
-
-        if (exec_count_irq < 1){
-            exec_count_irq++;
-            // radio
-            send_radio_data(0xFAFA0000+(wakeup_data_field_2 & 0xF));	
-            // set timer
-            set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
-            // go to sleep and wake up with same condition
-            operation_sleep_noirqreset();
-
-        }else{
-            exec_count_irq = 0;
-			// Reset IRQ10VEC
-			*((volatile uint32_t *) IRQ10VEC) = 0;
-
-			// Run Program
-			exec_count = 0;
-			md_count = 0;
-			md_start_motion = (wakeup_data_field_2 & 0x1);
-			md_capture_img = (wakeup_data_field_2 & 0x2)>>1;
-			radio_tx_option = (wakeup_data_field_2 >> 4) & 0x1;
-			operation_md();
-        }
    
     }else if(wakeup_data_header == 3){
-		// Stop MD program and transmit the execution count n times
-        // wakeup_data[7:0] is the # of transmissions
-        // wakeup_data[15:8] is the user-specified period 
-        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
-		
-		clear_md_flag();
-		initialize_md_reg();
-        set_pmu_sleep_clk_default();
-		md_start_motion = 0;
-		md_capture_img = 0;
-
-        if (exec_count_irq < wakeup_data_field_0){
-            exec_count_irq++;
-            // radio
-            send_radio_data(0xFAFA0000+md_count);	
-            // set timer
-            set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
-            // go to sleep and wake up with same condition
-            operation_sleep_noirqreset();
-
-        }else{
-            exec_count_irq = 0;
-            // Go to sleep without timer
-            operation_sleep_notimer();
-        }
-
-
 
     }else if(wakeup_data_header == 4){
 
