@@ -642,7 +642,8 @@ static void operation_cdc_run(){
 			read_data = *((volatile uint32_t *) 0xA0001014);
 			//if( read_data & 0x1 ) { // Check EOC
 			if( 1 ) { // Check EOC
-				if( read_data & 0x2 ) {
+				//if( read_data & 0x2 ) {
+				if( 1 ) {
 					#ifdef DEBUG_MBUS_MSG
 						write_mbus_message(0xAA, 0x77777777);
 					#endif
