@@ -5,7 +5,7 @@
 
 //Register 0x0
 typedef union snsv3_r0{
-  struct{
+  struct{ // LSB First
     unsigned CDC_ext_select_CR 	: 1;
     unsigned CDC_max_select 	: 3;
     unsigned CDC_ext_max 	: 1;

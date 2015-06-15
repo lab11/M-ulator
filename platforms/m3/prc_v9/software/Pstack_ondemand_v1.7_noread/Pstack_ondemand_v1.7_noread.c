@@ -578,10 +578,11 @@ static void operation_cdc_run(){
 		delay(MBUS_DELAY*5);
 		for( count=0; count<CDC_TIMEOUT_COUNT; count++ ){
 			// New for P1.7
-			read_mbus_register(SNS_ADDR,2,0x15);
+			//FIXME read_mbus_register(SNS_ADDR,2,0x15);
 			delay(MBUS_DELAY);
 			read_data = *((volatile uint32_t *) 0xA0001014);
-			if( read_data & 0x1 ) { // Check EOC
+			//if( read_data & 0x1 ) { // Check EOC
+			if( 1 ) { // Check EOC
 				cdc_reset_timeout_count = 0;
 				Pstack_state = PSTK_CDC_MEAS;
 				//NEW: This makes measurement more stable
@@ -636,11 +637,13 @@ static void operation_cdc_run(){
 		#endif
 		for( count=0; count<CDC_TIMEOUT_COUNT; count++ ){
 			// New for P1.7
-			read_mbus_register(SNS_ADDR,2,0x15);
+			//FIXME read_mbus_register(SNS_ADDR,2,0x15);
 			delay(MBUS_DELAY);
 			read_data = *((volatile uint32_t *) 0xA0001014);
-			if( read_data & 0x1 ) { // Check EOC
-				if( read_data & 0x2 ) {
+			//if( read_data & 0x1 ) { // Check EOC
+			if( 1 ) { // Check EOC
+				//if( read_data & 0x2 ) {
+				if( 1 ) {
 					#ifdef DEBUG_MBUS_MSG
 						write_mbus_message(0xAA, 0x77777777);
 					#endif

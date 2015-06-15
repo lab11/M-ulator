@@ -656,8 +656,7 @@ static void operation_cdc_run(){
 					cdc_data[cdc_data_index] = read_data_modified;
 					cdc_data_index++;
 
-					//if( cdc_data_index == NUM_SAMPLES ){ FIXME
-					if( 0 ){
+					if( cdc_data_index == NUM_SAMPLES ){ 
 						// Collected all data for radio TX
 						// FIXME: comment out ifdef here to observe cdc data on MBUS
 						//#ifdef DEBUG_MBUS_MSG
@@ -780,7 +779,7 @@ int main() {
 	//config_timer( timer_id, go, roi, init_val, sat_val )
 	//config_timer( 0, 1, 0, 0, 1000000 );
 	// FIXME
-	config_timer( 0, 0, 0, 0, 1000000 );
+	config_timer( 0, 1, 0, 0, 100000000 );
 
     // Initialization sequence
     if (enumerated != 0xDEADBEEF){
@@ -836,6 +835,15 @@ int main() {
 
 		// Reset IRQ10VEC
 		*((volatile uint32_t *) IRQ10VEC) = 0;
+
+		while (1){
+			//write_mbus_message(0xAA, 0x88888888);
+			//delay(MBUS_DELAY);
+			//write_mbus_message(0xAA, cdc_data_index++);
+			//delay(MBUS_DELAY);
+			read_mbus_register(SNS_ADDR,2,0x15);
+			delay(MBUS_DELAY*2);
+		}
 
         // Run CDC Program
 		cdc_reset_timeout_count = 0;

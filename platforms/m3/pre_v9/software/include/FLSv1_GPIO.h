@@ -13,8 +13,9 @@
 #define FLS_DOUT 15
 
 // Delay
-#define GPIO_MBus_HalfCycle 1 // 10
-#define GPIO_MBus_RxBeginDelay 1 // 100
+#define GPIO_MBus_QuarterCycle 1 // 10
+#define GPIO_MBus_HalfCycle 2 // 20
+#define GPIO_MBus_RxBeginDelay 4 // 100
 
 #include <stdint.h>
 #include <stdbool.h>

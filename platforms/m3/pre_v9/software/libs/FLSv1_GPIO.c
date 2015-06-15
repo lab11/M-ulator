@@ -116,7 +116,9 @@ void FLSMBusGPIO_interjection () {
 	for (i=0; i<6; i++){
 		kill_GPIO_bit(FLS_DIN);
 		delay(GPIO_MBus_HalfCycle);
+		delay(GPIO_MBus_HalfCycle);
 		set_GPIO_bit(FLS_DIN);
+		delay(GPIO_MBus_HalfCycle);
 		delay(GPIO_MBus_HalfCycle);
 	}
 }
@@ -237,45 +239,62 @@ uint32_t FLSMBusGPIO_rxMsg () {
 	FLSMBusGPIO_RxData1 = 0x00000000;
 	FLSMBusGPIO_RxData2 = 0x00000000;
 
-	//write_mbus_message(0xEE, 0x44444444);
 	while(1) {
 		if (FLSMBusGPIO_getCoutDout()==1) {
 			delay(GPIO_MBus_RxBeginDelay); // Optional Delay
 			break;
 		}
 	}
-	//write_mbus_message(0xEE, 0x55555555);
 
-	FLSMBusGPIO_toggleCinDin (0x00000004, 3); // Arbitration Sequence
+	// Arbitration Sequence
+	//	FLSMBusGPIO_toggleCinDin (0x00000004, 3); // Arbitration Sequence (OLD)
+	kill_GPIO_bit(FLS_CIN); set_GPIO_bit(FLS_DIN); delay(GPIO_MBus_QuarterCycle); rxBit = ((rxBit << 1) | FLSMBusGPIO_getDout()); delay(GPIO_MBus_QuarterCycle);
+	set_GPIO_bit(FLS_CIN); delay(GPIO_MBus_HalfCycle);
 
-	while(1) {
-		kill_GPIO_bit(FLS_CIN);
+	kill_GPIO_bit(FLS_CIN); delay(GPIO_MBus_QuarterCycle); rxBit = ((rxBit << 1) | FLSMBusGPIO_dataFwd()); delay(GPIO_MBus_QuarterCycle);
+	set_GPIO_bit(FLS_CIN); delay(GPIO_MBus_HalfCycle);
 
-		rxBit = FLSMBusGPIO_dataFwd();
-		if ((FLSMBusGPIO_getCout()==1) & (clockNotForwarded==0)) clockNotForwarded = 1;
-		else if (FLSMBusGPIO_getCout()==1) isLast = 1;
+	kill_GPIO_bit(FLS_CIN); delay(GPIO_MBus_QuarterCycle); rxBit = ((rxBit << 1) | FLSMBusGPIO_dataFwd()); delay(GPIO_MBus_QuarterCycle);
+	set_GPIO_bit(FLS_CIN); delay(GPIO_MBus_HalfCycle);
 
-		delay(GPIO_MBus_HalfCycle);
+	// Main Part
+	if (rxBit == 0x00000007) { // If Data remains 1 during the Arbitration Sequence
+		kill_GPIO_bit(FLS_CIN); delay(GPIO_MBus_QuarterCycle); rxBit = FLSMBusGPIO_dataFwd(); delay(GPIO_MBus_QuarterCycle);
+		set_GPIO_bit(FLS_CIN); delay(GPIO_MBus_HalfCycle);
+	}
+	else { // If Data remains 0 during the Arbitration Sequence (this is normal, since there's no other layer involved)
+		while(1) {
+			kill_GPIO_bit(FLS_CIN);
+			delay(GPIO_MBus_QuarterCycle);
 
-		set_GPIO_bit(FLS_CIN);
-		delay(GPIO_MBus_HalfCycle);
+			rxBit = FLSMBusGPIO_dataFwd();
+			if ((FLSMBusGPIO_getCout()==1) & (clockNotForwarded==0)) clockNotForwarded = 1;
+			else if (FLSMBusGPIO_getCout()==1) isLast = 1;
 
-		if (FLSMBusGPIO_getCout()==0) return 9999;
+			delay(GPIO_MBus_QuarterCycle);
 
-		if (clockNotForwarded==0) {
-			if (numRxBit < 8) { FLSMBusGPIO_RxAddr = ((FLSMBusGPIO_RxAddr << 1) | rxBit); }
-			else if (numRxBit < 40) { FLSMBusGPIO_RxData0 = ((FLSMBusGPIO_RxData0 << 1) | rxBit); }
-			else if (numRxBit < 72) { FLSMBusGPIO_RxData1 = ((FLSMBusGPIO_RxData1 << 1) | rxBit); }
-			else if (numRxBit < 104) { FLSMBusGPIO_RxData2 = ((FLSMBusGPIO_RxData2 << 1) | rxBit); }
-			else return 999; // Overflow
-			numRxBit++;
+			set_GPIO_bit(FLS_CIN);
+			delay(GPIO_MBus_HalfCycle);
+
+			if (FLSMBusGPIO_getCout()==0) return 9999;
+
+			if (clockNotForwarded==0) {
+				if (numRxBit < 8) { FLSMBusGPIO_RxAddr = ((FLSMBusGPIO_RxAddr << 1) | rxBit); }
+				else if (numRxBit < 40) { FLSMBusGPIO_RxData0 = ((FLSMBusGPIO_RxData0 << 1) | rxBit); }
+				else if (numRxBit < 72) { FLSMBusGPIO_RxData1 = ((FLSMBusGPIO_RxData1 << 1) | rxBit); }
+				else if (numRxBit < 104) { FLSMBusGPIO_RxData2 = ((FLSMBusGPIO_RxData2 << 1) | rxBit); }
+				else return 999; // Overflow
+				numRxBit++;
+			}
+
+			if (isLast==1) break;
 		}
-
-		if (isLast==1) break;
 	}
 
+	// Interjection
 	FLSMBusGPIO_interjection();
 
+	// Control Bits
 	kill_GPIO_bit(FLS_CIN); rxBit = FLSMBusGPIO_dataFwd(); delay(GPIO_MBus_HalfCycle);
 	set_GPIO_bit(FLS_CIN); delay(GPIO_MBus_HalfCycle);
 
@@ -288,6 +307,7 @@ uint32_t FLSMBusGPIO_rxMsg () {
 	kill_GPIO_bit(FLS_CIN); set_GPIO_bit(FLS_DIN); delay(GPIO_MBus_HalfCycle);
 	set_GPIO_bit(FLS_CIN); delay(GPIO_MBus_HalfCycle);
 
+	// Return the number of received bits
 	return numRxBit;
 }
 
