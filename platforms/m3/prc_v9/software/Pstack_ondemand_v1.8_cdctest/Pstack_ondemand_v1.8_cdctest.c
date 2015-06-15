@@ -305,9 +305,9 @@ static void cdc_power_off(){
     write_mbus_register(SNS_ADDR,0,snsv5_r0.as_int);
     delay(MBUS_DELAY);
 	snsv5_r18.CDC_LDO_CDC_LDO_DLY_ENB = 0x1;
-	//snsv5_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0x1;
+	snsv5_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0x1;
 	snsv5_r18.CDC_LDO_CDC_LDO_ENB = 0x1;
-	//snsv5_r18.ADC_LDO_ADC_LDO_ENB = 0x1;
+	snsv5_r18.ADC_LDO_ADC_LDO_ENB = 0x1;
 	write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
     delay(MBUS_DELAY);
 }
@@ -578,8 +578,8 @@ static void operation_cdc_run(){
 		snsv5_r18.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
 		write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
 		delay(LDO_DELAY); // This delay is required to avoid current spike
-		//snsv5_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
-		//write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
+		snsv5_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
+		write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
 		// Put system to sleep
 		set_wakeup_timer (WAKEUP_PERIOD_LDO, 0x1, 0x0);
 		operation_sleep();
