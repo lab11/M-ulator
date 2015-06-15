@@ -1,8 +1,9 @@
 //*******************************************************************
 //Author: ZhiYoong Foo
-//Description: PRCv10 Functionality Tests
+//Description: PRCv11 Functionality Tests
 //*******************************************************************
-#include "PRCv10.h"
+#include "PRCv11.h"
+#include "mbus.h"
 
 //***************************************************
 //Interrupt Handlers
@@ -31,7 +32,6 @@ void handler_ext_int_1(void){
 
 
 int main() {
-  volatile a,b,c;
   
   //Clear All Pending Interrupts
   //  *((volatile uint32_t *) 0xE000E280) = 0x3FF;
@@ -39,33 +39,23 @@ int main() {
   //  *((volatile uint32_t *) 0xE000E100) = 0x3FF;
   
   //Chip ID
-  write_config_reg(0x0,0xDEAD);
+  write_config_reg(0x8,0xDEAD);
   
-  //TIMER32 test
-/*   config_timer32(0x100, 0x1, 0x0); */
+
+  //MBUS
+  mbus_enumerate(0x4);
   
-/*   a=10; */
-/*   b=20; */
-/*   c=a*b; */
-/*   write_config_reg(0x0,c); */
-  volatile uint32_t payload = 0x24000000;
-  *((volatile uint32_t *) 0xA0001400) = 0x0;
-  *((volatile uint32_t *) 0xA0001404) = &payload;
-  //  *((volatile uint32_t *) 0xA0001408) = 0x;
-  *((volatile uint32_t *) 0xA000140C) = 0x3 | (0x2 << 4);
+  reset_checking_local();
 
-
-  //Initialize
+  //Never Quit
   while(1){
 	asm("nop;");
   }
 
 }
 
-int write_config_reg_local(uint8_t reg, uint32_t data ){
-	uint32_t _addr = 0xA0000000;
-	_addr |= (reg << 2);
 
-	*((volatile uint32_t *) _addr) = data;
-	return 0;
+void reset_checking_local(void){
+  uint32_t data;
+  data = read_config_reg(0x0);
 }

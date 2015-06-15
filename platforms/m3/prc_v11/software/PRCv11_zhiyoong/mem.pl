@@ -1,5 +1,5 @@
-open (IN, "PRCv10_zhiyoong.hex");
-open (OUT, ">PRCv10_zhiyoong.hex.mem");
+open (IN, "PRCv11_zhiyoong.hex");
+open (OUT, ">PRCv11_zhiyoong.hex.mem");
 
 @lines = <IN>;
 chomp(@lines);

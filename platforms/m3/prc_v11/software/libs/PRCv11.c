@@ -1,17 +1,23 @@
 //*******************************************************************
 //Author: Yoonmyung Lee
 //        ZhiYoong Foo
-//Description: PRCv10 lib file
+//Description: PRCv11 lib file
 //*******************************************************************
 
-#include "PRCv10.h"
+#include "PRCv11.h"
 
-int write_config_reg(uint8_t reg, uint32_t data ){
-	uint32_t _addr = 0xA0000000;
-	_addr |= (reg << 2);
+void write_config_reg(uint8_t reg, uint32_t data ){
+  uint32_t _addr = 0xA0000000;
+  _addr |= (reg << 2);
+  
+  *((volatile uint32_t *) _addr) = data;
+  return 0;
+}
 
-	*((volatile uint32_t *) _addr) = data;
-	return 0;
+int read_config_reg(uint8_t reg){
+  uint32_t _addr = 0xA0000000;
+  _addr |= (reg << 2);
+  return *((volatile uint32_t *) _addr);
 }
 
 void delay(unsigned ticks){
