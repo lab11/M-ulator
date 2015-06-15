@@ -17,7 +17,6 @@ typedef union snsv5_r0{
     unsigned CDCW_PG_VBAT 	: 1;
     unsigned CDCW_PG_V1P2 	: 1;
     unsigned CDCW_PG_VLDO 	: 1;
-
   };
   uint32_t as_int;
 } snsv5_r0_t;
@@ -95,7 +94,7 @@ _Static_assert(sizeof(snsv5_r17_t) == 4, "Punned Structure Size");
 
 //Register 18
 typedef union snsv5_r18{
-  struct{
+  struct{ // LSB first
     unsigned CDC_LDO_CDC_LDO_ENB        : 1;
     unsigned CDC_LDO_CDC_LDO_DLY_ENB    : 1;
     unsigned CDC_LDO_CDC_VREF_MUX_SEL   : 2;
