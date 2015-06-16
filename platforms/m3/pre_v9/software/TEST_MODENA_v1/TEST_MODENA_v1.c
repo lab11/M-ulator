@@ -28,7 +28,7 @@
 #define DELAY_1 5000 // 5000: 0.5s
 #define DELAY_IMG 40000 // 1s
 			
-#define MOD_GPIO_DELAY 10 
+#define MOD_GPIO_DELAY 0 
 
 // FLSv1 configurations
 #define FLS_RECORD_LENGTH 0x1FFE // In words; # of words stored -2
@@ -121,7 +121,7 @@ void MOD_GPIO_initialization(){
 }
 
 void MOD_GPIO_reset(){
-	set_GPIO_WRITE(0x00000000);
+	kill_GPIO_bit(MOD_DI);
 	delay(MOD_GPIO_DELAY);
 	set_GPIO_bit(MOD_CLK);
 	delay(MOD_GPIO_DELAY);
@@ -145,11 +145,9 @@ void MOD_GPIO_toggle (volatile uint32_t data, volatile uint32_t numBit) {
 	for (i=0; i<numBit; i++){
 		if (data & pos) set_GPIO_bit(MOD_DI);
 		else kill_GPIO_bit(MOD_DI);
-		delay(MOD_GPIO_DELAY);
 		kill_GPIO_bit(MOD_CLK);
-		delay(MOD_GPIO_DELAY);
+		kill_GPIO_bit(MOD_CLK);
 		set_GPIO_bit(MOD_CLK);
-		delay(MOD_GPIO_DELAY);
 		pos = pos >> 1;
 	}
 }
@@ -183,15 +181,15 @@ uint32_t MOD_GPIO_get_do () {
 void MOD_GPIO_ack () {
 	uint32_t i;
 	uint32_t rxBit = 0;
-	for (i=0; i<100; i++){
+	for (i=0; i<50; i++){
 		rxBit = MOD_GPIO_get_do();
 		if (rxBit){ 
 			// Acknowledge received
-			write_mbus_message(0xAA, get_GPIO_DATA());
+			write_mbus_message(0xAA, 0x2);
 			MOD_GPIO_toggle(0,1);
 			return;
 		}
-		delay(MOD_GPIO_DELAY);
+		//delay(MOD_GPIO_DELAY);
 	}
 	// Timed out
 	MOD_GPIO_reset();
@@ -206,10 +204,11 @@ void MOD_GPIO_sendMSG (volatile uint32_t data_0) {
 
 static void operation_modena(void){
 	write_mbus_message(0xAA, 0x1);
-	//set_GPIO_RAW(0xFFFFFFFF);
+	delay(MOD_GPIO_DELAY*10);
 	MOD_GPIO_reset();
-	//set_GPIO_RAW(0);
-    MOD_GPIO_sendMSG(0x55);
+	//set_GPIO_bit(MOD_SCAN);
+	delay(MOD_GPIO_DELAY*10);
+    MOD_GPIO_sendMSG(0xE4);
 }
 
 static void operation_test_gpio(void){
@@ -328,7 +327,12 @@ static void operation_init(void){
 	//*((volatile uint32_t *) 0xA2000008) = 0x00202608;
   
 	// For PREv9E GPIO Isolation disable >> bits 16, 17, 24
-	*((volatile uint32_t *) 0xA2000008) = 0x0120E608;
+	//*((volatile uint32_t *) 0xA2000008) = 0x0120E608;
+	
+
+	// For PREv9E GPIO Isolation disable >> bits 16, 17, 24
+	// Speed up Core clock
+	*((volatile uint32_t *) 0xA2000008) = 0x0120C708;
 
     delay(DELAY_1);
   
@@ -357,8 +361,10 @@ static void operation_init(void){
     //operation_sleep_notimer();
 	MOD_GPIO_initialization();
 	while(1){
-	    //operation_modena(); 
-	    operation_test_gpio(); 
+	    operation_modena(); 
+		while(1);
+		//operation_sleep();
+	    //operation_test_gpio(); 
 	}
 }
 

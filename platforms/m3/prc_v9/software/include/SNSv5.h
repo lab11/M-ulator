@@ -99,15 +99,16 @@ typedef union snsv5_r18{
     unsigned CDC_LDO_CDC_LDO_DLY_ENB    : 1;
     unsigned CDC_LDO_CDC_VREF_MUX_SEL   : 2;
     unsigned CDC_LDO_CDC_VREF_SEL       : 6;
+    unsigned CDC_LDO_CDC_CURRENT_2X     : 1;
     unsigned ADC_LDO_ADC_LDO_ENB        : 1;
     unsigned ADC_LDO_ADC_LDO_DLY_ENB    : 1;
     unsigned ADC_LDO_ADC_VREF_MUX_SEL   : 2;
     unsigned ADC_LDO_ADC_VREF_SEL       : 6;
-    unsigned LC_CLK_CONF                : 4;
+    unsigned ADC_LDO_ADC_CURRENT_2X     : 1;
   };
   uint32_t as_int;
 } snsv5_r18_t;
-#define SNSv5_R18_DEFAULT {{0x1, 0x1, 0x2, 0x04, 0x1, 0x1, 0x2, 0x04, 0x9}}
+//#define SNSv5_R18_DEFAULT {{0x1, 0x1, 0x2, 0x04, 0x1, 0x1, 0x2, 0x04, 0x9}}
 _Static_assert(sizeof(snsv5_r18_t) == 4, "Punned Structure Size");
 
 //Register 19
@@ -126,7 +127,7 @@ typedef union snsv5_r19{
   };
   uint32_t as_int;
 } snsv5_r19_t;
-#define SNSv5_R19_DEFAULT {{0x1, 0x1, 0x0, 0x0, 0x1, 0x0, 0x0, 0x6, 0x1, 0x0}}
+//#define SNSv5_R19_DEFAULT {{0x1, 0x1, 0x0, 0x0, 0x1, 0x0, 0x0, 0x6, 0x1, 0x0}}
 _Static_assert(sizeof(snsv5_r19_t) == 4, "Punned Structure Size");
   
 //Register 20
@@ -138,7 +139,7 @@ typedef union snsv5_r20{
   };
   uint32_t as_int;
 } snsv5_r20_t;
-#define SNSv5_R20_DEFAULT {{0x1F, 0x1F, 0x0}}
+//#define SNSv5_R20_DEFAULT {{0x1F, 0x1F, 0x0}}
 _Static_assert(sizeof(snsv5_r20_t) == 4, "Punned Structure Size");
 
 //Register 21
@@ -153,6 +154,6 @@ typedef union snsv5_r22{
   };
   uint32_t as_int;
 } snsv5_r22_t;
-#define SNSv5_R22_DEFAULT {{0x2, 0x1}}
+//#define SNSv5_R22_DEFAULT {{0x2, 0x1}}
 _Static_assert(sizeof(snsv5_r22_t) == 4, "Punned Structure Size");
 

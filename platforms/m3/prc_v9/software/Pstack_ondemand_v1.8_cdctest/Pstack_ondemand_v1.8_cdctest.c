@@ -490,6 +490,8 @@ static void operation_init(void){
     snsv5_r18.CDC_LDO_CDC_LDO_DLY_ENB  = 0x1;
     snsv5_r18.ADC_LDO_ADC_LDO_ENB      = 0x1;
     snsv5_r18.ADC_LDO_ADC_LDO_DLY_ENB  = 0x1;
+    snsv5_r18.CDC_LDO_CDC_CURRENT_2X  = 0x1;
+    snsv5_r18.ADC_LDO_ADC_CURRENT_2X  = 0x1;
 
     // Set ADC LDO to around 1.37V: 0x3//0x20
     snsv5_r18.ADC_LDO_ADC_VREF_MUX_SEL = 0x3;
@@ -499,7 +501,6 @@ static void operation_init(void){
     snsv5_r18.CDC_LDO_CDC_VREF_MUX_SEL = 0x0;
     snsv5_r18.CDC_LDO_CDC_VREF_SEL     = 0x20;
 
-    snsv5_r18.LC_CLK_CONF              = 0x9; // default = 0x9
     write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
 
     // Radio Settings --------------------------------------
@@ -562,7 +563,7 @@ static void operation_cdc_run(){
 		cdc_reset_timeout_count = 0;
 
 		snsv5_r18.CDC_LDO_CDC_LDO_ENB = 0x0;
-		//snsv5_r18.ADC_LDO_ADC_LDO_ENB = 0x0;
+		snsv5_r18.ADC_LDO_ADC_LDO_ENB = 0x0;
 		write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
 		// Long delay required here
 		// Put system to sleep
