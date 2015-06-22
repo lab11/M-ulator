@@ -651,9 +651,20 @@ static void operation_cdc_run(){
 
 
 		// FIXME
+    	uint32_t read_data_reg3;
     	uint32_t read_data_reg4;
     	uint32_t read_data_reg5;
     	uint32_t read_data_reg6;
+    	uint32_t read_data_reg7;
+    	uint32_t read_data_reg8;
+    	uint32_t read_data_reg9;
+    	uint32_t read_data_regA;
+    	uint32_t read_data_regB;
+    	uint32_t read_data_regC;
+    	uint32_t read_data_regD;
+		read_mbus_register(SNS_ADDR,3,0x15);
+		delay(MBUS_DELAY);
+		read_data_reg3 = *((volatile uint32_t *) 0xA0001014);
 		read_mbus_register(SNS_ADDR,4,0x15);
 		delay(MBUS_DELAY);
 		read_data_reg4 = *((volatile uint32_t *) 0xA0001014);
@@ -663,17 +674,60 @@ static void operation_cdc_run(){
 		read_mbus_register(SNS_ADDR,6,0x15);
 		delay(MBUS_DELAY);
 		read_data_reg6 = *((volatile uint32_t *) 0xA0001014);
+		read_mbus_register(SNS_ADDR,7,0x15);
+		delay(MBUS_DELAY);
+		read_data_reg7 = *((volatile uint32_t *) 0xA0001014);
+		read_mbus_register(SNS_ADDR,8,0x15);
+		delay(MBUS_DELAY);
+		read_data_reg8 = *((volatile uint32_t *) 0xA0001014);
+		read_mbus_register(SNS_ADDR,9,0x15);
+		delay(MBUS_DELAY);
+		read_data_reg9 = *((volatile uint32_t *) 0xA0001014);
+		read_mbus_register(SNS_ADDR,0xA,0x15);
+		delay(MBUS_DELAY);
+		read_data_regA = *((volatile uint32_t *) 0xA0001014);
+		read_mbus_register(SNS_ADDR,0xB,0x15);
+		delay(MBUS_DELAY);
+		read_data_regB = *((volatile uint32_t *) 0xA0001014);
+		read_mbus_register(SNS_ADDR,0xC,0x15);
+		delay(MBUS_DELAY);
+		read_data_regC = *((volatile uint32_t *) 0xA0001014);
+		read_mbus_register(SNS_ADDR,0xD,0x15);
+		delay(MBUS_DELAY);
+		read_data_regD = *((volatile uint32_t *) 0xA0001014);
+
 		delay(MBUS_DELAY*10);
 		delay(MBUS_DELAY*10);
 		delay(MBUS_DELAY*10);
-		write_mbus_message(0x79, read_data_reg6);
-		delay(MBUS_DELAY*10);
-		write_mbus_message(0x78, read_data_reg5);
-		delay(MBUS_DELAY*10);
-		write_mbus_message(0x77, read_data_reg4);
-		delay(MBUS_DELAY*10);
-		//write_mbus_message(0x76, (read_data_reg4<<8)/read_data_reg6);
-		//delay(MBUS_DELAY*10);
+		write_mbus_message(0xAA, 0xF3);
+		delay(MBUS_DELAY*20);
+		write_mbus_message(0xAA, 0xF2);
+		delay(MBUS_DELAY*20);
+		write_mbus_message(0xAA, 0xF1);
+		delay(MBUS_DELAY*20);
+		write_mbus_message(0x73, read_data_reg3);
+		delay(MBUS_DELAY*20);
+		write_mbus_message(0x74, read_data_reg4);
+		delay(MBUS_DELAY*20);
+		write_mbus_message(0x75, read_data_reg5);
+		delay(MBUS_DELAY*20);
+		write_mbus_message(0x76, read_data_reg6);
+		delay(MBUS_DELAY*20);
+		write_mbus_message(0x77, read_data_reg7);
+		delay(MBUS_DELAY*20);
+		write_mbus_message(0x78, read_data_reg8);
+		delay(MBUS_DELAY*20);
+		write_mbus_message(0x79, read_data_reg9);
+		delay(MBUS_DELAY*20);
+		write_mbus_message(0x7A, read_data_regA);
+		delay(MBUS_DELAY*20);
+		write_mbus_message(0x7B, read_data_regB);
+		delay(MBUS_DELAY*20);
+		write_mbus_message(0x7C, read_data_regC);
+		delay(MBUS_DELAY*20);
+		write_mbus_message(0x7D, read_data_regD);
+		delay(MBUS_DELAY*20);
+		delay(MBUS_DELAY*20);
 
 
 		// FIXME
