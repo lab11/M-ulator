@@ -157,3 +157,15 @@ typedef union snsv5_r22{
 //#define SNSv5_R22_DEFAULT {{0x2, 0x1}}
 _Static_assert(sizeof(snsv5_r22_t) == 4, "Punned Structure Size");
 
+
+// Declare the structs
+extern volatile snsv5_r0_t snsv5_r0;
+extern volatile snsv5_r1_t snsv5_r1;
+extern volatile snsv5_r2_t snsv5_r2;
+extern volatile snsv5_r14_t snsv5_r14;
+extern volatile snsv5_r15_t snsv5_r15;
+extern volatile snsv5_r17_t snsv5_r17;
+extern volatile snsv5_r18_t snsv5_r18;
+extern volatile snsv5_r19_t snsv5_r19;
+extern volatile snsv5_r20_t snsv5_r20;
+extern volatile snsv5_r22_t snsv5_r22;
