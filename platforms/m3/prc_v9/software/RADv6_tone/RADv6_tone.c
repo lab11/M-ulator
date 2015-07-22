@@ -4,6 +4,7 @@
 //Description: 	Test program for RADv6
 //*******************************************************************
 #include "mbus.h"
+#include "PRCv9.h"
 
 #define RAD_ADDR 0x3
 
@@ -33,13 +34,6 @@ void handler_ext_int_2(void){
 }
 void handler_ext_int_3(void){
   *((volatile uint32_t *) 0xE000E280) = 0x8;
-}
-
-//Internal Functions
-static void delay(unsigned ticks) {
-  unsigned i;
-  for (i=0; i < ticks; i++)
-    asm("nop;");
 }
 
 //***************************************************
