@@ -335,7 +335,7 @@ static void operation_temp(void){
     delay(MBUS_DELAY);
     write_mbus_register(SNS_ADDR,3,_sns_r3);
     
-    operation_sleep();
+    operation_sleep_notimer();
   }
 
   delay(MBUS_DELAY);
@@ -427,8 +427,8 @@ int main() {
     // Change PMU_CTRL Register
     // PRCv8H Default: 
     // Speed up Active SCN clock
-  //  *((volatile uint32_t *) 0xA200000C) = 0x4F773829;
-  //  delay(MBUS_DELAY);
+    *((volatile uint32_t *) 0xA200000C) = 0x8F770079;
+    delay(MBUS_DELAY);
 
     // Change GOC_CTRL Register
     // Change CPU & MBUS clock divider settings, and ring select
