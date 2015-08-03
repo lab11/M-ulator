@@ -646,11 +646,11 @@ static void operation_temp(void){
 		delay(MBUS_DELAY*10);
 		write_mbus_message(0xAA, 0xF1);
 		delay(MBUS_DELAY*20); 
-		write_mbus_message(0x73, read_data_regD);
+		write_mbus_message(0x73, 1);
 		delay(MBUS_DELAY*40);//
 		write_mbus_message(0x73, 1);
 		delay(MBUS_DELAY*40);//
-		write_mbus_message(0x74, 2);
+		write_mbus_message(0x74, (read_data_regD&(~(1<<18))));
 		delay(MBUS_DELAY*40);//
 		write_mbus_message(0x75, 3);
 		delay(MBUS_DELAY*40);//
