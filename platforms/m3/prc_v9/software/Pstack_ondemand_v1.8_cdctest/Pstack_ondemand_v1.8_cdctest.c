@@ -666,11 +666,11 @@ static void operation_cdc_run(){
 		delay(MBUS_DELAY*10);
 		delay(MBUS_DELAY*10);
 		delay(MBUS_DELAY*10);
-		write_mbus_message(0x79, read_data_reg6);
+		write_mbus_message(0x76, read_data_reg6);
 		delay(MBUS_DELAY*10);
-		write_mbus_message(0x78, read_data_reg5);
+		write_mbus_message(0x75, read_data_reg5);
 		delay(MBUS_DELAY*10);
-		write_mbus_message(0x77, read_data_reg4);
+		write_mbus_message(0x74, read_data_reg4);
 		delay(MBUS_DELAY*10);
 		//write_mbus_message(0x76, (read_data_reg4<<8)/read_data_reg6);
 		//delay(MBUS_DELAY*10);

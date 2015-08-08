@@ -339,14 +339,14 @@ static void operation_init(void){
     delay(MBUS_DELAY);
 
 	// Continuous Mode
+	/*
     radv7_r0.RADIO_TUNE_CURRENT_LIMITER = 0x3E; //Current Limiter 2F = 30uA, 1F = 3uA
     radv7_r0.RADIO_TUNE_POWER = 0x1F; 
     radv7_r0.RADIO_EXT_CTRL_EN = 1; 
     radv7_r0.RADIO_EXT_OSC_ENB = 0; 
     write_mbus_register(RAD_ADDR,0,radv7_r0.as_int);
     delay(MBUS_DELAY);
-
-
+	*/
 	
 	// Return address
 	radv7_r8.RAD_FSM_IRQ_REPLY_ADDRESS = 0x16;
@@ -354,15 +354,22 @@ static void operation_init(void){
     delay(MBUS_DELAY);
  
 	// FSM data length setups
-	radv7_r6.RAD_FSM_H_LEN = 7; // N
-	radv7_r6.RAD_FSM_D_LEN = 11; // N-1
+	radv7_r6.RAD_FSM_H_LEN = 8; // N
+	radv7_r6.RAD_FSM_D_LEN = 7; // N-1
 	radv7_r6.RAD_FSM_C_LEN = 30;
     write_mbus_register(RAD_ADDR,6,radv7_r6.as_int);
     delay(MBUS_DELAY);
 
-	// Faster clock
-	radv7_r1.SCRO_FREQ_DIV = 15;
+	// Configure SCRO
+	radv7_r1.SCRO_FREQ_DIV = 3;
+	radv7_r1.SCRO_AMP_I_LEVEL_SEL = 2; // Default 2
+	radv7_r1.SCRO_I_LEVEL_SELB = 0x60; // Default 0x6F
     write_mbus_register(RAD_ADDR,1,radv7_r1.as_int);
+    delay(MBUS_DELAY);
+
+	// LFSR Seed
+	radv7_r7.RAD_FSM_SEED = 4;
+    write_mbus_register(RAD_ADDR,7,radv7_r7.as_int);
     delay(MBUS_DELAY);
 
     // Initialize other global variables
@@ -372,7 +379,7 @@ static void operation_init(void){
     radio_tx_count = 0;
     radio_tx_option = 0;
     
-	while(1);
+	//while(1);
     // Go to sleep without timer
     //operation_sleep_notimer();
 }
@@ -380,9 +387,9 @@ static void operation_init(void){
 static void operation_radio(){
 
 	// Write Data
-	radv7_r3.RAD_FSM_DATA = 0xF0F0FA;
-	radv7_r4.RAD_FSM_DATA = 0xFFF000;
-	radv7_r5.RAD_FSM_DATA = 0xA0A0A0;
+	radv7_r3.RAD_FSM_DATA = 0xFFFFFF;
+	radv7_r4.RAD_FSM_DATA = 0xFFFFFF;
+	radv7_r5.RAD_FSM_DATA = 0xFFFFFF;
     write_mbus_register(RAD_ADDR,3,radv7_r3.as_int);
     delay(MBUS_DELAY);
     write_mbus_register(RAD_ADDR,4,radv7_r4.as_int);
@@ -395,6 +402,10 @@ static void operation_radio(){
     write_mbus_register(RAD_ADDR,8,radv7_r8.as_int);
     delay(MBUS_DELAY);
 
+	//operation_sleep();
+
+    delay(20000); // this is required to stabilize ref gen
+
 	// Release SCRO Reset
 	radv7_r2.SCRO_RESET = 0;
     write_mbus_register(RAD_ADDR,2,radv7_r2.as_int);
@@ -405,7 +416,6 @@ static void operation_radio(){
     write_mbus_register(RAD_ADDR,2,radv7_r2.as_int);
     delay(MBUS_DELAY);
 	
-    //delay(30000); // this is required to get rid of cold start frequency
 
 	// Release FSM Isolate
 	radv7_r8.RAD_FSM_ISOLATE = 0;
@@ -423,17 +433,17 @@ static void operation_radio(){
     delay(MBUS_DELAY);
 		
 
-    delay(100000);
+    delay(10000);
 	
 	read_mbus_register(RAD_ADDR,0x8,0x77);
     delay(MBUS_DELAY*5);
 	
 	// Turn off everything
-	radv7_r2.SCRO_ENABLE = 0;
-	radv7_r2.SCRO_RESET = 1;
+	//radv7_r2.SCRO_ENABLE = 0;
+	//radv7_r2.SCRO_RESET = 1;
     write_mbus_register(RAD_ADDR,2,radv7_r2.as_int);
     delay(MBUS_DELAY);
-	radv7_r8.RAD_FSM_SLEEP = 1;
+	//radv7_r8.RAD_FSM_SLEEP = 1;
 	radv7_r8.RAD_FSM_ISOLATE = 1;
 	radv7_r8.RAD_FSM_RESETn = 0;
 	radv7_r8.RAD_FSM_ENABLE = 0;

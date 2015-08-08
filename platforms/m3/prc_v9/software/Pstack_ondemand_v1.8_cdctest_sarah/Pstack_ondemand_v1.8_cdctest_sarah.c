@@ -52,9 +52,9 @@
 #define RAD_ADDR 0x4
 
 // CDC parameters
-#define	MBUS_DELAY 100 //Amount of delay between successive messages
+#define	MBUS_DELAY 200 //Amount of delay between successive messages
 #define	LDO_DELAY 500 // 1000: 150msec
-#define CDC_TIMEOUT_COUNT 500
+#define CDC_TIMEOUT_COUNT 500 // <<< 500 or 1000
 #define WAKEUP_PERIOD_RESET 2
 #define WAKEUP_PERIOD_LDO 1
 
@@ -476,13 +476,13 @@ static void operation_init(void){
     write_mbus_register(SNS_ADDR,0,snsv5_r0.as_int);
 
     // snsv5_r1 (need to be initialized here)
-    snsv5_r1.CDCW_N_CYCLE_SINGLE	= 1; // Default: 0x8
+    snsv5_r1.CDCW_N_CYCLE_SINGLE	= 128; // Default: 0x8 <<<<<<<
     snsv5_r1.CDCW_N_INIT_CLK		= 0x80;
     write_mbus_register(SNS_ADDR,1,snsv5_r1.as_int);
 	
     // snsv5_r2 (need to be initialized here)
     snsv5_r2.CDCW_T_CHARGE		= 0x80; // 0x80
-    snsv5_r2.CDCW_N_CYCLE_SET	= 01; // Default: 0x10
+    snsv5_r2.CDCW_N_CYCLE_SET	=1; // Default: 0x10  <<<<<<
     write_mbus_register(SNS_ADDR,2,snsv5_r2.as_int);
 
     // SNSv5_R18
@@ -698,34 +698,25 @@ static void operation_cdc_run(){
 
 		delay(MBUS_DELAY*10);
 		delay(MBUS_DELAY*10);
-		delay(MBUS_DELAY*10);
-		write_mbus_message(0xAA, 0xF3);
-		delay(MBUS_DELAY*20);
-		write_mbus_message(0xAA, 0xF2);
-		delay(MBUS_DELAY*20);
 		write_mbus_message(0xAA, 0xF1);
-		delay(MBUS_DELAY*20);
+		delay(MBUS_DELAY*20); 
 		write_mbus_message(0x73, read_data_reg3);
-		delay(MBUS_DELAY*20);
+		delay(MBUS_DELAY*40);//
 		write_mbus_message(0x74, read_data_reg4);
-		delay(MBUS_DELAY*20);
+		delay(MBUS_DELAY*40);//
 		write_mbus_message(0x75, read_data_reg5);
-		delay(MBUS_DELAY*20);
+		delay(MBUS_DELAY*40);//
 		write_mbus_message(0x76, read_data_reg6);
-		delay(MBUS_DELAY*20);
+		delay(MBUS_DELAY*40);//
 		write_mbus_message(0x77, read_data_reg7);
-		delay(MBUS_DELAY*20);
+		delay(MBUS_DELAY*40);//
 		write_mbus_message(0x78, read_data_reg8);
-		delay(MBUS_DELAY*20);
+		delay(MBUS_DELAY*40);//
 		write_mbus_message(0x79, read_data_reg9);
-		delay(MBUS_DELAY*20);
+		delay(MBUS_DELAY*40);//
 		write_mbus_message(0x7A, read_data_regA);
-		delay(MBUS_DELAY*20);
+		delay(MBUS_DELAY*40);//
 		write_mbus_message(0x7B, read_data_regB);
-		delay(MBUS_DELAY*20);
-		write_mbus_message(0x7C, read_data_regC);
-		delay(MBUS_DELAY*20);
-		write_mbus_message(0x7D, read_data_regD);
 		delay(MBUS_DELAY*20);
 		delay(MBUS_DELAY*20);
 
@@ -737,7 +728,7 @@ static void operation_cdc_run(){
 
 			// Repeat measurement while awake
 			release_cdc_meas();
-			delay(MBUS_DELAY*10);
+			delay(MBUS_DELAY);
 			Pstack_state = PSTK_CDC_RST;
 			
 

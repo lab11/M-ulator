@@ -5,32 +5,6 @@
 //              Moving towards Mouse Implantation
 //				Revision 1.8
 //				- For 2015 APR Tapeout: SNSv5 with Wanyeong's CDC (CDCW)
-//				Revision 1.7
-//				- For 2015 FEB ECO2: CDC interrupt is disabled. Need to poll.
-//				Revision 1.6
-//				- Adding updates from SNSv3_test_v3.c
-//				Revision 1.5
-//				- Using SNSv3E instead of SNSv2
-//              - Adding ADC functionality
-//              - CDC with LDO
-//              Revision 1.4
-//              - Now pressure measurements are stored and radioed out only when triggered
-//				Revision 1.3.2
-// 				- Adding feature to change program parameter through GOC IRQ
-//				Revision 1.3.1
-// 				- Using PRCv9, but SNSv2 not SNSv3
-//              Revision 1.3
-//              - System stays awake during CDC reset/measurement
-//              - Data processing function added  (process_data)
-//              Revision 1.2
-//              - Rename states / subfunctions for readability
-//              - state machine merged to operation_cdc_run();
-//              - Take average for measurement result TX (#TX_AVERAGE)
-//              - Debug flags (#DEBUG_MBUS_MSG / #DEBUG_RADIO_MSG)
-//              Revision 1.1 - optimization for implant
-//              - HRV layer related configuration added
-//              - Removed unnecessary debug functions
-//              - Multiple CDC measurement and averaging
 //****************************************************************************************************
 #include "mbus.h"
 #include "PRCv9.h"
@@ -52,16 +26,16 @@
 #define RAD_ADDR 0x4
 
 // CDC parameters
-#define	MBUS_DELAY 100 //Amount of delay between successive messages
+#define	MBUS_DELAY 200 //Amount of delay between successive messages
 #define	LDO_DELAY 500 // 1000: 150msec
-#define CDC_TIMEOUT_COUNT 500
+#define CDC_TIMEOUT_COUNT 500 // <<< 500 or 1000
 #define WAKEUP_PERIOD_RESET 2
 #define WAKEUP_PERIOD_LDO 1
 
 // Pstack states
 #define	PSTK_IDLE       0x0
-#define PSTK_CDC_RST    0x1
-#define PSTK_CDC_READ   0x3
+#define PSTK_TEMP_START 0x1
+#define PSTK_TEMP_READ  0x3
 #define PSTK_LDO1   	0x4
 #define PSTK_LDO2  	 	0x5
 
@@ -92,11 +66,14 @@
 	static uint32_t exec_count;
 	static uint32_t meas_count;
 	static uint32_t exec_count_irq;
+  	static uint32_t exec_temp_marker;
 	static uint32_t MBus_msg_flag;
-	volatile snsv5_r0_t snsv5_r0;
-	volatile snsv5_r1_t snsv5_r1;
-	volatile snsv5_r2_t snsv5_r2;
-	volatile snsv5_r18_t snsv5_r18; // For LDO's
+	volatile snsv5_r0_t snsv5_r0 = SNSv5_R0_DEFAULT;
+	volatile snsv5_r1_t snsv5_r1 = SNSv5_R1_DEFAULT;
+	volatile snsv5_r2_t snsv5_r2 = SNSv5_R2_DEFAULT;
+	volatile snsv5_r14_t snsv5_r14 = SNSv5_R14_DEFAULT;
+	volatile snsv5_r15_t snsv5_r15 = SNSv5_R15_DEFAULT;
+	volatile snsv5_r18_t snsv5_r18 = SNSv5_R18_DEFAULT; // For LDO's
   
 	static uint32_t WAKEUP_PERIOD_CONT; 
 	static uint32_t WAKEUP_PERIOD_CONT_INIT; 
@@ -297,13 +274,7 @@ static void release_cdc_meas(){
     write_mbus_register(SNS_ADDR,0,snsv5_r0.as_int);
     delay(MBUS_DELAY);
 }
-static void cdc_power_off(){
-    snsv5_r0.CDCW_ISO = 0x1;
-    snsv5_r0.CDCW_PG_V1P2 = 0x1;
-    snsv5_r0.CDCW_PG_VBAT = 0x1;
-    snsv5_r0.CDCW_PG_VLDO = 0x1;
-    write_mbus_register(SNS_ADDR,0,snsv5_r0.as_int);
-    delay(MBUS_DELAY);
+static void ldo_power_off(){
 	snsv5_r18.CDC_LDO_CDC_LDO_DLY_ENB = 0x1;
 	snsv5_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0x1;
 	snsv5_r18.CDC_LDO_CDC_LDO_ENB = 0x1;
@@ -311,6 +282,35 @@ static void cdc_power_off(){
 	write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
     delay(MBUS_DELAY);
 }
+
+//***************************************************
+// Temp Sensor Functions
+// SNSv5
+//***************************************************
+static void temp_sensor_enable(){
+    snsv5_r14.TEMP_SENSOR_ENABLEb = 0;
+    write_mbus_register(SNS_ADDR,0xE,snsv5_r14.as_int);
+    delay(MBUS_DELAY);
+}
+static void temp_sensor_disable(){
+    snsv5_r14.TEMP_SENSOR_ENABLEb = 1;
+    write_mbus_register(SNS_ADDR,0xE,snsv5_r14.as_int);
+    delay(MBUS_DELAY);
+}
+static void temp_sensor_release_reset(){
+    snsv5_r14.TEMP_SENSOR_RESETn = 1;
+    snsv5_r14.TEMP_SENSOR_ISO = 0;
+    write_mbus_register(SNS_ADDR,0xE,snsv5_r14.as_int);
+    delay(MBUS_DELAY);
+}
+static void temp_sensor_assert_reset(){
+    snsv5_r14.TEMP_SENSOR_RESETn = 0;
+    snsv5_r14.TEMP_SENSOR_ISO = 1;
+    write_mbus_register(SNS_ADDR,0xE,snsv5_r14.as_int);
+    delay(MBUS_DELAY);
+}
+
+
 
 
 inline static void set_pmu_sleep_clk_low(){
@@ -460,30 +460,13 @@ static void operation_init(void){
     enumerate(HRV_ADDR);
     delay(MBUS_DELAY*10);
 
-    // CDC Settings --------------------------------------
-    // snsv5_r0 (need to be initialized here)
-    snsv5_r0.CDCW_IRQ_EN	= 1;
-    snsv5_r0.CDCW_MODE_PAR	= 1;
-    snsv5_r0.CDCW_MODE_REF	= 1;
-    snsv5_r0.CDCW_CTRL_DIV	= 1;
-    snsv5_r0.CDCW_CTRL_RING	= 1;
-    snsv5_r0.CDCW_ENABLE 	= 0;
-    snsv5_r0.CDCW_RESETn 	= 0;
-    snsv5_r0.CDCW_ISO		= 1;
-    snsv5_r0.CDCW_PG_VBAT 	= 1;
-    snsv5_r0.CDCW_PG_V1P2 	= 1;
-    snsv5_r0.CDCW_PG_VLDO 	= 1;
-    write_mbus_register(SNS_ADDR,0,snsv5_r0.as_int);
-
-    // snsv5_r1 (need to be initialized here)
-    snsv5_r1.CDCW_N_CYCLE_SINGLE	= 1; // Default: 0x8
-    snsv5_r1.CDCW_N_INIT_CLK		= 0x80;
-    write_mbus_register(SNS_ADDR,1,snsv5_r1.as_int);
-	
-    // snsv5_r2 (need to be initialized here)
-    snsv5_r2.CDCW_T_CHARGE		= 0x80; // 0x80
-    snsv5_r2.CDCW_N_CYCLE_SET	= 01; // Default: 0x10
-    write_mbus_register(SNS_ADDR,2,snsv5_r2.as_int);
+    // Temp Sensor Settings --------------------------------
+    // SNSv5_R14
+    write_mbus_register(SNS_ADDR,0xE,snsv5_r14.as_int);
+    delay(MBUS_DELAY);
+    // SNSv5_R15
+    write_mbus_register(SNS_ADDR,0xF,snsv5_r15.as_int);
+    delay(MBUS_DELAY);
 
     // SNSv5_R18
     snsv5_r18.CDC_LDO_CDC_LDO_ENB      = 0x1;
@@ -502,6 +485,7 @@ static void operation_init(void){
     snsv5_r18.CDC_LDO_CDC_VREF_SEL     = 0x20;
 
     write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
+
 
     // Radio Settings --------------------------------------
     radv5_r23_t radv5_r23; //Ext Ctrl En
@@ -550,8 +534,11 @@ static void operation_init(void){
     //operation_sleep_notimer();
 }
 
-static void operation_cdc_run(){
-    uint32_t read_data;
+
+//***************************************************
+// Temperature measurement operation (SNSv5)
+//***************************************************
+static void operation_temp(void){
     uint32_t count; 
 
 	if (Pstack_state == PSTK_IDLE){
@@ -563,7 +550,7 @@ static void operation_cdc_run(){
 		cdc_reset_timeout_count = 0;
 
 		snsv5_r18.CDC_LDO_CDC_LDO_ENB = 0x0;
-		//snsv5_r18.ADC_LDO_ADC_LDO_ENB = 0x0;
+		snsv5_r18.ADC_LDO_ADC_LDO_ENB = 0x0;
 		write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
 		// Long delay required here
 		// Put system to sleep
@@ -579,8 +566,8 @@ static void operation_cdc_run(){
 		snsv5_r18.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
 		write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
 		delay(LDO_DELAY); // This delay is required to avoid current spike
-		//snsv5_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
-		//write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
+		snsv5_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
+		write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
 		// Put system to sleep
 		set_wakeup_timer (WAKEUP_PERIOD_LDO, 0x1, 0x0);
 		operation_sleep();
@@ -589,29 +576,25 @@ static void operation_cdc_run(){
 		#ifdef DEBUG_MBUS_MSG
 			write_mbus_message(0xAA, 0x2);
 		#endif
-		Pstack_state = PSTK_CDC_RST;
+		Pstack_state = PSTK_TEMP_START;
 
-		// Release CDC isolation
-		release_cdc_pg();
-		delay(MBUS_DELAY*2);
-		release_cdc_isolate();
+		// Release Temp Sensor Reset
+		temp_sensor_release_reset();
 
-	}else if (Pstack_state == PSTK_CDC_RST){
-		// Release reset
+	}else if (Pstack_state == PSTK_TEMP_START){
+		// Start temp measurement
 		#ifdef DEBUG_MBUS_MSG
 			write_mbus_message(0xAA, 0x11111111);
 			delay(MBUS_DELAY);
 		#endif
 
 		MBus_msg_flag = 0;
-		release_cdc_reset();
-		delay(MBUS_DELAY*2);
-		fire_cdc_meas();
+		temp_sensor_enable();
 		for( count=0; count<CDC_TIMEOUT_COUNT; count++ ){
 			if( MBus_msg_flag ){
 				MBus_msg_flag = 0;
 				cdc_reset_timeout_count = 0;
-				Pstack_state = PSTK_CDC_READ;
+				Pstack_state = PSTK_TEMP_READ;
 				return;
 			}else{
 				delay(MBUS_DELAY);
@@ -622,17 +605,21 @@ static void operation_cdc_run(){
 		#ifdef DEBUG_MBUS_MSG
 			write_mbus_message(0xAA, 0xFAFAFAFA);
 		#endif
+
+		temp_sensor_disable();
+
 		if (cdc_reset_timeout_count > 0){
 			cdc_reset_timeout_count++;
-			assert_cdc_reset();
+			temp_sensor_assert_reset();
 
 			if (cdc_reset_timeout_count > 10){
 				// CDC is not resetting for some reason. Go to sleep forever
 				Pstack_state = PSTK_IDLE;
-				cdc_power_off();
+				ldo_power_off();
 				operation_sleep_notimer();
 			}else{
 				// Put system to sleep to reset the layer controller
+				Pstack_state = PSTK_LDO2;
 				set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x0);
 				operation_sleep();
 			}
@@ -644,116 +631,58 @@ static void operation_cdc_run(){
 			delay(MBUS_DELAY*5);
 	    }
 
-	}else if (Pstack_state == PSTK_CDC_READ){
+	}else if (Pstack_state == PSTK_TEMP_READ){
 		#ifdef DEBUG_MBUS_MSG
 			write_mbus_message(0xAA, 0x22222222);
 		#endif
 
-
 		// FIXME
-    	uint32_t read_data_reg3;
-    	uint32_t read_data_reg4;
-    	uint32_t read_data_reg5;
-    	uint32_t read_data_reg6;
-    	uint32_t read_data_reg7;
-    	uint32_t read_data_reg8;
-    	uint32_t read_data_reg9;
-    	uint32_t read_data_regA;
-    	uint32_t read_data_regB;
-    	uint32_t read_data_regC;
-    	uint32_t read_data_regD;
-		read_mbus_register(SNS_ADDR,3,0x15);
-		delay(MBUS_DELAY);
-		read_data_reg3 = *((volatile uint32_t *) 0xA0001014);
-		read_mbus_register(SNS_ADDR,4,0x15);
-		delay(MBUS_DELAY);
-		read_data_reg4 = *((volatile uint32_t *) 0xA0001014);
-		read_mbus_register(SNS_ADDR,5,0x15);
-		delay(MBUS_DELAY);
-		read_data_reg5 = *((volatile uint32_t *) 0xA0001014);
-		read_mbus_register(SNS_ADDR,6,0x15);
-		delay(MBUS_DELAY);
-		read_data_reg6 = *((volatile uint32_t *) 0xA0001014);
-		read_mbus_register(SNS_ADDR,7,0x15);
-		delay(MBUS_DELAY);
-		read_data_reg7 = *((volatile uint32_t *) 0xA0001014);
-		read_mbus_register(SNS_ADDR,8,0x15);
-		delay(MBUS_DELAY);
-		read_data_reg8 = *((volatile uint32_t *) 0xA0001014);
-		read_mbus_register(SNS_ADDR,9,0x15);
-		delay(MBUS_DELAY);
-		read_data_reg9 = *((volatile uint32_t *) 0xA0001014);
-		read_mbus_register(SNS_ADDR,0xA,0x15);
-		delay(MBUS_DELAY);
-		read_data_regA = *((volatile uint32_t *) 0xA0001014);
-		read_mbus_register(SNS_ADDR,0xB,0x15);
-		delay(MBUS_DELAY);
-		read_data_regB = *((volatile uint32_t *) 0xA0001014);
-		read_mbus_register(SNS_ADDR,0xC,0x15);
-		delay(MBUS_DELAY);
-		read_data_regC = *((volatile uint32_t *) 0xA0001014);
-		read_mbus_register(SNS_ADDR,0xD,0x15);
+		uint32_t read_data_regD;
+		read_mbus_register(SNS_ADDR,0x10,0x15);
 		delay(MBUS_DELAY);
 		read_data_regD = *((volatile uint32_t *) 0xA0001014);
 
 		delay(MBUS_DELAY*10);
 		delay(MBUS_DELAY*10);
-		delay(MBUS_DELAY*10);
-		write_mbus_message(0xAA, 0xF3);
-		delay(MBUS_DELAY*20);
-		write_mbus_message(0xAA, 0xF2);
-		delay(MBUS_DELAY*20);
 		write_mbus_message(0xAA, 0xF1);
-		delay(MBUS_DELAY*20);
-		write_mbus_message(0x73, read_data_reg3);
-		delay(MBUS_DELAY*20);
-		write_mbus_message(0x74, read_data_reg4);
-		delay(MBUS_DELAY*20);
-		write_mbus_message(0x75, read_data_reg5);
-		delay(MBUS_DELAY*20);
-		write_mbus_message(0x76, read_data_reg6);
-		delay(MBUS_DELAY*20);
-		write_mbus_message(0x77, read_data_reg7);
-		delay(MBUS_DELAY*20);
-		write_mbus_message(0x78, read_data_reg8);
-		delay(MBUS_DELAY*20);
-		write_mbus_message(0x79, read_data_reg9);
-		delay(MBUS_DELAY*20);
-		write_mbus_message(0x7A, read_data_regA);
-		delay(MBUS_DELAY*20);
-		write_mbus_message(0x7B, read_data_regB);
-		delay(MBUS_DELAY*20);
-		write_mbus_message(0x7C, read_data_regC);
-		delay(MBUS_DELAY*20);
-		write_mbus_message(0x7D, read_data_regD);
+		delay(MBUS_DELAY*20); 
+		write_mbus_message(0x73, 1);
+		delay(MBUS_DELAY*40);//
+		write_mbus_message(0x73, 1);
+		delay(MBUS_DELAY*40);//
+		write_mbus_message(0x74, (read_data_regD&(~(1<<18))));
+		delay(MBUS_DELAY*40);//
+		write_mbus_message(0x75, 3);
+		delay(MBUS_DELAY*40);//
+		write_mbus_message(0x76, 4);
 		delay(MBUS_DELAY*20);
 		delay(MBUS_DELAY*20);
 
-
-		// FIXME
+		// Reset exec_temp_marker
+		exec_temp_marker = 0;
 
 		if (meas_count < 310){	
 			meas_count++;
 
 			// Repeat measurement while awake
-			release_cdc_meas();
-			delay(MBUS_DELAY*10);
-			Pstack_state = PSTK_CDC_RST;
+			temp_sensor_disable();
+			delay(MBUS_DELAY);
+			Pstack_state = PSTK_TEMP_START;
 			
 
 		}else{
 			meas_count = 0;
 			// Finalize CDC operation
+			temp_sensor_disable();
+			temp_sensor_assert_reset();
 			exec_count++;
-			release_cdc_meas();
-			assert_cdc_reset();
 			Pstack_state = PSTK_IDLE;
 			#ifdef DEBUG_MBUS_MSG
 				write_mbus_message(0xAA, 0x33333333);
 			#endif
 		
 			// Assert CDC isolation & turn off CDC power
-			cdc_power_off();
+			ldo_power_off();
 
 			// Enter long sleep
 			set_wakeup_timer (WAKEUP_PERIOD_CONT, 0x1, 0x0);
@@ -763,12 +692,13 @@ static void operation_cdc_run(){
 	}else{
         //default:  // THIS SHOULD NOT HAPPEN
 		// Reset CDC
-		assert_cdc_reset();
-		cdc_power_off();
+		temp_sensor_assert_reset();
+		ldo_power_off();
 		operation_sleep_notimer();
 	}
 
 }
+
 
 //***************************************************************************************
 // MAIN function starts here             
@@ -797,7 +727,7 @@ int main() {
 
     // Proceed to continuous mode
     while(1){
-        operation_cdc_run();
+        operation_temp();
     }
 
     // Should not reach here

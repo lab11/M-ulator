@@ -20,7 +20,7 @@ typedef union snsv5_r0{
   };
   uint32_t as_int;
 } snsv5_r0_t;
-#define SNSv5_R0_DEFAULT {{0x1, 0x1, 0x1, 0x1, 0x0, 0x0, 0x1, 0x1, 0x1, 0x1, 0x1}} 
+#define SNSv5_R0_DEFAULT {{0x1, 0x1, 0x1, 0x1, 0x1, 0x0, 0x0, 0x1, 0x1, 0x1, 0x1}} // LSB is left
 _Static_assert(sizeof(snsv5_r0_t) == 4, "Punned Structure Size");
 
 //Register 1
@@ -31,7 +31,7 @@ typedef union snsv5_r1{
   }; 
   uint32_t as_int;
 } snsv5_r1_t;
-#define SNSv5_R1_DEFAULT {0x80, 0x8}
+#define SNSv5_R1_DEFAULT {0x8, 0x80}
 _Static_assert(sizeof(snsv5_r1_t) == 4, "Punned Structure Size");
 
 //Register 2
@@ -42,7 +42,7 @@ typedef union snsv5_r2{
   }; 
   uint32_t as_int;
 } snsv5_r2_t;
-#define SNSv5_R2_DEFAULT {0x10, 0x80}
+#define SNSv5_R2_DEFAULT {0x80, 0x10}
 _Static_assert(sizeof(snsv5_r2_t) == 4, "Punned Structure Size");
 
 //Register 3-13
@@ -57,10 +57,13 @@ typedef union snsv5_r14{
     unsigned TEMP_SENSOR_P_tmod		: 4;
     unsigned TEMP_SENSOR_ENABLEb	: 1;
     unsigned TEMP_SENSOR_DELAY_SEL	: 3;
+    unsigned TEMP_SENSOR_IRQ_EN		: 1;
+    unsigned TEMP_SENSOR_ISO		: 1;
+    unsigned TEMP_SENSOR_RESETn		: 1;
   };
   uint32_t as_int;
 } snsv5_r14_t;
-#define SNSv5_R14_DEFAULT {0x0, 0xF, 0x0, 0xF, 0x1, 0x2}
+#define SNSv5_R14_DEFAULT {0x0, 0xF, 0x0, 0xF, 0x1, 0x5, 1, 1, 0}
 _Static_assert(sizeof(snsv5_r14_t) == 4, "Punned Structure Size");
 
 //Register 15
@@ -73,7 +76,7 @@ typedef union snsv5_r15{
   };
   uint32_t as_int;
 } snsv5_r15_t;
-#define SNSv5_R15_DEFAULT {0x3, 0x2, 0x7F, 0x8F}
+#define SNSv5_R15_DEFAULT {0x5, 0x2, 0x7F, 0x8F}
 _Static_assert(sizeof(snsv5_r15_t) == 4, "Punned Structure Size");
 
 //Register 16
@@ -84,7 +87,7 @@ _Static_assert(sizeof(snsv5_r15_t) == 4, "Punned Structure Size");
 typedef union snsv5_r17{
   struct{
     unsigned MBUS_REPLY_ADDRESS_TEMP_SENSOR	: 8;
-    unsigned MBUS_REPLY_ADDRESS_CDC		: 8;
+    unsigned MBUS_REPLY_ADDRESS_CDC			: 8;
     unsigned MBUS_REPLY_ADDRESS_SAR_ADC		: 8;
   };
   uint32_t as_int;
@@ -108,7 +111,7 @@ typedef union snsv5_r18{
   };
   uint32_t as_int;
 } snsv5_r18_t;
-//#define SNSv5_R18_DEFAULT {{0x1, 0x1, 0x2, 0x04, 0x1, 0x1, 0x2, 0x04, 0x9}}
+#define SNSv5_R18_DEFAULT {{0x1, 0x1, 0x2, 0x04, 0x1, 0x1, 1, 0x2, 0x04, 1}}
 _Static_assert(sizeof(snsv5_r18_t) == 4, "Punned Structure Size");
 
 //Register 19
@@ -123,11 +126,12 @@ typedef union snsv5_r19{
     unsigned SAR_ADC_EXT_SIGNAL_SEL     : 2;
     unsigned SAR_ADC_OSC_SEL            : 3;
     unsigned SAR_ADC_OSC_DIV            : 2;
+    unsigned SAR_ADC_IRQ_EN             : 1;
     unsigned SAR_ADC_DONE               : 1;
   };
   uint32_t as_int;
 } snsv5_r19_t;
-//#define SNSv5_R19_DEFAULT {{0x1, 0x1, 0x0, 0x0, 0x1, 0x0, 0x0, 0x6, 0x1, 0x0}}
+#define SNSv5_R19_DEFAULT {{0x1, 0x1, 0x0, 0x0, 0x1, 0x0, 0x0, 0x6, 0x1, 0x1}}
 _Static_assert(sizeof(snsv5_r19_t) == 4, "Punned Structure Size");
   
 //Register 20
@@ -139,7 +143,7 @@ typedef union snsv5_r20{
   };
   uint32_t as_int;
 } snsv5_r20_t;
-//#define SNSv5_R20_DEFAULT {{0x1F, 0x1F, 0x0}}
+#define SNSv5_R20_DEFAULT {{0x1F, 0x1F, 0x0}}
 _Static_assert(sizeof(snsv5_r20_t) == 4, "Punned Structure Size");
 
 //Register 21
@@ -154,7 +158,7 @@ typedef union snsv5_r22{
   };
   uint32_t as_int;
 } snsv5_r22_t;
-//#define SNSv5_R22_DEFAULT {{0x2, 0x1}}
+#define SNSv5_R22_DEFAULT {{0x1, 0x2}}
 _Static_assert(sizeof(snsv5_r22_t) == 4, "Punned Structure Size");
 
 
