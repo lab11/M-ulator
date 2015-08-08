@@ -18,6 +18,9 @@
 #define IRQ10VEC 0x00000068
 #define IRQ11VEC 0x0000006C
 
+#define IRQ10 *((volatile uint32_t *) IRQ10VEC)
+#define IRQ11 *((volatile uint32_t *) IRQ11VEC)
+
 #include <stdint.h>
 #include <stdbool.h>
 
