@@ -354,9 +354,9 @@ static void operation_init(void){
     delay(MBUS_DELAY);
  
 	// FSM data length setups
-	radv7_r6.RAD_FSM_H_LEN = 8; // N
-	radv7_r6.RAD_FSM_D_LEN = 7; // N-1
-	radv7_r6.RAD_FSM_C_LEN = 30;
+	radv7_r6.RAD_FSM_H_LEN = 16; // N
+	radv7_r6.RAD_FSM_D_LEN = 15; // N-1
+	radv7_r6.RAD_FSM_C_LEN = 10;
     write_mbus_register(RAD_ADDR,6,radv7_r6.as_int);
     delay(MBUS_DELAY);
 
@@ -387,7 +387,7 @@ static void operation_init(void){
 static void operation_radio(){
 
 	// Write Data
-	radv7_r3.RAD_FSM_DATA = 0xFFFFFF;
+	radv7_r3.RAD_FSM_DATA = 0x00BEEF;
 	radv7_r4.RAD_FSM_DATA = 0xFFFFFF;
 	radv7_r5.RAD_FSM_DATA = 0xFFFFFF;
     write_mbus_register(RAD_ADDR,3,radv7_r3.as_int);
