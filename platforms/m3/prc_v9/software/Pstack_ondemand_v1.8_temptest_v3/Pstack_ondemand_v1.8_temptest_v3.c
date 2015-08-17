@@ -642,7 +642,7 @@ static void operation_temp(void){
 		// Reset exec_temp_marker
 		exec_temp_marker = 0;
 
-		if (meas_count < 4){	
+		if (meas_count < 20){	
 			meas_count++;
 
 			uint32_t read_data_regD;
