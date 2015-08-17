@@ -65,6 +65,7 @@
 	static uint32_t cdc_reset_timeout_count;
 	static uint32_t exec_count;
 	static uint32_t meas_count;
+	static uint32_t temp_data_sum;
 	static uint32_t exec_count_irq;
   	static uint32_t exec_temp_marker;
 	static uint32_t MBus_msg_flag;
@@ -638,28 +639,48 @@ static void operation_temp(void){
 			write_mbus_message(0xAA, 0x22222222);
 		#endif
 
-		// FIXME
-		uint32_t read_data_regD;
-		read_mbus_register(SNS_ADDR,0x10,0x15);
-		delay(MBUS_DELAY);
-		read_data_regD = *((volatile uint32_t *) 0xA0001014);
-
-		delay(MBUS_DELAY*10);
-		delay(MBUS_DELAY*10);
-		write_mbus_message(0xAA, 0xF1);
-		delay(MBUS_DELAY*20); 
-		write_mbus_message(0x73, 1);
-		delay(MBUS_DELAY*40);//
-		write_mbus_message(0x74, (read_data_regD&(~(1<<18))));
-		delay(MBUS_DELAY*40);//
-		write_mbus_message(0x75, 3);
-		delay(MBUS_DELAY*20);
-		delay(MBUS_DELAY*20);
-
 		// Reset exec_temp_marker
 		exec_temp_marker = 0;
 
-		if (meas_count < 310){	
+		if (meas_count < 4){	
+			meas_count++;
+
+			uint32_t read_data_regD;
+			read_mbus_register(SNS_ADDR,0x10,0x15);
+			delay(MBUS_DELAY);
+			read_data_regD = *((volatile uint32_t *) 0xA0001014);
+			temp_data_sum = temp_data_sum + (read_data_regD&(~(1<<18)));
+
+
+		}else{
+
+			#ifdef DEBUG_MBUS_MSG
+				write_mbus_message(0xAA, 0x33333333);
+			#endif
+			// Transmit out data
+			delay(MBUS_DELAY*10);
+			delay(MBUS_DELAY*10);
+			write_mbus_message(0xAA, 0xF1);
+			delay(MBUS_DELAY*20); 
+			write_mbus_message(0x73, 1);
+			delay(MBUS_DELAY*40);//
+			write_mbus_message(0x74, temp_data_sum);
+			delay(MBUS_DELAY*40);//
+			write_mbus_message(0x75, 3);
+			delay(MBUS_DELAY*20);
+			delay(MBUS_DELAY*20);
+
+			meas_count = 0;
+			temp_data_sum = 0;
+		}
+
+		// Repeat measurement while awake
+		temp_sensor_disable();
+		delay(MBUS_DELAY);
+		Pstack_state = PSTK_TEMP_START;
+			
+/*
+		if (meas_count < 300){	
 			meas_count++;
 
 			// Repeat measurement while awake
@@ -686,7 +707,7 @@ static void operation_temp(void){
 			set_wakeup_timer (WAKEUP_PERIOD_CONT, 0x1, 0x0);
 			operation_sleep();
 		}
-
+*/
 	}else{
         //default:  // THIS SHOULD NOT HAPPEN
 		// Reset CDC
@@ -720,6 +741,7 @@ int main() {
         // Enumeration & RAD/SNS layer register configuration
         exec_count = 0;
 		meas_count = 0;
+		temp_data_sum = 0;
         operation_init();
     }
 

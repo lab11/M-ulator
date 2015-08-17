@@ -476,13 +476,13 @@ static void operation_init(void){
     write_mbus_register(SNS_ADDR,0,snsv5_r0.as_int);
 
     // snsv5_r1 (need to be initialized here)
-    snsv5_r1.CDCW_N_CYCLE_SINGLE	= 128; // Default: 0x8 <<<<<<<
+    snsv5_r1.CDCW_N_CYCLE_SINGLE	= 1; // Default: 0x8 <<<<<<<
     snsv5_r1.CDCW_N_INIT_CLK		= 0x80;
     write_mbus_register(SNS_ADDR,1,snsv5_r1.as_int);
 	
     // snsv5_r2 (need to be initialized here)
     snsv5_r2.CDCW_T_CHARGE		= 0x80; // 0x80
-    snsv5_r2.CDCW_N_CYCLE_SET	=1; // Default: 0x10  <<<<<<
+    snsv5_r2.CDCW_N_CYCLE_SET	= 90; // Default: 0x10  <<<<<<
     write_mbus_register(SNS_ADDR,2,snsv5_r2.as_int);
 
     // SNSv5_R18
