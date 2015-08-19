@@ -94,7 +94,7 @@
 #define COLS_TO_READ 39 // in # of words: 39 for full frame, 19 for half
 
 // Radio configurations
-#define RAD_BIT_DELAY       14     //14: corresponds to around 388 bps at USRP, 4V
+#define RAD_BIT_DELAY       4     //14: corresponds to around 388 bps at USRP, 4V, 4: 860bps with IMGv1.1
 #define RAD_PACKET_DELAY 	2000      //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
 #define RAD_PACKET_NUM      1      //How many times identical data will be TXed
 
@@ -308,6 +308,29 @@ static void send_radio_data(uint32_t radio_data){
   }
 }
 
+//***************************************************
+//Send Radio Data MSB-->LSB
+//Bit Delay: Delay between each bit (32-bit data)
+//Delays are nop delays (therefore dependent on core speed)
+//***************************************************
+static void send_radio_data_32b(uint32_t radio_data){
+	int32_t i; //loop var
+	uint32_t j; //loop var
+	for(i=35;i>=0;i--){ //Bit Loop
+		if (i>=32) { // 4-bit header
+			if ((radio_data>>i)&1) write_mbus_register(RAD_ADDR,0x47,0x1); // dummy message
+			else                   write_mbus_register(RAD_ADDR,0x27,0x1);
+		}else{ // 32-bit data
+			if ((radio_data>>i)&1) write_mbus_register(RAD_ADDR,0x27,0x1);
+			else                   write_mbus_register(RAD_ADDR,0x27,0x0);
+		}
+		//Must clear register
+		delay(RAD_BIT_DELAY);
+		write_mbus_register(RAD_ADDR,0x27,0x0);
+		delay(RAD_BIT_DELAY); //Set delay between sending subsequent bit
+	}
+}
+
 //************************************
 // MDv2 Functions
 //************************************
@@ -321,229 +344,6 @@ static void send_radio_data(uint32_t radio_data){
   uint32_t mdreg_6;
   uint32_t mdreg_7;
   uint32_t mdreg_8;
-
-static void initialize_md_reg(){
-
-  mdreg_0 = ((MD_INT_TIME<<13)|(INT_TIME<<(3+1)));
-  mdreg_1 = (((!IMG_8BIT)<<16)|(MD_TOPAD_SEL<<12)|(MD_TH<<5)|(!MD_LOWRES<<2)|(MD_LOWRES<<1));
-  mdreg_2 = ((0x1F<<19)|(0x3<<12)|(MD_MASK));
-  mdreg_3 = ((SEL_RAMP<<18)|(SEL_VB_RAMP<<14)|(SEL_VBP<<12)|(SEL_VBN<<10)|(SEL_VREFP<<7)|(SEL_VREF<<4)|(!VNW_1P2<<3)|(VNW_1P2<<2)|(!VDD_CC_1P2<<1)|(VDD_CC_1P2<<0)); // is this inversion safe??
-  mdreg_4 = ((!TAVG<<19)|(TAVG<<18)|(PULSE_SKIP_COL<<17)|(PULSE_SKIP<<16)|(SEL_CC_B<<13)|(SEL_CC<<10)|(SEL_PULSE_COL<<8)|(SEL_PULSE<<6)|(SEL_ADC_B<<3)|(SEL_ADC<<0));
-  mdreg_5 = ((SEL_CLK_DIV_LC<<16)|(SEL_CLK_RING_LC<<14)|(SEL_CLK_DIV_ADC<<11)|(SEL_CLK_DIV_4US<<9)|(SEL_CLK_DIV<<6)|(SEL_CLK_RING_ADC<<4)|(SEL_CLK_RING_4US<<2)|(SEL_CLK_RING<<0));
-  mdreg_6 = ((ROW_IDX_EN<<21)|(IMG_8BIT<<19)|(COL_SKIP<<18)|(ROW_SKIP<<17)|(END_ROW_IDX<<9)|(START_ROW_IDX<<1)|(0x1<<0));
-  mdreg_7 = ((0x7<<15));
-  mdreg_8 = ((COLS_TO_READ<<15)|(START_COL_IDX<<8)|(MD_RETURN_ADDR<<0));
-
-  //Write Registers;
-  write_mbus_register(MD_ADDR,0x0,mdreg_0);
-  delay (MBUS_DELAY);
-  write_mbus_register(MD_ADDR,0x1,mdreg_1);
-  delay (MBUS_DELAY);
-  write_mbus_register(MD_ADDR,0x2,mdreg_2);
-  delay (MBUS_DELAY);
-  write_mbus_register(MD_ADDR,0x3,mdreg_3);
-  delay (MBUS_DELAY);
-  write_mbus_register(MD_ADDR,0x4,mdreg_4);
-  delay (MBUS_DELAY);
-  write_mbus_register(MD_ADDR,0x5,mdreg_5);
-  delay (MBUS_DELAY);
-  write_mbus_register(MD_ADDR,0x6,mdreg_6);
-  delay (MBUS_DELAY);
-  write_mbus_register(MD_ADDR,0x7,mdreg_7);
-  delay (MBUS_DELAY);
-  write_mbus_register(MD_ADDR,0x8,mdreg_8);
-  delay (MBUS_DELAY);
-
-}
-
-static void poweron_frame_controller(){
-
-  // Release MD Presleep (this also releases reset due to a design bug)
-  // 2:22
-  mdreg_2 &= ~(1<<22);
-  write_mbus_register(MD_ADDR,0x2,mdreg_2);
-  delay(WAKEUP_DELAY);
-
-  // Release MD Sleep
-  // 2:21
-  mdreg_2 &= ~(1<<21);
-  write_mbus_register(MD_ADDR,0x2,mdreg_2);
-  delay(WAKEUP_DELAY);
-
-  // Release MD Isolation
-  // 7:15
-  mdreg_7 &= ~(1<<15);
-  write_mbus_register(MD_ADDR,0x7,mdreg_7);
-  delay (MBUS_DELAY);
- 
-  // Release MD Reset
-  // 2:23
-  mdreg_2 &= ~(1<<23);
-  write_mbus_register(MD_ADDR,0x2,mdreg_2);
-  delay (MBUS_DELAY);
-
-  // Start MD Clock
-  // 5:12
-  mdreg_5 |= (1<<12);
-  write_mbus_register(MD_ADDR,0x5,mdreg_5);
-  delay (MBUS_DELAY);
-
-}
-
-static void poweron_array_adc(){
-
-  // Release IMG Presleep 
-  // 2:20
-  mdreg_2 &= ~(1<<20);
-  write_mbus_register(MD_ADDR,0x2,mdreg_2);
-  delay(WAKEUP_DELAY);
-
-  // Release IMG Sleep
-  // 2:19
-  mdreg_2 &= ~(1<<19);
-  write_mbus_register(MD_ADDR,0x2,mdreg_2);
-  delay(WAKEUP_DELAY);
-
-  // Release ADC Isolation
-  // 7:17
-  mdreg_7 &= ~(1<<17);
-  write_mbus_register(MD_ADDR,0x7,mdreg_7);
-  delay (MBUS_DELAY);
-
-  // Release ADC Wrapper Reset
-  // 6:0
-  mdreg_6 &= ~(1<<0);
-  write_mbus_register(MD_ADDR,0x6,mdreg_6);
-  delay (MBUS_DELAY);
-
-  // Start ADC Clock
-  // 5:13
-  mdreg_5 |= (1<<13);
-  write_mbus_register(MD_ADDR,0x5,mdreg_5);
-  delay (MBUS_DELAY);
-
-}
-
-static void poweroff_array_adc(){
-
-  // Stop ADC Clock
-  // 5:13
-  mdreg_5 &= ~(1<<13);
-  write_mbus_register(MD_ADDR,0x5,mdreg_5);
-  delay (MBUS_DELAY);
-
-  // Assert ADC Wrapper Reset
-  // 6:0
-  mdreg_6 |= 1<<0;
-  write_mbus_register(MD_ADDR,0x6,mdreg_6);
-  delay (MBUS_DELAY);
-
-  // Assert ADC Isolation
-  // 7:17
-  mdreg_7 |= 1<<17;
-  write_mbus_register(MD_ADDR,0x7,mdreg_7);
-  delay (MBUS_DELAY);
-
-  // Assert IMG Presleep 
-  // 2:20
-  mdreg_2 |= 1<<20;
-
-  // Assert IMG Sleep
-  // 2:19
-  mdreg_2 |= 1<<19;
-  write_mbus_register(MD_ADDR,0x2,mdreg_2);
-  delay (MBUS_DELAY);
-
-}
-
-
-static void capture_image_single(){
-
-  // Capture Image
-  // 0:0
-  mdreg_0 |= (1<<0);
-  write_mbus_register(MD_ADDR,0x0,mdreg_0);
-  delay(0x80); // about 6ms
-
-  mdreg_0 &= ~(1<<0);
-  write_mbus_register(MD_ADDR,0x0,mdreg_0);
-
-  delay(DELAY_IMG); // about 1s
-
-}
-
-static void capture_image_start(){
-
-  // Capture Image
-  // 0:0
-  mdreg_0 |= (1<<0);
-  write_mbus_register(MD_ADDR,0x0,mdreg_0);
-  delay(0x80); // about 6ms
-
-}
-
-static void start_md(){
-
-  // Optionally release MD GPIO Isolation
-  // 7:16
-  mdreg_7 &= ~(1<<16);
-  write_mbus_register(MD_ADDR,0x7,mdreg_7);
-  delay (MBUS_DELAY);
-  delay(DELAY_1); // about 0.5s
-
-  // Start MD
-  // 0:1
-  mdreg_0 |= (1<<1);
-  write_mbus_register(MD_ADDR,0x0,mdreg_0);
-  delay (MBUS_DELAY);
-  delay(DELAY_1); // about 0.5s
-
-  mdreg_0 &= ~(1<<1);
-  write_mbus_register(MD_ADDR,0x0,mdreg_0);
-  delay (MBUS_DELAY);
-
-  delay(DELAY_1); // about 0.5s
-
-  // Enable MD Flag
-  // 1:3
-  mdreg_1 |= (1<<3);
-  write_mbus_register(MD_ADDR,0x1,mdreg_1);
-  delay (MBUS_DELAY);
-
-}
-
-static void clear_md_flag(){
-
-  // Stop MD
-  // 0:2
-  mdreg_0 |= (1<<2);
-  write_mbus_register(MD_ADDR,0x0,mdreg_0);
-  delay (MBUS_DELAY);
-  delay (0x80); // about 6ms
-
-  mdreg_0 &= ~(1<<2);
-  write_mbus_register(MD_ADDR,0x0,mdreg_0);
-  delay (MBUS_DELAY);
-
-  // Clear MD Flag
-  // 1:4
-  mdreg_1 |= (1<<4);
-  write_mbus_register(MD_ADDR,0x1,mdreg_1);
-  delay (MBUS_DELAY);
-  delay (0x80); // about 6ms
-  
-  mdreg_1 &= ~(1<<4);
-  write_mbus_register(MD_ADDR,0x1,mdreg_1);
-  delay (MBUS_DELAY);
-
-  // Disable MD Flag
-  // 1:3
-  mdreg_1 &= ~(1<<3);
-  write_mbus_register(MD_ADDR,0x1,mdreg_1);
-  delay (MBUS_DELAY);
-
-}
-
 
 //***************************************************
 // End of Program Sleep Operation
@@ -613,7 +413,7 @@ static void operation_init(void){
     delay(DELAY_1);
   
     //Enumerate & Initialize Registers
-    enumerated = 0xDEADBEEE;
+    enumerated = 0xDEADBEEF;
     exec_count = 0;
     exec_count_irq = 0;
     MBus_msg_flag = 0;
@@ -638,7 +438,7 @@ static void operation_init(void){
     write_mbus_register(RAD_ADDR,0x23,radv5_r23.as_int);
     delay(MBUS_DELAY);
     //RADv5 R26
-    radv5_r26.RADIO_TUNE_CURRENT_LIMITER_1P2 = 0x1F; //Current Limiter 2F = 30uA, 1F = 3uA
+    radv5_r26.RADIO_TUNE_CURRENT_LIMITER_1P2 = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
     write_mbus_register(RAD_ADDR,0x26,radv5_r26.as_int);
     delay(MBUS_DELAY);
     //RADv5 R20
@@ -654,7 +454,7 @@ static void operation_init(void){
     write_mbus_register(RAD_ADDR,0x22,radv5_r22.as_int);
     delay(MBUS_DELAY);
     //RADv5 R25
-    radv5_r25.RADIO_TUNE_TX_TIME_1P2 = 0x5; //Tune TX Time
+    radv5_r25.RADIO_TUNE_TX_TIME_1P2 = 0x4; //Tune TX Time
     write_mbus_register(RAD_ADDR,0x25,radv5_r25.as_int);
     delay(MBUS_DELAY);
     //RADv5 R27
@@ -696,7 +496,7 @@ int main() {
 	config_timer( 0, 0, 0, 0, 3000000 );
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEEE){
+    if (enumerated != 0xDEADBEEF){
         operation_init();
     }
 
@@ -705,10 +505,11 @@ int main() {
 	// Debug mode: Transmit something via radio and go to sleep w/o timer
 	// wakeup_data[7:0] is the # of transmissions
 	// wakeup_data[15:8] is the user-specified period
-	if (exec_count_irq < 100){
+	if (exec_count_irq < 1000){
 		exec_count_irq++;
 		// radio
-		send_radio_data(0xFAFA0000+exec_count_irq);	
+		send_radio_data_32b(0xAFAFAFAF);
+		//send_radio_data_32b(0xFAFA0000+exec_count_irq);	
 		// set timer
 		set_wakeup_timer (1, 0x1, 0x0);
 		// go to sleep and wake up with same condition
