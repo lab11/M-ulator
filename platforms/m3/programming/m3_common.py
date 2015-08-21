@@ -320,7 +320,8 @@ class m3_common(object):
         logger.info("Script is waiting to print any MBus messages.")
         logger.info("To quit, press Ctrl-C")
         try:
-            time.sleep(1000)
+            while True:
+                time.sleep(1000)
         except KeyboardInterrupt:
             logger.info("Exiting.")
 
