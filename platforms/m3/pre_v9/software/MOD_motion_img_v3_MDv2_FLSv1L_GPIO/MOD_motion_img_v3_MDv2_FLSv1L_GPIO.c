@@ -444,10 +444,10 @@ static void operation_sleep(void){
 static void operation_sleep_for(uint16_t num_sleep_cycles){
   // Reset wakeup counter
   // This is required to go back to sleep!!
-	set_wakeup_timer (num_sleep_cycles, 1, 1);
+	set_wakeup_timer (num_sleep_cycles, 1, 0);
 
   // Go to Sleep
-	sleep();
+	operation_sleep();
 	while(1);
 }
 
@@ -535,6 +535,7 @@ uint32_t check_flash_payload (uint8_t mbus_addr, uint32_t expected_payload) {
 			delay(MBUS_DELAY);
 			delay(MBUS_DELAY);
 			write_mbus_message(mbus_addr, FLSMBusGPIO_getRxData0());
+    		operation_sleep_notimer();
 			while(1);
 		}
 		return 1;
@@ -594,6 +595,7 @@ int main() {
 	delay(MBUS_DELAY); delay(MBUS_DELAY);
 
 	if (IRQ11 == 1) { // Flash Erase
+/*
 		// Set START ADDRESS
 		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x00000800); // Should be a multiple of 0x800
 		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x00000000);
@@ -614,6 +616,7 @@ int main() {
 		FLSMBusGPIO_rxMsg(); // Rx Payload 
 		check_flash_payload (0xA2, 0x00000006);
 		FLSMBusGPIO_disableLargeCap(FLS_ADDR);
+*/
 	}
 	else if (IRQ11 == 2) { // Take an Image and Stream into Flash. Write into Flash
 		// Check Flash SRAM before image
@@ -633,7 +636,7 @@ int main() {
 		// Set PMU Strength & division threshold
 		// PMU_CTRL Register
 		// PRCv9 Default: 0x8F770049
-		*((volatile uint32_t *) 0xA200000C) = 0x8F772879; // works without any override!
+		*((volatile uint32_t *) 0xA200000C) = 0x8F772849; // works without any override!
 		delay(DELAY_1);
 
 		// Un-power-gate MD
@@ -718,6 +721,7 @@ int main() {
 			write_mbus_message(0xAA, 0xF0F0);
 			delay(MBUS_DELAY);
 			delay(MBUS_DELAY);
+    		operation_sleep_notimer();
 	  		while (1);
 	}
 
