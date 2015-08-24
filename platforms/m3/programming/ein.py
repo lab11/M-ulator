@@ -62,5 +62,3 @@ else:
     m3_common.do_default("Would you like to read back the program to validate?", e.validate_bin)
     m3_common.do_default("Would you like to send the DMA start interrupt?", e.DMA_start_interrupt)
 
-e.hang_for_messages()
-

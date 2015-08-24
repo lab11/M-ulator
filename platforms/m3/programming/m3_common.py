@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import atexit
 import os
 import sys
 import socket
@@ -136,6 +137,12 @@ class m3_common(object):
             logger.error("Abstract element missing.")
             raise
 
+        atexit.register(self.exit_handler)
+
+    def exit_handler(self):
+        if self.args.wait_for_messages:
+            self.hang_for_messages()
+
     def wakeup_goc_circuit(self):
         # Fix an ICE issue where the power rails must be poked for
         # the GOC circuitry to wake up
@@ -160,6 +167,10 @@ class m3_common(object):
     def add_parse_args(self):
         self.parser.add_argument("BINFILE", help="Program to flash")
         self.parser.add_argument("SERIAL", help="Path to ICE serial device", nargs='?')
+
+        self.parser.add_argument('-w', '--wait-for-messages',
+                action='store_true',
+                help="Wait for messages (hang) when done.")
 
     def parse_args(self):
         self.parser = argparse.ArgumentParser()

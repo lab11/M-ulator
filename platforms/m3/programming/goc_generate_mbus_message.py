@@ -45,4 +45,3 @@ logger.info("")
 logger.info("Message Sent.")
 logger.info("")
 
-m.hang_for_messages()
