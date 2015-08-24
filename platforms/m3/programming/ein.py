@@ -7,8 +7,11 @@ import logging
 
 from m3_common import m3_common
 
-m3_common.configure_root_logger()
-logger = logging.getLogger(__name__)
+#m3_common.configure_root_logger()
+#logger = logging.getLogger(__name__)
+
+from m3_logging import get_logger
+logger = get_logger(__name__)
 
 class ein_programmer(m3_common):
     TITLE = "EIN Programmer"
