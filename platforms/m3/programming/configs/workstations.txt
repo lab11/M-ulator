@@ -1,0 +1,6 @@
+# One workstation per line
+# Lines starting with '#' are ignored
+Workstation 1
+Workstation 2
+Workstation 3
+Workstation 4
