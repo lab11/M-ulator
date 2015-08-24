@@ -508,6 +508,7 @@ class ICE(object):
         if self.minor >= 2:
             logger.debug("ICE version supports capabilities, querying")
             self.ice_query_capabilities()
+            logger.debug("Capabilities: " + self.capabilities)
         else:
             logger.debug("Version 0.1 does not have capability support, skipping")
 
