@@ -46,9 +46,9 @@ class mbus_message_generator(m3_common):
 
 m = mbus_message_generator()
 
-sp = m3_common.default_value("Snoop short prefixes matching", "xxxx")
+sp = m.default_value("Snoop short prefixes matching", "xxxx")
 m.ice.mbus_set_short_snoop_prefix(sp)
-fp = m3_common.default_value("Snoop full prefixes matching", "xxxxxxxxxxxxxxxxxxxx")
+fp = m.default_value("Snoop full prefixes matching", "xxxxxxxxxxxxxxxxxxxx")
 m.ice.mbus_set_full_snoop_prefix(fp)
 
 m.hang_for_messages()

@@ -31,8 +31,8 @@ class mbus_message(goc_programmer):
         pass
 
 m = mbus_message()
-m3_common.dont_do_default("Run power-on sequence", m.power_on)
-m3_common.dont_do_default("Reset M3", m.reset_m3)
+m.dont_do_default("Run power-on sequence", m.power_on)
+m.dont_do_default("Reset M3", m.reset_m3)
 logger.info("** Setting ICE MBus controller to slave mode")
 m.ice.mbus_set_master_onoff(False)
 m.set_slow_frequency()
