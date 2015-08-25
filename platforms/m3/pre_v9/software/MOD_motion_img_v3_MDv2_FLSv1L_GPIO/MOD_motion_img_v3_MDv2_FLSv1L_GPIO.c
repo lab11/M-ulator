@@ -485,7 +485,7 @@ static void operation_init(void){
     // PMU_CTRL Register
     // PRCv9 Default: 0x8F770049
     // Decrease 5x division switching threshold
-	set_pmu_sleep_clk_default();
+	//set_pmu_sleep_clk_default();
   
 	// For PREv9E GPIO Isolation disable >> bits 16, 17, 24
 	//*((volatile uint32_t *) 0xA2000008) = 0x0120E608; /* 0000 0001 0010 0000 1110 0110 0000 1000 */
@@ -512,6 +512,7 @@ static void operation_init(void){
     exec_count = 0;
     exec_count_irq = 0;
     MBus_msg_flag = 0;
+
     //Enumeration
     enumerate(MD_ADDR);
     delay(MBUS_DELAY*2);
@@ -576,29 +577,35 @@ int main() {
     // Initialization sequence
     if (enumerated != 0xDEADBEEF){
         operation_init();
-    }
 
-	// Configure FLSv1 GPIO
-	FLSMBusGPIO_initialization();
+		// Configure GPIO for FLSv1 Interaction
+		FLSMBusGPIO_initialization();
 
-	if (IRQ11 == 0) { // if it is the first time FLSv1 wake-up
+		// FLSv1 enumeration
 		FLSMBusGPIO_enumeration(FLS_ADDR); // Enumeration
 		FLSMBusGPIO_rxMsg(); // Rx Enumeration Response
 		FLSMBusGPIO_setOptTune(FLS_ADDR); // Set Optimum Tuning Bits
-	}
-	else { // From the 2nd cycle, just wake up FLSv1
+    }else{
+		// Configure GPIO for FLSv1 Interaction
+		FLSMBusGPIO_initialization();
+
+		// After enumeration, just wake up FLSv1
 		FLSMBusGPIO_wakeup();
 	}
 
-	// Send IRQ11 Number
-	write_mbus_message(0xCC, (uint32_t) IRQ11);
-	delay(MBUS_DELAY); delay(MBUS_DELAY);
+	if (IRQ11 == 0) { // Flash Erase
 
-	if (IRQ11 == 1) { // Flash Erase
-/*
 		// Set START ADDRESS
 		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x00000800); // Should be a multiple of 0x800
 		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x00000000);
+
+		// Set Voltage Clamp
+		// Optimal: VTG_TUNE = 0x8, CRT_TUNE=0x3F 
+		FLSMBusGPIO_writeReg(FLS_ADDR, 0x0A, ((0x8 << 6) | (0x3E << 0 )));
+
+		// Set Terase
+		// Default: 0x1AA0
+		FLSMBusGPIO_setTerase(FLS_ADDR, 0x4AA0);
 
 		// Turn on Flash
 		FLSMBusGPIO_turnOnFlash(FLS_ADDR);
@@ -616,9 +623,12 @@ int main() {
 		FLSMBusGPIO_rxMsg(); // Rx Payload 
 		check_flash_payload (0xA2, 0x00000006);
 		FLSMBusGPIO_disableLargeCap(FLS_ADDR);
-*/
+
+		// Increment the count at IRQ11VEC
+		IRQ11 = IRQ11 + 1;
+
 	}
-	else if (IRQ11 == 2) { // Take an Image and Stream into Flash. Write into Flash
+	else if (IRQ11 == 1) { // Take an Image and Stream into Flash. Write into Flash
 		// Check Flash SRAM before image
 		check_flash_sram(0xE0, 10);
 
@@ -636,7 +646,7 @@ int main() {
 		// Set PMU Strength & division threshold
 		// PMU_CTRL Register
 		// PRCv9 Default: 0x8F770049
-		*((volatile uint32_t *) 0xA200000C) = 0x8F772849; // works without any override!
+		*((volatile uint32_t *) 0xA200000C) = 0x8F772879; // works without any override!
 		delay(DELAY_1);
 
 		// Un-power-gate MD
@@ -676,18 +686,40 @@ int main() {
 		check_flash_payload (0xA4, 0x00000003);
 		FLSMBusGPIO_enableLargeCap(FLS_ADDR);
 
+		delay(MBUS_DELAY);
+		write_mbus_message(0xF1, 0x11111111);
+		delay(MBUS_DELAY);
+
 		// Copy SRAM to Flash
 		FLSMBusGPIO_doCopySRAM2Flash(FLS_ADDR, 0x7FE);
 		FLSMBusGPIO_rxMsg();
 		check_flash_payload (0xA5, 0x0000005C);
+
+		delay(MBUS_DELAY);
+		write_mbus_message(0xF1, 0x22222222);
+		delay(MBUS_DELAY);
 
 		// Turn off Flash
 		FLSMBusGPIO_turnOffFlash(FLS_ADDR);
 		FLSMBusGPIO_rxMsg(); // Rx Payload 
 		check_flash_payload (0xA6, 0x00000006);
 		FLSMBusGPIO_disableLargeCap(FLS_ADDR);
+
+		delay(MBUS_DELAY);
+		write_mbus_message(0xF1, 0x33333333);
+		delay(MBUS_DELAY);
+
+/*
+		// Increment the count at IRQ11VEC
+		IRQ11 = IRQ11 + 1;
+
 	}
-	else if (IRQ11 == 3) { // Read out from Flash
+	else if (IRQ11 == 2) { // Read out from Flash
+*/
+		delay(MBUS_DELAY);
+		write_mbus_message(0xF2, 0x11111111);
+		delay(MBUS_DELAY);
+
 		// Check Flash SRAM after wake-up
 		check_flash_sram(0xE2, 10);
 
@@ -696,6 +728,10 @@ int main() {
 		FLSMBusGPIO_rxMsg(); // Rx Payload 
 		check_flash_payload (0xA7, 0x00000003);
 		FLSMBusGPIO_enableLargeCap(FLS_ADDR);
+
+		delay(MBUS_DELAY);
+		write_mbus_message(0xF2, 0x22222222);
+		delay(MBUS_DELAY);
 
 		// Copy Flash to SRAM
 		FLSMBusGPIO_doCopyFlash2SRAM(FLS_ADDR, 0x7FE);
@@ -710,23 +746,28 @@ int main() {
 
 		// Check Flash SRAM after recovery
 		check_flash_sram(0xE3, 10);
+/*
+		// Increment the count at IRQ11VEC
+		IRQ11 = IRQ11 + 1;
 	}
-	else if (IRQ11 == 4) { // Everything is done. Keep sending out junk data.
-			write_mbus_message(0xAA, 0x12345678);
-			delay(MBUS_DELAY);
-			delay(MBUS_DELAY);
-			write_mbus_message(0xAA, 0x87654321);
-			delay(MBUS_DELAY);
-			delay(MBUS_DELAY);
-			write_mbus_message(0xAA, 0xF0F0);
-			delay(MBUS_DELAY);
-			delay(MBUS_DELAY);
-    		operation_sleep_notimer();
-	  		while (1);
-	}
+	else if (IRQ11 == 3) { // Everything is done. Keep sending out junk data.
+*/
 
-	// Increment the count at IRQ11VEC
-	IRQ11 = IRQ11 + 1;
+		write_mbus_message(0xAA, 0x12345678);
+		delay(MBUS_DELAY);
+		write_mbus_message(0xAA, 0x87654321);
+		delay(MBUS_DELAY);
+		write_mbus_message(0xAA, 0xF0F0);
+		delay(MBUS_DELAY);
+		write_mbus_message(0xAA, IRQ11);
+
+		// All done: Go to sleep forever
+		// Put FLS back to sleep
+		IRQ11 = 0;
+		//FLSMBusGPIO_sleep();
+		//operation_sleep_notimer();
+		//while (1);
+	}
 
 	// Put FLS back to sleep
 	FLSMBusGPIO_sleep();
