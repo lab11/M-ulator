@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
+import atexit
 import os
 import sys
 import socket
@@ -36,14 +39,23 @@ def printing_sleep(seconds):
 class m3_common(object):
     TITLE = "Generic M3 Programmer"
 
-    @staticmethod
-    def default_value(prompt, default, extra=None, invert=False):
+    def default_value(self, prompt, default, extra=None, invert=False):
         if invert and (extra is None):
             raise RuntimeError, "invert & !extra ?"
-        if extra:
-            r = raw_input(prompt + ' [' + default + extra + ']: ')
+        if self.args.yes:
+            fn = print
         else:
-            r = raw_input(prompt + ' [' + default + ']: ')
+            fn = raw_input
+        if extra:
+            r = fn(prompt + ' [' + default + extra + ']: ')
+        else:
+            r = fn(prompt + ' [' + default + ']: ')
+        if self.args.yes:
+            if invert:
+                print("Chose {}".format(extra))
+                return extra
+            print("Chose {}".format(default))
+            return default
         if len(r) == 0:
             if invert:
                 return extra
@@ -51,18 +63,16 @@ class m3_common(object):
         else:
             return r
 
-    @staticmethod
-    def do_default(prompt, fn, else_fn=None):
-        y = m3_common.default_value(prompt, 'Y', '/n')
+    def do_default(self, prompt, fn, else_fn=None):
+        y = self.default_value(prompt, 'Y', '/n')
         if y[0] not in ('n', 'N'):
             fn()
         else:
             if else_fn:
                 else_fn()
 
-    @staticmethod
-    def dont_do_default(prompt, fn, else_fn=None):
-        resp = m3_common.default_value(prompt, 'y/', 'N', invert=True)
+    def dont_do_default(self, prompt, fn, else_fn=None):
+        resp = self.default_value(prompt, 'y/', 'N', invert=True)
         if resp[0] in ('y', 'Y'):
             fn()
         else:
@@ -136,6 +146,12 @@ class m3_common(object):
             logger.error("Abstract element missing.")
             raise
 
+        atexit.register(self.exit_handler)
+
+    def exit_handler(self):
+        if self.args.wait_for_messages:
+            self.hang_for_messages()
+
     def wakeup_goc_circuit(self):
         # Fix an ICE issue where the power rails must be poked for
         # the GOC circuitry to wake up
@@ -160,6 +176,15 @@ class m3_common(object):
     def add_parse_args(self):
         self.parser.add_argument("BINFILE", help="Program to flash")
         self.parser.add_argument("SERIAL", help="Path to ICE serial device", nargs='?')
+
+        self.parser.add_argument('-w', '--wait-for-messages',
+                action='store_true',
+                help="Wait for messages (hang) when done.")
+
+        self.parser.add_argument('-y', '--yes',
+                action='store_true',
+                help="Use default values for all prompts.")
+
 
     def parse_args(self):
         self.parser = argparse.ArgumentParser()

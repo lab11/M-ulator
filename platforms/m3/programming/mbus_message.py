@@ -47,14 +47,14 @@ class mbus_message_generator(m3_common):
 
 m = mbus_message_generator()
 
-m3_common.do_default("Run power-on sequence", m.power_on)
-m3_common.do_default("Reset M3", m.reset_m3)
-m3_common.do_default("Act as MBus master", m.set_master, m.set_slave)
+m.do_default("Run power-on sequence", m.power_on)
+m.do_default("Reset M3", m.reset_m3)
+m.do_default("Act as MBus master", m.set_master, m.set_slave)
 
 def build_mbus_message():
     logging.info("Build your MBus message. All values hex. Leading 0x optional. Ctrl-C to Quit.")
-    addr = m3_common.default_value("Address      ", "0xA5").replace('0x','').decode('hex')
-    data = m3_common.default_value("   Data", "0x12345678").replace('0x','').decode('hex')
+    addr = m.default_value("Address      ", "0xA5").replace('0x','').decode('hex')
+    data = m.default_value("   Data", "0x12345678").replace('0x','').decode('hex')
     return addr, data
 
 def get_mbus_message_to_send():
@@ -64,7 +64,7 @@ def get_mbus_message_to_send():
     logger.info("\t2) SNS Config Bits    (0x40, 0x0423dfef)")
     logger.info("\t3) SNS Sample Setup   (0x40, 0x030bf0f0)")
     logger.info("\t4) SNS Sample Start   (0x40, 0x030af0f0)")
-    selection = m3_common.default_value("Choose a message type", "-1")
+    selection = m.default_value("Choose a message type", "-1")
     if selection == '0':
         return build_mbus_message()
     elif selection == '1':
