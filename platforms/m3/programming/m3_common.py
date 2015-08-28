@@ -149,8 +149,11 @@ class m3_common(object):
         atexit.register(self.exit_handler)
 
     def exit_handler(self):
-        if self.args.wait_for_messages:
-            self.hang_for_messages()
+        try:
+            if self.args.wait_for_messages:
+                self.hang_for_messages()
+        except AttributeError:
+            pass
 
     def wakeup_goc_circuit(self):
         # Fix an ICE issue where the power rails must be poked for
@@ -173,8 +176,9 @@ class m3_common(object):
         logger.info(" -- " + self.TITLE)
         logger.info("")
 
-    def add_parse_args(self):
-        self.parser.add_argument("BINFILE", help="Program to flash")
+    def add_parse_args(self, require_binfile=True):
+        if require_binfile:
+            self.parser.add_argument("BINFILE", help="Program to flash")
         self.parser.add_argument("SERIAL", help="Path to ICE serial device", nargs='?')
 
         self.parser.add_argument('-w', '--wait-for-messages',
@@ -269,22 +273,25 @@ class m3_common(object):
         if self.hexencoded is None:
             sys.exit(3)
 
-    def power_on(self):
+    def power_on(self, wait_for_rails_to_settle=True):
         logger.info("Turning all M3 power rails on")
         self.ice.power_set_voltage(0,0.6)
         self.ice.power_set_voltage(1,1.2)
         self.ice.power_set_voltage(2,3.8)
         logger.info("Turning 3.8 on")
         self.ice.power_set_onoff(2,True)
-        printing_sleep(1.0)
+        if wait_for_rails_to_settle:
+            printing_sleep(1.0)
         logger.info("Turning 1.2 on")
         self.ice.power_set_onoff(1,True)
-        printing_sleep(1.0)
+        if wait_for_rails_to_settle:
+            printing_sleep(1.0)
         logger.info("Turning 0.6 on")
         self.ice.power_set_onoff(0,True)
-        printing_sleep(1.0)
-        logger.info("Waiting 8 seconds for power rails to settle")
-        printing_sleep(8.0)
+        if wait_for_rails_to_settle:
+            printing_sleep(1.0)
+            logger.info("Waiting 8 seconds for power rails to settle")
+            printing_sleep(8.0)
 
     def reset_m3(self):
         logger.info("M3 0.6V => OFF (reset controller)")
