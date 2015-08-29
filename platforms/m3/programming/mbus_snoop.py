@@ -41,8 +41,6 @@ class mbus_message_generator(m3_common):
 m = mbus_message_generator()
 m.power_on(wait_for_rails_to_settle=False)
 
-raw_input("Pause")
-
 # This loop will reset the MBus controller internally
 m.set_master()
 m.set_slave()
