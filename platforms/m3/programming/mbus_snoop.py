@@ -46,10 +46,17 @@ class mbus_message_generator(m3_common):
 
 m = mbus_message_generator()
 
-sp = m3_common.default_value("Snoop short prefixes matching", "xxxx")
-m.ice.mbus_set_short_snoop_prefix(sp)
-fp = m3_common.default_value("Snoop full prefixes matching", "xxxxxxxxxxxxxxxxxxxx")
-m.ice.mbus_set_full_snoop_prefix(fp)
+# sp = m3_common.default_value("Snoop short prefixes matching", "xxxx")
+# m.ice.mbus_set_short_snoop_prefix(sp)
+# fp = m3_common.default_value("Snoop full prefixes matching", "xxxxxxxxxxxxxxxxxxxx")
+# m.ice.mbus_set_full_snoop_prefix(fp)
+# bm = m3_common.default_value("Snoop broadcast messages matching", "xxxx")
+# m.ice.mbus_set_broadcast_channel_snoop_mask(bm)
+
+
+isp = m3_common.default_value("ICE address", "0111")
+m.ice.mbus_set_short_prefix(isp)
+
 
 m.hang_for_messages()
 
