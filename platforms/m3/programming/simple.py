@@ -14,14 +14,8 @@ logger = get_logger(__name__)
 class mbus_message_generator(m3_common):
     TITLE = "MBus Message Generator"
 
-    def parse_args(self):
-        if len(sys.argv) not in (2,):
-            logger.error("Serial device required.")
-            logger.info("USAGE: %s SERIAL_DEVICE\n" % (sys.argv[0]))
-            logger.info("")
-            sys.exit(2)
-
-        self.serial_path = sys.argv[1]
+    def add_parse_args(self):
+        super(mbus_message_generator, self).add_parse_args(require_binfile=False)
 
     def install_handler(self):
         self.ice.msg_handler['B++'] = self.Bpp_callback
@@ -46,13 +40,14 @@ class mbus_message_generator(m3_common):
         self.ice.mbus_set_master_onoff(False)
 
 m = mbus_message_generator()
+m.power_on(wait_for_rails_to_settle=False)
 
-m.do_default("Run power-on sequence", m.power_on)
-m.do_default("Reset M3", m.reset_m3)
 m.do_default("Act as MBus master", m.set_master, m.set_slave)
 
+import time
+
 def build_mbus_message():
-    logging.info("Build your MBus message. All values hex. Leading 0x optional. Ctrl-C to Quit.")
+    logger.info("Build your MBus message. All values hex. Leading 0x optional. Ctrl-C to Quit.")
     addr = m.default_value("Address      ", "0xA5").replace('0x','').decode('hex')
     data = m.default_value("   Data", "0x12345678").replace('0x','').decode('hex')
     return addr, data
@@ -76,7 +71,7 @@ def get_mbus_message_to_send():
     elif selection == '4':
         return ('40'.decode('hex'), '030af0f0'.decode('hex'))
     else:
-        logging.info("Please choose one of the numbered options")
+        logger.info("Please choose one of the numbered options")
         return get_mbus_message_to_send()
 
 while True:
@@ -86,5 +81,5 @@ while True:
     except KeyboardInterrupt:
         break
 
-logging.info('')
-logging.info("Exiting.")
+logger.info('')
+logger.info("Exiting.")

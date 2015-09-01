@@ -407,7 +407,7 @@ static void operation_init(void){
 	//*((volatile uint32_t *) 0xA2000008) = 0x00202608;
   
 	// For PREv9E GPIO Isolation disable >> bits 16, 17, 24
-	*((volatile uint32_t *) 0xA2000008) = 0x0120E608;
+	*((volatile uint32_t *) 0xA2000008) = 0x0120E508;
 
 
     delay(DELAY_1);

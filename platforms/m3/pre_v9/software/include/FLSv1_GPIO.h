@@ -115,6 +115,13 @@ void FLSMBusGPIO_setIRQAddr(volatile uint32_t fls_enum, volatile uint32_t short_
 //          CRT_TUNE = 0x3F
 void FLSMBusGPIO_setOptTune(volatile uint32_t fls_enum);
 
+//Tune Terase
+//    - Set the following tuning bits:
+//          T5us = 0x0
+//          T10us = 0x2
+//          Terase = as given
+void FLSMBusGPIO_setTerase(volatile uint32_t fls_enum, volatile uint32_t Terase);
+
 //set Flash Start Address
 //    - Used for the following functions: 
 //          FLSMBusGPIO_doCopyFlash2SRAM()

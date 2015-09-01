@@ -89,6 +89,12 @@ void FLSMBusGPIO_setOptTune(volatile uint32_t fls_enum) {
 	// Set VTG_TUNE = 0x8, CRT_TUNE=0x3F 
 	FLSMBusGPIO_writeReg(fls_enum, 0x0A, ((0x8 << 6) | (0x3F << 0 )));
 }
+void FLSMBusGPIO_setTerase(volatile uint32_t fls_enum, volatile uint32_t Terase) {
+	// Terase Default Value = 16'h1AA0
+	uint32_t T5us = 0x0;
+	uint32_t T10us = 0x2;
+	FLSMBusGPIO_writeReg(fls_enum, 0x01, ((T10us << 20) | (T5us << 16) | (Terase << 0 )));
+}
 void FLSMBusGPIO_setFlashStartAddr(volatile uint32_t fls_enum, volatile uint32_t flash_start_addr) {
 	FLSMBusGPIO_writeReg(fls_enum, 0x07, flash_start_addr);
 }
