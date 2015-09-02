@@ -40,7 +40,7 @@
 #include "RADv5.h"
 
 // uncomment this for debug mbus message
-#define DEBUG_MBUS_MSG
+//#define DEBUG_MBUS_MSG
 // uncomment this for debug radio message
 //#define DEBUG_RADIO_MSG
 
@@ -67,7 +67,7 @@
 #define PSTK_LDO2  	 	0x5
 
 // Radio configurations
-#define RAD_BIT_DELAY       14     // 14: around 400bps @ USRP
+#define RAD_BIT_DELAY       34     // 14: around 400bps @ USRP // 34: around 200bps
 #define RAD_PACKET_DELAY 	2000
 #define RAD_PACKET_NUM      1      //How many times identical data will be TXed
 
@@ -106,6 +106,7 @@
 	static uint32_t cdc_storage_cref_latest;
 	static uint32_t cdc_storage_count;
 	static uint8_t cdc_run_single;
+	static uint8_t cdc_running;
 	static uint32_t radio_tx_count;
 	static uint32_t radio_tx_option;
 	static uint32_t radio_tx_numdata;
@@ -331,7 +332,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Pstack_state = PSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEEF;
+    enumerated = 0xDEADBEEE;
     exec_count = 0;
     exec_count_irq = 0;
     MBus_msg_flag = 0;
@@ -346,7 +347,7 @@ static void operation_init(void){
     // CDC Settings --------------------------------------
     // snsv5_r0
     snsv5_r0.CDCW_IRQ_EN	= 1;
-    snsv5_r0.CDCW_MODE_PAR	= 0;
+    snsv5_r0.CDCW_MODE_PAR	= 1;
     snsv5_r0.CDCW_RESETn 	= 0;
     write_mbus_register(SNS_ADDR,0,snsv5_r0.as_int);
 
@@ -400,7 +401,7 @@ static void operation_init(void){
     write_mbus_register(RAD_ADDR,0x22,radv5_r22.as_int);
     delay(MBUS_DELAY);
     //RADv5 R25
-    radv5_r25.RADIO_TUNE_TX_TIME_1P2 = 0x4; //Tune TX Time
+    radv5_r25.RADIO_TUNE_TX_TIME_1P2 = 0x5; //Tune TX Time  0x5: no pulse; around 2.4ms // 0x4: 380ns
     write_mbus_register(RAD_ADDR,0x25,radv5_r25.as_int);
     delay(MBUS_DELAY);
     //RADv5 R27
@@ -414,6 +415,7 @@ static void operation_init(void){
     radio_tx_count = 0;
     radio_tx_option = 0;
 	cdc_run_single = 0;
+	cdc_running = 0;
     
     // Go to sleep without timer
     operation_sleep_notimer();
@@ -589,10 +591,13 @@ static void operation_cdc_run(){
 				}
 
 				// Enter long sleep
-				if(exec_count < 6){ 
+				if(exec_count > 40){ 
+					operation_sleep_notimer();
+/*
 					// Send some signal
 					send_radio_data(0xFAF000);
 					set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+*/
 				}else{
 					set_wakeup_timer (WAKEUP_PERIOD_CONT, 0x1, 0x0);
 				}
@@ -625,7 +630,7 @@ int main() {
 	config_timer( 0, 1, 0, 0, 1000000 );
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEEF){
+    if (enumerated != 0xDEADBEEE){
         // Set up PMU/GOC register in PRC layer (every time)
         // Enumeration & RAD/SNS layer register configuration
         operation_init();
@@ -674,6 +679,13 @@ int main() {
 
         set_pmu_sleep_clk_low();
         delay(MBUS_DELAY);
+
+		if (!cdc_running){
+			// Go to sleep for initial settling
+			set_wakeup_timer (150, 0x1, 0x0);
+			cdc_running = 1;
+			operation_sleep_noirqreset();
+		}
         exec_count = 0;
 		meas_count = 0;
         cdc_storage_count = 0;
@@ -691,6 +703,7 @@ int main() {
         // wakeup_data[15:8] is the user-specified period 
         // wakeup_data[16] indicates whether or not to speed up PMU sleep clock
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+		cdc_running = 0;
 
 		if (wakeup_data_field_2 & 0x1){
 			// Speed up PMU sleep osc
