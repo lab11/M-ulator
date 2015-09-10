@@ -35,7 +35,7 @@
 #include "mbus.h"
 #include "PRCv9.h"
 #include "SNSv5.h"
-#include "HRVv1.h"
+#include "HRVv2.h"
 #include "RADv5.h"
 
 // uncomment this for debug mbus message
@@ -482,7 +482,7 @@ static void operation_init(void){
 	
     // snsv5_r2 (need to be initialized here)
     snsv5_r2.CDCW_T_CHARGE		= 0x80; // 0x80
-    snsv5_r2.CDCW_N_CYCLE_SET	= 90; // Default: 0x10  <<<<<<
+    snsv5_r2.CDCW_N_CYCLE_SET	= 100; // Default: 0x10  <<<<<<
     write_mbus_register(SNS_ADDR,2,snsv5_r2.as_int);
 
     // SNSv5_R18

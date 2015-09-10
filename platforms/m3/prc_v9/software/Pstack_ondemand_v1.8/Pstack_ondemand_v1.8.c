@@ -40,7 +40,7 @@
 #include "RADv5.h"
 
 // uncomment this for debug mbus message
-//#define DEBUG_MBUS_MSG
+#define DEBUG_MBUS_MSG
 // uncomment this for debug radio message
 //#define DEBUG_RADIO_MSG
 
@@ -67,7 +67,8 @@
 #define PSTK_LDO2  	 	0x5
 
 // Radio configurations
-#define RAD_BIT_DELAY       34     // 14: around 400bps @ USRP // 34: around 200bps
+// FIXME
+#define RAD_BIT_DELAY       104     // 14: around 400bps @ USRP // 34: around 200bps
 #define RAD_PACKET_DELAY 	2000
 #define RAD_PACKET_NUM      1      //How many times identical data will be TXed
 
@@ -76,7 +77,7 @@
 #define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 
-#define CDC_STORAGE_SIZE 40  
+#define CDC_STORAGE_SIZE 20  
 
 //***************************************************
 // Global variables
@@ -84,32 +85,32 @@
 	//Test Declerations
 	// "static" limits the variables to this file, giving compiler more freedom
 	// "volatile" should only be used for MMIO
-	static uint32_t enumerated;
-	static uint8_t Pstack_state;
-	static uint32_t cdc_data[NUM_SAMPLES];
-	static uint32_t cdc_data_tx[NUM_SAMPLES_TX];
-	static uint32_t cdc_reset_timeout_count;
-	static uint32_t exec_count;
-	static uint32_t meas_count;
-	static uint32_t exec_count_irq;
-	static uint8_t MBus_msg_flag;
+	uint32_t enumerated;
+	uint8_t Pstack_state;
+	uint32_t cdc_data[NUM_SAMPLES];
+	uint32_t cdc_data_tx[NUM_SAMPLES_TX];
+	uint32_t cdc_reset_timeout_count;
+	uint32_t exec_count;
+	uint32_t meas_count;
+	uint32_t exec_count_irq;
+	uint8_t MBus_msg_flag;
 	volatile snsv5_r0_t snsv5_r0 = SNSv5_R0_DEFAULT;
 	volatile snsv5_r1_t snsv5_r1 = SNSv5_R1_DEFAULT;
 	volatile snsv5_r2_t snsv5_r2 = SNSv5_R2_DEFAULT;
 	volatile snsv5_r18_t snsv5_r18 = SNSv5_R18_DEFAULT;
   
-	static uint32_t WAKEUP_PERIOD_CONT; 
-	static uint32_t WAKEUP_PERIOD_CONT_INIT; 
+	uint32_t WAKEUP_PERIOD_CONT; 
+	uint32_t WAKEUP_PERIOD_CONT_INIT; 
 
-	static uint32_t cdc_storage[CDC_STORAGE_SIZE] = {0};
-	static uint32_t cdc_storage_cref[CDC_STORAGE_SIZE] = {0};
-	static uint32_t cdc_storage_cref_latest;
-	static uint32_t cdc_storage_count;
-	static uint8_t cdc_run_single;
-	static uint8_t cdc_running;
-	static uint32_t radio_tx_count;
-	static uint32_t radio_tx_option;
-	static uint32_t radio_tx_numdata;
+	uint32_t cdc_storage[CDC_STORAGE_SIZE] = {0};
+	uint32_t cdc_storage_cref[CDC_STORAGE_SIZE] = {0};
+	uint32_t cdc_storage_cref_latest;
+	uint32_t cdc_storage_count;
+	uint8_t cdc_run_single;
+	uint8_t cdc_running;
+	uint32_t radio_tx_count;
+	uint32_t radio_tx_option;
+	uint32_t radio_tx_numdata;
 
 //***************************************************
 //Interrupt Handlers
@@ -221,7 +222,7 @@ inline static void set_pmu_sleep_clk_low(){
 }
 inline static void set_pmu_sleep_clk_default(){
     // PRCv9 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77004B; // 0x8F77004B: use GOC x10-25
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77004B; // 0x8F77004B: use GOC x10-45
 }
 static void process_data(){
     uint8_t i;
@@ -292,6 +293,17 @@ static void operation_tx_stored(void){
 	uint32_t data2 = 0xF00000 | cdc_storage_cref[radio_tx_count];
 	delay(MBUS_DELAY);
 
+	#ifdef DEBUG_MBUS_MSG
+		delay(MBUS_DELAY*10);
+		write_mbus_message(0x70, radio_tx_count);
+		delay(MBUS_DELAY*10);
+		write_mbus_message(0x74, cdc_storage[radio_tx_count]);
+		delay(MBUS_DELAY*10);
+		write_mbus_message(0x76, cdc_storage_cref[radio_tx_count]);
+		delay(MBUS_DELAY*10);
+		write_mbus_message(0x70, radio_tx_count);
+		delay(MBUS_DELAY*10);
+	#endif
 	send_radio_data(data1);
 	delay(RAD_PACKET_DELAY*3); //Set delays between sending subsequent packet
 	send_radio_data(data2);
@@ -322,23 +334,29 @@ static void operation_init(void){
     // Change PMU_CTRL Register
     // PRCv9 Default: 0x8F770049
     // Decrease 5x division switching threshold
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77004B;
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77184B; // FIXME
   
     // Speed up GOC frontend to match PMU frequency
     // PRCv9 Default: 0x00202903
     *((volatile uint32_t *) 0xA2000008) = 0x00202508;
   
+    delay(10000);
     delay(100);
   
     //Enumerate & Initialize Registers
     Pstack_state = PSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEEE;
+    enumerated = 0xDEADBEEF;
     exec_count = 0;
     exec_count_irq = 0;
     MBus_msg_flag = 0;
+
     //Enumeration
     enumerate(RAD_ADDR);
     delay(MBUS_DELAY*10);
+
+	//write_mbus_message(0x70, radio_tx_count);
+	//operation_sleep_notimer();
+
     enumerate(SNS_ADDR);
     delay(MBUS_DELAY*10);
     enumerate(HRV_ADDR);
@@ -347,7 +365,7 @@ static void operation_init(void){
     // CDC Settings --------------------------------------
     // snsv5_r0
     snsv5_r0.CDCW_IRQ_EN	= 1;
-    snsv5_r0.CDCW_MODE_PAR	= 1;
+    snsv5_r0.CDCW_MODE_PAR	= 0;
     snsv5_r0.CDCW_RESETn 	= 0;
     write_mbus_register(SNS_ADDR,0,snsv5_r0.as_int);
 
@@ -535,13 +553,15 @@ static void operation_cdc_run(){
 		read_data_reg6 = *((volatile uint32_t *) 0xA0001014);
 
 		#ifdef DEBUG_MBUS_MSG
-			write_mbus_message(0x70, 0x11111111);
+			write_mbus_message(0x70, radio_tx_count);
+			delay(MBUS_DELAY*20);
+			write_mbus_message(0x70, radio_tx_count);
+			delay(MBUS_DELAY*20);
+			write_mbus_message(0x74, read_data_reg4);
 			delay(MBUS_DELAY*20);
 			write_mbus_message(0x76, read_data_reg6);
 			delay(MBUS_DELAY*10);
-			write_mbus_message(0x74, read_data_reg4);
-			delay(MBUS_DELAY*20);
-			write_mbus_message(0x70, 0x11111111);
+			write_mbus_message(0x70, radio_tx_count);
 		#endif
 
 		// Option to take multiple measurements per wakeup
@@ -591,7 +611,13 @@ static void operation_cdc_run(){
 				}
 
 				// Enter long sleep
-				if(exec_count > 40){ 
+				if(exec_count > 40){ // FIXME
+					// FIXME
+					snsv5_r18.CDC_LDO_CDC_LDO_ENB = 0x1;
+					write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
+					delay(MBUS_DELAY);
+
+					cdc_running = 0;
 					operation_sleep_notimer();
 /*
 					// Send some signal
@@ -630,7 +656,7 @@ int main() {
 	config_timer( 0, 1, 0, 0, 1000000 );
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEEE){
+    if (enumerated != 0xDEADBEEF){
         // Set up PMU/GOC register in PRC layer (every time)
         // Enumeration & RAD/SNS layer register configuration
         operation_init();
@@ -681,14 +707,19 @@ int main() {
         delay(MBUS_DELAY);
 
 		if (!cdc_running){
+			// FIXME
+			//snsv5_r18.CDC_LDO_CDC_LDO_ENB = 0x0;
+			//write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
+        	//delay(MBUS_DELAY);
 			// Go to sleep for initial settling
-			set_wakeup_timer (150, 0x1, 0x0);
+			set_wakeup_timer (5, 0x1, 0x0); // 150: around 5 min
 			cdc_running = 1;
 			operation_sleep_noirqreset();
 		}
         exec_count = 0;
 		meas_count = 0;
         cdc_storage_count = 0;
+		radio_tx_count = 0;
 
 		// Reset IRQ10VEC
 		*((volatile uint32_t *) IRQ10VEC) = 0;
@@ -738,19 +769,24 @@ int main() {
 		}
     
         if (exec_count_irq < 3){
-          exec_count_irq++;
-          // radio
-          send_radio_data(0xFAF000+exec_count_irq);
+			exec_count_irq++;
+			// radio
+			send_radio_data(0xFAF000+exec_count_irq);
+			if (exec_count_irq == 2){
+				// set timer
+				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT*2, 0x1, 0x0);
+			}else{
+				// set timer
+				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+			}
+			// go to sleep and wake up with same condition
+			operation_sleep_noirqreset();
     
-          // set timer
-          set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
-          // go to sleep and wake up with same condition
-          operation_sleep_noirqreset();
-    
-        }else{
-          operation_tx_stored();
+		}else{
+        	operation_tx_stored();
 		}
 
+/*
     }else if(wakeup_data_header == 7){
 		// Transmit CREF output of the CDC as a battery voltage indicator
 		// Optionally runs CREF measurement
@@ -784,7 +820,7 @@ int main() {
             // Go to sleep without timer
             operation_sleep_notimer();
         }
-
+*/
 
     }else if(wakeup_data_header == 0x11){
 		// Slow down PMU sleep osc and go to sleep for further programming
