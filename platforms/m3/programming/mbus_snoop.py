@@ -47,7 +47,7 @@ m.set_slave()
 
 #m.ice.mbus_set_snoop(True)
 
-isp = m3_common.default_value("ICE address", "0111")
+isp = m.default_value("ICE address", "0111")
 m.ice.mbus_set_short_prefix(isp)
 
 m.hang_for_messages()
