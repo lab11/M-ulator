@@ -45,10 +45,7 @@ m.power_on(wait_for_rails_to_settle=False)
 m.set_master()
 m.set_slave()
 
-sp = m.default_value("Snoop short prefixes matching", "xxxx")
-m.ice.mbus_set_short_snoop_prefix(sp)
-fp = m.default_value("Snoop full prefixes matching", "xxxxxxxxxxxxxxxxxxxx")
-m.ice.mbus_set_full_snoop_prefix(fp)
+m.ice.mbus_set_snoop(True)
 
 m.hang_for_messages()
 
