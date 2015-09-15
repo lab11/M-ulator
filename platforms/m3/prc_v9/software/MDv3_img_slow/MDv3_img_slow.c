@@ -341,6 +341,11 @@ int main() {
   
 	uint32_t first_exec;
 
+	//Config watchdog timer to about 10 sec: 1,000,000 with default PRCv9
+	//config_timer( timer_id, go, roi, init_val, sat_val )
+	// FIXME: Watchdog timer disabled
+	config_timer( 0, 0, 0, 0, 1000000 );
+
 	delay(MBUS_DELAY);
 
 	//Check if it is the first execution
@@ -406,7 +411,8 @@ int main() {
 
 	delay(WAKEUP_DELAY_FINAL);
 
-	//capture_image_start();
+	capture_image_start();
+	while(1);
 
 	// Capture a single image
 	
