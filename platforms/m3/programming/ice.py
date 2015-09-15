@@ -976,6 +976,21 @@ class ICE(object):
         msg = addr + data
         return self._fragment_sender('b', msg)
 
+    @min_proto_version("0.3")
+    @capability('m')
+    def mbus_set_internal_reset(self, assert_reset):
+        '''
+        Control signal that holds ICE internal MBus in reset.
+
+        While in reset, the COUT and DOUT signals are held high. This is useful
+        for bootstrapping when multiple ICE boards are in a loop.
+        '''
+        self.min_version(0.3)
+        self.send_message_until_acked('m', struct.pack("B"*(1+1),
+            ord('r'),
+            bool(assert_reset),
+            ))
+
     @min_proto_version("0.2")
     @capability('m')
     def mbus_set_full_prefix(self, prefix=None):

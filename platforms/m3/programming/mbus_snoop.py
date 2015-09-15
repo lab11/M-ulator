@@ -32,23 +32,20 @@ class mbus_message_generator(m3_common):
     def read_binfile(self):
         pass
 
-    def set_master(self):
-        self.ice.mbus_set_master_onoff(True)
-
-    def set_slave(self):
-        self.ice.mbus_set_master_onoff(False)
-
 m = mbus_message_generator()
 m.power_on(wait_for_rails_to_settle=False)
 
-# This loop will reset the MBus controller internally
-m.set_master()
-m.set_slave()
+m.ice.mbus_set_internal_reset(True)
+m.ice.mbus_set_master_onoff(False)
 
 #m.ice.mbus_set_snoop(True)
 
 isp = m.default_value("ICE address", "0111")
 m.ice.mbus_set_short_prefix(isp)
+
+raw_input("Pausing in reset...")
+
+m.ice.mbus_set_internal_reset(False)
 
 m.hang_for_messages()
 

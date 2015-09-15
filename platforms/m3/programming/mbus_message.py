@@ -44,7 +44,9 @@ m = mbus_message_generator()
 #m.do_default("Run power-on sequence", m.power_on)
 #m.do_default("Reset M3", m.reset_m3)
 m.power_on(wait_for_rails_to_settle=False)
+m.ice.mbus_set_internal_reset(True)
 m.do_default("Act as MBus master", m.set_master, m.set_slave)
+m.ice.mbus_set_internal_reset(False)
 
 def build_mbus_message():
     logger.info("Build your MBus message. All values hex. Leading 0x optional. Ctrl-C to Quit.")
@@ -59,6 +61,7 @@ def get_mbus_message_to_send():
     logger.info("\t2) SNS Config Bits    (0x40, 0x0423dfef)")
     logger.info("\t3) SNS Sample Setup   (0x40, 0x030bf0f0)")
     logger.info("\t4) SNS Sample Start   (0x40, 0x030af0f0)")
+    logger.info("\t5) Test to addr 7     (0x74, 0xdeadbeef)")
     selection = m.default_value("Choose a message type", "-1")
     if selection == '0':
         return build_mbus_message()
@@ -70,6 +73,8 @@ def get_mbus_message_to_send():
         return ("40".decode('hex'), "030bf0f0".decode('hex'))
     elif selection == '4':
         return ('40'.decode('hex'), '030af0f0'.decode('hex'))
+    elif selection == '5':
+        return ('74'.decode('hex'), 'deadbeef'.decode('hex'))
     else:
         logger.info("Please choose one of the numbered options")
         return get_mbus_message_to_send()
