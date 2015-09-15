@@ -1045,12 +1045,10 @@ class ICE(object):
             if len(prefix) != 4:
                 raise self.FormatError, "Prefix must be exactly 4 bits"
             ones, zeros = self.string_to_masks(prefix)
-        ones <<= 4
-        zeros <<= 4
-        self.send_message_until_acked('m', struct.pack("B"*(1+2),
+
+        self.send_message_until_acked('m', struct.pack("B"*(1+1),
             ord('s'),
             ones,
-            zeros,
             ))
 
     @min_proto_version("0.2")
