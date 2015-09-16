@@ -330,10 +330,10 @@ static void operation_init(void){
     // Radio Settings --------------------------------------
     //radv7_r0_t radv7_r0 = RADv7_R0_DEFAULT;
 
-    radv7_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
+    radv7_r0.RADIO_TUNE_CURRENT_LIMITER = 0x1F; //Current Limiter 2F = 30uA, 1F = 3uA
     radv7_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
     radv7_r0.RADIO_TUNE_FREQ2 = 0x0; //Tune Freq 2 //0x0,0x0 = 902MHz on Pblr005
-    radv7_r0.RADIO_TUNE_TX_TIME = 0x7; //Tune TX Time
+    radv7_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
 
     write_mbus_register(RAD_ADDR,0,radv7_r0.as_int);
     delay(MBUS_DELAY);
@@ -361,7 +361,7 @@ static void operation_init(void){
     delay(MBUS_DELAY);
 
 	// Configure SCRO
-	radv7_r1.SCRO_FREQ_DIV = 3;
+	radv7_r1.SCRO_FREQ_DIV = 2;
 	radv7_r1.SCRO_AMP_I_LEVEL_SEL = 2; // Default 2
 	radv7_r1.SCRO_I_LEVEL_SELB = 0x60; // Default 0x6F
     write_mbus_register(RAD_ADDR,1,radv7_r1.as_int);
@@ -387,7 +387,7 @@ static void operation_init(void){
 static void operation_radio(){
 
 	// Write Data
-	radv7_r3.RAD_FSM_DATA = 0x001234;
+	radv7_r3.RAD_FSM_DATA = 0x00AAAA;
 	radv7_r4.RAD_FSM_DATA = 0xFFFFFF;
 	radv7_r5.RAD_FSM_DATA = 0xFFFFFF;
     write_mbus_register(RAD_ADDR,3,radv7_r3.as_int);
