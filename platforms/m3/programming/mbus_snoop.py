@@ -21,13 +21,12 @@ class mbus_message_generator(m3_common):
         self.ice.msg_handler['B++'] = self.Bpp_callback
         self.ice.msg_handler['b++'] = self.Bpp_callback
 
-    def Bpp_callback(self, address, data, broadcast, was_acked):
+    def Bpp_callback(self, address, data, cb0, cb1):
         print("")
         print("Received MBus message:")
         print("  address: " + address.encode('hex'))
         print("     data: " + data.encode('hex'))
-        print("broadcast: " + str(broadcast))
-        print("was_acked: " + str(was_acked))
+        print("was_acked: " + str(not cb1))
 
     def read_binfile(self):
         pass
@@ -38,7 +37,7 @@ m.power_on(wait_for_rails_to_settle=False)
 m.ice.mbus_set_internal_reset(True)
 m.ice.mbus_set_master_onoff(False)
 
-#m.ice.mbus_set_snoop(True)
+m.ice.mbus_set_snoop(True)
 
 isp = m.default_value("ICE address", "0111")
 m.ice.mbus_set_short_prefix(isp)

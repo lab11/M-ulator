@@ -418,11 +418,11 @@ class ICE(object):
         addr = msg[0:4]
         data = msg[4:-1]
         cb = ord(msg[-1:])
-        # 2 broadcast, 3 success / fail
-        broadcast = bool(cb & 0x4)
-        success = not(bool(cb & 0x8))
+        # status_bits <= `SD status_bits | {4'b0000, mbus_rxfail, mbus_rxbcast, ice_export_control_bits};
+        cb0 = bool(cb & 0x1)
+        cb1 = bool(cb & 0x2)
         try:
-            self.msg_handler[b_type](addr, data, broadcast, success)
+            self.msg_handler[b_type](addr, data, cb0, cb1)
         except TypeError:
             logger.debug("Type error")
             if not self.B_formatter_success_only or (success):
@@ -434,8 +434,7 @@ class ICE(object):
             logger.warn("Dropping message:")
             logger.warn("\taddr: " + addr.decode('hex'))
             logger.warn("\tdata: " + data.decode('hex'))
-            logger.warn("\tCB 0: " + control[0].decode('hex'))
-            logger.warn("\tCB 1: " + control[1].decode('hex'))
+            logger.warn("\tstat: " + cb.decode('hex'))
             logger.warn("")
 
 
