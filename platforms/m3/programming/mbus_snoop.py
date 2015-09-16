@@ -42,8 +42,6 @@ m.ice.mbus_set_snoop(True)
 isp = m.default_value("ICE address", "0111")
 m.ice.mbus_set_short_prefix(isp)
 
-raw_input("Pausing in reset...")
-
 m.ice.mbus_set_internal_reset(False)
 
 m.hang_for_messages()
