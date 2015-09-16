@@ -387,7 +387,7 @@ static void operation_init(void){
 static void operation_radio(){
 
 	// Write Data
-	radv7_r3.RAD_FSM_DATA = 0x00FAFA;
+	radv7_r3.RAD_FSM_DATA = 0x001234;
 	radv7_r4.RAD_FSM_DATA = 0xFFFFFF;
 	radv7_r5.RAD_FSM_DATA = 0xFFFFFF;
     write_mbus_register(RAD_ADDR,3,radv7_r3.as_int);
