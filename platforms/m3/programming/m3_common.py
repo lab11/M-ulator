@@ -9,6 +9,7 @@ import socket
 from Queue import Queue
 import argparse
 import time
+import threading
 
 from m3_logging import get_logger
 logger = get_logger(__name__)
@@ -133,6 +134,8 @@ class m3_common(object):
         return message
 
     def __init__(self):
+        self.wait_event = threading.Event()
+
         try:
             self.print_banner()
             self.parse_args()
@@ -352,10 +355,14 @@ class m3_common(object):
         logger.info("Script is waiting to print any MBus messages.")
         logger.info("To quit, press Ctrl-C")
         try:
-            while True:
-                time.sleep(1000)
+            while not self.wait_event.wait(1000):
+                pass
         except KeyboardInterrupt:
-            logger.info("Exiting.")
+            logger.info("Received keyboard interrupt.")
+
+    def exit(self):
+        self.wait_event.set()
+        sys.exit()
 
 
 class goc_programmer(m3_common):
