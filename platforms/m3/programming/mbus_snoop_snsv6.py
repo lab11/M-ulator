@@ -21,8 +21,9 @@ class mbus_message_generator(m3_common):
     
     def add_parse_args(self):
         super(mbus_message_generator, self).add_parse_args(require_binfile=False)
-        self.parser.add_argument('-f','--filename')
-        self.parser.add_argument('-k','--killcount',default=20)
+        self.parser.add_argument('-fc','--filename_cref')
+        self.parser.add_argument('-fo','--filename_outp')
+        self.parser.add_argument('-k','--killcount',default=1e6,type=float)
 
     def parse_args(self):
         super(mbus_message_generator, self).parse_args()
@@ -37,9 +38,14 @@ class mbus_message_generator(m3_common):
         print("  address: " + address.encode('hex'))
         print("     data: " + data.encode('hex'))
         print("was_acked: " + str(not cb1))
-        o_file.write(str(int(address.encode('hex'),16))+"\t"+str(int(data.encode('hex'),16))+"\r\n")
-        o_file.flush()
-        self.count += 1
+        if (str(int(address.encode('hex'),16))=="116"):
+            #o_file.write(str(int(address.encode('hex'),16))+"\t"+str(int(data.encode('hex'),16))+"\r\n")
+            o_file_cref.write(str(int(data.encode('hex'),16))+"\r\n")
+            o_file_cref.flush()
+        else:
+            o_file_outp.write(str(int(data.encode('hex'),16))+"\r\n")
+            o_file_outp.flush()
+            self.count += 1
         print(self.count)
         if self.count>self.args.killcount:
             self.exit()
@@ -48,7 +54,8 @@ class mbus_message_generator(m3_common):
         pass
 
 m = mbus_message_generator()
-o_file = open(m.args.filename, "w")
+o_file_cref = open(m.args.filename_cref, "w")
+o_file_outp = open(m.args.filename_outp, "w")
 m.power_on(wait_for_rails_to_settle=False)
 
 m.ice.mbus_set_internal_reset(True)
