@@ -49,8 +49,8 @@ int main() {
     delay(100);
 
 	//Enumeration
-	//enumerate(RAD_ADDR);
-    //delay(100);
+	enumerate(RAD_ADDR);
+    delay(100);
 	//enumerate(SNS_ADDR);
 
 	write_mbus_message(0xAA, 0xFA);
