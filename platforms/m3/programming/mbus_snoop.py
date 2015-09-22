@@ -23,6 +23,7 @@ class mbus_message_generator(m3_common):
         self.ice.msg_handler['b++'] = self.Bpp_callback
 
     def Bpp_callback(self, address, data, cb0, cb1):
+        #print("  ADDR: 0x" + address.encode('hex') + "  DATA: 0x" + data.encode('hex') + "  (ACK: " + str(not cb1) + ")")
         print("@ Time: " + time.strftime("%Y-%m-%d %H:%M:%S") + "  ADDR: 0x" + address.encode('hex') + "  DATA: 0x" + data.encode('hex') + "  (ACK: " + str(not cb1) + ")")
 
     def read_binfile(self):
