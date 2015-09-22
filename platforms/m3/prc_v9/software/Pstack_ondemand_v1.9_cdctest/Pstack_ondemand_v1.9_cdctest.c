@@ -41,7 +41,7 @@
 #include "RADv5.h"
 
 // uncomment this for debug mbus message
-//#define DEBUG_MBUS_MSG
+#define DEBUG_MBUS_MSG
 // uncomment this for debug radio message
 //#define DEBUG_RADIO_MSG
 
@@ -680,7 +680,7 @@ static void operation_cdc_run(){
 
 		// FIXME
 
-		if (meas_count < 310){	
+		if (meas_count < 31000){	
 			meas_count++;
 
 			// Repeat measurement while awake

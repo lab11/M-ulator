@@ -37,8 +37,9 @@ m.ice.mbus_set_master_onoff(False)
 
 m.ice.mbus_set_snoop(True)
 
-isp = m.default_value("ICE address", "0111")
-m.ice.mbus_set_short_prefix(isp)
+# For ACK from ICE board
+#isp = m.default_value("ICE address", "0111")
+#m.ice.mbus_set_short_prefix(isp)
 
 m.ice.mbus_set_internal_reset(False)
 
