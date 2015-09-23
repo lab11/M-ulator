@@ -1,0 +1,9 @@
+ifeq (@(PLATFORM),m3_prc_v9)
+include_rules
+
+#ifeq (@(TUP_PLATFORM),linux)
+#CFLAGS += `python2-config --includes`
+#endif
+
+: foreach *.c |> !cc |> %B.o ../../<objs>
+endif
