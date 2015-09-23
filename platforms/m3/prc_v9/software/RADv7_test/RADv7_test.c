@@ -338,6 +338,9 @@ static void operation_init(void){
     write_mbus_register(RAD_ADDR,0,radv7_r0.as_int);
     delay(MBUS_DELAY);
 
+    write_mbus_register(RAD_ADDR,0,radv7_r0.as_int);
+    delay(MBUS_DELAY);
+
 	// Continuous Mode
 	/*
     radv7_r0.RADIO_TUNE_CURRENT_LIMITER = 0x3E; //Current Limiter 2F = 30uA, 1F = 3uA
@@ -386,8 +389,11 @@ static void operation_init(void){
 
 static void operation_radio(){
 
+    //write_mbus_register(RAD_ADDR,0,radv7_r0.as_int);
+    delay(MBUS_DELAY);
+
 	// Write Data
-	radv7_r3.RAD_FSM_DATA = 0x00AAAA;
+	radv7_r3.RAD_FSM_DATA = 0x000000;
 	radv7_r4.RAD_FSM_DATA = 0xFFFFFF;
 	radv7_r5.RAD_FSM_DATA = 0xFFFFFF;
     write_mbus_register(RAD_ADDR,3,radv7_r3.as_int);
@@ -433,7 +439,7 @@ static void operation_radio(){
     delay(MBUS_DELAY);
 		
 
-    delay(10000);
+    delay(5000);
 	
 	read_mbus_register(RAD_ADDR,0x8,0x77);
     delay(MBUS_DELAY*5);

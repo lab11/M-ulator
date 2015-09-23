@@ -6,6 +6,7 @@
 #include "PRCv9.h"
 #include "SNSv3.h"
 
+
 // uncomment this for debug mbus message
 //#define DEBUG_MBUS_MSG
 #define SNSv3_DEBUG
@@ -106,10 +107,11 @@ static void assert_adc_reset(){
 	delay(5000);
 }
 static void release_adc_reset(){
-	snsv3_r8.SAR_ADC_START_CONV = 0x1;	// Assert reset
+	snsv3_r8.SAR_ADC_START_CONV = 0x1;	// Release reset
 	write_mbus_register(SNS_ADDR,8,snsv3_r8.as_int);
 	delay(5000);
 }
+
 //static void fire_cdc_meas(){
 //	snsv3_r0.CDC_EXT_RESET = 0x0;
 //	snsv3_r0.CDC_CLK = 0x1;
@@ -177,14 +179,16 @@ void initialize(){
 	snsv3_r8.SAR_ADC_START_CONV         = 0x0;
 	snsv3_r8.SAR_ADC_BYPASS_NUMBER      = 0x4;
 	snsv3_r8.SAR_ADC_SINGLE_CONV        = 0x1;
-	snsv3_r8.SAR_ADC_SIGNAL_SEL         = 0x0;
+	snsv3_r8.SAR_ADC_SIGNAL_SEL         = 0x3;	//0 for EXT, 3 for 1/8 VBAT
 	snsv3_r8.SAR_ADC_EXT_SIGNAL_SEL     = 0x3;
-	snsv3_r8.SAR_ADC_OSC_SEL            = 0x6;
-	snsv3_r8.SAR_ADC_OSC_DIV            = 0x1;
+	//snsv3_r8.SAR_ADC_OSC_SEL            = 0x6;
+	///snsv3_r8.SAR_ADC_OSC_DIV            = 0x1;
+	snsv3_r8.SAR_ADC_OSC_SEL            = 0x3;	//0x05	//0x03	//0=slow, 7=fast
+	snsv3_r8.SAR_ADC_OSC_DIV            = 0x1;	//0x01	//0x02	//0=fast, 3=1/8
 	write_mbus_register(SNS_ADDR,8,snsv3_r8.as_int);
 
 	// SNSv3_R9
-	snsv3_r9.SAR_ADC_FAST_DIV_EN	= 0x0;
+	snsv3_r9.SAR_ADC_FAST_DIV_EN	= 0x1;
 	snsv3_r9.SAR_ADC_COMP_CAP_R	= 0x00;
 	snsv3_r9.SAR_ADC_COMP_CAP_L	= 0x00;
 	write_mbus_register(SNS_ADDR,9,snsv3_r9.as_int);
@@ -255,34 +259,34 @@ static void adc_run(){
 		read_mbus_register(SNS_ADDR,0x7,0x10);
 		delay(5000);
 		#endif
-		snsv3_r7.CDC_LDO_CDC_LDO_ENB = 0x0;
-		write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
-		delay(50000);
-		read_mbus_register(SNS_ADDR,0x7,0x10);
-		delay(5000);
+//		snsv3_r7.CDC_LDO_CDC_LDO_ENB = 0x0;
+//		write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
+//		delay(50000);
+//		read_mbus_register(SNS_ADDR,0x7,0x10);
+//		delay(5000);
 
-		#ifdef SNSv3_DEBUG
-		write_mbus_message(0xBB, 0x33333333);
-		delay(5000);
-		read_mbus_register(SNS_ADDR,0x0,0x10);
-		delay(5000);
-		read_mbus_register(SNS_ADDR,0x7,0x10);
-		delay(5000);
-		#endif
-		snsv3_r7.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
-		write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
-		delay(50000);
-		read_mbus_register(SNS_ADDR,0x7,0x10);
-		delay(5000);
+//		#ifdef SNSv3_DEBUG
+//		write_mbus_message(0xBB, 0x33333333);
+//		delay(5000);
+//		read_mbus_register(SNS_ADDR,0x0,0x10);
+//		delay(5000);
+//		read_mbus_register(SNS_ADDR,0x7,0x10);
+//		delay(5000);
+//		#endif
+//		snsv3_r7.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
+//		write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
+//		delay(50000);
+//		read_mbus_register(SNS_ADDR,0x7,0x10);
+//		delay(5000);
 
-		#ifdef SNSv3_DEBUG
-		write_mbus_message(0xBB, 0x44444444);
-		delay(5000);
-		read_mbus_register(SNS_ADDR,0x0,0x10);
-		delay(5000);
-		read_mbus_register(SNS_ADDR,0x7,0x10);
-		delay(5000);
-		#endif
+//		#ifdef SNSv3_DEBUG
+//		write_mbus_message(0xBB, 0x44444444);
+//		delay(5000);
+//		read_mbus_register(SNS_ADDR,0x0,0x10);
+//		delay(5000);
+//		read_mbus_register(SNS_ADDR,0x7,0x10);
+//		delay(5000);
+//		#endif
 		snsv3_r7.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
 		write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
 		delay(5000);
@@ -313,13 +317,14 @@ static void adc_run(){
 			if( MBus_msg_flag ){
 				MBus_msg_flag = 0;
 				Pstack_state = PSTK_ADC_MEAS;
-				++count_conv;
 				return;
 			}
 			else{
 				delay(30);
 			}
 		}
+		//read_mbus_register(SNS_ADDR,0x8,0x10);
+		//delay(5000);
 
 		// Reset Time out
 		#ifdef DEBUG_MBUS_MSG
@@ -340,12 +345,24 @@ static void adc_run(){
 		#endif
 
 		adc_data[count_conv] = *((volatile uint32_t *) 0xA0001018);
+		++count_conv;
 		if(count_conv == NUM_SAMPLES) {
 			for(i=0; i<NUM_SAMPLES; ++i){
 				delay(6000);
 				write_mbus_message(0x77,adc_data[i]);
 			}
 			Pstack_state = PSTK_ADC_DONE;
+			snsv3_r8.SAR_ADC_ADC_DOUT_ISO       = 0x1;
+			snsv3_r8.SAR_ADC_OSC_ENB            = 0x1;
+			snsv3_r9.SAR_ADC_FAST_DIV_EN	= 0x0;
+			snsv3_r7.ADC_LDO_ADC_LDO_ENB = 0x1;
+			snsv3_r7.ADC_LDO_ADC_LDO_DLY_ENB = 0x1;
+			//write_mbus_register(SNS_ADDR,7,snsv3_r7.as_int);
+			//delay(50000);
+			//write_mbus_register(SNS_ADDR,8,snsv3_r8.as_int);
+			//delay(50000);
+			//write_mbus_register(SNS_ADDR,9,snsv3_r9.as_int);
+			//delay(50000);
 		}
 		else{
 			assert_adc_reset();

@@ -40,7 +40,7 @@
 #include "RADv5.h"
 
 // uncomment this for debug mbus message
-#define DEBUG_MBUS_MSG
+//#define DEBUG_MBUS_MSG
 // uncomment this for debug radio message
 //#define DEBUG_RADIO_MSG
 
@@ -68,7 +68,7 @@
 
 // Radio configurations
 // FIXME
-#define RAD_BIT_DELAY       104     // 14: around 400bps @ USRP // 34: around 200bps
+#define RAD_BIT_DELAY       34     // 14: around 400bps @ USRP // 34: around 200bps
 #define RAD_PACKET_DELAY 	2000
 #define RAD_PACKET_NUM      1      //How many times identical data will be TXed
 
@@ -334,7 +334,7 @@ static void operation_init(void){
     // Change PMU_CTRL Register
     // PRCv9 Default: 0x8F770049
     // Decrease 5x division switching threshold
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77184B; // FIXME
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77004B;
   
     // Speed up GOC frontend to match PMU frequency
     // PRCv9 Default: 0x00202903
@@ -611,19 +611,11 @@ static void operation_cdc_run(){
 				}
 
 				// Enter long sleep
-				if(exec_count > 40){ // FIXME
-					// FIXME
-					snsv5_r18.CDC_LDO_CDC_LDO_ENB = 0x1;
-					write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
-					delay(MBUS_DELAY);
-
-					cdc_running = 0;
-					operation_sleep_notimer();
-/*
+				if(exec_count < 4){
 					// Send some signal
 					send_radio_data(0xFAF000);
 					set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
-*/
+
 				}else{
 					set_wakeup_timer (WAKEUP_PERIOD_CONT, 0x1, 0x0);
 				}
@@ -707,11 +699,7 @@ int main() {
         delay(MBUS_DELAY);
 
 		if (!cdc_running){
-			// FIXME
-			//snsv5_r18.CDC_LDO_CDC_LDO_ENB = 0x0;
-			//write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
-        	//delay(MBUS_DELAY);
-			// Go to sleep for initial settling
+			// Go to sleep for initial settling of pressure // FIXME
 			set_wakeup_timer (5, 0x1, 0x0); // 150: around 5 min
 			cdc_running = 1;
 			operation_sleep_noirqreset();
