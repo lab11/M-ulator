@@ -70,7 +70,6 @@ static void ram_write(uint32_t addr, uint32_t val) {
 			WARN("Which is inside flashed code image (%08x-%08x)\n",
 					code_bot, code_top);
 			WARN("This is almost certainly an error (stack overflow)\n");
-			CORE_ERR_invalid_addr(true, addr);
 		}
 	}
 #endif
