@@ -20,6 +20,13 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+// http://stackoverflow.com/questions/777261/avoiding-unused-variables-warnings-when-using-assert-in-a-release-build
+#ifdef NDEBUG
+#define assert(x) do { (void)sizeof(x); } while (0)
+#else
+#include <assert.h>
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,7 +36,6 @@
 #include <stdarg.h>
 #include <time.h>
 #include <limits.h>
-#include <assert.h>
 #include <unistd.h>
 #include <time.h>
 #include <fcntl.h>

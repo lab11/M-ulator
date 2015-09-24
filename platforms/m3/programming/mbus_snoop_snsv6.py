@@ -38,11 +38,11 @@ class mbus_message_generator(m3_common):
         print("  address: 0x" + address.encode('hex'))
         print("     data: 0x" + data.encode('hex'))
         print("was_acked: " + str(not cb1))
-        if (str(int(address.encode('hex'),16))=="116"):
+        if (str(int(address.encode('hex'),16))=="118"):
             #o_file.write(str(int(address.encode('hex'),16))+"\t"+str(int(data.encode('hex'),16))+"\r\n")
             o_file_cref.write(str(int(data.encode('hex'),16))+"\r\n")
             o_file_cref.flush()
-        else:
+        elif (str(int(address.encode('hex'),16))=="116"):
             o_file_outp.write(str(int(data.encode('hex'),16))+"\r\n")
             o_file_outp.flush()
             self.count += 1
@@ -61,7 +61,7 @@ m.power_on(wait_for_rails_to_settle=False)
 m.ice.mbus_set_internal_reset(True)
 m.ice.mbus_set_master_onoff(False)
 
-m.ice.mbus_set_snoop(False)
+m.ice.mbus_set_snoop(True)
 
 #isp = m.default_value("ICE address", "0111")
 #m.ice.mbus_set_short_prefix(isp)
