@@ -26,6 +26,14 @@ static void operation_sleep(void){
 
 }
 
+static void operation_enumerate(void){
+
+	//Enumeration
+	enumerate(RAD_ADDR);
+    delay(1000);
+	//enumerate(SNS_ADDR);
+}
+
 
 //*******************************************************************
 //Main **************************************************************
@@ -43,19 +51,19 @@ int main() {
     // Decrease 5x division switching threshold
     //*((volatile uint32_t *) 0xA200000C) = 0x8F77204B;
   
-  
     delay(100);
 	write_mbus_message(0xAA, 0xFA);
     delay(100);
 
-	//Enumeration
-	enumerate(RAD_ADDR);
-    delay(100);
-	//enumerate(SNS_ADDR);
+	//Config watchdog timer to about 10 sec: 1,000,000 with default PRCv9
+	//config_timer( timer_id, go, roi, init_val, sat_val )
+	config_timer( 0, 1, 0, 0, 1000000 );
 
+	//operation_enumerate();  
+
+	delay(DELAY_1);
 	write_mbus_message(0xAA, 0xFA);
 	
-	delay(DELAY_1);
   
 	write_mbus_message(0xAA, 0xFA);
 

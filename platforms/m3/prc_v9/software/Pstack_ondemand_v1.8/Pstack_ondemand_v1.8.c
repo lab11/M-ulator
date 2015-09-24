@@ -338,7 +338,7 @@ static void operation_init(void){
   
     // Speed up GOC frontend to match PMU frequency
     // PRCv9 Default: 0x00202903
-    *((volatile uint32_t *) 0xA2000008) = 0x00202508;
+    *((volatile uint32_t *) 0xA2000008) = 0x00202908;
   
     delay(10000);
     delay(100);
