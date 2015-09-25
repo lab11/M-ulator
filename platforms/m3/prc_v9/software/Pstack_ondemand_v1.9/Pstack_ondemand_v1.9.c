@@ -38,9 +38,9 @@
 //****************************************************************************************************
 #include "mbus.h"
 #include "PRCv9.h"
-#include "SNSv5.h"
+#include "SNSv6.h"
 #include "HRVv1.h"
-#include "RADv5.h"
+#include "RADv8.h"
 
 // uncomment this for debug mbus message
 //#define DEBUG_MBUS_MSG
