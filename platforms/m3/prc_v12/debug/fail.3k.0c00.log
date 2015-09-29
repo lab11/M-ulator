@@ -1,0 +1,9 @@
+arm-none-eabi-as  -mthumb --warn -mcpu=cortex-m0 -Iinclude/  -o libs/vectors.o libs/vectors.s
+arm-none-eabi-gcc  -Os -Wall -Wextra -mthumb -mcpu=cortex-m0 -ffreestanding -fdata-sections -ffunction-sections -g -Iinclude/   -c -o FLSv1L_test2/FLSv1L_test2.o FLSv1L_test2/FLSv1L_test2.c
+arm-none-eabi-ld -Tlibs/memmap libs/vectors.o FLSv1L_test2/FLSv1L_test2.o -o FLSv1L_test2/FLSv1L_test2.elf
+arm-none-eabi-objdump -Sd FLSv1L_test2/FLSv1L_test2.elf > FLSv1L_test2/FLSv1L_test2.asm
+arm-none-eabi-objcopy -O binary FLSv1L_test2/FLSv1L_test2.elf FLSv1L_test2/FLSv1L_test2.bin
+xxd -g1 -c1 FLSv1L_test2/FLSv1L_test2.bin | cut -d' ' -f2 > FLSv1L_test2/FLSv1L_test2.hex
+./createMemMap FLSv1L_test2/FLSv1L_test2.hex
+[INFO] ------ Memory Map File FLSv1L_test2/FLSv1L_test2.memmap has been created
+rm FLSv1L_test2/FLSv1L_test2.o
