@@ -61,7 +61,7 @@
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 #define CDC_TIMEOUT         0x3    //Timeout for CDC
 
-#define CDC_STORAGE_SIZE 120  
+#define CDC_STORAGE_SIZE 0  
 
 // Sleep-Wakeup control
 //#define WAKEUP_PERIOD_CONT_INIT    1    // 2: 6 sec at 4V, 9 sec at 3.8V; Wakeup period for initial portion of continuous pressure sensing

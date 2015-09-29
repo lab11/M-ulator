@@ -8,15 +8,15 @@
 .word	_start	@ reset vector
 .word   handler_nmi         /* 2 NMI */
 .word   handler_hard        /* 3 HardFault */
-.word   hang                /* 4 RESERVED */
-.word   hang                /* 5 RESERVED */
-.word   hang                /* 6 RESERVED */
+.word   handler_memmange    /* 4 MemManage */
+.word   handler_bus         /* 5 BusFault */
+.word   handler_usage       /* 6 UsageFault */
 .word   hang                /* 7 RESERVED */
 .word   hang                /* 8 RESERVED */
 .word   hang                /* 9 RESERVED*/
 .word   hang                /* 10 RESERVED */
 .word   handler_svcall      /* 11 SVCall */
-.word   hang                /* 12 RESERVED */
+.word   handler_debug_mon   /* 12 Debug Monitor */
 .word   hang                /* 13 RESERVED */
 .word   handler_pendsv      /* 14 PendSV */
 .word   handler_systick     /* 15 SysTick */
@@ -34,13 +34,17 @@
 .word   handler_ext_int_11   /* 27 External Interrupt(11) - Not real: used for ondemend GOC request buffer*/
 
 
-.align 4
+.align 2
 .thumb_func
 hang:   b .
 
 .weak handler_nmi, hang
 .weak handler_hard, hang
+.weak handler_memmange, hang
+.weak handler_bus, hang
+.weak handler_usage, hang
 .weak handler_svcall, hang
+.weak handler_debug_mon, hang
 .weak handler_pendsv, hang
 .weak handler_systick, hang
 .weak handler_ext_int_0, hang
