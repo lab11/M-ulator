@@ -41,7 +41,7 @@
 #include "RADv5.h"
 
 // uncomment this for debug mbus message
-//#define DEBUG_MBUS_MSG
+#define DEBUG_MBUS_MSG
 // uncomment this for debug radio message
 //#define DEBUG_RADIO_MSG
 
@@ -439,13 +439,19 @@ static void operation_init(void){
     // Change PMU_CTRL Register
     // PRCv9 Default: 0x8F770049
     // Decrease 5x division switching threshold
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77004B;
+    //*((volatile uint32_t *) 0xA200000C) = 0x8F77004B;
+	// Increase active pmu clock (for PRCv11)
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77184B;
   
     // Speed up GOC frontend to match PMU frequency
     // PRCv9 Default: 0x00202903
-    *((volatile uint32_t *) 0xA2000008) = 0x00202508;
+    //*((volatile uint32_t *) 0xA2000008) = 0x00202908;
+	// Slow down MBUS frequency 
+	// Gyouho: This is required for running on the board w/o PMU assist
+    *((volatile uint32_t *) 0xA2000008) = 0x00202D08;
+
   
-    delay(100);
+    delay(1000);
   
     //Enumerate & Initialize Registers
     Pstack_state = PSTK_IDLE; 	//0x0;
@@ -579,6 +585,9 @@ static void operation_cdc_run(){
 		#endif
 		Pstack_state = PSTK_LDO2;
 		snsv6_r17.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
+		delay(MBUS_DELAY);
+		write_mbus_register(SNS_ADDR,17,snsv6_r17.as_int);
+		delay(MBUS_DELAY);
 		write_mbus_register(SNS_ADDR,17,snsv6_r17.as_int);
 		delay(LDO_DELAY); // This delay is required to avoid current spike
 		//snsv6_r17.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
@@ -680,7 +689,7 @@ static void operation_cdc_run(){
 
 		// FIXME
 
-		if (meas_count < 310){	
+		if (meas_count < 31000){	
 			meas_count++;
 
 			// Repeat measurement while awake
@@ -745,7 +754,7 @@ int main() {
 
     // Proceed to continuous mode
     while(1){
-        operation_cdc_run();
+      operation_cdc_run();
     }
 
     // Should not reach here

@@ -66,7 +66,7 @@
  #error GENERIC_GPIO_ALIGNMENT must be set to 1, 2, or 4
 #else
 #ifndef UGLY_EXTERN_INCLUDE_HACK
- static_assert(
+_Static_assert(
 		(GENERIC_GPIO_ALIGNMENT == 1)
 		|| (GENERIC_GPIO_ALIGNMENT == 2)
 		|| (GENERIC_GPIO_ALIGNMENT == 4)

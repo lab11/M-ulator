@@ -220,7 +220,7 @@ static void reset_registers(void) {
 
 __attribute__ ((constructor))
 static void register_reset_registers(void) {
-	static_assert(sizeof(union apsr_t) == 4, "Punned structure size");
+	_Static_assert(sizeof(union apsr_t) == 4, "Punned structure size");
 	{
 		union apsr_t a;
 		a.storage = 0x80000000;
@@ -239,17 +239,17 @@ static void register_reset_registers(void) {
 		if (a.bits.N || a.bits.Z || a.bits.C || a.bits.V || !a.bits.Q)
 			CORE_ERR_runtime("Punned structure packing\n");
 	}
-	static_assert(sizeof(union ipsr_t) == 4, "Punned structure size");
+	_Static_assert(sizeof(union ipsr_t) == 4, "Punned structure size");
 	{
 		union ipsr_t i;
 		i.storage = 0xa5;
 		if (i.bits.exception != 0xa5)
 			CORE_ERR_runtime("Punned structure packing\n");
 	}
-	static_assert(sizeof(union epsr_t) == 4, "Punned structure size");
-	static_assert(sizeof(union control_t) == 4, "Punned structure size");
+	_Static_assert(sizeof(union epsr_t) == 4, "Punned structure size");
+	_Static_assert(sizeof(union control_t) == 4, "Punned structure size");
 
-	static_assert(sizeof(union ufsr_t) == 4, "Punned structure size");
+	_Static_assert(sizeof(union ufsr_t) == 4, "Punned structure size");
 
 	register_reset(reset_registers);
 }

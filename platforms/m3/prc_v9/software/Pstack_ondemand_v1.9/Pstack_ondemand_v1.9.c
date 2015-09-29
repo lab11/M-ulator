@@ -3,6 +3,9 @@
 //              ZhiYoong Foo
 //Description:  Derived from zhiyoong_Pblr.c and Tstack_ondemand_temp_radio.c
 //              Moving towards Mouse Implantation
+//				Revision 1.9
+//				- Updated for SNSv6
+//				- Support for RADv7 & RADv8 (ppm radio)
 //				Revision 1.8
 //				- For 2015 APR Tapeout: SNSv5 with Wanyeong's CDC (CDCW)
 //				- Updated radio configuration: pulse length & bitrate delay

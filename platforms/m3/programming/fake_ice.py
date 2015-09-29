@@ -21,6 +21,7 @@ DEFAULT_MBUS_BROADCAST_MASK_ZEROS = 0x0f
 DEFAULT_MBUS_SNOOP_BROADCAST_MASK_ONES = 0x0f
 DEFAULT_MBUS_SNOOP_BROADCAST_MASK_ZEROS = 0x0f
 
+import random
 import sys, serial
 from time import sleep
 import threading
@@ -189,7 +190,7 @@ def spurious_message_thread():
                 ('00000033', 'c9'*160, '02'),
                 ('00000044', 'ef'*160, '02'),
                 ):
-            sleep(1)
+            sleep(random.randint(1,15))
             if not mbus_snoop_enabled:
                 continue
             send_snoop(*args)
