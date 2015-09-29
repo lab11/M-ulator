@@ -14,14 +14,8 @@ logger = get_logger(__name__)
 class mbus_message_generator(m3_common):
     TITLE = "MBus Message Generator"
 
-    def parse_args(self):
-        if len(sys.argv) not in (2,):
-            logger.error("Serial device required.")
-            logger.info("USAGE: %s SERIAL_DEVICE\n" % (sys.argv[0]))
-            logger.info("")
-            sys.exit(2)
-
-        self.serial_path = sys.argv[1]
+    def add_parse_args(self):
+        super(mbus_message_generator, self).add_parse_args(require_binfile=False)
 
     def install_handler(self):
         self.ice.msg_handler['B++'] = self.Bpp_callback
@@ -47,14 +41,17 @@ class mbus_message_generator(m3_common):
 
 m = mbus_message_generator()
 
-m3_common.do_default("Run power-on sequence", m.power_on)
-m3_common.do_default("Reset M3", m.reset_m3)
-m3_common.do_default("Act as MBus master", m.set_master, m.set_slave)
+#m.do_default("Run power-on sequence", m.power_on)
+#m.do_default("Reset M3", m.reset_m3)
+m.power_on(wait_for_rails_to_settle=False)
+m.ice.mbus_set_internal_reset(True)
+m.do_default("Act as MBus master", m.set_master, m.set_slave)
+m.ice.mbus_set_internal_reset(False)
 
 def build_mbus_message():
-    logging.info("Build your MBus message. All values hex. Leading 0x optional. Ctrl-C to Quit.")
-    addr = m3_common.default_value("Address      ", "0xA5").replace('0x','').decode('hex')
-    data = m3_common.default_value("   Data", "0x12345678").replace('0x','').decode('hex')
+    logger.info("Build your MBus message. All values hex. Leading 0x optional. Ctrl-C to Quit.")
+    addr = m.default_value("Address      ", "0xA5").replace('0x','').decode('hex')
+    data = m.default_value("   Data", "0x12345678").replace('0x','').decode('hex')
     return addr, data
 
 def get_mbus_message_to_send():
@@ -64,7 +61,8 @@ def get_mbus_message_to_send():
     logger.info("\t2) SNS Config Bits    (0x40, 0x0423dfef)")
     logger.info("\t3) SNS Sample Setup   (0x40, 0x030bf0f0)")
     logger.info("\t4) SNS Sample Start   (0x40, 0x030af0f0)")
-    selection = m3_common.default_value("Choose a message type", "-1")
+    logger.info("\t5) Test to addr 7     (0x74, 0xdeadbeef)")
+    selection = m.default_value("Choose a message type", "-1")
     if selection == '0':
         return build_mbus_message()
     elif selection == '1':
@@ -75,8 +73,10 @@ def get_mbus_message_to_send():
         return ("40".decode('hex'), "030bf0f0".decode('hex'))
     elif selection == '4':
         return ('40'.decode('hex'), '030af0f0'.decode('hex'))
+    elif selection == '5':
+        return ('74'.decode('hex'), 'deadbeef'.decode('hex'))
     else:
-        logging.info("Please choose one of the numbered options")
+        logger.info("Please choose one of the numbered options")
         return get_mbus_message_to_send()
 
 while True:
@@ -86,5 +86,5 @@ while True:
     except KeyboardInterrupt:
         break
 
-logging.info('')
-logging.info("Exiting.")
+logger.info('')
+logger.info("Exiting.")

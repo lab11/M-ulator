@@ -490,6 +490,8 @@ static void operation_init(void){
     snsv5_r18.CDC_LDO_CDC_LDO_DLY_ENB  = 0x1;
     snsv5_r18.ADC_LDO_ADC_LDO_ENB      = 0x1;
     snsv5_r18.ADC_LDO_ADC_LDO_DLY_ENB  = 0x1;
+    snsv5_r18.CDC_LDO_CDC_CURRENT_2X  = 0x0;
+    snsv5_r18.ADC_LDO_ADC_CURRENT_2X  = 0x1;
 
     // Set ADC LDO to around 1.37V: 0x3//0x20
     snsv5_r18.ADC_LDO_ADC_VREF_MUX_SEL = 0x3;
@@ -499,7 +501,6 @@ static void operation_init(void){
     snsv5_r18.CDC_LDO_CDC_VREF_MUX_SEL = 0x0;
     snsv5_r18.CDC_LDO_CDC_VREF_SEL     = 0x20;
 
-    snsv5_r18.LC_CLK_CONF              = 0x9; // default = 0x9
     write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
 
     // Radio Settings --------------------------------------
@@ -578,8 +579,8 @@ static void operation_cdc_run(){
 		snsv5_r18.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
 		write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
 		delay(LDO_DELAY); // This delay is required to avoid current spike
-		snsv5_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
-		write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
+		//snsv5_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
+		//write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
 		// Put system to sleep
 		set_wakeup_timer (WAKEUP_PERIOD_LDO, 0x1, 0x0);
 		operation_sleep();
@@ -665,11 +666,11 @@ static void operation_cdc_run(){
 		delay(MBUS_DELAY*10);
 		delay(MBUS_DELAY*10);
 		delay(MBUS_DELAY*10);
-		write_mbus_message(0x79, read_data_reg6);
+		write_mbus_message(0x76, read_data_reg6);
 		delay(MBUS_DELAY*10);
-		write_mbus_message(0x78, read_data_reg5);
+		write_mbus_message(0x75, read_data_reg5);
 		delay(MBUS_DELAY*10);
-		write_mbus_message(0x77, read_data_reg4);
+		write_mbus_message(0x74, read_data_reg4);
 		delay(MBUS_DELAY*10);
 		//write_mbus_message(0x76, (read_data_reg4<<8)/read_data_reg6);
 		//delay(MBUS_DELAY*10);
