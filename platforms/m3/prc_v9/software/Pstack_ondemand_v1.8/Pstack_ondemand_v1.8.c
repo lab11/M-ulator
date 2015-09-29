@@ -77,7 +77,7 @@
 #define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 
-#define CDC_STORAGE_SIZE 20  
+#define CDC_STORAGE_SIZE 40  
 
 //***************************************************
 // Global variables
@@ -85,32 +85,32 @@
 	//Test Declerations
 	// "static" limits the variables to this file, giving compiler more freedom
 	// "volatile" should only be used for MMIO
-	uint32_t enumerated;
-	uint8_t Pstack_state;
-	uint32_t cdc_data[NUM_SAMPLES];
-	uint32_t cdc_data_tx[NUM_SAMPLES_TX];
-	uint32_t cdc_reset_timeout_count;
-	uint32_t exec_count;
-	uint32_t meas_count;
-	uint32_t exec_count_irq;
-	uint8_t MBus_msg_flag;
+	volatile uint32_t enumerated;
+	volatile uint8_t Pstack_state;
+	volatile uint32_t cdc_data[NUM_SAMPLES];
+	volatile uint32_t cdc_data_tx[NUM_SAMPLES_TX];
+	volatile uint32_t cdc_reset_timeout_count;
+	volatile uint32_t exec_count;
+	volatile uint32_t meas_count;
+	volatile uint32_t exec_count_irq;
+	volatile uint8_t MBus_msg_flag;
 	volatile snsv5_r0_t snsv5_r0 = SNSv5_R0_DEFAULT;
 	volatile snsv5_r1_t snsv5_r1 = SNSv5_R1_DEFAULT;
 	volatile snsv5_r2_t snsv5_r2 = SNSv5_R2_DEFAULT;
 	volatile snsv5_r18_t snsv5_r18 = SNSv5_R18_DEFAULT;
   
-	uint32_t WAKEUP_PERIOD_CONT; 
-	uint32_t WAKEUP_PERIOD_CONT_INIT; 
+	volatile uint32_t WAKEUP_PERIOD_CONT; 
+	volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
 
-	uint32_t cdc_storage[CDC_STORAGE_SIZE] = {0};
-	uint32_t cdc_storage_cref[CDC_STORAGE_SIZE] = {0};
-	uint32_t cdc_storage_cref_latest;
-	uint32_t cdc_storage_count;
-	uint8_t cdc_run_single;
-	uint8_t cdc_running;
-	uint32_t radio_tx_count;
-	uint32_t radio_tx_option;
-	uint32_t radio_tx_numdata;
+	volatile uint32_t cdc_storage[CDC_STORAGE_SIZE] = {0};
+	volatile uint32_t cdc_storage_cref[CDC_STORAGE_SIZE] = {0};
+	volatile uint32_t cdc_storage_cref_latest;
+	volatile uint32_t cdc_storage_count;
+	volatile uint8_t cdc_run_single;
+	volatile uint8_t cdc_running;
+	volatile uint32_t radio_tx_count;
+	volatile uint32_t radio_tx_option;
+	volatile uint32_t radio_tx_numdata;
 
 //***************************************************
 //Interrupt Handlers
@@ -218,11 +218,11 @@ static void cdc_power_off(){
 
 inline static void set_pmu_sleep_clk_low(){
     // PRCv9 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77003B; // 0x8F77003B: use GOC x0.6-2
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77183B; // 0x8F77003B: use GOC x0.6-2
 }
 inline static void set_pmu_sleep_clk_default(){
     // PRCv9 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77004B; // 0x8F77004B: use GOC x10-45
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77184B; // 0x8F77004B: use GOC x10-45
 }
 static void process_data(){
     uint8_t i;
@@ -334,13 +334,17 @@ static void operation_init(void){
     // Change PMU_CTRL Register
     // PRCv9 Default: 0x8F770049
     // Decrease 5x division switching threshold
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77004B;
+    //*((volatile uint32_t *) 0xA200000C) = 0x8F77004B;
+	// Increase active pmu clock (for PRCv11)
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77184B;
   
     // Speed up GOC frontend to match PMU frequency
     // PRCv9 Default: 0x00202903
-    *((volatile uint32_t *) 0xA2000008) = 0x00202908;
+    //*((volatile uint32_t *) 0xA2000008) = 0x00202908;
+	// Slow down MBUS frequency 
+	// Gyouho: This is required for running on the board w/o PMU assist
+    *((volatile uint32_t *) 0xA2000008) = 0x00202D08;
   
-    delay(10000);
     delay(100);
   
     //Enumerate & Initialize Registers

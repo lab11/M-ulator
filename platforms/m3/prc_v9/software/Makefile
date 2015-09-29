@@ -4,7 +4,7 @@
 ## variable. If you wish to add extras {AS,C}FLAGS, please do so here
 ################################################################################
 
-CFLAGS := 
+CFLAGS :=
 ASFLAGS :=
 
 ##########################
@@ -70,8 +70,9 @@ HEADERS := $(wildcard include/*.h)
 DIRS := $(patsubst %/,%,$(filter-out libs/,$(filter-out include/,$(wildcard */))))
 BINS := $(foreach var,$(DIRS),$(var)/$(var).bin)
 HEXS := $(foreach var,$(DIRS),$(var)/$(var).hex)
+ELFS := $(foreach var,$(DIRS),$(var)/$(var).elf)
 
-.PRECIOUS: $(LIBS)
+.PRECIOUS: $(LIBS) $(BINS) $(ELFS)
 
 .PHONY: all
 
@@ -90,15 +91,16 @@ $(DIRS):
 
 %.hex:	%.bin
 	xxd -g1 -c1 $< | cut -d' ' -f2 > $@
-	./createMemMap $@
 
 %.bin:	%.elf
 	$(OBJCOPY) -O binary $< $@
 
 # Mind the order here to align -T$^
 %.elf:	libs/memmap $(LIBS) %.o
-	$(LD) -T$^ -o $@
+	$(LD) $(LDFLAGS) -T$^ "$$(echo $$(arm-none-eabi-gcc -print-libgcc-file-name) | tr -d '\r')" -o $@
 	$(OBJDUMP) -Sd $@ > $*.asm
+
+.PRECIOUS: %.elf
 
 
 ##########
