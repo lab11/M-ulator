@@ -77,7 +77,7 @@
 #define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 
-#define CDC_STORAGE_SIZE 40  
+#define CDC_STORAGE_SIZE 60  
 
 //***************************************************
 // Global variables
@@ -334,16 +334,16 @@ static void operation_init(void){
     // Change PMU_CTRL Register
     // PRCv9 Default: 0x8F770049
     // Decrease 5x division switching threshold
-    //*((volatile uint32_t *) 0xA200000C) = 0x8F77004B;
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77004B;
 	// Increase active pmu clock (for PRCv11)
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77184B;
+    //*((volatile uint32_t *) 0xA200000C) = 0x8F77184B;
   
     // Speed up GOC frontend to match PMU frequency
     // PRCv9 Default: 0x00202903
-    //*((volatile uint32_t *) 0xA2000008) = 0x00202908;
+    *((volatile uint32_t *) 0xA2000008) = 0x00202908;
 	// Slow down MBUS frequency 
-	// Gyouho: This is required for running on the board w/o PMU assist
-    *((volatile uint32_t *) 0xA2000008) = 0x00202D08;
+	// Gyouho: This is required for running on the board w/o PMU assist (for PRCv11)
+    //*((volatile uint32_t *) 0xA2000008) = 0x00202D08;
   
     delay(100);
   

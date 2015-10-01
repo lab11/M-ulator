@@ -1,11 +1,11 @@
 //****************************************************************************************************
 //Author:       Gyouho Kim
 //              ZhiYoong Foo
-//Description:  Derived from zhiyoong_Pblr.c and Tstack_ondemand_temp_radio.c
-//              Moving towards Mouse Implantation
+//Description:  
+//              Mouse Implantation & CDC Measurement Code
 //				Revision 1.9
 //				- PRCv11
-//				- Updated for SNSv6
+//				- SNSv6
 //				- Support for RADv7 & RADv8 (ppm radio)
 //				Revision 1.8
 //				- For 2015 APR Tapeout: SNSv5 with Wanyeong's CDC (CDCW)
@@ -39,9 +39,9 @@
 //****************************************************************************************************
 #include "mbus.h"
 #include "PRCv9.h"
-#include "SNSv5.h"
-#include "HRVv1.h"
-#include "RADv5.h"
+#include "SNSv6.h"
+#include "HRVv2.h"
+#include "RADv8.h"
 
 // uncomment this for debug mbus message
 //#define DEBUG_MBUS_MSG
@@ -71,10 +71,8 @@
 #define PSTK_LDO2  	 	0x5
 
 // Radio configurations
-// FIXME
-#define RAD_BIT_DELAY       34     // 14: around 400bps @ USRP // 34: around 200bps
-#define RAD_PACKET_DELAY 	2000
-#define RAD_PACKET_NUM      1      //How many times identical data will be TXed
+#define RADIO_DATA_LENGTH 16
+#define RADIO_TIMEOUT_COUNT 500
 
 // CDC configurations
 #define NUM_SAMPLES         3      //Number of CDC samples to take (only 2^n allowed for averaging: 2, 4, 8, 16...)
@@ -86,35 +84,45 @@
 //***************************************************
 // Global variables
 //***************************************************
-	//Test Declerations
 	// "static" limits the variables to this file, giving compiler more freedom
-	// "volatile" should only be used for MMIO
-	uint32_t enumerated;
-	uint8_t Pstack_state;
-	uint32_t cdc_data[NUM_SAMPLES];
-	uint32_t cdc_data_tx[NUM_SAMPLES_TX];
-	uint32_t cdc_reset_timeout_count;
-	uint32_t exec_count;
-	uint32_t meas_count;
-	uint32_t exec_count_irq;
-	uint8_t MBus_msg_flag;
-	volatile snsv5_r0_t snsv5_r0 = SNSv5_R0_DEFAULT;
-	volatile snsv5_r1_t snsv5_r1 = SNSv5_R1_DEFAULT;
-	volatile snsv5_r2_t snsv5_r2 = SNSv5_R2_DEFAULT;
-	volatile snsv5_r18_t snsv5_r18 = SNSv5_R18_DEFAULT;
+	// "volatile" should only be used for MMIO --> ensures memory storage
+	volatile uint32_t enumerated;
+	volatile uint8_t Pstack_state;
+	volatile uint32_t cdc_data[NUM_SAMPLES];
+	volatile uint32_t cdc_data_tx[NUM_SAMPLES_TX];
+	volatile uint32_t cdc_reset_timeout_count;
+	volatile uint32_t exec_count;
+	volatile uint32_t meas_count;
+	volatile uint32_t exec_count_irq;
+	volatile uint8_t MBus_msg_flag;
+	volatile snsv6_r0_t snsv6_r0 = SNSv6_R0_DEFAULT;
+	volatile snsv6_r1_t snsv6_r1 = SNSv6_R1_DEFAULT;
+	volatile snsv6_r2_t snsv6_r2 = SNSv6_R2_DEFAULT;
+	volatile snsv6_r17_t snsv6_r17 = SNSv6_R17_DEFAULT;
   
-	uint32_t WAKEUP_PERIOD_CONT; 
-	uint32_t WAKEUP_PERIOD_CONT_INIT; 
+	volatile uint32_t WAKEUP_PERIOD_CONT; 
+	volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
 
-	uint32_t cdc_storage[CDC_STORAGE_SIZE] = {0};
-	uint32_t cdc_storage_cref[CDC_STORAGE_SIZE] = {0};
-	uint32_t cdc_storage_cref_latest;
-	uint32_t cdc_storage_count;
-	uint8_t cdc_run_single;
-	uint8_t cdc_running;
-	uint32_t radio_tx_count;
-	uint32_t radio_tx_option;
-	uint32_t radio_tx_numdata;
+	volatile uint32_t cdc_storage[CDC_STORAGE_SIZE] = {0};
+	volatile uint32_t cdc_storage_cref[CDC_STORAGE_SIZE] = {0};
+	volatile uint32_t cdc_storage_cref_latest;
+	volatile uint32_t cdc_storage_count;
+	volatile uint8_t cdc_run_single;
+	volatile uint8_t cdc_running;
+	volatile uint32_t radio_tx_count;
+	volatile uint32_t radio_tx_option;
+	volatile uint32_t radio_tx_numdata;
+
+	volatile radv8_r0_t radv8_r0 = RADv8_R0_DEFAULT;
+	volatile radv8_r1_t radv8_r1 = RADv8_R1_DEFAULT;
+	volatile radv8_r2_t radv8_r2 = RADv8_R2_DEFAULT;
+	volatile radv8_r3_t radv8_r3 = RADv8_R3_DEFAULT;
+	volatile radv8_r4_t radv8_r4 = RADv8_R4_DEFAULT;
+	volatile radv8_r5_t radv8_r5 = RADv8_R5_DEFAULT;
+	volatile radv8_r6_t radv8_r6 = RADv8_R6_DEFAULT;
+	volatile radv8_r7_t radv8_r7 = RADv8_R7_DEFAULT;
+	volatile radv8_r8_t radv8_r8 = RADv8_R8_DEFAULT;
+	volatile radv8_r9_t radv8_r9 = RADv8_R9_DEFAULT;
 
 //***************************************************
 //Interrupt Handlers
@@ -143,78 +151,182 @@ void handler_ext_int_3(void){
 
 
 //***************************************************
-//Send Radio Data MSB-->LSB
-//Two Delays:
-//Bit Delay: Delay between each bit (20-bit data, 4-bit header)
-//Delays are nop delays (therefore dependent on core speed)
+// Radio transmission routines for PPM Radio (RADv7 & v8)
 //***************************************************
-static void send_radio_data(uint32_t radio_data){
-  int32_t i; //loop var
-  uint32_t j; //loop var
-	for(i=23;i>=0;i--){ //Bit Loop
-		if ((radio_data>>i)&1) write_mbus_register(RAD_ADDR,0x27,0x1);
-		else                   write_mbus_register(RAD_ADDR,0x27,0x0);
-		//Must clear register
-		delay(RAD_BIT_DELAY);
-		write_mbus_register(RAD_ADDR,0x27,0x0);
-		delay(RAD_BIT_DELAY); //Set delay between sending subsequent bit
-	}
+
+static void radio_power_on(){
+
+	// Release FSM Sleep - Requires >2s stabilization time
+	radv8_r8.RAD_FSM_SLEEP = 0;
+	write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
+	delay(MBUS_DELAY);
+
+	radio_ready = 1;
+	set_wakeup_timer(2, 0x1, 0x0);
+	operation_sleep_noirqreset();
 }
+
+static void radio_power_off(){
+	// Turn off everything
+	radv8_r2.SCRO_ENABLE = 0;
+	radv8_r2.SCRO_RESET  = 1;
+	write_mbus_register(RAD_ADDR,2,radv8_r2.as_int);
+	delay(MBUS_DELAY);
+	radv8_r8.RAD_FSM_SLEEP 		= 1;
+	radv8_r8.RAD_FSM_ISOLATE 	= 1;
+	radv8_r8.RAD_FSM_RESETn 	= 0;
+	radv8_r8.RAD_FSM_ENABLE 	= 0;
+	write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
+	delay(MBUS_DELAY);
+}
+
+static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
+	// Write Data
+	radv8_r3.RAD_FSM_DATA = 0xFAFAFA;
+	write_mbus_register(RAD_ADDR,3,radv8_r3.as_int);
+	delay(MBUS_DELAY);
+
+	// Release SCRO Reset
+	radv8_r2.SCRO_RESET = 0;
+	write_mbus_register(RAD_ADDR,2,radv8_r2.as_int);
+	delay(MBUS_DELAY);
+
+	// Enable SCRO
+	radv8_r2.SCRO_ENABLE = 1;
+	write_mbus_register(RAD_ADDR,2,radv8_r2.as_int);
+	delay(MBUS_DELAY);
+
+	// Release FSM Isolate
+	radv8_r8.RAD_FSM_ISOLATE = 0;
+	write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
+	delay(MBUS_DELAY);
+
+	// Release FSM Reset
+	radv8_r8.RAD_FSM_RESETn = 1;
+	write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
+	delay(MBUS_DELAY);
+
+	// Fire off data
+	uint32_t count;
+	MBus_msg_flag = 0;
+	radv8_r8.RAD_FSM_ENABLE = 1;
+	write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
+	delay(MBUS_DELAY);
+
+	for( count=0; count<RADIO_TIMEOUT_COUNT; count++ ){
+		if( MBus_msg_flag ){
+			MBus_msg_flag = 0;
+			if (last_packet){
+				radio_power_off();
+			}else{
+				radv8_r8.RAD_FSM_ENABLE = 0;
+				write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
+				delay(MBUS_DELAY);
+			}
+			return;
+		}else{
+			delay(MBUS_DELAY);
+		}
+	}
+	
+	// Timeout
+	#ifdef DEBUG_MBUS_MSG
+		write_mbus_message(0xFF, 0xFAFAFAFA);
+	#endif
+}
+
+static void send_radio_data_ppm_cont(bool last_packet, uint32_t radio_data){
+
+	// Write Data
+	radv8_r3.RAD_FSM_DATA = 0xFAFAFA;
+	write_mbus_register(RAD_ADDR,3,radv8_r3.as_int);
+	delay(MBUS_DELAY);
+
+	// Fire off data
+	uint32_t count;
+	MBus_msg_flag = 0;
+	radv8_r8.RAD_FSM_ENABLE = 1;
+	write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
+	delay(MBUS_DELAY);
+
+	for( count=0; count<RADIO_TIMEOUT_COUNT; count++ ){
+		if( MBus_msg_flag ){
+			MBus_msg_flag = 0;
+			if (last_packet){
+				radio_power_off();
+			}else{
+				radv8_r8.RAD_FSM_ENABLE = 0;
+				write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
+				delay(MBUS_DELAY);
+			}
+			return;
+		}else{
+			delay(MBUS_DELAY);
+		}
+	}
+	
+	// Timeout
+	#ifdef DEBUG_MBUS_MSG
+		write_mbus_message(0xFF, 0xFAFAFAFA);
+	#endif
+}
+
+
 
 //***************************************************
 // CDCW Functions
-// SNSv5
+// snsv6
 //***************************************************
 static void release_cdc_pg(){
-    snsv5_r0.CDCW_PG_V1P2 = 0x0;
-    write_mbus_register(SNS_ADDR,0,snsv5_r0.as_int);
+    snsv6_r0.CDCW_PG_V1P2 = 0x0;
+    write_mbus_register(SNS_ADDR,0,snsv6_r0.as_int);
     delay(MBUS_DELAY);
-    snsv5_r0.CDCW_PG_VBAT = 0x0;
-    write_mbus_register(SNS_ADDR,0,snsv5_r0.as_int);
+    snsv6_r0.CDCW_PG_VBAT = 0x0;
+    write_mbus_register(SNS_ADDR,0,snsv6_r0.as_int);
     delay(MBUS_DELAY);
-    snsv5_r0.CDCW_PG_VLDO = 0x0;
-    write_mbus_register(SNS_ADDR,0,snsv5_r0.as_int);
+    snsv6_r0.CDCW_PG_VLDO = 0x0;
+    write_mbus_register(SNS_ADDR,0,snsv6_r0.as_int);
     delay(MBUS_DELAY);
 }
 static void release_cdc_isolate(){
-    snsv5_r0.CDCW_ISO = 0x0;
-    write_mbus_register(SNS_ADDR,0,snsv5_r0.as_int);
+    snsv6_r0.CDCW_ISO = 0x0;
+    write_mbus_register(SNS_ADDR,0,snsv6_r0.as_int);
     delay(MBUS_DELAY);
 }
 static void assert_cdc_reset(){
-    snsv5_r0.CDCW_RESETn = 0x0;
-    write_mbus_register(SNS_ADDR,0,snsv5_r0.as_int);
+    snsv6_r0.CDCW_RESETn = 0x0;
+    write_mbus_register(SNS_ADDR,0,snsv6_r0.as_int);
     delay(MBUS_DELAY);
 }
 static void release_cdc_reset(){
-    snsv5_r0.CDCW_RESETn = 0x1;
-    write_mbus_register(SNS_ADDR,0,snsv5_r0.as_int);
+    snsv6_r0.CDCW_RESETn = 0x1;
+    write_mbus_register(SNS_ADDR,0,snsv6_r0.as_int);
     delay(MBUS_DELAY);
 }
 static void fire_cdc_meas(){
-    snsv5_r0.CDCW_ENABLE = 0x1;
-    write_mbus_register(SNS_ADDR,0,snsv5_r0.as_int);
+    snsv6_r0.CDCW_ENABLE = 0x1;
+    write_mbus_register(SNS_ADDR,0,snsv6_r0.as_int);
     delay(MBUS_DELAY);
 }
 static void release_cdc_meas(){
-    snsv5_r0.CDCW_ENABLE = 0x0;
-    write_mbus_register(SNS_ADDR,0,snsv5_r0.as_int);
+    snsv6_r0.CDCW_ENABLE = 0x0;
+    write_mbus_register(SNS_ADDR,0,snsv6_r0.as_int);
     delay(MBUS_DELAY);
 }
 static void ldo_power_off(){
-	snsv5_r18.CDC_LDO_CDC_LDO_DLY_ENB = 0x1;
-	snsv5_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0x1;
-	snsv5_r18.CDC_LDO_CDC_LDO_ENB = 0x1;
-	snsv5_r18.ADC_LDO_ADC_LDO_ENB = 0x1;
-	write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
+	snsv6_r17.CDC_LDO_CDC_LDO_DLY_ENB = 0x1;
+	snsv6_r17.ADC_LDO_ADC_LDO_DLY_ENB = 0x1;
+	snsv6_r17.CDC_LDO_CDC_LDO_ENB = 0x1;
+	snsv6_r17.ADC_LDO_ADC_LDO_ENB = 0x1;
+	write_mbus_register(SNS_ADDR,17,snsv6_r17.as_int);
     delay(MBUS_DELAY);
 }
 static void cdc_power_off(){
-    snsv5_r0.CDCW_ISO = 0x1;
-    snsv5_r0.CDCW_PG_V1P2 = 0x1;
-    snsv5_r0.CDCW_PG_VBAT = 0x1;
-    snsv5_r0.CDCW_PG_VLDO = 0x1;
-    write_mbus_register(SNS_ADDR,0,snsv5_r0.as_int);
+    snsv6_r0.CDCW_ISO = 0x1;
+    snsv6_r0.CDCW_PG_V1P2 = 0x1;
+    snsv6_r0.CDCW_PG_VBAT = 0x1;
+    snsv6_r0.CDCW_PG_VLDO = 0x1;
+    write_mbus_register(SNS_ADDR,0,snsv6_r0.as_int);
     delay(MBUS_DELAY);
 	ldo_power_off();
 }
@@ -308,9 +420,9 @@ static void operation_tx_stored(void){
 		write_mbus_message(0x70, radio_tx_count);
 		delay(MBUS_DELAY*10);
 	#endif
-	send_radio_data(data1);
+	send_radio_data_ppm(data1);
 	delay(RAD_PACKET_DELAY*3); //Set delays between sending subsequent packet
-	send_radio_data(data2);
+	send_radio_data_ppm(data2);
 
 	if (((!radio_tx_numdata)&&(radio_tx_count > 0)) | ((radio_tx_numdata)&&((radio_tx_numdata+radio_tx_count) > cdc_storage_count))){
 		radio_tx_count--;
@@ -321,7 +433,7 @@ static void operation_tx_stored(void){
 
 	}else{
 		delay(RAD_PACKET_DELAY*3); //Set delays between sending subsequent packet
-		send_radio_data(0xFAF000);
+		send_radio_data_ppm(0xFAF000);
 
 		// This is also the end of this IRQ routine
 		exec_count_irq = 0;
@@ -336,16 +448,20 @@ static void operation_init(void){
   
     // Set PMU Strength & division threshold
     // Change PMU_CTRL Register
-    // PRCv9 Default: 0x8F770049
+    // PRCv11 Default: 0x8F770049
     // Decrease 5x division switching threshold
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77004B;
+    //*((volatile uint32_t *) 0xA200000C) = 0x8F77004B;
+	// Increase active pmu clock (for PRCv11)
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77184B;
   
     // Speed up GOC frontend to match PMU frequency
-    // PRCv9 Default: 0x00202903
-    *((volatile uint32_t *) 0xA2000008) = 0x00202908;
+    // PRCv11 Default: 0x00202903
+    //*((volatile uint32_t *) 0xA2000008) = 0x00202908;
+	// Slow down MBUS frequency 
+	// Gyouho: This is required for running on the board w/o PMU assist (for PRCv11)
+    *((volatile uint32_t *) 0xA2000008) = 0x00202D08;
   
-    delay(10000);
-    delay(100);
+    delay(MBUS_DELAY*20);
   
     //Enumerate & Initialize Registers
     Pstack_state = PSTK_IDLE; 	//0x0;
@@ -367,68 +483,61 @@ static void operation_init(void){
     delay(MBUS_DELAY*10);
 
     // CDC Settings --------------------------------------
-    // snsv5_r0
-    snsv5_r0.CDCW_IRQ_EN	= 1;
-    snsv5_r0.CDCW_MODE_PAR	= 0;
-    snsv5_r0.CDCW_RESETn 	= 0;
-    write_mbus_register(SNS_ADDR,0,snsv5_r0.as_int);
+    // snsv6_r0
+    snsv6_r0.CDCW_IRQ_EN	= 1;
+    snsv6_r0.CDCW_MODE_PAR	= 0;
+    snsv6_r0.CDCW_RESETn 	= 0;
+    write_mbus_register(SNS_ADDR,0,snsv6_r0.as_int);
 
-    // snsv5_r1
-    snsv5_r1.CDCW_N_CYCLE_SINGLE	= 1; // Default: 8; Min: 1
-    write_mbus_register(SNS_ADDR,1,snsv5_r1.as_int);
+    // snsv6_r1
+    snsv6_r1.CDCW_N_CYCLE_SINGLE	= 0; // Default: 8; Min: 0
+    write_mbus_register(SNS_ADDR,1,snsv6_r1.as_int);
 	
-    // snsv5_r2
-    snsv5_r2.CDCW_N_CYCLE_SET	= 100; // Min: 0
-    write_mbus_register(SNS_ADDR,2,snsv5_r2.as_int);
+    // snsv6_r2
+    snsv6_r2.CDCW_N_CYCLE_SET	= 100; // Min: 0
+    write_mbus_register(SNS_ADDR,2,snsv6_r2.as_int);
 
-    // SNSv5_R18
-    snsv5_r18.CDC_LDO_CDC_CURRENT_2X  = 0x0;
+    // snsv6_r17
+    snsv6_r17.CDC_LDO_CDC_CURRENT_2X  = 0x0;
 
     // Set ADC LDO to around 1.37V: 0x3//0x20
-    snsv5_r18.ADC_LDO_ADC_VREF_MUX_SEL = 0x3;
-    snsv5_r18.ADC_LDO_ADC_VREF_SEL     = 0x20;
+    snsv6_r17.ADC_LDO_ADC_VREF_MUX_SEL = 0x3;
+    snsv6_r17.ADC_LDO_ADC_VREF_SEL     = 0x20;
 
     // Set CDC LDO to around 1.03V: 0x0//0x20
-    snsv5_r18.CDC_LDO_CDC_VREF_MUX_SEL = 0x0;
-    snsv5_r18.CDC_LDO_CDC_VREF_SEL     = 0x20;
+    snsv6_r17.CDC_LDO_CDC_VREF_MUX_SEL = 0x0;
+    snsv6_r17.CDC_LDO_CDC_VREF_SEL     = 0x20;
 
-    write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
+    write_mbus_register(SNS_ADDR,17,snsv6_r17.as_int);
 
     // Radio Settings --------------------------------------
-    radv5_r23_t radv5_r23; //Ext Ctrl En
-    radv5_r26_t radv5_r26; //Current Limiter 2F = 30uA, 1F = 3uA
-    radv5_r20_t radv5_r20; //Tune Power
-    radv5_r21_t radv5_r21; //Tune Freq 1
-    radv5_r22_t radv5_r22; //Tune Freq 2
-    radv5_r25_t radv5_r25; //Tune TX Time
-    radv5_r27_t radv5_r27; //Zero the TX register
-    //RADv5 R23
-    radv5_r23.RADIO_EXT_CTRL_EN_1P2 = 0x0; //Ext Ctrl En
-    write_mbus_register(RAD_ADDR,0x23,radv5_r23.as_int);
+
+    radv8_r0.RADIO_TUNE_CURRENT_LIMITER = 0x1F; //Current Limiter 2F = 30uA, 1F = 3uA
+    radv8_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
+    radv8_r0.RADIO_TUNE_FREQ2 = 0x0; //Tune Freq 2 //0x0,0x0 = 902MHz on Pblr005
+    radv8_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
+
+    write_mbus_register(RAD_ADDR,0,radv8_r0.as_int);
     delay(MBUS_DELAY);
-    //RADv5 R26
-    radv5_r26.RADIO_TUNE_CURRENT_LIMITER_1P2 = 0x1F; //Current Limiter 2F = 30uA, 1F = 3uA
-    write_mbus_register(RAD_ADDR,0x26,radv5_r26.as_int);
+
+	// FSM data length setups
+	radv8_r6.RAD_FSM_H_LEN = 16; // N
+	radv8_r6.RAD_FSM_D_LEN = RADIO_DATA_LENGTH-1; // N-1
+	radv8_r6.RAD_FSM_C_LEN = 10;
+    write_mbus_register(RAD_ADDR,6,radv8_r6.as_int);
     delay(MBUS_DELAY);
-    //RADv5 R20
-    radv5_r20.RADIO_TUNE_POWER_1P2 = 0x1F; //Tune Power 0x1F = Full Power
-    write_mbus_register(RAD_ADDR,0x20,radv5_r20.as_int);
+
+	// Configure SCRO
+	radv8_r1.SCRO_FREQ_DIV = 2;
+	radv8_r1.SCRO_AMP_I_LEVEL_SEL = 2; // Default 2
+	radv8_r1.SCRO_I_LEVEL_SELB = 0x60; // Default 0x6F
+    write_mbus_register(RAD_ADDR,1,radv8_r1.as_int);
     delay(MBUS_DELAY);
-    //RADv5 R21
-    radv5_r21.RADIO_TUNE_FREQ1_1P2 = 0x0; //Tune Freq 1
-    write_mbus_register(RAD_ADDR,0x21,radv5_r21.as_int);
+
+	// LFSR Seed
+	radv8_r7.RAD_FSM_SEED = 4;
+    write_mbus_register(RAD_ADDR,7,radv8_r7.as_int);
     delay(MBUS_DELAY);
-    //RADv5 R22
-    radv5_r22.RADIO_TUNE_FREQ2_1P2 = 0x0; //Tune Freq 2 //0x0,0x0 = 902MHz on Pblr005
-    write_mbus_register(RAD_ADDR,0x22,radv5_r22.as_int);
-    delay(MBUS_DELAY);
-    //RADv5 R25
-    radv5_r25.RADIO_TUNE_TX_TIME_1P2 = 0x5; //Tune TX Time  0x5: no pulse; around 2.4ms // 0x4: 380ns
-    write_mbus_register(RAD_ADDR,0x25,radv5_r25.as_int);
-    delay(MBUS_DELAY);
-    //RADv5 R27
-    radv5_r27.RADIO_DATA_1P2 = 0x0; //Zero the TX register
-    write_mbus_register(RAD_ADDR,0x27,radv5_r27.as_int);
   
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 100;   // 1: 2-4 sec with PRCv9
@@ -455,9 +564,9 @@ static void operation_cdc_run(){
 
 		cdc_reset_timeout_count = 0;
 
-		snsv5_r18.CDC_LDO_CDC_LDO_ENB = 0x0;
-		//snsv5_r18.ADC_LDO_ADC_LDO_ENB = 0x0;
-		write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
+		snsv6_r17.CDC_LDO_CDC_LDO_ENB = 0x0;
+		//snsv6_r17.ADC_LDO_ADC_LDO_ENB = 0x0;
+		write_mbus_register(SNS_ADDR,17,snsv6_r17.as_int);
 		// Long delay required here
 		// Put system to sleep
 		set_wakeup_timer (WAKEUP_PERIOD_LDO, 0x1, 0x0);
@@ -468,11 +577,11 @@ static void operation_cdc_run(){
 			write_mbus_message(0xAA, 0x1);
 		#endif
 		Pstack_state = PSTK_LDO2;
-		snsv5_r18.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
-		write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
+		snsv6_r17.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
+		write_mbus_register(SNS_ADDR,17,snsv6_r17.as_int);
 		//delay(LDO_DELAY); // This delay is required to avoid current spike
-		//snsv5_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
-		//write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
+		//snsv6_r17.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
+		//write_mbus_register(SNS_ADDR,17,snsv6_r17.as_int);
 		// Put system to sleep
 		set_wakeup_timer (WAKEUP_PERIOD_LDO, 0x1, 0x0);
 		operation_sleep();
@@ -608,16 +717,16 @@ static void operation_cdc_run(){
 				}
 				// Optionally transmit the data
 				if (radio_tx_option){
-					send_radio_data(0xF00000 | read_data_reg4);
+					send_radio_data_ppm(0xF00000 | read_data_reg4);
 					delay(MBUS_DELAY*10);
-					send_radio_data(0xF00000 | read_data_reg6);
+					send_radio_data_ppm(0xF00000 | read_data_reg6);
 					delay(MBUS_DELAY);
 				}
 
 				// Enter long sleep
 				if(exec_count < 4){
 					// Send some signal
-					send_radio_data(0xFAF000);
+					send_radio_data_ppm(0xFAF000);
 					set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
 
 				}else{
@@ -676,7 +785,7 @@ int main() {
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
             // radio
-            send_radio_data(0xFAF000+exec_count_irq);	
+            send_radio_data_ppm(0xFAF000+exec_count_irq);	
             // set timer
             set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
             // go to sleep and wake up with same condition
@@ -685,7 +794,7 @@ int main() {
         }else{
             exec_count_irq = 0;
             // radio
-            send_radio_data(0xFAF000+exec_count_irq);	
+            send_radio_data_ppm(0xFAF000+exec_count_irq);	
             // Go to sleep without timer
             operation_sleep_notimer();
         }
@@ -736,7 +845,7 @@ int main() {
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
             // radio
-            send_radio_data(0xFAF000+exec_count);	
+            send_radio_data_ppm(0xFAF000+exec_count);	
             // set timer
             set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
             // go to sleep and wake up with same condition
@@ -763,7 +872,7 @@ int main() {
         if (exec_count_irq < 3){
 			exec_count_irq++;
 			// radio
-			send_radio_data(0xFAF000+exec_count_irq);
+			send_radio_data_ppm(0xFAF000+exec_count_irq);
 			if (exec_count_irq == 2){
 				// set timer
 				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT*2, 0x1, 0x0);
@@ -801,7 +910,7 @@ int main() {
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
             // radio
-            send_radio_data(0xF00000 | cdc_storage_cref_latest);	
+            send_radio_data_ppm(0xF00000 | cdc_storage_cref_latest);	
             // set timer 
             set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
             // go to sleep and wake up with same condition
