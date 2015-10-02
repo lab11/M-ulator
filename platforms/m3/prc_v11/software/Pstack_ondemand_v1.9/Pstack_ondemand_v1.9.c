@@ -57,11 +57,12 @@
 #define HRV_ADDR 0x6
 
 // CDC parameters
-#define	MBUS_DELAY 100 //Amount of delay between successive messages
+#define	MBUS_DELAY 50 //Amount of delay between successive messages; 100: 6-7ms
 #define	LDO_DELAY 500 // 1000: 150msec
 #define CDC_TIMEOUT_COUNT 500
 #define WAKEUP_PERIOD_RESET 2
 #define WAKEUP_PERIOD_LDO 1
+#define CDC_CYCLE_INIT 4
 
 // Pstack states
 #define	PSTK_IDLE       0x0
@@ -71,15 +72,17 @@
 #define PSTK_LDO2  	 	0x5
 
 // Radio configurations
-#define RADIO_DATA_LENGTH 16
+#define RADIO_DATA_LENGTH 24
+#define RADIO_PACKET_DELAY 2000
 #define RADIO_TIMEOUT_COUNT 500
+#define WAKEUP_PERIOD_RADIO_INIT 3
 
 // CDC configurations
 #define NUM_SAMPLES         3      //Number of CDC samples to take (only 2^n allowed for averaging: 2, 4, 8, 16...)
 #define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 
-#define CDC_STORAGE_SIZE 20  
+#define CDC_STORAGE_SIZE 80 
 
 //***************************************************
 // Global variables
@@ -109,9 +112,11 @@
 	volatile uint32_t cdc_storage_count;
 	volatile uint8_t cdc_run_single;
 	volatile uint8_t cdc_running;
+
 	volatile uint32_t radio_tx_count;
 	volatile uint32_t radio_tx_option;
 	volatile uint32_t radio_tx_numdata;
+	volatile uint8_t radio_ready;
 
 	volatile radv8_r0_t radv8_r0 = RADv8_R0_DEFAULT;
 	volatile radv8_r1_t radv8_r1 = RADv8_R1_DEFAULT;
@@ -155,15 +160,10 @@ void handler_ext_int_3(void){
 //***************************************************
 
 static void radio_power_on(){
-
 	// Release FSM Sleep - Requires >2s stabilization time
 	radv8_r8.RAD_FSM_SLEEP = 0;
 	write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
 	delay(MBUS_DELAY);
-
-	radio_ready = 1;
-	set_wakeup_timer(2, 0x1, 0x0);
-	operation_sleep_noirqreset();
 }
 
 static void radio_power_off(){
@@ -181,30 +181,38 @@ static void radio_power_off(){
 }
 
 static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
-	// Write Data
-	radv8_r3.RAD_FSM_DATA = 0xFAFAFA;
+	// Write Data: Only up to 24bit data for now
+	radv8_r3.RAD_FSM_DATA = radio_data;
 	write_mbus_register(RAD_ADDR,3,radv8_r3.as_int);
 	delay(MBUS_DELAY);
 
-	// Release SCRO Reset
-	radv8_r2.SCRO_RESET = 0;
-	write_mbus_register(RAD_ADDR,2,radv8_r2.as_int);
-	delay(MBUS_DELAY);
+	if (!radio_ready){
+		radio_ready = 1;
 
-	// Enable SCRO
-	radv8_r2.SCRO_ENABLE = 1;
-	write_mbus_register(RAD_ADDR,2,radv8_r2.as_int);
-	delay(MBUS_DELAY);
+		// Release SCRO Reset
+		radv8_r2.SCRO_RESET = 0;
+		write_mbus_register(RAD_ADDR,2,radv8_r2.as_int);
+		delay(MBUS_DELAY);
 
-	// Release FSM Isolate
-	radv8_r8.RAD_FSM_ISOLATE = 0;
-	write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
-	delay(MBUS_DELAY);
+		// Additional delay required after SCRO Reset release
+		delay(400); // At least 20ms required
 
-	// Release FSM Reset
-	radv8_r8.RAD_FSM_RESETn = 1;
-	write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
-	delay(MBUS_DELAY);
+		// Enable SCRO
+		radv8_r2.SCRO_ENABLE = 1;
+		write_mbus_register(RAD_ADDR,2,radv8_r2.as_int);
+		delay(MBUS_DELAY);
+
+		// Release FSM Isolate
+		radv8_r8.RAD_FSM_ISOLATE = 0;
+		write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
+		delay(MBUS_DELAY);
+
+		// Release FSM Reset
+		radv8_r8.RAD_FSM_RESETn = 1;
+		write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
+		delay(MBUS_DELAY);
+
+	}
 
 	// Fire off data
 	uint32_t count;
@@ -217,6 +225,7 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 		if( MBus_msg_flag ){
 			MBus_msg_flag = 0;
 			if (last_packet){
+				radio_ready = 0;
 				radio_power_off();
 			}else{
 				radv8_r8.RAD_FSM_ENABLE = 0;
@@ -234,43 +243,6 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 		write_mbus_message(0xFF, 0xFAFAFAFA);
 	#endif
 }
-
-static void send_radio_data_ppm_cont(bool last_packet, uint32_t radio_data){
-
-	// Write Data
-	radv8_r3.RAD_FSM_DATA = 0xFAFAFA;
-	write_mbus_register(RAD_ADDR,3,radv8_r3.as_int);
-	delay(MBUS_DELAY);
-
-	// Fire off data
-	uint32_t count;
-	MBus_msg_flag = 0;
-	radv8_r8.RAD_FSM_ENABLE = 1;
-	write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
-	delay(MBUS_DELAY);
-
-	for( count=0; count<RADIO_TIMEOUT_COUNT; count++ ){
-		if( MBus_msg_flag ){
-			MBus_msg_flag = 0;
-			if (last_packet){
-				radio_power_off();
-			}else{
-				radv8_r8.RAD_FSM_ENABLE = 0;
-				write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
-				delay(MBUS_DELAY);
-			}
-			return;
-		}else{
-			delay(MBUS_DELAY);
-		}
-	}
-	
-	// Timeout
-	#ifdef DEBUG_MBUS_MSG
-		write_mbus_message(0xFF, 0xFAFAFAFA);
-	#endif
-}
-
 
 
 //***************************************************
@@ -334,11 +306,11 @@ static void cdc_power_off(){
 
 inline static void set_pmu_sleep_clk_low(){
     // PRCv9 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77003B; // 0x8F77003B: use GOC x0.6-2
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77183B; // 0x8F77003B: use GOC x0.6-2
 }
 inline static void set_pmu_sleep_clk_default(){
     // PRCv9 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77004B; // 0x8F77004B: use GOC x10-45
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77184B; // 0x8F77004B: use GOC x10-45
 }
 static void process_data(){
     uint8_t i;
@@ -405,10 +377,6 @@ static void operation_sleep_notimer(void){
 static void operation_tx_stored(void){
 
 	//Fire off stored data to radio
-	uint32_t data1 = 0xF00000 | cdc_storage[radio_tx_count];
-	uint32_t data2 = 0xF00000 | cdc_storage_cref[radio_tx_count];
-	delay(MBUS_DELAY);
-
 	#ifdef DEBUG_MBUS_MSG
 		delay(MBUS_DELAY*10);
 		write_mbus_message(0x70, radio_tx_count);
@@ -420,9 +388,9 @@ static void operation_tx_stored(void){
 		write_mbus_message(0x70, radio_tx_count);
 		delay(MBUS_DELAY*10);
 	#endif
-	send_radio_data_ppm(data1);
-	delay(RAD_PACKET_DELAY*3); //Set delays between sending subsequent packet
-	send_radio_data_ppm(data2);
+	send_radio_data_ppm(0, cdc_storage[radio_tx_count]);
+	delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
+	send_radio_data_ppm(0, cdc_storage_cref[radio_tx_count]);
 
 	if (((!radio_tx_numdata)&&(radio_tx_count > 0)) | ((radio_tx_numdata)&&((radio_tx_numdata+radio_tx_count) > cdc_storage_count))){
 		radio_tx_count--;
@@ -432,8 +400,8 @@ static void operation_tx_stored(void){
 		operation_sleep_noirqreset();
 
 	}else{
-		delay(RAD_PACKET_DELAY*3); //Set delays between sending subsequent packet
-		send_radio_data_ppm(0xFAF000);
+		delay(RADIO_PACKET_DELAY*3); //Set delays between sending subsequent packet
+		send_radio_data_ppm(1, 0xFAF000);
 
 		// This is also the end of this IRQ routine
 		exec_count_irq = 0;
@@ -488,14 +456,17 @@ static void operation_init(void){
     snsv6_r0.CDCW_MODE_PAR	= 0;
     snsv6_r0.CDCW_RESETn 	= 0;
     write_mbus_register(SNS_ADDR,0,snsv6_r0.as_int);
+    delay(MBUS_DELAY);
 
     // snsv6_r1
     snsv6_r1.CDCW_N_CYCLE_SINGLE	= 0; // Default: 8; Min: 0
     write_mbus_register(SNS_ADDR,1,snsv6_r1.as_int);
+    delay(MBUS_DELAY);
 	
     // snsv6_r2
     snsv6_r2.CDCW_N_CYCLE_SET	= 100; // Min: 0
     write_mbus_register(SNS_ADDR,2,snsv6_r2.as_int);
+    delay(MBUS_DELAY);
 
     // snsv6_r17
     snsv6_r17.CDC_LDO_CDC_CURRENT_2X  = 0x0;
@@ -509,6 +480,7 @@ static void operation_init(void){
     snsv6_r17.CDC_LDO_CDC_VREF_SEL     = 0x20;
 
     write_mbus_register(SNS_ADDR,17,snsv6_r17.as_int);
+    delay(MBUS_DELAY);
 
     // Radio Settings --------------------------------------
 
@@ -547,6 +519,7 @@ static void operation_init(void){
     radio_tx_option = 0;
 	cdc_run_single = 0;
 	cdc_running = 0;
+	radio_ready = 0;
     
     // Go to sleep without timer
     operation_sleep_notimer();
@@ -563,6 +536,11 @@ static void operation_cdc_run(){
 		Pstack_state = PSTK_LDO1;
 
 		cdc_reset_timeout_count = 0;
+
+		// Power on radio
+		if (radio_tx_option || (exec_count < CDC_CYCLE_INIT)){
+			radio_power_on();
+		}
 
 		snsv6_r17.CDC_LDO_CDC_LDO_ENB = 0x0;
 		//snsv6_r17.ADC_LDO_ADC_LDO_ENB = 0x0;
@@ -712,21 +690,23 @@ static void operation_cdc_run(){
 					cdc_storage[cdc_storage_count] = read_data_reg4;
 					cdc_storage_cref[cdc_storage_count] = read_data_reg6;
 					cdc_storage_cref_latest = read_data_reg6;
-					cdc_storage_count++;
 					radio_tx_count = cdc_storage_count;
+					cdc_storage_count++;
 				}
+
 				// Optionally transmit the data
 				if (radio_tx_option){
-					send_radio_data_ppm(0xF00000 | read_data_reg4);
-					delay(MBUS_DELAY*10);
-					send_radio_data_ppm(0xF00000 | read_data_reg6);
+					send_radio_data_ppm(0, read_data_reg4);
+					delay(RADIO_PACKET_DELAY);
+					send_radio_data_ppm(1, read_data_reg6);
 					delay(MBUS_DELAY);
 				}
 
+
 				// Enter long sleep
-				if(exec_count < 4){
+				if(exec_count < CDC_CYCLE_INIT){
 					// Send some signal
-					send_radio_data_ppm(0xFAF000);
+					send_radio_data_ppm(1, 0xFAF000);
 					set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
 
 				}else{
@@ -784,17 +764,24 @@ int main() {
         delay(MBUS_DELAY);
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
-            // radio
-            send_radio_data_ppm(0xFAF000+exec_count_irq);	
-            // set timer
-            set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
-            // go to sleep and wake up with same condition
-            operation_sleep_noirqreset();
-
+			if (exec_count_irq == 1){
+				// Prepare radio TX
+				radio_power_on();
+				// Go to sleep for SCRO stabilitzation
+				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x0);
+				operation_sleep_noirqreset();
+			}else{
+				// radio
+				send_radio_data_ppm(0,0xFAF000+exec_count_irq);	
+				// set timer
+				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+				// go to sleep and wake up with same condition
+				operation_sleep_noirqreset();
+			}
         }else{
             exec_count_irq = 0;
             // radio
-            send_radio_data_ppm(0xFAF000+exec_count_irq);	
+            send_radio_data_ppm(1,0xFAF000);	
             // Go to sleep without timer
             operation_sleep_notimer();
         }
@@ -836,6 +823,7 @@ int main() {
         // wakeup_data[16] indicates whether or not to speed up PMU sleep clock
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
 		cdc_running = 0;
+		Pstack_state = PSTK_IDLE;
 
 		if (wakeup_data_field_2 & 0x1){
 			// Speed up PMU sleep osc
@@ -844,15 +832,24 @@ int main() {
 
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
-            // radio
-            send_radio_data_ppm(0xFAF000+exec_count);	
-            // set timer
-            set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
-            // go to sleep and wake up with same condition
-            operation_sleep_noirqreset();
-
+			if (exec_count_irq == 1){
+				// Prepare radio TX
+				radio_power_on();
+				// Go to sleep for SCRO stabilitzation
+				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x0);
+				operation_sleep_noirqreset();
+			}else{
+				// radio
+				send_radio_data_ppm(0,0xFAF000+exec_count);	
+				// set timer
+				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+				// go to sleep and wake up with same condition
+				operation_sleep_noirqreset();
+			}
         }else{
             exec_count_irq = 0;
+            // radio
+            send_radio_data_ppm(1,0xFAF000);	
             // Go to sleep without timer
             operation_sleep_notimer();
         }
@@ -871,18 +868,24 @@ int main() {
     
         if (exec_count_irq < 3){
 			exec_count_irq++;
-			// radio
-			send_radio_data_ppm(0xFAF000+exec_count_irq);
-			if (exec_count_irq == 2){
-				// set timer
-				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT*2, 0x1, 0x0);
+			if (exec_count_irq == 1){
+				// Prepare radio TX
+				radio_power_on();
+				// Go to sleep for SCRO stabilitzation
+				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x0);
+				operation_sleep_noirqreset();
 			}else{
-				// set timer
-				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+				send_radio_data_ppm(0, 0xFAF000+exec_count_irq);
+				if (exec_count_irq == 3){
+					// set timer
+					set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+				}else{
+					// set timer
+					set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+				}
+				// go to sleep and wake up with same condition
+				operation_sleep_noirqreset();
 			}
-			// go to sleep and wake up with same condition
-			operation_sleep_noirqreset();
-    
 		}else{
         	operation_tx_stored();
 		}

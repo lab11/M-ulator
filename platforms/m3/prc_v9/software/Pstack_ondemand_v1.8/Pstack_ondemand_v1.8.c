@@ -603,8 +603,8 @@ static void operation_cdc_run(){
 					cdc_storage[cdc_storage_count] = read_data_reg4;
 					cdc_storage_cref[cdc_storage_count] = read_data_reg6;
 					cdc_storage_cref_latest = read_data_reg6;
-					cdc_storage_count++;
 					radio_tx_count = cdc_storage_count;
+					cdc_storage_count++;
 				}
 				// Optionally transmit the data
 				if (radio_tx_option){
