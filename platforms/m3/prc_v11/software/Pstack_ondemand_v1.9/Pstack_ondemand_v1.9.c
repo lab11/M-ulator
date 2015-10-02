@@ -538,12 +538,11 @@ static void operation_cdc_run(){
 		cdc_reset_timeout_count = 0;
 
 		// Power on radio
-		if (radio_tx_option || (exec_count < CDC_CYCLE_INIT)){
+		if (radio_tx_option || ((exec_count+1) < CDC_CYCLE_INIT)){
 			radio_power_on();
 		}
 
 		snsv6_r17.CDC_LDO_CDC_LDO_ENB = 0x0;
-		//snsv6_r17.ADC_LDO_ADC_LDO_ENB = 0x0;
 		write_mbus_register(SNS_ADDR,17,snsv6_r17.as_int);
 		// Long delay required here
 		// Put system to sleep
@@ -557,9 +556,6 @@ static void operation_cdc_run(){
 		Pstack_state = PSTK_LDO2;
 		snsv6_r17.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
 		write_mbus_register(SNS_ADDR,17,snsv6_r17.as_int);
-		//delay(LDO_DELAY); // This delay is required to avoid current spike
-		//snsv6_r17.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
-		//write_mbus_register(SNS_ADDR,17,snsv6_r17.as_int);
 		// Put system to sleep
 		set_wakeup_timer (WAKEUP_PERIOD_LDO, 0x1, 0x0);
 		operation_sleep();
@@ -701,7 +697,6 @@ static void operation_cdc_run(){
 					send_radio_data_ppm(1, read_data_reg6);
 					delay(MBUS_DELAY);
 				}
-
 
 				// Enter long sleep
 				if(exec_count < CDC_CYCLE_INIT){
