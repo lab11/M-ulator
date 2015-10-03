@@ -77,7 +77,7 @@
 #define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 
-#define CDC_STORAGE_SIZE 40  
+#define CDC_STORAGE_SIZE 60  
 
 //***************************************************
 // Global variables
@@ -334,16 +334,16 @@ static void operation_init(void){
     // Change PMU_CTRL Register
     // PRCv9 Default: 0x8F770049
     // Decrease 5x division switching threshold
-    //*((volatile uint32_t *) 0xA200000C) = 0x8F77004B;
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77004B;
 	// Increase active pmu clock (for PRCv11)
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77184B;
+    //*((volatile uint32_t *) 0xA200000C) = 0x8F77184B;
   
     // Speed up GOC frontend to match PMU frequency
     // PRCv9 Default: 0x00202903
-    //*((volatile uint32_t *) 0xA2000008) = 0x00202908;
+    *((volatile uint32_t *) 0xA2000008) = 0x00202908;
 	// Slow down MBUS frequency 
-	// Gyouho: This is required for running on the board w/o PMU assist
-    *((volatile uint32_t *) 0xA2000008) = 0x00202D08;
+	// Gyouho: This is required for running on the board w/o PMU assist (for PRCv11)
+    //*((volatile uint32_t *) 0xA2000008) = 0x00202D08;
   
     delay(100);
   
@@ -458,6 +458,7 @@ static void operation_cdc_run(){
 		snsv5_r18.CDC_LDO_CDC_LDO_ENB = 0x0;
 		//snsv5_r18.ADC_LDO_ADC_LDO_ENB = 0x0;
 		write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
+		delay(MBUS_DELAY);
 		// Long delay required here
 		// Put system to sleep
 		set_wakeup_timer (WAKEUP_PERIOD_LDO, 0x1, 0x0);
@@ -470,6 +471,7 @@ static void operation_cdc_run(){
 		Pstack_state = PSTK_LDO2;
 		snsv5_r18.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
 		write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
+		delay(MBUS_DELAY);
 		//delay(LDO_DELAY); // This delay is required to avoid current spike
 		//snsv5_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
 		//write_mbus_register(SNS_ADDR,18,snsv5_r18.as_int);
@@ -603,8 +605,8 @@ static void operation_cdc_run(){
 					cdc_storage[cdc_storage_count] = read_data_reg4;
 					cdc_storage_cref[cdc_storage_count] = read_data_reg6;
 					cdc_storage_cref_latest = read_data_reg6;
-					cdc_storage_count++;
 					radio_tx_count = cdc_storage_count;
+					cdc_storage_count++;
 				}
 				// Optionally transmit the data
 				if (radio_tx_option){

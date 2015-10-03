@@ -111,18 +111,18 @@
 	//Test Declerations
 	// "static" limits the variables to this file, giving compiler more freedom
 	// "volatile" should only be used for MMIO
-	static uint32_t enumerated;
-	static uint32_t exec_count;
-	static uint32_t exec_count_irq;
-	static uint32_t MBus_msg_flag;
+	volatile uint32_t enumerated;
+	volatile uint32_t exec_count;
+	volatile uint32_t exec_count_irq;
+	volatile uint32_t MBus_msg_flag;
   
-	//static uint32_t radio_tx_count;
-	//static uint32_t radio_tx_option;
-	//static uint32_t radio_tx_numdata;
+	//volatile uint32_t radio_tx_count;
+	//volatile uint32_t radio_tx_option;
+	//volatile uint32_t radio_tx_numdata;
 
-	static uint32_t md_count;
-	static uint8_t md_capture_img;
-	static uint8_t md_start_motion;
+	volatile uint32_t md_count;
+	volatile uint8_t md_capture_img;
+	volatile uint8_t md_start_motion;
 
 //***************************************************
 //Interrupt Handlers
@@ -189,15 +189,15 @@ inline static void set_pmu_sleep_clk_fastest(){
 // MDv2 Functions
 //************************************
 
-  uint32_t mdreg_0;
-  uint32_t mdreg_1;
-  uint32_t mdreg_2;
-  uint32_t mdreg_3;
-  uint32_t mdreg_4;
-  uint32_t mdreg_5;
-  uint32_t mdreg_6;
-  uint32_t mdreg_7;
-  uint32_t mdreg_8;
+  volatile uint32_t mdreg_0;
+  volatile uint32_t mdreg_1;
+  volatile uint32_t mdreg_2;
+  volatile uint32_t mdreg_3;
+  volatile uint32_t mdreg_4;
+  volatile uint32_t mdreg_5;
+  volatile uint32_t mdreg_6;
+  volatile uint32_t mdreg_7;
+  volatile uint32_t mdreg_8;
 
 static void initialize_md_reg(){
 
