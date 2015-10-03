@@ -116,7 +116,8 @@
 	volatile uint32_t radio_tx_count;
 	volatile uint32_t radio_tx_option;
 	volatile uint32_t radio_tx_numdata;
-	volatile uint8_t radio_ready;
+	volatile bool radio_ready;
+	volatile bool radio_on;
 
 	volatile radv8_r0_t radv8_r0 = RADv8_R0_DEFAULT;
 	volatile radv8_r1_t radv8_r1 = RADv8_R1_DEFAULT;
@@ -161,6 +162,7 @@ void handler_ext_int_3(void){
 
 static void radio_power_on(){
 	// Release FSM Sleep - Requires >2s stabilization time
+	radio_on = 1;
 	radv8_r8.RAD_FSM_SLEEP = 0;
 	write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
 	delay(MBUS_DELAY);
@@ -168,6 +170,7 @@ static void radio_power_on(){
 
 static void radio_power_off(){
 	// Turn off everything
+	radio_on = 0;
 	radv8_r2.SCRO_ENABLE = 0;
 	radv8_r2.SCRO_RESET  = 1;
 	write_mbus_register(RAD_ADDR,2,radv8_r2.as_int);
@@ -367,6 +370,12 @@ static void operation_sleep_notimer(void){
     
 	// Make sure LDO is off
 	ldo_power_off();
+	
+	// Make sure Radio is off
+	if (radio_on){
+		radio_power_off();
+	}
+
 	// Disable Timer
 	set_wakeup_timer (0, 0x0, 0x0);
 	// Go to sleep without timer
@@ -520,6 +529,7 @@ static void operation_init(void){
 	cdc_run_single = 0;
 	cdc_running = 0;
 	radio_ready = 0;
+	radio_on = 0;
     
     // Go to sleep without timer
     operation_sleep_notimer();
@@ -544,6 +554,7 @@ static void operation_cdc_run(){
 
 		snsv6_r17.CDC_LDO_CDC_LDO_ENB = 0x0;
 		write_mbus_register(SNS_ADDR,17,snsv6_r17.as_int);
+		delay(MBUS_DELAY);
 		// Long delay required here
 		// Put system to sleep
 		set_wakeup_timer (WAKEUP_PERIOD_LDO, 0x1, 0x0);
@@ -556,6 +567,7 @@ static void operation_cdc_run(){
 		Pstack_state = PSTK_LDO2;
 		snsv6_r17.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
 		write_mbus_register(SNS_ADDR,17,snsv6_r17.as_int);
+		delay(MBUS_DELAY);
 		// Put system to sleep
 		set_wakeup_timer (WAKEUP_PERIOD_LDO, 0x1, 0x0);
 		operation_sleep();
@@ -706,6 +718,11 @@ static void operation_cdc_run(){
 
 				}else{
 					set_wakeup_timer (WAKEUP_PERIOD_CONT, 0x1, 0x0);
+				}
+
+				// Make sure Radio is off
+				if (radio_on){
+					radio_power_off();
 				}
 				operation_sleep();
 			}
