@@ -1,9 +1,9 @@
 //*******************************************************************
 //Author: Yejoong Kim
-//Description: PRCv12 lib file
+//Description: PREv12 lib file
 //*******************************************************************
 
-#include "PRCv12.h"
+#include "PREv12.h"
 
 //*******************************************************************
 // OTHER FUNCTIONS
@@ -63,7 +63,7 @@ void set_wakeup_timer( uint16_t timestamp, uint8_t irq_en, uint8_t reset ){
 	else		 regval &= 0x7FFF;
 	*REG_WUPT_CONFIG = regval;
 
-	if( reset ) *WUPT_RESET = 0x01;
+	if( reset ) *WUP_RESET = 0x01;
 }
 
 void set_clkfreq( uint8_t fastmode, uint8_t div_core, uint8_t div_mbus, uint8_t ring ) {
@@ -84,52 +84,119 @@ void sleep_req_by_sw( void ){
 }
 
 //**************************************************
+// IO Pad and COTS Power Switch
+//**************************************************
+void enable_io_pad (void) {
+    *REG_PAD_EN = 0x3;
+}
+void disable_io_pad (void) {
+    *REG_PAD_EN = 0x0;
+}
+void set_cps (uint32_t cps_config) {
+    *REG_CPS = 0x00000007 & cps_config;
+}
+
+//***************************************************
+// GPIO
+//**************************************************
+volatile uint32_t gpio_data_;
+
+void gpio_init (uint32_t dir) {
+    // Direction: 1=Output, 0=Input
+    gpio_set_irq_mask (0x00000000);
+    gpio_set_dir (dir);
+    gpio_set_data (0x00000000);
+    enable_io_pad();
+}
+void gpio_set_dir (uint32_t dir) {
+    // Direction: 1=Output, 0=Input
+    *GPIO_DIR = dir;
+}
+uint32_t gpio_get_dir (void) {
+    return *GPIO_DIR;
+}
+uint32_t gpio_get_data (void) {
+    return *GPIO_DATA;
+}
+void gpio_set_data (uint32_t data) {
+    gpio_data_ = data;
+}
+void gpio_write_data (uint32_t data) {
+    gpio_data_ = data;
+    *GPIO_DATA = gpio_data_;
+}
+void gpio_write_current_data (void) {
+    *GPIO_DATA = gpio_data_;
+}
+void gpio_write_raw (uint32_t data) {
+    *GPIO_DATA = data;
+}
+void gpio_set_bit (uint32_t loc) {
+    gpio_data_ = (gpio_data_ | (1 << loc));
+    gpio_write_current_data();
+}
+void gpio_kill_bit (uint32_t loc) {
+    gpio_data_ = ~((~gpio_data_) | (1 << loc));
+    gpio_write_current_data();
+}
+void gpio_set_2bits (uint32_t loc0, uint32_t loc1) {
+    gpio_data_ = (gpio_data_ | (1 << loc0) | (1 << loc1));
+    gpio_write_current_data();
+}
+void gpio_set_irq_mask (uint32_t mask) {
+    *GPIO_IRQ_MASK = mask;
+}
+void gpio_close (void) {
+    disable_io_pad();
+}
+
+//**************************************************
 // MBUS IRQ SETTING (All Verified)
 //**************************************************
 void set_halt_until_reg(uint8_t reg_id) {
     //assert (reg_id < 8);
-    prcv12_r0A.CONFIG_HALT_CPU = reg_id;
-    write_config_reg(0xA,prcv12_r0A.as_int);
+    prev12_r0A.CONFIG_HALT_CPU = reg_id;
+    write_config_reg(0xA,prev12_r0A.as_int);
 }
 
 void set_halt_until_mem_wr(void) {
-    prcv12_r0A.CONFIG_HALT_CPU = HALT_UNTIL_MEM_WR;
-    write_config_reg(0xA,prcv12_r0A.as_int);
+    prev12_r0A.CONFIG_HALT_CPU = HALT_UNTIL_MEM_WR;
+    write_config_reg(0xA,prev12_r0A.as_int);
 }
 
 void set_halt_until_mbus_rx(void) {
-    prcv12_r0A.CONFIG_HALT_CPU = HALT_UNTIL_MBUS_RX;
-    write_config_reg(0xA,prcv12_r0A.as_int);
+    prev12_r0A.CONFIG_HALT_CPU = HALT_UNTIL_MBUS_RX;
+    write_config_reg(0xA,prev12_r0A.as_int);
 }
 
 void set_halt_until_mbus_tx(void) {
-    prcv12_r0A.CONFIG_HALT_CPU = HALT_UNTIL_MBUS_TX;
-    write_config_reg(0xA,prcv12_r0A.as_int);
+    prev12_r0A.CONFIG_HALT_CPU = HALT_UNTIL_MBUS_TX;
+    write_config_reg(0xA,prev12_r0A.as_int);
 }
 
 void set_halt_until_mbus_fwd(void) {
-    prcv12_r0A.CONFIG_HALT_CPU = HALT_UNTIL_MBUS_FWD;
-    write_config_reg(0xA,prcv12_r0A.as_int);
+    prev12_r0A.CONFIG_HALT_CPU = HALT_UNTIL_MBUS_FWD;
+    write_config_reg(0xA,prev12_r0A.as_int);
 }
 
 void set_halt_disable(void) {
-    prcv12_r0A.CONFIG_HALT_CPU = HALT_DISABLE;
-    write_config_reg(0xA,prcv12_r0A.as_int);
+    prev12_r0A.CONFIG_HALT_CPU = HALT_DISABLE;
+    write_config_reg(0xA,prev12_r0A.as_int);
 }
 
 void disable_all_mbus_irq(void) {
-    prcv12_r0A.RF_WR_IRQ_MASK = 0x00;
-    prcv12_r0A.MEM_WR_IRQ_MASK = 0x0;
-    prcv12_r0A.MBUS_FWD_IRQ_MASK = 0x0;
-    prcv12_r0A.MBUS_RX_IRQ_MASK = 0x0;
-    prcv12_r0A.MBUS_TX_IRQ_MASK = 0x0;
-    prcv12_r0A.OLD_MSG_REG_MASK = 0x1;
-    prcv12_r0A.CONFIG_HALT_CPU = HALT_DISABLE;
-    write_config_reg(0xA,prcv12_r0A.as_int);
+    prev12_r0A.RF_WR_IRQ_MASK = 0x00;
+    prev12_r0A.MEM_WR_IRQ_MASK = 0x0;
+    prev12_r0A.MBUS_FWD_IRQ_MASK = 0x0;
+    prev12_r0A.MBUS_RX_IRQ_MASK = 0x0;
+    prev12_r0A.MBUS_TX_IRQ_MASK = 0x0;
+    prev12_r0A.OLD_MSG_REG_MASK = 0x1;
+    prev12_r0A.CONFIG_HALT_CPU = HALT_DISABLE;
+    write_config_reg(0xA,prev12_r0A.as_int);
 }
 
 void halt_cpu (void) {
-    *SYS_CTRL_REG_ADDR = SYS_CTRL_CMD_HALT_CPU;
+    *SCREG_ADDR = SCCMD_HALT_CPU;
 }
 
 void set_mbus_irq_reg(
@@ -141,14 +208,14 @@ void set_mbus_irq_reg(
         uint8_t OLD_MSG, 
         uint8_t HALT_CONFIG
         ) {
-    prcv12_r0A.RF_WR_IRQ_MASK = RF_WR;
-    prcv12_r0A.MEM_WR_IRQ_MASK = MEM_WR;
-    prcv12_r0A.MBUS_RX_IRQ_MASK = MBUS_RX;
-    prcv12_r0A.MBUS_TX_IRQ_MASK = MBUS_TX;
-    prcv12_r0A.MBUS_FWD_IRQ_MASK = MBUS_FWD;
-    prcv12_r0A.OLD_MSG_REG_MASK = OLD_MSG;
-    prcv12_r0A.CONFIG_HALT_CPU = HALT_CONFIG;
-    write_config_reg(0xA,prcv12_r0A.as_int);
+    prev12_r0A.RF_WR_IRQ_MASK = RF_WR;
+    prev12_r0A.MEM_WR_IRQ_MASK = MEM_WR;
+    prev12_r0A.MBUS_RX_IRQ_MASK = MBUS_RX;
+    prev12_r0A.MBUS_TX_IRQ_MASK = MBUS_TX;
+    prev12_r0A.MBUS_FWD_IRQ_MASK = MBUS_FWD;
+    prev12_r0A.OLD_MSG_REG_MASK = OLD_MSG;
+    prev12_r0A.CONFIG_HALT_CPU = HALT_CONFIG;
+    write_config_reg(0xA,prev12_r0A.as_int);
 }
 
 uint8_t get_current_halt_config(void) {

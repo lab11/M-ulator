@@ -19,8 +19,7 @@ uint8_t mbus_get_short_prefix(void) {
 // Verified
 // Note: without the explicit return value, it might not work.
 uint32_t mbus_write_message32(uint8_t addr, uint32_t data) {
-    uint32_t mbus_addr = 0xA0003000 | (addr << 4);
-    *((volatile uint32_t *) mbus_addr) = data;
+    *(MBUS32_ADDR + (addr << 2)) = data;
     return 1;
 }
 
