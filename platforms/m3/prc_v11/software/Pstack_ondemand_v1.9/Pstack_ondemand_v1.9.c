@@ -309,7 +309,7 @@ static void cdc_power_off(){
 
 inline static void set_pmu_sleep_clk_low(){
     // PRCv11 Default: 0x8F770049
-    //*((volatile uint32_t *) 0xA200000C) = 0x8F77184B; // 0x8F77003B: use GOC x0.6-2, 0x8F77184B: GOC x10-45
+    //*((volatile uint32_t *) 0xA200000C) = 0x8F77183B; // 0x8F77003B: use GOC x0.6-2
     *((volatile uint32_t *) 0xA200000C) = 0x8F77194B; // Sleep current 3nA
     //*((volatile uint32_t *) 0xA200000C) = 0x8F7718CB; // Sleep current 5nA
 }
