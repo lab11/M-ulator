@@ -311,7 +311,7 @@ inline static void set_pmu_sleep_clk_low(){
     // PRCv11 Default: 0x8F770049
     //*((volatile uint32_t *) 0xA200000C) = 0x8F77184B; // 0x8F77003B: use GOC x0.6-2, 0x8F77184B: GOC x10-45
     *((volatile uint32_t *) 0xA200000C) = 0x8F77194B; // Sleep current 3nA
-    *((volatile uint32_t *) 0xA200000C) = 0x8F7718CB; // Sleep current 5nA
+    //*((volatile uint32_t *) 0xA200000C) = 0x8F7718CB; // Sleep current 5nA
 }
 inline static void set_pmu_sleep_clk_default(){
     // PRCv11 Default: 0x8F770049
@@ -774,9 +774,10 @@ int main() {
         // Debug mode: Transmit something via radio and go to sleep w/o timer
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period
+        // wakeup_data[23:16] is the MSB of # of transmissions
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
         delay(MBUS_DELAY);
-        if (exec_count_irq < wakeup_data_field_0){
+        if (exec_count_irq < (wakeup_data_field_0 + (wakeup_data_field_2<<8))){
             exec_count_irq++;
 			if (exec_count_irq == 1){
 				// Prepare radio TX
