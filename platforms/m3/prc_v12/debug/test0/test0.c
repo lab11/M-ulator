@@ -41,10 +41,10 @@ int main() {
     if (enumerated != 0xDEADBEEF) { 
         enumerated = 0xDEADBEEF;
         num_cycle = 0;
-        *((volatile uint32_t *) 0xA0000028) = 0x00019000; // Reg0x0A, enable backward-compatibility, halt_until_mbus_rx, disable all other irqs
-        //*((volatile uint32_t *) 0xA0000028) = 0x0001F000; // Reg0x0A, enable backward-compatibility, halt_disable, disable all other irqs
+        //*((volatile uint32_t *) 0xA0000028) = 0x00019000; // Reg0x0A, enable backward-compatibility, halt_until_mbus_rx, disable all other irqs
+        *((volatile uint32_t *) 0xA0000028) = 0x0001F000; // Reg0x0A, enable backward-compatibility, halt_disable, disable all other irqs
         *((volatile uint32_t *) 0xA0003000) = 0x24000000; // Enumeration (0x4)
-        //for (i=0; i < 2000; i++) asm("nop;");
+        for (i=0; i < 10000; i++) asm("nop;");
         *((volatile uint32_t *) 0xA0000028) = 0x0001A000; // Reg0x0A, enable backward-compatibility, halt_until_mbus_tx, disable all other irqs
     }
     

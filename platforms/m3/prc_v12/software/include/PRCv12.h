@@ -33,11 +33,15 @@
 #define REG5            ((volatile uint32_t *) 0xA0000014)
 #define REG6            ((volatile uint32_t *) 0xA0000018)
 #define REG7            ((volatile uint32_t *) 0xA000001C)
+#define REG_CHIP_ID     ((volatile uint32_t *) 0xA0000020)
+#define REG_MBUS_THRES  ((volatile uint32_t *) 0xA0000024)
 #define REG_IRQ_CTRL    ((volatile uint32_t *) 0xA0000028)
 #define REG_CLKGEN_TUNE ((volatile uint32_t *) 0xA000002C)
+#define REG_SRAM_TUNE   ((volatile uint32_t *) 0xA0000030)
 #define REG_WUPT_CONFIG ((volatile uint32_t *) 0xA0000034)
 #define REG_WUPT_VAL    ((volatile uint32_t *) 0xA0000038)
 #define REG_GOCEP_FLAG  ((volatile uint32_t *) 0xA000003C)
+#define REG_RUN_CPU     ((volatile uint32_t *) 0xA0000040)
 #define REG_MBUS_FLAG   ((volatile uint32_t *) 0xA0000044)
 
 #define TIMER16_GO      ((volatile uint32_t *) 0xA0001000)
@@ -83,14 +87,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "PRCv12_RF.h"
-
-extern volatile prcv12_r08_t prcv12_r08; // CHIP ID
-extern volatile prcv12_r09_t prcv12_r09; // MBUS THRESHOLD
-extern volatile prcv12_r0A_t prcv12_r0A; // MBUS IRQ REGISTER
-extern volatile prcv12_r0B_t prcv12_r0B; // CLK GEN TUNING
-extern volatile prcv12_r0C_t prcv12_r0C; // SRAM TUNING
-extern volatile prcv12_r0D_t prcv12_r0D; // WUP TIMER SETTING
-extern volatile prcv12_r10_t prcv12_r10; // RUN CPU
 
 // MBUS IRQ Setting
 void disable_all_mbus_irq(void);

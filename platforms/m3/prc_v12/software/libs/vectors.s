@@ -37,7 +37,7 @@
 .word   handler_ext_int_14   /* 30 External Interrupt(14) */
 
 
-.align 2
+.align 4
 .thumb_func
 hang:   b .
 

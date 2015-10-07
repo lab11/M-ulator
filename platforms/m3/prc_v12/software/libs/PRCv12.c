@@ -87,45 +87,43 @@ void sleep_req_by_sw( void ){
 // MBUS IRQ SETTING (All Verified)
 //**************************************************
 void set_halt_until_reg(uint8_t reg_id) {
-    //assert (reg_id < 8);
-    prcv12_r0A.CONFIG_HALT_CPU = reg_id;
-    write_config_reg(0xA,prcv12_r0A.as_int);
+    uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFFFF00;
+    reg_val = reg_val | ((uint32_t) reg_id);
+    *REG_IRQ_CTRL = reg_val;
 }
 
 void set_halt_until_mem_wr(void) {
-    prcv12_r0A.CONFIG_HALT_CPU = HALT_UNTIL_MEM_WR;
-    write_config_reg(0xA,prcv12_r0A.as_int);
+    uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
+    reg_val = reg_val | (HALT_UNTIL_MEM_WR << 12);
+    *REG_IRQ_CTRL = reg_val;
 }
 
 void set_halt_until_mbus_rx(void) {
-    prcv12_r0A.CONFIG_HALT_CPU = HALT_UNTIL_MBUS_RX;
-    write_config_reg(0xA,prcv12_r0A.as_int);
+    uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
+    reg_val = reg_val | (HALT_UNTIL_MBUS_RX << 12);
+    *REG_IRQ_CTRL = reg_val;
 }
 
 void set_halt_until_mbus_tx(void) {
-    prcv12_r0A.CONFIG_HALT_CPU = HALT_UNTIL_MBUS_TX;
-    write_config_reg(0xA,prcv12_r0A.as_int);
+    uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
+    reg_val = reg_val | (HALT_UNTIL_MBUS_TX << 12);
+    *REG_IRQ_CTRL = reg_val;
 }
 
 void set_halt_until_mbus_fwd(void) {
-    prcv12_r0A.CONFIG_HALT_CPU = HALT_UNTIL_MBUS_FWD;
-    write_config_reg(0xA,prcv12_r0A.as_int);
+    uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
+    reg_val = reg_val | (HALT_UNTIL_MBUS_FWD << 12);
+    *REG_IRQ_CTRL = reg_val;
 }
 
 void set_halt_disable(void) {
-    prcv12_r0A.CONFIG_HALT_CPU = HALT_DISABLE;
-    write_config_reg(0xA,prcv12_r0A.as_int);
+    uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
+    reg_val = reg_val | (HALT_DISABLE << 12);
+    *REG_IRQ_CTRL = reg_val;
 }
 
 void disable_all_mbus_irq(void) {
-    prcv12_r0A.RF_WR_IRQ_MASK = 0x00;
-    prcv12_r0A.MEM_WR_IRQ_MASK = 0x0;
-    prcv12_r0A.MBUS_FWD_IRQ_MASK = 0x0;
-    prcv12_r0A.MBUS_RX_IRQ_MASK = 0x0;
-    prcv12_r0A.MBUS_TX_IRQ_MASK = 0x0;
-    prcv12_r0A.OLD_MSG_REG_MASK = 0x1;
-    prcv12_r0A.CONFIG_HALT_CPU = HALT_DISABLE;
-    write_config_reg(0xA,prcv12_r0A.as_int);
+    *REG_IRQ_CTRL = 0x0001F000;
 }
 
 void halt_cpu (void) {
@@ -141,14 +139,13 @@ void set_mbus_irq_reg(
         uint8_t OLD_MSG, 
         uint8_t HALT_CONFIG
         ) {
-    prcv12_r0A.RF_WR_IRQ_MASK = RF_WR;
-    prcv12_r0A.MEM_WR_IRQ_MASK = MEM_WR;
-    prcv12_r0A.MBUS_RX_IRQ_MASK = MBUS_RX;
-    prcv12_r0A.MBUS_TX_IRQ_MASK = MBUS_TX;
-    prcv12_r0A.MBUS_FWD_IRQ_MASK = MBUS_FWD;
-    prcv12_r0A.OLD_MSG_REG_MASK = OLD_MSG;
-    prcv12_r0A.CONFIG_HALT_CPU = HALT_CONFIG;
-    write_config_reg(0xA,prcv12_r0A.as_int);
+    *REG_IRQ_CTRL =   (OLD_MSG << 16)
+                    | (HALT_CONFIG << 12)
+                    | (MBUS_FWD << 11)
+                    | (MBUS_TX << 10)
+                    | (MBUS_RX << 9)
+                    | (MEM_WR << 8)
+                    | (RF_WR << 0);
 }
 
 uint8_t get_current_halt_config(void) {
