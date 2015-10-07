@@ -7,6 +7,11 @@
 #include <stdbool.h>
 #include "PRCv12.h"
 
+#define MBUS_CMD0     ((volatile uint32_t *) 0xA0002000)
+#define MBUS_CMD1     ((volatile uint32_t *) 0xA0002004)
+#define MBUS_CMD2     ((volatile uint32_t *) 0xA0002008)
+#define MBUS_FUID_LEN ((volatile uint32_t *) 0xA000200C)
+
 typedef enum {
 	MBUS_DISC_AND_ENUM	= 0,
 	MBUS_POWER		= 1,

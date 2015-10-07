@@ -5,12 +5,6 @@
 
 #include "mbus.h"
 
-#define MBUS_CMD0     ((volatile uint32_t *) 0xA0002000)
-#define MBUS_CMD1     ((volatile uint32_t *) 0xA0002004)
-#define MBUS_CMD2     ((volatile uint32_t *) 0xA0002008)
-#define MBUS_FUID_LEN ((volatile uint32_t *) 0xA000200C)
-
-
 uint8_t mbus_get_short_prefix(void) {
 	// TODO: Read from LC
 	return 1;
