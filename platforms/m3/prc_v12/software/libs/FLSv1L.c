@@ -1,150 +1,73 @@
 //*******************************************************************
 //Author: Yejoong Kim
-//Description: PRCv12 lib file
+//Description: FLSv1L lib file
 //*******************************************************************
 
-#include "PRCv12.h"
+#include "FLSv1L.h"
 #include "mbus.h"
 
 //*******************************************************************
 // OTHER FUNCTIONS
 //*******************************************************************
 
-void write_regfile (volatile uint32_t* reg_addr, uint32_t data) {
-    uint32_t reg_id = ((uint32_t) reg_addr >> 2) & 0x000000FF;
-    data = data & 0x00FFFFFF;
-    *MBUS_CMD0 = (reg_id << 24) | data;
-    *MBUS_FUID_LEN = MPQ_REG_WRITE | (0x1 << 4);
-    delay(10);
+void FLSv1L_turnOnFlash (uint8_t fls_enum) {
+    mbus_remote_register_write (fls_enum, 0x11, 0x000003);
 }
 
-void delay(unsigned ticks){
-  unsigned i;
-  for (i=0; i < ticks; i++)
-    asm("nop;");
+void FLSv1L_turnOffFlash (uint8_t fls_enum) {
+    mbus_remote_register_write (fls_enum, 0x11, 0x000002);
 }
 
-void WFI(){
-  asm("wfi;");
+void FLSv1L_enableLargeCap (uint8_t fls_enum) {
+    mbus_remote_register_write (fls_enum, 0x09, 0x00003F);
 }
 
-void config_timer16(uint32_t cmp0, uint32_t cmp1, uint8_t irq_en, uint32_t cnt, uint32_t status){
-	*TIMER16_GO    = 0x0;
-	*TIMER16_CMP0  = cmp0;
-	*TIMER16_CMP1  = cmp1;
-	*TIMER16_IRQEN = irq_en;
-	*TIMER16_CNT   = cnt;
-	*TIMER16_STAT  = status;
-	*TIMER16_GO    = 0x1;
+void FLSv1L_disableLargeCap (uint8_t fls_enum) {
+    mbus_remote_register_write (fls_enum, 0x09, 0x000000);
 }
 
-void config_timer32(uint32_t cmp, uint8_t roi, uint32_t cnt, uint32_t status){
-	*TIMER32_GO   = 0x0;
-	*TIMER32_CMP  = cmp;
-	*TIMER32_ROI  = roi;
-	*TIMER32_CNT  = cnt;
-	*TIMER32_STAT = status;
-	*TIMER32_GO   = 0x1;
+void FLSv1L_setIRQAddr (uint8_t fls_enum, uint8_t short_addr, uint8_t reg_addr) {
+    mbus_remote_register_write (fls_enum, 0x0C, ((((uint32_t) short_addr) << 8) | (((uint32_t) reg_addr) << 0)));
 }
 
-void config_timerwd(uint32_t cnt){
-	*TIMERWD_GO  = 0x0;
-	*TIMERWD_CNT = cnt;
-	*TIMERWD_GO  = 0x1;
+void FLSv1L_setOptTune (uint8_t fls_enum) {
+    // Set Tprog=0x5, Tcyc=0x00C0
+    mbus_remote_register_write (fls_enum, 0x02, ((0x5 << 16) | (0x00C0 << 0)));
+    // Set VTG_TUNE=0x8, CRT_TUNE=0x3F
+    mbus_remote_register_write (fls_enum, 0x0A, ((0x8 << 6) | (0x3F << 0)));
 }
 
-void set_wakeup_timer( uint16_t timestamp, uint8_t irq_en, uint8_t reset ){
-	uint32_t regval = timestamp;
-	if( irq_en ) regval |= 0x8000;
-	else		 regval &= 0x7FFF;
-	write_regfile (REG_WUPT_CONFIG, regval);
-
-	if( reset ) *WUPT_RESET = 0x01;
+void FLSv1L_setTerase (uint8_t fls_enum, uint8_t T5us, uint8_t T10us, uint16_t Terase) {
+    mbus_remote_register_write (fls_enum, 0x01, ((((uint32_t) T10us) << 20) | (((uint32_t) T5us) << 16) | (((uint32_t) Terase) << 0)));
 }
 
-//**************************************************
-// MBUS IRQ SETTING (All Verified)
-//**************************************************
-void set_halt_until_reg(uint8_t reg_id) {
-    uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFFFF00;
-    reg_val = reg_val | ((uint32_t) reg_id);
-    write_regfile (REG_IRQ_CTRL, reg_val);
+void FLSv1L_setSRAMStartAddr (uint8_t fls_enum, uint32_t sram_start_addr) {
+    mbus_remote_register_write (fls_enum, 0x06, sram_start_addr);
 }
 
-void set_halt_until_mem_wr(void) {
-    uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
-    reg_val = reg_val | (HALT_UNTIL_MEM_WR << 12);
-    write_regfile (REG_IRQ_CTRL, reg_val);
+void FLSv1L_setFlashStartAddr (uint8_t fls_enum, uint32_t flash_start_addr) {
+    mbus_remote_register_write (fls_enum, 0x07, flash_start_addr);
 }
 
-void set_halt_until_mbus_rx(void) {
-    uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
-    reg_val = reg_val | (HALT_UNTIL_MBUS_RX << 12);
-    write_regfile (REG_IRQ_CTRL, reg_val);
+void FLSv1L_setExtStream (uint8_t fls_enum, uint8_t width, uint16_t length) {
+    width = width & 0x03;
+    length = length & 0x1FFF;
+    mbus_remote_register_write (fls_enum, 0x03, ((((uint32_t) length) << 2) | (((uint32_t) width) << 0)));
 }
 
-void set_halt_until_mbus_tx(void) {
-    uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
-    reg_val = reg_val | (HALT_UNTIL_MBUS_TX << 12);
-    write_regfile (REG_IRQ_CTRL, reg_val);
+void FLSv1L_doCopyFlash2SRAM (uint8_t fls_enum, uint32_t length) {
+    mbus_remote_register_write (fls_enum, 0x05, ((0x1 << 15) | (length << 4) | (0x1 << 1) | (0x1 << 0)));
 }
 
-void set_halt_until_mbus_fwd(void) {
-    uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
-    reg_val = reg_val | (HALT_UNTIL_MBUS_FWD << 12);
-    write_regfile (REG_IRQ_CTRL, reg_val);
+void FLSv1L_doCopySRAM2Flash (uint8_t fls_enum, uint32_t length) {
+    mbus_remote_register_write (fls_enum, 0x05, ((0x1 << 15) | (length << 4) | (0x2 << 1) | (0x1 << 0)));
 }
 
-void set_halt_disable(void) {
-    uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
-    reg_val = reg_val | (HALT_DISABLE << 12);
-    write_regfile (REG_IRQ_CTRL, reg_val);
+void FLSv1L_doEraseFlash (uint8_t fls_enum) {
+    mbus_remote_register_write (fls_enum, 0x05, ((0x1 << 15) | (0x4 << 1) | (0x1 << 0)));
 }
 
-void disable_all_mbus_irq(void) {
-    write_regfile (REG_IRQ_CTRL, 0x0001F000);
+void FLSv1L_doExtStream (uint8_t fls_enum) {
+    mbus_remote_register_write (fls_enum, 0x05, ((0x1 << 15) | (0x6 << 1) | (0x1 << 0)));
 }
-
-void halt_cpu (void) {
-    *SYS_CTRL_REG_ADDR = SYS_CTRL_CMD_HALT_CPU;
-}
-
-void set_mbus_irq_reg(
-        uint8_t RF_WR, 
-        uint8_t MEM_WR, 
-        uint8_t MBUS_RX, 
-        uint8_t MBUS_TX, 
-        uint8_t MBUS_FWD, 
-        uint8_t OLD_MSG, 
-        uint8_t HALT_CONFIG
-        ) {
-    write_regfile (REG_IRQ_CTRL, 
-                      (OLD_MSG << 16)
-                    | (HALT_CONFIG << 12)
-                    | (MBUS_FWD << 11)
-                    | (MBUS_TX << 10)
-                    | (MBUS_RX << 9)
-                    | (MEM_WR << 8)
-                    | (RF_WR << 0)
-                );
-}
-
-uint8_t get_current_halt_config(void) {
-    uint32_t reg_ = *REG_IRQ_CTRL;
-    reg_ = (0x0000F000 & reg_) >> 12;
-    return (uint8_t) reg_;
-}
-
-void set_halt_config(uint8_t new_config) {
-    uint32_t reg_ = *REG_IRQ_CTRL;
-    reg_ = (0x00010FFF & reg_); // reset
-    reg_ = reg_ | (((uint32_t) new_config) << 12);
-    write_regfile (REG_IRQ_CTRL, reg_);
-}
-
-//*******************************************************************
-// VERIOLG SIM DEBUG PURPOSE ONLY!!
-//*******************************************************************
-void arb_debug_reg (uint32_t code) { *((volatile uint32_t *) 0xAFFFFFF8) = code; }
-
 

@@ -3,109 +3,8 @@
 //Description: PRCv12 header file
 //*******************************************************************
 
-#ifndef PRCV12_H
-#define PRCV12_H
-
-//*********************************************************
-// Boolean Constants
-//*********************************************************
-#define TRUE  1
-#define FALSE 0
-
-//*********************************************************
-// ARMv6 Architecture NVIC Registers
-//*********************************************************
-#define NVIC_ISER       ((volatile uint32_t *) 0xE000E100)  // Interrupt Set-Enable Register
-#define NVIC_ICER       ((volatile uint32_t *) 0xE000E180)  // Interrupt Clear-Enable Register
-#define NVIC_ISPR       ((volatile uint32_t *) 0xE000E200)  // Interrupt Set-Pending Register
-#define NVIC_ICPR       ((volatile uint32_t *) 0xE000E280)  // Interrupt Clear-Pending Register
-#define NVIC_IPR0       ((volatile uint32_t *) 0xE000E400)  // Interrupt Priority Register
-#define NVIC_IPR1       ((volatile uint32_t *) 0xE000E404)  // Interrupt Priority Register
-#define NVIC_IPR2       ((volatile uint32_t *) 0xE000E408)  // Interrupt Priority Register
-#define NVIC_IPR3       ((volatile uint32_t *) 0xE000E40C)  // Interrupt Priority Register
-#define NVIC_IPR4       ((volatile uint32_t *) 0xE000E410)  // Interrupt Priority Register
-#define NVIC_IPR5       ((volatile uint32_t *) 0xE000E414)  // Interrupt Priority Register
-#define NVIC_IPR6       ((volatile uint32_t *) 0xE000E418)  // Interrupt Priority Register
-#define NVIC_IPR7       ((volatile uint32_t *) 0xE000E41C)  // Interrupt Priority Register
-
-//*********************************************************
-// Register File MMIO Addresses
-//*********************************************************
-#define REG0            ((volatile uint32_t *) 0xA0000000)
-#define REG1            ((volatile uint32_t *) 0xA0000004)
-#define REG2            ((volatile uint32_t *) 0xA0000008)
-#define REG3            ((volatile uint32_t *) 0xA000000C)
-#define REG4            ((volatile uint32_t *) 0xA0000010)
-#define REG5            ((volatile uint32_t *) 0xA0000014)
-#define REG6            ((volatile uint32_t *) 0xA0000018)
-#define REG7            ((volatile uint32_t *) 0xA000001C)
-#define REG_CHIP_ID     ((volatile uint32_t *) 0xA0000020)
-#define REG_MBUS_THRES  ((volatile uint32_t *) 0xA0000024)
-#define REG_IRQ_CTRL    ((volatile uint32_t *) 0xA0000028)
-#define REG_CLKGEN_TUNE ((volatile uint32_t *) 0xA000002C)
-#define REG_SRAM_TUNE   ((volatile uint32_t *) 0xA0000030)
-#define REG_WUPT_CONFIG ((volatile uint32_t *) 0xA0000034)
-#define REG_WUPT_VAL    ((volatile uint32_t *) 0xA0000038)
-#define REG_GOCEP_FLAG  ((volatile uint32_t *) 0xA000003C)
-#define REG_RUN_CPU     ((volatile uint32_t *) 0xA0000040)
-#define REG_MBUS_FLAG   ((volatile uint32_t *) 0xA0000044)
-
-//*********************************************************
-// TIMER16 MMIO Addresses
-//*********************************************************
-#define TIMER16_GO      ((volatile uint32_t *) 0xA0001000)
-#define TIMER16_CMP0    ((volatile uint32_t *) 0xA0001004)
-#define TIMER16_CMP1    ((volatile uint32_t *) 0xA0001008)
-#define TIMER16_IRQEN   ((volatile uint32_t *) 0xA000100C)
-#define TIMER16_CAP0    ((volatile uint32_t *) 0xA0001010)
-#define TIMER16_CAP1    ((volatile uint32_t *) 0xA0001014)
-#define TIMER16_CAP2    ((volatile uint32_t *) 0xA0001018)
-#define TIMER16_CAP3    ((volatile uint32_t *) 0xA000101C)
-#define TIMER16_CNT     ((volatile uint32_t *) 0xA0001020)
-#define TIMER16_STAT    ((volatile uint32_t *) 0xA0001024)
-
-//*********************************************************
-// TIMER32 MMIO Addresses
-//*********************************************************
-#define TIMER32_GO      ((volatile uint32_t *) 0xA0001100)
-#define TIMER32_CMP     ((volatile uint32_t *) 0xA0001104)
-#define TIMER32_ROI     ((volatile uint32_t *) 0xA0001108)
-#define TIMER32_CNT     ((volatile uint32_t *) 0xA000110C)
-#define TIMER32_STAT    ((volatile uint32_t *) 0xA0001110)
-
-//*********************************************************
-// TIMERWD (Watch-Dog Tiimer) MMIO Addresses
-//*********************************************************
-#define TIMERWD_GO      ((volatile uint32_t *) 0xA0001200)
-#define TIMERWD_CNT     ((volatile uint32_t *) 0xA0001204)
-
-//*********************************************************
-// Wake-Up Timer Reset MMIO Addresses
-//*********************************************************
-#define WUPT_RESET      ((volatile uint32_t *) 0xA0001300)
-
-//*********************************************************
-// PRC/PREv12 System Tasks
-//*********************************************************
-#define SYS_CTRL_REG_ADDR     ((volatile uint32_t *) 0xAFFFF000)
-#define SYS_CTRL_CMD_HALT_CPU 0xCAFEF00D
-
-//*********************************************************
-// CONFIG_HALT_CPU Values
-//*********************************************************
-#define HALT_UNTIL_REG0     0x0
-#define HALT_UNTIL_REG1     0x1
-#define HALT_UNTIL_REG2     0x2
-#define HALT_UNTIL_REG3     0x3
-#define HALT_UNTIL_REG4     0x4
-#define HALT_UNTIL_REG5     0x5
-#define HALT_UNTIL_REG6     0x6
-#define HALT_UNTIL_REG7     0x7
-#define HALT_UNTIL_MEM_WR   0x8
-#define HALT_UNTIL_MBUS_RX  0x9
-#define HALT_UNTIL_MBUS_TX  0xA
-#define HALT_UNTIL_MBUS_FWD 0xB
-#define HALT_DISABLE        0xF
+#ifndef FLSV1L_H
+#define FLSV1L_H
 
 //*********************************************************
 // INCLUDES...
@@ -114,234 +13,206 @@
 #include <stdbool.h>
 #include "PRCv12_RF.h"
 
-
 //*********************************************************
 // FUNCTIONS
 //*********************************************************
 
 /**
- * @brief   Write into Always-On Register File
+ * @brief   Turns on the flash memory
  *
- *          It could have been just a simple MMIO write. However, PRC/PREv12 have hold-violations
- *          due to slow level converter when CPU attemps to write into Register File. So you should use
- *          layer controller interrupt to do this.
+ *          It turns on the voltage/current limiter and the flash memory.
+ *          It does NOT enable the connection to large off-chip capacitor.
  *
- * @param   reg_addr    32-bit MMIO Address of the register to be written
- * @param   data        24-bit data to be written. This is a 32-bit variable, so upper 8-bit is ignored.
+ * @irq_payload 0x03
  *
- * @usage   write_regfile ((volatile uint32_t *) 0xA0000000, 0x123456);
- *          write_regfile (REG0, 0x123456);
+ * @param   fls_enum    FLSv1L Short-Prefix
  */
-void write_regfile (volatile uint32_t* reg_addr, uint32_t data);
-
+void FLSv1L_turnOnFlash (uint8_t fls_enum);
 
 /**
- * @brief   Insert 'nop's 
+ * @brief   Turns off the flash memory
  *
- * @param   ticks       Num of 'nop's to be inserted. The actual idle time would be 2*ticks cycles due to the 'for' loop.
+ *          It turns off the voltage/current limiter and the flash memory.
+ *          It does NOT disable the connection to large off-chip capacitor.
  *
- * @usage   delay(100);
+ * @irq_payload 0x06
+ *
+ * @param   fls_enum    FLSv1L Short-Prefix
  */
-void delay(unsigned ticks);
-
+void FLSv1L_turnOffFlash (uint8_t fls_enum);
 
 /**
- * @brief   Wait for interrupt
+ * @brief   Enable the connection to the large off-chip capacitor
  *
- * @param   N/A
+ *          It may be used right after FLSv1L_turnOnFlash()
  *
- * @usage   WFI();
+ * @param   fls_enum    FLSv1L Short-Prefix
  */
-void WFI();
-
+void FLSv1L_enableLargeCap (uint8_t fls_enum);
 
 /**
- * @brief   Disable all MBus-related interrupts
+ * @brief   Disable the connection to the large off-chip capacitor
  *
- *          This configures Register0x0A (MMIO 0xA0000028) like below:
- *              OLD_MSG_REG_MASK    = 0x1  // Backward compatibility enabled
- *              CONFIG_HALT_CPU     = 0xF  // CPU Halt Disabled
- *              MBUS_FWD_IRQ_MASK   = 0x0  // Disabled
- *              MBUS_TX_IRQ_MASK    = 0x0  // Disabled
- *              MBUS_RX_IRQ_MASK    = 0x0  // Disabled
- *              MEM_WR_IRQ_MASK     = 0x0  // Disabled
- *              RF_WR_IRQ_MASK      = 0x00 // Disabled
+ *          It may be used right before FLSv1L_turnOffFlash()
  *
- * @param   N/A
- *
- * @usage   disable_all_mbus_irq();
+ * @param   fls_enum    FLSv1L Short-Prefix
  */
-void disable_all_mbus_irq(void);
-
+void FLSv1L_disableLargeCap (uint8_t fls_enum);
 
 /**
- * @brief   Set a new CONFIG_HALT_CPU value
+ * @brief   Sets IRQ Address
  *
- * @param   new_config  4-bit CONFIG_HALT_CPU value
+ *          Whenever the flash layer sends out an interrupt message, 
+ *          it will use the addresses specified by this function.
+ *          The interrupt message has a form of 'Register Write' MBus message.
  *
- * @usage   set_halt_config(0x9);
- *          set_halt_config(HALT_UNTIL_MBUS_RX);
+ * @param   fls_enum    FLSv1L Short-Prefix
+ * @param   short_addr  This becomes MBus Address in the interrupt message
+ * @param   reg_addr    This becomes Destination Register Address in the interrupt message
  */
-void set_halt_config(uint8_t new_config);
-
+void FLSv1L_setIRQAddr (uint8_t fls_enum, uint8_t short_addr, uint8_t reg_addr);
 
 /**
- * @brief   Return the current CONFIG_HALT_CPU value
+ * @brief   Optimize the setting for Flash Programming
  *
- * @param   N/A
+ *          It sets the following tuning bits:
+ *              Tprog = 0x05
+ *              Tcyc = 0x00C0
+ *              VTG_TUNE = 0x8
+ *              CRT_TUNE = 0x3F
  *
- * @usage   uint8_t current_halt_cpu_setting = get_current_halt_config();
+ * @param   fls_enum    FLSv1L Short-Prefix
  */
-uint8_t get_current_halt_config(void);
-
+void FLSv1L_setOptTune (uint8_t fls_enum);
 
 /**
- * @brief   This configures Register0x0A (MMIO 0xA0000028) using the input parameters:
- *              OLD_MSG_REG_MASK    = OLD_MSG;
- *              CONFIG_HALT_CPU     = HALT_CONFIG;
- *              MBUS_FWD_IRQ_MASK   = MBUS_FWD;
- *              MBUS_TX_IRQ_MASK    = MBUS_TX;
- *              MBUS_RX_IRQ_MASK    = MBUS_RX;
- *              MEM_WR_IRQ_MASK     = MEM_WR;
- *              RF_WR_IRQ_MASK      = RF_WR;
+ * @brief   Sets T5us, T10us, and Terase
  *
- * @param   See Above
+ *          It sets the following tuning bits:
+ *              T5us    (Default: 0x0)
+ *              T10us   (Default: 0x2)
+ *              Terase  (Default:0x1AA0)
  *
- * @usage   set_mbus_irq_reg(0xF0, 0x0, 0x1, 0x0, 0x0, 0x1, 0xF);
+ * @param   fls_enum    FLSv1L Short-Prefix
+ * @param   T5us        T5us
+ * @param   T10us       T10us
+ * @param   Terase      Terase
  */
-void set_mbus_irq_reg(uint8_t RF_WR, uint8_t MEM_WR, uint8_t MBUS_RX, uint8_t MBUS_TX, uint8_t MBUS_FWD, uint8_t OLD_MSG, uint8_t HALT_CONFIG);
-
+void FLSv1L_setTerase (uint8_t fls_enum, uint8_t T5us, uint8_t T10us, uint16_t Terase);
 
 /**
- * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
- *              CONFIG_HALT_CPU     = reg_id;
- *          Other signals (OLD_MSG_REG_MASK, MBUS_FWD_IRQ_MASK, MBUS_TX_IRQ_MASK, MBUS_RX_IRQ_MASK, MEM_WR_IRQ_MASK, RF_WR_IRQ_MASK) remain unchanged
+ * @brief   Sets SRAM Start Address
  *
- * @param   reg_id  8-bit Register interrupt masking pattern
+ *          32-bit Word, Total 8192 Words
+ *          -----------------------------
+ *          <ADDRESS SPACE>
+ *          0x00000000 - 0x00001FFF
+ *          -----------------------------
+ *          Use for the following functions:
+ *              FLSv1L_doCopyFlash2SRAM();
+ *              FLSv1L_doCopySRAM2Flash();
  *
- * @usage   set_halt_until_reg(0xF0);
+ * @param   fls_enum            FLSv1L Short-Prefix
+ * @param   sram_start_addr     SRAM Start Address
  */
-void set_halt_until_reg(uint8_t reg_id);
-
+void FLSv1L_setSRAMStartAddr (uint8_t fls_enum, uint32_t sram_start_addr);
 
 /**
- * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
- *              CONFIG_HALT_CPU     = HALT_UNTIL_MEM_WR;
- *          Other signals (OLD_MSG_REG_MASK, MBUS_FWD_IRQ_MASK, MBUS_TX_IRQ_MASK, MBUS_RX_IRQ_MASK, MEM_WR_IRQ_MASK, RF_WR_IRQ_MASK) remain unchanged
+ * @brief   Sets Flash Start Address
  *
- * @param   N/A
+ *          Double-Word-Aligned: LSB is always 0
+ *          64-bit Word, 1024 Words/Page, 8kB/Page, Total 256 Pages
+ *          For FLSv1L_doEraseFlash(), use the first address of the page
+ *          -----------------------------
+ *          <ADDRESS SPACE>
+ *          0x00000000 - 0x000007FE: Page 0
+ *          0x00000800 - 0x00000FFE: Page 1
+ *          ....
+ *          0x0007F800 - 0x0007FFFE: Page 255
+ *          -----------------------------
+ *          Use for the following functions:
+ *              FLSv1L_doCopyFlash2SRAM();
+ *              FLSv1L_doCopySRAM2Flash();
+ *              FLSv1L_doEraseFlash();
  *
- * @usage   set_halt_until_mem_wr();
+ * @param   fls_enum            FLSv1L Short-Prefix
+ * @param   flash_start_addr    Flash Start Address
  */
-void set_halt_until_mem_wr(void);
-
+void FLSv1L_setFlashStartAddr (uint8_t fls_enum, uint32_t flash_start_addr);
 
 /**
- * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
- *              CONFIG_HALT_CPU     = HALT_UNTIL_MBUS_RX;
- *          Other signals (OLD_MSG_REG_MASK, MBUS_FWD_IRQ_MASK, MBUS_TX_IRQ_MASK, MBUS_RX_IRQ_MASK, MEM_WR_IRQ_MASK, RF_WR_IRQ_MASK) remain unchanged
+ * @brief   Sets External Stream Width/Legnth
  *
- * @param   N/A
+ *          Use for the following functions:
+ *              FLSv1L_doExtStream();
  *
- * @usage   set_halt_until_mbus_rx();
+ * @param   fls_enum    FLSv1L Short-Prefix
+ *
+ * @param   width       Bus width in streaming
+ *                          width=2'h0: 1-bit
+ *                          width=2'h1: 2-bits
+ *                          width=2'h2: not defined
+ *                          width=2'h3: 4-bits
+ *
+ * @param   length      (Number of 32-bit Words)-2; Max = 0x1FFE (8192 words = 32kB)
+ *                      'length' should be an even number.
  */
-void set_halt_until_mbus_rx(void);
-
+void FLSv1L_setExtStream (uint8_t fls_enum, uint8_t width, uint16_t length);
 
 /**
- * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
- *              CONFIG_HALT_CPU     = HALT_UNTIL_MBUS_TX;
- *          Other signals (OLD_MSG_REG_MASK, MBUS_FWD_IRQ_MASK, MBUS_TX_IRQ_MASK, MBUS_RX_IRQ_MASK, MEM_WR_IRQ_MASK, RF_WR_IRQ_MASK) remain unchanged
+ * @brief   Copy Flash to SRAM
  *
- * @param   N/A
+ * @param   fls_enum    FLSv1L Short-Prefix
  *
- * @usage   set_halt_until_mbus_tx();
+ * @irq_payload 0x46
+ *
+ * @param   length      (Number of 32-bit Words)-2; Max = 0x7FE (2048 words = 8kB)
+ *                      'length' should be an even number.
  */
-void set_halt_until_mbus_tx(void);
-
+void FLSv1L_doCopyFlash2SRAM (uint8_t fls_enum, uint32_t length);
 
 /**
- * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
- *              CONFIG_HALT_CPU     = HALT_UNTIL_MBUS_FWD;
- *          Other signals (OLD_MSG_REG_MASK, MBUS_FWD_IRQ_MASK, MBUS_TX_IRQ_MASK, MBUS_RX_IRQ_MASK, MEM_WR_IRQ_MASK, RF_WR_IRQ_MASK) remain unchanged
+ * @brief   Copy SRAM to Flash
  *
- * @param   N/A
+ * @irq_payload 0x5C
  *
- * @usage   set_halt_until_mbus_fwd();
+ * @param   fls_enum    FLSv1L Short-Prefix
+ *
+ * @param   length      (Number of 32-bit Words)-2; Max = 0x7FE (2048 words = 8kB)
+ *                      'length' should be an even number.
  */
-void set_halt_until_mbus_fwd(void);
-
+void FLSv1L_doCopySRAM2Flash (uint8_t fls_enum, uint32_t length);
 
 /**
- * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
- *              CONFIG_HALT_CPU     = HALT_DISABLE;
- *          Other signals (OLD_MSG_REG_MASK, MBUS_FWD_IRQ_MASK, MBUS_TX_IRQ_MASK, MBUS_RX_IRQ_MASK, MEM_WR_IRQ_MASK, RF_WR_IRQ_MASK) remain unchanged
+ * @brief   Erase Flash
  *
- * @param   N/A
+ *          Erase operation is done by page.
+ *          Use FLSv1L_setFlashStartAddr() to specify the start address of the page to be erased.
  *
- * @usage   set_halt_disable();
+ * @irq_payload 0x74
+ *
+ * @param   fls_enum    FLSv1L Short-Prefix
  */
-void set_halt_disable(void);
-
+void FLSv1L_doEraseFlash (uint8_t fls_enum);
 
 /**
- * @brief   Immediately put CPU in halt. CPU resumes its operation when the event specifiedin CONFIG_HALT_CPU occurs.
+ * @brief   Start External Input Stream
  *
- * @param   N/A
+ *          The start address is supposed to be the very first address (ADDR[0]) of SRAM.
+ *          However, there is a bug so that the Flash Layer needs to be reset in order to start from ADDR[0].
+ *          This reset can be either 'sleep -> wakeup sequence' or 'POR sequence'.
+ *          If user does two separate 'stream-in' after a reset, the start address of the second stream-in 
+ *          might not be ADDR[0]. It's undeterministic.
  *
- * @usage   halt_cpu();
+ *          Length must be correctly set using FLSv1L_setExtStream().
+ *
+ * @irq_payload 0x82    Success
+ *              0x80    Time-Out
+ *              0x83    Too-Fast Streaming
+ *
+ * @param   fls_enum    FLSv1L Short-Prefix
  */
-void halt_cpu(void);
+void FLSv1L_doExtStream (uint8_t fls_enum);
 
-
-/**
- * @brief   Configure the 16-bit timer
- *
- * @param   cmp0    Number0 to compare
- * @param   cmp1    Number1 to compare
- * @param   irq_en  Interrupt Enable
- * @param   cnt     Manually set the timer counter
- * @param   status  Manually set the timer status
- */
-void config_timer16(uint32_t cmp0, uint32_t cmp1, uint8_t irq_en, uint32_t cnt, uint32_t status);
-
-
-/**
- * @brief   Configure the 32-bit timer
- *
- * @param   cmp     Number0 to compare
- * @param   roi     Reset on Interrupt
- * @param   cnt     Manually set the timer counter
- * @param   status  Manually set the timer status
- */
-void config_timer32(uint32_t cmp, uint8_t roi, uint32_t cnt, uint32_t status);
-
-/**
- * @brief   Configure the Watch-Dog timer
- *
- * @param   cnt     Manually set the timer counter
- */
-void config_timerwd(uint32_t cnt);
-
-
-/**
- * @brief   Configure the wake-up timer
- *
- * @param   timestamp   Counter value at which the timer generates an interrupt
- * @param   irq_en      Interrupt Enable
- * @param   reset       1 will reset the wake-up timer
- */
-void set_wakeup_timer( uint16_t timestamp, uint8_t irq_en, uint8_t reset );
-
-
-/**
- * @brief   Write into ARB debug register
- *          !!!    THIS IS FOR VERILOG SIM ONLY    !!!
- *          !!!IT WILL NOT WORK ON THE SILICON CHIP!!!
- *
- * @param   code        data to be written to the debug register
- */
-void arb_debug_reg (uint32_t code);
-
-#endif // PRCV12_H
+#endif // FLSV1L_H
 

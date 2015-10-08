@@ -12,8 +12,9 @@ ASFLAGS :=
 
 #CFLAGS  += -Wall -Wextra -Werror -mthumb -mcpu=cortex-m0 -ffreestanding
 # Don't care about the warnings not compiling. It's annoying.
-CFLAGS  += -Os -Wall -Wextra -mthumb -mcpu=cortex-m0 -ffreestanding -fdata-sections -ffunction-sections
-LDFLAGS += -Os -static -S -nostartfiles -nodefaultlibs -nostdlib --gc-sections -e _start #-dead_strip #-why_live read_mbus_register_RADv4
+CFLAGS  += -Os -Wall -Wextra -mthumb -mcpu=cortex-m0 -ffreestanding -fdata-sections -ffunction-sections -g
+LDFLAGS += -Os -static -S -nostartfiles --gc-sections -e _start #-dead_strip #-why_live read_mbus_register_RADv4
+#LDFLAGS += -Os -static -S -nostartfiles -nodefaultlibs -nostdlib --gc-sections -e _start #-dead_strip #-why_live read_mbus_register_RADv4
 ASFLAGS += -mthumb --warn -mcpu=cortex-m0
 
 # Experiments in not linking unused sections
@@ -69,19 +70,13 @@ HEADERS := $(wildcard include/*.h)
 DIRS := $(patsubst %/,%,$(filter-out libs/,$(filter-out include/,$(wildcard */))))
 BINS := $(foreach var,$(DIRS),$(var)/$(var).bin)
 HEXS := $(foreach var,$(DIRS),$(var)/$(var).hex)
+ELFS := $(foreach var,$(DIRS),$(var)/$(var).elf)
 
-.PRECIOUS: $(LIBS) $(BINS)
+.PRECIOUS: $(LIBS) $(BINS) $(ELFS)
 
 .PHONY: all
 
-all: grab_files $(HEXS) move_to_gladstone
-
-grab_files:
-	clear
-	scp yejoong@gladstone.eecs.umich.edu:~/PREv12_RF.h include/.
-
-move_to_gladstone:
-	scp -r ../../../git_hack yejoong@gladstone.eecs.umich.edu:~
+all: $(HEXS)
 
 $(DIRS):
 	$(MAKE) $@/$@.hex
@@ -96,13 +91,15 @@ $(DIRS):
 
 %.hex:	%.bin
 	xxd -g1 -c1 $< | cut -d' ' -f2 > $@
+	./createMemMap $@
 
 %.bin:	%.elf
 	$(OBJCOPY) -O binary $< $@
 
 # Mind the order here to align -T$^
 %.elf:	libs/memmap $(LIBS) %.o
-	$(LD) $(LDFLAGS) -T$^ "$$(echo $$($(CC) -print-libgcc-file-name) | tr -d '\r')" -o $@
+	$(LD) $(LDFLAGS) -T$^ "$$(echo $$(arm-none-eabi-gcc -print-libgcc-file-name) | tr -d '\r')" -o $@
+	$(OBJDUMP) -Sd $@ > $*.asm
 
 .PRECIOUS: %.elf
 
@@ -114,6 +111,7 @@ clean:
 	rm -f $(BINS)
 	rm -f $(HEXS)
 	rm -f $(LIBS)
+	rm -f $(ELFS)
 
 clean-%:
 	rm -f $*/$*.bin $*/$*.hex

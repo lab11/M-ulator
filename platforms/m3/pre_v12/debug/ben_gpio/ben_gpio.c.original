@@ -1,5 +1,7 @@
-#include "mbus.h"
-#include "PRCv9E.h"
+//#include "mbus.h"
+//#include "PRCv9E.h"
+#include <stdint.h>
+#include <stdbool.h>
 
 
 volatile uint32_t enumerated;
@@ -28,6 +30,23 @@ volatile uint32_t* _GPIO_DATA = (volatile uint32_t *) 0xA6000000;
 volatile uint32_t* _GPIO_DIR = (volatile uint32_t *) 0xA6001000;
 
 //***************************************************
+//Functions from mbus.h and PRCv9E.h
+//***************************************************
+int write_mbus_message_ben(uint32_t addr, uint32_t data) {
+  uint32_t _mbus_addr = 0xa0000000;
+  *((volatile uint32_t *) _mbus_addr) = addr;
+  _mbus_addr |= 0x4;
+  *((volatile uint32_t *) _mbus_addr) = data;
+  return 0;
+}
+
+void delay_ben(unsigned ticks) {
+  unsigned i;
+  for (i=0; i < ticks; i++)
+    asm("nop;");
+}
+
+//***************************************************
 //Interrupt Handlers
 //Must clear pending bit!
 //***************************************************
@@ -47,60 +66,60 @@ void handler_ext_int_11(void) __attribute__ ((interrupt ("IRQ")));
 
 void handler_ext_int_0(void){
 	*((volatile uint32_t *) 0xE000E280) = 0x1;
-	write_mbus_message(0x13, 0x0F0F00000);
+	write_mbus_message_ben(0x13, 0x0F0F00000);
 }
 void handler_ext_int_1(void){
 	*((volatile uint32_t *) 0xE000E280) = 0x2;
-	write_mbus_message(0x13, 0x0F0F00001);
+	write_mbus_message_ben(0x13, 0x0F0F00001);
 }
 void handler_ext_int_2(void){
 	*((volatile uint32_t *) 0xE000E280) = 0x4;
-	write_mbus_message(0x13, 0x0F0F00002);
+	write_mbus_message_ben(0x13, 0x0F0F00002);
 }
 void handler_ext_int_3(void){
 	*((volatile uint32_t *) 0xE000E280) = 0x8;
-	write_mbus_message(0x13, 0x0F0F00003);
+	write_mbus_message_ben(0x13, 0x0F0F00003);
 }
 void handler_ext_int_4(void){
 //	uint32_t *address;
 //	uint32_t data;
 //	address	= (uint32_t *) 0xA6000000;
 //	data = *address;
-//	write_mbus_message(0xF0, data);
+//	write_mbus_message_ben(0xF0, data);
 	*((volatile uint32_t *) 0xE000E280) = 0x10;
-	write_mbus_message(0x13, 0x0F0F0004);
+	write_mbus_message_ben(0x13, 0x0F0F0004);
 }
 void handler_ext_int_5(void){
 	*((volatile uint32_t *) 0xE000E280) = 0x20;
-	write_mbus_message(0x13, 0x0F0F0005);
+	write_mbus_message_ben(0x13, 0x0F0F0005);
 }
 void handler_ext_int_6(void){
 	*((volatile uint32_t *) 0xE000E280) = 0x40;
-	write_mbus_message(0x13, 0x0F0F0006);
+	write_mbus_message_ben(0x13, 0x0F0F0006);
 }
 void handler_ext_int_7(void){
 	*((volatile uint32_t *) 0xE000E280) = 0x80;
-	write_mbus_message(0x13, 0x0F0F0007);
+	write_mbus_message_ben(0x13, 0x0F0F0007);
 }
 void handler_ext_int_8(void){
 	*((volatile uint32_t *) 0xE000E280) = 0x100;
-//	write_mbus_message(0x13, 0x0F0F0008);
-//	write_mbus_message(0x13, *((volatile uint32_t *) 0xA500021C));
-//	write_mbus_message(0x13, *((volatile uint32_t *) 0xA5000220));
+//	write_mbus_message_ben(0x13, 0x0F0F0008);
+//	write_mbus_message_ben(0x13, *((volatile uint32_t *) 0xA500021C));
+//	write_mbus_message_ben(0x13, *((volatile uint32_t *) 0xA5000220));
 }
 void handler_ext_int_9(void){
 	*((volatile uint32_t *) 0xE000E280) = 0x200;
-	write_mbus_message(0x13, 0x0F0F0009);
-//	write_mbus_message(0x13, *((volatile uint32_t *) 0xA8000000));
-//	write_mbus_message(0x13, *((volatile uint32_t *) 0xA8000004));
+	write_mbus_message_ben(0x13, 0x0F0F0009);
+//	write_mbus_message_ben(0x13, *((volatile uint32_t *) 0xA8000000));
+//	write_mbus_message_ben(0x13, *((volatile uint32_t *) 0xA8000004));
 }
 void handler_ext_int_10(void){
 	*((volatile uint32_t *) 0xE000E280) = 0x400;
-	write_mbus_message(0x13, 0x0F0F000A);
+	write_mbus_message_ben(0x13, 0x0F0F000A);
 }
 void handler_ext_int_11(void){
 	*((volatile uint32_t *) 0xE000E280) = 0x800;
-	write_mbus_message(0x13, 0x0F0F000B);
+	write_mbus_message_ben(0x13, 0x0F0F000B);
 }
 
 //***************************************************
@@ -111,14 +130,14 @@ void handler_ext_int_11(void){
 
 void initialize(){
 	enumerated = 0xABCDEF01;
-	write_mbus_message(0x13,0xeeeeeeee);
+	write_mbus_message_ben(0x13,0xeeeeeeee);
 }
 
 void gpio_control(uint32_t data){
 	uint32_t *address;
 	address = (uint32_t *) 0xA6000000;
 	*address = data;
-//	write_mbus_message(0x13,data);
+//	write_mbus_message_ben(0x13,data);
 }
 
 uint32_t read_acoustic(){
@@ -209,19 +228,19 @@ int main() {
 
 	*_GPIO_DATA = 0x00000003;
 	
-	delay(10000);
+	delay_ben(10000);
 	
 	while(1){
 		uint32_t last_i2c_sample = 0;
 		uint32_t cur_i2c_sample = 0;
 		int ii, jj;
 
-		//while(1){
-		//	if(*_GPIO_DATA & I2C_SDA)
-		//		*_GPIO_DATA = 0x0000000F;
-		//	else
-		//		*_GPIO_DATA = 0x00000003;
-		//}
+		while(1){
+			if(*_GPIO_DATA & I2C_SDA)
+				*_GPIO_DATA = 0x0000000F;
+			else
+				*_GPIO_DATA = 0x00000003;
+		}
 
 		//Wait for start condition
 		do{
