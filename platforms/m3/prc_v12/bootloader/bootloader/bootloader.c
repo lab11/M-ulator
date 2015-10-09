@@ -1,10 +1,11 @@
 //*******************************************************************
 //Author: Yejoong Kim
-//Description: PRCv12_FLSv1L
+//Description: Stream into FLSv1L/FLSv1S
 //*******************************************************************
 #include "PRCv12.h"
 #include "FLSv1L.h"
 #include "mbus.h"
+#include "../../software/PRCv12_FLSv1L_simple_wakeup_sleep/PRCv12_FLSv1L_simple_wakeup_sleep.bootinc"
 
 #define PRC_ADDR    0x1
 #define FLS_ADDR    0x4
@@ -13,14 +14,13 @@
 // Global Variables
 //********************************************************************
 volatile uint32_t enumerated;
-volatile uint32_t num_cycle;
 
 //*******************************************************************
 // INTERRUPT HANDLERS
 //*******************************************************************
 void init_interrupt (void) {
   *NVIC_ICPR = 0x7FFF; //Clear All Pending Interrupts
-  *NVIC_ISER = 0x7FFF; //Enable Interrupts
+  *NVIC_ISER = 0x0; //Disable Interrupts
 }
 
 void handler_ext_int_0(void)  __attribute__ ((interrupt ("IRQ")));
@@ -61,7 +61,6 @@ void handler_ext_int_14(void) {/*GOCEP*/    *NVIC_ICPR = (0x1 << 14); }
 void initialization (void) {
 
     enumerated = 0xDEADBEEF;
-    num_cycle = 0;
 
     //Chip ID
     write_regfile (REG_CHIP_ID, 0xDEAD);
@@ -85,45 +84,6 @@ void initialization (void) {
     FLSv1L_setIRQAddr(FLS_ADDR, 0x10, 0x00);
 }
 
-void cycle0 (void) {
-    set_halt_until_mbus_rx();
-    FLSv1L_turnOnFlash (FLS_ADDR);
-
-    set_halt_until_mbus_tx();
-    FLSv1L_enableLargeCap (FLS_ADDR);
-
-    delay(10000); // Wait for a while before turning off flash again
-
-    FLSv1L_disableLargeCap (FLS_ADDR);
-
-    set_halt_until_mbus_rx();
-    FLSv1L_turnOffFlash (FLS_ADDR);
-
-    set_halt_until_mbus_tx();
-}
-
-void cycle1 (void) {
-    // Set SRAM/Flash Start Address
-    FLSv1L_setSRAMStartAddr  (FLS_ADDR, 0x00000000);
-    FLSv1L_setFlashStartAddr (FLS_ADDR, 0x00000000);
-
-    // Write into FLSv1L SRAM (Stream Channel 0)
-    static uint32_t mem_data[16] = {  0x00000000, 0x11111111, 0x22222222, 0x33333333,
-                               0x44444444, 0x55555555, 0x66666666, 0x77777777,
-                               0x88888888, 0x99999999, 0xAAAAAAAA, 0xBBBBBBBB,
-                               0xCCCCCCCC, 0xDDDDDDDD, 0xEEEEEEEE, 0xFFFFFFFF,
-                               };
-    mbus_write_message ( ((FLS_ADDR << 4) | MPQ_MEM_STREAM_WRITE_CH0), mem_data, 16);
-
-    // Read from FLSv1L SRAM and write into PRCv12's SRAM (at the 7kB position)
-    set_halt_until_mbus_rx();
-    uint32_t mbus_msg[3] = {0x1200000F, 0x00000000, 0x00001C00};
-    mbus_write_message ( ((FLS_ADDR << 4) | MPQ_MEM_READ), mbus_msg, 3);
-    set_halt_until_mbus_tx();
-
-    mbus_copy_mem_from_local_to_remote_stream (0x0, FLS_ADDR, (uint32_t *) 0x00001C00, 15);
-}
-
 //********************************************************************
 // MAIN function starts here             
 //********************************************************************
@@ -138,25 +98,77 @@ int main() {
         initialization(); // Enumeration.
     }
 
-    // Display num_cycle;
-    mbus_write_message32(0xEF, num_cycle);
-    
-    // Testing Sequence
-    if      (num_cycle == 0) cycle0();   // Test Flash Power On/Off & Interrupts
-    else if (num_cycle == 1) cycle1();
-    else {
-        mbus_write_message32(0xEF, 0x0EA7F00D);
+    // Stream the boot code into FLSv1
+    mbus_write_message ( ((FLS_ADDR << 4) | MPQ_MEM_STREAM_WRITE_CH0), boot_stream_data, BOOT_STREAM_DATA_LENGTH);
+
+    // Turn on Flash
+    set_halt_until_mbus_rx();
+    FLSv1L_turnOnFlash(FLS_ADDR);
+
+    if (*REG0 != 0x000003) { 
+        set_halt_until_mbus_tx();
+        mbus_write_message32 (0xE0, 0xDEADBEEF); 
+        mbus_write_message32 (0xE0, *REG0); 
+        mbus_sleep_all();
         while(1);
     }
-        
-    num_cycle++;
+    
+    // Connect Large Cap  
+    set_halt_until_mbus_tx();
+    FLSv1L_enableLargeCap(FLS_ADDR);
 
-    set_wakeup_timer(5, 1, 1);
-    mbus_sleep_all();
+    // Erase Flash (8kB = 1 Page)
+    set_halt_until_mbus_tx();
+    FLSv1L_setFlashStartAddr(FLS_ADDR, 0x00000000);
 
+    set_halt_until_mbus_rx();
+    FLSv1L_doEraseFlash(FLS_ADDR);
+
+    if (*REG0 != 0x000074) { 
+        set_halt_until_mbus_tx();
+        mbus_write_message32 (0xE1, 0xDEADBEEF); 
+        mbus_write_message32 (0xE1, *REG0); 
+        mbus_sleep_all();
+        while(1);
+    }
+
+    // Copy SRAM to Flash (8kB = 1 Page)
+    set_halt_until_mbus_tx();
+    FLSv1L_setFlashStartAddr(FLS_ADDR, 0x00000000);
+    FLSv1L_setSRAMStartAddr(FLS_ADDR, 0x00000000);
+
+    set_halt_until_mbus_rx();
+    FLSv1L_doCopySRAM2Flash(FLS_ADDR, 0x7FE); // 0x7FE = 2048 words = 8kB
+
+    if (*REG0 != 0x00005C) {
+        set_halt_until_mbus_tx();
+        mbus_write_message32 (0xE2, 0xDEADBEEF); 
+        mbus_write_message32 (0xE2, *REG0); 
+        mbus_sleep_all();
+        while(1);
+    }
+
+    // Turn off Flash
+    set_halt_until_mbus_rx();
+    FLSv1L_turnOffFlash(FLS_ADDR);
+    
+    if (*REG0 != 0x000006) {
+        set_halt_until_mbus_tx();
+        mbus_write_message32 (0xE3, 0xDEADBEEF); 
+        mbus_write_message32 (0xE3, *REG0); 
+        mbus_sleep_all();
+        while(1);
+    }
+
+    // Disconnect Large Cap
+    set_halt_until_mbus_tx();
+    FLSv1L_disableLargeCap(FLS_ADDR);
+
+    // Notify the end of the program
+    mbus_write_message32(0xDD, 0x0EA7F00D);
+    mbus_sleep_all(); // Go to sleep indefinitely
     while(1);
 
     return 1;
-
 }
 
