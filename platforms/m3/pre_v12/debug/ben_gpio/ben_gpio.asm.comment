@@ -29,30 +29,30 @@ Disassembly of section .text.startup.main:
 00000090 <main>:
   90:	4a0c      	ldr	r2, [pc, #48]	; (c4 <main+0x34>)  // r2 = mem[c4] = 0x0001FFFF
   92:	4b0d      	ldr	r3, [pc, #52]	; (c8 <main+0x38>)  // r3 = mem[c8] = 0xE000E280
-  94:	b510      	push	{r4, lr}        
-  96:	601a      	str	r2, [r3, #0]                        // mem[r3] = r2 (mem[0xE000E280] = 0x0001FFFF)
+  94:	b510      	push	{r4, lr}    ;       
+  96:	601a      	str	r2, [r3, #0]    ;                   // mem[r3] = r2 (mem[0xE000E280] = 0x0001FFFF)
   98:	4a0c      	ldr	r2, [pc, #48]	; (cc <main+0x3c>)  // r2 = mem[cc] = 0xE000E100
-  9a:	2300      	movs	r3, #0                          // r3 = 0
-  9c:	6013      	str	r3, [r2, #0]                        // mem[r2] = r3 (mem[0xE000E100] = 0)
+  9a:	2300      	movs	r3, #0      ;                   // r3 = 0
+  9c:	6013      	str	r3, [r2, #0]    ;                   // mem[r2] = r3 (mem[0xE000E100] = 0)
   9e:	4a0c      	ldr	r2, [pc, #48]	; (d0 <main+0x40>)  // r2 = mem[d0] = A0001200
-  a0:	2120      	movs	r1, #32                         // r1 = 0x00000020
-  a2:	6013      	str	r3, [r2, #0]                        // mem[r2] = r3 (mem[A0001200] = 0)
+  a0:	2120      	movs	r1, #32     ;                   // r1 = 0x00000020
+  a2:	6013      	str	r3, [r2, #0]    ;                   // mem[r2] = r3 (mem[A0001200] = 0)
   a4:	4b0b      	ldr	r3, [pc, #44]	; (d4 <main+0x44>)  // r3 = mem[d4] = 0x000000E0
-  a6:	2203      	movs	r2, #3                          // r2 = 0x3
-  a8:	681b      	ldr	r3, [r3, #0]                        // r3 = mem[r3] = mem[0x000000E0] = 0xA0005400
-  aa:	200f      	movs	r0, #15                         // r0 = 15 = 0xF
-  ac:	6019      	str	r1, [r3, #0]                        // mem[r3] = r1 (mem[0xA0005400] = 0x00000020)
+  a6:	2203      	movs	r2, #3      ;                   // r2 = 0x3
+  a8:	681b      	ldr	r3, [r3, #0]    ;                   // r3 = mem[r3] = mem[0x000000E0] = 0xA0005400
+  aa:	200f      	movs	r0, #15     ;                   // r0 = 15 = 0xF
+  ac:	6019      	str	r1, [r3, #0]    ;                   // mem[r3] = r1 (mem[0xA0005400] = 0x00000020)
   ae:	4b0a      	ldr	r3, [pc, #40]	; (d8 <main+0x48>)  // r3 = mem[d8] = 0x000000DC
-  b0:	681b      	ldr	r3, [r3, #0]                        // r3 = mem[r3] = 0xA0005000
-  b2:	601a      	str	r2, [r3, #0]                        // mem[r3] = r2 (mem[0xA0005000] = 0x3
+  b0:	681b      	ldr	r3, [r3, #0]    ;                   // r3 = mem[r3] = 0xA0005000
+  b2:	601a      	str	r2, [r3, #0]    ;                   // mem[r3] = r2 (mem[0xA0005000] = 0x3
 
-  b4:	681c      	ldr	r4, [r3, #0]                        // r4 = mem[r3] = mem[0xA0005000]
-  b6:	420c      	tst	r4, r1                              // AND Test (r4 & r1)
-  b8:	d001      	beq.n	be <main+0x2e>                  // if equal, go to be
-  ba:	6018      	str	r0, [r3, #0]                        // mem[0xA0005000] = 0xF
-  bc:	e7fa      	b.n	b4 <main+0x24>                      // go to b4
-  be:	601a      	str	r2, [r3, #0]                        // mem[0xA0005000] = 0x3
-  c0:	e7f8      	b.n	b4 <main+0x24>                      // go to b4
+  b4:	681c      	ldr	r4, [r3, #0]    ;                   // r4 = mem[r3] = mem[0xA0005000]
+  b6:	420c      	tst	r4, r1          ;                   // AND Test (r4 & r1)
+  b8:	d001      	beq.n	be <main+0x2e>;                 // cond, go to be
+  ba:	6018      	str	r0, [r3, #0]    ;                   // mem[0xA0005000] = 0xF
+  bc:	e7fa      	b.n	b4 <main+0x24>  ;                   // go to b4
+  be:	601a      	str	r2, [r3, #0]    ;                   // mem[0xA0005000] = 0x3
+  c0:	e7f8      	b.n	b4 <main+0x24>  ;                   // go to b4
   c2:	46c0      	nop			; (mov r8, r8)
 
   c4:	0001ffff 	.word	0x0001ffff
