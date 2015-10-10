@@ -327,7 +327,7 @@ close(IN);
 close(OUT);
 close(INC);
 
-#system("rm -f $tempFile");
+system("rm -f $tempFile");
 
 ##################
 # Sub Functions
