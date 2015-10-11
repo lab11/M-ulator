@@ -33,7 +33,7 @@ RW 0001
 $BootCodeAfterProg = "
 # Register Write (Write B0C3CB in Reg0 in Proc. And Set RUN_CPU)
 RW 0001
-0 00 B0C3CB
+1 00 B0C3CB
 1 10 000001
 
 # Tail Idle
