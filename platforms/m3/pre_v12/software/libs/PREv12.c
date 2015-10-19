@@ -4,22 +4,18 @@
 //*******************************************************************
 
 #include "PREv12.h"
+#include "mbus.h"
 
 //*******************************************************************
 // OTHER FUNCTIONS
 //*******************************************************************
 
-void write_config_reg(uint8_t reg, uint32_t data ){
-  uint32_t _addr = 0xA0000000;
-  _addr |= (reg << 2);
-  
-  *((volatile uint32_t *) _addr) = data;
-}
-
-int read_config_reg(uint8_t reg){
-  uint32_t _addr = 0xA0000000;
-  _addr |= (reg << 2);
-  return *((volatile uint32_t *) _addr);
+void write_regfile (volatile uint32_t* reg_addr, uint32_t data) {
+    uint32_t reg_id = ((uint32_t) reg_addr >> 2) & 0x000000FF;
+    data = data & 0x00FFFFFF;
+    *MBUS_CMD0 = (reg_id << 24) | data;
+    *MBUS_FUID_LEN = MPQ_REG_WRITE | (0x1 << 4);
+    delay(10);
 }
 
 void delay(unsigned ticks){
@@ -61,39 +57,102 @@ void set_wakeup_timer( uint16_t timestamp, uint8_t irq_en, uint8_t reset ){
 	uint32_t regval = timestamp;
 	if( irq_en ) regval |= 0x8000;
 	else		 regval &= 0x7FFF;
-	*REG_WUPT_CONFIG = regval;
+	write_regfile (REG_WUPT_CONFIG, regval);
 
-	if( reset ) *WUP_RESET = 0x01;
+	if( reset ) *WUPT_RESET = 0x01;
 }
 
-void set_clkfreq( uint8_t fastmode, uint8_t div_core, uint8_t div_mbus, uint8_t ring ) {
-	uint32_t regval = *REG_CLKGEN_TUNE;		// Read original reg value
-	regval &= 0x00001FFF; // Reset reg value
-	regval |= (fastmode<<19) | (div_core<<17) | (div_mbus<<15) | (ring<<13) ;
-	*REG_CLKGEN_TUNE = regval; // Write updated reg value
+//**************************************************
+// MBUS IRQ SETTING (All Verified)
+//**************************************************
+void set_halt_until_reg(uint8_t reg_id) {
+    uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFFFF00;
+    reg_val = reg_val | ((uint32_t) reg_id);
+    write_regfile (REG_IRQ_CTRL, reg_val);
 }
 
-// FIXME: Not Verified (Yejoong Kim)
-void pon_reset( void ){
-	*((volatile uint32_t *) 0xA3000000) = 0x2;
+void set_halt_until_mem_wr(void) {
+    uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
+    reg_val = reg_val | (HALT_UNTIL_MEM_WR << 12);
+    write_regfile (REG_IRQ_CTRL, reg_val);
 }
 
-// FIXME: Not Verified (Yejoong Kim)
-void sleep_req_by_sw( void ){
-	*((volatile uint32_t *) 0xA3000000) = 0x4;
+void set_halt_until_mbus_rx(void) {
+    uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
+    reg_val = reg_val | (HALT_UNTIL_MBUS_RX << 12);
+    write_regfile (REG_IRQ_CTRL, reg_val);
+}
+
+void set_halt_until_mbus_tx(void) {
+    uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
+    reg_val = reg_val | (HALT_UNTIL_MBUS_TX << 12);
+    write_regfile (REG_IRQ_CTRL, reg_val);
+}
+
+void set_halt_until_mbus_fwd(void) {
+    uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
+    reg_val = reg_val | (HALT_UNTIL_MBUS_FWD << 12);
+    write_regfile (REG_IRQ_CTRL, reg_val);
+}
+
+void set_halt_disable(void) {
+    uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
+    reg_val = reg_val | (HALT_DISABLE << 12);
+    write_regfile (REG_IRQ_CTRL, reg_val);
+}
+
+void disable_all_mbus_irq(void) {
+    write_regfile (REG_IRQ_CTRL, 0x0001F000);
+}
+
+void halt_cpu (void) {
+    *SYS_CTRL_REG_ADDR = SYS_CTRL_CMD_HALT_CPU;
+}
+
+void set_mbus_irq_reg(
+        uint8_t RF_WR, 
+        uint8_t MEM_WR, 
+        uint8_t MBUS_RX, 
+        uint8_t MBUS_TX, 
+        uint8_t MBUS_FWD, 
+        uint8_t OLD_MSG, 
+        uint8_t HALT_CONFIG
+        ) {
+    write_regfile (REG_IRQ_CTRL, 
+                      (OLD_MSG << 16)
+                    | (HALT_CONFIG << 12)
+                    | (MBUS_FWD << 11)
+                    | (MBUS_TX << 10)
+                    | (MBUS_RX << 9)
+                    | (MEM_WR << 8)
+                    | (RF_WR << 0)
+                );
+}
+
+uint8_t get_current_halt_config(void) {
+    uint32_t reg_ = *REG_IRQ_CTRL;
+    reg_ = (0x0000F000 & reg_) >> 12;
+    return (uint8_t) reg_;
+}
+
+void set_halt_config(uint8_t new_config) {
+    uint32_t reg_ = *REG_IRQ_CTRL;
+    reg_ = (0x00010FFF & reg_); // reset
+    reg_ = reg_ | (((uint32_t) new_config) << 12);
+    write_regfile (REG_IRQ_CTRL, reg_);
 }
 
 //**************************************************
 // IO Pad and COTS Power Switch
 //**************************************************
 void enable_io_pad (void) {
-    *REG_PAD_EN = 0x3;
+    write_regfile(REG_PAD_EN, 0x3);
 }
 void disable_io_pad (void) {
-    *REG_PAD_EN = 0x0;
+    write_regfile(REG_PAD_EN, 0x0);
 }
 void set_cps (uint32_t cps_config) {
-    *REG_CPS = 0x00000007 & cps_config;
+    write_regfile(REG_CPS, (0x00000007 & cps_config));
 }
 
 //***************************************************
@@ -150,90 +209,8 @@ void gpio_close (void) {
     disable_io_pad();
 }
 
-//**************************************************
-// MBUS IRQ SETTING (All Verified)
-//**************************************************
-void set_halt_until_reg(uint8_t reg_id) {
-    //assert (reg_id < 8);
-    prev12_r0A.CONFIG_HALT_CPU = reg_id;
-    write_config_reg(0xA,prev12_r0A.as_int);
-}
-
-void set_halt_until_mem_wr(void) {
-    prev12_r0A.CONFIG_HALT_CPU = HALT_UNTIL_MEM_WR;
-    write_config_reg(0xA,prev12_r0A.as_int);
-}
-
-void set_halt_until_mbus_rx(void) {
-    prev12_r0A.CONFIG_HALT_CPU = HALT_UNTIL_MBUS_RX;
-    write_config_reg(0xA,prev12_r0A.as_int);
-}
-
-void set_halt_until_mbus_tx(void) {
-    prev12_r0A.CONFIG_HALT_CPU = HALT_UNTIL_MBUS_TX;
-    write_config_reg(0xA,prev12_r0A.as_int);
-}
-
-void set_halt_until_mbus_fwd(void) {
-    prev12_r0A.CONFIG_HALT_CPU = HALT_UNTIL_MBUS_FWD;
-    write_config_reg(0xA,prev12_r0A.as_int);
-}
-
-void set_halt_disable(void) {
-    prev12_r0A.CONFIG_HALT_CPU = HALT_DISABLE;
-    write_config_reg(0xA,prev12_r0A.as_int);
-}
-
-void disable_all_mbus_irq(void) {
-    prev12_r0A.RF_WR_IRQ_MASK = 0x00;
-    prev12_r0A.MEM_WR_IRQ_MASK = 0x0;
-    prev12_r0A.MBUS_FWD_IRQ_MASK = 0x0;
-    prev12_r0A.MBUS_RX_IRQ_MASK = 0x0;
-    prev12_r0A.MBUS_TX_IRQ_MASK = 0x0;
-    prev12_r0A.OLD_MSG_REG_MASK = 0x1;
-    prev12_r0A.CONFIG_HALT_CPU = HALT_DISABLE;
-    write_config_reg(0xA,prev12_r0A.as_int);
-}
-
-void halt_cpu (void) {
-    *SCREG_ADDR = SCCMD_HALT_CPU;
-}
-
-void set_mbus_irq_reg(
-        uint8_t RF_WR, 
-        uint8_t MEM_WR, 
-        uint8_t MBUS_RX, 
-        uint8_t MBUS_TX, 
-        uint8_t MBUS_FWD, 
-        uint8_t OLD_MSG, 
-        uint8_t HALT_CONFIG
-        ) {
-    prev12_r0A.RF_WR_IRQ_MASK = RF_WR;
-    prev12_r0A.MEM_WR_IRQ_MASK = MEM_WR;
-    prev12_r0A.MBUS_RX_IRQ_MASK = MBUS_RX;
-    prev12_r0A.MBUS_TX_IRQ_MASK = MBUS_TX;
-    prev12_r0A.MBUS_FWD_IRQ_MASK = MBUS_FWD;
-    prev12_r0A.OLD_MSG_REG_MASK = OLD_MSG;
-    prev12_r0A.CONFIG_HALT_CPU = HALT_CONFIG;
-    write_config_reg(0xA,prev12_r0A.as_int);
-}
-
-uint8_t get_current_halt_config(void) {
-    uint32_t reg_ = *REG_IRQ_CTRL;
-    reg_ = (0x0000F000 & reg_) >> 12;
-    return (uint8_t) reg_;
-}
-
-void set_halt_config(uint8_t new_config) {
-    uint32_t reg_ = *REG_IRQ_CTRL;
-    reg_ = (0x00010FFF & reg_); // reset
-    reg_ = reg_ | (((uint32_t) new_config) << 12);
-    *REG_IRQ_CTRL = reg_;
-}
-
 //*******************************************************************
 // VERIOLG SIM DEBUG PURPOSE ONLY!!
 //*******************************************************************
 void arb_debug_reg (uint32_t code) { *((volatile uint32_t *) 0xAFFFFFF8) = code; }
-
 

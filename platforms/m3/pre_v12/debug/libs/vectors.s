@@ -2,7 +2,7 @@
 .syntax unified
 .thumb
 
-/* Interrupt Vector Table for PRCv12 (8kB SRAM) */
+/* Interrupt Vector Table for PREv12 (8kB SRAM) */
 .section .vectors
 .word	0x2000	@ stack top
 .word	_start	@ reset vector
@@ -39,7 +39,7 @@
 .word   handler_ext_int_16   /* 32 External Interrupt(16) */
 
 
-.align 4
+.align 2
 .thumb_func
 hang:   b .
 

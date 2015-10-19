@@ -35,8 +35,6 @@
 .word   handler_ext_int_12   /* 28 External Interrupt(12) */
 .word   handler_ext_int_13   /* 29 External Interrupt(13) */
 .word   handler_ext_int_14   /* 30 External Interrupt(14) */
-.word   handler_ext_int_15   /* 31 External Interrupt(15) */
-.word   handler_ext_int_16   /* 32 External Interrupt(16) */
 
 
 .align 4
@@ -67,8 +65,6 @@ hang:   b .
 .weak handler_ext_int_12, hang
 .weak handler_ext_int_13, hang
 .weak handler_ext_int_14, hang
-.weak handler_ext_int_15, hang
-.weak handler_ext_int_16, hang
 
 .text
 .func _start
