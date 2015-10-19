@@ -471,7 +471,7 @@ static void operation_init(void){
     // CDC Settings --------------------------------------
     // snsv6_r0 (need to be initialized here)
     snsv6_r0.CDCW_IRQ_EN	= 1;
-    snsv6_r0.CDCW_MODE_PAR	= 1;
+    snsv6_r0.CDCW_MODE_PAR	= 0;
     snsv6_r0.CDCW_MODE_REF	= 1;
     snsv6_r0.CDCW_CTRL_DIV	= 1;
     snsv6_r0.CDCW_CTRL_RING	= 1;
@@ -490,7 +490,7 @@ static void operation_init(void){
 	
     // snsv6_r2 (need to be initialized here)
     snsv6_r2.CDCW_T_CHARGE		= 0x80; // 0x80
-    snsv6_r2.CDCW_N_CYCLE_SET	= 0; // Default: 0x10 // 100
+    snsv6_r2.CDCW_N_CYCLE_SET	= 100; // Default: 0x10 // 100
     write_mbus_register(SNS_ADDR,2,snsv6_r2.as_int);
 
     // Snsv6_R17
