@@ -7,6 +7,8 @@
 //				- PRCv11
 //				- SNSv6
 //				- Support for RADv7 & RADv8 (ppm radio)
+//                                10/27/2015
+//                              - Changed HRV HRV_TOP_CONV_RATIO from Default (0xE) to 0x6
 //				Revision 1.8
 //				- For 2015 APR Tapeout: SNSv5 with Wanyeong's CDC (CDCW)
 //				- Updated radio configuration: pulse length & bitrate delay
@@ -129,6 +131,8 @@
 	volatile radv8_r7_t radv8_r7 = RADv8_R7_DEFAULT;
 	volatile radv8_r8_t radv8_r8 = RADv8_R8_DEFAULT;
 	volatile radv8_r9_t radv8_r9 = RADv8_R9_DEFAULT;
+
+	volatile hrvv2_r0_t hrvv2_r0 = HRVv2_R0_DEFAULT;
 
 //***************************************************
 //Interrupt Handlers
@@ -425,116 +429,120 @@ static void operation_tx_stored(void){
 
 static void operation_init(void){
   
-    // Set PMU Strength & division threshold
-    // Change PMU_CTRL Register
-    // PRCv11 Default: 0x8F770049
-    // Decrease 5x division switching threshold
-    //*((volatile uint32_t *) 0xA200000C) = 0x8F77004B;
-	// Increase active pmu clock (for PRCv11)
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77184B;
+  // Set PMU Strength & division threshold
+  // Change PMU_CTRL Register
+  // PRCv11 Default: 0x8F770049
+  // Decrease 5x division switching threshold
+  //*((volatile uint32_t *) 0xA200000C) = 0x8F77004B;
+  // Increase active pmu clock (for PRCv11)
+  *((volatile uint32_t *) 0xA200000C) = 0x8F77184B;
   
-    // Speed up GOC frontend to match PMU frequency
-    // PRCv11 Default: 0x00202903
-    //*((volatile uint32_t *) 0xA2000008) = 0x00202908;
-	// Slow down MBUS frequency 
-	// Gyouho: This is required for running on the board w/o PMU assist (for PRCv11)
-    *((volatile uint32_t *) 0xA2000008) = 0x00202D08;
+  // Speed up GOC frontend to match PMU frequency
+  // PRCv11 Default: 0x00202903
+  //*((volatile uint32_t *) 0xA2000008) = 0x00202908;
+  // Slow down MBUS frequency 
+  // Gyouho: This is required for running on the board w/o PMU assist (for PRCv11)
+  *((volatile uint32_t *) 0xA2000008) = 0x00202D08;
   
-    delay(MBUS_DELAY*20);
+  delay(MBUS_DELAY*20);
   
-    //Enumerate & Initialize Registers
-    Pstack_state = PSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEEF;
-    exec_count = 0;
-    exec_count_irq = 0;
-    MBus_msg_flag = 0;
-
-    //Enumeration
-    enumerate(RAD_ADDR);
-    delay(MBUS_DELAY*10);
-
-	//write_mbus_message(0x70, radio_tx_count);
-	//operation_sleep_notimer();
-
-    enumerate(SNS_ADDR);
-    delay(MBUS_DELAY*10);
-    enumerate(HRV_ADDR);
-    delay(MBUS_DELAY*10);
-
-    // CDC Settings --------------------------------------
-    // snsv6_r0
-    snsv6_r0.CDCW_IRQ_EN	= 1;
-    snsv6_r0.CDCW_MODE_PAR	= 0;
-    snsv6_r0.CDCW_RESETn 	= 0;
-    write_mbus_register(SNS_ADDR,0,snsv6_r0.as_int);
-    delay(MBUS_DELAY);
-
-    // snsv6_r1
-    snsv6_r1.CDCW_N_CYCLE_SINGLE	= 0; // Default: 8; Min: 0
-    write_mbus_register(SNS_ADDR,1,snsv6_r1.as_int);
-    delay(MBUS_DELAY);
-	
-    // snsv6_r2
-    snsv6_r2.CDCW_N_CYCLE_SET	= 100; // Min: 0
-    write_mbus_register(SNS_ADDR,2,snsv6_r2.as_int);
-    delay(MBUS_DELAY);
-
-    // snsv6_r17
-    snsv6_r17.CDC_LDO_CDC_CURRENT_2X  = 0x0;
-
-    // Set ADC LDO to around 1.37V: 0x3//0x20
-    snsv6_r17.ADC_LDO_ADC_VREF_MUX_SEL = 0x3;
-    snsv6_r17.ADC_LDO_ADC_VREF_SEL     = 0x20;
-
-    // Set CDC LDO to around 1.03V: 0x0//0x20
-    snsv6_r17.CDC_LDO_CDC_VREF_MUX_SEL = 0x0;
-    snsv6_r17.CDC_LDO_CDC_VREF_SEL     = 0x20;
-
-    write_mbus_register(SNS_ADDR,17,snsv6_r17.as_int);
-    delay(MBUS_DELAY);
-
-    // Radio Settings --------------------------------------
-
-    radv8_r0.RADIO_TUNE_CURRENT_LIMITER = 0x1F; //Current Limiter 2F = 30uA, 1F = 3uA
-    radv8_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
-    radv8_r0.RADIO_TUNE_FREQ2 = 0x0; //Tune Freq 2 //0x0,0x0 = 902MHz on Pblr005
-    radv8_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
-
-    write_mbus_register(RAD_ADDR,0,radv8_r0.as_int);
-    delay(MBUS_DELAY);
-
-	// FSM data length setups
-	radv8_r6.RAD_FSM_H_LEN = 16; // N
-	radv8_r6.RAD_FSM_D_LEN = RADIO_DATA_LENGTH-1; // N-1
-	radv8_r6.RAD_FSM_C_LEN = 10;
-    write_mbus_register(RAD_ADDR,6,radv8_r6.as_int);
-    delay(MBUS_DELAY);
-
-	// Configure SCRO
-	radv8_r1.SCRO_FREQ_DIV = 2;
-	radv8_r1.SCRO_AMP_I_LEVEL_SEL = 2; // Default 2
-	radv8_r1.SCRO_I_LEVEL_SELB = 0x60; // Default 0x6F
-    write_mbus_register(RAD_ADDR,1,radv8_r1.as_int);
-    delay(MBUS_DELAY);
-
-	// LFSR Seed
-	radv8_r7.RAD_FSM_SEED = 4;
-    write_mbus_register(RAD_ADDR,7,radv8_r7.as_int);
-    delay(MBUS_DELAY);
+  //Enumerate & Initialize Registers
+  Pstack_state = PSTK_IDLE; 	//0x0;
+  enumerated = 0xDEADBEEF;
+  exec_count = 0;
+  exec_count_irq = 0;
+  MBus_msg_flag = 0;
   
-    // Initialize other global variables
-    WAKEUP_PERIOD_CONT = 100;   // 1: 2-4 sec with PRCv9
-    WAKEUP_PERIOD_CONT_INIT = 1;   // 0x1E (30): ~1 min with PRCv9
-    cdc_storage_count = 0;
-    radio_tx_count = 0;
-    radio_tx_option = 0;
-	cdc_run_single = 0;
-	cdc_running = 0;
-	radio_ready = 0;
-	radio_on = 0;
-    
-    // Go to sleep without timer
-    operation_sleep_notimer();
+  //Enumeration
+  enumerate(RAD_ADDR);
+  delay(MBUS_DELAY*10);
+  
+  //write_mbus_message(0x70, radio_tx_count);
+  //operation_sleep_notimer();
+  
+  enumerate(SNS_ADDR);
+  delay(MBUS_DELAY*10);
+  enumerate(HRV_ADDR);
+  delay(MBUS_DELAY*10);
+  
+  // CDC Settings --------------------------------------
+  // snsv6_r0
+  snsv6_r0.CDCW_IRQ_EN	= 1;
+  snsv6_r0.CDCW_MODE_PAR	= 0;
+  snsv6_r0.CDCW_RESETn 	= 0;
+  write_mbus_register(SNS_ADDR,0,snsv6_r0.as_int);
+  delay(MBUS_DELAY);
+  
+  // snsv6_r1
+  snsv6_r1.CDCW_N_CYCLE_SINGLE	= 0; // Default: 8; Min: 0
+  write_mbus_register(SNS_ADDR,1,snsv6_r1.as_int);
+  delay(MBUS_DELAY);
+  
+  // snsv6_r2
+  snsv6_r2.CDCW_N_CYCLE_SET	= 100; // Min: 0
+  write_mbus_register(SNS_ADDR,2,snsv6_r2.as_int);
+  delay(MBUS_DELAY);
+  
+  // snsv6_r17
+  snsv6_r17.CDC_LDO_CDC_CURRENT_2X  = 0x0;
+  
+  // Set ADC LDO to around 1.37V: 0x3//0x20
+  snsv6_r17.ADC_LDO_ADC_VREF_MUX_SEL = 0x3;
+  snsv6_r17.ADC_LDO_ADC_VREF_SEL     = 0x20;
+  
+  // Set CDC LDO to around 1.03V: 0x0//0x20
+  snsv6_r17.CDC_LDO_CDC_VREF_MUX_SEL = 0x0;
+  snsv6_r17.CDC_LDO_CDC_VREF_SEL     = 0x20;
+  
+  write_mbus_register(SNS_ADDR,17,snsv6_r17.as_int);
+  delay(MBUS_DELAY);
+  
+  // Radio Settings --------------------------------------
+  
+  radv8_r0.RADIO_TUNE_CURRENT_LIMITER = 0x1F; //Current Limiter 2F = 30uA, 1F = 3uA
+  radv8_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
+  radv8_r0.RADIO_TUNE_FREQ2 = 0x0; //Tune Freq 2 //0x0,0x0 = 902MHz on Pblr005
+  radv8_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
+  
+  write_mbus_register(RAD_ADDR,0,radv8_r0.as_int);
+  delay(MBUS_DELAY);
+
+  // FSM data length setups
+  radv8_r6.RAD_FSM_H_LEN = 16; // N
+  radv8_r6.RAD_FSM_D_LEN = RADIO_DATA_LENGTH-1; // N-1
+  radv8_r6.RAD_FSM_C_LEN = 10;
+  write_mbus_register(RAD_ADDR,6,radv8_r6.as_int);
+  delay(MBUS_DELAY);
+  
+  // Configure SCRO
+  radv8_r1.SCRO_FREQ_DIV = 2;
+  radv8_r1.SCRO_AMP_I_LEVEL_SEL = 2; // Default 2
+  radv8_r1.SCRO_I_LEVEL_SELB = 0x60; // Default 0x6F
+  write_mbus_register(RAD_ADDR,1,radv8_r1.as_int);
+  delay(MBUS_DELAY);
+  
+  // LFSR Seed
+  radv8_r7.RAD_FSM_SEED = 4;
+  write_mbus_register(RAD_ADDR,7,radv8_r7.as_int);
+  delay(MBUS_DELAY);
+  
+  // Initialize other global variables
+  WAKEUP_PERIOD_CONT = 100;   // 1: 2-4 sec with PRCv9
+  WAKEUP_PERIOD_CONT_INIT = 1;   // 0x1E (30): ~1 min with PRCv9
+  cdc_storage_count = 0;
+  radio_tx_count = 0;
+  radio_tx_option = 0;
+  cdc_run_single = 0;
+  cdc_running = 0;
+  radio_ready = 0;
+  radio_on = 0;
+
+  // Harvester Settings --------------------------------------
+  hrvv2_r0.HRV_TOP_CONV_RATIO = 0x6;
+  write_mbus_register(HRV_ADDR,0,hrvv2_r0.as_int);
+
+  // Go to sleep without timer
+  operation_sleep_notimer();
 }
 
 static void operation_cdc_run(){

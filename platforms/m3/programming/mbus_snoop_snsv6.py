@@ -40,10 +40,10 @@ class mbus_message_generator(m3_common):
         print("was_acked: " + str(not cb1))
         if (str(int(address.encode('hex'),16))=="118"):
             #o_file.write(str(int(address.encode('hex'),16))+"\t"+str(int(data.encode('hex'),16))+"\r\n")
-            o_file_cref.write(str(int(data.encode('hex'),16))+"\r\n")
+            o_file_cref.write(str(int(data.encode('hex'),16))+"\n")
             o_file_cref.flush()
         elif (str(int(address.encode('hex'),16))=="116"):
-            o_file_outp.write(str(int(data.encode('hex'),16))+"\r\n")
+            o_file_outp.write(str(int(data.encode('hex'),16))+"\n")
             o_file_outp.flush()
             self.count += 1
         print(self.count)
