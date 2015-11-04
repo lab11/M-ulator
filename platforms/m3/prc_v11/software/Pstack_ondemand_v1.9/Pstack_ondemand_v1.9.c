@@ -933,6 +933,8 @@ int main() {
 		  operation_cdc_run();
 		  }
 
+		  *((volatile uint32_t *) IRQ10VEC) = *((volatile uint32_t *) IRQ10VEC) & 0xFFFDFFFF;
+
 		  if (exec_count_irq < wakeup_data_field_0){
 		  exec_count_irq++;
 		  // radio
