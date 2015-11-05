@@ -3,6 +3,9 @@
 //              ZhiYoong Foo
 //Description:  
 //              Mouse Implantation & CDC Measurement Code
+//				Revision 1.10
+//				- Changes to correctly implement trigger 7
+//				- PMU sleep frequency increased during CDC operation
 //				Revision 1.9
 //				- PRCv11
 //				- SNSv6
@@ -84,7 +87,7 @@
 #define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 
-#define CDC_STORAGE_SIZE 60 
+#define CDC_STORAGE_SIZE 80 // FIXME
 
 //***************************************************
 // Global variables
@@ -206,20 +209,22 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
     delay(MBUS_DELAY);
 
     if (!radio_ready){
-	radio_ready = 1;
+		radio_ready = 1;
 
-	// Release FSM Isolate
-	radv8_r8.RAD_FSM_ISOLATE = 0;
-	write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
-	delay(MBUS_DELAY);
+		// Release FSM Isolate
+		radv8_r8.RAD_FSM_ISOLATE = 0;
+		write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
+		delay(MBUS_DELAY);
 
-	// Release FSM Reset
-	radv8_r8.RAD_FSM_RESETn = 1;
-	write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
-	delay(MBUS_DELAY);
-
+		// Release FSM Reset
+		radv8_r8.RAD_FSM_RESETn = 1;
+		write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
+		delay(MBUS_DELAY);
     }
 
+	#ifdef DEBUG_MBUS_MSG
+		write_mbus_message(0xBB, 0x0);
+	#endif
     // Fire off data
     uint32_t count;
     MBus_msg_flag = 0;
@@ -231,12 +236,12 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 		if( MBus_msg_flag ){
 			MBus_msg_flag = 0;
 			if (last_packet){
-			radio_ready = 0;
-			radio_power_off();
+				radio_ready = 0;
+				radio_power_off();
 			}else{
-			radv8_r8.RAD_FSM_ENABLE = 0;
-			write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
-			delay(MBUS_DELAY);
+				radv8_r8.RAD_FSM_ENABLE = 0;
+				write_mbus_register(RAD_ADDR,8,radv8_r8.as_int);
+				delay(MBUS_DELAY);
 			}
 			return;
 		}else{
@@ -245,9 +250,9 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
     }
 	
     // Timeout
-#ifdef DEBUG_MBUS_MSG
-    write_mbus_message(0xFF, 0xFAFAFAFA);
-#endif
+	#ifdef DEBUG_MBUS_MSG
+		write_mbus_message(0xBB, 0xFAFAFAFA);
+	#endif
 }
 
 
@@ -580,9 +585,6 @@ static void operation_cdc_run(){
 		delay(MBUS_DELAY);
 	#endif
 
-		// FIXME
-		send_radio_data_ppm(0, 0xFAF000);
-
 		MBus_msg_flag = 0;
 		release_cdc_reset();
 		delay(MBUS_DELAY*2);
@@ -594,12 +596,9 @@ static void operation_cdc_run(){
 				cdc_reset_timeout_count = 0;
 				Pstack_state = PSTK_CDC_READ;
 
-				// FIXME
-				send_radio_data_ppm(0, 0xFAF001);
-
-				set_wakeup_timer (WAKEUP_PERIOD_LDO, 0x1, 0x0);
-				operation_sleep_noirqreset();
-		//		return;
+				//set_wakeup_timer (WAKEUP_PERIOD_LDO, 0x1, 0x0);
+				//operation_sleep_noirqreset();
+				return;
 			}else{
 				delay(MBUS_DELAY);
 			}
@@ -663,7 +662,7 @@ static void operation_cdc_run(){
 	#endif
 
 		// Option to take multiple measurements per wakeup
-/*
+
 		if (meas_count < 0){	
 			meas_count++;
 
@@ -674,28 +673,26 @@ static void operation_cdc_run(){
 				
 		}else{
 
-*/
 			meas_count = 0;
 
 			// Finalize CDC operation
 			release_cdc_meas();
 			assert_cdc_reset();
 			Pstack_state = PSTK_IDLE;
-	#ifdef DEBUG_MBUS_MSG
-			write_mbus_message(0xAA, 0x33333333);
-	#endif
 			
-			// FIXME
-			send_radio_data_ppm(0, 0xFAF002);
-
 			// Assert CDC isolation & turn off CDC power
 			cdc_power_off();
+
+			#ifdef DEBUG_MBUS_MSG
+					write_mbus_message(0xAA, 0x33333333);
+			#endif
 
 			// Check if this is for VBAT measurement
 			if (cdc_run_single){
 				cdc_run_single = 0;
-			// FIXME
-				send_radio_data_ppm(0, 0xFAF003);
+				#ifdef DEBUG_MBUS_MSG
+						write_mbus_message(0xAA, 0x3333AAAA);
+				#endif
 				cdc_storage_cref_latest = read_data_reg6;
 				return;
 			}else{
@@ -733,7 +730,7 @@ static void operation_cdc_run(){
 				}
 				operation_sleep_noirqreset();
 			}
-		//}
+		}
 
     }else{
         //default:  // THIS SHOULD NOT HAPPEN
@@ -927,8 +924,10 @@ int main() {
 
 		if (wakeup_data_field_2 & 0x2){
 			cdc_run_single = 1;
+			// There are 3 return functions within operation_cdc_run
 			operation_cdc_run();
-			//operation_cdc_run();
+			operation_cdc_run();
+			operation_cdc_run();
 		}
 
 		*((volatile uint32_t *) IRQ10VEC) = *((volatile uint32_t *) IRQ10VEC) & 0xFFFDFFFF;
