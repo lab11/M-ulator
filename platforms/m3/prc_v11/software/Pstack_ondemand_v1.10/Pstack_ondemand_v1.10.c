@@ -952,8 +952,6 @@ int main() {
             exec_count_irq = 0;
             // radio
             send_radio_data_ppm(1,0xF00000);
-			radio_power_off();
-			cdc_power_off();
 			
             // Go to sleep without timer
             operation_sleep_notimer();
