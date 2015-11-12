@@ -393,21 +393,21 @@ static void operation_tx_stored(void){
     send_radio_data_ppm(0, cdc_storage_cref[radio_tx_count]);
 
     if (((!radio_tx_numdata)&&(radio_tx_count > 0)) | ((radio_tx_numdata)&&((radio_tx_numdata+radio_tx_count) > cdc_storage_count))){
-	radio_tx_count--;
-	// set timer
-	set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
-	// go to sleep and wake up with same condition
-	operation_sleep_noirqreset();
+		radio_tx_count--;
+		// set timer
+		set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+		// go to sleep and wake up with same condition
+		operation_sleep_noirqreset();
 
     }else{
-	delay(RADIO_PACKET_DELAY*3); //Set delays between sending subsequent packet
-	send_radio_data_ppm(1, 0xFAF000);
+		delay(RADIO_PACKET_DELAY*3); //Set delays between sending subsequent packet
+		send_radio_data_ppm(1, 0xFAF000);
 
-	// This is also the end of this IRQ routine
-	exec_count_irq = 0;
-	// Go to sleep without timer
-	radio_tx_count = cdc_storage_count; // allows data to be sent more than once
-	operation_sleep_notimer();
+		// This is also the end of this IRQ routine
+		exec_count_irq = 0;
+		// Go to sleep without timer
+		radio_tx_count = cdc_storage_count; // allows data to be sent more than once
+		operation_sleep_notimer();
     }
 
 }
@@ -811,6 +811,9 @@ int main() {
     	WAKEUP_PERIOD_CONT = wakeup_data_field_0 + (wakeup_data_field_1<<8);
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_2 & 0xF;
         radio_tx_option = wakeup_data_field_2 & 0x10;
+		
+
+		cdc_run_single = 0;
 
         //set_pmu_sleep_clk_low();
         delay(MBUS_DELAY);

@@ -43,10 +43,9 @@
 
 // FLSv1 configurations
 #define FLS_RECORD_LENGTH 0x18FE // In words; # of words stored -2
+//#define FLS_RECORD_LENGTH 0x2 // In words; # of words stored -2
 //#define FLS_RECORD_LENGTH 0x000E // In words; # of words stored -2
 #define FLS_RADIO_LENGTH 50 // In words
-
-//#define FLS_RECORD_LENGTH 0x10 
 
 
 // Radio configurations
@@ -364,8 +363,6 @@ static void capture_image_single(){
   mdv3_r0.TAKE_IMAGE = 0;
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
 
-  delay(DELAY_IMG); 
-
 }
 
 static void capture_image_start(){
@@ -454,7 +451,7 @@ static void operation_init(void){
 		| (0x0 << 16) /* PMUCFG_ACT_NONOV_SEL */
 		| (0x3 << 14) /* ?? */
 		| (0x2 << 12) /* CLKX2_SEL_CM[1:0]; Divider 0:/2, 1:/4, 2:/8, 3:/16 */
-		| (0x1 << 10) /* CLKX2_SEL_I2C[1:0]; Divider 0:/1, 1:/2, 2:/4, 3:/8 */
+		| (0x2 << 10) /* CLKX2_SEL_I2C[1:0]; Divider 0:/1, 1:/2, 2:/4, 3:/8 */
 		| (0x2 << 8)  /* CLKX2_SEL_RING[1:0] */
 		| (0x0 << 7)  /* PMU_FORCE_WAKE */
 		| (0x0 << 6)  /* GOC_ONECLK_MODE */
@@ -541,7 +538,7 @@ int main() {
 		// FLSv1 enumeration
 		FLSMBusGPIO_enumeration(FLS_ADDR); // Enumeration
 		FLSMBusGPIO_rxMsg(); // Rx Enumeration Response
-		FLSMBusGPIO_setOptTune(FLS_ADDR); // Set Optimum Tuning Bits
+		FLSMBusGPIO_setOptTune(FLS_ADDR); // Set Optimum Tuning Bits; Set Tcyc=0x0300 for flash write timing margin
     }else{
 		// Configure GPIO for FLSv1 Interaction
 		FLSMBusGPIO_initialization();
@@ -553,7 +550,7 @@ int main() {
 	if (IRQ11 == 0) { // Flash Erase
 
 		// Set START ADDRESS
-		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x00000800); // Should be a multiple of 0x800
+		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x800); // Should be a multiple of 0x800
 		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x00000000);
 
 		// Set Voltage Clamp
@@ -593,7 +590,8 @@ int main() {
 		FLSMBusGPIO_setExtStreamLength(FLS_ADDR, FLS_RECORD_LENGTH);
 
 		// Make Flash FSM's clock frequency faster
-		FLSMBusGPIO_writeReg(FLS_ADDR, 0x0B, 0x00000003);
+		//FLSMBusGPIO_writeReg(FLS_ADDR, 0x0B, 0x00000003); // for "too fast" error
+		//FLSMBusGPIO_writeReg(FLS_ADDR, 0x0B, 0x0000001F); // for "timeout" error
 
 		// Config MD
 		// Release power gates, isolation, and reset for frame controller
@@ -620,7 +618,7 @@ int main() {
 		capture_image_single();
 
 		// Give a "Go Flash Ext Streaming" command (the last 1-bit)
-		//delay(2000); // ~ 100ms?
+		delay(200); // ~ 15ms
 		FLSMBusGPIO_sendMBusLast1bit (fls_stream_short_prefix, fls_stream_reg_data);
 		
 		// Receive the Payload
@@ -632,7 +630,7 @@ int main() {
 		poweroff_array_adc();
 
 		// Recover Flash FSM's clock frequency
-		FLSMBusGPIO_writeReg(FLS_ADDR, 0x0B, 0x00000010);
+		//FLSMBusGPIO_writeReg(FLS_ADDR, 0x0B, 0x00000010);
 
 		// Check Flash SRAM after image
 		check_flash_sram(0xE1, 10);
@@ -666,13 +664,13 @@ int main() {
 		write_mbus_message(0xF1, 0x33333333);
 		delay(MBUS_DELAY);
 
-/*
+
 		// Increment the count at IRQ11VEC
 		IRQ11 = IRQ11 + 1;
 
 	}
 	else if (IRQ11 == 2) { // Read out from Flash
-*/
+
 		delay(MBUS_DELAY);
 		write_mbus_message(0xF2, 0x11111111);
 		delay(MBUS_DELAY);
@@ -703,12 +701,12 @@ int main() {
 
 		// Check Flash SRAM after recovery
 		check_flash_sram(0xE3, 10);
-/*
+
 		// Increment the count at IRQ11VEC
 		IRQ11 = IRQ11 + 1;
 	}
 	else if (IRQ11 == 3) { // Everything is done. Keep sending out junk data.
-*/
+
 
 		write_mbus_message(0xAA, 0x12345678);
 		delay(MBUS_DELAY);

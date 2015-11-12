@@ -85,7 +85,7 @@ void FLSMBusGPIO_setIRQAddr(volatile uint32_t fls_enum, volatile uint32_t short_
 }
 void FLSMBusGPIO_setOptTune(volatile uint32_t fls_enum) {
 	// Set Tprog=0x5, Tcyc=0x00C0 
-	FLSMBusGPIO_writeReg(fls_enum, 0x02, ((0x5 << 16) | (0x00C0 << 0 )));
+	FLSMBusGPIO_writeReg(fls_enum, 0x02, ((0x5 << 16) | (0x0300 << 0 )));
 	// Set VTG_TUNE = 0x8, CRT_TUNE=0x3F 
 	FLSMBusGPIO_writeReg(fls_enum, 0x0A, ((0x8 << 6) | (0x3F << 0 )));
 }
