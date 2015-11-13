@@ -42,125 +42,125 @@ Disassembly of section .text:
   a0:	f000 f918 	bl	2d4 <main>
   a4:	e7fc      	b.n	a0 <_start>
 
-Disassembly of section .text.delay:
-
-000000a6 <delay>:
-  a6:	b500      	push	{lr}
-  a8:	2300      	movs	r3, #0
-  aa:	e001      	b.n	b0 <delay+0xa>
-  ac:	46c0      	nop			; (mov r8, r8)
-  ae:	3301      	adds	r3, #1
-  b0:	4283      	cmp	r3, r0
-  b2:	d1fb      	bne.n	ac <delay+0x6>
-  b4:	bd00      	pop	{pc}
-
-Disassembly of section .text.write_regfile:
-
-000000b8 <write_regfile>:
-  b8:	0880      	lsrs	r0, r0, #2
-  ba:	0209      	lsls	r1, r1, #8
-  bc:	b508      	push	{r3, lr}
-  be:	0a09      	lsrs	r1, r1, #8
-  c0:	4b05      	ldr	r3, [pc, #20]	; (d8 <write_regfile+0x20>)
-  c2:	0600      	lsls	r0, r0, #24
-  c4:	4308      	orrs	r0, r1
-  c6:	6018      	str	r0, [r3, #0]
-  c8:	4b04      	ldr	r3, [pc, #16]	; (dc <write_regfile+0x24>)
-  ca:	2210      	movs	r2, #16
-  cc:	601a      	str	r2, [r3, #0]
-  ce:	200a      	movs	r0, #10
-  d0:	f7ff ffe9 	bl	a6 <delay>
-  d4:	bd08      	pop	{r3, pc}
-  d6:	46c0      	nop			; (mov r8, r8)
-  d8:	a0002000 	.word	0xa0002000
-  dc:	a000200c 	.word	0xa000200c
-
-Disassembly of section .text.set_halt_until_mbus_rx:
-
-000000e0 <set_halt_until_mbus_rx>:
-  e0:	4805      	ldr	r0, [pc, #20]	; (f8 <set_halt_until_mbus_rx+0x18>)
-  e2:	b508      	push	{r3, lr}
-  e4:	6801      	ldr	r1, [r0, #0]
-  e6:	4b05      	ldr	r3, [pc, #20]	; (fc <set_halt_until_mbus_rx+0x1c>)
-  e8:	4019      	ands	r1, r3
-  ea:	2390      	movs	r3, #144	; 0x90
-  ec:	021b      	lsls	r3, r3, #8
-  ee:	4319      	orrs	r1, r3
-  f0:	f7ff ffe2 	bl	b8 <write_regfile>
-  f4:	bd08      	pop	{r3, pc}
-  f6:	46c0      	nop			; (mov r8, r8)
-  f8:	a0000028 	.word	0xa0000028
-  fc:	ffff0fff 	.word	0xffff0fff
-
-Disassembly of section .text.set_halt_until_mbus_tx:
-
-00000100 <set_halt_until_mbus_tx>:
- 100:	4805      	ldr	r0, [pc, #20]	; (118 <set_halt_until_mbus_tx+0x18>)
- 102:	b508      	push	{r3, lr}
- 104:	6801      	ldr	r1, [r0, #0]
- 106:	4b05      	ldr	r3, [pc, #20]	; (11c <set_halt_until_mbus_tx+0x1c>)
- 108:	4019      	ands	r1, r3
- 10a:	23a0      	movs	r3, #160	; 0xa0
- 10c:	021b      	lsls	r3, r3, #8
- 10e:	4319      	orrs	r1, r3
- 110:	f7ff ffd2 	bl	b8 <write_regfile>
- 114:	bd08      	pop	{r3, pc}
- 116:	46c0      	nop			; (mov r8, r8)
- 118:	a0000028 	.word	0xa0000028
- 11c:	ffff0fff 	.word	0xffff0fff
-
-Disassembly of section .text.enable_io_pad:
-
-00000120 <enable_io_pad>:
- 120:	b508      	push	{r3, lr}
- 122:	4802      	ldr	r0, [pc, #8]	; (12c <enable_io_pad+0xc>)
- 124:	2103      	movs	r1, #3
- 126:	f7ff ffc7 	bl	b8 <write_regfile>
- 12a:	bd08      	pop	{r3, pc}
- 12c:	a00000a4 	.word	0xa00000a4
-
-Disassembly of section .text.disable_io_pad:
-
-00000130 <disable_io_pad>:
- 130:	b508      	push	{r3, lr}
- 132:	4802      	ldr	r0, [pc, #8]	; (13c <disable_io_pad+0xc>)
- 134:	2100      	movs	r1, #0
- 136:	f7ff ffbf 	bl	b8 <write_regfile>
- 13a:	bd08      	pop	{r3, pc}
- 13c:	a00000a4 	.word	0xa00000a4
-
 Disassembly of section .text.mbus_write_message32:
 
-00000140 <mbus_write_message32>:
- 140:	4b02      	ldr	r3, [pc, #8]	; (14c <mbus_write_message32+0xc>)
- 142:	0100      	lsls	r0, r0, #4
- 144:	4318      	orrs	r0, r3
- 146:	6001      	str	r1, [r0, #0]
- 148:	2001      	movs	r0, #1
- 14a:	4770      	bx	lr
- 14c:	a0003000 	.word	0xa0003000
+000000a8 <mbus_write_message32>:
+  a8:	4b02      	ldr	r3, [pc, #8]	; (b4 <mbus_write_message32+0xc>)
+  aa:	0100      	lsls	r0, r0, #4
+  ac:	4318      	orrs	r0, r3
+  ae:	6001      	str	r1, [r0, #0]
+  b0:	2001      	movs	r0, #1
+  b2:	4770      	bx	lr
+  b4:	a0003000 	.word	0xa0003000
 
 Disassembly of section .text.mbus_enumerate:
 
-00000150 <mbus_enumerate>:
- 150:	0603      	lsls	r3, r0, #24
- 152:	2080      	movs	r0, #128	; 0x80
- 154:	0580      	lsls	r0, r0, #22
- 156:	4318      	orrs	r0, r3
- 158:	4b01      	ldr	r3, [pc, #4]	; (160 <mbus_enumerate+0x10>)
- 15a:	6018      	str	r0, [r3, #0]
- 15c:	4770      	bx	lr
- 15e:	46c0      	nop			; (mov r8, r8)
- 160:	a0003000 	.word	0xa0003000
+000000b8 <mbus_enumerate>:
+  b8:	0603      	lsls	r3, r0, #24
+  ba:	2080      	movs	r0, #128	; 0x80
+  bc:	0580      	lsls	r0, r0, #22
+  be:	4318      	orrs	r0, r3
+  c0:	4b01      	ldr	r3, [pc, #4]	; (c8 <mbus_enumerate+0x10>)
+  c2:	6018      	str	r0, [r3, #0]
+  c4:	4770      	bx	lr
+  c6:	46c0      	nop			; (mov r8, r8)
+  c8:	a0003000 	.word	0xa0003000
 
 Disassembly of section .text.mbus_sleep_all:
 
-00000164 <mbus_sleep_all>:
- 164:	4b01      	ldr	r3, [pc, #4]	; (16c <mbus_sleep_all+0x8>)
- 166:	2200      	movs	r2, #0
- 168:	601a      	str	r2, [r3, #0]
- 16a:	4770      	bx	lr
- 16c:	a0003010 	.word	0xa0003010
+000000cc <mbus_sleep_all>:
+  cc:	4b01      	ldr	r3, [pc, #4]	; (d4 <mbus_sleep_all+0x8>)
+  ce:	2200      	movs	r2, #0
+  d0:	601a      	str	r2, [r3, #0]
+  d2:	4770      	bx	lr
+  d4:	a0003010 	.word	0xa0003010
+
+Disassembly of section .text.delay:
+
+000000d8 <delay>:
+  d8:	b500      	push	{lr}
+  da:	2300      	movs	r3, #0
+  dc:	e001      	b.n	e2 <delay+0xa>
+  de:	46c0      	nop			; (mov r8, r8)
+  e0:	3301      	adds	r3, #1
+  e2:	4283      	cmp	r3, r0
+  e4:	d1fb      	bne.n	de <delay+0x6>
+  e6:	bd00      	pop	{pc}
+
+Disassembly of section .text.write_regfile:
+
+000000e8 <write_regfile>:
+  e8:	0880      	lsrs	r0, r0, #2
+  ea:	0209      	lsls	r1, r1, #8
+  ec:	b508      	push	{r3, lr}
+  ee:	0a09      	lsrs	r1, r1, #8
+  f0:	4b05      	ldr	r3, [pc, #20]	; (108 <write_regfile+0x20>)
+  f2:	0600      	lsls	r0, r0, #24
+  f4:	4308      	orrs	r0, r1
+  f6:	6018      	str	r0, [r3, #0]
+  f8:	4b04      	ldr	r3, [pc, #16]	; (10c <write_regfile+0x24>)
+  fa:	2210      	movs	r2, #16
+  fc:	601a      	str	r2, [r3, #0]
+  fe:	200a      	movs	r0, #10
+ 100:	f7ff ffea 	bl	d8 <delay>
+ 104:	bd08      	pop	{r3, pc}
+ 106:	46c0      	nop			; (mov r8, r8)
+ 108:	a0002000 	.word	0xa0002000
+ 10c:	a000200c 	.word	0xa000200c
+
+Disassembly of section .text.set_halt_until_mbus_rx:
+
+00000110 <set_halt_until_mbus_rx>:
+ 110:	4805      	ldr	r0, [pc, #20]	; (128 <set_halt_until_mbus_rx+0x18>)
+ 112:	b508      	push	{r3, lr}
+ 114:	6801      	ldr	r1, [r0, #0]
+ 116:	4b05      	ldr	r3, [pc, #20]	; (12c <set_halt_until_mbus_rx+0x1c>)
+ 118:	4019      	ands	r1, r3
+ 11a:	2390      	movs	r3, #144	; 0x90
+ 11c:	021b      	lsls	r3, r3, #8
+ 11e:	4319      	orrs	r1, r3
+ 120:	f7ff ffe2 	bl	e8 <write_regfile>
+ 124:	bd08      	pop	{r3, pc}
+ 126:	46c0      	nop			; (mov r8, r8)
+ 128:	a0000028 	.word	0xa0000028
+ 12c:	ffff0fff 	.word	0xffff0fff
+
+Disassembly of section .text.set_halt_until_mbus_tx:
+
+00000130 <set_halt_until_mbus_tx>:
+ 130:	4805      	ldr	r0, [pc, #20]	; (148 <set_halt_until_mbus_tx+0x18>)
+ 132:	b508      	push	{r3, lr}
+ 134:	6801      	ldr	r1, [r0, #0]
+ 136:	4b05      	ldr	r3, [pc, #20]	; (14c <set_halt_until_mbus_tx+0x1c>)
+ 138:	4019      	ands	r1, r3
+ 13a:	23a0      	movs	r3, #160	; 0xa0
+ 13c:	021b      	lsls	r3, r3, #8
+ 13e:	4319      	orrs	r1, r3
+ 140:	f7ff ffd2 	bl	e8 <write_regfile>
+ 144:	bd08      	pop	{r3, pc}
+ 146:	46c0      	nop			; (mov r8, r8)
+ 148:	a0000028 	.word	0xa0000028
+ 14c:	ffff0fff 	.word	0xffff0fff
+
+Disassembly of section .text.enable_io_pad:
+
+00000150 <enable_io_pad>:
+ 150:	b508      	push	{r3, lr}
+ 152:	4802      	ldr	r0, [pc, #8]	; (15c <enable_io_pad+0xc>)
+ 154:	2103      	movs	r1, #3
+ 156:	f7ff ffc7 	bl	e8 <write_regfile>
+ 15a:	bd08      	pop	{r3, pc}
+ 15c:	a00000a4 	.word	0xa00000a4
+
+Disassembly of section .text.disable_io_pad:
+
+00000160 <disable_io_pad>:
+ 160:	b508      	push	{r3, lr}
+ 162:	4802      	ldr	r0, [pc, #8]	; (16c <disable_io_pad+0xc>)
+ 164:	2100      	movs	r1, #0
+ 166:	f7ff ffbf 	bl	e8 <write_regfile>
+ 16a:	bd08      	pop	{r3, pc}
+ 16c:	a00000a4 	.word	0xa00000a4
 
 Disassembly of section .text.init_interrupt:
 
@@ -369,14 +369,14 @@ Disassembly of section .text.initialization:
  29e:	480a      	ldr	r0, [pc, #40]	; (2c8 <initialization+0x30>)
  2a0:	490a      	ldr	r1, [pc, #40]	; (2cc <initialization+0x34>)
  2a2:	601a      	str	r2, [r3, #0]
- 2a4:	f7ff ff08 	bl	b8 <write_regfile>
+ 2a4:	f7ff ff20 	bl	e8 <write_regfile>
  2a8:	4909      	ldr	r1, [pc, #36]	; (2d0 <initialization+0x38>)
  2aa:	20aa      	movs	r0, #170	; 0xaa
- 2ac:	f7ff ff48 	bl	140 <mbus_write_message32>
- 2b0:	f7ff ff16 	bl	e0 <set_halt_until_mbus_rx>
+ 2ac:	f7ff fefc 	bl	a8 <mbus_write_message32>
+ 2b0:	f7ff ff2e 	bl	110 <set_halt_until_mbus_rx>
  2b4:	2004      	movs	r0, #4
- 2b6:	f7ff ff4b 	bl	150 <mbus_enumerate>
- 2ba:	f7ff ff21 	bl	100 <set_halt_until_mbus_tx>
+ 2b6:	f7ff feff 	bl	b8 <mbus_enumerate>
+ 2ba:	f7ff ff39 	bl	130 <set_halt_until_mbus_tx>
  2be:	bd08      	pop	{r3, pc}
  2c0:	deadbeef 	.word	0xdeadbeef
  2c4:	0000034c 	.word	0x0000034c
@@ -395,10 +395,10 @@ Disassembly of section .text.startup.main:
  2e0:	429a      	cmp	r2, r3
  2e2:	d001      	beq.n	2e8 <main+0x14>
  2e4:	f7ff ffd8 	bl	298 <initialization>
- 2e8:	f7ff ff0a 	bl	100 <set_halt_until_mbus_tx>
+ 2e8:	f7ff ff22 	bl	130 <set_halt_until_mbus_tx>
  2ec:	2064      	movs	r0, #100	; 0x64
- 2ee:	f7ff feda 	bl	a6 <delay>
- 2f2:	f7ff ff15 	bl	120 <enable_io_pad>
+ 2ee:	f7ff fef3 	bl	d8 <delay>
+ 2f2:	f7ff ff2d 	bl	150 <enable_io_pad>
  2f6:	4a0e      	ldr	r2, [pc, #56]	; (330 <main+0x5c>)
  2f8:	4b0e      	ldr	r3, [pc, #56]	; (334 <main+0x60>)
  2fa:	20fa      	movs	r0, #250	; 0xfa
@@ -412,12 +412,12 @@ Disassembly of section .text.startup.main:
  30a:	4a0d      	ldr	r2, [pc, #52]	; (340 <main+0x6c>)
  30c:	4b0d      	ldr	r3, [pc, #52]	; (344 <main+0x70>)
  30e:	601a      	str	r2, [r3, #0]
- 310:	f7ff fec9 	bl	a6 <delay>
- 314:	f7ff ff0c 	bl	130 <disable_io_pad>
+ 310:	f7ff fee2 	bl	d8 <delay>
+ 314:	f7ff ff24 	bl	160 <disable_io_pad>
  318:	490b      	ldr	r1, [pc, #44]	; (348 <main+0x74>)
  31a:	20dd      	movs	r0, #221	; 0xdd
- 31c:	f7ff ff10 	bl	140 <mbus_write_message32>
- 320:	f7ff ff20 	bl	164 <mbus_sleep_all>
+ 31c:	f7ff fec4 	bl	a8 <mbus_write_message32>
+ 320:	f7ff fed4 	bl	cc <mbus_sleep_all>
  324:	e7fe      	b.n	324 <main+0x50>
  326:	46c0      	nop			; (mov r8, r8)
  328:	0000034c 	.word	0x0000034c
