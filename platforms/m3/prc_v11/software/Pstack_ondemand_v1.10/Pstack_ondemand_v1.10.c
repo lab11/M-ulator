@@ -87,7 +87,7 @@
 #define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 
-#define CDC_STORAGE_SIZE 80 // FIXME
+#define CDC_STORAGE_SIZE 70 // FIXME
 
 //***************************************************
 // Global variables
@@ -117,6 +117,7 @@ volatile uint32_t cdc_storage_cref_latest;
 volatile uint32_t cdc_storage_count;
 volatile uint8_t cdc_run_single;
 volatile uint8_t cdc_running;
+volatile uint8_t set_cdc_exec_count;
 
 volatile uint32_t radio_tx_count;
 volatile uint32_t radio_tx_option;
@@ -522,6 +523,7 @@ static void operation_init(void){
     cdc_running = 0;
     radio_ready = 0;
     radio_on = 0;
+	set_cdc_exec_count = 0;
 
     // Harvester Settings --------------------------------------
     hrvv2_r0.HRV_TOP_CONV_RATIO = 0x6;
@@ -728,16 +730,26 @@ static void operation_cdc_run(){
 				if (radio_on){
 					radio_power_off();
 				}
-				operation_sleep_noirqreset();
+
+				if ((set_cdc_exec_count != 0) && (exec_count > (50<<set_cdc_exec_count))){
+					// No more measurement required
+					// Make sure CDC is off
+					cdc_power_off();
+					operation_sleep_notimer();
+				}else{
+					operation_sleep_noirqreset();
+					
+				}
+
 			}
 		}
 
     }else{
         //default:  // THIS SHOULD NOT HAPPEN
-	// Reset CDC
-	assert_cdc_reset();
-	cdc_power_off();
-	operation_sleep_notimer();
+		// Reset CDC
+		assert_cdc_reset();
+		cdc_power_off();
+		operation_sleep_notimer();
     }
 
 }
@@ -808,10 +820,11 @@ int main() {
         // wakeup_data[15:0] is the user-specified period
         // wakeup_data[19:16] is the initial user-specified period
         // wakeup_data[20] enables radio tx for each measurement
+        // wakeup_data[23:21] specifies how many cdc executes; 0: unlimited, n: 50*2^n
     	WAKEUP_PERIOD_CONT = wakeup_data_field_0 + (wakeup_data_field_1<<8);
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_2 & 0xF;
         radio_tx_option = wakeup_data_field_2 & 0x10;
-		
+		set_cdc_exec_count = wakeup_data_field_2 >> 5;
 
 		cdc_run_single = 0;
 

@@ -9,7 +9,7 @@
 #include "PRCv9E.h"
 #include "MDv3.h"
 //#include "HRVv1.h"
-//#include "RADv5.h"
+#include "RADv5.h"
 #include "FLSv1_GPIO.h"
 
 
@@ -26,8 +26,8 @@
 
 // Stack order  PRC->MD->RAD->HRV
 #define MD_ADDR 0x4		// MD Short Address
-//#define RAD_ADDR 0x5
-//#define HRV_ADDR 0x6
+#define RAD_ADDR 0x5
+#define HRV_ADDR 0x6
 #define FLS_ADDR 0x7
 
 // Common parameters
@@ -42,14 +42,14 @@
 
 
 // FLSv1 configurations
-#define FLS_RECORD_LENGTH 0x18FE // In words; # of words stored -2
+//#define FLS_RECORD_LENGTH 0x18FE // In words; # of words stored -2
+#define FLS_RECORD_LENGTH 6473 // In words; # of words stored -2; Full image with mbus overhead
 //#define FLS_RECORD_LENGTH 0x2 // In words; # of words stored -2
-//#define FLS_RECORD_LENGTH 0x000E // In words; # of words stored -2
 #define FLS_RADIO_LENGTH 50 // In words
 
 
 // Radio configurations
-#define RAD_BIT_DELAY       14     //40      //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
+#define RAD_BIT_DELAY       4     //40      //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
 #define RAD_PACKET_DELAY 	2000      //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
 #define RAD_PACKET_NUM      1      //How many times identical data will be TXed
 
@@ -146,6 +146,30 @@ inline static void set_pmu_sleep_clk_default(){
 inline static void set_pmu_sleep_clk_fastest(){
     // PRCv9 Default: 0x8F770049
     *((volatile uint32_t *) 0xA200000C) = 0x8F770079; // 0x8F770079: use GOC x70-230
+}
+
+
+//***************************************************
+//Send Radio Data MSB-->LSB
+//Bit Delay: Delay between each bit (32-bit data)
+//Delays are nop delays (therefore dependent on core speed)
+//***************************************************
+static void send_radio_data_32b(uint32_t radio_data){
+	int32_t i; //loop var
+	uint32_t j; //loop var
+	for(i=35;i>=0;i--){ //Bit Loop
+		if (i>=32) { // 4-bit header
+			if ((radio_data>>i)&1) write_mbus_register(RAD_ADDR,0x47,0x1); // dummy message
+			else                   write_mbus_register(RAD_ADDR,0x27,0x1);
+		}else{ // 32-bit data
+			if ((radio_data>>i)&1) write_mbus_register(RAD_ADDR,0x27,0x1);
+			else                   write_mbus_register(RAD_ADDR,0x27,0x0);
+		}
+		//Must clear register
+		delay(RAD_BIT_DELAY);
+		write_mbus_register(RAD_ADDR,0x27,0x0);
+		delay(RAD_BIT_DELAY); //Set delay between sending subsequent bit
+	}
 }
 
 //************************************
@@ -512,6 +536,26 @@ uint32_t check_flash_sram (uint8_t addr_stamp, uint32_t length) {
 	return 1;
 }
 
+uint32_t send_radio_flash_sram (uint8_t addr_stamp, uint32_t length) {
+	uint32_t idx;
+	uint32_t fls_rx_data;
+
+	for(idx=0; idx<length; idx++) {
+
+		FLSMBusGPIO_readMem(FLS_ADDR, 0xEE, 0, ((uint32_t) idx) << 2);
+		FLSMBusGPIO_rxMsg(); // Rx
+		fls_rx_data = FLSMBusGPIO_getRxData0();
+		write_mbus_message(addr_stamp, fls_rx_data);
+		delay(MBUS_DELAY);
+		write_mbus_message(addr_stamp, idx);
+		delay(MBUS_DELAY);
+		send_radio_data_32b(fls_rx_data);
+		delay(MBUS_DELAY);
+	}
+
+	return 1;
+}
+
 
 //***************************************************************************************
 // MAIN function starts here             
@@ -550,7 +594,6 @@ int main() {
 	if (IRQ11 == 0) { // Flash Erase
 
 		// Set START ADDRESS
-		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x800); // Should be a multiple of 0x800
 		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x00000000);
 
 		// Set Voltage Clamp
@@ -567,7 +610,26 @@ int main() {
 		check_flash_payload (0xA0, 0x00000003);
 		FLSMBusGPIO_enableLargeCap(FLS_ADDR);
 
-		// Flash Erase
+		// Flash Erase Page 2
+		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x800); // Should be a multiple of 0x800
+		FLSMBusGPIO_doEraseFlash(FLS_ADDR);
+		FLSMBusGPIO_rxMsg(); // Rx Payload 
+		check_flash_payload (0xA1, 0x00000074);
+
+		// Flash Erase Page 3
+		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x1000); // Should be a multiple of 0x800
+		FLSMBusGPIO_doEraseFlash(FLS_ADDR);
+		FLSMBusGPIO_rxMsg(); // Rx Payload 
+		check_flash_payload (0xA1, 0x00000074);
+
+		// Flash Erase Page 4
+		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x1800); // Should be a multiple of 0x800
+		FLSMBusGPIO_doEraseFlash(FLS_ADDR);
+		FLSMBusGPIO_rxMsg(); // Rx Payload 
+		check_flash_payload (0xA1, 0x00000074);
+
+		// Flash Erase Page 5
+		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x2000); // Should be a multiple of 0x800
 		FLSMBusGPIO_doEraseFlash(FLS_ADDR);
 		FLSMBusGPIO_rxMsg(); // Rx Payload 
 		check_flash_payload (0xA1, 0x00000074);
@@ -581,8 +643,7 @@ int main() {
 		// Increment the count at IRQ11VEC
 		IRQ11 = IRQ11 + 1;
 
-	}
-	else if (IRQ11 == 1) { // Take an Image and Stream into Flash. Write into Flash
+	}else if (IRQ11 == 1) { // Take an Image and Stream into Flash. Write into Flash
 		// Check Flash SRAM before image
 		check_flash_sram(0xE0, 10);
 
@@ -646,7 +707,39 @@ int main() {
 		delay(MBUS_DELAY);
 
 		// Copy SRAM to Flash
-		FLSMBusGPIO_doCopySRAM2Flash(FLS_ADDR, 0x7FE);
+		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x800); // Should be a multiple of 0x800
+		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x000);
+		FLSMBusGPIO_doCopySRAM2Flash(FLS_ADDR, 0x7FE); // 1 Page; 0x800 -2
+		FLSMBusGPIO_rxMsg();
+		check_flash_payload (0xA5, 0x0000005C);
+
+		delay(MBUS_DELAY);
+		write_mbus_message(0xF1, 0x11111111);
+		delay(MBUS_DELAY);
+
+		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x1000); // Should be a multiple of 0x800
+		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x800);
+		FLSMBusGPIO_doCopySRAM2Flash(FLS_ADDR, 0x7FE); // 1 Page; 0x800 -2
+		FLSMBusGPIO_rxMsg();
+		check_flash_payload (0xA5, 0x0000005C);
+
+		delay(MBUS_DELAY);
+		write_mbus_message(0xF1, 0x11111111);
+		delay(MBUS_DELAY);
+
+		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x1800); // Should be a multiple of 0x800
+		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x1000);
+		FLSMBusGPIO_doCopySRAM2Flash(FLS_ADDR, 0x7FE); // 1 Page; 0x800 -2
+		FLSMBusGPIO_rxMsg();
+		check_flash_payload (0xA5, 0x0000005C);
+
+		delay(MBUS_DELAY);
+		write_mbus_message(0xF1, 0x11111111);
+		delay(MBUS_DELAY);
+
+		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x2000); // Should be a multiple of 0x800
+		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x1800);
+		FLSMBusGPIO_doCopySRAM2Flash(FLS_ADDR, 0x7FE); // 1 Page; 0x800 -2
 		FLSMBusGPIO_rxMsg();
 		check_flash_payload (0xA5, 0x0000005C);
 
@@ -668,8 +761,7 @@ int main() {
 		// Increment the count at IRQ11VEC
 		IRQ11 = IRQ11 + 1;
 
-	}
-	else if (IRQ11 == 2) { // Read out from Flash
+	}else if (IRQ11 == 2) { // Read out from Flash
 
 		delay(MBUS_DELAY);
 		write_mbus_message(0xF2, 0x11111111);
@@ -689,9 +781,45 @@ int main() {
 		delay(MBUS_DELAY);
 
 		// Copy Flash to SRAM
-		FLSMBusGPIO_doCopyFlash2SRAM(FLS_ADDR, 0x7FE);
+		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x800); // Should be a multiple of 0x800
+		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x000);
+		FLSMBusGPIO_doCopyFlash2SRAM(FLS_ADDR, 0x7FE); // 1 Page
 		FLSMBusGPIO_rxMsg();
 		check_flash_payload (0xA8, 0x00000043);
+
+		delay(MBUS_DELAY);
+		write_mbus_message(0xF2, 0x22222222);
+		delay(MBUS_DELAY);
+
+		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x1000); // Should be a multiple of 0x800
+		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x800);
+		FLSMBusGPIO_doCopyFlash2SRAM(FLS_ADDR, 0x7FE); // 1 Page
+		FLSMBusGPIO_rxMsg();
+		check_flash_payload (0xA8, 0x00000043);
+
+		delay(MBUS_DELAY);
+		write_mbus_message(0xF2, 0x22222222);
+		delay(MBUS_DELAY);
+
+		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x1800); // Should be a multiple of 0x800
+		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x1000);
+		FLSMBusGPIO_doCopyFlash2SRAM(FLS_ADDR, 0x7FE); // 1 Page
+		FLSMBusGPIO_rxMsg();
+		check_flash_payload (0xA8, 0x00000043);
+
+		delay(MBUS_DELAY);
+		write_mbus_message(0xF2, 0x22222222);
+		delay(MBUS_DELAY);
+
+		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x2000); // Should be a multiple of 0x800
+		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x1800);
+		FLSMBusGPIO_doCopyFlash2SRAM(FLS_ADDR, 0x7FE); // 1 Page
+		FLSMBusGPIO_rxMsg();
+		check_flash_payload (0xA8, 0x00000043);
+
+		delay(MBUS_DELAY);
+		write_mbus_message(0xF2, 0x33333333);
+		delay(MBUS_DELAY);
 
 		// Turn off Flash
 		FLSMBusGPIO_turnOffFlash(FLS_ADDR);
@@ -701,11 +829,16 @@ int main() {
 
 		// Check Flash SRAM after recovery
 		check_flash_sram(0xE3, 10);
+		
+		// Radio out image data stored in flash
+		send_radio_data_32b(0xFAFA0000);
+		send_radio_flash_sram(0xE4, 6475);
+		send_radio_data_32b(0xFAFA0000);
 
 		// Increment the count at IRQ11VEC
 		IRQ11 = IRQ11 + 1;
-	}
-	else if (IRQ11 == 3) { // Everything is done. Keep sending out junk data.
+
+	}else if (IRQ11 == 3) { // Everything is done. Keep sending out junk data.
 
 
 		write_mbus_message(0xAA, 0x12345678);
