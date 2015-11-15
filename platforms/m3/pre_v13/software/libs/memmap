@@ -1,0 +1,17 @@
+MEMORY
+{
+	RRAM (wx) : ORIGIN = 0, LENGTH = 8K
+}
+
+SECTIONS
+{
+	/* .vectors : { KEEP(*(.vectors)) } > RRAM */
+	.text :
+	{
+		KEEP(*(.vectors))
+		*(.text)
+	} > RRAM
+	
+	.data : { *(.data) } > RRAM
+	.bss : { *.(bss) } > RRAM
+}
