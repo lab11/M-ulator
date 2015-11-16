@@ -163,12 +163,32 @@ void handler_ext_int_3(void){
     MBus_msg_flag = 0x13;
 }
 
+inline static void set_pmu_sleep_clk_low(){
+    // PRCv11 Default: 0x8F770049
+    //*((volatile uint32_t *) 0xA200000C) = 0x8F77183B; // 0x8F77003B: Sleep current 1.5nA, use GOC x0.6-2
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77194B; // 0x8F77194B: Sleep current 3nA, use GOC x9-15
+    //*((volatile uint32_t *) 0xA200000C) = 0x8F7718CB; // 0x8F7718CB: Sleep current 5nA, use GOC x9-15
+}
+inline static void set_pmu_sleep_clk_default(){
+    // PRCv11 Default: 0x8F770049
+    //*((volatile uint32_t *) 0xA200000C) = 0x8F77184B; // 0x8F77184B: Sleep current 8nA, use GOC x9-15
+    *((volatile uint32_t *) 0xA200000C) = 0x8F7718CB; // 0x8F7718CB: Sleep current 5nA, use GOC x9-15
+}
+
+inline static void set_pmu_sleep_clk_high(){
+    // PRCv11 Default: 0x8F770049
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77186B; // 0x8F77184B: Sleep current 8nA, use GOC x9-15
+}
+
 
 //***************************************************
 // Radio transmission routines for PPM Radio (RADv7 & v8)
 //***************************************************
 
 static void radio_power_on(){
+	// Need to speed up sleep pmu clock
+	set_pmu_sleep_clk_high();
+
     // Release FSM Sleep - Requires >2s stabilization time
     radio_on = 1;
     radv8_r8.RAD_FSM_SLEEP = 0;
@@ -189,6 +209,9 @@ static void radio_power_on(){
 }
 
 static void radio_power_off(){
+	// Need to restore sleep pmu clock
+	set_pmu_sleep_clk_default();
+
     // Turn off everything
     radio_on = 0;
     radv8_r2.SCRO_ENABLE = 0;
@@ -315,17 +338,6 @@ static void cdc_power_off(){
     ldo_power_off();
 }
 
-
-inline static void set_pmu_sleep_clk_low(){
-    // PRCv11 Default: 0x8F770049
-    //*((volatile uint32_t *) 0xA200000C) = 0x8F77183B; // 0x8F77003B: Sleep current 1.5nA, use GOC x0.6-2
-    //*((volatile uint32_t *) 0xA200000C) = 0x8F77194B; // 0x8F77194B: Sleep current 3nA, use GOC x9-15
-    *((volatile uint32_t *) 0xA200000C) = 0x8F7718CB; // 0x8F7718CB: Sleep current 5nA, use GOC x9-15
-}
-inline static void set_pmu_sleep_clk_default(){
-    // PRCv11 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77184B; // 0x8F77184B: Sleep current 8nA, use GOC x9-15
-}
 
 //***************************************************
 // End of Program Sleep Operation
