@@ -171,8 +171,8 @@ inline static void set_pmu_sleep_clk_low(){
 }
 inline static void set_pmu_sleep_clk_default(){
     // PRCv11 Default: 0x8F770049
-    //*((volatile uint32_t *) 0xA200000C) = 0x8F77184B; // 0x8F77184B: Sleep current 8nA, use GOC x9-15
-    *((volatile uint32_t *) 0xA200000C) = 0x8F7718CB; // 0x8F7718CB: Sleep current 5nA, use GOC x9-15
+    *((volatile uint32_t *) 0xA200000C) = 0x8F77184B; // 0x8F77184B: Sleep current 8nA, use GOC x9-15
+    //*((volatile uint32_t *) 0xA200000C) = 0x8F7718CB; // 0x8F7718CB: Sleep current 5nA, use GOC x9-15
 }
 
 inline static void set_pmu_sleep_clk_high(){
