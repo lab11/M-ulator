@@ -1,11 +1,10 @@
 //****************************************************************************************************
 //Author:       Gyouho Kim
 //              ZhiYoong Foo
-//				Yoonmyung Lee
 //Description:  Derived from zhiyoong_Pblr.c and Tstack_ondemand_temp_radio.c
 //              Moving towards Mouse Implantation
 //				Revision 1.7
-// 				- For 2015 Jan ECO -- no more interrupts from CDC, need to poll
+//				- For 2015 FEB ECO2: CDC interrupt is disabled. Need to poll.
 //				Revision 1.6
 //				- Adding updates from SNSv3_test_v3.c
 //				Revision 1.5
@@ -30,7 +29,6 @@
 //              - HRV layer related configuration added
 //              - Removed unnecessary debug functions
 //              - Multiple CDC measurement and averaging
-//Stack Diagram:\m3_shared\m3_orders\Order to Advotech\141016 - Pstack with 2014JUN+SNSv2+250umSOLv4\
 //****************************************************************************************************
 #include "mbus.h"
 #include "PRCv9.h"
@@ -46,7 +44,7 @@
 // uncomment this to only transmit average
 //#define TX_AVERAGE
 
-// Stack order  PRC->RAD->SNS->HRV
+// Stack order  PRC->SNS->HRV->RAD
 #define SNS_ADDR 0x5
 #define HRV_ADDR 0x6
 #define RAD_ADDR 0x4
@@ -54,7 +52,7 @@
 // CDC parameters
 #define	MBUS_DELAY 100 //Amount of delay between successive messages
 #define	LDO_DELAY 500 // 1000: 150msec
-#define CDC_TIMEOUT_COUNT 100
+#define CDC_TIMEOUT_COUNT 10
 #define WAKEUP_PERIOD_RESET 2
 #define WAKEUP_PERIOD_LDO 1
 
@@ -65,7 +63,6 @@
 #define PSTK_CDC_READ   0x3
 #define PSTK_LDO1   	0x4
 #define PSTK_LDO2  	 	0x5
-#define PSTK_CDC_RST_CHK	0x6
 
 // Radio configurations
 #define RAD_BIT_DELAY       13     //40      //0x54    //Radio tuning: Delay between bits sent (16 bits / packet)
@@ -77,7 +74,7 @@
 #define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 
-#define CDC_STORAGE_SIZE 1  
+#define CDC_STORAGE_SIZE 0  
 
 //***************************************************
 // Global variables
@@ -414,7 +411,8 @@ static void operation_init(void){
   
     // Speed up GOC frontend to match PMU frequency
     // PRCv9 Default: 0x00202903
-    *((volatile uint32_t *) 0xA2000008) = 0x00202908;
+    *((volatile uint32_t *) 0xA2000008) = 0x00202508;
+	
   
     delay(100);
   
@@ -527,6 +525,9 @@ static void operation_cdc_run(){
     uint32_t count; 
 
 	if (Pstack_state == PSTK_IDLE){
+		#ifdef DEBUG_MBUS_MSG
+			write_mbus_message(0xAA, 0x0);
+		#endif
 		Pstack_state = PSTK_LDO1;
 
 		cdc_reset_timeout_count = 0;
@@ -542,7 +543,7 @@ static void operation_cdc_run(){
 
 	}else if (Pstack_state == PSTK_LDO1){
 		#ifdef DEBUG_MBUS_MSG
-			write_mbus_message(0xAA, 0x10101010);
+			write_mbus_message(0xAA, 0x1);
 		#endif
 		Pstack_state = PSTK_LDO2;
 		snsv3_r7.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
@@ -556,7 +557,7 @@ static void operation_cdc_run(){
     
 	}else if (Pstack_state == PSTK_LDO2){
 		#ifdef DEBUG_MBUS_MSG
-			write_mbus_message(0xAA, 0x20202020);
+			write_mbus_message(0xAA, 0x2);
 		#endif
 		Pstack_state = PSTK_CDC_RST;
 
@@ -568,121 +569,106 @@ static void operation_cdc_run(){
 		// Release reset
 		#ifdef DEBUG_MBUS_MSG
 			write_mbus_message(0xAA, 0x11111111);
+			read_mbus_register(SNS_ADDR,2,0x15);
+			delay(MBUS_DELAY);
 		#endif
 
-		// NEW for 1.7: Go to sleep and check later
-		Pstack_state = PSTK_CDC_RST_CHK;
-		set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x0);
-		release_cdc_reset();
-		operation_sleep();
-		
-	}else if (Pstack_state == PSTK_CDC_RST_CHK){
-
 		MBus_msg_flag = 0;
-		read_mbus_register(SNS_ADDR,1,0x15);
+		release_cdc_reset();
+		delay(MBUS_DELAY*5);
 		for( count=0; count<CDC_TIMEOUT_COUNT; count++ ){
-			if( MBus_msg_flag ){
-				#ifdef DEBUG_MBUS_MSG
-					write_mbus_message(0xAA, 0x22222222);
-					write_mbus_message(0xAA, 0x22222222);
-					write_mbus_message(0xAA, 0x22222222);
-				#endif
-
-				MBus_msg_flag = 0;
-		
-				read_data = *((volatile uint32_t *) 0xA0001014);
-				if( read_data & 0x02 ) {	
-					// If CDC data is valid
-					cdc_reset_timeout_count = 0;
-					Pstack_state = PSTK_CDC_MEAS;
-					return;
-				}else{
-					// CDC data invalid
-					#ifdef DEBUG_MBUS_MSG
-						write_mbus_message(0xAA, 0xFAFAFAFA);
-					#endif
-					cdc_reset_timeout_count++;
-
-					if (cdc_reset_timeout_count > 2){
-						write_mbus_message(0xAA, 0xFFFFFFFF);
-						assert_cdc_reset();
-						if (cdc_reset_timeout_count > 5){
-							// CDC is not resetting for some reason. Go to sleep forever
-							cdc_ldo_off();
-							operation_sleep_notimer();
-						}else{
-							// Retry releasing reset
-							Pstack_state = PSTK_CDC_RST;
-							set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x0);
-							operation_sleep();
-						}
-
-					}else{
-						// Wait more
-						set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x0);
-						operation_sleep();
-						return;
-					}
-				}
-			}else{ // if Mbus_msg_flag
-				delay(30);
+			// New for P1.7
+			read_mbus_register(SNS_ADDR,2,0x15);
+			delay(MBUS_DELAY);
+			read_data = *((volatile uint32_t *) 0xA0001014);
+			if( read_data & 0x1 ) { // Check EOC
+				cdc_reset_timeout_count = 0;
+				Pstack_state = PSTK_CDC_MEAS;
+				//NEW: This makes measurement more stable
+				set_wakeup_timer (1, 0x1, 0x0);
+				operation_sleep();
+				return;
 			}
-		} // for
+			delay(MBUS_DELAY*2);
+		}
 
-		// Should not reach here: this means MBUS read doesn't work
-		assert_cdc_reset();
-		cdc_ldo_off();
-		operation_sleep_notimer();
+		// Reset Time out
+		#ifdef DEBUG_MBUS_MSG
+			write_mbus_message(0xAA, 0xFAFAFAFA);
+		#endif
+		if (cdc_reset_timeout_count > 0){
+			cdc_reset_timeout_count++;
+			assert_cdc_reset();
+
+			if (cdc_reset_timeout_count > 10){
+				// CDC is not resetting for some reason. Go to sleep forever
+				Pstack_state = PSTK_IDLE;
+				cdc_ldo_off();
+				operation_sleep_notimer();
+			}else{
+				// Put system to sleep to reset the layer controller
+				set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x0);
+				operation_sleep();
+			}
+
+	    }else{
+		// Try one more time
+	    	cdc_reset_timeout_count++;
+			assert_cdc_reset();
+			delay(MBUS_DELAY*5);
+	    }
 
 	}else if (Pstack_state == PSTK_CDC_MEAS){
-		// NEW for 1.7: Go to sleep and check later
+		// case PSTK_CDC_MEAS:
+		// If no time out 
+		#ifdef DEBUG_MBUS_MSG
+			write_mbus_message(0xAA, 0x22222222);
+		#endif
+
 		Pstack_state = PSTK_CDC_READ;
-		set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x0);
 		fire_cdc_meas();
-		operation_sleep();
+		delay(MBUS_DELAY*5);
 		
 	}else if (Pstack_state == PSTK_CDC_READ){
-		MBus_msg_flag = 0;
-		read_mbus_register(SNS_ADDR,1,0x15);
+		//	case PSTK_CDC_READ:
+		#ifdef DEBUG_MBUS_MSG
+			write_mbus_message(0xAA, 0x33333333);
+		#endif
 		for( count=0; count<CDC_TIMEOUT_COUNT; count++ ){
-			if( MBus_msg_flag ){
-				#ifdef DEBUG_MBUS_MSG
-					write_mbus_message(0xAA, 0x33333333);
-					write_mbus_message(0xAA, 0x33333333);
-					write_mbus_message(0xAA, 0x33333333);
-				#endif
-				MBus_msg_flag = 0;
-				read_data = *((volatile uint32_t *) 0xA0001014);
-				if( read_data & 0x02 ) {
-					// If CDC data is valid process data
+			// New for P1.7
+			read_mbus_register(SNS_ADDR,2,0x15);
+			delay(MBUS_DELAY);
+			read_data = *((volatile uint32_t *) 0xA0001014);
+			if( read_data & 0x1 ) { // Check EOC
+				if( read_data & 0x2 ) {
+					#ifdef DEBUG_MBUS_MSG
+						write_mbus_message(0xAA, 0x77777777);
+					#endif
+					// If CDC data is valid
+					// Process Data
 					// CDC_DOUT is shifted to start at [0]
-					// CR_DATA is moved to start at [24]
-					// Valid bit is moved to [28]
-
-					cdc_reset_timeout_count = 0;
-
+					// CR_DATA is moved to start at [16]
+					// Valid bit is moved to [24]
 					uint32_t read_data_modified;
-					read_data_modified = read_data>>5;
-					read_data_modified = read_data_modified | ((0x2 & read_data)<<27);
-					read_data_modified = read_data_modified | ((0x1C & read_data)<<22);
+					read_data_modified = (0x3FFE0 & read_data)>>5;
+					read_data_modified = read_data_modified | ((0x2 & read_data)<<23);
+					read_data_modified = read_data_modified | ((0x1C & read_data)<<14);
 
 					cdc_data[cdc_data_index] = read_data_modified;
-					++cdc_data_index;
+					cdc_data_index++;
 
 					if( cdc_data_index == NUM_SAMPLES ){
 						// Collected all data for radio TX
 						// FIXME: comment out ifdef here to observe cdc data on MBUS
-						//#ifdef DEBUG_MBUS_MSG
-							write_mbus_message(0xAA, 0x44444444);
+						#ifdef DEBUG_MBUS_MSG
+							write_mbus_message(0xAA, 0xFFFFFFFF);
 							delay(MBUS_DELAY);
 							uint32_t i, j;
-							for( j=0; j<1; ++j){
-								for( i=0; i<NUM_SAMPLES; ++i){
-									delay(MBUS_DELAY*10);
-									write_mbus_message(0x77, cdc_data[i]);
-								}
+							for( i=0; i<NUM_SAMPLES; ++i){
+								delay(MBUS_DELAY*10);
+								write_mbus_message(0x77, cdc_data[i]);
 							}
-						//#endif
+						#endif
 						exec_count++;
 						process_data();
 
@@ -717,7 +703,7 @@ static void operation_cdc_run(){
 						cdc_ldo_off();
 									
 						// Enter long sleep
-						if(exec_count < 8){ 
+						if(exec_count < 6){ 
 							// Send some signal
 							send_radio_data(0x3EBE800);
 							set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
@@ -730,67 +716,55 @@ static void operation_cdc_run(){
 						// Need more data for radio TX
 						release_cdc_meas();
 						Pstack_state = PSTK_CDC_MEAS;
+						delay(MBUS_DELAY);
+						#ifdef DEBUG_MBUS_MSG
+							write_mbus_message(0xAA, 0x88888888);
+							delay(MBUS_DELAY);
+							write_mbus_message(0xAA, cdc_data_index);
+							delay(MBUS_DELAY);
+							read_mbus_register(SNS_ADDR,2,0x15);
+							delay(MBUS_DELAY*10);
+						#endif
+
 						return;
 					}
 				}else{ // If CDC data invalid
-
-					// Retry measurement
-					release_cdc_meas();
-					Pstack_state = PSTK_CDC_MEAS;
-					set_wakeup_timer (WAKEUP_PERIOD_RESET*2, 0x1, 0x0);
-					operation_sleep();
-/* FIXME: shortened for memory
-					cdc_reset_timeout_count++;
-
-					if (cdc_reset_timeout_count > 2){
+					#ifdef DEBUG_MBUS_MSG
 						write_mbus_message(0xAA, 0x3333FFFF);
-						release_cdc_meas();
-						if (cdc_reset_timeout_count > 5){
-							// CDC is not resetting for some reason. Go to sleep forever
-							assert_cdc_reset();
-							cdc_ldo_off();
-							operation_sleep_notimer();
-						}else{
-							// Retry measurement
-							Pstack_state = PSTK_CDC_MEAS;
-							set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x0);
-							operation_sleep();
-						}
-
-					}else{
-						// Wait more
-						set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x0);
-						operation_sleep();
-						return;
-					}
-*/
-
+					#endif
+					Pstack_state = PSTK_CDC_RST;
+					release_cdc_meas();
+					assert_cdc_reset();
+					delay(MBUS_DELAY);
+					return;
 				}
-			}else{ // if Mbus_msg_flag
-				delay(30);
+			}else{
+				delay(MBUS_DELAY*2);
 			}
 		} // for
 
-		// Should not reach here: this means MBUS read doesn't work
-/* FIXME
-		assert_cdc_reset();
-		release_cdc_meas();
-		cdc_ldo_off();
-		operation_sleep_notimer();
+		// Measurement Time out
 		#ifdef DEBUG_MBUS_MSG
 			write_mbus_message(0xAA, 0xFFFFBBBB);
 		#endif
-*/
+		Pstack_state = PSTK_CDC_RST;
+		release_cdc_meas();
+		assert_cdc_reset();
+		delay(MBUS_DELAY);
+
+		// Put system to sleep to reset the layer controller
+		set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x0);
+		operation_sleep();
+
 	}else{
         //default:  // THIS SHOULD NOT HAPPEN
 		// Reset CDC
-		Pstack_state = PSTK_IDLE;
 		assert_cdc_reset();
-		set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
-		operation_sleep();
+		cdc_ldo_off();
+		operation_sleep_notimer();
 	}
-}
 
+}
 
 //***************************************************************************************
 // MAIN function starts here             
@@ -863,6 +837,7 @@ int main() {
 
         // Run CDC Program
 		cdc_reset_timeout_count = 0;
+		cdc_data_index = 0;
         operation_cdc_run();
 
     }else if(wakeup_data_header == 3){
@@ -894,6 +869,7 @@ int main() {
             operation_sleep_notimer();
         }
 
+/* FIXME
     }else if(wakeup_data_header == 4){
         // Transmit the stored temp data
         // wakeup_data[7:0] is the # of data to transmit; if zero, all stored data is sent
@@ -920,7 +896,6 @@ int main() {
           operation_tx_stored();
 		}
 
-/* FIXME
     }else if(wakeup_data_header == 5){
         // Same as operation #2, but transmitting radio every cdc measurement
 		// Slow down PMU sleep osc and run CDC code with desired wakeup period
@@ -996,8 +971,6 @@ int main() {
     }
 
     // Should not reach here
-    Pstack_state = PSTK_IDLE;
-    assert_cdc_reset();
     operation_sleep_notimer();
 
     while(1);

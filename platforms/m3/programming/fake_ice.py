@@ -15,19 +15,16 @@ DEFAULT_VSET_1P2 = 25
 DEFAULT_VSET_VBATT = 25
 DEFAULT_MBUS_FULL_PREFIX_ONES = 0xfffff0
 DEFAULT_MBUS_FULL_PREFIX_ZEROS = 0xfffff0
-DEFAULT_MBUS_SHORT_PREFIX_ONES = 0xf0
-DEFAULT_MBUS_SHORT_PREFIX_ZEROS = 0xf0
-DEFAULT_MBUS_SNOOP_FULL_PREFIX_ONES = 0xfffff0
-DEFAULT_MBUS_SNOOP_FULL_PREFIX_ZEROS = 0xfffff0
-DEFAULT_MBUS_SNOOP_SHORT_PREFIX_ONES = 0xf0
-DEFAULT_MBUS_SNOOP_SHORT_PREFIX_ZEROS = 0xf0
+DEFAULT_MBUS_SHORT_PREFIX = 0x0f
 DEFAULT_MBUS_BROADCAST_MASK_ONES = 0x0f
 DEFAULT_MBUS_BROADCAST_MASK_ZEROS = 0x0f
 DEFAULT_MBUS_SNOOP_BROADCAST_MASK_ONES = 0x0f
 DEFAULT_MBUS_SNOOP_BROADCAST_MASK_ZEROS = 0x0f
 
+import random
 import sys, serial
 from time import sleep
+import threading
 
 import m3_logging
 logger = m3_logging.get_logger(__name__)
@@ -46,6 +43,7 @@ parser.add_argument("-i", "--ice-version", default=3, type=int, help="Maximum IC
 parser.add_argument("-s", "--serial", default=DEFAULT_SERIAL, help="Serial port to connect to")
 parser.add_argument("--i2c-mask", default=DEFAULT_I2C_MASK, help="Address mask for fake_ice i2c address")
 parser.add_argument("-a", "--ack-all", action="store_true", help="Only supports i2c at the moment")
+parser.add_argument("-g", "--generate-messages", action="store_true", help="Generate periodic, random MBus messages")
 
 args = parser.parse_args()
 serial_port = args.serial
@@ -77,12 +75,8 @@ power_goc_on = False
 
 mbus_full_prefix_ones = DEFAULT_MBUS_FULL_PREFIX_ONES
 mbus_full_prefix_zeros = DEFAULT_MBUS_FULL_PREFIX_ZEROS
-mbus_short_prefix_ones = DEFAULT_MBUS_SHORT_PREFIX_ONES
-mbus_short_prefix_zeros = DEFAULT_MBUS_SHORT_PREFIX_ZEROS
-mbus_snoop_full_prefix_ones = DEFAULT_MBUS_SNOOP_FULL_PREFIX_ONES
-mbus_snoop_full_prefix_zeros = DEFAULT_MBUS_SNOOP_FULL_PREFIX_ZEROS
-mbus_snoop_short_prefix_ones = DEFAULT_MBUS_SNOOP_SHORT_PREFIX_ONES
-mbus_snoop_short_prefix_zeros = DEFAULT_MBUS_SNOOP_SHORT_PREFIX_ZEROS
+mbus_short_prefix = DEFAULT_MBUS_SHORT_PREFIX
+mbus_snoop_enabled = False
 mbus_broadcast_mask_ones = DEFAULT_MBUS_BROADCAST_MASK_ONES
 mbus_broadcast_mask_zeros = DEFAULT_MBUS_BROADCAST_MASK_ZEROS
 mbus_snoop_broadcast_mask_ones = DEFAULT_MBUS_SNOOP_BROADCAST_MASK_ONES
@@ -90,12 +84,14 @@ mbus_snoop_broadcast_mask_zeros = DEFAULT_MBUS_SNOOP_BROADCAST_MASK_ZEROS
 mbus_ismaster = False
 mbus_should_interrupt = 0
 mbus_should_prio = 0
+mbus_force_reset = 0
 
 def match_mask(val, ones, zeros):
     if args.ack_all:
         return True
     return ((val & ones) == ones) and ((~val & zeros) == zeros)
 
+s_lock = threading.Lock()
 try:
     s = serial.Serial(serial_port, 115200)
 except:
@@ -160,20 +156,66 @@ class Gpio(object):
 event = 0
 gpios = [Gpio() for x in xrange(MAX_GPIO)]
 
-def respond(msg, ack=True):
+def spurious_message_thread():
     global s
+    global s_lock
     global event
 
-    if (ack):
-        s.write(chr(0))
-    else:
-        s.write(chr(1))
-    s.write(chr(event))
-    event += 1
-    event %= 256
-    s.write(chr(len(msg)))
-    if len(msg):
-        s.write(msg)
+    def send_snoop(addr, data, control):
+        global s
+        global s_lock
+        global event
+        with s_lock:
+            s.write('B')
+            s.write(chr(event))
+            event += 1
+            event %= 256
+
+            addr = addr.decode('hex')
+            data = data.decode('hex')
+            control = control.decode('hex')
+            length = len(addr) + len(data) + len(control)
+
+            s.write(chr(length))
+            s.write(addr)
+            s.write(data)
+            s.write(control)
+
+    while True:
+        for args in (
+                ('00000074', 'deadbeef', '02'),
+                ('00000040', 'ab', '02'),
+                ('f0012345', '0123456789abcdef', '00'),
+                ('00000022', 'a5'*160, '02'),
+                ('00000033', 'c9'*160, '02'),
+                ('00000044', 'ef'*160, '02'),
+                ):
+            sleep(random.randint(1,15))
+            if not mbus_snoop_enabled:
+                continue
+            send_snoop(*args)
+
+if args.generate_messages:
+    gen_thread = threading.Thread(target=spurious_message_thread)
+    gen_thread.daemon = True
+    gen_thread.start()
+
+def respond(msg, ack=True):
+    global s
+    global s_lock
+    global event
+
+    with s_lock:
+        if (ack):
+            s.write(chr(0))
+        else:
+            s.write(chr(1))
+        s.write(chr(event))
+        event += 1
+        event %= 256
+        s.write(chr(len(msg)))
+        if len(msg):
+            s.write(msg)
     logger.debug("Sent a response of length: " + str(len(msg)))
 
 def ack():
@@ -440,23 +482,13 @@ while True:
                 r += chr((mbus_full_prefix_zeros >>  0) & 0xff)
                 respond(r)
             elif msg[0] == 's':
-                logger.info("Responded to query for MBus short prefix mask (%02x ones %06x zeros)",
-                        mbus_short_prefix_ones, mbus_short_prefix_zeros)
-                respond(chr(mbus_short_prefix_ones) + chr(mbus_short_prefix_zeros))
-            elif msg[0] == 'L':
-                logger.info("Responded to query for MBus snoop full prefix mask (%06x ones %06x zeros)",
-                        mbus_snoop_full_prefix_ones, mbus_snoop_full_prefix_zeros)
-                r = chr((mbus_snoop_full_prefix_ones >> 16) & 0xff)
-                r += chr((mbus_snoop_full_prefix_ones >> 8) & 0xff)
-                r += chr((mbus_snoop_full_prefix_ones >> 0) & 0xff)
-                r += chr((mbus_snoop_full_prefix_zeros >> 16) & 0xff)
-                r += chr((mbus_snoop_full_prefix_zeros >>  8) & 0xff)
-                r += chr((mbus_snoop_full_prefix_zeros >>  0) & 0xff)
-                respond(r)
+                logger.info("Responded to query for MBus short prefix (%02x)",
+                        mbus_short_prefix)
+                respond(chr(mbus_short_prefix))
             elif msg[0] == 'S':
-                logger.info("Responded to query for MBus snoop short prefix mask (%02x ones %06x zeros)",
-                        mbus_snoop_short_prefix_ones, mbus_snoop_short_prefix_zeros)
-                respond(chr(mbus_snoop_short_prefix_ones) + chr(mbus_snoop_short_prefix_zeros))
+                logger.info("Responded to query for MBus snoop enabled (%d)",
+                        mbus_snoop_enabled)
+                respond(chr(mbus_snoop_enabled))
             elif msg[0] == 'b':
                 logger.info("Responded to query for MBus broadcast mask (%02x ones %02x zeros)",
                         mbus_broadcast_mask_ones, mbus_broadcast_mask_zeros)
@@ -479,6 +511,10 @@ while True:
                 logger.info("Responded to query for MBus should use priority arb (%d)",
                         mbus_should_prio)
                 respond(chr(mbus_should_prio))
+            elif msg[0] == 'r':
+                logger.info("Responded to query for MBus internal reset (%d)",
+                        mbus_force_reset)
+                respond(chr(mbus_force_reset))
             else:
                 logger.error("bad 'M' subtype: " + msg[0])
         elif msg_type == 'm':
@@ -494,26 +530,12 @@ while True:
                         mbus_full_prefix_ones, mbus_full_prefix_zeros)
                 ack()
             elif msg[0] == 's':
-                mbus_short_prefix_ones = ord(msg[1])
-                mbus_short_prefix_zeros = ord(msg[2])
-                logger.info("MBus short prefix mask set to ones %02x zeros %02x",
-                        mbus_short_prefix_ones, mbus_short_prefix_zeros)
-                ack()
-            elif msg[0] == 'L':
-                mbus_snoop_full_prefix_ones = ord(msg[3])
-                mbus_snoop_full_prefix_ones |= ord(msg[2]) << 8
-                mbus_snoop_full_prefix_ones |= ord(msg[1]) << 16
-                mbus_snoop_full_prefix_zeros = ord(msg[6])
-                mbus_snoop_full_prefix_zeros |= ord(msg[5]) << 8
-                mbus_snoop_full_prefix_zeros |= ord(msg[4]) << 16
-                logger.info("MBus snoop full prefix mask set to ones %06x zeros %06x",
-                        mbus_snoop_full_prefix_ones, mbus_snoop_full_prefix_zeros)
+                mbus_short_prefix = ord(msg[1])
+                logger.info("MBus short prefix set to %02x", mbus_short_prefix)
                 ack()
             elif msg[0] == 'S':
-                mbus_snoop_short_prefix_ones = ord(msg[1])
-                mbus_snoop_short_prefix_zeros = ord(msg[2])
-                logger.info("MBus snoop short prefix mask set to ones %02x zeros %02x",
-                        mbus_snoop_short_prefix_ones, mbus_snoop_short_prefix_zeros)
+                mbus_snoop_enabled = ord(msg[1])
+                logger.info("MBus snoop enabled set to %d", mbus_snoop_enabled)
                 ack()
             elif msg[0] == 'b':
                 mbus_broadcast_mask_ones = ord(msg[1])
@@ -541,6 +563,10 @@ while True:
                 mbus_should_prio = ord(msg[1])
                 logger.info("MBus should use priority arbitration set to %d",
                         mbus_should_prio)
+                ack()
+            elif msg[0] == 'r':
+                mbus_force_reset = ord(msg[1])
+                logger.info("MBus internal reset set to %d", mbus_force_reset)
                 ack()
             else:
                 logger.error("bad 'm' subtype: " + msg[0])

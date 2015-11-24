@@ -1,0 +1,20 @@
+# One entry per line
+# Lines starting with '#' are ignored
+#
+# An entry begins with a set of numbers that describe the numbers
+# for the type of chip/stack that should be available. The syntax
+# is the same as when you print ranges of pages. Commas separate
+# entries and dashes indicate ranges. The numbers must increase.
+# No whitespace is allowed.
+#
+# e.g. if you specificed the following:
+#
+#   1,3-5,7,8,11-14 CTLv01
+#
+# If would result in a chip list of:
+#
+# CTLv01-1, CTLv01-3, CTLv01-4, CTLv01-5, CTLv01-7, CTLv01-8
+# CTLv01-11, CTLv01-12, CTLv01-13, CTLv01-13, CTLv01-14
+
+1,3 STKv01
+3-5 STKv02

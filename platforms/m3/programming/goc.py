@@ -42,8 +42,8 @@ class goc_programmer_for_mbus(goc_programmer):
         return self.ice.mbus_send(addr, data)
 
 g = goc_programmer_for_mbus()
-m3_common.dont_do_default("Run power-on sequence", g.power_on)
-m3_common.dont_do_default("Reset M3", g.reset_m3)
+g.dont_do_default("Run power-on sequence", g.power_on)
+g.dont_do_default("Reset M3", g.reset_m3)
 logger.info("** Setting ICE MBus controller to slave mode")
 g.ice.mbus_set_master_onoff(False)
 
@@ -71,8 +71,6 @@ logger.info("")
 if run_after:
     logger.info("Program is running on the chip.")
 else:
-    m3_common.do_default("Would you like to read back the program to validate?", g.validate_bin)
-    m3_common.do_default("Would you like to send the DMA start interrupt?", g.DMA_start_interrupt)
-
-g.hang_for_messages()
+    g.do_default("Would you like to read back the program to validate?", g.validate_bin)
+    g.do_default("Would you like to send the DMA start interrupt?", g.DMA_start_interrupt)
 

@@ -13,8 +13,9 @@
 #define FLS_DOUT 15
 
 // Delay
-#define GPIO_MBus_HalfCycle 10
-#define GPIO_MBus_RxBeginDelay 100
+#define GPIO_MBus_QuarterCycle 1 // 10
+#define GPIO_MBus_HalfCycle 2 // 20
+#define GPIO_MBus_RxBeginDelay 4 // 100
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -56,6 +57,9 @@ uint32_t FLSMBusGPIO_getRxData2();
 //Sleep Message
 void FLSMBusGPIO_sleep();
 
+//WakeUp Message
+void FLSMBusGPIO_wakeup();
+
 //Enumeration (FLSMBusGPIO_rxMsg() must follow)
 void FLSMBusGPIO_enumeration(volatile uint32_t fls_enum);
 
@@ -87,6 +91,14 @@ void FLSMBusGPIO_turnOnFlash(volatile uint32_t fls_enum);
 //    NOTE: FLSMBusGPIO_rxMsg() must follow this function. If correct, the interrupt payload is 0x06.
 void FLSMBusGPIO_turnOffFlash(volatile uint32_t fls_enum);
 
+//Enable Large Cap
+//    NOTE: This must be used righat after FLSMBusGPIO_turnOnFlash()
+void FLSMBusGPIO_enableLargeCap(volatile uint32_t fls_enum);
+
+//Disable Large Cap
+//    NOTE: This must be used righat after FLSMBusGPIO_turnOffFlash()
+void FLSMBusGPIO_disableLargeCap(volatile uint32_t fls_enum);
+
 //Set IRQ Address
 //    - Whenever the flash layer sends out an interrupt message,
 //      it will use the addresses specified by this function.
@@ -102,6 +114,13 @@ void FLSMBusGPIO_setIRQAddr(volatile uint32_t fls_enum, volatile uint32_t short_
 //          VTG_TUNE = 0x8
 //          CRT_TUNE = 0x3F
 void FLSMBusGPIO_setOptTune(volatile uint32_t fls_enum);
+
+//Tune Terase
+//    - Set the following tuning bits:
+//          T5us = 0x0
+//          T10us = 0x2
+//          Terase = as given
+void FLSMBusGPIO_setTerase(volatile uint32_t fls_enum, volatile uint32_t Terase);
 
 //set Flash Start Address
 //    - Used for the following functions: 
@@ -193,6 +212,14 @@ uint32_t FLSMBusGPIO_rxMsg ();
 // Force Stop
 void FLSMBusGPIO_forceStop ();
 
+//Send 8-bit Addr, 31-bit Data: This is supposed to be used for flash streaming 'go' signal
+//LSB in data_0 will NOT be sent.
+void FLSMBusGPIO_sendMBus31bit (volatile uint32_t short_prefix, volatile uint32_t data_0);
+
+//Send the Last 1-bit Data: This is supposed to be used for flash streaming 'go' signal
+//Only LSB in data_0 will be sent as well as the tail sequence.
+void FLSMBusGPIO_sendMBusLast1bit (volatile uint32_t short_prefix, volatile uint32_t data_0);
+
 
 //*******************************************************************
 // Sub Functions
@@ -200,6 +227,7 @@ void FLSMBusGPIO_forceStop ();
 void FLSMBusGPIO_resetCinDin ();
 void FLSMBusGPIO_toggleCinDin (volatile uint32_t data, volatile uint32_t numBit);
 void FLSMBusGPIO_interjection ();
+void FLSMBusGPIO_controlAck ();
 uint32_t FLSMBusGPIO_getCoutDout ();
 uint32_t FLSMBusGPIO_getCout ();
 uint32_t FLSMBusGPIO_getDout ();

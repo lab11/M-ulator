@@ -15,6 +15,22 @@ void FLSMBusGPIO_initialization(){
 	FLSMBusGPIO_RxData0 = 0x00000000;
 	FLSMBusGPIO_RxData1 = 0x00000000;
 	FLSMBusGPIO_RxData2 = 0x00000000;
+	// Reset CIN & DIN to 1
+	set_GPIO_bit(FLS_DIN);
+	set_GPIO_bit(FLS_CIN);
+	// There should be 2 reset sequences in series.
+	// Not sure why, but it should be related to the fact that
+	// CIN and DIN raise up almost at the same time, which is not the normal operation scenario.
+	// This has been verified with Auto-Boot Disabled. 
+	// It might be different with Auto-Boot Enabled.
+	delay(10);
+	FLSMBusGPIO_interjection();
+	FLSMBusGPIO_controlAck();
+	delay(10);
+	delay(10);
+	FLSMBusGPIO_interjection();
+	FLSMBusGPIO_controlAck();
+	delay(10);
 }
 uint32_t FLSMBusGPIO_getRxAddr() {
 	return FLSMBusGPIO_RxAddr;
@@ -30,6 +46,9 @@ uint32_t FLSMBusGPIO_getRxData2() {
 }
 void FLSMBusGPIO_sleep() {
 	FLSMBusGPIO_sendMBus8bit (0x01, 0x00000000);
+}
+void FLSMBusGPIO_wakeup() {
+	FLSMBusGPIO_sendMBus8bit (0x01, 0x10000000);
 }
 void FLSMBusGPIO_enumeration(volatile uint32_t fls_enum) {
 	FLSMBusGPIO_sendMBus8bit (0x00, (0x20000000 | (fls_enum << 24)));
@@ -51,10 +70,14 @@ void FLSMBusGPIO_readMem(volatile uint32_t short_prefix, volatile uint32_t reply
 }
 void FLSMBusGPIO_turnOnFlash(volatile uint32_t fls_enum) {
 	FLSMBusGPIO_writeReg(fls_enum, 0x11, 0x000003);
-	FLSMBusGPIO_writeReg(fls_enum, 0x09, 0x0000003F);
 }
 void FLSMBusGPIO_turnOffFlash(volatile uint32_t fls_enum) {
 	FLSMBusGPIO_writeReg(fls_enum, 0x11, 0x000002);
+}
+void FLSMBusGPIO_enableLargeCap(volatile uint32_t fls_enum) {
+	FLSMBusGPIO_writeReg(fls_enum, 0x09, 0x0000003F);
+}
+void FLSMBusGPIO_disableLargeCap(volatile uint32_t fls_enum) {
 	FLSMBusGPIO_writeReg(fls_enum, 0x09, 0x00000000);
 }
 void FLSMBusGPIO_setIRQAddr(volatile uint32_t fls_enum, volatile uint32_t short_addr, volatile uint32_t reg_addr) {
@@ -62,9 +85,15 @@ void FLSMBusGPIO_setIRQAddr(volatile uint32_t fls_enum, volatile uint32_t short_
 }
 void FLSMBusGPIO_setOptTune(volatile uint32_t fls_enum) {
 	// Set Tprog=0x5, Tcyc=0x00C0 
-	FLSMBusGPIO_writeReg(fls_enum, 0x02, ((0x5 << 16) | (0x00C0 << 0 )));
+	FLSMBusGPIO_writeReg(fls_enum, 0x02, ((0x5 << 16) | (0x0300 << 0 )));
 	// Set VTG_TUNE = 0x8, CRT_TUNE=0x3F 
 	FLSMBusGPIO_writeReg(fls_enum, 0x0A, ((0x8 << 6) | (0x3F << 0 )));
+}
+void FLSMBusGPIO_setTerase(volatile uint32_t fls_enum, volatile uint32_t Terase) {
+	// Terase Default Value = 16'h1AA0
+	uint32_t T5us = 0x0;
+	uint32_t T10us = 0x2;
+	FLSMBusGPIO_writeReg(fls_enum, 0x01, ((T10us << 20) | (T5us << 16) | (Terase << 0 )));
 }
 void FLSMBusGPIO_setFlashStartAddr(volatile uint32_t fls_enum, volatile uint32_t flash_start_addr) {
 	FLSMBusGPIO_writeReg(fls_enum, 0x07, flash_start_addr);
@@ -116,7 +145,9 @@ void FLSMBusGPIO_interjection () {
 	for (i=0; i<6; i++){
 		kill_GPIO_bit(FLS_DIN);
 		delay(GPIO_MBus_HalfCycle);
-		set_GPIO_bit(FLS_DIN);
+		delay(GPIO_MBus_HalfCycle);
+  		set_GPIO_bit(FLS_DIN);
+		delay(GPIO_MBus_HalfCycle);
 		delay(GPIO_MBus_HalfCycle);
 	}
 }
@@ -237,57 +268,104 @@ uint32_t FLSMBusGPIO_rxMsg () {
 	FLSMBusGPIO_RxData1 = 0x00000000;
 	FLSMBusGPIO_RxData2 = 0x00000000;
 
-	//write_mbus_message(0xEE, 0x44444444);
 	while(1) {
 		if (FLSMBusGPIO_getCoutDout()==1) {
 			delay(GPIO_MBus_RxBeginDelay); // Optional Delay
 			break;
 		}
 	}
-	//write_mbus_message(0xEE, 0x55555555);
 
-	FLSMBusGPIO_toggleCinDin (0x00000004, 3); // Arbitration Sequence
+	// Arbitration Sequence
+	//	FLSMBusGPIO_toggleCinDin (0x00000004, 3); // Arbitration Sequence (OLD)
+	kill_GPIO_bit(FLS_CIN); 
+	set_GPIO_bit(FLS_DIN); 
+	delay(GPIO_MBus_QuarterCycle); 
+	rxBit = ((rxBit << 1) | FLSMBusGPIO_getDout()); 
+	delay(GPIO_MBus_QuarterCycle);
+	set_GPIO_bit(FLS_CIN); 
+	delay(GPIO_MBus_HalfCycle);
 
-	while(1) {
-		kill_GPIO_bit(FLS_CIN);
+	kill_GPIO_bit(FLS_CIN); 
+	delay(GPIO_MBus_QuarterCycle); 
+	rxBit = ((rxBit << 1) | FLSMBusGPIO_dataFwd()); 
+	delay(GPIO_MBus_QuarterCycle);
+	set_GPIO_bit(FLS_CIN); 
+	delay(GPIO_MBus_HalfCycle);
 
-		rxBit = FLSMBusGPIO_dataFwd();
-		if ((FLSMBusGPIO_getCout()==1) & (clockNotForwarded==0)) clockNotForwarded = 1;
-		else if (FLSMBusGPIO_getCout()==1) isLast = 1;
+	kill_GPIO_bit(FLS_CIN); 
+	delay(GPIO_MBus_QuarterCycle); 
+	rxBit = ((rxBit << 1) | FLSMBusGPIO_dataFwd()); 
+	delay(GPIO_MBus_QuarterCycle);
+	set_GPIO_bit(FLS_CIN); 
+	delay(GPIO_MBus_HalfCycle);
 
+	// Main Part
+	if (rxBit == 0x00000007) { // If Data remains 1 during the Arbitration Sequence
+		kill_GPIO_bit(FLS_CIN); 
+		delay(GPIO_MBus_QuarterCycle); 
+		rxBit = FLSMBusGPIO_dataFwd(); 
+		delay(GPIO_MBus_QuarterCycle);
+		set_GPIO_bit(FLS_CIN); 
 		delay(GPIO_MBus_HalfCycle);
+	}
+	else { // If Data remains 0 during the Arbitration Sequence (this is normal, since there's no other layer involved)
+		while(1) {
+			kill_GPIO_bit(FLS_CIN);
+			delay(GPIO_MBus_QuarterCycle);
 
-		set_GPIO_bit(FLS_CIN);
-		delay(GPIO_MBus_HalfCycle);
+			rxBit = FLSMBusGPIO_dataFwd();
+			if ((FLSMBusGPIO_getCout()==1) & (clockNotForwarded==0)) clockNotForwarded = 1;
+			else if (FLSMBusGPIO_getCout()==1) isLast = 1;
 
-		if (FLSMBusGPIO_getCout()==0) return 9999;
+			delay(GPIO_MBus_QuarterCycle);
 
-		if (clockNotForwarded==0) {
-			if (numRxBit < 8) { FLSMBusGPIO_RxAddr = ((FLSMBusGPIO_RxAddr << 1) | rxBit); }
-			else if (numRxBit < 40) { FLSMBusGPIO_RxData0 = ((FLSMBusGPIO_RxData0 << 1) | rxBit); }
-			else if (numRxBit < 72) { FLSMBusGPIO_RxData1 = ((FLSMBusGPIO_RxData1 << 1) | rxBit); }
-			else if (numRxBit < 104) { FLSMBusGPIO_RxData2 = ((FLSMBusGPIO_RxData2 << 1) | rxBit); }
-			else return 999; // Overflow
-			numRxBit++;
+			set_GPIO_bit(FLS_CIN);
+			delay(GPIO_MBus_HalfCycle);
+
+			if (FLSMBusGPIO_getCout()==0) return 9999;
+
+			if (clockNotForwarded==0) {
+				if (numRxBit < 8) { FLSMBusGPIO_RxAddr = ((FLSMBusGPIO_RxAddr << 1) | rxBit); }
+				else if (numRxBit < 40) { FLSMBusGPIO_RxData0 = ((FLSMBusGPIO_RxData0 << 1) | rxBit); }
+				else if (numRxBit < 72) { FLSMBusGPIO_RxData1 = ((FLSMBusGPIO_RxData1 << 1) | rxBit); }
+				else if (numRxBit < 104) { FLSMBusGPIO_RxData2 = ((FLSMBusGPIO_RxData2 << 1) | rxBit); }
+				else return 999; // Overflow
+				numRxBit++;
+			}
+
+			if (isLast==1) break;
 		}
-
-		if (isLast==1) break;
 	}
 
+	// Interjection
 	FLSMBusGPIO_interjection();
 
-	kill_GPIO_bit(FLS_CIN); rxBit = FLSMBusGPIO_dataFwd(); delay(GPIO_MBus_HalfCycle);
-	set_GPIO_bit(FLS_CIN); delay(GPIO_MBus_HalfCycle);
+	// Control Bits
+	kill_GPIO_bit(FLS_CIN); 
+	rxBit = FLSMBusGPIO_dataFwd(); 
+	delay(GPIO_MBus_HalfCycle);
+	set_GPIO_bit(FLS_CIN); 
+	delay(GPIO_MBus_HalfCycle);
 
-	kill_GPIO_bit(FLS_CIN); rxBit = FLSMBusGPIO_dataFwd(); delay(GPIO_MBus_HalfCycle);
-	set_GPIO_bit(FLS_CIN); delay(GPIO_MBus_HalfCycle);
+	kill_GPIO_bit(FLS_CIN); 
+	rxBit = FLSMBusGPIO_dataFwd(); 
+	delay(GPIO_MBus_HalfCycle);
+	set_GPIO_bit(FLS_CIN); 
+	delay(GPIO_MBus_HalfCycle);
 
-	kill_GPIO_bit(FLS_CIN); kill_GPIO_bit(FLS_DIN); delay(GPIO_MBus_HalfCycle); // Acknowledge
-	set_GPIO_bit(FLS_CIN); delay(GPIO_MBus_HalfCycle);
+	kill_GPIO_bit(FLS_CIN); 
+	kill_GPIO_bit(FLS_DIN); 
+	delay(GPIO_MBus_HalfCycle); // Acknowledge
+	set_GPIO_bit(FLS_CIN); 
+	delay(GPIO_MBus_HalfCycle);
 
-	kill_GPIO_bit(FLS_CIN); set_GPIO_bit(FLS_DIN); delay(GPIO_MBus_HalfCycle);
-	set_GPIO_bit(FLS_CIN); delay(GPIO_MBus_HalfCycle);
+	kill_GPIO_bit(FLS_CIN); 
+	set_GPIO_bit(FLS_DIN); 
+	delay(GPIO_MBus_HalfCycle);
+	set_GPIO_bit(FLS_CIN); 
+	delay(GPIO_MBus_HalfCycle);
 
+	// Return the number of received bits
 	return numRxBit;
 }
 
@@ -296,15 +374,75 @@ void FLSMBusGPIO_forceStop () {
 
 	FLSMBusGPIO_interjection();
 
-	kill_GPIO_bit(FLS_CIN); rxBit = FLSMBusGPIO_dataFwd(); delay(GPIO_MBus_HalfCycle);
-	set_GPIO_bit(FLS_CIN); delay(GPIO_MBus_HalfCycle);
+	kill_GPIO_bit(FLS_CIN);
+	rxBit = FLSMBusGPIO_dataFwd();
+	delay(GPIO_MBus_HalfCycle);
+	set_GPIO_bit(FLS_CIN);
+	delay(GPIO_MBus_HalfCycle);
 
-	kill_GPIO_bit(FLS_CIN); rxBit = FLSMBusGPIO_dataFwd(); delay(GPIO_MBus_HalfCycle);
-	set_GPIO_bit(FLS_CIN); delay(GPIO_MBus_HalfCycle);
+	kill_GPIO_bit(FLS_CIN);
+	rxBit = FLSMBusGPIO_dataFwd();
+	delay(GPIO_MBus_HalfCycle);
+	set_GPIO_bit(FLS_CIN);
+	delay(GPIO_MBus_HalfCycle);
 
-	kill_GPIO_bit(FLS_CIN); kill_GPIO_bit(FLS_DIN); delay(GPIO_MBus_HalfCycle); // Acknowledge
-	set_GPIO_bit(FLS_CIN); delay(GPIO_MBus_HalfCycle);
+	kill_GPIO_bit(FLS_CIN);
+	kill_GPIO_bit(FLS_DIN);
+	delay(GPIO_MBus_HalfCycle); // Acknowledge
+	set_GPIO_bit(FLS_CIN);
+	delay(GPIO_MBus_HalfCycle);
 
-	kill_GPIO_bit(FLS_CIN); set_GPIO_bit(FLS_DIN); delay(GPIO_MBus_HalfCycle);
-	set_GPIO_bit(FLS_CIN); delay(GPIO_MBus_HalfCycle);
+	kill_GPIO_bit(FLS_CIN);
+	set_GPIO_bit(FLS_DIN);
+	delay(GPIO_MBus_HalfCycle);
+	set_GPIO_bit(FLS_CIN);
+	delay(GPIO_MBus_HalfCycle);
 }
+
+void FLSMBusGPIO_controlAck () {
+	volatile uint32_t rxBit;
+
+	// Control Bits
+	kill_GPIO_bit(FLS_CIN);
+	rxBit = FLSMBusGPIO_dataFwd();
+	delay(GPIO_MBus_HalfCycle);
+	set_GPIO_bit(FLS_CIN);
+	delay(GPIO_MBus_HalfCycle);
+
+	kill_GPIO_bit(FLS_CIN);
+	rxBit = FLSMBusGPIO_dataFwd();
+	delay(GPIO_MBus_HalfCycle);
+	set_GPIO_bit(FLS_CIN);
+	delay(GPIO_MBus_HalfCycle);
+
+	kill_GPIO_bit(FLS_CIN);
+	kill_GPIO_bit(FLS_DIN);
+	delay(GPIO_MBus_HalfCycle); // Acknowledge
+	set_GPIO_bit(FLS_CIN);
+	delay(GPIO_MBus_HalfCycle);
+
+	kill_GPIO_bit(FLS_CIN);
+	set_GPIO_bit(FLS_DIN);
+	delay(GPIO_MBus_HalfCycle);
+	set_GPIO_bit(FLS_CIN);
+	delay(GPIO_MBus_HalfCycle);
+}
+
+void FLSMBusGPIO_sendMBus31bit (volatile uint32_t short_prefix, volatile uint32_t data_0) {
+	data_0 = data_0 >> 1; // Drop the LSB
+	kill_GPIO_bit(FLS_DIN); // Pull-Down Data
+	delay(GPIO_MBus_HalfCycle);
+	FLSMBusGPIO_toggleCinDin (0x00000000, 3); // Arbitration Sequence
+	FLSMBusGPIO_toggleCinDin (short_prefix, 8); // Short Prefix
+	FLSMBusGPIO_toggleCinDin (data_0, 31); // Data
+}
+
+void FLSMBusGPIO_sendMBusLast1bit (volatile uint32_t short_prefix, volatile uint32_t data_0) {
+	volatile uint32_t last_data_bit = (0x00000001 & data_0);
+	volatile uint32_t tail_sequence = ((last_data_bit << 3) | 0x00000007); // EOM is always 1
+
+	FLSMBusGPIO_toggleCinDin (last_data_bit, 1); // Data
+	FLSMBusGPIO_interjection (); // Interjection
+	FLSMBusGPIO_toggleCinDin (tail_sequence, 4); // Tail Sequence
+}
+

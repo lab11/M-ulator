@@ -331,7 +331,7 @@ static void operation_temp(void){
     delay(MBUS_DELAY);
     write_mbus_register(SNS_ADDR,3,_sns_r3);
     
-    operation_sleep();
+    operation_sleep_notimer();
   }
 
   delay(MBUS_DELAY);

@@ -37,3 +37,6 @@ void set_GPIO_2bits(uint32_t loc0, uint32_t loc1){
 	GPIO_WRITE_ = (GPIO_WRITE_ | (1 << loc0) | (1 << loc1));
 	*GPIO_DATA_ = GPIO_WRITE_;
 }
+void set_GPIO_RAW(uint32_t raw_data){ 
+	*GPIO_DATA_ = raw_data;
+}

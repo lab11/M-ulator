@@ -1,0 +1,81 @@
+Pstack pass vs fail
+
+adds
+b.n
+beq.n
+bne.n
+cmp
+ldr
+ldrh
+lsls
+lsrs
+movs
+nop
+orrs
+pop
+push
+str
+bics
+strh
+bx lr
+
+
+
+
+
+SAME:
+<delay>
+<config_timer>
+<set_wakeup_timer>
+<enumerate>
+<sleep>
+<write_mbus_register>
+<read_mbus_register>
+<send_radio_data> .text.unlikely
+<ldo_power_off>
+<assert_cdc_reset>
+<cdc_power_off>
+<operation_sleep_noirqreset> .text.unlikely
+<operation_sleep>
+<operation_sleep_notimer>
+<operation_cdc_run>
+<handler_ext_int_0>
+<handler_ext_int_1>
+<handler_ext_int_2>
+<handler_ext_int_3>
+
+
+DIFFERENT:
+
+Only in Fail and NOT USED
+
+<WFI> (000000aa)
+    wfi
+
+<set_clkfreq> (00000110)
+    ands
+
+<write_config_reg> (0000008c)
+
+<pmu_div5_ovrd> (00000140)
+
+<pmu_div6_ovrd> (00000168)
+
+<pmu_set_force_wake> (00000194)
+
+<pon_reset> (000001b4)
+
+<sleep_req_by_sw> (000001be)
+
+<generate_ECC> (000001c8)
+    sub
+    eors
+    mov ip, r7
+
+<memcpy> (0000007a)
+    ldrb
+    strb
+
+<write_mbus_message> (00000370)
+
+<read_mbus_register_RADv4> (000003f0)

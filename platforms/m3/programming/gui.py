@@ -338,13 +338,13 @@ class Configuration(M3Gui):
 		self.select_user_btn.configure(state=Tk.DISABLED)
 		self.select_and_config_btn.configure(state=Tk.DISABLED)
 		self.listbox.delete(0, Tk.END)
+		self.users = []
 		if len(users) == 0:
-			self.status_label_text.set("No config files found. Create a "\
+			self.status_label_text.set("No user profiles found. Create a "\
 			"new one or change the search directory.")
 			self.new_user_btn.focus_set()
 		else:
 			self.status_label_text.set("Select user or create new user.")
-			self.users = []
 			for u in users:
 				u = os.path.splitext(os.path.basename(u))[0]
 				self.listbox.insert(Tk.END, u)
@@ -501,8 +501,9 @@ class Configuration(M3Gui):
 			if len(notes) < 10 or notes.strip() == default_notes:
 				tkMessageBox.showerror("No testing notes added",
 						"Please add some notes on what you are currently"\
-						" working on. Add some detail -- it may be important"\
-						" for you to be able to look this up in the future")
+						" working on. Add some detail (at least 10 characters)"\
+						" it may be important for you to be able to look this"\
+						" up in the future.")
 				return
 			self.ws_var.set(ws)
 			self.config.set('DEFAULT', 'workstation', ws)

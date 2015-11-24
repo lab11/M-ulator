@@ -418,11 +418,11 @@ class ICE(object):
         addr = msg[0:4]
         data = msg[4:-1]
         cb = ord(msg[-1:])
-        # 2 broadcast, 3 success / fail
-        broadcast = bool(cb & 0x4)
-        success = not(bool(cb & 0x8))
+        # status_bits <= `SD status_bits | {4'b0000, mbus_rxfail, mbus_rxbcast, ice_export_control_bits};
+        cb0 = bool(cb & 0x1)
+        cb1 = bool(cb & 0x2)
         try:
-            self.msg_handler[b_type](addr, data, broadcast, success)
+            self.msg_handler[b_type](addr, data, cb0, cb1)
         except TypeError:
             logger.debug("Type error")
             if not self.B_formatter_success_only or (success):
@@ -434,8 +434,7 @@ class ICE(object):
             logger.warn("Dropping message:")
             logger.warn("\taddr: " + addr.decode('hex'))
             logger.warn("\tdata: " + data.decode('hex'))
-            logger.warn("\tCB 0: " + control[0].decode('hex'))
-            logger.warn("\tCB 1: " + control[1].decode('hex'))
+            logger.warn("\tstat: " + cb.decode('hex'))
             logger.warn("")
 
 
@@ -451,6 +450,7 @@ class ICE(object):
 
         buf = struct.pack("BBB", ord(msg_type), self.event_id, length)
         self.event_id = (self.event_id + 1) % 256
+        logger.debug('Sending %s', (buf+msg).encode('hex'))
         self.dev.write(buf + msg)
 
         # Ugly hack so python allows keyboard interrupts
@@ -508,6 +508,7 @@ class ICE(object):
         if self.minor >= 2:
             logger.debug("ICE version supports capabilities, querying")
             self.ice_query_capabilities()
+            logger.debug("Capabilities: " + self.capabilities)
         else:
             logger.debug("Version 0.1 does not have capability support, skipping")
 
@@ -974,6 +975,21 @@ class ICE(object):
         msg = addr + data
         return self._fragment_sender('b', msg)
 
+    @min_proto_version("0.3")
+    @capability('m')
+    def mbus_set_internal_reset(self, assert_reset):
+        '''
+        Control signal that holds ICE internal MBus in reset.
+
+        While in reset, the COUT and DOUT signals are held high. This is useful
+        for bootstrapping when multiple ICE boards are in a loop.
+        '''
+        self.min_version(0.3)
+        self.send_message_until_acked('m', struct.pack("B"*(1+1),
+            ord('r'),
+            bool(assert_reset),
+            ))
+
     @min_proto_version("0.2")
     @capability('m')
     def mbus_set_full_prefix(self, prefix=None):
@@ -1043,12 +1059,10 @@ class ICE(object):
             if len(prefix) != 4:
                 raise self.FormatError, "Prefix must be exactly 4 bits"
             ones, zeros = self.string_to_masks(prefix)
-        ones <<= 4
-        zeros <<= 4
-        self.send_message_until_acked('m', struct.pack("B"*(1+2),
+
+        self.send_message_until_acked('m', struct.pack("B"*(1+1),
             ord('s'),
             ones,
-            zeros,
             ))
 
     @min_proto_version("0.2")
@@ -1069,100 +1083,38 @@ class ICE(object):
         else:
             return self.masks_to_strings(ones, zeros, 4)
 
-    @min_proto_version("0.2")
+    @min_proto_version("0.3")
     @capability('m')
-    def mbus_set_full_snoop_prefix(self, prefix=None):
+    def mbus_set_snoop(self, enable, filter_prefix=None):
         '''
-        Set the full snoop prefix(es) of the ICE peripheral.
-
-        The ICE board will report, but not ACK, any messages sent to any address
-        that matches the mask set by this function. The special character 'x' is
-        used to signify don't-care bits.
-
-        Spaces are permitted and ignored. To disable this feature, set the
-        address to None.
+        Enable snooping of all traffic. The optional filter runs in software to limit reported messages.
 
         Default Value: DISABLED.
         '''
-        self.min_version(0.2)
-        if prefix is None:
-            ones, zeros = (0xfffff, 0xfffff)
-        else:
-            if len(prefix) != 20:
-                raise self.FormatError, "Prefix must be exactly 20 bits"
-            ones, zeros = self.string_to_masks(prefix)
-        ones <<= 4
-        zeros <<= 4
-        self.send_message_until_acked('m', struct.pack("B"*(1+6),
-            ord('L'),
-            (ones >> 16) & 0xff,
-            (ones >> 8) & 0xff,
-            ones & 0xff,
-            (zeros >> 16) & 0xff,
-            (zeros >> 8) & 0xff,
-            zeros & 0xff,
-            ))
-
-    @min_proto_version("0.2")
-    @capability('M')
-    def mbus_get_full_snoop_prefix(self):
-        '''
-        Get the full snoop prefix(es) set for ICE.
-        '''
-        self.min_version(0.2)
-        resp = self.send_message_until_acked('M', struct.pack("B", ord('L')))
-        if len(resp) != 6:
-            raise self.FormatError, "Full prefix response should be 6 bytes"
-        o_hig, o_mid, o_low, z_hig, z_mid, z_low = struct.unpack("BBBBBB", resp)
-        ones = o_low | o_mid << 8 | o_hig << 16
-        zeros = z_low | z_mid << 8 | z_hig << 16
-        ones >>= 4
-        zeros >>= 4
-        if ones == 0xfffff and zeros == 0xfffff:
-            return None
-        else:
-            return self.masks_to_strings(ones, zeros, 20)
-
-    @min_proto_version("0.2")
-    @capability('m')
-    def mbus_set_short_snoop_prefix(self, prefix=None):
-        '''
-        Set the short snoop prefix(es) of the ICE peripheral.
-
-        Default Value: DISABLED.
-        '''
-        self.min_version(0.2)
-        if prefix is None:
-            ones, zeros = (0xf, 0xf)
-        else:
-            if len(prefix) != 4:
-                raise self.FormatError, "Prefix must be exactly 4 bits"
-            ones, zeros = self.string_to_masks(prefix)
-        ones <<= 4
-        zeros <<= 4
-        self.send_message_until_acked('m', struct.pack("B"*(1+2),
+        self.min_version(0.3)
+        enable = bool(enable)
+        if filter_prefix is not None:
+            raise NotImplementedError
+        self.send_message_until_acked('m', struct.pack("B"*(1+1),
             ord('S'),
-            ones,
-            zeros,
+            enable,
             ))
 
-    @min_proto_version("0.2")
+    @min_proto_version("0.3")
     @capability('M')
-    def mbus_get_short_snoop_prefix(self):
+    def mbus_get_snoop(self, return_filter=False):
         '''
-        Get the short prefix(es) set for ICE.
+        Return whether snooping is enabled.
         '''
-        self.min_version(0.2)
+        self.min_version(0.3)
         resp = self.send_message_until_acked('M', struct.pack("B", ord('S')))
-        if len(resp) != 2:
-            raise self.FormatError, "Full prefix response should be 2 bytes"
-        ones, zeros = struct.unpack("BB", resp)
-        ones >>= 4
-        zeros >>= 4
-        if ones == 0xf and zeros == 0xf:
-            return None
-        else:
-            return self.masks_to_strings(ones, zeros, 4)
+        if len(resp) != 1:
+            raise self.FormatError, "Snoop enabled response should be 1 byte"
+        enabled = bool(struct.unpack("B", resp))
+
+        if return_filter:
+            raise NotImplementedError
+        return enabled
 
     @min_proto_version("0.2")
     @capability('m')
