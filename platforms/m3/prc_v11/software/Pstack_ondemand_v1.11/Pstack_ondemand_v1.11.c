@@ -3,6 +3,8 @@
 //              ZhiYoong Foo
 //Description:  
 //              Mouse Implantation & CDC Measurement Code
+//				Revision 1.11
+//				- Changing CDC measurement options for parasitic cancellation
 //				Revision 1.10
 //				- Changes to correctly implement trigger 7
 //				- PMU sleep frequency increased during CDC operation
@@ -468,7 +470,7 @@ static void operation_init(void){
     // CDC Settings --------------------------------------
     // snsv6_r0
     snsv6_r0.CDCW_IRQ_EN	= 1;
-    snsv6_r0.CDCW_MODE_PAR	= 0;
+    snsv6_r0.CDCW_MODE_PAR	= 1; // Default: 1
     snsv6_r0.CDCW_RESETn 	= 0;
     write_mbus_register(SNS_ADDR,0,snsv6_r0.as_int);
     delay(MBUS_DELAY);
@@ -484,7 +486,7 @@ static void operation_init(void){
     delay(MBUS_DELAY);
   
     // snsv6_r17
-    snsv6_r17.CDC_LDO_CDC_CURRENT_2X  = 0x0;
+    snsv6_r17.CDC_LDO_CDC_CURRENT_2X  = 0;
   
     // Set ADC LDO to around 1.37V: 0x3//0x20
     snsv6_r17.ADC_LDO_ADC_VREF_MUX_SEL = 0x3;
@@ -653,12 +655,12 @@ static void operation_cdc_run(){
 		#endif
 
 		// Grab CDC Data
-			uint32_t read_data_reg4;
-			uint32_t read_data_reg6;
-		// CDCW_OUT0[23:0]
-		read_mbus_register(SNS_ADDR,4,0x15);
+			uint32_t read_data_reg7; // CMEAS_REV
+			uint32_t read_data_reg6; // CREF
+		// CDCW_OUT2[23:0]
+		read_mbus_register(SNS_ADDR,7,0x15);
 		delay(MBUS_DELAY);
-		read_data_reg4 = *((volatile uint32_t *) 0xA0001014);
+		read_data_reg7 = *((volatile uint32_t *) 0xA0001014);
 		// CDCW_OUT1[23:0]
 		read_mbus_register(SNS_ADDR,6,0x15);
 		delay(MBUS_DELAY);
@@ -669,7 +671,7 @@ static void operation_cdc_run(){
 		delay(MBUS_DELAY*20);
 		write_mbus_message(0x70, radio_tx_count);
 		delay(MBUS_DELAY*20);
-		write_mbus_message(0x74, read_data_reg4);
+		write_mbus_message(0x74, read_data_reg7);
 		delay(MBUS_DELAY*20);
 		write_mbus_message(0x76, read_data_reg6);
 		delay(MBUS_DELAY*10);
@@ -714,7 +716,7 @@ static void operation_cdc_run(){
 				exec_count++;
 				// Store results in memory; unless buffer is full
 				if (cdc_storage_count < CDC_STORAGE_SIZE){
-					cdc_storage[cdc_storage_count] = read_data_reg4;
+					cdc_storage[cdc_storage_count] = read_data_reg7;
 					cdc_storage_cref[cdc_storage_count] = read_data_reg6;
 					cdc_storage_cref_latest = read_data_reg6;
 					radio_tx_count = cdc_storage_count;
@@ -723,7 +725,7 @@ static void operation_cdc_run(){
 
 				// Optionally transmit the data
 				if (radio_tx_option){
-					send_radio_data_ppm(0, read_data_reg4);
+					send_radio_data_ppm(0, read_data_reg7);
 					delay(RADIO_PACKET_DELAY);
 					send_radio_data_ppm(1, read_data_reg6);
 					delay(MBUS_DELAY);
