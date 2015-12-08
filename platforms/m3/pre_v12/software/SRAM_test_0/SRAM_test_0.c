@@ -1,6 +1,7 @@
 //*******************************************************************
-//Author: Yu Zeng
-//Description: XO_test_0
+//Author: Yejoong Kim
+//Description: SRAM_test_0
+//             test the basic functionality of SRAM
 //*******************************************************************
 #include "PREv12.h"
 #include "mbus.h"
@@ -12,14 +13,14 @@
 // Global Variables
 //********************************************************************
 volatile uint32_t enumerated;
-volatile uint32_t gpio_rx_num;
+volatile uint32_t num_cyc;
 
 //*******************************************************************
 // INTERRUPT HANDLERS
 //*******************************************************************
 void init_interrupt (void) {
   *NVIC_ICPR = 0x1FFFF; //Clear All Pending Interrupts
-  *NVIC_ISER = 0x1FFFF; //Enable all interrupts
+  *NVIC_ISER = 0x0; //0x18000: Enable only GPIO
 }
 
 void handler_ext_int_0(void)  __attribute__ ((interrupt ("IRQ")));
@@ -64,134 +65,93 @@ void handler_ext_int_16(void) {/*GPIO*/     *NVIC_ICPR = (0x1 << 16); }
 void initialization (void) {
 
     enumerated = 0xDEADBEEF;
-
-    //Chip ID
-    write_regfile (REG_CHIP_ID, 0xDEAD);
-
-    // Notify the start of the program
-    mbus_write_message32(0xAA, 0xAAAAAAAA);
+    num_cyc = 0;
 
     //Set Halt
-    set_halt_until_mbus_rx();
+    //set_halt_until_mbus_rx();
+    set_halt_disable();
 
     //Enumeration
     mbus_enumerate(FLS_ADDR);
 
+	delay(5000);
+
+
     //Set Halt
-    set_halt_until_mbus_tx();
+    //set_halt_until_mbus_tx();
 }
+
+void cycle0(void) { mbus_write_message32(0xA0, num_cyc);}
+void cycle1(void) { mbus_write_message32(0xA1, num_cyc);}
+void cycle2(void) { mbus_write_message32(0xA2, num_cyc);}
+void cycle3(void) { mbus_write_message32(0xA3, num_cyc);}
+void cycle4(void) { mbus_write_message32(0xA4, num_cyc);}
+void cycle5(void) { mbus_write_message32(0xA5, num_cyc);}
+void cycle6(void) { mbus_write_message32(0xA6, num_cyc);}
+void cycle7(void) { mbus_write_message32(0xA7, num_cyc);}
+void cycle8(void) { mbus_write_message32(0xA8, num_cyc);}
+void cycle9(void) { mbus_write_message32(0xA9, num_cyc);}
+void cycle10(void) { mbus_write_message32(0xAA, num_cyc);}
+void cycle11(void) { mbus_write_message32(0xAB, num_cyc);}
+void cycle12(void) { mbus_write_message32(0xAC, num_cyc);}
+void cycle13(void) { mbus_write_message32(0xAD, num_cyc);}
+void cycle14(void) { mbus_write_message32(0xAE, num_cyc);}
+void cycle15(void) { mbus_write_message32(0xAF, num_cyc);}
 
 //********************************************************************
 // MAIN function starts here             
 //********************************************************************
 
 int main() {
+	uint32_t i;
 
     //Initialize Interrupts
-    init_interrupt();//cygwin.com/cygw
+    init_interrupt();
   
     // Initialization Sequence
     if (enumerated != 0xDEADBEEF) { 
         initialization(); // Enumeration.
     }
-//cygwin.com/cygw
 
+	for (i=0; i<100; i++) {
+		if (num_cyc == 0){
+			break;
+		}
+		else if ((i % 16) == 0) cycle0();
+		else if ((i % 16) == 1) cycle1();
+		else if ((i % 16) == 2) cycle2();
+		else if ((i % 16) == 3) cycle3();
+		else if ((i % 16) == 4) cycle4();
+		else if ((i % 16) == 5) cycle5();
+		else if ((i % 16) == 6) cycle6();
+		else if ((i % 16) == 7) cycle7();
+		else if ((i % 16) == 8) cycle8();
+		else if ((i % 16) == 9) cycle9();
+		else if ((i % 16) == 10) cycle10();
+		else if ((i % 16) == 11) cycle11();
+		else if ((i % 16) == 12) cycle12();
+		else if ((i % 16) == 13) cycle13();
+		else if ((i % 16) == 14) cycle14();
+		else if ((i % 16) == 15) cycle15();
 
+		num_cyc++;
+		delay(1000);
+	}
 
-// 0000_0000_000 1_000 0_11 00_0101
-// 0010C5 : Default
-
-// 0000_0000_000 1_000 0_11 10_0101
-// 0010E5
-// 1s
-
-// 0000_0000_000 1_000 0_11 10_0111
-// 0010E7
-// 300us
-
-// 0000_0000_000 1_000 0_11 10_0100
-// 0010E4
-// 1s
-
-// 0000_0000_000 1_000 0_11 01_0100
-// 0010D4
-//  clock 
-
-// to turn off
-// 0000_0000_000 1_000 0_11 00_0101
-// 0010C5
-
-	write_regfile (REG_XO_CONFIG, 0x0010E5);
-	delay(600000); // 1s
-	write_regfile (REG_XO_CONFIG, 0x0010E7);
-	delay(400000); // 300us
-	write_regfile (REG_XO_CONFIG, 0x0010E4);
-	delay(600000); // 1s
-	write_regfile (REG_XO_CONFIG, 0x0010D4);	
-
-    //mbus_write_message32(0xDD, 0xBBBBBBBB);
-//	while(1);
-	// clock
-
-    //Set Halt Mode
-    set_halt_until_mbus_tx();
-
-	*XOT_RESET = 0;
-	mbus_write_message32(0xDD, *REG_XOT_VAL);
-	delay(1021);
-	mbus_write_message32(0xDD, *REG_XOT_VAL);
-	delay(1021);
-	mbus_write_message32(0xDD, *REG_XOT_VAL);
-	delay(1021);
-	mbus_write_message32(0xDD, *REG_XOT_VAL);
-	delay(1021);
-	*XOT_RESET = 1;
-	mbus_write_message32(0xDD, *REG_XOT_VAL);
-	delay(1021);
-	mbus_write_message32(0xDD, *REG_XOT_VAL);
-	delay(1021);
-	mbus_write_message32(0xDD, *REG_XOT_VAL);
-	delay(1021);
-	*XOT_RESET = 0;
-	mbus_write_message32(0xDD, *REG_XOT_VAL);
-	delay(1021);
-	mbus_write_message32(0xDD, *REG_XOT_VAL);
-	delay(1021);
-	mbus_write_message32(0xDD, *REG_XOT_VAL);
-	delay(1021);
-	mbus_write_message32(0xDD, *REG_XOT_VAL);
-	delay(1021);
-	*XOT_RESET = 1;
-	mbus_write_message32(0xDD, *REG_XOT_VAL);
-	delay(1021);
-	mbus_write_message32(0xDD, *REG_XOT_VAL);
-	delay(1021);
-	
-
-
-
-    // Notify the end of the program
-    mbus_write_message32(0xDD, 0x0EA7F00D);
-
-	//set_wakeup_timer ( 3, 1, 1);
-
-	// XOT Counter
-	write_regfile (REG_XOT_CONFIG,     (1 /*IRQ_IN_SLEEP_ONLY */ << 16)
-						| (1 /* IRQ_EN */ << 15 )
-						| (32767 /* TSTAMP_SAT */ << 0)); // 15-bit counter (~1sec)
-	mbus_write_message32(0xDD, *REG_XOT_CONFIG);
-	*XOT_RESET = 0;
-	mbus_write_message32(0xDD, *REG_XOT_VAL);
-	delay(1021);
-	mbus_write_message32(0xDD, *REG_XOT_VAL);
-	delay(1021);
-	mbus_write_message32(0xDD, *REG_XOT_VAL);
-	delay(1021);
-//	while(1);
- 
-    mbus_sleep_all(); // Go to sleep
-    while(1);
+	if (num_cyc != 999) {
+		num_cyc++;
+    		mbus_write_message32(0xDD, 0x0EA7F00D);
+		//delay(1000);
+		delay(5000);
+		set_wakeup_timer (2, 1, 1);
+    		mbus_sleep_all();
+	}
+	else { 
+		mbus_write_message32(0xDD, 0x0EA7F00D);
+		//delay(1000);
+		delay(5000);
+    		while(1);
+	}
 
     return 1;
-
 }
