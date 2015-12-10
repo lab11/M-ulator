@@ -70,33 +70,35 @@ void initialization (void) {
     //Set Halt
     //set_halt_until_mbus_rx();
     set_halt_disable();
+    //delay(1000);
 
     //Enumeration
     mbus_enumerate(FLS_ADDR);
+    delay(1000);
 
-	delay(5000);
+	//delay(5000);
 
 
     //Set Halt
     //set_halt_until_mbus_tx();
 }
 
-void cycle0(void) { mbus_write_message32(0xA0, num_cyc);}
-void cycle1(void) { mbus_write_message32(0xA1, num_cyc);}
-void cycle2(void) { mbus_write_message32(0xA2, num_cyc);}
-void cycle3(void) { mbus_write_message32(0xA3, num_cyc);}
-void cycle4(void) { mbus_write_message32(0xA4, num_cyc);}
-void cycle5(void) { mbus_write_message32(0xA5, num_cyc);}
-void cycle6(void) { mbus_write_message32(0xA6, num_cyc);}
-void cycle7(void) { mbus_write_message32(0xA7, num_cyc);}
-void cycle8(void) { mbus_write_message32(0xA8, num_cyc);}
-void cycle9(void) { mbus_write_message32(0xA9, num_cyc);}
-void cycle10(void) { mbus_write_message32(0xAA, num_cyc);}
-void cycle11(void) { mbus_write_message32(0xAB, num_cyc);}
-void cycle12(void) { mbus_write_message32(0xAC, num_cyc);}
-void cycle13(void) { mbus_write_message32(0xAD, num_cyc);}
-void cycle14(void) { mbus_write_message32(0xAE, num_cyc);}
-void cycle15(void) { mbus_write_message32(0xAF, num_cyc);}
+void cycle0(void) { mbus_write_message32(0xA0, num_cyc); delay(100);}
+void cycle1(void) { mbus_write_message32(0xA1, num_cyc); delay(100);}
+void cycle2(void) { mbus_write_message32(0xA2, num_cyc); delay(100);}
+void cycle3(void) { mbus_write_message32(0xA3, num_cyc); delay(100);}
+void cycle4(void) { mbus_write_message32(0xA4, num_cyc); delay(100);}
+void cycle5(void) { mbus_write_message32(0xA5, num_cyc); delay(100);}
+void cycle6(void) { mbus_write_message32(0xA6, num_cyc); delay(100);}
+void cycle7(void) { mbus_write_message32(0xA7, num_cyc); delay(100);}
+void cycle8(void) { mbus_write_message32(0xA8, num_cyc); delay(100);}
+void cycle9(void) { mbus_write_message32(0xA9, num_cyc); delay(100);}
+void cycle10(void) { mbus_write_message32(0xAA, num_cyc); delay(100);}
+void cycle11(void) { mbus_write_message32(0xAB, num_cyc); delay(100);}
+void cycle12(void) { mbus_write_message32(0xAC, num_cyc); delay(100);}
+void cycle13(void) { mbus_write_message32(0xAD, num_cyc); delay(100);}
+void cycle14(void) { mbus_write_message32(0xAE, num_cyc); delay(100);}
+void cycle15(void) { mbus_write_message32(0xAF, num_cyc); delay(100);}
 
 //********************************************************************
 // MAIN function starts here             
@@ -141,15 +143,15 @@ int main() {
 	if (num_cyc != 999) {
 		num_cyc++;
     		mbus_write_message32(0xDD, 0x0EA7F00D);
-		//delay(1000);
-		delay(5000);
+		delay(100);
+		//delay(5000);
 		set_wakeup_timer (2, 1, 1);
     		mbus_sleep_all();
 	}
 	else { 
 		mbus_write_message32(0xDD, 0x0EA7F00D);
-		//delay(1000);
-		delay(5000);
+		delay(1000);
+		//delay(5000);
     		while(1);
 	}
 
