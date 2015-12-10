@@ -68,12 +68,12 @@ void initialization (void) {
     num_cyc = 0;
 
     //Set Halt
-//    set_halt_until_mbus_rx();
-    set_halt_until_mbus_tx();
-    //set_halt_disable();
+    //set_halt_until_mbus_rx();
+    //set_halt_until_mbus_tx();
+    set_halt_disable();
 //	write_regfile(REG_IRQ_CTRL, 0x0001A000);
 
-	//delay(1000);
+	delay(1000);
 
 	//mbus_write_message32(0xBB, 0xBBBBBBBB);
 	//delay(1000);
@@ -87,7 +87,7 @@ void initialization (void) {
 
 
     //Set Halt
-   // set_halt_until_mbus_tx();
+//    set_halt_until_mbus_tx();
 //	delay(1000);
 }
 

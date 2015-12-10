@@ -15,23 +15,23 @@ Disassembly of section .text:
 	...
   34:	00000090 	.word	0x00000090
 	...
-  40:	0000017d 	.word	0x0000017d
-  44:	00000189 	.word	0x00000189
-  48:	00000195 	.word	0x00000195
-  4c:	000001a1 	.word	0x000001a1
-  50:	000001ad 	.word	0x000001ad
-  54:	000001b9 	.word	0x000001b9
-  58:	000001c5 	.word	0x000001c5
-  5c:	000001d1 	.word	0x000001d1
-  60:	000001dd 	.word	0x000001dd
-  64:	000001ed 	.word	0x000001ed
-  68:	000001fd 	.word	0x000001fd
-  6c:	0000020d 	.word	0x0000020d
-  70:	0000021d 	.word	0x0000021d
-  74:	0000022d 	.word	0x0000022d
-  78:	0000023d 	.word	0x0000023d
-  7c:	0000024d 	.word	0x0000024d
-  80:	0000025d 	.word	0x0000025d
+  40:	00000175 	.word	0x00000175
+  44:	00000181 	.word	0x00000181
+  48:	0000018d 	.word	0x0000018d
+  4c:	00000199 	.word	0x00000199
+  50:	000001a5 	.word	0x000001a5
+  54:	000001b1 	.word	0x000001b1
+  58:	000001bd 	.word	0x000001bd
+  5c:	000001c9 	.word	0x000001c9
+  60:	000001d5 	.word	0x000001d5
+  64:	000001e5 	.word	0x000001e5
+  68:	000001f5 	.word	0x000001f5
+  6c:	00000205 	.word	0x00000205
+  70:	00000215 	.word	0x00000215
+  74:	00000225 	.word	0x00000225
+  78:	00000235 	.word	0x00000235
+  7c:	00000245 	.word	0x00000245
+  80:	00000255 	.word	0x00000255
 	...
 
 00000090 <hang>:
@@ -133,229 +133,229 @@ Disassembly of section .text.set_wakeup_timer:
  138:	a0000034 	.word	0xa0000034
  13c:	a0001300 	.word	0xa0001300
 
-Disassembly of section .text.set_halt_until_mbus_tx:
+Disassembly of section .text.set_halt_disable:
 
-00000140 <set_halt_until_mbus_tx>:
- 140:	4805      	ldr	r0, [pc, #20]	; (158 <set_halt_until_mbus_tx+0x18>)
- 142:	b508      	push	{r3, lr}
- 144:	6801      	ldr	r1, [r0, #0]
- 146:	4b05      	ldr	r3, [pc, #20]	; (15c <set_halt_until_mbus_tx+0x1c>)
- 148:	4019      	ands	r1, r3
- 14a:	23a0      	movs	r3, #160	; 0xa0
- 14c:	021b      	lsls	r3, r3, #8
- 14e:	4319      	orrs	r1, r3
- 150:	f7ff ffca 	bl	e8 <write_regfile>
- 154:	bd08      	pop	{r3, pc}
- 156:	46c0      	nop			; (mov r8, r8)
- 158:	a0000028 	.word	0xa0000028
- 15c:	ffff0fff 	.word	0xffff0fff
+00000140 <set_halt_disable>:
+ 140:	b508      	push	{r3, lr}
+ 142:	4804      	ldr	r0, [pc, #16]	; (154 <set_halt_disable+0x14>)
+ 144:	21f0      	movs	r1, #240	; 0xf0
+ 146:	6803      	ldr	r3, [r0, #0]
+ 148:	0209      	lsls	r1, r1, #8
+ 14a:	4319      	orrs	r1, r3
+ 14c:	f7ff ffcc 	bl	e8 <write_regfile>
+ 150:	bd08      	pop	{r3, pc}
+ 152:	46c0      	nop			; (mov r8, r8)
+ 154:	a0000028 	.word	0xa0000028
 
 Disassembly of section .text.init_interrupt:
 
-00000160 <init_interrupt>:
- 160:	4a03      	ldr	r2, [pc, #12]	; (170 <init_interrupt+0x10>)
- 162:	4b04      	ldr	r3, [pc, #16]	; (174 <init_interrupt+0x14>)
- 164:	601a      	str	r2, [r3, #0]
- 166:	4b04      	ldr	r3, [pc, #16]	; (178 <init_interrupt+0x18>)
- 168:	2200      	movs	r2, #0
- 16a:	601a      	str	r2, [r3, #0]
- 16c:	4770      	bx	lr
- 16e:	46c0      	nop			; (mov r8, r8)
- 170:	0001ffff 	.word	0x0001ffff
- 174:	e000e280 	.word	0xe000e280
- 178:	e000e100 	.word	0xe000e100
+00000158 <init_interrupt>:
+ 158:	4a03      	ldr	r2, [pc, #12]	; (168 <init_interrupt+0x10>)
+ 15a:	4b04      	ldr	r3, [pc, #16]	; (16c <init_interrupt+0x14>)
+ 15c:	601a      	str	r2, [r3, #0]
+ 15e:	4b04      	ldr	r3, [pc, #16]	; (170 <init_interrupt+0x18>)
+ 160:	2200      	movs	r2, #0
+ 162:	601a      	str	r2, [r3, #0]
+ 164:	4770      	bx	lr
+ 166:	46c0      	nop			; (mov r8, r8)
+ 168:	0001ffff 	.word	0x0001ffff
+ 16c:	e000e280 	.word	0xe000e280
+ 170:	e000e100 	.word	0xe000e100
 
 Disassembly of section .text.handler_ext_int_0:
 
-0000017c <handler_ext_int_0>:
- 17c:	4b01      	ldr	r3, [pc, #4]	; (184 <handler_ext_int_0+0x8>)
- 17e:	2201      	movs	r2, #1
- 180:	601a      	str	r2, [r3, #0]
- 182:	4770      	bx	lr
- 184:	e000e280 	.word	0xe000e280
+00000174 <handler_ext_int_0>:
+ 174:	4b01      	ldr	r3, [pc, #4]	; (17c <handler_ext_int_0+0x8>)
+ 176:	2201      	movs	r2, #1
+ 178:	601a      	str	r2, [r3, #0]
+ 17a:	4770      	bx	lr
+ 17c:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_1:
 
-00000188 <handler_ext_int_1>:
- 188:	4b01      	ldr	r3, [pc, #4]	; (190 <handler_ext_int_1+0x8>)
- 18a:	2202      	movs	r2, #2
- 18c:	601a      	str	r2, [r3, #0]
- 18e:	4770      	bx	lr
- 190:	e000e280 	.word	0xe000e280
+00000180 <handler_ext_int_1>:
+ 180:	4b01      	ldr	r3, [pc, #4]	; (188 <handler_ext_int_1+0x8>)
+ 182:	2202      	movs	r2, #2
+ 184:	601a      	str	r2, [r3, #0]
+ 186:	4770      	bx	lr
+ 188:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_2:
 
-00000194 <handler_ext_int_2>:
- 194:	4b01      	ldr	r3, [pc, #4]	; (19c <handler_ext_int_2+0x8>)
- 196:	2204      	movs	r2, #4
- 198:	601a      	str	r2, [r3, #0]
- 19a:	4770      	bx	lr
- 19c:	e000e280 	.word	0xe000e280
+0000018c <handler_ext_int_2>:
+ 18c:	4b01      	ldr	r3, [pc, #4]	; (194 <handler_ext_int_2+0x8>)
+ 18e:	2204      	movs	r2, #4
+ 190:	601a      	str	r2, [r3, #0]
+ 192:	4770      	bx	lr
+ 194:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_3:
 
-000001a0 <handler_ext_int_3>:
- 1a0:	4b01      	ldr	r3, [pc, #4]	; (1a8 <handler_ext_int_3+0x8>)
- 1a2:	2208      	movs	r2, #8
- 1a4:	601a      	str	r2, [r3, #0]
- 1a6:	4770      	bx	lr
- 1a8:	e000e280 	.word	0xe000e280
+00000198 <handler_ext_int_3>:
+ 198:	4b01      	ldr	r3, [pc, #4]	; (1a0 <handler_ext_int_3+0x8>)
+ 19a:	2208      	movs	r2, #8
+ 19c:	601a      	str	r2, [r3, #0]
+ 19e:	4770      	bx	lr
+ 1a0:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_4:
 
-000001ac <handler_ext_int_4>:
- 1ac:	4b01      	ldr	r3, [pc, #4]	; (1b4 <handler_ext_int_4+0x8>)
- 1ae:	2210      	movs	r2, #16
- 1b0:	601a      	str	r2, [r3, #0]
- 1b2:	4770      	bx	lr
- 1b4:	e000e280 	.word	0xe000e280
+000001a4 <handler_ext_int_4>:
+ 1a4:	4b01      	ldr	r3, [pc, #4]	; (1ac <handler_ext_int_4+0x8>)
+ 1a6:	2210      	movs	r2, #16
+ 1a8:	601a      	str	r2, [r3, #0]
+ 1aa:	4770      	bx	lr
+ 1ac:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_5:
 
-000001b8 <handler_ext_int_5>:
- 1b8:	4b01      	ldr	r3, [pc, #4]	; (1c0 <handler_ext_int_5+0x8>)
- 1ba:	2220      	movs	r2, #32
- 1bc:	601a      	str	r2, [r3, #0]
- 1be:	4770      	bx	lr
- 1c0:	e000e280 	.word	0xe000e280
+000001b0 <handler_ext_int_5>:
+ 1b0:	4b01      	ldr	r3, [pc, #4]	; (1b8 <handler_ext_int_5+0x8>)
+ 1b2:	2220      	movs	r2, #32
+ 1b4:	601a      	str	r2, [r3, #0]
+ 1b6:	4770      	bx	lr
+ 1b8:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_6:
 
-000001c4 <handler_ext_int_6>:
- 1c4:	4b01      	ldr	r3, [pc, #4]	; (1cc <handler_ext_int_6+0x8>)
- 1c6:	2240      	movs	r2, #64	; 0x40
- 1c8:	601a      	str	r2, [r3, #0]
- 1ca:	4770      	bx	lr
- 1cc:	e000e280 	.word	0xe000e280
+000001bc <handler_ext_int_6>:
+ 1bc:	4b01      	ldr	r3, [pc, #4]	; (1c4 <handler_ext_int_6+0x8>)
+ 1be:	2240      	movs	r2, #64	; 0x40
+ 1c0:	601a      	str	r2, [r3, #0]
+ 1c2:	4770      	bx	lr
+ 1c4:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_7:
 
-000001d0 <handler_ext_int_7>:
- 1d0:	4b01      	ldr	r3, [pc, #4]	; (1d8 <handler_ext_int_7+0x8>)
- 1d2:	2280      	movs	r2, #128	; 0x80
- 1d4:	601a      	str	r2, [r3, #0]
- 1d6:	4770      	bx	lr
- 1d8:	e000e280 	.word	0xe000e280
+000001c8 <handler_ext_int_7>:
+ 1c8:	4b01      	ldr	r3, [pc, #4]	; (1d0 <handler_ext_int_7+0x8>)
+ 1ca:	2280      	movs	r2, #128	; 0x80
+ 1cc:	601a      	str	r2, [r3, #0]
+ 1ce:	4770      	bx	lr
+ 1d0:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_8:
 
-000001dc <handler_ext_int_8>:
- 1dc:	4b02      	ldr	r3, [pc, #8]	; (1e8 <handler_ext_int_8+0xc>)
- 1de:	2280      	movs	r2, #128	; 0x80
- 1e0:	0052      	lsls	r2, r2, #1
- 1e2:	601a      	str	r2, [r3, #0]
- 1e4:	4770      	bx	lr
- 1e6:	46c0      	nop			; (mov r8, r8)
- 1e8:	e000e280 	.word	0xe000e280
+000001d4 <handler_ext_int_8>:
+ 1d4:	4b02      	ldr	r3, [pc, #8]	; (1e0 <handler_ext_int_8+0xc>)
+ 1d6:	2280      	movs	r2, #128	; 0x80
+ 1d8:	0052      	lsls	r2, r2, #1
+ 1da:	601a      	str	r2, [r3, #0]
+ 1dc:	4770      	bx	lr
+ 1de:	46c0      	nop			; (mov r8, r8)
+ 1e0:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_9:
 
-000001ec <handler_ext_int_9>:
- 1ec:	4b02      	ldr	r3, [pc, #8]	; (1f8 <handler_ext_int_9+0xc>)
- 1ee:	2280      	movs	r2, #128	; 0x80
- 1f0:	0092      	lsls	r2, r2, #2
- 1f2:	601a      	str	r2, [r3, #0]
- 1f4:	4770      	bx	lr
- 1f6:	46c0      	nop			; (mov r8, r8)
- 1f8:	e000e280 	.word	0xe000e280
+000001e4 <handler_ext_int_9>:
+ 1e4:	4b02      	ldr	r3, [pc, #8]	; (1f0 <handler_ext_int_9+0xc>)
+ 1e6:	2280      	movs	r2, #128	; 0x80
+ 1e8:	0092      	lsls	r2, r2, #2
+ 1ea:	601a      	str	r2, [r3, #0]
+ 1ec:	4770      	bx	lr
+ 1ee:	46c0      	nop			; (mov r8, r8)
+ 1f0:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_10:
 
-000001fc <handler_ext_int_10>:
- 1fc:	4b02      	ldr	r3, [pc, #8]	; (208 <handler_ext_int_10+0xc>)
- 1fe:	2280      	movs	r2, #128	; 0x80
- 200:	00d2      	lsls	r2, r2, #3
- 202:	601a      	str	r2, [r3, #0]
- 204:	4770      	bx	lr
- 206:	46c0      	nop			; (mov r8, r8)
- 208:	e000e280 	.word	0xe000e280
+000001f4 <handler_ext_int_10>:
+ 1f4:	4b02      	ldr	r3, [pc, #8]	; (200 <handler_ext_int_10+0xc>)
+ 1f6:	2280      	movs	r2, #128	; 0x80
+ 1f8:	00d2      	lsls	r2, r2, #3
+ 1fa:	601a      	str	r2, [r3, #0]
+ 1fc:	4770      	bx	lr
+ 1fe:	46c0      	nop			; (mov r8, r8)
+ 200:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_11:
 
-0000020c <handler_ext_int_11>:
- 20c:	4b02      	ldr	r3, [pc, #8]	; (218 <handler_ext_int_11+0xc>)
- 20e:	2280      	movs	r2, #128	; 0x80
- 210:	0112      	lsls	r2, r2, #4
- 212:	601a      	str	r2, [r3, #0]
- 214:	4770      	bx	lr
- 216:	46c0      	nop			; (mov r8, r8)
- 218:	e000e280 	.word	0xe000e280
+00000204 <handler_ext_int_11>:
+ 204:	4b02      	ldr	r3, [pc, #8]	; (210 <handler_ext_int_11+0xc>)
+ 206:	2280      	movs	r2, #128	; 0x80
+ 208:	0112      	lsls	r2, r2, #4
+ 20a:	601a      	str	r2, [r3, #0]
+ 20c:	4770      	bx	lr
+ 20e:	46c0      	nop			; (mov r8, r8)
+ 210:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_12:
 
-0000021c <handler_ext_int_12>:
- 21c:	4b02      	ldr	r3, [pc, #8]	; (228 <handler_ext_int_12+0xc>)
- 21e:	2280      	movs	r2, #128	; 0x80
- 220:	0152      	lsls	r2, r2, #5
- 222:	601a      	str	r2, [r3, #0]
- 224:	4770      	bx	lr
- 226:	46c0      	nop			; (mov r8, r8)
- 228:	e000e280 	.word	0xe000e280
+00000214 <handler_ext_int_12>:
+ 214:	4b02      	ldr	r3, [pc, #8]	; (220 <handler_ext_int_12+0xc>)
+ 216:	2280      	movs	r2, #128	; 0x80
+ 218:	0152      	lsls	r2, r2, #5
+ 21a:	601a      	str	r2, [r3, #0]
+ 21c:	4770      	bx	lr
+ 21e:	46c0      	nop			; (mov r8, r8)
+ 220:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_13:
 
-0000022c <handler_ext_int_13>:
- 22c:	4b02      	ldr	r3, [pc, #8]	; (238 <handler_ext_int_13+0xc>)
- 22e:	2280      	movs	r2, #128	; 0x80
- 230:	0192      	lsls	r2, r2, #6
- 232:	601a      	str	r2, [r3, #0]
- 234:	4770      	bx	lr
- 236:	46c0      	nop			; (mov r8, r8)
- 238:	e000e280 	.word	0xe000e280
+00000224 <handler_ext_int_13>:
+ 224:	4b02      	ldr	r3, [pc, #8]	; (230 <handler_ext_int_13+0xc>)
+ 226:	2280      	movs	r2, #128	; 0x80
+ 228:	0192      	lsls	r2, r2, #6
+ 22a:	601a      	str	r2, [r3, #0]
+ 22c:	4770      	bx	lr
+ 22e:	46c0      	nop			; (mov r8, r8)
+ 230:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_14:
 
-0000023c <handler_ext_int_14>:
- 23c:	4b02      	ldr	r3, [pc, #8]	; (248 <handler_ext_int_14+0xc>)
- 23e:	2280      	movs	r2, #128	; 0x80
- 240:	01d2      	lsls	r2, r2, #7
- 242:	601a      	str	r2, [r3, #0]
- 244:	4770      	bx	lr
- 246:	46c0      	nop			; (mov r8, r8)
- 248:	e000e280 	.word	0xe000e280
+00000234 <handler_ext_int_14>:
+ 234:	4b02      	ldr	r3, [pc, #8]	; (240 <handler_ext_int_14+0xc>)
+ 236:	2280      	movs	r2, #128	; 0x80
+ 238:	01d2      	lsls	r2, r2, #7
+ 23a:	601a      	str	r2, [r3, #0]
+ 23c:	4770      	bx	lr
+ 23e:	46c0      	nop			; (mov r8, r8)
+ 240:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_15:
 
-0000024c <handler_ext_int_15>:
- 24c:	4b02      	ldr	r3, [pc, #8]	; (258 <handler_ext_int_15+0xc>)
- 24e:	2280      	movs	r2, #128	; 0x80
- 250:	0212      	lsls	r2, r2, #8
- 252:	601a      	str	r2, [r3, #0]
- 254:	4770      	bx	lr
- 256:	46c0      	nop			; (mov r8, r8)
- 258:	e000e280 	.word	0xe000e280
+00000244 <handler_ext_int_15>:
+ 244:	4b02      	ldr	r3, [pc, #8]	; (250 <handler_ext_int_15+0xc>)
+ 246:	2280      	movs	r2, #128	; 0x80
+ 248:	0212      	lsls	r2, r2, #8
+ 24a:	601a      	str	r2, [r3, #0]
+ 24c:	4770      	bx	lr
+ 24e:	46c0      	nop			; (mov r8, r8)
+ 250:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_16:
 
-0000025c <handler_ext_int_16>:
- 25c:	4b02      	ldr	r3, [pc, #8]	; (268 <handler_ext_int_16+0xc>)
- 25e:	2280      	movs	r2, #128	; 0x80
- 260:	0252      	lsls	r2, r2, #9
- 262:	601a      	str	r2, [r3, #0]
- 264:	4770      	bx	lr
- 266:	46c0      	nop			; (mov r8, r8)
- 268:	e000e280 	.word	0xe000e280
+00000254 <handler_ext_int_16>:
+ 254:	4b02      	ldr	r3, [pc, #8]	; (260 <handler_ext_int_16+0xc>)
+ 256:	2280      	movs	r2, #128	; 0x80
+ 258:	0252      	lsls	r2, r2, #9
+ 25a:	601a      	str	r2, [r3, #0]
+ 25c:	4770      	bx	lr
+ 25e:	46c0      	nop			; (mov r8, r8)
+ 260:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.initialization:
 
-0000026c <initialization>:
- 26c:	b508      	push	{r3, lr}
- 26e:	4a08      	ldr	r2, [pc, #32]	; (290 <initialization+0x24>)
- 270:	4b08      	ldr	r3, [pc, #32]	; (294 <initialization+0x28>)
- 272:	601a      	str	r2, [r3, #0]
- 274:	4b08      	ldr	r3, [pc, #32]	; (298 <initialization+0x2c>)
- 276:	2200      	movs	r2, #0
- 278:	601a      	str	r2, [r3, #0]
- 27a:	f7ff ff61 	bl	140 <set_halt_until_mbus_tx>
- 27e:	2004      	movs	r0, #4
- 280:	f7ff ff1a 	bl	b8 <mbus_enumerate>
- 284:	20fa      	movs	r0, #250	; 0xfa
- 286:	0080      	lsls	r0, r0, #2
+00000264 <initialization>:
+ 264:	4b0a      	ldr	r3, [pc, #40]	; (290 <initialization+0x2c>)
+ 266:	4a0b      	ldr	r2, [pc, #44]	; (294 <initialization+0x30>)
+ 268:	b510      	push	{r4, lr}
+ 26a:	601a      	str	r2, [r3, #0]
+ 26c:	24fa      	movs	r4, #250	; 0xfa
+ 26e:	4b0a      	ldr	r3, [pc, #40]	; (298 <initialization+0x34>)
+ 270:	2200      	movs	r2, #0
+ 272:	00a4      	lsls	r4, r4, #2
+ 274:	601a      	str	r2, [r3, #0]
+ 276:	f7ff ff63 	bl	140 <set_halt_disable>
+ 27a:	1c20      	adds	r0, r4, #0
+ 27c:	f7ff ff2c 	bl	d8 <delay>
+ 280:	2004      	movs	r0, #4
+ 282:	f7ff ff19 	bl	b8 <mbus_enumerate>
+ 286:	1c20      	adds	r0, r4, #0
  288:	f7ff ff26 	bl	d8 <delay>
- 28c:	bd08      	pop	{r3, pc}
+ 28c:	bd10      	pop	{r4, pc}
  28e:	46c0      	nop			; (mov r8, r8)
- 290:	deadbeef 	.word	0xdeadbeef
- 294:	00000594 	.word	0x00000594
+ 290:	00000594 	.word	0x00000594
+ 294:	deadbeef 	.word	0xdeadbeef
  298:	00000590 	.word	0x00000590
 
 Disassembly of section .text.cycle0:
@@ -602,13 +602,13 @@ Disassembly of section .text.startup.main:
 
 0000045c <main>:
  45c:	b538      	push	{r3, r4, r5, lr}
- 45e:	f7ff fe7f 	bl	160 <init_interrupt>
+ 45e:	f7ff fe7b 	bl	158 <init_interrupt>
  462:	4b45      	ldr	r3, [pc, #276]	; (578 <main+0x11c>)
  464:	681a      	ldr	r2, [r3, #0]
  466:	4b45      	ldr	r3, [pc, #276]	; (57c <main+0x120>)
  468:	429a      	cmp	r2, r3
  46a:	d001      	beq.n	470 <main+0x14>
- 46c:	f7ff fefe 	bl	26c <initialization>
+ 46c:	f7ff fefa 	bl	264 <initialization>
  470:	2400      	movs	r4, #0
  472:	4d43      	ldr	r5, [pc, #268]	; (580 <main+0x124>)
  474:	682b      	ldr	r3, [r5, #0]
