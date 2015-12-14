@@ -5,30 +5,19 @@ dist: trusty
 
 before_install:
     - sudo apt-get update
-    - sudo apt-get install -qq libfuse-dev python-dev gcc-arm-none-eabi
-    - sudo pip install sh
-
-## From http://stackoverflow.com/q/22111549 second answer
-#install:
-#    - if [ "$CC" = "gcc" ]; then export CC="gcc-4.8"; HACK=`which cc`; sudo rm $HACK; sudo ln -s `which gcc-4.8` $HACK; fi
-#
-#addons:
-#    apt:
-#        sources:
-#            - ubuntu-toolchain-r-test
-#        packages:
-#            - gcc-4.8
+    - sudo apt-get install -qq libfuse-dev python-dev gcc-arm-none-eabi python3-pip
+    - pip install --user git+https://github.com/ppannuto/sh.git@fix_pushd
+    - pip3 install --user git+https://github.com/ppannuto/sh.git@fix_pushd
 
 before_script:
-    - git clone https://github.com/ppannuto/tup.git
+    - git clone https://github.com/gittup/tup.git
     - cd tup
-    - git checkout generate_expand_groups 
     - ./build.sh
     - ./build/tup generate gen.sh
     - ./gen.sh
+    - mkdir -p bin && cp tup bin/
+    - PATH="$PWD/bin:$PATH"
     - cd ..
 
 script:
-    - cd simulator
-    - ../tup/tup generate build.sh --config configs/373-release
-    - ./build.sh
+    - ./ci_tests.py
