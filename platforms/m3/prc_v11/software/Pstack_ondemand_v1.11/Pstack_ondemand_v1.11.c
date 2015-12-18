@@ -65,12 +65,12 @@
 #define HRV_ADDR 0x6
 
 // CDC parameters
-#define	MBUS_DELAY 50 //Amount of delay between successive messages; 100: 6-7ms
+#define	MBUS_DELAY 30 //Amount of delay between successive messages; 100: 6-7ms
 #define	LDO_DELAY 500 // 1000: 150msec
 #define CDC_TIMEOUT_COUNT 500
 #define WAKEUP_PERIOD_RESET 2
 #define WAKEUP_PERIOD_LDO 1
-#define CDC_CYCLE_INIT 4
+#define CDC_CYCLE_INIT 2
 
 // Pstack states
 #define	PSTK_IDLE       0x0
@@ -81,7 +81,7 @@
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 24
-#define RADIO_PACKET_DELAY 2000
+#define RADIO_PACKET_DELAY 3000
 #define RADIO_TIMEOUT_COUNT 500
 #define WAKEUP_PERIOD_RADIO_INIT 3
 
@@ -90,7 +90,7 @@
 #define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 
-#define CDC_STORAGE_SIZE 70 // FIXME
+#define CDC_STORAGE_SIZE 60 // FIXME
 
 //***************************************************
 // Global variables
@@ -655,16 +655,26 @@ static void operation_cdc_run(){
 		#endif
 
 		// Grab CDC Data
-			uint32_t read_data_reg7; // CMEAS_REV
-			uint32_t read_data_reg6; // CREF
-		// CDCW_OUT2[23:0]
+    	uint32_t read_data_reg4; // CONFIG 0; CMEAS
+    	uint32_t read_data_reg6; // CONFIG 1; CREF
+    	uint32_t read_data_reg7; // CONFIG 2; CMEAS reverse
+    	uint32_t read_data_reg9; // CONFIG 4; CPAR
+    	uint32_t read_data;      // Read data after parasitic cancellation
+
+		read_mbus_register(SNS_ADDR,9,0x15);
+		delay(MBUS_DELAY);
+		read_data_reg9 = *((volatile uint32_t *) 0xA0001014);
 		read_mbus_register(SNS_ADDR,7,0x15);
 		delay(MBUS_DELAY);
 		read_data_reg7 = *((volatile uint32_t *) 0xA0001014);
-		// CDCW_OUT1[23:0]
 		read_mbus_register(SNS_ADDR,6,0x15);
 		delay(MBUS_DELAY);
 		read_data_reg6 = *((volatile uint32_t *) 0xA0001014);
+		read_mbus_register(SNS_ADDR,4,0x15);
+		delay(MBUS_DELAY);
+		read_data_reg4 = *((volatile uint32_t *) 0xA0001014);
+		
+		read_data = (read_data_reg4+read_data_reg7-read_data_reg9)/2;
 
 	#ifdef DEBUG_MBUS_MSG
 		write_mbus_message(0x70, radio_tx_count);
@@ -716,7 +726,7 @@ static void operation_cdc_run(){
 				exec_count++;
 				// Store results in memory; unless buffer is full
 				if (cdc_storage_count < CDC_STORAGE_SIZE){
-					cdc_storage[cdc_storage_count] = read_data_reg7;
+					cdc_storage[cdc_storage_count] = read_data;
 					cdc_storage_cref[cdc_storage_count] = read_data_reg6;
 					cdc_storage_cref_latest = read_data_reg6;
 					radio_tx_count = cdc_storage_count;
@@ -725,15 +735,20 @@ static void operation_cdc_run(){
 
 				// Optionally transmit the data
 				if (radio_tx_option){
+					send_radio_data_ppm(0, read_data_reg4);
+					delay(RADIO_PACKET_DELAY);
+					send_radio_data_ppm(0, read_data_reg6);
+					delay(RADIO_PACKET_DELAY);
 					send_radio_data_ppm(0, read_data_reg7);
 					delay(RADIO_PACKET_DELAY);
-					send_radio_data_ppm(1, read_data_reg6);
+					send_radio_data_ppm(0, read_data_reg9);
 					delay(MBUS_DELAY);
 				}
 
 				// Enter long sleep
 				if(exec_count < CDC_CYCLE_INIT){
 					// Send some signal
+					delay(RADIO_PACKET_DELAY);
 					send_radio_data_ppm(1, 0xFAF000);
 					set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
 
@@ -743,6 +758,7 @@ static void operation_cdc_run(){
 
 				// Make sure Radio is off
 				if (radio_on){
+					radio_ready = 0;
 					radio_power_off();
 				}
 

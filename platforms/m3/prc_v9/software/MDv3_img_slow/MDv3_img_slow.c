@@ -416,9 +416,9 @@ int main() {
 
 	// Capture a single image
 	
-	//while (1){
+	while (1){
 	  capture_image_single();
-	//}
+	}
 	
 	poweroff_array_adc();
 
