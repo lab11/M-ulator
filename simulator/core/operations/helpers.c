@@ -67,11 +67,11 @@ void AddWithCarry(uint32_t x, uint32_t y, bool carry_in,
 		uint32_t *result, bool *carry_out, bool *overflow_out) {
 	uint64_t ux64 = x;
 	uint64_t uy64 = y;
-	int64_t  sx64 = x;
-	int64_t  sy64 = y;
+	int64_t  sx64 = (int32_t) x;
+	int64_t  sy64 = (int32_t) y;
 
-	uint64_t usum = ux64 + uy64 + carry_in;
-	int64_t  ssum = sx64 + sy64 + carry_in;
+	uint64_t usum = ux64 + uy64 + ((uint64_t) carry_in);
+	int64_t  ssum = sx64 + sy64 + (( int64_t) carry_in);
 
 	*result = usum;
 
