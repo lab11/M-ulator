@@ -43,17 +43,37 @@
 #define REG_MBUS_THRES  ((volatile uint32_t *) 0xA0000024)
 #define REG_IRQ_CTRL    ((volatile uint32_t *) 0xA0000028)
 #define REG_CLKGEN_TUNE ((volatile uint32_t *) 0xA000002C)
-#define REG_SRAM_TUNE   ((volatile uint32_t *) 0xA0000030)
-#define REG_WUPT_CONFIG ((volatile uint32_t *) 0xA0000034)
-#define REG_WUPT_VAL    ((volatile uint32_t *) 0xA0000038)
+#define REG_XO_CONFIG   ((volatile uint32_t *) 0xA0000030)
+#define REG_SRAM_TUNE   ((volatile uint32_t *) 0xA0000034)
+#define REG_GOC_TIMEOUT ((volatile uint32_t *) 0xA0000038)
 #define REG_GOCEP_FLAG  ((volatile uint32_t *) 0xA000003C)
 #define REG_RUN_CPU     ((volatile uint32_t *) 0xA0000040)
-#define REG_MBUS_FLAG   ((volatile uint32_t *) 0xA0000044)
-#define REG_XO_CONFIG   ((volatile uint32_t *) 0xA0000094)
-#define REG_XOT_CONFIG  ((volatile uint32_t *) 0xA0000098)
-#define REG_XOT_VAL     ((volatile uint32_t *) 0xA000009C)
-#define REG_CPS         ((volatile uint32_t *) 0xA00000A0)
-#define REG_PAD_EN      ((volatile uint32_t *) 0xA00000A4)
+#define REG_WUPT_CONFIG ((volatile uint32_t *) 0xA0000044)
+#define REG_WUPT_VAL    ((volatile uint32_t *) 0xA0000048)
+#define REG_XOT_CONFIG  ((volatile uint32_t *) 0xA000004C)
+#define REG_XOT_CONFIGU ((volatile uint32_t *) 0xA0000050)
+#define REG_XOT_VAL_L   ((volatile uint32_t *) 0xA0000054)
+#define REG_XOT_VAL_U   ((volatile uint32_t *) 0xA0000058)
+#define REG_CPS         ((volatile uint32_t *) 0xA000005C)
+#define REG_PAD_EN      ((volatile uint32_t *) 0xA0000060)
+#define REG_CLK_OUT_SEL ((volatile uint32_t *) 0xA0000064)
+#define REG_STR3_BUFL   ((volatile uint32_t *) 0xA0000084)
+#define REG_STR3_BUFU   ((volatile uint32_t *) 0xA0000088)
+#define REG_STR3_EN     ((volatile uint32_t *) 0xA000008C)
+#define REG_STR3_OFF    ((volatile uint32_t *) 0xA0000090)
+#define REG_STR2_BUFL   ((volatile uint32_t *) 0xA0000094)
+#define REG_STR2_BUFU   ((volatile uint32_t *) 0xA0000098)
+#define REG_STR2_EN     ((volatile uint32_t *) 0xA000009C)
+#define REG_STR2_OFF    ((volatile uint32_t *) 0xA00000A0)
+#define REG_STR1_BUFL   ((volatile uint32_t *) 0xA00000A4)
+#define REG_STR1_BUFU   ((volatile uint32_t *) 0xA00000A8)
+#define REG_STR1_EN     ((volatile uint32_t *) 0xA00000AC)
+#define REG_STR1_OFF    ((volatile uint32_t *) 0xA00000B0)
+#define REG_STR0_BUFL   ((volatile uint32_t *) 0xA00000B4)
+#define REG_STR0_BUFU   ((volatile uint32_t *) 0xA00000B8)
+#define REG_STR0_EN     ((volatile uint32_t *) 0xA00000BC)
+#define REG_STR0_OFF    ((volatile uint32_t *) 0xA00000C0)
+#define REG_BLK_WR      ((volatile uint32_t *) 0xA00000CC)
 
 //*********************************************************
 // TIMER16 MMIO Addresses
@@ -90,6 +110,33 @@
 #define WUPT_RESET      ((volatile uint32_t *) 0xA0001300)
 
 //*********************************************************
+// XO Timer
+//*********************************************************
+#define XOT_RESET       ((volatile uint32_t *) 0xA0001400)
+#define XOT_VALUE       ((volatile uint32_t *) 0xA0001404)
+
+//*********************************************************
+// SPI (0xA000_4000 - 0xA000_4FFF)
+//*********************************************************
+#define SPI_SSPCR0      ((volatile uint32_t *) 0xA0004000) // Control register 0 (Default: 16'h0000)
+#define SPI_SSPCR1      ((volatile uint32_t *) 0xA0004004) // Control register 1 (Default: 4'h0)
+#define SPI_SSPDR       ((volatile uint32_t *) 0xA0004008) // Data register (Default: 16'h0000)
+#define SPI_SSPSR       ((volatile uint32_t *) 0xA000400C) // Status register (Default: 5'h03)
+#define SPI_SSPCPSR     ((volatile uint32_t *) 0xA0004010) // Clock prescale register (Default: 8'h00)
+#define SPI_SSPIMSC     ((volatile uint32_t *) 0xA0004014) // Interrupt mask set or clear register (Default: 4'h0)
+#define SPI_SSPRIS      ((volatile uint32_t *) 0xA0004018) // Raw interrupt status register (Default: 4'h8)
+#define SPI_SSPMIS      ((volatile uint32_t *) 0xA000401C) // Masked interrupt status register (Default: 4'h0)
+#define SPI_SSPICR      ((volatile uint32_t *) 0xA0004020) // Interrupt clear register (Default: 4'h0)
+#define SPI_SSPDMACR    ((volatile uint32_t *) 0xA0004024) // DMA control register (Default: 2'h0)
+
+//*********************************************************
+// GPIO (0xA000_5000 - 0xA000_5FFF)
+//*********************************************************
+#define GPIO_DATA       ((volatile uint32_t *) 0xA0005000) // Data to be set or read depending on DIR register
+#define GPIO_DIR        ((volatile uint32_t *) 0xA0005400) // Controls direction of PAD enable (0=Output) (1=Input)
+#define GPIO_IRQ_MASK   ((volatile uint32_t *) 0xA0005410) // (Active High) Controls whitch GPIO lines to monitor for interrupt
+
+//*********************************************************
 // PRC/PREv12 System Tasks
 //*********************************************************
 #define SYS_CTRL_REG_ADDR     ((volatile uint32_t *) 0xAFFFF000)
@@ -112,24 +159,6 @@
 #define HALT_UNTIL_MBUS_FWD 0xB
 #define HALT_DISABLE        0xF
 
-//XOT_TIMER (0xA000_1400 - 0xA000_14FF)
-#define XOT_RESET       ((volatile uint32_t *) 0xA0001400)
-//SPI (0xA000_4000 - 0xA000_4FFF)
-#define SPI_SSPCR0      ((volatile uint32_t *) 0xA0004000) // Control register 0 (Default: 16'h0000)
-#define SPI_SSPCR1      ((volatile uint32_t *) 0xA0004004) // Control register 1 (Default: 4'h0)
-#define SPI_SSPDR       ((volatile uint32_t *) 0xA0004008) // Data register (Default: 16'h0000)
-#define SPI_SSPSR       ((volatile uint32_t *) 0xA000400C) // Status register (Default: 5'h03)
-#define SPI_SSPCPSR     ((volatile uint32_t *) 0xA0004010) // Clock prescale register (Default: 8'h00)
-#define SPI_SSPIMSC     ((volatile uint32_t *) 0xA0004014) // Interrupt mask set or clear register (Default: 4'h0)
-#define SPI_SSPRIS      ((volatile uint32_t *) 0xA0004018) // Raw interrupt status register (Default: 4'h8)
-#define SPI_SSPMIS      ((volatile uint32_t *) 0xA000401C) // Masked interrupt status register (Default: 4'h0)
-#define SPI_SSPICR      ((volatile uint32_t *) 0xA0004020) // Interrupt clear register (Default: 4'h0)
-#define SPI_SSPDMACR    ((volatile uint32_t *) 0xA0004024) // DMA control register (Default: 2'h0)
-//GPIO (0xA000_5000 - 0xA000_5FFF)
-#define GPIO_DATA       ((volatile uint32_t *) 0xA0005000) // Data to be set or read depending on DIR register
-#define GPIO_DIR        ((volatile uint32_t *) 0xA0005400) // Controls direction of PAD enable (0=Output) (1=Input)
-#define GPIO_IRQ_MASK   ((volatile uint32_t *) 0xA0005410) // (Active High) Controls whitch GPIO lines to monitor for interrupt
-
 //*********************************************************
 // INCLUDES...
 //*********************************************************
@@ -141,21 +170,6 @@
 //*********************************************************
 // FUNCTIONS
 //*********************************************************
-
-/**
- * @brief   Write into Always-On Register File
- *
- *          It could have been just a simple MMIO write. However, PRC/PREv12 have hold-violations
- *          due to slow level converter when CPU attemps to write into Register File. So you should use
- *          layer controller interrupt to do this.
- *
- * @param   reg_addr    32-bit MMIO Address of the register to be written
- * @param   data        24-bit data to be written. This is a 32-bit variable, so upper 8-bit is ignored.
- *
- * @usage   write_regfile ((volatile uint32_t *) 0xA0000000, 0x123456);
- *          write_regfile (REG0, 0x123456);
- */
-void write_regfile (volatile uint32_t* reg_addr, uint32_t data);
 
 
 /**
@@ -179,22 +193,33 @@ void WFI();
 
 
 /**
- * @brief   Disable all MBus-related interrupts
- *
- *          This configures Register0x0A (MMIO 0xA0000028) like below:
- *              OLD_MSG_REG_MASK    = 0x1  // Backward compatibility enabled
- *              CONFIG_HALT_CPU     = 0xF  // CPU Halt Disabled
- *              MBUS_FWD_IRQ_MASK   = 0x0  // Disabled
- *              MBUS_TX_IRQ_MASK    = 0x0  // Disabled
- *              MBUS_RX_IRQ_MASK    = 0x0  // Disabled
- *              MEM_WR_IRQ_MASK     = 0x0  // Disabled
- *              RF_WR_IRQ_MASK      = 0x00 // Disabled
+ * @brief   Enable all interrupts
  *
  * @param   N/A
  *
- * @usage   disable_all_mbus_irq();
+ * @usage   enable_all_irq();
  */
-void disable_all_mbus_irq(void);
+void enable_all_irq();
+
+
+/**
+ * @brief   Disable all interrupts
+ *
+ * @param   N/A
+ *
+ * @usage   disable_all_irq();
+ */
+void disable_all_irq();
+
+
+/**
+ * @brief   Clear all pending interrupts
+ *
+ * @param   N/A
+ *
+ * @usage   clear_all_pend_irq();
+ */
+void clear_all_pend_irq();
 
 
 /**
@@ -219,26 +244,8 @@ uint8_t get_current_halt_config(void);
 
 
 /**
- * @brief   This configures Register0x0A (MMIO 0xA0000028) using the input parameters:
- *              OLD_MSG_REG_MASK    = OLD_MSG;
- *              CONFIG_HALT_CPU     = HALT_CONFIG;
- *              MBUS_FWD_IRQ_MASK   = MBUS_FWD;
- *              MBUS_TX_IRQ_MASK    = MBUS_TX;
- *              MBUS_RX_IRQ_MASK    = MBUS_RX;
- *              MEM_WR_IRQ_MASK     = MEM_WR;
- *              RF_WR_IRQ_MASK      = RF_WR;
- *
- * @param   See Above
- *
- * @usage   set_mbus_irq_reg(0xF0, 0x0, 0x1, 0x0, 0x0, 0x1, 0xF);
- */
-void set_mbus_irq_reg(uint8_t RF_WR, uint8_t MEM_WR, uint8_t MBUS_RX, uint8_t MBUS_TX, uint8_t MBUS_FWD, uint8_t OLD_MSG, uint8_t HALT_CONFIG);
-
-
-/**
  * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
  *              CONFIG_HALT_CPU     = reg_id;
- *          Other signals (OLD_MSG_REG_MASK, MBUS_FWD_IRQ_MASK, MBUS_TX_IRQ_MASK, MBUS_RX_IRQ_MASK, MEM_WR_IRQ_MASK, RF_WR_IRQ_MASK) remain unchanged
  *
  * @param   reg_id  8-bit Register interrupt masking pattern
  *
@@ -250,7 +257,6 @@ void set_halt_until_reg(uint8_t reg_id);
 /**
  * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
  *              CONFIG_HALT_CPU     = HALT_UNTIL_MEM_WR;
- *          Other signals (OLD_MSG_REG_MASK, MBUS_FWD_IRQ_MASK, MBUS_TX_IRQ_MASK, MBUS_RX_IRQ_MASK, MEM_WR_IRQ_MASK, RF_WR_IRQ_MASK) remain unchanged
  *
  * @param   N/A
  *
@@ -262,7 +268,6 @@ void set_halt_until_mem_wr(void);
 /**
  * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
  *              CONFIG_HALT_CPU     = HALT_UNTIL_MBUS_RX;
- *          Other signals (OLD_MSG_REG_MASK, MBUS_FWD_IRQ_MASK, MBUS_TX_IRQ_MASK, MBUS_RX_IRQ_MASK, MEM_WR_IRQ_MASK, RF_WR_IRQ_MASK) remain unchanged
  *
  * @param   N/A
  *
@@ -274,7 +279,6 @@ void set_halt_until_mbus_rx(void);
 /**
  * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
  *              CONFIG_HALT_CPU     = HALT_UNTIL_MBUS_TX;
- *          Other signals (OLD_MSG_REG_MASK, MBUS_FWD_IRQ_MASK, MBUS_TX_IRQ_MASK, MBUS_RX_IRQ_MASK, MEM_WR_IRQ_MASK, RF_WR_IRQ_MASK) remain unchanged
  *
  * @param   N/A
  *
@@ -286,7 +290,6 @@ void set_halt_until_mbus_tx(void);
 /**
  * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
  *              CONFIG_HALT_CPU     = HALT_UNTIL_MBUS_FWD;
- *          Other signals (OLD_MSG_REG_MASK, MBUS_FWD_IRQ_MASK, MBUS_TX_IRQ_MASK, MBUS_RX_IRQ_MASK, MEM_WR_IRQ_MASK, RF_WR_IRQ_MASK) remain unchanged
  *
  * @param   N/A
  *
@@ -298,7 +301,6 @@ void set_halt_until_mbus_fwd(void);
 /**
  * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
  *              CONFIG_HALT_CPU     = HALT_DISABLE;
- *          Other signals (OLD_MSG_REG_MASK, MBUS_FWD_IRQ_MASK, MBUS_TX_IRQ_MASK, MBUS_RX_IRQ_MASK, MEM_WR_IRQ_MASK, RF_WR_IRQ_MASK) remain unchanged
  *
  * @param   N/A
  *
@@ -315,6 +317,28 @@ void set_halt_disable(void);
  * @usage   halt_cpu();
  */
 void halt_cpu(void);
+
+
+/**
+ * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
+ *              OLD_MSG_REG_MASK     = 1;
+ *
+ * @param   N/A
+ *
+ * @usage   enable_old_msg_irq();
+ */
+void enable_old_msg_irq(void);
+
+
+/**
+ * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
+ *              OLD_MSG_REG_MASK     = 0;
+ *
+ * @param   N/A
+ *
+ * @usage   disable_old_msg_irq();
+ */
+void disable_old_msg_irq(void);
 
 
 /**

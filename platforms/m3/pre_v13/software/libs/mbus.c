@@ -10,46 +10,32 @@ uint8_t mbus_get_short_prefix(void) {
 	return 1;
 }
 
-// Verified
-// Note: without the explicit return value, it might not work.
 uint32_t mbus_write_message32(uint8_t addr, uint32_t data) {
     uint32_t mbus_addr = 0xA0003000 | (addr << 4);
     *((volatile uint32_t *) mbus_addr) = data;
     return 1;
 }
 
-// Verified
-// Note: without the explicit return value, it might not work.
 uint32_t mbus_write_message(uint8_t addr, uint32_t data[], unsigned len) {
-//void mbus_write_message(uint8_t addr, uint32_t data[], unsigned len) {
 	// Goal: Use the "Memory Stream Write" to put unconstrained 32-bit data
 	//       onto the bus.
 	if (len == 0) return 0;
-//	if (len == 0) return;
-	//if (len >= 2**20) return ESIZE;
-
-    //arb_debug_reg(data);
 
 	*MBUS_CMD0 = (addr << 24) | (len-1);
 	*MBUS_CMD1 = (uint32_t) data;
-
 	*MBUS_FUID_LEN = MPQ_MEM_READ | (0x2 << 4);
 
-	// TODO: async / or sync wait for confirm?
     return 1;
 }
 
-// Verified
 void mbus_enumerate(unsigned new_prefix) {
     mbus_write_message32(MBUS_DISC_AND_ENUM, ((MBUS_ENUMERATE_CMD << 28) | (new_prefix << 24)));
 }
 
-// Verified
 void mbus_sleep_all(void) {
     mbus_write_message32(MBUS_POWER, MBUS_ALL_SLEEP << 28);
 }
 
-// Not Verified
 void mbus_copy_registers_from_local_to_remote(
 		uint8_t remote_prefix,
 		uint8_t remote_reg_start,
@@ -70,7 +56,6 @@ void mbus_copy_registers_from_local_to_remote(
 	*MBUS_FUID_LEN = MPQ_REG_READ | (0x1 << 4);
 }
 
-// Verified
 void mbus_copy_registers_from_remote_to_local(
 		uint8_t remote_prefix,
 		uint8_t remote_reg_start,
@@ -90,7 +75,6 @@ void mbus_copy_registers_from_remote_to_local(
 	mbus_write_message(address, &data, 1);
 }
 
-// Not Verified
 void mbus_copy_registers_from_remote_to_remote(
 		uint8_t source_prefix,
 		uint8_t source_reg_start,
@@ -111,7 +95,6 @@ void mbus_copy_registers_from_remote_to_remote(
 	mbus_write_message(address, &data, 1);
 }
 
-// Verified
 void mbus_remote_register_write(
 		uint8_t prefix,
 		uint8_t dst_reg_addr,
@@ -123,7 +106,6 @@ void mbus_remote_register_write(
 	mbus_write_message(address, &data, 1);
 }
 
-// Not Verified
 inline
 void mbus_remote_register_read(
 		uint8_t remote_prefix,
@@ -134,7 +116,6 @@ void mbus_remote_register_read(
 			remote_prefix, remote_reg_addr, local_reg_addr, 0);
 }
 
-// Verified
 void mbus_copy_mem_from_local_to_remote_bulk(
 		uint8_t   remote_prefix,
 		uint32_t* remote_memory_address,
@@ -148,7 +129,6 @@ void mbus_copy_mem_from_local_to_remote_bulk(
 	*MBUS_FUID_LEN = MPQ_MEM_READ | (0x3 << 4);
 }
 
-// Verified
 void mbus_copy_mem_from_remote_to_any_bulk (
 		uint8_t   source_prefix,
 		uint32_t* source_memory_address,
@@ -164,7 +144,6 @@ void mbus_copy_mem_from_remote_to_any_bulk (
 	mbus_write_message(((source_prefix << 4 ) | MPQ_MEM_READ), payload, 3);
 }
 
-// Verified
 void mbus_copy_mem_from_local_to_remote_stream(
         uint8_t   stream_channel,
 		uint8_t   remote_prefix,
@@ -178,7 +157,6 @@ void mbus_copy_mem_from_local_to_remote_stream(
 	*MBUS_FUID_LEN = MPQ_MEM_READ | (0x2 << 4);
 }
 
-// Verified
 void mbus_copy_mem_from_remote_to_any_stream (
         uint8_t   stream_channel,
 		uint8_t   source_prefix,
@@ -193,5 +171,3 @@ void mbus_copy_mem_from_remote_to_any_stream (
 	};
 	mbus_write_message(((source_prefix << 4 ) | MPQ_MEM_READ), payload, 2);
 }
-
-

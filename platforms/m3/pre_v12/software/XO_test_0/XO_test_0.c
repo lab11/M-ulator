@@ -79,6 +79,30 @@ void initialization (void) {
 
     //Set Halt
     set_halt_until_mbus_tx();
+
+	delay(1000);
+	mbus_write_message32(0xDD, 0x0);
+	delay(1000);
+	write_regfile (REG_XO_CONFIG, 0x0011E5);
+	delay(1021);
+	mbus_write_message32(0xDD, 0x1);
+	delay(60000); // 1s
+	write_regfile (REG_XO_CONFIG, 0x0011E7);
+	delay(1021);
+	mbus_write_message32(0xDD, 0x2);
+	delay(40000); // 300us
+	write_regfile (REG_XO_CONFIG, 0x0011E4);
+	delay(1021);
+	mbus_write_message32(0xDD, 0x3);
+	delay(600000); // 1s 
+	
+	write_regfile (REG_XO_CONFIG, 0x0011D4);	
+	delay(60000);
+	mbus_write_message32(0xDD, 0x4);
+	
+	//write_regfile (REG_XO_CONFIG, 0x0011C5);
+	//mbus_write_message32(0xDD, 0x5);
+	//delay(6000);
 }
 
 //********************************************************************
@@ -88,29 +112,111 @@ void initialization (void) {
 int main() {
 
     //Initialize Interrupts
-    init_interrupt();
+    init_interrupt();//cygwin.com/cygw
   
     // Initialization Sequence
     if (enumerated != 0xDEADBEEF) { 
         initialization(); // Enumeration.
     }
+//cygwin.com/cygw
 
 
 
+// 0000_0000_000 1_000 0_11 00_0101
+// 0010C5 : Default
 
-	//write_regfile (REG_XO_CONFIG, 0x000000); // Example
-	write_regfile (REG_XO_CONFIG, 0x000221);
-	delay(400000);
-	write_regfile (REG_XO_CONFIG, 0x000223);
-	delay(400000);
-	write_regfile (REG_XO_CONFIG, 0x000220);
-	delay(400000);
-	write_regfile (REG_XO_CONFIG, 0x000210);	
+// 0000_0000_000 1_000 0_11 10_0101
+// 0010E5/D/9/1
+// 1s
+
+// 0000_0000_000 1_000 0_11 10_0111
+// 0010E7/F/B/3
+// 300us
+
+// 0000_0000_000 1_000 0_11 10_0100
+// 0010E4/C/8/0
+// 1s
+
+// 0000_0000_000 1_000 0_11 01_0100
+// 0010D4/C/8/0
+//  clock 
+
+// to turn off
+// 0000_0000_000 1_000 0_11 00_0101
+// 0010C5
+
+	//delay(1000);
+	
+
+	/*
+	delay(1000);
+	mbus_write_message32(0xDD, 0x0);
+	delay(1000);
+	write_regfile (REG_XO_CONFIG, 0x0011E5);
+	delay(1021);
+	mbus_write_message32(0xDD, 0x1);
+	delay(60000); // 1s
+
+	write_regfile (REG_XO_CONFIG, 0x0011E7);
+	delay(1021);
+	mbus_write_message32(0xDD, 0x2);
+	delay(40000); // 300us
+
+	write_regfile (REG_XO_CONFIG, 0x0011E4);
+	delay(1021);
+	mbus_write_message32(0xDD, 0x3);
+	delay(600000); // 1s
+
+	
+	write_regfile (REG_XO_CONFIG, 0x0011D4);	
+	delay(1000);
+	mbus_write_message32(0xDD, 0x4);
+	*/
+	delay(1021);
+
+	
+	
+    //mbus_write_message32(0xDD, 0xBBBBBBBB);
+//	while(1);
+	// clock
 
     //Set Halt Mode
+	//delay(600000);
     set_halt_until_mbus_tx();
 
-	delay(10000);
+	while(1)
+	{
+	*XOT_RESET = 1;
+	mbus_write_message32(0xDD, *REG_XOT_VAL);
+	delay(1021);
+	mbus_write_message32(0xDD, *REG_XOT_VAL);
+	delay(1021);
+	mbus_write_message32(0xDD, *REG_XOT_VAL);
+	delay(1021);
+	mbus_write_message32(0xDD, *REG_XOT_VAL);
+	delay(1021);
+	mbus_write_message32(0xDD, *REG_XOT_VAL);
+	delay(1021);
+	mbus_write_message32(0xDD, *REG_XOT_VAL);
+	delay(1021);
+	mbus_write_message32(0xDD, *REG_XOT_VAL);
+	delay(1021);
+	mbus_write_message32(0xDD, *REG_XOT_VAL);
+	delay(1021);
+	mbus_write_message32(0xDD, *REG_XOT_VAL);
+	delay(1021);
+	mbus_write_message32(0xDD, *REG_XOT_VAL);
+	delay(1021);
+	mbus_write_message32(0xDD, *REG_XOT_VAL);
+	delay(1021);
+	mbus_write_message32(0xDD, *REG_XOT_VAL);
+	delay(1021);
+	mbus_write_message32(0xDD, *REG_XOT_VAL);
+	delay(1021);
+	mbus_write_message32(0xDD, *REG_XOT_VAL);
+	delay(1021);
+	}
+	//
 
     // Notify the end of the program
     mbus_write_message32(0xDD, 0x0EA7F00D);
@@ -118,13 +224,23 @@ int main() {
 	//set_wakeup_timer ( 3, 1, 1);
 
 	// XOT Counter
-	*REG_XOT_CONFIG =     (1 /*IRQ_IN_SLEEP_ONLY */ << 16)
-						| (1 /* IRQ_EN */ << 15 )
-						| (2048 /* TSTAMP_SAT */ << 0); // 15-bit counter
-	*XOT_RESET = 1;
+	write_regfile (REG_XOT_CONFIG,     (1 /*IRQ_IN_SLEEP_ONLY */ << 16)
+						| (0 /* IRQ_EN */ << 15 )
+						| (32767 /* TSTAMP_SAT */ << 0)); // 15-bit counter (~1sec)
+	mbus_write_message32(0xDD, *REG_XOT_CONFIG);
+	//*XOT_RESET = 0;
+//	while(1);
  
+     
+	*XOT_RESET = 0;
+	mbus_write_message32(0xDD, *REG_XOT_VAL);
+	delay(1021);
+	mbus_write_message32(0xDD, *REG_XOT_VAL);
+//	delay(1021);
     mbus_sleep_all(); // Go to sleep
-    while(1);
-
+    //while(1);
+	while(*REG_XOT_CONFIG!=0);
+	
     return 1;
+
 }

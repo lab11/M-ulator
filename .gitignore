@@ -9,3 +9,6 @@
 *.elf
 *.list
 *.bin
+
+# testing
+builds/

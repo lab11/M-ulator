@@ -5,7 +5,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "PREv13.h"
 
 #define MBUS_CMD0     ((volatile uint32_t *) 0xA0002000)
 #define MBUS_CMD1     ((volatile uint32_t *) 0xA0002004)
@@ -14,20 +13,20 @@
 
 typedef enum {
 	MBUS_DISC_AND_ENUM	= 0,
-	MBUS_POWER		= 1,
+	MBUS_POWER		    = 1,
 } mbus_broadcast_channel_t;
 
 typedef enum {
-	MBUS_QUERY_CMD		= 0,
-	MBUS_QUERY_RESP		= 1,
-	MBUS_ENUMERATE_RESP	= 1,
-	MBUS_ENUMERATE_CMD	= 2,
+	MBUS_QUERY_CMD		    = 0,
+	MBUS_QUERY_RESP		    = 1,
+	MBUS_ENUMERATE_RESP	    = 1,
+	MBUS_ENUMERATE_CMD	    = 2,
 	MBUS_INVALIDATE_PREFIX	= 3,
 } mbus_disc_and_enum_cmd_t;
 
 typedef enum {
-	MBUS_ALL_SLEEP			= 0,
-	MBUS_ALL_WAKE			= 1,
+	MBUS_ALL_SLEEP			    = 0,
+	MBUS_ALL_WAKE			    = 1,
 	MBUS_SLEEP_BY_SHORT_PREFIX	= 2,
 	MBUS_WAKE_BY_SHORT_PREFIX	= 3,
 	MBUS_SLEEP_BY_FULL_PREFIX	= 4,
@@ -35,10 +34,10 @@ typedef enum {
 } mbus_power_cmd_t;
 
 typedef enum {
-	MPQ_REG_WRITE			= 0,
-	MPQ_REG_READ			= 1,
-	MPQ_MEM_BULK_WRITE		= 2,
-	MPQ_MEM_READ			= 3,
+	MPQ_REG_WRITE			    = 0,
+	MPQ_REG_READ			    = 1,
+	MPQ_MEM_BULK_WRITE		    = 2,
+	MPQ_MEM_READ			    = 3,
 	MPQ_MEM_STREAM_WRITE_CH0	= 4,
 	MPQ_MEM_STREAM_WRITE_CH1	= 5,
 	MPQ_MEM_STREAM_WRITE_CH2	= 6,
