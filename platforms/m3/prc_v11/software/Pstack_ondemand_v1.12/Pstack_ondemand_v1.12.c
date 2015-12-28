@@ -3,6 +3,8 @@
 //              ZhiYoong Foo
 //Description:  
 //              Mouse Implantation & CDC Measurement Code
+//				Revision 1.12
+//				- Changing CREF measurement to take place during sleep mode
 //				Revision 1.11
 //				- Changing CDC measurement options for parasitic cancellation
 //				Revision 1.10
@@ -65,11 +67,11 @@
 #define HRV_ADDR 0x6
 
 // CDC parameters
-#define	MBUS_DELAY 30 //Amount of delay between successive messages; 100: 6-7ms
+#define	MBUS_DELAY 10 //Amount of delay between successive messages; 100: 6-7ms
 #define	LDO_DELAY 500 // 1000: 150msec
 #define CDC_TIMEOUT_COUNT 500
 #define WAKEUP_PERIOD_RESET 2
-#define WAKEUP_PERIOD_LDO 1
+#define WAKEUP_PERIOD_LDO 2
 #define CDC_CYCLE_INIT 2
 
 // Pstack states
@@ -90,7 +92,7 @@
 #define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 
-#define CDC_STORAGE_SIZE 60 // FIXME
+#define CDC_STORAGE_SIZE 50 // FIXME
 
 //***************************************************
 // Global variables
@@ -607,6 +609,12 @@ static void operation_cdc_run(){
 		delay(MBUS_DELAY*2);
 		fire_cdc_meas();
 
+		if (cdc_run_single){
+			Pstack_state = PSTK_CDC_READ;
+			set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x0);
+			operation_sleep_noirqreset();
+		}
+
 		for( count=0; count<CDC_TIMEOUT_COUNT; count++ ){
 			if( MBus_msg_flag ){
 				MBus_msg_flag = 0;
@@ -656,22 +664,26 @@ static void operation_cdc_run(){
 
 		// Grab CDC Data
     	uint32_t read_data_reg4; // CONFIG 0; CMEAS
-    	uint32_t read_data_reg6; // CONFIG 1; CREF
+    	uint32_t read_data_reg6; // CONFIG 1; CREF1
     	uint32_t read_data_reg7; // CONFIG 2; CMEAS reverse
     	uint32_t read_data_reg9; // CONFIG 4; CPAR
+    	uint32_t read_data_reg10; // CONFIG 4; CREF5
     	uint32_t read_data;      // Read data after parasitic cancellation
 
+		read_mbus_register(SNS_ADDR,10,0x15);
+		delay(MBUS_DELAY*2);
+		read_data_reg10 = *((volatile uint32_t *) 0xA0001014);
 		read_mbus_register(SNS_ADDR,9,0x15);
-		delay(MBUS_DELAY);
+		delay(MBUS_DELAY*2);
 		read_data_reg9 = *((volatile uint32_t *) 0xA0001014);
 		read_mbus_register(SNS_ADDR,7,0x15);
-		delay(MBUS_DELAY);
+		delay(MBUS_DELAY*2);
 		read_data_reg7 = *((volatile uint32_t *) 0xA0001014);
 		read_mbus_register(SNS_ADDR,6,0x15);
-		delay(MBUS_DELAY);
+		delay(MBUS_DELAY*2);
 		read_data_reg6 = *((volatile uint32_t *) 0xA0001014);
 		read_mbus_register(SNS_ADDR,4,0x15);
-		delay(MBUS_DELAY);
+		delay(MBUS_DELAY*2);
 		read_data_reg4 = *((volatile uint32_t *) 0xA0001014);
 		
 		read_data = (read_data_reg4+read_data_reg7-read_data_reg9)/2;
@@ -720,7 +732,7 @@ static void operation_cdc_run(){
 				#ifdef DEBUG_MBUS_MSG
 						write_mbus_message(0xAA, 0x3333AAAA);
 				#endif
-				cdc_storage_cref_latest = read_data_reg6;
+				cdc_storage_cref_latest = read_data_reg10;
 				return;
 			}else{
 				exec_count++;
@@ -728,7 +740,7 @@ static void operation_cdc_run(){
 				if (cdc_storage_count < CDC_STORAGE_SIZE){
 					cdc_storage[cdc_storage_count] = read_data;
 					cdc_storage_cref[cdc_storage_count] = read_data_reg6;
-					cdc_storage_cref_latest = read_data_reg6;
+					cdc_storage_cref_latest = read_data_reg10;
 					radio_tx_count = cdc_storage_count;
 					cdc_storage_count++;
 				}
@@ -966,15 +978,16 @@ int main() {
 
 		if (wakeup_data_field_2 & 0x1){
 			// Speed up PMU sleep osc
-			set_pmu_sleep_clk_default();
+			set_pmu_sleep_clk_high();
 		}
 
 		if (wakeup_data_field_2 & 0x2){
+			set_pmu_sleep_clk_high(); // required for cdc operation in sleep
 			cdc_run_single = 1;
-			// There are 3 return functions within operation_cdc_run
 			operation_cdc_run();
-			operation_cdc_run();
-			operation_cdc_run();
+			if (Pstack_state == PSTK_CDC_RST){ // extra return function in this state
+				operation_cdc_run();
+			}
 		}
 
 		*((volatile uint32_t *) IRQ10VEC) = *((volatile uint32_t *) IRQ10VEC) & 0xFFFDFFFF;
@@ -998,7 +1011,7 @@ int main() {
         }else{
             exec_count_irq = 0;
             // radio
-            send_radio_data_ppm(1,0xF00000);
+            send_radio_data_ppm(1,0xFAF000);
 			
             // Go to sleep without timer
             operation_sleep_notimer();
