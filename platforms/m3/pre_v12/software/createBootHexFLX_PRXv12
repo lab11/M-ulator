@@ -4,15 +4,16 @@
 # Author: Yejoong Kim
 # Last Modified: Sep 10 2015
 # ----------------------------------------------------------------------------
-# [Usage] ./compileBootFLX [.memmap FileName]
+# [Description]
+#   THIS IS ONLY FOR PRCv12 and PREv12!!
 #
-# NOTE:	1) This script was made in hurry. 
-# 			It is a very long and inefficient code :P
-#			Anyone is welcome to improve this :)
-# 		2) Prepare a source code named $inFile
-#		3) Output hex files are stored in $outFileXX.
-#			Use these to preload the flash memory.
-#		4) For detailed syntax for source codes, see the sample code './prog'
+#   This script reads in 'memmap' file and then 
+#   it generates 'boothex' and 'bootinc' files
+#
+#   This adds some tuning sequency at the start of the boot-up code.
+#
+# [Usage] ./compileBootFLX_PRXv12 [.memmap FileName]
+#
 ###############################################################################
 
 $BootCodeBeforeProg = "

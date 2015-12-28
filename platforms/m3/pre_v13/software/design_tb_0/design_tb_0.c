@@ -27,11 +27,11 @@ volatile flsv2s_r0F_t FLSv2S_R0F_IRQ      = FLSv2S_R0F_DEFAULT;
 volatile flsv2s_r12_t FLSv2S_R12_PWR_CONF = FLSv2S_R12_DEFAULT;
 volatile flsv2s_r07_t FLSv2S_R07_GO       = FLSv2S_R07_DEFAULT;
 
-volatile pmuv2_r42_t PMUv2_R42_IRQ  = PMUv2_R42_DEFAULT;
+volatile pmuv2_r52_t PMUv2_R52_IRQ  = PMUv2_R52_DEFAULT;
 
 // Just for testing...
 volatile uint32_t do_cycle0  = 1; // 
-volatile uint32_t do_cycle1  = 1; // PMU Testing
+volatile uint32_t do_cycle1  = 0; // PMU Testing
 volatile uint32_t do_cycle2  = 1; // Register test
 volatile uint32_t do_cycle3  = 1; // MEM IRQ
 volatile uint32_t do_cycle4  = 1; // Flash Erase
@@ -189,48 +189,59 @@ void cycle1 (void) {
         // Set Halt
         set_halt_until_mbus_rx();
 
-        // Read Test
-        for (idx=1; idx<42; idx++) {
-            mbus_remote_register_write (PMU_ADDR, 0x00, idx);
-            if (*REG0 == idx) {pass (0xA0, *REG0); *REG0 = 0x0;}
-            else fail (0xA0, *REG0);
-        }
+        mbus_remote_register_write (PMU_ADDR, 0x00, 0x13);
+        mbus_remote_register_write (PMU_ADDR, 0x00, 0x14);
 
-        // Set Halt
-        set_halt_until_mbus_tx();
+        mbus_remote_register_write (PMU_ADDR, 0x13, 0x123456);
+        mbus_remote_register_write (PMU_ADDR, 0x14, 0x654321);
 
-        // Set FLS INT_SHORT_PREFIX = 10, REG_ADDR = 01
-        PMUv2_R42_IRQ.INT_RPLY_REG_ADDR = 0x01;
-        PMUv2_R42_IRQ.INT_RPLY_SHORT_ADDR = 0x10;
-        mbus_remote_register_write(PMU_ADDR, 0x42, PMUv2_R42_IRQ.as_int);
+        mbus_remote_register_write (PMU_ADDR, 0x00, 0x13);
+        mbus_remote_register_write (PMU_ADDR, 0x00, 0x14);
 
-        // Set Halt
-        set_halt_until_mbus_rx();
+        *REG_CHIP_ID = 0xFFFF;
 
-        // Write Test
-        for (idx=1; idx<42; idx++) {
-            mbus_remote_register_write (PMU_ADDR, idx, idx+1);
-            if (*REG1 == (idx+1)) {pass (0xA1, *REG1); *REG1 = 0x0;}
-            else fail (0xA1, *REG1);
-        }
-
-        // Set Halt
-        set_halt_until_mbus_tx();
-
-        // Set FLS INT_SHORT_PREFIX = 10, REG_ADDR = 02
-        PMUv2_R42_IRQ.INT_RPLY_REG_ADDR = 0x02;
-        PMUv2_R42_IRQ.INT_RPLY_SHORT_ADDR = 0x10;
-        mbus_remote_register_write(PMU_ADDR, 0x42, PMUv2_R42_IRQ.as_int);
-
-        // Set Halt
-        set_halt_until_mbus_rx();
-
-        // Read Test
-        for (idx=1; idx<42; idx++) {
-            mbus_remote_register_write (PMU_ADDR, 0x00, idx);
-            if (*REG2 == (idx+1)) {pass (0xA2, *REG2); *REG2 = 0x0;}
-            else fail (0xA2, *REG2);
-        }
+//        // Read Test
+//        for (idx=1; idx<66; idx++) {
+//            mbus_remote_register_write (PMU_ADDR, 0x00, idx);
+//            if (*REG0 == idx) {pass (0xA0, *REG0); *REG0 = 0x0;}
+//            else fail (0xA0, *REG0);
+//        }
+//
+//        // Set Halt
+//        set_halt_until_mbus_tx();
+//
+//        // Set FLS INT_SHORT_PREFIX = 10, REG_ADDR = 01
+//        PMUv2_R52_IRQ.INT_RPLY_REG_ADDR = 0x01;
+//        PMUv2_R52_IRQ.INT_RPLY_SHORT_ADDR = 0x10;
+//        mbus_remote_register_write(PMU_ADDR, 0x42, PMUv2_R52_IRQ.as_int);
+//
+//        // Set Halt
+//        set_halt_until_mbus_rx();
+//
+//        // Write Test
+//        for (idx=1; idx<66; idx++) {
+//            mbus_remote_register_write (PMU_ADDR, idx, idx+1);
+//            if (*REG1 == (idx+1)) {pass (0xA1, *REG1); *REG1 = 0x0;}
+//            else fail (0xA1, *REG1);
+//        }
+//
+//        // Set Halt
+//        set_halt_until_mbus_tx();
+//
+//        // Set FLS INT_SHORT_PREFIX = 10, REG_ADDR = 02
+//        PMUv2_R52_IRQ.INT_RPLY_REG_ADDR = 0x02;
+//        PMUv2_R52_IRQ.INT_RPLY_SHORT_ADDR = 0x10;
+//        mbus_remote_register_write(PMU_ADDR, 0x42, PMUv2_R52_IRQ.as_int);
+//
+//        // Set Halt
+//        set_halt_until_mbus_rx();
+//
+//        // Read Test
+//        for (idx=1; idx<66; idx++) {
+//            mbus_remote_register_write (PMU_ADDR, 0x00, idx);
+//            if (*REG2 == (idx+1)) {pass (0xA2, *REG2); *REG2 = 0x0;}
+//            else fail (0xA2, *REG2);
+//        }
 
         // Set Halt
         set_halt_until_mbus_tx();

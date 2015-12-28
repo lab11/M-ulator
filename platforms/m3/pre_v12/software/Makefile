@@ -92,7 +92,7 @@ $(DIRS):
 %.hex:	%.bin
 	xxd -g1 -c1 $< | cut -d' ' -f2 > $@
 	./createMemMap $@
-	./createBootHexFLX $*.memmap
+	./createBootHexFLX_PRXv12 $*.memmap
 
 %.bin:	%.elf
 	$(OBJCOPY) -O binary $< $@
