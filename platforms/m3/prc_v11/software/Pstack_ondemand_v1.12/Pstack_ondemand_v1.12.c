@@ -92,7 +92,7 @@
 #define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 
-#define CDC_STORAGE_SIZE 50 // FIXME
+#define CDC_STORAGE_SIZE 54 // FIXME
 
 //***************************************************
 // Global variables
@@ -446,7 +446,7 @@ static void operation_init(void){
     //*((volatile uint32_t *) 0xA2000008) = 0x00202908;
     // Slow down MBUS frequency 
     // Gyouho: This is required for running on the board w/o PMU assist (for PRCv11)
-    *((volatile uint32_t *) 0xA2000008) = 0x00202D08;
+    *((volatile uint32_t *) 0xA2000008) = 0x00202D03;
   
     delay(MBUS_DELAY*20);
   
