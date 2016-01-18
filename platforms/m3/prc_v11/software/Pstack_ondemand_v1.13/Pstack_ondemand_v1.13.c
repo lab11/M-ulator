@@ -70,9 +70,9 @@
 #define HRV_ADDR 0x6
 
 // CDC parameters
-#define	MBUS_DELAY 10 //Amount of delay between successive messages; 100: 6-7ms
+#define	MBUS_DELAY 30 //Amount of delay between successive messages; 100: 6-7ms
 #define	LDO_DELAY 500 // 1000: 150msec
-#define CDC_TIMEOUT_COUNT 500
+#define CDC_TIMEOUT_COUNT 1000
 #define WAKEUP_PERIOD_RESET 2
 #define WAKEUP_PERIOD_LDO 2
 #define CDC_CYCLE_INIT 2
@@ -744,7 +744,7 @@ static void operation_cdc_run(){
 				if (cdc_storage_count < CDC_STORAGE_SIZE){
 					cdc_storage[cdc_storage_count] = read_data;
 					cdc_storage_cref[cdc_storage_count] = read_data_reg6;
-					cdc_storage_cref_latest = read_data_reg10;
+					cdc_storage_cref_latest = read_data_reg6;
 					radio_tx_count = cdc_storage_count;
 					cdc_storage_count++;
 				}

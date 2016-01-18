@@ -67,9 +67,9 @@
 #define HRV_ADDR 0x6
 
 // CDC parameters
-#define	MBUS_DELAY 10 //Amount of delay between successive messages; 100: 6-7ms
+#define	MBUS_DELAY 30 //Amount of delay between successive messages; 100: 6-7ms
 #define	LDO_DELAY 500 // 1000: 150msec
-#define CDC_TIMEOUT_COUNT 500
+#define CDC_TIMEOUT_COUNT 1000
 #define WAKEUP_PERIOD_RESET 2
 #define WAKEUP_PERIOD_LDO 2
 #define CDC_CYCLE_INIT 2
