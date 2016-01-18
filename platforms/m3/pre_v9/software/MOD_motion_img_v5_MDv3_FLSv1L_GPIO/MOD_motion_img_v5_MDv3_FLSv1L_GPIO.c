@@ -31,9 +31,10 @@
 
 // Common parameters
 #define	MBUS_DELAY 200 //Amount of delay between successive messages
-#define WAKEUP_DELAY 10000 // 20s
+#define WAKEUP_DELAY 1000 // 20s
 #define WAKEUP_DELAY_FINAL 5000	// Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
 #define DELAY_1 5000 // 5000: 0.5s
+#define DELAY_0P5 2500 // 5000: 0.5s
 #define DELAY_IMG 40000 // 1s
 
 #define START_COL_IDX 0 // in words
@@ -52,10 +53,6 @@
 #define RAD_PACKET_DELAY 	2000      //1000    //Radio tuning: Delay between packets sent (3 packets / sample)
 #define RAD_PACKET_NUM      1      //How many times identical data will be TXed
 
-// MD Configurations
-#define WAKEUP_PERIOD_CONT 100 // 1: 2-4 sec with PRCv9
-#define WAKEUP_PERIOD_CONT_INIT 1   // 0x1E (30): ~1 min with PRCv9
-
 //***************************************************
 // Global variables
 //***************************************************
@@ -67,13 +64,15 @@
 	volatile uint32_t exec_count_irq;
 	volatile uint32_t MBus_msg_flag;
   
-	//volatile uint32_t radio_tx_count;
-	//volatile uint32_t radio_tx_option;
-	//volatile uint32_t radio_tx_numdata;
+	volatile uint32_t radio_tx_count;
+	volatile uint32_t radio_tx_option;
+	volatile uint32_t radio_tx_numdata;
 
 	volatile uint32_t md_count;
 	volatile uint8_t md_capture_img;
 	volatile uint8_t md_start_motion;
+	volatile uint32_t USR_MD_INT_TIME;
+	volatile uint32_t USR_INT_TIME;
 
 	volatile mdv3_r0_t mdv3_r0 = MDv3_R0_DEFAULT;
 	volatile mdv3_r1_t mdv3_r1 = MDv3_R1_DEFAULT;
@@ -85,6 +84,9 @@
 	volatile mdv3_r7_t mdv3_r7 = MDv3_R7_DEFAULT;
 	volatile mdv3_r8_t mdv3_r8 = MDv3_R8_DEFAULT;
 	volatile mdv3_r9_t mdv3_r9 = MDv3_R9_DEFAULT;
+
+	volatile uint32_t WAKEUP_PERIOD_CONT;
+	volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
 
 //***************************************************
 //Interrupt Handlers
@@ -147,6 +149,71 @@ inline static void set_pmu_sleep_clk_fastest(){
     *((volatile uint32_t *) 0xA200000C) = 0x8F770079; // 0x8F770079: use GOC x70-230
 }
 
+//***************************************************
+// End of Program Sleep Operation
+//***************************************************
+static void operation_sleep(void){
+
+  // Reset wakeup counter
+  // This is required to go back to sleep!!
+  //set_wakeup_timer (0xFFF, 0x0, 0x1);
+  *((volatile uint32_t *) 0xA2000014) = 0x1;
+
+  // Reset IRQ10VEC
+  *((volatile uint32_t *) IRQ10VEC/*IMSG0*/) = 0;
+
+	// Put FLS back to sleep
+	FLSMBusGPIO_sleep();
+
+  // Go to Sleep
+  sleep();
+  while(1);
+
+}
+
+static void operation_sleep_for(uint16_t num_sleep_cycles){
+  // Reset wakeup counter
+  // This is required to go back to sleep!!
+	set_wakeup_timer (num_sleep_cycles, 1, 0);
+
+	// Put FLS back to sleep
+	FLSMBusGPIO_sleep();
+
+  // Go to Sleep
+	operation_sleep();
+	while(1);
+}
+
+static void operation_sleep_noirqreset(void){
+
+  // Reset wakeup counter
+  // This is required to go back to sleep!!
+  *((volatile uint32_t *) 0xA2000014) = 0x1;
+
+	// Put FLS back to sleep
+	FLSMBusGPIO_sleep();
+
+  // Go to Sleep
+  sleep();
+  while(1);
+
+}
+
+static void operation_sleep_notimer(void){
+    
+  // Disable Timer
+  set_wakeup_timer (0, 0x0, 0x0);
+  
+	// Reset IRQ10VEC
+  *((volatile uint32_t *) IRQ10VEC/*IMSG0*/) = 0;
+
+	// Put FLS back to sleep
+	FLSMBusGPIO_sleep();
+
+  // Go to sleep without timer
+  operation_sleep();
+
+}
 
 //***************************************************
 //Send Radio Data MSB-->LSB
@@ -172,19 +239,70 @@ static void send_radio_data_32b(uint32_t radio_data){
 }
 
 //************************************
-// MDv2 Functions
+// FLSv1 GPIO Functions
+//************************************
+uint32_t check_flash_payload (uint8_t mbus_addr, uint32_t expected_payload) {
+		if(FLSMBusGPIO_getRxData0() != expected_payload) {
+			write_mbus_message(mbus_addr, 0xDEADBEEF);
+			delay(MBUS_DELAY);
+			delay(MBUS_DELAY);
+			write_mbus_message(mbus_addr, FLSMBusGPIO_getRxData0());
+    		operation_sleep_notimer();
+			while(1);
+		}
+		return 1;
+}
+
+uint32_t check_flash_sram (uint8_t addr_stamp, uint32_t length) {
+	uint32_t idx;
+
+	for(idx=0; idx<length; idx++) {
+
+		FLSMBusGPIO_readMem(FLS_ADDR, 0xEE, 0, ((uint32_t) idx) << 2);
+		FLSMBusGPIO_rxMsg(); // Rx
+		
+		write_mbus_message (addr_stamp, FLSMBusGPIO_getRxData0());
+		delay(MBUS_DELAY);
+		delay(MBUS_DELAY);
+	}
+
+	return 1;
+}
+
+uint32_t send_radio_flash_sram (uint8_t addr_stamp, uint32_t length) {
+	uint32_t idx;
+	uint32_t fls_rx_data;
+
+	for(idx=0; idx<length; idx++) {
+
+		FLSMBusGPIO_readMem(FLS_ADDR, 0xEE, 0, ((uint32_t) idx) << 2);
+		FLSMBusGPIO_rxMsg(); // Rx
+		fls_rx_data = FLSMBusGPIO_getRxData0();
+		write_mbus_message(addr_stamp, fls_rx_data);
+		delay(MBUS_DELAY);
+		write_mbus_message(addr_stamp, idx);
+		delay(MBUS_DELAY);
+		send_radio_data_32b(fls_rx_data);
+		delay(MBUS_DELAY);
+	}
+
+	return 1;
+}
+
+//************************************
+// MDv3 Functions
 //************************************
 
 static void initialize_md_reg(){
 
-	mdv3_r0.INT_TIME = 5*2;
-	mdv3_r0.MD_INT_TIME = 15;
+	mdv3_r0.INT_TIME = USR_INT_TIME;
+	mdv3_r0.MD_INT_TIME = USR_MD_INT_TIME;
 	mdv3_r1.MD_TH = 10;
 	mdv3_r1.MD_LOWRES = 1;
 	mdv3_r1.MD_LOWRES_B = 0;
 	mdv3_r1.MD_FLAG_TOPAD_SEL = 0; // 1: thresholding, 0: no thresholding
 
-	mdv3_r2.MD_RESULTS_MASK = 0x3FF;
+	mdv3_r2.MD_RESULTS_MASK = 0x3F0;
 
 	mdv3_r3.SEL_VREF = 0;
 	mdv3_r3.SEL_VREFP = 7;
@@ -240,6 +358,67 @@ static void initialize_md_reg(){
 	delay (MBUS_DELAY);
 
 }
+
+static void start_md(){
+
+  // Optionally release MD GPIO Isolation
+  // 7:16
+  mdv3_r7.ISOLATE_GPIO = 0;
+  write_mbus_register(MD_ADDR,0x7,mdv3_r7.as_int);
+  delay (MBUS_DELAY);
+  //delay(DELAY_500ms); // about 0.5s
+
+  // Start MD
+  // 0:1
+  mdv3_r0.START_MD = 1;
+  write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
+  delay(MBUS_DELAY*10);
+
+  mdv3_r0.START_MD = 0;
+  write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
+  delay(MBUS_DELAY);
+
+  delay(DELAY_0P5); // about 0.5s
+
+  // Enable MD Flag
+  // 1:3
+  mdv3_r1.MD_TH_EN = 1;
+  write_mbus_register(MD_ADDR,0x1,mdv3_r1.as_int);
+  delay(MBUS_DELAY);
+
+}
+
+static void clear_md_flag(){
+
+  // Stop MD
+  // 0:2
+  mdv3_r0.STOP_MD = 1;
+  write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
+  delay(MBUS_DELAY*10);
+
+  mdv3_r0.STOP_MD = 0;
+  write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
+  delay(MBUS_DELAY);
+
+  // Clear MD Flag
+  // 1:4
+  mdv3_r1.MD_TH_CLEAR = 1;
+  write_mbus_register(MD_ADDR,0x1,mdv3_r1.as_int);
+  delay(MBUS_DELAY*10);
+  
+  mdv3_r1.MD_TH_CLEAR = 0;
+  write_mbus_register(MD_ADDR,0x1,mdv3_r1.as_int);
+  delay(MBUS_DELAY);
+
+  // Disable MD Flag
+  // 1:3
+  mdv3_r1.MD_TH_EN = 0;
+  write_mbus_register(MD_ADDR,0x1,mdv3_r1.as_int);
+  delay(MBUS_DELAY);
+
+}
+
+
 
 static void poweron_frame_controller(){
 
@@ -398,60 +577,27 @@ static void capture_image_start(){
 
 }
 
+static void capture_image_single_with_flash(){
 
-//***************************************************
-// End of Program Sleep Operation
-//***************************************************
-static void operation_sleep(void){
+	// Give a "Go Flash Ext Streaming" command (only the first 31-bit)
+	uint32_t fls_stream_short_prefix = ((uint32_t) FLS_ADDR) << 4;
+	uint32_t fls_stream_reg_data = (0x05 << 24) | ((0x1 << 15) | (0x6 << 1) | (0x1 << 0));
+	FLSMBusGPIO_sendMBus31bit (fls_stream_short_prefix, fls_stream_reg_data);
 
-  // Reset wakeup counter
-  // This is required to go back to sleep!!
-  //set_wakeup_timer (0xFFF, 0x0, 0x1);
-  *((volatile uint32_t *) 0xA2000014) = 0x1;
+	// Capture Image
+	capture_image_single();
 
-  // Reset IRQ10VEC
-  *((volatile uint32_t *) IRQ10VEC/*IMSG0*/) = 0;
-
-  // Go to Sleep
-  sleep();
-  while(1);
-
-}
-
-static void operation_sleep_for(uint16_t num_sleep_cycles){
-  // Reset wakeup counter
-  // This is required to go back to sleep!!
-	set_wakeup_timer (num_sleep_cycles, 1, 0);
-
-  // Go to Sleep
-	operation_sleep();
-	while(1);
-}
-
-static void operation_sleep_noirqreset(void){
-
-  // Reset wakeup counter
-  // This is required to go back to sleep!!
-  *((volatile uint32_t *) 0xA2000014) = 0x1;
-
-  // Go to Sleep
-  sleep();
-  while(1);
+	// Give a "Go Flash Ext Streaming" command (the last 1-bit)
+	delay(200); // ~ 15ms
+	FLSMBusGPIO_sendMBusLast1bit (fls_stream_short_prefix, fls_stream_reg_data);
+	
+	// Receive the Payload
+	FLSMBusGPIO_rxMsg();
+	delay(DELAY_IMG);
+	check_flash_payload (0xA3, 0x00000082); // 0x82 (pass), 0x80 (timeout), 0x83 (too fast)
 
 }
 
-static void operation_sleep_notimer(void){
-    
-  // Disable Timer
-  set_wakeup_timer (0, 0x0, 0x0);
-  
-	// Reset IRQ10VEC
-  *((volatile uint32_t *) IRQ10VEC/*IMSG0*/) = 0;
-
-  // Go to sleep without timer
-  operation_sleep();
-
-}
 
 static void operation_init(void){
 	//volatile uint32_t temp_addr;
@@ -462,7 +608,7 @@ static void operation_init(void){
     // PMU_CTRL Register
     // PRCv9 Default: 0x8F770049
     // Decrease 5x division switching threshold
-	//set_pmu_sleep_clk_default();
+	set_pmu_sleep_clk_default();
   
 	// For PREv9E GPIO Isolation disable >> bits 16, 17, 24
 	//*((volatile uint32_t *) 0xA2000008) = 0x0120E608; /* 0000 0001 0010 0000 1110 0110 0000 1000 */
@@ -496,7 +642,7 @@ static void operation_init(void){
     enumerate(RAD_ADDR);
     delay(MBUS_DELAY*2);
 
-	// Initialize MDv2
+	// Initialize MDv3
 	initialize_md_reg();
 
 	delay(1000);
@@ -507,55 +653,12 @@ static void operation_init(void){
 
     // Reset IRQ11VEC
     IRQ11 = 0;
+
+	// Reset global variables
+	WAKEUP_PERIOD_CONT = 2;
+	WAKEUP_PERIOD_CONT_INIT = 2; 
 }
 
-uint32_t check_flash_payload (uint8_t mbus_addr, uint32_t expected_payload) {
-		if(FLSMBusGPIO_getRxData0() != expected_payload) {
-			write_mbus_message(mbus_addr, 0xDEADBEEF);
-			delay(MBUS_DELAY);
-			delay(MBUS_DELAY);
-			write_mbus_message(mbus_addr, FLSMBusGPIO_getRxData0());
-    		operation_sleep_notimer();
-			while(1);
-		}
-		return 1;
-}
-
-uint32_t check_flash_sram (uint8_t addr_stamp, uint32_t length) {
-	uint32_t idx;
-
-	for(idx=0; idx<length; idx++) {
-
-		FLSMBusGPIO_readMem(FLS_ADDR, 0xEE, 0, ((uint32_t) idx) << 2);
-		FLSMBusGPIO_rxMsg(); // Rx
-		
-		write_mbus_message (addr_stamp, FLSMBusGPIO_getRxData0());
-		delay(MBUS_DELAY);
-		delay(MBUS_DELAY);
-	}
-
-	return 1;
-}
-
-uint32_t send_radio_flash_sram (uint8_t addr_stamp, uint32_t length) {
-	uint32_t idx;
-	uint32_t fls_rx_data;
-
-	for(idx=0; idx<length; idx++) {
-
-		FLSMBusGPIO_readMem(FLS_ADDR, 0xEE, 0, ((uint32_t) idx) << 2);
-		FLSMBusGPIO_rxMsg(); // Rx
-		fls_rx_data = FLSMBusGPIO_getRxData0();
-		write_mbus_message(addr_stamp, fls_rx_data);
-		delay(MBUS_DELAY);
-		write_mbus_message(addr_stamp, idx);
-		delay(MBUS_DELAY);
-		send_radio_data_32b(fls_rx_data);
-		delay(MBUS_DELAY);
-	}
-
-	return 1;
-}
 
 static void operation_md(void){
 
@@ -571,7 +674,7 @@ static void operation_md(void){
 		write_mbus_message(0xAA, 0x22222222);
 		clear_md_flag();
         // radio
-        send_radio_data(0xFAFAF0F0);	
+        send_radio_data_32b(0xFAFAF0F0);	
 	}
 
 	if (md_capture_img){
@@ -587,12 +690,17 @@ static void operation_md(void){
 		delay(DELAY_1);
 
 		// Capture a single image
-		capture_image_single_with_flash();
+		capture_image_single();
+		//capture_image_single_with_flash();
 		
 		poweroff_array_adc();
 
 		if (radio_tx_option){
-			transmit_image_single_radio(); 
+			// Radio out image data stored in flash
+			send_radio_data_32b(0xFAFA0000);
+			//send_radio_flash_sram(0xE4, 6475); // Full image
+			send_radio_flash_sram(0xE4, 100);
+			send_radio_data_32b(0xFAFA0000);
 		}
 	}
 
@@ -627,171 +735,7 @@ static void operation_md(void){
 	operation_sleep_notimer();
 }
 
-
-//***************************************************************************************
-// MAIN function starts here             
-//***************************************************************************************
-int main() {
-  
-    //Clear All Pending Interrupts
-    *((volatile uint32_t *) 0xE000E280) = 0xF;
-    //Enable Interrupts
-    *((volatile uint32_t *) 0xE000E100) = 0xF;
-  
-	// Config watchdog timer to about 30 sec: 3,000,000 with default PRCv9
-	//config_timer( timer_id, go, roi, init_val, sat_val )
-	config_timer( 0, 0, 0, 0, 3000000 );
-
-    // Initialization sequence
-    if (enumerated != 0xDEADBEEF){
-        operation_init();
-
-		// Configure GPIO for FLSv1 Interaction
-		FLSMBusGPIO_initialization();
-
-		// FLSv1 enumeration
-		FLSMBusGPIO_enumeration(FLS_ADDR); // Enumeration
-		FLSMBusGPIO_rxMsg(); // Rx Enumeration Response
-		FLSMBusGPIO_setOptTune(FLS_ADDR); // Set Optimum Tuning Bits; Set Tcyc=0x0300 for flash write timing margin
-    }else{
-		// Configure GPIO for FLSv1 Interaction
-		FLSMBusGPIO_initialization();
-		// After enumeration, just wake up FLSv1
-		FLSMBusGPIO_wakeup();
-	}
-
-    // Check if wakeup is due to GOC interrupt  
-    // 0x68 is reserved for GOC-triggered wakeup (Named IRQ10VEC)
-    // 8 MSB bits of the wakeup data are used for function ID
-    uint32_t wakeup_data = *((volatile uint32_t *) IRQ10VEC);
-    uint32_t wakeup_data_header = wakeup_data>>24;
-    uint32_t wakeup_data_field_0 = wakeup_data & 0xFF;
-    uint32_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;
-    uint32_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
-
-    if(wakeup_data_header == 1){
-        // Debug mode: Transmit something via radio and go to sleep w/o timer
-        // wakeup_data[7:0] is the # of transmissions
-        // wakeup_data[15:8] is the user-specified period
-        // wakeup_data[23:16] is the MSB of # of transmissions
-        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
-        delay(MBUS_DELAY);
-        if (exec_count_irq < (wakeup_data_field_0 + (wakeup_data_field_2<<8))){
-            exec_count_irq++;
-            // radio
-            send_radio_data(0xFAFA0000+exec_count_irq);	
-            // set timer
-            set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
-            // go to sleep and wake up with same condition
-            operation_sleep_noirqreset();
-
-        }else{
-            exec_count_irq = 0;
-            // radio
-            send_radio_data(0xFAFA0000+exec_count_irq);	
-            // Go to sleep without timer
-            operation_sleep_notimer();
-        }
-   
-    }else if(wakeup_data_header == 2){
-		// Start motion detection
-        // wakeup_data[7:0] is the md integration period
-        // wakeup_data[15:8] is the img integration period
-        // wakeup_data[19:16] indicates whether or not to to take an image
-		// 						1: md only, 2: img only, 3: md+img
-        // wakeup_data[23:20] indicates whether or not to radio out the result
-
-		MD_INT_TIME = wakeup_data_field_0;
-		INT_TIME = wakeup_data_field_1;
-
-        if (exec_count_irq < 1){
-            exec_count_irq++;
-            // radio
-            send_radio_data(0xFAFA0000+(wakeup_data_field_2 & 0xF));	
-            // set timer
-            set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
-            // go to sleep and wake up with same condition
-            operation_sleep_noirqreset();
-
-        }else{
-            exec_count_irq = 0;
-			// Reset IRQ10VEC
-			*((volatile uint32_t *) IRQ10VEC) = 0;
-
-			// Run Program
-			exec_count = 0;
-			md_count = 0;
-			md_start_motion = (wakeup_data_field_2 & 0x1);
-			md_capture_img = (wakeup_data_field_2 & 0x2)>>1;
-			radio_tx_option = (wakeup_data_field_2 >> 4) & 0x1;
-			operation_md();
-        }
-   
-    }else if(wakeup_data_header == 3){
-		// Stop MD program and transmit the execution count n times
-        // wakeup_data[7:0] is the # of transmissions
-        // wakeup_data[15:8] is the user-specified period 
-        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
-		
-		clear_md_flag();
-		initialize_md_reg();
-        set_pmu_sleep_clk_default();
-		md_start_motion = 0;
-		md_capture_img = 0;
-
-        if (exec_count_irq < wakeup_data_field_0){
-            exec_count_irq++;
-            // radio
-            send_radio_data(0xFAFA0000+md_count);	
-            // set timer
-            set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
-            // go to sleep and wake up with same condition
-            operation_sleep_noirqreset();
-
-        }else{
-            exec_count_irq = 0;
-            // Go to sleep without timer
-            operation_sleep_notimer();
-        }
-
-
-
-    }else if(wakeup_data_header == 4){
-
-    }else if(wakeup_data_header == 0x11){
-		// Slow down PMU sleep osc and go to sleep for further programming
-        set_pmu_sleep_clk_low();
-        // Go to sleep without timer
-        operation_sleep_notimer();
-
-    }else if(wakeup_data_header == 0x12){
-		// Restore PMU sleep osc and go to sleep for further programming
-        set_pmu_sleep_clk_default();
-        // Go to sleep without timer
-        operation_sleep_notimer();
-
-    }else if(wakeup_data_header == 0x13){
-        set_pmu_sleep_clk_fastest();
-        // Go to sleep without timer
-        operation_sleep_notimer();
-    }
-
-    // Proceed to continuous mode
-    while(1){
-        operation_md(); 
-    }
-
-    // Should not reach here
-    operation_sleep_notimer();
-
-    while(1);
-}
-
-
-
-int flash_routine() {
-  
-	if (IRQ11 == 0) { // Flash Erase
+static void operation_flash_erase(void){
 
 		// Set START ADDRESS
 		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x00000000);
@@ -840,128 +784,9 @@ int flash_routine() {
 		check_flash_payload (0xA2, 0x00000006);
 		FLSMBusGPIO_disableLargeCap(FLS_ADDR);
 
-		// Increment the count at IRQ11VEC
-		IRQ11 = IRQ11 + 1;
+}
 
-	}else if (IRQ11 == 1) { // Take an Image and Stream into Flash. Write into Flash
-		// Check Flash SRAM before image
-		check_flash_sram(0xE0, 10);
-
-		// Set Flash Ext Streaming Length
-		FLSMBusGPIO_setExtStreamLength(FLS_ADDR, FLS_RECORD_LENGTH);
-
-		// Make Flash FSM's clock frequency faster
-		//FLSMBusGPIO_writeReg(FLS_ADDR, 0x0B, 0x00000003); // for "too fast" error
-		//FLSMBusGPIO_writeReg(FLS_ADDR, 0x0B, 0x0000001F); // for "timeout" error
-
-		// Config MD
-		// Release power gates, isolation, and reset for frame controller
-		initialize_md_reg();
-		poweron_frame_controller();
-
-		// Set PMU Strength & division threshold
-		// PMU_CTRL Register
-		// PRCv9 Default: 0x8F770049
-		*((volatile uint32_t *) 0xA200000C) = 0x8F772879; // works without any override!
-		delay(DELAY_1);
-
-		// Un-power-gate MD
-		// Release power gates, isolation, and reset for imager array
-		poweron_array_adc();
-		delay(DELAY_1);
-
-		// Give a "Go Flash Ext Streaming" command (only the first 31-bit)
-		uint32_t fls_stream_short_prefix = ((uint32_t) FLS_ADDR) << 4;
-		uint32_t fls_stream_reg_data = (0x05 << 24) | ((0x1 << 15) | (0x6 << 1) | (0x1 << 0));
-		FLSMBusGPIO_sendMBus31bit (fls_stream_short_prefix, fls_stream_reg_data);
-
-		// Capture Image
-		capture_image_single();
-
-		// Give a "Go Flash Ext Streaming" command (the last 1-bit)
-		delay(200); // ~ 15ms
-		FLSMBusGPIO_sendMBusLast1bit (fls_stream_short_prefix, fls_stream_reg_data);
-		
-		// Receive the Payload
-		FLSMBusGPIO_rxMsg();
-		delay(DELAY_IMG);
-		check_flash_payload (0xA3, 0x00000082); // 0x82 (pass), 0x80 (timeout), 0x83 (too fast)
-
-		// Power-gate MD
-		poweroff_array_adc();
-
-		// Recover Flash FSM's clock frequency
-		//FLSMBusGPIO_writeReg(FLS_ADDR, 0x0B, 0x00000010);
-
-		// Check Flash SRAM after image
-		check_flash_sram(0xE1, 10);
-
-		// Turn on Flash
-		FLSMBusGPIO_turnOnFlash(FLS_ADDR);
-		FLSMBusGPIO_rxMsg(); // Rx Payload 
-		check_flash_payload (0xA4, 0x00000003);
-		FLSMBusGPIO_enableLargeCap(FLS_ADDR);
-
-		delay(MBUS_DELAY);
-		write_mbus_message(0xF1, 0x11111111);
-		delay(MBUS_DELAY);
-
-		// Copy SRAM to Flash
-		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x800); // Should be a multiple of 0x800
-		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x000);
-		FLSMBusGPIO_doCopySRAM2Flash(FLS_ADDR, 0x7FE); // 1 Page; 0x800 -2
-		FLSMBusGPIO_rxMsg();
-		check_flash_payload (0xA5, 0x0000005C);
-
-		delay(MBUS_DELAY);
-		write_mbus_message(0xF1, 0x11111111);
-		delay(MBUS_DELAY);
-
-		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x1000); // Should be a multiple of 0x800
-		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x800);
-		FLSMBusGPIO_doCopySRAM2Flash(FLS_ADDR, 0x7FE); // 1 Page; 0x800 -2
-		FLSMBusGPIO_rxMsg();
-		check_flash_payload (0xA5, 0x0000005C);
-
-		delay(MBUS_DELAY);
-		write_mbus_message(0xF1, 0x11111111);
-		delay(MBUS_DELAY);
-
-		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x1800); // Should be a multiple of 0x800
-		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x1000);
-		FLSMBusGPIO_doCopySRAM2Flash(FLS_ADDR, 0x7FE); // 1 Page; 0x800 -2
-		FLSMBusGPIO_rxMsg();
-		check_flash_payload (0xA5, 0x0000005C);
-
-		delay(MBUS_DELAY);
-		write_mbus_message(0xF1, 0x11111111);
-		delay(MBUS_DELAY);
-
-		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x2000); // Should be a multiple of 0x800
-		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x1800);
-		FLSMBusGPIO_doCopySRAM2Flash(FLS_ADDR, 0x7FE); // 1 Page; 0x800 -2
-		FLSMBusGPIO_rxMsg();
-		check_flash_payload (0xA5, 0x0000005C);
-
-		delay(MBUS_DELAY);
-		write_mbus_message(0xF1, 0x22222222);
-		delay(MBUS_DELAY);
-
-		// Turn off Flash
-		FLSMBusGPIO_turnOffFlash(FLS_ADDR);
-		FLSMBusGPIO_rxMsg(); // Rx Payload 
-		check_flash_payload (0xA6, 0x00000006);
-		FLSMBusGPIO_disableLargeCap(FLS_ADDR);
-
-		delay(MBUS_DELAY);
-		write_mbus_message(0xF1, 0x33333333);
-		delay(MBUS_DELAY);
-
-
-		// Increment the count at IRQ11VEC
-		IRQ11 = IRQ11 + 1;
-
-	}else if (IRQ11 == 2) { // Read out from Flash
+static void operation_flash_read(void){
 
 		delay(MBUS_DELAY);
 		write_mbus_message(0xF2, 0x11111111);
@@ -1029,44 +854,230 @@ int flash_routine() {
 
 		// Check Flash SRAM after recovery
 		check_flash_sram(0xE3, 10);
-		
-		// Radio out image data stored in flash
-		send_radio_data_32b(0xFAFA0000);
-		send_radio_flash_sram(0xE4, 6475);
-		send_radio_data_32b(0xFAFA0000);
+}
 
-		// Increment the count at IRQ11VEC
-		IRQ11 = IRQ11 + 1;
+static void operation_flash_write(void){
 
-	}else if (IRQ11 == 3) { // Everything is done. Keep sending out junk data.
+		// Turn on Flash
+		FLSMBusGPIO_turnOnFlash(FLS_ADDR);
+		FLSMBusGPIO_rxMsg(); // Rx Payload 
+		check_flash_payload (0xA4, 0x00000003);
+		FLSMBusGPIO_enableLargeCap(FLS_ADDR);
 
-
-		write_mbus_message(0xAA, 0x12345678);
 		delay(MBUS_DELAY);
-		write_mbus_message(0xAA, 0x87654321);
+		write_mbus_message(0xF1, 0x11111111);
 		delay(MBUS_DELAY);
-		write_mbus_message(0xAA, 0xF0F0);
-		delay(MBUS_DELAY);
-		write_mbus_message(0xAA, IRQ11);
 
-		// All done: Go to sleep forever
-		// Put FLS back to sleep
-		IRQ11 = 0;
-		//FLSMBusGPIO_sleep();
-		//operation_sleep_notimer();
-		//while (1);
+		// Copy SRAM to Flash
+		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x800); // Should be a multiple of 0x800
+		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x000);
+		FLSMBusGPIO_doCopySRAM2Flash(FLS_ADDR, 0x7FE); // 1 Page; 0x800 -2
+		FLSMBusGPIO_rxMsg();
+		check_flash_payload (0xA5, 0x0000005C);
+
+		delay(MBUS_DELAY);
+		write_mbus_message(0xF1, 0x11111111);
+		delay(MBUS_DELAY);
+
+		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x1000); // Should be a multiple of 0x800
+		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x800);
+		FLSMBusGPIO_doCopySRAM2Flash(FLS_ADDR, 0x7FE); // 1 Page; 0x800 -2
+		FLSMBusGPIO_rxMsg();
+		check_flash_payload (0xA5, 0x0000005C);
+
+		delay(MBUS_DELAY);
+		write_mbus_message(0xF1, 0x11111111);
+		delay(MBUS_DELAY);
+
+		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x1800); // Should be a multiple of 0x800
+		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x1000);
+		FLSMBusGPIO_doCopySRAM2Flash(FLS_ADDR, 0x7FE); // 1 Page; 0x800 -2
+		FLSMBusGPIO_rxMsg();
+		check_flash_payload (0xA5, 0x0000005C);
+
+		delay(MBUS_DELAY);
+		write_mbus_message(0xF1, 0x11111111);
+		delay(MBUS_DELAY);
+
+		FLSMBusGPIO_setFlashStartAddr(FLS_ADDR, 0x2000); // Should be a multiple of 0x800
+		FLSMBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x1800);
+		FLSMBusGPIO_doCopySRAM2Flash(FLS_ADDR, 0x7FE); // 1 Page; 0x800 -2
+		FLSMBusGPIO_rxMsg();
+		check_flash_payload (0xA5, 0x0000005C);
+
+		delay(MBUS_DELAY);
+		write_mbus_message(0xF1, 0x22222222);
+		delay(MBUS_DELAY);
+
+		// Turn off Flash
+		FLSMBusGPIO_turnOffFlash(FLS_ADDR);
+		FLSMBusGPIO_rxMsg(); // Rx Payload 
+		check_flash_payload (0xA6, 0x00000006);
+		FLSMBusGPIO_disableLargeCap(FLS_ADDR);
+
+		delay(MBUS_DELAY);
+		write_mbus_message(0xF1, 0x33333333);
+		delay(MBUS_DELAY);
+
+
+}
+
+//***************************************************************************************
+// MAIN function starts here             
+//***************************************************************************************
+int main() {
+  
+    //Clear All Pending Interrupts
+    *((volatile uint32_t *) 0xE000E280) = 0xF;
+    //Enable Interrupts
+    *((volatile uint32_t *) 0xE000E100) = 0xF;
+  
+	// Config watchdog timer to about 30 sec: 3,000,000 with default PRCv9
+	//config_timer( timer_id, go, roi, init_val, sat_val )
+	config_timer( 0, 0, 0, 0, 3000000 );
+
+    // Initialization sequence
+    if (enumerated != 0xDEADBEEF){
+        operation_init();
+
+		// Configure GPIO for FLSv1 Interaction
+		FLSMBusGPIO_initialization();
+
+		// FLSv1 enumeration
+		FLSMBusGPIO_enumeration(FLS_ADDR); // Enumeration
+		FLSMBusGPIO_rxMsg(); // Rx Enumeration Response
+		FLSMBusGPIO_setOptTune(FLS_ADDR); // Set Optimum Tuning Bits; Set Tcyc=0x0300 for flash write timing margin
+    }else{
+		// Configure GPIO for FLSv1 Interaction
+		FLSMBusGPIO_initialization();
+		// After enumeration, just wake up FLSv1
+		FLSMBusGPIO_wakeup();
 	}
 
-	// Put FLS back to sleep
-	FLSMBusGPIO_sleep();
+    // Check if wakeup is due to GOC interrupt  
+    // 0x68 is reserved for GOC-triggered wakeup (Named IRQ10VEC)
+    // 8 MSB bits of the wakeup data are used for function ID
+    uint32_t wakeup_data = *((volatile uint32_t *) IRQ10VEC);
+    uint32_t wakeup_data_header = wakeup_data>>24;
+    uint32_t wakeup_data_field_0 = wakeup_data & 0xFF;
+    uint32_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;
+    uint32_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
 
-    // Go to sleep
-    operation_sleep_for(SLEEP_DURATION);
+    if(wakeup_data_header == 1){
+        // Debug mode: Transmit something via radio and go to sleep w/o timer
+        // wakeup_data[7:0] is the # of transmissions
+        // wakeup_data[15:8] is the user-specified period
+        // wakeup_data[23:16] is the MSB of # of transmissions
+        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+        delay(MBUS_DELAY);
+        if (exec_count_irq < (wakeup_data_field_0 + (wakeup_data_field_2<<8))){
+            exec_count_irq++;
+            // radio
+            send_radio_data_32b(0xFAFA0000+exec_count_irq);	
+            // set timer
+            set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+            // go to sleep and wake up with same condition
+            operation_sleep_noirqreset();
 
-    while(1);
+        }else{
+            exec_count_irq = 0;
+            // radio
+            send_radio_data_32b(0xFAFA0000+exec_count_irq);	
+            // Go to sleep without timer
+            operation_sleep_notimer();
+        }
+   
+    }else if(wakeup_data_header == 2){
+		// Start motion detection
+        // wakeup_data[7:0] is the md integration period
+        // wakeup_data[15:8] is the img integration period
+        // wakeup_data[19:16] indicates whether or not to to take an image
+		// 						1: md only, 2: img only, 3: md+img
+        // wakeup_data[23:20] indicates whether or not to radio out the result
+
+		USR_MD_INT_TIME = wakeup_data_field_0;
+		USR_INT_TIME = wakeup_data_field_1;
+
+        if (exec_count_irq < 1){
+            exec_count_irq++;
+            // radio
+            send_radio_data_32b(0xFAFA0000+(wakeup_data_field_2 & 0xF));	
+            // set timer
+            set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+            // go to sleep and wake up with same condition
+            operation_sleep_noirqreset();
+
+        }else{
+            exec_count_irq = 0;
+			// Reset IRQ10VEC
+			*((volatile uint32_t *) IRQ10VEC) = 0;
+
+			// Run Program
+			exec_count = 0;
+			md_count = 0;
+			md_start_motion = (wakeup_data_field_2 & 0x1);
+			md_capture_img = (wakeup_data_field_2 & 0x2)>>1;
+			radio_tx_option = (wakeup_data_field_2 >> 4) & 0x1;
+			operation_md();
+        }
+   
+    }else if(wakeup_data_header == 3){
+		// Stop MD program and transmit the execution count n times
+        // wakeup_data[7:0] is the # of transmissions
+        // wakeup_data[15:8] is the user-specified period 
+        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+		
+		clear_md_flag();
+		initialize_md_reg();
+        set_pmu_sleep_clk_default();
+		md_start_motion = 0;
+		md_capture_img = 0;
+
+        if (exec_count_irq < wakeup_data_field_0){
+            exec_count_irq++;
+            // radio
+            send_radio_data_32b(0xFAFA0000+md_count);	
+            // set timer
+            set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+            // go to sleep and wake up with same condition
+            operation_sleep_noirqreset();
+
+        }else{
+            exec_count_irq = 0;
+            // Go to sleep without timer
+            operation_sleep_notimer();
+        }
+
+
+
+    }else if(wakeup_data_header == 4){
+
+    }else if(wakeup_data_header == 0x11){
+		// Slow down PMU sleep osc and go to sleep for further programming
+        set_pmu_sleep_clk_low();
+        // Go to sleep without timer
+        operation_sleep_notimer();
+
+    }else if(wakeup_data_header == 0x12){
+		// Restore PMU sleep osc and go to sleep for further programming
+        set_pmu_sleep_clk_default();
+        // Go to sleep without timer
+        operation_sleep_notimer();
+
+    }else if(wakeup_data_header == 0x13){
+        set_pmu_sleep_clk_fastest();
+        // Go to sleep without timer
+        operation_sleep_notimer();
+    }
+
+    // Proceed to continuous mode
+    while(1){
+        operation_md(); 
+    }
 
     // Should not reach here
     operation_sleep_notimer();
 
+    while(1);
 }
 
