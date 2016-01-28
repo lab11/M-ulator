@@ -86,8 +86,8 @@ static void initialize_md_reg(){
 	mdv3_r8 = MDv3_R8_DEFAULT;
 	mdv3_r9 = MDv3_R9_DEFAULT;
 */
-	mdv3_r0.INT_TIME = 40;
-	mdv3_r0.MD_INT_TIME = 15;
+	mdv3_r0.INT_TIME = 25;
+	mdv3_r0.MD_INT_TIME = 12;
 	mdv3_r1.MD_TH = 2;
 	mdv3_r1.MD_LOWRES = 0;
 	mdv3_r1.MD_LOWRES_B = 1;
@@ -122,7 +122,7 @@ static void initialize_md_reg(){
 	mdv3_r6.COL_SKIP = 0;
 	mdv3_r6.ROW_IDX_EN = 0;
 
-	mdv3_r8.MBUS_REPLY_ADDR_FLAG = 0x18;
+	mdv3_r8.MBUS_REPLY_ADDR_FLAG = 0x17;
 	mdv3_r9.MBUS_REPLY_ADDR_DATA = 0x17; // IMG Data return address
 
 	mdv3_r8.MBUS_START_ADDR = 0; // Start column index in words
@@ -479,15 +479,11 @@ int main() {
 	capture_image_single();
 	poweroff_array_adc();
 
-
-
-
 	// Start motion detection
 	start_md();
 
-	delay(DELAY_1);
 	clear_md_flag();
-	delay(DELAY_0P5);
+	delay(MBUS_DELAY);
 	start_md();
 
 	delay(MBUS_DELAY);

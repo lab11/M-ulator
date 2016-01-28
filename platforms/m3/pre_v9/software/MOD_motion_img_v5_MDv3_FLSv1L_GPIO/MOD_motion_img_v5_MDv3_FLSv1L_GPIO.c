@@ -11,10 +11,6 @@
 #include "RADv5.h"
 #include "FLSv1_GPIO.h"
 
-
-// Sleep Duration
-#define SLEEP_DURATION 2
-
 // uncomment this for debug mbus message
 //#define DEBUG_MBUS_MSG
 // uncomment this for debug radio message
@@ -31,11 +27,10 @@
 
 // Common parameters
 #define	MBUS_DELAY 200 //Amount of delay between successive messages
-#define WAKEUP_DELAY 1000 // 20s
-#define WAKEUP_DELAY_FINAL 5000	// Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
-#define DELAY_1 5000 // 5000: 0.5s
-#define DELAY_0P5 2500 // 5000: 0.5s
-#define DELAY_IMG 40000 // 1s
+#define WAKEUP_DELAY 2000 // 20s
+#define DELAY_1 10000 // 5000: 0.5s
+#define DELAY_0P5 5000 // 5000: 0.5s
+#define DELAY_IMG 30000 // 1s
 
 #define START_COL_IDX 0 // in words
 #define COLS_TO_READ 39 // in # of words: 39 for full frame, 19 for half
@@ -137,16 +132,16 @@ void handler_ext_int_11(void){ *((volatile uint32_t *) 0xE000E280) = 0x800; }
 // PMU Related Functions
 //************************************
 inline static void set_pmu_sleep_clk_low(){
-    // PRCv9 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x8F770039; // 0x8F770039: use GOC x0.6-2
+    // PRCv11 Default: 0x8F770049
+    *((volatile uint32_t *) 0xA200000C) = 0x8F772839; // 0x8F770039: use GOC x0.6-2
 }
 inline static void set_pmu_sleep_clk_default(){
-    // PRCv9 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x8F770049; // 0x8F770049: use GOC x10-25
+    // PRCv11 Default: 0x8F770049
+    *((volatile uint32_t *) 0xA200000C) = 0x8F772849; // 0x8F770049: use GOC x10-25
 }
 inline static void set_pmu_sleep_clk_fastest(){
-    // PRCv9 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x8F770079; // 0x8F770079: use GOC x70-230
+    // PRCv11 Default: 0x8F770049
+    *((volatile uint32_t *) 0xA200000C) = 0x8F772879; // 0x8F770079: use GOC x70-230
 }
 
 //***************************************************
@@ -186,32 +181,32 @@ static void operation_sleep_for(uint16_t num_sleep_cycles){
 
 static void operation_sleep_noirqreset(void){
 
-  // Reset wakeup counter
-  // This is required to go back to sleep!!
-  *((volatile uint32_t *) 0xA2000014) = 0x1;
+	// Reset wakeup counter
+	// This is required to go back to sleep!!
+	*((volatile uint32_t *) 0xA2000014) = 0x1;
 
 	// Put FLS back to sleep
 	FLSMBusGPIO_sleep();
 
-  // Go to Sleep
-  sleep();
-  while(1);
+	// Go to Sleep
+	sleep();
+	while(1);
 
 }
 
 static void operation_sleep_notimer(void){
     
-  // Disable Timer
-  set_wakeup_timer (0, 0x0, 0x0);
-  
+	// Disable Timer
+	set_wakeup_timer (0, 0x0, 0x0);
+
 	// Reset IRQ10VEC
-  *((volatile uint32_t *) IRQ10VEC/*IMSG0*/) = 0;
+	*((volatile uint32_t *) IRQ10VEC/*IMSG0*/) = 0;
 
 	// Put FLS back to sleep
 	FLSMBusGPIO_sleep();
 
-  // Go to sleep without timer
-  operation_sleep();
+	// Go to sleep without timer
+	operation_sleep();
 
 }
 
@@ -295,15 +290,19 @@ uint32_t send_radio_flash_sram (uint8_t addr_stamp, uint32_t length) {
 
 static void initialize_md_reg(){
 
+	mdv3_r9 = MDv3_R9_DEFAULT;
+
 	mdv3_r0.INT_TIME = USR_INT_TIME;
 	mdv3_r0.MD_INT_TIME = USR_MD_INT_TIME;
 	mdv3_r1.MD_TH = 10;
-	mdv3_r1.MD_LOWRES = 1;
-	mdv3_r1.MD_LOWRES_B = 0;
+	mdv3_r1.MD_LOWRES = 0;
+	mdv3_r1.MD_LOWRES_B = 1;
 	mdv3_r1.MD_FLAG_TOPAD_SEL = 0; // 1: thresholding, 0: no thresholding
 
-	mdv3_r2.MD_RESULTS_MASK = 0x3F0;
+	mdv3_r2.MD_RESULTS_MASK = 0x3FF;
 
+	mdv3_r3.VDD_CC_ENB_0P6 = 0;
+	mdv3_r3.VDD_CC_ENB_1P2 = 1;
 	mdv3_r3.SEL_VREF = 0;
 	mdv3_r3.SEL_VREFP = 7;
 	mdv3_r3.SEL_VBN = 3;
@@ -311,8 +310,8 @@ static void initialize_md_reg(){
 	mdv3_r3.SEL_VB_RAMP = 15;
 	mdv3_r3.SEL_RAMP = 1;
 
-	mdv3_r4.SEL_CC  = 3;
-	mdv3_r4.SEL_CC_B  = 4;
+	mdv3_r4.SEL_CC  = 4;
+	mdv3_r4.SEL_CC_B  = 3;
 
 	mdv3_r5.SEL_CLK_RING = 2;
 	mdv3_r5.SEL_CLK_DIV = 4;
@@ -329,7 +328,7 @@ static void initialize_md_reg(){
 	mdv3_r6.COL_SKIP = 0;
 	mdv3_r6.ROW_IDX_EN = 0;
 
-	mdv3_r8.MBUS_REPLY_ADDR_FLAG = 0x17;
+	mdv3_r8.MBUS_REPLY_ADDR_FLAG = 0x16;
 	mdv3_r9.MBUS_REPLY_ADDR_DATA = 0x17; // IMG Data return address
 
 	mdv3_r8.MBUS_START_ADDR = 0; // Start column index in words
@@ -354,7 +353,7 @@ static void initialize_md_reg(){
 	delay (MBUS_DELAY);
 	write_mbus_register(MD_ADDR,0x8,mdv3_r8.as_int);
 	delay (MBUS_DELAY);
-	write_mbus_register(MD_ADDR,0x9,mdv3_r8.as_int);
+	write_mbus_register(MD_ADDR,0x9,mdv3_r9.as_int);
 	delay (MBUS_DELAY);
 
 }
@@ -363,22 +362,22 @@ static void start_md(){
 
   // Optionally release MD GPIO Isolation
   // 7:16
-  mdv3_r7.ISOLATE_GPIO = 0;
-  write_mbus_register(MD_ADDR,0x7,mdv3_r7.as_int);
-  delay (MBUS_DELAY);
+  //mdv3_r7.ISOLATE_GPIO = 0;
+  //write_mbus_register(MD_ADDR,0x7,mdv3_r7.as_int);
+  //delay (MBUS_DELAY);
   //delay(DELAY_500ms); // about 0.5s
 
   // Start MD
   // 0:1
   mdv3_r0.START_MD = 1;
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
-  delay(MBUS_DELAY*10);
+  delay(MBUS_DELAY*2);
 
   mdv3_r0.START_MD = 0;
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
   delay(MBUS_DELAY);
 
-  delay(DELAY_0P5); // about 0.5s
+  delay(DELAY_1); // about 0.5s
 
   // Enable MD Flag
   // 1:3
@@ -394,7 +393,7 @@ static void clear_md_flag(){
   // 0:2
   mdv3_r0.STOP_MD = 1;
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
-  delay(MBUS_DELAY*10);
+  delay(MBUS_DELAY*2);
 
   mdv3_r0.STOP_MD = 0;
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
@@ -404,7 +403,7 @@ static void clear_md_flag(){
   // 1:4
   mdv3_r1.MD_TH_CLEAR = 1;
   write_mbus_register(MD_ADDR,0x1,mdv3_r1.as_int);
-  delay(MBUS_DELAY*10);
+  delay(MBUS_DELAY*2);
   
   mdv3_r1.MD_TH_CLEAR = 0;
   write_mbus_register(MD_ADDR,0x1,mdv3_r1.as_int);
@@ -560,7 +559,7 @@ static void capture_image_single(){
   // 0:0
   mdv3_r0.TAKE_IMAGE = 1;
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
-  delay(100); // about 6ms
+  delay(MBUS_DELAY*2); //Need ~10ms
 
   mdv3_r0.TAKE_IMAGE = 0;
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
@@ -573,7 +572,7 @@ static void capture_image_start(){
   // 0:0
   mdv3_r0.TAKE_IMAGE = 1;
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
-  delay(100); // about 6ms
+  delay (MBUS_DELAY);
 
 }
 
@@ -602,7 +601,7 @@ static void capture_image_single_with_flash(){
 static void operation_init(void){
 	//volatile uint32_t temp_addr;
 	//volatile uint32_t temp_data;
-	volatile uint32_t temp_numBit;
+	//volatile uint32_t temp_numBit;
   
     // Set PMU Strength & division threshold
     // PMU_CTRL Register
@@ -610,17 +609,20 @@ static void operation_init(void){
     // Decrease 5x division switching threshold
 	set_pmu_sleep_clk_default();
   
+  	delay(MBUS_DELAY*10);
+
+	// Change GOC_CTRL Register
+	// Set MBUS Clock Faster
 	// For PREv9E GPIO Isolation disable >> bits 16, 17, 24
-	//*((volatile uint32_t *) 0xA2000008) = 0x0120E608; /* 0000 0001 0010 0000 1110 0110 0000 1000 */
 	*((volatile uint32_t *) 0xA2000008) =
 		( (0x1 << 24) /* GPIO_ENABLE */
 		| (0x0 << 23) /* High Frequency Mode */
 		| (0x2 << 20) /* PMUCFG_OSCMID_DIV_F[2:0] */
 		| (0x0 << 17) /* PMUCFG_OSCMID_SEL_F[2:0] */
 		| (0x0 << 16) /* PMUCFG_ACT_NONOV_SEL */
-		| (0x3 << 14) /* ?? */
+		| (0x0 << 14) /* ?? */
 		| (0x2 << 12) /* CLKX2_SEL_CM[1:0]; Divider 0:/2, 1:/4, 2:/8, 3:/16 */
-		| (0x2 << 10) /* CLKX2_SEL_I2C[1:0]; Divider 0:/1, 1:/2, 2:/4, 3:/8 */
+		| (0x1 << 10) /* CLKX2_SEL_I2C[1:0]; Divider 0:/1, 1:/2, 2:/4, 3:/8 */
 		| (0x2 << 8)  /* CLKX2_SEL_RING[1:0] */
 		| (0x0 << 7)  /* PMU_FORCE_WAKE */
 		| (0x0 << 6)  /* GOC_ONECLK_MODE */
@@ -628,7 +630,7 @@ static void operation_init(void){
 		| (0x8 << 0)  /* GOC_SEL[3:0] */
 		);
 
-    delay(DELAY_1);
+  	delay(MBUS_DELAY*10);
   
     //Enumerate & Initialize Registers
     enumerated = 0xDEADBEEF;
@@ -645,18 +647,29 @@ static void operation_init(void){
 	// Initialize MDv3
 	initialize_md_reg();
 
-	delay(1000);
+	// Configure GPIO for FLSv1 Interaction
+	FLSMBusGPIO_initialization();
+
+	write_mbus_message(0xAA, 0x11111111);
+
+	// FLSv1 enumeration
+	FLSMBusGPIO_enumeration(FLS_ADDR); // Enumeration
+	FLSMBusGPIO_rxMsg(); // Rx Enumeration Response
+	FLSMBusGPIO_setOptTune(FLS_ADDR); // Set Optimum Tuning Bits; Set Tcyc=0x0300 for flash write timing margin
 
 	md_start_motion = 0;
 	md_capture_img = 0;
 	md_count = 0;
 
-    // Reset IRQ11VEC
-    IRQ11 = 0;
-
 	// Reset global variables
 	WAKEUP_PERIOD_CONT = 2;
 	WAKEUP_PERIOD_CONT_INIT = 2; 
+
+	USR_MD_INT_TIME = 12;
+	USR_INT_TIME = 30;
+
+	// Go to sleep w/o timer
+	operation_sleep_notimer();
 }
 
 
@@ -670,24 +683,16 @@ static void operation_md(void){
 		// This wakeup is due to motion detection
 		// Let the world know!
 		write_mbus_message(0xAA, 0x22222222);
-		write_mbus_message(0xAA, 0x22222222);
-		write_mbus_message(0xAA, 0x22222222);
+  		delay (MBUS_DELAY);
 		clear_md_flag();
         // radio
-        send_radio_data_32b(0xFAFAF0F0);	
+        send_radio_data_32b(0xFAFA1234);	
 	}
 
 	if (md_capture_img){
-		// Set PMU Strength & division threshold
-		// PMU_CTRL Register
-		// PRCv9 Default: 0x8F770049
-		*((volatile uint32_t *) 0xA200000C) = 0x8F772879; // works without any override!
-	  
-		delay(DELAY_1);
 
 		// Release power gates, isolation, and reset for imager array
 		poweron_array_adc();
-		delay(DELAY_1);
 
 		// Capture a single image
 		capture_image_single();
@@ -706,24 +711,19 @@ static void operation_md(void){
 
 	if (md_start_motion){
 		// Only need to set sleep PMU settings
-        set_pmu_sleep_clk_fastest();
+        //set_pmu_sleep_clk_fastest();
 		
-		delay(DELAY_1);
 		md_count++;
 
 		// Start motion detection
 		start_md();
-
-		delay(DELAY_1);
 		clear_md_flag();
-		delay(DELAY_1);
+		delay(MBUS_DELAY);
 		start_md();
-
-		delay(DELAY_1);
 
 	}else{
 		// Restore PMU_CTRL setting
-		set_pmu_sleep_clk_default();
+		//set_pmu_sleep_clk_default();
 	}
 
 	if (md_capture_img){
@@ -940,13 +940,6 @@ int main() {
     if (enumerated != 0xDEADBEEF){
         operation_init();
 
-		// Configure GPIO for FLSv1 Interaction
-		FLSMBusGPIO_initialization();
-
-		// FLSv1 enumeration
-		FLSMBusGPIO_enumeration(FLS_ADDR); // Enumeration
-		FLSMBusGPIO_rxMsg(); // Rx Enumeration Response
-		FLSMBusGPIO_setOptTune(FLS_ADDR); // Set Optimum Tuning Bits; Set Tcyc=0x0300 for flash write timing margin
     }else{
 		// Configure GPIO for FLSv1 Interaction
 		FLSMBusGPIO_initialization();
