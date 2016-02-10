@@ -72,7 +72,7 @@
 // CDC parameters
 #define	MBUS_DELAY 30 //Amount of delay between successive messages; 100: 6-7ms
 #define	LDO_DELAY 500 // 1000: 150msec
-#define CDC_TIMEOUT_COUNT 1000
+#define CDC_TIMEOUT_COUNT 2000
 #define WAKEUP_PERIOD_RESET 2
 #define WAKEUP_PERIOD_LDO 2
 #define CDC_CYCLE_INIT 2
@@ -499,7 +499,7 @@ static void operation_init(void){
     snsv6_r17.ADC_LDO_ADC_VREF_SEL     = 0x20;
   
     // Set CDC LDO to around 1.03V: 0x0//0x20
-    snsv6_r17.CDC_LDO_CDC_VREF_MUX_SEL = 0x0;
+    snsv6_r17.CDC_LDO_CDC_VREF_MUX_SEL = 0x2;
     snsv6_r17.CDC_LDO_CDC_VREF_SEL     = 0x20;
   
     write_mbus_register(SNS_ADDR,17,snsv6_r17.as_int);
