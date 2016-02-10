@@ -458,7 +458,7 @@ static void operation_sleep_notimer(void){
 static void operation_init(void){
 	//volatile uint32_t temp_addr;
 	//volatile uint32_t temp_data;
-	volatile uint32_t temp_numBit;
+	//volatile uint32_t temp_numBit;
   
     // Set PMU Strength & division threshold
     // PMU_CTRL Register

@@ -14,7 +14,7 @@ typedef union mdv3_r0{
   };
   uint32_t as_int;
 } mdv3_r0_t;
-#define MDv3_R0_DEFAULT {{0, 0, 0, 5, 15}} // LSB is left
+#define MDv3_R0_DEFAULT (mdv3_r0_t){{0, 0, 0, 5, 15}} // LSB is left
 _Static_assert(sizeof(mdv3_r0_t) == 4, "Punned Structure Size");
 
 //Regsiter 1
@@ -34,7 +34,7 @@ typedef union mdv3_r1{
   };
   uint32_t as_int;
 } mdv3_r1_t;
-#define MDv3_R1_DEFAULT {{0, 1, 0, 0, 0, 5, 1, 0, 0, 0, 0}}
+#define MDv3_R1_DEFAULT (mdv3_r1_t){{0, 1, 0, 0, 0, 5, 1, 0, 0, 0, 0}}
 _Static_assert(sizeof(mdv3_r1_t) == 4, "Punned Structure Size");
 
 //Regsiter 2
@@ -52,7 +52,7 @@ typedef union mdv3_r2{
   };
   uint32_t as_int;
 } mdv3_r2_t;
-#define MDv3_R2_DEFAULT {{0x3FF, 0, 0, 3, 1, 1, 1, 1, 1}}
+#define MDv3_R2_DEFAULT (mdv3_r2_t){{0x3FF, 0, 0, 3, 1, 1, 1, 1, 1}}
 _Static_assert(sizeof(mdv3_r2_t) == 4, "Punned Structure Size");
 
 //Regsiter 3
@@ -71,7 +71,7 @@ typedef union mdv3_r3{
   };
   uint32_t as_int;
 } mdv3_r3_t;
-#define MDv3_R3_DEFAULT {{0, 1, 1, 0, 0, 7, 3, 3, 0xF, 2}}
+#define MDv3_R3_DEFAULT (mdv3_r3_t){{0, 1, 1, 0, 0, 7, 3, 3, 0xF, 2}}
 _Static_assert(sizeof(mdv3_r3_t) == 4, "Punned Structure Size");
 
 //Regsiter 4
@@ -90,7 +90,7 @@ typedef union mdv3_r4{
   };
   uint32_t as_int;
 } mdv3_r4_t;
-#define MDv3_R4_DEFAULT {{1, 6, 1, 0, 2, 5, 0, 0, 0, 1}}
+#define MDv3_R4_DEFAULT (mdv3_r4_t){{1, 6, 1, 0, 2, 5, 0, 0, 0, 1}}
 _Static_assert(sizeof(mdv3_r4_t) == 4, "Punned Structure Size");
 
 //Regsiter 5
@@ -109,7 +109,7 @@ typedef union mdv3_r5{
   };
   uint32_t as_int;
 } mdv3_r5_t;
-#define MDv3_R5_DEFAULT {{2, 0, 0, 3, 1, 1, 0, 0, 0, 0}}
+#define MDv3_R5_DEFAULT (mdv3_r5_t){{2, 0, 0, 3, 1, 1, 0, 0, 0, 0}}
 _Static_assert(sizeof(mdv3_r5_t) == 4, "Punned Structure Size");
 
 //Regsiter 6
@@ -126,7 +126,7 @@ typedef union mdv3_r6{
   };
   uint32_t as_int;
 } mdv3_r6_t;
-#define MDv3_R6_DEFAULT {{1, 0, 160, 0, 0, 1, 0, 0}}
+#define MDv3_R6_DEFAULT (mdv3_r6_t){{1, 0, 160, 0, 0, 1, 0, 0}}
 _Static_assert(sizeof(mdv3_r6_t) == 4, "Punned Structure Size");
 
 //Regsiter 7
@@ -141,7 +141,7 @@ typedef union mdv3_r7{
   };
   uint32_t as_int;
 } mdv3_r7_t;
-#define MDv3_R7_DEFAULT {{0, 0, 0, 1, 1, 1}}
+#define MDv3_R7_DEFAULT (mdv3_r7_t){{0, 0, 0, 1, 1, 1}}
 _Static_assert(sizeof(mdv3_r7_t) == 4, "Punned Structure Size");
 
 //Regsiter 8
@@ -153,7 +153,7 @@ typedef union mdv3_r8{
   };
   uint32_t as_int;
 } mdv3_r8_t;
-#define MDv3_R8_DEFAULT {{0x17, 0, 80}}
+#define MDv3_R8_DEFAULT (mdv3_r8_t){{0x17, 0, 80}}
 _Static_assert(sizeof(mdv3_r8_t) == 4, "Punned Structure Size");
 
 
@@ -164,10 +164,11 @@ typedef union mdv3_r9{
   };
   uint32_t as_int;
 } mdv3_r9_t;
-#define MDv3_R9_DEFAULT {{0x24}}
+#define MDv3_R9_DEFAULT (mdv3_r9_t){{0x24}}
 _Static_assert(sizeof(mdv3_r9_t) == 4, "Punned Structure Size");
 
 // Declare the structs
+
 extern volatile mdv3_r0_t mdv3_r0;
 extern volatile mdv3_r1_t mdv3_r1;
 extern volatile mdv3_r2_t mdv3_r2;
