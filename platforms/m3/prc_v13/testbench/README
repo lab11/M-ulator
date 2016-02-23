@@ -1,0 +1,13 @@
+hex_0
+    Has LC_MEM_REQ_OUT after the 1st cycle of READ operation. 
+    LC_MEM_REQ_OUT remains for 2 cycles. Look for HADDR=0x0000_00aa. 
+    The previous READ operation (from HADDR=0x0000_00a8) must be correctly handled after the LC_MEM access.
+    This happens right at the start of ENUMERATION Tx.
+
+    This code was originally built for PRCv12/PREv12.
+    In PRCv13/PREv13, once it goes into sleep, it will NOT wake-up, due to the difference MMIO.
+
+
+hex_1
+    Normal set_halt_mbus_rx & set_halt_mbus_tx code
+
