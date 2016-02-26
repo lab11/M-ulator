@@ -45,6 +45,10 @@ void config_timerwd(uint32_t cnt){
 	*TIMERWD_GO  = 0x1;
 }
 
+void disable_timerwd(){
+	*TIMERWD_GO  = 0x0;
+}
+
 void set_wakeup_timer( uint16_t timestamp, uint8_t irq_en, uint8_t reset ){
 	uint32_t regval = timestamp;
 	if( irq_en ) regval |= 0x30000; // IRQ in Sleep-Only
