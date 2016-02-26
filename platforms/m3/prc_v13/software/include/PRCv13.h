@@ -335,6 +335,11 @@ void config_timer32(uint32_t cmp, uint8_t roi, uint32_t cnt, uint32_t status);
  */
 void config_timerwd(uint32_t cnt);
 
+/**
+ * @brief   Disable the Watch-Dog timer
+ */
+void disable_timerwd();
+
 
 /**
  * @brief   Configure the wake-up timer

@@ -41,7 +41,7 @@ m.ice.mbus_set_internal_reset(True)
 m.ice.mbus_set_master_onoff(False)
 
 # Set this to "True" to record all messages 
-m.ice.mbus_set_snoop(True)
+m.ice.mbus_set_snoop(False)
 
 # For ACK from ICE board & filtering
 #isp = m.default_value("ICE address", "0111")

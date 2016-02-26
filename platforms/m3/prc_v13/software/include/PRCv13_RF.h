@@ -534,4 +534,7 @@ typedef union prcv13_r40{
 #define PRCv13_R40_DEFAULT {{ /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */  /* NOT-DEFINED */ 0x0}}
 _Static_assert(sizeof(prcv13_r40_t) == 4, "Punned Structure Size");
 
+// Declare the structs
+extern volatile prcv13_r00_t prc_v13_r00;
+
 #endif // PRCV13_RF_H
