@@ -81,7 +81,7 @@ class m3_common(object):
                 else_fn()
 
     @staticmethod
-    def build_injection_message(hexencoded, run_after=False):
+    def build_injection_message(hexencoded, run_after=False, memory_address=0):
         chip_id_mask = 0                # [0:3] Chip ID Mask
         reset = 0                       #   [4] Reset Request
         chip_id_coding = 0              #   [5] Chip ID coding
@@ -94,7 +94,7 @@ class m3_common(object):
         chip_id = 0
 
         # Byte 3,4: Memory Address
-        mem_addr = 0
+        memory_address = 0
 
         # Byte 5,6: Program Lengh
         length = len(hexencoded) >> 3   # hex exapnded -> bytes, /2
@@ -106,8 +106,8 @@ class m3_common(object):
                 control,
                 (chip_id >> 8) & 0xff,
                 chip_id & 0xff,
-                (mem_addr >> 8) & 0xff,
-                mem_addr & 0xff,
+                (memory_address >> 8) & 0xff,
+                memory_address & 0xff,
                 (length >> 8) & 0xff,
                 length & 0xff,
                 ):
@@ -125,7 +125,7 @@ class m3_common(object):
         message = "%02X%04X%04X%04X%02X%02X%s" % (
                 control,
                 chip_id,
-                mem_addr,
+                memory_address,
                 length,
                 header_parity,
                 data_parity,
@@ -135,59 +135,15 @@ class m3_common(object):
 
     @staticmethod
     def build_injection_message_interrupt(hexencoded, run_after=True):
-        chip_id_mask = 0                # [0:3] Chip ID Mask
-        reset = 0                       #   [4] Reset Request
-        chip_id_coding = 0              #   [5] Chip ID coding
-        is_i2c = 0                      #   [6] Indicates transmission is I2C message [addr+data]
-        run_after = not not run_after   #   [7] Run code after programming?
-        # Byte 0: Control
-        control = chip_id_mask | (reset << 4) | (chip_id_coding << 5) | (is_i2c << 6) | (run_after << 7)
-
-        # Byte 1,2: Chip ID
-        chip_id = 0
-
-        # Byte 3,4: Memory Address
-        mem_addr = 0x1A00
-
-        # Byte 5,6: Program Lengh
-        length = len(hexencoded) >> 3   # hex exapnded -> bytes, /2
-        length = socket.htons(length)
-
-        # Byte 7: bit-wise XOR parity of header
-        header_parity = 0
-        for byte in (
-                control,
-                (chip_id >> 8) & 0xff,
-                chip_id & 0xff,
-                (mem_addr >> 8) & 0xff,
-                mem_addr & 0xff,
-                (length >> 8) & 0xff,
-                length & 0xff,
-                ):
-            header_parity ^= byte
-
-        # Byte 8: bit-wise XOR parity of data
-        data_parity = 0
-        for byte in [hexencoded[x:x+2] for x in xrange(0, len(hexencoded), 2)]:
-            b = int(byte, 16)
-            data_parity ^= b
-
-        # Bytes 9+: Data
-
-        # Assemble message:
-        message = "%02X%04X%04X%04X%02X%02X%s" % (
-                control,
-                chip_id,
-                mem_addr,
-                length,
-                header_parity,
-                data_parity,
-                hexencoded)
-
-        return message
+        memory_address = 0x1A00
+        return m3_common.build_injection_message(
+                hexencoded=hexencoded,
+                run_after=run_after,
+                memory_address=memory_address,
+                )
 
     @staticmethod
-    def build_injection_message_for_goc_v2(hexencoded, run_after=False):
+    def build_injection_message_for_goc_v2(hexencoded, run_after=False, memory_address=0):
         chip_id_mask = 0                # [0:3] Chip ID Mask
         control_bit_4 = 0               #   [4] Reserved
         control_bit_5 = 00              #   [5] Reserved
@@ -223,8 +179,8 @@ class m3_common(object):
                 )
 
         # Byte 6,7,8,9: Memory Address
-        #mem_addr = 0
-        mem_encoded = "\0".encode('hex') * 4
+        mem_encoded = ''
+        mem_encoded = "%08X" % (memory_address)
 
         # Byte <last>: bit-wise XOR parity of data
         data_parity = 0
@@ -240,6 +196,15 @@ class m3_common(object):
                 )
 
         return HEADER + DATA
+
+    @staticmethod
+    def build_injection_message_interrupt_for_goc_v2(hexencoded, run_after=True):
+        memory_address = 0x1A00
+        return m3_common.build_injection_message_for_goc_v2(
+                hexencoded=hexencoded,
+                run_after=run_after,
+                memory_address=memory_address,
+                )
 
     def __init__(self):
         self.wait_event = threading.Event()
