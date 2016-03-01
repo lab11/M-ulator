@@ -133,6 +133,61 @@ class m3_common(object):
 
         return message
 
+    @staticmethod
+    def build_injection_message_for_goc_v2(hexencoded, run_after=False):
+        chip_id_mask = 0                # [0:3] Chip ID Mask
+        control_bit_4 = 0               #   [4] Reserved
+        control_bit_5 = 00              #   [5] Reserved
+        control_bit_6 = 0               #   [6] Reserved
+        run_after = not not run_after   #   [7] Run code after programming?
+        # Byte 0: Control
+        control = chip_id_mask | (control_bit_4 << 4) | (control_bit_5 << 5) | (control_bit_6 << 6) | (run_after << 7)
+
+        # Byte 1,2: Chip ID
+        chip_id = 0
+
+        # Byte 3,4: Program Lengh
+        length = len(hexencoded) >> 3   # hex exapnded -> bytes, /2
+        length = socket.htons(length)
+
+        # Byte 5: bit-wise XOR parity of header
+        header_parity = 0
+        for byte in (
+                control,
+                (chip_id >> 8) & 0xff,
+                chip_id & 0xff,
+                (length >> 8) & 0xff,
+                length & 0xff,
+                ):
+            header_parity ^= byte
+
+        # HEADER Section
+        HEADER = "%02X%04X%04X%02X" % (
+                control,
+                chip_id,
+                length,
+                header_parity,
+                )
+
+        # Byte 6,7,8,9: Memory Address
+        #mem_addr = 0
+        mem_encoded = "\0".encode('hex') * 4
+
+        # Byte <last>: bit-wise XOR parity of data
+        data_parity = 0
+        for byte in [hexencoded[x:x+2] for x in xrange(0, len(hexencoded), 2)]:
+            b = int(byte, 16)
+            data_parity ^= b
+
+        # DATA section:
+        DATA = "%s%s%02X" % (
+                mem_encoded,
+                hexencoded,
+                data_parity,
+                )
+
+        return HEADER + DATA
+
     def __init__(self):
         self.wait_event = threading.Event()
 
