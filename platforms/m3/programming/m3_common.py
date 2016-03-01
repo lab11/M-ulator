@@ -134,6 +134,59 @@ class m3_common(object):
         return message
 
     @staticmethod
+    def build_injection_message_interrupt(hexencoded, run_after=True):
+        chip_id_mask = 0                # [0:3] Chip ID Mask
+        reset = 0                       #   [4] Reset Request
+        chip_id_coding = 0              #   [5] Chip ID coding
+        is_i2c = 0                      #   [6] Indicates transmission is I2C message [addr+data]
+        run_after = not not run_after   #   [7] Run code after programming?
+        # Byte 0: Control
+        control = chip_id_mask | (reset << 4) | (chip_id_coding << 5) | (is_i2c << 6) | (run_after << 7)
+
+        # Byte 1,2: Chip ID
+        chip_id = 0
+
+        # Byte 3,4: Memory Address
+        mem_addr = 0x1A00
+
+        # Byte 5,6: Program Lengh
+        length = len(hexencoded) >> 3   # hex exapnded -> bytes, /2
+        length = socket.htons(length)
+
+        # Byte 7: bit-wise XOR parity of header
+        header_parity = 0
+        for byte in (
+                control,
+                (chip_id >> 8) & 0xff,
+                chip_id & 0xff,
+                (mem_addr >> 8) & 0xff,
+                mem_addr & 0xff,
+                (length >> 8) & 0xff,
+                length & 0xff,
+                ):
+            header_parity ^= byte
+
+        # Byte 8: bit-wise XOR parity of data
+        data_parity = 0
+        for byte in [hexencoded[x:x+2] for x in xrange(0, len(hexencoded), 2)]:
+            b = int(byte, 16)
+            data_parity ^= b
+
+        # Bytes 9+: Data
+
+        # Assemble message:
+        message = "%02X%04X%04X%04X%02X%02X%s" % (
+                control,
+                chip_id,
+                mem_addr,
+                length,
+                header_parity,
+                data_parity,
+                hexencoded)
+
+        return message
+
+    @staticmethod
     def build_injection_message_for_goc_v2(hexencoded, run_after=False):
         chip_id_mask = 0                # [0:3] Chip ID Mask
         control_bit_4 = 0               #   [4] Reserved
