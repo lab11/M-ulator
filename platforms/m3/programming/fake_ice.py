@@ -21,10 +21,17 @@ DEFAULT_MBUS_BROADCAST_MASK_ZEROS = 0x0f
 DEFAULT_MBUS_SNOOP_BROADCAST_MASK_ONES = 0x0f
 DEFAULT_MBUS_SNOOP_BROADCAST_MASK_ZEROS = 0x0f
 
+import os
 import random
 import sys, serial
-from time import sleep
+from time import sleep as real_sleep
 import threading
+
+try:
+    os.environ['ICE_NOSLEEP']
+    sleep = lambda x: None
+except KeyError:
+    sleep = real_sleep
 
 import m3_logging
 logger = m3_logging.get_logger(__name__)
