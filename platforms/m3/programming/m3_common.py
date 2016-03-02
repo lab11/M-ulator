@@ -81,11 +81,107 @@ class m3_common(object):
                 else_fn()
 
     @staticmethod
-    def build_injection_message(hexencoded, run_after=False, memory_address=0):
+    def _build_injection_message(
+            # Byte 0: Control
+            chip_id_mask=0,             # [0:3] Chip ID Mask
+            reset_request=0,            #   [4] Reset Request
+            chip_id_coding=0,           #   [5] Chip ID coding
+            is_mbus=0,                  #   [6] Indicates transmission is MBus message [addr+data]
+            run_after=False,            #   [7] Run code after programming?
+
+            # Byte 1,2: Chip ID
+            chip_id = 0,
+
+            # Byte 3,4: Memory Address
+            memory_address=0,
+
+            # Data to send
+            hexencoded_data=None,
+
+            # GOC Version
+            goc_version=0,              # Illegal version by default
+            ):
+        if goc_version == 0:
+            raise NotImplementedError("Bad GOC Version?")
+
+        HEADER = ''
+
+        # Control Byte
+        control = chip_id_mask |\
+                (reset_request << 4) |\
+                (chip_id_coding << 5) |\
+                (is_mbus << 6) |\
+                (run_after << 7)
+        HEADER += "%02X" % (control)
+
+        # Chip ID
+        HEADER += "%04X" % (chip_id)
+
+        # Memory Address
+        if goc_version == 1:
+            HEADER += "%04X" % (memory_address)
+
+        # Program Lengh
+        if hexencoded_data is not None:
+            length = len(hexencoded_data) >> 3   # hex exapnded -> bytes, /2
+            length = socket.htons(length)
+        else:
+            length = 0
+        HEADER += "%04X" % (length)
+
+        # Bit-wise XOR parity of header
+        header_parity = 0
+        for byte in [HEADER[x:x+2] for x in xrange(0, len(HEADER), 2)]:
+            byte = int(byte, 16)
+            header_parity ^= byte
+        HEADER += "%02X" % (header_parity)
+
+        DATA = ''
+        if hexencoded_data is not None:
+            if goc_version == 2:
+                DATA += "%08X" % (memory_address)
+
+            DATA += hexencoded_data
+
+            # Bit-wise XOR parity of data
+            data_parity = 0
+            for byte in [DATA[x:x+2] for x in xrange(0, len(DATA), 2)]:
+                b = int(byte, 16)
+                data_parity ^= b
+
+            if goc_version == 1:
+                DATA = '%02X' % (data_parity) + DATA
+            else:
+                DATA += '%02X' % (data_parity)
+
+        return HEADER + DATA
+
+    @staticmethod
+    def build_injection_message(**kwargs):
+        return m3_common._build_injection_message(goc_version=1, **kwargs)
+
+    @staticmethod
+    def build_injection_message_interrupt(hexencoded, run_after=True):
+        return m3_common.build_injection_message(
+                hexencoded_data=hexencoded,
+                run_after=run_after,
+                memory_address=0x1A00,
+                )
+
+    @staticmethod
+    def build_injection_message_custom(mem_addr_custom, hexencoded, run_after):
+        return m3_common.build_injection_message(
+                hexencoded_data=hexencoded,
+                run_after=run_after,
+                memory_address=mem_addr_custom,
+                )
+
+    @staticmethod
+    def build_injection_message_mbus(mbus_addr, mbus_data, run_after=False):
         chip_id_mask = 0                # [0:3] Chip ID Mask
         reset = 0                       #   [4] Reset Request
         chip_id_coding = 0              #   [5] Chip ID coding
-        is_i2c = 0                      #   [6] Indicates transmission is I2C message [addr+data]
+        is_i2c = 1                      #   [6] Indicates transmission is I2C message [addr+data]
         run_after = not not run_after   #   [7] Run code after programming?
         # Byte 0: Control
         control = chip_id_mask | (reset << 4) | (chip_id_coding << 5) | (is_i2c << 6) | (run_after << 7)
@@ -93,117 +189,94 @@ class m3_common(object):
         # Byte 1,2: Chip ID
         chip_id = 0
 
-        # Byte 3,4: Memory Address
-        memory_address = 0
+        # Byte 3,4,5,6: MBus Address
+        i2c_addr = mbus_addr
 
-        # Byte 5,6: Program Lengh
-        length = len(hexencoded) >> 3   # hex exapnded -> bytes, /2
-        length = socket.htons(length)
+        # Byte 7,8,9,10: MBus Data
+        i2c_data = mbus_data
 
-        # Byte 7: bit-wise XOR parity of header
+        # Byte 11: bit-wise XOR parity of header
         header_parity = 0
         for byte in (
                 control,
                 (chip_id >> 8) & 0xff,
                 chip_id & 0xff,
-                (memory_address >> 8) & 0xff,
-                memory_address & 0xff,
-                (length >> 8) & 0xff,
-                length & 0xff,
+                (i2c_addr >> 24) & 0xff,
+                (i2c_addr >> 16) & 0xff,
+                (i2c_addr >> 8) & 0xff,
+                i2c_addr & 0xff,
+                (i2c_data >> 24) & 0xff,
+                (i2c_data >> 16) & 0xff,
+                (i2c_data >> 8) & 0xff,
+                i2c_data & 0xff,
                 ):
             header_parity ^= byte
 
-        # Byte 8: bit-wise XOR parity of data
-        data_parity = 0
-        for byte in [hexencoded[x:x+2] for x in xrange(0, len(hexencoded), 2)]:
-            b = int(byte, 16)
-            data_parity ^= b
-
-        # Bytes 9+: Data
-
         # Assemble message:
-        message = "%02X%04X%04X%04X%02X%02X%s" % (
+        message = "%02X%04X%08X%08X%02X" % (
                 control,
                 chip_id,
-                memory_address,
-                length,
-                header_parity,
-                data_parity,
-                hexencoded)
+                i2c_addr,
+                i2c_data,
+                header_parity)
 
         return message
 
     @staticmethod
-    def build_injection_message_interrupt(hexencoded, run_after=True):
-        memory_address = 0x1A00
+    def build_reset_req_message():
         return m3_common.build_injection_message(
-                hexencoded=hexencoded,
-                run_after=run_after,
-                memory_address=memory_address,
+                hexencoded_data = "00000000",
+                run_after = 0,
+                memory_address = 0x000,
+                reset_request = True,
                 )
 
     @staticmethod
-    def build_injection_message_for_goc_v2(hexencoded, run_after=False, memory_address=0):
-        chip_id_mask = 0                # [0:3] Chip ID Mask
-        control_bit_4 = 0               #   [4] Reserved
-        control_bit_5 = 00              #   [5] Reserved
-        control_bit_6 = 0               #   [6] Reserved
-        run_after = not not run_after   #   [7] Run code after programming?
-        # Byte 0: Control
-        control = chip_id_mask | (control_bit_4 << 4) | (control_bit_5 << 5) | (control_bit_6 << 6) | (run_after << 7)
-
-        # Byte 1,2: Chip ID
-        chip_id = 0
-
-        # Byte 3,4: Program Lengh
-        length = len(hexencoded) >> 3   # hex exapnded -> bytes, /2
-        length = socket.htons(length)
-
-        # Byte 5: bit-wise XOR parity of header
+    def build_injection_message_mbus(mbus_addr, mbus_data, run_after=False):
+        is_i2c = 1                      #   [6] Indicates transmission is I2C message [addr+data]
+        # Byte 3,4,5,6: MBus Address
+        i2c_addr = mbus_addr
+        # Byte 7,8,9,10: MBus Data
+        i2c_data = mbus_data
+        
+        # Byte 11: bit-wise XOR parity of header
         header_parity = 0
         for byte in (
                 control,
                 (chip_id >> 8) & 0xff,
                 chip_id & 0xff,
-                (length >> 8) & 0xff,
-                length & 0xff,
+    	    (i2c_addr >> 24) & 0xff,
+    	    (i2c_addr >> 16) & 0xff,
+    	    (i2c_addr >> 8) & 0xff,
+    	    i2c_addr & 0xff,
+    	    (i2c_data >> 24) & 0xff,
+    	    (i2c_data >> 16) & 0xff,
+    	    (i2c_data >> 8) & 0xff,
+    	    i2c_data & 0xff,
                 ):
             header_parity ^= byte
-
-        # HEADER Section
-        HEADER = "%02X%04X%04X%02X" % (
+    
+        # Assemble message:
+        message = "%02X%04X%08X%08X%02X" % (
                 control,
                 chip_id,
-                length,
-                header_parity,
-                )
+                i2c_addr,
+                i2c_data,
+                header_parity)
 
-        # Byte 6,7,8,9: Memory Address
-        mem_encoded = ''
-        mem_encoded = "%08X" % (memory_address)
+        return message
 
-        # Byte <last>: bit-wise XOR parity of data
-        data_parity = 0
-        for byte in [hexencoded[x:x+2] for x in xrange(0, len(hexencoded), 2)]:
-            b = int(byte, 16)
-            data_parity ^= b
+    @staticmethod
+    def build_injection_message_for_goc_v2(**kwargs):
+        return m3_common._build_injection_message(goc_version=2, **kwargs)
 
-        # DATA section:
-        DATA = "%s%s%02X" % (
-                mem_encoded,
-                hexencoded,
-                data_parity,
-                )
-
-        return HEADER + DATA
 
     @staticmethod
     def build_injection_message_interrupt_for_goc_v2(hexencoded, run_after=True):
-        memory_address = 0x1A00
         return m3_common.build_injection_message_for_goc_v2(
-                hexencoded=hexencoded,
+                hexencoded_data=hexencoded,
                 run_after=run_after,
-                memory_address=memory_address,
+                memory_address=0x1A00,
                 )
 
     def __init__(self):
@@ -440,13 +513,15 @@ class m3_common(object):
 
 class goc_programmer(m3_common):
     TITLE = "GOC Programmer"
-    SLOW_FREQ_IN_HZ = 0.625
+    #SLOW_FREQ_IN_HZ = 0.625
+    SLOW_FREQ_IN_HZ = 70
 
     def set_slow_frequency(self):
         self.ice.goc_set_frequency(self.SLOW_FREQ_IN_HZ)
 
     def wake_chip(self):
         passcode_string = "7394"
+#        passcode_string = "3935"   # Reset request
         logger.info("Sending passcode to GOC")
         logger.debug("Sending:" + passcode_string)
         self.ice.goc_send(passcode_string.decode('hex'))

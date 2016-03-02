@@ -61,7 +61,7 @@ else:
 g.set_slow_frequency()
 g.wake_chip()
 g.set_fast_frequency()
-message = g.build_injection_message(g.hexencoded, run_after)
+message = g.build_injection_message(hexencoded_data=g.hexencoded, run_after=run_after)
 g.send_goc_message(message)
 
 logger.info("")

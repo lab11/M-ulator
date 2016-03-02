@@ -48,7 +48,7 @@ def set_true_hack():
     run_after = 1
 e.do_default("Run program when programming finishes?", set_true_hack)
 
-message = e.build_injection_message(e.hexencoded, run_after)
+message = e.build_injection_message(hexencoded_data=e.hexencoded, run_after=run_after)
 logger.debug("Sending: " + message)
 e.ice.ein_send(message.decode('hex'))
 

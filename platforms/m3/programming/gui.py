@@ -1422,16 +1422,16 @@ class MainPane(M3Gui):
 
 		def load_program_via_ein():
 			self.ice.ein_send(m3_common.build_injection_message(
-				self.prog,
-				bool(self.prog_run_after_var.get()),
+				hexencoded_data=self.prog,
+				run_after=bool(self.prog_run_after_var.get()),
 				).decode('hex')
 			)
 			logger.info('EIN programming complete.')
 
 		def load_program_via_goc(wakeup=True):
 			prog = m3_common.build_injection_message(
-					self.prog,
-					bool(self.prog_run_after_var.get()),
+					hexencoded_data=self.prog,
+					run_after=bool(self.prog_run_after_var.get()),
 					).decode('hex')
 			return inject_message_via_goc(prog, wakeup=wakeup)
 
@@ -1660,8 +1660,8 @@ class MainPane(M3Gui):
 
 		def send_message_via_goc(wakeup=True):
 			msg = m3_common.build_injection_message(
-					self.message_addr.get() + self.message_data.get(),
-					False,
+					hexencoded_data=self.message_addr.get() + self.message_data.get(),
+					run_after=False,
 					).decode('hex')
 			return inject_message_via_goc(msg, wakeup=wakeup)
 
