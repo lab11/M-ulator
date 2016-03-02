@@ -83,7 +83,7 @@ class m3_common(object):
     @staticmethod
     def _build_injection_message(
             # Byte 0: Control
-            chip_id_mask=0,             # [0:3] Chip ID Mask
+            chip_id_mask=None,          # [0:3] Chip ID Mask
             reset_request=0,            #   [4] Reset Request
             chip_id_coding=0,           #   [5] Chip ID coding
             is_mbus=0,                  #   [6] Indicates transmission is MBus message [addr+data]
@@ -103,6 +103,12 @@ class m3_common(object):
             ):
         if goc_version == 0:
             raise NotImplementedError("Bad GOC Version?")
+
+        if chip_id_mask is None:
+            if goc_version == 1:
+                chip_id_mask = 0
+            elif goc_version == 2:
+                chip_id_mask = 0xF
 
         HEADER = ''
 
