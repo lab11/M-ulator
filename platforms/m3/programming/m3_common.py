@@ -516,8 +516,15 @@ class goc_programmer(m3_common):
     #SLOW_FREQ_IN_HZ = 0.625
     SLOW_FREQ_IN_HZ = 70
 
+    def add_parse_args(self, *args, **kwargs):
+        super(goc_programmer, self).add_parse_args(*args, **kwargs)
+        self.parser.add_argument('-g', '--goc-speed',
+                help="GOC Slow Speed in Hz. The fast speed will be 8x faster."\
+                        " Defaults to " + str(self.SLOW_FREQ_IN_HZ) + " Hz.",
+                        default=self.SLOW_FREQ_IN_HZ, type=float)
+
     def set_slow_frequency(self):
-        self.ice.goc_set_frequency(self.SLOW_FREQ_IN_HZ)
+        self.ice.goc_set_frequency(self.args.goc_speed)
 
     def wake_chip(self):
         passcode_string = "7394"
@@ -525,16 +532,16 @@ class goc_programmer(m3_common):
         logger.info("Sending passcode to GOC")
         logger.debug("Sending:" + passcode_string)
         self.ice.goc_send(passcode_string.decode('hex'))
-        printing_sleep(4.0)
+        printing_sleep(0.5)
 
     def set_fast_frequency(self):
-        self.ice.goc_set_frequency(8*self.SLOW_FREQ_IN_HZ)
+        self.ice.goc_set_frequency(8*self.args.goc_speed)
 
     def send_goc_message(self, message):
         logger.info("Sending GOC message")
         logger.debug("Sending: " + message)
         self.ice.goc_send(message.decode('hex'))
-        printing_sleep(1.0)
+        printing_sleep(0.5)
 
         logger.info("Sending extra blink to end transaction")
         extra = "80"
