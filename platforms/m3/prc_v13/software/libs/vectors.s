@@ -34,6 +34,7 @@
 .word   handler_ext_int_11   /* 27 External Interrupt(11) */
 .word   handler_ext_int_12   /* 28 External Interrupt(12) */
 .word   handler_ext_int_13   /* 29 External Interrupt(13) */
+.word   handler_ext_int_14   /* 30 For GOC Triggering */
 
 
 .align 4
@@ -59,6 +60,7 @@ hang:   b .
 .weak handler_ext_int_11, hang
 .weak handler_ext_int_12, hang
 .weak handler_ext_int_13, hang
+.weak handler_ext_int_14, hang
 
 .text
 .func _start
