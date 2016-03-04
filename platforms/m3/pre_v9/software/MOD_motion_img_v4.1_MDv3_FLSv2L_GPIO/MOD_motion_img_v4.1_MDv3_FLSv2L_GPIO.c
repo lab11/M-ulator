@@ -771,20 +771,10 @@ int main() {
 		//FLSv2MBusGPIO_setExtStreamLength(FLS_ADDR, FLS_RECORD_LENGTH);
 		FLSv2MBusGPIO_configExtStream(FLS_ADDR, 0x1, 0x0, 0xFFFFF);
 
-		// Make Flash FSM's clock frequency faster
-		//FLSv2MBusGPIO_writeReg(FLS_ADDR, 0x0B, 0x00000003); // for "too fast" error
-		//FLSv2MBusGPIO_writeReg(FLS_ADDR, 0x0B, 0x0000001F); // for "timeout" error
-
 		// Config MD
 		// Release power gates, isolation, and reset for frame controller
 		initialize_md_reg();
 		poweron_frame_controller();
-
-		// Set PMU Strength & division threshold
-		// PMU_CTRL Register
-		// PRCv9 Default: 0x8F770049
-		*((volatile uint32_t *) 0xA200000C) = 0x8F772879; // works without any override!
-		delay(DELAY_1);
 
 		// Un-power-gate MD
 		// Release power gates, isolation, and reset for imager array
