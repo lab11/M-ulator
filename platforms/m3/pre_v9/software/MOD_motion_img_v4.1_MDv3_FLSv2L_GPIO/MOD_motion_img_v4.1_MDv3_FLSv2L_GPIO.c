@@ -662,8 +662,8 @@ uint32_t send_radio_flash_sram (uint8_t addr_stamp, uint32_t length) {
 		fls_rx_data = FLSv2MBusGPIO_getRxData0();
 		//write_mbus_message(addr_stamp, fls_rx_data);
 		//delay(MBUS_DELAY);
-		write_mbus_message(addr_stamp, idx);
-		delay(MBUS_DELAY);
+		//write_mbus_message(addr_stamp, idx);
+		//delay(MBUS_DELAY);
 		send_radio_data_ppm(0,fls_rx_data);
 		delay(MBUS_DELAY);
 	}

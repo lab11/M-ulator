@@ -44,8 +44,6 @@
 //#define FLS_RECORD_LENGTH 0x18FE // In words; # of words stored -2
 #define FLS_RECORD_LENGTH 6473 // In words; # of words stored -2; Full image with mbus overhead
 #define FLS_CHECK_LENGTH 200 // In words
-#define FLS_WR_PAGE 0x800
-#define FLS_RD_PAGE 0x800
 
 //***************************************************
 // Global variables
@@ -64,8 +62,8 @@ volatile bool radio_tx_option;
 
 volatile uint32_t md_count;
 volatile uint32_t img_count;
-volatile uint8_t md_capture_img;
-volatile uint8_t md_start_motion;
+volatile bool md_capture_img;
+volatile bool md_start_motion;
 volatile uint32_t USR_MD_INT_TIME;
 volatile uint32_t USR_INT_TIME;
 
@@ -284,9 +282,6 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 		delay(MBUS_DELAY);
     }
 
-	#ifdef DEBUG_MBUS_MSG
-		write_mbus_message(0xBB, 0x0);
-	#endif
     // Fire off data
     uint32_t count;
     MBus_msg_flag = 0;
@@ -311,10 +306,7 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 		}
     }
 	
-    // Timeout
-	#ifdef DEBUG_MBUS_MSG
-		write_mbus_message(0xBB, 0xFAFAFAFA);
-	#endif
+	write_mbus_message(0xBB, 0xFAFAFAFA);
 }
 
 //************************************
@@ -357,10 +349,10 @@ uint32_t send_radio_flash_sram (uint8_t addr_stamp, uint32_t length) {
 		FLSv2MBusGPIO_readMem(FLS_ADDR, 0xEE, 0, ((uint32_t) idx) << 2);
 		FLSv2MBusGPIO_rxMsg(); // Rx
 		fls_rx_data = FLSv2MBusGPIO_getRxData0();
-		write_mbus_message(addr_stamp, fls_rx_data);
-		delay(MBUS_DELAY);
-		write_mbus_message(addr_stamp, idx);
-		delay(MBUS_DELAY);
+		//write_mbus_message(addr_stamp, fls_rx_data);
+		//delay(MBUS_DELAY);
+		//write_mbus_message(addr_stamp, idx);
+		//delay(MBUS_DELAY);
 		send_radio_data_ppm(0,fls_rx_data);
 		delay(MBUS_DELAY);
 	}
@@ -658,6 +650,216 @@ static void capture_image_start(){
 
 }
 
+static void capture_image_single_with_flash(uint32_t page_offset){
+
+	// Set Flash Ext Streaming Length
+	FLSv2MBusGPIO_configExtStream(FLS_ADDR, 0x1, 0x0, 0xFFFFF);
+
+	// Give a "Go Flash Ext Streaming" command (only the first 31-bit)
+	uint32_t fls_stream_short_prefix = ((uint32_t) FLS_ADDR) << 4;
+	uint32_t fls_stream_reg_data = ((0x07 << 24) | (FLS_RECORD_LENGTH << 6) | (0x1 << 5) | (0x6 << 1) | (0x1 << 0));
+	FLSv2MBusGPIO_sendMBus31bit (fls_stream_short_prefix, fls_stream_reg_data);
+
+	// Start imaging
+	capture_image_single();
+
+	// Give a "Go Flash Ext Streaming" command (the last 1-bit)
+	delay(MBUS_DELAY*2); // ~ 15ms
+	FLSv2MBusGPIO_sendMBusLast1bit (fls_stream_short_prefix, fls_stream_reg_data);
+	
+	// Receive the Payload
+	FLSv2MBusGPIO_rxMsg();
+	delay(DELAY_IMG);
+	check_flash_payload (0xA3, 0x000000F9); // 0xF9 (pass), 0xF5 (timeout), 0xF7 (too fast)
+
+	// Power-gate MD
+	poweroff_array_adc();
+
+	// Check Flash SRAM after image
+	check_flash_sram(0xE1, FLS_CHECK_LENGTH);
+
+	// Turn on Flash
+	FLSv2MBusGPIO_turnOn(FLS_ADDR);
+	FLSv2MBusGPIO_rxMsg(); // Rx Payload 
+	check_flash_payload (0xA4, 0x000000B5);
+
+	delay(MBUS_DELAY);
+	write_mbus_message(0xF1, 0x11111111);
+	delay(MBUS_DELAY);
+
+	// Copy SRAM to Flash
+	FLSv2MBusGPIO_setFlashStartAddr(FLS_ADDR, FLS_WR_PAGE + page_offset); // Should be a multiple of 0x800
+	FLSv2MBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x000);
+	FLSv2MBusGPIO_doCopySRAM2Flash(FLS_ADDR, 0x1FFF); // 4 Pages; 0x2000 - 1
+	FLSv2MBusGPIO_rxMsg();
+	check_flash_payload (0xA5, 0x0000003D);
+
+	delay(MBUS_DELAY);
+	write_mbus_message(0xF1, 0x11111111);
+	delay(MBUS_DELAY);
+
+	// Turn off Flash
+	FLSv2MBusGPIO_turnOff(FLS_ADDR);
+	FLSv2MBusGPIO_rxMsg(); // Rx Payload 
+	check_flash_payload (0xA6, 0x000000BB);
+
+	delay(MBUS_DELAY);
+	write_mbus_message(0xF1, 0x33333333);
+	delay(MBUS_DELAY);
+
+}
+
+
+static void operation_flash_erase(uint32_t page_offset){
+
+	// Set START ADDRESS
+	FLSv2MBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x00000000);
+
+	// Set Voltage Clamp
+	// Optimal: VTG_TUNE = 0x8, CRT_TUNE=0x3F 
+	FLSv2MBusGPIO_writeReg(FLS_ADDR, 0x0A, ((0x8 << 6) | (0x3E << 0 )));
+
+	// Set Terase
+	// Default: 0x1AA0
+	FLSv2MBusGPIO_setTerase(FLS_ADDR, 0x4AA0);
+
+	// Turn on Flash
+	FLSv2MBusGPIO_turnOn(FLS_ADDR);
+	FLSv2MBusGPIO_rxMsg(); // Rx Payload 
+	check_flash_payload (0xA0, 0x000000B5);
+
+	// Flash Erase Page 2
+	FLSv2MBusGPIO_setFlashStartAddr(FLS_ADDR, page_offset); // Should be a multiple of 0x800
+	FLSv2MBusGPIO_doEraseFlash(FLS_ADDR);
+	FLSv2MBusGPIO_rxMsg(); // Rx Payload 
+	check_flash_payload (0xA1, 0x00000055);
+
+	// Flash Erase Page 3
+	FLSv2MBusGPIO_setFlashStartAddr(FLS_ADDR, page_offset+0x800); // Should be a multiple of 0x800
+	FLSv2MBusGPIO_doEraseFlash(FLS_ADDR);
+	FLSv2MBusGPIO_rxMsg(); // Rx Payload 
+	check_flash_payload (0xA1, 0x00000055);
+
+	// Flash Erase Page 4
+	FLSv2MBusGPIO_setFlashStartAddr(FLS_ADDR, page_offset+0x1000); // Should be a multiple of 0x800
+	FLSv2MBusGPIO_doEraseFlash(FLS_ADDR);
+	FLSv2MBusGPIO_rxMsg(); // Rx Payload 
+	check_flash_payload (0xA1, 0x00000055);
+
+	// Flash Erase Page 5
+	FLSv2MBusGPIO_setFlashStartAddr(FLS_ADDR, page_offset+0x1800); // Should be a multiple of 0x800
+	FLSv2MBusGPIO_doEraseFlash(FLS_ADDR);
+	FLSv2MBusGPIO_rxMsg(); // Rx Payload 
+	check_flash_payload (0xA1, 0x00000055);
+
+	// Turn off Flash
+	FLSv2MBusGPIO_turnOff(FLS_ADDR);
+	FLSv2MBusGPIO_rxMsg(); // Rx Payload 
+	check_flash_payload (0xA2, 0x000000BB);
+
+}
+
+static void operation_flash_read(uint32_t page_offset){
+
+	delay(MBUS_DELAY);
+	write_mbus_message(0xF2, 0x11111111);
+	delay(MBUS_DELAY);
+
+	// Turn on Flash
+	FLSv2MBusGPIO_turnOn(FLS_ADDR);
+	FLSv2MBusGPIO_rxMsg(); // Rx Payload 
+	check_flash_payload (0xA7, 0x000000B5);
+
+	delay(MBUS_DELAY);
+	write_mbus_message(0xF2, 0x22222222);
+	delay(MBUS_DELAY);
+
+	// Copy Flash to SRAM
+	FLSv2MBusGPIO_setFlashStartAddr(FLS_ADDR, page_offset); // Should be a multiple of 0x800
+	FLSv2MBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x000);
+	FLSv2MBusGPIO_doCopyFlash2SRAM(FLS_ADDR, 0x1FFF); // 4 Pages
+	FLSv2MBusGPIO_rxMsg();
+	check_flash_payload (0xA8, 0x00000024);
+
+	delay(MBUS_DELAY);
+	write_mbus_message(0xF2, 0x22222222);
+	delay(MBUS_DELAY);
+
+	// Turn off Flash
+	FLSv2MBusGPIO_turnOff(FLS_ADDR);
+	FLSv2MBusGPIO_rxMsg(); // Rx Payload 
+	check_flash_payload (0xA9, 0x000000BB);
+
+	// Check Flash SRAM after recovery
+	check_flash_sram(0xE3, FLS_CHECK_LENGTH);
+}
+
+static void operation_md(void){
+
+	// Release power gates, isolation, and reset for frame controller
+	if (md_count == 0) {
+		initialize_md_reg();
+		poweron_frame_controller();
+	}else{
+		// This wakeup is due to motion detection
+		// Let the world know!
+		write_mbus_message(0xAA, 0x22222222);
+  		delay (MBUS_DELAY);
+		clear_md_flag();
+        // radio
+        send_radio_data_ppm(0,0xFAFA1234);	
+	}
+
+	if (md_capture_img){
+
+		// Release power gates, isolation, and reset for imager array
+		poweron_array_adc();
+
+		// Capture a single image
+		//capture_image_single();
+		if (img_count < 60){
+			capture_image_single_with_flash(0x800+img_count*0x2000);
+			img_count++;
+			// Erase the next section of flash
+			operation_flash_erase(0x800+img_count*0x2000);
+		}
+
+		poweroff_array_adc();
+
+		if (radio_tx_option){
+			// Radio out image data stored in flash
+			send_radio_data_ppm(0,0xFAF000);
+			send_radio_flash_sram(0xE4, 6475); // Full image
+			send_radio_data_ppm(0,0xFAF000);
+		}
+	}
+
+	if (md_start_motion){
+		// Only need to set sleep PMU settings
+        //set_pmu_sleep_clk_fastest();
+		
+		md_count++;
+
+		// Start motion detection
+		start_md();
+		clear_md_flag();
+		delay(MBUS_DELAY);
+		start_md();
+
+	}else{
+		// Restore PMU_CTRL setting
+		//set_pmu_sleep_clk_default();
+	}
+
+	if (md_capture_img){
+		// Make FLS Layer go to sleep through GPIO
+		FLSv2MBusGPIO_sleep();
+	}
+
+	// Go to sleep w/o timer
+	operation_sleep_notimer();
+}
+
 static void operation_init(void){
   
     // Set PMU Strength & division threshold
@@ -749,6 +951,11 @@ static void operation_init(void){
 	md_start_motion = 0;
 	md_capture_img = 0;
 	md_count = 0;
+	img_count = 0;
+	
+	radio_on = 0;
+	radio_ready = 0;
+	radio_tx_option = 0;
 
 	// Reset global variables
 	WAKEUP_PERIOD_CONT = 2;
@@ -762,211 +969,6 @@ static void operation_init(void){
 }
 
 
-static void capture_image_single_with_flash(void){
-
-	// Set Flash Ext Streaming Length
-	FLSv2MBusGPIO_configExtStream(FLS_ADDR, 0x1, 0x0, 0xFFFFF);
-
-	// Give a "Go Flash Ext Streaming" command (only the first 31-bit)
-	uint32_t fls_stream_short_prefix = ((uint32_t) FLS_ADDR) << 4;
-	uint32_t fls_stream_reg_data = ((0x07 << 24) | (FLS_RECORD_LENGTH << 6) | (0x1 << 5) | (0x6 << 1) | (0x1 << 0));
-	FLSv2MBusGPIO_sendMBus31bit (fls_stream_short_prefix, fls_stream_reg_data);
-
-	// Start imaging
-	capture_image_single();
-
-	// Give a "Go Flash Ext Streaming" command (the last 1-bit)
-	delay(MBUS_DELAY*2); // ~ 15ms
-	FLSv2MBusGPIO_sendMBusLast1bit (fls_stream_short_prefix, fls_stream_reg_data);
-	
-	// Receive the Payload
-	FLSv2MBusGPIO_rxMsg();
-	delay(DELAY_IMG);
-	check_flash_payload (0xA3, 0x000000F9); // 0xF9 (pass), 0xF5 (timeout), 0xF7 (too fast)
-
-	// Power-gate MD
-	poweroff_array_adc();
-
-	// Check Flash SRAM after image
-	check_flash_sram(0xE1, FLS_CHECK_LENGTH);
-
-	// Turn on Flash
-	FLSv2MBusGPIO_turnOn(FLS_ADDR);
-	FLSv2MBusGPIO_rxMsg(); // Rx Payload 
-	check_flash_payload (0xA4, 0x000000B5);
-
-	delay(MBUS_DELAY);
-	write_mbus_message(0xF1, 0x11111111);
-	delay(MBUS_DELAY);
-
-	// Copy SRAM to Flash
-	FLSv2MBusGPIO_setFlashStartAddr(FLS_ADDR, FLS_WR_PAGE); // Should be a multiple of 0x800
-	FLSv2MBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x000);
-	FLSv2MBusGPIO_doCopySRAM2Flash(FLS_ADDR, 0x1FFF); // 4 Pages; 0x2000 - 1
-	FLSv2MBusGPIO_rxMsg();
-	check_flash_payload (0xA5, 0x0000003D);
-
-	delay(MBUS_DELAY);
-	write_mbus_message(0xF1, 0x11111111);
-	delay(MBUS_DELAY);
-
-	// Turn off Flash
-	FLSv2MBusGPIO_turnOff(FLS_ADDR);
-	FLSv2MBusGPIO_rxMsg(); // Rx Payload 
-	check_flash_payload (0xA6, 0x000000BB);
-
-	delay(MBUS_DELAY);
-	write_mbus_message(0xF1, 0x33333333);
-	delay(MBUS_DELAY);
-
-}
-
-
-static void operation_flash_erase(void){
-
-	// Set START ADDRESS
-	FLSv2MBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x00000000);
-
-	// Set Voltage Clamp
-	// Optimal: VTG_TUNE = 0x8, CRT_TUNE=0x3F 
-	FLSv2MBusGPIO_writeReg(FLS_ADDR, 0x0A, ((0x8 << 6) | (0x3E << 0 )));
-
-	// Set Terase
-	// Default: 0x1AA0
-	FLSv2MBusGPIO_setTerase(FLS_ADDR, 0x4AA0);
-
-	// Turn on Flash
-	FLSv2MBusGPIO_turnOn(FLS_ADDR);
-	FLSv2MBusGPIO_rxMsg(); // Rx Payload 
-	check_flash_payload (0xA0, 0x000000B5);
-
-	// Flash Erase Page 2
-	FLSv2MBusGPIO_setFlashStartAddr(FLS_ADDR, FLS_WR_PAGE); // Should be a multiple of 0x800
-	FLSv2MBusGPIO_doEraseFlash(FLS_ADDR);
-	FLSv2MBusGPIO_rxMsg(); // Rx Payload 
-	check_flash_payload (0xA1, 0x00000055);
-
-	// Flash Erase Page 3
-	FLSv2MBusGPIO_setFlashStartAddr(FLS_ADDR, FLS_WR_PAGE+0x800); // Should be a multiple of 0x800
-	FLSv2MBusGPIO_doEraseFlash(FLS_ADDR);
-	FLSv2MBusGPIO_rxMsg(); // Rx Payload 
-	check_flash_payload (0xA1, 0x00000055);
-
-	// Flash Erase Page 4
-	FLSv2MBusGPIO_setFlashStartAddr(FLS_ADDR, FLS_WR_PAGE+0x1000); // Should be a multiple of 0x800
-	FLSv2MBusGPIO_doEraseFlash(FLS_ADDR);
-	FLSv2MBusGPIO_rxMsg(); // Rx Payload 
-	check_flash_payload (0xA1, 0x00000055);
-
-	// Flash Erase Page 5
-	FLSv2MBusGPIO_setFlashStartAddr(FLS_ADDR, FLS_WR_PAGE+0x1800); // Should be a multiple of 0x800
-	FLSv2MBusGPIO_doEraseFlash(FLS_ADDR);
-	FLSv2MBusGPIO_rxMsg(); // Rx Payload 
-	check_flash_payload (0xA1, 0x00000055);
-
-	// Turn off Flash
-	FLSv2MBusGPIO_turnOff(FLS_ADDR);
-	FLSv2MBusGPIO_rxMsg(); // Rx Payload 
-	check_flash_payload (0xA2, 0x000000BB);
-
-}
-
-static void operation_flash_read(void){
-
-	delay(MBUS_DELAY);
-	write_mbus_message(0xF2, 0x11111111);
-	delay(MBUS_DELAY);
-
-	// Turn on Flash
-	FLSv2MBusGPIO_turnOn(FLS_ADDR);
-	FLSv2MBusGPIO_rxMsg(); // Rx Payload 
-	check_flash_payload (0xA7, 0x000000B5);
-
-	delay(MBUS_DELAY);
-	write_mbus_message(0xF2, 0x22222222);
-	delay(MBUS_DELAY);
-
-	// Copy Flash to SRAM
-	FLSv2MBusGPIO_setFlashStartAddr(FLS_ADDR, FLS_RD_PAGE); // Should be a multiple of 0x800
-	FLSv2MBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x000);
-	FLSv2MBusGPIO_doCopyFlash2SRAM(FLS_ADDR, 0x1FFF); // 4 Pages
-	FLSv2MBusGPIO_rxMsg();
-	check_flash_payload (0xA8, 0x00000024);
-
-	delay(MBUS_DELAY);
-	write_mbus_message(0xF2, 0x22222222);
-	delay(MBUS_DELAY);
-
-	// Turn off Flash
-	FLSv2MBusGPIO_turnOff(FLS_ADDR);
-	FLSv2MBusGPIO_rxMsg(); // Rx Payload 
-	check_flash_payload (0xA9, 0x000000BB);
-
-	// Check Flash SRAM after recovery
-	check_flash_sram(0xE3, FLS_CHECK_LENGTH);
-}
-
-static void operation_md(void){
-
-	// Release power gates, isolation, and reset for frame controller
-	if (md_count == 0) {
-		initialize_md_reg();
-		poweron_frame_controller();
-	}else{
-		// This wakeup is due to motion detection
-		// Let the world know!
-		write_mbus_message(0xAA, 0x22222222);
-  		delay (MBUS_DELAY);
-		clear_md_flag();
-        // radio
-        send_radio_data_ppm(0,0xFAFA1234);	
-	}
-
-	if (md_capture_img){
-
-		// Release power gates, isolation, and reset for imager array
-		poweron_array_adc();
-
-		// Capture a single image
-		//capture_image_single();
-		capture_image_single_with_flash();
-		
-		poweroff_array_adc();
-
-		if (radio_tx_option){
-			// Radio out image data stored in flash
-			send_radio_data_ppm(0,0xFAFA0000);
-			//send_radio_flash_sram(0xE4, 6475); // Full image
-			send_radio_flash_sram(0xE4, 100);
-			send_radio_data_ppm(0,0xFAFA0000);
-		}
-	}
-
-	if (md_start_motion){
-		// Only need to set sleep PMU settings
-        //set_pmu_sleep_clk_fastest();
-		
-		md_count++;
-
-		// Start motion detection
-		start_md();
-		clear_md_flag();
-		delay(MBUS_DELAY);
-		start_md();
-
-	}else{
-		// Restore PMU_CTRL setting
-		//set_pmu_sleep_clk_default();
-	}
-
-	if (md_capture_img){
-		// Make FLS Layer go to sleep through GPIO
-		FLSv2MBusGPIO_sleep();
-	}
-
-	// Go to sleep w/o timer
-	operation_sleep_notimer();
-}
 //***************************************************************************************
 // MAIN function starts here             
 //***************************************************************************************
@@ -1052,6 +1054,16 @@ int main() {
 		md_start_motion = wakeup_data_field_2 & 1;
 		md_capture_img = (wakeup_data_field_2 >> 1) & 1;
 		radio_tx_option = (wakeup_data_field_2 >> 2) & 1;
+		if (radio_tx_option & !radio_on){
+			// Prepare radio TX
+			radio_power_on();
+			// Go to sleep and wake up with same condition
+			set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+			operation_sleep_noirqreset();
+		}
+		if (md_capture_img){
+			operation_flash_erase(0x800);
+		}
 		operation_md();
    
     }else if(wakeup_data_header == 3){
@@ -1083,6 +1095,10 @@ int main() {
 
     }else if(wakeup_data_header == 4){
 		// Read out stored image from flash and transmit
+        // wakeup_data[7:0] is the # of images to transmit; if zero, all stored images are sent
+        // wakeup_data[15:8] is the user-specified period 
+		
+		// FIXME: should be implemented
 
     }else if(wakeup_data_header == 0x11){
 		// Slow down PMU sleep osc and go to sleep for further programming
