@@ -44,8 +44,7 @@
 //#define FLS_RECORD_LENGTH 0x18FE // In words; # of words stored -2
 #define FLS_RECORD_LENGTH 6473 // In words; # of words stored -2; Full image with mbus overhead
 //#define FLS_RECORD_LENGTH 0x2 // In words; # of words stored -2
-#define FLS_RADIO_LENGTH 50 // In words
-#define FLS_CHECK_LENGTH 20 // In words
+#define FLS_CHECK_LENGTH 200 // In words
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 24
@@ -587,7 +586,7 @@ static void operation_init(void){
 	delay(MBUS_DELAY*2);
 
     // Radio Settings --------------------------------------
-    radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x1F; //Current Limiter 2F = 30uA, 1F = 3uA
+    radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
     radv9_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
     radv9_r0.RADIO_TUNE_FREQ2 = 0x0; //Tune Freq 2 //0x0,0x0 = 902MHz on Pblr005
     radv9_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
@@ -723,10 +722,10 @@ int main() {
 		FLSv2MBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x00000000);
 
 		// Voltage Clamp & Timing settings
-		FLSv2MBusGPIO_writeReg(FLS_ADDR, 0x4, 0x000400);
+		FLSv2MBusGPIO_writeReg(FLS_ADDR, 0x0, 0x41205); // Tprog
+		FLSv2MBusGPIO_writeReg(FLS_ADDR, 0x4, 0x000500); // Tcyc_prog
 		FLSv2MBusGPIO_writeReg(FLS_ADDR, 0x19, 0x3C4303); // Default: 0x3C4103
 		
-
 		// Turn on Flash
 		FLSv2MBusGPIO_turnOn(FLS_ADDR);
 		FLSv2MBusGPIO_rxMsg(); // Rx Payload 

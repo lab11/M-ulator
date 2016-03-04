@@ -657,28 +657,6 @@ static void capture_image_start(){
 
 }
 
-static void capture_image_single_with_flash(){
-
-	// Give a "Go Flash Ext Streaming" command (only the first 31-bit)
-	uint32_t fls_stream_short_prefix = ((uint32_t) FLS_ADDR) << 4;
-	uint32_t fls_stream_reg_data = (0x05 << 24) | ((0x1 << 15) | (0x6 << 1) | (0x1 << 0));
-	FLSv2MBusGPIO_sendMBus31bit (fls_stream_short_prefix, fls_stream_reg_data);
-
-	// Capture Image
-	capture_image_single();
-
-	// Give a "Go Flash Ext Streaming" command (the last 1-bit)
-	delay(200); // ~ 15ms
-	FLSv2MBusGPIO_sendMBusLast1bit (fls_stream_short_prefix, fls_stream_reg_data);
-	
-	// Receive the Payload
-	FLSv2MBusGPIO_rxMsg();
-	delay(DELAY_IMG);
-	check_flash_payload (0xA3, 0x00000082); // 0x82 (pass), 0x80 (timeout), 0x83 (too fast)
-
-}
-
-
 static void operation_init(void){
   
     // Set PMU Strength & division threshold
@@ -782,68 +760,6 @@ static void operation_init(void){
 }
 
 
-static void operation_md(void){
-
-	// Release power gates, isolation, and reset for frame controller
-	if (md_count == 0) {
-		initialize_md_reg();
-		poweron_frame_controller();
-	}else{
-		// This wakeup is due to motion detection
-		// Let the world know!
-		write_mbus_message(0xAA, 0x22222222);
-  		delay (MBUS_DELAY);
-		clear_md_flag();
-        // radio
-        send_radio_data_ppm(0,0xFAFA1234);	
-	}
-
-	if (md_capture_img){
-
-		// Release power gates, isolation, and reset for imager array
-		poweron_array_adc();
-
-		// Capture a single image
-		//capture_image_single();
-		capture_image_single_with_flash();
-		
-		poweroff_array_adc();
-
-		if (radio_tx_option){
-			// Radio out image data stored in flash
-			send_radio_data_ppm(0,0xFAFA0000);
-			//send_radio_flash_sram(0xE4, 6475); // Full image
-			send_radio_flash_sram(0xE4, 100);
-			send_radio_data_ppm(0,0xFAFA0000);
-		}
-	}
-
-	if (md_start_motion){
-		// Only need to set sleep PMU settings
-        //set_pmu_sleep_clk_fastest();
-		
-		md_count++;
-
-		// Start motion detection
-		start_md();
-		clear_md_flag();
-		delay(MBUS_DELAY);
-		start_md();
-
-	}else{
-		// Restore PMU_CTRL setting
-		//set_pmu_sleep_clk_default();
-	}
-
-	if (md_capture_img){
-		// Make FLS Layer go to sleep through GPIO
-		FLSv2MBusGPIO_sleep();
-	}
-
-	// Go to sleep w/o timer
-	operation_sleep_notimer();
-}
-
 static void capture_image_single_with_flash(void){
 
 		// Set Flash Ext Streaming Length
@@ -896,6 +812,7 @@ static void capture_image_single_with_flash(void){
 		delay(MBUS_DELAY);
 
 }
+
 
 static void operation_flash_erase(void){
 
@@ -984,6 +901,67 @@ static void operation_flash_read(void){
 		check_flash_sram(0xE3, 10);
 }
 
+static void operation_md(void){
+
+	// Release power gates, isolation, and reset for frame controller
+	if (md_count == 0) {
+		initialize_md_reg();
+		poweron_frame_controller();
+	}else{
+		// This wakeup is due to motion detection
+		// Let the world know!
+		write_mbus_message(0xAA, 0x22222222);
+  		delay (MBUS_DELAY);
+		clear_md_flag();
+        // radio
+        send_radio_data_ppm(0,0xFAFA1234);	
+	}
+
+	if (md_capture_img){
+
+		// Release power gates, isolation, and reset for imager array
+		poweron_array_adc();
+
+		// Capture a single image
+		//capture_image_single();
+		capture_image_single_with_flash();
+		
+		poweroff_array_adc();
+
+		if (radio_tx_option){
+			// Radio out image data stored in flash
+			send_radio_data_ppm(0,0xFAFA0000);
+			//send_radio_flash_sram(0xE4, 6475); // Full image
+			send_radio_flash_sram(0xE4, 100);
+			send_radio_data_ppm(0,0xFAFA0000);
+		}
+	}
+
+	if (md_start_motion){
+		// Only need to set sleep PMU settings
+        //set_pmu_sleep_clk_fastest();
+		
+		md_count++;
+
+		// Start motion detection
+		start_md();
+		clear_md_flag();
+		delay(MBUS_DELAY);
+		start_md();
+
+	}else{
+		// Restore PMU_CTRL setting
+		//set_pmu_sleep_clk_default();
+	}
+
+	if (md_capture_img){
+		// Make FLS Layer go to sleep through GPIO
+		FLSv2MBusGPIO_sleep();
+	}
+
+	// Go to sleep w/o timer
+	operation_sleep_notimer();
+}
 //***************************************************************************************
 // MAIN function starts here             
 //***************************************************************************************
