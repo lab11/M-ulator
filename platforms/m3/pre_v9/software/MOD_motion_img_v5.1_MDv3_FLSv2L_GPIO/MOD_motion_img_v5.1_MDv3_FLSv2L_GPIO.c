@@ -254,7 +254,7 @@ static void radio_power_off(){
     radv9_r2.SCRO_RESET  = 1;
     write_mbus_register(RAD_ADDR,2,radv9_r2.as_int);
     delay(MBUS_DELAY);
-    radv9_r13.RAD_FSM_SLEEP 		= 1;
+    radv9_r13.RAD_FSM_SLEEP 	= 1;
     radv9_r13.RAD_FSM_ISOLATE 	= 1;
     radv9_r13.RAD_FSM_RESETn 	= 0;
     radv9_r13.RAD_FSM_ENABLE 	= 0;
@@ -1057,7 +1057,7 @@ int main() {
 		if (radio_tx_option & !radio_on){
 			// Prepare radio TX
 			radio_power_on();
-			// Go to sleep and wake up with same condition
+			// Go to sleep for SCRO stabilitzation
 			set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
 			operation_sleep_noirqreset();
 		}
@@ -1080,15 +1080,23 @@ int main() {
 
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
-            // radio
-            send_radio_data_ppm(0,0xFAFA0000+md_count);	
-            // set timer
-            set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
-            // go to sleep and wake up with same condition
-            operation_sleep_noirqreset();
-
+			if (exec_count_irq == 1){
+				// Prepare radio TX
+				radio_power_on();
+				// Go to sleep for SCRO stabilitzation
+				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x0);
+				operation_sleep_noirqreset();
+			}else{
+				// radio
+				send_radio_data_ppm(0,0xFAF000+md_count);	
+				// set timer
+				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+				// go to sleep and wake up with same condition
+				operation_sleep_noirqreset();
+			}
         }else{
             exec_count_irq = 0;
+            send_radio_data_ppm(1,0xFAF000);	
             // Go to sleep without timer
             operation_sleep_notimer();
         }
