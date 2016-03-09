@@ -28,7 +28,7 @@
 // Common parameters
 #define	MBUS_DELAY 400 //Amount of delay between successive messages
 #define WAKEUP_DELAY 40000 // 0.6s
-#define DELAY_1 20000 // 5000: 0.5s
+#define DELAY_1 40000 // 5000: 0.5s
 #define DELAY_IMG 80000 // 1s
 
 #define START_COL_IDX 0 // in words
@@ -36,9 +36,8 @@
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 24
-#define RADIO_PACKET_DELAY 3000
 #define RADIO_TIMEOUT_COUNT 500
-#define WAKEUP_PERIOD_RADIO_INIT 3
+#define WAKEUP_PERIOD_RADIO_INIT 2
 
 // FLSv1 configurations
 //#define FLS_RECORD_LENGTH 0x18FE // In words; # of words stored -2
@@ -62,8 +61,8 @@ volatile bool radio_tx_option;
 
 volatile uint32_t md_count;
 volatile uint32_t img_count;
-volatile bool md_capture_img;
-volatile bool md_start_motion;
+volatile uint32_t md_capture_img;
+volatile uint32_t md_start_motion;
 volatile uint32_t USR_MD_INT_TIME;
 volatile uint32_t USR_INT_TIME;
 
@@ -242,6 +241,12 @@ static void radio_power_on(){
     radv9_r2.SCRO_ENABLE = 1;
     write_mbus_register(RAD_ADDR,2,radv9_r2.as_int);
     delay(MBUS_DELAY);
+
+	// Release FSM Isolate
+	radv9_r13.RAD_FSM_ISOLATE = 0;
+	write_mbus_register(RAD_ADDR,13,radv9_r13.as_int);
+	delay(MBUS_DELAY);
+
 }
 
 static void radio_power_off(){
@@ -270,11 +275,6 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 
     if (!radio_ready){
 		radio_ready = 1;
-
-		// Release FSM Isolate
-		radv9_r13.RAD_FSM_ISOLATE = 0;
-		write_mbus_register(RAD_ADDR,13,radv9_r13.as_int);
-		delay(MBUS_DELAY);
 
 		// Release FSM Reset
 		radv9_r13.RAD_FSM_RESETn = 1;
@@ -447,7 +447,7 @@ static void start_md(){
   // 0:1
   mdv3_r0.START_MD = 1;
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
-  delay(MBUS_DELAY*2);
+  delay(MBUS_DELAY*4);
 
   mdv3_r0.START_MD = 0;
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
@@ -469,7 +469,7 @@ static void clear_md_flag(){
   // 0:2
   mdv3_r0.STOP_MD = 1;
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
-  delay(MBUS_DELAY*2);
+  delay(MBUS_DELAY*4);
 
   mdv3_r0.STOP_MD = 0;
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
@@ -479,7 +479,7 @@ static void clear_md_flag(){
   // 1:4
   mdv3_r1.MD_TH_CLEAR = 1;
   write_mbus_register(MD_ADDR,0x1,mdv3_r1.as_int);
-  delay(MBUS_DELAY*2);
+  delay(MBUS_DELAY*4);
   
   mdv3_r1.MD_TH_CLEAR = 0;
   write_mbus_register(MD_ADDR,0x1,mdv3_r1.as_int);
@@ -633,7 +633,7 @@ static void capture_image_single(){
   // 0:0
   mdv3_r0.TAKE_IMAGE = 1;
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
-  delay(MBUS_DELAY*2); //Need ~10ms
+  delay(MBUS_DELAY*4); //Need >10ms
 
   mdv3_r0.TAKE_IMAGE = 0;
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
@@ -688,7 +688,7 @@ static void capture_image_single_with_flash(uint32_t page_offset){
 	delay(MBUS_DELAY);
 
 	// Copy SRAM to Flash
-	FLSv2MBusGPIO_setFlashStartAddr(FLS_ADDR, FLS_WR_PAGE + page_offset); // Should be a multiple of 0x800
+	FLSv2MBusGPIO_setFlashStartAddr(FLS_ADDR, page_offset); // Should be a multiple of 0x800
 	FLSv2MBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x000);
 	FLSv2MBusGPIO_doCopySRAM2Flash(FLS_ADDR, 0x1FFF); // 4 Pages; 0x2000 - 1
 	FLSv2MBusGPIO_rxMsg();
@@ -714,14 +714,6 @@ static void operation_flash_erase(uint32_t page_offset){
 
 	// Set START ADDRESS
 	FLSv2MBusGPIO_setSRAMStartAddr(FLS_ADDR, 0x00000000);
-
-	// Set Voltage Clamp
-	// Optimal: VTG_TUNE = 0x8, CRT_TUNE=0x3F 
-	FLSv2MBusGPIO_writeReg(FLS_ADDR, 0x0A, ((0x8 << 6) | (0x3E << 0 )));
-
-	// Set Terase
-	// Default: 0x1AA0
-	FLSv2MBusGPIO_setTerase(FLS_ADDR, 0x4AA0);
 
 	// Turn on Flash
 	FLSv2MBusGPIO_turnOn(FLS_ADDR);
@@ -806,8 +798,10 @@ static void operation_md(void){
 		write_mbus_message(0xAA, 0x22222222);
   		delay (MBUS_DELAY);
 		clear_md_flag();
-        // radio
-        send_radio_data_ppm(0,0xFAFA1234);	
+		if (radio_tx_option){
+			// radio
+			send_radio_data_ppm(0,0xFAFA1234);	
+		}
 	}
 
 	if (md_capture_img){
@@ -836,14 +830,15 @@ static void operation_md(void){
 
 	if (md_start_motion){
 		// Only need to set sleep PMU settings
-        //set_pmu_sleep_clk_fastest();
+        set_pmu_sleep_clk_fastest();
 		
 		md_count++;
 
 		// Start motion detection
 		start_md();
+		delay(DELAY_1);
 		clear_md_flag();
-		delay(MBUS_DELAY);
+		delay(DELAY_1);
 		start_md();
 
 	}else{
@@ -865,31 +860,29 @@ static void operation_init(void){
     // Set PMU Strength & division threshold
     // PMU_CTRL Register
     // PRCv9 Default: 0x8F770049
-    // Decrease 5x division switching threshold
 	set_pmu_sleep_clk_default();
   
-  	delay(MBUS_DELAY*10);
+    delay(DELAY_1);
 
-	// Change GOC_CTRL Register
-	// Set MBUS Clock Faster
 	// For PREv9E GPIO Isolation disable >> bits 16, 17, 24
+	//*((volatile uint32_t *) 0xA2000008) = 0x0120E608; /* 0000 0001 0010 0000 1110 0110 0000 1000 */
 	*((volatile uint32_t *) 0xA2000008) =
 		( (0x1 << 24) /* GPIO_ENABLE */
 		| (0x0 << 23) /* High Frequency Mode */
 		| (0x2 << 20) /* PMUCFG_OSCMID_DIV_F[2:0] */
 		| (0x0 << 17) /* PMUCFG_OSCMID_SEL_F[2:0] */
 		| (0x0 << 16) /* PMUCFG_ACT_NONOV_SEL */
-		| (0x0 << 14) /* ?? */
-		| (0x2 << 12) /* CLKX2_SEL_CM[1:0]; Divider 0:/2, 1:/4, 2:/8, 3:/16 */
+		| (0x3 << 14) /* ?? */
+		| (0x0 << 12) /* CLKX2_SEL_CM[1:0]; Divider 0:/2, 1:/4, 2:/8, 3:/16 */
 		| (0x1 << 10) /* CLKX2_SEL_I2C[1:0]; Divider 0:/1, 1:/2, 2:/4, 3:/8 */
 		| (0x2 << 8)  /* CLKX2_SEL_RING[1:0] */
 		| (0x0 << 7)  /* PMU_FORCE_WAKE */
 		| (0x0 << 6)  /* GOC_ONECLK_MODE */
 		| (0x0 << 4)  /* GOC_SEL_DLY[1:0] */
-		| (0x8 << 0)  /* GOC_SEL[3:0] */
+		| (0x3 << 0)  /* GOC_SEL[3:0] */
 		);
 
-  	delay(MBUS_DELAY*10);
+    delay(DELAY_1);
   
     //Enumerate & Initialize Registers
     enumerated = 0xDEADBEEF;
@@ -906,8 +899,10 @@ static void operation_init(void){
 	// Initialize MDv3
 	initialize_md_reg();
 
+	delay(MBUS_DELAY*2);
+
     // Radio Settings --------------------------------------
-    radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x1F; //Current Limiter 2F = 30uA, 1F = 3uA
+    radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
     radv9_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
     radv9_r0.RADIO_TUNE_FREQ2 = 0x0; //Tune Freq 2 //0x0,0x0 = 902MHz on Pblr005
     radv9_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
@@ -941,6 +936,12 @@ static void operation_init(void){
 	FLSv2MBusGPIO_enumeration(FLS_ADDR); // Enumeration
 	FLSv2MBusGPIO_rxMsg(); // Rx Enumeration Response
 
+	// Option to Slow down FLSv2L clock 
+	FLSv2MBusGPIO_writeReg(FLS_ADDR, 0x18, 
+	( (0xC << 2)  /* CLK_RING_SEL[3:0] Default 0xC */
+	| (0x1 << 0)  /* CLK_DIV_SEL[1:0] Default 0x1 */
+	));
+
 	// Voltage Clamp & Timing settings
 	FLSv2MBusGPIO_writeReg(FLS_ADDR, 0x0, 0x41205); // Tprog
 	FLSv2MBusGPIO_writeReg(FLS_ADDR, 0x4, 0x000500); // Tcyc_prog
@@ -963,6 +964,9 @@ static void operation_init(void){
 
 	USR_MD_INT_TIME = 12;
 	USR_INT_TIME = 30;
+
+	// Put FLS layer to sleep
+	FLSv2MBusGPIO_sleep();
 
 	// Go to sleep w/o timer
 	operation_sleep_notimer();
@@ -988,6 +992,8 @@ int main() {
         operation_init();
 
     }else{
+		// Configure GPIO for FLSv1 Interaction
+		FLSv2MBusGPIO_initialization();
 		// After enumeration, just wake up FLSv1
 		FLSv2MBusGPIO_wakeup();
 	}
@@ -1039,21 +1045,21 @@ int main() {
         // wakeup_data[17:16] indicates whether or not to to take an image
 		// 						1: md only, 2: img only, 3: md+img
         // wakeup_data[18] indicates whether or not to radio out the result
-
 		USR_MD_INT_TIME = wakeup_data_field_0;
 		USR_INT_TIME = wakeup_data_field_1;
 
-		exec_count_irq = 0;
 		// Reset IRQ10VEC
 		*((volatile uint32_t *) IRQ10VEC) = 0;
 
 		// Run Program
+		exec_count_irq = 0;
 		exec_count = 0;
 		md_count = 0;
 		img_count = 0;
-		md_start_motion = wakeup_data_field_2 & 1;
-		md_capture_img = (wakeup_data_field_2 >> 1) & 1;
-		radio_tx_option = (wakeup_data_field_2 >> 2) & 1;
+		radio_ready = 0;
+		md_start_motion = wakeup_data_field_2 & 0x1;
+		md_capture_img = (wakeup_data_field_2 >> 1) & 0x1;
+		radio_tx_option = (wakeup_data_field_2 >> 2) & 0x1;
 		if (radio_tx_option & !radio_on){
 			// Prepare radio TX
 			radio_power_on();
@@ -1064,6 +1070,17 @@ int main() {
 		if (md_capture_img){
 			operation_flash_erase(0x800);
 		}
+
+		// FIXME
+		write_mbus_message(0xAA, wakeup_data);
+  		delay(MBUS_DELAY);
+		write_mbus_message(0xAA, wakeup_data_field_2);
+  		delay(MBUS_DELAY);
+		write_mbus_message(0xAA, wakeup_data & 0x010000);
+  		delay(MBUS_DELAY);
+		write_mbus_message(0xAA, md_start_motion);
+  		delay(MBUS_DELAY);
+
 		operation_md();
    
     }else if(wakeup_data_header == 3){
@@ -1073,14 +1090,16 @@ int main() {
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
 		
 		clear_md_flag();
-		initialize_md_reg();
         set_pmu_sleep_clk_default();
 		md_start_motion = 0;
 		md_capture_img = 0;
+		radio_ready = 0;
 
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
 			if (exec_count_irq == 1){
+				// Initialize MD registers
+				initialize_md_reg();
 				// Prepare radio TX
 				radio_power_on();
 				// Go to sleep for SCRO stabilitzation

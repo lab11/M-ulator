@@ -32,7 +32,7 @@
 // Common parameters
 #define	MBUS_DELAY 400 // ~6ms; Amount of delay between successive messages
 #define WAKEUP_DELAY 40000 // 0.6s
-#define DELAY_1 20000 //
+#define DELAY_1 40000 //
 //#define DELAY_0.5 2500 // 5000: 0.5s
 #define DELAY_IMG 80000 // 1s
 
@@ -537,9 +537,6 @@ static void operation_sleep_notimer(void){
 }
 
 static void operation_init(void){
-	//volatile uint32_t temp_addr;
-	//volatile uint32_t temp_data;
-	//volatile uint32_t temp_numBit;
   
     // Set PMU Strength & division threshold
     // PMU_CTRL Register
@@ -580,7 +577,7 @@ static void operation_init(void){
     enumerate(RAD_ADDR);
     delay(MBUS_DELAY*2);
 
-	// Initialize MDv2
+	// Initialize MDv3
 	initialize_md_reg();
 
 	delay(MBUS_DELAY*2);
@@ -904,7 +901,7 @@ int main() {
 		//while (1);
 	}
 
-	// Put FLS back to sleep
+	// Put FLS layer to sleep
 	FLSv2MBusGPIO_sleep();
 
     // Go to sleep
