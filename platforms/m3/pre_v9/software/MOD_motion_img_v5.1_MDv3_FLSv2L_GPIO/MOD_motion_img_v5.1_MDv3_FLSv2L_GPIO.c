@@ -12,15 +12,10 @@
 #include "FLSv2L_GPIO.h"
 
 // uncomment this for debug mbus message
-//#define DEBUG_MBUS_MSG
-// uncomment this for debug radio message
-//#define DEBUG_RADIO_MSG
-
-// uncomment this to only transmit average
-//#define TX_AVERAGE
+#define DEBUG_MBUS_MSG
 
 // Stack order  PRC->MD->RAD->HRV
-#define MD_ADDR 0x4		// MD Short Address
+#define MD_ADDR 0x4
 #define RAD_ADDR 0x5
 #define HRV_ADDR 0x6
 #define FLS_ADDR 0x7
@@ -38,6 +33,7 @@
 #define RADIO_DATA_LENGTH 24
 #define RADIO_TIMEOUT_COUNT 500
 #define WAKEUP_PERIOD_RADIO_INIT 2
+#define RADIO_PACKET_DELAY 4000
 
 // FLSv1 configurations
 //#define FLS_RECORD_LENGTH 0x18FE // In words; # of words stored -2
@@ -57,7 +53,9 @@ volatile uint32_t MBus_msg_flag;
 
 volatile bool radio_ready;
 volatile bool radio_on;
-volatile bool radio_tx_option;
+volatile uint32_t radio_tx_option;
+volatile uint32_t radio_tx_img_idx;
+volatile uint32_t radio_tx_img_all;
 
 volatile uint32_t md_count;
 volatile uint32_t img_count;
@@ -136,83 +134,41 @@ void handler_ext_int_11(void){ *((volatile uint32_t *) 0xE000E280) = 0x800; }
 //************************************
 // PMU Related Functions
 //************************************
-inline static void set_pmu_sleep_clk_low(){
-    // PRCv11 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x4F773839; // 0x8F770039: use GOC x0.6-2
-}
 inline static void set_pmu_sleep_clk_default(){
     // PRCv11 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x4F773849; // 0x8F770049: use GOC x10-25
+    // 0x4F773849: use GOC x10-25 for "poly" and "poly2"
+    // 			   use GOC x5-10 for "Y2"
+	*((volatile uint32_t *) 0xA200000C) =
+		( (0x0 << 31) /* PMU_DIV6_OVRD */
+		| (0x1 << 30) /* PMU_DIV5_OVRD */
+		| (0x0 << 28) /* PMU_LC_TYPE and PMU_SEL_HARV_SRC */
+		| (0x3 << 26) /* PMU_WUTH */ | (0x3 << 24) /* PMU_HARV_CLK_SEL */
+		| (0x7 << 20) /* PMU_HARV_TUNE_FRAC */ | (0x7 << 16) /* PMU_HARV_STOP_CNT */
+		| (0x0 << 14) /* PMU_OSCACT_DIV[1:0] */
+		| (0x7 << 11) /* PMU_OSCACT_SEL[2:0] */
+		| (0x0 << 9) /* PMU_OSCGOC_DIV[1:0] */
+		| (0x0 << 7) /* PMU_OSCSLP_DIV[1:0] */
+		| (0x4 << 4) /* PMU_OSCSLP_SEL[2:0] */
+		| (0x2 << 2)  /* PMU_OVCHG_SEL */ | (0x1 << 0)  /* PMU_SCNDIV_SEL_TUNE */
+		);
 }
 inline static void set_pmu_sleep_clk_fastest(){
     // PRCv11 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x4F773879; // 0x8F770079: use GOC x70-230
-}
-
-//***************************************************
-// End of Program Sleep Operation
-//***************************************************
-static void operation_sleep(void){
-
-  // Reset wakeup counter
-  // This is required to go back to sleep!!
-  //set_wakeup_timer (0xFFF, 0x0, 0x1);
-  *((volatile uint32_t *) 0xA2000014) = 0x1;
-
-  // Reset IRQ10VEC
-  *((volatile uint32_t *) IRQ10VEC/*IMSG0*/) = 0;
-
-	// Put FLS back to sleep
-	FLSv2MBusGPIO_sleep();
-
-  // Go to Sleep
-  sleep();
-  while(1);
-
-}
-
-static void operation_sleep_for(uint16_t num_sleep_cycles){
-  // Reset wakeup counter
-  // This is required to go back to sleep!!
-	set_wakeup_timer (num_sleep_cycles, 1, 0);
-
-	// Put FLS back to sleep
-	FLSv2MBusGPIO_sleep();
-
-  // Go to Sleep
-	operation_sleep();
-	while(1);
-}
-
-static void operation_sleep_noirqreset(void){
-
-	// Reset wakeup counter
-	// This is required to go back to sleep!!
-	*((volatile uint32_t *) 0xA2000014) = 0x1;
-
-	// Put FLS back to sleep
-	FLSv2MBusGPIO_sleep();
-
-	// Go to Sleep
-	sleep();
-	while(1);
-
-}
-
-static void operation_sleep_notimer(void){
-    
-	// Disable Timer
-	set_wakeup_timer (0, 0x0, 0x0);
-
-	// Reset IRQ10VEC
-	*((volatile uint32_t *) IRQ10VEC/*IMSG0*/) = 0;
-
-	// Put FLS back to sleep
-	FLSv2MBusGPIO_sleep();
-
-	// Go to sleep without timer
-	operation_sleep();
-
+    // 0x4F773879: use GOC x70-x230 for "poly" and "poly2"
+    // 0x4F773879: use GOC x40-
+	*((volatile uint32_t *) 0xA200000C) =
+		( (0x0 << 31) /* PMU_DIV6_OVRD */
+		| (0x1 << 30) /* PMU_DIV5_OVRD */
+		| (0x0 << 28) /* PMU_LC_TYPE and PMU_SEL_HARV_SRC */
+		| (0x3 << 26) /* PMU_WUTH */ | (0x3 << 24) /* PMU_HARV_CLK_SEL */
+		| (0x7 << 20) /* PMU_HARV_TUNE_FRAC */ | (0x7 << 16) /* PMU_HARV_STOP_CNT */
+		| (0x0 << 14) /* PMU_OSCACT_DIV[1:0] */
+		| (0x7 << 11) /* PMU_OSCACT_SEL[2:0] */
+		| (0x0 << 9) /* PMU_OSCGOC_DIV[1:0] */
+		| (0x0 << 7) /* PMU_OSCSLP_DIV[1:0] */
+		| (0x7 << 4) /* PMU_OSCSLP_SEL[2:0] */
+		| (0x2 << 2)  /* PMU_OVCHG_SEL */ | (0x1 << 0)  /* PMU_SCNDIV_SEL_TUNE */
+		);
 }
 
 
@@ -309,6 +265,75 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 	write_mbus_message(0xBB, 0xFAFAFAFA);
 }
 
+//***************************************************
+// End of Program Sleep Operation
+//***************************************************
+static void operation_sleep(void){
+
+  // Reset wakeup counter
+  // This is required to go back to sleep!!
+  //set_wakeup_timer (0xFFF, 0x0, 0x1);
+  *((volatile uint32_t *) 0xA2000014) = 0x1;
+
+  // Reset IRQ10VEC
+  *((volatile uint32_t *) IRQ10VEC/*IMSG0*/) = 0;
+
+	// Put FLS back to sleep
+	FLSv2MBusGPIO_sleep();
+
+  // Go to Sleep
+  sleep();
+  while(1);
+
+}
+
+static void operation_sleep_for(uint16_t num_sleep_cycles){
+  // Reset wakeup counter
+  // This is required to go back to sleep!!
+	set_wakeup_timer (num_sleep_cycles, 1, 0);
+
+	// Put FLS back to sleep
+	FLSv2MBusGPIO_sleep();
+
+  // Go to Sleep
+	operation_sleep();
+	while(1);
+}
+
+static void operation_sleep_noirqreset(void){
+
+	// Reset wakeup counter
+	// This is required to go back to sleep!!
+	*((volatile uint32_t *) 0xA2000014) = 0x1;
+
+	// Put FLS back to sleep
+	FLSv2MBusGPIO_sleep();
+
+	// Go to Sleep
+	sleep();
+	while(1);
+
+}
+
+static void operation_sleep_notimer(void){
+    
+	// Turn off radio
+	radio_power_off();
+
+	// Disable Timer
+	set_wakeup_timer (0, 0x0, 0x0);
+
+	// Reset IRQ10VEC
+	*((volatile uint32_t *) IRQ10VEC/*IMSG0*/) = 0;
+
+	// Put FLS back to sleep
+	FLSv2MBusGPIO_sleep();
+
+	// Go to sleep without timer
+	operation_sleep();
+
+}
+
 //************************************
 // FLSv1 GPIO Functions
 //************************************
@@ -349,10 +374,6 @@ uint32_t send_radio_flash_sram (uint8_t addr_stamp, uint32_t length) {
 		FLSv2MBusGPIO_readMem(FLS_ADDR, 0xEE, 0, ((uint32_t) idx) << 2);
 		FLSv2MBusGPIO_rxMsg(); // Rx
 		fls_rx_data = FLSv2MBusGPIO_getRxData0();
-		//write_mbus_message(addr_stamp, fls_rx_data);
-		//delay(MBUS_DELAY);
-		//write_mbus_message(addr_stamp, idx);
-		//delay(MBUS_DELAY);
 		send_radio_data_ppm(0,fls_rx_data);
 		delay(MBUS_DELAY);
 	}
@@ -805,13 +826,19 @@ static void operation_md(void){
 	}
 
 	if (md_capture_img){
-
 		// Release power gates, isolation, and reset for imager array
 		poweron_array_adc();
 
 		// Capture a single image
 		//capture_image_single();
 		if (img_count < 60){
+
+		#ifdef DEBUG_MBUS_MSG
+			write_mbus_message(0xAF, img_count);
+			delay(MBUS_DELAY);
+			write_mbus_message(0xAF, 0x800 + img_count*0x2000);
+			delay(MBUS_DELAY);
+		#endif
 			capture_image_single_with_flash(0x800+img_count*0x2000);
 			img_count++;
 			// Erase the next section of flash
@@ -853,6 +880,39 @@ static void operation_md(void){
 
 	// Go to sleep w/o timer
 	operation_sleep_notimer();
+}
+
+static void operation_tx_image(void){
+
+	#ifdef DEBUG_MBUS_MSG
+		write_mbus_message(0xAF, radio_tx_img_idx);
+		delay(MBUS_DELAY);
+		write_mbus_message(0xAF, 0x800 + radio_tx_img_idx*0x2000);
+		delay(MBUS_DELAY);
+	#endif
+
+	// Read image from Flash 
+	operation_flash_read(0x800 + radio_tx_img_idx*0x2000);
+
+	// Send image to radio
+	//send_radio_flash_sram(0xE4, 6475); // Full image
+
+	radio_tx_img_idx++;
+
+	if (radio_tx_img_all && (radio_tx_img_idx < img_count)){
+		// Send next image after sleep/wakeup
+		set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+		operation_sleep_noirqreset();
+    }else{
+		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
+		send_radio_data_ppm(1, 0xFAF000);
+
+		// This is also the end of this IRQ routine
+		exec_count_irq = 0;
+		// Go to sleep without timer
+		operation_sleep_notimer();
+    }
+
 }
 
 static void operation_init(void){
@@ -957,6 +1017,8 @@ static void operation_init(void){
 	radio_on = 0;
 	radio_ready = 0;
 	radio_tx_option = 0;
+	radio_tx_img_idx = 0;
+	radio_tx_img_all = 0;
 
 	// Reset global variables
 	WAKEUP_PERIOD_CONT = 2;
@@ -1071,16 +1133,6 @@ int main() {
 			operation_flash_erase(0x800);
 		}
 
-		// FIXME
-		write_mbus_message(0xAA, wakeup_data);
-  		delay(MBUS_DELAY);
-		write_mbus_message(0xAA, wakeup_data_field_2);
-  		delay(MBUS_DELAY);
-		write_mbus_message(0xAA, wakeup_data & 0x010000);
-  		delay(MBUS_DELAY);
-		write_mbus_message(0xAA, md_start_motion);
-  		delay(MBUS_DELAY);
-
 		operation_md();
    
     }else if(wakeup_data_header == 3){
@@ -1109,7 +1161,7 @@ int main() {
 				// radio
 				send_radio_data_ppm(0,0xFAF000+md_count);	
 				// set timer
-				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
 				// go to sleep and wake up with same condition
 				operation_sleep_noirqreset();
 			}
@@ -1122,17 +1174,41 @@ int main() {
 
     }else if(wakeup_data_header == 4){
 		// Read out stored image from flash and transmit
-        // wakeup_data[7:0] is the # of images to transmit; if zero, all stored images are sent
+        // wakeup_data[7:0] is the image ID to transmit; Valid range is from 0 (first and oldest image) to img_count-1 (
         // wakeup_data[15:8] is the user-specified period 
+        // wakeup_data[16]: transmit all stored images 
+        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+		radio_tx_img_all = wakeup_data_field_2 & 0x1;
+
+		// FIXME: add feature to read XX images, all stored images, and single image
+
+		if (exec_count_irq == 0){ // Only do this once
+			radio_tx_img_idx = wakeup_data_field_0;
+			// Make sure the requested numdata makes sense
+			if (radio_tx_img_all){
+				radio_tx_img_idx = 0; // start from oldest image
+			}
+		}
 		
-		// FIXME: should be implemented
-
-    }else if(wakeup_data_header == 0x11){
-		// Slow down PMU sleep osc and go to sleep for further programming
-        set_pmu_sleep_clk_low();
-        // Go to sleep without timer
-        operation_sleep_notimer();
-
+        if (exec_count_irq < 3){
+			exec_count_irq++;
+			if (exec_count_irq == 1){
+				// Prepare radio TX
+				radio_power_on();
+				// Go to sleep for SCRO stabilitzation
+				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x0);
+				operation_sleep_noirqreset();
+			}else{
+				send_radio_data_ppm(0, 0xFAF000+exec_count_irq);
+				// set timer
+				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+				// go to sleep and wake up with same condition
+				operation_sleep_noirqreset();
+			}
+		}else{
+			operation_tx_image();
+		}
+		
     }else if(wakeup_data_header == 0x12){
 		// Restore PMU sleep osc and go to sleep for further programming
         set_pmu_sleep_clk_default();
