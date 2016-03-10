@@ -56,6 +56,8 @@ volatile bool radio_on;
 volatile uint32_t radio_tx_option;
 volatile uint32_t radio_tx_img_idx;
 volatile uint32_t radio_tx_img_all;
+volatile uint32_t radio_tx_img_one;
+volatile uint32_t radio_tx_img_num;
 
 volatile uint32_t md_count;
 volatile uint32_t img_count;
@@ -897,9 +899,8 @@ static void operation_tx_image(void){
 	// Send image to radio
 	//send_radio_flash_sram(0xE4, 6475); // Full image
 
-	radio_tx_img_idx++;
-
-	if (radio_tx_img_all && (radio_tx_img_idx < img_count)){
+	if (!radio_tx_img_one && (radio_tx_img_idx < radio_tx_img_num)){
+		radio_tx_img_idx++;
 		// Send next image after sleep/wakeup
 		set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
 		operation_sleep_noirqreset();
@@ -1019,6 +1020,8 @@ static void operation_init(void){
 	radio_tx_option = 0;
 	radio_tx_img_idx = 0;
 	radio_tx_img_all = 0;
+	radio_tx_img_one = 0;
+	radio_tx_img_num = 0;
 
 	// Reset global variables
 	WAKEUP_PERIOD_CONT = 2;
@@ -1174,23 +1177,27 @@ int main() {
 
     }else if(wakeup_data_header == 4){
 		// Read out stored image from flash and transmit
-        // wakeup_data[7:0] is the image ID to transmit; Valid range is from 0 (first and oldest image) to img_count-1 (
+        // wakeup_data[7:0] is the # of image to transmit; Valid range is from 0 (first and oldest image) to img_count-1
         // wakeup_data[15:8] is the user-specified period 
         // wakeup_data[16]: transmit all stored images 
+        // wakeup_data[17]: transmit only one image according to the image ID 
+		radio_tx_img_num = wakeup_data_field_0;
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
 		radio_tx_img_all = wakeup_data_field_2 & 0x1;
-
-		// FIXME: add feature to read XX images, all stored images, and single image
+		radio_tx_img_one = (wakeup_data_field_2>>1) & 0x1;
 
 		if (exec_count_irq == 0){ // Only do this once
-			radio_tx_img_idx = wakeup_data_field_0;
-			// Make sure the requested numdata makes sense
-			if (radio_tx_img_all){
+			if (radio_tx_img_one){
+				radio_tx_img_idx = radio_tx_img_num;
+			}else{
 				radio_tx_img_idx = 0; // start from oldest image
+			}
+			if (radio_tx_img_all){
+				radio_tx_img_num = img_count;
 			}
 		}
 		
-        if (exec_count_irq < 3){
+        if (exec_count_irq < 2){
 			exec_count_irq++;
 			if (exec_count_irq == 1){
 				// Prepare radio TX
