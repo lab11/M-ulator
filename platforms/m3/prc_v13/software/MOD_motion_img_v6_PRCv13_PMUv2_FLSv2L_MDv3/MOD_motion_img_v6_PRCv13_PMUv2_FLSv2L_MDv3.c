@@ -373,7 +373,7 @@ static void flash_copy_flash2sram(volatile uint32_t length){
 
 }
 
-static void flash_copy_sram2flash(volatle uint32_t length){
+static void flash_copy_sram2flash(volatile uint32_t length){
 
     mbus_remote_register_write(FLS_ADDR,0x08,0x0); // Set SRAM start addr
     set_halt_until_mbus_rx();
@@ -869,15 +869,15 @@ static void operation_init(void){
 
     // Enumeration
 	// Stack order: PRC->HRV->MD->RAD->FLS->PMU
-    enumerate(HRV_ADDR);
+    mbus_enumerate(HRV_ADDR);
     delay(MBUS_DELAY*2);
-    enumerate(MD_ADDR);
+    mbus_enumerate(MD_ADDR);
     delay(MBUS_DELAY*2);
-    enumerate(RAD_ADDR);
+    mbus_enumerate(RAD_ADDR);
     delay(MBUS_DELAY*2);
-    enumerate(FLS_ADDR);
+    mbus_enumerate(FLS_ADDR);
     delay(MBUS_DELAY*2);
-    enumerate(PMU_ADDR);
+    mbus_enumerate(PMU_ADDR);
     delay(MBUS_DELAY*2);
 
     // Set CPU Halt Option as TX --> Use for register write e.g.
