@@ -89,6 +89,9 @@ volatile radv9_r13_t radv9_r13 = RADv9_R13_DEFAULT;
 volatile uint32_t WAKEUP_PERIOD_CONT;
 volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
 
+volatile uint32_t flash_read_data[3] = {0, 0, 0}; // Read 3 words at a time; 96 bits of radio packet
+volatile uint32_t flash_read_data_single = 0; 
+
 //*******************************************************************
 // INTERRUPT HANDLERS
 //*******************************************************************
@@ -110,14 +113,14 @@ void handler_ext_int_14(void) __attribute__ ((interrupt ("IRQ")));
 
 void handler_ext_int_0(void)  { *NVIC_ICPR = (0x1 << 0);  } // TIMER32
 void handler_ext_int_1(void)  { *NVIC_ICPR = (0x1 << 1);  } // TIMER16
-void handler_ext_int_2(void)  { *NVIC_ICPR = (0x1 << 2);  } // REG0
-void handler_ext_int_3(void)  { *NVIC_ICPR = (0x1 << 3);  } // REG1
-void handler_ext_int_4(void)  { *NVIC_ICPR = (0x1 << 4);  } // REG2
-void handler_ext_int_5(void)  { *NVIC_ICPR = (0x1 << 5);  } // REG3
-void handler_ext_int_6(void)  { *NVIC_ICPR = (0x1 << 6);  } // REG4
-void handler_ext_int_7(void)  { *NVIC_ICPR = (0x1 << 7);  } // REG5
-void handler_ext_int_8(void)  { *NVIC_ICPR = (0x1 << 8);  } // REG6
-void handler_ext_int_9(void)  { *NVIC_ICPR = (0x1 << 9);  } // REG7
+void handler_ext_int_2(void)  { *NVIC_ICPR = (0x1 << 2); Mbus_msg_flag = 0x10; } // REG0
+void handler_ext_int_3(void)  { *NVIC_ICPR = (0x1 << 3); Mbus_msg_flag = 0x11; } // REG1
+void handler_ext_int_4(void)  { *NVIC_ICPR = (0x1 << 4); Mbus_msg_flag = 0x12; } // REG2
+void handler_ext_int_5(void)  { *NVIC_ICPR = (0x1 << 5); Mbus_msg_flag = 0x13; } // REG3
+void handler_ext_int_6(void)  { *NVIC_ICPR = (0x1 << 6); Mbus_msg_flag = 0x14; } // REG4
+void handler_ext_int_7(void)  { *NVIC_ICPR = (0x1 << 7); Mbus_msg_flag = 0x15; } // REG5
+void handler_ext_int_8(void)  { *NVIC_ICPR = (0x1 << 8); Mbus_msg_flag = 0x16; } // REG6
+void handler_ext_int_9(void)  { *NVIC_ICPR = (0x1 << 9); Mbus_msg_flag = 0x17; } // REG7
 void handler_ext_int_10(void) { *NVIC_ICPR = (0x1 << 10); } // MEM WR
 void handler_ext_int_11(void) { *NVIC_ICPR = (0x1 << 11); } // MBUS_RX
 void handler_ext_int_12(void) { *NVIC_ICPR = (0x1 << 12); } // MBUS_TX
@@ -960,7 +963,8 @@ static void operation_init(void){
 int main() {
   
     // Initialize Interrupts
-    disable_all_irq();
+    // Only enable register-related interrupts
+	enable_reg_irq();
   
 	// Disable the watch-dog timer
 	disable_timerwd();
