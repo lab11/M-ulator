@@ -191,6 +191,15 @@ void disable_all_irq();
  */
 void clear_all_pend_irq();
 
+/**
+ * @brief   Only enable register-related interrupts
+ *
+ * @param   N/A
+ *
+ * @usage   enable_reg_irq();
+ */
+void enable_reg_irq();
+
 
 /**
  * @brief   Set a new CONFIG_HALT_CPU value

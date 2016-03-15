@@ -31,7 +31,7 @@
 #define COLS_TO_READ 39 // in # of words: 39 for full frame, 19 for half
 
 // Radio configurations
-#define RADIO_DATA_LENGTH 24
+#define RADIO_DATA_LENGTH 96
 #define RADIO_TIMEOUT_COUNT 500
 #define WAKEUP_PERIOD_RADIO_INIT 2
 #define RADIO_PACKET_DELAY 4000
@@ -50,7 +50,7 @@
 volatile uint32_t enumerated;
 volatile uint32_t exec_count;
 volatile uint32_t exec_count_irq;
-volatile uint32_t MBus_msg_flag;
+volatile uint32_t mbus_msg_flag;
 
 volatile bool radio_ready;
 volatile bool radio_on;
@@ -113,14 +113,14 @@ void handler_ext_int_14(void) __attribute__ ((interrupt ("IRQ")));
 
 void handler_ext_int_0(void)  { *NVIC_ICPR = (0x1 << 0);  } // TIMER32
 void handler_ext_int_1(void)  { *NVIC_ICPR = (0x1 << 1);  } // TIMER16
-void handler_ext_int_2(void)  { *NVIC_ICPR = (0x1 << 2); Mbus_msg_flag = 0x10; } // REG0
-void handler_ext_int_3(void)  { *NVIC_ICPR = (0x1 << 3); Mbus_msg_flag = 0x11; } // REG1
-void handler_ext_int_4(void)  { *NVIC_ICPR = (0x1 << 4); Mbus_msg_flag = 0x12; } // REG2
-void handler_ext_int_5(void)  { *NVIC_ICPR = (0x1 << 5); Mbus_msg_flag = 0x13; } // REG3
-void handler_ext_int_6(void)  { *NVIC_ICPR = (0x1 << 6); Mbus_msg_flag = 0x14; } // REG4
-void handler_ext_int_7(void)  { *NVIC_ICPR = (0x1 << 7); Mbus_msg_flag = 0x15; } // REG5
-void handler_ext_int_8(void)  { *NVIC_ICPR = (0x1 << 8); Mbus_msg_flag = 0x16; } // REG6
-void handler_ext_int_9(void)  { *NVIC_ICPR = (0x1 << 9); Mbus_msg_flag = 0x17; } // REG7
+void handler_ext_int_2(void)  { *NVIC_ICPR = (0x1 << 2); mbus_msg_flag = 0x10; } // REG0
+void handler_ext_int_3(void)  { *NVIC_ICPR = (0x1 << 3); mbus_msg_flag = 0x11; } // REG1
+void handler_ext_int_4(void)  { *NVIC_ICPR = (0x1 << 4); mbus_msg_flag = 0x12; } // REG2
+void handler_ext_int_5(void)  { *NVIC_ICPR = (0x1 << 5); mbus_msg_flag = 0x13; } // REG3
+void handler_ext_int_6(void)  { *NVIC_ICPR = (0x1 << 6); mbus_msg_flag = 0x14; } // REG4
+void handler_ext_int_7(void)  { *NVIC_ICPR = (0x1 << 7); mbus_msg_flag = 0x15; } // REG5
+void handler_ext_int_8(void)  { *NVIC_ICPR = (0x1 << 8); mbus_msg_flag = 0x16; } // REG6
+void handler_ext_int_9(void)  { *NVIC_ICPR = (0x1 << 9); mbus_msg_flag = 0x17; } // REG7
 void handler_ext_int_10(void) { *NVIC_ICPR = (0x1 << 10); } // MEM WR
 void handler_ext_int_11(void) { *NVIC_ICPR = (0x1 << 11); } // MBUS_RX
 void handler_ext_int_12(void) { *NVIC_ICPR = (0x1 << 12); } // MBUS_TX
@@ -235,16 +235,20 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 		delay(MBUS_DELAY);
     }
 
+    // Set CPU Halt Option as RX --> Use for register read e.g.
+    set_halt_until_mbus_rx();
+
     // Fire off data
     uint32_t count;
-    MBus_msg_flag = 0;
+    mbus_msg_flag = 0;
     radv9_r13.RAD_FSM_ENABLE = 1;
     mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
     delay(MBUS_DELAY);
 
     for( count=0; count<RADIO_TIMEOUT_COUNT; count++ ){
-		if( MBus_msg_flag ){
-			MBus_msg_flag = 0;
+		if( mbus_msg_flag ){
+    		set_halt_until_mbus_tx();
+			mbus_msg_flag = 0;
 			if (last_packet){
 				radio_ready = 0;
 				radio_power_off();
@@ -259,9 +263,65 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 		}
     }
 	
+    set_halt_until_mbus_tx();
 	mbus_write_message32(0xBB, 0xFAFAFAFA);
 }
 
+static void send_radio_data_ppm_96(bool last_packet, uint32_t radio_data_0, uint32_t radio_data_1, uint32_t radio_data_2, uint32_t radio_data_3){
+	// Sends 96 bits of data (3 words, 4 RADv9 registers)
+	// radio_data_0: DATA[23:0]
+	// radio_data_1: DATA[47:24]
+	// radio_data_2: DATA[71:48]
+	// radio_data_3: DATA[95:72]
+    mbus_remote_register_write(RAD_ADDR,3,radio_data_0);
+    delay(MBUS_DELAY);
+    mbus_remote_register_write(RAD_ADDR,4,radio_data_1);
+    delay(MBUS_DELAY);
+    mbus_remote_register_write(RAD_ADDR,5,radio_data_2);
+    delay(MBUS_DELAY);
+    mbus_remote_register_write(RAD_ADDR,6,radio_data_3);
+    delay(MBUS_DELAY);
+
+    if (!radio_ready){
+		radio_ready = 1;
+
+		// Release FSM Reset
+		radv9_r13.RAD_FSM_RESETn = 1;
+		mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
+		delay(MBUS_DELAY);
+    }
+
+    // Set CPU Halt Option as RX --> Use for register read e.g.
+    set_halt_until_mbus_rx();
+
+    // Fire off data
+    uint32_t count;
+    mbus_msg_flag = 0;
+    radv9_r13.RAD_FSM_ENABLE = 1;
+    mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
+    delay(MBUS_DELAY);
+
+    for( count=0; count<RADIO_TIMEOUT_COUNT; count++ ){
+		if( mbus_msg_flag ){
+    		set_halt_until_mbus_tx();
+			mbus_msg_flag = 0;
+			if (last_packet){
+				radio_ready = 0;
+				radio_power_off();
+			}else{
+				radv9_r13.RAD_FSM_ENABLE = 0;
+				mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
+				delay(MBUS_DELAY);
+			}
+			return;
+		}else{
+			delay(MBUS_DELAY);
+		}
+    }
+	
+    set_halt_until_mbus_tx();
+	mbus_write_message32(0xBB, 0xFAFAFAFA);
+}
 //***************************************************
 // End of Program Sleep Operation
 //***************************************************
@@ -306,14 +366,14 @@ uint32_t check_flash_sram(uint8_t addr_stamp, uint32_t length){
 
 	for(idx=0; idx<length; idx++) {
 
-		// FIXME
-		/*
-		FLSv2MBusGPIO_readMem(FLS_ADDR, 0xEE, 0, ((uint32_t) idx) << 2);
-		FLSv2MBusGPIO_rxMsg(); // Rx
-		
-		write_mbus_message(addr_stamp, FLSv2MBusGPIO_getRxData0());
+    	set_halt_until_mbus_rx();
+		mbus_copy_mem_from_remote_to_any_bulk(FLS_ADDR, (uint32_t*)(idx << 2), 0x1, &flash_read_data_single, 0);
+		//FLSv2MBusGPIO_readMem(FLS_ADDR, 0xEE, 0, ((uint32_t) idx) << 2);
 		delay(MBUS_DELAY);
-		*/
+    	set_halt_until_mbus_tx();
+		mbus_write_message32(addr_stamp, flash_read_data_single);
+		delay(MBUS_DELAY);
+		
 	}
 
 	return 1;
@@ -323,16 +383,14 @@ uint32_t send_radio_flash_sram(uint8_t addr_stamp, uint32_t length){
 	uint32_t idx;
 	uint32_t fls_rx_data;
 
-	for(idx=0; idx<length; idx++) {
+	for(idx=0; (idx*3)<length; idx++) {
 
-		// FIXME
-		/*
-		FLSv2MBusGPIO_readMem(FLS_ADDR, 0xEE, 0, ((uint32_t) idx) << 2);
-		FLSv2MBusGPIO_rxMsg(); // Rx
-		fls_rx_data = FLSv2MBusGPIO_getRxData0();
-		send_radio_data_ppm(0,fls_rx_data);
+    	set_halt_until_mbus_rx();
+		mbus_copy_mem_from_remote_to_any_bulk(FLS_ADDR, (uint32_t*)((idx*3) << 2), 0x1, &flash_read_data, 2);
+		//FLSv2MBusGPIO_readMem(FLS_ADDR, 0xEE, 0, ((uint32_t) idx) << 2);
+		// Send 96 bits of data
+		send_radio_data_ppm_96(0,flash_read_data[0],flash_read_data[1],flash_read_data[2],flash_read_data[2]);
 		delay(MBUS_DELAY);
-		*/
 	}
 
 	return 1;
@@ -865,7 +923,7 @@ static void operation_init(void){
     enumerated = 0xDEADBEEF;
     exec_count = 0;
     exec_count_irq = 0;
-    MBus_msg_flag = 0;
+    mbus_msg_flag = 0;
 
     // Set CPU Halt Option as RX --> Use for register read e.g.
     set_halt_until_mbus_rx();
