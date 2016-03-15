@@ -38,7 +38,7 @@ m.ice.mbus_set_master_onoff(False)
 m.set_slow_frequency()
 m.wake_chip()
 m.set_fast_frequency()
-message = m.build_injection_message("a512345678")
+message = m.build_injection_message(hexencoded_data="a512345678")
 m.send_goc_message(message)
 
 logger.info("")

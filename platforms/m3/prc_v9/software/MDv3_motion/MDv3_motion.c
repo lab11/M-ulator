@@ -18,7 +18,7 @@
 #define WAKEUP_DELAY 4000 // 20s
 #define WAKEUP_DELAY_FINAL 10000	// Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
 #define DELAY_1 10000 // 1s
-#define DELAY_500ms 5000
+#define DELAY_0P5 5000
 
 
 //***************************************************
@@ -71,15 +71,29 @@ void handler_ext_int_3(void){
 
 static void initialize_md_reg(){
 
+/*
+	mdv3_r0 = MDv3_R0_DEFAULT;
+	mdv3_r1 = MDv3_R1_DEFAULT;
+	mdv3_r2 = MDv3_R2_DEFAULT;
+	mdv3_r3 = MDv3_R3_DEFAULT;
+	mdv3_r4 = MDv3_R4_DEFAULT;
+	mdv3_r5 = MDv3_R5_DEFAULT;
+	mdv3_r6 = MDv3_R6_DEFAULT;
+	mdv3_r7 = MDv3_R7_DEFAULT;
+	mdv3_r8 = MDv3_R8_DEFAULT;
+	mdv3_r9 = MDv3_R9_DEFAULT;
+*/
 	mdv3_r0.INT_TIME = 5*2;
 	mdv3_r0.MD_INT_TIME = 15;
-	mdv3_r1.MD_TH = 10;
-	mdv3_r1.MD_LOWRES = 1;
-	mdv3_r1.MD_LOWRES_B = 0;
-	mdv3_r1.MD_FLAG_TOPAD_SEL = 0; // 1: thresholding, 0: no thresholding
+	mdv3_r1.MD_TH = 2;
+	mdv3_r1.MD_LOWRES = 0;
+	mdv3_r1.MD_LOWRES_B = 1;
+	mdv3_r1.MD_FLAG_TOPAD_SEL = 1; // 1: thresholding, 0: no thresholding
 
 	mdv3_r2.MD_RESULTS_MASK = 0x3FF;
 
+	mdv3_r3.VDD_CC_ENB_0P6 = 0;
+	mdv3_r3.VDD_CC_ENB_1P2 = 1;
 	mdv3_r3.SEL_VREF = 0;
 	mdv3_r3.SEL_VREFP = 7;
 	mdv3_r3.SEL_VBN = 3;
@@ -87,8 +101,8 @@ static void initialize_md_reg(){
 	mdv3_r3.SEL_VB_RAMP = 15;
 	mdv3_r3.SEL_RAMP = 1;
 
-	mdv3_r4.SEL_CC  = 3;
-	mdv3_r4.SEL_CC_B  = 4;
+	mdv3_r4.SEL_CC  = 4;
+	mdv3_r4.SEL_CC_B  = 3;
 
 	mdv3_r5.SEL_CLK_RING = 2;
 	mdv3_r5.SEL_CLK_DIV = 4;
@@ -206,9 +220,9 @@ static void start_md(){
 
   // Optionally release MD GPIO Isolation
   // 7:16
-  mdv3_r7.ISOLATE_GPIO = 0;
-  write_mbus_register(MD_ADDR,0x7,mdv3_r7.as_int);
-  delay (MBUS_DELAY);
+  //mdv3_r7.ISOLATE_GPIO = 0;
+  //write_mbus_register(MD_ADDR,0x7,mdv3_r7.as_int);
+  //delay (MBUS_DELAY);
   //delay(DELAY_500ms); // about 0.5s
 
   // Start MD
@@ -221,7 +235,7 @@ static void start_md(){
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
   delay(MBUS_DELAY);
 
-  delay(DELAY_500ms); // about 0.5s
+  delay(DELAY_1); // about 0.5s
 
   // Enable MD Flag
   // 1:3
@@ -237,7 +251,7 @@ static void clear_md_flag(){
   // 0:2
   mdv3_r0.STOP_MD = 1;
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
-  delay(MBUS_DELAY*10);
+  delay(DELAY_0P5);
 
   mdv3_r0.STOP_MD = 0;
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
@@ -247,7 +261,7 @@ static void clear_md_flag(){
   // 1:4
   mdv3_r1.MD_TH_CLEAR = 1;
   write_mbus_register(MD_ADDR,0x1,mdv3_r1.as_int);
-  delay(MBUS_DELAY*10);
+  delay(DELAY_0P5);
   
   mdv3_r1.MD_TH_CLEAR = 0;
   write_mbus_register(MD_ADDR,0x1,mdv3_r1.as_int);
@@ -334,7 +348,7 @@ int main() {
 		// PRCv9 Default: 0x8F770049
 		*((volatile uint32_t *) 0xA200000C) = 0x8F770079;
 	  
-		delay(DELAY_500ms);
+		delay(DELAY_0P5);
 	  
 		// Set MBUS Clock faster
 		// Change GOC_CTRL Register
@@ -343,7 +357,7 @@ int main() {
 		// 0x00A02332 = Fastest MBUS clk
 		//*((volatile uint32_t *) 0xA2000008) = 0x00A02332;
 		
-		delay(DELAY_500ms);
+		delay(DELAY_0P5);
 
 	} // if first_exec
 
@@ -365,9 +379,9 @@ int main() {
 	// Start motion detection
 	start_md();
 
-	delay(DELAY_500ms);
+	delay(DELAY_1);
 	clear_md_flag();
-	//delay(DELAY_500ms);
+	delay(DELAY_0P5);
 	start_md();
 
 	delay(MBUS_DELAY);

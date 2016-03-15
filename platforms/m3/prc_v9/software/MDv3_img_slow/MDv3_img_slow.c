@@ -75,7 +75,7 @@ void handler_ext_int_3(void){
 
 static void initialize_md_reg(){
 
-	mdv3_r0.INT_TIME = 5*2;
+	mdv3_r0.INT_TIME = 40;
 	mdv3_r0.MD_INT_TIME = 15;
 	mdv3_r1.MD_TH = 10;
 	mdv3_r1.MD_LOWRES = 1;
@@ -416,9 +416,9 @@ int main() {
 
 	// Capture a single image
 	
-	//while (1){
+	while (1){
 	  capture_image_single();
-	//}
+	}
 	
 	poweroff_array_adc();
 

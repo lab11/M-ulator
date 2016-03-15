@@ -2,21 +2,21 @@
 .syntax unified
 .thumb
 
-/* Interrupt Vector Table for PRCv12 (8kB SRAM) */
+/* Interrupt Vector Table for PREv13 (8kB SRAM) */
 .section .vectors
 .word	0x2000	@ stack top
 .word	_start	@ reset vector
 .word   handler_nmi          /* 2 NMI */
 .word   handler_hard         /* 3 HardFault */
-.word   handler_memmange     /* 4 MemManage */
-.word   handler_bus          /* 5 BusFault */
-.word   handler_usage        /* 6 UsageFault */
+.word   hang                 /* 4 RESERVED */
+.word   hang                 /* 5 RESERVED */
+.word   hang                 /* 6 RESERVED */
 .word   hang                 /* 7 RESERVED */
 .word   hang                 /* 8 RESERVED */
 .word   hang                 /* 9 RESERVED*/
 .word   hang                 /* 10 RESERVED */
 .word   handler_svcall       /* 11 SVCall */
-.word   handler_debug_mon    /* 12 Debug Monitor */
+.word   hang                 /* 12 RESERVED */
 .word   hang                 /* 13 RESERVED */
 .word   handler_pendsv       /* 14 PendSV */
 .word   handler_systick      /* 15 SysTick */
@@ -36,7 +36,6 @@
 .word   handler_ext_int_13   /* 29 External Interrupt(13) */
 .word   handler_ext_int_14   /* 30 External Interrupt(14) */
 .word   handler_ext_int_15   /* 31 External Interrupt(15) */
-.word   handler_ext_int_16   /* 32 External Interrupt(16) */
 
 
 .align 4
@@ -45,11 +44,7 @@ hang:   b .
 
 .weak handler_nmi, hang
 .weak handler_hard, hang
-.weak handler_memmange, hang
-.weak handler_bus, hang
-.weak handler_usage, hang
 .weak handler_svcall, hang
-.weak handler_debug_mon, hang
 .weak handler_pendsv, hang
 .weak handler_systick, hang
 .weak handler_ext_int_0, hang
@@ -68,7 +63,6 @@ hang:   b .
 .weak handler_ext_int_13, hang
 .weak handler_ext_int_14, hang
 .weak handler_ext_int_15, hang
-.weak handler_ext_int_16, hang
 
 .text
 .func _start

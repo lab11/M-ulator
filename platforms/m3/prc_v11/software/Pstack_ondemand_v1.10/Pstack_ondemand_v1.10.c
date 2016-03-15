@@ -6,12 +6,13 @@
 //				Revision 1.10
 //				- Changes to correctly implement trigger 7
 //				- PMU sleep frequency increased during CDC operation
+//				- PMU active/sleep frequency and MBUS frequency adjustment for 2015 JUL Run
 //				Revision 1.9
 //				- PRCv11
 //				- SNSv6
 //				- Support for RADv7 & RADv8 (ppm radio)
-//                                10/27/2015
-//                              - Changed HRV HRV_TOP_CONV_RATIO from Default (0xE) to 0x6
+//              10/27/2015
+//              - Changed HRV HRV_TOP_CONV_RATIO from Default (0xE) to 0x6
 //				Revision 1.8
 //				- For 2015 APR Tapeout: SNSv5 with Wanyeong's CDC (CDCW)
 //				- Updated radio configuration: pulse length & bitrate delay

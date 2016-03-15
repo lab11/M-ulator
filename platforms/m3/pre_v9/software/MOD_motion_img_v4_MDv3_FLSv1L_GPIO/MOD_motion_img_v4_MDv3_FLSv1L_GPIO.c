@@ -35,6 +35,7 @@
 #define WAKEUP_DELAY 10000 // 20s
 #define WAKEUP_DELAY_FINAL 5000	// Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
 #define DELAY_1 5000 // 5000: 0.5s
+#define DELAY_0.5 2500 // 5000: 0.5s
 #define DELAY_IMG 40000 // 1s
 
 #define START_COL_IDX 0 // in words
@@ -457,7 +458,7 @@ static void operation_sleep_notimer(void){
 static void operation_init(void){
 	//volatile uint32_t temp_addr;
 	//volatile uint32_t temp_data;
-	volatile uint32_t temp_numBit;
+	//volatile uint32_t temp_numBit;
   
     // Set PMU Strength & division threshold
     // PMU_CTRL Register
@@ -493,6 +494,8 @@ static void operation_init(void){
 
     //Enumeration
     enumerate(MD_ADDR);
+    delay(MBUS_DELAY*2);
+    enumerate(RAD_ADDR);
     delay(MBUS_DELAY*2);
 
 	// Initialize MDv2
@@ -832,7 +835,8 @@ int main() {
 		
 		// Radio out image data stored in flash
 		send_radio_data_32b(0xFAFA0000);
-		send_radio_flash_sram(0xE4, 6475);
+		//send_radio_flash_sram(0xE4, 6475); // Full image
+		send_radio_flash_sram(0xE4, 100);
 		send_radio_data_32b(0xFAFA0000);
 
 		// Increment the count at IRQ11VEC

@@ -10,7 +10,7 @@ ASFLAGS :=
 ##########################
 ## Unlikely configruation:
 
-#CFLAGS  += -Wall -Wextra -Werror -mthumb -mcpu=cortex-m0 -ffreestanding
+#CFLAGS  += -g -Wall -Wextra -Werror -mthumb -mcpu=cortex-m0 -ffreestanding
 # Don't care about the warnings not compiling. It's annoying.
 CFLAGS  += -Os -Wall -Wextra -mthumb -mcpu=cortex-m0 -ffreestanding -fdata-sections -ffunction-sections
 LDFLAGS += -Os -static -S -nostartfiles -nodefaultlibs -nostdlib --gc-sections -e _start #-dead_strip #-why_live read_mbus_register_RADv4
