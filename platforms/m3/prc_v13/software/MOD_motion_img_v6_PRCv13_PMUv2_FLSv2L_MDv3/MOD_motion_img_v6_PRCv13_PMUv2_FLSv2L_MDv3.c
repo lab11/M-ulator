@@ -5,6 +5,7 @@
 //				FLASH storage with FLSv2
 //*******************************************************************
 #include "PRCv13.h"
+#include "PRCv13_RF.h"
 #include "mbus.h"
 #include "PMUv2_RF.h"
 #include "MDv3.h"
@@ -14,6 +15,7 @@
 #define DEBUG_MBUS_MSG
 
 // Stack order: PRC->HRV->MD->RAD->FLS->PMU
+#define PRC_ADDR 0x1
 #define MD_ADDR 0x4
 #define RAD_ADDR 0x5
 #define HRV_ADDR 0x6
@@ -85,6 +87,8 @@ volatile radv9_r3_t radv9_r3 = RADv9_R3_DEFAULT;
 volatile radv9_r11_t radv9_r11 = RADv9_R11_DEFAULT;
 volatile radv9_r12_t radv9_r12 = RADv9_R12_DEFAULT;
 volatile radv9_r13_t radv9_r13 = RADv9_R13_DEFAULT;
+
+volatile prcv13_r0B_t prcv13_r0B = PRCv13_R0B_DEFAULT;
 
 volatile uint32_t WAKEUP_PERIOD_CONT;
 volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
@@ -367,7 +371,7 @@ uint32_t check_flash_sram(uint8_t addr_stamp, uint32_t length){
 	for(idx=0; idx<length; idx++) {
 
     	set_halt_until_mbus_rx();
-		mbus_copy_mem_from_remote_to_any_bulk(FLS_ADDR, (uint32_t*)(idx << 2), 0x1, &flash_read_data_single, 0);
+		mbus_copy_mem_from_remote_to_any_bulk(FLS_ADDR, (uint32_t*)(idx << 2), PRC_ADDR, (uint32_t*)&flash_read_data_single, 0);
 		//FLSv2MBusGPIO_readMem(FLS_ADDR, 0xEE, 0, ((uint32_t) idx) << 2);
 		delay(MBUS_DELAY);
     	set_halt_until_mbus_tx();
@@ -386,7 +390,7 @@ uint32_t send_radio_flash_sram(uint8_t addr_stamp, uint32_t length){
 	for(idx=0; (idx*3)<length; idx++) {
 
     	set_halt_until_mbus_rx();
-		mbus_copy_mem_from_remote_to_any_bulk(FLS_ADDR, (uint32_t*)((idx*3) << 2), 0x1, &flash_read_data, 2);
+		mbus_copy_mem_from_remote_to_any_bulk(FLS_ADDR, (uint32_t*)((idx*3) << 2), PRC_ADDR, (uint32_t*)&flash_read_data, 2);
 		//FLSv2MBusGPIO_readMem(FLS_ADDR, 0xEE, 0, ((uint32_t) idx) << 2);
 		// Send 96 bits of data
 		send_radio_data_ppm_96(0,flash_read_data[0],flash_read_data[1],flash_read_data[2],flash_read_data[2]);
@@ -488,8 +492,8 @@ static void initialize_md_reg(){
 	mdv3_r6.COL_SKIP = 0;
 	mdv3_r6.ROW_IDX_EN = 0;
 
-	mdv3_r8.MBUS_REPLY_ADDR_FLAG = 0x16;
-	mdv3_r9.MBUS_REPLY_ADDR_DATA = 0x17; // IMG Data return address
+	mdv3_r8.MBUS_REPLY_ADDR_FLAG = 0x18;
+	mdv3_r9.MBUS_REPLY_ADDR_DATA = 0x72; // IMG Data return address
 
 	mdv3_r8.MBUS_START_ADDR = 0; // Start column index in words
 	mdv3_r8.MBUS_LENGTH_M1 = 39; // Columns to be read; in # of words: 39 for full frame, 19 for half
@@ -898,7 +902,7 @@ static void operation_tx_image(void){
 	if (!radio_tx_img_one && (radio_tx_img_idx < radio_tx_img_num)){
 		radio_tx_img_idx++;
 		// Send next image after sleep/wakeup
-		set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+		set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 		operation_sleep_noirqreset();
     }else{
 		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
@@ -914,11 +918,20 @@ static void operation_tx_image(void){
 
 static void operation_init(void){
   
+	// Set CPU & Mbus Clock Speeds
+    prcv13_r0B.CLK_GEN_RING = 0x3; // Default 0x1
+    prcv13_r0B.CLK_GEN_DIV_MBC = 0x0; // Default 0x1
+    prcv13_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
+	*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv13_r0B.as_int;
+
+
+
+
 	// Set PMU settings
 	// FIXME
 	set_pmu_sleep_clk_default();
     delay(DELAY_1);
-  
+
     //Enumerate & Initialize Registers
     enumerated = 0xDEADBEEF;
     exec_count = 0;
@@ -931,15 +944,15 @@ static void operation_init(void){
     // Enumeration
 	// Stack order: PRC->HRV->MD->RAD->FLS->PMU
     mbus_enumerate(HRV_ADDR);
-    delay(MBUS_DELAY*2);
+    delay(MBUS_DELAY);
     mbus_enumerate(MD_ADDR);
-    delay(MBUS_DELAY*2);
+    delay(MBUS_DELAY);
     mbus_enumerate(RAD_ADDR);
-    delay(MBUS_DELAY*2);
+    delay(MBUS_DELAY);
     mbus_enumerate(FLS_ADDR);
-    delay(MBUS_DELAY*2);
-    mbus_enumerate(PMU_ADDR);
-    delay(MBUS_DELAY*2);
+    delay(MBUS_DELAY);
+    //mbus_enumerate(PMU_ADDR);
+    delay(MBUS_DELAY);
 
     // Set CPU Halt Option as TX --> Use for register write e.g.
     set_halt_until_mbus_tx();
@@ -975,6 +988,10 @@ static void operation_init(void){
     // LFSR Seed
     radv9_r12.RAD_FSM_SEED = 4;
     mbus_remote_register_write(RAD_ADDR,12,radv9_r12.as_int);
+    delay(MBUS_DELAY);
+
+	// Mbus return address; Needs to be between 0x18-0x1F
+    mbus_remote_register_write(RAD_ADDR,0xF,0x19);
     delay(MBUS_DELAY);
 
 	// Option to Slow down FLSv2L clock 
@@ -1055,13 +1072,13 @@ int main() {
 				// Prepare radio TX
 				radio_power_on();
 				// Go to sleep for SCRO stabilitzation
-				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x0);
+				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
 				operation_sleep_noirqreset();
 			}else{
 				// radio
 				send_radio_data_ppm(0,0xFAF000+exec_count_irq);	
 				// set timer
-				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
 				operation_sleep_noirqreset();
 			}
@@ -1099,7 +1116,7 @@ int main() {
 			// Prepare radio TX
 			radio_power_on();
 			// Go to sleep for SCRO stabilitzation
-			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 			operation_sleep_noirqreset();
 		}
 		if (md_capture_img){
@@ -1128,13 +1145,13 @@ int main() {
 				// Prepare radio TX
 				radio_power_on();
 				// Go to sleep for SCRO stabilitzation
-				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x0);
+				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
 				operation_sleep_noirqreset();
 			}else{
 				// radio
 				send_radio_data_ppm(0,0xFAF000+md_count);	
 				// set timer
-				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
 				operation_sleep_noirqreset();
 			}
@@ -1173,12 +1190,12 @@ int main() {
 				// Prepare radio TX
 				radio_power_on();
 				// Go to sleep for SCRO stabilitzation
-				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x0);
+				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
 				operation_sleep_noirqreset();
 			}else{
 				send_radio_data_ppm(0, 0xFAF000+exec_count_irq);
 				// set timer
-				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
 				operation_sleep_noirqreset();
 			}
