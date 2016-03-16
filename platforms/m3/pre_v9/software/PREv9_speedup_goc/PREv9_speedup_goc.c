@@ -24,9 +24,27 @@ inline static void set_pmu_sleep_clk_default(){
     // PRCv9 Default: 0x8F770049
     *((volatile uint32_t *) 0xA200000C) = 0x8F770049; // 0x8F770049: use GOC x10-25
 }
-inline static void set_pmu_sleep_clk_fastest(){
+//inline static void set_pmu_sleep_clk_fastest(){
     // PRCv9 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x8F770079; // 0x8F770079: use GOC x70-230
+//    *((volatile uint32_t *) 0xA200000C) = 0x8F770079; // 0x8F770079: use GOC x70-230
+//}
+inline static void set_pmu_sleep_clk_fastest(){
+    // PRCv11 Default: 0x8F770049
+    // 0x4F773879: use GOC x70-x230 for "poly" and "poly2"
+    // 0x4F773879: use GOC x40-
+	*((volatile uint32_t *) 0xA200000C) =
+		( (0x0 << 31) /* PMU_DIV6_OVRD */
+		| (0x1 << 30) /* PMU_DIV5_OVRD */
+		| (0x0 << 28) /* PMU_LC_TYPE and PMU_SEL_HARV_SRC */
+		| (0x3 << 26) /* PMU_WUTH */ | (0x3 << 24) /* PMU_HARV_CLK_SEL */
+		| (0x7 << 20) /* PMU_HARV_TUNE_FRAC */ | (0x7 << 16) /* PMU_HARV_STOP_CNT */
+		| (0x0 << 14) /* PMU_OSCACT_DIV[1:0] */
+		| (0x7 << 11) /* PMU_OSCACT_SEL[2:0] */
+		| (0x0 << 9) /* PMU_OSCGOC_DIV[1:0] */
+		| (0x0 << 7) /* PMU_OSCSLP_DIV[1:0] */
+		| (0x7 << 4) /* PMU_OSCSLP_SEL[2:0] */
+		| (0x2 << 2)  /* PMU_OVCHG_SEL */ | (0x1 << 0)  /* PMU_SCNDIV_SEL_TUNE */
+		);
 }
 
 //***************************************************

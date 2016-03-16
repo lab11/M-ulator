@@ -64,6 +64,7 @@ void set_wakeup_timer( uint16_t timestamp, uint8_t irq_en, uint8_t reset ){
 void enable_all_irq() { *NVIC_ICPR = 0xFFFFFFFF; *NVIC_ISER = 0xFFFFFFFF; }
 void disable_all_irq() { *NVIC_ICPR = 0xFFFFFFFF; *NVIC_ICER = 0xFFFFFFFF; }
 void clear_all_pend_irq() { *NVIC_ICPR = 0xFFFFFFFF; }
+void enable_reg_irq() {	*NVIC_ICPR = 0xFFFFFFFF; *NVIC_ISER = 0xFF<<2; }
 
 
 //**************************************************

@@ -848,13 +848,6 @@ static void operation_md(void){
 		}
 
 		poweroff_array_adc();
-
-		if (radio_tx_option){
-			// Radio out image data stored in flash
-			send_radio_data_ppm(0,0xFAF000);
-			send_radio_flash_sram(0xE4, 6475); // Full image
-			send_radio_data_ppm(0,0xFAF000);
-		}
 	}
 
 	if (md_start_motion){
@@ -1109,7 +1102,7 @@ int main() {
         // wakeup_data[15:8] is the img integration period
         // wakeup_data[17:16] indicates whether or not to to take an image
 		// 						1: md only, 2: img only, 3: md+img
-        // wakeup_data[18] indicates whether or not to radio out the result
+        // wakeup_data[18] indicates whether or not to radio when motion is detected
 		USR_MD_INT_TIME = wakeup_data_field_0;
 		USR_INT_TIME = wakeup_data_field_1;
 
