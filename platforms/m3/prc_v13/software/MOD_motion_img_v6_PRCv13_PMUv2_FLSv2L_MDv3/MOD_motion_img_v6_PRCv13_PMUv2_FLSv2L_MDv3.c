@@ -23,10 +23,10 @@
 #define PMU_ADDR 0x8
 
 // Common parameters
-#define	MBUS_DELAY 400 //Amount of delay between successive messages
-#define WAKEUP_DELAY 40000 // 0.6s
-#define DELAY_1 40000 // 5000: 0.5s
-#define DELAY_IMG 80000 // 1s
+#define	MBUS_DELAY 200 //Amount of delay between successive messages; 5-6ms
+#define WAKEUP_DELAY 20000 // 0.6s
+#define DELAY_1 20000 // 5000: 0.5s
+#define DELAY_IMG 40000 // 1s
 
 // MDv3 Parameters
 #define START_COL_IDX 0 // in words
@@ -36,7 +36,7 @@
 #define RADIO_DATA_LENGTH 96
 #define RADIO_TIMEOUT_COUNT 500
 #define WAKEUP_PERIOD_RADIO_INIT 2
-#define RADIO_PACKET_DELAY 4000
+#define RADIO_PACKET_DELAY 4000 // Need 100-200ms
 
 // FLSv1 configurations
 //#define FLS_RECORD_LENGTH 0x18FE // In words; # of words stored -2
@@ -215,13 +215,11 @@ static void radio_power_off(){
     radv9_r2.SCRO_ENABLE = 0;
     radv9_r2.SCRO_RESET  = 1;
     mbus_remote_register_write(RAD_ADDR,2,radv9_r2.as_int);
-    delay(MBUS_DELAY);
     radv9_r13.RAD_FSM_SLEEP 	= 1;
     radv9_r13.RAD_FSM_ISOLATE 	= 1;
     radv9_r13.RAD_FSM_RESETn 	= 0;
     radv9_r13.RAD_FSM_ENABLE 	= 0;
     mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
-    delay(MBUS_DELAY);
 }
 
 static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
@@ -500,25 +498,15 @@ static void initialize_md_reg(){
 
 	//Write Registers
 	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
-	delay(MBUS_DELAY);
 	mbus_remote_register_write(MD_ADDR,0x1,mdv3_r1.as_int);
-	delay(MBUS_DELAY);
 	mbus_remote_register_write(MD_ADDR,0x2,mdv3_r2.as_int);
-	delay(MBUS_DELAY);
 	mbus_remote_register_write(MD_ADDR,0x3,mdv3_r3.as_int);
-	delay(MBUS_DELAY);
 	mbus_remote_register_write(MD_ADDR,0x4,mdv3_r4.as_int);
-	delay(MBUS_DELAY);
 	mbus_remote_register_write(MD_ADDR,0x5,mdv3_r5.as_int);
-	delay(MBUS_DELAY);
 	mbus_remote_register_write(MD_ADDR,0x6,mdv3_r6.as_int);
-	delay(MBUS_DELAY);
 	mbus_remote_register_write(MD_ADDR,0x7,mdv3_r7.as_int);
-	delay(MBUS_DELAY);
 	mbus_remote_register_write(MD_ADDR,0x8,mdv3_r8.as_int);
-	delay(MBUS_DELAY);
 	mbus_remote_register_write(MD_ADDR,0x9,mdv3_r9.as_int);
-	delay(MBUS_DELAY);
 
 }
 
@@ -924,9 +912,6 @@ static void operation_init(void){
     prcv13_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
 	*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv13_r0B.as_int;
 
-
-
-
 	// Set PMU settings
 	// FIXME
 	set_pmu_sleep_clk_default();
@@ -944,13 +929,9 @@ static void operation_init(void){
     // Enumeration
 	// Stack order: PRC->HRV->MD->RAD->FLS->PMU
     mbus_enumerate(HRV_ADDR);
-    delay(MBUS_DELAY);
     mbus_enumerate(MD_ADDR);
-    delay(MBUS_DELAY);
     mbus_enumerate(RAD_ADDR);
-    delay(MBUS_DELAY);
     mbus_enumerate(FLS_ADDR);
-    delay(MBUS_DELAY);
     //mbus_enumerate(PMU_ADDR);
     delay(MBUS_DELAY);
 
@@ -960,7 +941,7 @@ static void operation_init(void){
 	// Initialize MDv3
 	initialize_md_reg();
 
-	delay(MBUS_DELAY*2);
+	delay(MBUS_DELAY);
 
     // Radio Settings --------------------------------------
     radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
@@ -969,31 +950,28 @@ static void operation_init(void){
     radv9_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
   
     mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
-    delay(MBUS_DELAY);
 
     // FSM data length setups
     radv9_r11.RAD_FSM_H_LEN = 16; // N
     radv9_r11.RAD_FSM_D_LEN = RADIO_DATA_LENGTH-1; // N-1
     radv9_r11.RAD_FSM_C_LEN = 10;
     mbus_remote_register_write(RAD_ADDR,11,radv9_r11.as_int);
-    delay(MBUS_DELAY);
   
     // Configure SCRO
     radv9_r1.SCRO_FREQ_DIV = 3;
     radv9_r1.SCRO_AMP_I_LEVEL_SEL = 2; // Default 2
     radv9_r1.SCRO_I_LEVEL_SELB = 0x60; // Default 0x6F
     mbus_remote_register_write(RAD_ADDR,1,radv9_r1.as_int);
-    delay(MBUS_DELAY);
   
     // LFSR Seed
     radv9_r12.RAD_FSM_SEED = 4;
     mbus_remote_register_write(RAD_ADDR,12,radv9_r12.as_int);
-    delay(MBUS_DELAY);
 
 	// Mbus return address; Needs to be between 0x18-0x1F
     mbus_remote_register_write(RAD_ADDR,0xF,0x19);
     delay(MBUS_DELAY);
 
+    // Flash Settings --------------------------------------
 	// Option to Slow down FLSv2L clock 
 	mbus_remote_register_write(FLS_ADDR, 0x18, 
 	( (0xC << 2)  /* CLK_RING_SEL[3:0] Default 0xC */
