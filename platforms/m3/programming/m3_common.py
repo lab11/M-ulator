@@ -285,7 +285,7 @@ class m3_common(object):
         return m3_common.build_injection_message_for_goc_v2(
                 hexencoded_data=hexencoded,
                 run_after=run_after,
-                memory_address=0x1A00,
+                memory_address=0x1E00,
                 )
 
     def __init__(self):
