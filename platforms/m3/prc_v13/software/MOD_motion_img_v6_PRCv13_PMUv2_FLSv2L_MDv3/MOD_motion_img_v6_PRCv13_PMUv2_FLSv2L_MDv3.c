@@ -969,7 +969,7 @@ static void operation_init(void){
     mbus_remote_register_write(RAD_ADDR,12,radv9_r12.as_int);
 
 	// Mbus return address; Needs to be between 0x18-0x1F
-    mbus_remote_register_write(RAD_ADDR,0xF,0x19);
+    mbus_remote_register_write(RAD_ADDR,0xF,0x1900);
     delay(MBUS_DELAY);
 
     // Flash Settings --------------------------------------

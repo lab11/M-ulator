@@ -220,7 +220,7 @@ inline static void set_pmu_sleep_clk_high(){
 
 static void radio_power_on(){
 	// Need to speed up sleep pmu clock
-	set_pmu_sleep_clk_fastest();
+	set_pmu_sleep_clk_high();
 
     // Release FSM Sleep - Requires >2s stabilization time
     radio_on = 1;
@@ -281,7 +281,7 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
     }
 
 	#ifdef DEBUG_MBUS_MSG
-		write_mbus_message(0xBB, 0x0);
+		mbus_write_message32(0xBB, 0x0);
 	#endif
 
     // Set CPU Halt Option as RX --> Use for register read e.g.
@@ -314,7 +314,7 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 	
     // Timeout
     set_halt_until_mbus_tx();
-	write_mbus_message(0xBB, 0xFAFAFAFA);
+	mbus_write_message32(0xBB, 0xFAFAFAFA);
 }
 
 
@@ -420,13 +420,13 @@ static void operation_tx_stored(void){
     //Fire off stored data to radio
 #ifdef DEBUG_MBUS_MSG
     delay(MBUS_DELAY*10);
-    write_mbus_message(0x70, radio_tx_count);
+    mbus_write_message32(0x70, radio_tx_count);
     delay(MBUS_DELAY*10);
-    write_mbus_message(0x74, cdc_storage[radio_tx_count]);
+    mbus_write_message32(0x74, cdc_storage[radio_tx_count]);
     delay(MBUS_DELAY*10);
-    write_mbus_message(0x76, cdc_storage_cref[radio_tx_count]);
+    mbus_write_message32(0x76, cdc_storage_cref[radio_tx_count]);
     delay(MBUS_DELAY*10);
-    write_mbus_message(0x70, radio_tx_count);
+    mbus_write_message32(0x70, radio_tx_count);
     delay(MBUS_DELAY*10);
 #endif
     send_radio_data_ppm(0, cdc_storage[radio_tx_count]);
@@ -511,8 +511,11 @@ static void operation_init(void){
     snsv7_r18.CDC_LDO_CDC_VREF_SEL     = 0x20;
   
     mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
-    delay(MBUS_DELAY);
   
+	// Mbus return address; Needs to be between 0x18-0x1F
+    mbus_remote_register_write(SNS_ADDR,0x18,0x1800);
+    delay(MBUS_DELAY);
+
     // Radio Settings --------------------------------------
   
     radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x1F; //Current Limiter 2F = 30uA, 1F = 3uA
@@ -537,6 +540,10 @@ static void operation_init(void){
     radv9_r12.RAD_FSM_SEED = 4;
     mbus_remote_register_write(RAD_ADDR,12,radv9_r12.as_int);
   
+	// Mbus return address; Needs to be between 0x18-0x1F
+    mbus_remote_register_write(RAD_ADDR,0xF,0x1900);
+    delay(MBUS_DELAY);
+
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 5;   // 1: 2-4 sec with PRCv9
     WAKEUP_PERIOD_CONT_INIT = 1;   // 0x1E (30): ~1 min with PRCv9
@@ -564,7 +571,7 @@ static void operation_cdc_run(){
 
     if (Pstack_state == PSTK_IDLE){
 		#ifdef DEBUG_MBUS_MSG
-			write_mbus_message(0xAA, 0x0);
+			mbus_write_message32(0xAA, 0x0);
 		#endif
 		Pstack_state = PSTK_LDO1;
 
@@ -585,7 +592,7 @@ static void operation_cdc_run(){
 
     }else if (Pstack_state == PSTK_LDO1){
 		#ifdef DEBUG_MBUS_MSG
-			write_mbus_message(0xAA, 0x1);
+			mbus_write_message32(0xAA, 0x1);
 		#endif
 		Pstack_state = PSTK_LDO2;
 		snsv7_r18.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
@@ -597,7 +604,7 @@ static void operation_cdc_run(){
 		
 	}else if (Pstack_state == PSTK_LDO2){
 		#ifdef DEBUG_MBUS_MSG
-			write_mbus_message(0xAA, 0x2);
+			mbus_write_message32(0xAA, 0x2);
 		#endif
 		Pstack_state = PSTK_CDC_RST;
 
@@ -609,7 +616,7 @@ static void operation_cdc_run(){
     }else if (Pstack_state == PSTK_CDC_RST){
 	// Release reset
 	#ifdef DEBUG_MBUS_MSG
-		write_mbus_message(0xAA, 0x11111111);
+		mbus_write_message32(0xAA, 0x11111111);
 		delay(MBUS_DELAY);
 	#endif
 
@@ -640,7 +647,7 @@ static void operation_cdc_run(){
 
 		// Time out
 		#ifdef DEBUG_MBUS_MSG
-			write_mbus_message(0xAA, 0xFAFAFAFA);
+			mbus_write_message32(0xAA, 0xFAFAFAFA);
 		#endif
 
 		release_cdc_meas();
@@ -668,7 +675,7 @@ static void operation_cdc_run(){
 
     }else if (Pstack_state == PSTK_CDC_READ){
 		#ifdef DEBUG_MBUS_MSG
-			write_mbus_message(0xAA, 0x22222222);
+			mbus_write_message32(0xAA, 0x22222222);
 		#endif
 
 		// Grab CDC Data
@@ -679,34 +686,35 @@ static void operation_cdc_run(){
     	uint32_t read_data_reg10; // CONFIG 4; CREF5
     	uint32_t read_data;      // Read data after parasitic cancellation
 
-		read_mbus_register(SNS_ADDR,10,0x15);
-		delay(MBUS_DELAY*2);
-		read_data_reg10 = *((volatile uint32_t *) 0xA0001014);
-		read_mbus_register(SNS_ADDR,9,0x15);
-		delay(MBUS_DELAY*2);
-		read_data_reg9 = *((volatile uint32_t *) 0xA0001014);
-		read_mbus_register(SNS_ADDR,7,0x15);
-		delay(MBUS_DELAY*2);
-		read_data_reg7 = *((volatile uint32_t *) 0xA0001014);
-		read_mbus_register(SNS_ADDR,6,0x15);
-		delay(MBUS_DELAY*2);
-		read_data_reg6 = *((volatile uint32_t *) 0xA0001014);
-		read_mbus_register(SNS_ADDR,4,0x15);
-		delay(MBUS_DELAY*2);
-		read_data_reg4 = *((volatile uint32_t *) 0xA0001014);
+		// Set CPU Halt Option as RX --> Use for register read e.g.
+		set_halt_until_mbus_rx();
+		
+		mbus_remote_register_read(SNS_ADDR,10,1);
+		read_data_reg10 = *((volatile uint32_t *) 0xA0000004);
+		mbus_remote_register_read(SNS_ADDR,9,1);
+		read_data_reg9 = *((volatile uint32_t *) 0xA0000004);
+		mbus_remote_register_read(SNS_ADDR,7,1);
+		read_data_reg7 = *((volatile uint32_t *) 0xA0000004);
+		mbus_remote_register_read(SNS_ADDR,6,1);
+		read_data_reg6 = *((volatile uint32_t *) 0xA0000004);
+		mbus_remote_register_read(SNS_ADDR,4,1);
+		read_data_reg4 = *((volatile uint32_t *) 0xA0000004);
 		
 		read_data = (read_data_reg4+read_data_reg7-read_data_reg9)/2;
 
+		// Set CPU Halt Option as TX --> Use for register write e.g.
+		set_halt_until_mbus_tx();
+
 	#ifdef DEBUG_MBUS_MSG
-		write_mbus_message(0x70, radio_tx_count);
+		mbus_write_message32(0x70, radio_tx_count);
 		delay(MBUS_DELAY*20);
-		write_mbus_message(0x70, radio_tx_count);
+		mbus_write_message32(0x70, radio_tx_count);
 		delay(MBUS_DELAY*20);
-		write_mbus_message(0x74, read_data_reg7);
+		mbus_write_message32(0x74, read_data_reg7);
 		delay(MBUS_DELAY*20);
-		write_mbus_message(0x76, read_data_reg6);
+		mbus_write_message32(0x76, read_data_reg6);
 		delay(MBUS_DELAY*10);
-		write_mbus_message(0x70, radio_tx_count);
+		mbus_write_message32(0x70, radio_tx_count);
 	#endif
 
 		// Option to take multiple measurements per wakeup
@@ -732,14 +740,14 @@ static void operation_cdc_run(){
 			cdc_power_off();
 
 			#ifdef DEBUG_MBUS_MSG
-					write_mbus_message(0xAA, 0x33333333);
+					mbus_write_message32(0xAA, 0x33333333);
 			#endif
 
 			// Check if this is for VBAT measurement
 			if (cdc_run_single){
 				cdc_run_single = 0;
 				#ifdef DEBUG_MBUS_MSG
-						write_mbus_message(0xAA, 0x3333AAAA);
+						mbus_write_message32(0xAA, 0x3333AAAA);
 				#endif
 				cdc_storage_cref_latest = read_data_reg10;
 				return;
