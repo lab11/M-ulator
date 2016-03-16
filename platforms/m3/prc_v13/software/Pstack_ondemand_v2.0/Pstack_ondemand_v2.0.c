@@ -819,14 +819,12 @@ static void operation_cdc_run(){
 //***************************************************************************************
 int main() {
   
-    //Clear All Pending Interrupts
-    *((volatile uint32_t *) 0xE000E280) = 0xF;
-    //Enable Interrupts
-    *((volatile uint32_t *) 0xE000E100) = 0xF;
+    // Initialize Interrupts
+    // Only enable register-related interrupts
+	enable_reg_irq();
   
-    //Config watchdog timer to about 10 sec: 1,000,000 with default PRCv9
-    //config_timer( timer_id, go, roi, init_val, sat_val )
-    config_timer( 0, 1, 0, 0, 1000000 );
+    // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
+    //config_timerwd(1000000);
 
     // Initialization sequence
     if (enumerated != 0xDEADBEEF){
