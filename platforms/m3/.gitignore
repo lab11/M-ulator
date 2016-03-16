@@ -1,2 +1,4 @@
 *.bin
 *.hex
+*.memmap
+*.asm
