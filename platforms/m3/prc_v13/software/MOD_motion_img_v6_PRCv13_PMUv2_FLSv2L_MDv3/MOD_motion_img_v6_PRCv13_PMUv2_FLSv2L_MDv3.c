@@ -321,6 +321,7 @@ static void send_radio_data_ppm_96(bool last_packet, uint32_t radio_data_0, uint
 		}
     }
 	
+	// Timeout
     set_halt_until_mbus_tx();
 	mbus_write_message32(0xBB, 0xFAFAFAFA);
 }
@@ -1029,7 +1030,7 @@ int main() {
     }
 	
     // Check if wakeup is due to GOC interrupt  
-    // 0x68 is reserved for GOC-triggered wakeup (Named IRQ14VEC)
+    // 0x78 is reserved for GOC-triggered wakeup (Named IRQ14VEC)
     // 8 MSB bits of the wakeup data are used for function ID
     uint32_t wakeup_data = *((volatile uint32_t *) IRQ14VEC);	// IRQ14VEC[31:0]
     uint32_t wakeup_data_header = wakeup_data>>24;				// IRQ14VEC[31:24]
