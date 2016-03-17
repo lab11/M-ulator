@@ -819,12 +819,15 @@ static void operation_cdc_run(){
 //***************************************************************************************
 int main() {
   
+    // Reset Wakeup Timer; This is required for PRCv13
+    set_wakeup_timer(100, 0, 1);
+
     // Initialize Interrupts
     // Only enable register-related interrupts
 	enable_reg_irq();
   
     // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
-    //config_timerwd(1000000);
+    config_timerwd(0xFFFFF); // 0xFFFFF about 13 sec with Y2 run default clock
 
     // Initialization sequence
     if (enumerated != 0xDEADBEEF){

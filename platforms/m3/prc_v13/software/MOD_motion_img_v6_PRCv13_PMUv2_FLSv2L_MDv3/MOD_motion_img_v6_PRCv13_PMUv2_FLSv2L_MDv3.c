@@ -136,40 +136,8 @@ void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
 // PMU Related Functions
 //************************************
 inline static void set_pmu_sleep_clk_default(){
-    // PRCv11 Default: 0x8F770049
-    // 0x4F773849: use GOC x10-25 for "poly" and "poly2"
-    // 			   use GOC x5-10 for "Y2"
-	*((volatile uint32_t *) 0xA200000C) =
-		( (0x0 << 31) /* PMU_DIV6_OVRD */
-		| (0x1 << 30) /* PMU_DIV5_OVRD */
-		| (0x0 << 28) /* PMU_LC_TYPE and PMU_SEL_HARV_SRC */
-		| (0x3 << 26) /* PMU_WUTH */ | (0x3 << 24) /* PMU_HARV_CLK_SEL */
-		| (0x7 << 20) /* PMU_HARV_TUNE_FRAC */ | (0x7 << 16) /* PMU_HARV_STOP_CNT */
-		| (0x0 << 14) /* PMU_OSCACT_DIV[1:0] */
-		| (0x7 << 11) /* PMU_OSCACT_SEL[2:0] */
-		| (0x0 << 9) /* PMU_OSCGOC_DIV[1:0] */
-		| (0x0 << 7) /* PMU_OSCSLP_DIV[1:0] */
-		| (0x4 << 4) /* PMU_OSCSLP_SEL[2:0] */
-		| (0x2 << 2)  /* PMU_OVCHG_SEL */ | (0x1 << 0)  /* PMU_SCNDIV_SEL_TUNE */
-		);
 }
 inline static void set_pmu_sleep_clk_fastest(){
-    // PRCv11 Default: 0x8F770049
-    // 0x4F773879: use GOC x70-x230 for "poly" and "poly2"
-    // 0x4F773879: use GOC x40-
-	*((volatile uint32_t *) 0xA200000C) =
-		( (0x0 << 31) /* PMU_DIV6_OVRD */
-		| (0x1 << 30) /* PMU_DIV5_OVRD */
-		| (0x0 << 28) /* PMU_LC_TYPE and PMU_SEL_HARV_SRC */
-		| (0x3 << 26) /* PMU_WUTH */ | (0x3 << 24) /* PMU_HARV_CLK_SEL */
-		| (0x7 << 20) /* PMU_HARV_TUNE_FRAC */ | (0x7 << 16) /* PMU_HARV_STOP_CNT */
-		| (0x0 << 14) /* PMU_OSCACT_DIV[1:0] */
-		| (0x7 << 11) /* PMU_OSCACT_SEL[2:0] */
-		| (0x0 << 9) /* PMU_OSCGOC_DIV[1:0] */
-		| (0x0 << 7) /* PMU_OSCSLP_DIV[1:0] */
-		| (0x7 << 4) /* PMU_OSCSLP_SEL[2:0] */
-		| (0x2 << 2)  /* PMU_OVCHG_SEL */ | (0x1 << 0)  /* PMU_SCNDIV_SEL_TUNE */
-		);
 }
 
 
@@ -1016,13 +984,19 @@ static void operation_init(void){
 //***************************************************************************************
 int main() {
   
+    // Reset Wakeup Timer; This is required for PRCv13
+    set_wakeup_timer(100, 0, 1);
+
     // Initialize Interrupts
     // Only enable register-related interrupts
 	enable_reg_irq();
   
-	// Disable the watch-dog timer
-	disable_timerwd();
+	mbus_write_message32(0xAA, 0x11111111);
 
+	// Disable the watch-dog timer
+	//config_timerwd(0xFFFFF);
+	disable_timerwd();
+	
     // Initialization sequence
     if (enumerated != 0xDEADBEEF){
         operation_init();
@@ -1037,6 +1011,9 @@ int main() {
     uint32_t wakeup_data_field_0 = wakeup_data & 0xFF;			// IRQ14VEC[7:0]
     uint32_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;		// IRQ14VEC[15:8]
     uint32_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;		// IRQ14VEC[23:16]
+
+	// FIXME
+	mbus_write_message32(0xAA, wakeup_data);
 
     if(wakeup_data_header == 1){
         // Debug mode: Transmit something via radio and go to sleep w/o timer
