@@ -27,6 +27,7 @@
 #define WAKEUP_DELAY 20000 // 0.6s
 #define DELAY_1 20000 // 5000: 0.5s
 #define DELAY_IMG 40000 // 1s
+#define IMG_TIMEOUT_COUNT 5000
 
 // MDv3 Parameters
 #define START_COL_IDX 0 // in words
@@ -460,7 +461,7 @@ static void initialize_md_reg(){
 	mdv3_r6.ROW_IDX_EN = 0;
 
 	mdv3_r8.MBUS_REPLY_ADDR_FLAG = 0x18;
-	mdv3_r9.MBUS_REPLY_ADDR_DATA = 0x72; // IMG Data return address
+	mdv3_r9.MBUS_REPLY_ADDR_DATA = 0x74; // IMG Data return address
 
 	mdv3_r8.MBUS_START_ADDR = 0; // Start column index in words
 	mdv3_r8.MBUS_LENGTH_M1 = 39; // Columns to be read; in # of words: 39 for full frame, 19 for half
@@ -678,7 +679,9 @@ static void capture_image_single(){
 	// 0:0
 	mdv3_r0.TAKE_IMAGE = 1;
 	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
-	delay(MBUS_DELAY*4); //Need >10ms
+	delay(MBUS_DELAY*3); //Need >10ms
+
+    set_halt_until_mbus_rx();
 
 	mdv3_r0.TAKE_IMAGE = 0;
 	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
@@ -695,11 +698,33 @@ static void capture_image_start(){
 
 }
 
+static bool wait_for_interrupt(uint32_t wait_count){
+
+    uint32_t count;
+    for( count=0; count<wait_count; count++ ){
+		if( mbus_msg_flag ){
+    		set_halt_until_mbus_tx();
+			mbus_msg_flag = 0;
+			return 1;
+		}else{
+			delay(MBUS_DELAY);
+		}
+    }
+
+    set_halt_until_mbus_tx();
+	return 0;
+}
+
 static void capture_image_single_with_flash(uint32_t page_offset){
 
 	// Start imaging
 	capture_image_single();
-	delay(DELAY_IMG);
+	//delay(DELAY_IMG);
+	wait_for_interrupt(IMG_TIMEOUT_COUNT);	
+
+	delay(MBUS_DELAY);
+	mbus_write_message32(0xF1, 0x11111111);
+	delay(MBUS_DELAY);
 
 	// Power-gate MD
 	poweroff_array_adc();
@@ -711,7 +736,7 @@ static void capture_image_single_with_flash(uint32_t page_offset){
 	flash_turn_on();
 
 	delay(MBUS_DELAY);
-	mbus_write_message32(0xF1, 0x11111111);
+	mbus_write_message32(0xF1, 0x22222222);
 	delay(MBUS_DELAY);
 
 	// Copy SRAM to Flash
