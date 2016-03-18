@@ -876,6 +876,7 @@ static void operation_tx_image(void){
 static void operation_init(void){
   
 	// Set CPU & Mbus Clock Speeds
+    prcv13_r0B.DSLP_CLK_GEN_FAST_MODE = 0x1; // Default 0x0
     prcv13_r0B.CLK_GEN_RING = 0x3; // Default 0x1
     prcv13_r0B.CLK_GEN_DIV_MBC = 0x0; // Default 0x1
     prcv13_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
