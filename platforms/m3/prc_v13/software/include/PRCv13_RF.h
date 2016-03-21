@@ -535,6 +535,7 @@ typedef union prcv13_r40{
 _Static_assert(sizeof(prcv13_r40_t) == 4, "Punned Structure Size");
 
 // Declare the structs
-extern volatile prcv13_r00_t prc_v13_r00;
+extern volatile prcv13_r00_t prcv13_r00;
+extern volatile prcv13_r0B_t prcv13_r0B;
 
 #endif // PRCV13_RF_H

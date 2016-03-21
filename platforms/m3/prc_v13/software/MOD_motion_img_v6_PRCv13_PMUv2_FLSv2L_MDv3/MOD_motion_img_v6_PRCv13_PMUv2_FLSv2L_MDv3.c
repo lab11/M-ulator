@@ -5,6 +5,7 @@
 //				FLASH storage with FLSv2
 //*******************************************************************
 #include "PRCv13.h"
+#include "PRCv13_RF.h"
 #include "mbus.h"
 #include "PMUv2_RF.h"
 #include "MDv3.h"
@@ -14,6 +15,7 @@
 #define DEBUG_MBUS_MSG
 
 // Stack order: PRC->HRV->MD->RAD->FLS->PMU
+#define PRC_ADDR 0x1
 #define MD_ADDR 0x4
 #define RAD_ADDR 0x5
 #define HRV_ADDR 0x6
@@ -21,20 +23,21 @@
 #define PMU_ADDR 0x8
 
 // Common parameters
-#define	MBUS_DELAY 400 //Amount of delay between successive messages
-#define WAKEUP_DELAY 40000 // 0.6s
-#define DELAY_1 40000 // 5000: 0.5s
-#define DELAY_IMG 80000 // 1s
+#define	MBUS_DELAY 200 //Amount of delay between successive messages; 5-6ms
+#define WAKEUP_DELAY 20000 // 0.6s
+#define DELAY_1 20000 // 5000: 0.5s
+#define DELAY_IMG 40000 // 1s
+#define IMG_TIMEOUT_COUNT 5000
 
 // MDv3 Parameters
 #define START_COL_IDX 0 // in words
 #define COLS_TO_READ 39 // in # of words: 39 for full frame, 19 for half
 
 // Radio configurations
-#define RADIO_DATA_LENGTH 24
+#define RADIO_DATA_LENGTH 96
 #define RADIO_TIMEOUT_COUNT 500
 #define WAKEUP_PERIOD_RADIO_INIT 2
-#define RADIO_PACKET_DELAY 4000
+#define RADIO_PACKET_DELAY 4000 // Need 100-200ms
 
 // FLSv1 configurations
 //#define FLS_RECORD_LENGTH 0x18FE // In words; # of words stored -2
@@ -50,7 +53,7 @@
 volatile uint32_t enumerated;
 volatile uint32_t exec_count;
 volatile uint32_t exec_count_irq;
-volatile uint32_t MBus_msg_flag;
+volatile uint32_t mbus_msg_flag;
 
 volatile bool radio_ready;
 volatile bool radio_on;
@@ -86,6 +89,8 @@ volatile radv9_r11_t radv9_r11 = RADv9_R11_DEFAULT;
 volatile radv9_r12_t radv9_r12 = RADv9_R12_DEFAULT;
 volatile radv9_r13_t radv9_r13 = RADv9_R13_DEFAULT;
 
+volatile prcv13_r0B_t prcv13_r0B = PRCv13_R0B_DEFAULT;
+
 volatile uint32_t WAKEUP_PERIOD_CONT;
 volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
 
@@ -113,14 +118,14 @@ void handler_ext_int_14(void) __attribute__ ((interrupt ("IRQ")));
 
 void handler_ext_int_0(void)  { *NVIC_ICPR = (0x1 << 0);  } // TIMER32
 void handler_ext_int_1(void)  { *NVIC_ICPR = (0x1 << 1);  } // TIMER16
-void handler_ext_int_2(void)  { *NVIC_ICPR = (0x1 << 2); Mbus_msg_flag = 0x10; } // REG0
-void handler_ext_int_3(void)  { *NVIC_ICPR = (0x1 << 3); Mbus_msg_flag = 0x11; } // REG1
-void handler_ext_int_4(void)  { *NVIC_ICPR = (0x1 << 4); Mbus_msg_flag = 0x12; } // REG2
-void handler_ext_int_5(void)  { *NVIC_ICPR = (0x1 << 5); Mbus_msg_flag = 0x13; } // REG3
-void handler_ext_int_6(void)  { *NVIC_ICPR = (0x1 << 6); Mbus_msg_flag = 0x14; } // REG4
-void handler_ext_int_7(void)  { *NVIC_ICPR = (0x1 << 7); Mbus_msg_flag = 0x15; } // REG5
-void handler_ext_int_8(void)  { *NVIC_ICPR = (0x1 << 8); Mbus_msg_flag = 0x16; } // REG6
-void handler_ext_int_9(void)  { *NVIC_ICPR = (0x1 << 9); Mbus_msg_flag = 0x17; } // REG7
+void handler_ext_int_2(void)  { *NVIC_ICPR = (0x1 << 2); mbus_msg_flag = 0x10; } // REG0
+void handler_ext_int_3(void)  { *NVIC_ICPR = (0x1 << 3); mbus_msg_flag = 0x11; } // REG1
+void handler_ext_int_4(void)  { *NVIC_ICPR = (0x1 << 4); mbus_msg_flag = 0x12; } // REG2
+void handler_ext_int_5(void)  { *NVIC_ICPR = (0x1 << 5); mbus_msg_flag = 0x13; } // REG3
+void handler_ext_int_6(void)  { *NVIC_ICPR = (0x1 << 6); mbus_msg_flag = 0x14; } // REG4
+void handler_ext_int_7(void)  { *NVIC_ICPR = (0x1 << 7); mbus_msg_flag = 0x15; } // REG5
+void handler_ext_int_8(void)  { *NVIC_ICPR = (0x1 << 8); mbus_msg_flag = 0x16; } // REG6
+void handler_ext_int_9(void)  { *NVIC_ICPR = (0x1 << 9); mbus_msg_flag = 0x17; } // REG7
 void handler_ext_int_10(void) { *NVIC_ICPR = (0x1 << 10); } // MEM WR
 void handler_ext_int_11(void) { *NVIC_ICPR = (0x1 << 11); } // MBUS_RX
 void handler_ext_int_12(void) { *NVIC_ICPR = (0x1 << 12); } // MBUS_TX
@@ -132,40 +137,8 @@ void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
 // PMU Related Functions
 //************************************
 inline static void set_pmu_sleep_clk_default(){
-    // PRCv11 Default: 0x8F770049
-    // 0x4F773849: use GOC x10-25 for "poly" and "poly2"
-    // 			   use GOC x5-10 for "Y2"
-	*((volatile uint32_t *) 0xA200000C) =
-		( (0x0 << 31) /* PMU_DIV6_OVRD */
-		| (0x1 << 30) /* PMU_DIV5_OVRD */
-		| (0x0 << 28) /* PMU_LC_TYPE and PMU_SEL_HARV_SRC */
-		| (0x3 << 26) /* PMU_WUTH */ | (0x3 << 24) /* PMU_HARV_CLK_SEL */
-		| (0x7 << 20) /* PMU_HARV_TUNE_FRAC */ | (0x7 << 16) /* PMU_HARV_STOP_CNT */
-		| (0x0 << 14) /* PMU_OSCACT_DIV[1:0] */
-		| (0x7 << 11) /* PMU_OSCACT_SEL[2:0] */
-		| (0x0 << 9) /* PMU_OSCGOC_DIV[1:0] */
-		| (0x0 << 7) /* PMU_OSCSLP_DIV[1:0] */
-		| (0x4 << 4) /* PMU_OSCSLP_SEL[2:0] */
-		| (0x2 << 2)  /* PMU_OVCHG_SEL */ | (0x1 << 0)  /* PMU_SCNDIV_SEL_TUNE */
-		);
 }
 inline static void set_pmu_sleep_clk_fastest(){
-    // PRCv11 Default: 0x8F770049
-    // 0x4F773879: use GOC x70-x230 for "poly" and "poly2"
-    // 0x4F773879: use GOC x40-
-	*((volatile uint32_t *) 0xA200000C) =
-		( (0x0 << 31) /* PMU_DIV6_OVRD */
-		| (0x1 << 30) /* PMU_DIV5_OVRD */
-		| (0x0 << 28) /* PMU_LC_TYPE and PMU_SEL_HARV_SRC */
-		| (0x3 << 26) /* PMU_WUTH */ | (0x3 << 24) /* PMU_HARV_CLK_SEL */
-		| (0x7 << 20) /* PMU_HARV_TUNE_FRAC */ | (0x7 << 16) /* PMU_HARV_STOP_CNT */
-		| (0x0 << 14) /* PMU_OSCACT_DIV[1:0] */
-		| (0x7 << 11) /* PMU_OSCACT_SEL[2:0] */
-		| (0x0 << 9) /* PMU_OSCGOC_DIV[1:0] */
-		| (0x0 << 7) /* PMU_OSCSLP_DIV[1:0] */
-		| (0x7 << 4) /* PMU_OSCSLP_SEL[2:0] */
-		| (0x2 << 2)  /* PMU_OVCHG_SEL */ | (0x1 << 0)  /* PMU_SCNDIV_SEL_TUNE */
-		);
 }
 
 
@@ -211,13 +184,11 @@ static void radio_power_off(){
     radv9_r2.SCRO_ENABLE = 0;
     radv9_r2.SCRO_RESET  = 1;
     mbus_remote_register_write(RAD_ADDR,2,radv9_r2.as_int);
-    delay(MBUS_DELAY);
     radv9_r13.RAD_FSM_SLEEP 	= 1;
     radv9_r13.RAD_FSM_ISOLATE 	= 1;
     radv9_r13.RAD_FSM_RESETn 	= 0;
     radv9_r13.RAD_FSM_ENABLE 	= 0;
     mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
-    delay(MBUS_DELAY);
 }
 
 static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
@@ -235,16 +206,20 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 		delay(MBUS_DELAY);
     }
 
+    // Set CPU Halt Option as RX --> Use for register read e.g.
+    set_halt_until_mbus_rx();
+
     // Fire off data
     uint32_t count;
-    MBus_msg_flag = 0;
+    mbus_msg_flag = 0;
     radv9_r13.RAD_FSM_ENABLE = 1;
     mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
     delay(MBUS_DELAY);
 
     for( count=0; count<RADIO_TIMEOUT_COUNT; count++ ){
-		if( MBus_msg_flag ){
-			MBus_msg_flag = 0;
+		if( mbus_msg_flag ){
+    		set_halt_until_mbus_tx();
+			mbus_msg_flag = 0;
 			if (last_packet){
 				radio_ready = 0;
 				radio_power_off();
@@ -259,9 +234,66 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 		}
     }
 	
+    set_halt_until_mbus_tx();
 	mbus_write_message32(0xBB, 0xFAFAFAFA);
 }
 
+static void send_radio_data_ppm_96(bool last_packet, uint32_t radio_data_0, uint32_t radio_data_1, uint32_t radio_data_2, uint32_t radio_data_3){
+	// Sends 96 bits of data (3 words, 4 RADv9 registers)
+	// radio_data_0: DATA[23:0]
+	// radio_data_1: DATA[47:24]
+	// radio_data_2: DATA[71:48]
+	// radio_data_3: DATA[95:72]
+    mbus_remote_register_write(RAD_ADDR,3,radio_data_0);
+    delay(MBUS_DELAY);
+    mbus_remote_register_write(RAD_ADDR,4,radio_data_1);
+    delay(MBUS_DELAY);
+    mbus_remote_register_write(RAD_ADDR,5,radio_data_2);
+    delay(MBUS_DELAY);
+    mbus_remote_register_write(RAD_ADDR,6,radio_data_3);
+    delay(MBUS_DELAY);
+
+    if (!radio_ready){
+		radio_ready = 1;
+
+		// Release FSM Reset
+		radv9_r13.RAD_FSM_RESETn = 1;
+		mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
+		delay(MBUS_DELAY);
+    }
+
+    // Set CPU Halt Option as RX --> Use for register read e.g.
+    set_halt_until_mbus_rx();
+
+    // Fire off data
+    uint32_t count;
+    mbus_msg_flag = 0;
+    radv9_r13.RAD_FSM_ENABLE = 1;
+    mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
+    delay(MBUS_DELAY);
+
+    for( count=0; count<RADIO_TIMEOUT_COUNT; count++ ){
+		if( mbus_msg_flag ){
+    		set_halt_until_mbus_tx();
+			mbus_msg_flag = 0;
+			if (last_packet){
+				radio_ready = 0;
+				radio_power_off();
+			}else{
+				radv9_r13.RAD_FSM_ENABLE = 0;
+				mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
+				delay(MBUS_DELAY);
+			}
+			return;
+		}else{
+			delay(MBUS_DELAY);
+		}
+    }
+	
+	// Timeout
+    set_halt_until_mbus_tx();
+	mbus_write_message32(0xBB, 0xFAFAFAFA);
+}
 //***************************************************
 // End of Program Sleep Operation
 //***************************************************
@@ -306,14 +338,14 @@ uint32_t check_flash_sram(uint8_t addr_stamp, uint32_t length){
 
 	for(idx=0; idx<length; idx++) {
 
-		// FIXME
-		/*
-		FLSv2MBusGPIO_readMem(FLS_ADDR, 0xEE, 0, ((uint32_t) idx) << 2);
-		FLSv2MBusGPIO_rxMsg(); // Rx
-		
-		write_mbus_message(addr_stamp, FLSv2MBusGPIO_getRxData0());
+    	set_halt_until_mbus_rx();
+		mbus_copy_mem_from_remote_to_any_bulk(FLS_ADDR, (uint32_t*)(idx << 2), PRC_ADDR, (uint32_t*)&flash_read_data_single, 0);
+		//FLSv2MBusGPIO_readMem(FLS_ADDR, 0xEE, 0, ((uint32_t) idx) << 2);
 		delay(MBUS_DELAY);
-		*/
+    	set_halt_until_mbus_tx();
+		mbus_write_message32(addr_stamp, flash_read_data_single);
+		delay(MBUS_DELAY);
+		
 	}
 
 	return 1;
@@ -323,16 +355,14 @@ uint32_t send_radio_flash_sram(uint8_t addr_stamp, uint32_t length){
 	uint32_t idx;
 	uint32_t fls_rx_data;
 
-	for(idx=0; idx<length; idx++) {
+	for(idx=0; (idx*3)<length; idx++) {
 
-		// FIXME
-		/*
-		FLSv2MBusGPIO_readMem(FLS_ADDR, 0xEE, 0, ((uint32_t) idx) << 2);
-		FLSv2MBusGPIO_rxMsg(); // Rx
-		fls_rx_data = FLSv2MBusGPIO_getRxData0();
-		send_radio_data_ppm(0,fls_rx_data);
+    	set_halt_until_mbus_rx();
+		mbus_copy_mem_from_remote_to_any_bulk(FLS_ADDR, (uint32_t*)((idx*3) << 2), PRC_ADDR, (uint32_t*)&flash_read_data, 2);
+		//FLSv2MBusGPIO_readMem(FLS_ADDR, 0xEE, 0, ((uint32_t) idx) << 2);
+		// Send 96 bits of data
+		send_radio_data_ppm_96(0,flash_read_data[0],flash_read_data[1],flash_read_data[2],flash_read_data[2]);
 		delay(MBUS_DELAY);
-		*/
 	}
 
 	return 1;
@@ -430,33 +460,23 @@ static void initialize_md_reg(){
 	mdv3_r6.COL_SKIP = 0;
 	mdv3_r6.ROW_IDX_EN = 0;
 
-	mdv3_r8.MBUS_REPLY_ADDR_FLAG = 0x16;
-	mdv3_r9.MBUS_REPLY_ADDR_DATA = 0x17; // IMG Data return address
+	mdv3_r8.MBUS_REPLY_ADDR_FLAG = 0x18;
+	mdv3_r9.MBUS_REPLY_ADDR_DATA = 0x74; // IMG Data return address
 
 	mdv3_r8.MBUS_START_ADDR = 0; // Start column index in words
 	mdv3_r8.MBUS_LENGTH_M1 = 39; // Columns to be read; in # of words: 39 for full frame, 19 for half
 
 	//Write Registers
 	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
-	delay(MBUS_DELAY);
 	mbus_remote_register_write(MD_ADDR,0x1,mdv3_r1.as_int);
-	delay(MBUS_DELAY);
 	mbus_remote_register_write(MD_ADDR,0x2,mdv3_r2.as_int);
-	delay(MBUS_DELAY);
 	mbus_remote_register_write(MD_ADDR,0x3,mdv3_r3.as_int);
-	delay(MBUS_DELAY);
 	mbus_remote_register_write(MD_ADDR,0x4,mdv3_r4.as_int);
-	delay(MBUS_DELAY);
 	mbus_remote_register_write(MD_ADDR,0x5,mdv3_r5.as_int);
-	delay(MBUS_DELAY);
 	mbus_remote_register_write(MD_ADDR,0x6,mdv3_r6.as_int);
-	delay(MBUS_DELAY);
 	mbus_remote_register_write(MD_ADDR,0x7,mdv3_r7.as_int);
-	delay(MBUS_DELAY);
 	mbus_remote_register_write(MD_ADDR,0x8,mdv3_r8.as_int);
-	delay(MBUS_DELAY);
 	mbus_remote_register_write(MD_ADDR,0x9,mdv3_r9.as_int);
-	delay(MBUS_DELAY);
 
 }
 
@@ -659,7 +679,9 @@ static void capture_image_single(){
 	// 0:0
 	mdv3_r0.TAKE_IMAGE = 1;
 	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
-	delay(MBUS_DELAY*4); //Need >10ms
+	delay(MBUS_DELAY*3); //Need >10ms
+
+    set_halt_until_mbus_rx();
 
 	mdv3_r0.TAKE_IMAGE = 0;
 	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
@@ -676,11 +698,33 @@ static void capture_image_start(){
 
 }
 
+static bool wait_for_interrupt(uint32_t wait_count){
+
+    uint32_t count;
+    for( count=0; count<wait_count; count++ ){
+		if( mbus_msg_flag ){
+    		set_halt_until_mbus_tx();
+			mbus_msg_flag = 0;
+			return 1;
+		}else{
+			delay(MBUS_DELAY);
+		}
+    }
+
+    set_halt_until_mbus_tx();
+	return 0;
+}
+
 static void capture_image_single_with_flash(uint32_t page_offset){
 
 	// Start imaging
 	capture_image_single();
-	delay(DELAY_IMG);
+	//delay(DELAY_IMG);
+	wait_for_interrupt(IMG_TIMEOUT_COUNT);	
+
+	delay(MBUS_DELAY);
+	mbus_write_message32(0xF1, 0x11111111);
+	delay(MBUS_DELAY);
 
 	// Power-gate MD
 	poweroff_array_adc();
@@ -692,7 +736,7 @@ static void capture_image_single_with_flash(uint32_t page_offset){
 	flash_turn_on();
 
 	delay(MBUS_DELAY);
-	mbus_write_message32(0xF1, 0x11111111);
+	mbus_write_message32(0xF1, 0x22222222);
 	delay(MBUS_DELAY);
 
 	// Copy SRAM to Flash
@@ -840,7 +884,7 @@ static void operation_tx_image(void){
 	if (!radio_tx_img_one && (radio_tx_img_idx < radio_tx_img_num)){
 		radio_tx_img_idx++;
 		// Send next image after sleep/wakeup
-		set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+		set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 		operation_sleep_noirqreset();
     }else{
 		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
@@ -856,16 +900,23 @@ static void operation_tx_image(void){
 
 static void operation_init(void){
   
+	// Set CPU & Mbus Clock Speeds
+    prcv13_r0B.DSLP_CLK_GEN_FAST_MODE = 0x1; // Default 0x0
+    prcv13_r0B.CLK_GEN_RING = 0x3; // Default 0x1
+    prcv13_r0B.CLK_GEN_DIV_MBC = 0x0; // Default 0x1
+    prcv13_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
+	*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv13_r0B.as_int;
+
 	// Set PMU settings
 	// FIXME
 	set_pmu_sleep_clk_default();
     delay(DELAY_1);
-  
+
     //Enumerate & Initialize Registers
     enumerated = 0xDEADBEEF;
     exec_count = 0;
     exec_count_irq = 0;
-    MBus_msg_flag = 0;
+    mbus_msg_flag = 0;
 
     // Set CPU Halt Option as RX --> Use for register read e.g.
     set_halt_until_mbus_rx();
@@ -873,15 +924,11 @@ static void operation_init(void){
     // Enumeration
 	// Stack order: PRC->HRV->MD->RAD->FLS->PMU
     mbus_enumerate(HRV_ADDR);
-    delay(MBUS_DELAY*2);
     mbus_enumerate(MD_ADDR);
-    delay(MBUS_DELAY*2);
     mbus_enumerate(RAD_ADDR);
-    delay(MBUS_DELAY*2);
     mbus_enumerate(FLS_ADDR);
-    delay(MBUS_DELAY*2);
-    mbus_enumerate(PMU_ADDR);
-    delay(MBUS_DELAY*2);
+    //mbus_enumerate(PMU_ADDR);
+    delay(MBUS_DELAY);
 
     // Set CPU Halt Option as TX --> Use for register write e.g.
     set_halt_until_mbus_tx();
@@ -889,7 +936,7 @@ static void operation_init(void){
 	// Initialize MDv3
 	initialize_md_reg();
 
-	delay(MBUS_DELAY*2);
+	delay(MBUS_DELAY);
 
     // Radio Settings --------------------------------------
     radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
@@ -898,27 +945,28 @@ static void operation_init(void){
     radv9_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
   
     mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
-    delay(MBUS_DELAY);
 
     // FSM data length setups
     radv9_r11.RAD_FSM_H_LEN = 16; // N
     radv9_r11.RAD_FSM_D_LEN = RADIO_DATA_LENGTH-1; // N-1
     radv9_r11.RAD_FSM_C_LEN = 10;
     mbus_remote_register_write(RAD_ADDR,11,radv9_r11.as_int);
-    delay(MBUS_DELAY);
   
     // Configure SCRO
     radv9_r1.SCRO_FREQ_DIV = 3;
     radv9_r1.SCRO_AMP_I_LEVEL_SEL = 2; // Default 2
     radv9_r1.SCRO_I_LEVEL_SELB = 0x60; // Default 0x6F
     mbus_remote_register_write(RAD_ADDR,1,radv9_r1.as_int);
-    delay(MBUS_DELAY);
   
     // LFSR Seed
     radv9_r12.RAD_FSM_SEED = 4;
     mbus_remote_register_write(RAD_ADDR,12,radv9_r12.as_int);
+
+	// Mbus return address; Needs to be between 0x18-0x1F
+    mbus_remote_register_write(RAD_ADDR,0xF,0x1900);
     delay(MBUS_DELAY);
 
+    // Flash Settings --------------------------------------
 	// Option to Slow down FLSv2L clock 
 	mbus_remote_register_write(FLS_ADDR, 0x18, 
 	( (0xC << 2)  /* CLK_RING_SEL[3:0] Default 0xC */
@@ -962,13 +1010,19 @@ static void operation_init(void){
 //***************************************************************************************
 int main() {
   
+    // Reset Wakeup Timer; This is required for PRCv13
+    set_wakeup_timer(100, 0, 1);
+
     // Initialize Interrupts
     // Only enable register-related interrupts
 	enable_reg_irq();
   
-	// Disable the watch-dog timer
-	disable_timerwd();
+	mbus_write_message32(0xAA, 0x11111111);
 
+	// Disable the watch-dog timer
+	//config_timerwd(0xFFFFF);
+	disable_timerwd();
+	
     // Initialization sequence
     if (enumerated != 0xDEADBEEF){
         operation_init();
@@ -976,13 +1030,16 @@ int main() {
     }
 	
     // Check if wakeup is due to GOC interrupt  
-    // 0x68 is reserved for GOC-triggered wakeup (Named IRQ14VEC)
+    // 0x78 is reserved for GOC-triggered wakeup (Named IRQ14VEC)
     // 8 MSB bits of the wakeup data are used for function ID
     uint32_t wakeup_data = *((volatile uint32_t *) IRQ14VEC);	// IRQ14VEC[31:0]
     uint32_t wakeup_data_header = wakeup_data>>24;				// IRQ14VEC[31:24]
     uint32_t wakeup_data_field_0 = wakeup_data & 0xFF;			// IRQ14VEC[7:0]
     uint32_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;		// IRQ14VEC[15:8]
     uint32_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;		// IRQ14VEC[23:16]
+
+	// FIXME
+	mbus_write_message32(0xAA, wakeup_data);
 
     if(wakeup_data_header == 1){
         // Debug mode: Transmit something via radio and go to sleep w/o timer
@@ -997,13 +1054,13 @@ int main() {
 				// Prepare radio TX
 				radio_power_on();
 				// Go to sleep for SCRO stabilitzation
-				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x0);
+				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
 				operation_sleep_noirqreset();
 			}else{
 				// radio
 				send_radio_data_ppm(0,0xFAF000+exec_count_irq);	
 				// set timer
-				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
 				operation_sleep_noirqreset();
 			}
@@ -1041,7 +1098,7 @@ int main() {
 			// Prepare radio TX
 			radio_power_on();
 			// Go to sleep for SCRO stabilitzation
-			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 			operation_sleep_noirqreset();
 		}
 		if (md_capture_img){
@@ -1070,13 +1127,13 @@ int main() {
 				// Prepare radio TX
 				radio_power_on();
 				// Go to sleep for SCRO stabilitzation
-				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x0);
+				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
 				operation_sleep_noirqreset();
 			}else{
 				// radio
 				send_radio_data_ppm(0,0xFAF000+md_count);	
 				// set timer
-				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
 				operation_sleep_noirqreset();
 			}
@@ -1115,12 +1172,12 @@ int main() {
 				// Prepare radio TX
 				radio_power_on();
 				// Go to sleep for SCRO stabilitzation
-				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x0);
+				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
 				operation_sleep_noirqreset();
 			}else{
 				send_radio_data_ppm(0, 0xFAF000+exec_count_irq);
 				// set timer
-				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
 				operation_sleep_noirqreset();
 			}

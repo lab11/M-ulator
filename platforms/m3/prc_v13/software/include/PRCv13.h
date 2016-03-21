@@ -127,7 +127,7 @@
 //*********************************************************
 // GOC Trigger
 //*********************************************************
-#define IRQ14VEC 0x00000078
+#define IRQ14VEC ((volatile uint32_t *) 0x00000078)
 
 //*********************************************************
 // INCLUDES...
@@ -190,6 +190,15 @@ void disable_all_irq();
  * @usage   clear_all_pend_irq();
  */
 void clear_all_pend_irq();
+
+/**
+ * @brief   Only enable register-related interrupts
+ *
+ * @param   N/A
+ *
+ * @usage   enable_reg_irq();
+ */
+void enable_reg_irq();
 
 
 /**
