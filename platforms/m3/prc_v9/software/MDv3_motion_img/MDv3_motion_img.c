@@ -147,7 +147,7 @@ static void initialize_md_reg(){
 	delay(MBUS_DELAY);
 	write_mbus_register(MD_ADDR,0x8,mdv3_r8.as_int);
 	delay(MBUS_DELAY);
-	write_mbus_register(MD_ADDR,0x9,mdv3_r8.as_int);
+	write_mbus_register(MD_ADDR,0x9,mdv3_r9.as_int);
 	delay(MBUS_DELAY);
 }
 
@@ -441,7 +441,7 @@ int main() {
 		// Change PMU_CTRL Register
 		// PRCv9 Default: 0x8F770049
 		//*((volatile uint32_t *) 0xA200000C) = 0x8F770079;
-		*((volatile uint32_t *) 0xA200000C) = 0x8F772879; // works without any override!
+		*((volatile uint32_t *) 0xA200000C) = 0x4F772879; // works without any override!
 	  
 		delay(DELAY_1);
 	  
