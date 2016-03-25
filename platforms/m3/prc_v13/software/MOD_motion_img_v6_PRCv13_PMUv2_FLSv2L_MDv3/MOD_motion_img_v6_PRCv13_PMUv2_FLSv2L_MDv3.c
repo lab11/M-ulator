@@ -907,11 +907,6 @@ static void operation_init(void){
     prcv13_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
 	*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv13_r0B.as_int;
 
-	// Set PMU settings
-	// FIXME
-	set_pmu_sleep_clk_default();
-    delay(DELAY_1);
-
     //Enumerate & Initialize Registers
     enumerated = 0xDEADBEEF;
     exec_count = 0;
@@ -932,6 +927,53 @@ static void operation_init(void){
 
     // Set CPU Halt Option as TX --> Use for register write e.g.
     set_halt_until_mbus_tx();
+
+	// Set PMU settings
+	// SAR_RATIO_OVERRIDE
+    mbus_remote_register_write(PMU_ADDR,0x05,0x000EBD);
+	// UPCONV_TRIM_V3 Sleep/Active
+    mbus_remote_register_write(PMU_ADDR,0x17, 
+		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+		| (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (2) 		// Floor frequency base (0-63)
+	));
+    mbus_remote_register_write(PMU_ADDR,0x18, 
+		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+		| (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (2 << 5)  // Frequency multiplier L (actually L+1)
+		| (10) 		// Floor frequency base (0-63)
+	));
+	// DOWNCONV_TRIM_V3 Sleep/Active
+    mbus_remote_register_write(PMU_ADDR,0x19,
+		( (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (1) 		// Floor frequency base (0-63)
+	));
+    mbus_remote_register_write(PMU_ADDR,0x1A,
+		( (1 << 13) // Enable main feedback loop
+		| (4 << 9)  // Frequency multiplier R
+		| (2 << 5)  // Frequency multiplier L (actually L+1)
+		| (8) 		// Floor frequency base (0-63)
+	));
+	// Register 0x15: SAR_TRIM_v3_SLEEP
+    mbus_remote_register_write(PMU_ADDR,0x15, 
+		( (0 << 19) // Enable PFM even during periodic reset
+		| (0 << 18) // Enable PFM even when Vref is not used as ref
+		| (0 << 17) // Enable PFM
+		| (3 << 14) // Comparator clock division ratio
+		| (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (6) 		// Floor frequency base (0-63)
+	));
+	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
+    mbus_remote_register_write(PMU_ADDR,0x36,0x000001);
+	//set_pmu_sleep_clk_default();
+    delay(DELAY_1);
 
 	// Initialize MDv3
 	initialize_md_reg();
@@ -1017,6 +1059,7 @@ int main() {
     // Only enable register-related interrupts
 	enable_reg_irq();
   
+	// FIXME
 	mbus_write_message32(0xAA, 0x11111111);
 
 	// Disable the watch-dog timer
