@@ -6,8 +6,11 @@
 #include "PMUv2_RF.h"
 #include "mbus.h"
 
-#define PRC_ADDR    0x1
 #define SNS_ADDR    0x4
+#define PMU_ADDR    0x5
+
+
+#define MBUS_DELAY	10000
 
 //********************************************************************
 // Global Variables
@@ -56,17 +59,50 @@ void initialization (void) {
     enumerated = 0xDEADBEEF;
     cyc_num = 0;
 
+	// Clock Speed (By default, CLK_CORE is 2x slower than CLK_MBC)
+//	*REG_CLKGEN_TUNE = 	  (0x0 << 19) // CLK_GEN_HIGH_FREQ
+//                       	| (0x3 << 17) // CLK_GEN_DIV_CORE
+//						| (0x1 << 15) // CLK_GEN_DIV_MBC
+//						| (0x1 << 13) // CLK_GEN_RING
+//						| (0x0 << 12) // DSLP_CLK_GEN_FAST_MODE
+//						| (0x0 << 10) // GOC_CLK_GEN_SEL_DIV
+//						| (0x6 << 7)  // GOC_CLK_GEN_SEL_FREQ
+//						| (0x0 << 6)  // GOC_ONECLK_MODE
+//						| (0x0 << 4)  // GOC_SEL_DLY
+//						| (0x8 << 0); // GOC_SEL
+
 	// Disable Halting --> Use manual delays
 	set_halt_disable();
 
     // Set Halt RX --> Use for register read e.g.
-    //set_halt_until_mbus_rx();
+    // set_halt_until_mbus_rx();
 
     // Enumeration
     mbus_enumerate(SNS_ADDR);
+	delay(MBUS_DELAY);
+    mbus_enumerate(PMU_ADDR);
+	delay(MBUS_DELAY);
 
-    //Set Halt --> Use for register write e.g.
-    //set_halt_until_mbus_tx();
+	// Change PMU Setting (each msg will get a response from PMU, so use set_halt_until_mbus_rx);
+
+	// Register Write
+	// mbus_write_message32((PMU_ADDR << 4), (REG_ID << 24) | (REG_DATA));
+	mbus_write_message32((PMU_ADDR << 4), (0x05 << 24) | 0x000EBD);   // EB0
+	delay(MBUS_DELAY);
+	mbus_write_message32((PMU_ADDR << 4), (0x18 << 24) | 0x00E24A);
+	delay(MBUS_DELAY);
+	mbus_write_message32((PMU_ADDR << 4), (0x15 << 24) | 0x00E206);
+	delay(MBUS_DELAY);
+	mbus_write_message32((PMU_ADDR << 4), (0x36 << 24) | 0x000001);
+	delay(MBUS_DELAY);
+
+	// Register Read
+	// mbus_write_message32((PMU_ADDR << 4), (REG_ID));
+	// mbus_write_message32((PMU_ADDR << 4), 0xF);
+	// delay(MBUS_DELAY);
+
+    // Set Halt --> Use for register write e.g.
+    // set_halt_until_mbus_tx();
 }
 
 //********************************************************************
@@ -84,25 +120,16 @@ int main() {
         initialization();
     }
 
-//	*REG1 = 0xFFFFFFFF;
-
-//	*REG2 = *REG1;
-
 	mbus_write_message32(0xE1, cyc_num);
+	delay(MBUS_DELAY);
+
 	mbus_write_message(0xE2, sample_msg, 4);
+	delay(MBUS_DELAY);
 
-	// Member Mbus Register Write/Read
-	mbus_remote_register_write(SNS_ADDR,0x0,0xFFFF);
-
-    set_halt_until_mbus_rx();
-	mbus_remote_register_read(SNS_ADDR,0x0,0x1);
-
-    set_halt_until_mbus_tx();
-	mbus_write_message32(0xE1, *REG1);
 
 	// Set wakeup timer and go to sleep
     cyc_num++;
-    set_wakeup_timer(3, 1, 1);
+    set_wakeup_timer(2, 1, 1); // 500 for High Temp.
     mbus_sleep_all();
 
     while(1){  //Never Quit (should not come here.)
