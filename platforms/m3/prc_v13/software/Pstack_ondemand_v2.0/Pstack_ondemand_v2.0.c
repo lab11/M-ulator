@@ -443,7 +443,6 @@ static void operation_tx_stored(void){
     }else{
 		delay(RADIO_PACKET_DELAY*3); //Set delays between sending subsequent packet
 		send_radio_data_ppm(1, 0xFAF000);
-
 		// This is also the end of this IRQ routine
 		exec_count_irq = 0;
 		// Go to sleep without timer

@@ -957,7 +957,7 @@ static void operation_init(void){
 		( (1 << 13) // Enable main feedback loop
 		| (4 << 9)  // Frequency multiplier R
 		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (8) 		// Floor frequency base (0-63)
+		| (1) 		// Floor frequency base (0-63)
 	));
 	// Register 0x15: SAR_TRIM_v3_SLEEP
     mbus_remote_register_write(PMU_ADDR,0x15, 
@@ -968,7 +968,7 @@ static void operation_init(void){
 		| (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
 		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (6) 		// Floor frequency base (0-63)
+		| (8) 		// Floor frequency base (0-63)
 	));
 	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
     mbus_remote_register_write(PMU_ADDR,0x36,0x000001);
