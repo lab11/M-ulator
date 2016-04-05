@@ -613,7 +613,7 @@ static void poweron_array_adc(){
 	// 2:20
 	mdv3_r2.PRESLEEP_ADC = 0;
 	mbus_remote_register_write(MD_ADDR,0x2,mdv3_r2.as_int);
-	delay(MBUS_DELAY*10);
+	delay(WAKEUP_DELAY);
 
 	// Release IMG Sleep
 	// 2:19
@@ -730,21 +730,21 @@ static void capture_image_single_with_flash(uint32_t page_offset){
 	poweroff_array_adc();
 
 	// Check Flash SRAM after image
-	check_flash_sram(0xE1, FLS_CHECK_LENGTH);
+	//check_flash_sram(0xE1, FLS_CHECK_LENGTH);
 
 	// Turn on Flash macro
-	flash_turn_on();
+	//flash_turn_on();
 
 	delay(MBUS_DELAY);
 	mbus_write_message32(0xF1, 0x22222222);
 	delay(MBUS_DELAY);
 
 	// Copy SRAM to Flash
-    mbus_remote_register_write(FLS_ADDR,0x09,page_offset); // Set flash start addr; should be a multiple of 0x800
-	flash_copy_sram2flash(0x1FFF); // 4 pages
+    //mbus_remote_register_write(FLS_ADDR,0x09,page_offset); // Set flash start addr; should be a multiple of 0x800
+	//flash_copy_sram2flash(0x1FFF); // 4 pages
 
 	// Turn off Flash
-	flash_turn_off();
+	//flash_turn_off();
 
 	delay(MBUS_DELAY);
 	mbus_write_message32(0xF1, 0x33333333);
@@ -831,7 +831,7 @@ static void operation_md(void){
 			capture_image_single_with_flash(0x800+img_count*0x2000);
 			img_count++;
 			// Erase the next section of flash
-			operation_flash_erase(0x800+img_count*0x2000);
+			//operation_flash_erase(0x800+img_count*0x2000);
 		}
 
 		poweroff_array_adc();
@@ -876,7 +876,7 @@ static void operation_tx_image(void){
 	#endif
 
 	// Read image from Flash 
-	operation_flash_read(0x800 + radio_tx_img_idx*0x2000);
+	//operation_flash_read(0x800 + radio_tx_img_idx*0x2000);
 
 	// Send image to radio
 	//send_radio_flash_sram(0xE4, 6475); // Full image
@@ -941,9 +941,9 @@ static void set_pmu_motion_img(void){
 	delay(MBUS_DELAY);
     mbus_remote_register_write(PMU_ADDR,0x1A,
 		( (1 << 13) // Enable main feedback loop
-		| (4 << 9)  // Frequency multiplier R
-		| (4 << 5)  // Frequency multiplier L (actually L+1)
-		| (16) 		// Floor frequency base (0-31)
+		| (10 << 9)  // Frequency multiplier R
+		| (10 << 5)  // Frequency multiplier L (actually L+1)
+		| (31) 		// Floor frequency base (0-31)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x15: SAR_TRIM_v3_SLEEP
@@ -967,9 +967,9 @@ static void set_pmu_motion_img(void){
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (1 << 13) // Enable main feedback loop
-		| (5 << 9)  // Frequency multiplier R
-		| (5 << 5)  // Frequency multiplier L (actually L+1)
-		| (22) 		// Floor frequency base (0-31) //16
+		| (15 << 9)  // Frequency multiplier R
+		| (15 << 5)  // Frequency multiplier L (actually L+1)
+		| (31) 		// Floor frequency base (0-31) //16
 	));
 	delay(MBUS_DELAY);
 	// SAR_RATIO_OVERRIDE
@@ -979,7 +979,7 @@ static void set_pmu_motion_img(void){
 		| (1 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (46) 		// Binary converter's conversion ratio (7'h00)
+		| (44) 		// Binary converter's conversion ratio (7'h00)
 		// 48: 1.5V
 		// 38: 1.1V
 		// 41: 1.26V
@@ -1024,8 +1024,8 @@ static void operation_init(void){
     delay(MBUS_DELAY);
     mbus_enumerate(RAD_ADDR);
     delay(MBUS_DELAY);
-    mbus_enumerate(FLS_ADDR);
-    delay(MBUS_DELAY);
+    //mbus_enumerate(FLS_ADDR);
+    //delay(MBUS_DELAY);
     mbus_enumerate(PMU_ADDR);
     delay(MBUS_DELAY);
 
@@ -1202,7 +1202,7 @@ int main() {
 			operation_sleep_noirqreset();
 		}
 		if (md_capture_img){
-			operation_flash_erase(0x800);
+			//operation_flash_erase(0x800);
 		}
 
 		operation_md();
