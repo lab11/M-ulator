@@ -979,7 +979,7 @@ static void set_pmu_motion_img(void){
 		| (1 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (46) 		// Binary converter's conversion ratio (7'h00)
+		| (48) 		// Binary converter's conversion ratio (7'h00)
 		// 48: 1.5V
 		// 38: 1.1V
 		// 41: 1.26V
