@@ -2,42 +2,100 @@
 ###############################################################################
 # FLASH LAYER (FLX) BOOT ISA PROGRAM COMPILER
 # Author: Yejoong Kim
-# Last Modified: Sep 10 2015
+# Last Modified: Apr 05 2016
 # ----------------------------------------------------------------------------
-# [Usage] ./compileBootFLX [.memmap FileName]
+# [Description]
+#   This is compatible for use with:
+#       Processor Layer: PRCv13, PREv13
+#       Flash Layer    : FLPv1S, FLPv1L, FLSv2S, FLSv2L
+#       PMU Layer      : PMUv2
 #
-# NOTE:	1) This script was made in hurry. 
-# 			It is a very long and inefficient code :P
-#			Anyone is welcome to improve this :)
-# 		2) Prepare a source code named $inFile
-#		3) Output hex files are stored in $outFileXX.
-#			Use these to preload the flash memory.
-#		4) For detailed syntax for source codes, see the sample code './prog'
+#   This script reads in 'memmap' file and then 
+#   it generates 'boothex' and 'bootinc' files
+#
+#   This adds some tuning sequency at the start of the boot-up code.
+#
+# [Usage] ./compileBootHexFLX [.memmap FileName]
+#
+# [Syntax of Available Instructions]
+#       EN XXXX : Enumeration (XXXX: 4-digit in hex)
+#       NO XXXX : NOP (XXXX: 4-digit in hex)
+#       RW XXXX : Register Write (XXXX: 4-digit in hex)
+#           A BB CCCCCC : [DestShortPrefix(1-digit in hex)] [RegIdx(2-digit in hex)] [RegData(6-digit in hex)]
+#       MC XXXX : Memory Copy (XXXX: 4-digit in hex)
+#           A : [DestShortPrefix(1-digit in hex)]
+#           BBBBBBBB : [DestMemStartAddr(8-digit in hex)]
+#           CCCCCCCC : [Data0(8-digit in hex)]
+#           ....
+#           XXXXXXXX : [DataN(8-digit in hex)]
+#       ID : Tail Idle
+#       PD : Tail Flash Power Down
+#       SL : Tail Sleep
+#
+#   NOTE: 1) Also see notes in the compiler script 'm3_compileBootFLX'
+#         2) Keep the number of digits. Do NOT remove leading zeros.
+#            Example1: Use 'EN 0009'. Do NOT use 'EN 9'
+#            Example2: In Reg Write, use '5 0C 000022'. Do NOT use '5 C 22'.
+#         3) Line starting with '#' are comments.
+#            Empty lines are ignored.
+#         4) 'XXXX' is an iteration number.
+#            It actually means 'iteration - 1'
+#         5) In the BOOT ISA, the iteration number is 18-bit.
+#            But this compiler supports only 16 bits.
+#            The remaining upper 2 bits are automatically set to 2'b00.
+#         6) For further details, see the Flash layer document.
 ###############################################################################
 
 $BootCodeBeforeProg = "
+# System Configuration: 
+# PRC -> FLS -> PMU
+
+# Enumeration
+# -- FLS
+EN 0004
+NO 00FF
+# -- PMU
+#EN 0008
+#NO 00FF
+
+## PMU Setting
+## -- Disable Interrupt Reply
+#RW 0000
+#8 51 000009
+## -- Disable Interrupt Reply
+#RW 0000
+#8 51 000009
+## -- Other Settings
+#RW 0007
+#8 17 00E202
+#8 18 00E24A
+#8 19 002201
+#8 1A 002848
+#8 15 00E447
+#8 16 00E890
+#8 05 000EB0
+#8 36 000001
+## -- Enable Interrupt Reply
+#RW 0000
+#8 51 000019
+
 # Flash Self-Tuning (Tprog & Tcyc, VTG/CRT_TUNE)
-RW 0001
-0 02 0500C0
-0 0A 00023F
+RW 0002
+0 19 000F03
+0 02 000100
+0 04 000020
 
 # NOP (256 cycles. Wait for VTG/CRT Limiter stabilize)
 NO 00FF
-
-# Register Write (Clock and SRAM)
-RW 0001
-1 0B 030483
-1 0C 000045
 ";
 
 $BootCodeAfterProg = "
 # Register Write (Write B0C3CB in Reg0 in Proc. And Set RUN_CPU)
-RW 0001
-1 00 B0C3CB
+RW 0000
 1 10 000001
 
-# Tail Idle
-SL
+# Tail Power-Down (It will turn off VC and Flash, and will stay in idle)
+PD
 ";
 
 ###############################################################################
