@@ -711,7 +711,9 @@ static bool wait_for_interrupt(uint32_t wait_count){
 		}
     }
 
+	// Timeout
     set_halt_until_mbus_tx();
+	mbus_write_message32(0xFF, 0xFAFAFAFA);
 	return 0;
 }
 
