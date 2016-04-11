@@ -19,7 +19,7 @@
 #define MD_ADDR 0x4
 #define RAD_ADDR 0x5
 #define HRV_ADDR 0x6
-#define FLS_ADDR 0x7
+#define FLS_ADDR 0x9
 #define PMU_ADDR 0x8
 
 // Common parameters
@@ -135,209 +135,19 @@ void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
 //************************************
 // PMU Related Functions
 //************************************
-
-static void set_pmu_sar_override(uint32_t val){
-	// SAR_RATIO_OVERRIDE
-    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
-		( (1 << 11) // Enable override setting [10] (1'h0)
-		| (0 << 10) // Have the converter have the periodic reset (1'h0)
-		| (1 << 9) // Enable override setting [8] (1'h0)
-		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
-		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (val) 		// Binary converter's conversion ratio (7'h00)
-		// 48: 1.5V
-		// 38: 1.1V
-		// 41: 1.26V
-	));
-	delay(MBUS_DELAY*10);
+inline static void set_pmu_sleep_clk_default(){
+}
+inline static void set_pmu_sleep_clk_fastest(){
 }
 
-static void set_pmu_motion(void){
 
-	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
-	// V0P6 Supply Active: need to support up to 50uA
-    mbus_remote_register_write(PMU_ADDR,0x1A,
-		( (1 << 13) // Enable main feedback loop
-		| (4 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (8) 		// Floor frequency base (0-31)
-	));
-	delay(MBUS_DELAY);
-    mbus_remote_register_write(PMU_ADDR,0x1A,
-		( (1 << 13) // Enable main feedback loop
-		| (4 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (8) 		// Floor frequency base (0-31)
-	));
-	delay(MBUS_DELAY);
-	// Register 0x16: SAR_TRIM_v3_ACTIVE
-	// V1P2 Supply Active: need to support up to 200uA
-    mbus_remote_register_write(PMU_ADDR,0x16, 
-		( (0 << 19) // Enable PFM even during periodic reset
-		| (0 << 18) // Enable PFM even when Vref is not used as ref
-		| (0 << 17) // Enable PFM
-		| (3 << 14) // Comparator clock division ratio
-		| (1 << 13) // Enable main feedback loop
-		| (4 << 9)  // Frequency multiplier R
-		| (4 << 5)  // Frequency multiplier L (actually L+1)
-		| (15) 		// Floor frequency base (0-31) //16
-	));
-	delay(MBUS_DELAY);
-	set_pmu_sar_override(46);
-	
-}
-
-static void set_pmu_img(void){
-
-	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
-	// V0P6 Supply Active: need to support up to 50uA
-    mbus_remote_register_write(PMU_ADDR,0x1A,
-		( (1 << 13) // Enable main feedback loop
-		| (4 << 9)  // Frequency multiplier R
-		| (4 << 5)  // Frequency multiplier L (actually L+1)
-		| (16) 		// Floor frequency base (0-31)
-	));
-	delay(MBUS_DELAY);
-    mbus_remote_register_write(PMU_ADDR,0x1A,
-		( (1 << 13) // Enable main feedback loop
-		| (4 << 9)  // Frequency multiplier R
-		| (4 << 5)  // Frequency multiplier L (actually L+1)
-		| (16) 		// Floor frequency base (0-31)
-	));
-	delay(MBUS_DELAY);
-	// Register 0x16: SAR_TRIM_v3_ACTIVE
-	// V1P2 Supply Active: need to support up to 200uA
-    mbus_remote_register_write(PMU_ADDR,0x16, 
-		( (0 << 19) // Enable PFM even during periodic reset
-		| (0 << 18) // Enable PFM even when Vref is not used as ref
-		| (0 << 17) // Enable PFM
-		| (3 << 14) // Comparator clock division ratio
-		| (1 << 13) // Enable main feedback loop
-		| (5 << 9)  // Frequency multiplier R
-		| (5 << 5)  // Frequency multiplier L (actually L+1)
-		| (22) 		// Floor frequency base (0-31) //16
-	));
-	delay(MBUS_DELAY);
-
-	set_pmu_sar_override(46);
-	
-}
-
-static void set_pmu_motion_img_default(void){
-
-	// Set PMU settings
-	// PMUv2 MBUS register write results in IRQ, so needs to be in RX mode
-	// UPCONV_TRIM_V3 Sleep/Active
-    mbus_remote_register_write(PMU_ADDR,0x17, 
-		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
-		| (1 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (4) 		// Floor frequency base (0-31)
-	));
-	delay(MBUS_DELAY);
-	// The first register write to PMU needs to be repeated
-    mbus_remote_register_write(PMU_ADDR,0x17, 
-		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
-		| (1 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (4) 		// Floor frequency base (0-31)
-	));
-	delay(MBUS_DELAY);
-    mbus_remote_register_write(PMU_ADDR,0x18, 
-		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
-		| (1 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (2) 		// Floor frequency base (0-31)
-	));
-	delay(MBUS_DELAY);
-	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
-	// V0P6 Supply Sleep: need to support up to 200nA
-    mbus_remote_register_write(PMU_ADDR,0x19,
-		( (1 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (8) 		// Floor frequency base (0-31)
-	));
-	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
-	// V0P6 Supply Active: need to support up to 50uA
-	delay(MBUS_DELAY);
-    mbus_remote_register_write(PMU_ADDR,0x1A,
-		( (1 << 13) // Enable main feedback loop
-		| (4 << 9)  // Frequency multiplier R
-		| (4 << 5)  // Frequency multiplier L (actually L+1)
-		| (16) 		// Floor frequency base (0-31)
-	));
-	delay(MBUS_DELAY);
-	// Register 0x15: SAR_TRIM_v3_SLEEP
-	// V1P2 Supply Sleep: need to support up to 100nA
-    mbus_remote_register_write(PMU_ADDR,0x15, 
-		( (0 << 19) // Enable PFM even during periodic reset
-		| (0 << 18) // Enable PFM even when Vref is not used as ref
-		| (0 << 17) // Enable PFM
-		| (3 << 14) // Comparator clock division ratio
-		| (1 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (4) 		// Floor frequency base (0-31) //8
-	));
-	delay(MBUS_DELAY);
-	// Register 0x16: SAR_TRIM_v3_ACTIVE
-	// V1P2 Supply Active: need to support up to 200uA
-    mbus_remote_register_write(PMU_ADDR,0x16, 
-		( (0 << 19) // Enable PFM even during periodic reset
-		| (0 << 18) // Enable PFM even when Vref is not used as ref
-		| (0 << 17) // Enable PFM
-		| (3 << 14) // Comparator clock division ratio
-		| (1 << 13) // Enable main feedback loop
-		| (5 << 9)  // Frequency multiplier R
-		| (5 << 5)  // Frequency multiplier L (actually L+1)
-		| (22) 		// Floor frequency base (0-31) //16
-	));
-	delay(MBUS_DELAY);
-	// SAR_RATIO_OVERRIDE
-	// Need to set [10] to 1 and then 0
-    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
-		( (1 << 11) // Enable override setting [10] (1'h0)
-		| (1 << 10) // Have the converter have the periodic reset (1'h0)
-		| (1 << 9) // Enable override setting [8] (1'h0)
-		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
-		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (48) 		// Binary converter's conversion ratio (7'h00)
-		// 48: 1.5V
-		// 38: 1.1V
-		// 41: 1.26V
-	));
-	delay(MBUS_DELAY);
-	// SAR_RATIO_OVERRIDE
-    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
-		( (1 << 11) // Enable override setting [10] (1'h0)
-		| (0 << 10) // Have the converter have the periodic reset (1'h0)
-		| (1 << 9) // Enable override setting [8] (1'h0)
-		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
-		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (48) 		// Binary converter's conversion ratio (7'h00)
-		// 48: 1.5V
-		// 38: 1.1V
-		// 41: 1.26V
-	));
-	delay(MBUS_DELAY);
-	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
-    mbus_remote_register_write(PMU_ADDR,0x36,0x000001);
-	delay(MBUS_DELAY);
-	// Register 0x37: TICK_WAKEUP_WAIT
-    mbus_remote_register_write(PMU_ADDR,0x37,0x0011F4); // Default: 0x1F4
-	delay(MBUS_DELAY);
-
-}
 //***************************************************
 // Radio transmission routines for PPM Radio (RADv9)
 //***************************************************
 
 static void radio_power_on(){
 	// Need to speed up sleep pmu clock
+	set_pmu_sleep_clk_fastest();
 
     // Release FSM Sleep - Requires >2s stabilization time
     radio_on = 1;
@@ -366,6 +176,7 @@ static void radio_power_on(){
 
 static void radio_power_off(){
 	// Need to restore sleep pmu clock
+	set_pmu_sleep_clk_default();
 
     // Turn off everything
     radio_on = 0;
@@ -558,8 +369,6 @@ uint32_t send_radio_flash_sram(uint8_t addr_stamp, uint32_t length){
 
 static void flash_turn_on(){
 
-	set_pmu_sar_override(48);
-
     set_halt_until_mbus_rx();
 	mbus_remote_register_write(FLS_ADDR,0x11,0x00003F);
     set_halt_until_mbus_tx();
@@ -573,8 +382,6 @@ static void flash_turn_off(){
 	mbus_remote_register_write(FLS_ADDR,0x11,0x00003D);
     set_halt_until_mbus_tx();
 	//check_flash_payload(0xA6, 0x000000BB);
-
-	set_pmu_sar_override(47);
 
 }
 
@@ -608,6 +415,212 @@ static void flash_copy_sram2flash(volatile uint32_t length){
 
 }
 
+static void set_pmu_motion(void){
+
+	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
+	// V0P6 Supply Active: need to support up to 50uA
+    mbus_remote_register_write(PMU_ADDR,0x1A,
+		( (1 << 13) // Enable main feedback loop
+		| (4 << 9)  // Frequency multiplier R
+		| (4 << 5)  // Frequency multiplier L (actually L+1)
+		| (10) 		// Floor frequency base (0-31)
+	));
+	delay(MBUS_DELAY);
+    mbus_remote_register_write(PMU_ADDR,0x1A,
+		( (1 << 13) // Enable main feedback loop
+		| (4 << 9)  // Frequency multiplier R
+		| (4 << 5)  // Frequency multiplier L (actually L+1)
+		| (10) 		// Floor frequency base (0-31)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x16: SAR_TRIM_v3_ACTIVE
+	// V1P2 Supply Active: need to support up to 200uA
+    mbus_remote_register_write(PMU_ADDR,0x16, 
+		( (0 << 19) // Enable PFM even during periodic reset
+		| (0 << 18) // Enable PFM even when Vref is not used as ref
+		| (0 << 17) // Enable PFM
+		| (3 << 14) // Comparator clock division ratio
+		| (1 << 13) // Enable main feedback loop
+		| (5 << 9)  // Frequency multiplier R
+		| (5 << 5)  // Frequency multiplier L (actually L+1)
+		| (10) 		// Floor frequency base (0-31) //16
+	));
+	delay(MBUS_DELAY);
+
+	// SAR_RATIO_OVERRIDE
+    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+		( (1 << 11) // Enable override setting [10] (1'h0)
+		| (0 << 10) // Have the converter have the periodic reset (1'h0)
+		| (1 << 9) // Enable override setting [8] (1'h0)
+		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+		| (1 << 7) // Enable override setting [6:0] (1'h0)
+		| (45) 		// Binary converter's conversion ratio (7'h00)
+		// 48: 1.5V
+		// 38: 1.1V
+		// 41: 1.26V
+	));
+	delay(MBUS_DELAY);
+}
+
+static void set_pmu_img(void){
+
+	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
+	// V0P6 Supply Active: need to support up to 50uA
+    mbus_remote_register_write(PMU_ADDR,0x1A,
+		( (1 << 13) // Enable main feedback loop
+		| (4 << 9)  // Frequency multiplier R
+		| (4 << 5)  // Frequency multiplier L (actually L+1)
+		| (16) 		// Floor frequency base (0-31)
+	));
+	delay(MBUS_DELAY);
+    mbus_remote_register_write(PMU_ADDR,0x1A,
+		( (1 << 13) // Enable main feedback loop
+		| (4 << 9)  // Frequency multiplier R
+		| (4 << 5)  // Frequency multiplier L (actually L+1)
+		| (16) 		// Floor frequency base (0-31)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x16: SAR_TRIM_v3_ACTIVE
+	// V1P2 Supply Active: need to support up to 200uA
+    mbus_remote_register_write(PMU_ADDR,0x16, 
+		( (0 << 19) // Enable PFM even during periodic reset
+		| (0 << 18) // Enable PFM even when Vref is not used as ref
+		| (0 << 17) // Enable PFM
+		| (3 << 14) // Comparator clock division ratio
+		| (1 << 13) // Enable main feedback loop
+		| (5 << 9)  // Frequency multiplier R
+		| (5 << 5)  // Frequency multiplier L (actually L+1)
+		| (22) 		// Floor frequency base (0-31) //16
+	));
+	delay(MBUS_DELAY);
+
+	// SAR_RATIO_OVERRIDE
+    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+		( (1 << 11) // Enable override setting [10] (1'h0)
+		| (0 << 10) // Have the converter have the periodic reset (1'h0)
+		| (1 << 9) // Enable override setting [8] (1'h0)
+		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+		| (1 << 7) // Enable override setting [6:0] (1'h0)
+		| (46) 		// Binary converter's conversion ratio (7'h00)
+		// 48: 1.5V
+		// 38: 1.1V
+		// 41: 1.26V
+	));
+	delay(MBUS_DELAY);
+	
+	// Let it stabilize
+	delay(DELAY_1);
+}
+
+static void set_pmu_motion_img(void){
+
+	// Set PMU settings
+	// PMUv2 MBUS register write results in IRQ, so needs to be in RX mode
+	// UPCONV_TRIM_V3 Sleep/Active
+    mbus_remote_register_write(PMU_ADDR,0x17, 
+		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+		| (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (4) 		// Floor frequency base (0-31)
+	));
+	delay(MBUS_DELAY);
+	// The first register write to PMU needs to be repeated
+    mbus_remote_register_write(PMU_ADDR,0x17, 
+		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+		| (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (4) 		// Floor frequency base (0-31)
+	));
+	delay(MBUS_DELAY);
+    mbus_remote_register_write(PMU_ADDR,0x18, 
+		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+		| (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (2 << 5)  // Frequency multiplier L (actually L+1)
+		| (2) 		// Floor frequency base (0-31)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
+	// V0P6 Supply Sleep: need to support up to 200nA
+    mbus_remote_register_write(PMU_ADDR,0x19,
+		( (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (8) 		// Floor frequency base (0-31)
+	));
+	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
+	// V0P6 Supply Active: need to support up to 50uA
+	delay(MBUS_DELAY);
+    mbus_remote_register_write(PMU_ADDR,0x1A,
+		( (1 << 13) // Enable main feedback loop
+		| (4 << 9)  // Frequency multiplier R
+		| (4 << 5)  // Frequency multiplier L (actually L+1)
+		| (16) 		// Floor frequency base (0-31)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x15: SAR_TRIM_v3_SLEEP
+	// V1P2 Supply Sleep: need to support up to 100nA
+    mbus_remote_register_write(PMU_ADDR,0x15, 
+		( (0 << 19) // Enable PFM even during periodic reset
+		| (0 << 18) // Enable PFM even when Vref is not used as ref
+		| (0 << 17) // Enable PFM
+		| (3 << 14) // Comparator clock division ratio
+		| (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (4) 		// Floor frequency base (0-31) //8
+	));
+	delay(MBUS_DELAY);
+	// Register 0x16: SAR_TRIM_v3_ACTIVE
+	// V1P2 Supply Active: need to support up to 200uA
+    mbus_remote_register_write(PMU_ADDR,0x16, 
+		( (0 << 19) // Enable PFM even during periodic reset
+		| (0 << 18) // Enable PFM even when Vref is not used as ref
+		| (0 << 17) // Enable PFM
+		| (3 << 14) // Comparator clock division ratio
+		| (1 << 13) // Enable main feedback loop
+		| (5 << 9)  // Frequency multiplier R
+		| (5 << 5)  // Frequency multiplier L (actually L+1)
+		| (22) 		// Floor frequency base (0-31) //16
+	));
+	delay(MBUS_DELAY);
+	// SAR_RATIO_OVERRIDE
+	// Need to set [10] to 1 and then 0
+    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+		( (1 << 11) // Enable override setting [10] (1'h0)
+		| (1 << 10) // Have the converter have the periodic reset (1'h0)
+		| (1 << 9) // Enable override setting [8] (1'h0)
+		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+		| (1 << 7) // Enable override setting [6:0] (1'h0)
+		| (46) 		// Binary converter's conversion ratio (7'h00)
+		// 48: 1.5V
+		// 38: 1.1V
+		// 41: 1.26V
+	));
+	delay(MBUS_DELAY);
+	// SAR_RATIO_OVERRIDE
+    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+		( (1 << 11) // Enable override setting [10] (1'h0)
+		| (0 << 10) // Have the converter have the periodic reset (1'h0)
+		| (1 << 9) // Enable override setting [8] (1'h0)
+		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+		| (1 << 7) // Enable override setting [6:0] (1'h0)
+		| (46) 		// Binary converter's conversion ratio (7'h00)
+		// 48: 1.5V
+		// 38: 1.1V
+		// 41: 1.26V
+	));
+	delay(MBUS_DELAY);
+	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
+    mbus_remote_register_write(PMU_ADDR,0x36,0x000001);
+	delay(MBUS_DELAY);
+	// Register 0x37: TICK_WAKEUP_WAIT
+    mbus_remote_register_write(PMU_ADDR,0x37,0x009F4); // Default: 0x1F4
+	delay(MBUS_DELAY);
+
+}
 
 //************************************
 // MDv3 Functions
@@ -619,7 +632,7 @@ static void initialize_md_reg(){
 
 	mdv3_r0.INT_TIME = USR_INT_TIME;
 	mdv3_r0.MD_INT_TIME = USR_MD_INT_TIME;
-	mdv3_r1.MD_TH = 10;
+	mdv3_r1.MD_TH = 4;
 	mdv3_r1.MD_LOWRES = 0;
 	mdv3_r1.MD_LOWRES_B = 1;
 	mdv3_r1.MD_FLAG_TOPAD_SEL = 0; // 1: thresholding, 0: no thresholding
@@ -635,8 +648,8 @@ static void initialize_md_reg(){
 	mdv3_r3.SEL_VB_RAMP = 15;
 	mdv3_r3.SEL_RAMP = 1;
 
-	mdv3_r4.SEL_CC  = 7; //4
-	mdv3_r4.SEL_CC_B  = 0; //3
+	mdv3_r4.SEL_CC  = 4;
+	mdv3_r4.SEL_CC_B  = 3;
 
 	mdv3_r5.SEL_CLK_RING = 2;
 	mdv3_r5.SEL_CLK_DIV = 4;
@@ -686,7 +699,7 @@ static void start_md(){
 	// 0:1
 	mdv3_r0.START_MD = 1;
 	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
-	delay(MBUS_DELAY*4); //Need >10ms
+	delay(MBUS_DELAY*4);
 
 	mdv3_r0.START_MD = 0;
 	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
@@ -708,7 +721,7 @@ static void clear_md_flag(){
 	// 0:2
 	mdv3_r0.STOP_MD = 1;
 	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
-	delay(MBUS_DELAY*4); //Need >10ms
+	delay(MBUS_DELAY*4);
 
 	mdv3_r0.STOP_MD = 0;
 	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
@@ -769,7 +782,7 @@ static void poweron_array_adc(){
 	// 2:20
 	mdv3_r2.PRESLEEP_ADC = 0;
 	mbus_remote_register_write(MD_ADDR,0x2,mdv3_r2.as_int);
-	delay(MBUS_DELAY*10);
+	delay(WAKEUP_DELAY);
 
 	// Release IMG Sleep
 	// 2:19
@@ -803,16 +816,19 @@ static void poweroff_array_adc(){
 	// 5:13
 	mdv3_r5.CLK_EN_ADC = 0;
 	mbus_remote_register_write(MD_ADDR,0x5,mdv3_r5.as_int);
+	delay(MBUS_DELAY);
 
 	// Assert ADC Wrapper Reset
 	// 6:0
 	mdv3_r6.RESET_ADC_WRAPPER = 1;
 	mbus_remote_register_write(MD_ADDR,0x6,mdv3_r6.as_int);
+	delay(MBUS_DELAY);
 
 	// Assert ADC Isolation
 	// 7:17
 	mdv3_r7.ISOLATE_ADC_WRAPPER = 1;
 	mbus_remote_register_write(MD_ADDR,0x7,mdv3_r7.as_int);
+	delay(MBUS_DELAY);
 
 	// Assert IMG Presleep 
 	// 2:20
@@ -821,6 +837,7 @@ static void poweroff_array_adc(){
 	mdv3_r2.PRESLEEP_ADC = 1;
 	mdv3_r2.SLEEP_ADC = 1;
 	mbus_remote_register_write(MD_ADDR,0x2,mdv3_r2.as_int);
+	delay(MBUS_DELAY);
 
 }
 
@@ -831,7 +848,7 @@ static void capture_image_single(){
 	// 0:0
 	mdv3_r0.TAKE_IMAGE = 1;
 	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
-	delay(MBUS_DELAY*4); //Need >10ms
+	delay(MBUS_DELAY*3); //Need >10ms
 
     set_halt_until_mbus_rx();
 
@@ -869,86 +886,6 @@ static bool wait_for_interrupt(uint32_t wait_count){
 	return 0;
 }
 
-static void capture_image_single_with_flash(uint32_t page_offset){
-
-	// Start imaging
-	capture_image_single();
-	wait_for_interrupt(IMG_TIMEOUT_COUNT);	
-
-	delay(MBUS_DELAY);
-	mbus_write_message32(0xF1, 0x11111111);
-	delay(MBUS_DELAY);
-
-	// Power-gate MD Imager
-	poweroff_array_adc();
-
-	// Check Flash SRAM after image
-	check_flash_sram(0xE1, FLS_CHECK_LENGTH);
-
-	// Turn on Flash macro
-	flash_turn_on();
-
-	delay(MBUS_DELAY);
-	mbus_write_message32(0xF1, 0x22222222);
-	delay(MBUS_DELAY);
-
-	// Copy SRAM to Flash
-    mbus_remote_register_write(FLS_ADDR,0x09,page_offset); // Set flash start addr; should be a multiple of 0x800
-	flash_copy_sram2flash(0x1FFF); // 4 pages
-
-	// Turn off Flash Macro
-	flash_turn_off();
-
-	delay(MBUS_DELAY);
-	mbus_write_message32(0xF1, 0x33333333);
-	delay(MBUS_DELAY);
-
-}
-
-
-static void operation_flash_erase(uint32_t page_offset){
-
-	// Set START ADDRESS
-    mbus_remote_register_write(FLS_ADDR,0x08,0x0);
-
-	// Turn on Flash Macro
-	flash_turn_on();
-
-	// Flash Erase Page 2-5
-	flash_erase_single_page(page_offset); // Should be a multiple of 0x800
-	flash_erase_single_page(page_offset+0x800); // Should be a multiple of 0x800
-	flash_erase_single_page(page_offset+0x1000); // Should be a multiple of 0x800
-	flash_erase_single_page(page_offset+0x1800); // Should be a multiple of 0x800
-
-	// Turn off Flash Macro
-	flash_turn_off();
-
-}
-
-static void operation_flash_read(uint32_t page_offset){
-
-	delay(MBUS_DELAY);
-	mbus_write_message32(0xF2, 0x11111111);
-	delay(MBUS_DELAY);
-
-	// Turn on Flash Macro
-	flash_turn_on();
-
-	delay(MBUS_DELAY);
-	mbus_write_message32(0xF2, 0x22222222);
-	delay(MBUS_DELAY);
-
-	// Copy Flash to SRAM
-    mbus_remote_register_write(FLS_ADDR,0x09,page_offset); // Set flash start addr; should be a multiple of 0x800
-	flash_copy_flash2sram(0x1FFF); // 4 pages
-
-	// Turn off Flash Macro
-	flash_turn_off();
-
-	// Check Flash SRAM after recovery
-	check_flash_sram(0xE3, FLS_CHECK_LENGTH);
-}
-
 static void operation_md(void){
 
 	set_pmu_img();
@@ -963,108 +900,33 @@ static void operation_md(void){
 		mbus_write_message32(0xAA, 0xABCD1234);
   		delay(MBUS_DELAY);
 		clear_md_flag();
-		if (radio_tx_option){
-			// radio
-			send_radio_data_ppm(0,0xFAFA1234);	
-		}
 	}
 
-	if (md_capture_img){
-		// Release power gates, isolation, and reset for imager array
-		poweron_array_adc();
+	// Release power gates, isolation, and reset for imager array
+	poweron_array_adc();
 
-		// Capture a single image
-		//capture_image_single();
-		if (img_count < 60){
+	// TAke 3 images
+	capture_image_single();
+	wait_for_interrupt(IMG_TIMEOUT_COUNT);	
+	capture_image_single();
+	wait_for_interrupt(IMG_TIMEOUT_COUNT);	
+	
+	//capture_image_single();
+	//wait_for_interrupt(IMG_TIMEOUT_COUNT);	
+	poweroff_array_adc();
 
-		#ifdef DEBUG_MBUS_MSG
-			mbus_write_message32(0xAF, img_count);
-			delay(MBUS_DELAY);
-			mbus_write_message32(0xAF, 0x800 + img_count*0x2000);
-			delay(MBUS_DELAY);
-		#endif
-			capture_image_single_with_flash(0x800+img_count*0x2000);
-			img_count++;
-			// Erase the next section of flash
-			operation_flash_erase(0x800+img_count*0x2000);
-		}
+	// Set PMU settings for motion detection
+    set_pmu_motion();
+	
+	md_count++;
 
-		poweroff_array_adc();
-
-		if (radio_tx_option){
-			// Radio out image data stored in flash
-			send_radio_data_ppm(0,0xFAF000);
-			send_radio_flash_sram(0xE4, 6475); // Full image
-			send_radio_data_ppm(0,0xFAF000);
-		}
-	}
-
-	delay(DELAY_1);
-	delay(DELAY_1);
-	delay(DELAY_1);
-	delay(DELAY_1);
-
-	// Turn off only the Flash layer
-	mbus_write_message32(0x01, (0x2<<28) + (0x1<<(FLS_ADDR+12)));
-
-	delay(DELAY_1);
-	delay(DELAY_1);
-	delay(DELAY_1);
-	delay(DELAY_1);
-
-	if (md_start_motion){
-		// Set PMU settings for motion detection
-		set_pmu_motion();
-
-	delay(DELAY_1);
-	delay(DELAY_1);
-	delay(DELAY_1);
-	delay(DELAY_1);
-
-		md_count++;
-
-		// Start motion detection
-		start_md();
-		clear_md_flag();
-		start_md();
-
-	}else{
-	}
+	// Start motion detection
+	start_md();
+	clear_md_flag();
+	start_md();
 
 	// Go to sleep w/o timer
 	operation_sleep_notimer();
-}
-
-static void operation_tx_image(void){
-
-	#ifdef DEBUG_MBUS_MSG
-		mbus_write_message32(0xAF, radio_tx_img_idx);
-		delay(MBUS_DELAY);
-		mbus_write_message32(0xAF, 0x800 + radio_tx_img_idx*0x2000);
-		delay(MBUS_DELAY);
-	#endif
-
-	// Read image from Flash 
-	operation_flash_read(0x800 + radio_tx_img_idx*0x2000);
-
-	// Send image to radio
-	//send_radio_flash_sram(0xE4, 6475); // Full image
-
-	if (!radio_tx_img_one && (radio_tx_img_idx < radio_tx_img_num)){
-		radio_tx_img_idx++;
-		// Send next image after sleep/wakeup
-		set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-		operation_sleep_noirqreset();
-    }else{
-		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
-		send_radio_data_ppm(1, 0xFAF000);
-
-		// This is also the end of this IRQ routine
-		exec_count_irq = 0;
-		// Go to sleep without timer
-		operation_sleep_notimer();
-    }
-
 }
 
 
@@ -1079,6 +941,7 @@ static void operation_init(void){
     prcv13_r0B.CLK_GEN_DIV_MBC = 0x0; // Default 0x1
     prcv13_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
 	*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv13_r0B.as_int;
+    delay(MBUS_DELAY);
 
     //Enumerate & Initialize Registers
     enumerated = 0xDEADBEEF;
@@ -1103,7 +966,7 @@ static void operation_init(void){
     delay(MBUS_DELAY);
 
 	// Set PMU
-	set_pmu_motion_img_default();
+	set_pmu_motion_img();
 	delay(MBUS_DELAY*2);
 
 	// Initialize MDv3
@@ -1111,59 +974,11 @@ static void operation_init(void){
 
 	delay(MBUS_DELAY);
 
-    // Radio Settings --------------------------------------
-    radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
-    radv9_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
-    radv9_r0.RADIO_TUNE_FREQ2 = 0x0; //Tune Freq 2 //0x0,0x0 = 902MHz on Pblr005
-    radv9_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
-  
-    mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
-
-    // FSM data length setups
-    radv9_r11.RAD_FSM_H_LEN = 16; // N
-    radv9_r11.RAD_FSM_D_LEN = RADIO_DATA_LENGTH-1; // N-1
-    radv9_r11.RAD_FSM_C_LEN = 10;
-    mbus_remote_register_write(RAD_ADDR,11,radv9_r11.as_int);
-  
-    // Configure SCRO
-    radv9_r1.SCRO_FREQ_DIV = 3;
-    radv9_r1.SCRO_AMP_I_LEVEL_SEL = 2; // Default 2
-    radv9_r1.SCRO_I_LEVEL_SELB = 0x60; // Default 0x6F
-    mbus_remote_register_write(RAD_ADDR,1,radv9_r1.as_int);
-  
-    // LFSR Seed
-    radv9_r12.RAD_FSM_SEED = 4;
-    mbus_remote_register_write(RAD_ADDR,12,radv9_r12.as_int);
-
-	// Mbus return address; Needs to be between 0x18-0x1F
-    mbus_remote_register_write(RAD_ADDR,0xF,0x1900);
-    delay(MBUS_DELAY);
-
-    // Flash Settings --------------------------------------
-	// Option to Slow down FLSv2L clock 
-	mbus_remote_register_write(FLS_ADDR, 0x18, 
-	( (0xC << 2)  /* CLK_RING_SEL[3:0] Default 0xC */
-	| (0x1 << 0)  /* CLK_DIV_SEL[1:0] Default 0x1 */
-	));
-
-	// Voltage Clamp & Timing settings
-	mbus_remote_register_write(FLS_ADDR, 0x0, 0x41205); // Tprog
-	mbus_remote_register_write(FLS_ADDR, 0x4, 0x000500); // Tcyc_prog
-	mbus_remote_register_write(FLS_ADDR, 0x19, 0x3C4303); // Default: 0x3C4103
-
 	md_start_motion = 0;
 	md_capture_img = 0;
 	md_count = 0;
 	img_count = 0;
 	
-	radio_on = 0;
-	radio_ready = 0;
-	radio_tx_option = 0;
-	radio_tx_img_idx = 0;
-	radio_tx_img_all = 0;
-	radio_tx_img_one = 0;
-	radio_tx_img_num = 0;
-
 	// Reset global variables
 	WAKEUP_PERIOD_CONT = 2;
 	WAKEUP_PERIOD_CONT_INIT = 2; 
@@ -1171,8 +986,10 @@ static void operation_init(void){
 	USR_MD_INT_TIME = 12;
 	USR_INT_TIME = 30;
 
-	// Go to sleep w/o timer
-	operation_sleep_notimer();
+	// FIXME
+	mbus_write_message32(0xAA, 0xABCD1234);
+	config_timerwd(200000000); // 2e7: 1min
+	while(1);
 
 }
 
@@ -1182,9 +999,6 @@ static void operation_init(void){
 //***************************************************************************************
 int main() {
   
-	// FIXME
-	mbus_write_message32(0xAA, 0x11111111);
-
     // Reset Wakeup Timer; This is required for PRCv13
     set_wakeup_timer(100, 0, 1);
 
@@ -1193,11 +1007,10 @@ int main() {
 	enable_reg_irq();
   
 	// FIXME
-	mbus_write_message32(0xAA, 0x22222222);
+	mbus_write_message32(0xAA, 0x11111111);
 
-	// Set the watch-dog timer
-	config_timerwd(200000000); // 2e7: 1min
-	//disable_timerwd();
+	// Disable the watch-dog timer
+	disable_timerwd();
 	
     // Initialization sequence
     if (enumerated != 0xDEADBEEF){
@@ -1205,164 +1018,6 @@ int main() {
 
     }
 	
-    // Check if wakeup is due to GOC interrupt  
-    // 0x78 is reserved for GOC-triggered wakeup (Named IRQ14VEC)
-    // 8 MSB bits of the wakeup data are used for function ID
-    uint32_t wakeup_data = *((volatile uint32_t *) IRQ14VEC);	// IRQ14VEC[31:0]
-    uint32_t wakeup_data_header = wakeup_data>>24;				// IRQ14VEC[31:24]
-    uint32_t wakeup_data_field_0 = wakeup_data & 0xFF;			// IRQ14VEC[7:0]
-    uint32_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;		// IRQ14VEC[15:8]
-    uint32_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;		// IRQ14VEC[23:16]
-
-	// FIXME
-	mbus_write_message32(0xAA, wakeup_data);
-
-    if(wakeup_data_header == 1){
-        // Debug mode: Transmit something via radio and go to sleep w/o timer
-        // wakeup_data[7:0] is the # of transmissions
-        // wakeup_data[15:8] is the user-specified period
-        // wakeup_data[23:16] is the MSB of # of transmissions
-        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
-        delay(MBUS_DELAY);
-        if (exec_count_irq < (wakeup_data_field_0 + (wakeup_data_field_2<<8))){
-            exec_count_irq++;
-			if (exec_count_irq == 1){
-				// Prepare radio TX
-				radio_power_on();
-				// Go to sleep for SCRO stabilitzation
-				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
-				operation_sleep_noirqreset();
-			}else{
-				// radio
-				send_radio_data_ppm(0,0xFAF000+exec_count_irq);	
-				// set timer
-				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-				// go to sleep and wake up with same condition
-				operation_sleep_noirqreset();
-			}
-        }else{
-            exec_count_irq = 0;
-            // radio
-            send_radio_data_ppm(1,0xFAF000);	
-            // Go to sleep without timer
-            operation_sleep_notimer();
-        }
-   
-    }else if(wakeup_data_header == 2){
-		// Start motion detection
-        // wakeup_data[7:0] is the md integration period
-        // wakeup_data[15:8] is the img integration period
-        // wakeup_data[17:16] indicates whether or not to to take an image
-		// 						1: md only, 2: img only, 3: md+img
-        // wakeup_data[18] indicates whether or not to radio out the result
-		USR_MD_INT_TIME = wakeup_data_field_0;
-		USR_INT_TIME = wakeup_data_field_1;
-
-		// Reset IRQ14VEC
-		*((volatile uint32_t *) IRQ14VEC) = 0;
-
-		// Run Program
-		exec_count_irq = 0;
-		exec_count = 0;
-		md_count = 0;
-		img_count = 0;
-		radio_ready = 0;
-		md_start_motion = wakeup_data_field_2 & 0x1;
-		md_capture_img = (wakeup_data_field_2 >> 1) & 0x1;
-		radio_tx_option = (wakeup_data_field_2 >> 2) & 0x1;
-		if (radio_tx_option & !radio_on){
-			// Prepare radio TX
-			radio_power_on();
-			// Go to sleep for SCRO stabilitzation
-			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-			operation_sleep_noirqreset();
-		}
-		if (md_capture_img){
-			delay(DELAY_1); // about 0.5s
-			operation_flash_erase(0x800);
-		}
-
-		operation_md();
-   
-    }else if(wakeup_data_header == 3){
-		// Stop MD program and transmit the execution count n times
-        // wakeup_data[7:0] is the # of transmissions
-        // wakeup_data[15:8] is the user-specified period 
-        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
-		
-		clear_md_flag();
-		md_start_motion = 0;
-		md_capture_img = 0;
-		radio_ready = 0;
-
-        if (exec_count_irq < wakeup_data_field_0){
-            exec_count_irq++;
-			if (exec_count_irq == 1){
-				// Initialize MD registers
-				initialize_md_reg();
-				// Prepare radio TX
-				radio_power_on();
-				// Go to sleep for SCRO stabilitzation
-				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
-				operation_sleep_noirqreset();
-			}else{
-				// radio
-				send_radio_data_ppm(0,0xFAF000+md_count);	
-				// set timer
-				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-				// go to sleep and wake up with same condition
-				operation_sleep_noirqreset();
-			}
-        }else{
-            exec_count_irq = 0;
-            send_radio_data_ppm(1,0xFAF000);	
-            // Go to sleep without timer
-            operation_sleep_notimer();
-        }
-
-    }else if(wakeup_data_header == 4){
-		// Read out stored image from flash and transmit
-        // wakeup_data[7:0] is the # of image to transmit; Valid range is from 0 (first and oldest image) to img_count-1
-        // wakeup_data[15:8] is the user-specified period 
-        // wakeup_data[16]: transmit all stored images 
-        // wakeup_data[17]: transmit only one image according to the image ID 
-		radio_tx_img_num = wakeup_data_field_0;
-        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
-		radio_tx_img_all = wakeup_data_field_2 & 0x1;
-		radio_tx_img_one = (wakeup_data_field_2>>1) & 0x1;
-
-		if (exec_count_irq == 0){ // Only do this once
-			if (radio_tx_img_one){
-				radio_tx_img_idx = radio_tx_img_num;
-			}else{
-				radio_tx_img_idx = 0; // start from oldest image
-			}
-			if (radio_tx_img_all){
-				radio_tx_img_num = img_count;
-			}
-		}
-		
-        if (exec_count_irq < 2){
-			exec_count_irq++;
-			if (exec_count_irq == 1){
-				// Prepare radio TX
-				radio_power_on();
-				// Go to sleep for SCRO stabilitzation
-				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
-				operation_sleep_noirqreset();
-			}else{
-				send_radio_data_ppm(0, 0xFAF000+exec_count_irq);
-				// set timer
-				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-				// go to sleep and wake up with same condition
-				operation_sleep_noirqreset();
-			}
-		}else{
-			operation_tx_image();
-		}
-		
-    }
-
     // Proceed to continuous mode
     while(1){
         operation_md(); 

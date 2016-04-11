@@ -15,7 +15,7 @@ ASFLAGS :=
 CFLAGS  += -Os -Wall -Wextra -mthumb -mcpu=cortex-m0 -ffreestanding -fdata-sections -ffunction-sections -g
 LDFLAGS += -Os -static -S -nostartfiles --gc-sections -e _start #-dead_strip #-why_live read_mbus_register_RADv4
 #LDFLAGS += -Os -static -S -nostartfiles -nodefaultlibs -nostdlib --gc-sections -e _start #-dead_strip #-why_live read_mbus_register_RADv4
-ASFLAGS += -mthumb --warn -mcpu=cortex-m4
+ASFLAGS += -mthumb --warn -mcpu=cortex-m0
 
 # Experiments in not linking unused sections
 #CFLAGS  += -fvtable-gc -fdata-sections -ffunction-sections -Wl,-static -Wl,--gc-sections -s
@@ -76,7 +76,7 @@ ELFS := $(foreach var,$(DIRS),$(var)/$(var).elf)
 
 .PHONY: all
 
-all: $(HEXS)
+all: clean $(HEXS)
 
 $(DIRS):
 	$(MAKE) $@/$@.hex
@@ -92,7 +92,6 @@ $(DIRS):
 %.hex:	%.bin
 	xxd -g1 -c1 $< | cut -d' ' -f2 > $@
 	./createMemMap $@
-	./createBootHexFLX $*.memmap
 
 %.bin:	%.elf
 	$(OBJCOPY) -O binary $< $@
@@ -103,7 +102,6 @@ $(DIRS):
 	$(OBJDUMP) -Sd $@ > $*.asm
 
 .PRECIOUS: %.elf
-
 
 ##########
 ## Cleanup
