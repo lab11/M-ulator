@@ -171,3 +171,13 @@ void mbus_copy_mem_from_remote_to_any_stream (
 	};
 	mbus_write_message(((source_prefix << 4 ) | MPQ_MEM_READ), payload, 2);
 }
+
+void* memset(void *s, uint32_t c, uint32_t len) {
+    unsigned char *dst = s;
+    while (len > 0) {
+        *dst = (unsigned char) c;
+        dst++;
+        len--;
+    }
+    return s;
+}
