@@ -192,8 +192,8 @@ static void set_pmu_motion_img(void){
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (1 << 13) // Enable main feedback loop
-		| (10 << 9)  // Frequency multiplier R
-		| (10 << 5)  // Frequency multiplier L (actually L+1)
+		| (15 << 9)  // Frequency multiplier R
+		| (15 << 5)  // Frequency multiplier L (actually L+1)
 		| (31) 		// Floor frequency base (0-31) //16
 	));
 	delay(MBUS_DELAY);
@@ -268,7 +268,7 @@ static void operation_init(void){
 	exec_count = 0;
 
 	// Go to sleep w/o timer
-	//operation_sleep_notimer();
+	operation_sleep_notimer();
 }
 
 
@@ -289,7 +289,7 @@ int main() {
 
 	// Disable the watch-dog timer
 	//config_timerwd(0xFFFFF);
-	disable_timerwd();
+	//disable_timerwd();
 	
     // Initialization sequence
     if (enumerated != 0xDEADBEEF){

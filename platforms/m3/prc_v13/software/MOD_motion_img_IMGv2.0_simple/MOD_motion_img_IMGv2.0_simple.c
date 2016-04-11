@@ -25,8 +25,7 @@
 // Common parameters
 #define	MBUS_DELAY 200 //Amount of delay between successive messages; 5-6ms
 #define WAKEUP_DELAY 20000 // 0.6s
-#define DELAY_1 20000 // 5000: 0.5s
-#define DELAY_IMG 40000 // 1s
+#define DELAY_1 40000 // 5000: 0.5s
 #define IMG_TIMEOUT_COUNT 5000
 
 // MDv3 Parameters
@@ -416,6 +415,213 @@ static void flash_copy_sram2flash(volatile uint32_t length){
 
 }
 
+static void set_pmu_motion(void){
+
+	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
+	// V0P6 Supply Active: need to support up to 50uA
+    mbus_remote_register_write(PMU_ADDR,0x1A,
+		( (1 << 13) // Enable main feedback loop
+		| (4 << 9)  // Frequency multiplier R
+		| (4 << 5)  // Frequency multiplier L (actually L+1)
+		| (10) 		// Floor frequency base (0-31)
+	));
+	delay(MBUS_DELAY);
+    mbus_remote_register_write(PMU_ADDR,0x1A,
+		( (1 << 13) // Enable main feedback loop
+		| (4 << 9)  // Frequency multiplier R
+		| (4 << 5)  // Frequency multiplier L (actually L+1)
+		| (10) 		// Floor frequency base (0-31)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x16: SAR_TRIM_v3_ACTIVE
+	// V1P2 Supply Active: need to support up to 200uA
+    mbus_remote_register_write(PMU_ADDR,0x16, 
+		( (0 << 19) // Enable PFM even during periodic reset
+		| (0 << 18) // Enable PFM even when Vref is not used as ref
+		| (0 << 17) // Enable PFM
+		| (3 << 14) // Comparator clock division ratio
+		| (1 << 13) // Enable main feedback loop
+		| (5 << 9)  // Frequency multiplier R
+		| (5 << 5)  // Frequency multiplier L (actually L+1)
+		| (10) 		// Floor frequency base (0-31) //16
+	));
+	delay(MBUS_DELAY);
+
+	// SAR_RATIO_OVERRIDE
+    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+		( (1 << 11) // Enable override setting [10] (1'h0)
+		| (0 << 10) // Have the converter have the periodic reset (1'h0)
+		| (1 << 9) // Enable override setting [8] (1'h0)
+		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+		| (1 << 7) // Enable override setting [6:0] (1'h0)
+		| (45) 		// Binary converter's conversion ratio (7'h00)
+		// 48: 1.5V
+		// 38: 1.1V
+		// 41: 1.26V
+	));
+	delay(MBUS_DELAY);
+}
+
+static void set_pmu_img(void){
+
+	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
+	// V0P6 Supply Active: need to support up to 50uA
+    mbus_remote_register_write(PMU_ADDR,0x1A,
+		( (1 << 13) // Enable main feedback loop
+		| (4 << 9)  // Frequency multiplier R
+		| (4 << 5)  // Frequency multiplier L (actually L+1)
+		| (16) 		// Floor frequency base (0-31)
+	));
+	delay(MBUS_DELAY);
+    mbus_remote_register_write(PMU_ADDR,0x1A,
+		( (1 << 13) // Enable main feedback loop
+		| (4 << 9)  // Frequency multiplier R
+		| (4 << 5)  // Frequency multiplier L (actually L+1)
+		| (16) 		// Floor frequency base (0-31)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x16: SAR_TRIM_v3_ACTIVE
+	// V1P2 Supply Active: need to support up to 200uA
+    mbus_remote_register_write(PMU_ADDR,0x16, 
+		( (0 << 19) // Enable PFM even during periodic reset
+		| (0 << 18) // Enable PFM even when Vref is not used as ref
+		| (0 << 17) // Enable PFM
+		| (3 << 14) // Comparator clock division ratio
+		| (1 << 13) // Enable main feedback loop
+		| (5 << 9)  // Frequency multiplier R
+		| (5 << 5)  // Frequency multiplier L (actually L+1)
+		| (22) 		// Floor frequency base (0-31) //16
+	));
+	delay(MBUS_DELAY);
+
+	// SAR_RATIO_OVERRIDE
+    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+		( (1 << 11) // Enable override setting [10] (1'h0)
+		| (0 << 10) // Have the converter have the periodic reset (1'h0)
+		| (1 << 9) // Enable override setting [8] (1'h0)
+		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+		| (1 << 7) // Enable override setting [6:0] (1'h0)
+		| (46) 		// Binary converter's conversion ratio (7'h00)
+		// 48: 1.5V
+		// 38: 1.1V
+		// 41: 1.26V
+	));
+	delay(MBUS_DELAY);
+	
+	// Let it stabilize
+	delay(DELAY_1);
+}
+
+static void set_pmu_motion_img(void){
+
+	// Set PMU settings
+	// PMUv2 MBUS register write results in IRQ, so needs to be in RX mode
+	// UPCONV_TRIM_V3 Sleep/Active
+    mbus_remote_register_write(PMU_ADDR,0x17, 
+		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+		| (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (4) 		// Floor frequency base (0-31)
+	));
+	delay(MBUS_DELAY);
+	// The first register write to PMU needs to be repeated
+    mbus_remote_register_write(PMU_ADDR,0x17, 
+		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+		| (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (4) 		// Floor frequency base (0-31)
+	));
+	delay(MBUS_DELAY);
+    mbus_remote_register_write(PMU_ADDR,0x18, 
+		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+		| (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (2 << 5)  // Frequency multiplier L (actually L+1)
+		| (2) 		// Floor frequency base (0-31)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
+	// V0P6 Supply Sleep: need to support up to 200nA
+    mbus_remote_register_write(PMU_ADDR,0x19,
+		( (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (8) 		// Floor frequency base (0-31)
+	));
+	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
+	// V0P6 Supply Active: need to support up to 50uA
+	delay(MBUS_DELAY);
+    mbus_remote_register_write(PMU_ADDR,0x1A,
+		( (1 << 13) // Enable main feedback loop
+		| (4 << 9)  // Frequency multiplier R
+		| (4 << 5)  // Frequency multiplier L (actually L+1)
+		| (16) 		// Floor frequency base (0-31)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x15: SAR_TRIM_v3_SLEEP
+	// V1P2 Supply Sleep: need to support up to 100nA
+    mbus_remote_register_write(PMU_ADDR,0x15, 
+		( (0 << 19) // Enable PFM even during periodic reset
+		| (0 << 18) // Enable PFM even when Vref is not used as ref
+		| (0 << 17) // Enable PFM
+		| (3 << 14) // Comparator clock division ratio
+		| (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (4) 		// Floor frequency base (0-31) //8
+	));
+	delay(MBUS_DELAY);
+	// Register 0x16: SAR_TRIM_v3_ACTIVE
+	// V1P2 Supply Active: need to support up to 200uA
+    mbus_remote_register_write(PMU_ADDR,0x16, 
+		( (0 << 19) // Enable PFM even during periodic reset
+		| (0 << 18) // Enable PFM even when Vref is not used as ref
+		| (0 << 17) // Enable PFM
+		| (3 << 14) // Comparator clock division ratio
+		| (1 << 13) // Enable main feedback loop
+		| (5 << 9)  // Frequency multiplier R
+		| (5 << 5)  // Frequency multiplier L (actually L+1)
+		| (22) 		// Floor frequency base (0-31) //16
+	));
+	delay(MBUS_DELAY);
+	// SAR_RATIO_OVERRIDE
+	// Need to set [10] to 1 and then 0
+    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+		( (1 << 11) // Enable override setting [10] (1'h0)
+		| (1 << 10) // Have the converter have the periodic reset (1'h0)
+		| (1 << 9) // Enable override setting [8] (1'h0)
+		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+		| (1 << 7) // Enable override setting [6:0] (1'h0)
+		| (46) 		// Binary converter's conversion ratio (7'h00)
+		// 48: 1.5V
+		// 38: 1.1V
+		// 41: 1.26V
+	));
+	delay(MBUS_DELAY);
+	// SAR_RATIO_OVERRIDE
+    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+		( (1 << 11) // Enable override setting [10] (1'h0)
+		| (0 << 10) // Have the converter have the periodic reset (1'h0)
+		| (1 << 9) // Enable override setting [8] (1'h0)
+		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+		| (1 << 7) // Enable override setting [6:0] (1'h0)
+		| (46) 		// Binary converter's conversion ratio (7'h00)
+		// 48: 1.5V
+		// 38: 1.1V
+		// 41: 1.26V
+	));
+	delay(MBUS_DELAY);
+	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
+    mbus_remote_register_write(PMU_ADDR,0x36,0x000001);
+	delay(MBUS_DELAY);
+	// Register 0x37: TICK_WAKEUP_WAIT
+    mbus_remote_register_write(PMU_ADDR,0x37,0x009F4); // Default: 0x1F4
+	delay(MBUS_DELAY);
+
+}
+
 //************************************
 // MDv3 Functions
 //************************************
@@ -426,7 +632,7 @@ static void initialize_md_reg(){
 
 	mdv3_r0.INT_TIME = USR_INT_TIME;
 	mdv3_r0.MD_INT_TIME = USR_MD_INT_TIME;
-	mdv3_r1.MD_TH = 10;
+	mdv3_r1.MD_TH = 4;
 	mdv3_r1.MD_LOWRES = 0;
 	mdv3_r1.MD_LOWRES_B = 1;
 	mdv3_r1.MD_FLAG_TOPAD_SEL = 0; // 1: thresholding, 0: no thresholding
@@ -497,8 +703,8 @@ static void start_md(){
 
 	mdv3_r0.START_MD = 0;
 	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
-	delay(MBUS_DELAY);
 
+	delay(DELAY_1); // about 0.5s
 	delay(DELAY_1); // about 0.5s
 
 	// Enable MD Flag
@@ -519,7 +725,6 @@ static void clear_md_flag(){
 
 	mdv3_r0.STOP_MD = 0;
 	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
-	delay(MBUS_DELAY);
 
 	// Clear MD Flag
 	// 1:4
@@ -529,13 +734,11 @@ static void clear_md_flag(){
 
 	mdv3_r1.MD_TH_CLEAR = 0;
 	mbus_remote_register_write(MD_ADDR,0x1,mdv3_r1.as_int);
-	delay(MBUS_DELAY);
 
 	// Disable MD Flag
 	// 1:3
 	mdv3_r1.MD_TH_EN = 0;
 	mbus_remote_register_write(MD_ADDR,0x1,mdv3_r1.as_int);
-	delay(MBUS_DELAY);
 
 }
 
@@ -552,40 +755,6 @@ static void poweron_frame_controller(){
 	mdv3_r2.SLEEP_MD = 0;
 	mbus_remote_register_write(MD_ADDR,0x2,mdv3_r2.as_int);
 	delay(WAKEUP_DELAY);
-
-	// Release MD Isolation
-	// 7:15
-	mdv3_r7.ISOLATE_MD = 0;
-	mbus_remote_register_write(MD_ADDR,0x7,mdv3_r7.as_int);
-	delay(MBUS_DELAY);
-
-	// Release MD Reset
-	// 2:23
-	mdv3_r2.RESET_MD = 0;
-	mbus_remote_register_write(MD_ADDR,0x2,mdv3_r2.as_int);
-	delay(MBUS_DELAY);
-
-	// Start MD Clock
-	// 5:12
-	mdv3_r5.CLK_EN_MD = 1;
-	mbus_remote_register_write(MD_ADDR,0x5,mdv3_r5.as_int);
-	delay(MBUS_DELAY);
-
-}
-
-static void poweron_frame_controller_short(){
-
-	// Release MD Presleep
-	// 2:22
-	mdv3_r2.PRESLEEP_MD = 0;
-	mbus_remote_register_write(MD_ADDR,0x2,mdv3_r2.as_int);
-	delay(MBUS_DELAY);
-
-	// Release MD Sleep
-	// 2:21
-	mdv3_r2.SLEEP_MD = 0;
-	mbus_remote_register_write(MD_ADDR,0x2,mdv3_r2.as_int);
-	delay(MBUS_DELAY);
 
 	// Release MD Isolation
 	// 7:15
@@ -719,6 +888,8 @@ static bool wait_for_interrupt(uint32_t wait_count){
 
 static void operation_md(void){
 
+	set_pmu_img();
+
 	// Release power gates, isolation, and reset for frame controller
 	if (md_count == 0) {
 		initialize_md_reg();
@@ -726,7 +897,7 @@ static void operation_md(void){
 	}else{
 		// This wakeup is due to motion detection
 		// Let the world know!
-		mbus_write_message32(0xAA, 0x22222222);
+		mbus_write_message32(0xAA, 0xABCD1234);
   		delay(MBUS_DELAY);
 		clear_md_flag();
 	}
@@ -739,121 +910,23 @@ static void operation_md(void){
 	wait_for_interrupt(IMG_TIMEOUT_COUNT);	
 	capture_image_single();
 	wait_for_interrupt(IMG_TIMEOUT_COUNT);	
-	capture_image_single();
-	wait_for_interrupt(IMG_TIMEOUT_COUNT);	
+	
+	//capture_image_single();
+	//wait_for_interrupt(IMG_TIMEOUT_COUNT);	
 	poweroff_array_adc();
 
-	// Only need to set sleep PMU settings
-    set_pmu_sleep_clk_fastest();
+	// Set PMU settings for motion detection
+    set_pmu_motion();
 	
 	md_count++;
 
 	// Start motion detection
 	start_md();
-	delay(DELAY_1);
 	clear_md_flag();
-	delay(DELAY_1);
 	start_md();
 
 	// Go to sleep w/o timer
 	operation_sleep_notimer();
-}
-
-
-static void set_pmu_motion_img(void){
-
-	// Set PMU settings
-	// PMUv2 MBUS register write results in IRQ, so needs to be in RX mode
-	// UPCONV_TRIM_V3 Sleep/Active
-    mbus_remote_register_write(PMU_ADDR,0x17, 
-		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
-		| (1 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (4) 		// Floor frequency base (0-31)
-	));
-	delay(MBUS_DELAY);
-	// The first register write to PMU needs to be repeated
-    mbus_remote_register_write(PMU_ADDR,0x17, 
-		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
-		| (1 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (4) 		// Floor frequency base (0-31)
-	));
-	delay(MBUS_DELAY);
-    mbus_remote_register_write(PMU_ADDR,0x18, 
-		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
-		| (1 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (2) 		// Floor frequency base (0-31)
-	));
-	delay(MBUS_DELAY);
-	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
-	// V0P6 Supply Sleep: need to support up to 200nA
-    mbus_remote_register_write(PMU_ADDR,0x19,
-		( (1 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (8) 		// Floor frequency base (0-31)
-	));
-	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
-	// V0P6 Supply Active: need to support up to 50uA
-	delay(MBUS_DELAY);
-    mbus_remote_register_write(PMU_ADDR,0x1A,
-		( (1 << 13) // Enable main feedback loop
-		| (10 << 9)  // Frequency multiplier R
-		| (10 << 5)  // Frequency multiplier L (actually L+1)
-		| (31) 		// Floor frequency base (0-31)
-	));
-	delay(MBUS_DELAY);
-	// Register 0x15: SAR_TRIM_v3_SLEEP
-	// V1P2 Supply Sleep: need to support up to 100nA
-    mbus_remote_register_write(PMU_ADDR,0x15, 
-		( (0 << 19) // Enable PFM even during periodic reset
-		| (0 << 18) // Enable PFM even when Vref is not used as ref
-		| (0 << 17) // Enable PFM
-		| (3 << 14) // Comparator clock division ratio
-		| (1 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (4) 		// Floor frequency base (0-31) //8
-	));
-	delay(MBUS_DELAY);
-	// Register 0x16: SAR_TRIM_v3_ACTIVE
-	// V1P2 Supply Active: need to support up to 200uA
-    mbus_remote_register_write(PMU_ADDR,0x16, 
-		( (0 << 19) // Enable PFM even during periodic reset
-		| (0 << 18) // Enable PFM even when Vref is not used as ref
-		| (0 << 17) // Enable PFM
-		| (3 << 14) // Comparator clock division ratio
-		| (1 << 13) // Enable main feedback loop
-		| (15 << 9)  // Frequency multiplier R
-		| (15 << 5)  // Frequency multiplier L (actually L+1)
-		| (31) 		// Floor frequency base (0-31) //16
-	));
-	delay(MBUS_DELAY);
-	// SAR_RATIO_OVERRIDE
-    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
-		( (1 << 11) // Enable override setting [10] (1'h0)
-		| (1 << 10) // Have the converter have the periodic reset (1'h0)
-		| (1 << 9) // Enable override setting [8] (1'h0)
-		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
-		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (44) 		// Binary converter's conversion ratio (7'h00)
-		// 48: 1.5V
-		// 38: 1.1V
-		// 41: 1.26V
-	));
-	delay(MBUS_DELAY);
-	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
-    mbus_remote_register_write(PMU_ADDR,0x36,0x000001);
-	delay(MBUS_DELAY);
-	// Register 0x37: TICK_WAKEUP_WAIT
-    mbus_remote_register_write(PMU_ADDR,0x37,0x0011F4); // Default: 0x1F4
-	delay(MBUS_DELAY);
-
 }
 
 
@@ -868,6 +941,7 @@ static void operation_init(void){
     prcv13_r0B.CLK_GEN_DIV_MBC = 0x0; // Default 0x1
     prcv13_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
 	*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv13_r0B.as_int;
+    delay(MBUS_DELAY);
 
     //Enumerate & Initialize Registers
     enumerated = 0xDEADBEEF;
@@ -912,8 +986,10 @@ static void operation_init(void){
 	USR_MD_INT_TIME = 12;
 	USR_INT_TIME = 30;
 
-	// Go to sleep w/o timer
-	operation_sleep_notimer();
+	// FIXME
+	mbus_write_message32(0xAA, 0xABCD1234);
+	config_timerwd(200000000); // 2e7: 1min
+	while(1);
 
 }
 
@@ -934,7 +1010,6 @@ int main() {
 	mbus_write_message32(0xAA, 0x11111111);
 
 	// Disable the watch-dog timer
-	//config_timerwd(0xFFFFF);
 	disable_timerwd();
 	
     // Initialization sequence
