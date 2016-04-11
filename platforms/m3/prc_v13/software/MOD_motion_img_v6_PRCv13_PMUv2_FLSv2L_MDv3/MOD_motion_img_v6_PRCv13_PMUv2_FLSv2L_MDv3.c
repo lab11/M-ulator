@@ -183,7 +183,7 @@ static void set_pmu_motion(void){
 		| (15) 		// Floor frequency base (0-31) //16
 	));
 	delay(MBUS_DELAY);
-	set_pmu_sar_override(46);
+	set_pmu_sar_override(47);
 	
 }
 
@@ -219,7 +219,7 @@ static void set_pmu_img(void){
 	));
 	delay(MBUS_DELAY);
 
-	set_pmu_sar_override(46);
+	set_pmu_sar_override(47);
 	
 }
 
@@ -673,6 +673,33 @@ static void initialize_md_reg(){
 
 }
 
+static void start_md_init(){
+
+	// Optionally release MD GPIO Isolation
+	// 7:16
+	//mdv3_r7.ISOLATE_GPIO = 0;
+	//mbus_remote_register_write(MD_ADDR,0x7,mdv3_r7.as_int);
+	//delay(MBUS_DELAY);
+	//delay(DELAY_500ms); // about 0.5s
+
+	// Start MD
+	// 0:1
+	mdv3_r0.START_MD = 1;
+	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
+	delay(MBUS_DELAY*4); //Need >10ms
+
+	mdv3_r0.START_MD = 0;
+	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
+	delay(MBUS_DELAY*4); //Need >10ms
+
+	// Enable MD Flag
+	// 1:3
+	mdv3_r1.MD_TH_EN = 1;
+	mbus_remote_register_write(MD_ADDR,0x1,mdv3_r1.as_int);
+	delay(MBUS_DELAY);
+
+}
+
 static void start_md(){
 
 	// Optionally release MD GPIO Isolation
@@ -691,6 +718,8 @@ static void start_md(){
 	mdv3_r0.START_MD = 0;
 	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
 
+	delay(DELAY_1); // about 0.5s
+	delay(DELAY_1); // about 0.5s
 	delay(DELAY_1); // about 0.5s
 	delay(DELAY_1); // about 0.5s
 
@@ -999,36 +1028,21 @@ static void operation_md(void){
 		}
 	}
 
-	delay(DELAY_1);
-	delay(DELAY_1);
-	delay(DELAY_1);
-	delay(DELAY_1);
-
 	// Turn off only the Flash layer
 	mbus_write_message32(0x01, (0x2<<28) + (0x1<<(FLS_ADDR+12)));
-
-	delay(DELAY_1);
-	delay(DELAY_1);
-	delay(DELAY_1);
-	delay(DELAY_1);
 
 	if (md_start_motion){
 		// Set PMU settings for motion detection
 		set_pmu_motion();
-
-	delay(DELAY_1);
-	delay(DELAY_1);
-	delay(DELAY_1);
-	delay(DELAY_1);
-
 		md_count++;
 
 		// Start motion detection
-		start_md();
+		start_md_init();
 		clear_md_flag();
 		start_md();
 
 	}else{
+
 	}
 
 	// Go to sleep w/o timer
