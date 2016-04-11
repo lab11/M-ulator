@@ -6,6 +6,7 @@
 #include "mbus.h"
 #include "../../software/SelfBootUp_0/SelfBootUp_0.bootinc"
 
+#define FLPv1      // FLPv1 | FLSv2
 #define PRC_ADDR    0x1
 #define FLS_ADDR    0x4
 
@@ -56,14 +57,16 @@ void handler_ext_int_13(void) {/*MBUS_FWD*/ *NVIC_ICPR = (0x1 << 13); }
 // USER FUNCTIONS
 //*******************************************************************
 
+void bootloader_mbus_msg32_dly (uint32_t addr, uint32_t data) {
+    mbus_write_message32 (addr, data);
+    delay(MBUS_DELAY);
+}
+
 void fail (uint32_t id) {
     set_halt_until_mbus_tx();
-    mbus_write_message32 (0xE0, 0xDEADBEEF); 
-    delay(MBUS_DELAY);
-    mbus_write_message32 (0xE1, id); 
-    delay(MBUS_DELAY);
-    mbus_write_message32 (0xE2, *REG0); 
-    delay(MBUS_DELAY);
+    bootloader_mbus_msg32_dly (0xE0, 0xDEADBEEF); 
+    bootloader_mbus_msg32_dly (0xE1, id); 
+    bootloader_mbus_msg32_dly (0xE2, *REG0); 
     mbus_sleep_all();
     while(1);
 }
@@ -78,8 +81,7 @@ int main() {
     disable_all_irq();
   
     // Notify the start of the program
-    mbus_write_message32(0xEE, 0xAAAAAAAA);
-    delay(MBUS_DELAY);
+    bootloader_mbus_msg32_dly(0xEE, 0xAAAAAAAA);
 
     //Enumeration
     set_halt_until_mbus_rx();
@@ -91,19 +93,19 @@ int main() {
     mbus_write_message ( ((FLS_ADDR << 4) | MPQ_MEM_STREAM_WRITE_CH0), boot_stream_data, BOOT_STREAM_DATA_LENGTH);
     delay(10000);
 
-
+//-----------------------------------------------------------------------------------------
+// FLPv1S / FLPv1L
+//-----------------------------------------------------------------------------------------
+#ifdef FLPv1
     // Tune Flash
-    mbus_write_message32 ((FLS_ADDR << 4), (0x19 << 24) | 0x000F03); // Voltage Clamper Tuning
-    delay(MBUS_DELAY);
-    mbus_write_message32 ((FLS_ADDR << 4), (0x02 << 24) | 0x000100); // Terase
-    delay(MBUS_DELAY);
-    mbus_write_message32 ((FLS_ADDR << 4), (0x04 << 24) | 0x000020); // Tcyc_prog
-    delay(MBUS_DELAY);
+    set_halt_until_mbus_tx();
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x19 << 24) | 0x000F03); // Voltage Clamper Tuning
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x02 << 24) | 0x000100); // Terase
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x04 << 24) | 0x000020); // Tcyc_prog
 
     // Turn on Flash
     set_halt_until_mbus_rx();
-    mbus_write_message32 ((FLS_ADDR << 4), (0x11 << 24) | 0x00002F);
-    delay(MBUS_DELAY);
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x11 << 24) | 0x00002F);
     if (*REG0 != 0x0000B5) fail(0);
 
     // Erase Flash
@@ -114,36 +116,73 @@ int main() {
         page_start_addr = (idx << 8);
 
         set_halt_until_mbus_tx();
-        mbus_write_message32 ((FLS_ADDR << 4), ((0x09 << 24) | page_start_addr)); // Set FLSH_START_ADDR
-        delay(MBUS_DELAY);
+        bootloader_mbus_msg32_dly ((FLS_ADDR << 4), ((0x09 << 24) | page_start_addr)); // Set FLSH_START_ADDR
 
         set_halt_until_mbus_rx();
-        mbus_write_message32 ((FLS_ADDR << 4), (0x07 << 24) | 0x000029); // Page Erase
-        delay(MBUS_DELAY);
+        bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x07 << 24) | 0x000029); // Page Erase
         if (*REG0 != 0x00004F) fail((0xFFFF << 16) | idx);
     }
 
     // Copy SRAM to Flash (Fast Programming)
     set_halt_until_mbus_tx();
-    mbus_write_message32 ((FLS_ADDR << 4), (0x09 << 24) | 0x0); // Set FLSH_START_ADDR
-    delay(MBUS_DELAY);
-    mbus_write_message32 ((FLS_ADDR << 4), (0x08 << 24) | 0x0); // Set SRAM_START_ADDR
-    delay(MBUS_DELAY);
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x09 << 24) | 0x0); // Set FLSH_START_ADDR
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x08 << 24) | 0x0); // Set SRAM_START_ADDR
 
     set_halt_until_mbus_rx();
-    mbus_write_message32 ((FLS_ADDR << 4), (0x07 << 24) | 0x01FFE7); // Fast Programming
-    delay(MBUS_DELAY);
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x07 << 24) | 0x01FFE7); // Fast Programming
     if (*REG0 != 0x00005D) fail(1);
 
     // Turn off Flash
     set_halt_until_mbus_rx();
-    mbus_write_message32 ((FLS_ADDR << 4), (0x11 << 24) | 0x00002D);
-    delay(MBUS_DELAY);
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x11 << 24) | 0x00002D);
     if (*REG0 != 0x0000BB) fail(2);
 
+//-----------------------------------------------------------------------------------------
+// FLSv2S / FLSv2L
+//-----------------------------------------------------------------------------------------
+#elif FLSv2
+    // Tune Flash
+    set_halt_until_mbus_tx();
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x19 << 24) | 0x3C4703); // Voltage Clamper Tuning
+
+    // Turn on Flash (including large cap)
+    set_halt_until_mbus_rx();
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x11 << 24) | 0x00003F);
+    if (*REG0 != 0x0000B5) fail(0);
+
+    // Erase Flash
+    uint32_t page_start_addr = 0;
+    uint32_t idx;
+
+    for (idx=0; idx<4; idx++){ // Only 4 Pages (8kB) are used.
+        page_start_addr = (idx << 9);
+
+        set_halt_until_mbus_tx();
+        bootloader_mbus_msg32_dly ((FLS_ADDR << 4), ((0x09 << 24) | page_start_addr)); // Set FLSH_START_ADDR
+
+        set_halt_until_mbus_rx();
+        bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x07 << 24) | 0x000029); // Page Erase
+        if (*REG0 != 0x000055) fail((0xFFFF << 16) | idx);
+    }
+
+    // Copy SRAM to Flash (Fast Programming)
+    set_halt_until_mbus_tx();
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x09 << 24) | 0x0); // Set FLSH_START_ADDR
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x08 << 24) | 0x0); // Set SRAM_START_ADDR
+
+    set_halt_until_mbus_rx();
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x07 << 24) | 0x01FFE5); // Programming
+    if (*REG0 != 0x00003D) fail(1);
+
+    // Turn off Flash
+    set_halt_until_mbus_rx();
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x11 << 24) | 0x00003D);
+    if (*REG0 != 0x0000BB) fail(2);
+#endif
+
     // Notify the end of the program
-    mbus_write_message32(0xEE, 0x0EA7F00D);
-    delay(MBUS_DELAY);
+    set_halt_until_mbus_tx();
+    bootloader_mbus_msg32_dly(0xEE, 0x0EA7F00D);
     mbus_sleep_all(); // Go to sleep indefinitely
     while(1);
 

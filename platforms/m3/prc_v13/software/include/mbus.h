@@ -224,3 +224,17 @@ void mbus_copy_mem_from_remote_to_any_stream (
 		uint8_t   destination_prefix,
 		uint32_t  length_in_words_minus_one
 		);
+
+/*----------------------------------------------------------------------------*
+* MemSet
+*/
+/*! \brief Fill memory with a specified 16 bit word
+*
+* \param s Pointer to the destination buffer.
+* \param c Value to be written.
+* \param len Size of the destination buffer.
+*
+* \return Original pointer to the destination buffer
+*/
+/*---------------------------------------------------------------------------*/
+void* memset(void *s, uint32_t c, uint32_t len);
