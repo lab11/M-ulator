@@ -53,6 +53,7 @@ volatile uint32_t enumerated;
 volatile uint32_t exec_count;
 volatile uint32_t exec_count_irq;
 volatile uint32_t mbus_msg_flag;
+volatile uint32_t sleep_time_prev;
 
 volatile bool radio_ready;
 volatile bool radio_on;
@@ -63,6 +64,7 @@ volatile uint32_t radio_tx_img_one;
 volatile uint32_t radio_tx_img_num;
 
 volatile uint32_t md_count;
+volatile uint32_t md_valid;
 volatile uint32_t img_count;
 volatile uint32_t md_capture_img;
 volatile uint32_t md_start_motion;
@@ -507,7 +509,7 @@ static void operation_sleep_noirqreset(void){
 static void operation_sleep_notimer(void){
     
 	// Turn off radio
-	radio_power_off();
+	//radio_power_off();
 
 	// Disable Timer
 	set_wakeup_timer(0, 0, 0);
@@ -980,8 +982,6 @@ static void operation_flash_read(uint32_t page_offset){
 
 static void operation_md(void){
 
-	set_pmu_img();
-
 	// Release power gates, isolation, and reset for frame controller
 	if (md_count == 0) {
 		initialize_md_reg();
@@ -998,7 +998,11 @@ static void operation_md(void){
 		}
 	}
 
-	if (md_capture_img){
+	if (md_capture_img && md_valid){
+		
+		// Increase PMU strength for imaging and flash operation
+		set_pmu_img();
+
 		// Release power gates, isolation, and reset for imager array
 		poweron_array_adc();
 
@@ -1016,9 +1020,13 @@ static void operation_md(void){
 			img_count++;
 			// Erase the next section of flash
 			operation_flash_erase(0x800+img_count*0x2000);
-		}
 
+		}
 		poweroff_array_adc();
+
+		// Turn off only the Flash layer
+		mbus_write_message32(0x01, (0x2<<28) + (0x1<<(FLS_ADDR+12)));
+
 
 		if (radio_tx_option){
 			// Radio out image data stored in flash
@@ -1028,9 +1036,6 @@ static void operation_md(void){
 		}
 	}
 
-	// Turn off only the Flash layer
-	mbus_write_message32(0x01, (0x2<<28) + (0x1<<(FLS_ADDR+12)));
-
 	if (md_start_motion){
 		// Set PMU settings for motion detection
 		set_pmu_motion();
@@ -1039,11 +1044,15 @@ static void operation_md(void){
 		// Start motion detection
 		start_md_init();
 		clear_md_flag();
+
 		start_md();
 
 	}else{
 
 	}
+
+	// Reset wakeup timer
+	set_wakeup_timer(1000000, 0, 1);
 
 	// Go to sleep w/o timer
 	operation_sleep_notimer();
@@ -1095,10 +1104,11 @@ static void operation_init(void){
 	*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv13_r0B.as_int;
 
     //Enumerate & Initialize Registers
-    enumerated = 0xDEADBEEF;
+    enumerated = 0xABCD1234;
     exec_count = 0;
     exec_count_irq = 0;
     mbus_msg_flag = 0;
+	sleep_time_prev = 0;
 
     // Set CPU Halt Option as RX --> Use for register read e.g.
     //set_halt_until_mbus_rx();
@@ -1169,6 +1179,7 @@ static void operation_init(void){
 	md_capture_img = 0;
 	md_count = 0;
 	img_count = 0;
+	md_valid = 0;
 	
 	radio_on = 0;
 	radio_ready = 0;
@@ -1196,27 +1207,32 @@ static void operation_init(void){
 //***************************************************************************************
 int main() {
   
-	// FIXME
-	mbus_write_message32(0xAA, 0x11111111);
+	//mbus_write_message32(0xAA, 0x11111111);
+
+	// Record sleep time
+	sleep_time_prev = *((volatile uint32_t *) REG_WUPT_VAL);
+	if (sleep_time_prev > 2){
+		md_valid = 1;
+	}else{ // May be due to false trigger
+		mbus_write_message32(0xAF, sleep_time_prev);
+		md_valid = 0;
+	}
 
     // Reset Wakeup Timer; This is required for PRCv13
+	//mbus_write_message32(0xAA, sleep_time_prev);
     set_wakeup_timer(100, 0, 1);
 
     // Initialize Interrupts
     // Only enable register-related interrupts
 	enable_reg_irq();
-  
-	// FIXME
-	mbus_write_message32(0xAA, 0x22222222);
 
 	// Set the watch-dog timer
 	config_timerwd(200000000); // 2e7: 1min
 	//disable_timerwd();
 	
     // Initialization sequence
-    if (enumerated != 0xDEADBEEF){
+    if (enumerated != 0xABCD1234){
         operation_init();
-
     }
 	
     // Check if wakeup is due to GOC interrupt  
@@ -1227,9 +1243,6 @@ int main() {
     uint32_t wakeup_data_field_0 = wakeup_data & 0xFF;			// IRQ14VEC[7:0]
     uint32_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;		// IRQ14VEC[15:8]
     uint32_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;		// IRQ14VEC[23:16]
-
-	// FIXME
-	mbus_write_message32(0xAA, wakeup_data);
 
     if(wakeup_data_header == 1){
         // Debug mode: Transmit something via radio and go to sleep w/o timer
