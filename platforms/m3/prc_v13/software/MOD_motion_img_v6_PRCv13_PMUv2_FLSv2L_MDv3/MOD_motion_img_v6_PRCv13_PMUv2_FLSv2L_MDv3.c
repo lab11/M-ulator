@@ -1227,7 +1227,7 @@ int main() {
 	enable_reg_irq();
 
 	// Set the watch-dog timer
-	config_timerwd(200000000); // 2e7: 1min
+	config_timerwd(40000000); // 2e7: 1min
 	//disable_timerwd();
 	
     // Initialization sequence
