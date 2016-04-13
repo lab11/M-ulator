@@ -54,6 +54,7 @@ volatile uint32_t exec_count;
 volatile uint32_t exec_count_irq;
 volatile uint32_t mbus_msg_flag;
 volatile uint32_t sleep_time_prev;
+volatile uint32_t false_trigger_count;
 
 volatile bool radio_ready;
 volatile bool radio_on;
@@ -982,6 +983,15 @@ static void operation_flash_read(uint32_t page_offset){
 
 static void operation_md(void){
 
+	if (false_trigger_count > 10) {
+		// Shut down MD
+		clear_md_flag();
+		initialize_md_reg();
+
+		// Go to sleep w/o timer
+		operation_sleep_notimer();
+	}
+
 	// Release power gates, isolation, and reset for frame controller
 	if (md_count == 0) {
 		initialize_md_reg();
@@ -1180,6 +1190,7 @@ static void operation_init(void){
 	md_count = 0;
 	img_count = 0;
 	md_valid = 0;
+	false_trigger_count = 0;
 	
 	radio_on = 0;
 	radio_ready = 0;
@@ -1213,9 +1224,11 @@ int main() {
 	sleep_time_prev = *((volatile uint32_t *) REG_WUPT_VAL);
 	if (sleep_time_prev > 2){
 		md_valid = 1;
+		false_trigger_count = 0;
 	}else{ // May be due to false trigger
 		mbus_write_message32(0xAF, sleep_time_prev);
 		md_valid = 0;
+		false_trigger_count++;
 	}
 
     // Reset Wakeup Timer; This is required for PRCv13
@@ -1293,6 +1306,7 @@ int main() {
 		exec_count = 0;
 		md_count = 0;
 		img_count = 0;
+		false_trigger_count = 0;
 		radio_ready = 0;
 		md_start_motion = wakeup_data_field_2 & 0x1;
 		md_capture_img = (wakeup_data_field_2 >> 1) & 0x1;
@@ -1305,6 +1319,8 @@ int main() {
 			operation_sleep_noirqreset();
 		}
 		if (md_capture_img){
+			// Increase PMU strength for imaging and flash operation
+			set_pmu_img();
 			delay(DELAY_1); // about 0.5s
 			operation_flash_erase(0x800);
 		}
