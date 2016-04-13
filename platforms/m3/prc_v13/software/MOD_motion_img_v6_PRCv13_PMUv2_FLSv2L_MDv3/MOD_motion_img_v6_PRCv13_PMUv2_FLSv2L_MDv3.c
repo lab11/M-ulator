@@ -260,7 +260,7 @@ static void set_pmu_motion_img_default(void){
     mbus_remote_register_write(PMU_ADDR,0x19,
 		( (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
 		| (8) 		// Floor frequency base (0-31)
 	));
 	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
@@ -281,8 +281,8 @@ static void set_pmu_motion_img_default(void){
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (1 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (2 << 9)  // Frequency multiplier R
+		| (2 << 5)  // Frequency multiplier L (actually L+1)
 		| (4) 		// Floor frequency base (0-31) //8
 	));
 	delay(MBUS_DELAY);
