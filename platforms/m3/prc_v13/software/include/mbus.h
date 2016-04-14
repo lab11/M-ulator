@@ -88,6 +88,11 @@ void mbus_enumerate(unsigned new_prefix);
 void mbus_sleep_all(void);
 
 /**
+ * @brief Put a specific MBus layer to sleep
+ */
+void mbus_sleep_layer_short(uint8_t addr);
+
+/**
  * @brief Copy registers from this node to another node
  *
  * @param remote_prefix The short prefix of the destination node (range [1,15] incl)

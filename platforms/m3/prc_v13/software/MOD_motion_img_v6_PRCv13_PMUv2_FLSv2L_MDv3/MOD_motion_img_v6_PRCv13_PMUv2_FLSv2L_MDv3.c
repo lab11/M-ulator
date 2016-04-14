@@ -158,7 +158,7 @@ static void set_pmu_sar_override(uint32_t val){
 static void set_pmu_motion(void){
 
 	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
-	// V0P6 Supply Active: need to support up to 50uA
+	// V0P6 Supply Active
     mbus_remote_register_write(PMU_ADDR,0x1A,
 		( (1 << 13) // Enable main feedback loop
 		| (4 << 9)  // Frequency multiplier R
@@ -174,7 +174,7 @@ static void set_pmu_motion(void){
 	));
 	delay(MBUS_DELAY);
 	// Register 0x16: SAR_TRIM_v3_ACTIVE
-	// V1P2 Supply Active: need to support up to 200uA
+	// V1P2 Supply Active
     mbus_remote_register_write(PMU_ADDR,0x16, 
 		( (0 << 19) // Enable PFM even during periodic reset
 		| (0 << 18) // Enable PFM even when Vref is not used as ref
@@ -196,15 +196,15 @@ static void set_pmu_img(void){
 	// V0P6 Supply Active: need to support up to 50uA
     mbus_remote_register_write(PMU_ADDR,0x1A,
 		( (1 << 13) // Enable main feedback loop
-		| (4 << 9)  // Frequency multiplier R
-		| (4 << 5)  // Frequency multiplier L (actually L+1)
+		| (6 << 9)  // Frequency multiplier R
+		| (6 << 5)  // Frequency multiplier L (actually L+1)
 		| (16) 		// Floor frequency base (0-31)
 	));
 	delay(MBUS_DELAY);
     mbus_remote_register_write(PMU_ADDR,0x1A,
 		( (1 << 13) // Enable main feedback loop
-		| (4 << 9)  // Frequency multiplier R
-		| (4 << 5)  // Frequency multiplier L (actually L+1)
+		| (6 << 9)  // Frequency multiplier R
+		| (6 << 5)  // Frequency multiplier L (actually L+1)
 		| (16) 		// Floor frequency base (0-31)
 	));
 	delay(MBUS_DELAY);
@@ -216,8 +216,8 @@ static void set_pmu_img(void){
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (1 << 13) // Enable main feedback loop
-		| (5 << 9)  // Frequency multiplier R
-		| (5 << 5)  // Frequency multiplier L (actually L+1)
+		| (6 << 9)  // Frequency multiplier R
+		| (6 << 5)  // Frequency multiplier L (actually L+1)
 		| (22) 		// Floor frequency base (0-31) //16
 	));
 	delay(MBUS_DELAY);
@@ -801,7 +801,7 @@ static void poweron_array_adc(){
 	// 2:20
 	mdv3_r2.PRESLEEP_ADC = 0;
 	mbus_remote_register_write(MD_ADDR,0x2,mdv3_r2.as_int);
-	delay(MBUS_DELAY*10);
+	delay(WAKEUP_DELAY);
 
 	// Release IMG Sleep
 	// 2:19
@@ -983,8 +983,13 @@ static void operation_flash_read(uint32_t page_offset){
 
 static void operation_md(void){
 
-	if (false_trigger_count > 10) {
+	if (false_trigger_count > 3){
+		initialize_md_reg();
+		poweron_frame_controller();
+	}
+	if (false_trigger_count > 6) {
 		// Shut down MD
+		mbus_write_message32(0xAF, 0xFAFAFAFA);
 		clear_md_flag();
 		initialize_md_reg();
 
@@ -1021,9 +1026,9 @@ static void operation_md(void){
 		if (img_count < 60){
 
 		#ifdef DEBUG_MBUS_MSG
-			mbus_write_message32(0xAF, img_count);
+			mbus_write_message32(0xA1, img_count);
 			delay(MBUS_DELAY);
-			mbus_write_message32(0xAF, 0x800 + img_count*0x2000);
+			mbus_write_message32(0xA1, 0x800 + img_count*0x2000);
 			delay(MBUS_DELAY);
 		#endif
 			capture_image_single_with_flash(0x800+img_count*0x2000);
@@ -1035,8 +1040,9 @@ static void operation_md(void){
 		poweroff_array_adc();
 
 		// Turn off only the Flash layer
-		mbus_write_message32(0x01, (0x2<<28) + (0x1<<(FLS_ADDR+12)));
-
+		//mbus_write_message32(0x01, (0x2<<28) + (0x1<<(FLS_ADDR+12)));
+		mbus_sleep_layer_short(FLS_ADDR);
+  		delay(MBUS_DELAY);
 
 		if (radio_tx_option){
 			// Radio out image data stored in flash
@@ -1047,12 +1053,17 @@ static void operation_md(void){
 	}
 
 	if (md_start_motion){
+		// Turn off other layers
+		mbus_sleep_layer_short(RAD_ADDR);
+  		delay(MBUS_DELAY);
+		mbus_sleep_layer_short(HRV_ADDR);
+  		delay(MBUS_DELAY);
+
 		// Set PMU settings for motion detection
 		set_pmu_motion();
 		md_count++;
 
 		// Start motion detection
-		start_md_init();
 		clear_md_flag();
 
 		start_md();
@@ -1071,9 +1082,9 @@ static void operation_md(void){
 static void operation_tx_image(void){
 
 	#ifdef DEBUG_MBUS_MSG
-		mbus_write_message32(0xAF, radio_tx_img_idx);
+		mbus_write_message32(0xA2, radio_tx_img_idx);
 		delay(MBUS_DELAY);
-		mbus_write_message32(0xAF, 0x800 + radio_tx_img_idx*0x2000);
+		mbus_write_message32(0xA2, 0x800 + radio_tx_img_idx*0x2000);
 		delay(MBUS_DELAY);
 	#endif
 
