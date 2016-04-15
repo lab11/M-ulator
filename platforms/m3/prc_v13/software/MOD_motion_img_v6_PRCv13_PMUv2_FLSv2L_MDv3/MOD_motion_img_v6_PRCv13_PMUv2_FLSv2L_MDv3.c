@@ -532,13 +532,26 @@ uint32_t check_flash_sram(uint8_t addr_stamp, uint32_t length){
     	set_halt_until_mbus_rx();
 		mbus_copy_mem_from_remote_to_any_bulk(FLS_ADDR, (uint32_t*)(idx << 2), PRC_ADDR, (uint32_t*)&flash_read_data_single, 0);
 		//FLSv2MBusGPIO_readMem(FLS_ADDR, 0xEE, 0, ((uint32_t) idx) << 2);
-		delay(MBUS_DELAY);
     	set_halt_until_mbus_tx();
 		mbus_write_message32(addr_stamp, flash_read_data_single);
-		delay(MBUS_DELAY);
 		
 	}
 
+	return 1;
+}
+
+uint32_t check_flash_sram_full_image(uint8_t addr_stamp){
+	uint32_t idx;
+
+	// Read 1 row at a time: 160*8 = 160 Bytes, 40 words
+	// There are 160 rows
+	// Flash SRAM Memory space is byte-addressable
+	for(idx=0; idx<160; idx++) {
+    	set_halt_until_mbus_rx();
+		mbus_copy_mem_from_remote_to_any_stream(0, FLS_ADDR, (uint32_t*)(idx*160), addr_stamp, 39);
+    	set_halt_until_mbus_tx();
+		mbus_write_message32(addr_stamp, flash_read_data_single);
+	}
 	return 1;
 }
 
@@ -992,6 +1005,10 @@ static void operation_flash_read(uint32_t page_offset){
 
 	// Check Flash SRAM after recovery
 	check_flash_sram(0xE3, FLS_CHECK_LENGTH);
+
+	// Transmit recovered image via MBus
+	check_flash_sram_full_image(0xA);
+
 }
 
 static void operation_md(void){
