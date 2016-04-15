@@ -1004,6 +1004,7 @@ static void operation_flash_read(uint32_t page_offset){
 	flash_turn_off();
 
 	// Check Flash SRAM after recovery
+	// FIXME: comment out
 	check_flash_sram(0xE3, FLS_CHECK_LENGTH);
 
 	// Transmit recovered image via MBus
