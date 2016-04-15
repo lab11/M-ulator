@@ -239,6 +239,7 @@ static void start_md(){
   delay(MBUS_DELAY);
 
   delay(DELAY_1); // about 0.5s
+  delay(DELAY_1); // about 0.5s
 
   // Enable MD Flag
   // 1:3
@@ -480,9 +481,9 @@ int main() {
 	poweroff_array_adc();
 
 	// Start motion detection
-	start_md();
+	//start_md();
 
-	clear_md_flag();
+	//clear_md_flag();
 	delay(MBUS_DELAY);
 	start_md();
 

@@ -945,8 +945,9 @@ static void operation_flash_erase(uint32_t page_offset){
 
 	// Turn on Flash Macro
 	flash_turn_on();
+	delay(MBUS_DELAY);
 
-	// Flash Erase Page 2-5
+	// Erase 4 Pages
 	flash_erase_single_page(page_offset); // Should be a multiple of 0x800
 	flash_erase_single_page(page_offset+0x800); // Should be a multiple of 0x800
 	flash_erase_single_page(page_offset+0x1000); // Should be a multiple of 0x800
@@ -957,17 +958,29 @@ static void operation_flash_erase(uint32_t page_offset){
 
 }
 
-static void operation_flash_read(uint32_t page_offset){
-
-	delay(MBUS_DELAY);
-	mbus_write_message32(0xF2, 0x11111111);
-	delay(MBUS_DELAY);
+static void operation_flash_erase_all(){
 
 	// Turn on Flash Macro
 	flash_turn_on();
-
 	delay(MBUS_DELAY);
-	mbus_write_message32(0xF2, 0x22222222);
+
+	uint32_t count = 0;
+	uint32_t page_offset = 0;
+
+	// Erase 256 pages
+    for( count=0; count<256; count++ ){
+		flash_erase_single_page(page_offset); // Should be a multiple of 0x800
+		page_offset = page_offset + 0x800;
+	}
+
+	// Turn off Flash Macro
+	flash_turn_off();
+
+}
+static void operation_flash_read(uint32_t page_offset){
+
+	// Turn on Flash Macro
+	flash_turn_on();
 	delay(MBUS_DELAY);
 
 	// Copy Flash to SRAM
@@ -1034,7 +1047,7 @@ static void operation_md(void){
 			capture_image_single_with_flash(0x800+img_count*0x2000);
 			img_count++;
 			// Erase the next section of flash
-			operation_flash_erase(0x800+img_count*0x2000);
+			//operation_flash_erase(0x800+img_count*0x2000);
 
 		}
 		poweroff_array_adc();
@@ -1088,6 +1101,9 @@ static void operation_tx_image(void){
 		delay(MBUS_DELAY);
 	#endif
 
+	// Set PMU
+	set_pmu_img();
+	
 	// Read image from Flash 
 	operation_flash_read(0x800 + radio_tx_img_idx*0x2000);
 
@@ -1103,8 +1119,12 @@ static void operation_tx_image(void){
 		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 		send_radio_data_ppm(1, 0xFAF000);
 
+		// All done
+		set_pmu_motion();
+
 		// This is also the end of this IRQ routine
 		exec_count_irq = 0;
+
 		// Go to sleep without timer
 		operation_sleep_notimer();
     }
@@ -1183,6 +1203,12 @@ static void operation_init(void){
 	// Mbus return address; Needs to be between 0x18-0x1F
     mbus_remote_register_write(RAD_ADDR,0xF,0x1900);
     delay(MBUS_DELAY);
+
+    // Harvester Settings ----------------------------------
+	// Set conversion ratio to 9x
+    mbus_remote_register_write(HRV_ADDR,0x0,0x0);
+
+
 
     // Flash Settings --------------------------------------
 	// Option to Slow down FLSv2L clock 
@@ -1331,9 +1357,9 @@ int main() {
 		}
 		if (md_capture_img){
 			// Increase PMU strength for imaging and flash operation
-			set_pmu_img();
-			delay(DELAY_1); // about 0.5s
-			operation_flash_erase(0x800);
+			//set_pmu_img();
+			//delay(DELAY_1); // about 0.5s
+			//operation_flash_erase(0x800);
 		}
 
 		operation_md();
@@ -1379,7 +1405,8 @@ int main() {
         // wakeup_data[7:0] is the # of image to transmit; Valid range is from 0 (first and oldest image) to img_count-1
         // wakeup_data[15:8] is the user-specified period 
         // wakeup_data[16]: transmit all stored images 
-        // wakeup_data[17]: transmit only one image according to the image ID 
+        // wakeup_data[17]: transmit only one image according to the image ID; this will override [16]
+		// To read out first X images regardless of the program state, specify 0 to both [16] and [17]
 		radio_tx_img_num = wakeup_data_field_0;
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
 		radio_tx_img_all = wakeup_data_field_2 & 0x1;
@@ -1415,6 +1442,18 @@ int main() {
 			operation_tx_image();
 		}
 		
+    }else if(wakeup_data_header == 5){
+		// Erase all pages of flash
+		set_pmu_img();
+		mbus_write_message32(0xAA, 0x1);
+		operation_flash_erase_all();
+		mbus_write_message32(0xAA, 0x2);
+		set_pmu_motion();
+		mbus_write_message32(0xAA, 0x3);
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
     }
 
     // Proceed to continuous mode
