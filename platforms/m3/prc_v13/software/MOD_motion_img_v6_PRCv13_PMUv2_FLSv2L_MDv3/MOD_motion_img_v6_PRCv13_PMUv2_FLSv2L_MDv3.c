@@ -540,18 +540,22 @@ uint32_t check_flash_sram(uint8_t addr_stamp, uint32_t length){
 	return 1;
 }
 
-uint32_t check_flash_sram_full_image(uint8_t addr_stamp){
+uint32_t check_flash_sram_full_image(){
 	uint32_t idx;
 
 	// Read 1 row at a time: 160*8 = 160 Bytes, 40 words
 	// There are 160 rows
 	// Flash SRAM Memory space is byte-addressable
+   	set_halt_until_mbus_rx();
 	for(idx=0; idx<160; idx++) {
-    	set_halt_until_mbus_rx();
-		mbus_copy_mem_from_remote_to_any_stream(0, FLS_ADDR, (uint32_t*)(idx*160), addr_stamp, 39);
-    	set_halt_until_mbus_tx();
-		mbus_write_message32(addr_stamp, flash_read_data_single);
+		mbus_copy_mem_from_remote_to_any_stream(0xA, FLS_ADDR, (uint32_t*)(idx*160), 0x1, 39);
 	}
+    set_halt_until_mbus_tx();
+
+	// Send dummy indicator for end of image
+	mbus_write_message32(0x1E, 0);
+	delay(MBUS_DELAY);
+
 	return 1;
 }
 
@@ -1003,12 +1007,8 @@ static void operation_flash_read(uint32_t page_offset){
 	// Turn off Flash Macro
 	flash_turn_off();
 
-	// Check Flash SRAM after recovery
-	// FIXME: comment out
-	check_flash_sram(0xE3, FLS_CHECK_LENGTH);
-
 	// Transmit recovered image via MBus
-	check_flash_sram_full_image(0xA);
+	check_flash_sram_full_image();
 
 }
 
@@ -1130,12 +1130,15 @@ static void operation_tx_image(void){
 
 	if (!radio_tx_img_one && (radio_tx_img_idx < radio_tx_img_num)){
 		radio_tx_img_idx++;
+		
 		// Send next image after sleep/wakeup
 		set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 		operation_sleep_noirqreset();
     }else{
+		/*
 		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 		send_radio_data_ppm(1, 0xFAF000);
+		*/
 
 		// All done
 		set_pmu_motion();
@@ -1312,6 +1315,8 @@ int main() {
     uint32_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;		// IRQ14VEC[15:8]
     uint32_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;		// IRQ14VEC[23:16]
 
+	mbus_write_message32(0xAA, wakeup_data);
+
     if(wakeup_data_header == 1){
         // Debug mode: Transmit something via radio and go to sleep w/o timer
         // wakeup_data[7:0] is the # of transmissions
@@ -1441,6 +1446,9 @@ int main() {
 			}
 		}
 		
+		exec_count_irq++;
+
+		/*
         if (exec_count_irq < 2){
 			exec_count_irq++;
 			if (exec_count_irq == 1){
@@ -1459,7 +1467,10 @@ int main() {
 		}else{
 			operation_tx_image();
 		}
-		
+		*/
+
+		operation_tx_image();
+
     }else if(wakeup_data_header == 5){
 		// Erase all pages of flash
 		set_pmu_img();
