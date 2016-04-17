@@ -210,17 +210,17 @@ static void operation_init(void){
     delay(MBUS_DELAY*2);
 
 	// Set HRVv2 optimal settings for GaAs solar cell
-	hrvv2_r0.HRV_TOP_CONV_RATIO = 0;
-    write_mbus_register(HRV_ADDR,0x0,hrvv2_r0.as_int);
-	
-    	uint32_t read_data_hrv_count;
-		read_mbus_register(HRV_ADDR,2,0x15);
-		delay(MBUS_DELAY);
-		read_data_hrv_count = *((volatile uint32_t *) 0xA0001014);
+//	hrvv2_r0.HRV_TOP_CONV_RATIO = 0;
+//    write_mbus_register(HRV_ADDR,0,hrvv2_r0.as_int);
 
-		delay(MBUS_DELAY*20);
-		write_mbus_message(0x77, read_data_hrv_count);
-		delay(MBUS_DELAY*20);
+	hrvv2_r1.HRV_CNT_CNT_ENABLE = 0;
+    write_mbus_register(HRV_ADDR,1,hrvv2_r1.as_int);
+
+	delay(1000);
+
+	hrvv2_r1.HRV_CNT_CNT_ENABLE = 1;
+    write_mbus_register(HRV_ADDR,1,hrvv2_r1.as_int);
+
 
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 100;   // 1: 2-4 sec with PRCv9
@@ -239,6 +239,21 @@ static void operation_init(void){
     //operation_sleep_notimer();
 }
 
+static void get_lightinfo(void){
+	volatile uint32_t temp_addr;
+	volatile uint32_t temp_data;
+	volatile uint32_t temp_numBit;
+
+    	uint32_t read_data_hrv_count;
+		read_mbus_register(HRV_ADDR,2,0x15);
+		delay(MBUS_DELAY*10);
+		read_data_hrv_count = *((volatile uint32_t *) 0xA0001014);
+
+		delay(MBUS_DELAY*10);
+		write_mbus_message(0x77, read_data_hrv_count);
+
+}
+
 //***************************************************************************************
 // MAIN function starts here             
 //***************************************************************************************
@@ -253,9 +268,17 @@ int main() {
 	//config_timer( timer_id, go, roi, init_val, sat_val )
 	config_timer( 0, 1, 0, 0, 3000000 );
 
-    operation_init();
+	operation_init();
 
-	delay(MBUS_DELAY);
+//	int i;
+//	for ( i = 0 ; i < 10 ; i = i + 1)
+//	{
+    		get_lightinfo();
+		delay(100000);
+    		get_lightinfo();
+
+//	}
+
 	
 
     // Should not reach here
