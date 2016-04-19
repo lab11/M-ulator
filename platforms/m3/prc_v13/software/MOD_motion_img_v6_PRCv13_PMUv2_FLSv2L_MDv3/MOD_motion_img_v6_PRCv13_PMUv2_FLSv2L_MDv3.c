@@ -1015,11 +1015,11 @@ static void operation_flash_read(uint32_t page_offset){
 
 static void operation_md(void){
 
-	if (false_trigger_count > 3){
+	if (false_trigger_count > 6){
 		initialize_md_reg();
 		poweron_frame_controller();
 	}
-	if (false_trigger_count > 6) {
+	if (false_trigger_count > 30) {
 		// Shut down MD
 		mbus_write_message32(0xAF, 0xFAFAFAFA);
 		clear_md_flag();
@@ -1286,7 +1286,7 @@ int main() {
 
 	// Record sleep time
 	sleep_time_prev = *((volatile uint32_t *) REG_WUPT_VAL);
-	if (sleep_time_prev > 1){
+	if (sleep_time_prev > 0){
 		md_valid = 1;
 		false_trigger_count = 0;
 	}else{ // May be due to false trigger
