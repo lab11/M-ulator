@@ -203,9 +203,9 @@ static void set_pmu_img(void){
 	delay(MBUS_DELAY);
     mbus_remote_register_write(PMU_ADDR,0x1A,
 		( (1 << 13) // Enable main feedback loop
-		| (6 << 9)  // Frequency multiplier R
-		| (6 << 5)  // Frequency multiplier L (actually L+1)
-		| (16) 		// Floor frequency base (0-31)
+		| (7 << 9)  // Frequency multiplier R
+		| (7 << 5)  // Frequency multiplier L (actually L+1)
+		| (22) 		// Floor frequency base (0-31)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x16: SAR_TRIM_v3_ACTIVE
@@ -216,8 +216,8 @@ static void set_pmu_img(void){
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (1 << 13) // Enable main feedback loop
-		| (6 << 9)  // Frequency multiplier R
-		| (6 << 5)  // Frequency multiplier L (actually L+1)
+		| (7 << 9)  // Frequency multiplier R
+		| (7 << 5)  // Frequency multiplier L (actually L+1)
 		| (22) 		// Floor frequency base (0-31) //16
 	));
 	delay(MBUS_DELAY);
@@ -665,7 +665,7 @@ static void initialize_md_reg(){
 	mdv3_r5.SEL_CLK_RING_ADC = 2; 
 	mdv3_r5.SEL_CLK_DIV_ADC = 1;
 	mdv3_r5.SEL_CLK_RING_LC = 0;
-	mdv3_r5.SEL_CLK_DIV_LC = 1;
+	mdv3_r5.SEL_CLK_DIV_LC = 0;
 
 	mdv3_r6.START_ROW_IDX = 40;
 	mdv3_r6.END_ROW_IDX = 120; // Default: 160
@@ -1236,6 +1236,7 @@ static void operation_init(void){
 
 	// Voltage Clamp & Timing settings
 	mbus_remote_register_write(FLS_ADDR, 0x0, 0x41205); // Tprog
+	mbus_remote_register_write(FLS_ADDR, 0x2, 0x1752F); // Terase; default: 0x0752F
 	mbus_remote_register_write(FLS_ADDR, 0x4, 0x000500); // Tcyc_prog
 	mbus_remote_register_write(FLS_ADDR, 0x19, 0x3C4303); // Default: 0x3C4103
 
@@ -1276,7 +1277,7 @@ int main() {
 
 	// Record sleep time
 	sleep_time_prev = *((volatile uint32_t *) REG_WUPT_VAL);
-	if (sleep_time_prev > 2){
+	if (sleep_time_prev > 1){
 		md_valid = 1;
 		false_trigger_count = 0;
 	}else{ // May be due to false trigger
@@ -1436,6 +1437,10 @@ int main() {
 		radio_tx_img_all = wakeup_data_field_2 & 0x1;
 		radio_tx_img_one = (wakeup_data_field_2>>1) & 0x1;
 
+		// Stop motion detection in case it was running
+		clear_md_flag();
+		initialize_md_reg();
+
 		if (exec_count_irq == 0){ // Only do this once
 			if (radio_tx_img_one){
 				radio_tx_img_idx = radio_tx_img_num;
@@ -1473,6 +1478,10 @@ int main() {
 		operation_tx_image();
 
     }else if(wakeup_data_header == 5){
+		// Stop motion detection in case it was running
+		clear_md_flag();
+		initialize_md_reg();
+
 		// Erase all pages of flash
 		set_pmu_img();
 		mbus_write_message32(0xAA, 0x1);
