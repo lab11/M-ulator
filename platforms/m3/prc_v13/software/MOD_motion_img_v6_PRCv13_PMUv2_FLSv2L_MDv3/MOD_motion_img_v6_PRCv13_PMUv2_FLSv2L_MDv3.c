@@ -971,7 +971,7 @@ static void operation_flash_erase(uint32_t page_offset){
 
 }
 
-static void operation_flash_erase_all(){
+static void operation_flash_erase_all(uint32_t erase_num){
 
 	// Turn on Flash Macro
 	flash_turn_on();
@@ -980,10 +980,15 @@ static void operation_flash_erase_all(){
 	uint32_t count = 0;
 	uint32_t page_offset = 0;
 
+	if (!erase_num){
+		erase_num = 256;
+	}
+
 	// Erase 256 pages
-    for( count=0; count<256; count++ ){
+    for( count=0; count<erase_num; count++ ){
 		flash_erase_single_page(page_offset); // Should be a multiple of 0x800
 		page_offset = page_offset + 0x800;
+		delay(MBUS_DELAY);
 	}
 
 	// Turn off Flash Macro
@@ -1137,7 +1142,11 @@ static void operation_tx_image(void){
 		*/
 
 		// All done
+		// Turn off only the Flash layer
+		mbus_sleep_layer_short(FLS_ADDR);
+  		delay(MBUS_DELAY);
 		set_pmu_motion();
+  		delay(MBUS_DELAY);
 
 		// This is also the end of this IRQ routine
 		exec_count_irq = 0;
@@ -1236,7 +1245,7 @@ static void operation_init(void){
 
 	// Voltage Clamp & Timing settings
 	mbus_remote_register_write(FLS_ADDR, 0x0, 0x41205); // Tprog
-	mbus_remote_register_write(FLS_ADDR, 0x2, 0x1752F); // Terase; default: 0x0752F
+	mbus_remote_register_write(FLS_ADDR, 0x2, 0x3FFFF); // Terase; default: 0x0752F
 	mbus_remote_register_write(FLS_ADDR, 0x4, 0x000500); // Tcyc_prog
 	mbus_remote_register_write(FLS_ADDR, 0x19, 0x3C4303); // Default: 0x3C4103
 
@@ -1478,17 +1487,24 @@ int main() {
 		operation_tx_image();
 
     }else if(wakeup_data_header == 5){
+		// Erase pages in flash
+        // wakeup_data[7:0] is the # of images to erase (4 pages per image)
+		// If 0, erase all pages
+
 		// Stop motion detection in case it was running
 		clear_md_flag();
 		initialize_md_reg();
 
 		// Erase all pages of flash
 		set_pmu_img();
-		mbus_write_message32(0xAA, 0x1);
-		operation_flash_erase_all();
-		mbus_write_message32(0xAA, 0x2);
+  		delay(MBUS_DELAY);
+		operation_flash_erase_all(wakeup_data_field_0*4);
+
+		// Turn off only the Flash layer
+		mbus_sleep_layer_short(FLS_ADDR);
+  		delay(MBUS_DELAY);
 		set_pmu_motion();
-		mbus_write_message32(0xAA, 0x3);
+  		delay(MBUS_DELAY);
 
 		// Reset img count so that page 0 can be used
 		img_count = 0;
