@@ -824,7 +824,7 @@ static void poweron_array_adc(){
 	// 2:19
 	mdv3_r2.SLEEP_ADC = 0;
 	mbus_remote_register_write(MD_ADDR,0x2,mdv3_r2.as_int);
-	delay(WAKEUP_DELAY);
+	delay(DELAY_1);
 
 	// Release ADC Isolation
 	// 7:17
@@ -920,25 +920,24 @@ static bool wait_for_interrupt(uint32_t wait_count){
 
 static void capture_image_single_with_flash(uint32_t page_offset){
 
+	// Reset Mbus streaming write buffer offset
+    mbus_remote_register_write(FLS_ADDR,0x27,0x0);
+
 	// Start imaging
 	capture_image_single();
 	wait_for_interrupt(IMG_TIMEOUT_COUNT);	
 
-	delay(MBUS_DELAY);
-	mbus_write_message32(0xF1, 0x11111111);
 	delay(MBUS_DELAY);
 
 	// Power-gate MD Imager
 	poweroff_array_adc();
 
 	// Check Flash SRAM after image
-	check_flash_sram(0xE1, FLS_CHECK_LENGTH);
+	// Debug only
+	//check_flash_sram_full_image();
 
 	// Turn on Flash macro
 	flash_turn_on();
-
-	delay(MBUS_DELAY);
-	mbus_write_message32(0xF1, 0x22222222);
 	delay(MBUS_DELAY);
 
 	// Copy SRAM to Flash
@@ -947,9 +946,6 @@ static void capture_image_single_with_flash(uint32_t page_offset){
 
 	// Turn off Flash Macro
 	flash_turn_off();
-
-	delay(MBUS_DELAY);
-	mbus_write_message32(0xF1, 0x33333333);
 	delay(MBUS_DELAY);
 
 }
@@ -1054,7 +1050,7 @@ static void operation_md(void){
 
 		// Capture a single image
 		//capture_image_single();
-		if (img_count < 60){
+		if (img_count < 64){
 
 		#ifdef DEBUG_MBUS_MSG
 			mbus_write_message32(0xA1, img_count);
@@ -1355,6 +1351,7 @@ int main() {
         // wakeup_data[17:16] indicates whether or not to to take an image
 		// 						1: md only, 2: img only, 3: md+img
         // wakeup_data[18] indicates whether or not to radio out the result
+        // wakeup_data[19] reset img count
 		USR_MD_INT_TIME = wakeup_data_field_0;
 		USR_INT_TIME = wakeup_data_field_1;
 
@@ -1365,12 +1362,16 @@ int main() {
 		exec_count_irq = 0;
 		exec_count = 0;
 		md_count = 0;
-		img_count = 0;
 		false_trigger_count = 0;
 		radio_ready = 0;
 		md_start_motion = wakeup_data_field_2 & 0x1;
 		md_capture_img = (wakeup_data_field_2 >> 1) & 0x1;
 		radio_tx_option = (wakeup_data_field_2 >> 2) & 0x1;
+
+		if ((wakeup_data_field_2 >> 3) & 0x1){
+			img_count = 0;
+		}
+
 		if (radio_tx_option & !radio_on){
 			// Prepare radio TX
 			radio_power_on();
@@ -1410,7 +1411,7 @@ int main() {
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm(0,0xFAF000+md_count);	
+				send_radio_data_ppm(0,0xFAF000+img_count);	
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
@@ -1479,6 +1480,9 @@ int main() {
 		mbus_write_message32(0xAA, 0x2);
 		set_pmu_motion();
 		mbus_write_message32(0xAA, 0x3);
+
+		// Reset img count so that page 0 can be used
+		img_count = 0;
 
 		// Go to sleep without timer
 		operation_sleep_notimer();
