@@ -611,6 +611,30 @@ class ICE(object):
 
     @min_proto_version("0.2")
     @capability('_')
+    def ice_set_baudrate_to_230400(self):
+        self.ice_set_baudrate(0x00AE/2)
+        self.dev.baudrate = 115200*2
+
+    @min_proto_version("0.2")
+    @capability('_')
+    def ice_set_baudrate_to_460800(self):
+        self.ice_set_baudrate(0x00AE/4)
+        self.dev.baudrate = 115200*4
+
+    @min_proto_version("0.2")
+    @capability('_')
+    def ice_set_baudrate_to_921600(self):
+        self.ice_set_baudrate(0x00AE/8)
+        self.dev.baudrate = 115200*8
+
+    @min_proto_version("0.2")
+    @capability('_')
+    def ice_set_baudrate_to_1843200(self):
+        self.ice_set_baudrate(0x00AE/16)
+        self.dev.baudrate = 115200*16
+
+    @min_proto_version("0.2")
+    @capability('_')
     def ice_set_baudrate_to_3_megabaud(self):
         self.ice_set_baudrate(0x0007)
         self.dev.baudrate = 3000000
