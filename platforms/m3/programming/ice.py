@@ -635,6 +635,12 @@ class ICE(object):
 
     @min_proto_version("0.2")
     @capability('_')
+    def ice_set_baudrate_to_2000000(self):
+        self.ice_set_baudrate(0x000A)
+        self.dev.baudrate = 2000000
+
+    @min_proto_version("0.2")
+    @capability('_')
     def ice_set_baudrate_to_3_megabaud(self):
         self.ice_set_baudrate(0x0007)
         self.dev.baudrate = 3000000
