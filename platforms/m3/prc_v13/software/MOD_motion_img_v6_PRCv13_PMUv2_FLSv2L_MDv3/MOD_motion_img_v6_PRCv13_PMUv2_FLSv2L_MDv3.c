@@ -569,6 +569,7 @@ uint32_t send_radio_flash_sram(uint8_t addr_stamp, uint32_t length){
 		mbus_copy_mem_from_remote_to_any_bulk(FLS_ADDR, (uint32_t*)((idx*3) << 2), PRC_ADDR, (uint32_t*)&flash_read_data, 2);
 		//FLSv2MBusGPIO_readMem(FLS_ADDR, 0xEE, 0, ((uint32_t) idx) << 2);
 		// Send 96 bits of data
+    	set_halt_until_mbus_tx();
 		send_radio_data_ppm_96(0,flash_read_data[0],flash_read_data[1],flash_read_data[2],flash_read_data[2]);
 		delay(MBUS_DELAY);
 	}
@@ -1127,6 +1128,7 @@ static void operation_tx_image(void){
 	operation_flash_read(0x800 + radio_tx_img_idx*0x2000);
 
 	// Send image to radio
+	// Commnet out for now
 	//send_radio_flash_sram(0xE4, 6475); // Full image
 
 	if (!radio_tx_img_one && (radio_tx_img_idx < radio_tx_img_num)){
@@ -1136,10 +1138,6 @@ static void operation_tx_image(void){
 		set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 		operation_sleep_noirqreset();
     }else{
-		/*
-		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
-		send_radio_data_ppm(1, 0xFAF000);
-		*/
 
 		// All done
 		// Turn off only the Flash layer
@@ -1446,11 +1444,11 @@ int main() {
 		radio_tx_img_all = wakeup_data_field_2 & 0x1;
 		radio_tx_img_one = (wakeup_data_field_2>>1) & 0x1;
 
-		// Stop motion detection in case it was running
-		clear_md_flag();
-		initialize_md_reg();
-
 		if (exec_count_irq == 0){ // Only do this once
+			// Stop motion detection in case it was running
+			clear_md_flag();
+			initialize_md_reg();
+
 			if (radio_tx_img_one){
 				radio_tx_img_idx = radio_tx_img_num;
 			}else{
@@ -1463,9 +1461,12 @@ int main() {
 		
 		exec_count_irq++;
 
-		/*
-        if (exec_count_irq < 2){
-			exec_count_irq++;
+/*
+		// comment out for now
+		// Set PMU
+		set_pmu_img();
+  		delay(MBUS_DELAY);
+        if (exec_count_irq < 3){
 			if (exec_count_irq == 1){
 				// Prepare radio TX
 				radio_power_on();
@@ -1482,7 +1483,7 @@ int main() {
 		}else{
 			operation_tx_image();
 		}
-		*/
+*/		
 
 		operation_tx_image();
 
