@@ -231,12 +231,20 @@ class ICE(object):
             logger.warn("  Length: %d" % (length))
             logger.warn(" Message:" + msg.encode('hex'))
 
+    def useful_read(self, length):
+        b = self.dev.read(length)
+        while len(b) < length:
+            r = self.dev.read(length - len(b))
+            b += r
+        assert len(b) == length
+        return b
+
     def communicator(self):
         while not self.communicator_stop_request.isSet():
             try:
                 # Read has a timeout of .1 s. Polling is the easiest way to
                 # do x-platform cancellation
-                msg_type, event_id, length = self.dev.read(3)
+                msg_type, event_id, length = self.useful_read(3)
             except ValueError:
                 continue
             except (serial.SerialException, OSError):
@@ -244,7 +252,7 @@ class ICE(object):
             msg_type = ord(msg_type)
             event_id = ord(event_id)
             length = ord(length)
-            msg = self.dev.read(length)
+            msg = self.useful_read(length)
 
             if event_id == self.last_event_id:
                 logger.warn("WARNING: Duplicate event_id! THIS IS A BUG [somewhere]!!")
