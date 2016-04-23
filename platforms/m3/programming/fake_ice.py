@@ -26,6 +26,7 @@ import random
 import sys, serial
 from time import sleep as real_sleep
 import threading
+import traceback
 
 try:
     os.environ['ICE_NOSLEEP']
@@ -51,6 +52,7 @@ parser.add_argument("-s", "--serial", default=DEFAULT_SERIAL, help="Serial port 
 parser.add_argument("--i2c-mask", default=DEFAULT_I2C_MASK, help="Address mask for fake_ice i2c address")
 parser.add_argument("-a", "--ack-all", action="store_true", help="Only supports i2c at the moment")
 parser.add_argument("-g", "--generate-messages", action="store_true", help="Generate periodic, random MBus messages")
+parser.add_argument("-r", "--replay", default=None, help="Replay a ICE snoop trace")
 
 args = parser.parse_args()
 serial_port = args.serial
@@ -99,6 +101,7 @@ def match_mask(val, ones, zeros):
     return ((val & ones) == ones) and ((~val & zeros) == zeros)
 
 s_lock = threading.Lock()
+s_en_event = threading.Event()
 try:
     s = serial.Serial(serial_port, 115200)
 except:
@@ -207,6 +210,60 @@ if args.generate_messages:
     gen_thread.daemon = True
     gen_thread.start()
 
+
+def replay_message_thread():
+    global s
+    global s_lock
+    global s_en_event
+    global event
+
+    def send_snoop(addr, data, control):
+        global s
+        global s_lock
+        global event
+        with s_lock:
+            s.write('B')
+            s.write(chr(event))
+            event += 1
+            event %= 256
+
+            addr = addr.decode('hex')
+            data = data.decode('hex')
+            control = control.decode('hex')
+            length = len(addr) + len(data) + len(control)
+
+            s.write(chr(length))
+            s.write(addr)
+            s.write(data)
+            s.write(control)
+
+    logger.info("Replay thread waiting for snoop to be enabled")
+    s_en_event.wait()
+    logger.info("Replay beginning")
+    real_sleep(.1)
+    last_ts = None
+    for line in open(args.replay):
+        assert mbus_snoop_enabled
+
+        ts,addr,data = line.strip().split(',')
+        ts = float(ts)
+
+        if last_ts is not None:
+            logger.info("sleep for {}".format(ts - last_ts))
+            sleep(ts - last_ts)
+        last_ts = ts
+
+        print(data)
+        print(len(data)/2.0)
+        send_snoop(addr, data, '02')
+
+    logger.info("Replay finished.")
+
+if args.replay is not None:
+    replay_thread = threading.Thread(target=replay_message_thread)
+    replay_thread.daemon = True
+    replay_thread.start()
+
 def respond(msg, ack=True):
     global s
     global s_lock
@@ -300,17 +357,25 @@ while True:
                 high = ord(msg[1])
                 low = ord(msg[2])
                 new_div = low | (high << 8)
-                if new_div not in (0x00AE, 0x0007):
+                if new_div not in (0x00AE, 0x000A, 0x0007):
                     logger.error("Bad baudrate divider: 0x%04X" % (new_div))
                     raise Exception
                 ack()
-                if new_div == 0x00AE:
-                    s.baudrate = 115200
-                elif new_div == 0x0007:
-                    s.baudrate = 3000000
-                else:
-                    logger.error("Unknown baudrate divider")
-                    raise Exception
+                try:
+                    if new_div == 0x00AE:
+                        s.baudrate = 115200
+                    elif new_div == 0x000A:
+                        s.baudrate = 2000000
+                    elif new_div == 0x0007:
+                        s.baudrate = 3000000
+                    else:
+                        logger.error("Unknown baudrate divider")
+                        raise Exception
+                except IOError as e:
+                    if e.errno == 25:
+                        logger.warn("Failed to set baud rate (if socat, ignore)")
+                    else:
+                        raise
                 baud_divider = new_div
                 logger.info("New baud divider set: " + str(baud_divider))
             else:
@@ -542,6 +607,8 @@ while True:
                 ack()
             elif msg[0] == 'S':
                 mbus_snoop_enabled = ord(msg[1])
+                if mbus_snoop_enabled:
+                    s_en_event.set()
                 logger.info("MBus snoop enabled set to %d", mbus_snoop_enabled)
                 ack()
             elif msg[0] == 'b':
@@ -700,3 +767,10 @@ while True:
     except NameError:
         logger.error("Commands issued before version negotiation?")
         raise
+    except KeyboardInterrupt:
+        for th in threading.enumerate():
+            print(th)
+            traceback.print_stack(sys._current_frames()[th.ident])
+            print('------------------')
+        raise
+
