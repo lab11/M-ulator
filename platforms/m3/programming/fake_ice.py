@@ -252,9 +252,9 @@ def replay_message_thread():
             assert len(addr) == 8
         ts = float(ts)
 
-        if last_ts is not None:
-            logger.info("sleep for {}".format(ts - last_ts))
-            sleep(ts - last_ts)
+        #if last_ts is not None:
+        #    logger.info("sleep for {}".format(ts - last_ts))
+        #    sleep(ts - last_ts)
         last_ts = ts
 
         print(data)
