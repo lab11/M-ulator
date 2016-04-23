@@ -100,7 +100,7 @@ class ICE(object):
             @functools.wraps(fn_being_decorated)
             def wrapped_fn(self, *args, **kwargs):
                 if not hasattr(self, "minor"):
-                    raise self.ICE_Error, "ICE must be connected first"
+                    raise self.ICE_Error, "ICE must be connected first ({})".format(fn_being_decorated)
                 major, minor = map(int, version.split('.'))
                 if major != 0:
                     raise self.ICE_Error, "Major version bump?"
@@ -214,10 +214,11 @@ class ICE(object):
 
     def spawn_handler(self, msg_type, event_id, length, msg):
         try:
-            t = threading.Thread(target=self.msg_handler[msg_type],
-                    args=(msg_type, event_id, length, msg))
-            t.daemon = True
-            t.start()
+            self.msg_handler[msg_type](msg_type, event_id, length, msg)
+            #t = threading.Thread(target=self.msg_handler[msg_type],
+            #        args=(msg_type, event_id, length, msg))
+            #t.daemon = True
+            #t.start()
         except KeyError:
             logger.warn("WARNING: No handler registered for message type: " +
                     str(msg_type))
@@ -252,7 +253,9 @@ class ICE(object):
             msg_type = ord(msg_type)
             event_id = ord(event_id)
             length = ord(length)
+            #print("Got msg type", msg_type, chr(msg_type), length)
             msg = self.useful_read(length)
+            #print(msg.encode('hex'))
 
             if event_id == self.last_event_id:
                 logger.warn("WARNING: Duplicate event_id! THIS IS A BUG [somewhere]!!")
