@@ -170,7 +170,7 @@ class ICE(object):
         self.B_lock = threading.Lock()
         self.B_frag = ''
         self.msg_handler['B'] = self.B_defragger
-        self.B_formatter_success_only = True
+        self.B_formatter_success_only = False
         self.msg_handler['B+'] = self.B_formatter
         self.msg_handler['b+'] = self.b_formatter
 
@@ -421,7 +421,7 @@ class ICE(object):
             Bpp_callback(address, data)
 
         If the second form is used, the member variable
-        "B_formatter_success_only" (default True) controls whether all messages
+        "B_formatter_success_only" (default False) controls whether all messages
         are forwarded or only messages that were ACK'd.
 
         This function may be safely overridden.
@@ -432,7 +432,7 @@ class ICE(object):
         # status_bits <= `SD status_bits | {4'b0000, mbus_rxfail, mbus_rxbcast, ice_export_control_bits};
         cb0 = bool(cb & 0x1)
         cb1 = bool(cb & 0x2)
-        success = cb0 & (~cb1)
+        success = cb0 & (~cb1) # XXX Something is wrong here [also fix default]
         try:
             self.msg_handler[b_type](addr, data, cb0, cb1)
         except TypeError:
