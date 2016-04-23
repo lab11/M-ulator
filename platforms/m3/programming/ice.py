@@ -606,7 +606,7 @@ class ICE(object):
 
     @min_proto_version("0.2")
     @capability('_')
-    def ice_set_baudrate(self, div):
+    def ice_set_baudrate(self, div, baudrate):
         '''
         Sets a new baud rate for the ICE bridge.
 
@@ -614,48 +614,48 @@ class ICE(object):
         '''
         self.min_version(0.2)
         self.send_message_until_acked('_', struct.pack("!BH", ord('b'), div))
+        try:
+            self.dev.baudrate = baudrate
+        except IOError as e:
+            if e.errno == 25:
+                logger.warn("Failed to set baud rate (if socat, ignore)")
+            else:
+                raise
 
     @min_proto_version("0.2")
     @capability('_')
     def ice_set_baudrate_to_115200(self):
-        self.ice_set_baudrate(0x00AE)
-        self.dev.baudrate = 115200
+        self.ice_set_baudrate(0x00AE, 115200)
 
     @min_proto_version("0.2")
     @capability('_')
     def ice_set_baudrate_to_230400(self):
-        self.ice_set_baudrate(0x00AE/2)
-        self.dev.baudrate = 115200*2
+        self.ice_set_baudrate(0x00AE/2, 115200*2)
 
     @min_proto_version("0.2")
     @capability('_')
     def ice_set_baudrate_to_460800(self):
-        self.ice_set_baudrate(0x00AE/4)
-        self.dev.baudrate = 115200*4
+        self.ice_set_baudrate(0x00AE/4, 115200*4)
 
     @min_proto_version("0.2")
     @capability('_')
     def ice_set_baudrate_to_921600(self):
-        self.ice_set_baudrate(0x00AE/8)
-        self.dev.baudrate = 115200*8
+        self.ice_set_baudrate(0x00AE/8, 115200*8)
 
     @min_proto_version("0.2")
     @capability('_')
     def ice_set_baudrate_to_1843200(self):
-        self.ice_set_baudrate(0x00AE/16)
-        self.dev.baudrate = 115200*16
+        self.ice_set_baudrate(0x00AE/16, 115200*16)
 
     @min_proto_version("0.2")
     @capability('_')
     def ice_set_baudrate_to_2000000(self):
-        self.ice_set_baudrate(0x000A)
-        self.dev.baudrate = 2000000
+        self.ice_set_baudrate(0x000A, 2000000)
 
     @min_proto_version("0.2")
     @capability('_')
     def ice_set_baudrate_to_3_megabaud(self):
-        self.ice_set_baudrate(0x0007)
-        self.dev.baudrate = 3000000
+        self.ice_set_baudrate(0x0007, 3000000)
 
     ## GOC VS EIN HANDLING ##
     def set_goc_ein(self, goc=0, ein=0, restore_clock_freq=True):
