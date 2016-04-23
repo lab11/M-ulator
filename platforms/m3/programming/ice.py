@@ -432,6 +432,7 @@ class ICE(object):
         # status_bits <= `SD status_bits | {4'b0000, mbus_rxfail, mbus_rxbcast, ice_export_control_bits};
         cb0 = bool(cb & 0x1)
         cb1 = bool(cb & 0x2)
+        success = cb0 & (~cb1)
         try:
             self.msg_handler[b_type](addr, data, cb0, cb1)
         except TypeError:
