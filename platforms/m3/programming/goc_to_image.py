@@ -13,6 +13,7 @@ import Queue
 import numpy as np
 
 import pygame
+import pygame.fastevent
 from pygame.locals import *
 
 import m3_common
@@ -65,6 +66,7 @@ os.mkdir(args.output_directory)
 ################################################################################
 
 pygame.init()
+pygame.fastevent.init()
 
 option_divider_height = 2 * args.scale
 option_text_height = 20 * args.scale
@@ -156,17 +158,16 @@ def get_addr17_msg_file():
 serial_queue = Queue.Queue()
 def get_addr17_msg_serial():
     while True:
-        try:
-            addr, data = serial_queue.get_nowait()
-            if addr in args.address:
-                yield data
-        except Queue.Empty:
-            break
+        addr, data = serial_queue.get()
+        addr = int(addr.encode('hex'), 16)
+        if addr in args.address:
+            data = list(map(ord, data))
+            yield data
+        else:
+            logger.debug("bad addr {:x}".format(addr))
 
-def Bpp_callback(self, address, data, cb0, cb1):
+def Bpp_callback(address, data):
     serial_queue.put((address, data))
-    event = pygame.event.Event(pygame.USEREVENT)
-    pygame.event.post(event)
 
 class preparsed_snooper(m3_common.mbus_snooper):
     def __init__(self, args, *pyargs, **kwargs):
@@ -196,21 +197,20 @@ def is_motion_detect_msg(m):
         if not is_end_of_image_msg(m):
             return True
 
-def get_image_g():
+def get_image_g(data_generator):
     class UnexpectedAddressException(Exception):
         pass
 
-    g = get_addr17_msg()
     while True:
         data = np.zeros((args.pixels,args.pixels), int)
         end_of_image = False
 
         # Grab an image
         for row in xrange(args.pixels):
-            r = g.next()
+            r = data_generator.next()
             while is_motion_detect_msg(r):
                 print "Skipping motion detect message"
-                r = g.next()
+                r = data_generator.next()
             if is_end_of_image_msg(r):
                 print "Unexpected end-of-image. Expecting row", row + 1
                 print "Returning partial image"
@@ -223,7 +223,7 @@ def get_image_g():
                 data[row][p] = r[p] + 1
 
         while not end_of_image:
-            m = g.next()
+            m = data_generator.next()
             if is_end_of_image_msg(m):
                 break
             print "Expected end-of-image. Got message of length:", len(m)
@@ -265,16 +265,40 @@ def correct_endianish_thing(data, array):
                     rgb = gocSurfaceObj.map_rgb(RED)
                 array[rowbase+rowi][col] = rgb
 
+
+images_q = Queue.Queue()
+
+def get_images():
+    if args.file:
+        print("Processing static file")
+        images_g = get_image_g(get_addr17_msg_file())
+        for img in images_g:
+            images_q.put(img)
+        print("Done reading file")
+        event = pygame.event.Event(pygame.USEREVENT)
+        pygame.fastevent.post(event)
+    elif args.serial:
+        images_g = get_image_g(get_addr17_msg_serial())
+        for img in images_g:
+            print("GOT IMAGE")
+            images_q.put(img)
+            event = pygame.event.Event(pygame.USEREVENT)
+            pygame.fastevent.post(event)
+        print("ERR: Should never get here [serial image_g terminated]")
+
+get_images_thread = threading.Thread(target=get_images)
+get_images_thread.daemon = True
+get_images_thread.start()
+
 images = []
-images_g = None
 def get_image_idx(idx):
-    global images_g
     global images
-    if images_g == None:
-        images_g = get_image_g()
-    while idx >= len(images):
-        print "Searching data file for idx", idx
-        images.append(images_g.next())
+    while True:
+        try:
+            img = images_q.get_nowait()
+            images.append(img)
+        except Queue.Empty:
+            break
     return images[idx]
 
 ################################################################################
@@ -305,11 +329,14 @@ def save_image(filename):
     print 'Image saved to', filename
 
 def save_image_hack():
-    save_image("capture%02d.jpeg" % (current_idx))
-    fname = "capture%02d.csv" % (current_idx)
-    ofile = csv.writer(open(fname, 'w'), dialect='excel')
+    imgname = "capture%02d.jpeg" % (current_idx)
+    imgname = os.path.join(args.output_directory, imgname)
+    save_image(imgname)
+    csvname = "capture%02d.csv" % (current_idx)
+    csvname = os.path.join(args.output_directory, csvname)
+    ofile = csv.writer(open(csvname, 'w'), dialect='excel')
     ofile.writerows(get_image_idx(current_idx))
-    print 'Image saved to', fname
+    print 'CSV of image saved to', csvname
 options['save'].on_click = save_image_hack
 
 def advance_image():
@@ -317,9 +344,10 @@ def advance_image():
     current_idx += 1
     try:
         render_image_idx(current_idx)
-    except StopIteration:
+        save_image_hack()
+    except IndexError:
         current_idx -= 1
-        print "At last image in file. Display left at image", current_idx
+        print "At last image. Display left at image", current_idx
         print
 options['next'].on_click = advance_image
 
@@ -337,33 +365,34 @@ current_idx = -1
 advance_image()
 
 while True:
-    for event in pygame.event.get():
-        if event.type == QUIT:
+    event = pygame.event.wait()
+
+    if event.type == QUIT:
+        quit()
+
+    if event.type == MOUSEBUTTONUP:
+        for option in options.values():
+            if option.rect.collidepoint(pygame.mouse.get_pos()):
+                option.onClick()
+
+    if event.type == MOUSEMOTION:
+        for option in options.values():
+            if option.rect.collidepoint(pygame.mouse.get_pos()):
+                option.hovered = True
+            else:
+                option.hovered = False
+            option.draw()
+
+    if event.type == KEYUP:
+        if event.key == K_RIGHT:
+            advance_image()
+        elif event.key == K_LEFT:
+            rewind_image()
+        elif event.key == K_RETURN:
+            save_image_hack()
+        elif event.key == K_ESCAPE:
             quit()
 
-        if event.type == MOUSEBUTTONUP:
-            for option in options.values():
-                if option.rect.collidepoint(pygame.mouse.get_pos()):
-                    option.onClick()
-
-        if event.type == MOUSEMOTION:
-            for option in options.values():
-                if option.rect.collidepoint(pygame.mouse.get_pos()):
-                    option.hovered = True
-                else:
-                    option.hovered = False
-                option.draw()
-
-        if event.type == KEYUP:
-            if event.key == K_RIGHT:
-                advance_image()
-            elif event.key == K_LEFT:
-                rewind_image()
-            elif event.key == K_RETURN:
-                save_image_hack()
-            elif event.key == K_ESCAPE:
-                quit()
-
-        if event.type == USEREVENT:
-            advance_image()
+    if event.type == USEREVENT:
+        advance_image()
 
