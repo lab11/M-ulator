@@ -246,6 +246,10 @@ def replay_message_thread():
         assert mbus_snoop_enabled
 
         ts,addr,data = line.strip().split(',')
+        if len(addr) == 2:
+            addr = '000000' + addr
+        else:
+            assert len(addr) == 8
         ts = float(ts)
 
         if last_ts is not None:
