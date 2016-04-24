@@ -66,7 +66,6 @@ os.mkdir(args.output_directory)
 ################################################################################
 
 pygame.init()
-pygame.fastevent.init()
 
 option_divider_height = 2 * args.scale
 option_text_height = 20 * args.scale
@@ -86,6 +85,10 @@ BLACK = pygame.Color(  0,   0,   0)
 
 colors = [pygame.Color(x,x,x) for x in xrange(256)]
 colors.insert(0, RED)
+
+# http://stackoverflow.com/questions/17202232/even-with-pygame-initialized-video-system-not-initialized-gets-thrown
+# possible cygwin fix?
+pygame.fastevent.init()
 
 class Option(object):
     hovered = False
