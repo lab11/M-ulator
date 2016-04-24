@@ -578,7 +578,7 @@ class mbus_snooper(m3_common):
         self.ice.mbus_set_internal_reset(True)
         self.ice.mbus_set_master_onoff(False)
         self.ice.mbus_set_snoop(True) #XXX False? Seems to work? Bug?
-        self.ice.mbus_set_short_prefix("0111")
+        self.ice.mbus_set_short_prefix("0001")
         self.ice.mbus_set_internal_reset(False)
 
     def add_parse_args(self):
@@ -589,4 +589,5 @@ class mbus_snooper(m3_common):
 
     def install_handler(self):
         self.ice.msg_handler['B++'] = self.Bpp_callback
+        self.ice.msg_handler['b++'] = self.Bpp_callback
 

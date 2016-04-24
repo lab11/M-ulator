@@ -42,7 +42,7 @@ parser.add_argument('-o', '--output-directory',
 
 parser.add_argument('-p', '--pixels', type=int, default=160,
 		help="Number of pixels in a single row of the image")
-parser.add_argument('-m', '--multiplier', type=float, default=1.2,
+parser.add_argument('-m', '--multiplier', type=float, default=1.0,
 		help="Multiple each raw pixel value by this amount")
 parser.add_argument('-l', '--scale', type=int, default=4,
 		help="Multiplier to scale the image")
@@ -262,8 +262,13 @@ def correct_endianish_thing(data, array):
                 val = int(val * args.multiplier)
                 if (val):
                     val -= 1
-                    color = pygame.Color(val, val, val)
-                    rgb = gocSurfaceObj.map_rgb(color)
+                    try:
+                        color = pygame.Color(val, val, val)
+                        rgb = gocSurfaceObj.map_rgb(color)
+                    except:
+                        print("val problem")
+                        print(val)
+                        raise
                 else:
                     rgb = gocSurfaceObj.map_rgb(RED)
                 array[rowbase+rowi][col] = rgb

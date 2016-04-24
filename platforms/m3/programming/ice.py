@@ -442,14 +442,9 @@ class ICE(object):
         success = cb0 & (~cb1) # XXX Something is wrong here [also fix default]
         try:
             handler = self.msg_handler[b_type]
-        except TypeError:
-            logger.debug("Type error")
-            if not self.B_formatter_success_only or (success):
-                self.msg_handler[b_type](addr, data)
-            else:
-                logger.debug("no call")
         except KeyError:
             logger.warn("All registered handlers: {}".format(self.msg_handler))
+            logger.warn("Looking up key >>{}<<".format(b_type))
             try:
                 logger.warn("No handler registered for B++ (formatted, snooped MBus) messages")
                 logger.warn("Dropping message:")
@@ -462,7 +457,13 @@ class ICE(object):
                 logger.warn(str(e))
                 logger.warn("Suppressed.")
             return
-        handler(addr, data, cb0, cb1)
+        #except TypeError:
+        #    logger.debug("Type error")
+        #    if not self.B_formatter_success_only or (success):
+        #        self.msg_handler[b_type](addr, data)
+        #    else:
+        #        logger.debug("no call")
+        handler(addr, data)
 
 
     def send_message(self, msg_type, msg='', length=None):

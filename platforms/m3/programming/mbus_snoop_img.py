@@ -66,7 +66,7 @@ m.ice.mbus_set_snoop(False)
 
 #isp = m.default_value("ICE address", "0111")
 #m.ice.mbus_set_short_prefix(isp)
-m.ice.mbus_set_short_prefix("0111")
+m.ice.mbus_set_short_prefix("0001")
 
 #raw_input("Pausing in reset...")
 
