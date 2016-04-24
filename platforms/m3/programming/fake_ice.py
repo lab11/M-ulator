@@ -240,7 +240,6 @@ def replay_message_thread():
     logger.info("Replay thread waiting for snoop to be enabled")
     s_en_event.wait()
     logger.info("Replay beginning")
-    real_sleep(.1)
     last_ts = None
     for line in open(args.replay):
         assert mbus_snoop_enabled
