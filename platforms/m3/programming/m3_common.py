@@ -571,6 +571,7 @@ class mbus_snooper(m3_common):
     def __init__(self, callback, snoop_prefix="0111"):
         self.Bpp_callback = callback
         super(mbus_snooper,self).__init__()
+        self.ice.msg_handler['B++'] = self.Bpp_callback
 
         self.ice.ice_set_baudrate_to_2000000()
         self.power_on(wait_for_rails_to_settle=False)
@@ -588,5 +589,5 @@ class mbus_snooper(m3_common):
         pass
 
     def install_handler(self):
-        self.ice.msg_handler['B++'] = self.Bpp_callback
+        pass
 
