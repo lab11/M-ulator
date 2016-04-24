@@ -37,7 +37,7 @@ parser.add_argument('-a', '--address',
 		help="MBus address(es) image data is sent to")
 
 parser.add_argument('-o', '--output-directory',
-		default='goc-img-'+time.strftime('%Y-%m-%d--%H:%M:%S'),
+		default='goc-img-'+time.strftime('%Y-%m-%d--%H-%M-%S'),
 		help="Save images into this directory")
 
 parser.add_argument('-p', '--pixels', type=int, default=160,
