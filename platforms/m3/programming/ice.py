@@ -447,6 +447,7 @@ class ICE(object):
             else:
                 logger.debug("no call")
         except KeyError:
+            logger.warn("All registered handlers: {}".format(self.msg_handler))
             try:
                 logger.warn("No handler registered for B++ (formatted, snooped MBus) messages")
                 logger.warn("Dropping message:")
