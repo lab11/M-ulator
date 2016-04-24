@@ -214,7 +214,7 @@ class ICE(object):
 
     def spawn_handler(self, msg_type, event_id, length, msg):
         try:
-            self.msg_handler[msg_type](msg_type, event_id, length, msg)
+            handler = self.msg_handler[msg_type]
             #t = threading.Thread(target=self.msg_handler[msg_type],
             #        args=(msg_type, event_id, length, msg))
             #t.daemon = True
@@ -236,6 +236,8 @@ class ICE(object):
                 logger.warn("Unhandled exception trying to report unknown message.")
                 logger.warn(str(e))
                 logger.warn("Suppressed.")
+            return
+        handler(msg_type, event_id, length, msg)
 
     def useful_read(self, length):
         b = self.dev.read(length)
@@ -439,7 +441,7 @@ class ICE(object):
         cb1 = bool(cb & 0x2)
         success = cb0 & (~cb1) # XXX Something is wrong here [also fix default]
         try:
-            self.msg_handler[b_type](addr, data, cb0, cb1)
+            handler = self.msg_handler[b_type]
         except TypeError:
             logger.debug("Type error")
             if not self.B_formatter_success_only or (success):
@@ -459,6 +461,8 @@ class ICE(object):
                 logger.warn("Unhandled exception trying to report missing B++ handler.")
                 logger.warn(str(e))
                 logger.warn("Suppressed.")
+            return
+        handler(addr, data, cb0, cb1)
 
 
     def send_message(self, msg_type, msg='', length=None):
