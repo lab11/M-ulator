@@ -220,17 +220,22 @@ class ICE(object):
             #t.daemon = True
             #t.start()
         except KeyError:
-            logger.warn("WARNING: No handler registered for message type: " +
-                    str(msg_type))
-            logger.warn("Known Types:")
-            for t,f in self.msg_handler.iteritems():
-                logger.warn("%s\t%s" % (t, str(f)))
-            logger.warn("         Dropping packet:")
-            logger.warn("")
-            logger.warn("    Type: %s" % (msg_type))
-            logger.warn("Event ID: %d" % (event_id))
-            logger.warn("  Length: %d" % (length))
-            logger.warn(" Message:" + msg.encode('hex'))
+            try:
+                logger.warn("WARNING: No handler registered for message type: " +
+                        str(msg_type))
+                logger.warn("Known Types:")
+                for t,f in self.msg_handler.iteritems():
+                    logger.warn("%s\t%s" % (t, str(f)))
+                logger.warn("         Dropping packet:")
+                logger.warn("")
+                logger.warn("    Type: %s" % (msg_type))
+                logger.warn("Event ID: %d" % (event_id))
+                logger.warn("  Length: %d" % (length))
+                logger.warn(" Message:" + msg.encode('hex'))
+            except Exception as e:
+                logger.warn("Unhandled exception trying to report unknown message.")
+                logger.warn(str(e))
+                logger.warn("Suppressed.")
 
     def useful_read(self, length):
         b = self.dev.read(length)
@@ -442,12 +447,17 @@ class ICE(object):
             else:
                 logger.debug("no call")
         except KeyError:
-            logger.warn("No handler registered for B++ (formatted, snooped MBus) messages")
-            logger.warn("Dropping message:")
-            logger.warn("\taddr: " + addr.decode('hex'))
-            logger.warn("\tdata: " + data.decode('hex'))
-            logger.warn("\tstat: " + cb.decode('hex'))
-            logger.warn("")
+            try:
+                logger.warn("No handler registered for B++ (formatted, snooped MBus) messages")
+                logger.warn("Dropping message:")
+                logger.warn("\taddr: " + addr.decode('hex'))
+                logger.warn("\tdata: " + data.decode('hex'))
+                logger.warn("\tstat: " + cb.decode('hex'))
+                logger.warn("")
+            except Exception as e:
+                logger.warn("Unhandled exception trying to report missing B++ handler.")
+                logger.warn(str(e))
+                logger.warn("Suppressed.")
 
 
     def send_message(self, msg_type, msg='', length=None):
