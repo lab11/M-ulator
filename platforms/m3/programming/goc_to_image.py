@@ -50,7 +50,7 @@ parser.add_argument('-l', '--scale', type=int, default=4,
 
 parser.add_argument('-H', '--hot-pixel-map', default=None,
 		help="Dark image with a few 'hot' pixels to remove and average with neighbors")
-parser.add_argument('--hot-pixel-threshold', type=int, default=100,
+parser.add_argument('--hot-pixel-threshold', type=int, default=25,
 		help="Pixels at or above this value will be considered hot")
 
 args = parser.parse_args()

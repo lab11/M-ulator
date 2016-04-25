@@ -16,10 +16,10 @@
 //#define SNS_ADDR 0x4           //SNSv1 Short Address
 
 #define MBUS_DELAY 100
-#define WAKEUP_DELAY 2000 // 20s
+#define WAKEUP_DELAY 5000 // 20s
 #define DELAY_1 10000 // 1s
 #define DELAY_0P5 5000
-#define DELAY_IMG 30000 // 1s
+#define DELAY_IMG 20000 // 1s
 
 #define START_COL_IDX 0 // in words
 #define COLS_TO_READ 39 // in # of words: 39 for full frame, 19 for half
@@ -256,7 +256,7 @@ static void clear_md_flag(){
   // 0:2
   mdv3_r0.STOP_MD = 1;
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
-  delay(MBUS_DELAY*2); // need ~10ms
+  delay(MBUS_DELAY*4); // need ~10ms
 
   mdv3_r0.STOP_MD = 0;
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
@@ -266,7 +266,7 @@ static void clear_md_flag(){
   // 1:4
   mdv3_r1.MD_TH_CLEAR = 1;
   write_mbus_register(MD_ADDR,0x1,mdv3_r1.as_int);
-  delay(MBUS_DELAY*2); // need ~10ms
+  delay(MBUS_DELAY*4); // need ~10ms
   
   mdv3_r1.MD_TH_CLEAR = 0;
   write_mbus_register(MD_ADDR,0x1,mdv3_r1.as_int);
@@ -294,12 +294,6 @@ static void poweron_array_adc(){
   write_mbus_register(MD_ADDR,0x2,mdv3_r2.as_int);
   delay(WAKEUP_DELAY);
 
-  // Release ADC Isolation
-  // 7:17
-  mdv3_r7.ISOLATE_ADC_WRAPPER = 0;
-  write_mbus_register(MD_ADDR,0x7,mdv3_r7.as_int);
-  delay (MBUS_DELAY);
-
   // Release ADC Wrapper Reset
   // 6:0
   mdv3_r6.RESET_ADC_WRAPPER = 0;
@@ -311,6 +305,13 @@ static void poweron_array_adc(){
   mdv3_r5.CLK_EN_ADC = 1;
   write_mbus_register(MD_ADDR,0x5,mdv3_r5.as_int);
   delay (MBUS_DELAY);
+
+  // New in v3
+  // Release ADC Isolation
+  // 7:17
+  //mdv3_r7.ISOLATE_ADC_WRAPPER = 0;
+  //write_mbus_register(MD_ADDR,0x7,mdv3_r7.as_int);
+  //delay (MBUS_DELAY);
 
 }
 
@@ -352,10 +353,17 @@ static void capture_image_single(){
   // 0:0
   mdv3_r0.TAKE_IMAGE = 1;
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
-  delay(MBUS_DELAY*2);
+  delay(MBUS_DELAY*4);
 
   mdv3_r0.TAKE_IMAGE = 0;
   write_mbus_register(MD_ADDR,0x0,mdv3_r0.as_int);
+
+  // New in v3
+  // Release ADC Isolation
+  // 7:17
+  mdv3_r7.ISOLATE_ADC_WRAPPER = 0;
+  write_mbus_register(MD_ADDR,0x7,mdv3_r7.as_int);
+  delay (MBUS_DELAY);
 
   delay(DELAY_IMG); 
 
@@ -443,7 +451,7 @@ int main() {
 		// Change PMU_CTRL Register
 		// PRCv9 Default: 0x8F770049
 		//*((volatile uint32_t *) 0xA200000C) = 0x8F770079;
-		*((volatile uint32_t *) 0xA200000C) = 0x4F772879; // works without any override!
+		*((volatile uint32_t *) 0xA200000C) = 0x8F772879; // works without any override!
 	  
 		delay(DELAY_1);
 	  
@@ -479,9 +487,11 @@ int main() {
 
 	// Capture 3 images
 	poweron_array_adc();
+	delay(MBUS_DELAY*20);
 	capture_image_single();
 	capture_image_single();
 	capture_image_single();
+
 	poweroff_array_adc();
 
 	// Start motion detection
