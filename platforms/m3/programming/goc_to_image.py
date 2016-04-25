@@ -250,6 +250,17 @@ def get_image_g(data_generator):
                 break
             print "Expected end-of-image. Got message of length:", len(m)
 
+            # If imager sends more rows than expected, discard this earliest
+            # received rows. Works around wakeup bug.
+            data = np.roll(data, -1, axis=0)
+            for p in xrange(min(len(m), args.pixels)):
+                data[-1][p] = m[p] + 1
+            if len(m) != args.pixels:
+                print "Extra row message incorrect length: %d" % (len(m))
+                print "Zeroing remaining pixels"
+                for p in xrange(len(m), args.pixels):
+                    data[-1][p] = 0
+
         yield data
 
 def correct_endianish_thing_old(data, array):
@@ -297,6 +308,7 @@ images_q = Queue.Queue()
 
 
 def process_hot_pixels(img):
+	img = img.copy()
 	if args.hot_pixel_map is None:
 		return img
 	ret = []
@@ -319,16 +331,16 @@ def get_images():
 		print("Processing static file")
 		images_g = get_image_g(get_addr17_msg_file())
 		for img in images_g:
-			img = process_hot_pixels(img)
-			images_q.put(img)
+			hot = process_hot_pixels(img)
+			images_q.put((img, hot))
 		print("Done reading file")
 		event = pygame.event.Event(pygame.USEREVENT)
 		pygame.fastevent.post(event)
 	elif args.serial:
 		images_g = get_image_g(get_addr17_msg_serial())
 		for img in images_g:
-			img = process_hot_pixels(img)
-			images_q.put(img)
+			hot = process_hot_pixels(img)
+			images_q.put((img, hot))
 			event = pygame.event.Event(pygame.USEREVENT)
 			pygame.fastevent.post(event)
 		print("ERR: Should never get here [serial image_g terminated]")
@@ -338,12 +350,15 @@ get_images_thread.daemon = True
 get_images_thread.start()
 
 images = []
+images_raw = []
 def get_image_idx(idx):
 	global images
+	global images_raw
 	while True:
 		try:
-			img = images_q.get_nowait()
-			images.append(img)
+			raw,hot = images_q.get_nowait()
+			images_raw.append(raw)
+			images.append(hot)
 		except Queue.Empty:
 			break
 	return images[idx]
@@ -379,10 +394,17 @@ def save_image_hack():
 	imgname = "capture%02d.jpeg" % (current_idx)
 	imgname = os.path.join(args.output_directory, imgname)
 	save_image(imgname)
+
 	csvname = "capture%02d.csv" % (current_idx)
 	csvname = os.path.join(args.output_directory, csvname)
 	ofile = csv.writer(open(csvname, 'w'), dialect='excel')
 	ofile.writerows(get_image_idx(current_idx))
+
+	if args.hot_pixel_map:
+		raw_csvname = "raw_capture%02d.csv" % (current_idx)
+		raw_csvname = os.path.join(args.output_directory, raw_csvname)
+		raw_ofile = csv.writer(open(raw_csvname, 'w'), dialect='excel')
+		raw_ofile.writerows(images_raw[current_idx])
 	print 'CSV of image saved to', csvname
 options['save'].on_click = save_image_hack
 
