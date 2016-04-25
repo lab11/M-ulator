@@ -49,7 +49,7 @@ parser.add_argument('-l', '--scale', type=int, default=4,
 		help="Multiplier to scale the image")
 
 parser.add_argument('-H', '--hot-pixel-map', default=None,
-		help="Dark image with a few 'hot' pixels for motion detection")
+		help="Dark image with a few 'hot' pixels to remove and average with neighbors")
 parser.add_argument('--hot-pixel-threshold', type=int, default=100,
 		help="Pixels at or above this value will be considered hot")
 
@@ -298,18 +298,20 @@ images_q = Queue.Queue()
 
 def process_hot_pixels(img):
 	if args.hot_pixel_map is None:
-		return None
+		return img
 	ret = []
 	for hp in hot_pixel_list:
 		neighbors = []
 		for i in (-1,0,1):
 			for j in (-1, 0, 1):
+				if i == j == 0:
+					continue
 				try:
 					neighbors.append(img[hp[0]+i,hp[1]+j])
 				except IndexError:
 					pass
-		ret.append((hp, np.mean(neighbors)))
-	return ret
+		img[hp[0], hp[1]] = np.mean(neighbors)
+	return img
 
 
 def get_images():
@@ -317,16 +319,16 @@ def get_images():
 		print("Processing static file")
 		images_g = get_image_g(get_addr17_msg_file())
 		for img in images_g:
-			hot = process_hot_pixels(img)
-			images_q.put((img, hot))
+			img = process_hot_pixels(img)
+			images_q.put(img)
 		print("Done reading file")
 		event = pygame.event.Event(pygame.USEREVENT)
 		pygame.fastevent.post(event)
 	elif args.serial:
 		images_g = get_image_g(get_addr17_msg_serial())
 		for img in images_g:
-			hot = process_hot_pixels(img)
-			images_q.put((img, hot))
+			img = process_hot_pixels(img)
+			images_q.put(img)
 			event = pygame.event.Event(pygame.USEREVENT)
 			pygame.fastevent.post(event)
 		print("ERR: Should never get here [serial image_g terminated]")
@@ -336,15 +338,12 @@ get_images_thread.daemon = True
 get_images_thread.start()
 
 images = []
-images_hot = []
 def get_image_idx(idx):
 	global images
-	global images_hot
 	while True:
 		try:
-			img,hot = images_q.get_nowait()
+			img = images_q.get_nowait()
 			images.append(img)
-			images_hot.append(hot)
 		except Queue.Empty:
 			break
 	return images[idx]
@@ -377,12 +376,6 @@ def save_image(filename):
     print 'Image saved to', filename
 
 def save_image_hack():
-	if args.hot_pixel_map:
-		hotname = "hotpixels%02d.txt" % (current_idx)
-		hotname = os.path.join(args.output_directory, hotname)
-		with open(hotname, 'w') as h:
-			for px in images_hot[current_idx]:
-				h.write('{}\t{}\n'.format(px[0], px[1]))
 	imgname = "capture%02d.jpeg" % (current_idx)
 	imgname = os.path.join(args.output_directory, imgname)
 	save_image(imgname)
