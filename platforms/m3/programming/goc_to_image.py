@@ -250,6 +250,17 @@ def get_image_g(data_generator):
                 break
             print "Expected end-of-image. Got message of length:", len(m)
 
+            # If imager sends more rows than expected, discard this earliest
+            # received rows. Works around wakeup bug.
+            data = np.roll(data, -1, axis=0)
+            for p in xrange(min(len(m), args.pixels)):
+                data[-1][p] = m[p] + 1
+            if len(m) != args.pixels:
+                print "Extra row message incorrect length: %d" % (len(m))
+                print "Zeroing remaining pixels"
+                for p in xrange(len(m), args.pixels):
+                    data[-1][p] = 0
+
         yield data
 
 def correct_endianish_thing_old(data, array):
