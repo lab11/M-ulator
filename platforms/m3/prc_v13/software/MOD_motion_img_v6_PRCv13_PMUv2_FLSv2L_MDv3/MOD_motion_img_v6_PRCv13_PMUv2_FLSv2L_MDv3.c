@@ -1244,7 +1244,7 @@ static void operation_init(void){
 	// Voltage Clamp & Timing settings
 	mbus_remote_register_write(FLS_ADDR, 0x0, 0x41205); // Tprog
 	mbus_remote_register_write(FLS_ADDR, 0x2, 0x3FFFF); // Terase; default: 0x0752F
-	mbus_remote_register_write(FLS_ADDR, 0x4, 0x000600); // Tcyc_prog
+	mbus_remote_register_write(FLS_ADDR, 0x4, 0x000700); // Tcyc_prog
 	mbus_remote_register_write(FLS_ADDR, 0x19, 0x3C4303); // Default: 0x3C4103
 
 	md_start_motion = 0;
