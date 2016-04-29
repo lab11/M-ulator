@@ -292,13 +292,11 @@ def correct_endianish_thing(data, array):
                 val = int(val * args.multiplier)
                 if (val):
                     val -= 1
-                    try:
-                        color = pygame.Color(val, val, val)
-                        rgb = gocSurfaceObj.map_rgb(color)
-                    except:
-                        print("val problem")
-                        print(val)
-                        raise
+                    if val > 255:
+                        logger.warn("Pixel value > 255, capping at 255")
+                        val = 255
+                    color = pygame.Color(val, val, val)
+                    rgb = gocSurfaceObj.map_rgb(color)
                 else:
                     rgb = gocSurfaceObj.map_rgb(RED)
                 array[rowbase+rowi][col] = rgb
