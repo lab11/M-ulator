@@ -36,6 +36,10 @@ void mbus_sleep_all(void) {
     mbus_write_message32(MBUS_POWER, MBUS_ALL_SLEEP << 28);
 }
 
+void mbus_sleep_layer_short(uint8_t addr) {
+	mbus_write_message32(0x01, (0x2<<28) + (0x1<<(addr+12)));
+}
+
 void mbus_copy_registers_from_local_to_remote(
 		uint8_t remote_prefix,
 		uint8_t remote_reg_start,
@@ -170,4 +174,14 @@ void mbus_copy_mem_from_remote_to_any_stream (
 		(uint32_t) source_memory_address,
 	};
 	mbus_write_message(((source_prefix << 4 ) | MPQ_MEM_READ), payload, 2);
+}
+
+void* memset(void *s, uint32_t c, uint32_t len) {
+    unsigned char *dst = s;
+    while (len > 0) {
+        *dst = (unsigned char) c;
+        dst++;
+        len--;
+    }
+    return s;
 }

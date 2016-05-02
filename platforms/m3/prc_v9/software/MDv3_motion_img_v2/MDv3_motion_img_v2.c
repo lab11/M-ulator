@@ -86,8 +86,8 @@ static void initialize_md_reg(){
 	mdv3_r8 = MDv3_R8_DEFAULT;
 	mdv3_r9 = MDv3_R9_DEFAULT;
 */
-	mdv3_r0.INT_TIME = 25;
-	mdv3_r0.MD_INT_TIME = 12;
+	mdv3_r0.INT_TIME = 30;
+	mdv3_r0.MD_INT_TIME = 15;
 	mdv3_r1.MD_TH = 2;
 	mdv3_r1.MD_LOWRES = 0;
 	mdv3_r1.MD_LOWRES_B = 1;
@@ -456,6 +456,9 @@ int main() {
 		
 		delay(DELAY_1);
 
+		// Initialize MD
+		initialize_md_reg();
+
 	} // if first_exec
 
 	//delay(0x10000); // about 3s
@@ -464,7 +467,7 @@ int main() {
 	clear_md_flag();
 
 	// Initialize
-	initialize_md_reg();
+	//initialize_md_reg();
 
 	// Release power gates, isolation, and reset for frame controller
 	if (first_exec){

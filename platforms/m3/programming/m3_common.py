@@ -285,7 +285,7 @@ class m3_common(object):
         return m3_common.build_injection_message_for_goc_v2(
                 hexencoded_data=hexencoded,
                 run_after=run_after,
-                memory_address=0x1A00,
+                memory_address=0x1E00,
                 )
 
     def __init__(self):
@@ -563,3 +563,31 @@ class goc_programmer(m3_common):
     def DMA_start_interrupt(self):
         logger.info("Sending 0x88 0x00000000")
         self.send("88".decode('hex'), "00000000".decode('hex'))
+
+
+class mbus_snooper(m3_common):
+    TITLE = "MBus Snooper"
+
+    def __init__(self, callback, snoop_prefix="0111"):
+        self.Bpp_callback = callback
+        super(mbus_snooper,self).__init__()
+
+        self.ice.ice_set_baudrate_to_2000000()
+        self.power_on(wait_for_rails_to_settle=False)
+
+        self.ice.mbus_set_internal_reset(True)
+        self.ice.mbus_set_master_onoff(False)
+        self.ice.mbus_set_snoop(True) #XXX False? Seems to work? Bug?
+        self.ice.mbus_set_short_prefix("0001")
+        self.ice.mbus_set_internal_reset(False)
+
+    def add_parse_args(self):
+        super(mbus_snooper, self).add_parse_args(require_binfile=False)
+
+    def read_binfile(self):
+        pass
+
+    def install_handler(self):
+        self.ice.msg_handler['B++'] = self.Bpp_callback
+        self.ice.msg_handler['b++'] = self.Bpp_callback
+
