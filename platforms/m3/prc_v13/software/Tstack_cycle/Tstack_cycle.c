@@ -10,19 +10,20 @@
 #include "RADv9.h"
 #include "PMUv2_RF.h"
 
-// Stack order  PRC->RAD->SNS->HRV->PMU
-#define RAD_ADDR 0x4
-#define SNS_ADDR 0x5
-#define HRV_ADDR 0x6
-#define PMU_ADDR 0x7
+// TStack order  PRC->HAV->SNS->RAD->PMU
+#define HRV_ADDR 0x3
+#define SNS_ADDR 0x4
+#define RAD_ADDR 0x5
+#define PMU_ADDR 0x6
 
-#define MBUS_DELAY	10
+#define MBUS_DELAY	100
 
 //********************************************************************
 // Global Variables
 //********************************************************************
 volatile uint32_t enumerated;
 volatile uint32_t cyc_num;
+volatile uint32_t wakeup_period;
 
 //*******************************************************************
 // INTERRUPT HANDLERS
@@ -67,6 +68,7 @@ void initialization (void) {
 
     enumerated = 0xDEADBEEF;
     cyc_num = 0;
+	wakeup_period = 2;
 
 	// Clock Speed (By default, CLK_CORE is 2x slower than CLK_MBC)
 //	*REG_CLKGEN_TUNE = 	  (0x0 << 19) // CLK_GEN_HIGH_FREQ
@@ -83,21 +85,27 @@ void initialization (void) {
 
 
     // Set CPU Halt Option as RX --> Use for register read e.g.
-    set_halt_until_mbus_rx();
+//    set_halt_until_mbus_rx();
 
     // Enumeration
-    mbus_enumerate(RAD_ADDR);
-    mbus_enumerate(SNS_ADDR);
+	delay(MBUS_DELAY);
     mbus_enumerate(HRV_ADDR);
+	delay(MBUS_DELAY);
+    mbus_enumerate(SNS_ADDR);
+	delay(MBUS_DELAY);
+    mbus_enumerate(RAD_ADDR);
+	delay(MBUS_DELAY);
  	mbus_enumerate(PMU_ADDR);
+	delay(MBUS_DELAY);
 
-    // Set CPU Halt Option as TX --> Use for register write e.g.
-    set_halt_until_mbus_tx();
+	// Set CPU Halt OptioV as TX --> Use for register write e.g.
+//   set_halt_until_mbus_tx();
 
 
 	// Change PMU Setting (each msg will get a response from PMU, so use set_halt_until_mbus_rx);
-
-
+	
+	// dummy
+	delay(MBUS_DELAY);
 	// Set PMU settings
 	// UPCONV_TRIM_V3 Sleep/Active
     mbus_remote_register_write(PMU_ADDR,0x17, 
@@ -138,9 +146,9 @@ void initialization (void) {
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (1 << 13) // Enable main feedback loop
-		| (2 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (7) 		// Floor frequency base (0-63)
+		| (1 << 9)  // Frequency multiplier R
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (6) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
     mbus_remote_register_write(PMU_ADDR,0x16, 
@@ -151,7 +159,7 @@ void initialization (void) {
 		| (1 << 13) // Enable main feedback loop
 		| (4 << 9)  // Frequency multiplier R
 		| (4 << 5)  // Frequency multiplier L (actually L+1)
-		| (16) 		// Floor frequency base (0-63)
+		| (15) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// SAR_RATIO_OVERRIDE
@@ -168,6 +176,8 @@ void initialization (void) {
     mbus_remote_register_write(PMU_ADDR,0x36,0x000001);
 	delay(MBUS_DELAY);
 
+	// Set CPU Halt OptioV as TX --> Use for register write e.g.
+//   set_halt_until_mbus_tx();
 
 	// Set PMU settings
 	// SAR_RATIO_OVERRIDE
@@ -186,7 +196,7 @@ void initialization (void) {
 
 //********************************************************************
 // MAIN function starts here             
-//********************************************************************
+//***************************************************************-*****
 
 int main() {
 
@@ -200,6 +210,8 @@ int main() {
         initialization();
     }
 
+	delay(MBUS_DELAY);
+
 	mbus_write_message32(0xE1, cyc_num);
 	delay(MBUS_DELAY);
 
@@ -209,11 +221,19 @@ int main() {
 
 	// Set wakeup timer and go to sleep
     cyc_num++;
-    set_wakeup_timer(3, 1, 1); // 500 for High Temp.
+	if (cyc_num < 5){
+		wakeup_period = 2;
+	}else if (cyc_num <50){
+		wakeup_period = 200;
+	}else{
+		wakeup_period = 15000; // 15000 in decimal-> 3min. at 125C
+	}
+
+    set_wakeup_timer(wakeup_period, 1, 1);
     mbus_sleep_all();
 
     while(1){  //Never Quit (should not come here.)
-        asm("nop;"); 
+    mbus_sleep_all();
     }
 
     return 1;
