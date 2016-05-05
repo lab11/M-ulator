@@ -87,8 +87,8 @@ static void initialize_md_reg(){
 	mdv3_r8 = MDv3_R8_DEFAULT;
 	mdv3_r9 = MDv3_R9_DEFAULT;
 */
-	mdv3_r0.INT_TIME = 50;
-	mdv3_r0.MD_INT_TIME = 25;
+	mdv3_r0.INT_TIME = 40;
+	mdv3_r0.MD_INT_TIME = 20;
 	mdv3_r1.MD_TH = 2;
 	mdv3_r1.MD_LOWRES = 0;
 	mdv3_r1.MD_LOWRES_B = 1;
