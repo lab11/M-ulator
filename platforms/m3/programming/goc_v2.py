@@ -42,8 +42,8 @@ class goc_programmer_for_mbus(goc_programmer):
         return self.ice.mbus_send(addr, data)
 
 g = goc_programmer_for_mbus()
-g.dont_do_default("Run power-on sequence", g.power_on)
-g.dont_do_default("Reset M3", g.reset_m3)
+#g.dont_do_default("Run power-on sequence", g.power_on)
+#g.dont_do_default("Reset M3", g.reset_m3)
 logger.info("** Setting ICE MBus controller to slave mode")
 g.ice.mbus_set_master_onoff(False)
 
