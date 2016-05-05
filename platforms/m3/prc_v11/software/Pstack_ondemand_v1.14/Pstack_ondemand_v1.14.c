@@ -99,7 +99,7 @@
 #define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 
-#define CDC_STORAGE_SIZE 54 // FIXME
+#define CDC_STORAGE_SIZE 48 // FIXME
 
 //***************************************************
 // Global variables
@@ -288,9 +288,7 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
     }
 	
     // Timeout
-	#ifdef DEBUG_MBUS_MSG
-		write_mbus_message(0xBB, 0xFAFAFAFA);
-	#endif
+	write_mbus_message(0xBB, 0xFAFAFAFA);
 }
 
 
@@ -639,9 +637,8 @@ static void operation_cdc_run(){
 		}
 
 		// Time out
-		#ifdef DEBUG_MBUS_MSG
-			write_mbus_message(0xAA, 0xFAFAFAFA);
-		#endif
+		write_mbus_message(0xAA, 0xFAFAFAFA);
+		delay(MBUS_DELAY);
 
 		release_cdc_meas();
 		if (cdc_reset_timeout_count > 0){
