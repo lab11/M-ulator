@@ -2,7 +2,8 @@
 //Author: Inhee Lee 
 //		  Gyouho Kim
 //Description: Temperature Sensing System
-//			   Modified from 'Pstack_Ondemand_v2.0'
+//			PRCv13, SNSv7, RADv9, PMUv2
+//			Modified from 'Pstack_Ondemand_v2.0'
 //			v1.1: Changing chip order
 //*******************************************************************
 #include "PRCv13.h"
@@ -43,12 +44,7 @@
 #define RADIO_TIMEOUT_COUNT 50
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
-// Temp Sensor configurations
-#define NUM_SAMPLES         3      //Number of temp sensor samples to take (only 2^n allowed for averaging: 2, 4, 8, 16...)
-#define NUM_SAMPLES_TX      1      //Number of temp sensor samples to be TXed (processed by process_data)
-#define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
-
-#define TEMP_STORAGE_SIZE 54 // FIXME
+#define TEMP_STORAGE_SIZE 1000 // FIXME
 
 
 //********************************************************************
@@ -57,10 +53,7 @@
 // "static" limits the variables to this file, giving compiler more freedom
 // "volatile" should only be used for MMIO --> ensures memory storage
 volatile uint32_t enumerated;
-volatile uint32_t cyc_num;
 volatile uint8_t Tstack_state;
-volatile uint32_t temp_data[NUM_SAMPLES];
-volatile uint32_t temp_data_tx[NUM_SAMPLES_TX];
 volatile uint32_t temp_reset_timeout_count;
 volatile uint32_t exec_count;
 volatile uint32_t meas_count;
@@ -78,9 +71,9 @@ volatile uint32_t WAKEUP_PERIOD_CONT_INIT;
 volatile uint32_t temp_storage[TEMP_STORAGE_SIZE] = {0};
 volatile uint32_t temp_storage_latest;
 volatile uint32_t temp_storage_count;
-volatile uint8_t temp_run_single;
-volatile uint8_t temp_running;
-volatile uint8_t set_temp_exec_count;
+volatile bool temp_run_single;
+volatile bool temp_running;
+volatile uint32_t set_temp_exec_count;
 
 volatile uint32_t radio_tx_count;
 volatile uint32_t radio_tx_option;
@@ -442,7 +435,6 @@ static void operation_init(void){
     exec_count = 0;
     exec_count_irq = 0;
     mbus_msg_flag = 0;
-	cyc_num = 0;
   
     // Set CPU Halt Option as RX --> Use for register read e.g.
 //    set_halt_until_mbus_rx();
@@ -614,7 +606,8 @@ static void operation_temp_run(void){
 		}
 
 		// Time out
-			temp_sensor_disable();
+		mbus_write_message32(0xFA, 0xFAFAFAFA);
+		temp_sensor_disable();
 
 		if (temp_reset_timeout_count > 0){
 			temp_reset_timeout_count++;
@@ -678,6 +671,8 @@ static void operation_temp_run(void){
 
 	#ifdef DEBUG_MBUS_MSG_1
 		mbus_write_message32(0xCC, exec_count);
+		delay(MBUS_DELAY);
+		mbus_write_message32(0xCC, set_temp_exec_count);
 		delay(MBUS_DELAY);
 		mbus_write_message32(0xCC, read_data_reg11);
 		delay(MBUS_DELAY);
@@ -775,7 +770,6 @@ static void operation_temp_run(void){
 
 int main() {
 
-
     // Reset Wakeup Timer; This is required for PRCv13
     set_wakeup_timer(100, 0, 1);
 
@@ -819,18 +813,10 @@ int main() {
 				// Prepare radio TX
 				radio_power_on();
 				// Go to sleep for SCRO stabilitzation
-				#ifdef DEBUG_MBUS_MSG_1
-					mbus_write_message32(0xAA,0xFAFFFFFF);
-					delay(MBUS_DELAY);
-				#endif
 				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				#ifdef DEBUG_MBUS_MSG_1
-					mbus_write_message32(0xAA,0xFAF00000+exec_count_irq);
-					delay(MBUS_DELAY);
-				#endif
 				send_radio_data_ppm(0,0xFAF000+exec_count_irq);	
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
@@ -858,17 +844,15 @@ int main() {
     	WAKEUP_PERIOD_CONT = wakeup_data_field_0 + (wakeup_data_field_1<<8);
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_2 & 0xF;
         radio_tx_option = wakeup_data_field_2 & 0x10;
-		set_temp_exec_count = wakeup_data_field_2 >> 5;
 
 		temp_run_single = 0;
-
         set_pmu_sleep_clk_low();
-
 
 		if (!temp_running){
 			// Go to sleep for initial settling of temp sensing // FIXME
 			set_wakeup_timer(5, 0x1, 0x1); // 150: around 5 min
 			temp_running = 1;
+			set_temp_exec_count = wakeup_data_field_2 >> 5;
 			operation_sleep_noirqreset();
 		}
 		exec_count = 0;
@@ -896,30 +880,21 @@ int main() {
 		temp_running = 0;
 		Tstack_state = TSTK_IDLE;
 
-		if (wakeup_data_field_2 & 0x1){
-			// Speed up PMU sleep osc
-			set_pmu_sleep_clk_default();
-		}
-
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
 			if (exec_count_irq == 1){
-			// Prepare radio TX
-			radio_power_on();
-			// Go to sleep for SCRO stabilitzation
-			set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
-			operation_sleep_noirqreset();
+				// Prepare radio TX
+				radio_power_on();
+				// Go to sleep for SCRO stabilitzation
+				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
+				operation_sleep_noirqreset();
 			}else{
-			// radio
-			send_radio_data_ppm(0,0xFAF000+exec_count);	
-			#ifdef DEBUG_MBUS_MSG_1
-				mbus_write_message32(0xAA,0xFAF00000+exec_count);
-				delay(MBUS_DELAY);
-			#endif
-			// set timer
-			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-			// go to sleep and wake up with same condition
-			operation_sleep_noirqreset();
+				// radio
+				send_radio_data_ppm(0,0xFAF000+exec_count);	
+				// set timer
+				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
+				// go to sleep and wake up with same condition
+				operation_sleep_noirqreset();
 			}
         }else{
             exec_count_irq = 0;
@@ -975,7 +950,7 @@ int main() {
 			mbus_write_message32(0xAA,0xFAFA0011);
 			delay(MBUS_DELAY*10);
 		#endif
-	// Slow down PMU sleep osc and go to sleep for further programming
+		// Slow down PMU sleep osc and go to sleep for further programming
         set_pmu_sleep_clk_low();
 
         // Go to sleep without timer

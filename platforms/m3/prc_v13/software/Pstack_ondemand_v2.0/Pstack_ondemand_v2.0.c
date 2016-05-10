@@ -103,7 +103,7 @@
 #define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 
-#define CDC_STORAGE_SIZE 54 // FIXME
+#define CDC_STORAGE_SIZE 500 // FIXME
 
 //***************************************************
 // Global variables
@@ -132,9 +132,9 @@ volatile uint32_t cdc_storage[CDC_STORAGE_SIZE] = {0};
 volatile uint32_t cdc_storage_cref[CDC_STORAGE_SIZE] = {0};
 volatile uint32_t cdc_storage_cref_latest;
 volatile uint32_t cdc_storage_count;
-volatile uint8_t cdc_run_single;
-volatile uint8_t cdc_running;
-volatile uint8_t set_cdc_exec_count;
+volatile bool cdc_run_single;
+volatile bool cdc_running;
+volatile uint32_t set_cdc_exec_count;
 
 volatile uint32_t radio_tx_count;
 volatile uint32_t radio_tx_option;
@@ -885,7 +885,6 @@ int main() {
     	WAKEUP_PERIOD_CONT = wakeup_data_field_0 + (wakeup_data_field_1<<8);
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_2 & 0xF;
         radio_tx_option = wakeup_data_field_2 & 0x10;
-		set_cdc_exec_count = wakeup_data_field_2 >> 5;
 
 		cdc_run_single = 0;
 
@@ -896,6 +895,7 @@ int main() {
 			// Go to sleep for initial settling of pressure // FIXME
 			set_wakeup_timer(5, 0x1, 0x1); // 150: around 5 min
 			cdc_running = 1;
+			set_cdc_exec_count = wakeup_data_field_2 >> 5;
 			operation_sleep_noirqreset();
 		}
 		exec_count = 0;
