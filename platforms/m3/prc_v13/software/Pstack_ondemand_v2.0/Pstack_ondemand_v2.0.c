@@ -794,6 +794,7 @@ static void operation_cdc_run(){
 				if ((set_cdc_exec_count != 0) && (exec_count > (50<<set_cdc_exec_count))){
 					// No more measurement required
 					// Make sure CDC is off
+					cdc_running = 0;
 					cdc_power_off();
 					operation_sleep_notimer();
 				}else{

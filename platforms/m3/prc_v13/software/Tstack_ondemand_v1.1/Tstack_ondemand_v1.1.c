@@ -137,13 +137,21 @@ void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
 //************************************
 
 inline static void set_pmu_sleep_clk_init(){
-	delay(MBUS_DELAY);
     mbus_remote_register_write(PMU_ADDR,0x17, 
 		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
 		| (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
 		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (2) 		// Floor frequency base (0-63)
+		| (4) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// The first register write to PMU needs to be repeated
+    mbus_remote_register_write(PMU_ADDR,0x17, 
+		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+		| (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (4) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
     mbus_remote_register_write(PMU_ADDR,0x18, 
@@ -153,15 +161,16 @@ inline static void set_pmu_sleep_clk_init(){
 		| (2 << 5)  // Frequency multiplier L (actually L+1)
 		| (10) 		// Floor frequency base (0-63)
 	));
-	// DOWNCONV_TRIM_V3 Sleep/Active
 	delay(MBUS_DELAY);
+	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
     mbus_remote_register_write(PMU_ADDR,0x19,
 		( (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
 		| (1) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
+	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
     mbus_remote_register_write(PMU_ADDR,0x1A,
 		( (1 << 13) // Enable main feedback loop
 		| (4 << 9)  // Frequency multiplier R
@@ -169,7 +178,7 @@ inline static void set_pmu_sleep_clk_init(){
 		| (8) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
-	// Register 0x15: SAR_TRIM_v3_SLEEP/ACTIVE
+	// Register 0x15: SAR_TRIM_v3_SLEEP
     mbus_remote_register_write(PMU_ADDR,0x15, 
 		( (0 << 19) // Enable PFM even during periodic reset
 		| (0 << 18) // Enable PFM even when Vref is not used as ref
@@ -181,6 +190,7 @@ inline static void set_pmu_sleep_clk_init(){
 		| (6) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
+	// Register 0x16: SAR_TRIM_v3_ACTIVE
     mbus_remote_register_write(PMU_ADDR,0x16, 
 		( (0 << 19) // Enable PFM even during periodic reset
 		| (0 << 18) // Enable PFM even when Vref is not used as ref
@@ -195,7 +205,7 @@ inline static void set_pmu_sleep_clk_init(){
 	// SAR_RATIO_OVERRIDE
     mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
 		( (1 << 11) // Enable override setting [10] (1'h0)
-		| (1 << 10) // Have the converter have the periodic reset (1'h0)
+		| (0 << 10) // Have the converter have the periodic reset (1'h0)
 		| (1 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (1 << 7) // Enable override setting [6:0] (1'h0)
@@ -743,6 +753,7 @@ static void operation_temp_run(void){
 				if ((set_temp_exec_count != 0) && (exec_count > (50<<set_temp_exec_count))){
 					// No more measurement required
 					// Make sure temp sensor is off
+					temp_running = 0;
 					temp_power_off();
 					operation_sleep_notimer();
 				}else{
