@@ -237,9 +237,14 @@ int main() {
 
     mrrv2_r11.MRR_RAD_FSM_TX_POWERON_LEN = 7; //3bits
     write_mbus_register(MRR_ADDR,0x11,mrrv2_r11.as_int);
+    delay(MBUS_DELAY*10);
 
     mrrv2_r06.MRR_RAD_FSM_TX_DATA_0 = 0x5555; // alternating 10
+    mrrv2_r07.MRR_RAD_FSM_TX_DATA_1 = 0x5555; // alternating 10
     write_mbus_register(MRR_ADDR,0x06,mrrv2_r06.as_int);
+    delay(MBUS_DELAY*10);
+    write_mbus_register(MRR_ADDR,0x07,mrrv2_r07.as_int);
+    delay(MBUS_DELAY*10);
    
     //CL set-up 
     mrrv2_r00.MRR_CL_EN = 1;  //Enable CL
@@ -278,7 +283,7 @@ while(1){
     delay(MBUS_DELAY*10);
 
     //radio operate
-    delay(MBUS_DELAY*500); //800ms pulses 
+    delay(MBUS_DELAY*300); //1ms pulses,1.5s packet, 1.2s idle time 
     
     mrrv2_r03.MRR_TRX_ISOLATEN = 0;     //set ISOLATEN 0
     write_mbus_register(MRR_ADDR,0x03,mrrv2_r03.as_int);

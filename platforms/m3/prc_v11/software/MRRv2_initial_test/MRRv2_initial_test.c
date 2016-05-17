@@ -331,7 +331,7 @@ int main() {
 
     mrrv2_r12.MRR_RAD_FSM_RX_HDR_BITS = 0x08;  //Set RX header
     mrrv2_r12.MRR_RAD_FSM_RX_HDR_TH = 0x00;    //Set RX header threshold
-    mrrv2_r12.MRR_RAD_FSM_RX_DATA_BITS = 0xAA; //Set RX data
+    mrrv2_r12.MRR_RAD_FSM_RX_DATA_BITS = 0x3F; //Set RX data
     write_mbus_register(MRR_ADDR,0x12,mrrv2_r12.as_int);
     delay(MBUS_DELAY*10);
     
@@ -348,11 +348,11 @@ int main() {
     write_mbus_register(MRR_ADDR,0x13,mrrv2_r13.as_int);
     delay(MBUS_DELAY*10);
    
-    mrrv2_r00.MRR_TRX_CAP_ANTP_TUNE = 0x3FFF;  //ANT CAP
+    mrrv2_r00.MRR_TRX_CAP_ANTP_TUNE = 0x0000;  //ANT CAP
     write_mbus_register(MRR_ADDR,0x00,mrrv2_r00.as_int);
     delay(MBUS_DELAY*10);
 
-    mrrv2_r01.MRR_TRX_CAP_ANTN_TUNE = 0x3FFF ; //ANT CAP
+    mrrv2_r01.MRR_TRX_CAP_ANTN_TUNE = 0x0000 ; //ANT CAP
     write_mbus_register(MRR_ADDR,0x01,mrrv2_r01.as_int);
     delay(MBUS_DELAY*10);
 
