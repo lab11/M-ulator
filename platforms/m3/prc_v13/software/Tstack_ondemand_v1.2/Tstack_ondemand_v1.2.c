@@ -808,10 +808,6 @@ int main() {
     uint8_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;
     uint8_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
 
-	// FIXME
-	// Delay to observe current
-	delay(MBUS_DELAY*100);
-
     if(wakeup_data_header == 1){
 		#ifdef DEBUG_MBUS_MSG
 			mbus_write_message32(0xAA,0xFAFA1111);
