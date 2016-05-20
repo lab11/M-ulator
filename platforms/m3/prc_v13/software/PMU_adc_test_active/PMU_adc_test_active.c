@@ -210,8 +210,8 @@ void operation_pmu_adc(void) {
 		mbus_remote_register_write(PMU_ADDR,0x00,3);
 		delay(MBUS_DELAY);
 		read_data = *((volatile uint32_t *) REG0);
-		mbus_write_message32(0xA0+count, read_data & 0xFF);
-		delay(MBUS_DELAY*10);
+		mbus_write_message32(0xA0, read_data & 0xFF);
+		delay(MBUS_DELAY*200);
 	}
 
 	set_wakeup_timer(10, 0x1, 0x1);
@@ -421,6 +421,13 @@ void operation_pmu_adc_complicated(void) {
 int main() {
 	//Initialize Interrupts
 	disable_all_irq();
+
+    // Reset Wakeup Timer; This is required for PRCv13
+    set_wakeup_timer(100, 0, 1);
+
+	// Set the watch-dog timer
+	//config_timerwd(40000000); // 2e7: 1min
+	disable_timerwd();
 
 	// Initialization Sequence
 	if (enumerated != 0xDEADBEEF) { 
