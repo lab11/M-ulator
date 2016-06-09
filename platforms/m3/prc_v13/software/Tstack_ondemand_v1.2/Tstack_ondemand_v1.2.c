@@ -462,7 +462,11 @@ static void operation_init(void){
 	delay(MBUS_DELAY);
 
     // Set CPU Halt Option as TX --> Use for register write e.g.
-//    set_halt_until_mbus_tx();
+	//    set_halt_until_mbus_tx();
+
+	// Disable PMUv2 IRQ
+    mbus_remote_register_write(PMU_ADDR,0x51,0x09);
+	delay(MBUS_DELAY);
 
 	set_pmu_sleep_clk_init();
 

@@ -1161,13 +1161,14 @@ static void operation_init(void){
     // Set CPU Halt Option as TX --> Use for register write e.g.
     set_halt_until_mbus_tx();
 	
+/*
 	// Set CPU & Mbus Clock Speeds
     prcv13_r0B.DSLP_CLK_GEN_FAST_MODE = 0x1; // Default 0x0
     prcv13_r0B.CLK_GEN_RING = 0x3; // Default 0x1
     prcv13_r0B.CLK_GEN_DIV_MBC = 0x0; // Default 0x1
     prcv13_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
 	*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv13_r0B.as_int;
-
+*/
     //Enumerate & Initialize Registers
     enumerated = 0xABCD1234;
     exec_count = 0;
@@ -1186,7 +1187,7 @@ static void operation_init(void){
     delay(MBUS_DELAY);
     mbus_enumerate(RAD_ADDR);
     delay(MBUS_DELAY);
-    mbus_enumerate(FLS_ADDR);
+    //mbus_enumerate(FLS_ADDR);
     delay(MBUS_DELAY);
     mbus_enumerate(PMU_ADDR);
     delay(MBUS_DELAY);
@@ -1195,6 +1196,7 @@ static void operation_init(void){
 	set_pmu_motion_img_default();
 	delay(MBUS_DELAY*2);
 
+/*
 	// Initialize MDv3
 	initialize_md_reg();
 
@@ -1233,6 +1235,7 @@ static void operation_init(void){
     mbus_remote_register_write(HRV_ADDR,0x0,0x0);
 
 
+*/
 
     // Flash Settings --------------------------------------
 	// Option to Slow down FLSv2L clock 
@@ -1241,12 +1244,13 @@ static void operation_init(void){
 	| (0x1 << 0)  /* CLK_DIV_SEL[1:0] Default 0x1 */
 	));
 
+/*
 	// Voltage Clamp & Timing settings
 	mbus_remote_register_write(FLS_ADDR, 0x0, 0x41205); // Tprog
 	mbus_remote_register_write(FLS_ADDR, 0x2, 0x3FFFF); // Terase; default: 0x0752F
 	mbus_remote_register_write(FLS_ADDR, 0x4, 0x000700); // Tcyc_prog
 	mbus_remote_register_write(FLS_ADDR, 0x19, 0x3C4303); // Default: 0x3C4103
-
+*/
 	md_start_motion = 0;
 	md_capture_img = 0;
 	md_count = 0;
