@@ -121,16 +121,16 @@ inline static void set_pmu_sleep_clk_init(){
 	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
     mbus_remote_register_write(PMU_ADDR,0x19,
 		( (1 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (1 << 5)  // Frequency multiplier L (actually L+1)
-		| (1) 		// Floor frequency base (0-63)
+		| (2 << 9)  // Frequency multiplier R
+		| (2 << 5)  // Frequency multiplier L (actually L+1)
+		| (2) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
     mbus_remote_register_write(PMU_ADDR,0x1A,
 		( (1 << 13) // Enable main feedback loop
-		| (4 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
+		| (8 << 9)  // Frequency multiplier R
+		| (4 << 5)  // Frequency multiplier L (actually L+1)
 		| (8) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
@@ -141,8 +141,8 @@ inline static void set_pmu_sleep_clk_init(){
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (1 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (2 << 9)  // Frequency multiplier R
+		| (2 << 5)  // Frequency multiplier L (actually L+1)
 		| (6) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
@@ -153,8 +153,8 @@ inline static void set_pmu_sleep_clk_init(){
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (1 << 13) // Enable main feedback loop
-		| (4 << 9)  // Frequency multiplier R
-		| (4 << 5)  // Frequency multiplier L (actually L+1)
+		| (8 << 9)  // Frequency multiplier R
+		| (8 << 5)  // Frequency multiplier L (actually L+1)
 		| (15) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
@@ -202,7 +202,31 @@ void initialization (void) {
 		( (1 << 19) // ignore state_horizon; default 1
 		| (1 << 11) // ignore adc_output_ready; default 0
 	));
-	
+    delay(MBUS_DELAY);
+	// Disable ADC offset measurement
+    mbus_remote_register_write(PMU_ADDR,0x3B,
+		((  1 << 0) //state_sar_scn_on
+		| (1 << 1) //state_wait_for_clock_cycles
+		| (1 << 2) //state_wait_for_time
+		| (1 << 3) //state_sar_scn_reset
+		| (1 << 4) //state_sar_scn_stabilized
+		| (1 << 5) //state_sar_scn_ratio_roughly_adjusted
+		| (1 << 6) //state_clock_supply_switched
+		| (1 << 7) //state_control_supply_switched
+		| (1 << 8) //state_upconverter_on
+		| (1 << 9) //state_upconverter_stabilized
+		| (1 << 10) //state_refgen_on
+		| (1 << 11) //state_adc_output_ready
+		| (0 << 12) //state_adc_adjusted
+		| (1 << 13) //state_sar_scn_ratio_adjusted
+		| (1 << 14) //state_downconverter_on
+		| (1 << 15) //state_downconverter_stabilized
+		| (1 << 16) //state_vdd_3p6_turned_on
+		| (1 << 17) //state_vdd_1p2_turned_on
+		| (1 << 18) //state_vdd_0P6_turned_on
+		| (1 << 19) //state_state_horizon
+	));
+    delay(MBUS_DELAY);
 
 }
 
@@ -223,15 +247,55 @@ void operation_pmu_adc(void) {
 
 	// Manually reset ADC
 	// PMU_CONTROLLER_DESIRED_STATE
-    mbus_remote_register_write(PMU_ADDR,0x3B, 
-		( 0xFF7FF
-		| (0 << 11) // ignore adc_output_ready; default 1
+    mbus_remote_register_write(PMU_ADDR,0x3B,
+		((  1 << 0) //state_sar_scn_on
+		| (1 << 1) //state_wait_for_clock_cycles
+		| (1 << 2) //state_wait_for_time
+		| (1 << 3) //state_sar_scn_reset
+		| (1 << 4) //state_sar_scn_stabilized
+		| (1 << 5) //state_sar_scn_ratio_roughly_adjusted
+		| (1 << 6) //state_clock_supply_switched
+		| (1 << 7) //state_control_supply_switched
+		| (1 << 8) //state_upconverter_on
+		| (1 << 9) //state_upconverter_stabilized
+		| (1 << 10) //state_refgen_on
+		| (0 << 11) //state_adc_output_ready
+		| (0 << 12) //state_adc_adjusted
+		| (1 << 13) //state_sar_scn_ratio_adjusted
+		| (1 << 14) //state_downconverter_on
+		| (1 << 15) //state_downconverter_stabilized
+		| (1 << 16) //state_vdd_3p6_turned_on
+		| (1 << 17) //state_vdd_1p2_turned_on
+		| (1 << 18) //state_vdd_0P6_turned_on
+		| (1 << 19) //state_state_horizon
 	));
 	delay(MBUS_DELAY*10);
-    mbus_remote_register_write(PMU_ADDR,0x3B, 
-		( 0xFF7FF
-		| (1 << 11) // ignore adc_output_ready; default 1
+
+	// Need to poll state_adc_output_ready == 1 but skip for now
+    mbus_remote_register_write(PMU_ADDR,0x3B,
+		((  1 << 0) //state_sar_scn_on
+		| (1 << 1) //state_wait_for_clock_cycles
+		| (1 << 2) //state_wait_for_time
+		| (1 << 3) //state_sar_scn_reset
+		| (1 << 4) //state_sar_scn_stabilized
+		| (1 << 5) //state_sar_scn_ratio_roughly_adjusted
+		| (1 << 6) //state_clock_supply_switched
+		| (1 << 7) //state_control_supply_switched
+		| (1 << 8) //state_upconverter_on
+		| (1 << 9) //state_upconverter_stabilized
+		| (1 << 10) //state_refgen_on
+		| (1 << 11) //state_adc_output_ready
+		| (0 << 12) //state_adc_adjusted
+		| (1 << 13) //state_sar_scn_ratio_adjusted
+		| (1 << 14) //state_downconverter_on
+		| (1 << 15) //state_downconverter_stabilized
+		| (1 << 16) //state_vdd_3p6_turned_on
+		| (1 << 17) //state_vdd_1p2_turned_on
+		| (1 << 18) //state_vdd_0P6_turned_on
+		| (1 << 19) //state_state_horizon
 	));
+
+	delay(MBUS_DELAY);
 
 	set_wakeup_timer(10, 0x1, 0x1);
 	operation_sleep_noirqreset();
