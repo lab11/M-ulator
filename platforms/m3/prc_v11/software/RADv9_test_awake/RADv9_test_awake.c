@@ -370,20 +370,32 @@ static void operation_init(void){
     radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
     radv9_r0.RADIO_TUNE_FREQ1 = 0x1; //Tune Freq 1
     radv9_r0.RADIO_TUNE_FREQ2 = 0xA; //Tune Freq 2 //0x1,0xA = 899MHz on RADv9 Y2 run
-    radv9_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
+    radv9_r0.RADIO_TUNE_TX_TIME = 0x5; //Tune TX Time
   
     write_mbus_register(RAD_ADDR,0,radv9_r0.as_int);
     delay(MBUS_DELAY);
 
+/*
+	// Continuous Mode
+    radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x3E; //Current Limiter 2F = 30uA, 1F = 3uA
+    radv9_r0.RADIO_TUNE_POWER = 0x1F; 
+    radv9_r0.RADIO_EXT_CTRL_EN = 1; 
+    radv9_r0.RADIO_EXT_OSC_ENB = 0; 
+    write_mbus_register(RAD_ADDR,0,radv9_r0.as_int);
+    delay(MBUS_DELAY);
+	while(1);
+*/
+	
+
     // FSM data length setups
     radv9_r11.RAD_FSM_H_LEN = 16; // N
-    radv9_r11.RAD_FSM_D_LEN = RADIO_DATA_LENGTH-1; // N-1
+    radv9_r11.RAD_FSM_D_LEN = 15; // N-1
     radv9_r11.RAD_FSM_C_LEN = 10;
     write_mbus_register(RAD_ADDR,11,radv9_r11.as_int);
     delay(MBUS_DELAY);
   
     // Configure SCRO
-    radv9_r1.SCRO_FREQ_DIV = 3;
+    radv9_r1.SCRO_FREQ_DIV = 2;
     radv9_r1.SCRO_AMP_I_LEVEL_SEL = 2; // Default 2
     radv9_r1.SCRO_I_LEVEL_SELB = 0x60; // Default 0x6F
     write_mbus_register(RAD_ADDR,1,radv9_r1.as_int);
@@ -411,6 +423,77 @@ static void operation_init(void){
 }
 
 
+static void operation_radio(){
+
+    //write_mbus_register(RAD_ADDR,0,radv9_r0.as_int);
+    delay(MBUS_DELAY);
+
+	// Write Data
+	radv9_r3.RAD_FSM_DATA = 0x000000;
+	radv9_r4.RAD_FSM_DATA = 0xFFFFFF;
+	radv9_r5.RAD_FSM_DATA = 0xFFFFFF;
+    write_mbus_register(RAD_ADDR,3,radv9_r3.as_int);
+    delay(MBUS_DELAY);
+    write_mbus_register(RAD_ADDR,4,radv9_r4.as_int);
+    delay(MBUS_DELAY);
+    write_mbus_register(RAD_ADDR,5,radv9_r5.as_int);
+    delay(MBUS_DELAY);
+
+	// Release FSM Sleep
+	radv9_r13.RAD_FSM_SLEEP = 0;
+    write_mbus_register(RAD_ADDR,13,radv9_r13.as_int);
+    delay(MBUS_DELAY);
+
+	//operation_sleep();
+
+    delay(20000); // this is required to stabilize ref gen
+
+	// Release SCRO Reset
+	radv9_r2.SCRO_RESET = 0;
+    write_mbus_register(RAD_ADDR,2,radv9_r2.as_int);
+    delay(MBUS_DELAY);
+
+	// Enable SCRO
+	radv9_r2.SCRO_ENABLE = 1;
+    write_mbus_register(RAD_ADDR,2,radv9_r2.as_int);
+    delay(MBUS_DELAY);
+	
+
+	// Release FSM Isolate
+	radv9_r13.RAD_FSM_ISOLATE = 0;
+    write_mbus_register(RAD_ADDR,13,radv9_r13.as_int);
+    delay(MBUS_DELAY);
+
+	// Release FSM Reset
+	radv9_r13.RAD_FSM_RESETn = 1;
+    write_mbus_register(RAD_ADDR,13,radv9_r13.as_int);
+    delay(MBUS_DELAY);
+
+	// Fire off data
+	radv9_r13.RAD_FSM_ENABLE = 1;
+    write_mbus_register(RAD_ADDR,13,radv9_r13.as_int);
+    delay(MBUS_DELAY);
+		
+
+    delay(5000);
+	
+	read_mbus_register(RAD_ADDR,13,0x77);
+    delay(MBUS_DELAY*5);
+	
+	// Turn off everything
+	//radv9_r2.SCRO_ENABLE = 0;
+	//radv9_r2.SCRO_RESET = 1;
+    write_mbus_register(RAD_ADDR,2,radv9_r2.as_int);
+    delay(MBUS_DELAY);
+	//radv9_r13.RAD_FSM_SLEEP = 1;
+	radv9_r13.RAD_FSM_ISOLATE = 1;
+	radv9_r13.RAD_FSM_RESETn = 0;
+	radv9_r13.RAD_FSM_ENABLE = 0;
+    write_mbus_register(RAD_ADDR,13,radv9_r13.as_int);
+    delay(MBUS_DELAY);
+
+	
+}
 //***************************************************************************************
 // MAIN function starts here             
 //***************************************************************************************
@@ -423,7 +506,7 @@ int main() {
   
     //Config watchdog timer to about 10 sec: 1,000,000 with default PRCv9
     //config_timer( timer_id, go, roi, init_val, sat_val )
-    config_timer( 0, 1, 0, 0, 1000000 );
+    config_timer( 0, 0, 0, 0, 1000000 );
 
     // Initialization sequence
     if (enumerated != 0xDEADBEEF){
@@ -432,28 +515,10 @@ int main() {
         operation_init();
     }
 
-        // Debug mode: Transmit something via radio and go to sleep w/o timer
-        // wakeup_data[7:0] is the # of transmissions
-        // wakeup_data[15:8] is the user-specified period
-        // wakeup_data[23:16] is the MSB of # of transmissions
-        delay(MBUS_DELAY);
-		exec_count_irq++;
-		if (exec_count_irq == 1){
-			// Prepare radio TX
-			radio_power_on();
-			// Go to sleep for SCRO stabilitzation
-			set_wakeup_timer(2, 0x1, 0x0);
-			operation_sleep_noirqreset();
-		}else{
-			// radio
-			//send_radio_data_ppm(0,0xFAF000+exec_count_irq);	
-			send_radio_data_ppm(0,0xFF00AA);	
-			// set timer
-			set_wakeup_timer (1, 0x1, 0x0);
-			// go to sleep and wake up with same condition
-			operation_sleep_noirqreset();
-		}
-   
+    // Proceed to continuous mode
+    while(1){
+        operation_radio();
+    }
 
     // Should not reach here
     operation_sleep_notimer();
