@@ -102,7 +102,7 @@
 #define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 
-#define CDC_STORAGE_SIZE 47 // FIXME
+#define CDC_STORAGE_SIZE 17 //47 // FIXME
 
 //***************************************************
 // Global variables
@@ -514,8 +514,8 @@ static void operation_init(void){
     // Radio Settings --------------------------------------
   
     radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
-    radv9_r0.RADIO_TUNE_FREQ1 = 0x1; //Tune Freq 1
-    radv9_r0.RADIO_TUNE_FREQ2 = 0xA; //Tune Freq 2 //0x0,0x0 = 902MHz on Pblr005
+    radv9_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
+    radv9_r0.RADIO_TUNE_FREQ2 = 0x7; //Tune Freq 2 //0x0,0x7 = Optimal for P16-DBG2 with 897MHz Antenna
     radv9_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
   
     write_mbus_register(RAD_ADDR,0,radv9_r0.as_int);
@@ -1032,21 +1032,46 @@ int main() {
         // Go to sleep without timer
         operation_sleep_notimer();
 
-	/*
-	  }else if(wakeup_data_header == 0x12){
-	  // Change the sleep period
-	  // wakeup_data[15:0] is the user-specified period
-	  // wakeup_data[23:16] determines whether to resume CDC operation or not
-	  WAKEUP_PERIOD_CONT = wakeup_data_field_0 + (wakeup_data_field_1<<8);
-		
-	  if (wakeup_data_field_2){
-	  // Resume CDC operation
-	  operation_cdc_run();
-	  }else{
-	  // Go to sleep without timer
-	  operation_sleep_notimer();
-	  }
-	*/
+/*
+	}else if(wakeup_data_header == 0x13){
+		// Change the RF frequency
+        // Debug mode: Transmit something via radio and go to sleep w/o timer
+        // wakeup_data[7:0] is the # of transmissions
+        // wakeup_data[15:8] is the user-specified period
+        // wakeup_data[23:16] is the desired RF tuning value (RADv9)
+        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+        delay(MBUS_DELAY);
+
+		radv9_r0.RADIO_TUNE_FREQ1 = wakeup_data_field_2>>4; 
+		radv9_r0.RADIO_TUNE_FREQ2 = wakeup_data_field_2 & 0xF; 
+		write_mbus_register(RAD_ADDR,0,radv9_r0.as_int);
+		delay(MBUS_DELAY);
+
+        if (exec_count_irq < wakeup_data_field_0){
+            exec_count_irq++;
+			if (exec_count_irq == 1){
+				// Prepare radio TX
+				radio_power_on();
+				// Go to sleep for SCRO stabilitzation
+				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x0);
+				operation_sleep_noirqreset();
+			}else{
+				// radio
+				send_radio_data_ppm(0,0xFAF000+exec_count_irq);	
+				// set timer
+				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+				// go to sleep and wake up with same condition
+				operation_sleep_noirqreset();
+			}
+        }else{
+            exec_count_irq = 0;
+            // radio
+            send_radio_data_ppm(1,0xFAF000);	
+            // Go to sleep without timer
+            operation_sleep_notimer();
+        }
+*/  
+
     }
 
     // Proceed to continuous mode
