@@ -515,7 +515,7 @@ static void operation_init(void){
   
     radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
     radv9_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
-    radv9_r0.RADIO_TUNE_FREQ2 = 0x7; //Tune Freq 2 //0x0,0x7 = Optimal for P16-DBG2 with 897MHz Antenna
+    radv9_r0.RADIO_TUNE_FREQ2 = 0xA; //Tune Freq 2 //0x0,0x7 = Optimal for P16-DBG2 with 897MHz Antenna
     radv9_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
   
     write_mbus_register(RAD_ADDR,0,radv9_r0.as_int);
