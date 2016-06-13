@@ -102,7 +102,7 @@
 #define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 
-#define CDC_STORAGE_SIZE 17 //47 // FIXME
+#define CDC_STORAGE_SIZE 47 // FIXME
 
 //***************************************************
 // Global variables
