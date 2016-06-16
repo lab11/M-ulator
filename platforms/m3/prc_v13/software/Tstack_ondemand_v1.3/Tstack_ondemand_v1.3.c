@@ -220,16 +220,6 @@ inline static void set_pmu_sleep_clk_init(){
 	delay(MBUS_DELAY);
 }
 
-inline static void set_pmu_sleep_clk_default(){
-}
-
-inline static void set_pmu_sleep_clk_low(){
-}
-
-inline static void set_pmu_sleep_clk_high(){
-}
-
-
 
 //***************************************************
 // Radio transmission routines for PPM Radio (RADv9)
@@ -237,12 +227,13 @@ inline static void set_pmu_sleep_clk_high(){
 
 static void radio_power_on(){
 	// Need to speed up sleep pmu clock
-	set_pmu_sleep_clk_high();
+	//set_pmu_sleep_clk_high();
 
     // Release FSM Sleep - Requires >2s stabilization time
     radio_on = 1;
     radv9_r13.RAD_FSM_SLEEP = 0;
     mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
+    delay(MBUS_DELAY);
     // Release SCRO Reset
     radv9_r2.SCRO_RESET = 0;
     mbus_remote_register_write(RAD_ADDR,2,radv9_r2.as_int);
@@ -253,16 +244,18 @@ static void radio_power_on(){
     // Enable SCRO
     radv9_r2.SCRO_ENABLE = 1;
     mbus_remote_register_write(RAD_ADDR,2,radv9_r2.as_int);
+    delay(MBUS_DELAY);
 
 	// Release FSM Isolate
 	radv9_r13.RAD_FSM_ISOLATE = 0;
 	mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
+    delay(MBUS_DELAY);
 
 }
 
 static void radio_power_off(){
 	// Need to restore sleep pmu clock
-	set_pmu_sleep_clk_default();
+	//set_pmu_sleep_clk_default();
 
     // Turn off everything
     radio_on = 0;
@@ -287,6 +280,7 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 		// Release FSM Reset
 		radv9_r13.RAD_FSM_RESETn = 1;
 		mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
+		delay(MBUS_DELAY);
     }
 
     // Set CPU Halt Option as RX --> Use for register read e.g.
@@ -317,6 +311,7 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 	
     // Timeout
     set_halt_until_mbus_tx();
+	mbus_write_message32(0xBB, 0xFAFAFAFA);
 }
 
 //***************************************************
@@ -539,6 +534,8 @@ static void operation_init(void){
     // Harvester Settings --------------------------------------
     hrvv2_r0.HRV_TOP_CONV_RATIO = 0x6;
     mbus_remote_register_write(HRV_ADDR,0,hrvv2_r0.as_int);
+
+    delay(MBUS_DELAY);
 
     // Go to sleep without timer
     operation_sleep_notimer();
@@ -863,7 +860,7 @@ int main() {
         radio_tx_option = wakeup_data_field_2 & 0x10;
 
 		temp_run_single = 0;
-        set_pmu_sleep_clk_low();
+        //set_pmu_sleep_clk_low();
 
 		if (!temp_running){
 			// Go to sleep for initial settling of temp sensing // FIXME
@@ -892,7 +889,6 @@ int main() {
 		// Stop temp sensor program and transmit the execution count n times
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period 
-        // wakeup_data[16] indicates whether or not to speed up PMU sleep clock
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
 		temp_running = 0;
 		Tstack_state = TSTK_IDLE;
@@ -968,7 +964,7 @@ int main() {
 			delay(MBUS_DELAY*10);
 		#endif
 		// Slow down PMU sleep osc and go to sleep for further programming
-        set_pmu_sleep_clk_low();
+        //set_pmu_sleep_clk_low();
 
         // Go to sleep without timer
         operation_sleep_notimer();

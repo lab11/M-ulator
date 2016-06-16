@@ -4,6 +4,8 @@
 //              Mouse Implantation & CDC Measurement Code
 //				Version 2.0
 //				- PRCv13 / PMUv2 / RADv9 / SNSv7
+//				- RADv9 Setting for Y2 Run
+//				- RADv9 Current limiter increased for double 8uAh batt
 //				Revision 1.14
 //				- Adjusting PMU frequencies for TSMC 2015 DEC "Y2" run
 //				- RADv9
@@ -78,7 +80,7 @@
 #define PMU_ADDR 0x7
 
 // CDC parameters
-#define	MBUS_DELAY 30 //Amount of delay between successive messages; 100: 6-7ms
+#define	MBUS_DELAY 100 //Amount of delay between successive messages; 100: 6-7ms
 #define	LDO_DELAY 500 // 1000: 150msec
 #define CDC_TIMEOUT_COUNT 2000
 #define WAKEUP_PERIOD_RESET 2
@@ -94,7 +96,7 @@
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 24
-#define RADIO_PACKET_DELAY 3000
+#define RADIO_PACKET_DELAY 5000
 #define RADIO_TIMEOUT_COUNT 500
 #define WAKEUP_PERIOD_RADIO_INIT 3
 
@@ -103,7 +105,7 @@
 #define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
 #define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
 
-#define CDC_STORAGE_SIZE 500 // FIXME
+#define CDC_STORAGE_SIZE 400 // FIXME
 
 //***************************************************
 // Global variables
@@ -195,24 +197,87 @@ void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
 //************************************
 // PMU Related Functions
 //************************************
-inline static void set_pmu_sleep_clk_low(){
-    // PRCv11 Default: 0x8F770049
-    //*((volatile uint32_t *) 0xA200000C) = 0x8F77183B; // 0x8F77003B: Sleep current 1.5nA, use GOC x0.6-2
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77194B; // 0x8F77194B: Sleep current 3nA, use GOC x9-15
-    //*((volatile uint32_t *) 0xA200000C) = 0x8F7718CB; // 0x8F7718CB: Sleep current 5nA, use GOC x9-15
-}
-inline static void set_pmu_sleep_clk_default(){
-    // PRCv11 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77184B; // 0x8F7719CB: Sleep current 4nA w/ Poly2, use GOC x9-15
-    //*((volatile uint32_t *) 0xA200000C) = 0x8F77184B; // 0x8F77184B: Sleep current 8nA, use GOC x9-15
-    //*((volatile uint32_t *) 0xA200000C) = 0x8F7718CB; // 0x8F7718CB: Sleep current 5nA, use GOC x9-15
-}
 
-inline static void set_pmu_sleep_clk_high(){
-    // PRCv11 Default: 0x8F770049
-    *((volatile uint32_t *) 0xA200000C) = 0x8F77186B; // 0x8F77184B: Sleep current 8nA, use GOC x9-15
+inline static void set_pmu_sleep_clk_init(){
+    mbus_remote_register_write(PMU_ADDR,0x17, 
+		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+		| (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (4) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// The first register write to PMU needs to be repeated
+    mbus_remote_register_write(PMU_ADDR,0x17, 
+		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+		| (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (4) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+    mbus_remote_register_write(PMU_ADDR,0x18, 
+		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+		| (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (2 << 5)  // Frequency multiplier L (actually L+1)
+		| (10) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
+    mbus_remote_register_write(PMU_ADDR,0x19,
+		( (1 << 13) // Enable main feedback loop
+		| (2 << 9)  // Frequency multiplier R
+		| (2 << 5)  // Frequency multiplier L (actually L+1)
+		| (2) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
+    mbus_remote_register_write(PMU_ADDR,0x1A,
+		( (1 << 13) // Enable main feedback loop
+		| (8 << 9)  // Frequency multiplier R
+		| (4 << 5)  // Frequency multiplier L (actually L+1)
+		| (8) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x15: SAR_TRIM_v3_SLEEP
+    mbus_remote_register_write(PMU_ADDR,0x15, 
+		( (0 << 19) // Enable PFM even during periodic reset
+		| (0 << 18) // Enable PFM even when Vref is not used as ref
+		| (0 << 17) // Enable PFM
+		| (3 << 14) // Comparator clock division ratio
+		| (1 << 13) // Enable main feedback loop
+		| (2 << 9)  // Frequency multiplier R
+		| (2 << 5)  // Frequency multiplier L (actually L+1)
+		| (6) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x16: SAR_TRIM_v3_ACTIVE
+    mbus_remote_register_write(PMU_ADDR,0x16, 
+		( (0 << 19) // Enable PFM even during periodic reset
+		| (0 << 18) // Enable PFM even when Vref is not used as ref
+		| (0 << 17) // Enable PFM
+		| (3 << 14) // Comparator clock division ratio
+		| (1 << 13) // Enable main feedback loop
+		| (8 << 9)  // Frequency multiplier R
+		| (8 << 5)  // Frequency multiplier L (actually L+1)
+		| (15) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// SAR_RATIO_OVERRIDE
+    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+		( (1 << 11) // Enable override setting [10] (1'h0)
+		| (0 << 10) // Have the converter have the periodic reset (1'h0)
+		| (1 << 9) // Enable override setting [8] (1'h0)
+		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+		| (1 << 7) // Enable override setting [6:0] (1'h0)
+		| (44) 		// Binary converter's conversion ratio (7'h00)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
+    mbus_remote_register_write(PMU_ADDR,0x36,0x000001);
+	delay(MBUS_DELAY);
 }
-
 
 //***************************************************
 // Radio transmission routines for PPM Radio (RADv9)
@@ -220,7 +285,7 @@ inline static void set_pmu_sleep_clk_high(){
 
 static void radio_power_on(){
 	// Need to speed up sleep pmu clock
-	set_pmu_sleep_clk_high();
+	//set_pmu_sleep_clk_high();
 
     // Release FSM Sleep - Requires >2s stabilization time
     radio_on = 1;
@@ -230,7 +295,6 @@ static void radio_power_on(){
     // Release SCRO Reset
     radv9_r2.SCRO_RESET = 0;
     mbus_remote_register_write(RAD_ADDR,2,radv9_r2.as_int);
-    delay(MBUS_DELAY);
     
     // Additional delay required after SCRO Reset release
     delay(MBUS_DELAY*3); // At least 20ms required
@@ -249,27 +313,24 @@ static void radio_power_on(){
 
 static void radio_power_off(){
 	// Need to restore sleep pmu clock
-	set_pmu_sleep_clk_default();
+	//set_pmu_sleep_clk_default();
 
     // Turn off everything
     radio_on = 0;
     radv9_r2.SCRO_ENABLE = 0;
     radv9_r2.SCRO_RESET  = 1;
     mbus_remote_register_write(RAD_ADDR,2,radv9_r2.as_int);
-    delay(MBUS_DELAY);
     radv9_r13.RAD_FSM_SLEEP 	= 1;
     radv9_r13.RAD_FSM_ISOLATE 	= 1;
     radv9_r13.RAD_FSM_RESETn 	= 0;
     radv9_r13.RAD_FSM_ENABLE 	= 0;
     mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
-    delay(MBUS_DELAY);
 }
 
 static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
     // Write Data: Only up to 24bit data for now
     radv9_r3.RAD_FSM_DATA = radio_data;
     mbus_remote_register_write(RAD_ADDR,3,radv9_r3.as_int);
-    delay(MBUS_DELAY);
 
     if (!radio_ready){
 		radio_ready = 1;
@@ -292,7 +353,6 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
     mbus_msg_flag = 0;
     radv9_r13.RAD_FSM_ENABLE = 1;
     mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
-    delay(MBUS_DELAY);
 
     for( count=0; count<RADIO_TIMEOUT_COUNT; count++ ){
 		if( mbus_msg_flag ){
@@ -304,7 +364,6 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 			}else{
 				radv9_r13.RAD_FSM_ENABLE = 0;
 				mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
-				delay(MBUS_DELAY);
 			}
 			return;
 		}else{
@@ -441,7 +500,8 @@ static void operation_tx_stored(void){
 		operation_sleep_noirqreset();
 
     }else{
-		delay(RADIO_PACKET_DELAY*3); //Set delays between sending subsequent packet
+		delay(RADIO_PACKET_DELAY);
+		delay(RADIO_PACKET_DELAY);
 		send_radio_data_ppm(1, 0xFAF000);
 		// This is also the end of this IRQ routine
 		exec_count_irq = 0;
@@ -461,10 +521,6 @@ static void operation_init(void){
     prcv13_r0B.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
 	*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv13_r0B.as_int;
 
-	// FIXME
-	set_pmu_sleep_clk_default();
-  
-    delay(MBUS_DELAY*20);
   
     //Enumerate & Initialize Registers
     Pstack_state = PSTK_IDLE; 	//0x0;
@@ -474,15 +530,27 @@ static void operation_init(void){
     mbus_msg_flag = 0;
   
     // Set CPU Halt Option as RX --> Use for register read e.g.
-    set_halt_until_mbus_rx();
+    //set_halt_until_mbus_rx();
 
     //Enumeration
+	delay(MBUS_DELAY);
     mbus_enumerate(RAD_ADDR);
+	delay(MBUS_DELAY);
     mbus_enumerate(SNS_ADDR);
+	delay(MBUS_DELAY);
     mbus_enumerate(HRV_ADDR);
+	delay(MBUS_DELAY);
+ 	mbus_enumerate(PMU_ADDR);
+	delay(MBUS_DELAY);
   
     // Set CPU Halt Option as TX --> Use for register write e.g.
-    set_halt_until_mbus_tx();
+    //set_halt_until_mbus_tx();
+
+	// Disable PMUv2 IRQ
+    mbus_remote_register_write(PMU_ADDR,0x51,0x09);
+	delay(MBUS_DELAY);
+
+	set_pmu_sleep_clk_init();
 
     // CDC Settings --------------------------------------
     // snsv7_r0
@@ -514,13 +582,11 @@ static void operation_init(void){
   
 	// Mbus return address; Needs to be between 0x18-0x1F
     mbus_remote_register_write(SNS_ADDR,0x18,0x1800);
-    delay(MBUS_DELAY);
 
     // Radio Settings --------------------------------------
-  
-    radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x1F; //Current Limiter 2F = 30uA, 1F = 3uA
+    radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
     radv9_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
-    radv9_r0.RADIO_TUNE_FREQ2 = 0x0; //Tune Freq 2 //0x0,0x0 = 902MHz on Pblr005
+    radv9_r0.RADIO_TUNE_FREQ2 = 0x9; //Tune Freq 2
     radv9_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
     mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
 
@@ -915,31 +981,26 @@ int main() {
 		// Stop CDC program and transmit the execution count n times
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period 
-        // wakeup_data[16] indicates whether or not to speed up PMU sleep clock
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
 		cdc_running = 0;
 		Pstack_state = PSTK_IDLE;
 
-		if (wakeup_data_field_2 & 0x1){
-			// Speed up PMU sleep osc
-			set_pmu_sleep_clk_default();
-		}
 
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
 			if (exec_count_irq == 1){
-			// Prepare radio TX
-			radio_power_on();
-			// Go to sleep for SCRO stabilitzation
-			set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
-			operation_sleep_noirqreset();
+				// Prepare radio TX
+				radio_power_on();
+				// Go to sleep for SCRO stabilitzation
+				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
+				operation_sleep_noirqreset();
 			}else{
-			// radio
-			send_radio_data_ppm(0,0xFAF000+exec_count);	
-			// set timer
-			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-			// go to sleep and wake up with same condition
-			operation_sleep_noirqreset();
+				// radio
+				send_radio_data_ppm(0,0xFAF000+exec_count);	
+				// set timer
+				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
+				// go to sleep and wake up with same condition
+				operation_sleep_noirqreset();
 			}
         }else{
             exec_count_irq = 0;
@@ -997,11 +1058,11 @@ int main() {
 
 		if (wakeup_data_field_2 & 0x1){
 			// Speed up PMU sleep osc
-			set_pmu_sleep_clk_high();
+			//set_pmu_sleep_clk_high();
 		}
 
 		if (wakeup_data_field_2 & 0x2){
-			set_pmu_sleep_clk_high(); // required for cdc operation in sleep
+			//set_pmu_sleep_clk_high(); // required for cdc operation in sleep
 			cdc_run_single = 1;
 			operation_cdc_run();
 			if (Pstack_state == PSTK_CDC_RST){ // extra return function in this state
@@ -1036,12 +1097,6 @@ int main() {
             operation_sleep_notimer();
         }
 
-    }else if(wakeup_data_header == 0x11){
-	// Slow down PMU sleep osc and go to sleep for further programming
-        set_pmu_sleep_clk_low();
-        // Go to sleep without timer
-        operation_sleep_notimer();
-
 	/*
 	  }else if(wakeup_data_header == 0x12){
 	  // Change the sleep period
@@ -1057,7 +1112,46 @@ int main() {
 	  operation_sleep_notimer();
 	  }
 	*/
+
+	}else if(wakeup_data_header == 0x13){
+		// Change the RF frequency
+        // Debug mode: Transmit something via radio and go to sleep w/o timer
+        // wakeup_data[7:0] is the # of transmissions
+        // wakeup_data[15:8] is the user-specified period
+        // wakeup_data[23:16] is the desired RF tuning value (RADv9)
+        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+        delay(MBUS_DELAY);
+
+		radv9_r0.RADIO_TUNE_FREQ1 = wakeup_data_field_2>>4; 
+		radv9_r0.RADIO_TUNE_FREQ2 = wakeup_data_field_2 & 0xF; 
+    	mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
+		delay(MBUS_DELAY);
+
+        if (exec_count_irq < wakeup_data_field_0){
+            exec_count_irq++;
+			if (exec_count_irq == 1){
+				// Prepare radio TX
+				radio_power_on();
+				// Go to sleep for SCRO stabilitzation
+				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x0);
+				operation_sleep_noirqreset();
+			}else{
+				// radio
+				send_radio_data_ppm(0,0xFAF000+exec_count_irq);	
+				// set timer
+				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+				// go to sleep and wake up with same condition
+				operation_sleep_noirqreset();
+			}
+        }else{
+            exec_count_irq = 0;
+            // radio
+            send_radio_data_ppm(1,0xFAF000);	
+            // Go to sleep without timer
+            operation_sleep_notimer();
+        }
     }
+
 
     // Proceed to continuous mode
     while(1){
