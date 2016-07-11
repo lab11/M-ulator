@@ -454,7 +454,7 @@ void register_periph_m3_ctl(void) {
 
 	{
 		// Connect to ICE Hardware Board
-		const char *host = "/tmp/com1";
+		const char *host = "/tmp/m3_ice_com1";
 		const uint16_t baud = 0; // use default baud
 
 		ice = create_ice_instance(host, baud);
