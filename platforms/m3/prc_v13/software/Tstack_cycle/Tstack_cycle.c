@@ -16,7 +16,7 @@
 #define RAD_ADDR 0x5
 #define PMU_ADDR 0x6
 
-#define MBUS_DELAY	100
+#define MBUS_DELAY	10000
 
 //********************************************************************
 // Global Variables
@@ -68,7 +68,7 @@ void initialization (void) {
 
     enumerated = 0xDEADBEEF;
     cyc_num = 0;
-	wakeup_period = 2;
+	wakeup_period = 5;
 
 	// Clock Speed (By default, CLK_CORE is 2x slower than CLK_MBC)
 //	*REG_CLKGEN_TUNE = 	  (0x0 << 19) // CLK_GEN_HIGH_FREQ
@@ -157,9 +157,9 @@ void initialization (void) {
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (1 << 13) // Enable main feedback loop
-		| (4 << 9)  // Frequency multiplier R
-		| (4 << 5)  // Frequency multiplier L (actually L+1)
-		| (15) 		// Floor frequency base (0-63)
+		| (1 << 9)  // Frequency multiplier R
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (9) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// SAR_RATIO_OVERRIDE
@@ -169,7 +169,7 @@ void initialization (void) {
 		| (1 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (48) 		// Binary converter's conversion ratio (7'h00)
+		| (44) 		// Binary converter's conversion ratio (7'h00)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
@@ -222,11 +222,11 @@ int main() {
 	// Set wakeup timer and go to sleep
     cyc_num++;
 	if (cyc_num < 5){
-		wakeup_period = 2;
+		wakeup_period = 200;
 	}else if (cyc_num <50){
 		wakeup_period = 200;
 	}else{
-		wakeup_period = 15000; // 15000 in decimal-> 3min. at 125C
+		wakeup_period = 200; // 15000 in decimal-> 3min. at 125C
 	}
 
     set_wakeup_timer(wakeup_period, 1, 1);
