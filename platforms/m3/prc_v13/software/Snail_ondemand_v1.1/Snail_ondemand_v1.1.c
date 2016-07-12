@@ -739,7 +739,7 @@ static void operation_run(void){
 			}else{
 				// Put system to sleep to reset the layer controller
 				Tstack_state = TSTK_TEMP_RSTRL;
-				set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x0);
+				set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x1);
 				operation_sleep();
 			}
 
@@ -906,7 +906,7 @@ int main() {
     
     set_wakeup_timer(100, 0, 1); // Reset Wakeup Timer; 
 	enable_reg_irq(); // Initialize Interrupts, Only enable register-related interrupts
-    config_timerwd(0x1FFFFF); // Config watchdog timer to about 10 sec (default: 0x02FFFFFF), 0xFFFFF about 13 sec with Y2 run default clock
+    config_timerwd(0xFFFFF); // Config watchdog timer to about 10 sec (default: 0x02FFFFFF), 0xFFFFF about 13 sec with Y2 run default clock
 
     if (enumerated != 0xDEADBEEF){
         operation_init(); // Initialization

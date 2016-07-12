@@ -739,7 +739,7 @@ static void operation_run(void){
 			}else{
 				// Put system to sleep to reset the layer controller
 				Tstack_state = TSTK_TEMP_RSTRL;
-				set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x0);
+				set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x1);
 				operation_sleep();
 			}
 
