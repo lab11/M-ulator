@@ -25,7 +25,7 @@
 
 // Sensor parameters
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
-#define TEMP_TIMEOUT_COUNT 2000
+#define TEMP_TIMEOUT_COUNT 1000
 #define WAKEUP_PERIOD_RESET 2
 #define WAKEUP_PERIOD_LDO 2
 #define SENSING_CYCLE_INIT 5 
