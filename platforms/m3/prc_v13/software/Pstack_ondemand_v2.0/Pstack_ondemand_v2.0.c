@@ -1133,13 +1133,13 @@ int main() {
 				// Prepare radio TX
 				radio_power_on();
 				// Go to sleep for SCRO stabilitzation
-				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x0);
+				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
 				operation_sleep_noirqreset();
 			}else{
 				// radio
 				send_radio_data_ppm(0,0xFAF000+exec_count_irq);	
 				// set timer
-				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
 				operation_sleep_noirqreset();
 			}
