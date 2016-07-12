@@ -43,7 +43,7 @@
 #define RADIO_TIMEOUT_COUNT 50
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
-#define DATA_STORAGE_SIZE 962 // FIXME
+#define DATA_STORAGE_SIZE 953 // FIXME
 
 
 //********************************************************************
@@ -668,9 +668,9 @@ static void operation_run(void){
 		temp_reset_timeout_count = 0;
 
 		// Power on radio
-//		if (radio_tx_option || ((exec_count+1) < SENSING_CYCLE_INIT)){
-//			radio_power_on();
-//		}
+		if (radio_tx_option || ((exec_count+1) < SENSING_CYCLE_INIT)){
+			radio_power_on();
+		}
 
 		snsv7_r18.ADC_LDO_ADC_LDO_ENB = 0x0;
 		mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
@@ -864,6 +864,8 @@ static void operation_run(void){
 
 		// Enter long sleep
 		if(exec_count < SENSING_CYCLE_INIT){
+			delay(RADIO_PACKET_DELAY);
+			send_radio_data_ppm(1, 0xFAF000);
 			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 		}else{
 			set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
