@@ -15,7 +15,7 @@
 
 // uncomment this for debug mbus message
 // #define DEBUG_MBUS_MSG
-#define DEBUG_MBUS_MSG_1
+// #define DEBUG_MBUS_MSG_1
 
 // TStack order  PRC->RAD->SNS->HRV->PMU
 #define HRV_ADDR 0x3
@@ -25,7 +25,7 @@
 
 // Sensor parameters
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
-#define TEMP_TIMEOUT_COUNT 1000
+#define TEMP_TIMEOUT_COUNT 250
 #define WAKEUP_PERIOD_RESET 2
 #define WAKEUP_PERIOD_LDO 2
 #define SENSING_CYCLE_INIT 5 
@@ -727,27 +727,30 @@ static void operation_run(void){
 		mbus_write_message32(0xFA, 0xFAFAFAFA);
 		temp_sensor_disable();
 
-		if (temp_reset_timeout_count > 0){
-			temp_reset_timeout_count++;
-			temp_sensor_assert_reset();
+		temp_reset_timeout_count++;
+		Tstack_state = TSTK_DATA_READ;
 
-			if (temp_reset_timeout_count > 5){
-				// Temp sensor is not resetting for some reason. Go to sleep forever
-				Tstack_state = TSTK_IDLE;
-				temp_power_off();
-				operation_sleep_notimer();
-			}else{
-				// Put system to sleep to reset the layer controller
-				Tstack_state = TSTK_TEMP_RSTRL;
-				set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x1);
-				operation_sleep();
-			}
-
-	    }else{
-		// Try one more time
-	    	temp_reset_timeout_count++;
-			temp_sensor_assert_reset();
-	    }
+//		if (temp_reset_timeout_count > 0){
+//			temp_reset_timeout_count++;
+//			temp_sensor_assert_reset();
+//
+//			if (temp_reset_timeout_count > 5){
+//				// Temp sensor is not resetting for some reason. Go to sleep forever
+//				Tstack_state = TSTK_IDLE;
+//				temp_power_off();
+//				operation_sleep_notimer();
+//			}else{
+//				// Put system to sleep to reset the layer controller
+//				Tstack_state = TSTK_TEMP_RSTRL;
+//				set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x1);
+//				operation_sleep();
+//			}
+//
+//	    }else{
+//		// Try one more time
+//	    	temp_reset_timeout_count++;
+//			temp_sensor_assert_reset();
+//	    }
 
 
 
@@ -766,6 +769,14 @@ static void operation_run(void){
 		uint32_t read_data_temp_data; // [23:0] Temp Sensor D Out
 		uint32_t read_data_luxcnt;	  // Light Intensity
 		uint32_t read_data_batadc;	  // Battery ADC		
+
+		// PMUv2 register read is handled differently
+		mbus_remote_register_write(PMU_ADDR,0x00,0x03);
+		delay(MBUS_DELAY);
+		read_data_batadc = *((volatile uint32_t *) REG0);
+		delay(MBUS_DELAY);
+		batadc_reset();
+		delay(MBUS_DELAY);
 		
 		// Set CPU Halt Option as RX --> Use for register read e.g.
 		set_halt_until_mbus_rx();
@@ -773,8 +784,13 @@ static void operation_run(void){
 		mbus_remote_register_read(SNS_ADDR,0x10,1);
 		read_data_temp_done = *((volatile uint32_t *) REG1);
 		delay(MBUS_DELAY);
-		mbus_remote_register_read(SNS_ADDR,0x11,1);
-		read_data_temp_data = *((volatile uint32_t *) REG1);
+		if (temp_reset_timeout_count > 0){
+			mbus_remote_register_read(SNS_ADDR,0x11,1);
+			read_data_temp_data = *((volatile uint32_t *) REG1);
+		}else{
+			read_data_temp_data = 0;
+			temp_reset_timeout_count = 0;
+		}
 		delay(MBUS_DELAY);
 		mbus_remote_register_read(HRV_ADDR,0x02,1);
 		read_data_luxcnt = *((volatile uint32_t *) REG1);
@@ -784,14 +800,7 @@ static void operation_run(void){
 
 		// Set CPU Halt Option as TX --> Use for register write e.g.
 		set_halt_until_mbus_tx();
-
-		// PMUv2 register read is handled differently
-		mbus_remote_register_write(PMU_ADDR,0x00,0x03);
 		delay(MBUS_DELAY);
-		read_data_batadc = *((volatile uint32_t *) REG0);
-		delay(MBUS_DELAY);
-		batadc_reset();
-		delay(MBUS_DELAY*10);
 		batadc_resetrelease();
 
 		//***************************************************
@@ -907,6 +916,8 @@ int main() {
     set_wakeup_timer(100, 0, 1); // Reset Wakeup Timer; 
 	enable_reg_irq(); // Initialize Interrupts, Only enable register-related interrupts
     config_timerwd(0xFFFFF); // Config watchdog timer to about 10 sec (default: 0x02FFFFFF), 0xFFFFF about 13 sec with Y2 run default clock
+//	disable_timerwd();
+
 
     if (enumerated != 0xDEADBEEF){
         operation_init(); // Initialization
