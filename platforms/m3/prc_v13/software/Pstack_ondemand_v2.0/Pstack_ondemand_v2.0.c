@@ -82,10 +82,10 @@
 // CDC parameters
 #define	MBUS_DELAY 100 //Amount of delay between successive messages; 100: 6-7ms
 #define	LDO_DELAY 500 // 1000: 150msec
-#define CDC_TIMEOUT_COUNT 2000
+#define CDC_TIMEOUT_COUNT 1000
 #define WAKEUP_PERIOD_RESET 2
 #define WAKEUP_PERIOD_LDO 2
-#define CDC_CYCLE_INIT 2
+#define CDC_CYCLE_INIT 4
 
 // Pstack states
 #define	PSTK_IDLE       0x0
@@ -96,9 +96,9 @@
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 24
-#define RADIO_PACKET_DELAY 5000
-#define RADIO_TIMEOUT_COUNT 500
-#define WAKEUP_PERIOD_RADIO_INIT 3
+#define RADIO_PACKET_DELAY 3000
+#define RADIO_TIMEOUT_COUNT 100
+#define WAKEUP_PERIOD_RADIO_INIT 2
 
 // CDC configurations
 #define NUM_SAMPLES         3      //Number of CDC samples to take (only 2^n allowed for averaging: 2, 4, 8, 16...)
@@ -712,9 +712,7 @@ static void operation_cdc_run(){
 		}
 
 		// Time out
-		#ifdef DEBUG_MBUS_MSG
-			mbus_write_message32(0xAA, 0xFAFAFAFA);
-		#endif
+		mbus_write_message32(0xAA, 0xFAFAFAFA);
 
 		release_cdc_meas();
 		if (cdc_reset_timeout_count > 0){
@@ -997,6 +995,8 @@ int main() {
 			}else{
 				// radio
 				send_radio_data_ppm(0,0xFAF000+exec_count);	
+    			delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
+				send_radio_data_ppm(0,0xFAF000+cdc_reset_timeout_count);	
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
