@@ -622,8 +622,8 @@ static void operation_init(void){
 	));
 
     mbus_remote_register_write(HRV_ADDR,0x04,
-		( (0  << 6)  // VOLTAGE_CLAMP_I_TUNE (default: 7)
-		| (63)       // VOLTAGE_CLAMP_V_TUNE (default: 19)
+		( (7  << 6)  // VOLTAGE_CLAMP_I_TUNE (default: 7)
+		| (19)       // VOLTAGE_CLAMP_V_TUNE (default: 19)
 	));
 
     mbus_remote_register_write(HRV_ADDR,0x05, 
@@ -773,7 +773,7 @@ static void operation_run(void){
 		// PMUv2 register read is handled differently
 		mbus_remote_register_write(PMU_ADDR,0x00,0x03);
 		delay(MBUS_DELAY);
-		read_data_batadc = *((volatile uint32_t *) REG0);
+		read_data_batadc = *((volatile uint32_t *) REG0) && 0xFF;
 		delay(MBUS_DELAY);
 		batadc_reset();
 		delay(MBUS_DELAY);
@@ -784,7 +784,7 @@ static void operation_run(void){
 		mbus_remote_register_read(SNS_ADDR,0x10,1);
 		read_data_temp_done = *((volatile uint32_t *) REG1);
 		delay(MBUS_DELAY);
-		if (temp_reset_timeout_count > 0){
+		if (temp_reset_timeout_count = 0){
 			mbus_remote_register_read(SNS_ADDR,0x11,1);
 			read_data_temp_data = *((volatile uint32_t *) REG1);
 		}else{
