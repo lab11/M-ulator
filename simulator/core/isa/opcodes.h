@@ -46,6 +46,7 @@ int		register_opcode_mask_32_ex(uint32_t ones_mask,
 // MACRO TRICKS //
 //////////////////
 
+void op_decompile(const char* syntax, ...);
 #ifdef HAVE_DECOMPILE
 extern int decompile_flag;
 #define OP_DECOMPILE(...)\
@@ -53,9 +54,8 @@ extern int decompile_flag;
 		if (decompile_flag)\
 			op_decompile(__VA_ARGS__);\
 	} while(0)
-void op_decompile(const char* syntax, ...);
 #else
-#define OP_DECOMPILE(...) do {;} while(0) // avoid empty `if` block for compiler
+#define OP_DECOMPILE(...) do {op_decompile(__VA_ARGS__);} while(0)
 #endif
 
 #define register_opcode_mask_16(_o, _z, _f)\

@@ -6,7 +6,7 @@ to run as small, self-contained units for each instruction encoding. Each test
 should begin with a global `main` label which serves as entry point. These
 tests assume the following instructions are well behaved:
 
-    * `MOVS`, `MOVW`, `MOVT`
+    * `MOVS`, `MOVW`, `MOVT`, `MVN`
     * `CMP` (all forms)
     * `B<c>`, `BX LR`
 
