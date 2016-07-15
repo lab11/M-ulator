@@ -284,8 +284,10 @@ static void* i2c_thread(void *v_args) {
 				pthread_cond_signal(&t->pc);
 			}
 			t->is_active_message = true;
-			if ((p->m.address & t->ones) &&
-					((~p->m.address) & (~t->zeros))) {
+
+			uint8_t ones_match  = (p->m.address & t->ones);
+			uint8_t zeros_match = (~p->m.address) & (~t->zeros);
+			if (ones_match && zeros_match) {
 				matched = true;
 
 				// This message is for us, ACK it
