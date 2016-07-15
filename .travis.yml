@@ -5,9 +5,10 @@ dist: trusty
 
 before_install:
     - sudo apt-get update
-    - sudo apt-get install -qq libfuse-dev python-dev gcc-arm-none-eabi python3-pip
+    - sudo apt-get install -qq libfuse-dev python-dev gcc-arm-none-eabi python3-pip socat
     - pip install --user git+https://github.com/ppannuto/sh.git@fix_pushd
     - pip3 install --user git+https://github.com/ppannuto/sh.git@fix_pushd
+    - pip install --user m3
 
 before_script:
     - git clone https://github.com/gittup/tup.git
@@ -20,4 +21,5 @@ before_script:
     - cd ..
 
 script:
+    - ~/.local/bin/m3_ice_simulator &
     - ./ci_tests.py
