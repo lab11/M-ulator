@@ -46,7 +46,7 @@ class mbus_message_generator(m3_common):
         self.ice.msg_handler['B++'] = self.Bpp_callback
         self.ice.msg_handler['b++'] = self.Bpp_callback
 
-    def Bpp_callback(self, address, data, cb0, cb1):
+    def Bpp_callback(self, address, data, cb0=-1, cb1=-1):
         print("@" + str(self.count) + " Time: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "  ADDR: 0x" + address.encode('hex') + "  DATA: 0x" + data.encode('hex') + "  (ACK: " + str(not cb1) + ")")
         if (str(int(address.encode('hex'),16))=="118"):
             #o_file.write(str(int(address.encode('hex'),16))+"\t"+str(int(data.encode('hex'),16))+"\r\n")
@@ -82,6 +82,7 @@ m.ice.mbus_set_snoop(False)
 #isp = m.default_value("ICE address", "0111")
 #m.ice.mbus_set_short_prefix(isp)
 m.ice.mbus_set_short_prefix("0111")
+#m.ice.mbus_set_short_prefix("xxxx")
 
 #raw_input("Pausing in reset...")
 

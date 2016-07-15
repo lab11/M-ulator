@@ -100,11 +100,6 @@
 #define RADIO_TIMEOUT_COUNT 100
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
-// CDC configurations
-#define NUM_SAMPLES         3      //Number of CDC samples to take (only 2^n allowed for averaging: 2, 4, 8, 16...)
-#define NUM_SAMPLES_TX      1      //Number of CDC samples to be TXed (processed by process_data)
-#define NUM_SAMPLES_2PWR    0      //NUM_SAMPLES = 2^NUM_SAMPLES_2PWR - used for averaging
-
 #define CDC_STORAGE_SIZE 400 // FIXME
 
 //***************************************************
@@ -114,8 +109,6 @@
 // "volatile" should only be used for MMIO --> ensures memory storage
 volatile uint32_t enumerated;
 volatile uint8_t Pstack_state;
-volatile uint32_t cdc_data[NUM_SAMPLES];
-volatile uint32_t cdc_data_tx[NUM_SAMPLES_TX];
 volatile uint32_t cdc_reset_timeout_count;
 volatile uint32_t exec_count;
 volatile uint32_t meas_count;
