@@ -9,6 +9,7 @@ before_install:
     - pip install --user git+https://github.com/ppannuto/sh.git@fix_pushd
     - pip3 install --user git+https://github.com/ppannuto/sh.git@fix_pushd
     - pip install --user m3
+    - pip3 install --user colorlog
 
 before_script:
     - git clone https://github.com/gittup/tup.git
