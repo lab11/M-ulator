@@ -4,12 +4,23 @@ import logging
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
+import argparse
 from contextlib import contextmanager
+import glob
 import os
 import pprint
 import sys
 
+# Or write fallback os.walk code for glob ** usage
+assert sys.version_info >= (3,5)
+
 import sh
+logging.getLogger('sh').setLevel(logging.WARN)
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-X', '--stop', action='store_true',
+		help='Stop on first error')
+args = parser.parse_args()
 
 # n.b. pushd is coming to sh in v1.10
 @contextmanager
@@ -22,21 +33,10 @@ def pushd(path):
 # Make sure everything is up-to-date
 sh.tup()
 
-def test_operations():
-	def get_test_paths():
-		tests = {}
-		for family in os.listdir('tests/operations/'):
-			if not os.path.isdir(os.path.join('tests/operations/', family)):
-				continue
-
-			tests[family] = {}
-			for test in os.listdir(os.path.join('tests/operations/', family)):
-				if test[-2:] == '.s':
-					tests[family][test[:-2]] = {}
-		return tests
-
-	tests = get_test_paths()
+def tests():
 	any_fail = False
+
+	variants = {}
 
 	for variant in os.listdir('.'):
 		if not variant[:6] == 'build-':
@@ -45,23 +45,31 @@ def test_operations():
 		log.info("Running tests for variant: %s", variant)
 		with pushd(variant):
 			sim = sh.Command('./simulator')
-			for family in tests:
-				log.info("\tfamily: %s", family)
-				for test in tests[family]:
-					log.info("\t\ttest: %s", test)
-					image = os.path.join('tests/operations', family, test) + '.bin'
-					try:
-						sim('-f', image)
-						tests[family][test]['exit_code'] = 0
-						log.info("\t\t\tPASSED")
-					except sh.ErrorReturnCode as e:
-						tests[family][test]['exit_code'] = e.exit_code
-						tests[family][test]['exception'] = e
-						log.info("\t\t\tFAILED -- Error code %s", e.exit_code)
-						log.info("\t\t\t\t%s", e)
-						any_fail = True
+			variants[variant] = {}
+
+			for test in glob.iglob('tests/**/*.bin', recursive=True):
+				variants[variant][test] = {}
+				log.info("\t\ttest: %s", test)
+				try:
+					sim('-f', test)
+					variants[variant][test]['exit_code'] = 0
+					log.info("\t\t\tPASSED")
+				except sh.ErrorReturnCode as e:
+					variants[variant][test]['exit_code'] = e.exit_code
+					variants[variant][test]['exception'] = e
+					
+					# XXX: This is a hack
+					if 'exceeds ram size' in e.stderr.decode('utf-8'):
+						log.info("\t\t\tSKIPPED -- Test too large for variant")
+						continue
+
+					log.info("\t\t\tFAILED -- Error code %s", e.exit_code)
+					log.info("\t\t\t\t%s", e)
+					any_fail = True
+					if args.stop:
+						sys.exit(-1)
 
 	if not any_fail:
 		print("All tests passed.")
 
-test_operations()
+tests()

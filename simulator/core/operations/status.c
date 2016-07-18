@@ -18,7 +18,6 @@
  */
 
 // A4.5 Status register access instructions
-#include "opcodes.h"
 #include "helpers.h"
 
 #include "cpu/features.h"
@@ -35,17 +34,7 @@ EXPORT int ExecutionPriority(void) {
 	CORE_ERR_not_implemented("ExecutionPriority\n");
 }
 
-// arm-v6-m, arm-v7-m
-static void cps_t1(uint16_t inst) {
-	bool  F = !!(inst & 0x1);
-	bool  I = !!(inst & 0x2);
-	bool im = !!(inst & 0x10);
-
-	bool enable = im==0;
-	bool disable = im==1;
-	bool affectPri = I==1;
-	bool affectFault = F==1;
-
+void cps(bool enable, bool disable, bool affectPri, bool affectFault) {
 	if (in_ITblock())
 		CORE_ERR_unpredictable("cps_t1 case\n");
 
@@ -65,11 +54,7 @@ static void cps_t1(uint16_t inst) {
 	}
 }
 
-// arm-v6-m, arm-v7-m
-static void mrs_t1(uint32_t inst) {
-	uint8_t SYSm = inst & 0xff;
-	uint8_t rd = (inst >> 8) & 0xf;
-
+void mrs(uint8_t SYSm, uint8_t rd) {
 	if (BadReg(rd))
 		CORE_ERR_unpredictable("mrs_t1 case\n");
 
@@ -165,12 +150,7 @@ static void mrs_t1(uint32_t inst) {
 	CORE_reg_write(rd, rd_val);
 }
 
-// arm-v6-m, arm-v7-m
-static void msr_t1(uint32_t inst) {
-	uint8_t SYSm = inst & 0xff;
-	uint8_t mask = (inst >> 10) & 0x3;
-	uint8_t rn   = (inst >> 16) & 0xf;
-
+void msr(uint8_t SYSm, uint8_t mask, uint8_t rn) {
 	switch (mask) {
 		case 0x2:
 			// _nzcvq
@@ -281,17 +261,4 @@ static void msr_t1(uint32_t inst) {
 		default:
 			CORE_ERR_unpredictable("Bad SYSm\n");
 	}
-}
-
-
-__attribute__ ((constructor))
-static void register_opcodes_status(void) {
-	// cps_t1: 1011 0110 011x 00xx
-	register_opcode_mask_16(0xb660, 0x498c, cps_t1);
-
-	// mrs_t1: 1111 0011 1110 1111 1100 <x's>
-	register_opcode_mask_32(0xf3efc000, 0x0c103000, mrs_t1);
-
-	// msr_t1: 1111 0011 1000 xxxx 1000 xx00 <x's>
-	register_opcode_mask_32(0xf3808000, 0x0c707300, msr_t1);
 }

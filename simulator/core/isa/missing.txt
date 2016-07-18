@@ -1,4 +1,4 @@
-missint.txt
+missing.txt
 ===========
 
 This file documents all of the instructions in the v7m ARM ARM that are not implemented.

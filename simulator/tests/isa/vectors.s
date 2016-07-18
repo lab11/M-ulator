@@ -1,4 +1,3 @@
-.cpu cortex-m3
 .syntax unified
 
 vector_table:

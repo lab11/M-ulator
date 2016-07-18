@@ -17,17 +17,18 @@
  * along with Mulator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef HAVE_DECOMPILE
-
 #include "core/common.h"
 
+#ifdef HAVE_DECOMPILE
+
 #include "core/pipeline.h" // for STALL_PC
+
+#include "core/operations/helpers.h"
 
 #include "cpu/registers.h"
 #include "cpu/core.h"
 #include "cpu/misc.h"
 
-#include "helpers.h"
 static const char* it_condition = "!!it_condition not initialized!!";
 
 EXPORT bool decompile_ran;
@@ -322,6 +323,15 @@ EXPORT void op_decompile(const char* syntax, ...) {
 	funlockfile(stderr); funlockfile(stdout);
 
 	decompile_ran = true;
+}
+
+#else // HAVE_DECOMPILE
+
+// Leave an empty stub function here to suppress unused argument issues
+// from the call sites of variables created only for OP_DECOMPILE support
+// in some build variations. Need this b/c there's no way to mark variadic
+// arguments as potentially unused in fn decl or call site
+EXPORT void op_decompile(const char* syntax __attribute__ ((unused)), ...) {
 }
 
 #endif // HAVE_DECOMPILE
