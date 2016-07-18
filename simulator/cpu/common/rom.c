@@ -46,6 +46,12 @@ EXPORT void flash_ROM(const uint8_t *image, int offset, uint32_t nbytes) {
 	INFO("Flashed %d bytes to ROM\n", nbytes);
 }
 
+#ifdef PRINT_ROM_ENABLE
+EXPORT size_t dump_ROM(FILE *fp) {
+	return fwrite(rom, ROMSIZE, 1, fp);
+}
+#endif
+
 static bool rom_read(uint32_t addr, uint32_t *val) {
 #ifdef DEBUG1
 	assert((addr >= ROMBOT) && (addr < ROMTOP) && "CORE_rom_read");

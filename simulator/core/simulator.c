@@ -191,21 +191,12 @@ static void print_full_state(void) {
 	{
 		const char *file;
 		size_t ret;
-		uint32_t i;
 
-#if defined (HAVE_ROM) && defined (PRINT_ROM_EN)
+#if defined (HAVE_ROM) && defined (PRINT_ROM_ENABLE)
 		file = get_dump_name('o');
 		FILE* romfp = fopen(file, "w");
 		if (romfp) {
-			uint32_t rom[ROMSIZE >> 2] = {0};
-			for (i = ROMBOT; i < ROMBOT+ROMSIZE; i += 4)
-#ifdef DEBUG2
-				rom[(i-ROMBOT)/4] = read_word_quiet(i);
-#else
-				rom[(i-ROMBOT)/4] = read_word(i);
-#endif
-
-			ret = fwrite(rom, ROMSIZE, 1, romfp);
+			ret = dump_ROM(romfp);
 			printf("Wrote %8zu bytes to %-29s "\
 					"(Use 'hexdump -C' to view)\n",
 					ret*ROMSIZE, file);
@@ -221,15 +212,7 @@ static void print_full_state(void) {
 #if defined (HAVE_RAM)
 		FILE* ramfp = fopen(file, "w");
 		if (ramfp) {
-			uint32_t ram[RAMSIZE >> 2] = {0};
-			for (i = RAMBOT; i < RAMBOT+RAMSIZE; i += 4)
-#ifdef DEBUG2
-				ram[(i-RAMBOT)/4] = read_word_quiet(i);
-#else
-				ram[(i-RAMBOT)/4] = read_word(i);
-#endif
-
-			ret = fwrite(ram, RAMSIZE, 1, ramfp);
+			ret = dump_RAM(ramfp);
 			printf("Wrote %8zu bytes to %-29s "\
 					"(Use 'hexdump -C' to view)\n",
 					ret*RAMSIZE, file);
@@ -297,7 +280,7 @@ static void _shell(void) {
 		{
 			const char *file;
 
-#if defined (HAVE_ROM) && defined (PRINT_ROM_EN)
+#if defined (HAVE_ROM) && defined (PRINT_ROM_ENABLE)
 			if (buf[1] == 'o') {
 				file = get_dump_name('o');
 			} else
@@ -360,7 +343,7 @@ static void _shell(void) {
 #ifdef HAVE_REPLAY
 			printf("   seek [INTEGER]	Seek to cycle\n");
 #endif
-#if defined (HAVE_ROM) && defined (PRINT_ROM_EN)
+#if defined (HAVE_ROM) && defined (PRINT_ROM_ENABLE)
 			printf("   rom			Print ROM contents\n");
 #endif
 #if defined (HAVE_RAM)

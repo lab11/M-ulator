@@ -35,6 +35,9 @@
 #endif
 
 void flash_ROM(const uint8_t *image, int offset, uint32_t nbytes);
+#ifdef PRINT_ROM_ENABLE
+size_t dump_ROM(FILE *fp);
+#endif
 
 #endif // ROMBOT
 // Only include this peripheral if requested in the platform memmap.h //
