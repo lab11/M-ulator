@@ -817,7 +817,12 @@ EXPORT void register_periph_thread(
 static void flash_image(const uint8_t *image, const uint32_t num_bytes){
 #if defined (HAVE_ROM)
 	if (ROMBOT == 0x0) {
-		flash_ROM(image, 0, num_bytes);
+#ifdef BOOTLOADER_REMAP_VECTOR_TABLE
+		uint32_t offset = BOOTLOADER_REMAP_VECTOR_TABLE;
+#else
+		uint32_t offset = 0;
+#endif
+		flash_ROM(image, offset, num_bytes);
 		return;
 	}
 #elif defined (HAVE_RAM)

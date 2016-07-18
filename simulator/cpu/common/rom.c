@@ -38,6 +38,10 @@ static uint32_t code_top = 0;
 #endif
 
 EXPORT void flash_ROM(const uint8_t *image, int offset, uint32_t nbytes) {
+	if ((offset % 4) != 0) {
+		CORE_ERR_runtime("ROM flash desination must be word-aligned");
+	}
+	offset >>= 2;
 	memcpy(rom+offset, image, nbytes);
 #ifndef FAVOR_SPEED
 	code_bot = offset;
@@ -55,6 +59,12 @@ EXPORT size_t dump_ROM(FILE *fp) {
 static bool rom_read(uint32_t addr, uint32_t *val) {
 #ifdef DEBUG1
 	assert((addr >= ROMBOT) && (addr < ROMTOP) && "CORE_rom_read");
+#endif
+#ifdef BOOTLOADER_BOT
+	if ((addr >= BOOTLOADER_BOT) && (addr < BOOTLOADER_TOP)) {
+		WARN("Attempt to read bootloader region at %08x\n", addr);
+		CORE_ERR_invalid_addr(false, addr);
+	}
 #endif
 	if ((addr >= ROMBOT) && (addr < ROMTOP) && (0 == (addr & 0x3))) {
 		*val = SR(&rom[ADDR_TO_IDX(addr, ROMBOT)]);
@@ -79,6 +89,12 @@ static void rom_write(uint32_t addr, uint32_t val) {
 					code_bot, code_top);
 			WARN("This is almost certainly an error (stack overflow)\n");
 		}
+	}
+#endif
+#ifdef BOOTLOADER_BOT
+	if ((addr >= BOOTLOADER_BOT) && (addr < BOOTLOADER_TOP)) {
+		WARN("Attempt to write bootloader region at %08x\n", addr);
+		CORE_ERR_invalid_addr(true, addr);
 	}
 #endif
 	if ((addr >= ROMBOT) && (addr < ROMTOP) && (0 == (addr & 0x3))) {
