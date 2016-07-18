@@ -378,16 +378,22 @@ static void shell(void) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// When things are crashing, we try to print out helpful information, however
+// that can cause nested errors. This flag bails directly in that case.
+static bool _crashing = false;
+
 EXPORT void CORE_WARN_real(const char *f, int l, const char *msg) {
 	WARN("%s:%d\t%s\n", f, l, msg);
 }
 
 EXPORT void CORE_ERR_read_only_real(const char *f, int l, uint32_t addr) {
+	_crashing = true;
 	print_full_state();
 	ERR(E_READONLY, "%s:%d\t%#08x is read-only\n", f, l, addr);
 }
 
 EXPORT void CORE_ERR_write_only_real(const char *f, int l, uint32_t addr) {
+	_crashing = true;
 	print_full_state();
 	ERR(E_WRITEONLY, "%s:%d\t%#08x is write-only\n", f, l, addr);
 }
@@ -396,6 +402,8 @@ EXPORT void CORE_ERR_invalid_addr_real(const char *f, int l, uint8_t is_write, u
 	static bool dumping = false;
 	if (dumping) {
 		WARN("Err generating core dump, aborting\n");
+	} else if (_crashing) {
+		WARN("Generating core dump threw an error, aborting\n");
 	} else {
 		dumping = true;
 		WARN("CORE_ERR_invalid_addr %s address: 0x%08x\n",
@@ -403,10 +411,12 @@ EXPORT void CORE_ERR_invalid_addr_real(const char *f, int l, uint8_t is_write, u
 		WARN("Dumping Core...\n");
 		print_full_state();
 	}
-	ERR(E_INVALID_ADDR, "%s:%d\tTerminating due to invalid addr\n", f, l);
+	ERR(E_INVALID_ADDR, "%s:%d\tTerminating due to invalid addr (%s %08x)\n", f, l,
+			is_write ? "WRITE":"READ", addr);
 }
 
 EXPORT void CORE_ERR_illegal_instr_real(const char *f, int l, uint32_t inst) {
+	_crashing = true;
 	WARN("CORE_ERR_illegal_instr, inst: %08x\n", inst);
 	WARN("Dumping core...\n");
 	print_full_state();
@@ -414,14 +424,23 @@ EXPORT void CORE_ERR_illegal_instr_real(const char *f, int l, uint32_t inst) {
 }
 
 EXPORT void CORE_ERR_unpredictable_real(const char *f, int l, const char *opt_msg) {
+	_crashing = true;
+	WARN("Dumping core...\n");
+	print_full_state();
 	ERR(E_UNPREDICTABLE, "%s:%d\tCORE_ERR_unpredictable -- %s\n", f, l, opt_msg);
 }
 
 EXPORT void CORE_ERR_runtime_real(const char *f, int l, const char *opt_msg) {
+	_crashing = true;
+	WARN("Dumping core...\n");
+	print_full_state();
 	ERR(E_RUNTIME, "%s:%d\tCORE_ERR_runtime -- %s\n", f, l, opt_msg);
 }
 
 EXPORT void CORE_ERR_not_implemented_real(const char *f, int l, const char *opt_msg) {
+	_crashing = true;
+	WARN("Dumping core...\n");
+	print_full_state();
 	ERR(E_NOT_IMPLEMENTED, "%s:%d\tCORE_ERR_not_implemented -- %s\n", f, l, opt_msg);
 }
 
