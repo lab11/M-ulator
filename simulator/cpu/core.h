@@ -45,12 +45,9 @@ void register_memmap(
 		uint32_t top
 	);
 
-// These functions you must implement in core.c 
 void		reset(void);
 
-#ifdef DEBUG2
 uint32_t	read_word_quiet(uint32_t addr);
-#endif
 uint32_t	read_word(uint32_t addr);
 void		write_word(uint32_t addr, uint32_t val);
 uint16_t	read_halfword(uint32_t addr);
@@ -61,5 +58,35 @@ void		write_byte(uint32_t addr, uint8_t val);
 // Exported for gdb
 bool		try_read_byte(uint32_t addr, uint8_t *val)
 			__attribute__ ((nonnull));
+
+#ifdef HAVE_MEMTRACE
+extern int memtrace_flag;
+#define MEMTRACE_READ(_width, _addr, _val) do {\
+	if (memtrace_flag) {\
+		printf("MEMTR:  READ 0x%08x -> 0x%08x, %d\n", _addr, _val, _val);\
+	}\
+} while (0);
+#define MEMTRACE_READ_ERR(_width, _addr) do {\
+	if (memtrace_flag) {\
+		printf("MEMTR:  READ 0x%08x -> !! ERROR !!\n", _addr);\
+	}\
+} while (0);
+#define MEMTRACE_WRITE(_width, _addr, _val) do {\
+	if (memtrace_flag) {\
+		printf("MEMTR: WRITE 0x%08x <- 0x%08x, %d\n", _addr, _val, _val);\
+	}\
+} while (0);
+#define MEMTRACE_WRITE_ERR(_width, _addr, _val) do {\
+	if (memtrace_flag) {\
+		printf("MEMTR: WRITE 0x%08x <- !! ERROR !!\n", _addr);\
+	}\
+} while (0);
+#else
+#define MEMTRACE_READ(...)
+#define MEMTRACE_READ_ERR(...)
+#define MEMTRACE_WRITE(...)
+#define MEMTRACE_WRITE_ERR(...)
+#endif
+
 
 #endif // CORE_H

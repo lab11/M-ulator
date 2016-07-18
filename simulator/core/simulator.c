@@ -62,6 +62,9 @@ EXPORT int printcycles = 0;
 #ifdef HAVE_DECOMPILE
 EXPORT int decompile_flag = 0;
 #endif
+#ifdef HAVE_MEMTRACE
+EXPORT int memtrace_flag = 0;
+#endif
 #ifdef DEBUG1
 EXPORT int raiseonerror = 1;
 #else
