@@ -30,10 +30,10 @@
 void register_reset(void(*fn)(void));
 
 union memmap_fn {
-	bool (*R_fn32)(uint32_t, uint32_t *);
-	void (*W_fn32)(uint32_t, uint32_t);
-	bool (*R_fn8)(uint32_t, uint8_t *);
-	void (*W_fn8)(uint32_t, uint8_t);
+	bool (*R_fn32)(uint32_t, uint32_t *, bool);
+	void (*W_fn32)(uint32_t, uint32_t, bool);
+	bool (*R_fn8)(uint32_t, uint8_t *, bool);
+	void (*W_fn8)(uint32_t, uint8_t, bool);
 };
 
 void register_memmap(
@@ -55,8 +55,7 @@ void		write_halfword(uint32_t addr, uint16_t val);
 uint8_t		read_byte(uint32_t addr);
 void		write_byte(uint32_t addr, uint8_t val);
 
-// Exported for gdb
-bool		try_read_byte(uint32_t addr, uint8_t *val)
+bool		gdb_read_byte(uint32_t addr, uint8_t *val)
 			__attribute__ ((nonnull));
 
 #ifdef HAVE_MEMTRACE

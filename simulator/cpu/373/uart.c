@@ -321,21 +321,37 @@ static void poll_uart_txdata_write(uint8_t val) {
 //////////////////////////////////////////////////////////////////
 
 // Wrappers to match function signature
-static bool uart_read_status(uint32_t addr __attribute__ ((unused)), uint8_t *val) {
+static bool uart_read_status(
+		uint32_t addr __attribute__ ((unused)),
+		uint8_t *val,
+		bool debugger __attribute__ ((unused))
+		) {
 	*val = poll_uart_status_read();
 	return true;
 }
 
-static void uart_write_status(uint32_t addr __attribute__ ((unused)), uint8_t val) {
+static void uart_write_status(
+		uint32_t addr __attribute__ ((unused)),
+		uint8_t val,
+		bool debugger __attribute__ ((unused))
+		) {
 	poll_uart_status_write(val);
 }
 
-static bool uart_read_data(uint32_t addr __attribute__ ((unused)), uint8_t *val) {
+static bool uart_read_data(
+		uint32_t addr __attribute__ ((unused)),
+		uint8_t *val,
+		bool debugger __attribute__ ((unused))
+		) {
 	*val = poll_uart_rxdata_read();
 	return true;
 }
 
-static void uart_write_data(uint32_t addr __attribute__ ((unused)), uint8_t val) {
+static void uart_write_data(
+		uint32_t addr __attribute__ ((unused)),
+		uint8_t val,
+		bool debugger __attribute__ ((unused))
+		) {
 	poll_uart_txdata_write(val);
 }
 

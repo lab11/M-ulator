@@ -432,7 +432,7 @@ static bool _wait_for_gdb(void) {
 				char *head = buf;
 				while (len) {
 					uint8_t val;
-					if (try_read_byte(addr, &val)) {
+					if (gdb_read_byte(addr, &val)) {
 						sprintf(head, "%02x", val);
 					} else {
 						// I thought you could write X's

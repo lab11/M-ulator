@@ -56,15 +56,19 @@ EXPORT size_t dump_ROM(FILE *fp) {
 }
 #endif
 
-static bool rom_read(uint32_t addr, uint32_t *val) {
+static bool rom_read(uint32_t addr, uint32_t *val, bool debugger) {
 #ifdef DEBUG1
 	assert((addr >= ROMBOT) && (addr < ROMTOP) && "CORE_rom_read");
 #endif
 #ifdef BOOTLOADER_BOT
 	if ((addr >= BOOTLOADER_BOT) && (addr < BOOTLOADER_TOP)) {
-		WARN("Attempt to read bootloader region at %08x\n", addr);
-		CORE_ERR_invalid_addr(false, addr);
+		if (!debugger) {
+			WARN("Attempt to read bootloader region at %08x\n", addr);
+			CORE_ERR_invalid_addr(false, addr);
+		}
 	}
+#else
+	(void) debugger;
 #endif
 	if ((addr >= ROMBOT) && (addr < ROMTOP) && (0 == (addr & 0x3))) {
 		*val = SR(&rom[ADDR_TO_IDX(addr, ROMBOT)]);

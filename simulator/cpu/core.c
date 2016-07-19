@@ -305,12 +305,12 @@ EXPORT void print_memmap(void) {
 	printf("\n");
 }
 
-static bool try_read_word(uint32_t addr, uint32_t *val) {
+static bool try_read_word(uint32_t addr, uint32_t *val, bool debugger) {
 	struct memmap *cur = reads;
 	while (cur != NULL) {
 		if (cur->alignment == 4)
 			if ((cur->bot <= addr) && (addr < cur->top))
-				return cur->mem_fn.R_fn32(addr, val);
+				return cur->mem_fn.R_fn32(addr, val, debugger);
 		cur = cur->next;
 	}
 
@@ -325,7 +325,7 @@ static bool try_read_word(uint32_t addr, uint32_t *val) {
 
 EXPORT uint32_t read_word_quiet(uint32_t addr) {
 	uint32_t val;
-	if (try_read_word(addr, &val)) {
+	if (try_read_word(addr, &val, false)) {
 		return val;
 	} else {
 		MEMTRACE_READ_ERR(4, addr)
@@ -336,7 +336,7 @@ EXPORT uint32_t read_word_quiet(uint32_t addr) {
 
 EXPORT uint32_t read_word(uint32_t addr) {
 	uint32_t val;
-	if (try_read_word(addr, &val)) {
+	if (try_read_word(addr, &val, false)) {
 		MEMTRACE_READ(4, addr, val);
 		return val;
 	} else {
@@ -354,7 +354,7 @@ EXPORT void write_word(uint32_t addr, uint32_t val) {
 		if (cur->alignment == 4) {
 			if ((cur->bot <= addr) && (addr < cur->top)) {
 				MEMTRACE_WRITE(4, addr, val);
-				return cur->mem_fn.W_fn32(addr, val);
+				return cur->mem_fn.W_fn32(addr, val, false);
 			}
 		}
 		cur = cur->next;
@@ -436,18 +436,17 @@ EXPORT void write_halfword(uint32_t addr, uint16_t val) {
 	write_word(addr & 0xfffffffc, word);
 }
 
-EXPORT bool try_read_byte(uint32_t addr, uint8_t* val) {
-
+static bool try_read_byte(uint32_t addr, uint8_t* val, bool debugger) {
 	struct memmap *cur = reads;
 	while (cur != NULL) {
 		if (cur->alignment == 1)
 			if ((cur->bot <= addr) && (addr < cur->top))
-				return cur->mem_fn.R_fn8(addr, val);
+				return cur->mem_fn.R_fn8(addr, val, debugger);
 		cur = cur->next;
 	}
 
 	uint32_t word;
-	if (!try_read_word(addr & 0xfffffffc, &word))
+	if (!try_read_word(addr & 0xfffffffc, &word, debugger))
 		return false;
 
 	switch (addr & 0x3) {
@@ -471,9 +470,13 @@ EXPORT bool try_read_byte(uint32_t addr, uint8_t* val) {
 	return true;
 }
 
+EXPORT bool gdb_read_byte(uint32_t addr, uint8_t* val) {
+	return try_read_byte(addr, val, true);
+}
+
 EXPORT uint8_t read_byte(uint32_t addr) {
 	uint8_t val;
-	if (try_read_byte(addr, &val)) {
+	if (try_read_byte(addr, &val, false)) {
 		return val;
 	} else {
 		CORE_ERR_unpredictable("read_byte failed unexpectedly\n");
@@ -485,7 +488,7 @@ EXPORT void write_byte(uint32_t addr, uint8_t val) {
 	while (cur != NULL) {
 		if (cur->alignment == 1)
 			if ((cur->bot <= addr) && (addr < cur->top))
-				return cur->mem_fn.W_fn8(addr, val);
+				return cur->mem_fn.W_fn8(addr, val, false);
 		cur = cur->next;
 	}
 
