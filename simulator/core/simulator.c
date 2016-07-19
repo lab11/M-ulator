@@ -19,7 +19,6 @@
 
 #define STAGE SIM
 
-#include <sys/stat.h>
 #include <sys/time.h>
 
 // XXX: Temporary fix, see note at end of simulator.h
@@ -29,6 +28,7 @@
 #include "state_sync.h"
 #include "simulator.h"
 
+#include "loader.h"
 #include "opcodes.h"
 #include "pipeline.h"
 #include "if_stage.h"
@@ -814,32 +814,6 @@ EXPORT void register_periph_thread(
 	}
 }
 
-static void flash_image(const uint8_t *image, const uint32_t num_bytes){
-#if defined (HAVE_ROM)
-	if (ROMBOT == 0x0) {
-#ifdef BOOTLOADER_REMAP_VECTOR_TABLE
-		uint32_t offset = BOOTLOADER_REMAP_VECTOR_TABLE;
-#else
-		uint32_t offset = 0;
-#endif
-		flash_ROM(image, offset, num_bytes);
-		return;
-	}
-#elif defined (HAVE_RAM)
-	flash_RAM(image, 0, num_bytes);
-	return;
-#else
-	// Enter debugging to circumvent state-tracking code and write directly
-	state_enter_debugging();
-	unsigned i;
-	for (i=0; i<num_bytes; i++) {
-		write_byte(i, image[i]);
-	}
-	state_exit_debugging();
-	INFO("Wrote %d bytes to memory\n", num_bytes);
-#endif
-}
-
 EXPORT void simulator(const char *flash_file) {
 	const char thread_name[16] = "Simulator main";
 #ifdef __APPLE__
@@ -861,48 +835,7 @@ EXPORT void simulator(const char *flash_file) {
 				ERR(E_BAD_FLASH, "--flash or --usetestflash required, see --help\n");
 			}
 		} else {
-			int flashfd = open(flash_file, O_RDONLY);
-			ssize_t ret;
-
-			if (-1 == flashfd) {
-				ERR(E_BAD_FLASH, "Could not open '%s' for reading\n",
-						flash_file);
-			}
-
-			struct stat flash_stat;
-			if (0 != fstat(flashfd, &flash_stat)) {
-				ERR(E_BAD_FLASH, "Could not get flash file size: %s\n",
-						strerror(errno));
-			}
-
-#ifdef HAVE_ROM
-			// There is no portable format specifier for an off_t, but it is defined to
-			// be signed. So we cast is to a long long and move on with life.
-			if (flash_stat.st_size > ROMSIZE)
-				ERR(E_BAD_FLASH, "Request file size (%08llx) exceeds rom size (%08x)\n",
-						(long long) flash_stat.st_size, ROMSIZE);
-#else
-			if (flash_stat.st_size > RAMSIZE)
-				ERR(E_BAD_FLASH, "Request file size (%08llx) exceeds ram size (%08x)\n",
-						(long long) flash_stat.st_size, RAMSIZE);
-#endif
-
-			{
-				uint8_t flash[flash_stat.st_size];
-
-				ret = read(flashfd, flash, flash_stat.st_size);
-				if (ret < 0) {
-					WARN("%s\n", strerror(errno));
-					ERR(E_BAD_FLASH, "Failed to read flash file '%s'\n",
-							flash_file);
-				}
-
-				uint32_t image_size = (uint32_t) ret;
-				assert(image_size == ret);
-				flash_image(flash, image_size);
-			}
-
-			INFO("Succesfully loaded image: %s\n", flash_file);
+			load_file(flash_file);
 		}
 	}
 

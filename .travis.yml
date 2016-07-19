@@ -5,7 +5,7 @@ dist: trusty
 
 before_install:
     - sudo apt-get update
-    - sudo apt-get install -qq libfuse-dev python-dev gcc-arm-none-eabi python3-pip socat
+    - sudo apt-get install -qq libfuse-dev libelf-dev python-dev gcc-arm-none-eabi python3-pip socat
     - pip install --user git+https://github.com/ppannuto/sh.git@fix_pushd
     - pip3 install --user git+https://github.com/ppannuto/sh.git@fix_pushd
     - pip install --user m3
