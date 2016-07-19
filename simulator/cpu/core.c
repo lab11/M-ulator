@@ -346,7 +346,7 @@ EXPORT uint32_t read_word(uint32_t addr) {
 	}
 }
 
-EXPORT void write_word(uint32_t addr, uint32_t val) {
+static void try_write_word(uint32_t addr, uint32_t val, bool debugger) {
 	DBG2("addr %08x val %08x\n", addr, val);
 
 	struct memmap *cur = writes;
@@ -354,7 +354,7 @@ EXPORT void write_word(uint32_t addr, uint32_t val) {
 		if (cur->alignment == 4) {
 			if ((cur->bot <= addr) && (addr < cur->top)) {
 				MEMTRACE_WRITE(4, addr, val);
-				return cur->mem_fn.W_fn32(addr, val, false);
+				return cur->mem_fn.W_fn32(addr, val, debugger);
 			}
 		}
 		cur = cur->next;
@@ -368,6 +368,10 @@ EXPORT void write_word(uint32_t addr, uint32_t val) {
 	} else if (addr >= REGISTERS_BOT && addr < REGISTERS_TOP) {
 		ppb_write(addr, val);
 	*/
+}
+
+EXPORT void write_word(uint32_t addr, uint32_t val) {
+	return try_write_word(addr, val, false);
 }
 
 EXPORT uint16_t read_halfword(uint32_t addr) {
@@ -483,12 +487,12 @@ EXPORT uint8_t read_byte(uint32_t addr) {
 	}
 }
 
-EXPORT void write_byte(uint32_t addr, uint8_t val) {
+static void try_write_byte(uint32_t addr, uint8_t val, bool debugger) {
 	struct memmap *cur = writes;
 	while (cur != NULL) {
 		if (cur->alignment == 1)
 			if ((cur->bot <= addr) && (addr < cur->top))
-				return cur->mem_fn.W_fn8(addr, val, false);
+				return cur->mem_fn.W_fn8(addr, val, debugger);
 		cur = cur->next;
 	}
 
@@ -514,5 +518,13 @@ EXPORT void write_byte(uint32_t addr, uint8_t val) {
 			break;
 	}
 
-	write_word(addr & 0xfffffffc, word);
+	try_write_word(addr & 0xfffffffc, word, debugger);
+}
+
+EXPORT void gdb_write_byte(uint32_t addr, uint8_t val) {
+	return try_write_byte(addr, val, true);
+}
+
+EXPORT void write_byte(uint32_t addr, uint8_t val) {
+	return try_write_byte(addr, val, false);
 }

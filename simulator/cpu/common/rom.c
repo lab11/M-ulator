@@ -79,8 +79,12 @@ static bool rom_read(uint32_t addr, uint32_t *val, bool debugger) {
 	return true;
 }
 
-#ifdef WRITEABLE_ROM
-static void rom_write(uint32_t addr, uint32_t val) {
+static void rom_write(uint32_t addr, uint32_t val, bool debugger) {
+	if (!debugger) {
+		WARN("Attempt to write ROM");
+		CORE_ERR_invalid_addr(true, addr);
+	}
+
 	DBG2("ROM Write request addr %x (idx: %d)\n", addr, ADDR_TO_IDX(addr, ROMBOT));
 #ifdef DEBUG1
 	assert((addr >= ROMBOT) && (addr < ROMTOP) && "CORE_rom_write");
@@ -107,7 +111,6 @@ static void rom_write(uint32_t addr, uint32_t val) {
 		CORE_ERR_invalid_addr(true, addr);
 	}
 }
-#endif
 
 __attribute__ ((constructor))
 void register_memmap_rom(void) {
@@ -120,10 +123,8 @@ void register_memmap_rom(void) {
 
 	mem_fn.R_fn32 = rom_read;
 	register_memmap("ROM", false, 4, mem_fn, ROMBOT, ROMTOP);
-#ifdef WRITEABLE_ROM
 	mem_fn.W_fn32 = rom_write;
 	register_memmap("ROM", true, 4, mem_fn, ROMBOT, ROMTOP);
-#endif
 #endif
 }
 

@@ -57,6 +57,7 @@ void		write_byte(uint32_t addr, uint8_t val);
 
 bool		gdb_read_byte(uint32_t addr, uint8_t *val)
 			__attribute__ ((nonnull));
+void		gdb_write_byte(uint32_t addr, uint8_t val);
 
 #ifdef HAVE_MEMTRACE
 extern int memtrace_flag;

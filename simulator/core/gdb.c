@@ -471,7 +471,7 @@ static bool _wait_for_gdb(void) {
 				buf[0] = bytes[0];
 				buf[1] = bytes[1];
 				uint8_t val = strtol(buf, NULL, 16);
-				write_byte(addr, val);
+				gdb_write_byte(addr, val);
 				DBG2("0x%x=0x%02x\n", addr, val);
 				addr++;
 				bytes += 2;
