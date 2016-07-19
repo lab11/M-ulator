@@ -47,6 +47,8 @@
 #include <pthread.h>
 #include <semaphore.h>
 
+#include "atomic_support.h"
+
 /////////////////////
 // GENERAL DEFINES //
 /////////////////////
