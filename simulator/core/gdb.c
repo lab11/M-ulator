@@ -289,7 +289,7 @@ static bool _wait_for_gdb(void) {
 	// In general, the empty response is allowed for unknown messages. For now,
 	// we try to explicitly identify the messages we don't recognize, and bail
 	// out on completely new ones.
-	DBG1("Waiting for a message from gdb...\n");
+	DBG2("Waiting for a message from gdb...\n");
 	long cmd_len;
 	char *cmd = gdb_get_message(&cmd_len);
 
