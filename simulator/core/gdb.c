@@ -536,11 +536,23 @@ static bool _wait_for_gdb(void) {
 				// support multithread, so an empty response says
 				// the 'default' thread is running, which is okay
 				gdb_send_message("");
-			} else
-			if (0 == strcmp("qAttached", cmd)) {
+			} else if (0 == strcmp("qfThreadInfo", cmd)) {
+				// Asking for info on all threads. Nope -> empty.
+				gdb_send_message("");
+			} else if (0 == strncmp("qL", cmd, 2)) {
+				// qL... messages are the legacy form of qfThreadInfo
+				gdb_send_message("");
+			} else if (0 == strcmp("qAttached", cmd)) {
 				// Wants to know whether attached to a process
 				// or spawned one, but we're bare metal and do
 				// not support this, so empty
+				gdb_send_message("");
+			} else if (0 == strcmp("qTStatus", cmd)) {
+				// Wants to know the status of any running traces
+				// https://sourceware.org/gdb/onlinedocs/gdb/Tracepoint-Packets.html#Tracepoint-Packets
+				// gdb_send_message("tnotrun:0");
+				// -> Bogus trace status reply from target: tnotrun:0
+				// Odd. We'll go with the empty / unsupported reply then
 				gdb_send_message("");
 			} else {
 				goto unknown_gdb;
