@@ -45,6 +45,7 @@ void register_memmap(
 		uint32_t top
 	);
 
+extern _Atomic _Bool	_CORE_in_reset;
 void		reset(void);
 
 uint32_t	read_word_quiet(uint32_t addr);

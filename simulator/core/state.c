@@ -27,6 +27,7 @@
 #include "opcodes.h"
 #include "pipeline.h"
 
+#include "cpu/core.h"
 #include "cpu/exception.h"
 
 #ifndef NO_PIPELINE
@@ -479,10 +480,12 @@ EXPORT void state_write_op(struct op **loc __attribute__ ((unused)), struct op *
 #ifndef NO_PIPELINE
 EXPORT void state_pipeline_flush(uint32_t new_pc) {
 	DBG2("pipeline flush. new_pc: %08x\n", new_pc);
-	bool flag;
-	flag = atomic_flag_test_and_set(&pipeline_flush_flag);
-	if (flag != false)
+	bool flush_flag;
+	flush_flag = atomic_flag_test_and_set(&pipeline_flush_flag);
+	bool in_reset = atomic_load(&_CORE_in_reset);
+	if ((flush_flag != false) && (in_reset != true)) {
 		CORE_ERR_unpredictable("Internal Error: Duplicate pipeline flushes?\n");
+	}
 	state_pipeline_new_pc = new_pc;
 }
 #endif // NO_PIPELINE

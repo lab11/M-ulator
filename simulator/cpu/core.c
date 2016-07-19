@@ -47,8 +47,12 @@ EXPORT void register_reset(void (*fn)(void)) {
 	reset_head = n;
 }
 
+EXPORT _Atomic _Bool _CORE_in_reset = false;
 EXPORT void reset(void) {
+	atomic_store(&_CORE_in_reset, true);
+#ifdef DEBUG1
 	print_memmap();
+#endif
 
 	// ARM ARM B1.5.5 Reset behavior (p641)
 
@@ -60,6 +64,8 @@ EXPORT void reset(void) {
 		r->fn();
 		r = r->next;
 	}
+
+	atomic_store(&_CORE_in_reset, false);
 }
 
 
