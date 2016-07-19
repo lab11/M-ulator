@@ -608,28 +608,27 @@ static bool _wait_for_gdb(void) {
 			// protocol, should replicate 'M' at half the character
 			// count
 
-			// X addr,length:XX...
+			// Xaddr,length:XX...
 
 			const char *address = strtok(cmd+1, ",");
 			const char *length = strtok(NULL, ":");
-			unsigned char *data = (unsigned char*) strtok(NULL, "");
 
 			uint32_t addr = (uint32_t) strtoul(address, NULL, 16);
 			unsigned long len = strtoul(length, NULL, 16);
 
-#ifdef DEBG1
 			//                 X          addr       ,          length    :
 			unsigned msg_len = 1 + strlen(address) + 1 + strlen(length) + 1;
-			DBG1("X, addr %d len %d msg_len %d cmd_len %d\n",
-					addr, len, msg_len, cmd_len);
-#endif
+			DBG2("X, address %s addr %d length %s len %lu msg_len %d cmd_len %ld\n",
+					address, addr, length, len, msg_len, cmd_len);
+
+			unsigned char* data = (unsigned char*) cmd+msg_len;
 
 			while (len) {
 				if (*data == '}') {
 					data++;
 					*data ^= 0x20;
 				}
-				write_byte(addr, *data);
+				gdb_write_byte(addr, *data);
 				DBG2("0x%08x = %02x\n", addr, *data);
 				addr++;
 				len--;
