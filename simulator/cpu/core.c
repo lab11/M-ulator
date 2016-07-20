@@ -305,18 +305,12 @@ EXPORT void print_memmap(void) {
 	printf("\n");
 }
 
-#ifdef DEBUG2
-static bool try_read_word(uint32_t addr, uint32_t *val, bool suppress) {
-	if (!suppress)
-		DBG2("addr %08x\n", addr);
-#else
-static bool try_read_word(uint32_t addr, uint32_t *val) {
-#endif
+static bool try_read_word(uint32_t addr, uint32_t *val, bool debugger) {
 	struct memmap *cur = reads;
 	while (cur != NULL) {
 		if (cur->alignment == 4)
 			if ((cur->bot <= addr) && (addr < cur->top))
-				return cur->mem_fn.R_fn32(addr, val);
+				return cur->mem_fn.R_fn32(addr, val, debugger);
 		cur = cur->next;
 	}
 
@@ -329,43 +323,44 @@ static bool try_read_word(uint32_t addr, uint32_t *val) {
 	*/
 }
 
-#ifdef DEBUG2
 EXPORT uint32_t read_word_quiet(uint32_t addr) {
 	uint32_t val;
-	if (try_read_word(addr, &val, true)) {
+	if (try_read_word(addr, &val, false)) {
 		return val;
 	} else {
+		MEMTRACE_READ_ERR(4, addr)
 		print_memmap();
 		CORE_ERR_invalid_addr(false, addr);
 	}
 }
-#endif
 
 EXPORT uint32_t read_word(uint32_t addr) {
 	uint32_t val;
-#ifdef DEBUG2
 	if (try_read_word(addr, &val, false)) {
-#else
-	if (try_read_word(addr, &val)) {
-#endif
+		MEMTRACE_READ(4, addr, val);
 		return val;
 	} else {
+		MEMTRACE_READ_ERR(4, addr)
 		print_memmap();
 		CORE_ERR_invalid_addr(false, addr);
 	}
 }
 
-EXPORT void write_word(uint32_t addr, uint32_t val) {
+static void try_write_word(uint32_t addr, uint32_t val, bool debugger) {
 	DBG2("addr %08x val %08x\n", addr, val);
 
 	struct memmap *cur = writes;
 	while (cur != NULL) {
-		if (cur->alignment == 4)
-			if ((cur->bot <= addr) && (addr < cur->top))
-				return cur->mem_fn.W_fn32(addr, val);
+		if (cur->alignment == 4) {
+			if ((cur->bot <= addr) && (addr < cur->top)) {
+				MEMTRACE_WRITE(4, addr, val);
+				return cur->mem_fn.W_fn32(addr, val, debugger);
+			}
+		}
 		cur = cur->next;
 	}
 
+	MEMTRACE_WRITE_ERR(4, addr, val);
 	print_memmap();
 	CORE_ERR_invalid_addr(true, addr);
 
@@ -373,6 +368,10 @@ EXPORT void write_word(uint32_t addr, uint32_t val) {
 	} else if (addr >= REGISTERS_BOT && addr < REGISTERS_TOP) {
 		ppb_write(addr, val);
 	*/
+}
+
+EXPORT void write_word(uint32_t addr, uint32_t val) {
+	return try_write_word(addr, val, false);
 }
 
 EXPORT uint16_t read_halfword(uint32_t addr) {
@@ -441,22 +440,17 @@ EXPORT void write_halfword(uint32_t addr, uint16_t val) {
 	write_word(addr & 0xfffffffc, word);
 }
 
-EXPORT bool try_read_byte(uint32_t addr, uint8_t* val) {
-
+static bool try_read_byte(uint32_t addr, uint8_t* val, bool debugger) {
 	struct memmap *cur = reads;
 	while (cur != NULL) {
 		if (cur->alignment == 1)
 			if ((cur->bot <= addr) && (addr < cur->top))
-				return cur->mem_fn.R_fn8(addr, val);
+				return cur->mem_fn.R_fn8(addr, val, debugger);
 		cur = cur->next;
 	}
 
 	uint32_t word;
-#ifdef DEBUG2
-	if (!try_read_word(addr & 0xfffffffc, &word, false))
-#else
-	if (!try_read_word(addr & 0xfffffffc, &word))
-#endif
+	if (!try_read_word(addr & 0xfffffffc, &word, debugger))
 		return false;
 
 	switch (addr & 0x3) {
@@ -480,21 +474,25 @@ EXPORT bool try_read_byte(uint32_t addr, uint8_t* val) {
 	return true;
 }
 
+EXPORT bool gdb_read_byte(uint32_t addr, uint8_t* val) {
+	return try_read_byte(addr, val, true);
+}
+
 EXPORT uint8_t read_byte(uint32_t addr) {
 	uint8_t val;
-	if (try_read_byte(addr, &val)) {
+	if (try_read_byte(addr, &val, false)) {
 		return val;
 	} else {
 		CORE_ERR_unpredictable("read_byte failed unexpectedly\n");
 	}
 }
 
-EXPORT void write_byte(uint32_t addr, uint8_t val) {
+static void try_write_byte(uint32_t addr, uint8_t val, bool debugger) {
 	struct memmap *cur = writes;
 	while (cur != NULL) {
 		if (cur->alignment == 1)
 			if ((cur->bot <= addr) && (addr < cur->top))
-				return cur->mem_fn.W_fn8(addr, val);
+				return cur->mem_fn.W_fn8(addr, val, debugger);
 		cur = cur->next;
 	}
 
@@ -520,5 +518,13 @@ EXPORT void write_byte(uint32_t addr, uint8_t val) {
 			break;
 	}
 
-	write_word(addr & 0xfffffffc, word);
+	try_write_word(addr & 0xfffffffc, word, debugger);
+}
+
+EXPORT void gdb_write_byte(uint32_t addr, uint8_t val) {
+	return try_write_byte(addr, val, true);
+}
+
+EXPORT void write_byte(uint32_t addr, uint8_t val) {
+	return try_write_byte(addr, val, false);
 }

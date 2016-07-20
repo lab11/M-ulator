@@ -375,7 +375,7 @@ static void operation_init(void){
     write_mbus_register(RAD_ADDR,0,radv9_r0.as_int);
     delay(MBUS_DELAY);
 
-/*
+
 	// Continuous Mode
     radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x3E; //Current Limiter 2F = 30uA, 1F = 3uA
     radv9_r0.RADIO_TUNE_POWER = 0x1F; 
@@ -384,7 +384,7 @@ static void operation_init(void){
     write_mbus_register(RAD_ADDR,0,radv9_r0.as_int);
     delay(MBUS_DELAY);
 	while(1);
-*/
+
 	
 
     // FSM data length setups

@@ -17,6 +17,8 @@
  * along with Mulator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include MEMMAP_HEADER
+
 #include "registers.h"
 
 #include "core/state_sync.h"
@@ -175,6 +177,12 @@ EXPORT void CORE_update_mode_and_SPSEL(enum Mode mode, bool spsel) {
 
 static void reset_registers(void) {
 	DBG2("begin\n");
+#ifdef BOOTLOADER_REMAP_VECTOR_TABLE
+	// Many chips have a bootloader at address 0 and then expose their
+	// actual entry point further forward in flash. System images, however,
+	// won't include these bootloaders (b/c trying to would overwrite them)
+	write_word(VECTOR_TABLE_OFFSET, BOOTLOADER_REMAP_VECTOR_TABLE);
+#endif
 	uint32_t vectortable = read_word(VECTOR_TABLE_OFFSET);
 
 	// R[0..12] = bits(32) UNKNOWN {nop}

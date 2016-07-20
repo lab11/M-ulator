@@ -1,5 +1,5 @@
 /* Mulator - An extensible {ARM} {e,si}mulator
- * Copyright 2011-2012  Pat Pannuto <pat.pannuto@gmail.com>
+ * Copyright 2011-2016  Pat Pannuto <pat.pannuto@gmail.com>
  *
  * This file is part of Mulator.
  *
@@ -17,30 +17,17 @@
  * along with Mulator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef ROM_H
-#define ROM_H
+#ifndef LOADER_H
+#define LOADER_H
 
-#include "core/common.h"
-
-////////////////////////////////////////////////////////////////////////
-// Only include this peripheral if requested in the platform memmap.h //
-#ifdef ROMBOT
-#define HAVE_ROM
-
-#define ROMSIZE (ROMTOP - ROMBOT) // In bytes
+#include "common.h"
 
 #ifndef PP_STRING
-#define PP_STRING "ROM"
-#include "core/pretty_print.h"
+#define PP_STRING "LDR"
+#include "pretty_print.h"
 #endif
 
-void flash_ROM(const uint8_t *image, int offset, uint32_t nbytes);
-#ifdef PRINT_ROM_ENABLE
-size_t dump_ROM(FILE *fp);
-#endif
+void flash_image(const uint8_t *image, const uint32_t num_bytes);
+void load_file(const char* filename);
 
-#endif // ROMBOT
-// Only include this peripheral if requested in the platform memmap.h //
-////////////////////////////////////////////////////////////////////////
-
-#endif // ROM_H
+#endif //LOADER_H

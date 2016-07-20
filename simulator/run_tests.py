@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
+import colorlog
 import logging
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+log = colorlog.getLogger(__name__)
+colorlog.basicConfig(level=logging.INFO)
 
 import argparse
 from contextlib import contextmanager

@@ -1,5 +1,5 @@
 /* Mulator - An extensible {ARM} {e,si}mulator
- * Copyright 2011-2012  Pat Pannuto <pat.pannuto@gmail.com>
+ * Copyright 2011-2016  Pat Pannuto <pat.pannuto@gmail.com>
  *
  * This file is part of Mulator.
  *
@@ -17,30 +17,22 @@
  * along with Mulator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef ROM_H
-#define ROM_H
+#ifndef MEMMAP_H
+#define MEMMAP_H
 
-#include "core/common.h"
+// n.b. these are for the ATSAM4L8, 512 Kbyte flash, 64 Kbyte SRAM
 
-////////////////////////////////////////////////////////////////////////
-// Only include this peripheral if requested in the platform memmap.h //
-#ifdef ROMBOT
-#define HAVE_ROM
+#define ROMBOT 0x00000000
+#define ROMTOP 0x00080000
 
-#define ROMSIZE (ROMTOP - ROMBOT) // In bytes
+#define BOOTLOADER_BOT 0x00000000
+#define BOOTLOADER_TOP 0x00010000
+#define BOOTLOADER_REMAP_VECTOR_TABLE BOOTLOADER_TOP
 
-#ifndef PP_STRING
-#define PP_STRING "ROM"
-#include "core/pretty_print.h"
-#endif
+#define RAMBOT 0x20000000
+#define RAMTOP 0x20010000
 
-void flash_ROM(const uint8_t *image, int offset, uint32_t nbytes);
-#ifdef PRINT_ROM_ENABLE
-size_t dump_ROM(FILE *fp);
-#endif
+// Debugging
+#define PRINT_ROM_ENABLE
 
-#endif // ROMBOT
-// Only include this peripheral if requested in the platform memmap.h //
-////////////////////////////////////////////////////////////////////////
-
-#endif // ROM_H
+#endif // MEMMAP_H
