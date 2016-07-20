@@ -1146,6 +1146,8 @@ int main() {
             exec_count_irq = 0;
             // radio
             send_radio_data_ppm(1,0xFAF000);	
+			// Release reset of PMU ADC
+			batadc_resetrelease();
             // Go to sleep without timer
             operation_sleep_notimer();
         }
