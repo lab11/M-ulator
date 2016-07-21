@@ -46,6 +46,10 @@ ifeq (@(DECOMPILE),y)
 CFLAGS += -DHAVE_DECOMPILE
 endif
 
+ifeq (@(HAVE_MEMTRACE),y)
+CFLAGS += -DHAVE_MEMTRACE
+endif
+
 ifeq (@(HAVE_REPLAY),y)
 CFLAGS += -DHAVE_REPLAY
 endif

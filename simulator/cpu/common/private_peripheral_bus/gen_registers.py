@@ -104,8 +104,8 @@ reset = "static void ppb_reset(void) {\n"
 reset_funcs = "// Support functions for reset case\n"
 reset_funcs += "// Contents generated from file 'exceptions'\n\n"
 storage = "// Registers gotta live somewhere...\n"
-reg_read =  "static bool ppb_read (uint32_t addr, uint32_t *val) {\nswitch(addr){\n"
-reg_write = "static void ppb_write(uint32_t addr, uint32_t val)  {\nswitch(addr){\n"
+reg_read =  "static bool ppb_read (uint32_t addr, uint32_t *val, bool debugger __attribute__ ((unused)) ) {\nswitch(addr){\n"
+reg_write = "static void ppb_write(uint32_t addr, uint32_t val,  bool debugger __attribute__ ((unused)) ) {\nswitch(addr){\n"
 
 unpredictable_func = '\
 {\n\

@@ -38,6 +38,10 @@ static uint32_t code_top = 0;
 #endif
 
 EXPORT void flash_ROM(const uint8_t *image, int offset, uint32_t nbytes) {
+	if ((offset % 4) != 0) {
+		CORE_ERR_runtime("ROM flash desination must be word-aligned");
+	}
+	offset >>= 2;
 	memcpy(rom+offset, image, nbytes);
 #ifndef FAVOR_SPEED
 	code_bot = offset;
@@ -46,9 +50,25 @@ EXPORT void flash_ROM(const uint8_t *image, int offset, uint32_t nbytes) {
 	INFO("Flashed %d bytes to ROM\n", nbytes);
 }
 
-static bool rom_read(uint32_t addr, uint32_t *val) {
+#ifdef PRINT_ROM_ENABLE
+EXPORT size_t dump_ROM(FILE *fp) {
+	return fwrite(rom, ROMSIZE, 1, fp);
+}
+#endif
+
+static bool rom_read(uint32_t addr, uint32_t *val, bool debugger) {
 #ifdef DEBUG1
 	assert((addr >= ROMBOT) && (addr < ROMTOP) && "CORE_rom_read");
+#endif
+#ifdef BOOTLOADER_BOT
+	if ((addr >= BOOTLOADER_BOT) && (addr < BOOTLOADER_TOP)) {
+		if (!debugger) {
+			WARN("Attempt to read bootloader region at %08x\n", addr);
+			CORE_ERR_invalid_addr(false, addr);
+		}
+	}
+#else
+	(void) debugger;
 #endif
 	if ((addr >= ROMBOT) && (addr < ROMTOP) && (0 == (addr & 0x3))) {
 		*val = SR(&rom[ADDR_TO_IDX(addr, ROMBOT)]);
@@ -59,8 +79,12 @@ static bool rom_read(uint32_t addr, uint32_t *val) {
 	return true;
 }
 
-#ifdef WRITEABLE_ROM
-static void rom_write(uint32_t addr, uint32_t val) {
+static void rom_write(uint32_t addr, uint32_t val, bool debugger) {
+	if (!debugger) {
+		WARN("Attempt to write ROM");
+		CORE_ERR_invalid_addr(true, addr);
+	}
+
 	DBG2("ROM Write request addr %x (idx: %d)\n", addr, ADDR_TO_IDX(addr, ROMBOT));
 #ifdef DEBUG1
 	assert((addr >= ROMBOT) && (addr < ROMTOP) && "CORE_rom_write");
@@ -75,13 +99,18 @@ static void rom_write(uint32_t addr, uint32_t val) {
 		}
 	}
 #endif
+#ifdef BOOTLOADER_BOT
+	if ((addr >= BOOTLOADER_BOT) && (addr < BOOTLOADER_TOP)) {
+		WARN("Attempt to write bootloader region at %08x\n", addr);
+		CORE_ERR_invalid_addr(true, addr);
+	}
+#endif
 	if ((addr >= ROMBOT) && (addr < ROMTOP) && (0 == (addr & 0x3))) {
 		SW(&rom[ADDR_TO_IDX(addr, ROMBOT)],val);
 	} else {
 		CORE_ERR_invalid_addr(true, addr);
 	}
 }
-#endif
 
 __attribute__ ((constructor))
 void register_memmap_rom(void) {
@@ -94,10 +123,8 @@ void register_memmap_rom(void) {
 
 	mem_fn.R_fn32 = rom_read;
 	register_memmap("ROM", false, 4, mem_fn, ROMBOT, ROMTOP);
-#ifdef WRITEABLE_ROM
 	mem_fn.W_fn32 = rom_write;
 	register_memmap("ROM", true, 4, mem_fn, ROMBOT, ROMTOP);
-#endif
 #endif
 }
 

@@ -48,7 +48,7 @@
 #define RADIO_TIMEOUT_COUNT 50
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
-#define TEMP_STORAGE_SIZE 1000 // FIXME
+#define TEMP_STORAGE_SIZE 990 // FIXME
 
 
 //********************************************************************
@@ -169,9 +169,9 @@ inline static void set_pmu_sleep_clk_init(){
 	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
     mbus_remote_register_write(PMU_ADDR,0x19,
 		( (1 << 13) // Enable main feedback loop
-		| (2 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (2) 		// Floor frequency base (0-63)
+		| (1 << 9)  // Frequency multiplier R
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (1) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
@@ -217,9 +217,13 @@ inline static void set_pmu_sleep_clk_init(){
 	));
 	delay(MBUS_DELAY);
 
+	// Register 0x37: TICK_WAKEUP_WAIT
+//    mbus_remote_register_write(PMU_ADDR,0x37,0x001000); // default 24h'1F4
+// 	delay(MBUS_DELAY);
+
 	// Register 0x38: TICK_SLEEP_WAIT
-    mbus_remote_register_write(PMU_ADDR,0x38,0x000100); // default 24h'1E
- 	delay(MBUS_DELAY);
+//    mbus_remote_register_write(PMU_ADDR,0x38,0x00001E); // default 24h'1E
+// 	delay(MBUS_DELAY);
 
 	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
     mbus_remote_register_write(PMU_ADDR,0x36,0x000001);
@@ -233,9 +237,9 @@ inline static void set_pmu_sleep_clk_default(){
 	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
     mbus_remote_register_write(PMU_ADDR,0x19,
 		( (1 << 13) // Enable main feedback loop
-		| (2 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (2) 		// Floor frequency base (0-63)
+		| (1 << 9)  // Frequency multiplier R
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (1) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 
@@ -272,8 +276,8 @@ inline static void set_pmu_sleep_clk_low(){
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (1 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (0 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
 		| (6) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
@@ -804,6 +808,9 @@ static void operation_temp_run(void){
 					set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 
 				}else{
+					if (!radio_tx_option && (exec_count == TEMP_CYCLE_INIT)){
+						set_pmu_sleep_clk_low();
+					}
 					set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
 				}
 
@@ -920,7 +927,7 @@ int main() {
 
 		temp_run_single = 0;
 
-//        set_pmu_sleep_clk_low();
+ //       set_pmu_sleep_clk_low();
 
 		if (!temp_running){
 			// Go to sleep for initial settling of temp sensing // FIXME
@@ -954,10 +961,10 @@ int main() {
 		Tstack_state = TSTK_IDLE;
 		
 		
-	//	if (wakeup_data_field_2 & 0x1){
+		if (wakeup_data_field_2 & 0x1){
 			// Speed up PMU sleep osc
-//			set_pmu_sleep_clk_default();
-	//	}
+			set_pmu_sleep_clk_default();
+		}
 
 
         if (exec_count_irq < wakeup_data_field_0){

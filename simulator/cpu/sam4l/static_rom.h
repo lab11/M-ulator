@@ -1,5 +1,5 @@
 /* Mulator - An extensible {ARM} {e,si}mulator
- * Copyright 2011-2012  Pat Pannuto <pat.pannuto@gmail.com>
+ * Copyright 2011-2013  Pat Pannuto <pat.pannuto@gmail.com>
  *
  * This file is part of Mulator.
  *
@@ -17,30 +17,16 @@
  * along with Mulator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef ROM_H
-#define ROM_H
+#ifndef STATIC_ROM_H
+#define STATIC_ROM_H
 
-#include "core/common.h"
+// bintoarray.sh; "echo.bin"
+#include <stdint.h>
+#define STATIC_ROM_NUM_BYTES (    3544 * 4)
+uint32_t static_rom[    3544];
 
-////////////////////////////////////////////////////////////////////////
-// Only include this peripheral if requested in the platform memmap.h //
-#ifdef ROMBOT
-#define HAVE_ROM
 
-#define ROMSIZE (ROMTOP - ROMBOT) // In bytes
+#define STATIC_ROM_BLURB "\
+\t\t\tblink.bin: Runs a blink app under Tock (95bd80a)"
 
-#ifndef PP_STRING
-#define PP_STRING "ROM"
-#include "core/pretty_print.h"
-#endif
-
-void flash_ROM(const uint8_t *image, int offset, uint32_t nbytes);
-#ifdef PRINT_ROM_ENABLE
-size_t dump_ROM(FILE *fp);
-#endif
-
-#endif // ROMBOT
-// Only include this peripheral if requested in the platform memmap.h //
-////////////////////////////////////////////////////////////////////////
-
-#endif // ROM_H
+#endif // STATIC_ROM_H

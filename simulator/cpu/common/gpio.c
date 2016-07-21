@@ -269,7 +269,8 @@ static void update_gpio_dir(int gpio, enum gpio_direction dir) {
 	pthread_mutex_unlock(&generic_gpio_mutex);
 }
 
-static bool gpio_read(uint32_t addr, gpio_align_t *val) {
+static bool gpio_read(uint32_t addr, gpio_align_t *val,
+		bool debugger __attribute__ ((unused)) ) {
 	bool ret;
 	int idx;
 
@@ -284,7 +285,8 @@ static bool gpio_read(uint32_t addr, gpio_align_t *val) {
 	return true;
 }
 
-static void gpio_write(uint32_t addr, gpio_align_t val) {
+static void gpio_write(uint32_t addr, gpio_align_t val,
+		bool debugger __attribute__ ((unused)) ) {
 	int idx;
 
 	idx = (addr - GENERIC_GPIO_BASE) / GENERIC_GPIO_ALIGNMENT;
@@ -333,7 +335,8 @@ static void gpio_written_async(int gpio, int fd) {
 	}
 }
 
-static bool gpio_conf_read(uint32_t addr, gpio_align_t *val) {
+static bool gpio_conf_read(uint32_t addr, gpio_align_t *val,
+		bool debugger __attribute__ ((unused)) ) {
 	int idx;
 
 	idx = (addr - GENERIC_GPIO_CONF_BASE) / GENERIC_GPIO_ALIGNMENT;
@@ -346,7 +349,8 @@ static bool gpio_conf_read(uint32_t addr, gpio_align_t *val) {
 	return true;
 }
 
-static void gpio_conf_write(uint32_t addr, gpio_align_t new_conf) {
+static void gpio_conf_write(uint32_t addr, gpio_align_t new_conf,
+		bool debugger __attribute__ ((unused)) ) {
 	int idx;
 
 	idx = (addr - GENERIC_GPIO_CONF_BASE) / GENERIC_GPIO_ALIGNMENT;
