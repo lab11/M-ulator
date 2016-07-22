@@ -1206,7 +1206,13 @@ int main() {
             // Go to sleep without timer
             operation_sleep_notimer();
         }
-    }
+    }else{
+		if (wakeup_data_header != 0){
+			// Invalid GOC trigger
+            // Go to sleep without timer
+            operation_sleep_notimer();
+		}
+	}
 
 
     // Proceed to continuous mode
