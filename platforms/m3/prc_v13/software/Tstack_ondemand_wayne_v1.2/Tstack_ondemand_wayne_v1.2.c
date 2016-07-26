@@ -8,7 +8,6 @@
 //			v1.2: Increasing PMU floors for long term stability
 //			v1.3: PMU IRQ off for stability issues
 //				  RADv9 settings updated for shifted center freq and higher curr lim
-//			v1.4: Decrease PMU sleep floors for reduced sleep power
 //*******************************************************************
 #include "PRCv13.h"
 #include "PRCv13_RF.h"
@@ -20,7 +19,7 @@
 
 // uncomment this for debug mbus message
 // #define DEBUG_MBUS_MSG
- #define DEBUG_MBUS_MSG_1
+// #define DEBUG_MBUS_MSG_1
 
 // TStack order  PRC->RAD->SNS->HRV->PMU
 #define HRV_ADDR 0x3
@@ -146,7 +145,7 @@ inline static void set_pmu_sleep_clk_init(){
 		| (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
 		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (2) 		// Floor frequency base (0-63)
+		| (4) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// The first register write to PMU needs to be repeated
@@ -155,7 +154,7 @@ inline static void set_pmu_sleep_clk_init(){
 		| (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
 		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (2) 		// Floor frequency base (0-63)
+		| (4) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
     mbus_remote_register_write(PMU_ADDR,0x18, 
@@ -170,15 +169,15 @@ inline static void set_pmu_sleep_clk_init(){
     mbus_remote_register_write(PMU_ADDR,0x19,
 		( (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
 		| (1) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
     mbus_remote_register_write(PMU_ADDR,0x1A,
 		( (1 << 13) // Enable main feedback loop
-		| (4 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
+		| (8 << 9)  // Frequency multiplier R
+		| (4 << 5)  // Frequency multiplier L (actually L+1)
 		| (8) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
@@ -497,7 +496,7 @@ static void operation_init(void){
     // Radio Settings --------------------------------------
     radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
     radv9_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
-    radv9_r0.RADIO_TUNE_FREQ2 = 0x9; //Tune Freq 2
+    radv9_r0.RADIO_TUNE_FREQ2 = 0x3; //Tune Freq 2
     radv9_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
     mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
 
