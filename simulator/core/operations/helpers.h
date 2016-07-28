@@ -42,8 +42,20 @@ void BranchWritePC(uint32_t addr);
 
 #ifdef M_PROFILE
 
+#ifdef FAVOR_SPEED
+#define _CHECK_SET_THUMB_BIT(_t)
+#else
+#define _CHECK_SET_THUMB_BIT(_t)\
+	do {\
+		if (! (_t) ) {\
+			WARN("Setting Thumb bit False in M series will cause an execption!\n");\
+		}\
+	} while (0)
+#endif
+
 #define SET_THUMB_BIT(_t) \
 	do {\
+		_CHECK_SET_THUMB_BIT(_t);\
 		union epsr_t epsr = CORE_epsr_read();\
 		epsr.bits.T = _t;\
 		CORE_epsr_write(epsr);\

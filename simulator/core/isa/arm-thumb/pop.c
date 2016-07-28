@@ -24,7 +24,7 @@
 
 // arm-thumb
 static void pop_t1(uint16_t inst) {
-	bool P = inst & 0x800;
+	bool P = inst & 0x100;
 	uint16_t registers = (inst & 0xff) | (P << 15);
 
 	if (hamming(registers) == 0) {
