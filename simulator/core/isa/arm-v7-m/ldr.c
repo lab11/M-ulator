@@ -214,7 +214,7 @@ static void ldrd_imm_t1(uint32_t inst) {
 	if (wback && ((rn == rt) || (rn == rt2)))
 		CORE_ERR_unpredictable("ldrd_imm_t1 wbck + regs\n");
 
-	if ((rt >= 13) || (rt2 >= 13) || (rt == rt2))
+	if ((rt == 13) || (rt == 15) || (rt2 == 13) || (rt2 == 15) || (rt == rt2))
 		CORE_ERR_unpredictable("ldrd_imm_t1 bad regs\n");
 
 	if (index && !wback) // Offset
