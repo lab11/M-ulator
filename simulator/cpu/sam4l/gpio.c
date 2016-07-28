@@ -102,6 +102,7 @@ static bool gpio_read(uint32_t addr, uint32_t *val,
 static void gpio_write(uint32_t addr, uint32_t val,
 		bool debugger __attribute__ ((unused)) ) {
 	TODO("SAM4L GPIO write is NOP: %08x = %08x\n", addr, val);
+	/*
 	if (ADDR_TO_PORT_CMN(addr) < 0x190) {
 		// TODO Behavorial effects
 		uint32_t* port_base = (uint32_t*) &ports[ADDR_TO_PORT_IDX(addr)];
@@ -132,6 +133,7 @@ static void gpio_write(uint32_t addr, uint32_t val,
 	} else {
 		WARN("Write to reserved GPIO space (ignored)\n");
 	}
+	*/
 }
 
 __attribute__ ((constructor))
