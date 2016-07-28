@@ -17,42 +17,42 @@
  * along with Mulator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "bpm.h"
+#include "pm.h"
 
 #include "cpu/core.h"
 #include "cpu/periph.h"
 
 
-static void sam4l_bpm_reset(void) {
+static void sam4l_pm_reset(void) {
 	// TODO Check actual chip behavoir
 }
 
-static void print_bpm(void) {
-	// TODO Print state of bpm peripheral
+static void print_pm(void) {
+	// TODO Print state of pm peripheral
 }
 
-static bool bpm_read(uint32_t addr, uint32_t *val,
+static bool pm_read(uint32_t addr, uint32_t *val,
 		bool debugger __attribute__ ((unused)) ) {
-	TODO("Backup Power Manager (BPM) read is NOP: Returning 0 for addr 0x%08x\n", addr);
+	TODO("Power Manager (PM) read is NOP: Returning 0 for addr 0x%08x\n", addr);
 	*val = 0;
 	return true;
 }
 
-static void bpm_write(uint32_t addr, uint32_t val,
+static void pm_write(uint32_t addr, uint32_t val,
 		bool debugger __attribute__ ((unused)) ) {
-	TODO("Backup Power Manager (BPM) write is NOP: 0x%08x = 0x%08x\n", addr, val);
+	TODO("Power Manager (PM) write is NOP: 0x%08x = 0x%08x\n", addr, val);
 }
 
 __attribute__ ((constructor))
-void register_sam4l_bpm_periph(void) {
-	register_reset(sam4l_bpm_reset);
+void register_sam4l_pm_periph(void) {
+	register_reset(sam4l_pm_reset);
 
 	union memmap_fn mem_fn;
 
-	mem_fn.R_fn32 = bpm_read;
-	register_memmap("SAM4L BPM", false, 4, mem_fn, BPM_BASE, BPM_BASE+BPM_SIZE);
-	mem_fn.W_fn32 = bpm_write;
-	register_memmap("SAM4L BPM", true, 4, mem_fn, BPM_BASE, BPM_BASE+BPM_SIZE);
+	mem_fn.R_fn32 = pm_read;
+	register_memmap("SAM4L PM", false, 4, mem_fn, PM_BASE, PM_BASE+PM_SIZE);
+	mem_fn.W_fn32 = pm_write;
+	register_memmap("SAM4L PM", true, 4, mem_fn, PM_BASE, PM_BASE+PM_SIZE);
 
-	register_periph_printer(print_bpm);
+	register_periph_printer(print_pm);
 }

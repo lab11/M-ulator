@@ -17,17 +17,17 @@
  * along with Mulator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef BPM_H
-#define BPM_H
+#ifndef PM_H
+#define PM_H
 
 #include "core/common.h"
 
 #ifndef PP_STRING
-#define PP_STRING "BPM"
+#define PP_STRING "PM "
 #include "core/pretty_print.h"
 #endif
 
-#define BPM_BASE      0x400F0000
-#define BPM_SIZE           0x100
+#define PM_BASE      0x400E0000
+#define PM_SIZE           0x400
 
-#endif // BPM_H
+#endif // PM_H
