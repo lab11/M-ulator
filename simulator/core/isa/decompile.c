@@ -166,7 +166,7 @@ static int handle_braces(const char *syntax, va_list args) {
 }
 
 static const char* cond_to_str(uint8_t cond) {
-	WARN("cond: %x %d\n", cond, cond);
+	DBG2("cond: %x %d\n", cond, cond);
 	switch (cond) {
 		case  0: return "EQ";
 		case  1: return "NE";
