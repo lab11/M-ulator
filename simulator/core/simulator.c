@@ -686,6 +686,10 @@ EXPORT void sim_terminate(bool should_exit) {
 		INFO("Approximate average frequency: %f hz\n", freq);
 	}
 	INFO("Simulator executed %d cycle%s\n", cycle, (cycle == 1) ? "":"s");
+	if (core_stats_unaligned_cycle_penalty != 0) {
+		WARN("Wasted %u cycle(s) to unaligned memory accesses\n",
+				core_stats_unaligned_cycle_penalty);
+	}
 	join_periph_threads();
 	INFO("Simulator shutdown successfully.\n");
 	if (!should_exit)

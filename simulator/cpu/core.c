@@ -19,6 +19,8 @@
 
 #include "core.h"
 
+#include "cpu/registers.h"
+
 #include "common/private_peripheral_bus/ppb.h"
 
 //#define TRAP_ALIGNMENT (read_word(CONFIGURATION_CONTROL) & CONFIGURATION_CONTROL_UNALIGN_TRP_MASK)
@@ -380,6 +382,36 @@ EXPORT void write_word(uint32_t addr, uint32_t val) {
 	return try_write_word(addr, val, false);
 }
 
+EXPORT void write_word_aligned(uint32_t addr, uint32_t val) {
+	return try_write_word(addr, val, false);
+}
+
+unsigned core_stats_unaligned_cycle_penalty = 0;
+EXPORT void write_word_unaligned(uint32_t addr, uint32_t val) {
+	if ( likely((addr & 0x3) == 0) ) {
+		return try_write_word(addr, val, false);
+	} else if (TRAP_ALIGNMENT) {
+		union ufsr_t ufsr = CORE_ufsr_read();
+		ufsr.UNALIGNED = 1;
+		CORE_ufsr_write(ufsr);
+		CORE_ERR_not_implemented("Trap Alignment exception (B2.2.5, p697)\n");
+	} else {
+		// XXX: Read AIRCR.ENDIANNESS. Currently assumes little endian
+
+		if (core_stats_unaligned_cycle_penalty == 0) {
+			WARN("Unaligned access writing 0x%08x = 0x%08x\n", addr, val);
+			WARN("Cortex-M's convert unaligned word writes into four 1-byte writes\n");
+			WARN("This warning will only issue once\n");
+		}
+		core_stats_unaligned_cycle_penalty += 3*2;
+
+		write_byte(addr, val & 0xff);
+		write_byte(addr + 1, (val >> 8) & 0xff);
+		write_byte(addr + 2, (val >> 16) & 0xff);
+		write_byte(addr + 3, (val >> 24) & 0xff);
+	}
+}
+
 EXPORT uint16_t read_halfword(uint32_t addr) {
 	DBG2("addr %08x\n", addr);
 
@@ -444,6 +476,29 @@ EXPORT void write_halfword(uint32_t addr, uint16_t val) {
 	}
 
 	write_word(addr & 0xfffffffc, word);
+}
+
+EXPORT void write_halfword_unaligned(uint32_t addr, uint16_t val) {
+	if ( likely((addr & 0x1) == 0) ) {
+		return write_halfword(addr, val);
+	} else if (TRAP_ALIGNMENT) {
+		union ufsr_t ufsr = CORE_ufsr_read();
+		ufsr.UNALIGNED = 1;
+		CORE_ufsr_write(ufsr);
+		CORE_ERR_not_implemented("Trap Alignment exception (B2.2.5, p697)\n");
+	} else {
+		// XXX: Read AIRCR.ENDIANNESS. Currently assumes little endian
+
+		if (core_stats_unaligned_cycle_penalty == 0) {
+			WARN("Unaligned access writing 0x%04x = 0x%04x\n", addr, val);
+			WARN("Cortex-M's convert unaligned writes into 1-byte writes\n");
+			WARN("This warning will only issue once\n");
+		}
+		core_stats_unaligned_cycle_penalty += 1*2;
+
+		write_byte(addr, val & 0xff);
+		write_byte(addr + 1, (val >> 8) & 0xff);
+	}
 }
 
 static bool try_read_byte(uint32_t addr, uint8_t* val, bool debugger) {

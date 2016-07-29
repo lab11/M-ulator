@@ -39,7 +39,7 @@ void str_imm(uint8_t rt, uint8_t rn, uint32_t imm32,
 		address = rn_val;
 
 	uint32_t rt_val = CORE_reg_read(rt);
-	write_word(address, rt_val);
+	write_word_unaligned(address, rt_val);
 
 	if (wback)
 		CORE_reg_write(rn, offset_addr);
@@ -56,7 +56,7 @@ void str_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 	uint32_t offset = Shift(rm_val, 32, shift_t, shift_n, apsr.bits.C);
 	uint32_t address = rn_val + offset;
 	uint32_t data = rt_val;
-	write_word(address, data);
+	write_word_unaligned(address, data);
 }
 
 void strb_imm(uint8_t rt, uint8_t rn, uint32_t imm32,
@@ -119,8 +119,8 @@ void strd_imm(uint8_t rt, uint8_t rt2, uint8_t rn, uint32_t imm32,
 		address = CORE_reg_read(rn);
 	}
 
-	write_word(address, CORE_reg_read(rt));
-	write_word(address + 4, CORE_reg_read(rt2));
+	write_word_aligned(address, CORE_reg_read(rt));
+	write_word_aligned(address + 4, CORE_reg_read(rt2));
 
 	if (wback) {
 		CORE_reg_write(rn, offset_addr);
@@ -144,7 +144,7 @@ void strh_imm(uint8_t rt, uint8_t rn, uint32_t imm32,
 	else
 		address = rn_val;
 
-	write_halfword(address, rt_val & 0xffff);
+	write_halfword_unaligned(address, rt_val & 0xffff);
 
 	if (wback)
 		CORE_reg_write(rn, offset_addr);
@@ -159,5 +159,5 @@ void strh_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 	uint32_t address;
 	address = CORE_reg_read(rn) + offset;
 
-	write_halfword(address, CORE_reg_read(rt) & 0xffff);
+	write_halfword_unaligned(address, CORE_reg_read(rt) & 0xffff);
 }
