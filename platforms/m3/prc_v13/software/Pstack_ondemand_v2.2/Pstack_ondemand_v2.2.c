@@ -612,6 +612,7 @@ static void operation_tx_stored(void){
 		send_radio_data_ppm(0, cdc_storage[radio_tx_count]);
 		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 		send_radio_data_ppm(0, cdc_storage_cref[radio_tx_count]);
+		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 
 		radio_tx_count--;
 	}
