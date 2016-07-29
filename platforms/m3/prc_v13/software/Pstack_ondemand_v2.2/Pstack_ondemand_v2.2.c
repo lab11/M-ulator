@@ -2,6 +2,10 @@
 //Author:       Gyouho Kim
 //Description:  
 //              Mouse Implantation & CDC Measurement Code
+//				Version 2.2
+//				- Optimizing sleep current
+//				- Changed radio packet letters
+//				- Trig 4 stays awake for faster datarate
 //				Version 2.1
 //				- Adding VBAT measurement through PMUv2
 //				- Changing how CDC timeout is handled; 0xFAFAFA will be recorded
@@ -99,7 +103,7 @@
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 24
-#define RADIO_PACKET_DELAY 5000
+#define RADIO_PACKET_DELAY 4000
 #define RADIO_TIMEOUT_COUNT 100
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
@@ -198,6 +202,7 @@ void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
 //************************************
 
 inline static void set_pmu_sleep_clk_init(){
+	// Register 0x17: UPCONV_TRIM_V3_SLEEP
     mbus_remote_register_write(PMU_ADDR,0x17, 
 		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
 		| (1 << 13) // Enable main feedback loop
@@ -215,6 +220,7 @@ inline static void set_pmu_sleep_clk_init(){
 		| (4) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
+	// Register 0x18: UPCONV_TRIM_V3_ACTIVE
     mbus_remote_register_write(PMU_ADDR,0x18, 
 		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
 		| (1 << 13) // Enable main feedback loop
@@ -226,8 +232,8 @@ inline static void set_pmu_sleep_clk_init(){
 	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
     mbus_remote_register_write(PMU_ADDR,0x19,
 		( (1 << 13) // Enable main feedback loop
-		| (2 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
 		| (2) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
@@ -246,9 +252,9 @@ inline static void set_pmu_sleep_clk_init(){
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (1 << 13) // Enable main feedback loop
-		| (2 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (6) 		// Floor frequency base (0-63)
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (4) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x16: SAR_TRIM_v3_ACTIVE
@@ -276,6 +282,68 @@ inline static void set_pmu_sleep_clk_init(){
 	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
     mbus_remote_register_write(PMU_ADDR,0x36,0x000001);
 	delay(MBUS_DELAY);
+}
+
+inline static void set_pmu_sleep_clk_high(){
+	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
+    mbus_remote_register_write(PMU_ADDR,0x19,
+		( (1 << 13) // Enable main feedback loop
+		| (2 << 9)  // Frequency multiplier R
+		| (2 << 5)  // Frequency multiplier L (actually L+1)
+		| (2) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// The first register write to PMU needs to be repeated
+    mbus_remote_register_write(PMU_ADDR,0x19,
+		( (1 << 13) // Enable main feedback loop
+		| (2 << 9)  // Frequency multiplier R
+		| (2 << 5)  // Frequency multiplier L (actually L+1)
+		| (2) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x15: SAR_TRIM_v3_SLEEP
+    mbus_remote_register_write(PMU_ADDR,0x15, 
+		( (0 << 19) // Enable PFM even during periodic reset
+		| (0 << 18) // Enable PFM even when Vref is not used as ref
+		| (0 << 17) // Enable PFM
+		| (3 << 14) // Comparator clock division ratio
+		| (1 << 13) // Enable main feedback loop
+		| (2 << 9)  // Frequency multiplier R
+		| (2 << 5)  // Frequency multiplier L (actually L+1)
+		| (6) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY*10);
+}
+
+inline static void set_pmu_sleep_clk_default(){
+	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
+    mbus_remote_register_write(PMU_ADDR,0x19,
+		( (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (2) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// The first register write to PMU needs to be repeated
+    mbus_remote_register_write(PMU_ADDR,0x19,
+		( (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (2) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x15: SAR_TRIM_v3_SLEEP
+    mbus_remote_register_write(PMU_ADDR,0x15, 
+		( (0 << 19) // Enable PFM even during periodic reset
+		| (0 << 18) // Enable PFM even when Vref is not used as ref
+		| (0 << 17) // Enable PFM
+		| (3 << 14) // Comparator clock division ratio
+		| (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (4) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY*10);
 }
 
 inline static void batadc_reset(){
@@ -337,7 +405,7 @@ inline static void batadc_resetrelease(){
 
 static void radio_power_on(){
 	// Need to speed up sleep pmu clock
-	//set_pmu_sleep_clk_high();
+	set_pmu_sleep_clk_high();
 
     // Release FSM Sleep - Requires >2s stabilization time
     radio_on = 1;
@@ -365,7 +433,7 @@ static void radio_power_on(){
 
 static void radio_power_off(){
 	// Need to restore sleep pmu clock
-	//set_pmu_sleep_clk_default();
+	set_pmu_sleep_clk_default();
 
     // Turn off everything
     radio_on = 0;
@@ -528,39 +596,37 @@ static void operation_sleep_notimer(void){
 
 static void operation_tx_stored(void){
 
-    //Fire off stored data to radio
-#ifdef DEBUG_MBUS_MSG
-    delay(MBUS_DELAY*10);
-    mbus_write_message32(0x70, radio_tx_count);
-    delay(MBUS_DELAY*10);
-    mbus_write_message32(0x74, cdc_storage[radio_tx_count]);
-    delay(MBUS_DELAY*10);
-    mbus_write_message32(0x76, cdc_storage_cref[radio_tx_count]);
-    delay(MBUS_DELAY*10);
-    mbus_write_message32(0x70, radio_tx_count);
-    delay(MBUS_DELAY*10);
-#endif
-    send_radio_data_ppm(0, cdc_storage[radio_tx_count]);
-    delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
-    send_radio_data_ppm(0, cdc_storage_cref[radio_tx_count]);
+    while(((!radio_tx_numdata)&&(radio_tx_count > 0)) | ((radio_tx_numdata)&&((radio_tx_numdata+radio_tx_count) > cdc_storage_count))){
+		//Fire off stored data to radio
+		#ifdef DEBUG_MBUS_MSG
+			delay(MBUS_DELAY*10);
+			mbus_write_message32(0x70, radio_tx_count);
+			delay(MBUS_DELAY*10);
+			mbus_write_message32(0x74, cdc_storage[radio_tx_count]);
+			delay(MBUS_DELAY*10);
+			mbus_write_message32(0x76, cdc_storage_cref[radio_tx_count]);
+			delay(MBUS_DELAY*10);
+			mbus_write_message32(0x70, radio_tx_count);
+			delay(MBUS_DELAY*10);
+		#endif
+		send_radio_data_ppm(0, cdc_storage[radio_tx_count]);
+		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
+		send_radio_data_ppm(0, cdc_storage_cref[radio_tx_count]);
 
-    if (((!radio_tx_numdata)&&(radio_tx_count > 0)) | ((radio_tx_numdata)&&((radio_tx_numdata+radio_tx_count) > cdc_storage_count))){
 		radio_tx_count--;
-		// set timer
-		set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-		// go to sleep and wake up with same condition
-		operation_sleep_noirqreset();
+	}
 
-    }else{
-		delay(RADIO_PACKET_DELAY);
-		delay(RADIO_PACKET_DELAY);
-		send_radio_data_ppm(1, 0xFAF000);
-		// This is also the end of this IRQ routine
-		exec_count_irq = 0;
-		// Go to sleep without timer
-		radio_tx_count = cdc_storage_count; // allows data to be sent more than once
-		operation_sleep_notimer();
-    }
+	send_radio_data_ppm(0, cdc_storage[radio_tx_count]);
+	delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
+	send_radio_data_ppm(0, cdc_storage_cref[radio_tx_count]);
+
+	delay(RADIO_PACKET_DELAY*3);
+	send_radio_data_ppm(1, 0xFAF000);
+	// This is also the end of this IRQ routine
+	exec_count_irq = 0;
+	// Go to sleep without timer
+	radio_tx_count = cdc_storage_count; // allows data to be sent more than once
+	operation_sleep_notimer();
 
 }
 
@@ -992,7 +1058,7 @@ int main() {
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm(0,0xFAF000+exec_count_irq);	
+				send_radio_data_ppm(0,0xABC000+exec_count_irq);	
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
@@ -1058,9 +1124,9 @@ int main() {
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm(0,0xFAF000+exec_count);	
+				send_radio_data_ppm(0,0xC10000+exec_count);	
     			delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
-				send_radio_data_ppm(0,0xFAF000+cdc_reset_timeout_count);	
+				send_radio_data_ppm(0,0xC20000+cdc_reset_timeout_count);	
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
@@ -1095,7 +1161,7 @@ int main() {
 				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
 				operation_sleep_noirqreset();
 			}else{
-				send_radio_data_ppm(0, 0xFAF000+exec_count_irq);
+				send_radio_data_ppm(0, 0xABC000+exec_count_irq);
 				if (exec_count_irq == 3){
 					// set timer
 					set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
@@ -1136,7 +1202,7 @@ int main() {
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm(0,0xFAF000+read_data_batadc);	
+				send_radio_data_ppm(0,0xBBB000+read_data_batadc);	
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
@@ -1193,7 +1259,7 @@ int main() {
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm(0,0xFAF000+exec_count_irq);	
+				send_radio_data_ppm(0,0xABC000+exec_count_irq);	
 				// set timer
 				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
@@ -1213,6 +1279,7 @@ int main() {
             operation_sleep_notimer();
 		}
 	}
+
 
 
     // Proceed to continuous mode
