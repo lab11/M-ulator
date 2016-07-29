@@ -322,6 +322,11 @@ static bool try_read_word(uint32_t addr, uint32_t *val, bool debugger) {
 		cur = cur->next;
 	}
 
+	if (CONF_rzwi_memory) {
+		WARN("RZWI RD 0x%08x as 0\n", addr);
+		return true;
+	}
+
 	DBG1("addr %08x falls outside known range\n", addr);
 	return false;
 
@@ -366,6 +371,11 @@ static void try_write_word(uint32_t addr, uint32_t val, bool debugger) {
 			}
 		}
 		cur = cur->next;
+	}
+
+	if (CONF_rzwi_memory) {
+		WARN("RZWI WR 0x%08x = 0x%08x\n", addr, val);
+		return;
 	}
 
 	MEMTRACE_WRITE_ERR(4, addr, val);
@@ -446,6 +456,8 @@ EXPORT uint16_t read_halfword(uint32_t addr) {
 
 EXPORT void write_halfword(uint32_t addr, uint16_t val) {
 	DBG2("addr %08x val %04x\n", addr, val);
+
+	// XXX: This doesn't look right, esp w.r.t. alignment stuff
 
 	if ((addr & 0x1) & TRAP_ALIGNMENT) {
 		// misaligned access
