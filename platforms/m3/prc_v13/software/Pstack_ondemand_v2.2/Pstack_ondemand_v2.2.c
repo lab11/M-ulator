@@ -597,6 +597,9 @@ static void operation_sleep_notimer(void){
 static void operation_tx_stored(void){
 
     while(((!radio_tx_numdata)&&(radio_tx_count > 0)) | ((radio_tx_numdata)&&((radio_tx_numdata+radio_tx_count) > cdc_storage_count))){
+		// Config watchdog timer to about 10 sec; default: 0x02FFFFFF
+		config_timerwd(0xFFFFF); // 0xFFFFF about 13 sec with Y2 run default clock
+
 		//Fire off stored data to radio
 		#ifdef DEBUG_MBUS_MSG
 			delay(MBUS_DELAY*10);
