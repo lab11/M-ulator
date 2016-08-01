@@ -418,10 +418,10 @@ static void operation_cdc_run(){
 		set_halt_until_mbus_tx();
 
 		// FIXME
-		mbus_write_message32(0x79, read_data_reg9); // CPAR
-		mbus_write_message32(0x77, read_data_reg7); // CMEAS reverse
-		mbus_write_message32(0x76, read_data_reg6); // CREF
 		mbus_write_message32(0x74, read_data_reg4); // CMEAS
+		mbus_write_message32(0x76, read_data_reg6); // CREF
+		mbus_write_message32(0x77, read_data_reg7); // CMEAS reverse
+		mbus_write_message32(0x79, read_data_reg9); // CPAR
 
 		// FIXME
 		// Option to take multiple measurements per wakeup

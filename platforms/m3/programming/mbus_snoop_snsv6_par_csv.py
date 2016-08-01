@@ -25,6 +25,7 @@ cdc_cref = []
 cdc_date = []
 cdc_time = []
 
+logfile = open('mbus_snoop_log.txt','w')
 
 class mbus_message_generator(m3_common):
     TITLE = "MBus Message Generator"
@@ -48,6 +49,7 @@ class mbus_message_generator(m3_common):
 
     def Bpp_callback(self, address, data, cb0=-1, cb1=-1):
         print("@" + str(self.count) + " Time: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "  ADDR: 0x" + address.encode('hex') + "  DATA: 0x" + data.encode('hex') + "  (ACK: " + str(not cb1) + ")")
+        print >> logfile, "@" + str(self.count) + " Time: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "  ADDR: 0x" + address.encode('hex') + "  DATA: 0x" + data.encode('hex') + "  (ACK: " + str(not cb1) + ")"
         if (str(int(address.encode('hex'),16))=="118"):
             #o_file.write(str(int(address.encode('hex'),16))+"\t"+str(int(data.encode('hex'),16))+"\r\n")
 			cdc_cref.append(int(data.encode('hex'),16))
