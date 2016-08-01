@@ -267,7 +267,7 @@ static void operation_init(void){
     mbus_remote_register_write(SNS_ADDR,0x18,0x1800);
 
     // Initialize other global variables
-    WAKEUP_PERIOD_CONT = 2;   // 1: 2-4 sec with PRCv9
+    WAKEUP_PERIOD_CONT = 1;   // 1: 2-4 sec with PRCv9
     WAKEUP_PERIOD_CONT_INIT = 1;   // 0x1E (30): ~1 min with PRCv9
     cdc_storage_count = 0;
     radio_tx_count = 0;
