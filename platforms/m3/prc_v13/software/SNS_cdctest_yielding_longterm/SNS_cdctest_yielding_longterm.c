@@ -179,6 +179,7 @@ static void operation_sleep(void){
 	*((volatile uint32_t *) IRQ14VEC) = 0;
 
     // Go to Sleep
+    delay(MBUS_DELAY);
     mbus_sleep_all();
     while(1);
 
@@ -187,6 +188,7 @@ static void operation_sleep(void){
 static void operation_sleep_noirqreset(void){
 
     // Go to Sleep
+    delay(MBUS_DELAY);
     mbus_sleep_all();
     while(1);
 
@@ -204,6 +206,7 @@ static void operation_sleep_notimer(void){
     set_wakeup_timer(0, 0, 0);
 
     // Go to sleep without timer
+    delay(MBUS_DELAY);
     operation_sleep();
 
 }

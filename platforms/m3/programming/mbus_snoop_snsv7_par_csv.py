@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 
 logfile = open('mbus_snoop_log.txt','w')
 
-wr = csv.writer(open('snsv6_snoop.txt','w'), delimiter=',', lineterminator='\n')
+wr = csv.writer(open('snsv7_snoop.txt','w'), delimiter=',', lineterminator='\n')
 wr.writerow(['DATE','TIME','C_MEAS','C_REF','C_REV','C_PAR'])
 
 
