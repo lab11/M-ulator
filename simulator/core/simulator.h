@@ -66,6 +66,7 @@ extern int dumpallcycles;
 extern int limitcycles;
 extern int returnr0;
 extern int usetestflash;
+extern int noterminate;
 
 // Simulator state
 extern int cycle;

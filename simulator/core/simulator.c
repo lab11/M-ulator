@@ -76,6 +76,7 @@ EXPORT int dumpatcycle = -1;
 EXPORT int dumpallcycles = 0;
 EXPORT int returnr0 = 0;
 EXPORT int usetestflash = 0;
+EXPORT int noterminate = 0;
 
 
 /* State */
@@ -595,7 +596,8 @@ static int sim_execute(void) {
 	state_start_tick();
 
 	uint32_t cur_pc = CORE_reg_read(PC_REG);
-	if ((SR(&prev_pc) == cur_pc) && (SR(&prev_pc) != STALL_PC)) {
+	if (!noterminate && 
+        ((SR(&prev_pc) == cur_pc) && (SR(&prev_pc) != STALL_PC))) {
 		DBG1("cycle: %d prev_pc: %08x cur_pc: %08x\n", cycle, SR(&prev_pc), cur_pc);
 		if (GDB_ATTACHED) {
 			INFO("Simulator determined PC 0x%08x is branch to self, breaking for gdb.\n", cur_pc);
