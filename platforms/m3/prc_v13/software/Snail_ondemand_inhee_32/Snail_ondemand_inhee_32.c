@@ -52,7 +52,7 @@
 #define RADIO_TIMEOUT_COUNT 100
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
-#define DATA_STORAGE_SIZE 895 // FIXME
+#define DATA_STORAGE_SIZE 400 // FIXME
 
 
 //********************************************************************
@@ -84,6 +84,7 @@ volatile prcv13_r0B_t prcv13_r0B = PRCv13_R0B_DEFAULT;
 volatile uint32_t enumerated;
 volatile uint8_t  Tstack_state;
 volatile uint32_t temp_reset_timeout_count;
+volatile uint32_t temp_error_count;
 volatile uint32_t exec_count;
 volatile uint32_t meas_count;
 volatile uint32_t exec_count_irq;
@@ -94,8 +95,8 @@ volatile uint32_t read_data_batadc;
 volatile uint32_t WAKEUP_PERIOD_CONT; 
 volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
 
-volatile uint32_t data_storage[DATA_STORAGE_SIZE] = {0};
-volatile uint32_t data_storage_latest;
+volatile uint32_t  data_storage8[DATA_STORAGE_SIZE] = {0};
+volatile uint32_t data_storage16[DATA_STORAGE_SIZE] = {0};
 volatile uint32_t data_storage_count;
 volatile bool	  sensor_running;
 volatile uint32_t set_max_exec_count;
@@ -105,6 +106,8 @@ volatile uint32_t radio_tx_option;
 volatile uint32_t radio_tx_numdata;
 volatile bool radio_ready;
 volatile bool radio_on;
+
+volatile uint32_t  bat_discharge_threshold;
 
 
 //*******************************************************************
@@ -177,8 +180,8 @@ inline static void set_pmu_sleep_clk_init(){
     mbus_remote_register_write(PMU_ADDR,0x19,
 		( (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (1 << 5)  // Frequency multiplier L (actually L+1)
-		| (1) 		// Floor frequency base (0-63)
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (3) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
@@ -197,8 +200,8 @@ inline static void set_pmu_sleep_clk_init(){
 		| (3 << 14) // Comparator clock division ratio
 		| (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (1 << 5)  // Frequency multiplier L (actually L+1)
-		| (6) 		// Floor frequency base (0-63)
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (3) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x16: SAR_TRIM_v3_ACTIVE
@@ -220,7 +223,7 @@ inline static void set_pmu_sleep_clk_init(){
 		| (1 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (44) 		// Binary converter's conversion ratio (7'h00)
+		| (48) 		// Binary converter's conversion ratio (7'h00)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
@@ -265,16 +268,16 @@ inline static void set_pmu_sleep_clk_default(){
     mbus_remote_register_write(PMU_ADDR,0x19,
 		( (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (1 << 5)  // Frequency multiplier L (actually L+1)
-		| (1) 		// Floor frequency base (0-63)
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (3) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// The first register write to PMU needs to be repeated
     mbus_remote_register_write(PMU_ADDR,0x19,
 		( (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (1 << 5)  // Frequency multiplier L (actually L+1)
-		| (1) 		// Floor frequency base (0-63)
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (3) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x15: SAR_TRIM_v3_SLEEP
@@ -285,8 +288,8 @@ inline static void set_pmu_sleep_clk_default(){
 		| (3 << 14) // Comparator clock division ratio
 		| (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (1 << 5)  // Frequency multiplier L (actually L+1)
-		| (1) 		// Floor frequency base (0-63)
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (3) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY*10);
 }
@@ -468,6 +471,8 @@ static void temp_sensor_assert_reset(){
 static void ldo_power_off(){
     snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB = 1;
     snsv7_r18.ADC_LDO_ADC_LDO_ENB = 1;
+    snsv7_r18.CDC_LDO_CDC_LDO_DLY_ENB = 1;
+    snsv7_r18.CDC_LDO_CDC_LDO_ENB = 1;
     mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
 }
 static void temp_power_off(){
@@ -550,17 +555,20 @@ static void operation_tx_stored(void){
 	
     //Fire off stored data to radio
 		#ifdef DEBUG_MBUS_MSG_1
-			mbus_write_message32(0xDD, radio_tx_count);
+			mbus_write_message32(0xDD,radio_tx_count);
 			delay(MBUS_DELAY);
-			mbus_write_message32(0xDD, data_storage[radio_tx_count]);
+			mbus_write_message32(0xDD,data_storage8[radio_tx_count]);
+			delay(MBUS_DELAY);
+			mbus_write_message32(0xDD,data_storage16[radio_tx_count]);
 			delay(MBUS_DELAY);
 		#endif
-    	send_radio_data_ppm(0, data_storage[radio_tx_count]);
+
+    	send_radio_data_ppm(0,data_storage16[radio_tx_count]);
     	delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 		radio_tx_count--;
 	}
 
-    send_radio_data_ppm(0, data_storage[radio_tx_count]);
+   	send_radio_data_ppm(0,data_storage16[radio_tx_count]);
     delay(RADIO_PACKET_DELAY*3); //Set delays between sending subsequent packet
 	send_radio_data_ppm(1, 0xFAF000);
 	// This is also the end of this IRQ routine
@@ -591,6 +599,7 @@ static void operation_init(void){
     exec_count_irq = 0;
     mbus_msg_flag = 0;
 	read_data_lux = 0;
+	temp_error_count = 0;
   
     // Set CPU Halt Option as RX --> Use for register read e.g.
 //    set_halt_until_mbus_rx();
@@ -719,6 +728,9 @@ static void operation_init(void){
 	// Disable ADC offset measurement
 	batadc_resetrelease();
 
+	// Default battery overcharging projection threshold
+	bat_discharge_threshold = 0x0B;
+
     // Go to sleep without timer
     operation_sleep_notimer();
 }
@@ -832,7 +844,7 @@ static void operation_run(void){
 		batadc_reset();
 		delay(MBUS_DELAY);
 		
-		// Set CPU Halt Option as RX --> Use for register read e.g.
+		// Set CPU Halt Option as Rtart  -Tlibs/memmap libs/PRCv13.o libs/mbus.o libs/vectors.o Snail_ondemand_inhee/Snail_ondemand_inhee.o "$(echo $(arm-none-eabi-gcc -print-libgcc-file-name)X --> Use for register read e.g.
 		set_halt_until_mbus_rx();
 
 		mbus_remote_register_read(SNS_ADDR,0x10,1);
@@ -844,6 +856,7 @@ static void operation_run(void){
 		}else{
 			read_data_temp_data = 0;
 			temp_reset_timeout_count = 0;
+			temp_error_count++;
 		}
 		delay(MBUS_DELAY);
 
@@ -862,8 +875,6 @@ static void operation_run(void){
 
 
 	#ifdef DEBUG_MBUS_MSG
-		mbus_write_message32(0xCC, 0xCCCCCCCC);
-		delay(MBUS_DELAY);
 		mbus_write_message32(0xCC, exec_count);
 		delay(MBUS_DELAY);
 		mbus_write_message32(0xCC, read_data_temp_done);
@@ -873,14 +884,10 @@ static void operation_run(void){
 		mbus_write_message32(0xCC, read_data_lux);
 		delay(MBUS_DELAY);
 		mbus_write_message32(0xCC, read_data_batadc);
-		delay(MBUS_DELAY);
-		mbus_write_message32(0xCC, 0xCCCCCCCC);
 		delay(MBUS_DELAY);
 	#endif
 
 	#ifdef DEBUG_MBUS_MSG_1
-		mbus_write_message32(0xCC, 0xCCCCCCCC);
-		delay(MBUS_DELAY);
 		mbus_write_message32(0xCC, exec_count);
 		delay(MBUS_DELAY);
 		mbus_write_message32(0xCC, read_data_temp_done);
@@ -890,23 +897,39 @@ static void operation_run(void){
 		mbus_write_message32(0xCC, read_data_lux);
 		delay(MBUS_DELAY);
 		mbus_write_message32(0xCC, read_data_batadc);
-		delay(MBUS_DELAY);
-		mbus_write_message32(0xCC, 0xCCCCCCCC);
 		delay(MBUS_DELAY);
 	#endif
 
 		exec_count++;
 		// Store results in memory; unless buffer is full
 		if (data_storage_count < DATA_STORAGE_SIZE){
-			data_storage[data_storage_count] = read_data_temp_data;
+			data_storage8[data_storage_count] = read_data_lux >> 16;
+			data_storage16[data_storage_count] = read_data_lux;
+
+	#ifdef DEBUG_MBUS_MSG_1
+		mbus_write_message32(0xDD,data_storage_count);
+		delay(MBUS_DELAY);
+		mbus_write_message32(0xDD,data_storage8[data_storage_count]);
+		delay(MBUS_DELAY);
+		mbus_write_message32(0xDD,data_storage16[data_storage_count]);
+		delay(MBUS_DELAY);
+	#endif
+
 			data_storage_count++;
-			data_storage[data_storage_count] = read_data_lux;
-			data_storage_count++;
-			data_storage[data_storage_count] = read_data_batadc;
+			data_storage8[data_storage_count] = read_data_batadc;
+			data_storage16[data_storage_count] = read_data_temp_data;
+
+	#ifdef DEBUG_MBUS_MSG_1
+		mbus_write_message32(0xDD,data_storage_count);
+		delay(MBUS_DELAY);
+		mbus_write_message32(0xDD,data_storage8[data_storage_count]);
+		delay(MBUS_DELAY);
+		mbus_write_message32(0xDD,data_storage16[data_storage_count]);
+		delay(MBUS_DELAY);
+	#endif
+
 			radio_tx_count = data_storage_count;
 			data_storage_count++;
-			
-			data_storage_latest = read_data_lux;
 			}
 
 		// Optionally transmit the data
@@ -937,6 +960,30 @@ static void operation_run(void){
 
 		// Restart HRV counter 
 		snail_cnt_start();
+
+		// Discharge battery if vbat is too high
+		if ((read_data_batadc != 0) && (read_data_batadc < bat_discharge_threshold)){
+    		snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0;
+    		snsv7_r18.ADC_LDO_ADC_LDO_ENB = 0;
+    		snsv7_r18.CDC_LDO_CDC_LDO_DLY_ENB = 0;
+    		snsv7_r18.CDC_LDO_CDC_LDO_ENB = 0;
+
+	#ifdef DEBUG_MBUS_MSG_1
+		mbus_write_message32(0xBB, read_data_batadc);
+		delay(MBUS_DELAY);
+		mbus_write_message32(0xBB, bat_discharge_threshold);
+		delay(MBUS_DELAY);
+	#endif
+
+		}else{ 
+    		snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB = 1;
+    		snsv7_r18.ADC_LDO_ADC_LDO_ENB = 1;
+    		snsv7_r18.CDC_LDO_CDC_LDO_DLY_ENB = 1;
+    		snsv7_r18.CDC_LDO_CDC_LDO_ENB = 1;
+		}	
+    		mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
+			delay(MBUS_DELAY);
+			
 
 		if ((set_max_exec_count != 0) && (exec_count > (50<<set_max_exec_count))){
 			// No more measurement required
@@ -1001,6 +1048,7 @@ int main() {
 			}else{
 				// radio
 				send_radio_data_ppm(0,0xABC000+exec_count_irq);	
+    			delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
@@ -1063,7 +1111,10 @@ int main() {
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm(0,0xC10000+exec_count);	
+				send_radio_data_ppm(0,0xC10000 + exec_count*2);
+    			delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
+				send_radio_data_ppm(0,0xC20000 + temp_error_count);	
+    			delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
@@ -1079,7 +1130,6 @@ int main() {
 
 
     }else if(wakeup_data_header == 4){
-		disable_timerwd();
         // Transmit the stored temp sensor data
         // wakeup_data[7:0] is the # of data to transmit; if zero, all stored data is sent
         // wakeup_data[15:8] is the user-specified period 
@@ -1110,7 +1160,10 @@ int main() {
 		// Transmit PMU's ADC reading as a battery voltage indicator
 		// wakeup_data[7:0] is the # of transmissions
 		// wakeup_data[15:8] is the user-specified period 
+		// wakeup_data[23:16] is the battery discharging threshold
+ 
 		WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+		bat_discharge_threshold = wakeup_data_field_2;
 		exec_count = 0;
 
         if (exec_count_irq < wakeup_data_field_0){
@@ -1133,6 +1186,7 @@ int main() {
 			}else{
 				// radio
 				send_radio_data_ppm(0,0xBBB000+read_data_batadc);	
+    			delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
@@ -1141,7 +1195,7 @@ int main() {
         }else{
             exec_count_irq = 0;
             // radio
-            send_radio_data_ppm(1,0xABC000);	
+            send_radio_data_ppm(1,0xFAF000);	
 			// Release reset of PMU ADC
 			batadc_resetrelease();
             // Go to sleep without timer
@@ -1174,6 +1228,7 @@ int main() {
 			}else{
 				// radio
 				send_radio_data_ppm(0,0xABC000+exec_count_irq);	
+    			delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 				// set timer
 				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
