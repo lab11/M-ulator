@@ -2,9 +2,18 @@
 //Author: Inhee Lee 
 //		  
 //Description: Sensing System for Snail Project
-//			PRCv13, SNSv7, RADv9, PMUv2
-//			Modified from 'Tstack_ondemand_v1.3'
+//
+//			Version 2.1
+//			- 20nA sleep mode setting for PMU
+//			- Can change power for radio
+//			- Add Trigger #7 for battery voltage monitor
+//
+//			Version 2.0
+//			- PRCv13, SNSv7, RADv9, PMUv2, HRVv4
+//			- Reset HRV counter 
+//
 //*******************************************************************
+
 #include "PRCv13.h"
 #include "PRCv13_RF.h"
 #include "mbus.h"
@@ -15,17 +24,17 @@
 
 // uncomment this for debug mbus message
 // #define DEBUG_MBUS_MSG
- #define DEBUG_MBUS_MSG_1
+// #define DEBUG_MBUS_MSG_1
 
 // TStack order  PRC->RAD->SNS->HRV->PMU
-#define HRV_ADDR 0x3
 #define RAD_ADDR 0x4
 #define SNS_ADDR 0x5
-#define PMU_ADDR 0x6
+#define HRV_ADDR 0x6
+#define PMU_ADDR 0x7
 
 // Sensor parameters
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
-#define TEMP_TIMEOUT_COUNT 250
+#define TEMP_TIMEOUT_COUNT 1000
 #define WAKEUP_PERIOD_RESET 2
 #define WAKEUP_PERIOD_LDO 2
 #define SENSING_CYCLE_INIT 5 
@@ -33,17 +42,17 @@
 // Tstack states
 #define	TSTK_IDLE       0x0
 #define	TSTK_TEMP_LDO   0x1
-#define TSTK_TEMP_RSTRL 0x3
-#define TSTK_TEMP_START 0x2
-#define TSTK_DATA_READ  0x6
+#define TSTK_TEMP_RSTRL 0x2
+#define TSTK_TEMP_START 0x3
+#define TSTK_DATA_READ  0x4
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 24
-#define RADIO_PACKET_DELAY 3000
-#define RADIO_TIMEOUT_COUNT 50
+#define RADIO_PACKET_DELAY 4000
+#define RADIO_TIMEOUT_COUNT 100
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
-#define DATA_STORAGE_SIZE 953 // FIXME
+#define DATA_STORAGE_SIZE 895 // FIXME
 
 
 //********************************************************************
@@ -79,8 +88,8 @@ volatile uint32_t exec_count;
 volatile uint32_t meas_count;
 volatile uint32_t exec_count_irq;
 volatile uint8_t  mbus_msg_flag;
-volatile uint32_t lux_prev;
-volatile uint32_t lux_delta;
+volatile uint32_t read_data_lux;
+volatile uint32_t read_data_batadc;
 
 volatile uint32_t WAKEUP_PERIOD_CONT; 
 volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
@@ -167,9 +176,9 @@ inline static void set_pmu_sleep_clk_init(){
 	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
     mbus_remote_register_write(PMU_ADDR,0x19,
 		( (1 << 13) // Enable main feedback loop
-		| (2 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (2) 		// Floor frequency base (0-63)
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (3) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
@@ -187,9 +196,9 @@ inline static void set_pmu_sleep_clk_init(){
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (1 << 13) // Enable main feedback loop
-		| (2 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (6) 		// Floor frequency base (0-63)
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (3) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x16: SAR_TRIM_v3_ACTIVE
@@ -211,13 +220,77 @@ inline static void set_pmu_sleep_clk_init(){
 		| (1 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (44) 		// Binary converter's conversion ratio (7'h00)
+		| (48) 		// Binary converter's conversion ratio (7'h00)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
     mbus_remote_register_write(PMU_ADDR,0x36,0x000001);
 	delay(MBUS_DELAY);
 }
+
+
+inline static void set_pmu_sleep_clk_high(){
+	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
+    mbus_remote_register_write(PMU_ADDR,0x19,
+		( (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (1) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// The first register write to PMU needs to be repeated
+    mbus_remote_register_write(PMU_ADDR,0x19,
+		( (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (1) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x15: SAR_TRIM_v3_SLEEP
+    mbus_remote_register_write(PMU_ADDR,0x15, 
+		( (0 << 19) // Enable PFM even during periodic reset
+		| (0 << 18) // Enable PFM even when Vref is not used as ref
+		| (0 << 17) // Enable PFM
+		| (3 << 14) // Comparator clock division ratio
+		| (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (6) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY*10);
+}
+
+inline static void set_pmu_sleep_clk_default(){
+	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
+    mbus_remote_register_write(PMU_ADDR,0x19,
+		( (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (3) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// The first register write to PMU needs to be repeated
+    mbus_remote_register_write(PMU_ADDR,0x19,
+		( (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (3) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x15: SAR_TRIM_v3_SLEEP
+    mbus_remote_register_write(PMU_ADDR,0x15, 
+		( (0 << 19) // Enable PFM even during periodic reset
+		| (0 << 18) // Enable PFM even when Vref is not used as ref
+		| (0 << 17) // Enable PFM
+		| (3 << 14) // Comparator clock division ratio
+		| (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (3) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY*10);
+}
+
 
 inline static void batadc_reset(){
 	// Manually reset ADC
@@ -279,7 +352,7 @@ inline static void batadc_resetrelease(){
 
 static void radio_power_on(){
 	// Need to speed up sleep pmu clock
-	//set_pmu_sleep_clk_high();
+	set_pmu_sleep_clk_high();
 
     // Release FSM Sleep - Requires >2s stabilization time
     radio_on = 1;
@@ -307,7 +380,7 @@ static void radio_power_on(){
 
 static void radio_power_off(){
 	// Need to restore sleep pmu clock
-	//set_pmu_sleep_clk_default();
+	set_pmu_sleep_clk_default();
 
     // Turn off everything
     radio_on = 0;
@@ -333,9 +406,13 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 		radv9_r13.RAD_FSM_RESETn = 1;
 		mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
 		delay(MBUS_DELAY);
-    }
+    } 
 
-    // Set CPU Halt Option as RX --> Use for register read e.g.
+	#ifdef DEBUG_MBUS_MSG
+		mbus_write_message32(0xBB, 0x0);
+	#endif
+
+	// Set CPU Halt Option as RX --> Use for register read e.g.
     set_halt_until_mbus_rx();
 
     // Fire off data
@@ -406,19 +483,19 @@ static void temp_power_off(){
 //***************************************************************************************
 static void snail_cnt_reset(void){
     	mbus_remote_register_write(HRV_ADDR,0x01,
-			( (0  << 13) // HRV_CNT_CNT_IRQ (default: 0)
-			| (20 << 5)  // MBUS_REPLY_ADDRESS_HRV_CNT (default: 20)
+			( (0  << 5)  // HRV_CNT_CNT_IRQ (default: 0)
 			| (0  << 4)  // HRV_CNT_CNT_ENABLE (default: 0)
-			| (9)        // LRC_CLK_CONF (default: 9)
+			| (2  << 2)  // LC_CLK_DIV (default: 2)
+			| (1)        // LC_CLK_RING (default: 1)
 		));
 }
 	
 static void snail_cnt_start(void){
     	mbus_remote_register_write(HRV_ADDR,0x01,
-			( (0  << 13) // HRV_CNT_CNT_IRQ (default: 0)
-			| (20 << 5)  // MBUS_REPLY_ADDRESS_HRV_CNT (default: 20)
+			( (0  << 5)  // HRV_CNT_CNT_IRQ (default: 0)
 			| (1  << 4)  // HRV_CNT_CNT_ENABLE (default: 0)
-			| (9)        // LRC_CLK_CONF (default: 9)
+			| (2  << 2)  // LC_CLK_DIV (default: 2)
+			| (1)        // LC_CLK_RING (default: 1)
 		));
 }
 
@@ -467,6 +544,9 @@ static void operation_sleep_notimer(void){
 static void operation_tx_stored(void){
 
 	while (((!radio_tx_numdata)&&(radio_tx_count>0)) | ((radio_tx_numdata)&&((radio_tx_numdata+radio_tx_count) > data_storage_count))){
+
+		// Config watchdog timer to about 10 sec; default: 0x02FFFFFF
+		config_timerwd(0xFFFFF); // 0xFFFFF about 13 sec with Y2 run default clock
 	
     //Fire off stored data to radio
 		#ifdef DEBUG_MBUS_MSG_1
@@ -475,20 +555,14 @@ static void operation_tx_stored(void){
 			mbus_write_message32(0xDD, data_storage[radio_tx_count]);
 			delay(MBUS_DELAY);
 		#endif
-    send_radio_data_ppm(0, data_storage[radio_tx_count]);
-    delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
-	radio_tx_count--;
+    	send_radio_data_ppm(0, data_storage[radio_tx_count]);
+    	delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
+		radio_tx_count--;
 	}
 
     send_radio_data_ppm(0, data_storage[radio_tx_count]);
     delay(RADIO_PACKET_DELAY*3); //Set delays between sending subsequent packet
 	send_radio_data_ppm(1, 0xFAF000);
-	#ifdef DEBUG_MBUS_MSG_1
-    	mbus_write_message32(0xDD, radio_tx_count);
-		delay(MBUS_DELAY);
-    	mbus_write_message32(0xDD, 0xFAFA0000);
-		delay(MBUS_DELAY);
-	#endif
 	// This is also the end of this IRQ routine
 	exec_count_irq = 0;
 	// Go to sleep without timer
@@ -516,8 +590,7 @@ static void operation_init(void){
     exec_count = 0;
     exec_count_irq = 0;
     mbus_msg_flag = 0;
-	lux_prev = 0;
-	lux_delta = 0;
+	read_data_lux = 0;
   
     // Set CPU Halt Option as RX --> Use for register read e.g.
 //    set_halt_until_mbus_rx();
@@ -541,6 +614,35 @@ static void operation_init(void){
 	delay(MBUS_DELAY);
 
 	set_pmu_sleep_clk_init();
+	
+
+    // Harvester Settings --------------------------------------
+    mbus_remote_register_write(HRV_ADDR,0x00, 
+		( (15) // HRV_TOP_CONV_RATIO(0~15 >> 9x~23x); default: 14
+	));
+
+    mbus_remote_register_write(HRV_ADDR,0x01,
+		( (0  << 5)  // HRV_CNT_CNT_IRQ (default: 0)
+		| (0  << 4)  // HRV_CNT_CNT_ENABLE (default: 0)
+		| (2  << 2)  // LC_CLK_DIV (default: 2)
+		| (1)        // LC_CLK_RING (default: 1)
+	));
+
+    mbus_remote_register_write(HRV_ADDR,0x03, 
+		( (0xFFFFFF) // HRV_CNT_CNT_THRESHOLD (default: 0xFFFFFF) 
+	));
+
+    mbus_remote_register_write(HRV_ADDR,0x04,
+		( (7  << 6)  // VOLTAGE_CLAMP_I_TUNE (default: 7)
+		| (19)       // VOLTAGE_CLAMP_V_TUNE (default: 19)
+	));
+
+    mbus_remote_register_write(HRV_ADDR,0x05, 
+		( (0x001000) // HRV_CNT_IRQ_PACKET (default: 0x001400) 
+	));
+
+
+	snail_cnt_reset();
 
     // Temp Sensor Settings --------------------------------------
 	// SNSv7_R25
@@ -605,35 +707,6 @@ static void operation_init(void){
     radio_on = 0;
 	set_max_exec_count = 0; // specifies how many sensor executes; 0: unlimited, n: 50*2^n
 
-    // Harvester Settings --------------------------------------
-    mbus_remote_register_write(HRV_ADDR,0x00, 
-		( (15) // HRV_TOP_CONV_RATIO(0~15 >> 9x~23x); default: 14
-	));
-
-    mbus_remote_register_write(HRV_ADDR,0x01,
-		( (0  << 13) // HRV_CNT_CNT_IRQ (default: 0)
-		| (20 << 5)  // MBUS_REPLY_ADDRESS_HRV_CNT (default: 20)
-		| (0  << 4)  // HRV_CNT_CNT_ENABLE (default: 0)
-		| (9)        // LRC_CLK_CONF (default: 9)
-	));
-
-    mbus_remote_register_write(HRV_ADDR,0x03, 
-		( (0xFFFFFF) // HRV_CNT_CNT_THRESHOLD (default: 0xFFFFFF) 
-	));
-
-    mbus_remote_register_write(HRV_ADDR,0x04,
-		( (7  << 6)  // VOLTAGE_CLAMP_I_TUNE (default: 7)
-		| (19)       // VOLTAGE_CLAMP_V_TUNE (default: 19)
-	));
-
-    mbus_remote_register_write(HRV_ADDR,0x05, 
-		( (0x001000) // HRV_CNT_IRQ_PACKET (default: 0x001400) 
-	));
-
-	snail_cnt_reset();
-
-	snail_cnt_start();
-
 
 	// Disable ADC measurement in active mode
 	// PMU_CONTROLLER_STALL_ACTIVE
@@ -660,10 +733,16 @@ static void operation_run(void){
 
 	if (Tstack_state == TSTK_IDLE){
 		#ifdef DEBUG_MBUS_MSG 
-			mbus_write_message32(0xBB, 0xFBFB0000);
+			mbus_write_message32(0xAA, 0x0);
 			delay(MBUS_DELAY*10);
 		#endif
 		Tstack_state = TSTK_TEMP_LDO;
+
+		mbus_remote_register_read(HRV_ADDR,0x02,1);
+		delay(MBUS_DELAY);
+		read_data_lux = *((volatile uint32_t *) REG1);
+		delay(MBUS_DELAY);
+		snail_cnt_reset();
 
 		temp_reset_timeout_count = 0;
 
@@ -681,7 +760,7 @@ static void operation_run(void){
 
     }else if (Tstack_state == TSTK_TEMP_LDO){
 		#ifdef DEBUG_MBUS_MSG
-			mbus_write_message32(0xBB, 0xFBFB1111);
+			mbus_write_message32(0xAA, 0x1);
 			delay(MBUS_DELAY*10);
 		#endif
 		Tstack_state = TSTK_TEMP_RSTRL;
@@ -693,7 +772,7 @@ static void operation_run(void){
 
 	}else if (Tstack_state == TSTK_TEMP_RSTRL){
 		#ifdef DEBUG_MBUS_MSG
-			mbus_write_message32(0xBB, 0xFBFB2222);
+			mbus_write_message32(0xAA, 0x2);
 			delay(MBUS_DELAY*10);
 		#endif
 		Tstack_state = TSTK_TEMP_START;
@@ -705,7 +784,7 @@ static void operation_run(void){
 	}else if (Tstack_state == TSTK_TEMP_START){
 	// Start temp measurement
 	#ifdef DEBUG_MBUS_MSG
-		mbus_write_message32(0xBB, 0xFBFB3333);
+		mbus_write_message32(0xAA, 0x3);
 		delay(MBUS_DELAY*10);
 	#endif
 
@@ -724,39 +803,16 @@ static void operation_run(void){
 		}
 
 		// Time out
-		mbus_write_message32(0xFA, 0xFAFAFAFA);
+		mbus_write_message32(0xAA, 0xFAFAFAFA);
 		temp_sensor_disable();
 
 		temp_reset_timeout_count++;
 		Tstack_state = TSTK_DATA_READ;
 
-//		if (temp_reset_timeout_count > 0){
-//			temp_reset_timeout_count++;
-//			temp_sensor_assert_reset();
-//
-//			if (temp_reset_timeout_count > 5){
-//				// Temp sensor is not resetting for some reason. Go to sleep forever
-//				Tstack_state = TSTK_IDLE;
-//				temp_power_off();
-//				operation_sleep_notimer();
-//			}else{
-//				// Put system to sleep to reset the layer controller
-//				Tstack_state = TSTK_TEMP_RSTRL;
-//				set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x1);
-//				operation_sleep();
-//			}
-//
-//	    }else{
-//		// Try one more time
-//	    	temp_reset_timeout_count++;
-//			temp_sensor_assert_reset();
-//	    }
-
-
 
 	}else if (Tstack_state == TSTK_DATA_READ){
 		#ifdef DEBUG_MBUS_MSG
-			mbus_write_message32(0xBB, 0xFBFB5555);
+			mbus_write_message32(0xAA, 0x4);
 			delay(MBUS_DELAY*10);
 		#endif
 
@@ -767,8 +823,6 @@ static void operation_run(void){
 
 		uint32_t read_data_temp_done; // [0] Temp Sensor Done
 		uint32_t read_data_temp_data; // [23:0] Temp Sensor D Out
-		uint32_t read_data_luxcnt;	  // Light Intensity
-		uint32_t read_data_batadc;	  // Battery ADC		
 
 		// PMUv2 register read is handled differently
 		mbus_remote_register_write(PMU_ADDR,0x00,0x03);
@@ -792,11 +846,6 @@ static void operation_run(void){
 			temp_reset_timeout_count = 0;
 		}
 		delay(MBUS_DELAY);
-		mbus_remote_register_read(HRV_ADDR,0x02,1);
-		read_data_luxcnt = *((volatile uint32_t *) REG1);
-		delay(MBUS_DELAY);
-		lux_delta = read_data_luxcnt - lux_prev;
-		lux_prev = read_data_luxcnt;
 
 		// Set CPU Halt Option as TX --> Use for register write e.g.
 		set_halt_until_mbus_tx();
@@ -821,7 +870,7 @@ static void operation_run(void){
 		delay(MBUS_DELAY);
 		mbus_write_message32(0xCC, read_data_temp_data);
 		delay(MBUS_DELAY);
-		mbus_write_message32(0xCC, lux_delta);
+		mbus_write_message32(0xCC, read_data_lux);
 		delay(MBUS_DELAY);
 		mbus_write_message32(0xCC, read_data_batadc);
 		delay(MBUS_DELAY);
@@ -838,7 +887,7 @@ static void operation_run(void){
 		delay(MBUS_DELAY);
 		mbus_write_message32(0xCC, read_data_temp_data);
 		delay(MBUS_DELAY);
-		mbus_write_message32(0xCC, lux_delta);
+		mbus_write_message32(0xCC, read_data_lux);
 		delay(MBUS_DELAY);
 		mbus_write_message32(0xCC, read_data_batadc);
 		delay(MBUS_DELAY);
@@ -851,13 +900,13 @@ static void operation_run(void){
 		if (data_storage_count < DATA_STORAGE_SIZE){
 			data_storage[data_storage_count] = read_data_temp_data;
 			data_storage_count++;
-			data_storage[data_storage_count] = lux_delta;
+			data_storage[data_storage_count] = read_data_lux;
 			data_storage_count++;
 			data_storage[data_storage_count] = read_data_batadc;
 			radio_tx_count = data_storage_count;
 			data_storage_count++;
 			
-			data_storage_latest = read_data_luxcnt;
+			data_storage_latest = read_data_lux;
 			}
 
 		// Optionally transmit the data
@@ -866,7 +915,7 @@ static void operation_run(void){
 			delay(RADIO_PACKET_DELAY);
 			send_radio_data_ppm(0, read_data_temp_data);
 			delay(RADIO_PACKET_DELAY);
-			send_radio_data_ppm(0, read_data_luxcnt);
+			send_radio_data_ppm(0, read_data_lux);
 			delay(RADIO_PACKET_DELAY);
 			send_radio_data_ppm(0, read_data_batadc);
 		}
@@ -885,6 +934,9 @@ static void operation_run(void){
 			radio_ready = 0;
 			radio_power_off();
 		}
+
+		// Restart HRV counter 
+		snail_cnt_start();
 
 		if ((set_max_exec_count != 0) && (exec_count > (50<<set_max_exec_count))){
 			// No more measurement required
@@ -915,7 +967,7 @@ int main() {
     
     set_wakeup_timer(100, 0, 1); // Reset Wakeup Timer; 
 	enable_reg_irq(); // Initialize Interrupts, Only enable register-related interrupts
-    config_timerwd(0xFFFFF); // Config watchdog timer to about 10 sec (default: 0x02FFFFFF), 0xFFFFF about 13 sec with Y2 run default clock
+    config_timerwd(0x3FFFFF); // Config watchdog timer to about 10 sec (default: 0x02FFFFFF), 0xFFFFF about 13 sec with Y2 run default clock
 //	disable_timerwd();
 
 
@@ -933,10 +985,6 @@ int main() {
     uint8_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
 
     if(wakeup_data_header == 1){
-		#ifdef DEBUG_MBUS_MSG
-			mbus_write_message32(0xAA,0xFAFA1111);
-			delay(MBUS_DELAY*10);
-		#endif
         // Debug mode: Transmit something via radio and go to sleep w/o timer
         // wakeup_data[7:0] is the LSB of # of transmissions
         // wakeup_data[15:8] is the user-specified period
@@ -952,7 +1000,7 @@ int main() {
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm(0,0xFAF000+exec_count_irq);	
+				send_radio_data_ppm(0,0xABC000+exec_count_irq);	
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
@@ -967,10 +1015,6 @@ int main() {
         }
 
     }else if(wakeup_data_header == 2){
-		#ifdef DEBUG_MBUS_MSG
-			mbus_write_message32(0xAA,0xFAFA2222);
-			delay(MBUS_DELAY*10);
-		#endif
 		// Slow down PMU sleep osc and run temp sensor code with desired wakeup period
         // wakeup_data[15:0] is the user-specified period
         // wakeup_data[19:16] is the initial user-specified period
@@ -1002,10 +1046,6 @@ int main() {
 		operation_run();
 
     }else if(wakeup_data_header == 3){
-		#ifdef DEBUG_MBUS_MSG
-			mbus_write_message32(0xAA,0xFAFA3333);
-			delay(MBUS_DELAY*10);
-		#endif
 		// Stop temp sensor program and transmit the execution count n times
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period 
@@ -1023,7 +1063,7 @@ int main() {
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm(0,0xFAF000+exec_count);	
+				send_radio_data_ppm(0,0xC10000+exec_count);	
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
@@ -1040,10 +1080,6 @@ int main() {
 
     }else if(wakeup_data_header == 4){
 		disable_timerwd();
-		#ifdef DEBUG_MBUS_MSG
-			mbus_write_message32(0xAA,0xFAFA4444);
-			delay(MBUS_DELAY*10);
-		#endif
         // Transmit the stored temp sensor data
         // wakeup_data[7:0] is the # of data to transmit; if zero, all stored data is sent
         // wakeup_data[15:8] is the user-specified period 
@@ -1061,7 +1097,7 @@ int main() {
 				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1); // Go to sleep for SCRO stabilitzation
 				operation_sleep_noirqreset();
 			}else{
-				send_radio_data_ppm(0, 0xFAF000+exec_count_irq);
+				send_radio_data_ppm(0, 0xABC000+exec_count_irq);
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1); // set timer	
 				operation_sleep_noirqreset(); // go to sleep and wake up with same condition
 			}
@@ -1069,16 +1105,49 @@ int main() {
 			operation_tx_stored();
 		}
 		
-    }else if(wakeup_data_header == 0x11){
-		#ifdef DEBUG_MBUS_MSG
-			mbus_write_message32(0xAA,0xFAFA0011);
-			delay(MBUS_DELAY*10);
-		#endif
-		// Slow down PMU sleep osc and go to sleep for further programming
-        //set_pmu_sleep_clk_low();
 
-        // Go to sleep without timer
-        operation_sleep_notimer();
+    }else if(wakeup_data_header == 7){
+		// Transmit PMU's ADC reading as a battery voltage indicator
+		// wakeup_data[7:0] is the # of transmissions
+		// wakeup_data[15:8] is the user-specified period 
+		WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+		exec_count = 0;
+
+        if (exec_count_irq < wakeup_data_field_0){
+            exec_count_irq++;
+			if (exec_count_irq == 1){
+				// Grab latest PMU ADC readings
+				// PMUv2 register read is handled differently
+				mbus_remote_register_write(PMU_ADDR,0x00,0x03);
+				delay(MBUS_DELAY);
+				delay(MBUS_DELAY);
+				read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
+				batadc_reset();
+				delay(MBUS_DELAY);
+		
+				// Prepare radio TX
+				radio_power_on();
+				// Go to sleep for SCRO stabilitzation
+				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
+				operation_sleep_noirqreset();
+			}else{
+				// radio
+				send_radio_data_ppm(0,0xBBB000+read_data_batadc);	
+				// set timer
+				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
+				// go to sleep and wake up with same condition
+				operation_sleep_noirqreset();
+			}
+        }else{
+            exec_count_irq = 0;
+            // radio
+            send_radio_data_ppm(1,0xFAF000);	
+			// Release reset of PMU ADC
+			batadc_resetrelease();
+            // Go to sleep without timer
+            operation_sleep_notimer();
+        }
+
 
 	}else if(wakeup_data_header == 0x13){
 		// Change the RF frequency
@@ -1104,7 +1173,7 @@ int main() {
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm(0,0xFAF000+exec_count_irq);	
+				send_radio_data_ppm(0,0xABC000+exec_count_irq);	
 				// set timer
 				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
