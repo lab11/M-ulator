@@ -24,7 +24,7 @@
 
 // uncomment this for debug mbus message
 // #define DEBUG_MBUS_MSG
- #define DEBUG_MBUS_MSG_1
+// #define DEBUG_MBUS_MSG_1
 
 // TStack order  PRC->RAD->SNS->HRV->PMU
 #define RAD_ADDR 0x4
@@ -286,7 +286,7 @@ inline static void set_pmu_sleep_clk_default(){
 		| (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
 		| (1 << 5)  // Frequency multiplier L (actually L+1)
-		| (1) 		// Floor frequency base (0-63)
+		| (6) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY*10);
 }
