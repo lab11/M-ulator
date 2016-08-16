@@ -176,7 +176,7 @@ int main() {
 
     //Digital monitoring
     //0-DCP_S 2-TX 3-RX C-REC_RST
-    mrrv2_r12.MRR_EN_DIG_MONITOR = 0x1; // Enable monitor
+    mrrv2_r12.MRR_EN_DIG_MONITOR = 0x0; // Enable monitor
     write_mbus_register(MRR_ADDR,0x12,mrrv2_r12.as_int);
     delay(MBUS_DELAY*10);
 
@@ -187,14 +187,33 @@ int main() {
     delay(MBUS_DELAY*10);
 
     //TX Set-up
-    mrrv2_r00.MRR_TRX_CAP_ANTP_TUNE = 0x3FFF;  //ANT CAP 14b unary
+    mrrv2_r00.MRR_TRX_CAP_ANTP_TUNE = 0x0000;  //ANT CAP 14b unary
     write_mbus_register(MRR_ADDR,0x00,mrrv2_r00.as_int);
     delay(MBUS_DELAY*10);
-    mrrv2_r01.MRR_TRX_CAP_ANTN_TUNE = 0x3FFF ; //ANT CAP 14b unary
+    mrrv2_r01.MRR_TRX_CAP_ANTN_TUNE = 0x0000 ; //ANT CAP 14b unary
     write_mbus_register(MRR_ADDR,0x01,mrrv2_r01.as_int);
     delay(MBUS_DELAY*10);
     mrrv2_r02.MRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b
     write_mbus_register(MRR_ADDR,0x02,mrrv2_r02.as_int);
+    delay(MBUS_DELAY*10);
+
+    //RX Set-up
+
+    mrrv2_r03.MRR_RX_BIAS_TUNE    = 0x0801;// 0x1FFF; // turn on Q_enhancement
+    mrrv2_r03.MRR_RX_SAMPLE_CAP    = 0x1;  // RX_SAMPLE_CAP
+    write_mbus_register(MRR_ADDR,3,mrrv2_r03.as_int);
+    delay(MBUS_DELAY*10);
+/*
+    mrrv2_r11.MRR_RAD_FSM_RX_POWERON_LEN = 0x3;  //Set RX Power on length
+    mrrv2_r11.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x0;  //Set RX Sample length
+    mrrv2_r11.MRR_RAD_FSM_GUARD_LEN = 0x0FFF; //Set TX_RX Guard length
+    write_mbus_register(MRR_ADDR,0x11,mrrv2_r11.as_int);
+    delay(MBUS_DELAY*10);
+*/
+    mrrv2_r12.MRR_RAD_FSM_RX_HDR_BITS = 0x08;  //Set RX header
+    mrrv2_r12.MRR_RAD_FSM_RX_HDR_TH = 0x00;    //Set RX header threshold
+    mrrv2_r12.MRR_RAD_FSM_RX_DATA_BITS = 0xAA; //Set RX data
+    write_mbus_register(MRR_ADDR,0x12,mrrv2_r12.as_int);
     delay(MBUS_DELAY*10);
 
     //DCP set-up
@@ -237,13 +256,18 @@ int main() {
 
     mrrv2_r11.MRR_RAD_FSM_TX_POWERON_LEN = 7; //3bits
     write_mbus_register(MRR_ADDR,0x11,mrrv2_r11.as_int);
+    delay(MBUS_DELAY*10);
 
     mrrv2_r06.MRR_RAD_FSM_TX_DATA_0 = 0x5555; // alternating 10
     write_mbus_register(MRR_ADDR,0x06,mrrv2_r06.as_int);
+    delay(MBUS_DELAY*10);
+    mrrv2_r07.MRR_RAD_FSM_TX_DATA_1 = 0x5555; // alternating 10
+    write_mbus_register(MRR_ADDR,0x07,mrrv2_r07.as_int);
+    delay(MBUS_DELAY*10);
    
     //CL set-up 
     mrrv2_r00.MRR_CL_EN = 1;  //Enable CL
-    mrrv2_r00.MRR_CL_CTRL = 0x1; //Set CL 1-finite 16-20uA
+    mrrv2_r00.MRR_CL_CTRL = 0x01; //Set CL 1-finite 16-20uA
     write_mbus_register(MRR_ADDR,0x00,mrrv2_r00.as_int);
     delay(MBUS_DELAY*10);
 
@@ -278,7 +302,7 @@ while(1){
     delay(MBUS_DELAY*10);
 
     //radio operate
-    delay(MBUS_DELAY*500); //800ms pulses 
+    delay(MBUS_DELAY*400); //800ms pulses 
     
     mrrv2_r03.MRR_TRX_ISOLATEN = 0;     //set ISOLATEN 0
     write_mbus_register(MRR_ADDR,0x03,mrrv2_r03.as_int);

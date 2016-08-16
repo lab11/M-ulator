@@ -265,8 +265,8 @@ int main() {
     }
 */
 
-    mrrv2_r03.MRR_RX_BIAS_TUNE    = 0x1FFF;// 0x1FFF; // turn on Q_enhancement
-    mrrv2_r03.MRR_RX_SAMPLE_CAP    = 0x1;  // RX_SAMPLE_CAPi
+    mrrv2_r03.MRR_RX_BIAS_TUNE    = 0x0005;// 0x1FFF; // turn on Q_enhancement
+    mrrv2_r03.MRR_RX_SAMPLE_CAP    = 0x1;  // RX_SAMPLE_CAP
     write_mbus_register(MRR_ADDR,3,mrrv2_r03.as_int);
     delay(MBUS_DELAY*10);
     read_mbus_register(MRR_ADDR, 0x3, 0xE6);
@@ -277,7 +277,7 @@ int main() {
     delay(MBUS_DELAY*10);
     read_mbus_register(MRR_ADDR, 0x02, 0xE7);
     delay(MBUS_DELAY*10);    
-/*
+
 
 //    mrrv2_r11.MRR_RAD_FSM_RX_POWERON_LEN = 0x3;  //Set RX Power on length
 //    mrrv2_r11.MRR_RAD_FSM_GUARD_LEN = 0x01F3; //Set TX_RX Guard length
@@ -291,10 +291,12 @@ int main() {
     write_mbus_register(MRR_ADDR,3,mrrv2_r03.as_int);
     delay(MBUS_DELAY*10);
     mrrv2_r00.MRR_CL_EN = 1;  //Enable CL
-    mrrv2_r00.MRR_CL_CTRL = 0x0A ; //Set CL
+    mrrv2_r00.MRR_CL_CTRL = 0x01 ; //Set CL
     write_mbus_register(MRR_ADDR,0x00,mrrv2_r00.as_int);
     delay(MBUS_DELAY*10);
     read_mbus_register(MRR_ADDR, 0x00, 0xE5);
+
+    delay(MBUS_DELAY*100);
 
     mrrv2_r03.MRR_DCP_S_OW = 0;  //TX_Decap S (forced charge decaps)
     mrrv2_r03.MRR_DCP_P_OW = 1 ;  //RX_Decap P 
@@ -305,7 +307,7 @@ int main() {
     mrrv2_r03.MRR_DCP_P_OW = 0;  //RX_Decap P 
     write_mbus_register(MRR_ADDR,3,mrrv2_r03.as_int);
     delay(MBUS_DELAY*10);
-*/
+
 
 //    read_mbus_register(MRR_ADDR, 0x3, 0xE7);
 //    delay(100000); 
@@ -366,14 +368,14 @@ int main() {
     delay(MBUS_DELAY*10);
     read_mbus_register(MRR_ADDR, 0x00, 0xE5);
 
- while(1){
+// while(1){
     mrrv2_r04.MRR_SCRO_EN_CLK = 1;  //Enable BB_CLK
     write_mbus_register(MRR_ADDR,0x04,mrrv2_r04.as_int);
     delay(MBUS_DELAY*10);
     read_mbus_register(MRR_ADDR, 0x04, 0xE3);
     delay(MBUS_DELAY*10);
 
-    mrrv2_r03.MRR_TRX_ISOLATEN = 0x1;     //set ISOLATEN 1, let state machine control
+    mrrv2_r03.MRR_TRX_ISOLATEN = 0x0;     //set ISOLATEN 1, let state machine control
     write_mbus_register(MRR_ADDR,3,mrrv2_r03.as_int);
     delay(MBUS_DELAY*10);
     read_mbus_register(MRR_ADDR, 0x3, 0xE1);
@@ -392,7 +394,7 @@ int main() {
     read_mbus_register(MRR_ADDR, 0x0E, 0xE4);
     delay(MBUS_DELAY*10);
 
-    delay(MBUS_DELAY*500);
+    delay(MBUS_DELAY*1000);
 
 
   // For pulse TX and pulse RX 
@@ -455,7 +457,7 @@ int main() {
     delay(MBUS_DELAY*10);
 
 
-    }
+ //   }
 
     while(1);
 
