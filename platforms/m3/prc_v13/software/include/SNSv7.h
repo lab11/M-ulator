@@ -70,7 +70,7 @@ _Static_assert(sizeof(snsv7_r14_t) == 4, "Punned Structure Size");
 //Register 15
 typedef union snsv7_r15{
   struct{
-    unsigned TEMP_SENSOR_SEL_CT 	: 3;
+    unsigned TEMP_SENSOR_SEL_CT 	: 4;
     unsigned TEMP_SENSOR_AMP_BIAS	: 3;
     unsigned TEMP_SENSOR_R_REF		: 8;
     unsigned TEMP_SENSOR_R_PTAT		: 8;

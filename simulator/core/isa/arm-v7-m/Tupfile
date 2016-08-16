@@ -1,0 +1,8 @@
+ifeq (@(CPU),cortex-m3)
+include_rules
+: foreach *.c |> !cc |> %B.o ../../../<objs>
+endif
+ifeq (@(CPU),cortex-m4)
+include_rules
+: foreach *.c |> !cc |> %B.o ../../../<objs>
+endif

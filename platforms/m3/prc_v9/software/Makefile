@@ -97,7 +97,7 @@ $(DIRS):
 
 # Mind the order here to align -T$^
 %.elf:	libs/memmap $(LIBS) %.o
-	$(LD) $(LDFLAGS) -T$^ "$$(echo $$(arm-none-eabi-gcc -print-libgcc-file-name) | tr -d '\r')" -o $@
+	$(LD) $(LDFLAGS) -T$^ "$$(echo $$($(CC) -print-libgcc-file-name) | tr -d '\r')" -o $@
 	$(OBJDUMP) -Sd $@ > $*.asm
 
 .PRECIOUS: %.elf

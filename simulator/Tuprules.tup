@@ -6,6 +6,10 @@ ifndef CPU_PROFILE
 error The variable CPU_PROFILE must be defined. Did you forget to set up a variant?
 endif
 
+ifndef CPU
+error The variable CPU must be defined. Did you forget to set up a variant?
+endif
+
 CFLAGS += -std=gnu11
 CFLAGS += -Wall -Wextra -Werror
 CFLAGS += -Wstrict-prototypes
@@ -34,11 +38,16 @@ CFLAGS += -I$(TUP_CWD)
 CFLAGS += -pthread -D_GNU_SOURCE
 
 CFLAGS += -D@(CPU_PROFILE)
+CFLAGS += -DCPU='"@(CPU)"'
 CFLAGS += -DMEMMAP_HEADER='"cpu/@(PLATFORM)/memmap.h"'
 CFLAGS += -DSTATIC_ROM_HEADER='"cpu/@(PLATFORM)/static_rom.h"'
 
 ifeq (@(DECOMPILE),y)
 CFLAGS += -DHAVE_DECOMPILE
+endif
+
+ifeq (@(HAVE_MEMTRACE),y)
+CFLAGS += -DHAVE_MEMTRACE
 endif
 
 ifeq (@(HAVE_REPLAY),y)
@@ -54,14 +63,15 @@ CFLAGS += -DFAVOR_SPEED
 CFLAGS += -DNDEBUG
 endif
 
+
 ifeq (@(OPTIMIZE),y)
+CFLAGS += -O3
+
 # This is a poor proxy for clang vs gcc, but tup doesn't seem to have a great
 # way of detecting which compiler is currently running
 ifeq (@(TUP_PLATFORM),macosx)
-CFLAGS += -O4
+OPTFLAGS += -ffast-math
 else
-OPTFLAGS += -O3
-
 OPTFLAGS += -fgcse-sm -fgcse-las -fgcse-after-reload
 OPTFLAGS += -funsafe-loop-optimizations -Wunsafe-loop-optimizations
 OPTFLAGS += -fsched-pressure -fsched-spec-load -fsched-spec-load-dangerous
@@ -79,12 +89,12 @@ OPTFLAGS += -fbranch-target-load-optimize2
 OPTFLAGS += -ffast-math
 
 OPTFLAGS += -fno-fat-lto-objects
-
+endif
 CFLAGS  += $(OPTFLAGS)
+
 ifneq (@(DEBUG_SYMBOLS),y)
 CFLAGS += -flto
 LDFLAGS += $(OPTFLAGS) -flto
-endif
 endif
 endif
 

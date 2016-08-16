@@ -104,13 +104,15 @@ static void print_m3_prc_line(void) {
 }
 
 /*
-static bool mbus_mmio_rd(uint32_t addr, uint32_t *val) {
+static bool mbus_mmio_rd(uint32_t addr, uint32_t *val,
+bool debugger __attribute__ ((unused)) ) {
 	printf("%d -> %p\n", addr, val);
 	CORE_ERR_not_implemented("mbus mmio rd");
 }
 */
 
-static void mbus_mmio_wr(uint32_t addr, uint32_t val) {
+static void mbus_mmio_wr(uint32_t addr, uint32_t val,
+		bool debugger __attribute__ ((unused)) ) {
 	switch (addr) {
 		case MBUS_MMIO_ADDR:
 			SW(&mbus_mmio_addr, val);
@@ -129,7 +131,8 @@ static void mbus_mmio_wr(uint32_t addr, uint32_t val) {
 	fflush(stdout);
 }
 
-static bool cpu_conf_regs_rd(uint32_t addr, uint32_t *val) {
+static bool cpu_conf_regs_rd(uint32_t addr, uint32_t *val,
+		bool debugger __attribute__ ((unused)) ) {
 	assert((addr & 0xfffff000) == 0xA0001000);
 	switch (addr) {
 		case CHIP_ID_REG_RD:
@@ -176,7 +179,8 @@ static bool cpu_conf_regs_rd(uint32_t addr, uint32_t *val) {
 	}
 }
 
-static void cpu_conf_regs_wr(uint32_t addr, uint32_t val) {
+static void cpu_conf_regs_wr(uint32_t addr, uint32_t val,
+		bool debugger __attribute__ ((unused)) ) {
 	switch (addr) {
 		case CHIP_ID_REG_WR:
 			SW(&m3_prc_reg_chip_id, val & MASK(CHIP_ID_REG_NBITS));
@@ -198,7 +202,8 @@ static void cpu_conf_regs_wr(uint32_t addr, uint32_t val) {
 	}
 }
 
-static void pmu_reset_wr(uint32_t addr, uint32_t val) {
+static void pmu_reset_wr(uint32_t addr, uint32_t val,
+		bool debugger __attribute__ ((unused)) ) {
 	assert((addr & 0xfffffff0) & 0xA3000000);
 	switch (val) {
 		case 0x0:
@@ -214,7 +219,8 @@ static void pmu_reset_wr(uint32_t addr, uint32_t val) {
 }
 
 /*
-static bool gpio_read(uint32_t addr, uint32_t *val) {
+static bool gpio_read(uint32_t addr, uint32_t *val,
+bool debugger __attribute__ ((unused)) ) {
 	switch (addr) {
 		case 0xA4000000:
 			*val = gpio_data_I;
@@ -243,7 +249,8 @@ static void gpio_demux(uint32_t old, uint32_t new,
 	}
 }
 
-static void gpio_write(uint32_t addr, uint32_t val) {
+static void gpio_write(uint32_t addr, uint32_t val,
+bool debugger __attribute__ ((unused)) ) {
 	switch (addr) {
 		case 0xA4000000:
 			gpio_demux(gpio_data_O, val, ice_gpio_out);
@@ -296,7 +303,7 @@ void register_periph_m3_prc(void) {
 	/*
 	{
 		// Connect to ICE Hardware Board
-		const char *host = "/tmp/com1";
+		const char *host = "/tmp/m3_ice_com1";
 		const uint16_t baud = 0; // use default baud
 
 		ice = create_ice_instance(host, baud);

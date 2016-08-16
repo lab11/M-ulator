@@ -132,7 +132,7 @@ _Static_assert(sizeof(radv9_r10_t) == 4, "Punned Structure Size");
 typedef union radv9_r11{
   struct{
     unsigned RAD_FSM_H_LEN: 5;
-    unsigned RAD_FSM_D_LEN: 7;
+    unsigned RAD_FSM_D_LEN: 8;
     unsigned RAD_FSM_C_LEN: 7;
   };
   uint32_t as_int;

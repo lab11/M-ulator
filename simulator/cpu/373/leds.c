@@ -50,7 +50,8 @@ static void print_leds_line(void) {
 	printf("|\n");
 }
 
-static bool led_read(uint32_t addr, uint32_t *val) {
+static bool led_read(uint32_t addr, uint32_t *val,
+		bool debugger __attribute__ ((unused)) ) {
 	switch (addr) {
 		case REDLED:
 			*val = SR(&red);
@@ -68,7 +69,8 @@ static bool led_read(uint32_t addr, uint32_t *val) {
 	return true;
 }
 
-static void led_write(uint32_t addr, uint32_t val) {
+static void led_write(uint32_t addr, uint32_t val,
+		bool debugger __attribute__ ((unused)) ) {
 	switch (addr) {
 		case REDLED:
 			SW(&red, val & 0xff); // device emulates 8 leds

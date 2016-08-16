@@ -54,7 +54,12 @@ bool state_handle_exceptions(void);
 extern int gdb_port;
 extern struct timespec cycle_time;
 extern int printcycles;
+#ifdef HAVE_DECOMPILE
 extern int decompile_flag;
+#endif
+#ifdef HAVE_MEMTRACE
+extern int memtrace_flag;
+#endif
 extern unsigned dumpatpc;
 extern int dumpatcycle;
 extern int dumpallcycles;

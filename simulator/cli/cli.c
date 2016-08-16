@@ -62,6 +62,12 @@ static void usage_fail(int retcode) {
 \t\t(with obvious caveats of branches, pc-relative ldr/str, etc)\n"
 	      );
 #endif
+#ifdef HAVE_MEMTRACE
+	printf("\
+\t-m, --memory-trace\n\
+\t\tPrint all memory accesses as they are executed.\n"
+	      );
+#endif
 	printf("\
 \t-s, --speed SPEED\n\
 \t\tSpecify a clock speed to run at. The units are assumed to be kHz\n\
@@ -75,7 +81,7 @@ static void usage_fail(int retcode) {
 \t-r, --returnr0\n\
 \t\tSets simulator binary return code to the return\n\
 \t\tcode of the executed program on simulator exit\n\
-\t-m, --limit\n\
+\t-l, --limit\n\
 \t\tLimit CPU execution to N cycles, returns failure if hit\n\
 \t\t(useful for catching runaway test cases)\n\
 \t-f, --flash FILE\n\
@@ -118,10 +124,13 @@ int main(int argc, char **argv) {
 #ifdef HAVE_DECOMPILE
 			{"decompile",     no_argument,       &decompile_flag,'d'},
 #endif
+#ifdef HAVE_MEMTRACE
+			{"memtrace",      no_argument,       &memtrace_flag, 'm'},
+#endif
 			{"speed",         required_argument, 0,              's'},
 			{"raiseonerror",  no_argument,       &raiseonerror,  'e'},
 			{"returnr0",      no_argument,       &returnr0,      'r'},
-			{"limit",         required_argument, 0,              'm'},
+			{"limit",         required_argument, 0,              'l'},
 			{"flash",         required_argument, 0,              'f'},
 			{"usetestflash",  no_argument,       &usetestflash,  1},
 			{"help",          no_argument,       0,              '?'},
@@ -130,13 +139,15 @@ int main(int argc, char **argv) {
 		int option_index = 0;
 		int c;
 
+		char optstring[64] = "g::c:y:aps:erl:f:?";
 #ifdef HAVE_DECOMPILE
-		c = getopt_long(argc, argv, "dg::c:y:apds:erm:f:?", long_options,
-				&option_index);
-#else
-		c = getopt_long(argc, argv, "dg::c:y:aps:erm:f:?", long_options,
-				&option_index);
+		strncat(optstring, "d", 64);
 #endif
+#ifdef HAVE_MEMTRACE
+		strncat(optstring, "m", 64);
+#endif
+
+		c = getopt_long(argc, argv, optstring, long_options, &option_index);
 
 		if (c == -1) break;
 
@@ -178,6 +189,11 @@ int main(int argc, char **argv) {
 #ifdef HAVE_DECOMPILE
 			case 'd':
 				decompile_flag = true;
+				break;
+#endif
+#ifdef HAVE_MEMTRACE
+			case 'm':
+				memtrace_flag = true;
 				break;
 #endif
 
@@ -228,7 +244,7 @@ int main(int argc, char **argv) {
 				returnr0 = true;
 				break;
 
-			case 'm':
+			case 'l':
 				limitcycles = atoi(optarg);
 				INFO("Simulator will terminate at cycle %d\n",
 						limitcycles);

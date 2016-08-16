@@ -46,7 +46,12 @@ EXPORT void flash_RAM(const uint8_t *image, int offset, uint32_t nbytes) {
 	INFO("Flashed %d bytes to RAM\n", nbytes);
 }
 
-static bool ram_read(uint32_t addr, uint32_t *val) {
+EXPORT size_t dump_RAM(FILE *fp) {
+	return fwrite(ram, RAMSIZE, 1, fp);
+}
+
+static bool ram_read(uint32_t addr, uint32_t *val,
+		bool debugger __attribute__ ((unused)) ) {
 #ifdef DEBUG1
 	assert((addr >= RAMBOT) && (addr < RAMTOP) && "CORE_ram_read");
 #endif
@@ -59,7 +64,8 @@ static bool ram_read(uint32_t addr, uint32_t *val) {
 	return true;
 }
 
-static void ram_write(uint32_t addr, uint32_t val) {
+static void ram_write(uint32_t addr, uint32_t val,
+		bool debugger __attribute__ ((unused)) ) {
 #ifdef DEBUG1
 	assert((addr >= RAMBOT) && (addr < RAMTOP) && "CORE_ram_write");
 #endif

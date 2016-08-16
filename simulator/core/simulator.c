@@ -19,7 +19,6 @@
 
 #define STAGE SIM
 
-#include <sys/stat.h>
 #include <sys/time.h>
 
 // XXX: Temporary fix, see note at end of simulator.h
@@ -29,6 +28,7 @@
 #include "state_sync.h"
 #include "simulator.h"
 
+#include "loader.h"
 #include "opcodes.h"
 #include "pipeline.h"
 #include "if_stage.h"
@@ -61,6 +61,9 @@ EXPORT struct timespec cycle_time;
 EXPORT int printcycles = 0;
 #ifdef HAVE_DECOMPILE
 EXPORT int decompile_flag = 0;
+#endif
+#ifdef HAVE_MEMTRACE
+EXPORT int memtrace_flag = 0;
 #endif
 #ifdef DEBUG1
 EXPORT int raiseonerror = 1;
@@ -188,21 +191,12 @@ static void print_full_state(void) {
 	{
 		const char *file;
 		size_t ret;
-		uint32_t i;
 
-#if defined (HAVE_ROM) && defined (PRINT_ROM_EN)
+#if defined (HAVE_ROM) && defined (PRINT_ROM_ENABLE)
 		file = get_dump_name('o');
 		FILE* romfp = fopen(file, "w");
 		if (romfp) {
-			uint32_t rom[ROMSIZE >> 2] = {0};
-			for (i = ROMBOT; i < ROMBOT+ROMSIZE; i += 4)
-#ifdef DEBUG2
-				rom[(i-ROMBOT)/4] = read_word_quiet(i);
-#else
-				rom[(i-ROMBOT)/4] = read_word(i);
-#endif
-
-			ret = fwrite(rom, ROMSIZE, 1, romfp);
+			ret = dump_ROM(romfp);
 			printf("Wrote %8zu bytes to %-29s "\
 					"(Use 'hexdump -C' to view)\n",
 					ret*ROMSIZE, file);
@@ -218,15 +212,7 @@ static void print_full_state(void) {
 #if defined (HAVE_RAM)
 		FILE* ramfp = fopen(file, "w");
 		if (ramfp) {
-			uint32_t ram[RAMSIZE >> 2] = {0};
-			for (i = RAMBOT; i < RAMBOT+RAMSIZE; i += 4)
-#ifdef DEBUG2
-				ram[(i-RAMBOT)/4] = read_word_quiet(i);
-#else
-				ram[(i-RAMBOT)/4] = read_word(i);
-#endif
-
-			ret = fwrite(ram, RAMSIZE, 1, ramfp);
+			ret = dump_RAM(ramfp);
 			printf("Wrote %8zu bytes to %-29s "\
 					"(Use 'hexdump -C' to view)\n",
 					ret*RAMSIZE, file);
@@ -294,7 +280,7 @@ static void _shell(void) {
 		{
 			const char *file;
 
-#if defined (HAVE_ROM) && defined (PRINT_ROM_EN)
+#if defined (HAVE_ROM) && defined (PRINT_ROM_ENABLE)
 			if (buf[1] == 'o') {
 				file = get_dump_name('o');
 			} else
@@ -357,7 +343,7 @@ static void _shell(void) {
 #ifdef HAVE_REPLAY
 			printf("   seek [INTEGER]	Seek to cycle\n");
 #endif
-#if defined (HAVE_ROM) && defined (PRINT_ROM_EN)
+#if defined (HAVE_ROM) && defined (PRINT_ROM_ENABLE)
 			printf("   rom			Print ROM contents\n");
 #endif
 #if defined (HAVE_RAM)
@@ -392,16 +378,22 @@ static void shell(void) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// When things are crashing, we try to print out helpful information, however
+// that can cause nested errors. This flag bails directly in that case.
+static bool _crashing = false;
+
 EXPORT void CORE_WARN_real(const char *f, int l, const char *msg) {
 	WARN("%s:%d\t%s\n", f, l, msg);
 }
 
 EXPORT void CORE_ERR_read_only_real(const char *f, int l, uint32_t addr) {
+	_crashing = true;
 	print_full_state();
 	ERR(E_READONLY, "%s:%d\t%#08x is read-only\n", f, l, addr);
 }
 
 EXPORT void CORE_ERR_write_only_real(const char *f, int l, uint32_t addr) {
+	_crashing = true;
 	print_full_state();
 	ERR(E_WRITEONLY, "%s:%d\t%#08x is write-only\n", f, l, addr);
 }
@@ -410,6 +402,8 @@ EXPORT void CORE_ERR_invalid_addr_real(const char *f, int l, uint8_t is_write, u
 	static bool dumping = false;
 	if (dumping) {
 		WARN("Err generating core dump, aborting\n");
+	} else if (_crashing) {
+		WARN("Generating core dump threw an error, aborting\n");
 	} else {
 		dumping = true;
 		WARN("CORE_ERR_invalid_addr %s address: 0x%08x\n",
@@ -417,10 +411,12 @@ EXPORT void CORE_ERR_invalid_addr_real(const char *f, int l, uint8_t is_write, u
 		WARN("Dumping Core...\n");
 		print_full_state();
 	}
-	ERR(E_INVALID_ADDR, "%s:%d\tTerminating due to invalid addr\n", f, l);
+	ERR(E_INVALID_ADDR, "%s:%d\tTerminating due to invalid addr (%s %08x)\n", f, l,
+			is_write ? "WRITE":"READ", addr);
 }
 
 EXPORT void CORE_ERR_illegal_instr_real(const char *f, int l, uint32_t inst) {
+	_crashing = true;
 	WARN("CORE_ERR_illegal_instr, inst: %08x\n", inst);
 	WARN("Dumping core...\n");
 	print_full_state();
@@ -428,14 +424,23 @@ EXPORT void CORE_ERR_illegal_instr_real(const char *f, int l, uint32_t inst) {
 }
 
 EXPORT void CORE_ERR_unpredictable_real(const char *f, int l, const char *opt_msg) {
+	_crashing = true;
+	WARN("Dumping core...\n");
+	print_full_state();
 	ERR(E_UNPREDICTABLE, "%s:%d\tCORE_ERR_unpredictable -- %s\n", f, l, opt_msg);
 }
 
 EXPORT void CORE_ERR_runtime_real(const char *f, int l, const char *opt_msg) {
+	_crashing = true;
+	WARN("Dumping core...\n");
+	print_full_state();
 	ERR(E_RUNTIME, "%s:%d\tCORE_ERR_runtime -- %s\n", f, l, opt_msg);
 }
 
 EXPORT void CORE_ERR_not_implemented_real(const char *f, int l, const char *opt_msg) {
+	_crashing = true;
+	WARN("Dumping core...\n");
+	print_full_state();
 	ERR(E_NOT_IMPLEMENTED, "%s:%d\tCORE_ERR_not_implemented -- %s\n", f, l, opt_msg);
 }
 
@@ -809,27 +814,6 @@ EXPORT void register_periph_thread(
 	}
 }
 
-static void flash_image(const uint8_t *image, const uint32_t num_bytes){
-#if defined (HAVE_ROM)
-	if (ROMBOT == 0x0) {
-		flash_ROM(image, 0, num_bytes);
-		return;
-	}
-#elif defined (HAVE_RAM)
-	flash_RAM(image, 0, num_bytes);
-	return;
-#else
-	// Enter debugging to circumvent state-tracking code and write directly
-	state_enter_debugging();
-	unsigned i;
-	for (i=0; i<num_bytes; i++) {
-		write_byte(i, image[i]);
-	}
-	state_exit_debugging();
-	INFO("Wrote %d bytes to memory\n", num_bytes);
-#endif
-}
-
 EXPORT void simulator(const char *flash_file) {
 	const char thread_name[16] = "Simulator main";
 #ifdef __APPLE__
@@ -851,48 +835,7 @@ EXPORT void simulator(const char *flash_file) {
 				ERR(E_BAD_FLASH, "--flash or --usetestflash required, see --help\n");
 			}
 		} else {
-			int flashfd = open(flash_file, O_RDONLY);
-			ssize_t ret;
-
-			if (-1 == flashfd) {
-				ERR(E_BAD_FLASH, "Could not open '%s' for reading\n",
-						flash_file);
-			}
-
-			struct stat flash_stat;
-			if (0 != fstat(flashfd, &flash_stat)) {
-				ERR(E_BAD_FLASH, "Could not get flash file size: %s\n",
-						strerror(errno));
-			}
-
-#ifdef HAVE_ROM
-			// There is no portable format specifier for an off_t, but it is defined to
-			// be signed. So we cast is to a long long and move on with life.
-			if (flash_stat.st_size > ROMSIZE)
-				ERR(E_BAD_FLASH, "Request file size (%08llx) exceeds rom size (%08x)\n",
-						(long long) flash_stat.st_size, ROMSIZE);
-#else
-			if (flash_stat.st_size > RAMSIZE)
-				ERR(E_BAD_FLASH, "Request file size (%08llx) exceeds ram size (%08x)\n",
-						(long long) flash_stat.st_size, RAMSIZE);
-#endif
-
-			{
-				uint8_t flash[flash_stat.st_size];
-
-				ret = read(flashfd, flash, flash_stat.st_size);
-				if (ret < 0) {
-					WARN("%s\n", strerror(errno));
-					ERR(E_BAD_FLASH, "Failed to read flash file '%s'\n",
-							flash_file);
-				}
-
-				uint32_t image_size = (uint32_t) ret;
-				assert(image_size == ret);
-				flash_image(flash, image_size);
-			}
-
-			INFO("Succesfully loaded image: %s\n", flash_file);
+			load_file(flash_file);
 		}
 	}
 
