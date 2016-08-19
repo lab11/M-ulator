@@ -52,7 +52,7 @@
 #define RADIO_TIMEOUT_COUNT 100
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
-#define DATA_STORAGE_SIZE 1050 // FIXME
+#define DATA_STORAGE_SIZE 800 // FIXME
 
 
 //********************************************************************
@@ -95,8 +95,7 @@ volatile uint32_t read_data_batadc;
 volatile uint32_t WAKEUP_PERIOD_CONT; 
 volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
 
-volatile uint8_t  data_storage8[DATA_STORAGE_SIZE] = {0};
-volatile uint16_t data_storage16[DATA_STORAGE_SIZE] = {0};
+volatile uint32_t data_storage[DATA_STORAGE_SIZE] = {0};
 volatile uint32_t data_storage_count;
 volatile bool	  sensor_running;
 volatile uint32_t set_max_exec_count;
@@ -557,18 +556,16 @@ static void operation_tx_stored(void){
 		#ifdef DEBUG_MBUS_MSG_1
 			mbus_write_message32(0xDD,radio_tx_count);
 			delay(MBUS_DELAY);
-			mbus_write_message32(0xDD,data_storage8[radio_tx_count]);
-			delay(MBUS_DELAY);
-			mbus_write_message32(0xDD,data_storage16[radio_tx_count]);
+			mbus_write_message32(0xDD,data_storage[radio_tx_count]);
 			delay(MBUS_DELAY);
 		#endif
 
-    	send_radio_data_ppm(0,data_storage16[radio_tx_count]);
+    	send_radio_data_ppm(0,data_storage[radio_tx_count]);
     	delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 		radio_tx_count--;
 	}
 
-   	send_radio_data_ppm(0,data_storage16[radio_tx_count]);
+   	send_radio_data_ppm(0,data_storage[radio_tx_count]);
     delay(RADIO_PACKET_DELAY*3); //Set delays between sending subsequent packet
 	send_radio_data_ppm(1, 0xFAF000);
 	// This is also the end of this IRQ routine
@@ -903,28 +900,22 @@ static void operation_run(void){
 		exec_count++;
 		// Store results in memory; unless buffer is full
 		if (data_storage_count < DATA_STORAGE_SIZE){
-			data_storage8[data_storage_count] = read_data_lux >> 16;
-			data_storage16[data_storage_count] = read_data_lux;
+			data_storage[data_storage_count] = (read_data_batadc<<16) | read_data_temp_data ;
 
 	#ifdef DEBUG_MBUS_MSG_1
 		mbus_write_message32(0xDD,data_storage_count);
 		delay(MBUS_DELAY);
-		mbus_write_message32(0xDD,data_storage8[data_storage_count]);
-		delay(MBUS_DELAY);
-		mbus_write_message32(0xDD,data_storage16[data_storage_count]);
+		mbus_write_message32(0xDD,data_storage[data_storage_count]);
 		delay(MBUS_DELAY);
 	#endif
 
 			data_storage_count++;
-			data_storage8[data_storage_count] = read_data_batadc;
-			data_storage16[data_storage_count] = read_data_temp_data;
+			data_storage[data_storage_count] = read_data_lux;
 
 	#ifdef DEBUG_MBUS_MSG_1
 		mbus_write_message32(0xDD,data_storage_count);
 		delay(MBUS_DELAY);
-		mbus_write_message32(0xDD,data_storage8[data_storage_count]);
-		delay(MBUS_DELAY);
-		mbus_write_message32(0xDD,data_storage16[data_storage_count]);
+		mbus_write_message32(0xDD,data_storage[data_storage_count]);
 		delay(MBUS_DELAY);
 	#endif
 

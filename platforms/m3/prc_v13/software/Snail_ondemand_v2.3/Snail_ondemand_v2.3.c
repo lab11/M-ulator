@@ -24,7 +24,7 @@
 
 // uncomment this for debug mbus message
 // #define DEBUG_MBUS_MSG
- #define DEBUG_MBUS_MSG_1
+// #define DEBUG_MBUS_MSG_1
 
 // TStack order  PRC->RAD->SNS->HRV->PMU
 #define RAD_ADDR 0x4
@@ -179,8 +179,8 @@ inline static void set_pmu_sleep_clk_init(){
     mbus_remote_register_write(PMU_ADDR,0x19,
 		( (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (3) 		// Floor frequency base (0-63)
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (1) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
@@ -199,8 +199,8 @@ inline static void set_pmu_sleep_clk_init(){
 		| (3 << 14) // Comparator clock division ratio
 		| (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (3) 		// Floor frequency base (0-63)
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (6) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x16: SAR_TRIM_v3_ACTIVE
@@ -267,16 +267,16 @@ inline static void set_pmu_sleep_clk_default(){
     mbus_remote_register_write(PMU_ADDR,0x19,
 		( (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (3) 		// Floor frequency base (0-63)
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (1) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// The first register write to PMU needs to be repeated
     mbus_remote_register_write(PMU_ADDR,0x19,
 		( (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (3) 		// Floor frequency base (0-63)
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (1) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x15: SAR_TRIM_v3_SLEEP
@@ -287,8 +287,8 @@ inline static void set_pmu_sleep_clk_default(){
 		| (3 << 14) // Comparator clock division ratio
 		| (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (3) 		// Floor frequency base (0-63)
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (6) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY*10);
 }
