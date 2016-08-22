@@ -1,0 +1,6 @@
+full FFT
+full sequence
+
+------------------------
+smart PG control
+generate 24 bit instructions (avoid calling cut_24word)

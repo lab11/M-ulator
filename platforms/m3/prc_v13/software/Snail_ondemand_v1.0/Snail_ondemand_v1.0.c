@@ -15,7 +15,7 @@
 
 // uncomment this for debug mbus message
 // #define DEBUG_MBUS_MSG
-// #define DEBUG_MBUS_MSG_1
+ #define DEBUG_MBUS_MSG_1
 
 // TStack order  PRC->RAD->SNS->HRV->PMU
 #define HRV_ADDR 0x3

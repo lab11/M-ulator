@@ -170,7 +170,7 @@ inline static void set_pmu_sleep_clk_init(){
     mbus_remote_register_write(PMU_ADDR,0x19,
 		( (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
 		| (1) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
@@ -189,9 +189,9 @@ inline static void set_pmu_sleep_clk_init(){
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (1 << 13) // Enable main feedback loop
-		| (2 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (6) 		// Floor frequency base (0-63)
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (1) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x16: SAR_TRIM_v3_ACTIVE
@@ -213,7 +213,7 @@ inline static void set_pmu_sleep_clk_init(){
 		| (1 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (44) 		// Binary converter's conversion ratio (7'h00)
+		| (50) 		// Binary converter's conversion ratio (7'h00)
 	));
 	delay(MBUS_DELAY);
 
@@ -238,7 +238,7 @@ inline static void set_pmu_sleep_clk_default(){
     mbus_remote_register_write(PMU_ADDR,0x19,
 		( (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
 		| (1) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
@@ -250,15 +250,15 @@ inline static void set_pmu_sleep_clk_default(){
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (1 << 13) // Enable main feedback loop
-		| (2 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (6) 		// Floor frequency base (0-63)
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (1) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 }
 
 
-inline static void set_pmu_sleep_clk_low(){
+inline static void set_pmu_sleep_clk_high(){
 
 	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
     mbus_remote_register_write(PMU_ADDR,0x19,
@@ -276,8 +276,8 @@ inline static void set_pmu_sleep_clk_low(){
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (1 << 13) // Enable main feedback loop
-		| (0 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (1 << 9)  // Frequency multiplier R
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
 		| (6) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
