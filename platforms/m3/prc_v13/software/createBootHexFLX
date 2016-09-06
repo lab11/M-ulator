@@ -51,39 +51,13 @@ $BootCodeBeforeProg = "
 # PRC -> FLS -> PMU
 
 # Enumeration
-# -- FLS
-EN 0004
-NO 00FF
-# -- PMU
-#EN 0008
-#NO 00FF
-
-## PMU Setting
-## -- Disable Interrupt Reply
-#RW 0000
-#8 51 000009
-## -- Disable Interrupt Reply
-#RW 0000
-#8 51 000009
-## -- Other Settings
-#RW 0007
-#8 17 00E202
-#8 18 00E24A
-#8 19 002201
-#8 1A 002848
-#8 15 00E447
-#8 16 00E890
-#8 05 000EB0
-#8 36 000001
-## -- Enable Interrupt Reply
-#RW 0000
-#8 51 000019
 
 # Flash Self-Tuning (Tprog & Tcyc, VTG/CRT_TUNE)
-RW 0002
-0 19 000F03
-0 02 000100
-0 04 000020
+RW 0003
+0 26 0D7788 # Program Current 
+0 27 011BC8 # Erase Pump Diode Chain
+0 01 000109 # Tprog idle time
+0 19 000F03 # Vclamp 
 
 # NOP (256 cycles. Wait for VTG/CRT Limiter stabilize)
 NO 00FF
