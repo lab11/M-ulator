@@ -4,11 +4,15 @@
 //*******************************************************************
 #include "PRCv13.h"
 #include "mbus.h"
-#include "../../software/SelfBootUp_0/SelfBootUp_0.bootinc"
+#include "../../software/PMUv3H_temp_deepsleep/PMUv3H_temp_deepsleep.bootinc"
 
-#define FLPv1      // FLPv1 | FLSv2
-#define PRC_ADDR    0x1
-#define FLS_ADDR    0x4
+#define FLPv2      // FLPv1 | FLPv2 | FLSv2
+#define PRC_ADDR 0x1
+#define RAD_ADDR 0x4
+#define SNS_ADDR 0x5
+#define HRV_ADDR 0x6
+#define FLS_ADDR 0x7
+#define PMU_ADDR 0x8
 
 // DELAYS (For MBus Snooping)
 #define MBUS_DELAY  1000
@@ -85,7 +89,10 @@ int main() {
 
     //Enumeration
     set_halt_until_mbus_rx();
-    mbus_enumerate(FLS_ADDR);
+ 	mbus_enumerate(RAD_ADDR);
+ 	mbus_enumerate(SNS_ADDR);
+ 	mbus_enumerate(FLS_ADDR);
+ 	mbus_enumerate(PMU_ADDR);
     delay(MBUS_DELAY);
 
     // Stream the boot code into Flash Layer
@@ -94,9 +101,58 @@ int main() {
     delay(10000);
 
 //-----------------------------------------------------------------------------------------
+// FLPv2S(L) / FLPv2L(L)
+//-----------------------------------------------------------------------------------------
+#ifdef FLPv2
+    // Tune Flash
+    set_halt_until_mbus_tx();
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x26 << 24) | 0x0D7788); // Program Current
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x27 << 24) | 0x011BC8); // Erase Pump Diode Chain
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x01 << 24) | 0x000109); // Tprog idle time
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x19 << 24) | 0x000F03); // Voltage Clamper Tuning
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x12 << 24) | 0x000003); // Auto Power On/Off
+
+    // Erase Flash
+    uint32_t page_start_addr = 0;
+    uint32_t idx;
+
+    for (idx=0; idx<8; idx++){ // Only 8 Pages (8kB) are used.
+        page_start_addr = (idx << 8);
+
+        set_halt_until_mbus_tx();
+        bootloader_mbus_msg32_dly ((FLS_ADDR << 4), ((0x09 << 24) | page_start_addr)); // Set FLSH_START_ADDR
+
+        set_halt_until_mbus_rx();
+        bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x07 << 24) | 0x000029); // Page Erase
+        if (*REG0 != 0x00004F) fail((0xFFFF << 16) | idx);
+    }
+
+    // Copy SRAM to Flash (Fast Programming)
+    set_halt_until_mbus_tx();
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x09 << 24) | 0x0); // Set FLSH_START_ADDR
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x08 << 24) | 0x0); // Set SRAM_START_ADDR
+
+    set_halt_until_mbus_rx();
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x07 << 24) | 0x01FFE7); // Fast Programming
+    if (*REG0 != 0x00005D) fail(1);
+
+
+    // Erase Flash for Data (inhee)
+
+    page_start_addr = (0x10 << 8);
+
+    set_halt_until_mbus_tx();
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), ((0x09 << 24) | page_start_addr)); // Set FLSH_START_ADDR
+
+    set_halt_until_mbus_rx();
+    bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x07 << 24) | 0x000029); // Page Erase
+
+
+
+//-----------------------------------------------------------------------------------------
 // FLPv1S / FLPv1L
 //-----------------------------------------------------------------------------------------
-#ifdef FLPv1
+#elif FLPv1
     // Tune Flash
     set_halt_until_mbus_tx();
     bootloader_mbus_msg32_dly ((FLS_ADDR << 4), (0x19 << 24) | 0x000F03); // Voltage Clamper Tuning

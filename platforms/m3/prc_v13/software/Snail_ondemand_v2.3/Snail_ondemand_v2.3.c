@@ -1020,7 +1020,7 @@ int main() {
     uint8_t wakeup_data_header = wakeup_data>>24;
     uint8_t wakeup_data_field_0 = wakeup_data & 0xFF;
     uint8_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;
-    uint8_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
+    uint8_t wakeugp_data_field_2 = wakeup_data>>16 & 0xFF;
 
     if(wakeup_data_header == 1){
         // Debug mode: Transmit something via radio and go to sleep w/o timer
