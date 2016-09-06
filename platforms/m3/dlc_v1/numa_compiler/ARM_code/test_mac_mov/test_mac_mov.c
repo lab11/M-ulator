@@ -162,25 +162,19 @@ void fail (uint32_t id, uint32_t data) {
 //********************************************************************
 // MAIN function starts here             
 //********************************************************************
-
+#define IN_ADDR 5632
+#define OUT_ADDR 5504
+#define READ_SRAM_DELAY 6
 int main() {
     //Initialize Interrupts
     //disable_all_irq();
 
 //    if (*REG_CHIP_ID != 0x1234) while(1);
 
-		uint16_t inst_no;
+		uint16_t inst_no, pe_no;
 		set_dnn_insts();
-		*PE_INST &= 0xffff0fff;		// set all INST_SEL to buffer 0
 
-        //override sequential decode
-        //*DNN_RAND_0 = 0xf;
-        //*DNN_RAND_1 = 0xf;
-        //*DNN_RAND_2 = 0xf;
-        //*DNN_RAND_3 = 0xf;
-        
-
-/*
+    *REG_WAIT_BEFORE_VDD = 0xff;
       *DNN_SRAM_RSTN_0 = 0x000007ff;
       *DNN_SRAM_RSTN_1 = 0x000007ff;
       *DNN_SRAM_RSTN_2 = 0x000007ff;
@@ -198,7 +192,6 @@ int main() {
       *DNN_PG_2 = 0x000007ff;
       *DNN_PG_3 = 0x000007ff;
       delay(5);
-*/
 
       //*DNN_PG_0 = 0x003ff800;
       //*DNN_PG_1 = 0x003ff800;
@@ -206,69 +199,100 @@ int main() {
       //*DNN_PG_3 = 0x003ff800;
       //delay(3);
 
-
-/*
       *DNN_SRAM_RSTN_0 = 0x000007ff;
       *DNN_SRAM_RSTN_0 = 0xffffffff;
       *DNN_SRAM_RSTN_1 = 0xffffffff;
       *DNN_SRAM_RSTN_2 = 0xffffffff;
       *DNN_SRAM_RSTN_3 = 0xffffffff;
       delay(3);
-*/
-
+	  
+     *DNN_RAND_0 = 1;
+     *DNN_RAND_1 = 1;
+     *DNN_RAND_2 = 1;
+     *DNN_RAND_3 = 1;
+//      delay(3);
+      
       //*DNN_SRAM_ISOL_0 = 0x00000000;
       //*DNN_SRAM_ISOL_1 = 0x00000000;
       //*DNN_SRAM_ISOL_2 = 0x00000000;
       //*DNN_SRAM_ISOL_3 = 0x00000000;
       //delay(3);
-
-
-
-  
+	  *DNN_RE_INIT_0 = 0x00000002;
+	  *DNN_RE_INIT_1 = 0x00000002;
+	  *DNN_RE_INIT_2 = 0x00000002;
+	  *DNN_RE_INIT_3 = 0x00000002;
+	  
+	  delay(3);
+	  
+	  *DNN_RE_INIT_0 = 0x00000000;
+	  *DNN_RE_INIT_1 = 0x00000000;
+	  *DNN_RE_INIT_2 = 0x00000000;
+	  *DNN_RE_INIT_3 = 0x00000000;
 		//////////////////////////////////////////////////////
     // working sequence
-      // a.) wait for MBus transfer input / data to DLC, instruction to M0
-      inst_no = 0;
-			/* TODO
-			if (*M0_START != 1) { 								// check switch to start the working sequence
-				fail (0x0, 0x0);		
-			}*/
-
-			// b.) MAC
-      write_instruction_4PE(0, 0);
-      set_all_buffer0();
-			start_pe_inst(0b1111);
-//			start_pe_inst(0b0001);
-      write_instruction_4PE(1, 1);
-      clock_gate();
-
-      /*
-      uint16_t pe_num = 0;
-      signal_debug(pe_num);
-      pe_num = 1;
-      signal_debug(pe_num);
-      pe_num = 2;
-      signal_debug(pe_num);
-      pe_num = 3;
-      signal_debug(pe_num);
-      */
-
-			// c.) MOV
+      ///////////////////
+			*DNN_PG_0 = 0x000007ff;		// only last 11 bits are set
+      uint32_t short_addr = IN_ADDR & 0x1fff;
+      uint32_t addr = short_addr;
+      uint32_t arr_addr = 0;
+      ///////////////////
+      // b.) broadcast inputs 
+      // 
+      uint32_t temp_DNN_CTRL;
+      uint32_t temp_word0, temp_word1;
       set_all_buffer1();
-			start_pe_inst(0b1111);
-      //clock_gate();
-			while (~check_if_pe_finish(0b1111) != 1) { delay(5); }
-
-			// d.) finish
-      signal_done();
-//		set_nli_parameters();
-      send_dnn_irq();
-      delay(1000000);
+      ///
+      temp_DNN_CTRL = (1 << 15);			// start load: PE_INST_WR = 1
+      temp_DNN_CTRL |= (6 << 16);			// buffer 1
+      for (addr = 0; addr < 6; addr++) {
+      	if (addr != 0) {
+      		temp_DNN_CTRL += (1 << 16);			// PE_INST_ADDR += 1 
+      	}
       
+        temp_word0 = PE_INSTS[0][0][addr] & 0xffffff;
+        temp_word1 = PE_INSTS[0][0][addr] >> 24;
+        *DNN_INST_0_0 = temp_word0;
+        *DNN_INST_0_1 = temp_word1; 
+        *DNN_CTRL_0 = temp_DNN_CTRL;
+        temp_word0 = PE_INSTS[1][1][addr] & 0xffffff;
+        temp_word1 = PE_INSTS[1][1][addr] >> 24;
+        *DNN_INST_1_0 = temp_word0; 
+        *DNN_INST_1_1 = temp_word1; 
+        *DNN_CTRL_1 = temp_DNN_CTRL;
+        temp_word0 = PE_INSTS[2][2][addr] & 0xffffff;
+        temp_word1 = PE_INSTS[2][2][addr] >> 24;
+        *DNN_INST_2_0 = temp_word0;
+        *DNN_INST_2_1 = temp_word1; 
+        *DNN_CTRL_2 = temp_DNN_CTRL;
+      }
+      ///
+			start_pe_inst(0b0001);              // start MOV0
+			inst_no++;
+			while (check_if_pe_finish(0b0001) != 1) { delay(5);}
+			start_pe_inst(0b0010);              // start MOV1
+			inst_no++;
+			while (check_if_pe_finish(0b0010) != 1) { delay(5);}
+			start_pe_inst(0b0100);              // start MOV2
+
+      //////////////
+			// c.) layer 0 MAC
+      write_instruction_4PE(3, 0);   // write MACNLI0
+      ///
+			while (check_if_pe_finish(0b0100) != 1) { delay(5);}
+      set_all_buffer0();
+			start_pe_inst(0b1111);                    // start MACNLI0
+			inst_no++;
+//      for (pe_no = 0; pe_no < 3; pe_no++) {
+//        write_instruction_24word(PE_INSTS[4][pe_no][1], pe_no, 1, 1);   // write MOV0
+//        write_instruction_24word(PE_INSTS[4][pe_no][2], pe_no, 2, 1);   // write MOV0
+//      }
+//      write_instruction(4, 3, 1);   // write MOV0
       //clock_gate();
+      signal_done();
+      delay(100000);
   		// done
 		//////////////////////////////////////////////////////
-
+     *REG_RUN_CPU = 0;
 
     return 1;
 }

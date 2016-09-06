@@ -230,7 +230,7 @@ int main() {
     signal_debug(0);
     inst_no = 0;
     switch_inst_buffer(0, 0);
-    write_instruction(inst_no, 0, 0);   
+    write_instruction(inst_no, 0, 0);
     reset_PE(0);
 		start_pe_inst(0b0001);
 		inst_no++;
@@ -263,8 +263,6 @@ int main() {
     delay(7000);
  		// done
 		//////////////////////////////////////////////////////
-
-
 
     return 1;
 }

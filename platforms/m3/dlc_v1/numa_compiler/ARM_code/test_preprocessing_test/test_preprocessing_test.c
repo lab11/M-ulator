@@ -446,7 +446,7 @@ int main() {
 		//////////////////////////////////////////////////////
     // PE init
 		set_dnn_insts();
-		set_nli_parameters();
+//		set_nli_parameters();
 
     uint16_t temp = 0;
     for (iter = 0; iter < 512; iter++) {

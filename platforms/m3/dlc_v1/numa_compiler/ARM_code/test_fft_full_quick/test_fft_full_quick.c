@@ -163,6 +163,10 @@ void fail (uint32_t id, uint32_t data) {
 // MAIN function starts here             
 //********************************************************************
 
+#define IN_ADDR 5632
+#define OUT_ADDR 5632
+#define READ_SRAM_DELAY 6
+#define READ_SRAM_ADDR        ((volatile uint32_t *) 0x00004000)
 int main() {
     //Initialize Interrupts
     //disable_all_irq();
@@ -218,18 +222,19 @@ int main() {
 
 		//////////////////////////////////////////////////////
     // working sequence
+/*
+    uint32_t iter;
     int32_t input_r[512];
     int32_t input_i[512];
     int32_t output_r[257];
     int32_t output_i[257];
-    uint32_t iter;
     for (iter = 0; iter < 512; iter++) {
       input_r[iter] = (iter << 1);
       input_i[iter] = (iter << 1) + 1;
     }
     write_dnn_sram_6_fft_input(0x2000, input_r, input_i); // fixed length 
+*/
 
-    signal_debug(0);
     inst_no = 0;
     switch_inst_buffer(0, 0);
     write_instruction(inst_no, 0, 0); 
@@ -239,7 +244,7 @@ int main() {
 //  clock_gate(); 
   	while (check_if_pe_finish(0b0001) != 1) { delay(5); }
    
-    while (inst_no < 7) {
+    while (inst_no < 1) {
       ///
 //      write_instruction_24word(PE_INSTS[inst_no][0][0], 0, 0, 0);    // word, PE, addr, slot
 //      write_instruction_24word(PE_INSTS[inst_no][0][3], 0, 3, 0);    // word, PE, addr, slot
@@ -270,26 +275,41 @@ int main() {
 			inst_no++;
 //    clock_gate(); 
   		while (check_if_pe_finish(0b0001) != 1) { delay(5); }
- /*
-      if (inst_no == 4) {   // FFT 3 done
+      if (inst_no == 6) {   // FFT 3 done
         signal_debug(0);
-        signal_debug(1);
-        signal_debug(2);
-        signal_debug(3);
+//        signal_debug(1);
+//        signal_debug(2);
+//        signal_debug(3);
       }
-*/
     }
 
 		// finish
 //		while (check_if_pe_finish(0b1111) != 1) { delay(5); }
-    read_dnn_sram_6_fft_output(0x2000, output_r, output_i); // fixed length 
+//    read_dnn_sram_6_fft_output(0x2000, output_r, output_i); // fixed length 
     signal_done();
 //		set_nli_parameters();
     delay(7000);
  		// done
 		//////////////////////////////////////////////////////
-
-
+uint32_t short_addr = 128;
+	uint32_t i,y0, y1, y2, y3;
+		for(i=0;i<128;i++)
+	{
+		*DNN_CTRL_0 = (short_addr << 2) + 0b01;	// set CPU_ARB_DATA_RD to 1
+		delay(READ_SRAM_DELAY);
+		y0 = *DNN_R_DATA_0_0;
+		y1 = *DNN_R_DATA_0_1;
+		y2 = *DNN_R_DATA_0_2;
+		y3 = *DNN_R_DATA_0_3;
+		
+		*(READ_SRAM_ADDR+3*i)   = (y3<<8)  | ((y2>>16) & 0x000000ff); 
+		*(READ_SRAM_ADDR+3*i+1) = (y2<<16) | ((y1>>8)  & 0x0000ffff); 
+		*(READ_SRAM_ADDR+3*i+2) = (y1<<24) | (y0       & 0x00ffffff); 
+		
+		short_addr = short_addr+1;
+	}
+	
+      *REG_RUN_CPU = 0;
 
     return 1;
 }
