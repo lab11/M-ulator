@@ -32,7 +32,7 @@
 #define TEMP_TIMEOUT_COUNT 2000
 #define WAKEUP_PERIOD_RESET 2
 #define WAKEUP_PERIOD_LDO 2
-#define TEMP_CYCLE_INIT 5 
+#define TEMP_CYCLE_INIT 15 
 
 // Tstack states
 #define	TSTK_IDLE       0x0
@@ -140,48 +140,34 @@ void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
 //************************************
 
 inline static void set_pmu_sleep_clk_init(){
+	// Register 0x17: UPCONVERTER_TRIM_V3_SLEEP
     mbus_remote_register_write(PMU_ADDR,0x17, 
 		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
 		| (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
 		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (4) 		// Floor frequency base (0-63)
+		| (2) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// The first register write to PMU needs to be repeated
     mbus_remote_register_write(PMU_ADDR,0x17, 
+	// Register 0x17: UPCONVERTER_TRIM_V3_SLEEP
 		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
 		| (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
 		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (4) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
-    mbus_remote_register_write(PMU_ADDR,0x18, 
-		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
-		| (1 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (10) 		// Floor frequency base (0-63)
+		| (2) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
     mbus_remote_register_write(PMU_ADDR,0x19,
 		( (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (1 << 5)  // Frequency multiplier L (actually L+1)
-		| (1) 		// Floor frequency base (0-63)
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (2) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
-	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
-    mbus_remote_register_write(PMU_ADDR,0x1A,
-		( (1 << 13) // Enable main feedback loop
-		| (8 << 9)  // Frequency multiplier R
-		| (4 << 5)  // Frequency multiplier L (actually L+1)
-		| (8) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
-	// Register 0x15: SAR_TRIM_v3_SLEEP
+// Register 0x15: SAR_TRIM_v3_SLEEP
     mbus_remote_register_write(PMU_ADDR,0x15, 
 		( (0 << 19) // Enable PFM even during periodic reset
 		| (0 << 18) // Enable PFM even when Vref is not used as ref
@@ -189,8 +175,25 @@ inline static void set_pmu_sleep_clk_init(){
 		| (3 << 14) // Comparator clock division ratio
 		| (1 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (4) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+    mbus_remote_register_write(PMU_ADDR,0x18, 
+	// Register 0x18: UPCONVERTER_TRIM_V3_ACTIVE
+		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+		| (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
 		| (1 << 5)  // Frequency multiplier L (actually L+1)
-		| (6) 		// Floor frequency base (0-63)
+		| (8) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
+    mbus_remote_register_write(PMU_ADDR,0x1A,
+		( (1 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (8) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x16: SAR_TRIM_v3_ACTIVE
@@ -212,7 +215,7 @@ inline static void set_pmu_sleep_clk_init(){
 		| (1 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (52) 		// Binary converter's conversion ratio (7'h00)
+		| (56) 		// Binary converter's conversion ratio (7'h00)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
@@ -792,8 +795,7 @@ int main() {
     // Only enable register-related interrupts
 	enable_reg_irq();
   
-    // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
-    config_timerwd(0xFFFFF); // 0xFFFFF about 13 sec with Y2 run default clock
+	disable_timerwd();
 
     // Initialization sequence
     if (enumerated != 0xDEADBEEF){

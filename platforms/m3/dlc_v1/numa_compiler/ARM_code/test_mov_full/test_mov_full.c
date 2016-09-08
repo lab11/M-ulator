@@ -169,7 +169,7 @@ int main() {
 
 		uint16_t inst_no, pe_no, nli_no;
 		set_dnn_insts();
-		set_nli_parameters();
+//		set_nli_parameters();
 		*PE_INST &= 0xffff0fff;			// set all INST_SEL to buffer 0
 
     *REG_WAIT_BEFORE_VDD = 0xff;
@@ -246,6 +246,7 @@ int main() {
 
       signal_done();
       delay(7000);
+	  *REG_RUN_CPU = 0x00000000;
   		// done
 		//////////////////////////////////////////////////////
 

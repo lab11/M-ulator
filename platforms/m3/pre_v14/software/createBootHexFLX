@@ -2,81 +2,31 @@
 ###############################################################################
 # FLASH LAYER (FLX) BOOT ISA PROGRAM COMPILER
 # Author: Yejoong Kim
-# Last Modified: Apr 05 2016
+# Last Modified: Sep 10 2015
 # ----------------------------------------------------------------------------
-# [Description]
-#   This is compatible for use with:
-#       Processor Layer: PRCv13, PREv13
-#       Flash Layer    : FLPv1S, FLPv1L, FLSv2S, FLSv2L
-#       PMU Layer      : PMUv2
+# [Usage] ./compileBootFLX [.memmap FileName]
 #
-#   This script reads in 'memmap' file and then 
-#   it generates 'boothex' and 'bootinc' files
-#
-#   This adds some tuning sequency at the start of the boot-up code.
-#
-# [Usage] ./compileBootHexFLX [.memmap FileName]
-#
-# [Syntax of Available Instructions]
-#       EN XXXX : Enumeration (XXXX: 4-digit in hex)
-#       NO XXXX : NOP (XXXX: 4-digit in hex)
-#       RW XXXX : Register Write (XXXX: 4-digit in hex)
-#           A BB CCCCCC : [DestShortPrefix(1-digit in hex)] [RegIdx(2-digit in hex)] [RegData(6-digit in hex)]
-#       MC XXXX : Memory Copy (XXXX: 4-digit in hex)
-#           A : [DestShortPrefix(1-digit in hex)]
-#           BBBBBBBB : [DestMemStartAddr(8-digit in hex)]
-#           CCCCCCCC : [Data0(8-digit in hex)]
-#           ....
-#           XXXXXXXX : [DataN(8-digit in hex)]
-#       ID : Tail Idle
-#       PD : Tail Flash Power Down
-#       SL : Tail Sleep
-#
-#   NOTE: 1) Also see notes in the compiler script 'm3_compileBootFLX'
-#         2) Keep the number of digits. Do NOT remove leading zeros.
-#            Example1: Use 'EN 0009'. Do NOT use 'EN 9'
-#            Example2: In Reg Write, use '5 0C 000022'. Do NOT use '5 C 22'.
-#         3) Line starting with '#' are comments.
-#            Empty lines are ignored.
-#         4) 'XXXX' is an iteration number.
-#            It actually means 'iteration - 1'
-#         5) In the BOOT ISA, the iteration number is 18-bit.
-#            But this compiler supports only 16 bits.
-#            The remaining upper 2 bits are automatically set to 2'b00.
-#         6) For further details, see the Flash layer document.
+# NOTE:	1) This script was made in hurry. 
+# 			It is a very long and inefficient code :P
+#			Anyone is welcome to improve this :)
+# 		2) Prepare a source code named $inFile
+#		3) Output hex files are stored in $outFileXX.
+#			Use these to preload the flash memory.
+#		4) For detailed syntax for source codes, see the sample code './prog'
 ###############################################################################
 
 $BootCodeBeforeProg = "
-# System Configuration: 
-# PRC -> FLS
-
-# Enumeration
-#EN 0004
-#NO 00FF
-
-# Flash Self-Tuning (Tprog & Tcyc, VTG/CRT_TUNE)
-RW 0001
-0 26 0A7788
-0 27 011BC8
-
-# NOP (256 cycles. Wait for VTG/CRT Limiter stabilize)
-NO 00FF
+# Start of Boot-Up Code
 ";
 
 $BootCodeAfterProg = "
-# Register Write (Write RUN_CPU)
-RW 0007
-1 00 000000
-1 01 111111
-1 02 222222
-1 03 333333
-1 04 444444
-1 05 555555
-1 06 666666
+# Register Write (Write B0C3CB in Reg0 in Proc. And Set RUN_CPU)
+RW 0001
+1 00 B0C3CB
 1 10 000001
 
-# Tail Power-Down (It will turn off VC and Flash, and will stay in idle)
-PD
+# Tail Idle
+ID
 ";
 
 ###############################################################################

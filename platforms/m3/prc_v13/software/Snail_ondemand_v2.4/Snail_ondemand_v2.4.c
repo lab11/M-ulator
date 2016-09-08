@@ -2,9 +2,22 @@
 //Author: Inhee Lee 
 //		  
 //Description: Sensing System for Snail Project
+//			
+//			version 2.4
+//			- Fixed an error in Trig 3 Error Report
+//			- Combined Trig 3 & 7
+//			- Added radio tx of # measurement in Trig 2 for initial cycles
+//
+//			version 2.3
+//			- Overclamping w/ LDO
+//			- max. data = 400 sets
+//
+//			version 2.2
+//			- 12nA sleep mode 
+//			- 20nA sleep mode for radio 
 //
 //			Version 2.1
-//			- 20nA sleep mode setting for PMU
+//			- 20nA sleep mode 
 //			- Can change power for radio
 //			- Add Trigger #7 for battery voltage monitor
 //
@@ -726,7 +739,7 @@ static void operation_init(void){
 	batadc_resetrelease();
 
 	// Default battery overcharging projection threshold
-	bat_discharge_threshold = 0x0B;
+	bat_discharge_threshold = 0x0;
 
     // Go to sleep without timer
     operation_sleep_notimer();
@@ -937,7 +950,9 @@ static void operation_run(void){
 		// Enter long sleep
 		if(exec_count < SENSING_CYCLE_INIT){
 			delay(RADIO_PACKET_DELAY);
-			send_radio_data_ppm(1, 0xFAF000);
+			send_radio_data_ppm(0, 0xABC000+exec_count);
+    		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
+            send_radio_data_ppm(1,0xFAF000);	
 			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 		}else{
 			set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
@@ -1020,7 +1035,7 @@ int main() {
     uint8_t wakeup_data_header = wakeup_data>>24;
     uint8_t wakeup_data_field_0 = wakeup_data & 0xFF;
     uint8_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;
-    uint8_t wakeugp_data_field_2 = wakeup_data>>16 & 0xFF;
+    uint8_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
 
     if(wakeup_data_header == 1){
         // Debug mode: Transmit something via radio and go to sleep w/o timer
@@ -1073,6 +1088,7 @@ int main() {
 			operation_sleep_noirqreset();
 		}
 		exec_count = 0;
+		temp_error_count = 0;
 		meas_count = 0;
 		data_storage_count = 0;
 		radio_tx_count = 0;
@@ -1085,16 +1101,26 @@ int main() {
 		operation_run();
 
     }else if(wakeup_data_header == 3){
-		// Stop temp sensor program and transmit the execution count n times
+		// Stop temp sensor program and transmit the execution count, error count, and PMU's ADC reading as a battery voltage indicator n times
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period 
+		// wakeup_data[23:16] is the battery discharging threshold
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+		bat_discharge_threshold = wakeup_data_field_2;
 		sensor_running = 0;
 		Tstack_state = TSTK_IDLE;
 
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
 			if (exec_count_irq == 1){
+				// Grab latest PMU ADC readings
+				// PMUv2 register read is handled differently
+				mbus_remote_register_write(PMU_ADDR,0x00,0x03);
+				delay(MBUS_DELAY);
+				delay(MBUS_DELAY);
+				read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
+				batadc_reset();
+				delay(MBUS_DELAY);
 				// Prepare radio TX
 				radio_power_on();
 				// Go to sleep for SCRO stabilitzation
@@ -1102,9 +1128,11 @@ int main() {
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm(0,0xC10000 + exec_count*2);
+				send_radio_data_ppm(0,0xCC0000 + exec_count);
     			delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
-				send_radio_data_ppm(0,0xC20000 + temp_error_count);	
+				send_radio_data_ppm(0,0xEE0000 + temp_error_count);	
+    			delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
+				send_radio_data_ppm(0,0xBB0000+read_data_batadc);	
     			delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
@@ -1115,6 +1143,8 @@ int main() {
             exec_count_irq = 0;
             // radio
             send_radio_data_ppm(1,0xFAF000);	
+			// Release reset of PMU ADC
+			batadc_resetrelease();
             // Go to sleep without timer
             operation_sleep_notimer();
         }
@@ -1146,53 +1176,6 @@ int main() {
 			operation_tx_stored();
 		}
 		
-
-    }else if(wakeup_data_header == 7){
-		// Transmit PMU's ADC reading as a battery voltage indicator
-		// wakeup_data[7:0] is the # of transmissions
-		// wakeup_data[15:8] is the user-specified period 
-		// wakeup_data[23:16] is the battery discharging threshold
- 
-		WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
-		bat_discharge_threshold = wakeup_data_field_2;
-		exec_count = 0;
-
-        if (exec_count_irq < wakeup_data_field_0){
-            exec_count_irq++;
-			if (exec_count_irq == 1){
-				// Grab latest PMU ADC readings
-				// PMUv2 register read is handled differently
-				mbus_remote_register_write(PMU_ADDR,0x00,0x03);
-				delay(MBUS_DELAY);
-				delay(MBUS_DELAY);
-				read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
-				batadc_reset();
-				delay(MBUS_DELAY);
-		
-				// Prepare radio TX
-				radio_power_on();
-				// Go to sleep for SCRO stabilitzation
-				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
-				operation_sleep_noirqreset();
-			}else{
-				// radio
-				send_radio_data_ppm(0,0xBBB000+read_data_batadc);	
-    			delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
-				// set timer
-				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-				// go to sleep and wake up with same condition
-				operation_sleep_noirqreset();
-			}
-        }else{
-            exec_count_irq = 0;
-            // radio
-            send_radio_data_ppm(1,0xFAF000);	
-			// Release reset of PMU ADC
-			batadc_resetrelease();
-            // Go to sleep without timer
-            operation_sleep_notimer();
-        }
-
 
 	}else if(wakeup_data_header == 0x13){
 		// Change the RF frequency

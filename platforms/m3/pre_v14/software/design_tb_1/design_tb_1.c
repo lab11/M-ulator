@@ -1,21 +1,20 @@
 //*******************************************************************
-//Author: Yejoong Kim Ziyun Li Cao Gao
-//Description: M0 code for Deep Learning Processor projec
-// MACNLI AND MOV TESTING
+//Author: Yejoong Kim
+//Description: Developed during PREv14 tape-out for verification
 //*******************************************************************
-#include "DLCv1.h"
-//#include "FLSv2S_RF.h"
-//#include "PMUv2_RF.h"
-#include "DLCv1_RF.h"
+#include "PREv14.h"
+#include "FLPv2S_RF.h"
+#include "PMUv3H_RF.h"
 #include "mbus.h"
-#include "dnn_parameters.h"
 
-//#define PRC_ADDR    0x1
-#define DLC_ADDR    0x4
-//#define NODE_M_ADDR 0x8
-//#define NODE_B_ADDR 0xC
-//#define PMU_ADDR    0xE
+#define PRE_ADDR    0x1
+#define FLP_ADDR    0x4
+#define NODE_A_ADDR 0x8
+#define NODE_B_ADDR 0xC
+#define PMU_ADDR    0xE
 
+// FLPv2S Payloads
+#define ERASE_PASS  0x4F
 
 //********************************************************************
 // Global Variables
@@ -24,19 +23,11 @@ volatile uint32_t enumerated;
 volatile uint32_t cyc_num;
 volatile uint32_t irq_history;
 
-// Just for testing...
-volatile uint32_t do_cycle0  = 1; // 
-volatile uint32_t do_cycle1  = 1; // PMU Testing
-volatile uint32_t do_cycle2  = 1; // Register test
-volatile uint32_t do_cycle3  = 1; // MEM IRQ
-volatile uint32_t do_cycle4  = 1; // Flash Erase
-volatile uint32_t do_cycle5  = 1; // Memory Streaming 1
-volatile uint32_t do_cycle6  = 1; // Memory Streaming 2
-volatile uint32_t do_cycle7  = 1; // TIMER16
-volatile uint32_t do_cycle8  = 1; // TIMER32
-volatile uint32_t do_cycle9  = 1; // Watch-Dog
-volatile uint32_t do_cycle10 = 0; // 
-volatile uint32_t do_cycle11 = 0; // 
+volatile flpv2s_r0F_t FLPv2S_R0F_IRQ      = FLPv2S_R0F_DEFAULT;
+volatile flpv2s_r12_t FLPv2S_R12_PWR_CONF = FLPv2S_R12_DEFAULT;
+volatile flpv2s_r07_t FLPv2S_R07_GO       = FLPv2S_R07_DEFAULT;
+
+volatile pmuv3h_r52_t PMUv3_R52_IRQ  = PMUv3H_R52_DEFAULT;
 
 //*******************************************************************
 // INTERRUPT HANDLERS
@@ -55,13 +46,15 @@ void handler_ext_int_10(void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_11(void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_12(void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_13(void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_14(void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_15(void) __attribute__ ((interrupt ("IRQ")));
 
 void handler_ext_int_0(void) { *NVIC_ICPR = (0x1 << 0); // TIMER32
     irq_history |= (0x1 << 0);
     *REG0 = 0x1000;
-    *REG1 = 0x1;//*TIMER32_CNT;
-    *REG2 = 0x1;///*TIMER32_STAT;
-    //*TIMER32_STAT = 0x0;
+    *REG1 = *TIMER32_CNT;
+    *REG2 = *TIMER32_STAT;
+    *TIMER32_STAT = 0x0;
     arb_debug_reg (0xA0000000);
     arb_debug_reg ((0xA1 << 24) | *REG0); // 0x1000
     arb_debug_reg ((0xA1 << 24) | *REG1); // TIMER32_CNT
@@ -70,9 +63,9 @@ void handler_ext_int_0(void) { *NVIC_ICPR = (0x1 << 0); // TIMER32
 void handler_ext_int_1(void) { *NVIC_ICPR = (0x1 << 1); // TIMER16
     irq_history |= (0x1 << 1);
     *REG0 = 0x1001;
-    *REG1 = 0x1;//*TIMER16_CNT;
-    *REG2 = 0x1;//*TIMER16_STAT;
-    //*TIMER16_STAT = 0x0;
+    *REG1 = *TIMER16_CNT;
+    *REG2 = *TIMER16_STAT;
+    *TIMER16_STAT = 0x0;
     arb_debug_reg (0xA0000001);
     arb_debug_reg ((0xA1 << 24) | *REG0); // 0x1001
     arb_debug_reg ((0xA1 << 24) | *REG1); // TIMER16_CNT
@@ -126,6 +119,14 @@ void handler_ext_int_13(void) { *NVIC_ICPR = (0x1 << 13); // MBUS_FWD
     irq_history |= (0x1 << 13);
     arb_debug_reg (0xA000000D);
 }
+void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); // SPI
+    irq_history |= (0x1 << 14);
+    arb_debug_reg (0xA000000E);
+}
+void handler_ext_int_15(void) { *NVIC_ICPR = (0x1 << 15); // GPIO
+    irq_history |= (0x1 << 15);
+    arb_debug_reg (0xA000000F);
+}
 
 //*******************************************************************
 // USER FUNCTIONS
@@ -140,7 +141,10 @@ void initialization (void) {
     set_halt_until_mbus_rx();
 
     // Enumeration
-    //mbus_enumerate(DLC_ADDR);
+    mbus_enumerate(FLP_ADDR);
+    mbus_enumerate(NODE_A_ADDR);
+    mbus_enumerate(NODE_B_ADDR);
+    mbus_enumerate(PMU_ADDR);
 
     //Set Halt
     set_halt_until_mbus_tx();
@@ -156,7 +160,7 @@ void fail (uint32_t id, uint32_t data) {
     arb_debug_reg (0xDEADBEEF);
     arb_debug_reg (id);
     arb_debug_reg (data);
-    //*REG_CHIP_ID = 0xFFFF; // This will stop the verilog sim.
+    *REG_CHIP_ID = 0xFFFF; // This will stop the verilog sim.
 }
 
 //********************************************************************
@@ -165,135 +169,49 @@ void fail (uint32_t id, uint32_t data) {
 
 int main() {
     //Initialize Interrupts
-    //disable_all_irq();
+    disable_all_irq();
 
-//    if (*REG_CHIP_ID != 0x1234) while(1);
+    // Initialization Sequence
+    if (enumerated != 0xDEADBEEF) { 
+        initialization();
+    }
 
+    // Read from PMU General Register
+    set_halt_until_mbus_rx();
+    mbus_copy_registers_from_remote_to_local(PMU_ADDR, 0x4B, 0x00, 1);
 
-		uint16_t inst_no;
-		set_dnn_insts();
-		set_nli_parameters();
-		*PE_INST &= 0xffff0fff;			// set all INST_SEL to buffer 0
+    set_halt_until_mbus_tx();
+    uint32_t cyc_num = (*REG0 << 16) | *REG1;
 
-        *REG_WAIT_BEFORE_VDD = 0xff;
+    // Send MBus Messages to let the world know!
+    uint32_t idx;
+    for (idx=0; idx < cyc_num+1; idx++) {
+        mbus_write_message32 (0xAA, idx);
+    }
 
-        // *REG_SRAM_L1 = 0xffffff;
+    if (cyc_num == 9) *REG_CHIP_ID = 0xFFFF; // This will stop the verilog sim.
 
+    // Update PMU General Register
+    cyc_num++;
+    uint32_t cyc_num_upper = cyc_num >> 16;
+    uint32_t cyc_num_lower = (cyc_num << 16) >> 16;
+    mbus_remote_register_write (PMU_ADDR, 0x4B, cyc_num_upper);
+    mbus_remote_register_write (PMU_ADDR, 0x4C, cyc_num_lower);
+    
+    // Configure Deep Sleep Cycle
+    uint32_t dslp_cycle = 100;
+    uint32_t dslp_cycle_upper = dslp_cycle >> 16;
+    uint32_t dslp_cycle_lower = (dslp_cycle << 16) >> 16;
+    mbus_remote_register_write (PMU_ADDR, 0x4D, dslp_cycle_upper);
+    mbus_remote_register_write (PMU_ADDR, 0x4E, dslp_cycle_lower);
 
+    // Send Deep-Sleep Request
+    mbus_remote_register_write (PMU_ADDR, 0x4F, 0xDEAD);
 
-      *DNN_SRAM_RSTN_0 = 0x000007ff;
-      *DNN_SRAM_RSTN_1 = 0x000007ff;
-      *DNN_SRAM_RSTN_2 = 0x000007ff;
-      *DNN_SRAM_RSTN_3 = 0x000007ff;
-      delay(3);
-
-      *DNN_SRAM_ISOL_0 = 0x000007ff;
-      *DNN_SRAM_ISOL_1 = 0x000007ff;
-      *DNN_SRAM_ISOL_2 = 0x000007ff;
-      *DNN_SRAM_ISOL_3 = 0x000007ff;
-      delay(3);
-
-      *DNN_PG_0 = 0x000007ff;
-      *DNN_PG_1 = 0x000007ff;
-      *DNN_PG_2 = 0x000007ff;
-      *DNN_PG_3 = 0x000007ff;
-      delay(5);
-
-
-      //*DNN_PG_0 = 0x003ff800;
-      //*DNN_PG_1 = 0x003ff800;
-      //*DNN_PG_2 = 0x003ff800;
-      //*DNN_PG_3 = 0x003ff800;
-      //delay(3);
-
-
-      *DNN_SRAM_RSTN_0 = 0x000007ff;
-      *DNN_SRAM_RSTN_0 = 0xffffffff;
-      *DNN_SRAM_RSTN_1 = 0xffffffff;
-      *DNN_SRAM_RSTN_2 = 0xffffffff;
-      *DNN_SRAM_RSTN_3 = 0xffffffff;
-      delay(3);
-     *DNN_RAND_0 = 1;
-     *DNN_RAND_1 = 1;
-     *DNN_RAND_2 = 1;
-     *DNN_RAND_3 = 1;
-
-      //*DNN_SRAM_ISOL_0 = 0x00000000;
-      //*DNN_SRAM_ISOL_1 = 0x00000000;
-      //*DNN_SRAM_ISOL_2 = 0x00000000;
-      //*DNN_SRAM_ISOL_3 = 0x00000000;
-      //delay(3);
-	  *DNN_RE_INIT_0 = 0x00000002;
-	  *DNN_RE_INIT_1 = 0x00000002;
-	  *DNN_RE_INIT_2 = 0x00000002;
-	  *DNN_RE_INIT_3 = 0x00000002;
-	  
-	  delay(3);
-	  
-	  *DNN_RE_INIT_0 = 0x00000000;
-	  *DNN_RE_INIT_1 = 0x00000000;
-	  *DNN_RE_INIT_2 = 0x00000000;
-	  *DNN_RE_INIT_3 = 0x00000000;
-
-  
-		//////////////////////////////////////////////////////
-    // working sequence
-      // a.) wait for MBus transfer input / data to DLC, instruction to M0
-      
-      inst_no = 0;
-			/* TODO
-			if (*M0_START != 1) { 								// check switch to start the working sequence
-				fail (0x0, 0x0);		
-			}*/
-
-			// b.) MAC
-      write_instruction(inst_no, 0, 0);
-      write_instruction(inst_no, 1, 0);
-      write_instruction(inst_no, 2, 0);
-      write_instruction(inst_no, 3, 0);
-    // debug
-      *DNN_CTRL_0 &= (0<<15);
-      *DNN_CTRL_1 &= (0<<15);
-      *DNN_CTRL_2 &= (0<<15);
-      *DNN_CTRL_3 &= (0<<15);
-    // debug
-
-			write_nli(inst_no, 0);
-			write_nli(inst_no, 1);
-			write_nli(inst_no, 2);
-			write_nli(inst_no, 3);
-
-    // debug
-      *DNN_NLI_CTRL_0 &= (0<<1);
-      *DNN_NLI_CTRL_1 &= (0<<1);
-      *DNN_NLI_CTRL_2 &= (0<<1);
-      *DNN_NLI_CTRL_3 &= (0<<1);
-    // debug
-			start_pe_inst(0b1111);
-			inst_no++;
-			wait_until_pe_start(0b1111);
-      clock_gate();
-
-      //signal_debug();
-      
-			// c.) MOV
-			if (~check_if_pe_finish(0b1111)) { fail (0x0, 0x0); }
-      write_instruction(inst_no, 0, 0);
-      write_instruction(inst_no, 1, 0);
-      write_instruction(inst_no, 2, 0);
-      write_instruction(inst_no, 3, 0);
-			start_pe_inst(0b1111);
-			inst_no++;
-			wait_until_pe_start(0b1111);
-      clock_gate();
-
-			// d.) finish
-			if (~check_if_pe_finish(0b1111)) { fail (0x0, 0x0); }
-      signal_done();
-      //clock_gate();
-  		// done
-		//////////////////////////////////////////////////////
-     *REG_RUN_CPU = 0;
+    while(1){  //Never Quit (should not come here.)
+        asm("nop;"); 
+    }
 
     return 1;
 }
+
