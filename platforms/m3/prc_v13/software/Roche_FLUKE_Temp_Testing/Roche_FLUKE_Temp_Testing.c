@@ -809,7 +809,7 @@ static void operation_temp_run(void){
 
 				}else{
 					if (!radio_tx_option && (exec_count == TEMP_CYCLE_INIT)){
-						set_pmu_sleep_clk_low();
+						//set_pmu_sleep_clk_low();
 					}
 					set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
 				}
