@@ -10,7 +10,6 @@
 // NOTE: Enumeration should've been done during self-bootup
 #define PRC_ADDR    0x1
 #define FLS_ADDR    0x4
-#define PMU_ADDR    0x8
 
 // DELAYS (For MBus Snooping)
 #define MBUS_DELAY  1000
@@ -75,44 +74,6 @@ void initialization (void) {
     *REG_CHIP_ID = 0xBEEF;
     cyc_num = 0;
     irq_history = 0;
-
-//    set_halt_until_mbus_rx();
-//    mbus_enumerate(FLS_ADDR);
-//    set_halt_until_mbus_tx();
-}
-
-void notify (uint32_t id) {
-
-    uint32_t data = 0;
-
-    if      (id == 0) data = *REG0;
-    else if (id == 1) data = *REG1;
-    else if (id == 2) data = *REG2;
-    else if (id == 3) data = *REG3;
-    else if (id == 4) data = *REG4;
-    else if (id == 5) data = *REG5;
-    else if (id == 6) data = *REG6;
-    else if (id == 7) data = *REG7;
-
-    mbus_write_message32(0xE0, cyc_num);
-    delay(MBUS_DELAY);
-    mbus_write_message32(0xE1, id);
-    delay(MBUS_DELAY);
-    mbus_write_message32(0xE2, data);
-    delay(MBUS_DELAY);
-    mbus_write_message32(0xE3, 0xDEADBEEF);
-    delay(MBUS_DELAY);
-
-    if      (id == 0) *REG0 = 0x0;
-    else if (id == 1) *REG1 = 0x0;
-    else if (id == 2) *REG2 = 0x0;
-    else if (id == 3) *REG3 = 0x0;
-    else if (id == 4) *REG4 = 0x0;
-    else if (id == 5) *REG5 = 0x0;
-    else if (id == 6) *REG6 = 0x0;
-    else if (id == 7) *REG7 = 0x0;
-
-    mbus_sleep_all();
 }
 
 //********************************************************************
@@ -124,25 +85,32 @@ int main() {
     disable_all_irq();
 
     if (*REG_CHIP_ID != 0xBEEF) {
-        // Reset Sleep Timer
-        set_wakeup_timer (100, 0, 1);
-        // Variable Reset
-        initialization();
-        // Go to indefinite sleep
-        mbus_sleep_all();
-        while(1);
+        set_halt_until_mbus_rx();
+        mbus_enumerate(FLS_ADDR);
+        set_halt_until_mbus_tx();
     }
 
-    cyc_num++;
+    mbus_write_message32(0xE0, *REG0);
+    delay(MBUS_DELAY);
+    mbus_write_message32(0xE1, *REG1);
+    delay(MBUS_DELAY);
+    mbus_write_message32(0xE2, *REG2);
+    delay(MBUS_DELAY);
+    mbus_write_message32(0xE3, *REG3);
+    delay(MBUS_DELAY);
+    mbus_write_message32(0xE4, *REG4);
+    delay(MBUS_DELAY);
+    mbus_write_message32(0xE5, *REG5);
+    delay(MBUS_DELAY);
+    mbus_write_message32(0xE6, *REG6);
+    delay(MBUS_DELAY);
 
-    if (*REG0 != 0x0) notify(0);
-    if (*REG1 != 0x0) notify(1);
-    if (*REG2 != 0x0) notify(2);
-    if (*REG3 != 0x0) notify(3);
-    if (*REG4 != 0x0) notify(4);
-    if (*REG5 != 0x0) notify(5);
-    if (*REG6 != 0x0) notify(6);
-    if (*REG7 != 0x0) notify(7);
+    set_halt_until_mbus_rx();
+    mbus_copy_registers_from_remote_to_local(FLS_ADDR, 0x26, 0x07, 0);
+    delay(MBUS_DELAY);
+    mbus_copy_registers_from_remote_to_local(FLS_ADDR, 0x27, 0x07, 0);
+    delay(MBUS_DELAY);
+    set_halt_until_mbus_rx();
 
     // Go to indefinite sleep
     mbus_sleep_all();

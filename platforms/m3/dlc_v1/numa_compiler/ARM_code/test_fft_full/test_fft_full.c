@@ -171,7 +171,7 @@ int main() {
 
 		uint16_t inst_no;
 		set_dnn_insts();
-		set_nli_parameters();
+//		set_nli_parameters();
 
     *REG_WAIT_BEFORE_VDD = 0xff;
       *DNN_SRAM_RSTN_0 = 0x000007ff;
@@ -229,8 +229,8 @@ int main() {
 
     signal_debug(0);
     // test
-    read_dnn_sram_12_fft_output(0x2000, output); // fixed length 
-    signal_debug(0);
+//    read_dnn_sram_12_fft_output(0x2000, output); // fixed length 
+//    signal_debug(0);
     // test
     inst_no = 0;
     switch_inst_buffer(0, 0);
@@ -262,7 +262,7 @@ int main() {
 
 		// finish
 //		while (check_if_pe_finish(0b1111) != 1) { delay(5); }
-    read_dnn_sram_12_fft_output(0x2000, output); // fixed length 
+//    read_dnn_sram_12_fft_output(0x2000, output); // fixed length 
     signal_done();
     delay(7000);
  		// done

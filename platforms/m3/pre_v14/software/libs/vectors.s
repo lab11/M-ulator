@@ -2,9 +2,9 @@
 .syntax unified
 .thumb
 
-/* Interrupt Vector Table (32kB SRAM) */
+/* Interrupt Vector Table for PREv14 (8kB SRAM) */
 .section .vectors
-.word	0x3FFC	@ stack top    /* reserve 8kB for software managed memory (raw_input, output, parameters, etc) */
+.word	0x2000	@ stack top
 .word	_start	@ reset vector
 .word   handler_nmi          /* 2 NMI */
 .word   handler_hard         /* 3 HardFault */
@@ -34,6 +34,8 @@
 .word   handler_ext_int_11   /* 27 External Interrupt(11) */
 .word   handler_ext_int_12   /* 28 External Interrupt(12) */
 .word   handler_ext_int_13   /* 29 External Interrupt(13) */
+.word   handler_ext_int_14   /* 30 External Interrupt(14) */
+.word   handler_ext_int_15   /* 31 External Interrupt(15) */
 
 
 .align 4
@@ -59,6 +61,8 @@ hang:   b .
 .weak handler_ext_int_11, hang
 .weak handler_ext_int_12, hang
 .weak handler_ext_int_13, hang
+.weak handler_ext_int_14, hang
+.weak handler_ext_int_15, hang
 
 .text
 .func _start

@@ -151,6 +151,8 @@ inline static void set_pmu_optimization(){
     mbus_pmu_register_write(0x36,
         (1)         // [500, 16777215] Num of clock cycles the controller waits per each periodic conversion ratio adjustment after being fully turned-on
     );
+	// Register 0x37: TICK_WAKEUP_WAIT
+    mbus_pmu_register_write(0x37, 2000); // [500, 16777215] Num of clock cycles the controller waits for internal state transition from sleep to wakeup mode
 	// Disable PMU ADC measurement in active mode
 	// Register 0x3A: PMU_CONTROLLER_STALL_ACTIVE
     mbus_pmu_register_write(0x3A, 

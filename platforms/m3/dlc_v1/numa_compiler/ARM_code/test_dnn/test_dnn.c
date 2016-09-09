@@ -205,10 +205,10 @@ int main() {
       *DNN_SRAM_RSTN_2 = 0xffffffff;
       *DNN_SRAM_RSTN_3 = 0xffffffff;
       delay(3);
-//      *DNN_RAND_0 = 1;
-//      *DNN_RAND_1 = 1;
-//      *DNN_RAND_2 = 1;
-//      *DNN_RAND_3 = 1;
+     *DNN_RAND_0 = 1;
+     *DNN_RAND_1 = 1;
+     *DNN_RAND_2 = 1;
+     *DNN_RAND_3 = 1;
 //      delay(3);
       
       //*DNN_SRAM_ISOL_0 = 0x00000000;
@@ -216,7 +216,17 @@ int main() {
       //*DNN_SRAM_ISOL_2 = 0x00000000;
       //*DNN_SRAM_ISOL_3 = 0x00000000;
       //delay(3);
-
+	  *DNN_RE_INIT_0 = 0x00000002;
+	  *DNN_RE_INIT_1 = 0x00000002;
+	  *DNN_RE_INIT_2 = 0x00000002;
+	  *DNN_RE_INIT_3 = 0x00000002;
+	  
+	  delay(3);
+	  
+	  *DNN_RE_INIT_0 = 0x00000000;
+	  *DNN_RE_INIT_1 = 0x00000000;
+	  *DNN_RE_INIT_2 = 0x00000000;
+	  *DNN_RE_INIT_3 = 0x00000000;
 		//////////////////////////////////////////////////////
     // working sequence
       volatile int32_t input[408];
@@ -525,7 +535,7 @@ int main() {
       delay(7000);
   		// done
 		//////////////////////////////////////////////////////
-
+     *REG_RUN_CPU = 0;
 
     return 1;
 }
