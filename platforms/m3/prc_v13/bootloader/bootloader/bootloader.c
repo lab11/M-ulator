@@ -4,7 +4,7 @@
 //*******************************************************************
 #include "PRCv13.h"
 #include "mbus.h"
-#include "../../software/PMUv3H_temp_deepsleep/PMUv3H_temp_deepsleep.bootinc"
+#include "../../software/PMUv3H_temp_deepsleep_v1/PMUv3H_temp_deepsleep_v1.bootinc"
 
 #define FLPv2      // FLPv1 | FLPv2 | FLSv2
 #define PRC_ADDR 0x1
