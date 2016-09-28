@@ -16,11 +16,11 @@
 #define RAD_ADDR 0x2           //RADIO Short Address
 //#define SNS_ADDR 0x4           //SNSv1 Short Address
 
-#define MBUS_DELAY 100
-#define WAKEUP_DELAY 5000 // 20s
-#define DELAY_1 10000 // 1s
-#define DELAY_0P5 5000
-#define DELAY_IMG 20000 // 1s
+#define MBUS_DELAY 200
+#define WAKEUP_DELAY 20000 // 20s
+#define DELAY_1 40000 // 1s
+#define DELAY_0P5 20000
+#define IMG_TIMEOUT_COUNT 5000
 
 #define START_COL_IDX 0 // in words
 #define COLS_TO_READ 39 // in # of words: 39 for full frame, 19 for half
@@ -486,8 +486,11 @@ int main() {
 	poweron_array_adc();
 	delay(MBUS_DELAY*20);
 	capture_image_single();
+	wait_for_interrupt(IMG_TIMEOUT_COUNT);	
 	capture_image_single();
+	wait_for_interrupt(IMG_TIMEOUT_COUNT);	
 	capture_image_single();
+	wait_for_interrupt(IMG_TIMEOUT_COUNT);	
 
 	poweroff_array_adc();
 

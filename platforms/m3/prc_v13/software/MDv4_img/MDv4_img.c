@@ -16,11 +16,10 @@
 #define RAD_ADDR 0x2	// RAD Short Address
 //#define SNS_ADDR 0x3  // SNSv1 Short Address
 
-#define MBUS_DELAY 500
-#define WAKEUP_DELAY 20000 // 20s
-#define WAKEUP_DELAY_FINAL 10000	// Delay for waiting for internal decaps to stabilize after waking up MDSENSOR
-#define DELAY_1 10000 // 1s
-#define DELAY_IMG 40000 // 1s
+#define MBUS_DELAY 200
+#define WAKEUP_DELAY 20000 
+#define DELAY_1 40000 // 1s
+#define IMG_TIMEOUT_COUNT 5000
 
 #define START_COL_IDX 0 // in words
 #define COLS_TO_READ 39 // in # of words: 39 for full frame, 19 for half
@@ -138,7 +137,7 @@ static void initialize_md_reg(){
 	mbus_remote_register_write(MD_ADDR,0x6,mdv3_r6.as_int);
 	mbus_remote_register_write(MD_ADDR,0x7,mdv3_r7.as_int);
 	mbus_remote_register_write(MD_ADDR,0x8,mdv3_r8.as_int);
-	mbus_remote_register_write(MD_ADDR,0x9,mdv3_r8.as_int);
+	mbus_remote_register_write(MD_ADDR,0x9,mdv3_r9.as_int);
 
 }
 
@@ -392,11 +391,12 @@ int main() {
 		// PRCv9 Default: 0x00202903
 		//*((volatile uint32_t *) 0xA2000008) = 0x00202603;
 		
+		// FIXME: NEED TO SET THE CLOCKS
 		// Set CPU & Mbus Clock Speeds
 		prcv13_r0B.DSLP_CLK_GEN_FAST_MODE = 0x1; // Default 0x0
-		prcv13_r0B.CLK_GEN_RING = 0x1; // Default 0x1
-		prcv13_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
-		prcv13_r0B.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
+		prcv13_r0B.CLK_GEN_RING = 0x3; // Default 0x1
+		prcv13_r0B.CLK_GEN_DIV_MBC = 0x0; // Default 0x1
+		prcv13_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
 		*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv13_r0B.as_int;
 	  
 		delay(1000);
@@ -420,15 +420,16 @@ int main() {
 	// Release power gates, isolation, and reset for imager array
 	poweron_array_adc();
 
-	delay(WAKEUP_DELAY_FINAL);
+	delay(DELAY_1);
 
-	capture_image_start();
-	while(1);
+	//capture_image_start();
+	//while(1);
 
 	// Capture a single image
 	
 	while (1){
-	  capture_image_single();
+		capture_image_single();
+		wait_for_interrupt(IMG_TIMEOUT_COUNT);	
 	}
 	
 	poweroff_array_adc();
