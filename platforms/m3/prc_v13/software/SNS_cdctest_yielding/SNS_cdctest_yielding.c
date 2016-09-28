@@ -178,6 +178,9 @@ static void operation_sleep(void){
 	// Reset IRQ14VEC
 	*((volatile uint32_t *) IRQ14VEC) = 0;
 
+	// Reset wakeup timer
+	*WUPT_RESET = 0x01;
+
     // Go to Sleep
     mbus_sleep_all();
     while(1);
@@ -185,6 +188,9 @@ static void operation_sleep(void){
 }
 
 static void operation_sleep_noirqreset(void){
+
+	// Reset wakeup timer
+	*WUPT_RESET = 0x01;
 
     // Go to Sleep
     mbus_sleep_all();
