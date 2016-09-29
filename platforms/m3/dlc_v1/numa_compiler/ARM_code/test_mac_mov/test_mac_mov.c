@@ -174,23 +174,24 @@ int main() {
 		uint16_t inst_no, pe_no;
 		set_dnn_insts();
 
-    *REG_WAIT_BEFORE_VDD = 0xff;
-      *DNN_SRAM_RSTN_0 = 0x000007ff;
-      *DNN_SRAM_RSTN_1 = 0x000007ff;
-      *DNN_SRAM_RSTN_2 = 0x000007ff;
-      *DNN_SRAM_RSTN_3 = 0x000007ff;
+	*REG_WAIT_BEFORE_VDD = 0x0f;
+	*REG_STAB_ENABLE_VDD = 0x7;
+      // *DNN_SRAM_RSTN_0 = 0x000007ff;
+      // *DNN_SRAM_RSTN_1 = 0x000007ff;
+      // *DNN_SRAM_RSTN_2 = 0x000007ff;
+      // *DNN_SRAM_RSTN_3 = 0x000007ff;
+      // delay(3);
+
+      // *DNN_SRAM_ISOL_0 = 0x000007ff;
+      // *DNN_SRAM_ISOL_1 = 0x000007ff;
+      // *DNN_SRAM_ISOL_2 = 0x000007ff;
+      // *DNN_SRAM_ISOL_3 = 0x000007ff;
       delay(3);
 
-      *DNN_SRAM_ISOL_0 = 0x000007ff;
-      *DNN_SRAM_ISOL_1 = 0x000007ff;
-      *DNN_SRAM_ISOL_2 = 0x000007ff;
-      *DNN_SRAM_ISOL_3 = 0x000007ff;
-      delay(3);
-
-      *DNN_PG_0 = 0x000007ff;
-      *DNN_PG_1 = 0x000007ff;
-      *DNN_PG_2 = 0x000007ff;
-      *DNN_PG_3 = 0x000007ff;
+      // *DNN_PG_0 = 0x000007ff;
+      // *DNN_PG_1 = 0x000007ff;
+      // *DNN_PG_2 = 0x000007ff;
+      // *DNN_PG_3 = 0x000007ff;
       delay(5);
 
       //*DNN_PG_0 = 0x003ff800;
@@ -198,12 +199,72 @@ int main() {
       //*DNN_PG_2 = 0x003ff800;
       //*DNN_PG_3 = 0x003ff800;
       //delay(3);
+	  
+	  //////////////////////////////
+	  //	Dynamic Drowsy
+	  //////////////////////////////
+	  // *DNN_PG_0 = 0x00FFFFFF;
+	  // *DNN_PG_1 = 0x00FFFFFF;
+	  // *DNN_PG_2 = 0x00FFFFFF;
+	  // *DNN_PG_3 = 0x00FFFFFF;
+	  // *DNN_SRAM_ISOL_0 = 0x00FFFFFF;
+	  // *DNN_SRAM_ISOL_1 = 0x00FFFFFF;
+	  // *DNN_SRAM_ISOL_2 = 0x00FFFFFF;
+	  // *DNN_SRAM_ISOL_3 = 0x00FFFFFF;
+	 
+	  // delay(3);
+	  
+	  // *DNN_PG_0 = 0x00000000;
+	  // *DNN_PG_1 = 0x00000000;
+	  // *DNN_PG_2 = 0x00000000;
+	  // *DNN_PG_3 = 0x00000000;
+	  
+	  // *DNN_SRAM_ISOL_0 = 0x00000000;
+	  // *DNN_SRAM_ISOL_1 = 0x00000000;
+	  // *DNN_SRAM_ISOL_2 = 0x00000000;
+	  // *DNN_SRAM_ISOL_3 = 0x00000000;
+	  
+	  //////////////////////////////
+	  //	Static Drowsy
+	  //////////////////////////////
+	  // *DNN_PG_0 = 0x00FFFFFF;
+	  // *DNN_PG_1 = 0x00FFFFFF;
+	  // *DNN_PG_2 = 0x00FFFFFF;
+	  // *DNN_PG_3 = 0x00FFFFFF;
+	  // *DNN_SRAM_ISOL_0 = 0x00FFFFFF;
+	  // *DNN_SRAM_ISOL_1 = 0x00FFFFFF;
+	  // *DNN_SRAM_ISOL_2 = 0x00FFFFFF;
+	  // *DNN_SRAM_ISOL_3 = 0x00FFFFFF;
+	 
+	  // delay(3);
+	  
+	  // *DNN_PG_0 = 0x0023D7FF;
+	  // *DNN_PG_1 = 0x0023D7FF;
+	  // *DNN_PG_2 = 0x0023D7FF;
+	  // *DNN_PG_3 = 0x0023D7FF;
+	  
+	  // *DNN_SRAM_ISOL_0 = 0x0023D7FF;
+	  // *DNN_SRAM_ISOL_1 = 0x0023D7FF;
+	  // *DNN_SRAM_ISOL_2 = 0x0023D7FF;
+	  // *DNN_SRAM_ISOL_3 = 0x0023D7FF;
+	  
+	  
+	  //////////////////////////////
+	  //	Always on
+	  //////////////////////////////
+	  *DNN_PG_0 = 0x000007FF;
+	  *DNN_PG_1 = 0x000007FF;
+	  *DNN_PG_2 = 0x000007FF;
+	  *DNN_PG_3 = 0x000007FF;
+	
+	  *DNN_SRAM_ISOL_0 = 0x000007FF;
+	  *DNN_SRAM_ISOL_1 = 0x000007FF;
+	  *DNN_SRAM_ISOL_2 = 0x000007FF;
+	  *DNN_SRAM_ISOL_3 = 0x000007FF;
 
-      *DNN_SRAM_RSTN_0 = 0x000007ff;
-      *DNN_SRAM_RSTN_0 = 0xffffffff;
-      *DNN_SRAM_RSTN_1 = 0xffffffff;
-      *DNN_SRAM_RSTN_2 = 0xffffffff;
-      *DNN_SRAM_RSTN_3 = 0xffffffff;
+      // *DNN_SRAM_RSTN_1 = 0xffffffff;
+      // *DNN_SRAM_RSTN_2 = 0xffffffff;
+      // *DNN_SRAM_RSTN_3 = 0xffffffff;
       delay(3);
 	  
      *DNN_RAND_0 = 1;
@@ -231,7 +292,7 @@ int main() {
 		//////////////////////////////////////////////////////
     // working sequence
       ///////////////////
-			*DNN_PG_0 = 0x000007ff;		// only last 11 bits are set
+	  //*DNN_PG_0 = 0x000007ff;		// only last 11 bits are set
       uint32_t short_addr = IN_ADDR & 0x1fff;
       uint32_t addr = short_addr;
       uint32_t arr_addr = 0;
@@ -265,6 +326,7 @@ int main() {
         *DNN_INST_2_1 = temp_word1; 
         *DNN_CTRL_2 = temp_DNN_CTRL;
       }
+	  
       ///
 			start_pe_inst(0b0001);              // start MOV0
 			inst_no++;
@@ -273,23 +335,36 @@ int main() {
 			inst_no++;
 			while (check_if_pe_finish(0b0010) != 1) { delay(5);}
 			start_pe_inst(0b0100);              // start MOV2
-
+			while (check_if_pe_finish(0b0100) != 1) { delay(5);}
+			
       //////////////
 			// c.) layer 0 MAC
       write_instruction_4PE(3, 0);   // write MACNLI0
-      ///
-			while (check_if_pe_finish(0b0100) != 1) { delay(5);}
+		
+      ///	
+	  // *DNN_RE_INIT_0 = 0x00000001;
+	  // *DNN_RE_INIT_1 = 0x00000001;
+	  // *DNN_RE_INIT_2 = 0x00000001;
+	  // *DNN_RE_INIT_3 = 0x00000001;
       set_all_buffer0();
-			start_pe_inst(0b1111);                    // start MACNLI0
+	  //start_pe_inst(0b0001);                    // start MACNLI0
+		start_pe_inst(0b1111);                    // start MACNLI0
 			inst_no++;
+			
 //      for (pe_no = 0; pe_no < 3; pe_no++) {
 //        write_instruction_24word(PE_INSTS[4][pe_no][1], pe_no, 1, 1);   // write MOV0
 //        write_instruction_24word(PE_INSTS[4][pe_no][2], pe_no, 2, 1);   // write MOV0
 //      }
 //      write_instruction(4, 3, 1);   // write MOV0
       //clock_gate();
-      signal_done();
-      delay(100000);
+      //signal_done();
+      delay(10000);
+	  uint32_t a[4];
+	a[0]=*DNN_RE_INIT_0;
+	a[1]=*DNN_PG_0;
+	a[2]=*DNN_SRAM_ISOL_0;
+	a[3]=*DNN_PG_0;
+	mbus_write_message(0x14,a,3);
   		// done
 		//////////////////////////////////////////////////////
      *REG_RUN_CPU = 0;
