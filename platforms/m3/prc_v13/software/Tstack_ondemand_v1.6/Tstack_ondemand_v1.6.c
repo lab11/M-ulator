@@ -208,10 +208,22 @@ inline static void set_pmu_sleep_clk_init(){
 	));
 	delay(MBUS_DELAY);
 	// SAR_RATIO_OVERRIDE
+	// Use the new reset scheme in PMUv3
     mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
-		( (1 << 13) // Enables override setting [12]
+		( (0 << 13) // Enables override setting [12] (1'b1)
 		| (0 << 12) // Let VDD_CLK always connected to vbat
-		| (0 << 11) // Enable override setting [10] (1'h0)
+		| (1 << 11) // Enable override setting [10] (1'h0)
+		| (0 << 10) // Have the converter have the periodic reset (1'h0)
+		| (0 << 9) // Enable override setting [8] (1'h0)
+		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+		| (0 << 7) // Enable override setting [6:0] (1'h0)
+		| (44) 		// Binary converter's conversion ratio (7'h00)
+	));
+	delay(MBUS_DELAY);
+    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+		( (0 << 13) // Enables override setting [12] (1'b1)
+		| (0 << 12) // Let VDD_CLK always connected to vbat
+		| (1 << 11) // Enable override setting [10] (1'h0)
 		| (0 << 10) // Have the converter have the periodic reset (1'h0)
 		| (1 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
