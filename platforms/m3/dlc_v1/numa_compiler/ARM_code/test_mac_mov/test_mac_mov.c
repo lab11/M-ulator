@@ -357,7 +357,7 @@ int main() {
 //      }
 //      write_instruction(4, 3, 1);   // write MOV0
       //clock_gate();
-      //signal_done();
+      signal_done();
       delay(10000);
 	  uint32_t a[4];
 	a[0]=*DNN_RE_INIT_0;
