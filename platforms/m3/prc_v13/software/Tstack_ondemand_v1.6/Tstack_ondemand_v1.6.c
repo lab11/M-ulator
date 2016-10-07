@@ -9,7 +9,7 @@
 //			v1.3: PMU IRQ off for stability issues
 //				  RADv9 settings updated for shifted center freq and higher curr lim
 //			v1.4: Decrease PMU sleep floors for reduced sleep power
-//			v1.6: PMUv3
+//			v1.6: PMUv3; Use for Tstack batch 4 onward
 //*******************************************************************
 #include "PRCv13.h"
 #include "PRCv13_RF.h"
