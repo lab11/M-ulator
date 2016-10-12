@@ -232,7 +232,7 @@ inline static void set_pmu_sleep_clk_init(){
 	));
 	delay(MBUS_DELAY);
 	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
-    mbus_remote_register_write(PMU_ADDR,0x36,0x000001);
+    mbus_remote_register_write(PMU_ADDR,0x36,0x000002);
 	delay(MBUS_DELAY);
 }
 

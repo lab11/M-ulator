@@ -610,7 +610,7 @@ static void operation_init(void){
     mbus_enumerate(HRV_ADDR);
 	delay(MBUS_DELAY);
  	mbus_enumerate(PMU_ADDR);
-	delay(MBUS_DELAY);i
+	delay(MBUS_DELAY);
 
     // Set CPU Halt Option as TX --> Use for register write e.g.
 	//    set_halt_until_mbus_tx();
