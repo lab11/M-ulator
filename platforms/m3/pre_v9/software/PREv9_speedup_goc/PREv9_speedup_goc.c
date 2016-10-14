@@ -88,6 +88,9 @@ int main() {
     set_pmu_sleep_clk_fastest();
 	delay(100);
 
+	write_mbus_message(0xAA, 0x1234ABCD);
+	delay(100);
+
     // Go to sleep without timer
     operation_sleep_notimer();
 
