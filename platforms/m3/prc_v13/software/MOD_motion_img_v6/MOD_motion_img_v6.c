@@ -4,11 +4,12 @@
 //				Imaging and motion detection with MDv3 or MDv4
 //				FLASH storage with FLPv2
 //				PRCv13 & PRCv14
+//				PMUv3
 //*******************************************************************
 #include "PRCv13.h"
 #include "PRCv13_RF.h"
 #include "mbus.h"
-#include "PMUv2_RF.h"
+#include "PMUv3_RF.h"
 #include "MDv3.h"
 #include "RADv9.h"
 
