@@ -523,24 +523,8 @@ static void operation_sleep_notimer(void){
 }
 
 //************************************
-// FLSv2 Functions
+// FLPv2 Functions
 //************************************
-
-uint32_t check_flash_sram(uint8_t addr_stamp, uint32_t length){
-	uint32_t idx;
-
-	for(idx=0; idx<length; idx++) {
-
-    	set_halt_until_mbus_rx();
-		mbus_copy_mem_from_remote_to_any_bulk(FLS_ADDR, (uint32_t*)(idx << 2), PRC_ADDR, (uint32_t*)&flash_read_data_single, 0);
-		//FLSv2MBusGPIO_readMem(FLS_ADDR, 0xEE, 0, ((uint32_t) idx) << 2);
-    	set_halt_until_mbus_tx();
-		mbus_write_message32(addr_stamp, flash_read_data_single);
-		
-	}
-
-	return 1;
-}
 
 uint32_t check_flash_sram_full_image(){
 	uint32_t idx;
@@ -583,19 +567,9 @@ static void flash_turn_on(){
 
 	set_pmu_sar_override(48);
 
-    set_halt_until_mbus_rx();
-	mbus_remote_register_write(FLS_ADDR,0x11,0x00003F);
-    set_halt_until_mbus_tx();
-	//check_flash_payload(0xA4, 0x000000B5);
-
 }
 
 static void flash_turn_off(){
-
-    set_halt_until_mbus_rx();
-	mbus_remote_register_write(FLS_ADDR,0x11,0x00003D);
-    set_halt_until_mbus_tx();
-	//check_flash_payload(0xA6, 0x000000BB);
 
 	set_pmu_sar_override(47);
 
@@ -607,28 +581,24 @@ static void flash_erase_single_page(volatile uint32_t page_num){
     set_halt_until_mbus_rx();
 	mbus_remote_register_write(FLS_ADDR,0x07,((0x0 << 6) | (0x1 << 5) | (0x4 << 1) | (0x1 << 0))); // Do erase
     set_halt_until_mbus_tx();
-	//check_flash_payload(0xA1, 0x00000055);
 
 }
 
 static void flash_copy_flash2sram(volatile uint32_t length){
 
-    mbus_remote_register_write(FLS_ADDR,0x08,0x0); // Set SRAM start addr
+    mbus_remote_register_write(FLS_ADDR,0x08,0x0); // Set SRAM_START_ADDR
     set_halt_until_mbus_rx();
 	mbus_remote_register_write(FLS_ADDR,0x07,((length << 6) | (0x1 << 5) | (0x1 << 1) | (0x1 << 0)));
     set_halt_until_mbus_tx();
-	//check_flash_payload(0xA8, 0x00000024);
-
 }
 
 static void flash_copy_sram2flash(volatile uint32_t length){
 
-    mbus_remote_register_write(FLS_ADDR,0x08,0x0); // Set SRAM start addr
+    // Copy SRAM to Flash (Fast Programming)
+    mbus_remote_register_write(FLS_ADDR,0x08,0x0); // Set SRAM_START_ADDR
     set_halt_until_mbus_rx();
-	mbus_remote_register_write(FLS_ADDR,0x07,((length << 6) | (0x1 << 5) | (0x2 << 1) | (0x1 << 0)));
+	mbus_remote_register_write(FLS_ADDR,0x07,((length << 6) | (0x1 << 5) | (0x3 << 1) | (0x1 << 0))); // Fast Programming
     set_halt_until_mbus_tx();
-	//check_flash_payload(0xA8, 0x0000003D);
-
 }
 
 
@@ -1163,14 +1133,14 @@ static void operation_init(void){
     // Set CPU Halt Option as TX --> Use for register write e.g.
     set_halt_until_mbus_tx();
 	
-/*
+
 	// Set CPU & Mbus Clock Speeds
     prcv13_r0B.DSLP_CLK_GEN_FAST_MODE = 0x1; // Default 0x0
     prcv13_r0B.CLK_GEN_RING = 0x3; // Default 0x1
     prcv13_r0B.CLK_GEN_DIV_MBC = 0x0; // Default 0x1
     prcv13_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
 	*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv13_r0B.as_int;
-*/
+
     //Enumerate & Initialize Registers
     enumerated = 0xABCD1234;
     exec_count = 0;
@@ -1178,18 +1148,15 @@ static void operation_init(void){
     mbus_msg_flag = 0;
 	sleep_time_prev = 0;
 
-    // Set CPU Halt Option as RX --> Use for register read e.g.
-    //set_halt_until_mbus_rx();
-
     // Enumeration
 	// Stack order: PRC->HRV->MD->RAD->FLS->PMU
-    mbus_enumerate(HRV_ADDR);
-    delay(MBUS_DELAY);
+    //mbus_enumerate(HRV_ADDR);
+    //delay(MBUS_DELAY);
     mbus_enumerate(MD_ADDR);
     delay(MBUS_DELAY);
     mbus_enumerate(RAD_ADDR);
     delay(MBUS_DELAY);
-    //mbus_enumerate(FLS_ADDR);
+    mbus_enumerate(FLS_ADDR);
     delay(MBUS_DELAY);
     mbus_enumerate(PMU_ADDR);
     delay(MBUS_DELAY);
@@ -1198,18 +1165,11 @@ static void operation_init(void){
 	set_pmu_motion_img_default();
 	delay(MBUS_DELAY*2);
 
-/*
-	// Initialize MDv3
-	initialize_md_reg();
-
-	delay(MBUS_DELAY);
-
     // Radio Settings --------------------------------------
     radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
     radv9_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
-    radv9_r0.RADIO_TUNE_FREQ2 = 0x0; //Tune Freq 2 //0x0,0x0 = 902MHz on Pblr005
+    radv9_r0.RADIO_TUNE_FREQ2 = 0x9; //Tune Freq 2
     radv9_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
-  
     mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
 
     // FSM data length setups
@@ -1227,32 +1187,25 @@ static void operation_init(void){
     // LFSR Seed
     radv9_r12.RAD_FSM_SEED = 4;
     mbus_remote_register_write(RAD_ADDR,12,radv9_r12.as_int);
-
+  
 	// Mbus return address; Needs to be between 0x18-0x1F
     mbus_remote_register_write(RAD_ADDR,0xF,0x1900);
+
+
+    // Flash settings (FLPv2) ------------------------------
+    // Tune Flash
+    mbus_remote_register_write(FLP_ADDR,0x26,0x0D7788); // Program Current
+    delay(MBUS_DELAY);
+    mbus_remote_register_write(FLP_ADDR,0x27,0x011BC8); // Erase Pump Diode Chain
+    delay(MBUS_DELAY);
+    mbus_remote_register_write(FLP_ADDR,0x01,0x000109); // Tprog idle time
+    delay(MBUS_DELAY);
+    mbus_remote_register_write(FLP_ADDR,0x19,0x000F03); // Voltage Clamper Tuning
+    delay(MBUS_DELAY);
+    mbus_remote_register_write(FLP_ADDR,0x12,0x000003); // Auto Power On/Off
     delay(MBUS_DELAY);
 
-    // Harvester Settings ----------------------------------
-	// Set conversion ratio to 9x
-    mbus_remote_register_write(HRV_ADDR,0x0,0x0);
-
-
-*/
-
-    // Flash Settings --------------------------------------
-	// Option to Slow down FLSv2L clock 
-	mbus_remote_register_write(FLS_ADDR, 0x18, 
-	( (0xC << 2)  /* CLK_RING_SEL[3:0] Default 0xC */
-	| (0x1 << 0)  /* CLK_DIV_SEL[1:0] Default 0x1 */
-	));
-
-/*
-	// Voltage Clamp & Timing settings
-	mbus_remote_register_write(FLS_ADDR, 0x0, 0x41205); // Tprog
-	mbus_remote_register_write(FLS_ADDR, 0x2, 0x3FFFF); // Terase; default: 0x0752F
-	mbus_remote_register_write(FLS_ADDR, 0x4, 0x000700); // Tcyc_prog
-	mbus_remote_register_write(FLS_ADDR, 0x19, 0x3C4303); // Default: 0x3C4103
-*/
+    // Initialize other global variables
 	md_start_motion = 0;
 	md_capture_img = 0;
 	md_count = 0;
@@ -1344,7 +1297,7 @@ int main() {
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm(0,0xFAF000+exec_count_irq);	
+				send_radio_data_ppm(0,0xABC000+exec_count_irq);	
 				// set timer
 				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
@@ -1425,7 +1378,7 @@ int main() {
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm(0,0xFAF000+img_count);	
+				send_radio_data_ppm(0,0xC00000+img_count);	
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
