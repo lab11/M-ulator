@@ -1,9 +1,8 @@
 //****************************************************************************************************
 //Author:       Gyouho Kim
 //Description: 	MODv2.0 System Code
-//				Imaging and motion detection with MDv3 or MDv4
-//				FLASH storage with FLPv2
-//				PRCv13 & PRCv14
+//				Imaging and motion detection with MDv3
+//				FLASH storage with FLSv2
 //*******************************************************************
 #include "PRCv13.h"
 #include "PRCv13_RF.h"
