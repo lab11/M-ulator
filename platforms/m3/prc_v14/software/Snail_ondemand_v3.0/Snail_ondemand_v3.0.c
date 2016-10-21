@@ -2,6 +2,10 @@
 //Author: Inhee Lee 
 //		  
 //Description: Sensing System for Snail Project
+//
+//			Version 3.0
+//			- Use new reset scheme 
+//			- PRCv14, PMUv3
 //			
 //			version 2.4
 //			- Fixed an error in Trig 3 Error Report
@@ -27,23 +31,23 @@
 //
 //*******************************************************************
 
-#include "PRCv13.h"
-#include "PRCv13_RF.h"
+#include "PRCv14.h"
+#include "PRCv14_RF.h"
 #include "mbus.h"
 #include "SNSv7.h"
 #include "HRVv2.h"
 #include "RADv9.h"
-#include "PMUv2_RF.h"
+#include "PMUv3_RF.h"
 
 // uncomment this for debug mbus message
 // #define DEBUG_MBUS_MSG
  #define DEBUG_MBUS_MSG_1
 
 // TStack order  PRC->RAD->SNS->HRV->PMU
-#define RAD_ADDR 0x4
-#define SNS_ADDR 0x5
-#define HRV_ADDR 0x6
-#define PMU_ADDR 0x7
+#define RAD_ADDR 0x2
+#define SNS_ADDR 0x3
+#define HRV_ADDR 0x4
+#define PMU_ADDR 0x6
 
 // Sensor parameters
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
@@ -92,7 +96,7 @@ volatile radv9_r14_t radv9_r14 = RADv9_R14_DEFAULT;
 
 volatile hrvv2_r0_t hrvv2_r0 = HRVv2_R0_DEFAULT;
 
-volatile prcv13_r0B_t prcv13_r0B = PRCv13_R0B_DEFAULT;
+volatile prcv14_r0B_t prcv14_r0B = PRCv14_R0B_DEFAULT;
 
 volatile uint32_t enumerated;
 volatile uint8_t  Tstack_state;
@@ -229,13 +233,27 @@ inline static void set_pmu_sleep_clk_init(){
 	));
 	delay(MBUS_DELAY);
 	// SAR_RATIO_OVERRIDE
+	// Use the new reset scheme in PMUv3
     mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
-		( (1 << 11) // Enable override setting [10] (1'h0)
+		( (0 << 13) // Enables override setting [12] (1'b1)
+		| (0 << 12) // Let VDD_CLK always connected to vbat
+		| (1 << 11) // Enable override setting [10] (1'h0)
+		| (0 << 10) // Have the converter have the periodic reset (1'h0)
+		| (0 << 9) // Enable override setting [8] (1'h0)
+		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+		| (0 << 7) // Enable override setting [6:0] (1'h0)
+		| (44) 		// Binary converter's conversion ratio (7'h00)
+	));
+	delay(MBUS_DELAY);
+    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+		( (0 << 13) // Enables override setting [12] (1'b1)
+		| (0 << 12) // Let VDD_CLK always connected to vbat
+		| (1 << 11) // Enable override setting [10] (1'h0)
 		| (0 << 10) // Have the converter have the periodic reset (1'h0)
 		| (1 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (48) 		// Binary converter's conversion ratio (7'h00)
+		| (44) 		// Binary converter's conversion ratio (7'h00)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
@@ -594,13 +612,6 @@ static void operation_tx_stored(void){
 
 static void operation_init(void){
   
-	// Set CPU & Mbus Clock Speeds
-    prcv13_r0B.DSLP_CLK_GEN_FAST_MODE = 0x1; // Default 0x0
-    prcv13_r0B.CLK_GEN_RING = 0x1; // Default 0x1
-    prcv13_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
-    prcv13_r0B.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
-	*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv13_r0B.as_int;
-
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
@@ -1020,7 +1031,7 @@ int main() {
     
     set_wakeup_timer(100, 0, 1); // Reset Wakeup Timer; 
 	enable_reg_irq(); // Initialize Interrupts, Only enable register-related interrupts
-    config_timerwd(0x3FFFFF); // Config watchdog timer to about 10 sec (default: 0x02FFFFFF), 0xFFFFF about 13 sec with Y2 run default clock
+  config_timerwd(0x3FFFFF); // Config watchdog timer to about 10 sec (default: 0x02FFFFFF), 0xFFFFF about 13 sec with Y2 run default clock
 //	disable_timerwd();
 
 
