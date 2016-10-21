@@ -1194,15 +1194,15 @@ static void operation_init(void){
 
     // Flash settings (FLPv2) ------------------------------
     // Tune Flash
-    mbus_remote_register_write(FLP_ADDR,0x26,0x0D7788); // Program Current
+    mbus_remote_register_write(FLS_ADDR,0x26,0x0D7788); // Program Current
     delay(MBUS_DELAY);
-    mbus_remote_register_write(FLP_ADDR,0x27,0x011BC8); // Erase Pump Diode Chain
+    mbus_remote_register_write(FLS_ADDR,0x27,0x011BC8); // Erase Pump Diode Chain
     delay(MBUS_DELAY);
-    mbus_remote_register_write(FLP_ADDR,0x01,0x000109); // Tprog idle time
+    mbus_remote_register_write(FLS_ADDR,0x01,0x000109); // Tprog idle time
     delay(MBUS_DELAY);
-    mbus_remote_register_write(FLP_ADDR,0x19,0x000F03); // Voltage Clamper Tuning
+    mbus_remote_register_write(FLS_ADDR,0x19,0x000F03); // Voltage Clamper Tuning
     delay(MBUS_DELAY);
-    mbus_remote_register_write(FLP_ADDR,0x12,0x000003); // Auto Power On/Off
+    mbus_remote_register_write(FLS_ADDR,0x12,0x000003); // Auto Power On/Off
     delay(MBUS_DELAY);
 
     // Initialize other global variables
