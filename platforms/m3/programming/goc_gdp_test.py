@@ -17,10 +17,16 @@ gcl_handle = gdp.GDP_GCL(gcl_name, gdp.GDP_MODE_RA)
 
 #gcl_handle.append(d)
 
-record = gcl_handle.read(3)
-raw = record['data']
+while True:
+	try:
+		idx = int(raw_input("Image index: "))
 
-image = Image.fromstring('RGB', (640,640), raw)
-image.show()
+		record = gcl_handle.read(idx)
+		raw = record['data']
+
+		image = Image.fromstring('RGB', (640,640), raw)
+		image.show()
+	except:
+		print("That image not availabe.")
 
 #code.interact(local=locals())
