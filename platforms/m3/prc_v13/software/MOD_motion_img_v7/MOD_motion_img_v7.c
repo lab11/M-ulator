@@ -225,6 +225,14 @@ static void set_pmu_motion_img_default(void){
 		| (4) 		// Floor frequency base (0-31)
 	));
 	delay(MBUS_DELAY);
+    mbus_remote_register_write(PMU_ADDR,0x17, 
+		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+		| (0 << 13) // Enable main feedback loop
+		| (1 << 9)  // Frequency multiplier R
+		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (4) 		// Floor frequency base (0-31)
+	));
+	delay(MBUS_DELAY);
 	// UPCONV_TRIM_V3 Active
     mbus_remote_register_write(PMU_ADDR,0x18, 
 		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
@@ -878,20 +886,12 @@ static void capture_image_single_with_flash(uint32_t page_offset){
 	poweroff_array_adc();
 
 	// Check Flash SRAM after image
-	// Debug only
-	//check_flash_sram_full_image();
-
-	// Turn on Flash macro
-	flash_turn_on();
-	delay(MBUS_DELAY);
+	// FIXME: Debug only
+	check_flash_sram_full_image();
 
 	// Copy SRAM to Flash
     mbus_remote_register_write(FLS_ADDR,0x09,page_offset); // Set flash start addr; should be a multiple of 0x800
 	flash_copy_sram2flash(0x1FFF); // 4 pages
-
-	// Turn off Flash Macro
-	flash_turn_off();
-	delay(MBUS_DELAY);
 
 }
 
@@ -901,26 +901,15 @@ static void operation_flash_erase(uint32_t page_offset){
 	// Set START ADDRESS
     mbus_remote_register_write(FLS_ADDR,0x08,0x0);
 
-	// Turn on Flash Macro
-	flash_turn_on();
-	delay(MBUS_DELAY);
-
 	// Erase 4 Pages
 	flash_erase_single_page(page_offset); // Should be a multiple of 0x800
 	flash_erase_single_page(page_offset+0x800); // Should be a multiple of 0x800
 	flash_erase_single_page(page_offset+0x1000); // Should be a multiple of 0x800
 	flash_erase_single_page(page_offset+0x1800); // Should be a multiple of 0x800
 
-	// Turn off Flash Macro
-	flash_turn_off();
-
 }
 
 static void operation_flash_erase_all(uint32_t erase_num){
-
-	// Turn on Flash Macro
-	flash_turn_on();
-	delay(MBUS_DELAY);
 
 	uint32_t count = 0;
 	uint32_t page_offset = 0;
@@ -936,22 +925,12 @@ static void operation_flash_erase_all(uint32_t erase_num){
 		delay(MBUS_DELAY);
 	}
 
-	// Turn off Flash Macro
-	flash_turn_off();
-
 }
 static void operation_flash_read(uint32_t page_offset){
-
-	// Turn on Flash Macro
-	flash_turn_on();
-	delay(MBUS_DELAY);
 
 	// Copy Flash to SRAM
     mbus_remote_register_write(FLS_ADDR,0x09,page_offset); // Set flash start addr; should be a multiple of 0x800
 	flash_copy_flash2sram(0x1FFF); // 4 pages
-
-	// Turn off Flash Macro
-	flash_turn_off();
 
 	// Transmit recovered image via MBus
 	check_flash_sram_full_image();
