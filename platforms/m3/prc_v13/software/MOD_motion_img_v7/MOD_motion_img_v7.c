@@ -40,11 +40,6 @@
 #define WAKEUP_PERIOD_RADIO_INIT 2
 #define RADIO_PACKET_DELAY 4000 // Need 100-200ms
 
-// FLSv1 configurations
-//#define FLS_RECORD_LENGTH 0x18FE // In words; # of words stored -2
-#define FLS_RECORD_LENGTH 6473 // In words; # of words stored -2; Full image with mbus overhead
-#define FLS_CHECK_LENGTH 200 // In words
-
 //***************************************************
 // Global variables
 //***************************************************
@@ -556,7 +551,7 @@ static void flash_turn_off(){
 }
 
 static void flash_erase_single_page(volatile uint32_t page_num){
-	// page_num should be a multiple of 0x800
+	// page_num should be a multiple of 0x100
     mbus_remote_register_write(FLS_ADDR,0x09,page_num); // Set flash start addr
     set_halt_until_mbus_rx();
 	mbus_remote_register_write(FLS_ADDR,0x07,((0x0 << 6) | (0x1 << 5) | (0x4 << 1) | (0x1 << 0))); // Do erase
@@ -577,7 +572,7 @@ static void flash_copy_sram2flash(volatile uint32_t length){
     // Copy SRAM to Flash (Fast Programming)
     mbus_remote_register_write(FLS_ADDR,0x08,0x0); // Set SRAM_START_ADDR
     set_halt_until_mbus_rx();
-	mbus_remote_register_write(FLS_ADDR,0x07,((length << 6) | (0x1 << 5) | (0x3 << 1) | (0x1 << 0))); // Fast Programming
+	mbus_remote_register_write(FLS_ADDR,0x07,((length << 6) | (0x1 << 5) | (0x2 << 1) | (0x1 << 0))); // Fast Programming
     set_halt_until_mbus_tx();
 }
 
@@ -874,7 +869,7 @@ static bool wait_for_interrupt(uint32_t wait_count){
 static void capture_image_single_with_flash(uint32_t page_offset){
 
 	// Reset Mbus streaming write buffer offset
-    mbus_remote_register_write(FLS_ADDR,0x27,0x0);
+    mbus_remote_register_write(FLS_ADDR,0x37,0x0);
 
 	// Start imaging
 	capture_image_single();
@@ -890,38 +885,25 @@ static void capture_image_single_with_flash(uint32_t page_offset){
 	check_flash_sram_full_image();
 
 	// Copy SRAM to Flash
-    mbus_remote_register_write(FLS_ADDR,0x09,page_offset); // Set flash start addr; should be a multiple of 0x800
-	flash_copy_sram2flash(0x1FFF); // 4 pages
+    mbus_remote_register_write(FLS_ADDR,0x09,page_offset); // Set flash start addr; should be a multiple of 0x100
+	//flash_copy_sram2flash(0x1FFF); // FLS: 4 pages; 32kB
+	flash_copy_sram2flash(0x19FF); // FLP: 26 pages; 26kB
 
 }
 
 
-static void operation_flash_erase(uint32_t page_offset){
-
-	// Set START ADDRESS
-    mbus_remote_register_write(FLS_ADDR,0x08,0x0);
-
-	// Erase 4 Pages
-	flash_erase_single_page(page_offset); // Should be a multiple of 0x800
-	flash_erase_single_page(page_offset+0x800); // Should be a multiple of 0x800
-	flash_erase_single_page(page_offset+0x1000); // Should be a multiple of 0x800
-	flash_erase_single_page(page_offset+0x1800); // Should be a multiple of 0x800
-
-}
-
-static void operation_flash_erase_all(uint32_t erase_num){
+static void operation_flash_erase(uint32_t erase_num){
 
 	uint32_t count = 0;
 	uint32_t page_offset = 0;
 
 	if (!erase_num){
-		erase_num = 256;
+		erase_num = 1024; // Erase all pages (1MB)
 	}
 
-	// Erase 256 pages
     for( count=0; count<erase_num; count++ ){
-		flash_erase_single_page(page_offset); // Should be a multiple of 0x800
-		page_offset = page_offset + 0x800;
+		flash_erase_single_page(page_offset); // Should be a multiple of 0x100
+		page_offset = page_offset + 0x100;
 		delay(MBUS_DELAY);
 	}
 
@@ -930,7 +912,8 @@ static void operation_flash_read(uint32_t page_offset){
 
 	// Copy Flash to SRAM
     mbus_remote_register_write(FLS_ADDR,0x09,page_offset); // Set flash start addr; should be a multiple of 0x800
-	flash_copy_flash2sram(0x1FFF); // 4 pages
+	//flash_copy_flash2sram(0x1FFF); // FLS: 4 pages; 32kB
+	flash_copy_flash2sram(0x19FF); // FLP: 26 pages; 26kB
 
 	// Transmit recovered image via MBus
 	check_flash_sram_full_image();
@@ -984,13 +967,11 @@ static void operation_md(void){
 		#ifdef DEBUG_MBUS_MSG
 			mbus_write_message32(0xA1, img_count);
 			delay(MBUS_DELAY);
-			mbus_write_message32(0xA1, 0x800 + img_count*0x2000);
+			mbus_write_message32(0xA1, 0x100 + img_count*0x1A00);
 			delay(MBUS_DELAY);
 		#endif
-			capture_image_single_with_flash(0x800+img_count*0x2000);
+			capture_image_single_with_flash(0x100+img_count*0x1A00);
 			img_count++;
-			// Erase the next section of flash
-			//operation_flash_erase(0x800+img_count*0x2000);
 
 		}
 		poweroff_array_adc();
@@ -1040,7 +1021,7 @@ static void operation_tx_image(void){
 	#ifdef DEBUG_MBUS_MSG
 		mbus_write_message32(0xA2, radio_tx_img_idx);
 		delay(MBUS_DELAY);
-		mbus_write_message32(0xA2, 0x800 + radio_tx_img_idx*0x2000);
+		mbus_write_message32(0xA2, 0x100 + radio_tx_img_idx*0x1A00);
 		delay(MBUS_DELAY);
 	#endif
 
@@ -1048,7 +1029,7 @@ static void operation_tx_image(void){
 	set_pmu_img();
 	
 	// Read image from Flash 
-	operation_flash_read(0x800 + radio_tx_img_idx*0x2000);
+	operation_flash_read(0x100 + radio_tx_img_idx*0x1A00);
 
 	// Send image to radio
 	// Commnet out for now
@@ -1147,11 +1128,11 @@ static void operation_init(void){
     // Tune Flash
     mbus_remote_register_write(FLS_ADDR,0x26,0x0D7788); // Program Current
     delay(MBUS_DELAY);
-    mbus_remote_register_write(FLS_ADDR,0x27,0x011BC8); // Erase Pump Diode Chain
+    mbus_remote_register_write(FLS_ADDR,0x27,0x011BC8); // Pump Diode Chain
     delay(MBUS_DELAY);
     mbus_remote_register_write(FLS_ADDR,0x01,0x000109); // Tprog idle time
     delay(MBUS_DELAY);
-    mbus_remote_register_write(FLS_ADDR,0x19,0x000F03); // Voltage Clamper Tuning
+    mbus_remote_register_write(FLS_ADDR,0x19,0x000F03); // Voltage Clamper Tuning // F03 default
     delay(MBUS_DELAY);
     mbus_remote_register_write(FLS_ADDR,0x12,0x000003); // Auto Power On/Off
     delay(MBUS_DELAY);
@@ -1214,6 +1195,9 @@ int main() {
 	// Set the watch-dog timer
 	config_timerwd(40000000); // 2e7: 1min
 	//disable_timerwd();
+
+	// Disable Mbus watchdog
+	*((volatile uint32_t *) 0xA0001504) = 1;
 	
     // Initialization sequence
     if (enumerated != 0xABCD1234){
@@ -1301,7 +1285,6 @@ int main() {
 			// Increase PMU strength for imaging and flash operation
 			//set_pmu_img();
 			//delay(DELAY_1); // about 0.5s
-			//operation_flash_erase(0x800);
 		}
 
 		operation_md();
@@ -1409,7 +1392,7 @@ int main() {
 		// Erase all pages of flash
 		set_pmu_img();
   		delay(MBUS_DELAY);
-		operation_flash_erase_all(wakeup_data_field_0*4);
+		operation_flash_erase(wakeup_data_field_0*26);
 
 		// Turn off only the Flash layer
 		mbus_sleep_layer_short(FLS_ADDR);
