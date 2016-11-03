@@ -138,9 +138,6 @@ static void operation_init(void){
     // Release Temp Sensor Reset
     temp_sensor_release_reset();
 
-
-    // Go to sleep without timer
-    operation_sleep_notimer();
 }
 
 
