@@ -748,9 +748,11 @@ static void operation_temp_run(void){
 
 				// Optionally transmit the data
 				if (radio_tx_option){
-					send_radio_data_ppm(0, read_data_reg10);
+					send_radio_data_ppm(0, exec_count);
 					delay(RADIO_PACKET_DELAY);
 					send_radio_data_ppm(0, read_data_reg11);
+					delay(RADIO_PACKET_DELAY);
+					send_radio_data_ppm(0, read_data_reg10);
 				}
 
 				// Enter long sleep
