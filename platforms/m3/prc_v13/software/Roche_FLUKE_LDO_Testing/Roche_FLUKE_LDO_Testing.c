@@ -67,16 +67,6 @@ void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
 // Temp Sensor Functions (SNSv7)
 //***************************************************
 
-static void temp_sensor_enable(){
-    snsv7_r14.TEMP_SENSOR_ENABLEb = 0x0;
-    mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
-}
-static void temp_sensor_release_reset(){
-    snsv7_r14.TEMP_SENSOR_RESETn = 1;
-    snsv7_r14.TEMP_SENSOR_ISO = 0;
-    mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
-}
-
 static void operation_init(void){
   
     // Set CPU & Mbus Clock Speeds
@@ -101,46 +91,32 @@ static void operation_init(void){
     // set_halt_until_mbus_tx();
     
     // Temp Sensor Settings --------------------------------------
-    // SNSv7_R25
-    snsv7_r25.TEMP_SENSOR_IRQ_PACKET = 0x001800;
-    mbus_remote_register_write(SNS_ADDR,0x19,snsv7_r25.as_int);
-    // SNSv7_R14
-    snsv7_r14.TEMP_SENSOR_BURST_MODE = 0x1;
-    snsv7_r14.TEMP_SENSOR_DELAY_SEL = 0x3;
-    snsv7_r14.TEMP_SENSOR_R_tmod = 0xE;
-    snsv7_r14.TEMP_SENSOR_R_bmod = 0xE;
-    mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
-    // snsv7_R15
-    snsv7_r15.TEMP_SENSOR_AMP_BIAS = 0x7;
-    snsv7_r15.TEMP_SENSOR_CONT_MODEb = 0x0;
-    snsv7_r15.TEMP_SENSOR_SEL_CT = 0x9;
-    snsv7_r15.TEMP_SENSOR_R_PTAT = 0x8F;
-    snsv7_r15.TEMP_SENSOR_R_REF = 0x7F;
-    mbus_remote_register_write(SNS_ADDR,0xF,snsv7_r15.as_int);
-    
     // snsv7_R18
     snsv7_r18.ADC_LDO_ADC_LDO_ENB      = 0x1;
     snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB  = 0x1;
     snsv7_r18.ADC_LDO_ADC_CURRENT_2X  = 0x1;
+
+    snsv7_r18.CDC_LDO_CDC_LDO_ENB      = 0x1;
+    snsv7_r18.CDC_LDO_CDC_LDO_DLY_ENB  = 0x1;
+    snsv7_r18.CDC_LDO_CDC_CURRENT_2X  = 0x1;
+
+    snsv7_r18.ADC_LDO_ADC_VREF_MUX_SEL = 0x3;
+    snsv7_r18.ADC_LDO_ADC_VREF_SEL = 0x20;
+    snsv7_r18.CDC_LDO_CDC_VREF_MUX_SEL = 0x2;
+    snsv7_r18.CDC_LDO_CDC_VREF_SEL = 0x04;
     
-    // Set ADC LDO to around 1.37V: 0x3//0x20
-    snsv7_r18.ADC_LDO_ADC_VREF_MUX_SEL = 0x2;
-    snsv7_r18.ADC_LDO_ADC_VREF_SEL     = 0x10;
-    
-    mbus_remote_register_write(SNS_ADDR,0x12,snsv7_r18.as_int);
+    mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
+    delay(MBUS_DELAY);
     
     snsv7_r18.ADC_LDO_ADC_LDO_ENB = 0x0;
+    snsv7_r18.CDC_LDO_CDC_LDO_ENB = 0x0;
     mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
     delay(MBUS_DELAY);
 
     snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
+    snsv7_r18.CDC_LDO_CDC_LDO_DLY_ENB = 0x0;
     mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
-    // Release Temp Sensor Reset
-    temp_sensor_release_reset();
-
 }
-
-
 
 //********************************************************************
 // MAIN function starts here             
@@ -164,7 +140,6 @@ int main() {
         operation_init();
     }
 
-    temp_sensor_enable();
     while(1);
 
     // Should not reach here

@@ -107,15 +107,15 @@ static void operation_init(void){
     // SNSv7_R14
     snsv7_r14.TEMP_SENSOR_BURST_MODE = 0x1;
     snsv7_r14.TEMP_SENSOR_DELAY_SEL = 0x3;
-    snsv7_r14.TEMP_SENSOR_R_tmod = 0xE;
-    snsv7_r14.TEMP_SENSOR_R_bmod = 0xE;
+    snsv7_r14.TEMP_SENSOR_R_tmod;
+    snsv7_r14.TEMP_SENSOR_R_bmod;
     mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
     // snsv7_R15
-    snsv7_r15.TEMP_SENSOR_AMP_BIAS = 0x7;
+    snsv7_r15.TEMP_SENSOR_AMP_BIAS;
     snsv7_r15.TEMP_SENSOR_CONT_MODEb = 0x0;
-    snsv7_r15.TEMP_SENSOR_SEL_CT = 0x9;
-    snsv7_r15.TEMP_SENSOR_R_PTAT = 0x8F;
-    snsv7_r15.TEMP_SENSOR_R_REF = 0x7F;
+    snsv7_r15.TEMP_SENSOR_SEL_CT;
+    snsv7_r15.TEMP_SENSOR_R_PTAT;
+    snsv7_r15.TEMP_SENSOR_R_REF;
     mbus_remote_register_write(SNS_ADDR,0xF,snsv7_r15.as_int);
     
     // snsv7_R18
@@ -132,15 +132,11 @@ static void operation_init(void){
     snsv7_r18.ADC_LDO_ADC_LDO_ENB = 0x0;
     mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
     delay(MBUS_DELAY);
-
     snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
     mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
     // Release Temp Sensor Reset
     temp_sensor_release_reset();
-
 }
-
-
 
 //********************************************************************
 // MAIN function starts here             
