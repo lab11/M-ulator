@@ -28,6 +28,7 @@
 #define	MBUS_DELAY 200 //Amount of delay between successive messages; 5-6ms
 #define WAKEUP_DELAY 20000 // 0.6s
 #define DELAY_1 40000 // 5000: 0.5s
+#define DELAY_2 120000 // 5000: 0.5s
 #define IMG_TIMEOUT_COUNT 5000
 
 // MDv3 Parameters
@@ -291,7 +292,7 @@ static void set_pmu_motion_img_default(void){
 		| (0 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (0 << 7) // Enable override setting [6:0] (1'h0)
-		| (48) 		// Binary converter's conversion ratio (7'h00)
+		| (47) 		// Binary converter's conversion ratio (7'h00)
 		// 48: 1.5V
 		// 38: 1.1V
 		// 41: 1.26V
@@ -305,7 +306,7 @@ static void set_pmu_motion_img_default(void){
 		| (1 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (48) 		// Binary converter's conversion ratio (7'h00)
+		| (47) 		// Binary converter's conversion ratio (7'h00)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
@@ -760,6 +761,35 @@ static void poweron_frame_controller(){
 
 }
 
+static void poweroff_frame_controller(){
+
+	// Set MD Isolation
+	// 7:15
+	mdv3_r7.ISOLATE_MD = 1;
+	mbus_remote_register_write(MD_ADDR,0x7,mdv3_r7.as_int);
+	delay(MBUS_DELAY);
+
+	// Stop MD Clock
+	// 5:12
+	mdv3_r5.CLK_EN_MD = 0;
+	mbus_remote_register_write(MD_ADDR,0x5,mdv3_r5.as_int);
+	delay(MBUS_DELAY);
+
+	// Set MD Reset
+	// 2:23
+	mdv3_r2.RESET_MD = 1;
+	mbus_remote_register_write(MD_ADDR,0x2,mdv3_r2.as_int);
+	delay(MBUS_DELAY);
+
+	// Set MD Presleep & Sleep
+	// 2:21-22
+	mdv3_r2.PRESLEEP_MD = 1;
+	mdv3_r2.SLEEP_MD = 1;
+	mbus_remote_register_write(MD_ADDR,0x2,mdv3_r2.as_int);
+	delay(MBUS_DELAY);
+
+}
+
 static void poweron_array_adc(){
 
 	// Release IMG Presleep 
@@ -882,7 +912,8 @@ static void capture_image_single_with_flash(uint32_t page_offset){
 
 	// Check Flash SRAM after image
 	// FIXME: Debug only
-	check_flash_sram_full_image();
+	//check_flash_sram_full_image();
+
 
 	// Copy SRAM to Flash
     mbus_remote_register_write(FLS_ADDR,0x09,page_offset); // Set flash start addr; should be a multiple of 0x100
@@ -936,6 +967,8 @@ static void operation_md(void){
 		operation_sleep_notimer();
 	}
 
+	//delay(DELAY_2); // FIXME
+
 	// Release power gates, isolation, and reset for frame controller
 	if (md_count == 0) {
 		initialize_md_reg();
@@ -951,6 +984,7 @@ static void operation_md(void){
 			send_radio_data_ppm(0,0xFAFA1234);	
 		}
 	}
+
 
 	if (md_capture_img && md_valid){
 		
@@ -974,10 +1008,8 @@ static void operation_md(void){
 			img_count++;
 
 		}
-		poweroff_array_adc();
 
 		// Turn off only the Flash layer
-		//mbus_write_message32(0x01, (0x2<<28) + (0x1<<(FLS_ADDR+12)));
 		mbus_sleep_layer_short(FLS_ADDR);
   		delay(MBUS_DELAY);
 
@@ -1006,8 +1038,12 @@ static void operation_md(void){
 		start_md();
 
 	}else{
-
+		// Turn off MDSENSOR
+		poweroff_frame_controller();
+		// Set PMU settings back to default
+		set_pmu_motion();
 	}
+
 
 	// Reset wakeup timer
 	set_wakeup_timer(1000000, 0, 1);
