@@ -127,8 +127,10 @@ static void print_periphs(void) {
 static void print_reg_state_internal(void) {
 	int i;
 	union apsr_t apsr = CORE_apsr_read();
+	union epsr_t epsr = CORE_epsr_read();
 
-	printf("[Cycle %d]\t\t\t", cycle);
+	printf("[Cycle %d]\t\t", cycle);
+	printf("\t  T: %d", epsr.bits.T);
 	printf("\t  N: %d  Z: %d  C: %d  V: %d  ",
 			apsr.bits.N, apsr.bits.Z, apsr.bits.C, apsr.bits.V);
 	printf("| ITSTATE: %02x  ", read_itstate());
@@ -150,13 +152,6 @@ static void print_reg_state_internal(void) {
 	      );
 }
 
-static void print_reg_state(void) {
-	DIVIDERe;
-	print_periphs();
-	DIVIDERd;
-	print_reg_state_internal();
-}
-
 #ifndef NO_PIPELINE
 static void print_stages(void) {
 	printf("Stages:\n");
@@ -164,6 +159,17 @@ static void print_stages(void) {
 			pre_if_PC, if_id_PC, id_ex_PC);
 }
 #endif
+
+static void print_reg_state(void) {
+	DIVIDERe;
+	print_periphs();
+	DIVIDERd;
+	print_reg_state_internal();
+#ifndef NO_PIPELINE
+	DIVIDERd;
+	print_stages();
+#endif
+}
 
 static const char *get_dump_name(char c) {
 	static char name[] = "/tmp/rom.\0\0\0\0\0\0\0\0\0";
@@ -175,16 +181,7 @@ static const char *get_dump_name(char c) {
 }
 
 static void print_full_state(void) {
-	DIVIDERe;
-	print_periphs();
-
-	DIVIDERd;
-	print_reg_state_internal();
-
-#ifndef NO_PIPELINE
-	DIVIDERd;
-	print_stages();
-#endif
+	print_reg_state();
 
 	DIVIDERd;
 
@@ -689,6 +686,10 @@ EXPORT void sim_terminate(bool should_exit) {
 		INFO("Approximate average frequency: %f hz\n", freq);
 	}
 	INFO("Simulator executed %d cycle%s\n", cycle, (cycle == 1) ? "":"s");
+	if (core_stats_unaligned_cycle_penalty != 0) {
+		WARN("Wasted %u cycle(s) to unaligned memory accesses\n",
+				core_stats_unaligned_cycle_penalty);
+	}
 	join_periph_threads();
 	INFO("Simulator shutdown successfully.\n");
 	if (!should_exit)

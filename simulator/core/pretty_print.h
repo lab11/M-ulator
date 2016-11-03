@@ -93,10 +93,18 @@ extern int raiseonerror; // storage in simulator.c
 #define TRAP(...)\
 	do {\
 		flockfile(stdout); flockfile(stderr);\
-		_PP_EXTRA(stderr, 'T');\
+		_PP_EXTRA(stderr, 'P');\
 		fprintf(stderr, __VA_ARGS__);\
 		funlockfile(stderr); funlockfile(stdout);\
 		raise(SIGTRAP);\
+	} while (0)
+#define TODO(...)\
+	do {\
+		flockfile(stdout); flockfile(stderr);\
+		_PP_EXTRA(stdout, 'T');\
+		fprintf(stdout, "TODO: ");\
+		fprintf(stdout, __VA_ARGS__);\
+		funlockfile(stderr); funlockfile(stdout);\
 	} while (0)
 
 #endif //PRETTY_PRINT_H

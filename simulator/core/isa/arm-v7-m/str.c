@@ -184,7 +184,7 @@ static void strd_imm_t1(uint32_t inst) {
 	if (wback && ((rn == rt) || (rn == rt2)))
 		CORE_ERR_unpredictable("strd_imm_t1 wback + regs\n");
 
-	if ((rn == 15) || (rt >= 13) || (rt2 >= 13))
+	if ((rn == 15) || (rt == 13) || (rt == 15) || (rt2 == 13) || (rt2 == 15))
 		CORE_ERR_unpredictable("strd_imm_t1 bad regs\n");
 
 	return strd_imm(rt, rt2, rn, imm32, index, add, wback);

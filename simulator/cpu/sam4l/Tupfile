@@ -1,0 +1,5 @@
+ifeq (@(PLATFORM),sam4l)
+include_rules
+
+: foreach *.c |> !cc |> %B.o ../../<objs>
+endif

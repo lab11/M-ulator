@@ -27,8 +27,8 @@
 #define	MBUS_DELAY 100 //Amount of delay between successive messages
 #define	LDO_DELAY 500 // 1000: 150msec
 #define CDC_TIMEOUT_COUNT 400
-#define WAKEUP_PERIOD_RESET 2
-#define WAKEUP_PERIOD_LDO 2
+#define WAKEUP_PERIOD_RESET 1
+#define WAKEUP_PERIOD_LDO 1
 
 // Pstack states
 #define	PSTK_IDLE       0x0
@@ -178,6 +178,9 @@ static void operation_sleep(void){
 	// Reset IRQ14VEC
 	*((volatile uint32_t *) IRQ14VEC) = 0;
 
+	// Reset wakeup timer
+	*WUPT_RESET = 0x01;
+
     // Go to Sleep
     delay(MBUS_DELAY);
     mbus_sleep_all();
@@ -186,6 +189,9 @@ static void operation_sleep(void){
 }
 
 static void operation_sleep_noirqreset(void){
+
+	// Reset wakeup timer
+	*WUPT_RESET = 0x01;
 
     // Go to Sleep
     delay(MBUS_DELAY);
@@ -223,6 +229,10 @@ static void operation_init(void){
   
     delay(1000);
   
+    // Disable MBus Watchdog Timer
+    //*REG_MBUS_WD = 0;
+	*((volatile uint32_t *) 0xA000007C) = 0;
+
     //Enumerate & Initialize Registers
     Pstack_state = PSTK_IDLE; 	//0x0;
     enumerated = 0xDEADBEEF;
@@ -250,11 +260,11 @@ static void operation_init(void){
     mbus_remote_register_write(SNS_ADDR,1,snsv7_r1.as_int);
   
     // snsv7_r2
-    snsv7_r2.CDCW_N_CYCLE_SET	= 100; // Min: 0
+    snsv7_r2.CDCW_N_CYCLE_SET	= 200; // Min: 0
     mbus_remote_register_write(SNS_ADDR,2,snsv7_r2.as_int);
   
     // snsv7_r18
-    snsv7_r18.CDC_LDO_CDC_CURRENT_2X  = 0;
+    snsv7_r18.CDC_LDO_CDC_CURRENT_2X  = 1;
   
     // Set ADC LDO to around 1.37V: 0x3//0x20
     snsv7_r18.ADC_LDO_ADC_VREF_MUX_SEL = 0x3;

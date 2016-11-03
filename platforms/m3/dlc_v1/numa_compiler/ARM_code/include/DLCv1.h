@@ -447,12 +447,14 @@ void arb_debug_reg (uint32_t code);
 #define DNN_PG_CTRL_2  ((volatile uint32_t *) 0xA00001F4)
 #define DNN_PG_CTRL_3  ((volatile uint32_t *) 0xA0000234)
 
-void set_all_buffer0();
-void set_all_buffer1();
+void set_all_buffer0(); // for all PE, use instruction buffer 0
+void set_all_buffer1(); // for all PE, use instruction buffer 1
 void switch_inst_buffer(uint8_t PE, bool slot);
+
 void write_instruction(uint16_t inst_no, uint8_t PE, bool slot);
-void write_instruction_4PE(uint16_t inst_no, bool slot);
-void write_instruction_24word(uint32_t word, uint8_t PE, uint8_t addr, bool slot); 
+void write_instruction_4PE(uint16_t inst_no, bool slot);    // write instructions to all 4 PEs
+void write_instruction_24word(uint32_t word, uint8_t PE, uint8_t addr, bool slot); // update one word in the instruction
+
 //void read_dnn_sram(uint16_t start_address, uint32_t* data, uint16_t length);  // TODO: make it signed array
 void read_dnn_sram(uint16_t start_address, int32_t* data, uint16_t length);
 void read_dnn_sram_16(uint16_t start_address, int16_t* data, uint16_t length);
@@ -465,8 +467,8 @@ void write_dnn_sram_12_dnn_input(uint16_t start_address, int16_t* data, uint16_t
 void write_dnn_sram(uint16_t start_address, int32_t* data, uint16_t length);
 void write_dnn_sram_16(uint16_t start_address, int16_t* data, uint16_t length);
 void write_nli(uint16_t inst_no, uint8_t PE);
-void reset_PE(uint8_t PE);
 
+void reset_PE(uint8_t PE);
 void start_pe_inst(uint8_t PE);
 void wait_until_pe_start(uint8_t PE);
 void wait_until_pe_finish(uint8_t PE);

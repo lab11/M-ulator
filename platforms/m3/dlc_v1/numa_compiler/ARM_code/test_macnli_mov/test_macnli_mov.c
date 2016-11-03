@@ -177,10 +177,10 @@ int main() {
 
         *REG_WAIT_BEFORE_VDD = 0xff;
 
-        *REG_SRAM_L1 = 0xffffff;
+        // *REG_SRAM_L1 = 0xffffff;
 
 
-/*
+
       *DNN_SRAM_RSTN_0 = 0x000007ff;
       *DNN_SRAM_RSTN_1 = 0x000007ff;
       *DNN_SRAM_RSTN_2 = 0x000007ff;
@@ -198,7 +198,7 @@ int main() {
       *DNN_PG_2 = 0x000007ff;
       *DNN_PG_3 = 0x000007ff;
       delay(5);
-*/
+
 
       //*DNN_PG_0 = 0x003ff800;
       //*DNN_PG_1 = 0x003ff800;
@@ -206,21 +206,34 @@ int main() {
       //*DNN_PG_3 = 0x003ff800;
       //delay(3);
 
-/*
+
       *DNN_SRAM_RSTN_0 = 0x000007ff;
       *DNN_SRAM_RSTN_0 = 0xffffffff;
       *DNN_SRAM_RSTN_1 = 0xffffffff;
       *DNN_SRAM_RSTN_2 = 0xffffffff;
       *DNN_SRAM_RSTN_3 = 0xffffffff;
       delay(3);
-*/
+     *DNN_RAND_0 = 1;
+     *DNN_RAND_1 = 1;
+     *DNN_RAND_2 = 1;
+     *DNN_RAND_3 = 1;
 
       //*DNN_SRAM_ISOL_0 = 0x00000000;
       //*DNN_SRAM_ISOL_1 = 0x00000000;
       //*DNN_SRAM_ISOL_2 = 0x00000000;
       //*DNN_SRAM_ISOL_3 = 0x00000000;
       //delay(3);
-
+	  *DNN_RE_INIT_0 = 0x00000002;
+	  *DNN_RE_INIT_1 = 0x00000002;
+	  *DNN_RE_INIT_2 = 0x00000002;
+	  *DNN_RE_INIT_3 = 0x00000002;
+	  
+	  delay(3);
+	  
+	  *DNN_RE_INIT_0 = 0x00000000;
+	  *DNN_RE_INIT_1 = 0x00000000;
+	  *DNN_RE_INIT_2 = 0x00000000;
+	  *DNN_RE_INIT_3 = 0x00000000;
 
   
 		//////////////////////////////////////////////////////
@@ -280,7 +293,7 @@ int main() {
       //clock_gate();
   		// done
 		//////////////////////////////////////////////////////
-
+     *REG_RUN_CPU = 0;
 
     return 1;
 }

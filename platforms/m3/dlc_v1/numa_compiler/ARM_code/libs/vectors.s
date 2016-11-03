@@ -4,7 +4,7 @@
 
 /* Interrupt Vector Table (32kB SRAM) */
 .section .vectors
-.word	0x6000	@ stack top    /* reserve 8kB for software managed memory (raw_input, output, parameters, etc) */
+.word	0x3FFC	@ stack top    /* reserve 8kB for software managed memory (raw_input, output, parameters, etc) */
 .word	_start	@ reset vector
 .word   handler_nmi          /* 2 NMI */
 .word   handler_hard         /* 3 HardFault */

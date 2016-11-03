@@ -132,10 +132,256 @@ static void operation_init(void){
     snsv7_r18.ADC_LDO_ADC_LDO_ENB = 0x0;
     mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
     delay(MBUS_DELAY);
+<<<<<<< HEAD
     snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
     mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
     // Release Temp Sensor Reset
     temp_sensor_release_reset();
+=======
+
+    // Go to sleep without timer
+    operation_sleep_notimer();
+}
+
+
+
+//***************************************************
+// Temperature measurement operation (SNSv7)
+//***************************************************
+static void operation_temp_run(void){
+    uint32_t count; 
+
+	if (Tstack_state == TSTK_IDLE){
+		#ifdef DEBUG_MBUS_MSG 
+			mbus_write_message32(0xBB, 0xFBFB0000);
+			delay(MBUS_DELAY*10);
+		#endif
+		Tstack_state = TSTK_LDO;
+
+		temp_reset_timeout_count = 0;
+
+		// Power on radio
+		if (radio_tx_option || ((exec_count+1) < TEMP_CYCLE_INIT)){
+			radio_power_on();
+		}
+
+		snsv7_r18.ADC_LDO_ADC_LDO_ENB = 0x0;
+		mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
+
+		// Put system to sleep
+		set_wakeup_timer(WAKEUP_PERIOD_LDO, 0x1, 0x1);
+		operation_sleep_noirqreset();
+
+    }else if (Tstack_state == TSTK_LDO){
+		#ifdef DEBUG_MBUS_MSG
+			mbus_write_message32(0xBB, 0xFBFB1111);
+			delay(MBUS_DELAY*10);
+		#endif
+		Tstack_state = TSTK_TEMP_RSTRL;
+		snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
+		mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
+		// Put system to sleep
+		set_wakeup_timer(WAKEUP_PERIOD_LDO, 0x1, 0x1);
+		operation_sleep_noirqreset();
+
+	}else if (Tstack_state == TSTK_TEMP_RSTRL){
+		#ifdef DEBUG_MBUS_MSG
+			mbus_write_message32(0xBB, 0xFBFB2222);
+			delay(MBUS_DELAY*10);
+		#endif
+		Tstack_state = TSTK_TEMP_START;
+
+		// Release Temp Sensor Reset
+		temp_sensor_release_reset();
+
+	}else if (Tstack_state == TSTK_TEMP_START){
+	// Start temp measurement
+	#ifdef DEBUG_MBUS_MSG
+		mbus_write_message32(0xBB, 0xFBFB3333);
+		delay(MBUS_DELAY*10);
+	#endif
+
+		mbus_msg_flag = 0;
+		temp_sensor_enable();
+
+		if (temp_run_single){
+			Tstack_state = TSTK_TEMP_READ;
+			set_wakeup_timer(WAKEUP_PERIOD_RESET, 0x1, 0x1);
+			operation_sleep_noirqreset();
+		}
+
+		for(count=0; count<TEMP_TIMEOUT_COUNT; count++){
+			if( mbus_msg_flag ){
+				mbus_msg_flag = 0;
+				temp_reset_timeout_count = 0;
+				Tstack_state = TSTK_TEMP_READ;
+				return;
+			}else{
+				delay(MBUS_DELAY);
+			}
+		}
+
+		// Time out
+		mbus_write_message32(0xFA, 0xFAFAFAFA);
+		temp_sensor_disable();
+
+		if (temp_reset_timeout_count > 0){
+			temp_reset_timeout_count++;
+			temp_sensor_assert_reset();
+
+			if (temp_reset_timeout_count > 5){
+				// Temp sensor is not resetting for some reason. Go to sleep forever
+				Tstack_state = TSTK_IDLE;
+				temp_power_off();
+				operation_sleep_notimer();
+			}else{
+				// Put system to sleep to reset the layer controller
+				Tstack_state = TSTK_TEMP_RSTRL;
+				set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x0);
+				operation_sleep();
+			}
+
+	    }else{
+		// Try one more time
+	    	temp_reset_timeout_count++;
+			temp_sensor_assert_reset();
+	    }
+
+	}else if (Tstack_state == TSTK_TEMP_READ){
+		#ifdef DEBUG_MBUS_MSG
+			mbus_write_message32(0xBB, 0xFBFB4444);
+			delay(MBUS_DELAY*10);
+		#endif
+
+		// Grab Temp Sensor Data
+		uint32_t read_data_reg10; // [0] Temp Sensor Done
+		uint32_t read_data_reg11; // [23:0] Temp Sensor D Out
+
+		// Set CPU Halt Option as RX --> Use for register read e.g.
+		set_halt_until_mbus_rx();
+
+		mbus_remote_register_read(SNS_ADDR,0x10,1);
+		read_data_reg10 = *((volatile uint32_t *) 0xA0000004);
+		delay(MBUS_DELAY);
+		mbus_remote_register_read(SNS_ADDR,0x11,1);
+		read_data_reg11 = *((volatile uint32_t *) 0xA0000004);
+		delay(MBUS_DELAY);
+
+		// Set CPU Halt Option as TX --> Use for register write e.g.
+		set_halt_until_mbus_tx();
+
+	#ifdef DEBUG_MBUS_MSG
+		mbus_write_message32(0xCC, 0xCCCCCCCC);
+		delay(MBUS_DELAY);
+		mbus_write_message32(0xCC, exec_count);
+		delay(MBUS_DELAY);
+		mbus_write_message32(0xCC, read_data_reg10);
+		delay(MBUS_DELAY);
+		mbus_write_message32(0xCC, read_data_reg11);
+		delay(MBUS_DELAY);
+		mbus_write_message32(0xCC, exec_count);
+		delay(MBUS_DELAY);
+		mbus_write_message32(0xCC, 0xCCCCCCCC);
+		delay(MBUS_DELAY);
+	#endif
+
+	#ifdef DEBUG_MBUS_MSG_1
+		mbus_write_message32(0xCC, exec_count);
+		delay(MBUS_DELAY);
+		mbus_write_message32(0xCC, set_temp_exec_count);
+		delay(MBUS_DELAY);
+		mbus_write_message32(0xCC, read_data_reg11);
+		delay(MBUS_DELAY);
+		mbus_write_message32(0xCC, read_data_reg10);
+		delay(MBUS_DELAY);
+	#endif
+
+		// Option to take multiple measurements per wakeup
+
+		if (meas_count < 0){	
+			meas_count++;
+
+			// Repeat measurement while awake
+			temp_sensor_disable();
+			Tstack_state = TSTK_TEMP_START;
+				
+		}else{
+
+			meas_count = 0;
+
+			// Finalize temp sensor operation
+			temp_sensor_disable();
+			temp_sensor_assert_reset();
+			Tstack_state = TSTK_IDLE;
+			
+			// Assert temp sensor isolation & turn off temp sensor power
+			temp_power_off();
+
+
+			if (temp_run_single){
+				temp_run_single = 0;
+				temp_storage_latest = read_data_reg11;
+				return;
+			}else{
+				exec_count++;
+				// Store results in memory; unless buffer is full
+				if (temp_storage_count < TEMP_STORAGE_SIZE){
+					temp_storage[temp_storage_count] = read_data_reg11;
+					temp_storage_latest = read_data_reg11;
+					radio_tx_count = temp_storage_count;
+					temp_storage_count++;
+				}
+
+				// Optionally transmit the data
+				if (radio_tx_option){
+					send_radio_data_ppm(0, read_data_reg10);
+					delay(RADIO_PACKET_DELAY);
+					send_radio_data_ppm(0, read_data_reg11);
+				}
+
+				// Enter long sleep
+				if(exec_count < TEMP_CYCLE_INIT){
+					// Send some signal
+					delay(RADIO_PACKET_DELAY);
+					send_radio_data_ppm(1, 0xFAF000);
+					set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
+
+				}else{
+					if (!radio_tx_option && (exec_count == TEMP_CYCLE_INIT)){
+						//set_pmu_sleep_clk_low();
+					}
+					set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
+				}
+
+				// Make sure Radio is off
+				if (radio_on){
+					radio_ready = 0;
+					radio_power_off();
+				}
+
+				if ((set_temp_exec_count != 0) && (exec_count > (50<<set_temp_exec_count))){
+					// No more measurement required
+					// Make sure temp sensor is off
+					temp_running = 0;
+					temp_power_off();
+					operation_sleep_notimer();
+				}else{
+					operation_sleep_noirqreset();
+					
+				}
+
+			}
+		}
+
+    }else{
+        //default:  // THIS SHOULD NOT HAPPEN
+		// Reset Temp Sensor 
+		temp_sensor_assert_reset();
+		temp_power_off();
+		operation_sleep_notimer();
+    }
+
+>>>>>>> 2b10c84843c4a6b994fcc925687a73878b0a91e1
 }
 
 //********************************************************************

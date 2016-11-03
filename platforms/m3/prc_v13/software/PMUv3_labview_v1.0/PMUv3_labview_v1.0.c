@@ -151,6 +151,8 @@ inline static void set_pmu_optimization(){
     mbus_pmu_register_write(0x36,
         (1)         // [500, 16777215] Num of clock cycles the controller waits per each periodic conversion ratio adjustment after being fully turned-on
     );
+	// Register 0x37: TICK_WAKEUP_WAIT
+    mbus_pmu_register_write(0x37, 2000); // [500, 16777215] Num of clock cycles the controller waits for internal state transition from sleep to wakeup mode
 	// Disable PMU ADC measurement in active mode
 	// Register 0x3A: PMU_CONTROLLER_STALL_ACTIVE
     mbus_pmu_register_write(0x3A, 
@@ -266,6 +268,9 @@ static void operation_init(void){
     // Write into *RDBUF (REG0x22, 0xA0000088)
     mbus_remote_register_write(PMU_ADDR,0x52,(0x001000 | RDBUF_ID)); 
 
+    // Notifier
+    mbus_write_message32(0xEE, 0x1EA7F00D);
+
     // Go to sleep without timer
     operation_sleep_notimer();
 }
@@ -310,6 +315,7 @@ int main() {
     // 03  01  NN  : Write to MBus Register NN (data from REG1)
     // 04  00  NN  : Read from MBus Register NN and put it into RDBUF
     // 04  AA  NN  : Read from MBus Register NN, put it into RDBUF, and send an MBus message going into 'AA'
+    // EE   X   X  : Be stuck in active
     // FF  AA   X  : Send out the current execution number to MBus Address 'AA'
 
     // Reset REG0
@@ -317,6 +323,14 @@ int main() {
     
     // Send a sleep message (Do nothing)
     if (wakeup_header_2 == 0x00) {
+//        mbus_write_message32(0xEE, 0x00000001);
+//        mbus_write_message32(0xEE, 0x00000011);
+//        mbus_write_message32(0xEE, 0x00000111);
+//        mbus_write_message32(0xEE, 0x00001111);
+//        mbus_write_message32(0xEE, 0x00011111);
+//        mbus_write_message32(0xEE, 0x00111111);
+//        mbus_write_message32(0xEE, 0x01111111);
+//        mbus_write_message32(0xEE, 0x11111111);
     }
     // PMU Register Write
     else if (wakeup_header_2 == 0x01) {
@@ -383,10 +397,17 @@ int main() {
             mbus_write_message32(wakeup_header_1, *RDBUF);
         }
     }
+    // Be Stuck in Active
+    else if (wakeup_header_2 == 0xEE) {
+        while(1);
+    }
     // Send out the current execution number
     else if (wakeup_header_2 == 0xFF) {
         mbus_write_message32(wakeup_header_1, exec_count);
     }
+
+    // Notifier
+    mbus_write_message32(0xEE, 0x0EA7F00D);
 
     // Go to indefinite sleep
     operation_sleep_notimer();

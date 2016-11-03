@@ -84,6 +84,9 @@ static void usage_fail(int retcode) {
 \t-l, --limit\n\
 \t\tLimit CPU execution to N cycles, returns failure if hit\n\
 \t\t(useful for catching runaway test cases)\n\
+\t--rzwi-memory\n\
+\t\tTreat accesses to unknown memory addresses as 'read zero,\n\
+\t\twrite ignore'. Can be useful for partially implemented cores\n\
 \t-f, --flash FILE\n\
 \t\tFlash FILE into ROM before executing\n\
 \t\t(this file is likely somthing.bin)\n\
@@ -131,6 +134,7 @@ int main(int argc, char **argv) {
 			{"raiseonerror",  no_argument,       &raiseonerror,  'e'},
 			{"returnr0",      no_argument,       &returnr0,      'r'},
 			{"limit",         required_argument, 0,              'l'},
+			{"rzwi-memory",   no_argument,       &CONF_rzwi_memory, 2},
 			{"flash",         required_argument, 0,              'f'},
 			{"usetestflash",  no_argument,       &usetestflash,  1},
 			{"help",          no_argument,       0,              '?'},

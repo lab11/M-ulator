@@ -45,13 +45,17 @@ void register_memmap(
 		uint32_t top
 	);
 
+extern _Atomic _Bool	_CORE_in_reset;
 void		reset(void);
 
 uint32_t	read_word_quiet(uint32_t addr);
 uint32_t	read_word(uint32_t addr);
 void		write_word(uint32_t addr, uint32_t val);
+void		write_word_aligned(uint32_t addr, uint32_t val);
+void		write_word_unaligned(uint32_t addr, uint32_t val);
 uint16_t	read_halfword(uint32_t addr);
 void		write_halfword(uint32_t addr, uint16_t val);
+void		write_halfword_unaligned(uint32_t addr, uint16_t val);
 uint8_t		read_byte(uint32_t addr);
 void		write_byte(uint32_t addr, uint8_t val);
 
@@ -88,5 +92,6 @@ extern int memtrace_flag;
 #define MEMTRACE_WRITE_ERR(...)
 #endif
 
+extern unsigned core_stats_unaligned_cycle_penalty;
 
 #endif // CORE_H

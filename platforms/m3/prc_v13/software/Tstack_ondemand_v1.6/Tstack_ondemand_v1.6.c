@@ -9,6 +9,7 @@
 //			v1.3: PMU IRQ off for stability issues
 //				  RADv9 settings updated for shifted center freq and higher curr lim
 //			v1.4: Decrease PMU sleep floors for reduced sleep power
+//			v1.6: PMUv3; Use for Tstack batch 4 onward
 //*******************************************************************
 #include "PRCv13.h"
 #include "PRCv13_RF.h"
@@ -16,7 +17,7 @@
 #include "SNSv7.h"
 #include "HRVv2.h"
 #include "RADv9.h"
-#include "PMUv2_RF.h"
+#include "PMUv3_RF.h"
 
 // uncomment this for debug mbus message
 // #define DEBUG_MBUS_MSG
@@ -48,7 +49,7 @@
 #define RADIO_TIMEOUT_COUNT 50
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
-#define TEMP_STORAGE_SIZE 990 // FIXME
+#define TEMP_STORAGE_SIZE 1000 // FIXME
 
 
 //********************************************************************
@@ -143,7 +144,7 @@ void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
 inline static void set_pmu_sleep_clk_init(){
     mbus_remote_register_write(PMU_ADDR,0x17, 
 		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
-		| (1 << 13) // Enable main feedback loop
+		| (0 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
 		| (0 << 5)  // Frequency multiplier L (actually L+1)
 		| (4) 		// Floor frequency base (0-63)
@@ -152,7 +153,7 @@ inline static void set_pmu_sleep_clk_init(){
 	// The first register write to PMU needs to be repeated
     mbus_remote_register_write(PMU_ADDR,0x17, 
 		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
-		| (1 << 13) // Enable main feedback loop
+		| (0 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
 		| (0 << 5)  // Frequency multiplier L (actually L+1)
 		| (4) 		// Floor frequency base (0-63)
@@ -160,7 +161,7 @@ inline static void set_pmu_sleep_clk_init(){
 	delay(MBUS_DELAY);
     mbus_remote_register_write(PMU_ADDR,0x18, 
 		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
-		| (1 << 13) // Enable main feedback loop
+		| (0 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
 		| (2 << 5)  // Frequency multiplier L (actually L+1)
 		| (10) 		// Floor frequency base (0-63)
@@ -168,15 +169,15 @@ inline static void set_pmu_sleep_clk_init(){
 	delay(MBUS_DELAY);
 	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
     mbus_remote_register_write(PMU_ADDR,0x19,
-		( (1 << 13) // Enable main feedback loop
+		( (0 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
 		| (1) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
     mbus_remote_register_write(PMU_ADDR,0x1A,
-		( (1 << 13) // Enable main feedback loop
+		( (0 << 13) // Enable main feedback loop
 		| (8 << 9)  // Frequency multiplier R
 		| (4 << 5)  // Frequency multiplier L (actually L+1)
 		| (8) 		// Floor frequency base (0-63)
@@ -188,10 +189,10 @@ inline static void set_pmu_sleep_clk_init(){
 		| (0 << 18) // Enable PFM even when Vref is not used as ref
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
-		| (1 << 13) // Enable main feedback loop
+		| (0 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (1) 		// Floor frequency base (0-63)
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (6) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x16: SAR_TRIM_v3_ACTIVE
@@ -200,86 +201,38 @@ inline static void set_pmu_sleep_clk_init(){
 		| (0 << 18) // Enable PFM even when Vref is not used as ref
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
-		| (1 << 13) // Enable main feedback loop
+		| (0 << 13) // Enable main feedback loop
 		| (8 << 9)  // Frequency multiplier R
 		| (8 << 5)  // Frequency multiplier L (actually L+1)
 		| (15) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// SAR_RATIO_OVERRIDE
+	// Use the new reset scheme in PMUv3
     mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
-		( (1 << 11) // Enable override setting [10] (1'h0)
+		( (0 << 13) // Enables override setting [12] (1'b1)
+		| (0 << 12) // Let VDD_CLK always connected to vbat
+		| (1 << 11) // Enable override setting [10] (1'h0)
+		| (0 << 10) // Have the converter have the periodic reset (1'h0)
+		| (0 << 9) // Enable override setting [8] (1'h0)
+		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+		| (0 << 7) // Enable override setting [6:0] (1'h0)
+		| (44) 		// Binary converter's conversion ratio (7'h00)
+	));
+	delay(MBUS_DELAY);
+    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+		( (0 << 13) // Enables override setting [12] (1'b1)
+		| (0 << 12) // Let VDD_CLK always connected to vbat
+		| (1 << 11) // Enable override setting [10] (1'h0)
 		| (0 << 10) // Have the converter have the periodic reset (1'h0)
 		| (1 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (50) 		// Binary converter's conversion ratio (7'h00)
+		| (44) 		// Binary converter's conversion ratio (7'h00)
 	));
 	delay(MBUS_DELAY);
-
-	// Register 0x37: TICK_WAKEUP_WAIT
-//    mbus_remote_register_write(PMU_ADDR,0x37,0x001000); // default 24h'1F4
-// 	delay(MBUS_DELAY);
-
-	// Register 0x38: TICK_SLEEP_WAIT
-//    mbus_remote_register_write(PMU_ADDR,0x38,0x00001E); // default 24h'1E
-// 	delay(MBUS_DELAY);
-
 	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
-    mbus_remote_register_write(PMU_ADDR,0x36,0x000001);
-	delay(MBUS_DELAY);
-
-}
-
-
-inline static void set_pmu_sleep_clk_default(){
-
-	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
-    mbus_remote_register_write(PMU_ADDR,0x19,
-		( (1 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (1) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
-
-	// Register 0x15: SAR_TRIM_v3_SLEEP
-    mbus_remote_register_write(PMU_ADDR,0x15, 
-		( (0 << 19) // Enable PFM even during periodic reset
-		| (0 << 18) // Enable PFM even when Vref is not used as ref
-		| (0 << 17) // Enable PFM
-		| (3 << 14) // Comparator clock division ratio
-		| (1 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (1) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
-}
-
-
-inline static void set_pmu_sleep_clk_high(){
-
-	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
-    mbus_remote_register_write(PMU_ADDR,0x19,
-		( (1 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (1 << 5)  // Frequency multiplier L (actually L+1)
-		| (1) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
-
-	// Register 0x15: SAR_TRIM_v3_SLEEP
-    mbus_remote_register_write(PMU_ADDR,0x15, 
-		( (0 << 19) // Enable PFM even during periodic reset
-		| (0 << 18) // Enable PFM even when Vref is not used as ref
-		| (0 << 17) // Enable PFM
-		| (3 << 14) // Comparator clock division ratio
-		| (1 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (1 << 5)  // Frequency multiplier L (actually L+1)
-		| (6) 		// Floor frequency base (0-63)
-	));
+    mbus_remote_register_write(PMU_ADDR,0x36,0x000111);
 	delay(MBUS_DELAY);
 }
 
@@ -525,8 +478,8 @@ static void operation_init(void){
 	//    set_halt_until_mbus_tx();
 
 	// Disable PMUv2 IRQ
-    mbus_remote_register_write(PMU_ADDR,0x51,0x09);
-	delay(MBUS_DELAY);
+    //mbus_remote_register_write(PMU_ADDR,0x51,0x09);
+	//delay(MBUS_DELAY);
 
 	set_pmu_sleep_clk_init();
 
@@ -698,7 +651,7 @@ static void operation_temp_run(void){
 			}else{
 				// Put system to sleep to reset the layer controller
 				Tstack_state = TSTK_TEMP_RSTRL;
-				set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x0);
+				set_wakeup_timer (WAKEUP_PERIOD_RESET, 0x1, 0x1);
 				operation_sleep();
 			}
 
@@ -808,9 +761,6 @@ static void operation_temp_run(void){
 					set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 
 				}else{
-					if (!radio_tx_option && (exec_count == TEMP_CYCLE_INIT)){
-						set_pmu_sleep_clk_low();
-					}
 					set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
 				}
 
@@ -897,7 +847,7 @@ int main() {
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm(0,0xFAF000+exec_count_irq);	
+				send_radio_data_ppm(0,0xABC000+exec_count_irq);	
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
@@ -926,8 +876,7 @@ int main() {
         radio_tx_option = wakeup_data_field_2 & 0x10;
 
 		temp_run_single = 0;
-
- //       set_pmu_sleep_clk_low();
+        //set_pmu_sleep_clk_low();
 
 		if (!temp_running){
 			// Go to sleep for initial settling of temp sensing // FIXME
@@ -959,13 +908,6 @@ int main() {
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
 		temp_running = 0;
 		Tstack_state = TSTK_IDLE;
-		
-		
-		if (wakeup_data_field_2 & 0x1){
-			// Speed up PMU sleep osc
-			set_pmu_sleep_clk_default();
-		}
-
 
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
@@ -977,7 +919,7 @@ int main() {
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm(0,0xFAF000+exec_count);	
+				send_radio_data_ppm(0,0xC00000+exec_count);	
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
@@ -1017,7 +959,7 @@ int main() {
 				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
 				operation_sleep_noirqreset();
 			}else{
-				send_radio_data_ppm(0, 0xFAF000+exec_count_irq);
+				send_radio_data_ppm(0, 0xABC000+exec_count_irq);
 				if (exec_count_irq == 3){
 					// set timer
 					set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
@@ -1063,13 +1005,13 @@ int main() {
 				// Prepare radio TX
 				radio_power_on();
 				// Go to sleep for SCRO stabilitzation
-				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x0);
+				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm(0,0xFAF000+exec_count_irq);	
+				send_radio_data_ppm(0,0xBBB000+exec_count_irq);	
 				// set timer
-				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x0);
+				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
 				operation_sleep_noirqreset();
 			}
