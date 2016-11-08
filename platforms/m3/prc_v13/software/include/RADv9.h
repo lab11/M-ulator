@@ -160,10 +160,11 @@ typedef union radv9_r13{
     unsigned RAD_FSM_IRQ_EN:		1;
     unsigned RAD_FSM_FSM_STATE:		4;
     unsigned RAD_FSM_LFSR_STATE:	6;
+	unsigned RAD_FSM_DUMMY: 17;
   };
   uint32_t as_int;
 } radv9_r13_t;
-#define RADv9_R13_DEFAULT {{1,1,0,0,1,0,0}}
+#define RADv9_R13_DEFAULT {{1,1,0,0,1,0,0,0}}
 _Static_assert(sizeof(radv9_r13_t) == 4, "Punned Structure Size");
 
 

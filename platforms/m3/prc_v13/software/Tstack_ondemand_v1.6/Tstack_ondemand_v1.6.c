@@ -293,6 +293,9 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
     if (!radio_ready){
 		radio_ready = 1;
 
+		// FIXME
+		mbus_write_message32(0xAA, radv9_r13.as_int);
+
 		// Release FSM Reset
 		radv9_r13.RAD_FSM_RESETn = 1;
 		mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
@@ -512,7 +515,7 @@ static void operation_init(void){
     // Radio Settings --------------------------------------
     radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
     radv9_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
-    radv9_r0.RADIO_TUNE_FREQ2 = 0x9; //Tune Freq 2
+    radv9_r0.RADIO_TUNE_FREQ2 = 0x4; //Tune Freq 2
     radv9_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
     mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
 
