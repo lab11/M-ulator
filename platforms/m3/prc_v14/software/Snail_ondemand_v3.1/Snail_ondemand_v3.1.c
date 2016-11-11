@@ -48,9 +48,9 @@
  #define DEBUG_MBUS_MSG_1
 
 // TStack order  PRC->RAD->SNS->HRV->PMU
-#define RAD_ADDR 0x2
-#define SNS_ADDR 0x3
-#define HRV_ADDR 0x4
+#define RAD_ADDR 0x3
+#define SNS_ADDR 0x4
+#define HRV_ADDR 0x5
 #define PMU_ADDR 0x6
 
 // Sensor parameters
@@ -627,6 +627,13 @@ static void operation_tx_stored(void){
 
 static void operation_init(void){
   
+	// Set CPU & Mbus Clock Speeds
+    prcv14_r0B.DSLP_CLK_GEN_FAST_MODE = 0x1; // Default 0x0
+    prcv14_r0B.CLK_GEN_RING = 0x1; // Default 0x1
+    prcv14_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
+    prcv14_r0B.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
+	*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv14_r0B.as_int;
+
     	//Enumerate & Initialize Registers
     	Tstack_state = TSTK_IDLE; //0x0;
    	enumerated = 0xDEADBEEF;
@@ -654,10 +661,6 @@ static void operation_init(void){
 
 
 	set_pmu_init();
-
-	
-
-
 
 	
     	// Harvester Settings --------------------------------------
@@ -973,11 +976,12 @@ static void operation_run(void){
 			delay(RADIO_PACKET_DELAY);
 			send_radio_data_ppm(0, 0xABC000+exec_count);
 			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-		}else{
-			if(exec_count == SENSING_CYCLE_INIT){
+			if(exec_count == (SENSING_CYCLE_INIT-1)){
 				delay(RADIO_PACKET_DELAY);
-            			send_radio_data_ppm(1, 0xFAF000);	
+				send_radio_data_ppm(1, 0xFAF000);
 			}
+
+		}else{
 			set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
 		}
 		
@@ -1055,7 +1059,7 @@ int main() {
     	// 8 MSB bits of the wakeup data are used for function ID
     	uint32_t wakeup_data = *((volatile uint32_t *) IRQ14VEC);
     	uint8_t wakeup_data_header = wakeup_data>>24;
-   	uint8_t wakeup_data_field_0 = wakeup_data & 0xFF;
+   		uint8_t wakeup_data_field_0 = wakeup_data & 0xFF;
     	uint8_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;
     	uint8_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
 
@@ -1106,7 +1110,7 @@ int main() {
 
 		if (!sensor_running){
 			// Go to sleep for initial settling of sensing // FIXME
-			set_wakeup_timer(3, 0x1, 0x1); // 150: around 5 min
+			set_wakeup_timer(5, 0x1, 0x1); // 150: around 5 min
 			sensor_running = 1;
 			set_max_exec_count = wakeup_data_field_2 >> 5;
 			operation_sleep_noirqreset();
@@ -1197,6 +1201,10 @@ int main() {
 			}else{
 				send_radio_data_ppm(0, 0xABC000+exec_count_irq);
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1); // set timer	
+				if(exec_count_irq == 4){
+					delay(RADIO_PACKET_DELAY);
+					send_radio_data_ppm(0, 0xABCFFF);
+				}
 				operation_sleep_noirqreset(); // go to sleep and wake up with same condition
 			}
 		}else{
