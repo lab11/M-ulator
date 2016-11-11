@@ -55,6 +55,7 @@
 // "static" limits the variables to this file, giving compiler more freedom
 // "volatile" should only be used for MMIO --> ensures memory storage
 volatile uint32_t enumerated;
+volatile uint32_t wakeup_data;
 volatile uint8_t Pstack_state;
 volatile uint32_t exec_count;
 volatile uint32_t meas_count;
@@ -1092,6 +1093,20 @@ static void operation_cdc_run(){
 
 }
 
+static void operation_goc_trigger_init(void){
+
+	mbus_write_message32(0xAA,0xABCD1234);
+	mbus_write_message32(0xAA,wakeup_data);
+
+	// Initialize variables & registers
+	cdc_running = 0;
+	Pstack_state = PSTK_IDLE;
+	
+	radio_power_off();
+	cdc_power_off();
+	temp_power_off();
+}
+
 //***************************************************************************************
 // MAIN function starts here             
 //***************************************************************************************
@@ -1117,11 +1132,16 @@ int main() {
     // Check if wakeup is due to GOC interrupt  
     // 0x78 is reserved for GOC-triggered wakeup (Named IRQ14VEC)
     // 8 MSB bits of the wakeup data are used for function ID
-    uint32_t wakeup_data = *((volatile uint32_t *) IRQ14VEC);
+    wakeup_data = *((volatile uint32_t *) IRQ14VEC);
     uint8_t wakeup_data_header = wakeup_data>>24;
     uint8_t wakeup_data_field_0 = wakeup_data & 0xFF;
     uint8_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;
     uint8_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
+
+	// In case GOC triggered in the middle of routines
+	if ((wakeup_data_header != 0) && (exec_count_irq == 0)){
+		operation_goc_trigger_init();
+	}
 
     if(wakeup_data_header == 1){
         // Debug mode: Transmit something via radio and go to sleep w/o timer
@@ -1174,6 +1194,7 @@ int main() {
 			set_wakeup_timer(5, 0x1, 0x1); // 150: around 5 min
 			cdc_running = 1;
 			set_cdc_exec_count = wakeup_data_field_2 >> 5;
+            exec_count_irq++;
 			operation_sleep_noirqreset();
 		}
 		exec_count = 0;
@@ -1184,6 +1205,7 @@ int main() {
 
 		// Reset IRQ14VEC
 		*((volatile uint32_t *) IRQ14VEC) = 0;
+        exec_count_irq = 0;
 
 		// Run CDC Program
 		cdc_reset_timeout_count = 0;
