@@ -309,8 +309,6 @@ static void read_sram(uint32_t data){
 // MAIN function starts here             
 //********************************************************************
 
-
-
 int main() {
 
     // Reset Wakeup Timer; This is required for PRCv13
