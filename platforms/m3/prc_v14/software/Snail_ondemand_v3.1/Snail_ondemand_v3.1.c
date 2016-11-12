@@ -73,7 +73,7 @@
 #define RADIO_TIMEOUT_COUNT 100
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
-#define DATA_STORAGE_SIZE 800 // FIXME
+#define DATA_STORAGE_SIZE 780 // FIXME
 
 
 //********************************************************************
@@ -103,6 +103,7 @@ volatile hrvv2_r0_t hrvv2_r0 = HRVv2_R0_DEFAULT;
 volatile prcv14_r0B_t prcv14_r0B = PRCv14_R0B_DEFAULT;
 
 volatile uint32_t enumerated;
+volatile uint32_t wakeup_data;
 volatile uint8_t  Tstack_state;
 volatile uint32_t temp_reset_timeout_count;
 volatile uint32_t temp_error_count;
@@ -1040,6 +1041,22 @@ static void operation_run(void){
 }
 
 
+static void operation_goc_trigger_init(void){
+
+	mbus_write_message32(0xAA,0xABCD1234);
+	mbus_write_message32(0xAA,wakeup_data);
+
+	// Initialize variables & registers
+	sensor_running = 0;
+	Tstack_state = TSTK_IDLE;
+	
+	radio_power_off();
+	temp_power_off();
+}
+
+
+
+
 //********************************************************************
 // MAIN function          
 //********************************************************************
@@ -1057,11 +1074,16 @@ int main() {
     	// Check if wakeup is due to GOC interrupt  
     	// 0x78 is reserved for GOC-triggered wakeup (Named IRQ14VEC)
     	// 8 MSB bits of the wakeup data are used for function ID
-    	uint32_t wakeup_data = *((volatile uint32_t *) IRQ14VEC);
+    	wakeup_data = *((volatile uint32_t *) IRQ14VEC);
     	uint8_t wakeup_data_header = wakeup_data>>24;
    		uint8_t wakeup_data_field_0 = wakeup_data & 0xFF;
     	uint8_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;
     	uint8_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
+
+		// In case GOC triggered in the middle of routines
+		if ((wakeup_data_header != 0) && (exec_count_irq == 0)){
+			operation_goc_trigger_init();
+		}
 
     	if(wakeup_data_header == 1){
         	// Debug mode: Transmit something via radio and go to sleep w/o timer and Change WAKEUP_PERIOD_CONT_INIT
@@ -1113,6 +1135,7 @@ int main() {
 			set_wakeup_timer(5, 0x1, 0x1); // 150: around 5 min
 			sensor_running = 1;
 			set_max_exec_count = wakeup_data_field_2 >> 5;
+            exec_count_irq++;
 			operation_sleep_noirqreset();
 		}
 		exec_count = 0;
@@ -1123,6 +1146,7 @@ int main() {
 
 		// Reset IRQ14VEC
 		*((volatile uint32_t *) IRQ14VEC) = 0;
+        exec_count_irq = 0;
 
 		// Run Temp Sensor Program
 		temp_reset_timeout_count = 0;
@@ -1225,8 +1249,8 @@ int main() {
     		mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
 		delay(MBUS_DELAY);
 
-        	if (exec_count_irq < wakeup_data_field_0){
-            		exec_count_irq++;
+        if (exec_count_irq < wakeup_data_field_0){
+           	exec_count_irq++;
 			if (exec_count_irq == 1){
 				// Prepare radio TX
 				radio_power_on();
@@ -1247,13 +1271,19 @@ int main() {
 				operation_sleep_noirqreset();
 			}
         }else{
-            	exec_count_irq = 0;
-            	// radio
-            	send_radio_data_ppm(1,0xFAF000);	
+            exec_count_irq = 0;
+            // radio
+            send_radio_data_ppm(1,0xFAF000);	
+            // Go to sleep without timer
+            operation_sleep_notimer();
+        }
+	}else{
+			if (wakeup_data_header != 0){
+				// Invalid GOC trigger
             	// Go to sleep without timer
             	operation_sleep_notimer();
-        	}
-    	}
+			}
+   	}
 
     	// Proceed to continuous mode
     	while(1){

@@ -47,7 +47,7 @@
 #define RADIO_TIMEOUT_COUNT 100
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
-#define CDC_STORAGE_SIZE 230 // FIXME
+#define CDC_STORAGE_SIZE 220 // FIXME
 
 //***************************************************
 // Global variables
@@ -1051,10 +1051,13 @@ static void operation_cdc_run(){
 
 				// Enter long sleep
 				if(exec_count < CDC_CYCLE_INIT){
-					// Send some signal
 					delay(RADIO_PACKET_DELAY);
-					send_radio_data_ppm(1, 0xFAF000);
+					send_radio_data_ppm(0, 0xABC000+exec_count);
 					set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
+					if(exec_count == (CDC_CYCLE_INIT-1)){
+						delay(RADIO_PACKET_DELAY);
+						send_radio_data_ppm(1, 0xFAF000);
+					}
 
 				}else{
 					set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
@@ -1284,7 +1287,7 @@ int main() {
 			}else{
 				send_radio_data_ppm(0, 0xABC000+exec_count_irq);
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1); // set timer	
-				if (exec_count_irq == 4){
+				if (exec_count_irq == 5){
 					delay(RADIO_PACKET_DELAY);
 					send_radio_data_ppm(0, 0xABCFFF);
 				}
