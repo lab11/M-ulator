@@ -47,12 +47,13 @@
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 24
-#define RADIO_PACKET_DELAY 3000
+#define RADIO_PACKET_DELAY 4000
 #define RADIO_TIMEOUT_COUNT 50
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
-#define TEMP_STORAGE_SIZE 800 // FIXME
+#define TEMP_STORAGE_SIZE 800 // Need to leave about 500 Bytes for stack
 
+#define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y2 run default clock
 
 //********************************************************************
 // Global Variables
@@ -487,7 +488,7 @@ static void operation_tx_stored(void){
 		operation_sleep_noirqreset();
 
     }else{
-		delay(RADIO_PACKET_DELAY*3); //Set delays between sending subsequent packet
+		delay(RADIO_PACKET_DELAY*2); //Set delays between sending subsequent packet
 		send_radio_data_ppm(1, 0xFAF000);
 		#ifdef DEBUG_MBUS_MSG_1
     		mbus_write_message32(0xDD, radio_tx_count);
@@ -889,7 +890,7 @@ int main() {
 	enable_reg_irq();
   
     // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
-    config_timerwd(0xFFFFF); // 0xFFFFF about 13 sec with Y2 run default clock
+    config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
     if (enumerated != 0xDEADBEEF){
@@ -1085,6 +1086,47 @@ int main() {
             // Go to sleep without timer
             operation_sleep_notimer();
         }
+
+    }else if(wakeup_data_header == 8){
+		// Discharge battery by staying active and TX radio
+		// wakeup_data[7:0] is the # of transmissions
+		// wakeup_data[16] resets PMU solar clamp
+		exec_count = 0;
+
+		// FIXME: needs to be tested
+		exec_count_irq++;
+		if (exec_count_irq == 1){
+			// Prepare radio TX
+			radio_power_on();
+			// Go to sleep for SCRO stabilitzation
+			set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
+			operation_sleep_noirqreset();
+		}else{
+			// radio
+			uint8_t discharge_count = 0;
+			while (discharge_count < wakeup_data_field_0){
+				send_radio_data_ppm(0,0xBBB000+discharge_count);
+				discharge_count++;
+				delay(RADIO_PACKET_DELAY*2);
+				// Prevent watchdog kicking in
+    			config_timerwd(TIMERWD_VAL);
+				delay(RADIO_PACKET_DELAY*2);
+				
+			}
+		}
+
+        if (wakeup_data_field_2 & 0x1){
+			// Reset PMU solar clamp
+
+
+		}
+
+		// Finalize
+		exec_count_irq = 0;
+		// radio
+		send_radio_data_ppm(1,0xFAF000);	
+		// Go to sleep without timer
+		operation_sleep_notimer();
 
 	}else if(wakeup_data_header == 0x13){
 		// Change the RF frequency
