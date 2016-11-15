@@ -805,6 +805,8 @@ static void operation_temp_run(void){
 
 static void operation_goc_trigger_init(void){
 
+	// This is critical
+	set_halt_until_mbus_tx();
 	mbus_write_message32(0xAA,0xABCD1234);
 	mbus_write_message32(0xAA,wakeup_data);
 
