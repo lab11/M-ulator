@@ -162,19 +162,55 @@ void fail (uint32_t id, uint32_t data) {
 //********************************************************************
 // MAIN function starts here             
 //********************************************************************
-#define IN_ADDR 5632
-#define OUT_ADDR 0
+// #define IN_ADDR 5632
 #define READ_SRAM_DELAY 6
-#define READ_SRAM_ADDR        ((volatile uint32_t *) 0x00004000)
+#define MBUS_DELAY 1500
+#define OUT_ADDR 5491
+
+//Read 100
+// #define OUT_ADDR 5491
+// #define READ_SRAM_ADDR        ((volatile uint32_t *) 0x00005164)
+
+//Read 4
+#define OUT_ADDR 5587
+#define READ_SRAM_ADDR        ((volatile uint32_t *) 0x000055E4)
+
+// #define READ_SRAM_ADDR        ((volatile uint32_t *) 0x00004000)
+
+uint32_t a[4];
+uint32_t error_cnt;
+uint32_t error_pe;
+uint32_t error_addr;
+uint32_t error_subword;
+uint32_t error_bit;
+
+void error_msg()
+{
+	// a[0]=error_cnt;
+	a[0]=error_pe;
+	a[1]=error_addr;
+	a[2]=error_subword;
+	a[3]=error_bit;
+	mbus_write_message(0x14,a,4);
+}
+
 
 int main() {
     //Initialize Interrupts
     //disable_all_irq();
 	set_dnn_insts();
-	// *DNN_PG_0 = 0x000007ff;
-	// *DNN_PG_1 = 0x000007ff;
-	// *DNN_PG_2 = 0x000007ff;
-	// *DNN_PG_3 = 0x000007ff;
+	*DNN_PG_0 = 0x000007ff;
+	*DNN_PG_1 = 0x000007ff;
+	*DNN_PG_2 = 0x000007ff;
+	*DNN_PG_3 = 0x000007ff;
+	*DNN_SRAM_ISOL_0 = 0x000007FF;
+	*DNN_SRAM_ISOL_1 = 0x000007FF;
+	*DNN_SRAM_ISOL_2 = 0x000007FF;
+	*DNN_SRAM_ISOL_3 = 0x000007FF;
+	*DNN_RAND_0 = 1;
+    *DNN_RAND_1 = 1;
+    *DNN_RAND_2 = 1;
+    *DNN_RAND_3 = 1;
 	uint32_t short_addr = OUT_ADDR & 0x1fff;
 	
 	// *READ_SRAM_ADDR = *DNN_PG_0;
@@ -205,21 +241,319 @@ int main() {
 	// *(READ_SRAM_ADDR+2) = (y1<<24) | (y0       & 0x00ffffff); 
 	
 	uint32_t i,y0, y1, y2, y3;
-	for(i=0;i<1024;i++)
+	uint32_t out1,out2,out3;
+	uint32_t data,data1,data2,data3;
+	int pe;
+	
+	// uint32_t a[5];
+	// uint32_t error_cnt;
+	// uint32_t error_pe;
+	// uint32_t error_addr;
+	// uint32_t error_subword;
+	// uint32_t error_bit;
+	
+	error_cnt=0;
+	error_pe=0;
+	error_addr=0;
+	error_subword=0;	
+	error_bit=0;
+	
+	//Data Pattern: checker board/ ALL ONE/ ALL ZERO
+	// data=0xFFFFFFFF;
+	// data=0x00000000;
+	data=0xAAAAAAAA;
+	// data=0x55555555;
+	/* for(pe=0;pe<4;pe++){
+		for(i=0;i<5760;i++)
+		{
+			switch(pe){
+				case 0:
+					*DNN_CTRL_0 = (i << 2) + 0b01;	// set CPU_ARB_DATA_RD to 1
+					delay(READ_SRAM_DELAY);
+					y0 = *DNN_R_DATA_0_0;
+					y1 = *DNN_R_DATA_0_1;
+					y2 = *DNN_R_DATA_0_2;
+					y3 = *DNN_R_DATA_0_3;
+					break;
+				case 1:
+					*DNN_CTRL_1 = (i << 2) + 0b01;	// set CPU_ARB_DATA_RD to 1
+					delay(READ_SRAM_DELAY);
+					y0 = *DNN_R_DATA_1_0;
+					y1 = *DNN_R_DATA_1_1;
+					y2 = *DNN_R_DATA_1_2;
+					y3 = *DNN_R_DATA_1_3;
+					break;
+				case 2:
+					*DNN_CTRL_2 = (i << 2) + 0b01;	// set CPU_ARB_DATA_RD to 1
+					delay(READ_SRAM_DELAY);
+					y0 = *DNN_R_DATA_2_0;
+					y1 = *DNN_R_DATA_2_1;
+					y2 = *DNN_R_DATA_2_2;
+					y3 = *DNN_R_DATA_2_3;
+					break;
+				case 3:
+					*DNN_CTRL_3 = (i << 2) + 0b01;	// set CPU_ARB_DATA_RD to 1
+					delay(READ_SRAM_DELAY);
+					y0 = *DNN_R_DATA_3_0;
+					y1 = *DNN_R_DATA_3_1;
+					y2 = *DNN_R_DATA_3_2;
+					y3 = *DNN_R_DATA_3_3;
+					break;
+			}
+			
+			out1 = (y3<<8)  | ((y2>>16) & 0x000000ff); 
+			out2 = (y2<<16) | ((y1>>8)  & 0x0000ffff); 
+			out3 = (y1<<24) | (y0       & 0x00ffffff); 
+
+			if(out1 != data){
+				error_cnt++;
+				error_pe = pe;
+				error_addr = i;
+				error_subword = 1;
+				error_bit = out1^data;
+				error_msg();
+				delay(MBUS_DELAY);
+			}
+			if(out2 != data){
+				error_cnt++;
+				error_pe = pe;
+				error_addr = i;
+				error_subword = 2;
+				error_bit = out2^data;
+				error_msg();
+				delay(MBUS_DELAY);
+			}
+			if(out3 != data){
+				error_cnt++;
+				error_pe = pe;
+				error_addr = i;
+				error_subword = 3;
+				error_bit = out3^data;
+				error_msg();
+			}
+			data=~data;
+		}//for(i)
+	}//for(pe) */
+	
+	
+	
+	
+	//Data Pattern: Address
+ 	for(pe=0;pe<4;pe++){
+		data1=0;
+		data2=1;
+		data3=2;
+		for(i=0;i<5760;i++)
+		{
+			switch(pe){
+				case 0:
+					*DNN_CTRL_0 = (i << 2) + 0b01;	// set CPU_ARB_DATA_RD to 1
+					delay(READ_SRAM_DELAY);
+					y0 = *DNN_R_DATA_0_0;
+					y1 = *DNN_R_DATA_0_1;
+					y2 = *DNN_R_DATA_0_2;
+					y3 = *DNN_R_DATA_0_3;
+					break;
+				case 1:
+					*DNN_CTRL_1 = (i << 2) + 0b01;	// set CPU_ARB_DATA_RD to 1
+					delay(READ_SRAM_DELAY);
+					y0 = *DNN_R_DATA_1_0;
+					y1 = *DNN_R_DATA_1_1;
+					y2 = *DNN_R_DATA_1_2;
+					y3 = *DNN_R_DATA_1_3;
+					break;
+				case 2:
+					*DNN_CTRL_2 = (i << 2) + 0b01;	// set CPU_ARB_DATA_RD to 1
+					delay(READ_SRAM_DELAY);
+					y0 = *DNN_R_DATA_2_0;
+					y1 = *DNN_R_DATA_2_1;
+					y2 = *DNN_R_DATA_2_2;
+					y3 = *DNN_R_DATA_2_3;
+					break;
+				case 3:
+					*DNN_CTRL_3 = (i << 2) + 0b01;	// set CPU_ARB_DATA_RD to 1
+					delay(READ_SRAM_DELAY);
+					y0 = *DNN_R_DATA_3_0;
+					y1 = *DNN_R_DATA_3_1;
+					y2 = *DNN_R_DATA_3_2;
+					y3 = *DNN_R_DATA_3_3;
+					break;
+			}
+			
+			out1 = (y3<<8)  | ((y2>>16) & 0x000000ff); 
+			out2 = (y2<<16) | ((y1>>8)  & 0x0000ffff); 
+			out3 = (y1<<24) | (y0       & 0x00ffffff); 
+			
+
+			if(out1 != data1){
+				error_cnt++;
+				error_pe = pe;
+				error_addr = i;
+				error_subword = 1;
+				// error_bit = out1^data1;
+				error_bit = out1;
+				error_msg();
+				delay(MBUS_DELAY);
+			}
+			if(out2 != data2){
+				error_cnt++;
+				error_pe = pe;
+				error_addr = i;
+				error_subword = 2;
+				// error_bit = out2^data2;
+				error_bit = out2;
+				error_msg();
+				delay(MBUS_DELAY);
+			}
+			if(out3 != data3){
+				error_cnt++;
+				error_pe = pe;
+				error_addr = i;
+				error_subword = 3;
+				// error_bit = out3^data3;
+				error_bit = out3;
+				error_msg();
+			}
+			data1+=3;
+			data2+=3;
+			data3+=3;
+		}//for(i)
+	}//for(pe)
+
+
+
+
+
+/* 	for(i=0;i<5760;i++)
 	{
-		*DNN_CTRL_0 = (short_addr << 2) + 0b01;	// set CPU_ARB_DATA_RD to 1
+		*DNN_CTRL_1 = (i << 2) + 0b01;	// set CPU_ARB_DATA_RD to 1
 		delay(READ_SRAM_DELAY);
-		y0 = *DNN_R_DATA_0_0;
-		y1 = *DNN_R_DATA_0_1;
-		y2 = *DNN_R_DATA_0_2;
-		y3 = *DNN_R_DATA_0_3;
+		y0 = *DNN_R_DATA_1_0;
+		y1 = *DNN_R_DATA_1_1;
+		y2 = *DNN_R_DATA_1_2;
+		y3 = *DNN_R_DATA_1_3;
 		
-		*(READ_SRAM_ADDR+3*i)   = (y3<<8)  | ((y2>>16) & 0x000000ff); 
-		*(READ_SRAM_ADDR+3*i+1) = (y2<<16) | ((y1>>8)  & 0x0000ffff); 
-		*(READ_SRAM_ADDR+3*i+2) = (y1<<24) | (y0       & 0x00ffffff); 
+		out1 = (y3<<8)  | ((y2>>16) & 0x000000ff); 
+		out2 = (y2<<16) | ((y1>>8)  & 0x0000ffff); 
+		out3 = (y1<<24) | (y0       & 0x00ffffff); 
+
+		if(out1 != data){
+			error_cnt++;
+			error_pe = 1;
+			error_addr = i;
+			error_subword = 1;
+			error_bit = out1^data;
+			error_msg();
+		}
+		if(out2 != data){
+			error_cnt++;
+			error_pe = 1;
+			error_addr = i;
+			error_subword = 2;
+			error_bit = out2^data;
+			error_msg();
+		}
+		if(out3 != data){
+			error_cnt++;
+			error_pe = 1;
+			error_addr = i;
+			error_subword = 3;
+			error_bit = out3^data;
+			error_msg();
+		}
+		data=~data;
+	} */
+	
+/* 	for(i=0;i<5760;i++)
+	{
+		*DNN_CTRL_2 = (i << 2) + 0b01;	// set CPU_ARB_DATA_RD to 1
+		delay(READ_SRAM_DELAY);
+		y0 = *DNN_R_DATA_2_0;
+		y1 = *DNN_R_DATA_2_1;
+		y2 = *DNN_R_DATA_2_2;
+		y3 = *DNN_R_DATA_2_3;
 		
-		short_addr = short_addr+1;
-	}
+		out1 = (y3<<8)  | ((y2>>16) & 0x000000ff); 
+		out2 = (y2<<16) | ((y1>>8)  & 0x0000ffff); 
+		out3 = (y1<<24) | (y0       & 0x00ffffff); 
+
+		if(out1 != data){
+			error_cnt++;
+			error_pe = 2;
+			error_addr = i;
+			error_subword = 1;
+			error_bit = out1^data;
+			error_msg();
+		}
+		if(out2 != data){
+			error_cnt++;
+			error_pe = 2;
+			error_addr = i;
+			error_subword = 2;
+			error_bit = out2^data;
+			error_msg();
+		}
+		if(out3 != data){
+			error_cnt++;
+			error_pe = 2;
+			error_addr = i;
+			error_subword = 3;
+			error_bit = out3^data;
+			error_msg();
+		}
+		data=~data;		
+	} */
+	
+/* 	for(i=0;i<5760;i++)
+	{
+		*DNN_CTRL_3 = (i << 2) + 0b01;	// set CPU_ARB_DATA_RD to 1
+		delay(READ_SRAM_DELAY);
+		y0 = *DNN_R_DATA_3_0;
+		y1 = *DNN_R_DATA_3_1;
+		y2 = *DNN_R_DATA_3_2;
+		y3 = *DNN_R_DATA_3_3;
+		
+		out1 = (y3<<8)  | ((y2>>16) & 0x000000ff); 
+		out2 = (y2<<16) | ((y1>>8)  & 0x0000ffff); 
+		out3 = (y1<<24) | (y0       & 0x00ffffff); 
+
+		if(out1 != data){
+			error_cnt++;
+			error_pe = 3;
+			error_addr = i;
+			error_subword = 1;
+			error_bit = out1^data;
+			error_msg();
+		}
+		if(out2 != data){
+			error_cnt++;
+			error_pe = 3;
+			error_addr = i;
+			error_subword = 2;
+			error_bit = out2^data;
+			error_msg();
+		}
+		if(out3 != data){
+			error_cnt++;
+			error_pe = 3;
+			error_addr = i;
+			error_subword = 3;
+			error_bit = out3^data;
+			error_msg();
+		}
+		data=~data;		
+	} */
+	
+	
+	// int face = (out1>out2)&0x00000001;
+	a[0]=error_cnt;
+	// a[1]=error_pe;
+	// a[2]=error_addr;
+	// a[3]=error_subword;
+	// a[4]=error_bit;
+	mbus_write_message(0x14,a,1);
+	
+	
 	delay(7000);
 	*REG_RUN_CPU = 0x00000000;
     

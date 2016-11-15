@@ -262,9 +262,10 @@ int main() {
 	  *DNN_SRAM_ISOL_2 = 0x000007FF;
 	  *DNN_SRAM_ISOL_3 = 0x000007FF;
 
-      // *DNN_SRAM_RSTN_1 = 0xffffffff;
-      // *DNN_SRAM_RSTN_2 = 0xffffffff;
-      // *DNN_SRAM_RSTN_3 = 0xffffffff;
+      *DNN_SRAM_RSTN_0 = 0xffffffff;
+      *DNN_SRAM_RSTN_1 = 0xffffffff;
+      *DNN_SRAM_RSTN_2 = 0xffffffff;
+      *DNN_SRAM_RSTN_3 = 0xffffffff;
       delay(3);
 	  
      *DNN_RAND_0 = 1;
@@ -356,7 +357,7 @@ int main() {
 //        write_instruction_24word(PE_INSTS[4][pe_no][2], pe_no, 2, 1);   // write MOV0
 //      }
 //      write_instruction(4, 3, 1);   // write MOV0
-      //clock_gate();
+      clock_gate();
       signal_done();
       delay(10000);
 	  uint32_t a[4];
