@@ -23,7 +23,7 @@
 
 // uncomment this for debug mbus message
 // #define DEBUG_MBUS_MSG
- #define DEBUG_MBUS_MSG_1
+#define DEBUG_MBUS_MSG_1
 
 // TStack order  PRC->RAD->SNS->HRV->PMU
 #define HRV_ADDR 0x3
@@ -296,6 +296,33 @@ inline static void batadc_resetrelease(){
 	delay(MBUS_DELAY);
 }
 
+inline static void reset_pmu_solar_short(){
+    mbus_remote_register_write(PMU_ADDR,0x0E, 
+		( (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
+		| (1 << 9)  // Enables override setting [8]
+		| (0 << 8)  // Turn on the harvester-inhibiting switch
+		| (1 << 4)  // clamp_tune_bottom (increases clamp thresh)
+		| (0) 		// clamp_tune_top (decreases clamp thresh)
+	));
+	delay(MBUS_DELAY);
+    mbus_remote_register_write(PMU_ADDR,0x0E, 
+		( (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
+		| (1 << 9)  // Enables override setting [8]
+		| (0 << 8)  // Turn on the harvester-inhibiting switch
+		| (1 << 4)  // clamp_tune_bottom (increases clamp thresh)
+		| (0) 		// clamp_tune_top (decreases clamp thresh)
+	));
+	delay(MBUS_DELAY);
+    mbus_remote_register_write(PMU_ADDR,0x0E, 
+		( (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
+		| (0 << 9)  // Enables override setting [8]
+		| (0 << 8)  // Turn on the harvester-inhibiting switch
+		| (1 << 4)  // clamp_tune_bottom (increases clamp thresh)
+		| (0) 		// clamp_tune_top (decreases clamp thresh)
+	));
+	delay(MBUS_DELAY);
+}
+
 //***************************************************
 // Radio transmission routines for PPM Radio (RADv9)
 //***************************************************
@@ -544,7 +571,9 @@ static void operation_init(void){
     //mbus_remote_register_write(PMU_ADDR,0x51,0x09);
 	//delay(MBUS_DELAY);
 
+	// PMU Settings ----------------------------------------------
 	set_pmu_sleep_clk_init();
+	reset_pmu_solar_short();
 
     // Temp Sensor Settings --------------------------------------
 	// SNSv7_R25
@@ -732,15 +761,15 @@ static void operation_temp_run(void){
 		#endif
 
 		// Grab Temp Sensor Data
-		uint32_t read_data_reg10; // [0] Temp Sensor Done
+		//uint32_t read_data_reg10; // [0] Temp Sensor Done
 		uint32_t read_data_reg11; // [23:0] Temp Sensor D Out
 
 		// Set CPU Halt Option as RX --> Use for register read e.g.
 		set_halt_until_mbus_rx();
 
-		mbus_remote_register_read(SNS_ADDR,0x10,1);
-		read_data_reg10 = *((volatile uint32_t *) 0xA0000004);
-		delay(MBUS_DELAY);
+		//mbus_remote_register_read(SNS_ADDR,0x10,1);
+		//read_data_reg10 = *((volatile uint32_t *) 0xA0000004);
+		//delay(MBUS_DELAY);
 		mbus_remote_register_read(SNS_ADDR,0x11,1);
 		read_data_reg11 = *((volatile uint32_t *) 0xA0000004);
 		delay(MBUS_DELAY);
@@ -769,8 +798,6 @@ static void operation_temp_run(void){
 		mbus_write_message32(0xCC, set_temp_exec_count);
 		delay(MBUS_DELAY);
 		mbus_write_message32(0xCC, read_data_reg11);
-		delay(MBUS_DELAY);
-		mbus_write_message32(0xCC, read_data_reg10);
 		delay(MBUS_DELAY);
 	#endif
 
@@ -815,8 +842,8 @@ static void operation_temp_run(void){
 					send_radio_data_ppm(0, exec_count);
 					delay(RADIO_PACKET_DELAY);
 					send_radio_data_ppm(0, read_data_reg11);
-					delay(RADIO_PACKET_DELAY);
-					send_radio_data_ppm(0, read_data_reg10);
+					//delay(RADIO_PACKET_DELAY);
+					//send_radio_data_ppm(0, read_data_reg10);
 				}
 
 				// Enter long sleep
@@ -1093,7 +1120,6 @@ int main() {
 		// wakeup_data[16] resets PMU solar clamp
 		exec_count = 0;
 
-		// FIXME: needs to be tested
 		exec_count_irq++;
 		if (exec_count_irq == 1){
 			// Prepare radio TX
@@ -1117,8 +1143,7 @@ int main() {
 
         if (wakeup_data_field_2 & 0x1){
 			// Reset PMU solar clamp
-
-
+			reset_pmu_solar_short();
 		}
 
 		// Finalize
