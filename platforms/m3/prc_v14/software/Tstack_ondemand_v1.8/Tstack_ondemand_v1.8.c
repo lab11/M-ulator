@@ -545,7 +545,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEEF;
+    enumerated = 0xDEADBEEE;
     exec_count = 0;
     exec_count_irq = 0;
     mbus_msg_flag = 0;
@@ -910,7 +910,7 @@ static void operation_goc_trigger_init(void){
 int main() {
 
     // Reset Wakeup Timer; This is required for PRCv13
-    set_wakeup_timer(100, 0, 1);
+    //set_wakeup_timer(200, 0, 1);
 
     // Initialize Interrupts
     // Only enable register-related interrupts
@@ -920,7 +920,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEEF){
+    if (enumerated != 0xDEADBEEE){
         // Set up PMU/GOC register in PRC layer (every time)
         // Enumeration & RAD/SNS layer register configuration
         operation_init();
