@@ -52,7 +52,7 @@
 #define RADIO_TIMEOUT_COUNT 50
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
-#define TEMP_STORAGE_SIZE 800 // Need to leave about 500 Bytes for stack
+#define TEMP_STORAGE_SIZE 600 // Need to leave about 500 Bytes for stack
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y2 run default clock
 
