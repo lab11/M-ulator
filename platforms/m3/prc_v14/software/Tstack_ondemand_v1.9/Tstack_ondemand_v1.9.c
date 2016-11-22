@@ -12,6 +12,7 @@
 //			v1.6: PMUv3; Use for Tstack batch 4 onward
 //			v1.7: Chaging RF tuning to 0x04, GOC-based triggers reinitializes reg
 //			v1.8: Adding battery measurement, PMU battery clamp reset, and battery discharge mode
+//			v1.9: Stays awake during data TX, changing temp sensor tuning 
 //*******************************************************************
 #include "PRCv14.h"
 #include "PRCv14_RF.h"
@@ -47,7 +48,7 @@
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 24
-#define RADIO_PACKET_DELAY 4000
+#define RADIO_PACKET_DELAY 5000
 #define RADIO_TIMEOUT_COUNT 50
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
@@ -498,38 +499,33 @@ static void operation_sleep_notimer(void){
 static void operation_tx_stored(void){
 
     //Fire off stored data to radio
-#ifdef DEBUG_MBUS_MSG_1
-    mbus_write_message32(0xDD, radio_tx_count);
-	delay(MBUS_DELAY);
-    mbus_write_message32(0xDD, temp_storage[radio_tx_count]);
-	delay(MBUS_DELAY);
-#endif
-    send_radio_data_ppm(0, temp_storage[radio_tx_count]);
-    delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
-
-    if (((!radio_tx_numdata)&&(radio_tx_count > 0)) | ((radio_tx_numdata)&&((radio_tx_numdata+radio_tx_count) > temp_storage_count))){
-		radio_tx_count--;
-		// set timer
-		set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-		// go to sleep and wake up with same condition
-		operation_sleep_noirqreset();
-
-    }else{
-		delay(RADIO_PACKET_DELAY*2); //Set delays between sending subsequent packet
-		send_radio_data_ppm(1, 0xFAF000);
+    while(((!radio_tx_numdata)&&(radio_tx_count > 0)) | ((radio_tx_numdata)&&((radio_tx_numdata+radio_tx_count) > temp_storage_count))){
 		#ifdef DEBUG_MBUS_MSG_1
-    		mbus_write_message32(0xDD, radio_tx_count);
+			mbus_write_message32(0xDD, radio_tx_count);
 			delay(MBUS_DELAY);
-    		mbus_write_message32(0xDD, 0xFAFA0000);
+			mbus_write_message32(0xDD, temp_storage[radio_tx_count]);
 			delay(MBUS_DELAY);
 		#endif
-		// This is also the end of this IRQ routine
-		exec_count_irq = 0;
-		// Go to sleep without timer
-		radio_tx_count = temp_storage_count; // allows data to be sent more than once
-		operation_sleep_notimer();
+
+		// Reset watchdog timer
+		config_timerwd(TIMERWD_VAL);
+
+		// Radio out data
+		send_radio_data_ppm(0, temp_storage[radio_tx_count]);
+		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
+
+		radio_tx_count--;
     }
 
+	delay(RADIO_PACKET_DELAY*2); //Set delays between sending subsequent packet
+	send_radio_data_ppm(1, 0xFAF000);
+
+	// This is also the end of this IRQ routine
+	exec_count_irq = 0;
+
+	// Go to sleep without timer
+	radio_tx_count = temp_storage_count; // allows data to be sent more than once
+	operation_sleep_notimer();
 }
 
 
@@ -581,9 +577,11 @@ static void operation_init(void){
     mbus_remote_register_write(SNS_ADDR,0x19,snsv7_r25.as_int);
     // SNSv7_R14
 	snsv7_r14.TEMP_SENSOR_DELAY_SEL = 3;
+    snsv7_r14.TEMP_SENSOR_R_tmod = 0x0;
+    snsv7_r14.TEMP_SENSOR_R_bmod = 0x0;
     mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
     // snsv7_R15
-	snsv7_r15.TEMP_SENSOR_SEL_CT = 7;
+	snsv7_r15.TEMP_SENSOR_SEL_CT = 6;
     mbus_remote_register_write(SNS_ADDR,0xF,snsv7_r15.as_int);
 
     // snsv7_R18
