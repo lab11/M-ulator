@@ -802,7 +802,7 @@ static void operation_temp_run(void){
 		delay(MBUS_DELAY);
 		mbus_write_message32(0xCC, set_temp_exec_count);
 		delay(MBUS_DELAY);
-		mbus_write_message32(0xCC, read_data_reg11);
+		mbus_write_message32(0xCB, read_data_reg11);
 		delay(MBUS_DELAY);
 	#endif
 
