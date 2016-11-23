@@ -1009,7 +1009,7 @@ int main() {
 		operation_temp_run();
 
     }else if(wakeup_data_header == 3){
-		// Stop temp sensor program and transmit the execution count n times
+		// Stop temp sensor program and transmit the battery reading and execution count (alternating n times)
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period 
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
@@ -1017,14 +1017,28 @@ int main() {
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
 			if (exec_count_irq == 1){
+				// Grab latest PMU ADC readings
+				// PMUv2 register read is handled differently
+				mbus_remote_register_write(PMU_ADDR,0x00,0x03);
+				delay(MBUS_DELAY);
+				delay(MBUS_DELAY);
+				read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
+				batadc_reset();
+				delay(MBUS_DELAY);
+		
 				// Prepare radio TX
 				radio_power_on();
 				// Go to sleep for SCRO stabilitzation
 				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
 				operation_sleep_noirqreset();
 			}else{
-				// radio
-				send_radio_data_ppm(0,0xC00000+exec_count);	
+				if (exec_count_irq & 0x1){
+					// radio
+					send_radio_data_ppm(0,0xBBB000+read_data_batadc);	
+				}else{
+					// radio
+					send_radio_data_ppm(0,0xC00000+exec_count);	
+				}
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
