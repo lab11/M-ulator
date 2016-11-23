@@ -57,7 +57,7 @@
 #define RADIO_TIMEOUT_COUNT 50
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
-#define TEMP_STORAGE_SIZE 500 // Need to leave about 500 Bytes for stack
+#define TEMP_STORAGE_SIZE 400 // Need to leave about 500 Bytes for stack
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y2 run default clock
 
@@ -68,12 +68,12 @@
 // "volatile" should only be used for MMIO --> ensures memory storage
 volatile uint32_t enumerated;
 volatile uint32_t wakeup_data;
-volatile uint8_t Tstack_state;
-volatile bool temp_timeout_flag;
+volatile uint32_t Tstack_state;
+volatile uint32_t temp_timeout_flag;
 volatile uint32_t exec_count;
 volatile uint32_t meas_count;
 volatile uint32_t exec_count_irq;
-volatile uint8_t mbus_msg_flag;
+volatile uint32_t mbus_msg_flag;
 
 volatile snsv7_r14_t snsv7_r14 = SNSv7_R14_DEFAULT;
 volatile snsv7_r15_t snsv7_r15 = SNSv7_R15_DEFAULT;
@@ -89,15 +89,15 @@ volatile uint32_t temp_storage[TEMP_STORAGE_SIZE] = {0};
 volatile uint32_t temp_storage_latest = 2000;
 volatile uint32_t temp_reference_rt = 2000;
 volatile uint32_t temp_storage_count;
-volatile bool temp_run_single;
-volatile bool temp_running;
+volatile uint32_t temp_run_single;
+volatile uint32_t temp_running;
 volatile uint32_t set_temp_exec_count;
 
 volatile uint32_t radio_tx_count;
 volatile uint32_t radio_tx_option;
 volatile uint32_t radio_tx_numdata;
-volatile bool radio_ready;
-volatile bool radio_on;
+volatile uint32_t radio_ready;
+volatile uint32_t radio_on;
 
 volatile uint32_t read_data_batadc;
 
@@ -733,12 +733,6 @@ static void operation_temp_run(void){
 		mbus_msg_flag = 0;
 		temp_sensor_enable();
 
-		if (temp_run_single){
-			Tstack_state = TSTK_TEMP_READ;
-			set_wakeup_timer(WAKEUP_PERIOD_RESET, 0x1, 0x1);
-			operation_sleep_noirqreset();
-		}
-
 		for(count=0; count<TEMP_TIMEOUT_COUNT; count++){
 			if( mbus_msg_flag ){
 				mbus_msg_flag = 0;
@@ -826,57 +820,54 @@ static void operation_temp_run(void){
 			// Assert temp sensor isolation & turn off temp sensor power
 			temp_power_off();
 
+			exec_count++;
+			// Store results in memory; unless buffer is full
+			if (temp_storage_count < TEMP_STORAGE_SIZE){
+				temp_storage[temp_storage_count] = read_data_reg11;
+				radio_tx_count = temp_storage_count;
+				temp_storage_count++;
+			}
+
+			// Optionally transmit the data
+			if (radio_tx_option){
+				send_radio_data_ppm(0, read_data_reg11);
+			}
+
+			// Enter long sleep
+			if(exec_count < TEMP_CYCLE_INIT){
+				// Send some signal
+				delay(RADIO_PACKET_DELAY);
+				send_radio_data_ppm(1, 0xFAF000);
+				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
+
+			}else{	
+				// Wakeup period adjustment based on temp reading
+				temp_sensor_wakeup_compensation();
+				set_wakeup_timer(WAKEUP_PERIOD_CONT*WAKEUP_PERIOD_UNIT_SEL, 0x1, 0x1);
+			}
+
+			// Make sure Radio is off
+			if (radio_on){
+				radio_ready = 0;
+				radio_power_off();
+			}
 
 			if (temp_run_single){
+				temp_reference_rt = temp_storage_latest;
 				temp_run_single = 0;
-				return;
-			}else{
-				exec_count++;
-				// Store results in memory; unless buffer is full
-				if (temp_storage_count < TEMP_STORAGE_SIZE){
-					temp_storage[temp_storage_count] = read_data_reg11;
-					radio_tx_count = temp_storage_count;
-					temp_storage_count++;
-				}
-
-				// Optionally transmit the data
-				if (radio_tx_option){
-					send_radio_data_ppm(0, exec_count);
-					delay(RADIO_PACKET_DELAY);
-					send_radio_data_ppm(0, read_data_reg11);
-				}
-
-				// Enter long sleep
-				if(exec_count < TEMP_CYCLE_INIT){
-					// Send some signal
-					delay(RADIO_PACKET_DELAY);
-					send_radio_data_ppm(1, 0xFAF000);
-					set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-
-				}else{	
-					// Wakeup period adjustment based on temp reading
-					temp_sensor_wakeup_compensation();
-					set_wakeup_timer(WAKEUP_PERIOD_CONT*WAKEUP_PERIOD_UNIT_SEL, 0x1, 0x1);
-				}
-
-				// Make sure Radio is off
-				if (radio_on){
-					radio_ready = 0;
-					radio_power_off();
-				}
-
-				if ((set_temp_exec_count != 0) && (exec_count > (50<<set_temp_exec_count))){
-					// No more measurement required
-					// Make sure temp sensor is off
-					temp_running = 0;
-					temp_power_off();
-					operation_sleep_notimer();
-				}else{
-					operation_sleep_noirqreset();
-					
-				}
-
+				temp_running = 0;
+				operation_sleep_notimer();
 			}
+
+			if ((set_temp_exec_count != 0) && (exec_count > (50<<set_temp_exec_count))){
+				// No more measurement required
+				// Make sure temp sensor is off
+				temp_running = 0;
+				operation_sleep_notimer();
+			}else{
+				operation_sleep_noirqreset();
+			}
+
 		}
 
     }else{
@@ -1206,10 +1197,33 @@ int main() {
             // Go to sleep without timer
             operation_sleep_notimer();
         }
+
+    }else if(wakeup_data_header == 0x14){
+		// Run temp sensor once to update room temperature reference
+        radio_tx_option = 1;
+		temp_run_single = 1;
+		temp_running = 1;
+
+		exec_count = 0;
+		meas_count = 0;
+		temp_storage_count = 0;
+		radio_tx_count = 0;
+
+		// Reset IRQ14VEC
+		*((volatile uint32_t *) IRQ14VEC) = 0;
+        exec_count_irq = 0;
+
+		// Run Temp Sensor Program
+		temp_timeout_flag = 0;
+		operation_temp_run();
+
 	}else if(wakeup_data_header == 0x15){
-		// Store reference temperature for 25C
+		// Manually write reference temperature for 25C
         // wakeup_data[23:0] is the desired reference value
-		temp_reference_rt = wakeup_data & 0xFFFFFF;
+		// If value is 0, write is ignored
+		if ((wakeup_data & 0xFFFFFF) != 0){
+			temp_reference_rt = wakeup_data & 0xFFFFFF;
+		}
 
         if (exec_count_irq < 5){
             exec_count_irq++;
