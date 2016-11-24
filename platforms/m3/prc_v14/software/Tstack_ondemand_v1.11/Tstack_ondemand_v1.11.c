@@ -566,7 +566,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEEE;
+    enumerated = 0xDEADBEEA;
     exec_count = 0;
     exec_count_irq = 0;
     mbus_msg_flag = 0;
@@ -916,7 +916,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEEE){
+    if (enumerated != 0xDEADBEEA){
         // Set up PMU/GOC register in PRC layer (every time)
         // Enumeration & RAD/SNS layer register configuration
         operation_init();
