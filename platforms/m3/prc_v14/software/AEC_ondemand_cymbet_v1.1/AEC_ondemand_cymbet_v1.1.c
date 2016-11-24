@@ -876,7 +876,7 @@ static void operation_temp_cdc_run(void){
 		mbus_remote_register_read(SNS_ADDR,4,1);
 		read_data_reg4 = *((volatile uint32_t *) 0xA0000004);
 		delay(MBUS_DELAY);
-		mbus_remote_register_read(SNS_ADDR,11,1);
+		mbus_remote_register_read(SNS_ADDR,0x11,1);
 		read_data_reg11 = *((volatile uint32_t *) 0xA0000004);
 		delay(MBUS_DELAY);
 		
