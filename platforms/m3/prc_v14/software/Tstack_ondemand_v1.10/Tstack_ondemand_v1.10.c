@@ -16,6 +16,7 @@
 //			v1.10: Records 0x666 if temp sensor times out and moves on  
 //				   Incorporating trig2 wakeup time adjustment based on temp measurement 
 //				   LDO voltage set to be highest
+//			Used for AEC France Test in Nov 2016
 //*******************************************************************
 #include "PRCv14.h"
 #include "PRCv14_RF.h"

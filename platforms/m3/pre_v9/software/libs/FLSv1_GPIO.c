@@ -329,7 +329,7 @@ uint32_t FLSMBusGPIO_rxMsg () {
 				else if (numRxBit < 40) { FLSMBusGPIO_RxData0 = ((FLSMBusGPIO_RxData0 << 1) | rxBit); }
 				else if (numRxBit < 72) { FLSMBusGPIO_RxData1 = ((FLSMBusGPIO_RxData1 << 1) | rxBit); }
 				else if (numRxBit < 104) { FLSMBusGPIO_RxData2 = ((FLSMBusGPIO_RxData2 << 1) | rxBit); }
-				else return 999; // Overflow
+				else return 999; // Overflow <------- Comment out this line if you want to do unlimited-length RX. 
 				numRxBit++;
 			}
 
