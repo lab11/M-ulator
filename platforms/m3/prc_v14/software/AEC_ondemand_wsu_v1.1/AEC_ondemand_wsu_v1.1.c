@@ -689,6 +689,7 @@ static void operation_init(void){
     radv9_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
     radv9_r0.RADIO_TUNE_FREQ2 = 0x4; //Tune Freq 2
     radv9_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
+    //radv9_r0.RADIO_TUNE_POWER = 0x1F; //Tune POWER
     mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
 
     // FSM data length setups

@@ -16,7 +16,7 @@
 //			v1.10: Records 0x666 if temp sensor times out and moves on  
 //				   Incorporating trig2 wakeup time adjustment based on temp measurement 
 //				   LDO voltage set to be highest
-//			v1.11: Tempsensor continuous mode turned on  
+//			v1.11: Tempsensor continuous mode turned on  --> turned out to be not stable
 //*******************************************************************
 #include "PRCv14.h"
 #include "PRCv14_RF.h"
