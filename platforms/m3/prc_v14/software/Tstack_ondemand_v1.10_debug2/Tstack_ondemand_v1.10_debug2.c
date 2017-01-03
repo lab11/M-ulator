@@ -41,7 +41,8 @@
 
 // Temp Sensor parameters
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
-#define TEMP_TIMEOUT_COUNT 2000
+#define	MBUS_DELAY_D10 10 
+#define TEMP_TIMEOUT_COUNT 20000
 #define WAKEUP_PERIOD_RESET 2
 //#define WAKEUP_PERIOD_LDO 2
 #define TEMP_CYCLE_INIT 5 
@@ -99,6 +100,7 @@ volatile uint32_t temp_storage_count;
 volatile uint32_t temp_run_single;
 volatile uint32_t temp_running;
 volatile uint32_t set_temp_exec_count;
+volatile uint32_t read_data_reg11; // [23:0] Temp Sensor D Out
 
 volatile uint32_t radio_tx_count;
 volatile uint32_t radio_tx_option;
@@ -144,7 +146,10 @@ void handler_ext_int_14(void) __attribute__ ((interrupt ("IRQ")));
 
 void handler_ext_int_0(void)  { *NVIC_ICPR = (0x1 << 0);  } // TIMER32
 void handler_ext_int_1(void)  { *NVIC_ICPR = (0x1 << 1);  } // TIMER16
-void handler_ext_int_2(void)  { *NVIC_ICPR = (0x1 << 2); mbus_msg_flag = 0x10; } // REG0
+void handler_ext_int_2(void)  { *NVIC_ICPR = (0x1 << 2); mbus_msg_flag = 0x10; 
+	// Grab Temp Sensor Data
+	read_data_reg11 = *((volatile uint32_t *) 0xA0000000);
+} // REG0
 void handler_ext_int_3(void)  { *NVIC_ICPR = (0x1 << 3); mbus_msg_flag = 0x11; } // REG1
 void handler_ext_int_4(void)  { *NVIC_ICPR = (0x1 << 4); mbus_msg_flag = 0x12; } // REG2
 void handler_ext_int_5(void)  { *NVIC_ICPR = (0x1 << 5); mbus_msg_flag = 0x13; } // REG3
@@ -572,7 +577,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEED;
+    enumerated = 0xDEADBEEF;
     exec_count = 0;
     exec_count_irq = 0;
     mbus_msg_flag = 0;
@@ -613,7 +618,7 @@ static void operation_init(void){
     snsv7_r14.TEMP_SENSOR_R_bmod = 0x0;
     mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
     // snsv7_R15
-    snsv7_r15.TEMP_SENSOR_AMP_BIAS = 0x2; // Default: 2
+    snsv7_r15.TEMP_SENSOR_AMP_BIAS = 0x7; // Default: 2
     snsv7_r15.TEMP_SENSOR_CONT_MODEb = 0x0;
 	snsv7_r15.TEMP_SENSOR_SEL_CT = 6;
     mbus_remote_register_write(SNS_ADDR,0xF,snsv7_r15.as_int);
@@ -766,7 +771,7 @@ static void operation_temp_run(void){
 				Tstack_state = TSTK_TEMP_READ;
 				return;
 			}else{
-				delay(MBUS_DELAY);
+				delay(MBUS_DELAY_D10);
 				// Prevent watchdog kicking in
     			config_timerwd(TIMERWD_VAL);
 			}
@@ -783,19 +788,11 @@ static void operation_temp_run(void){
 			delay(MBUS_DELAY*10);
 		#endif
 
-		// Grab Temp Sensor Data
-		//uint32_t read_data_reg10; // [0] Temp Sensor Done
-		uint32_t read_data_reg11; // [23:0] Temp Sensor D Out
-
-		read_data_reg11 = *((volatile uint32_t *) 0xA0000000);
-		delay(MBUS_DELAY);
-		
 		if (temp_timeout_flag){
 			read_data_reg11 = 0x666;
 		}else{
 			temp_storage_latest = read_data_reg11;
 		}
-			
 
 		// Option to take multiple measurements per wakeup
 		if (meas_count < NUM_TEMP_MEAS){	
@@ -810,6 +807,10 @@ static void operation_temp_run(void){
 
 			meas_count = 0;
 
+			// Assert temp sensor isolation & turn off temp sensor power
+			temp_power_off();
+			Tstack_state = TSTK_IDLE;
+			
 			#ifdef DEBUG_MBUS_MSG_1
 				mbus_write_message32(0xCC, exec_count);
 				delay(MBUS_DELAY);
@@ -825,14 +826,6 @@ static void operation_temp_run(void){
 				delay(MBUS_DELAY);
 				mbus_write_message32(0xC4, temp_meas_data[4]);
 			#endif
-
-			// Finalize temp sensor operation
-			temp_sensor_disable();
-			temp_sensor_assert_reset();
-			Tstack_state = TSTK_IDLE;
-			
-			// Assert temp sensor isolation & turn off temp sensor power
-			temp_power_off();
 
 			exec_count++;
 			// Store results in memory; unless buffer is full
@@ -928,7 +921,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEED){
+    if (enumerated != 0xDEADBEEF){
         // Set up PMU/GOC register in PRC layer (every time)
         // Enumeration & RAD/SNS layer register configuration
         operation_init();
