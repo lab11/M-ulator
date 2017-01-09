@@ -16,7 +16,8 @@
 //				   Incorporating trig2 wakeup time adjustment based on temp measurement 
 //				   LDO voltage set to be highest
 //			   	  -->Used for AEC France Test in Nov 2016
-//			v1.12: Dynamic adjustment of wakeup time based on CPU clock cycle  
+//			v1.12: Dynamic adjustment of wakeup time based on CPU clock cycle
+//				   Changed temp sensor polling to wfi  
 //*******************************************************************
 #include "PRCv14.h"
 #include "PRCv14_RF.h"
@@ -51,7 +52,7 @@
 #define TSTK_TEMP_START 0x2
 #define TSTK_TEMP_READ  0x6
 
-#define NUM_TEMP_MEAS 2 
+#define NUM_TEMP_MEAS 5 
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 24
@@ -59,7 +60,7 @@
 #define RADIO_TIMEOUT_COUNT 50
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
-#define TEMP_STORAGE_SIZE 400 // Need to leave about 500 Bytes for stack
+#define TEMP_STORAGE_SIZE 500 // Need to leave about 500 Bytes for stack
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y2 run default clock
 
@@ -76,6 +77,7 @@ volatile uint32_t exec_count;
 volatile uint32_t meas_count;
 volatile uint32_t exec_count_irq;
 volatile uint32_t mbus_msg_flag;
+volatile uint32_t wakeup_period_count;
 volatile uint32_t wakeup_timer_multiplier;
 
 volatile snsv7_r14_t snsv7_r14 = SNSv7_R14_DEFAULT;
@@ -83,13 +85,15 @@ volatile snsv7_r15_t snsv7_r15 = SNSv7_R15_DEFAULT;
 volatile snsv7_r18_t snsv7_r18 = SNSv7_R18_DEFAULT;
 volatile snsv7_r25_t snsv7_r25 = SNSv7_R25_DEFAULT;
   
+volatile uint32_t WAKEUP_PERIOD_CONT_USER; 
 volatile uint32_t WAKEUP_PERIOD_CONT; 
 volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
 
-volatile uint32_t temp_meas_data[NUM_TEMP_MEAS] = {0};
+//volatile uint32_t temp_meas_data[NUM_TEMP_MEAS] = {0};
 volatile uint32_t temp_storage[TEMP_STORAGE_SIZE] = {0};
 volatile uint32_t temp_storage_latest = 2000;
-volatile uint32_t temp_reference_rt = 2000;
+volatile uint32_t temp_storage_last_wakeup_adjust = 2000;
+volatile uint32_t temp_storage_diff = 0;
 volatile uint32_t temp_storage_count;
 volatile uint32_t temp_run_single;
 volatile uint32_t temp_running;
@@ -138,12 +142,9 @@ void handler_ext_int_12(void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_13(void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_14(void) __attribute__ ((interrupt ("IRQ")));
 
-void handler_ext_int_0(void)  { *NVIC_ICPR = (0x1 << 0);  } // TIMER32
+void handler_ext_int_0(void)  { *NVIC_ICPR = (0x1 << 0); temp_timeout_flag = 1;} // TIMER32
 void handler_ext_int_1(void)  { *NVIC_ICPR = (0x1 << 1);  } // TIMER16
-void handler_ext_int_2(void)  { *NVIC_ICPR = (0x1 << 2); mbus_msg_flag = 0x10; 
-	// Grab Temp Sensor Data
-	read_data_reg11 = *((volatile uint32_t *) 0xA0000000);
-} // REG0
+void handler_ext_int_2(void)  { *NVIC_ICPR = (0x1 << 2); mbus_msg_flag = 0x10; } // REG0
 void handler_ext_int_3(void)  { *NVIC_ICPR = (0x1 << 3); mbus_msg_flag = 0x11; } // REG1
 void handler_ext_int_4(void)  { *NVIC_ICPR = (0x1 << 4); mbus_msg_flag = 0x12; } // REG2
 void handler_ext_int_5(void)  { *NVIC_ICPR = (0x1 << 5); mbus_msg_flag = 0x13; } // REG3
@@ -542,51 +543,57 @@ static void operation_tx_stored(void){
 	operation_sleep_notimer();
 }
 
-static void operation_dynamic_wakeup_adjustment(void){
-// FIXME
-	uint32_t wakeup_timer_val_0;
-	uint32_t wakeup_timer_val_1;
-	uint32_t wakeup_timer_diff;
-	wakeup_timer_val_0 = *((volatile uint32_t *) REG_WUPT_VAL);
-	delay(5000);
-	wakeup_timer_val_1 = *((volatile uint32_t *) REG_WUPT_VAL);
+uint32_t dumb_divide(uint32_t nu, uint32_t de) {
+// Returns quotient of nu/de
 
-	mbus_write_message32(0xAA, wakeup_timer_val_1);
-	delay(5000);
-	wakeup_timer_val_1 = *((volatile uint32_t *) REG_WUPT_VAL);
-	config_timerwd(TIMERWD_VAL);
-	mbus_write_message32(0xAA, wakeup_timer_val_1);
-	delay(5000);
-	wakeup_timer_val_1 = *((volatile uint32_t *) REG_WUPT_VAL);
-	config_timerwd(TIMERWD_VAL);
-	mbus_write_message32(0xAA, wakeup_timer_val_1);
-	delay(5000);
-	wakeup_timer_val_1 = *((volatile uint32_t *) REG_WUPT_VAL);
-	config_timerwd(TIMERWD_VAL);
-	mbus_write_message32(0xAA, wakeup_timer_val_1);
-	delay(5000);
-	wakeup_timer_val_1 = *((volatile uint32_t *) REG_WUPT_VAL);
-	config_timerwd(TIMERWD_VAL);
-	mbus_write_message32(0xAA, wakeup_timer_val_1);
-	delay(5000);
-	wakeup_timer_val_1 = *((volatile uint32_t *) REG_WUPT_VAL);
-	config_timerwd(TIMERWD_VAL);
-	mbus_write_message32(0xAA, wakeup_timer_val_1);
-	delay(5000);
-	wakeup_timer_val_1 = *((volatile uint32_t *) REG_WUPT_VAL);
+    uint32_t temp = 1;
+    uint32_t quotient = 0;
 
-	if (wakeup_timer_diff < 2){
-		// Wakeup timer slow enough; use room temp settings
-		wakeup_timer_multiplier = 1;
+    while (de <= nu) {
+        de <<= 1;
+        temp <<= 1;
+    }
 
-	}else if (wakeup_timer_diff == 2){
+    //printf("%d %d\n",de,temp,nu);
+    while (temp > 1) {
+        de >>= 1;
+        temp >>= 1;
 
+        if (nu >= de) {
+            nu -= de;
+            //printf("%d %d\n",quotient,temp);
+            quotient += temp;
+        }
+    }
 
-	}else{
+    return quotient;
+}
 
+static void measure_wakeup_period(void){
 
+	mbus_write_message32(0xE0, 0x0);
+	// Prevent watchdog kicking in
+   	config_timerwd(TIMERWD_VAL);
+
+	uint32_t wakeup_timer_val_0 = *((volatile uint32_t *) REG_WUPT_VAL);
+	wakeup_period_count = 0;
+
+	while( *((volatile uint32_t *) REG_WUPT_VAL) == wakeup_timer_val_0){
+		wakeup_period_count = 0;
 	}
+	wakeup_timer_val_0++;
+	mbus_write_message32(0xE1, wakeup_timer_val_0);
+	while( *((volatile uint32_t *) REG_WUPT_VAL) == wakeup_timer_val_0){
+		wakeup_period_count++;
+	}
+	mbus_write_message32(0xE2, wakeup_period_count);
+	delay(MBUS_DELAY);
 
+   	config_timerwd(TIMERWD_VAL);
+	WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*10, wakeup_period_count);
+	mbus_write_message32(0xED, WAKEUP_PERIOD_CONT); // For 5 min interval
+	delay(MBUS_DELAY);
+	
 }
 
 
@@ -637,11 +644,14 @@ static void operation_init(void){
 	snsv7_r25.TEMP_SENSOR_IRQ_PACKET = 0x001000;
     mbus_remote_register_write(SNS_ADDR,0x19,snsv7_r25.as_int);
     // SNSv7_R14
-	snsv7_r14.TEMP_SENSOR_DELAY_SEL = 2;
+    snsv7_r14.TEMP_SENSOR_BURST_MODE = 0x0;
+	snsv7_r14.TEMP_SENSOR_DELAY_SEL = 5;
     snsv7_r14.TEMP_SENSOR_R_tmod = 0x0;
     snsv7_r14.TEMP_SENSOR_R_bmod = 0x0;
     mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
     // snsv7_R15
+    snsv7_r15.TEMP_SENSOR_AMP_BIAS = 0x7; // Default: 2
+    snsv7_r15.TEMP_SENSOR_CONT_MODEb = 0x0;
 	snsv7_r15.TEMP_SENSOR_SEL_CT = 6;
     mbus_remote_register_write(SNS_ADDR,0xF,snsv7_r15.as_int);
 
@@ -740,10 +750,6 @@ static void operation_temp_run(void){
 			radio_power_on();
 		}
 
-		// Dynamic adjustment of wakeup period
-		operation_dynamic_wakeup_adjustment();
-
-		
 		snsv7_r18.ADC_LDO_ADC_LDO_ENB = 0x0;
 		mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
 
@@ -768,10 +774,18 @@ static void operation_temp_run(void){
 			mbus_write_message32(0xBB, 0xFBFB2222);
 			delay(MBUS_DELAY*10);
 		#endif
-		Tstack_state = TSTK_TEMP_START;
+		Tstack_state = TSTK_TEMP_READ;
 
 		// Release Temp Sensor Reset
 		temp_sensor_release_reset();
+		delay(MBUS_DELAY);
+			
+		// Start Temp Sensor
+		temp_sensor_enable();
+
+		// Put system to sleep
+		set_wakeup_timer(20, 0x1, 0x1); // FIXME timeout value should be set
+		operation_sleep_noirqreset();
 
 	}else if (Tstack_state == TSTK_TEMP_START){
 	// Start temp measurement
@@ -781,25 +795,18 @@ static void operation_temp_run(void){
 	#endif
 
 		mbus_msg_flag = 0;
+
+		// Start Temp Sensor
 		temp_sensor_enable();
 
-    	uint32_t count; 
-		for(count=0; count<TEMP_TIMEOUT_COUNT; count++){
-			if( mbus_msg_flag ){
-				mbus_msg_flag = 0;
-				temp_timeout_flag = 0;
-				Tstack_state = TSTK_TEMP_READ;
-				return;
-			}else{
-				delay(MBUS_DELAY);
-				// Prevent watchdog kicking in
-    			config_timerwd(TIMERWD_VAL);
-			}
-		}
+		// Use Timer32 as timeout counter
+		config_timer32(0x249F0, 1, 0, 0); // 1/10 of MBUS watchdog timer default
 
-		// Time out
-		mbus_write_message32(0xFA, 0xFAFAFAFA);
-		temp_timeout_flag = 1;
+		// Wait for temp sensor output
+		WFI();
+
+		// Turn off Timer32
+		*TIMER32_GO = 0;
 		Tstack_state = TSTK_TEMP_READ;
 
 	}else if (Tstack_state == TSTK_TEMP_READ){
@@ -808,58 +815,64 @@ static void operation_temp_run(void){
 			delay(MBUS_DELAY*10);
 		#endif
 
+		// Grab Temp Sensor Data
 		if (temp_timeout_flag){
-			read_data_reg11 = 0x666;
+			mbus_write_message32(0xFA, 0xFAFAFAFA);
 		}else{
-			temp_storage_latest = read_data_reg11;
+			read_data_reg11 = *((volatile uint32_t *) 0xA0000000);
 		}
-			
+		meas_count++;
 
-		#ifdef DEBUG_MBUS_MSG
-			mbus_write_message32(0xCC, 0xCCCCCCCC);
-			delay(MBUS_DELAY);
-			mbus_write_message32(0xCC, exec_count);
-			delay(MBUS_DELAY);
-			mbus_write_message32(0xCC, read_data_reg11);
-			delay(MBUS_DELAY);
-			mbus_write_message32(0xCC, exec_count);
-			delay(MBUS_DELAY);
-			mbus_write_message32(0xCC, 0xCCCCCCCC);
-			delay(MBUS_DELAY);
-		#endif
+		// Last measurement from this wakeup
+		if (meas_count == NUM_TEMP_MEAS){
+			// No error; see if there was a timeout
+			if (temp_timeout_flag){
+				temp_storage_latest = 0x666;
+				temp_timeout_flag = 0;
+			}else{
+				temp_storage_latest = read_data_reg11;
+
+				// Record temp difference from last wakeup adjustment
+				if (temp_storage_latest > temp_storage_last_wakeup_adjust){
+					temp_storage_diff = temp_storage_latest - temp_storage_last_wakeup_adjust;
+				}else{
+					temp_storage_diff = temp_storage_last_wakeup_adjust - temp_storage_latest;
+				}
+				#ifdef DEBUG_MBUS_MSG_1
+					mbus_write_message32(0xEA, temp_storage_diff);
+					delay(MBUS_DELAY);
+				#endif
+				
+				// FIXME: for now, do this every time					
+				//measure_wakeup_period();
+				
+				if ((temp_storage_diff > 10) || (exec_count < 2)){
+					measure_wakeup_period();
+					temp_storage_last_wakeup_adjust = temp_storage_latest;
+				}
+				
+			}
+		}
 
 		// Option to take multiple measurements per wakeup
 		if (meas_count < NUM_TEMP_MEAS){	
-
-			temp_meas_data[meas_count] = read_data_reg11;
-			meas_count++;
-
 			// Repeat measurement while awake
 			temp_sensor_disable();
 			Tstack_state = TSTK_TEMP_START;
 				
 		}else{
-
 			meas_count = 0;
+
+			// Assert temp sensor isolation & turn off temp sensor power
+			temp_power_off();
+			Tstack_state = TSTK_IDLE;
 
 			#ifdef DEBUG_MBUS_MSG_1
 				mbus_write_message32(0xCC, exec_count);
 				delay(MBUS_DELAY);
-				mbus_write_message32(0xCC, set_temp_exec_count);
-				delay(MBUS_DELAY);
-				mbus_write_message32(0xC0, temp_meas_data[0]);
-				delay(MBUS_DELAY);
-				mbus_write_message32(0xC1, temp_meas_data[1]);
+				mbus_write_message32(0xC0, temp_storage_latest);
 				delay(MBUS_DELAY);
 			#endif
-
-			// Finalize temp sensor operation
-			temp_sensor_disable();
-			temp_sensor_assert_reset();
-			Tstack_state = TSTK_IDLE;
-			
-			// Assert temp sensor isolation & turn off temp sensor power
-			temp_power_off();
 
 			exec_count++;
 			// Store results in memory; unless buffer is full
@@ -882,8 +895,7 @@ static void operation_temp_run(void){
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 
 			}else{	
-				// Temperature measurement cycle
-				set_wakeup_timer(WAKEUP_PERIOD_CONT*wakeup_timer_multiplier, 0x1, 0x1);
+				set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
 			}
 
 			// Make sure Radio is off
@@ -893,7 +905,6 @@ static void operation_temp_run(void){
 			}
 
 			if (temp_run_single){
-				temp_reference_rt = temp_storage_latest;
 				temp_run_single = 0;
 				temp_running = 0;
 				operation_sleep_notimer();
@@ -1011,7 +1022,7 @@ int main() {
         // wakeup_data[19:16] is the initial user-specified period
         // wakeup_data[20] enables radio tx for each measurement
         // wakeup_data[23:21] specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
-    	WAKEUP_PERIOD_CONT = (wakeup_data_field_0 + (wakeup_data_field_1<<8));
+    	WAKEUP_PERIOD_CONT_USER = (wakeup_data_field_0 + (wakeup_data_field_1<<8));
         WAKEUP_PERIOD_CONT_INIT = (wakeup_data_field_2 & 0xF);
         radio_tx_option = wakeup_data_field_2 & 0x10;
 
@@ -1020,7 +1031,7 @@ int main() {
 
 		if (!temp_running){
 			// Go to sleep for initial settling of temp sensing // FIXME
-			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1); // 150: around 5 min
+			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 			temp_running = 1;
 			set_temp_exec_count = wakeup_data_field_2 >> 5;
             exec_count_irq++;
@@ -1256,6 +1267,42 @@ int main() {
 		// Run Temp Sensor Program
 		temp_timeout_flag = 0;
 		operation_temp_run();
+
+    }else if(wakeup_data_header == 0x15){
+		// Transmit wakeup period as counted by (roughly) CPU clock
+		// wakeup_data[7:0] is the # of transmissions
+		// wakeup_data[15:8] is the user-specified period 
+		WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+		exec_count = 0;
+
+        if (exec_count_irq < wakeup_data_field_0){
+            exec_count_irq++;
+			if (exec_count_irq == 1){
+				// Measure wakeup period
+				measure_wakeup_period();
+
+				// Prepare radio TX
+				radio_power_on();
+				// Go to sleep for SCRO stabilitzation
+				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
+				operation_sleep_noirqreset();
+			}else{
+				// radio
+				send_radio_data_ppm(0,0xC00000+wakeup_period_count);	
+				// set timer
+				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
+				// go to sleep and wake up with same condition
+				operation_sleep_noirqreset();
+			}
+        }else{
+            exec_count_irq = 0;
+            // radio
+            send_radio_data_ppm(1,0xFAF000);	
+			// Release reset of PMU ADC
+			batadc_resetrelease();
+            // Go to sleep without timer
+            operation_sleep_notimer();
+        }
 
     }
 

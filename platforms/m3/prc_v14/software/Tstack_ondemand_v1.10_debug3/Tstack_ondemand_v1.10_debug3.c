@@ -42,8 +42,7 @@
 
 // Temp Sensor parameters
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
-#define	MBUS_DELAY_D10 10 
-#define TEMP_TIMEOUT_COUNT 20000
+#define TEMP_TIMEOUT_COUNT 2000
 #define WAKEUP_PERIOD_RESET 2
 //#define WAKEUP_PERIOD_LDO 2
 #define TEMP_CYCLE_INIT 5 
@@ -93,7 +92,7 @@ volatile uint32_t WAKEUP_PERIOD_UNIT[4] = {1,1,1,1};
 volatile uint32_t WAKEUP_PERIOD_UNIT_SEL = 1;
 volatile uint32_t WAKEUP_PERIOD_LDO = 2;
 
-volatile uint32_t temp_meas_data[NUM_TEMP_MEAS] = {0};
+volatile uint32_t temp_meas_data[NUM_TEMP_MEAS+1] = {0};
 volatile uint32_t temp_storage[TEMP_STORAGE_SIZE] = {0};
 volatile uint32_t temp_storage_latest = 2000;
 volatile uint32_t temp_reference_rt = 2000;
@@ -576,7 +575,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEEF;
+    enumerated = 0xDEADBEEA;
     exec_count = 0;
     exec_count_irq = 0;
     mbus_msg_flag = 0;
@@ -611,8 +610,8 @@ static void operation_init(void){
 	snsv7_r25.TEMP_SENSOR_IRQ_PACKET = 0x001000;
     mbus_remote_register_write(SNS_ADDR,0x19,snsv7_r25.as_int);
     // SNSv7_R14
-    snsv7_r14.TEMP_SENSOR_BURST_MODE = 0x1;
-	snsv7_r14.TEMP_SENSOR_DELAY_SEL = 7;
+    snsv7_r14.TEMP_SENSOR_BURST_MODE = 0x0;
+	snsv7_r14.TEMP_SENSOR_DELAY_SEL = 5;
     snsv7_r14.TEMP_SENSOR_R_tmod = 0x0;
     snsv7_r14.TEMP_SENSOR_R_bmod = 0x0;
     mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
@@ -774,7 +773,7 @@ static void operation_temp_run(void){
 				Tstack_state = TSTK_TEMP_READ;
 				return;
 			}else{
-				delay(MBUS_DELAY_D10);
+				delay(MBUS_DELAY);
 				// Prevent watchdog kicking in
     			config_timerwd(TIMERWD_VAL);
 			}
@@ -793,6 +792,8 @@ static void operation_temp_run(void){
 
 		// Grab Temp Sensor Data
 		read_data_reg11 = *((volatile uint32_t *) 0xA0000000);
+		temp_meas_data[meas_count] = read_data_reg11;
+		meas_count++;
 
 		if (temp_timeout_flag){
 			read_data_reg11 = 0x666;
@@ -802,16 +803,11 @@ static void operation_temp_run(void){
 
 		// Option to take multiple measurements per wakeup
 		if (meas_count < NUM_TEMP_MEAS){	
-
-			temp_meas_data[meas_count] = read_data_reg11;
-			meas_count++;
-
 			// Repeat measurement while awake
 			temp_sensor_disable();
 			Tstack_state = TSTK_TEMP_START;
 				
 		}else{
-
 			meas_count = 0;
 
 			// Assert temp sensor isolation & turn off temp sensor power
@@ -928,7 +924,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEEF){
+    if (enumerated != 0xDEADBEEA){
         // Set up PMU/GOC register in PRC layer (every time)
         // Enumeration & RAD/SNS layer register configuration
         operation_init();
