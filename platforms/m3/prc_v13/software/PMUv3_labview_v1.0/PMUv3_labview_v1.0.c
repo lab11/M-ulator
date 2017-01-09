@@ -87,29 +87,29 @@ inline static void set_pmu_optimization(){
 	// Register 0x17: UPCONV_TRIM_V3_SLEEP
     mbus_pmu_register_write(0x17, 
 		( (3 << 14) // [0, 3]  Desired Vout/Vin ratio
-		| (1 << 13) // [1, 1]  Enable main feedback loop
+		| (0 << 13) // [1, 1]  Enable main feedback loop
 		| (1 << 9)  // [1, 15] Frequency multiplier R
 		| (0 << 5)  // [0, 15] Frequency multiplier L (actually L+1)
-		| (4) 		// [2, 31] Floor frequency base
+		| (15) 		// [2, 31] Floor frequency base
 	));
 	// Register 0x18: UPCONV_TRIM_V3_ACTIVE
     mbus_pmu_register_write(0x18, 
 		( (3 << 14) // [0, 3]  Desired Vout/Vin ratio
-		| (1 << 13) // [1, 1]  Enable main feedback loop
+		| (0 << 13) // [1, 1]  Enable main feedback loop
 		| (1 << 9)  // [1, 15] Frequency multiplier R
 		| (2 << 5)  // [2, 15] Frequency multiplier L (actually L+1)
 		| (10) 		// [2, 31] Floor frequency base
 	));
 	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
     mbus_pmu_register_write(0x19,
-		( (1 << 13) // [1, 1]  Enable main feedback loop
+		( (0 << 13) // [1, 1]  Enable main feedback loop
 		| (1 << 9)  // [1, 15] Frequency multiplier R
 		| (0 << 5)  // [0, 15] Frequency multiplier L (actually L+1)
-		| (2) 		// [1, 31] Floor frequency base
+		| (15) 		// [1, 31] Floor frequency base
 	));
 	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
     mbus_pmu_register_write(0x1A,
-		( (1 << 13) // [1, 1]  Enable main feedback loop
+		( (0 << 13) // [1, 1]  Enable main feedback loop
 		| (8 << 9)  // [4, 15] Frequency multiplier R
 		| (4 << 5)  // [2, 15] Frequency multiplier L (actually L+1)
 		| (8) 		// [8, 31] Floor frequency base
@@ -120,10 +120,10 @@ inline static void set_pmu_optimization(){
 		| (0 << 18) // [0, 1]  Enable PFM even when Vref is not used as ref
 		| (0 << 17) // [0, 1]  Enable PFM
 		| (3 << 14) // [3, 7]  Comparator clock division ratio
-		| (1 << 13) // [1, 1]  Enable main feedback loop
+		| (0 << 13) // [1, 1]  Enable main feedback loop
 		| (1 << 9)  // [1, 15] Frequency multiplier R
 		| (0 << 5)  // [0, 15] Frequency multiplier L (actually L+1)
-		| (4) 		// [1, 31] Floor frequency base
+		| (15) 		// [1, 31] Floor frequency base
 	));
 	// Register 0x16: SAR_TRIM_v3_ACTIVE
     mbus_pmu_register_write(0x16, 
@@ -131,14 +131,14 @@ inline static void set_pmu_optimization(){
 		| (0 << 18) // [0, 1]  Enable PFM even when Vref is not used as ref
 		| (0 << 17) // [0, 1]  Enable PFM
 		| (3 << 14) // [3, 7]  Comparator clock division ratio
-		| (1 << 13) // [1, 1]  Enable main feedback loop
+		| (0 << 13) // [1, 1]  Enable main feedback loop
 		| (8 << 9)  // [4, 15] Frequency multiplier R
 		| (8 << 5)  // [2, 15] Frequency multiplier L (actually L+1)
 		| (15) 		// [8, 31] Floor frequency base
 	));
 	// Register 0x05: SAR_RATIO_OVERRIDE
     mbus_pmu_register_write(0x05,
-		( (1 << 13) // [1, 1]
+		( (0 << 13) // [1, 1]
         | (0 << 12) // [0, 1]
         | (1 << 11) // [0, 1]   Enable override setting [10]
 		| (0 << 10) // [0, 1]   Have the converter have the periodic reset
@@ -148,8 +148,10 @@ inline static void set_pmu_optimization(){
 		| (44) 		// [0, 127] Binary converter's conversion ratio
 	));
 	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
+    // If this value is too small, the output voltages, as well as IVBAT, will slightly fluctuate so frequently.
     mbus_pmu_register_write(0x36,
-        (1)         // [500, 16777215] Num of clock cycles the controller waits per each periodic conversion ratio adjustment after being fully turned-on
+//        (1)         // [500, 16777215] Num of clock cycles the controller waits per each periodic conversion ratio adjustment after being fully turned-on
+        (0xFFFFFFFF)         // [500, 16777215] Num of clock cycles the controller waits per each periodic conversion ratio adjustment after being fully turned-on
     );
 	// Register 0x37: TICK_WAKEUP_WAIT
     mbus_pmu_register_write(0x37, 2000); // [500, 16777215] Num of clock cycles the controller waits for internal state transition from sleep to wakeup mode
@@ -222,13 +224,24 @@ inline static void set_pmu_optimization(){
 		| (1 << 17) // [1, 1] state_vdd_1p2_turned_on
 		| (1 << 18) // [1, 1] state_vdd_0P6_turned_on
 		| (0 << 19) // [0, 1] state_state_horizon
-	));
+	)); 
 }
 
 //***************************************************
 // End of Program Sleep Operation
 //***************************************************
+void temp_set_wakeup_timer( uint16_t timestamp, uint8_t irq_en, uint8_t reset ){
+	uint32_t regval = timestamp;
+	if( irq_en ) regval |= 0x30000; // IRQ in Sleep-Only
+	else		 regval &= 0x07FFF;
+    *REG_WUPT_CONFIG = regval;
+
+	if( reset ) *WUPT_RESET = 0x01;
+}
+
 static void operation_sleep(void){
+//    mbus_write_message32(0xD2, *REG_WUPT_CONFIG);
+
     // Go to Sleep
     mbus_sleep_all();
     while(1);
@@ -236,7 +249,7 @@ static void operation_sleep(void){
 
 static void operation_sleep_notimer(void){
     // Disable Timer
-    set_wakeup_timer(0, 0, 0);
+    temp_set_wakeup_timer(0, 0, 0);
 
     // Go to sleep without timer
     operation_sleep();
@@ -281,15 +294,19 @@ static void operation_init(void){
 //***************************************************************************************
 int main() {
   
+//    mbus_write_message32(0xD0, *REG_WUPT_CONFIG);
+
     // Reset Wakeup Timer; This is required for PRCv13
-    set_wakeup_timer(100, 0, 1);
+    //temp_set_wakeup_timer(100, 0, 1);
+
+//    mbus_write_message32(0xD1, *REG_WUPT_CONFIG);
 
     // Initialize Interrupts
     // Only enable register-related interrupts
 	enable_reg_irq();
   
-    // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
-    config_timerwd(0xFFFFF); // 0xFFFFF about 13 sec with Y2 run default clock
+    // Config watchdog timer; default: 0x02FFFFFF
+    config_timerwd(0xFFFFFFFF);
 
     // Initialization sequence
     if (enumerated != 0xDEADBEEF){
@@ -299,6 +316,10 @@ int main() {
 
     // Increment exec_count
     exec_count++;
+
+    // Send notifier
+    mbus_write_message32(0xE0, exec_count);
+    mbus_write_message32(0xE0, *REG0);
 
     // Extract Headers
     uint32_t wakeup_header_2 = (*REG0 & 0x00FF0000) >> 16;  // [23:16]
@@ -323,14 +344,7 @@ int main() {
     
     // Send a sleep message (Do nothing)
     if (wakeup_header_2 == 0x00) {
-//        mbus_write_message32(0xEE, 0x00000001);
-//        mbus_write_message32(0xEE, 0x00000011);
-//        mbus_write_message32(0xEE, 0x00000111);
-//        mbus_write_message32(0xEE, 0x00001111);
-//        mbus_write_message32(0xEE, 0x00011111);
-//        mbus_write_message32(0xEE, 0x00111111);
-//        mbus_write_message32(0xEE, 0x01111111);
-//        mbus_write_message32(0xEE, 0x11111111);
+        mbus_write_message32(0xEE, 0xDEADBEEF);
     }
     // PMU Register Write
     else if (wakeup_header_2 == 0x01) {
@@ -339,25 +353,25 @@ int main() {
             //---------------------------------------
 	        // REG1 : SAR_RATIO_OVERRIDE      (0x05)
 	        // REG2 : UPCONV_TRIM_V3_SLEEP    (0x17)
-	        // REG3 : UPCONV_TRIM_V3_ACTIVE   (0x18)
-	        // REG4 : SAR_TRIM_v3_SLEEP       (0x15)
-	        // REG5 : SAR_TRIM_v3_ACTIVE      (0x16)
-	        // REG6 : DOWNCONV_TRIM_V3_SLEEP  (0x19)
+	        // REG3 : SAR_TRIM_v3_SLEEP       (0x15)
+	        // REG4 : DOWNCONV_TRIM_V3_SLEEP  (0x19)
+	        // REG5 : UPCONV_TRIM_V3_ACTIVE   (0x18)
+	        // REG6 : SAR_TRIM_v3_ACTIVE      (0x16)
 	        // REG7 : DOWNCONV_TRIM_V3_ACTIVE (0x1A)
             //---------------------------------------
             
 	        // Register 0x17: UPCONV_TRIM_V3_SLEEP
             mbus_pmu_register_write(0x17, *REG2);
 	        // Register 0x18: UPCONV_TRIM_V3_ACTIVE
-            mbus_pmu_register_write(0x18, *REG3);
+            mbus_pmu_register_write(0x18, *REG5);
 	        // Register 0x19: DOWNCONV_TRIM_V3_SLEEP
-            mbus_pmu_register_write(0x19, *REG6);
+            mbus_pmu_register_write(0x19, *REG4);
 	        // Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
             mbus_pmu_register_write(0x1A, *REG7);
 	        // Register 0x15: SAR_TRIM_v3_SLEEP
-            mbus_pmu_register_write(0x15, *REG4);
+            mbus_pmu_register_write(0x15, *REG3);
 	        // Register 0x16: SAR_TRIM_v3_ACTIVE
-            mbus_pmu_register_write(0x16, *REG5);
+            mbus_pmu_register_write(0x16, *REG6);
 	        // Register 0x05: SAR_RATIO_OVERRIDE
             mbus_pmu_register_write(0x05, *REG1);
         }
