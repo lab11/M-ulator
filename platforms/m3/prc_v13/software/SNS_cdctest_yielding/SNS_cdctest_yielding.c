@@ -257,11 +257,11 @@ static void operation_init(void){
     mbus_remote_register_write(SNS_ADDR,1,snsv7_r1.as_int);
   
     // snsv7_r2
-    snsv7_r2.CDCW_N_CYCLE_SET	= 100; // Min: 0
+    snsv7_r2.CDCW_N_CYCLE_SET	= 200; // Min: 0
     mbus_remote_register_write(SNS_ADDR,2,snsv7_r2.as_int);
   
     // snsv7_r18
-    snsv7_r18.CDC_LDO_CDC_CURRENT_2X  = 0;
+    snsv7_r18.CDC_LDO_CDC_CURRENT_2X  = 1;
   
     // Set ADC LDO to around 1.37V: 0x3//0x20
     snsv7_r18.ADC_LDO_ADC_VREF_MUX_SEL = 0x3;
