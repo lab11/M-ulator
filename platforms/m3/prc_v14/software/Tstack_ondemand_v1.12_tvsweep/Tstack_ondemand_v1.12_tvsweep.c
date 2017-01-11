@@ -843,12 +843,14 @@ static void operation_temp_run(void){
 				#endif
 				
 				// FIXME: for now, do this every time					
-				//measure_wakeup_period();
+				measure_wakeup_period();
 				
+/*
 				if ((temp_storage_diff > 10) || (exec_count < 2)){
 					measure_wakeup_period();
 					temp_storage_last_wakeup_adjust = temp_storage_latest;
 				}
+*/
 				
 			}
 		}
@@ -866,10 +868,21 @@ static void operation_temp_run(void){
 			temp_power_off();
 			Tstack_state = TSTK_IDLE;
 
+			// Grab latest PMU ADC readings
+			// PMUv2 register read is handled differently
+			mbus_remote_register_write(PMU_ADDR,0x00,0x03);
+			delay(MBUS_DELAY);
+			delay(MBUS_DELAY);
+			read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
+			batadc_reset();
+			delay(MBUS_DELAY);
+		
 			#ifdef DEBUG_MBUS_MSG_1
 				mbus_write_message32(0xCC, exec_count);
 				delay(MBUS_DELAY);
 				mbus_write_message32(0xC0, temp_storage_latest);
+				delay(MBUS_DELAY);
+				mbus_write_message32(0xC1, read_data_batadc);
 				delay(MBUS_DELAY);
 			#endif
 
