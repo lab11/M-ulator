@@ -907,6 +907,9 @@ static void operation_temp_run(void){
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 
 			}else{	
+				// Release reset of PMU ADC
+				batadc_resetrelease();
+
 				set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
 			}
 
@@ -1102,6 +1105,8 @@ int main() {
             exec_count_irq = 0;
             // radio
             send_radio_data_ppm(1,0xFAF000);	
+			// Release reset of PMU ADC
+			batadc_resetrelease();
             // Go to sleep without timer
             operation_sleep_notimer();
         }
