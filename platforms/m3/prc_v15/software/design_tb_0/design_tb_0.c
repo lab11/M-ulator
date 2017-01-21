@@ -58,6 +58,9 @@ void handler_ext_int_10(void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_11(void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_12(void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_13(void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_14(void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_15(void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_16(void) __attribute__ ((interrupt ("IRQ")));
 
 void handler_ext_int_0(void) { *NVIC_ICPR = (0x1 << 0); // TIMER32
     irq_history |= (0x1 << 0);
@@ -129,6 +132,16 @@ void handler_ext_int_13(void) { *NVIC_ICPR = (0x1 << 13); // MBUS_FWD
     irq_history |= (0x1 << 13);
     arb_debug_reg (0xA000000D);
 }
+void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); // GOCEP
+    irq_history |= (0x1 << 14);
+    arb_debug_reg (0xA000000E);
+    if (*REG_MBUS_FLAG == 0x1) {
+        arb_debug_reg (0xA0000078);
+        arb_debug_reg (*REG_MBUS_FLAG);
+    }
+}
+void handler_ext_int_15(void) {} // N/A
+void handler_ext_int_16(void) {} // N/A
 
 //*******************************************************************
 // USER FUNCTIONS
@@ -230,7 +243,7 @@ void cycle2 (void) {
     //----------------------------------------------------------------------------------------------------------    
         // Enable MBus Tx/Rx IRQ, Enable REG IRQ (4-7)
         clear_all_pend_irq();
-        *NVIC_ISER =  (0 /*GPIO*/ << 16)    | (0 /*SPI*/ << 15)     | (0 /*GOCEP*/ << 14)  | (0 /*MBUS_FWD*/ << 13) 
+        *NVIC_ISER =  (0 /*GPIO*/ << 16)    | (0 /*SPI*/ << 15)     | (0 /*GOCEP*/ << 14)    | (0 /*MBUS_FWD*/ << 13) 
                     | (1 /*MBUS_TX*/ << 12) | (1 /*MBUS_RX*/ << 11) | (0 /*MEM_WR*/ << 10) | (1 /*REG7*/ << 9) 
                     | (1 /*REG6*/ << 8)     | (1 /*REG5*/ << 7)     | (1 /*REG4*/ << 6)    | (0 /*REG3*/ << 5) 
                     | (0 /*REG2*/ << 4)     | (0 /*REG1*/ << 3)     | (0 /*REG0*/ << 2)     
@@ -240,14 +253,14 @@ void cycle2 (void) {
         mbus_copy_registers_from_remote_to_local (FLP_ADDR, 0x01, 0x04, 3);
 
         // Here should be 6 IRQs: MBUS Tx/Rx and REG4-7. // OK
-        if (irq_history == ((1 << 12) | (1 << 11) | (1 << 9) | (1 << 8) | (1 << 7) | (1 << 6))) { 
+        if ((irq_history & 0x0001BFFF) == ((1 << 12) | (1 << 11) | (1 << 9) | (1 << 8) | (1 << 7) | (1 << 6))) { 
                pass (0x0, irq_history); irq_history = 0; disable_all_irq(); }
         else { fail (0x0, irq_history); disable_all_irq(); }
     
     //----------------------------------------------------------------------------------------------------------    
         // Enable MBus Tx/Rx IRQ
         clear_all_pend_irq();
-        *NVIC_ISER =  (0 /*GPIO*/ << 16)    | (0 /*SPI*/ << 15)     | (0 /*GOCEP*/ << 14)  | (0 /*MBUS_FWD*/ << 13) 
+        *NVIC_ISER =  (0 /*GPIO*/ << 16)    | (0 /*SPI*/ << 15)     | (0 /*GOCEP*/ << 14)    | (0 /*MBUS_FWD*/ << 13) 
                     | (1 /*MBUS_TX*/ << 12) | (1 /*MBUS_RX*/ << 11) | (0 /*MEM_WR*/ << 10) | (0 /*REG7*/ << 9) 
                     | (0 /*REG6*/ << 8)     | (0 /*REG5*/ << 7)     | (0 /*REG4*/ << 6)    | (0 /*REG3*/ << 5) 
                     | (0 /*REG2*/ << 4)     | (0 /*REG1*/ << 3)     | (0 /*REG0*/ << 2)     
@@ -257,7 +270,7 @@ void cycle2 (void) {
         mbus_copy_registers_from_remote_to_local (FLP_ADDR, 0x01, 0x04, 3);
 
         // Here should be 2 IRQs: MBUS Tx/Rx // OK
-        if (irq_history == ((1 << 12) | (1 << 11))) { 
+        if ((irq_history & 0x0001BFFF) == ((1 << 12) | (1 << 11))) { 
                pass (0x1, irq_history); irq_history = 0; disable_all_irq(); }
         else { fail (0x1, irq_history); disable_all_irq(); }
     
@@ -266,7 +279,7 @@ void cycle2 (void) {
         mbus_copy_registers_from_remote_to_local (FLP_ADDR, 0x04, 0x04, 0);
 
         // Here should be 0 IRQs // OK
-        if (irq_history == 0) { 
+        if ((irq_history & 0x0001BFFF) == 0) { 
                pass (0x2, irq_history); irq_history = 0; disable_all_irq(); }
         else { fail (0x2, irq_history); disable_all_irq(); }
 
@@ -276,7 +289,7 @@ void cycle2 (void) {
     
         // Enable Enable REG IRQ (4-7)
         clear_all_pend_irq();
-        *NVIC_ISER =  (0 /*GPIO*/ << 16)    | (0 /*SPI*/ << 15)     | (0 /*GOCEP*/ << 14)  | (0 /*MBUS_FWD*/ << 13) 
+        *NVIC_ISER =  (0 /*GPIO*/ << 16)    | (0 /*SPI*/ << 15)     | (0 /*GOCEP*/ << 14)    | (0 /*MBUS_FWD*/ << 13) 
                     | (0 /*MBUS_TX*/ << 12) | (0 /*MBUS_RX*/ << 11) | (0 /*MEM_WR*/ << 10) | (1 /*REG7*/ << 9) 
                     | (1 /*REG6*/ << 8)     | (1 /*REG5*/ << 7)     | (1 /*REG4*/ << 6)    | (0 /*REG3*/ << 5) 
                     | (0 /*REG2*/ << 4)     | (0 /*REG1*/ << 3)     | (0 /*REG0*/ << 2)     
@@ -286,7 +299,7 @@ void cycle2 (void) {
         mbus_copy_registers_from_remote_to_local (FLP_ADDR, 0x01, 0x04, 3);
     
         // Here should be 6 IRQs: MBUS Tx/Rx and REG4-7.
-        if (irq_history == ((1 << 9) | (1 << 8) | (1 << 7) | (1 << 6))) { 
+        if ((irq_history & 0x0001BFFF) == ((1 << 9) | (1 << 8) | (1 << 7) | (1 << 6))) { 
                pass (0x3, irq_history); irq_history = 0; disable_all_irq(); }
         else { fail (0x3, irq_history); disable_all_irq(); }
     
@@ -445,6 +458,42 @@ void cycle5 (void) {
         set_halt_until_mbus_fwd();  // CPU will resume when an MBus FWD operation is done.
         halt_cpu();                 // Halt CPU!
 
+        //-------------------------------------------------------------------------------------------------
+        // Starting Tx during a Fwd
+        arb_debug_reg (0x55550000);
+        // Put the Flash SRAM data (very long) on the bus (to NODE_B) with "No MBus Tx while Busy" Enabled
+        set_halt_until_mbus_tx();
+        mbus_copy_mem_from_remote_to_any_bulk (FLP_ADDR, 0x00000000, NODE_B_ADDR, 0x00000000, 127);
+
+        // Try to send 
+        delay(50);
+        mbus_write_message32(0xDF, 0x12345678);
+
+        //-------------------------------------------------------------------------------------------------
+        // Starting Tx followed by Rx during a Fwd
+        arb_debug_reg (0x55550001);
+        // Put the Flash SRAM data (very long) on the bus (to NODE_B) with "No MBus Tx while Busy" Enabled
+        set_halt_until_mbus_tx();
+        mbus_copy_mem_from_remote_to_any_bulk (FLP_ADDR, 0x00000000, NODE_B_ADDR, 0x00000000, 127);
+
+        // Try to send 
+        delay(50);
+        set_halt_until_mbus_rx();
+        mbus_copy_registers_from_remote_to_local (FLP_ADDR, 0x23, 0x00, 4);
+
+        //-------------------------------------------------------------------------------------------------
+        // Starting Tx followed by Rx during a long Rx
+        arb_debug_reg (0x55550002);
+        // Read FLP's REG#0x23 ~ REG#0x27 (5 Registers) 
+        set_halt_until_mbus_tx();
+        mbus_copy_registers_from_remote_to_local (FLP_ADDR, 0x23, 0x60, 40);
+
+        // Try to send 
+        delay(50);
+        set_halt_until_mbus_trx();
+        mbus_copy_registers_from_remote_to_local (FLP_ADDR, 0x23, 0x00, 4);
+
+        //-------------------------------------------------------------------------------------------------
         // Read FLP's REG#0x23 ~ REG#0x27 (5 Registers) 
         set_halt_until_mbus_rx();
         mbus_copy_registers_from_remote_to_local (FLP_ADDR, 0x23, 0x00, 4);
@@ -488,7 +537,7 @@ void cycle7 (void) {
 
         // Enable TIMER16 IRQ
         clear_all_pend_irq();
-        *NVIC_ISER =  (0 /*GPIO*/ << 16)    | (0 /*SPI*/ << 15)     | (0 /*GOCEP*/ << 14)  | (0 /*MBUS_FWD*/ << 13) 
+        *NVIC_ISER =  (0 /*GPIO*/ << 16)    | (0 /*SPI*/ << 15)     | (0 /*GOCEP*/ << 14)    | (0 /*MBUS_FWD*/ << 13) 
                     | (0 /*MBUS_TX*/ << 12) | (0 /*MBUS_RX*/ << 11) | (0 /*MEM_WR*/ << 10) | (0 /*REG7*/ << 9) 
                     | (0 /*REG6*/ << 8)     | (0 /*REG5*/ << 7)     | (0 /*REG4*/ << 6)    | (0 /*REG3*/ << 5) 
                     | (0 /*REG2*/ << 4)     | (0 /*REG1*/ << 3)     | (0 /*REG0*/ << 2)     
@@ -501,7 +550,7 @@ void cycle7 (void) {
         WFI();
 
         // 1 IRQ: TIMER16
-        if (irq_history == (1 << 1)) { 
+        if ((irq_history & 0x0001BFFF) == (1 << 1)) { 
                pass (0x9, irq_history); irq_history = 0;}
         else { fail (0x9, irq_history); }
 
@@ -509,7 +558,7 @@ void cycle7 (void) {
         WFI();
 
         // 1 IRQ: TIMER16
-        if (irq_history == (1 << 1)) {
+        if ((irq_history & 0x0001BFFF) == (1 << 1)) {
                pass (0xA, irq_history); irq_history = 0; disable_all_irq(); }
         else { fail (0xA, irq_history); disable_all_irq(); }
 
@@ -526,7 +575,7 @@ void cycle8 (void) {
 
         // Enable TIMER32 IRQ
         clear_all_pend_irq();
-        *NVIC_ISER =  (0 /*GPIO*/ << 16)    | (0 /*SPI*/ << 15)     | (0 /*GOCEP*/ << 14)  | (0 /*MBUS_FWD*/ << 13) 
+        *NVIC_ISER =  (0 /*GPIO*/ << 16)    | (0 /*SPI*/ << 15)     | (0 /*GOCEP*/ << 14)    | (0 /*MBUS_FWD*/ << 13) 
                     | (0 /*MBUS_TX*/ << 12) | (0 /*MBUS_RX*/ << 11) | (0 /*MEM_WR*/ << 10) | (0 /*REG7*/ << 9) 
                     | (0 /*REG6*/ << 8)     | (0 /*REG5*/ << 7)     | (0 /*REG4*/ << 6)    | (0 /*REG3*/ << 5) 
                     | (0 /*REG2*/ << 4)     | (0 /*REG1*/ << 3)     | (0 /*REG0*/ << 2)     
@@ -539,7 +588,7 @@ void cycle8 (void) {
         WFI();
 
         // 1 IRQ: TIMER16
-        if (irq_history == (1 << 0)) { 
+        if ((irq_history & 0x0001BFFF) == (1 << 0)) { 
                pass (0xB, irq_history); irq_history = 0;}
         else { fail (0xB, irq_history); }
 
@@ -569,12 +618,15 @@ void cycle9 (void) {
 
 int main() {
     //Initialize Interrupts
-    disable_all_irq();
+    enable_gocep_irq();
 
     // Initialization Sequence
     if (enumerated != 0xDEADBEEF) { 
         initialization();
     }
+
+    // Flag
+    arb_debug_reg (0x12340000 | cyc_num);
 
     // Testing Sequence
     if      (cyc_num == 0)  cycle0();

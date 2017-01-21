@@ -61,45 +61,67 @@ void enable_all_irq() { *NVIC_ICPR = 0xFFFFFFFF; *NVIC_ISER = 0xFFFFFFFF; }
 void disable_all_irq() { *NVIC_ICPR = 0xFFFFFFFF; *NVIC_ICER = 0xFFFFFFFF; }
 void clear_all_pend_irq() { *NVIC_ICPR = 0xFFFFFFFF; }
 void enable_reg_irq() {	*NVIC_ICPR = 0xFFFFFFFF; *NVIC_ISER = 0xFF<<2; }
+void enable_gocep_irq() { *NVIC_ISER = 0x1<<14; }
+void reset_all_irq() {clear_all_pend_irq(); disable_all_irq();}
 
 
 //**************************************************
 // MBUS IRQ SETTING
 //**************************************************
-void set_halt_until_reg(uint8_t reg_id) {
+uint32_t set_halt_until_reg(uint8_t reg_id) {
+    uint32_t old_config = (*REG_IRQ_CTRL & 0x0000F000) >> 12;
     uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
     reg_val = reg_val | (((uint32_t) reg_id) << 12);
     *REG_IRQ_CTRL = reg_val;
+    return old_config;
 }
 
-void set_halt_until_mem_wr(void) {
+uint32_t set_halt_until_mem_wr(void) {
+    uint32_t old_config = (*REG_IRQ_CTRL & 0x0000F000) >> 12;
     uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
     reg_val = reg_val | (HALT_UNTIL_MEM_WR << 12);
     *REG_IRQ_CTRL = reg_val;
+    return old_config;
 }
 
-void set_halt_until_mbus_rx(void) {
+uint32_t set_halt_until_mbus_rx(void) {
+    uint32_t old_config = (*REG_IRQ_CTRL & 0x0000F000) >> 12;
     uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
     reg_val = reg_val | (HALT_UNTIL_MBUS_RX << 12);
     *REG_IRQ_CTRL = reg_val;
+    return old_config;
 }
 
-void set_halt_until_mbus_tx(void) {
+uint32_t set_halt_until_mbus_tx(void) {
+    uint32_t old_config = (*REG_IRQ_CTRL & 0x0000F000) >> 12;
     uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
     reg_val = reg_val | (HALT_UNTIL_MBUS_TX << 12);
     *REG_IRQ_CTRL = reg_val;
+    return old_config;
 }
 
-void set_halt_until_mbus_fwd(void) {
+uint32_t set_halt_until_mbus_fwd(void) {
+    uint32_t old_config = (*REG_IRQ_CTRL & 0x0000F000) >> 12;
     uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
     reg_val = reg_val | (HALT_UNTIL_MBUS_FWD << 12);
     *REG_IRQ_CTRL = reg_val;
+    return old_config;
 }
 
-void set_halt_disable(void) {
+uint32_t set_halt_until_mbus_trx(void) {
+    uint32_t old_config = (*REG_IRQ_CTRL & 0x0000F000) >> 12;
+    uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
+    reg_val = reg_val | (HALT_UNTIL_MBUS_TRX << 12);
+    *REG_IRQ_CTRL = reg_val;
+    return old_config;
+}
+
+uint32_t set_halt_disable(void) {
+    uint32_t old_config = (*REG_IRQ_CTRL & 0x0000F000) >> 12;
     uint32_t reg_val = (*REG_IRQ_CTRL) & 0xFFFF0FFF;
     reg_val = reg_val | (HALT_DISABLE << 12);
     *REG_IRQ_CTRL = reg_val;
+    return old_config;
 }
 
 void halt_cpu (void) {
@@ -114,21 +136,21 @@ uint8_t get_current_halt_config(void) {
 
 void set_halt_config(uint8_t new_config) {
     uint32_t reg_ = *REG_IRQ_CTRL;
-    reg_ = (0x00010000 & reg_); // reset
+    reg_ = (0xFFFF0FFF & reg_); // reset
     reg_ = reg_ | (((uint32_t) new_config) << 12);
     *REG_IRQ_CTRL = reg_;
 }
 
 void enable_old_msg_irq(void) {
     uint32_t reg_ = *REG_IRQ_CTRL;
-    reg_ = (0x0000F000 & reg_); // reset
+    reg_ = (0xFFFEFFFF & reg_); // reset
     reg_ = reg_ | (0x1 << 16);
     *REG_IRQ_CTRL = reg_;
 }
 
 void disable_old_msg_irq(void) {
     uint32_t reg_ = *REG_IRQ_CTRL;
-    reg_ = (0x0000F000 & reg_); // reset
+    reg_ = (0xFFFEFFFF & reg_); // reset
     *REG_IRQ_CTRL = reg_;
 }
 

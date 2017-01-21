@@ -49,15 +49,8 @@
 #define REG_RUN_CPU     ((volatile uint32_t *) 0xA0000040)
 #define REG_WUPT_CONFIG ((volatile uint32_t *) 0xA0000044)
 #define REG_WUPT_VAL    ((volatile uint32_t *) 0xA0000048)
+#define REG_MBUS_FLAG   ((volatile uint32_t *) 0xA0000078)
 #define REG_MBUS_WD     ((volatile uint32_t *) 0xA000007C)
-#define REG_STR3_BUFL   ((volatile uint32_t *) 0xA0000084)
-#define REG_STR3_BUFU   ((volatile uint32_t *) 0xA0000088)
-#define REG_STR3_EN     ((volatile uint32_t *) 0xA000008C)
-#define REG_STR3_OFF    ((volatile uint32_t *) 0xA0000090)
-#define REG_STR2_BUFL   ((volatile uint32_t *) 0xA0000094)
-#define REG_STR2_BUFU   ((volatile uint32_t *) 0xA0000098)
-#define REG_STR2_EN     ((volatile uint32_t *) 0xA000009C)
-#define REG_STR2_OFF    ((volatile uint32_t *) 0xA00000A0)
 #define REG_STR1_BUFL   ((volatile uint32_t *) 0xA00000A4)
 #define REG_STR1_BUFU   ((volatile uint32_t *) 0xA00000A8)
 #define REG_STR1_EN     ((volatile uint32_t *) 0xA00000AC)
@@ -129,12 +122,13 @@
 #define HALT_UNTIL_MBUS_RX  0x9
 #define HALT_UNTIL_MBUS_TX  0xA
 #define HALT_UNTIL_MBUS_FWD 0xB
+#define HALT_UNTIL_MBUS_TRX 0xC
 #define HALT_DISABLE        0xF
 
 //*********************************************************
 // GOC Trigger
 //*********************************************************
-#define IRQ14VEC ((volatile uint32_t *) 0x00000078)
+#define IRQ17VEC ((volatile uint32_t *) 0x00000084)
 
 //*********************************************************
 // INCLUDES...
@@ -200,6 +194,16 @@ void clear_all_pend_irq();
 
 
 /**
+ * @brief   Clear all pending interrupts and then disable all interrupts
+ *
+ * @param   N/A
+ *
+ * @usage   reset_all_irq();
+ */
+void reset_all_irq();
+
+
+/**
  * @brief   Only enable register-related interrupts
  *
  * @param   N/A
@@ -207,6 +211,15 @@ void clear_all_pend_irq();
  * @usage   enable_reg_irq();
  */
 void enable_reg_irq();
+
+/**
+ * @brief   Only enable GOCEP interrupt
+ *
+ * @param   N/A
+ *
+ * @usage   enable_gocep_irq();
+ */
+void enable_gocep_irq();
 
 /**
  * @brief   Set a new CONFIG_HALT_CPU value
@@ -235,9 +248,11 @@ uint8_t get_current_halt_config(void);
  *
  * @param   reg_id  8-bit Register interrupt masking pattern
  *
+ * @return  it returns the previous halt_until setting
+ *
  * @usage   set_halt_until_reg(0xF0);
  */
-void set_halt_until_reg(uint8_t reg_id);
+uint32_t set_halt_until_reg(uint8_t reg_id);
 
 
 /**
@@ -246,9 +261,11 @@ void set_halt_until_reg(uint8_t reg_id);
  *
  * @param   N/A
  *
+ * @return  it returns the previous halt_until setting
+ *
  * @usage   set_halt_until_mem_wr();
  */
-void set_halt_until_mem_wr(void);
+uint32_t set_halt_until_mem_wr(void);
 
 
 /**
@@ -257,9 +274,11 @@ void set_halt_until_mem_wr(void);
  *
  * @param   N/A
  *
+ * @return  it returns the previous halt_until setting
+ *
  * @usage   set_halt_until_mbus_rx();
  */
-void set_halt_until_mbus_rx(void);
+uint32_t set_halt_until_mbus_rx(void);
 
 
 /**
@@ -268,9 +287,11 @@ void set_halt_until_mbus_rx(void);
  *
  * @param   N/A
  *
+ * @return  it returns the previous halt_until setting
+ *
  * @usage   set_halt_until_mbus_tx();
  */
-void set_halt_until_mbus_tx(void);
+uint32_t set_halt_until_mbus_tx(void);
 
 
 /**
@@ -279,9 +300,24 @@ void set_halt_until_mbus_tx(void);
  *
  * @param   N/A
  *
+ * @return  it returns the previous halt_until setting
+ *
  * @usage   set_halt_until_mbus_fwd();
  */
-void set_halt_until_mbus_fwd(void);
+uint32_t set_halt_until_mbus_fwd(void);
+
+/**
+ * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
+ *              CONFIG_HALT_CPU     = HALT_UNTIL_MBUS_TRX;
+ *
+ * @param   N/A
+ *
+ * @return  it returns the previous halt_until setting
+ *
+ * @usage   set_halt_until_mbus_trx();
+ */
+uint32_t set_halt_until_mbus_trx(void);
+
 
 
 /**
@@ -290,9 +326,11 @@ void set_halt_until_mbus_fwd(void);
  *
  * @param   N/A
  *
+ * @return  it returns the previous halt_until setting
+ *
  * @usage   set_halt_disable();
  */
-void set_halt_disable(void);
+uint32_t set_halt_disable(void);
 
 
 /**
