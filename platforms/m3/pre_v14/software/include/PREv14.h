@@ -13,6 +13,12 @@
 #define FALSE 0
 
 //*********************************************************
+// Reserved IRQ Address
+//*********************************************************
+#define IRQ16VEC        ((volatile uint32_t *) 0x00000080)
+#define IRQ17VEC        ((volatile uint32_t *) 0x00000084)
+
+//*********************************************************
 // ARMv6 Architecture NVIC Registers
 //*********************************************************
 #define NVIC_ISER       ((volatile uint32_t *) 0xE000E100)  // Interrupt Set-Enable Register
