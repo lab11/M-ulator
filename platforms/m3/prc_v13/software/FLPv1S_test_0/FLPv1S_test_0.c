@@ -318,7 +318,7 @@ void flash_operation (uint32_t op_id) {
             for (idx_j=0; idx_j<128; idx_j++){
                 page_addr = (idx_j << 8);
                 mbus_write_message32 ((FLS_ADDR << 4), ((0x09 << 24) | page_addr)); // Set FLSH_START_ADDR
-                mbus_msg32_irq_7 (0x2B, (FLS_ADDR << 4), ((0x07 << 24) | 0x01FFE7)); // Fast Program (8kB)
+                mbus_msg32_irq_7 (0x2B, (FLS_ADDR << 4), ((0x07 << 24) | 0x01FFE3)); // Flash -> SRAM (8kB)
             }
         }
     }
@@ -335,6 +335,9 @@ void flash_operation (uint32_t op_id) {
 int main() {
     // Initialize IRQ
     disable_all_irq();
+
+    // Disable Watch-Dog Timer
+    disable_timerwd();
 
     if (*REG_CHIP_ID != 0xBEEF) {
         // Reset Sleep Timer
