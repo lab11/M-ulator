@@ -253,7 +253,7 @@ inline static void set_pmu_sleep_clk_init(){
 	));
 	delay(MBUS_DELAY);
 	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
-    mbus_remote_register_write(PMU_ADDR,0x36,0x000005);
+    mbus_remote_register_write(PMU_ADDR,0x36,0x002000);
     delay(MBUS_DELAY);
 }
 
@@ -1215,7 +1215,9 @@ int main() {
 				delay(MBUS_DELAY);
 				
 				// only for snail 
-    				mbus_remote_register_write(HRV_ADDR,0x00, 
+				reset_pmu_solar_short();
+				delay(MBUS_DELAY);
+    			mbus_remote_register_write(HRV_ADDR,0x00, 
 					( (6) // HRV_TOP_CONV_RATIO(0~15 >> 9x~23x); default: 14
 				));
 		
