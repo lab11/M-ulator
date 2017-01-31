@@ -46,6 +46,7 @@
 // "static" limits the variables to this file, giving compiler more freedom
 // "volatile" should only be used for MMIO
 volatile uint32_t enumerated;
+volatile uint32_t wakeup_data;
 volatile uint32_t exec_count;
 volatile uint32_t exec_count_irq;
 volatile uint32_t mbus_msg_flag;
@@ -365,20 +366,19 @@ static void radio_power_off(){
 
     // Turn off everything
     radio_on = 0;
+	radio_ready = 0;
 
     mrrv3_r03.MRR_TRX_ISOLATEN = 0;     //set ISOLATEN 0
-    write_mbus_register(MRR_ADDR,0x03,mrrv3_r03.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x03,mrrv3_r03.as_int);
 
     mrrv3_r0E.MRR_RAD_FSM_EN = 0;  //Stop BB
     mrrv3_r0E.MRR_RAD_FSM_RSTN = 0;  //RST BB
-    write_mbus_register(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
+    mrrv3_r0E.MRR_RAD_FSM_SLEEP = 1;
+    mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
 
     // Turn off Current Limter
     mrrv3_r00.MRR_CL_EN = 0;  //Enable CL
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
-
-    mrrv3_r0E.MRR_RAD_FSM_SLEEP = 1;
-    mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
 
     mrrv3_r04.MRR_SCRO_EN_TIMER = 0;
     mrrv3_r04.MRR_SCRO_RSTN_TIMER = 0;
@@ -395,6 +395,10 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 
     if (!radio_ready){
 		radio_ready = 1;
+		
+		// Set the correct data length
+		mrrv3_r0E.MRR_RAD_FSM_TX_D_LEN = 24;
+		mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
 
 		// Release FSM Reset
 		mrrv3_r0E.MRR_RAD_FSM_RSTN = 1;  //UNRST BB
@@ -444,21 +448,29 @@ static void send_radio_data_ppm_96(bool last_packet, uint32_t radio_data_0, uint
 	// radio_data_1: DATA[47:24]
 	// radio_data_2: DATA[71:48]
 	// radio_data_3: DATA[95:72]
-    mbus_remote_register_write(RAD_ADDR,3,radio_data_0);
+    mbus_remote_register_write(MRR_ADDR,0x6,radio_data_0);
     delay(MBUS_DELAY);
-    mbus_remote_register_write(RAD_ADDR,4,radio_data_1);
+    mbus_remote_register_write(MRR_ADDR,0x7,radio_data_1);
     delay(MBUS_DELAY);
-    mbus_remote_register_write(RAD_ADDR,5,radio_data_2);
+    mbus_remote_register_write(MRR_ADDR,0x8,radio_data_2);
     delay(MBUS_DELAY);
-    mbus_remote_register_write(RAD_ADDR,6,radio_data_3);
+    mbus_remote_register_write(MRR_ADDR,0x9,radio_data_3);
     delay(MBUS_DELAY);
 
     if (!radio_ready){
 		radio_ready = 1;
 
+		// Set the correct data length
+		mrrv3_r0E.MRR_RAD_FSM_TX_D_LEN = 96;
+		mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
+
 		// Release FSM Reset
-		radv9_r13.RAD_FSM_RESETn = 1;
-		mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
+		mrrv3_r0E.MRR_RAD_FSM_RSTN = 1;  //UNRST BB
+		mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
+
+    	mrrv3_r03.MRR_TRX_ISOLATEN = 1;     //set ISOLATEN 1, let state machine control
+    	mbus_remote_register_write(MRR_ADDR,0x03,mrrv3_r03.as_int);
+
 		delay(MBUS_DELAY);
     }
 
@@ -468,8 +480,8 @@ static void send_radio_data_ppm_96(bool last_packet, uint32_t radio_data_0, uint
     // Fire off data
     uint32_t count;
     mbus_msg_flag = 0;
-    radv9_r13.RAD_FSM_ENABLE = 1;
-    mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
+	mrrv3_r0E.MRR_RAD_FSM_EN = 1;  //Start BB
+	mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
     delay(MBUS_DELAY);
 
     for( count=0; count<RADIO_TIMEOUT_COUNT; count++ ){
@@ -480,8 +492,8 @@ static void send_radio_data_ppm_96(bool last_packet, uint32_t radio_data_0, uint
 				radio_ready = 0;
 				radio_power_off();
 			}else{
-				radv9_r13.RAD_FSM_ENABLE = 0;
-				mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
+				mrrv3_r0E.MRR_RAD_FSM_EN = 0;
+				mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
 				delay(MBUS_DELAY);
 			}
 			return;
@@ -1053,7 +1065,7 @@ static void operation_md(void){
 
 	if (md_start_motion){
 		// Turn off other layers
-		mbus_sleep_layer_short(RAD_ADDR);
+		mbus_sleep_layer_short(MRR_ADDR);
   		delay(MBUS_DELAY);
 		mbus_sleep_layer_short(HRV_ADDR);
   		delay(MBUS_DELAY);
@@ -1152,7 +1164,7 @@ static void operation_init(void){
     //delay(MBUS_DELAY);
     mbus_enumerate(MD_ADDR);
     delay(MBUS_DELAY);
-    mbus_enumerate(RAD_ADDR);
+    mbus_enumerate(MRR_ADDR);
     delay(MBUS_DELAY);
     mbus_enumerate(FLS_ADDR);
     delay(MBUS_DELAY);
@@ -1240,7 +1252,6 @@ static void operation_init(void){
     mrrv3_r11.MRR_RAD_FSM_TX_POWERON_LEN = 7; //3bits
     mbus_remote_register_write(MRR_ADDR,0x11,mrrv3_r11.as_int);
 
-
     // Flash settings (FLPv2) ------------------------------
     // Tune Flash
     mbus_remote_register_write(FLS_ADDR,0x26,0x0D7788); // Program Current
@@ -1284,18 +1295,19 @@ static void operation_init(void){
 
 static void operation_goc_trigger_init(void){
 
+	// FIXME
+
 	// This is critical
 	set_halt_until_mbus_tx();
 	mbus_write_message32(0xAA,0xABCD1234);
 	mbus_write_message32(0xAA,wakeup_data);
 
 	// Initialize variables & registers
-	temp_running = 0;
-	Tstack_state = TSTK_IDLE;
+	//Tstack_state = TSTK_IDLE;
 	
 	radio_power_off();
-	ldo_power_off();
-	temp_power_off();
+	//ldo_power_off();
+	//temp_power_off();
 }
 
 
@@ -1304,8 +1316,6 @@ static void operation_goc_trigger_init(void){
 //***************************************************************************************
 int main() {
   
-	//mbus_write_message32(0xAA, 0x11111111);
-
 	// Record sleep time
 	sleep_time_prev = *((volatile uint32_t *) REG_WUPT_VAL);
 	if (sleep_time_prev > 0){
@@ -1340,7 +1350,7 @@ int main() {
     // Check if wakeup is due to GOC interrupt  
     // 0x78 is reserved for GOC-triggered wakeup (Named IRQ14VEC)
     // 8 MSB bits of the wakeup data are used for function ID
-    uint32_t wakeup_data = *((volatile uint32_t *) IRQ14VEC);	// IRQ14VEC[31:0]
+    wakeup_data = *((volatile uint32_t *) IRQ14VEC);	// IRQ14VEC[31:0]
     uint32_t wakeup_data_header = wakeup_data>>24;				// IRQ14VEC[31:24]
     uint32_t wakeup_data_field_0 = wakeup_data & 0xFF;			// IRQ14VEC[7:0]
     uint32_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;		// IRQ14VEC[15:8]
