@@ -334,58 +334,75 @@ static void set_pmu_motion_img_default(void){
 static void radio_power_on(){
 	// Need to speed up sleep pmu clock
 
+    // Turn on Current Limter
+    mrrv3_r00.MRR_CL_EN = 1;  //Enable CL
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
+
     // Release FSM Sleep - Requires >2s stabilization time
-    radio_on = 1;
-    radv9_r13.RAD_FSM_SLEEP = 0;
-    mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
-    delay(MBUS_DELAY);
-    // Release SCRO Reset
-    radv9_r2.SCRO_RESET = 0;
-    mbus_remote_register_write(RAD_ADDR,2,radv9_r2.as_int);
-    delay(MBUS_DELAY);
-    
+    mrrv3_r0E.MRR_RAD_FSM_SLEEP = 0;  // Power on BB
+    mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
+
+    mrrv3_r04.MRR_SCRO_EN_TIMER = 1;  //power on TIMER
+    mbus_remote_register_write(MRR_ADDR,0x04,mrrv3_r04.as_int);
+
+    mrrv3_r04.MRR_SCRO_RSTN_TIMER = 1;  //UNRST TIMER
+    mbus_remote_register_write(MRR_ADDR,0x04,mrrv3_r04.as_int);
+
     // Additional delay required after SCRO Reset release
     delay(MBUS_DELAY*3); // At least 20ms required
     
-    // Enable SCRO
-    radv9_r2.SCRO_ENABLE = 1;
-    mbus_remote_register_write(RAD_ADDR,2,radv9_r2.as_int);
-    delay(MBUS_DELAY);
+    mrrv3_r04.MRR_SCRO_EN_CLK = 1;  //Enable clk
+    mbus_remote_register_write(MRR_ADDR,0x04,mrrv3_r04.as_int);
 
-	// Release FSM Isolate
-	radv9_r13.RAD_FSM_ISOLATE = 0;
-	mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
-	delay(MBUS_DELAY);
+    radio_on = 1;
 
 }
 
 static void radio_power_off(){
 	// Need to restore sleep pmu clock
 
+	// FIXME
+
     // Turn off everything
     radio_on = 0;
-    radv9_r2.SCRO_ENABLE = 0;
-    radv9_r2.SCRO_RESET  = 1;
-    mbus_remote_register_write(RAD_ADDR,2,radv9_r2.as_int);
-    radv9_r13.RAD_FSM_SLEEP 	= 1;
-    radv9_r13.RAD_FSM_ISOLATE 	= 1;
-    radv9_r13.RAD_FSM_RESETn 	= 0;
-    radv9_r13.RAD_FSM_ENABLE 	= 0;
-    mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
+
+    mrrv3_r03.MRR_TRX_ISOLATEN = 0;     //set ISOLATEN 0
+    write_mbus_register(MRR_ADDR,0x03,mrrv3_r03.as_int);
+
+    mrrv3_r0E.MRR_RAD_FSM_EN = 0;  //Stop BB
+    mrrv3_r0E.MRR_RAD_FSM_RSTN = 0;  //RST BB
+    write_mbus_register(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
+
+    // Turn off Current Limter
+    mrrv3_r00.MRR_CL_EN = 0;  //Enable CL
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
+
+    mrrv3_r0E.MRR_RAD_FSM_SLEEP = 1;
+    mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
+
+    mrrv3_r04.MRR_SCRO_EN_TIMER = 0;
+    mrrv3_r04.MRR_SCRO_RSTN_TIMER = 0;
+    mrrv3_r04.MRR_SCRO_EN_CLK = 1;
+    mbus_remote_register_write(MRR_ADDR,0x04,mrrv3_r04.as_int);
+
 }
 
 static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
     // Write Data: Only up to 24bit data for now
-    radv9_r3.RAD_FSM_DATA = radio_data;
-    mbus_remote_register_write(RAD_ADDR,3,radv9_r3.as_int);
+    mrrv3_r06.MRR_RAD_FSM_TX_DATA_0 = radio_data; //SCC
+    mbus_remote_register_write(MRR_ADDR,0x06,mrrv3_r06.as_int);
     delay(MBUS_DELAY);
 
     if (!radio_ready){
 		radio_ready = 1;
 
 		// Release FSM Reset
-		radv9_r13.RAD_FSM_RESETn = 1;
-		mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
+		mrrv3_r0E.MRR_RAD_FSM_RSTN = 1;  //UNRST BB
+		mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
+
+    	mrrv3_r03.MRR_TRX_ISOLATEN = 1;     //set ISOLATEN 1, let state machine control
+    	mbus_remote_register_write(MRR_ADDR,0x03,mrrv3_r03.as_int);
+
 		delay(MBUS_DELAY);
     }
 
@@ -395,8 +412,8 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
     // Fire off data
     uint32_t count;
     mbus_msg_flag = 0;
-    radv9_r13.RAD_FSM_ENABLE = 1;
-    mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
+	mrrv3_r0E.MRR_RAD_FSM_EN = 1;  //Start BB
+	mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
     delay(MBUS_DELAY);
 
     for( count=0; count<RADIO_TIMEOUT_COUNT; count++ ){
@@ -407,8 +424,8 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 				radio_ready = 0;
 				radio_power_off();
 			}else{
-				radv9_r13.RAD_FSM_ENABLE = 0;
-				mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
+				mrrv3_r0E.MRR_RAD_FSM_EN = 0;
+				mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
 				delay(MBUS_DELAY);
 			}
 			return;
@@ -1146,31 +1163,82 @@ static void operation_init(void){
 	set_pmu_motion_img_default();
 	delay(MBUS_DELAY*2);
 
-    // Radio Settings --------------------------------------
-    radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
-    radv9_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
-    radv9_r0.RADIO_TUNE_FREQ2 = 0x9; //Tune Freq 2
-    radv9_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
-    mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
+    // Radio Settings (MRRv3) -------------------------------------------
+    mrrv3_r1C.LC_CLK_RING = 0x3;  // ~ 150 kHz
+    mrrv3_r1C.LC_CLK_DIV = 0x3;  // ~ 150 kHz
+    mbus_remote_register_write(MRR_ADDR,0x1C,mrrv3_r1C.as_int);
 
-    // FSM data length setups
-    radv9_r11.RAD_FSM_H_LEN = 16; // N
-    radv9_r11.RAD_FSM_D_LEN = RADIO_DATA_LENGTH-1; // N-1
-    radv9_r11.RAD_FSM_C_LEN = 10;
-    mbus_remote_register_write(RAD_ADDR,11,radv9_r11.as_int);
-  
-    // Configure SCRO
-    radv9_r1.SCRO_FREQ_DIV = 3;
-    radv9_r1.SCRO_AMP_I_LEVEL_SEL = 2; // Default 2
-    radv9_r1.SCRO_I_LEVEL_SELB = 0x60; // Default 0x6F
-    mbus_remote_register_write(RAD_ADDR,1,radv9_r1.as_int);
-  
-    // LFSR Seed
-    radv9_r12.RAD_FSM_SEED = 4;
-    mbus_remote_register_write(RAD_ADDR,12,radv9_r12.as_int);
-  
-	// Mbus return address; Needs to be between 0x18-0x1F
-    mbus_remote_register_write(RAD_ADDR,0xF,0x1900);
+    // Current Limter set-up 
+    mrrv3_r00.MRR_CL_CTRL = 0x01; //Set CL 1-finite 16-20uA
+
+    // TX Setup Carrier Freq
+    mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x0FFF;  //ANT CAP 14b unary 830.5 MHz
+	//mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x00FF;  //ANT CAP 14b unary 813.8 MHz
+	//mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x0FFF;  //ANT CAP 14b unary 805.5 MHz
+    mrrv3_r01.MRR_TRX_CAP_ANTN_TUNE = 0x0FFF; //ANT CAP 14b unary 830.5 MHz
+	//mrrv3_r01.MRR_TRX_CAP_ANTN_TUNE = 0x00FF; //ANT CAP 14b unary 813.8 MHz
+	//mrrv3_r01.MRR_TRX_CAP_ANTN_TUNE = 0x0FFF;  //ANT CAP 14b unary 805.5 MHz
+    mrrv3_r02.MRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x01,mrrv3_r01.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x02,mrrv3_r02.as_int);
+
+    // RX Setup
+    mrrv3_r03.MRR_RX_BIAS_TUNE    = 0x0AFF;//  turn on Q_enhancement
+	//mrrv3_r03.MRR_RX_BIAS_TUNE    = 0x0000;//  turn off Q_enhancement
+    mrrv3_r03.MRR_RX_SAMPLE_CAP    = 0x1;  // RX_SAMPLE_CAP
+    mbus_remote_register_write(MRR_ADDR,3,mrrv3_r03.as_int);
+
+    mrrv3_r11.MRR_RAD_FSM_RX_POWERON_LEN = 0x0;  //Set RX Power on length
+    mrrv3_r11.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x3;  //Set RX Sample length  16us
+    //mrrv3_r11.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x0;  //Set RX Sample length  4us
+    mrrv3_r11.MRR_RAD_FSM_GUARD_LEN = 0x000F; //Set TX_RX Guard length, TX_RX guard 32 cycle (28+5)
+    mbus_remote_register_write(MRR_ADDR,0x11,mrrv3_r11.as_int);
+
+    mrrv3_r12.MRR_RAD_FSM_RX_HDR_BITS = 0x00;  //Set RX header
+    mrrv3_r12.MRR_RAD_FSM_RX_HDR_TH = 0x00;    //Set RX header threshold
+    mrrv3_r12.MRR_RAD_FSM_RX_DATA_BITS = 0x10; //Set RX data 16b
+    mbus_remote_register_write(MRR_ADDR,0x12,mrrv3_r12.as_int);
+
+    mrrv3_r1B.MRR_IRQ_REPLY_PACKET = 0x061400; //Read RX data Reply
+    mbus_remote_register_write(MRR_ADDR,0x1B,mrrv3_r1B.as_int);
+
+    // RAD_FSM set-up 
+    mrrv3_r0E.MRR_RAD_FSM_TX_H_LEN = 31; //31-31b header (max)
+    mrrv3_r0E.MRR_RAD_FSM_TX_D_LEN = RADIO_DATA_LENGTH;//40; //0-skip tx data
+    mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
+
+    mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 0; //4us PW
+    mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 32; // (PW_LEN+1):C_LEN=1:32
+    mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 0; // PW=PS
+    mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 0; //no shift in LFSR
+
+    //mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 1; //8us PW
+    //mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 64; // (PW_LEN+1):C_LEN=1:32
+    //mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 1; // PW=PS
+    //mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 124; //500us PW
+    //mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 4000; // (PW_LEN+1):C_LEN=1:32
+    //mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 124; // PW=PS
+    
+    //mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 249; //1ms PW
+    //mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 8000; // (PW_LEN+1):C_LEN=1:32
+    //mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 249; // PW=PS
+    //mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 8; //8 bit shift in LFSR
+
+    mbus_remote_register_write(MRR_ADDR,0x0F,mrrv3_r0F.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x12,mrrv3_r12.as_int);
+    
+	// Use pulse generator -- Not used currently
+    mrrv3_r02.MRR_TX_PULSE_FINE = 0;
+    mrrv3_r02.MRR_TX_PULSE_FINE_TUNE = 3;
+    mbus_remote_register_write(MRR_ADDR,0x02,mrrv3_r02.as_int);
+
+    mrrv3_r10.MRR_RAD_FSM_SEED = 1; //default
+    mrrv3_r10.MRR_RAD_FSM_TX_MODE = 3; //code rate 0:4 1:3 2:2 3:1(baseline) 4:1/2 5:1/3 6:1/4
+    mbus_remote_register_write(MRR_ADDR,0x10,mrrv3_r10.as_int);
+
+    mrrv3_r11.MRR_RAD_FSM_TX_POWERON_LEN = 7; //3bits
+    mbus_remote_register_write(MRR_ADDR,0x11,mrrv3_r11.as_int);
 
 
     // Flash settings (FLPv2) ------------------------------
