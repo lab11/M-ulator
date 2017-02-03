@@ -44,5 +44,5 @@ def callback(time, address, data, cb0=-1, cb1=-1):
     #if count>args.killcount:
     #    sys.exit()
     # TODO(Pat): I need to add support for custom arguments, which I will do
-    if count > 1000:
+    if count > 100000:
         sys.exit()
