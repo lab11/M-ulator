@@ -354,7 +354,7 @@ static void operation_cdc_run(){
 		fire_cdc_meas();
 
 		// Use Timer32 as timeout counter
-		config_timer32(0x249F0, 1, 0, 0); // 1/10 of MBUS watchdog timer default
+		config_timer32(0x5000, 1, 0, 0); // 1/10 of MBUS watchdog timer default
 
 		// Wait for temp sensor output
 		WFI();
@@ -390,7 +390,11 @@ static void operation_cdc_run(){
 		mbus_remote_register_read(SNS_ADDR,4,1);
 		read_data_reg4 = *((volatile uint32_t *) 0xA0000004);
 		
+		// Set CPU Halt Option as TX --> Use for register write e.g.
+		set_halt_until_mbus_tx();
+
 		if (cdc_timeout_flag){
+			mbus_write_message32(0xFA, 0xFAFAFAFA);
 			read_data = 0xFAFAFAFA;
 			read_data_reg4 = 0xFAFAFAFA; 
 			read_data_reg6 = 0xFAFAFAFA; 
@@ -399,9 +403,6 @@ static void operation_cdc_run(){
 		}else{
 			read_data = (read_data_reg4+read_data_reg7-read_data_reg9)/2;
 		}
-
-		// Set CPU Halt Option as TX --> Use for register write e.g.
-		set_halt_until_mbus_tx();
 
 		// FIXME
 		mbus_write_message32(0x74, read_data_reg4); // CMEAS
