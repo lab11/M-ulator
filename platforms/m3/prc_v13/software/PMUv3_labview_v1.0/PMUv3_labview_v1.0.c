@@ -379,6 +379,24 @@ int main() {
         else if (wakeup_header_1 == 0x01) {
             mbus_pmu_register_write(wakeup_header_0, *REG1);
         }
+        // Write to SAR_OVERRIDE and sleep registers
+        else if (wakeup_header_1 == 0x02) {
+            //---------------------------------------
+	        // REG1 : SAR_RATIO_OVERRIDE      (0x05)
+	        // REG2 : UPCONV_TRIM_V3_SLEEP    (0x17)
+	        // REG3 : SAR_TRIM_v3_SLEEP       (0x15)
+	        // REG4 : DOWNCONV_TRIM_V3_SLEEP  (0x19)
+            //---------------------------------------
+            
+	        // Register 0x17: UPCONV_TRIM_V3_SLEEP
+            mbus_pmu_register_write(0x17, *REG2);
+	        // Register 0x19: DOWNCONV_TRIM_V3_SLEEP
+            mbus_pmu_register_write(0x19, *REG4);
+	        // Register 0x15: SAR_TRIM_v3_SLEEP
+            mbus_pmu_register_write(0x15, *REG3);
+	        // Register 0x05: SAR_RATIO_OVERRIDE
+            mbus_pmu_register_write(0x05, *REG1);
+        }
     }
     // PMU Register Read
     else if (wakeup_header_2 == 0x02) {
