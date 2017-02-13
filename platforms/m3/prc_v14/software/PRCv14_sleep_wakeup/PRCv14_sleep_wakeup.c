@@ -167,14 +167,12 @@ int main() {
 	set_halt_until_mbus_tx();
 	mbus_write_message32(0xAA,0xABCD1234);
     delay(MBUS_DELAY);
-	mbus_write_message32(0xAA,0x1);
-    delay(MBUS_DELAY);
-	mbus_write_message32(0xAA,0x2);
-    delay(MBUS_DELAY);
-	mbus_write_message32(0xAA,0x3);
-    delay(MBUS_DELAY);
-	mbus_write_message32(0xAA,0x4);
-    delay(MBUS_DELAY);
+
+    uint32_t count;
+    for( count=0; count<100; count++ ){
+		mbus_write_message32(0xAA,count);
+		delay(MBUS_DELAY);
+	}
 
 	set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
     operation_sleep();
