@@ -1316,8 +1316,6 @@ static void operation_goc_trigger_init(void){
 //***************************************************************************************
 int main() {
   
-	mbus_write_message32(0xAA,0x0);
-
 	// Record sleep time
 	sleep_time_prev = *((volatile uint32_t *) REG_WUPT_VAL);
 	if (sleep_time_prev > 0){
