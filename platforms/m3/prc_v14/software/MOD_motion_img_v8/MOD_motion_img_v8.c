@@ -306,7 +306,7 @@ static void set_pmu_motion_img_default(void){
 		| (0 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (0 << 7) // Enable override setting [6:0] (1'h0)
-		| (47) 		// Binary converter's conversion ratio (7'h00)
+		| (45) 		// Binary converter's conversion ratio (7'h00)
 		// 48: 1.5V
 		// 38: 1.1V
 		// 41: 1.26V
@@ -320,11 +320,11 @@ static void set_pmu_motion_img_default(void){
 		| (1 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (47) 		// Binary converter's conversion ratio (7'h00)
+		| (45) 		// Binary converter's conversion ratio (7'h00)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
-    mbus_remote_register_write(PMU_ADDR,0x36,0x000001);
+    mbus_remote_register_write(PMU_ADDR,0x36,0x2000);
 	delay(MBUS_DELAY);
 
 }
@@ -334,6 +334,7 @@ static void set_pmu_motion_img_default(void){
 
 static void radio_power_on(){
 	// Need to speed up sleep pmu clock
+	set_pmu_img();
 
     // Turn on Current Limter
     mrrv3_r00.MRR_CL_EN = 1;  //Enable CL
@@ -361,6 +362,7 @@ static void radio_power_on(){
 
 static void radio_power_off(){
 	// Need to restore sleep pmu clock
+	set_pmu_motion();
 
 	// FIXME
 
@@ -401,10 +403,10 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 		mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
 
 		// Release FSM Reset
-		mrrv3_r0E.MRR_RAD_FSM_RSTN = 1;  //UNRST BB
+		mrrv3_r0E.MRR_RAD_FSM_RSTN = 1; //UNRST BB
 		mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
 
-    	mrrv3_r03.MRR_TRX_ISOLATEN = 1;     //set ISOLATEN 1, let state machine control
+    	mrrv3_r03.MRR_TRX_ISOLATEN = 1; //set ISOLATEN 1, let state machine control
     	mbus_remote_register_write(MRR_ADDR,0x03,mrrv3_r03.as_int);
 
 		delay(MBUS_DELAY);
@@ -1160,11 +1162,11 @@ static void operation_init(void){
 
     // Enumeration
 	// Stack order: PRC->HRV->MD->RAD->FLS->PMU
+    mbus_enumerate(MRR_ADDR);
+    delay(MBUS_DELAY);
     //mbus_enumerate(HRV_ADDR);
     //delay(MBUS_DELAY);
     mbus_enumerate(MD_ADDR);
-    delay(MBUS_DELAY);
-    mbus_enumerate(MRR_ADDR);
     delay(MBUS_DELAY);
     mbus_enumerate(FLS_ADDR);
     delay(MBUS_DELAY);
@@ -1551,6 +1553,18 @@ int main() {
 
 		// Go to sleep without timer
 		operation_sleep_notimer();
+
+    }else if(wakeup_data_header == 0xA){
+
+		uint32_t count;
+		for( count=0; count<100; count++ ){
+			mbus_write_message32(0xAA,count);
+			delay(MBUS_DELAY);
+		}
+		
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
 
     }
 
