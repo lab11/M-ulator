@@ -36,7 +36,7 @@
 // Radio configurations
 #define RADIO_DATA_LENGTH 96
 #define RADIO_TIMEOUT_COUNT 500
-#define WAKEUP_PERIOD_RADIO_INIT 2
+#define WAKEUP_PERIOD_RADIO_INIT 3
 #define RADIO_PACKET_DELAY 4000 // Need 100-200ms
 
 //***************************************************
@@ -346,15 +346,18 @@ static void radio_power_on(){
 
     mrrv3_r04.MRR_SCRO_EN_TIMER = 1;  //power on TIMER
     mbus_remote_register_write(MRR_ADDR,0x04,mrrv3_r04.as_int);
+	delay(MBUS_DELAY*300); // LDO stab 1s
 
     mrrv3_r04.MRR_SCRO_RSTN_TIMER = 1;  //UNRST TIMER
     mbus_remote_register_write(MRR_ADDR,0x04,mrrv3_r04.as_int);
+	delay(MBUS_DELAY*100); // Freq stab
 
     // Additional delay required after SCRO Reset release
     delay(MBUS_DELAY*3); // At least 20ms required
     
     mrrv3_r04.MRR_SCRO_EN_CLK = 1;  //Enable clk
     mbus_remote_register_write(MRR_ADDR,0x04,mrrv3_r04.as_int);
+	delay(MBUS_DELAY*100); // Freq stab
 
     radio_on = 1;
 
@@ -384,7 +387,7 @@ static void radio_power_off(){
 
     mrrv3_r04.MRR_SCRO_EN_TIMER = 0;
     mrrv3_r04.MRR_SCRO_RSTN_TIMER = 0;
-    mrrv3_r04.MRR_SCRO_EN_CLK = 1;
+    mrrv3_r04.MRR_SCRO_EN_CLK = 0;
     mbus_remote_register_write(MRR_ADDR,0x04,mrrv3_r04.as_int);
 
 }
@@ -409,7 +412,7 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
     	mrrv3_r03.MRR_TRX_ISOLATEN = 1; //set ISOLATEN 1, let state machine control
     	mbus_remote_register_write(MRR_ADDR,0x03,mrrv3_r03.as_int);
 
-		delay(MBUS_DELAY);
+		delay(MBUS_DELAY*10);
     }
 
     // Set CPU Halt Option as RX --> Use for register read e.g.
@@ -1375,17 +1378,13 @@ int main() {
 			if (exec_count_irq == 1){
 				// Prepare radio TX
 				radio_power_on();
-				// Go to sleep for SCRO stabilitzation
-				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
-				operation_sleep_noirqreset();
-			}else{
-				// radio
-				send_radio_data_ppm(0,0xABC000+exec_count_irq);	
-				// set timer
-				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-				// go to sleep and wake up with same condition
-				operation_sleep_noirqreset();
 			}
+			// radio
+			send_radio_data_ppm(0,0xABC000+exec_count_irq);	
+			// set timer
+			set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
+			// go to sleep and wake up with same condition
+			operation_sleep_noirqreset();
         }else{
             exec_count_irq = 0;
             // radio
