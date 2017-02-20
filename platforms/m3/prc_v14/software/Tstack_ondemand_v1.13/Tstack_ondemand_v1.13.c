@@ -225,7 +225,7 @@ inline static void set_pmu_sleep_clk_low(){
 		| (3 << 14) // Comparator clock division ratio
 		| (0 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (3 << 5)  // Frequency multiplier L (actually L+1)
+		| (2 << 5)  // Frequency multiplier L (actually L+1)
 		| (1) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
@@ -284,7 +284,7 @@ inline static void set_pmu_clk_init(){
 		| (3 << 14) // Comparator clock division ratio
 		| (0 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (3 << 5)  // Frequency multiplier L (actually L+1)
+		| (2 << 5)  // Frequency multiplier L (actually L+1)
 		| (1) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
