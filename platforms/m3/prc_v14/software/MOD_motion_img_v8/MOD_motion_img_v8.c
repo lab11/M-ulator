@@ -340,10 +340,6 @@ static void radio_power_on(){
     mrrv3_r00.MRR_CL_EN = 1;  //Enable CL
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
 
-    // Release FSM Sleep - Requires >2s stabilization time
-    mrrv3_r0E.MRR_RAD_FSM_SLEEP = 0;  // Power on BB
-    mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
-
     mrrv3_r04.MRR_SCRO_EN_TIMER = 1;  //power on TIMER
     mbus_remote_register_write(MRR_ADDR,0x04,mrrv3_r04.as_int);
 	delay(MBUS_DELAY*300); // LDO stab 1s
@@ -357,6 +353,11 @@ static void radio_power_on(){
     
     mrrv3_r04.MRR_SCRO_EN_CLK = 1;  //Enable clk
     mbus_remote_register_write(MRR_ADDR,0x04,mrrv3_r04.as_int);
+	delay(MBUS_DELAY*100); // Freq stab
+
+    // Release FSM Sleep - Requires >2s stabilization time
+    mrrv3_r0E.MRR_RAD_FSM_SLEEP = 0;  // Power on BB
+    mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
 	delay(MBUS_DELAY*100); // Freq stab
 
     radio_on = 1;
@@ -408,11 +409,11 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 		// Release FSM Reset
 		mrrv3_r0E.MRR_RAD_FSM_RSTN = 1; //UNRST BB
 		mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
+		delay(MBUS_DELAY*100);
 
     	mrrv3_r03.MRR_TRX_ISOLATEN = 1; //set ISOLATEN 1, let state machine control
     	mbus_remote_register_write(MRR_ADDR,0x03,mrrv3_r03.as_int);
-
-		delay(MBUS_DELAY*10);
+		delay(MBUS_DELAY*100);
     }
 
     // Set CPU Halt Option as RX --> Use for register read e.g.
@@ -1186,23 +1187,23 @@ static void operation_init(void){
     mbus_remote_register_write(MRR_ADDR,0x1C,mrrv3_r1C.as_int);
 
     // Current Limter set-up 
-    mrrv3_r00.MRR_CL_CTRL = 0x01; //Set CL 1-finite 16-20uA
+    mrrv3_r00.MRR_CL_CTRL = 16; //Set CL 1-finite 16-20uA
 
     // TX Setup Carrier Freq
     mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x0FFF;  //ANT CAP 14b unary 830.5 MHz
 	//mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x00FF;  //ANT CAP 14b unary 813.8 MHz
 	//mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x0FFF;  //ANT CAP 14b unary 805.5 MHz
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
     mrrv3_r01.MRR_TRX_CAP_ANTN_TUNE = 0x0FFF; //ANT CAP 14b unary 830.5 MHz
 	//mrrv3_r01.MRR_TRX_CAP_ANTN_TUNE = 0x00FF; //ANT CAP 14b unary 813.8 MHz
 	//mrrv3_r01.MRR_TRX_CAP_ANTN_TUNE = 0x0FFF;  //ANT CAP 14b unary 805.5 MHz
-    mrrv3_r02.MRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
-    mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
     mbus_remote_register_write(MRR_ADDR,0x01,mrrv3_r01.as_int);
+    mrrv3_r02.MRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
     mbus_remote_register_write(MRR_ADDR,0x02,mrrv3_r02.as_int);
 
     // RX Setup
-    mrrv3_r03.MRR_RX_BIAS_TUNE    = 0x0AFF;//  turn on Q_enhancement
-	//mrrv3_r03.MRR_RX_BIAS_TUNE    = 0x0000;//  turn off Q_enhancement
+    //mrrv3_r03.MRR_RX_BIAS_TUNE    = 0x0AFF;//  turn on Q_enhancement
+	mrrv3_r03.MRR_RX_BIAS_TUNE    = 0x0000;//  turn off Q_enhancement
     mrrv3_r03.MRR_RX_SAMPLE_CAP    = 0x1;  // RX_SAMPLE_CAP
     mbus_remote_register_write(MRR_ADDR,3,mrrv3_r03.as_int);
 
@@ -1254,7 +1255,7 @@ static void operation_init(void){
     mrrv3_r10.MRR_RAD_FSM_TX_MODE = 3; //code rate 0:4 1:3 2:2 3:1(baseline) 4:1/2 5:1/3 6:1/4
     mbus_remote_register_write(MRR_ADDR,0x10,mrrv3_r10.as_int);
 
-    mrrv3_r11.MRR_RAD_FSM_TX_POWERON_LEN = 7; //3bits
+    mrrv3_r11.MRR_RAD_FSM_TX_POWERON_LEN = 3; //3bits
     mbus_remote_register_write(MRR_ADDR,0x11,mrrv3_r11.as_int);
 
     // Flash settings (FLPv2) ------------------------------

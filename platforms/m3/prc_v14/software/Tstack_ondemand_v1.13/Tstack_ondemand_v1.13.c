@@ -172,8 +172,8 @@ inline static void set_pmu_sleep_clk_radio(){
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (0 << 13) // Enable main feedback loop
-		| (2 << 9)  // Frequency multiplier R
-		| (3 << 5)  // Frequency multiplier L (actually L+1)
+		| (14 << 9)  // Frequency multiplier R
+		| (14 << 5)  // Frequency multiplier L (actually L+1)
 		| (1) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
@@ -183,8 +183,8 @@ inline static void set_pmu_sleep_clk_radio(){
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (0 << 13) // Enable main feedback loop
-		| (2 << 9)  // Frequency multiplier R
-		| (3 << 5)  // Frequency multiplier L (actually L+1)
+		| (14 << 9)  // Frequency multiplier R
+		| (14 << 5)  // Frequency multiplier L (actually L+1)
 		| (1) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
@@ -325,7 +325,7 @@ inline static void set_pmu_clk_init(){
 	));
 	delay(MBUS_DELAY);
 	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
-    mbus_remote_register_write(PMU_ADDR,0x36,0x2000);
+    mbus_remote_register_write(PMU_ADDR,0x36,0x100); // 0x100 about 1 min for 1/2/1 1P2 setting
 	delay(MBUS_DELAY);
 }
 
@@ -679,7 +679,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEEE;
+    enumerated = 0xDEADBEEF;
     exec_count = 0;
     exec_count_irq = 0;
     mbus_msg_flag = 0;
@@ -1038,7 +1038,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEEE){
+    if (enumerated != 0xDEADBEEF){
         // Set up PMU/GOC register in PRC layer (every time)
         // Enumeration & RAD/SNS layer register configuration
         operation_init();
