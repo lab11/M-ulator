@@ -19,6 +19,8 @@
 //			v1.12: Dynamic adjustment of wakeup time based on CPU clock cycle
 //				   Changed temp sensor polling to wfi  
 //			v1.13: Optimizing PMU sleep/active settings
+//				   Lower sleep power, higher sleep power during radio sleep
+//				   PMU ADC disabled during radio sleep
 //*******************************************************************
 #include "PRCv14.h"
 #include "PRCv14_RF.h"
@@ -163,6 +165,63 @@ void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
 //************************************
 // PMU Related Functions
 //************************************
+
+inline static void set_pmu_adc_period(uint32_t val){
+	// PMU_CONTROLLER_DESIRED_STATE
+	mbus_remote_register_write(PMU_ADDR,0x3B,
+		((  1 << 0) //state_sar_scn_on
+		| (0 << 1) //state_wait_for_clock_cycles
+		| (1 << 2) //state_wait_for_time
+		| (1 << 3) //state_sar_scn_reset
+		| (1 << 4) //state_sar_scn_stabilized
+		| (1 << 5) //state_sar_scn_ratio_roughly_adjusted
+		| (1 << 6) //state_clock_supply_switched
+		| (1 << 7) //state_control_supply_switched
+		| (1 << 8) //state_upconverter_on
+		| (1 << 9) //state_upconverter_stabilized
+		| (1 << 10) //state_refgen_on
+		| (1 << 11) //state_adc_output_ready
+		| (0 << 12) //state_adc_adjusted
+		| (0 << 13) //state_sar_scn_ratio_adjusted
+		| (1 << 14) //state_downconverter_on
+		| (1 << 15) //state_downconverter_stabilized
+		| (1 << 16) //state_vdd_3p6_turned_on
+		| (1 << 17) //state_vdd_1p2_turned_on
+		| (1 << 18) //state_vdd_0P6_turned_on
+		| (1 << 19) //state_state_horizon
+	));
+	delay(MBUS_DELAY*10);
+
+	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
+    mbus_remote_register_write(PMU_ADDR,0x36,val); 
+	delay(MBUS_DELAY*10);
+
+	// PMU_CONTROLLER_DESIRED_STATE
+	mbus_remote_register_write(PMU_ADDR,0x3B,
+		((  1 << 0) //state_sar_scn_on
+		| (1 << 1) //state_wait_for_clock_cycles
+		| (1 << 2) //state_wait_for_time
+		| (1 << 3) //state_sar_scn_reset
+		| (1 << 4) //state_sar_scn_stabilized
+		| (1 << 5) //state_sar_scn_ratio_roughly_adjusted
+		| (1 << 6) //state_clock_supply_switched
+		| (1 << 7) //state_control_supply_switched
+		| (1 << 8) //state_upconverter_on
+		| (1 << 9) //state_upconverter_stabilized
+		| (1 << 10) //state_refgen_on
+		| (1 << 11) //state_adc_output_ready
+		| (0 << 12) //state_adc_adjusted
+		| (1 << 13) //state_sar_scn_ratio_adjusted
+		| (1 << 14) //state_downconverter_on
+		| (1 << 15) //state_downconverter_stabilized
+		| (1 << 16) //state_vdd_3p6_turned_on
+		| (1 << 17) //state_vdd_1p2_turned_on
+		| (1 << 18) //state_vdd_0P6_turned_on
+		| (1 << 19) //state_state_horizon
+	));
+	delay(MBUS_DELAY);
+
+}
 
 inline static void set_pmu_sleep_clk_radio(){
 	// Register 0x15: SAR_TRIM_v3_SLEEP
@@ -324,10 +383,10 @@ inline static void set_pmu_clk_init(){
 		| (44) 		// Binary converter's conversion ratio (7'h00)
 	));
 	delay(MBUS_DELAY);
-	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
-    mbus_remote_register_write(PMU_ADDR,0x36,0x100); // 0x100 about 1 min for 1/2/1 1P2 setting
-	delay(MBUS_DELAY);
+
+	set_pmu_adc_period(0x100); // 0x100 about 1 min for 1/2/1 1P2 setting
 }
+
 
 inline static void batadc_reset(){
 	// Manually reset ADC
@@ -346,7 +405,7 @@ inline static void batadc_reset(){
 		| (1 << 10) //state_refgen_on
 		| (0 << 11) //state_adc_output_ready
 		| (0 << 12) //state_adc_adjusted
-		| (1 << 13) //state_sar_scn_ratio_adjusted
+		| (0 << 13) //state_sar_scn_ratio_adjusted
 		| (1 << 14) //state_downconverter_on
 		| (1 << 15) //state_downconverter_stabilized
 		| (1 << 16) //state_vdd_3p6_turned_on
@@ -415,6 +474,9 @@ inline static void reset_pmu_solar_short(){
 //***************************************************
 
 static void radio_power_on(){
+	// Turn off PMU ADC
+	batadc_reset();
+
 	// Need to speed up sleep pmu clock
 	set_pmu_sleep_clk_radio();
 	
@@ -448,6 +510,9 @@ static void radio_power_on(){
 static void radio_power_off(){
 	// Need to restore sleep pmu clock
 	set_pmu_sleep_clk_low();
+	
+	// Enable PMU ADC
+	batadc_resetrelease();
 
     // Turn off everything
     radio_on = 0;
@@ -753,7 +818,7 @@ static void operation_init(void){
     // Radio Settings --------------------------------------
     radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
     radv9_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
-    radv9_r0.RADIO_TUNE_FREQ2 = 0x4; //Tune Freq 2
+    radv9_r0.RADIO_TUNE_FREQ2 = 0x0; //Tune Freq 2
     radv9_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
     mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
 
@@ -1138,8 +1203,6 @@ int main() {
 				delay(MBUS_DELAY);
 				delay(MBUS_DELAY);
 				read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
-				batadc_reset();
-				delay(MBUS_DELAY);
 		
 				// Prepare radio TX
 				radio_power_on();
@@ -1163,8 +1226,6 @@ int main() {
             exec_count_irq = 0;
             // radio
             send_radio_data_ppm(1,0xFAF000);	
-			// Release reset of PMU ADC
-			batadc_resetrelease();
             // Go to sleep without timer
             operation_sleep_notimer();
         }
@@ -1222,8 +1283,6 @@ int main() {
 				delay(MBUS_DELAY);
 				delay(MBUS_DELAY);
 				read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
-				batadc_reset();
-				delay(MBUS_DELAY);
 		
 				// Prepare radio TX
 				radio_power_on();
@@ -1242,8 +1301,6 @@ int main() {
             exec_count_irq = 0;
             // radio
             send_radio_data_ppm(1,0xFAF000);	
-			// Release reset of PMU ADC
-			batadc_resetrelease();
             // Go to sleep without timer
             operation_sleep_notimer();
         }
@@ -1373,8 +1430,6 @@ int main() {
             exec_count_irq = 0;
             // radio
             send_radio_data_ppm(1,0xFAF000);	
-			// Release reset of PMU ADC
-			batadc_resetrelease();
             // Go to sleep without timer
             operation_sleep_notimer();
         }
