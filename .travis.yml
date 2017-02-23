@@ -15,7 +15,7 @@ before_script:
     - git clone https://github.com/gittup/tup.git
     - cd tup
     - ./build.sh
-    - ./build/tup generate gen.sh
+    - ./build/tup init && ./build/tup generate gen.sh
     - ./gen.sh
     - mkdir -p bin && cp tup bin/
     - PATH="$PWD/bin:$PATH"
