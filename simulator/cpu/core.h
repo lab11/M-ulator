@@ -20,6 +20,8 @@
 #ifndef CORE_H
 #define CORE_H
 
+#include <stdint.h>
+
 #include "core/common.h"
 
 #ifndef PP_STRING
@@ -45,7 +47,7 @@ void register_memmap(
 		uint32_t top
 	);
 
-extern _Atomic _Bool	_CORE_in_reset;
+extern _Atomic bool	_CORE_in_reset;
 void		reset(void);
 
 uint32_t	read_word_quiet(uint32_t addr);
