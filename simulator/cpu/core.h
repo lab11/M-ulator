@@ -20,6 +20,7 @@
 #ifndef CORE_H
 #define CORE_H
 
+#include <stdatomic.h>
 #include <stdint.h>
 
 #include "core/common.h"
