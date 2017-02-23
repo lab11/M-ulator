@@ -46,6 +46,7 @@ for variant_file in os.listdir('simulator/configs'):
 	cp('-r', PRISTINE, build_variant_dir)
 
 	with sh.pushd(os.path.join(build_variant_dir, 'simulator')):
+		tup('init')
 		tup('generate', 'build.sh', '--config', os.path.join('configs', variant))
 		sh.Command('./build.sh')()
 		sh.test('-x', 'simulator')

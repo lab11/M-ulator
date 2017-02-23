@@ -17,7 +17,7 @@ before_script:
     - ./build.sh
     - ./build/tup init && ./build/tup generate gen.sh
     - ./gen.sh
-    - mkdir -p bin && cp tup bin/
+    - mkdir -p bin && cp -v tup bin/
     - PATH="$PWD/bin:$PATH"
     - cd ..
 
