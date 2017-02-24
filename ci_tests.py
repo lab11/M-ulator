@@ -20,10 +20,18 @@ logging.getLogger("sh").setLevel(logging.WARNING)
 BUILD_DIR = 'builds'
 PRISTINE = os.path.join(BUILD_DIR, 'simulator')
 
+log.info("Starting CI Build")
+log.info(" - Using {} for BUILD_DIR".format(BUILD_DIR))
+log.info(" - Using {} for BUILD_DIR".format(BUILD_DIR))
 
 # Start from scratch
+log.info(" - Clearing BUILD_DIR")
 rm('-r', '-f', BUILD_DIR)
 mkdir(BUILD_DIR)
+
+
+# Grab some system information
+log.info(" - System compiller information:\n{}'".format(sh.cc('--version')))
 
 
 # No fuse in the CI environment means we need a unique directory for each
