@@ -3,8 +3,12 @@ language: c
 sudo: required
 dist: trusty
 
+# http://askubuntu.com/questions/466651/how-do-i-use-the-latest-gcc-on-ubuntu
 before_install:
+    - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
     - sudo apt-get update
+    - sudo apt-get install gcc-6
+    - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-6 60 --slave /usr/bin/g++ g++ /usr/bin/g++-6
     - sudo apt-get install -qq libfuse-dev libelf-dev python-dev gcc-arm-none-eabi python3-pip socat
     - pip install --user git+https://github.com/ppannuto/sh.git@fix_pushd
     - pip3 install --user git+https://github.com/ppannuto/sh.git@fix_pushd
