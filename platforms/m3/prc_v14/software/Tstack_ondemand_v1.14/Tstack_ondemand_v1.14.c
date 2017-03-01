@@ -21,7 +21,7 @@
 //			v1.13: Optimizing PMU sleep/active settings
 //				   Lower sleep power, higher sleep power during radio sleep
 //				   PMU ADC disabled during radio sleep
-//			v1.14: Fixing how PMU ADC is reset
+//			v1.14: Fixing how PMU ADC is reset / Including ADC offset calibration
 //*******************************************************************
 #include "PRCv14.h"
 #include "PRCv14_RF.h"
@@ -168,8 +168,8 @@ void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
 //************************************
 
 inline static void set_pmu_adc_period(uint32_t val){
-	// PMU_CONTROLLER_DESIRED_STATE
-	mbus_remote_register_write(PMU_ADDR,0x3B,
+	// PMU_CONTROLLER_DESIRED_STATE Active
+	mbus_remote_register_write(PMU_ADDR,0x3C,
 		((  1 << 0) //state_sar_scn_on
 		| (0 << 1) //state_wait_for_clock_cycles
 		| (1 << 2) //state_wait_for_time
@@ -181,7 +181,7 @@ inline static void set_pmu_adc_period(uint32_t val){
 		| (1 << 8) //state_upconverter_on
 		| (1 << 9) //state_upconverter_stabilized
 		| (1 << 10) //state_refgen_on
-		| (1 << 11) //state_adc_output_ready
+		| (0 << 11) //state_adc_output_ready
 		| (0 << 12) //state_adc_adjusted
 		| (0 << 13) //state_sar_scn_ratio_adjusted
 		| (1 << 14) //state_downconverter_on
@@ -197,8 +197,8 @@ inline static void set_pmu_adc_period(uint32_t val){
     mbus_remote_register_write(PMU_ADDR,0x36,val); 
 	delay(MBUS_DELAY*10);
 
-	// PMU_CONTROLLER_DESIRED_STATE
-	mbus_remote_register_write(PMU_ADDR,0x3B,
+	// PMU_CONTROLLER_DESIRED_STATE Active
+	mbus_remote_register_write(PMU_ADDR,0x3C,
 		((  1 << 0) //state_sar_scn_on
 		| (1 << 1) //state_wait_for_clock_cycles
 		| (1 << 2) //state_wait_for_time
@@ -210,9 +210,9 @@ inline static void set_pmu_adc_period(uint32_t val){
 		| (1 << 8) //state_upconverter_on
 		| (1 << 9) //state_upconverter_stabilized
 		| (1 << 10) //state_refgen_on
-		| (1 << 11) //state_adc_output_ready
-		| (1 << 12) //state_adc_adjusted
-		| (1 << 13) //state_sar_scn_ratio_adjusted
+		| (0 << 11) //state_adc_output_ready
+		| (0 << 12) //state_adc_adjusted
+		| (0 << 13) //state_sar_scn_ratio_adjusted
 		| (1 << 14) //state_downconverter_on
 		| (1 << 15) //state_downconverter_stabilized
 		| (1 << 16) //state_vdd_3p6_turned_on
