@@ -315,6 +315,7 @@ static void set_pmu_active_default(void){
 	));
 	delay(MBUS_DELAY);
 	
+	set_pmu_sar_override(45);
 }
 
 static void set_pmu_img(void){
@@ -400,8 +401,8 @@ static void set_pmu_sleep_radio(void){
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (0 << 13) // Enable main feedback loop
-		| (6 << 9)  // Frequency multiplier R
-		| (6 << 5)  // Frequency multiplier L (actually L+1)
+		| (10 << 9)  // Frequency multiplier R
+		| (5 << 5)  // Frequency multiplier L (actually L+1)
 		| (5) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
@@ -411,8 +412,8 @@ static void set_pmu_sleep_radio(void){
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (0 << 13) // Enable main feedback loop
-		| (6 << 9)  // Frequency multiplier R
-		| (6 << 5)  // Frequency multiplier L (actually L+1)
+		| (10 << 9)  // Frequency multiplier R
+		| (5 << 5)  // Frequency multiplier L (actually L+1)
 		| (5) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
@@ -421,16 +422,13 @@ static void set_pmu_sleep_radio(void){
 		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
 		| (0 << 13) // Enable main feedback loop
 		| (2 << 9)  // Frequency multiplier R
-		| (3 << 5)  // Frequency multiplier L (actually L+1)
+		| (2 << 5)  // Frequency multiplier L (actually L+1)
 		| (5) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 }
 
 static void set_pmu_motion_img_default(void){
-
-	set_pmu_sleep_default();
-	set_pmu_active_default();
 
 	// SAR_RATIO_OVERRIDE
 	// Use the new reset scheme in PMUv3
@@ -448,17 +446,11 @@ static void set_pmu_motion_img_default(void){
 		// 41: 1.26V
 	));
 	delay(MBUS_DELAY);
-    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
-		( (0 << 13) // Enables override setting [12] (1'b1)
-		| (0 << 12) // Let VDD_CLK always connected to vbat
-		| (1 << 11) // Enable override setting [10] (1'h0)
-		| (0 << 10) // Have the converter have the periodic reset (1'h0)
-		| (1 << 9) // Enable override setting [8] (1'h0)
-		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
-		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (45) 		// Binary converter's conversion ratio (7'h00)
-	));
+	set_pmu_sar_override(45);
 	delay(MBUS_DELAY);
+
+	set_pmu_sleep_default();
+	set_pmu_active_default();
 
 	set_pmu_adc_period(0x2000); 
 }
@@ -690,7 +682,6 @@ static void send_radio_data_ppm_96(bool last_packet, uint32_t radio_data_0, uint
 	}else{
 		mrrv3_r0E.MRR_RAD_FSM_EN = 0;
 		mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
-		delay(MBUS_DELAY);
 	}
 }
 
@@ -763,8 +754,17 @@ uint32_t send_radio_flash_sram(uint8_t addr_stamp, uint32_t length){
 		mbus_copy_mem_from_remote_to_any_bulk(FLS_ADDR, (uint32_t*)((idx*3) << 2), PRC_ADDR, (uint32_t*)&flash_read_data, 2);
 		// Send 96 bits of data
     	set_halt_until_mbus_tx();
-		send_radio_data_ppm_96(0,flash_read_data[0],flash_read_data[1],flash_read_data[2],flash_read_data[2]);
-		delay(MBUS_DELAY);
+
+		//fixme
+		mbus_write_message32(0xAA, flash_read_data[0]);
+		mbus_write_message32(0xAA, flash_read_data[1]);
+		mbus_write_message32(0xAA, flash_read_data[2]);
+		
+		send_radio_data_ppm_96(0,
+			(flash_read_data[0]&0xFFFFFF),
+			(flash_read_data[0]>>24) + (flash_read_data[1]&0xFFFF)<<8,
+			(flash_read_data[1]>>16) + (flash_read_data[2]&0xFF)<<16,
+			(flash_read_data[2]>>8));
 	}
 
 	return 1;
@@ -835,8 +835,8 @@ static void initialize_md_reg(){
 	mdv3_r3.SEL_VB_RAMP = 15;
 	mdv3_r3.SEL_RAMP = 1;
 
-	mdv3_r4.SEL_CC  = 7; //4
-	mdv3_r4.SEL_CC_B  = 0; //3
+	mdv3_r4.SEL_CC  = 4; //4
+	mdv3_r4.SEL_CC_B  = 3; //3
 
 	mdv3_r5.SEL_CLK_RING = 2;
 	mdv3_r5.SEL_CLK_DIV = 4;
@@ -1177,7 +1177,8 @@ static void operation_flash_read(uint32_t page_offset){
 	//flash_copy_flash2sram(0x1FFF); // FLS: 4 pages; 32kB
 	flash_copy_flash2sram(0x19FF); // FLP: 26 pages; 26kB
 
-	// Transmit recovered image via MBus
+	// Check Flash SRAM after image
+	// FIXME: Debug only
 	check_flash_sram_full_image();
 
 }
@@ -1212,7 +1213,7 @@ static void operation_md(void){
 		clear_md_flag();
 		if (radio_tx_option){
 			// radio
-			send_radio_data_ppm(0,0xFAFA1234);	
+			send_radio_data_ppm(0,0xABCD1234);	
 		}
 	}
 
@@ -1240,16 +1241,21 @@ static void operation_md(void){
 
 		}
 
+
+		if (radio_tx_option){
+			// Radio out image data stored in flash
+			send_radio_data_ppm(0,0xABC000);
+			send_radio_flash_sram(0xE4, 6475); // Full image
+			send_radio_data_ppm(1,0xABC000);
+		}
+
 		// Turn off only the Flash layer
 		mbus_sleep_layer_short(FLS_ADDR);
   		delay(MBUS_DELAY);
 
-		if (radio_tx_option){
-			// Radio out image data stored in flash
-			send_radio_data_ppm(0,0xFAF000);
-			send_radio_flash_sram(0xE4, 6475); // Full image
-			send_radio_data_ppm(0,0xFAF000);
-		}
+		// Restore pmu active settings
+		set_pmu_active_default();
+
 	}
 
 	if (md_start_motion){
@@ -1275,7 +1281,6 @@ static void operation_md(void){
 		set_pmu_sleep_default();
 	}
 
-
 	// Reset wakeup timer
 	set_wakeup_timer(1000000, 0, 1);
 
@@ -1299,7 +1304,7 @@ static void operation_tx_image(void){
 	operation_flash_read(0x100 + radio_tx_img_idx*0x1A00);
 
 	// Send image to radio
-	// Commnet out for now
+	// Comment out for now
 	//send_radio_flash_sram(0xE4, 6475); // Full image
 
 	if (!radio_tx_img_one && (radio_tx_img_idx < radio_tx_img_num)){
@@ -1314,7 +1319,7 @@ static void operation_tx_image(void){
 		// Turn off only the Flash layer
 		mbus_sleep_layer_short(FLS_ADDR);
   		delay(MBUS_DELAY);
-		set_pmu_sleep_default();
+		set_pmu_active_default();
   		delay(MBUS_DELAY);
 
 		// This is also the end of this IRQ routine
@@ -1606,7 +1611,7 @@ int main() {
         // wakeup_data[18] indicates whether or not to radio out the result
         // wakeup_data[19] reset img count
 		USR_MD_INT_TIME = wakeup_data_field_0;
-		USR_INT_TIME = wakeup_data_field_1;
+		USR_INT_TIME = USR_MD_INT_TIME*2;
 
 		// Reset IRQ14VEC
 		*((volatile uint32_t *) IRQ14VEC) = 0;
@@ -1631,11 +1636,6 @@ int main() {
 			// Go to sleep for SCRO stabilitzation
 			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 			operation_sleep_noirqreset();
-		}
-		if (md_capture_img){
-			// Increase PMU strength for imaging and flash operation
-			//set_pmu_img();
-			//delay(DELAY_1); // about 0.5s
 		}
 
 		operation_md();
@@ -1806,8 +1806,54 @@ int main() {
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
+    }else if(wakeup_data_header == 0x20){
+		// Image calibration
+
+		initialize_md_reg();
+		poweron_frame_controller();
+		set_pmu_img();
+		poweron_array_adc();
+
+		uint32_t ii;
+		for( ii=1; ii<128; ii=ii+2 ){
+			// Set the watch-dog timer
+			config_timerwd(40000000); // 2e7: 1min
+
+			mbus_write_message32(0xAA,ii);
+			delay(MBUS_DELAY);
+		
+			USR_MD_INT_TIME = ii;
+			USR_INT_TIME = ii*2;
+
+			mdv3_r0.INT_TIME = USR_INT_TIME;
+			mdv3_r0.MD_INT_TIME = USR_MD_INT_TIME;
+			mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
+
+			// Start imaging
+			capture_image_single();
+			wait_for_interrupt(IMG_TIMEOUT_COUNT);	
+
+			delay(MBUS_DELAY*10);
+
+		}
+		
+		// Power-gate MD Imager
+		poweroff_array_adc();
+
+		// Restore pmu active settings
+		set_pmu_active_default();
+
+		// Turn off MDSENSOR
+		poweroff_frame_controller();
+		// Set PMU settings back to default
+		set_pmu_sleep_default();
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
 
     }
+
+
 
     // Proceed to continuous mode
     while(1){

@@ -808,6 +808,8 @@ static void operation_init(void){
 	// PMU_CONTROLLER_STALL_ACTIVE
     mbus_remote_register_write(PMU_ADDR,0x3A, 
 		( (1 << 19) // ignore state_horizon; default 1
+		| (1 << 13) // ignore adc_output_ready; default 0
+		| (1 << 12) // ignore adc_output_ready; default 0
 		| (1 << 11) // ignore adc_output_ready; default 0
 	));
     delay(MBUS_DELAY);
