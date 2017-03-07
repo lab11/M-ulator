@@ -755,16 +755,12 @@ uint32_t send_radio_flash_sram(uint8_t addr_stamp, uint32_t length){
 		// Send 96 bits of data
     	set_halt_until_mbus_tx();
 
-		//fixme
-		mbus_write_message32(0xAA, flash_read_data[0]);
-		mbus_write_message32(0xAA, flash_read_data[1]);
-		mbus_write_message32(0xAA, flash_read_data[2]);
-		
+		// First received data packet is from address 0, then increments by 3 words
 		send_radio_data_ppm_96(0,
 			(flash_read_data[0]&0xFFFFFF),
-			(flash_read_data[0]>>24) + (flash_read_data[1]&0xFFFF)<<8,
-			(flash_read_data[1]>>16) + (flash_read_data[2]&0xFF)<<16,
-			(flash_read_data[2]>>8));
+			((flash_read_data[0]&0xFF000000)>>24) | ((flash_read_data[1]&0xFFFF)<<8),
+			((flash_read_data[1]&0xFFFF0000)>>16) | ((flash_read_data[2]&0xFF)<<16),
+			((flash_read_data[2]&0xFFFFFF00)>>8));
 	}
 
 	return 1;
