@@ -460,7 +460,7 @@ inline static void pmu_adc_enable(){
 		| (1 << 9) //state_upconverter_stabilized
 		| (1 << 10) //state_refgen_on
 		| (1 << 11) //state_adc_output_ready
-		| (1 << 12) //state_adc_adjusted
+		| (0 << 12) //state_adc_adjusted // Turning off offset cancellation
 		| (1 << 13) //state_sar_scn_ratio_adjusted
 		| (1 << 14) //state_downconverter_on
 		| (1 << 15) //state_downconverter_stabilized
@@ -814,6 +814,8 @@ static void operation_init(void){
 	));
     delay(MBUS_DELAY);
 	pmu_adc_reset_setting();
+	delay(MBUS_DELAY);
+	pmu_adc_enable();
 	delay(MBUS_DELAY);
 
     // Temp Sensor Settings --------------------------------------
