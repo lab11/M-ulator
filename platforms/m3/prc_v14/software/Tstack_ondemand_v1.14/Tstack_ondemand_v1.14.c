@@ -21,7 +21,7 @@
 //			v1.13: Optimizing PMU sleep/active settings
 //				   Lower sleep power, higher sleep power during radio sleep
 //				   PMU ADC disabled during radio sleep
-//			v1.14: Fixing how PMU ADC is reset / Including ADC offset calibration
+//			v1.14: Fixing how PMU ADC is reset
 //*******************************************************************
 #include "PRCv14.h"
 #include "PRCv14_RF.h"
