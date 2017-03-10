@@ -51,34 +51,34 @@ _Static_assert(sizeof(snsv7_r2_t) == 4, "Punned Structure Size");
 //Register 14
 typedef union snsv7_r14{
   struct{
-    unsigned TEMP_SENSOR_R_bmod 	: 4;
-    unsigned TEMP_SENSOR_R_tmod		: 4;
-    unsigned TEMP_SENSOR_P_bmod		: 4;
-    unsigned TEMP_SENSOR_P_tmod		: 4;
-    unsigned TEMP_SENSOR_ENABLEb	: 1;
-    unsigned TEMP_SENSOR_DELAY_SEL	: 3;
-    unsigned TEMP_SENSOR_IRQ_EN		: 1;
-    unsigned TEMP_SENSOR_ISO		: 1;
-    unsigned TEMP_SENSOR_RESETn		: 1;
+    unsigned TEMP_SENSOR_R_bmod     : 4;
+    unsigned TEMP_SENSOR_R_tmod	    : 4;
+    unsigned TEMP_SENSOR_P_bmod	    : 4;
+    unsigned TEMP_SENSOR_P_tmod	    : 4;
+    unsigned TEMP_SENSOR_ENABLEb    : 1;
+    unsigned TEMP_SENSOR_DELAY_SEL  : 3;
+    unsigned TEMP_SENSOR_IRQ_EN	    : 1;
+    unsigned TEMP_SENSOR_ISO	    : 1;
+    unsigned TEMP_SENSOR_RESETn     : 1;
     unsigned TEMP_SENSOR_BURST_MODE : 1;
 	};
   uint32_t as_int;
 } snsv7_r14_t;
-#define SNSv7_R14_DEFAULT {0x0, 0xF, 0x0, 0xF, 0x1, 0x5, 1, 1, 0, 0}
+#define SNSv7_R14_DEFAULT {{0x0, 0xF, 0x0, 0xF, 0x1, 0x5, 1, 1, 0, 0}}
 _Static_assert(sizeof(snsv7_r14_t) == 4, "Punned Structure Size");
 
 //Register 15
 typedef union snsv7_r15{
   struct{
-    unsigned TEMP_SENSOR_SEL_CT 	: 4;
-    unsigned TEMP_SENSOR_AMP_BIAS	: 3;
-    unsigned TEMP_SENSOR_R_REF		: 8;
-    unsigned TEMP_SENSOR_R_PTAT		: 8;
+    unsigned TEMP_SENSOR_SEL_CT     : 4;
+    unsigned TEMP_SENSOR_AMP_BIAS   : 3;
+    unsigned TEMP_SENSOR_R_REF      : 8;
+    unsigned TEMP_SENSOR_R_PTAT     : 8;
     unsigned TEMP_SENSOR_CONT_MODEb : 1;
   };
   uint32_t as_int;
 } snsv7_r15_t;
-#define SNSv7_R15_DEFAULT {0x5, 0x2, 0x7F, 0x8F, 1}
+#define SNSv7_R15_DEFAULT {{0x5, 0x2, 0x7F, 0x8F, 1}}
 _Static_assert(sizeof(snsv7_r15_t) == 4, "Punned Structure Size");
 
 //Register 16
