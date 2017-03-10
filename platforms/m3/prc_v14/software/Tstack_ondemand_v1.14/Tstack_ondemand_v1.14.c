@@ -1306,7 +1306,6 @@ int main() {
 		// wakeup_data[7:0] is the # of transmissions
 		// wakeup_data[15:8] is the user-specified period 
 		WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
-		exec_count = 0;
 
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
@@ -1343,7 +1342,6 @@ int main() {
 		// Discharge battery by staying active and TX radio
 		// wakeup_data[15:0] is the # of transmissions
 		// wakeup_data[16] resets PMU solar clamp
-		exec_count = 0;
 
 		exec_count_irq++;
 		if (exec_count_irq == 1){
@@ -1439,7 +1437,6 @@ int main() {
 		// wakeup_data[7:0] is the # of transmissions
 		// wakeup_data[15:8] is the user-specified period 
 		WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
-		exec_count = 0;
 
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
