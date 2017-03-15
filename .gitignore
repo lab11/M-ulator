@@ -9,6 +9,7 @@
 *.elf
 *.list
 *.bin
+*.lst
 
 # testing
 builds/
