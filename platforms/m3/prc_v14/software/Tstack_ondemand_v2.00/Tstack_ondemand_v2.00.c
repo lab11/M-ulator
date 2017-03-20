@@ -123,7 +123,6 @@ volatile radv9_r11_t radv9_r11 = RADv9_R11_DEFAULT;
 volatile radv9_r12_t radv9_r12 = RADv9_R12_DEFAULT;
 volatile radv9_r13_t radv9_r13 = RADv9_R13_DEFAULT;
 volatile radv9_r14_t radv9_r14 = RADv9_R14_DEFAULT;
-radv9_r0_t radv9_r0_temp;
 
 volatile hrvv2_r0_t hrvv2_r0 = HRVv2_R0_DEFAULT;
 
@@ -506,6 +505,8 @@ inline static void reset_pmu_solar_short(){
 //***************************************************
 
 static void radio_power_on(){
+  radv9_r2_t  radv9_r2_temp;
+  radv9_r13_t radv9_r13_temp;
   // Turn off PMU ADC
   pmu_adc_disable();
 
@@ -517,29 +518,41 @@ static void radio_power_on(){
 
   // Release FSM Sleep - Requires >2s stabilization time
   radio_on = 1;
-  radv9_r13.RAD_FSM_SLEEP = 0;
+  
+  radv9_r13_temp.as_int = radv9_r13.as_int;
+  radv9_r13_temp.RAD_FSM_SLEEP = 0;
+  radv9_r13.as_int = radv9_r13_temp.as_int;
   mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
   delay(MBUS_DELAY);
   // Release SCRO Reset
-  radv9_r2.SCRO_RESET = 0;
+  radv9_r2_temp.as_int = radv9_r2.as_int;
+  radv9_r2_temp.SCRO_RESET = 0;
+  radv9_r2.as_int = radv9_r2_temp.as_int;
   mbus_remote_register_write(RAD_ADDR,2,radv9_r2.as_int);
     
   // Additional delay required after SCRO Reset release
   delay(MBUS_DELAY*3); // At least 20ms required
     
   // Enable SCRO
-  radv9_r2.SCRO_ENABLE = 1;
+  radv9_r2_temp.as_int = radv9_r2.as_int;
+  radv9_r2_temp.SCRO_ENABLE = 1;
+  radv9_r2.as_int = radv9_r2_temp.as_int;
   mbus_remote_register_write(RAD_ADDR,2,radv9_r2.as_int);
   delay(MBUS_DELAY);
 
   // Release FSM Isolate
-  radv9_r13.RAD_FSM_ISOLATE = 0;
+  radv9_r13_temp.as_int = radv9_r13.as_int;
+  radv9_r13_temp.RAD_FSM_ISOLATE = 0;
+  radv9_r13.as_int = radv9_r13_temp.as_int;
   mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
   delay(MBUS_DELAY);
 
 }
 
 static void radio_power_off(){
+  radv9_r2_t  radv9_r2_temp;
+  radv9_r13_t radv9_r13_temp;
+
   // Need to restore sleep pmu clock
   set_pmu_sleep_clk_low();
 	
@@ -549,26 +562,38 @@ static void radio_power_off(){
   // Turn off everything
   radio_on = 0;
   radio_ready = 0;
-  radv9_r2.SCRO_ENABLE = 0;
-  radv9_r2.SCRO_RESET  = 1;
+
+  radv9_r2_temp.as_int = radv9_r2.as_int;
+  radv9_r2_temp.SCRO_ENABLE = 0;
+  radv9_r2_temp.SCRO_RESET  = 1;
+  radv9_r2.as_int = radv9_r2_temp.as_int;
   mbus_remote_register_write(RAD_ADDR,2,radv9_r2.as_int);
-  radv9_r13.RAD_FSM_SLEEP 	= 1;
-  radv9_r13.RAD_FSM_ISOLATE 	= 1;
-  radv9_r13.RAD_FSM_RESETn 	= 0;
-  radv9_r13.RAD_FSM_ENABLE 	= 0;
+  radv9_r13_temp.as_int = radv9_r13.as_int;
+  radv9_r13_temp.RAD_FSM_SLEEP 	= 1;
+  radv9_r13_temp.RAD_FSM_ISOLATE 	= 1;
+  radv9_r13_temp.RAD_FSM_RESETn 	= 0;
+  radv9_r13_temp.RAD_FSM_ENABLE 	= 0;
+  radv9_r13.as_int = radv9_r13_temp.as_int;
   mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
 }
 
 static void send_radio_data_ppm(uint32_t last_packet, uint32_t radio_data){
+  radv9_r3_t  radv9_r3_temp;
+  radv9_r13_t radv9_r13_temp;
+
   // Write Data: Only up to 24bit data for now
-  radv9_r3.RAD_FSM_DATA = radio_data;
+  radv9_r3_temp.as_int = radv9_r3.as_int;
+  radv9_r3_temp.RAD_FSM_DATA = radio_data;
+  radv9_r3.as_int = radv9_r3_temp.as_int;
   mbus_remote_register_write(RAD_ADDR,3,radv9_r3.as_int);
 
   if (!radio_ready){
     radio_ready = 1;
 
     // Release FSM Reset
-    radv9_r13.RAD_FSM_RESETn = 1;
+    radv9_r13_temp.as_int = radv9_r13.as_int;
+    radv9_r13_temp.RAD_FSM_RESETn = 1;
+    radv9_r13.as_int = radv9_r13_temp.as_int;
     mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
     delay(MBUS_DELAY);
   }
@@ -579,7 +604,9 @@ static void send_radio_data_ppm(uint32_t last_packet, uint32_t radio_data){
   // Fire off data
   uint32_t count;
   mbus_msg_flag = 0;
-  radv9_r13.RAD_FSM_ENABLE = 1;
+  radv9_r13_temp.as_int = radv9_r13.as_int;
+  radv9_r13_temp.RAD_FSM_ENABLE = 1;
+  radv9_r13.as_int = radv9_r13_temp.as_int;
   mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
 
   for( count=0; count<RADIO_TIMEOUT_COUNT; count++ ){
@@ -590,7 +617,9 @@ static void send_radio_data_ppm(uint32_t last_packet, uint32_t radio_data){
 	radio_ready = 0;
 	radio_power_off();
       }else{
-	radv9_r13.RAD_FSM_ENABLE = 0;
+	radv9_r13_temp.as_int = radv9_r13.as_int;
+	radv9_r13_temp.RAD_FSM_ENABLE = 0;
+	radv9_r13.as_int = radv9_r13_temp.as_int;
 	mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
       }
       return;
@@ -609,32 +638,50 @@ static void send_radio_data_ppm(uint32_t last_packet, uint32_t radio_data){
 //***************************************************
 
 static void temp_sensor_enable(){
-  snsv7_r14.TEMP_SENSOR_ENABLEb = 0x0;
+  snsv7_r14_t snsv7_r14_temp;
+  snsv7_r14_temp.as_int = snsv7_r14.as_int;
+  snsv7_r14_temp.TEMP_SENSOR_ENABLEb = 0x0;
+  snsv7_r14.as_int = snsv7_r14_temp.as_int;
   mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
 }
 static void temp_sensor_disable(){
-  snsv7_r14.TEMP_SENSOR_ENABLEb = 1;
+  snsv7_r14_t snsv7_r14_temp;
+  snsv7_r14_temp.as_int = snsv7_r14.as_int;
+  snsv7_r14_temp.TEMP_SENSOR_ENABLEb = 1;
+  snsv7_r14.as_int = snsv7_r14_temp.as_int;
   mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
 }
 static void temp_sensor_release_reset(){
-  snsv7_r14.TEMP_SENSOR_RESETn = 1;
-  snsv7_r14.TEMP_SENSOR_ISO = 0;
+  snsv7_r14_t snsv7_r14_temp;
+  snsv7_r14_temp.as_int = snsv7_r14.as_int;
+  snsv7_r14_temp.TEMP_SENSOR_RESETn = 1;
+  snsv7_r14_temp.TEMP_SENSOR_ISO = 0;
+  snsv7_r14.as_int = snsv7_r14_temp.as_int;
   mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
 }
 static void temp_sensor_assert_reset(){
-  snsv7_r14.TEMP_SENSOR_RESETn = 0;
-  snsv7_r14.TEMP_SENSOR_ISO = 1;
+  snsv7_r14_t snsv7_r14_temp;
+  snsv7_r14_temp.as_int = snsv7_r14.as_int;
+  snsv7_r14_temp.TEMP_SENSOR_RESETn = 0;
+  snsv7_r14_temp.TEMP_SENSOR_ISO = 1;
+  snsv7_r14.as_int = snsv7_r14_temp.as_int;
   mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
 }
 static void ldo_power_off(){
-  snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB = 1;
-  snsv7_r18.ADC_LDO_ADC_LDO_ENB = 1;
+  snsv7_r18_t snsv7_r18_temp;
+  snsv7_r18_temp.as_int = snsv7_r18.as_int;
+  snsv7_r18_temp.ADC_LDO_ADC_LDO_DLY_ENB = 1;
+  snsv7_r18_temp.ADC_LDO_ADC_LDO_ENB = 1;
+  snsv7_r18.as_int = snsv7_r18_temp.as_int;
   mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
 }
 static void temp_power_off(){
-  snsv7_r14.TEMP_SENSOR_ENABLEb = 1;
-  snsv7_r14.TEMP_SENSOR_RESETn = 0;
-  snsv7_r14.TEMP_SENSOR_ISO = 1;
+  snsv7_r14_t snsv7_r14_temp;
+  snsv7_r14_temp.as_int = snsv7_r14.as_int;
+  snsv7_r14_temp.TEMP_SENSOR_ENABLEb = 1;
+  snsv7_r14_temp.TEMP_SENSOR_RESETn = 0;
+  snsv7_r14_temp.TEMP_SENSOR_ISO = 1;
+  snsv7_r14.as_int = snsv7_r14_temp.as_int;
   mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
   ldo_power_off();
 }
@@ -765,7 +812,18 @@ static void measure_wakeup_period(void){
 
 
 static void operation_init(void){
+  snsv7_r14_t snsv7_r14_temp;
+  snsv7_r15_t snsv7_r15_temp;
+  snsv7_r18_t snsv7_r18_temp;
+  snsv7_r25_t snsv7_r25_temp;
   
+  radv9_r0_t  radv9_r0_temp;
+  radv9_r1_t  radv9_r1_temp;
+  radv9_r11_t radv9_r11_temp;
+  radv9_r12_t radv9_r12_temp;
+
+  hrvv2_r0_t hrvv2_r0_temp;
+
   // Set CPU & Mbus Clock Speeds
   prcv14_r0B.DSLP_CLK_GEN_FAST_MODE = 0x1; // Default 0x0
   prcv14_r0B.CLK_GEN_RING = 0x1; // Default 0x1
@@ -822,29 +880,34 @@ static void operation_init(void){
 
   // Temp Sensor Settings --------------------------------------
   // SNSv7_R25
-  snsv7_r25.TEMP_SENSOR_IRQ_PACKET = 0x001000;
+  snsv7_r25_temp.as_int = snsv7_r25.as_int;
+  snsv7_r25_temp.TEMP_SENSOR_IRQ_PACKET = 0x001000;
+  snsv7_r25.as_int = snsv7_r25_temp.as_int;
   mbus_remote_register_write(SNS_ADDR,0x19,snsv7_r25.as_int);
   // SNSv7_R14
-  snsv7_r14.TEMP_SENSOR_BURST_MODE = 0x0;
-  snsv7_r14.TEMP_SENSOR_DELAY_SEL = 5;
-  snsv7_r14.TEMP_SENSOR_R_tmod = 0x0;
-  snsv7_r14.TEMP_SENSOR_R_bmod = 0x0;
+  snsv7_r14_temp.as_int = snsv7_r14.as_int;
+  snsv7_r14_temp.TEMP_SENSOR_BURST_MODE = 0x0;
+  snsv7_r14_temp.TEMP_SENSOR_DELAY_SEL = 5;
+  snsv7_r14_temp.TEMP_SENSOR_R_tmod = 0x0;
+  snsv7_r14_temp.TEMP_SENSOR_R_bmod = 0x0;
+  snsv7_r14.as_int = snsv7_r14_temp.as_int;
   mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
   // snsv7_R15
-  snsv7_r15.TEMP_SENSOR_AMP_BIAS = 0x7; // Default: 2
-  snsv7_r15.TEMP_SENSOR_CONT_MODEb = 0x0;
-  snsv7_r15.TEMP_SENSOR_SEL_CT = 6;
+  snsv7_r15_temp.as_int = snsv7_r15.as_int;
+  snsv7_r15_temp.TEMP_SENSOR_AMP_BIAS   = 0x7; // Default: 2
+  snsv7_r15_temp.TEMP_SENSOR_CONT_MODEb = 0x0;
+  snsv7_r15_temp.TEMP_SENSOR_SEL_CT     = 6;
+  snsv7_r15.as_int = snsv7_r15_temp.as_int;
   mbus_remote_register_write(SNS_ADDR,0xF,snsv7_r15.as_int);
 
   // snsv7_R18
-  snsv7_r18.ADC_LDO_ADC_LDO_ENB      = 0x1;
-  snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB  = 0x1;
-  snsv7_r18.ADC_LDO_ADC_CURRENT_2X  = 0x1;
-
-  // Set ADC LDO to around 1.37V: 0x3//0x20
-  snsv7_r18.ADC_LDO_ADC_VREF_MUX_SEL = 0x3;
-  snsv7_r18.ADC_LDO_ADC_VREF_SEL     = 0x20;
-
+  snsv7_r18_temp.as_int = snsv7_r18.as_int;
+  snsv7_r18_temp.ADC_LDO_ADC_LDO_ENB      = 0x1;
+  snsv7_r18_temp.ADC_LDO_ADC_LDO_DLY_ENB  = 0x1;
+  snsv7_r18_temp.ADC_LDO_ADC_CURRENT_2X   = 0x1;
+  snsv7_r18_temp.ADC_LDO_ADC_VREF_MUX_SEL = 0x3; // Set ADC LDO to around 1.37V: 0x3//0x20
+  snsv7_r18_temp.ADC_LDO_ADC_VREF_SEL     = 0x20; // Set ADC LDO to around 1.37V: 0x3//0x20
+  snsv7_r18.as_int = snsv7_r18_temp.as_int;
   mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
 
   // CDC Mbus return address; Needs to be between 0x18-0x1F
@@ -859,30 +922,27 @@ static void operation_init(void){
   radv9_r0_temp.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
   radv9_r0.as_int = radv9_r0_temp.as_int;
   mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
-//  mbus_remote_register_write(RAD_ADDR,0,
-//			     (( 0x1F<<18)
-//			      |(0x5 <<15)
-//			      |(0x1 <<14)
-//			      |(0x0 <<13)
-//			      |(0x0 <<9)
-//			      |(0x0 <<5)
-//			      |(0x1F<<0)
-//			      ));
-//
+
   // FSM data length setups
-  radv9_r11.RAD_FSM_H_LEN = 16; // N
-  radv9_r11.RAD_FSM_D_LEN = RADIO_DATA_LENGTH-1; // N-1
-  radv9_r11.RAD_FSM_C_LEN = 10;
+  radv9_r11_temp.as_int = radv9_r11.as_int;
+  radv9_r11_temp.RAD_FSM_H_LEN = 16; // N
+  radv9_r11_temp.RAD_FSM_D_LEN = RADIO_DATA_LENGTH-1; // N-1
+  radv9_r11_temp.RAD_FSM_C_LEN = 10;
+  radv9_r11.as_int = radv9_r11_temp.as_int;
   mbus_remote_register_write(RAD_ADDR,11,radv9_r11.as_int);
   
   // Configure SCRO
-  radv9_r1.SCRO_FREQ_DIV = 3;
-  radv9_r1.SCRO_AMP_I_LEVEL_SEL = 2; // Default 2
-  radv9_r1.SCRO_I_LEVEL_SELB = 0x60; // Default 0x6F
+  radv9_r1_temp.as_int = radv9_r1.as_int;
+  radv9_r1_temp.SCRO_FREQ_DIV = 3;
+  radv9_r1_temp.SCRO_AMP_I_LEVEL_SEL = 2; // Default 2
+  radv9_r1_temp.SCRO_I_LEVEL_SELB = 0x60; // Default 0x6F
+  radv9_r1.as_int = radv9_r1_temp.as_int;
   mbus_remote_register_write(RAD_ADDR,1,radv9_r1.as_int);
   
   // LFSR Seed
-  radv9_r12.RAD_FSM_SEED = 4;
+  radv9_r12_temp.as_int = radv9_r12.as_int;
+  radv9_r12_temp.RAD_FSM_SEED = 4;
+  radv9_r12.as_int = radv9_r12_temp.as_int;
   mbus_remote_register_write(RAD_ADDR,12,radv9_r12.as_int);
   
   // Mbus return address; Needs to be between 0x18-0x1F
@@ -902,7 +962,9 @@ static void operation_init(void){
   set_temp_exec_count = 0; // specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
 
   // Harvester Settings --------------------------------------
-  hrvv2_r0.HRV_TOP_CONV_RATIO = 0x6;
+  hrvv2_r0_temp.as_int = hrvv2_r0.as_int;
+  hrvv2_r0_temp.HRV_TOP_CONV_RATIO = 0x6;
+  hrvv2_r0.as_int = hrvv2_r0_temp.as_int;
   mbus_remote_register_write(HRV_ADDR,0,hrvv2_r0.as_int);
 
   delay(MBUS_DELAY);
@@ -916,6 +978,7 @@ static void operation_init(void){
 // Temperature measurement operation (SNSv7)
 //***************************************************
 static void operation_temp_run(void){
+    snsv7_r18_t snsv7_r18_temp;
 
   if (Tstack_state == TSTK_IDLE){
 #ifdef DEBUG_MBUS_MSG 
@@ -931,7 +994,9 @@ static void operation_temp_run(void){
       radio_power_on();
     }
 
+    snsv7_r18_temp.as_int = snsv7_r18.as_int;
     snsv7_r18.ADC_LDO_ADC_LDO_ENB = 0x0;
+    snsv7_r18.as_int = snsv7_r18_temp.as_int;
     mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
 
     // Put system to sleep
@@ -944,7 +1009,9 @@ static void operation_temp_run(void){
     delay(MBUS_DELAY*10);
 #endif
     Tstack_state = TSTK_TEMP_RSTRL;
+    snsv7_r18_temp.as_int = snsv7_r18.as_int;
     snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
+    snsv7_r18.as_int = snsv7_r18_temp.as_int;
     mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
     // Put system to sleep
     set_wakeup_timer(WAKEUP_PERIOD_LDO, 0x1, 0x1);
@@ -1391,6 +1458,8 @@ int main() {
     operation_sleep_notimer();
 
   }else if(wakeup_data_header == 0x13){
+    radv9_r0_t  radv9_r0_temp;
+
     // Change the RF frequency
     // wakeup_data[7:0] is the # of transmissions
     // wakeup_data[15:8] is the user-specified period
@@ -1399,8 +1468,8 @@ int main() {
     delay(MBUS_DELAY);
 
     radv9_r0_temp.as_int = radv9_r0.as_int;
-    radv9_r0_temp.RADIO_TUNE_FREQ1 = wakeup_data_field_2>>4; 
-    radv9_r0_temp.RADIO_TUNE_FREQ2 = wakeup_data_field_2 & 0xF; 
+    radv9_r0.RADIO_TUNE_FREQ1 = wakeup_data_field_2>>4; 
+    radv9_r0.RADIO_TUNE_FREQ2 = wakeup_data_field_2 & 0xF; 
     radv9_r0.as_int = radv9_r0_temp.as_int;
     mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
     delay(MBUS_DELAY);
