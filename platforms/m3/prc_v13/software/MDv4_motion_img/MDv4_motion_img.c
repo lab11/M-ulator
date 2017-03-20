@@ -90,8 +90,9 @@ void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
 
 static void initialize_md_reg(){
 
-	mdv3_r0.INT_TIME = 40;
-	mdv3_r0.MD_INT_TIME = 20;
+	uint32_t MD_INT_TIME_USR = 10;
+	mdv3_r0.INT_TIME = MD_INT_TIME_USR*2;
+	mdv3_r0.MD_INT_TIME = MD_INT_TIME_USR;
 	mdv3_r1.MD_TH = 10;
 	mdv3_r1.MD_LOWRES = 0;
 	mdv3_r1.MD_LOWRES_B = 1;
@@ -120,11 +121,11 @@ static void initialize_md_reg(){
 	mdv3_r5.SEL_CLK_RING_LC = 0;
 	mdv3_r5.SEL_CLK_DIV_LC = 0;
 
-	mdv3_r6.START_ROW_IDX = 40;
-	mdv3_r6.END_ROW_IDX = 120; // Default: 160
+	mdv3_r6.START_ROW_IDX = 0;
+	mdv3_r6.END_ROW_IDX = 160; // Default: 160
 	mdv3_r6.ROW_SKIP = 0;
 	mdv3_r6.COL_SKIP = 0;
-	mdv3_r6.ROW_IDX_EN = 0;
+	mdv3_r6.ROW_IDX_EN = 1;
 
 	mdv3_r8.MBUS_REPLY_ADDR_FLAG = 0x18;
 	mdv3_r9.MBUS_REPLY_ADDR_DATA = 0x74; // IMG Data return address

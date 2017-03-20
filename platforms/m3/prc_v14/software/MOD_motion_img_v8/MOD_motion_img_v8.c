@@ -25,8 +25,8 @@
 // Common parameters
 #define	MBUS_DELAY 200 //Amount of delay between successive messages; 5-6ms
 #define WAKEUP_DELAY 20000 // 0.6s
-#define DELAY_1 60000 // 5000: 0.5s
-#define DELAY_2 120000 // 5000: 0.5s
+#define DELAY_1 40000 // 5000: 0.5s
+#define DELAY_2 80000 // 5000: 0.5s
 #define IMG_TIMEOUT_COUNT 5000
 
 // MDv3 Parameters
@@ -833,11 +833,13 @@ static void initialize_md_reg(){
 
 	mdv3_r4.SEL_CC  = 4; //4
 	mdv3_r4.SEL_CC_B  = 3; //3
+	mdv3_r4.PULSE_SKIP  = 1;
+	mdv3_r4.PULSE_SKIP_COL  = 0;
 
 	mdv3_r5.SEL_CLK_RING = 2;
 	mdv3_r5.SEL_CLK_DIV = 4;
 	mdv3_r5.SEL_CLK_RING_4US = 0;
-	mdv3_r5.SEL_CLK_DIV_4US = 1;
+	mdv3_r5.SEL_CLK_DIV_4US = 2; // This affects MD
 	mdv3_r5.SEL_CLK_RING_ADC = 2; 
 	mdv3_r5.SEL_CLK_DIV_ADC = 1;
 	mdv3_r5.SEL_CLK_RING_LC = 0;
@@ -869,33 +871,6 @@ static void initialize_md_reg(){
 
 }
 
-static void start_md_init(){
-
-	// Optionally release MD GPIO Isolation
-	// 7:16
-	//mdv3_r7.ISOLATE_GPIO = 0;
-	//mbus_remote_register_write(MD_ADDR,0x7,mdv3_r7.as_int);
-	//delay(MBUS_DELAY);
-	//delay(DELAY_500ms); // about 0.5s
-
-	// Start MD
-	// 0:1
-	mdv3_r0.START_MD = 1;
-	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
-	delay(MBUS_DELAY*4); //Need >10ms
-
-	mdv3_r0.START_MD = 0;
-	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
-	delay(MBUS_DELAY*4); //Need >10ms
-
-	// Enable MD Flag
-	// 1:3
-	mdv3_r1.MD_TH_EN = 1;
-	mbus_remote_register_write(MD_ADDR,0x1,mdv3_r1.as_int);
-	delay(MBUS_DELAY);
-
-}
-
 static void start_md(){
 
 	// Optionally release MD GPIO Isolation
@@ -914,8 +889,6 @@ static void start_md(){
 	mdv3_r0.START_MD = 0;
 	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
 
-	delay(DELAY_1); // about 0.5s
-	delay(DELAY_1); // about 0.5s
 	delay(DELAY_1); // about 0.5s
 	delay(DELAY_1); // about 0.5s
 
@@ -1029,7 +1002,7 @@ static void poweron_array_adc(){
 	// 2:19
 	mdv3_r2.SLEEP_ADC = 0;
 	mbus_remote_register_write(MD_ADDR,0x2,mdv3_r2.as_int);
-	delay(DELAY_1);
+	delay(MBUS_DELAY);
 
 	// Release ADC Isolation
 	// 7:17
