@@ -54,8 +54,8 @@ volatile uint32_t sleep_time_prev;
 volatile uint32_t false_trigger_count;
 volatile uint32_t wfi_timeout_flag;
 
-volatile bool radio_ready;
-volatile bool radio_on;
+volatile uint32_t radio_ready;
+volatile uint32_t radio_on;
 volatile uint32_t radio_tx_option;
 volatile uint32_t radio_tx_img_idx;
 volatile uint32_t radio_tx_img_all;
@@ -576,7 +576,7 @@ static void radio_power_off(){
 
 }
 
-static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
+static void send_radio_data_ppm(uint32_t last_packet, uint32_t radio_data){
     // Write Data: Only up to 24bit data for now
     mrrv3_r06.MRR_RAD_FSM_TX_DATA_0 = radio_data; //SCC
     mbus_remote_register_write(MRR_ADDR,0x06,mrrv3_r06.as_int);
@@ -628,7 +628,7 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 	}
 }
 
-static void send_radio_data_ppm_96(bool last_packet, uint32_t radio_data_0, uint32_t radio_data_1, uint32_t radio_data_2, uint32_t radio_data_3){
+static void send_radio_data_ppm_96(uint32_t last_packet, uint32_t radio_data_0, uint32_t radio_data_1, uint32_t radio_data_2, uint32_t radio_data_3){
 	// Sends 96 bits of data (3 words, 4 RADv9 registers)
 	// radio_data_0: DATA[23:0]
 	// radio_data_1: DATA[47:24]
@@ -744,7 +744,7 @@ uint32_t check_flash_sram_full_image(){
 	return 1;
 }
 
-uint32_t send_radio_flash_sram(uint8_t addr_stamp, uint32_t length){
+uint32_t send_radio_flash_sram(uint32_t addr_stamp, uint32_t length){
 	uint32_t idx;
 	uint32_t fls_rx_data;
 
@@ -1077,7 +1077,7 @@ static void capture_image_start(){
 
 }
 
-static bool wait_for_interrupt(uint32_t wait_count){
+static uint32_t wait_for_interrupt(uint32_t wait_count){
 
     uint32_t count;
     for( count=0; count<wait_count; count++ ){

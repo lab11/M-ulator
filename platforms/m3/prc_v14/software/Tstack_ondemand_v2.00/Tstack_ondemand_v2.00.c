@@ -812,6 +812,7 @@ static void measure_wakeup_period(void){
 
 
 static void operation_init(void){
+  prcv14_r0B_t prcv14_r0B_temp;
   snsv7_r14_t snsv7_r14_temp;
   snsv7_r15_t snsv7_r15_temp;
   snsv7_r18_t snsv7_r18_temp;
@@ -825,10 +826,12 @@ static void operation_init(void){
   hrvv2_r0_t hrvv2_r0_temp;
 
   // Set CPU & Mbus Clock Speeds
-  prcv14_r0B.DSLP_CLK_GEN_FAST_MODE = 0x1; // Default 0x0
-  prcv14_r0B.CLK_GEN_RING = 0x1; // Default 0x1
-  prcv14_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
-  prcv14_r0B.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
+  prcv14_r0B_temp.as_int = prcv14_r0B.as_int;
+  prcv14_r0B_temp.DSLP_CLK_GEN_FAST_MODE = 0x1; // Default 0x0
+  prcv14_r0B_temp.CLK_GEN_RING = 0x1; // Default 0x1
+  prcv14_r0B_temp.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
+  prcv14_r0B_temp.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
+  prcv14_r0B.as_int = prcv14_r0B_temp.as_int;
   *((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv14_r0B.as_int;
 
   
@@ -995,7 +998,7 @@ static void operation_temp_run(void){
     }
 
     snsv7_r18_temp.as_int = snsv7_r18.as_int;
-    snsv7_r18.ADC_LDO_ADC_LDO_ENB = 0x0;
+    snsv7_r18_temp.ADC_LDO_ADC_LDO_ENB = 0x0;
     snsv7_r18.as_int = snsv7_r18_temp.as_int;
     mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
 
@@ -1010,7 +1013,7 @@ static void operation_temp_run(void){
 #endif
     Tstack_state = TSTK_TEMP_RSTRL;
     snsv7_r18_temp.as_int = snsv7_r18.as_int;
-    snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
+    snsv7_r18_temp.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
     snsv7_r18.as_int = snsv7_r18_temp.as_int;
     mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
     // Put system to sleep
@@ -1468,8 +1471,8 @@ int main() {
     delay(MBUS_DELAY);
 
     radv9_r0_temp.as_int = radv9_r0.as_int;
-    radv9_r0.RADIO_TUNE_FREQ1 = wakeup_data_field_2>>4; 
-    radv9_r0.RADIO_TUNE_FREQ2 = wakeup_data_field_2 & 0xF; 
+    radv9_r0_temp.RADIO_TUNE_FREQ1 = wakeup_data_field_2>>4; 
+    radv9_r0_temp.RADIO_TUNE_FREQ2 = wakeup_data_field_2 & 0xF; 
     radv9_r0.as_int = radv9_r0_temp.as_int;
     mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
     delay(MBUS_DELAY);
