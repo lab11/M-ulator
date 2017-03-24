@@ -20,8 +20,8 @@ logger = get_logger(__name__)
 
 logfile = open('mbus_snoop_log.txt','w')
 
-wr = csv.writer(open('snsv7_snoop.txt','w'), delimiter=',', lineterminator='\n')
-wr.writerow(['DATE','TIME','C_MEAS','C_REF','C_REV','C_PAR'])
+wr = csv.writer(open('snsv7_double_snoop.txt','w'), delimiter=',', lineterminator='\n')
+wr.writerow(['DATE','TIME','C_MEAS','C_REF','C_REV','C_PAR','C_MEAS2','C_REF2','C_REV2','C_PAR2'])
 
 
 class mbus_message_generator(m3_common):
