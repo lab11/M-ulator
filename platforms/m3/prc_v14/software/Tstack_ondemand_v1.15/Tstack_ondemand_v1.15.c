@@ -604,7 +604,9 @@ static void send_radio_data_ppm(uint32_t last_packet, uint32_t radio_data){
     // Fire off data
     uint32_t count;
     mbus_msg_flag = 0;
-    radv9_r13.RAD_FSM_ENABLE = 1;
+	radv9_r13_temp.as_int = radv9_r13.as_int;
+    radv9_r13_temp.RAD_FSM_ENABLE = 1;
+	radv9_r13.as_int = radv9_r13_temp.as_int;
     mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
 
     for( count=0; count<RADIO_TIMEOUT_COUNT; count++ ){
