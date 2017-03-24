@@ -21,6 +21,7 @@
 //			v1.13: Optimizing PMU sleep/active settings
 //				   Lower sleep power, higher sleep power during radio sleep
 //				   PMU ADC disabled during radio sleep
+//			v1.14: Fixing how PMU ADC is reset
 //*******************************************************************
 #include "PRCv14.h"
 #include "PRCv14_RF.h"
@@ -167,8 +168,8 @@ void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
 //************************************
 
 inline static void set_pmu_adc_period(uint32_t val){
-	// PMU_CONTROLLER_DESIRED_STATE
-	mbus_remote_register_write(PMU_ADDR,0x3B,
+	// PMU_CONTROLLER_DESIRED_STATE Active
+	mbus_remote_register_write(PMU_ADDR,0x3C,
 		((  1 << 0) //state_sar_scn_on
 		| (0 << 1) //state_wait_for_clock_cycles
 		| (1 << 2) //state_wait_for_time
@@ -180,7 +181,7 @@ inline static void set_pmu_adc_period(uint32_t val){
 		| (1 << 8) //state_upconverter_on
 		| (1 << 9) //state_upconverter_stabilized
 		| (1 << 10) //state_refgen_on
-		| (1 << 11) //state_adc_output_ready
+		| (0 << 11) //state_adc_output_ready
 		| (0 << 12) //state_adc_adjusted
 		| (0 << 13) //state_sar_scn_ratio_adjusted
 		| (1 << 14) //state_downconverter_on
@@ -196,8 +197,8 @@ inline static void set_pmu_adc_period(uint32_t val){
     mbus_remote_register_write(PMU_ADDR,0x36,val); 
 	delay(MBUS_DELAY*10);
 
-	// PMU_CONTROLLER_DESIRED_STATE
-	mbus_remote_register_write(PMU_ADDR,0x3B,
+	// PMU_CONTROLLER_DESIRED_STATE Active
+	mbus_remote_register_write(PMU_ADDR,0x3C,
 		((  1 << 0) //state_sar_scn_on
 		| (1 << 1) //state_wait_for_clock_cycles
 		| (1 << 2) //state_wait_for_time
@@ -209,9 +210,9 @@ inline static void set_pmu_adc_period(uint32_t val){
 		| (1 << 8) //state_upconverter_on
 		| (1 << 9) //state_upconverter_stabilized
 		| (1 << 10) //state_refgen_on
-		| (1 << 11) //state_adc_output_ready
+		| (0 << 11) //state_adc_output_ready
 		| (0 << 12) //state_adc_adjusted
-		| (1 << 13) //state_sar_scn_ratio_adjusted
+		| (0 << 13) //state_sar_scn_ratio_adjusted
 		| (1 << 14) //state_downconverter_on
 		| (1 << 15) //state_downconverter_stabilized
 		| (1 << 16) //state_vdd_3p6_turned_on
@@ -220,7 +221,6 @@ inline static void set_pmu_adc_period(uint32_t val){
 		| (1 << 19) //state_state_horizon
 	));
 	delay(MBUS_DELAY);
-
 }
 
 inline static void set_pmu_sleep_clk_radio(){
@@ -388,9 +388,37 @@ inline static void set_pmu_clk_init(){
 }
 
 
-inline static void batadc_reset(){
-	// Manually reset ADC
-	// PMU_CONTROLLER_DESIRED_STATE
+inline static void pmu_adc_reset_setting(){
+	// PMU ADC will be automatically reset when system wakes up
+	// PMU_CONTROLLER_DESIRED_STATE Active
+	mbus_remote_register_write(PMU_ADDR,0x3C,
+		((  1 << 0) //state_sar_scn_on
+		| (1 << 1) //state_wait_for_clock_cycles
+		| (1 << 2) //state_wait_for_time
+		| (1 << 3) //state_sar_scn_reset
+		| (1 << 4) //state_sar_scn_stabilized
+		| (1 << 5) //state_sar_scn_ratio_roughly_adjusted
+		| (1 << 6) //state_clock_supply_switched
+		| (1 << 7) //state_control_supply_switched
+		| (1 << 8) //state_upconverter_on
+		| (1 << 9) //state_upconverter_stabilized
+		| (1 << 10) //state_refgen_on
+		| (0 << 11) //state_adc_output_ready
+		| (0 << 12) //state_adc_adjusted
+		| (0 << 13) //state_sar_scn_ratio_adjusted
+		| (1 << 14) //state_downconverter_on
+		| (1 << 15) //state_downconverter_stabilized
+		| (1 << 16) //state_vdd_3p6_turned_on
+		| (1 << 17) //state_vdd_1p2_turned_on
+		| (1 << 18) //state_vdd_0P6_turned_on
+		| (1 << 19) //state_state_horizon
+	));
+	delay(MBUS_DELAY);
+}
+
+inline static void pmu_adc_disable(){
+	// PMU ADC will be automatically reset when system wakes up
+	// PMU_CONTROLLER_DESIRED_STATE Sleep
 	mbus_remote_register_write(PMU_ADDR,0x3B,
 		((  1 << 0) //state_sar_scn_on
 		| (1 << 1) //state_wait_for_clock_cycles
@@ -416,7 +444,9 @@ inline static void batadc_reset(){
 	delay(MBUS_DELAY);
 }
 
-inline static void batadc_resetrelease(){
+inline static void pmu_adc_enable(){
+	// PMU ADC will be automatically reset when system wakes up
+	// PMU_CONTROLLER_DESIRED_STATE Sleep
 	mbus_remote_register_write(PMU_ADDR,0x3B,
 		((  1 << 0) //state_sar_scn_on
 		| (1 << 1) //state_wait_for_clock_cycles
@@ -430,7 +460,7 @@ inline static void batadc_resetrelease(){
 		| (1 << 9) //state_upconverter_stabilized
 		| (1 << 10) //state_refgen_on
 		| (1 << 11) //state_adc_output_ready
-		| (0 << 12) //state_adc_adjusted
+		| (1 << 12) //state_adc_adjusted
 		| (1 << 13) //state_sar_scn_ratio_adjusted
 		| (1 << 14) //state_downconverter_on
 		| (1 << 15) //state_downconverter_stabilized
@@ -475,7 +505,7 @@ inline static void reset_pmu_solar_short(){
 
 static void radio_power_on(){
 	// Turn off PMU ADC
-	batadc_reset();
+	pmu_adc_disable();
 
 	// Need to speed up sleep pmu clock
 	set_pmu_sleep_clk_radio();
@@ -512,7 +542,7 @@ static void radio_power_off(){
 	set_pmu_sleep_clk_low();
 	
 	// Enable PMU ADC
-	batadc_resetrelease();
+	pmu_adc_enable();
 
     // Turn off everything
     radio_on = 0;
@@ -781,7 +811,7 @@ static void operation_init(void){
 		| (1 << 11) // ignore adc_output_ready; default 0
 	));
     delay(MBUS_DELAY);
-	batadc_reset();
+	pmu_adc_reset_setting();
 	delay(MBUS_DELAY);
 
     // Temp Sensor Settings --------------------------------------
@@ -858,10 +888,6 @@ static void operation_init(void){
     hrvv2_r0.HRV_TOP_CONV_RATIO = 0x6;
     mbus_remote_register_write(HRV_ADDR,0,hrvv2_r0.as_int);
 
-    delay(MBUS_DELAY);
-
-	// Release reset of PMU ADC
-	batadc_resetrelease();
     delay(MBUS_DELAY);
 
     // Go to sleep without timer
@@ -1013,6 +1039,15 @@ static void operation_temp_run(void){
 			#endif
 
 			exec_count++;
+
+			// Grab latest PMU ADC readings
+			// PMUv2 register read is handled differently
+			mbus_remote_register_write(PMU_ADDR,0x00,0x03);
+			delay(MBUS_DELAY);
+			delay(MBUS_DELAY);
+			read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
+			delay(MBUS_DELAY);
+
 			// Store results in memory; unless buffer is full
 			if (temp_storage_count < TEMP_STORAGE_SIZE){
 				temp_storage[temp_storage_count] = temp_storage_latest;
@@ -1023,6 +1058,8 @@ static void operation_temp_run(void){
 			// Optionally transmit the data
 			if (radio_tx_option){
 				send_radio_data_ppm(0, temp_storage_latest);
+				delay(RADIO_PACKET_DELAY);
+				send_radio_data_ppm(0, read_data_batadc);
 			}
 
 			// Enter long sleep

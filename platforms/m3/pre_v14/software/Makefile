@@ -62,6 +62,7 @@ OBJCOPY := $(CROSS_COMPILE)-objcopy
 
 ASFLAGS += -Iinclude/
 CFLAGS += -Iinclude/
+OBJDUMP_FLAGS += --disassemble-all --source --disassembler-options=force-thumb -C --section-headers
 
 LIBS := $(subst .c,.o,$(wildcard libs/*.c))
 LIBS += $(subst .s,.o,$(wildcard libs/*.s))
@@ -71,12 +72,13 @@ DIRS := $(patsubst %/,%,$(filter-out libs/,$(filter-out include/,$(wildcard */))
 BINS := $(foreach var,$(DIRS),$(var)/$(var).bin)
 HEXS := $(foreach var,$(DIRS),$(var)/$(var).hex)
 ELFS := $(foreach var,$(DIRS),$(var)/$(var).elf)
+LSTS := $(foreach var,$(DIRS),$(var)/$(var).lst)
 
 .PRECIOUS: $(LIBS) $(BINS) $(ELFS)
 
 .PHONY: all
 
-all: $(HEXS)
+all: $(HEXS) $(LSTS)
 
 $(DIRS):
 	$(MAKE) $@/$@.hex
@@ -93,6 +95,10 @@ $(DIRS):
 	xxd -g1 -c1 $< | cut -d' ' -f2 > $@
 	./createMemMap $@
 	./createBootHexFLX $*.memmap
+
+# Generate debug listings as well
+%.lst:	%.elf
+	$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
 
 %.bin:	%.elf
 	$(OBJCOPY) -O binary $< $@

@@ -3,13 +3,10 @@
 //Description: 	Code for Motion Detection with MDv4
 //				Derived from MDv3_motion_img_v3
 //*******************************************************************
-#include "PRCv13.h"
-#include "PRCv13_RF.h"
+#include "PRCv14.h"
+#include "PRCv14_RF.h"
 #include "mbus.h"
 #include "MDv3.h"
-#include "SNSv7.h"
-#include "HRVv2.h"
-#include "RADv9.h"
 
 // Enumeration Sequence: PRC -> MD -> RAD
 #define MD_ADDR 0x4           //MDv1 Short Address
@@ -44,7 +41,7 @@ volatile mdv3_r7_t mdv3_r7 = MDv3_R7_DEFAULT;
 volatile mdv3_r8_t mdv3_r8 = MDv3_R8_DEFAULT;
 volatile mdv3_r9_t mdv3_r9 = MDv3_R9_DEFAULT;
 
-volatile prcv13_r0B_t prcv13_r0B = PRCv13_R0B_DEFAULT;
+volatile prcv14_r0B_t prcv14_r0B = PRCv14_R0B_DEFAULT;
 
 //************************************
 //Interrupt Handlers
@@ -272,6 +269,31 @@ static void poweron_frame_controller_short(){
 
 }
 
+static void poweroff_frame_controller(){
+
+	// Set MD Isolation
+	// 7:15
+	mdv3_r7.ISOLATE_MD = 1;
+	mbus_remote_register_write(MD_ADDR,0x7,mdv3_r7.as_int);
+
+	// Set MD Reset
+	// 2:23
+	mdv3_r2.RESET_MD = 1;
+	mbus_remote_register_write(MD_ADDR,0x2,mdv3_r2.as_int);
+
+	// Stop MD Clock
+	// 5:12
+	mdv3_r5.CLK_EN_MD = 0;
+	mbus_remote_register_write(MD_ADDR,0x5,mdv3_r5.as_int);
+
+	// Set MD Presleep & Sleep
+	// 2:21-22
+	mdv3_r2.PRESLEEP_MD = 1;
+	mdv3_r2.SLEEP_MD = 1;
+	mbus_remote_register_write(MD_ADDR,0x2,mdv3_r2.as_int);
+
+}
+
 static void poweron_array_adc(){
 
 	// Release IMG Presleep 
@@ -451,17 +473,16 @@ int main() {
 		//*((volatile uint32_t *) 0xA2000008) = 0x00202603;
 		
 		// Set CPU & Mbus Clock Speeds
-		prcv13_r0B.DSLP_CLK_GEN_FAST_MODE = 0x1; // Default 0x0
-		prcv13_r0B.CLK_GEN_RING = 0x1; // Default 0x1
-		prcv13_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
-		prcv13_r0B.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
-		*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv13_r0B.as_int;
+		prcv14_r0B.DSLP_CLK_GEN_FAST_MODE = 0x1; // Default 0x0
+		prcv14_r0B.CLK_GEN_RING = 0x1; // Default 0x1
+		prcv14_r0B.CLK_GEN_DIV_MBC = 0x0; // Default 0x1
+		prcv14_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
+		*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv14_r0B.as_int;
 	  
 		delay(1000);
   
 		// Disable MBus Watchdog Timer
-		//*REG_MBUS_WD = 0;
-		*((volatile uint32_t *) 0xA000007C) = 0;
+		*REG_MBUS_WD = 0;
 
 		// Initialize MD
 		initialize_md_reg();
@@ -483,24 +504,64 @@ int main() {
 	  poweron_frame_controller_short();
 	}
 
-	// Capture 3 images
+	uint32_t ii,jj,kk,ll,mm,nn;
+	uint32_t img_count = 0;
+
 	poweron_array_adc();
 	delay(MBUS_DELAY*20);
-	capture_image_single();
-	wait_for_interrupt(IMG_TIMEOUT_COUNT);	
-	capture_image_single();
-	wait_for_interrupt(IMG_TIMEOUT_COUNT);	
-	capture_image_single();
-	wait_for_interrupt(IMG_TIMEOUT_COUNT);	
+
+	for(ii=0; ii<5; ii++){
+		mdv3_r3.SEL_VREF = ii;
+
+//		for(jj=0; jj<8; jj++){ // Only matters for MD
+//			mdv3_r3.SEL_VREFP = jj;
+
+			for(kk=1; kk<4; kk++){
+				mdv3_r3.SEL_VBN = kk;
+
+//				for(ll=1; ll<4; ll=ll+2){ Only matters for MD
+//					mdv3_r3.SEL_VBP = ll;
+
+					for(mm=1; mm<16; mm=mm*2){
+						mdv3_r3.SEL_VB_RAMP = mm;
+
+						for(nn=1; nn<32; nn=nn*2){
+
+							mdv3_r3.SEL_RAMP = nn;
+							mbus_remote_register_write(MD_ADDR,0x3,mdv3_r3.as_int);
+
+							mbus_write_message32(0xAA, img_count);
+							img_count++;
+							mbus_write_message32(0xA0, ii);
+							//mbus_write_message32(0xA1, jj);
+							mbus_write_message32(0xA1, kk);
+							//mbus_write_message32(0xA3, ll);
+							mbus_write_message32(0xA2, mm);
+							mbus_write_message32(0xA3, nn);
+
+							// Capture 3 images
+							capture_image_single();
+							wait_for_interrupt(IMG_TIMEOUT_COUNT);	
+							//capture_image_single();
+							//wait_for_interrupt(IMG_TIMEOUT_COUNT);	
+							//capture_image_single();
+							//wait_for_interrupt(IMG_TIMEOUT_COUNT);	
+						}
+					}
+				}
+	}
+
 
 	poweroff_array_adc();
+	poweroff_frame_controller();
+
 
 	// Start motion detection
 	//start_md();
 
 	//clear_md_flag();
-	delay(MBUS_DELAY);
-	start_md();
+	//delay(MBUS_DELAY);
+	//start_md();
 
 	delay(MBUS_DELAY);
 

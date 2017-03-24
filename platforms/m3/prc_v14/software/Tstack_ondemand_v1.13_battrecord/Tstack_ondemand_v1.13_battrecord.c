@@ -1013,6 +1013,16 @@ static void operation_temp_run(void){
 			#endif
 
 			exec_count++;
+
+			// Grab latest PMU ADC readings
+			// PMUv2 register read is handled differently
+			mbus_remote_register_write(PMU_ADDR,0x00,0x03);
+			delay(MBUS_DELAY);
+			delay(MBUS_DELAY);
+			read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
+			batadc_reset();
+			delay(MBUS_DELAY);
+
 			// Store results in memory; unless buffer is full
 			if (temp_storage_count < TEMP_STORAGE_SIZE){
 				temp_storage[temp_storage_count] = temp_storage_latest;
@@ -1023,6 +1033,8 @@ static void operation_temp_run(void){
 			// Optionally transmit the data
 			if (radio_tx_option){
 				send_radio_data_ppm(0, temp_storage_latest);
+				delay(RADIO_PACKET_DELAY);
+				send_radio_data_ppm(0, read_data_batadc);
 			}
 
 			// Enter long sleep
@@ -1035,6 +1047,9 @@ static void operation_temp_run(void){
 			}else{	
 				set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
 			}
+			
+			// Release PMU ADC Reset for Battery Measurement
+			batadc_resetrelease();
 
 			// Make sure Radio is off
 			if (radio_on){

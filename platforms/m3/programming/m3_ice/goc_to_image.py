@@ -29,6 +29,8 @@ rotate_90 = True
 parser = argparse.ArgumentParser()
 parser.add_argument('-f', '--file', default=None,
 		help="Read image data from a file saved from a Saleae capture")
+parser.add_argument('-b', '--batch', default=None, action="store_true",
+		help="Batch process a file and do not wait for user input")
 parser.add_argument('-s', '--serial', default=None,
 		help="Snoop image data via an ICE board on this serial port")
 
@@ -407,13 +409,15 @@ def save_image_hack():
 	print 'CSV of image saved to', csvname
 options['save'].on_click = save_image_hack
 
-def advance_image():
+def advance_image(bubble_index_error=False):
     global current_idx
     current_idx += 1
     try:
         render_image_idx(current_idx)
         save_image_hack()
     except IndexError:
+        if bubble_index_error:
+            raise
         current_idx -= 1
         print "At last image. Display left at image", current_idx
         print
@@ -431,6 +435,18 @@ def quit():
 
 current_idx = -1
 advance_image()
+
+
+if args.batch:
+    # Don't go into the event loop, instead just process until you can't
+    # HACK: Need the file reading process to get started
+    time.sleep(1)
+    try:
+        while True:
+            advance_image(bubble_index_error=True)
+    except IndexError:
+        print("Last image reached. Exiting.")
+        sys.exit()
 
 while True:
     event = pygame.event.wait()

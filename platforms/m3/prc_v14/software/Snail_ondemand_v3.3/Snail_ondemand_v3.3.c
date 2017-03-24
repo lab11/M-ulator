@@ -1,27 +1,14 @@
 //*******************************************************************
-//Author: Gyouho Kim
-//Description: Temperature Sensing System
-//			PRCv14, SNSv7, RADv9, PMUv2, HRVv5
-//			Modified from 'Pstack_Ondemand_v2.0'
-//			v1.1: Changing chip order
-//			v1.2: Increasing PMU floors for long term stability
-//			v1.3: PMU IRQ off for stability issues
-//				  RADv9 settings updated for shifted center freq and higher curr lim
-//			v1.4: Decrease PMU sleep floors for reduced sleep power
-//			v1.6: PMUv3; Use for Tstack batch 4 onward
-//			v1.7: Chaging RF tuning to 0x04, GOC-based triggers reinitializes reg
-//			v1.8: Adding battery measurement, PMU battery clamp reset, and battery discharge mode
-//			v1.9: Stays awake during data TX, changing temp sensor tuning 
-//			v1.10: Records 0x666 if temp sensor times out and moves on  
-//				   Incorporating trig2 wakeup time adjustment based on temp measurement 
-//				   LDO voltage set to be highest
-//			   	  -->Used for AEC France Test in Nov 2016
-//			v1.12: Dynamic adjustment of wakeup time based on CPU clock cycle
-//				   Changed temp sensor polling to wfi  
-//			v1.13: Optimizing PMU sleep/active settings
-//				   Lower sleep power, higher sleep power during radio sleep
-//				   PMU ADC disabled during radio sleep
+//Author: Inhee Lee
+//Description: Light Intensity Sensing System for Snail Project
+//
+//			PRCv14, SNSv7, RADv9, PMUv3, HRVv5
+//			Modified from 'Tstack_Ondemand_v1.12'
+//
+//			v3.3: PMU setting is updated using 'Tstack_ondemand_v1.13'
+//
 //*******************************************************************
+
 #include "PRCv14.h"
 #include "PRCv14_RF.h"
 #include "mbus.h"
@@ -31,13 +18,13 @@
 #include "PMUv3_RF.h"
 
 // uncomment this for debug mbus message
-// #define DEBUG_MBUS_MSG
+//#define DEBUG_MBUS_MSG
 #define DEBUG_MBUS_MSG_1
 
 // TStack order  PRC->RAD->SNS->HRV->PMU
-#define HRV_ADDR 0x3
-#define RAD_ADDR 0x4
-#define SNS_ADDR 0x5
+#define RAD_ADDR 0x2
+#define SNS_ADDR 0x3
+#define HRV_ADDR 0x4
 #define PMU_ADDR 0x6
 
 
@@ -109,8 +96,6 @@ volatile uint32_t radio_tx_numdata;
 volatile uint32_t radio_ready;
 volatile uint32_t radio_on;
 
-volatile uint32_t read_data_batadc;
-
 volatile radv9_r0_t radv9_r0 = RADv9_R0_DEFAULT;
 volatile radv9_r1_t radv9_r1 = RADv9_R1_DEFAULT;
 volatile radv9_r2_t radv9_r2 = RADv9_R2_DEFAULT;
@@ -125,6 +110,14 @@ volatile radv9_r14_t radv9_r14 = RADv9_R14_DEFAULT;
 volatile hrvv2_r0_t hrvv2_r0 = HRVv2_R0_DEFAULT;
 
 volatile prcv14_r0B_t prcv14_r0B = PRCv14_R0B_DEFAULT;
+
+// added for snail
+volatile uint32_t read_data_light;
+volatile uint32_t read_data_vbat;
+
+volatile uint32_t  bat_discharge_thresh;
+volatile uint32_t  bat_discharging;
+
 
 //*******************************************************************
 // INTERRUPT HANDLERS
@@ -387,7 +380,6 @@ inline static void set_pmu_clk_init(){
 	set_pmu_adc_period(0x100); // 0x100 about 1 min for 1/2/1 1P2 setting
 }
 
-
 inline static void batadc_reset(){
 	// Manually reset ADC
 	// PMU_CONTROLLER_DESIRED_STATE
@@ -405,7 +397,7 @@ inline static void batadc_reset(){
 		| (1 << 10) //state_refgen_on
 		| (0 << 11) //state_adc_output_ready
 		| (0 << 12) //state_adc_adjusted
-		| (0 << 13) //state_sar_scn_ratio_adjusted
+		| (1 << 13) //state_sar_scn_ratio_adjusted
 		| (1 << 14) //state_downconverter_on
 		| (1 << 15) //state_downconverter_stabilized
 		| (1 << 16) //state_vdd_3p6_turned_on
@@ -442,6 +434,7 @@ inline static void batadc_resetrelease(){
 	delay(MBUS_DELAY);
 }
 
+// not used for snail >> should not stop harvesting since it is hight info
 inline static void reset_pmu_solar_short(){
     mbus_remote_register_write(PMU_ADDR,0x0E, 
 		( (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
@@ -469,6 +462,28 @@ inline static void reset_pmu_solar_short(){
 	delay(MBUS_DELAY);
 }
 
+// only for snail
+inline static void pmu_solar_short_off(){
+	// Register 0x0E: PMU_VOLTAGE_CLAMP_TRIM
+	// Turn off voltage clamp
+    mbus_remote_register_write(PMU_ADDR,0x0E, 
+		( (1 << 10) // When to turn on harvester-inhibiting switch(0: whenever PoR is on 1: only when VBAT is high); default: 0 
+		| (1 << 9) // Enable override setting[8]; default: 0
+		| (0 << 8)  // Turn on the harvester-inhibiting switch; default: 0
+		| (1 << 4)  // Clamp_tune_bottom. (increases clamp threshold voltage); default: 1
+		| (0)       // Clamp_tune_top. (decreases clamp threshold voltage); default: 0
+	));
+    	delay(MBUS_DELAY);
+    mbus_remote_register_write(PMU_ADDR,0x0E, 
+		( (1 << 10) // When to turn on harvester-inhibiting switch(0: whenever PoR is on 1: only when VBAT is high); default: 0 
+		| (1 << 9) // Enable override setting[8]; default: 0
+		| (0 << 8)  // Turn on the harvester-inhibiting switch; default: 0
+		| (1 << 4)  // Clamp_tune_bottom. (increases clamp threshold voltage); default: 1
+		| (0)       // Clamp_tune_top. (decreases clamp threshold voltage); default: 0
+	));
+    	delay(MBUS_DELAY);
+}
+
 //***************************************************
 // Radio transmission routines for PPM Radio (RADv9)
 //***************************************************
@@ -480,8 +495,8 @@ static void radio_power_on(){
 	// Need to speed up sleep pmu clock
 	set_pmu_sleep_clk_radio();
 	
-	// This can be safely assumed
-	radio_ready = 0;
+    // This can be safely assumed
+    radio_ready = 0;
 
     // Release FSM Sleep - Requires >2s stabilization time
     radio_on = 1;
@@ -500,9 +515,9 @@ static void radio_power_on(){
     mbus_remote_register_write(RAD_ADDR,2,radv9_r2.as_int);
     delay(MBUS_DELAY);
 
-	// Release FSM Isolate
-	radv9_r13.RAD_FSM_ISOLATE = 0;
-	mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
+    // Release FSM Isolate
+    radv9_r13.RAD_FSM_ISOLATE = 0;
+    mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
     delay(MBUS_DELAY);
 
 }
@@ -510,13 +525,10 @@ static void radio_power_on(){
 static void radio_power_off(){
 	// Need to restore sleep pmu clock
 	set_pmu_sleep_clk_low();
-	
-	// Enable PMU ADC
-	batadc_resetrelease();
 
     // Turn off everything
     radio_on = 0;
-	radio_ready = 0;
+    radio_ready = 0;
     radv9_r2.SCRO_ENABLE = 0;
     radv9_r2.SCRO_RESET  = 1;
     mbus_remote_register_write(RAD_ADDR,2,radv9_r2.as_int);
@@ -607,19 +619,38 @@ static void temp_power_off(){
     ldo_power_off();
 }
 
+// only for snail
+//***************************************************************************************
+// HRV function starts here             
+//***************************************************************************************
+static void light_reset(void){
+    	mbus_remote_register_write(HRV_ADDR,0x01,
+			( (0  << 5)  // HRV_CNT_CNT_IRQ (default: 0)
+			| (0  << 4)  // HRV_CNT_CNT_ENABLE (default: 0)
+			| (2  << 2)  // LC_CLK_DIV (default: 2)
+			| (1)        // LC_CLK_RING (default: 1)
+		));
+}
+	
+static void light_start(void){
+    	mbus_remote_register_write(HRV_ADDR,0x01,
+			( (0  << 5)  // HRV_CNT_CNT_IRQ (default: 0)
+			| (1  << 4)  // HRV_CNT_CNT_ENABLE (default: 0)
+			| (2  << 2)  // LC_CLK_DIV (default: 2)
+			| (1)        // LC_CLK_RING (default: 1)
+		));
+}
 
 //***************************************************
 // End of Program Sleep Operation
 //***************************************************
 static void operation_sleep(void){
-
-	// Reset IRQ14VEC
-	*((volatile uint32_t *) IRQ14VEC) = 0;
+    // Reset IRQ14VEC
+    *((volatile uint32_t *) IRQ14VEC) = 0;
 
     // Go to Sleep
     mbus_sleep_all();
     while(1);
-
 }
 
 static void operation_sleep_noirqreset(void){
@@ -627,7 +658,6 @@ static void operation_sleep_noirqreset(void){
     // Go to Sleep
     mbus_sleep_all();
     while(1);
-
 }
 
 static void operation_sleep_notimer(void){
@@ -643,9 +673,11 @@ static void operation_sleep_notimer(void){
 
     // Go to sleep without timer
     operation_sleep();
-
 }
 
+//***************************************************
+// operation_tx_stored
+//***************************************************
 
 static void operation_tx_stored(void){
 
@@ -654,7 +686,7 @@ static void operation_tx_stored(void){
 		#ifdef DEBUG_MBUS_MSG_1
 			mbus_write_message32(0xDD, radio_tx_count);
 			delay(MBUS_DELAY);
-			mbus_write_message32(0xDD, temp_storage[radio_tx_count]);
+			mbus_write_message32(0xD1, temp_storage[radio_tx_count]);
 			delay(MBUS_DELAY);
 		#endif
 
@@ -675,7 +707,7 @@ static void operation_tx_stored(void){
 	exec_count_irq = 0;
 
 	// Go to sleep without timer
-	radio_tx_count = temp_storage_count; // allows data to be sent more than once
+	radio_tx_count = temp_storage_count-1; // allows data to be sent more than once
 	operation_sleep_notimer();
 }
 
@@ -727,10 +759,14 @@ static void measure_wakeup_period(void){
 
    	config_timerwd(TIMERWD_VAL);
 	WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*10, wakeup_period_count);
-	mbus_write_message32(0xED, WAKEUP_PERIOD_CONT); 
+	mbus_write_message32(0xED, WAKEUP_PERIOD_CONT); // For 5 min interval
 	delay(MBUS_DELAY);
+	
 }
 
+//***************************************************
+// initialization
+//***************************************************
 
 static void operation_init(void){
   
@@ -744,10 +780,12 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEEF;
+    enumerated = 0xDEADBEEE;
     exec_count = 0;
     exec_count_irq = 0;
     mbus_msg_flag = 0;
+    // only for snail
+    read_data_light = 0;
   
     // Set CPU Halt Option as RX --> Use for register read e.g.
 //    set_halt_until_mbus_rx();
@@ -774,15 +812,28 @@ static void operation_init(void){
 	set_pmu_clk_init();
 	reset_pmu_solar_short();
 
-	// Disable PMU ADC measurement in active mode
-	// PMU_CONTROLLER_STALL_ACTIVE
-    mbus_remote_register_write(PMU_ADDR,0x3A, 
-		( (1 << 19) // ignore state_horizon; default 1
-		| (1 << 11) // ignore adc_output_ready; default 0
+	// only for snail
+    	// Harvester Settings --------------------------------------
+    	mbus_remote_register_write(HRV_ADDR,0x00, 
+		( (6) // HRV_TOP_CONV_RATIO(0~15 >> 9x~23x); default: 14
 	));
-    delay(MBUS_DELAY);
-	batadc_reset();
-	delay(MBUS_DELAY);
+
+    	mbus_remote_register_write(HRV_ADDR,0x01,
+		( (0  << 5)  // HRV_CNT_CNT_IRQ (default: 0)
+		| (0  << 4)  // HRV_CNT_CNT_ENABLE (default: 0)
+		| (2  << 2)  // LC_CLK_DIV (default: 2)
+		| (1)        // LC_CLK_RING (default: 1)
+	));
+
+    	mbus_remote_register_write(HRV_ADDR,0x03, 
+		( (0xFFFFFF) // HRV_CNT_CNT_THRESHOLD (default: 0xFFFFFF) 
+	));
+
+    	mbus_remote_register_write(HRV_ADDR,0x05, 
+		( (0x001000) // HRV_CNT_IRQ_PACKET (default: 0x001400) 
+	));
+
+	light_reset();
 
     // Temp Sensor Settings --------------------------------------
 	// SNSv7_R25
@@ -818,7 +869,7 @@ static void operation_init(void){
     // Radio Settings --------------------------------------
     radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
     radv9_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
-    radv9_r0.RADIO_TUNE_FREQ2 = 0x0; //Tune Freq 2
+    radv9_r0.RADIO_TUNE_FREQ2 = 0x4; //Tune Freq 2
     radv9_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
     mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
 
@@ -854,17 +905,25 @@ static void operation_init(void){
 	wakeup_data = 0;
 	set_temp_exec_count = 0; // specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
 
-    // Harvester Settings --------------------------------------
-    hrvv2_r0.HRV_TOP_CONV_RATIO = 0x6;
-    mbus_remote_register_write(HRV_ADDR,0,hrvv2_r0.as_int);
+    // More PMU Settings --------------------------------------
 
+	// Disable PMU ADC measurement in active mode
+	// PMU_CONTROLLER_STALL_ACTIVE
+    mbus_remote_register_write(PMU_ADDR,0x3A, 
+		( (1 << 19) // ignore state_horizon; default 1
+		| (1 << 11) // ignore adc_output_ready; default 0
+	));
     delay(MBUS_DELAY);
 
-	// Release reset of PMU ADC
+	// Disable PMU ADC offset measurement
 	batadc_resetrelease();
-    delay(MBUS_DELAY);
 
-    // Go to sleep without timer
+	// only for snail
+	// Default battery overcharging projection threshold
+	bat_discharge_thresh = 0x0;
+	bat_discharging = 0x0;
+
+	// Go to sleep without timer
     operation_sleep_notimer();
 }
 
@@ -880,6 +939,13 @@ static void operation_temp_run(void){
 			delay(MBUS_DELAY*10);
 		#endif
 		Tstack_state = TSTK_LDO;
+	
+		// only for snail
+		mbus_remote_register_read(HRV_ADDR,0x02,1);
+		delay(MBUS_DELAY);
+		read_data_light = *((volatile uint32_t *) REG1);
+		delay(MBUS_DELAY);
+		light_reset();
 
 		temp_timeout_flag = 0;
 
@@ -1005,24 +1071,80 @@ static void operation_temp_run(void){
 			temp_power_off();
 			Tstack_state = TSTK_IDLE;
 
+			// only for snail
+			// Grab latest PMU ADC readings
+			// PMUv2 register read is handled differently
+			mbus_remote_register_write(PMU_ADDR,0x00,0x03);
+			delay(MBUS_DELAY);
+			delay(MBUS_DELAY);
+			read_data_vbat = *((volatile uint32_t *) REG0) & 0xFF;
+			batadc_reset();
+			delay(MBUS_DELAY);
+
+			// Discharge battery if vbat is too high
+			if (read_data_vbat < bat_discharge_thresh){
+    				snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0;
+    				snsv7_r18.ADC_LDO_ADC_LDO_ENB = 0;
+    				snsv7_r18.CDC_LDO_CDC_LDO_DLY_ENB = 0;
+    				snsv7_r18.CDC_LDO_CDC_LDO_ENB = 0;
+				bat_discharging = 0x1;
+
+			}else{ 
+    				snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB = 1;
+    				snsv7_r18.ADC_LDO_ADC_LDO_ENB = 1;
+    				snsv7_r18.CDC_LDO_CDC_LDO_DLY_ENB = 1;
+    				snsv7_r18.CDC_LDO_CDC_LDO_ENB = 1;
+				bat_discharging = 0x0;
+			}
+
+    			mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
+			delay(MBUS_DELAY);
+
+
 			#ifdef DEBUG_MBUS_MSG_1
 				mbus_write_message32(0xCC, exec_count);
 				delay(MBUS_DELAY);
-				mbus_write_message32(0xC0, temp_storage_latest);
+				mbus_write_message32(0xD0, bat_discharging);
+				delay(MBUS_DELAY);
+				mbus_write_message32(0xD1, read_data_vbat);
+				delay(MBUS_DELAY);
+				mbus_write_message32(0xD2, temp_storage_latest);
+				delay(MBUS_DELAY);
+				mbus_write_message32(0xD3, read_data_light);
 				delay(MBUS_DELAY);
 			#endif
 
 			exec_count++;
+
 			// Store results in memory; unless buffer is full
 			if (temp_storage_count < TEMP_STORAGE_SIZE){
-				temp_storage[temp_storage_count] = temp_storage_latest;
+				temp_storage[temp_storage_count] = (read_data_vbat & 0xFF) + ((bat_discharging & 0x1) << 8) + 0xA00000;
+				temp_storage_count++;
+				temp_storage[temp_storage_count] = temp_storage_latest + 0xB00000;
+				temp_storage_count++;
+				temp_storage[temp_storage_count] = read_data_light + 0x000000;
 				radio_tx_count = temp_storage_count;
 				temp_storage_count++;
 			}
 
+			#ifdef DEBUG_MBUS_MSG_1
+				mbus_write_message32(0xD3, temp_storage[temp_storage_count-1]);
+				delay(MBUS_DELAY);
+				mbus_write_message32(0xD2, temp_storage[temp_storage_count-2]);
+				delay(MBUS_DELAY);
+				mbus_write_message32(0xD1, temp_storage[temp_storage_count-3]);
+				delay(MBUS_DELAY);
+			#endif
+
+
 			// Optionally transmit the data
 			if (radio_tx_option){
-				send_radio_data_ppm(0, temp_storage_latest);
+				send_radio_data_ppm(0,(read_data_vbat & 0xFF) + ((bat_discharging & 0x1) << 8) + 0xA00000);
+				delay(RADIO_PACKET_DELAY);
+				send_radio_data_ppm(0, temp_storage_latest + 0xB00000);
+				delay(RADIO_PACKET_DELAY);
+				send_radio_data_ppm(0, read_data_light + 0x000000);
+				delay(RADIO_PACKET_DELAY);
 			}
 
 			// Enter long sleep
@@ -1047,6 +1169,12 @@ static void operation_temp_run(void){
 				temp_running = 0;
 				operation_sleep_notimer();
 			}
+
+			// only for snail
+			light_start();
+			delay(MBUS_DELAY);
+			batadc_resetrelease();
+			delay(MBUS_DELAY);
 
 			if ((set_temp_exec_count != 0) && (exec_count > (50<<set_temp_exec_count))){
 				// No more measurement required
@@ -1103,7 +1231,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEEF){
+    if (enumerated != 0xDEADBEEE){
         // Set up PMU/GOC register in PRC layer (every time)
         // Enumeration & RAD/SNS layer register configuration
         operation_init();
@@ -1172,7 +1300,7 @@ int main() {
 			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 			temp_running = 1;
 			set_temp_exec_count = wakeup_data_field_2 >> 5;
-            exec_count_irq++;
+            		exec_count_irq++;
 			operation_sleep_noirqreset();
 		}
 		exec_count = 0;
@@ -1182,17 +1310,23 @@ int main() {
 
 		// Reset IRQ14VEC
 		*((volatile uint32_t *) IRQ14VEC) = 0;
-        exec_count_irq = 0;
+        	exec_count_irq = 0;
 
 		// Run Temp Sensor Program
 		temp_timeout_flag = 0;
+		// only for snail
+		pmu_solar_short_off();
+    		mbus_remote_register_write(HRV_ADDR,0x00, 
+			( (15) // HRV_TOP_CONV_RATIO(0~15 >> 9x~23x); default: 14
+		));
 		operation_temp_run();
 
     }else if(wakeup_data_header == 3){
 		// Stop temp sensor program and transmit the battery reading and execution count (alternating n times)
         // wakeup_data[7:0] is the # of transmissions
-        // wakeup_data[15:8] is the user-specified period 
-        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+        // wakeup_data[15:8] is the user-specified period
+        
+	WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
 
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
@@ -1202,7 +1336,16 @@ int main() {
 				mbus_remote_register_write(PMU_ADDR,0x00,0x03);
 				delay(MBUS_DELAY);
 				delay(MBUS_DELAY);
-				read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
+				read_data_vbat = *((volatile uint32_t *) REG0) & 0xFF;
+				batadc_reset();
+				delay(MBUS_DELAY);
+				
+				// only for snail 
+				reset_pmu_solar_short();
+				delay(MBUS_DELAY);
+    			mbus_remote_register_write(HRV_ADDR,0x00, 
+					( (6) // HRV_TOP_CONV_RATIO(0~15 >> 9x~23x); default: 14
+				));
 		
 				// Prepare radio TX
 				radio_power_on();
@@ -1212,7 +1355,7 @@ int main() {
 			}else{
 				if (exec_count_irq & 0x1){
 					// radio
-					send_radio_data_ppm(0,0xBBB000+read_data_batadc);	
+					send_radio_data_ppm(0,0xBBB000+read_data_vbat);	
 				}else{
 					// radio
 					send_radio_data_ppm(0,0xC00000+exec_count);	
@@ -1226,6 +1369,18 @@ int main() {
             exec_count_irq = 0;
             // radio
             send_radio_data_ppm(1,0xFAF000);	
+	    // Release reset of PMU ADC
+	    batadc_resetrelease();
+		// Stop battery discharging for overcharging protection
+    	snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB = 1;
+    	snsv7_r18.ADC_LDO_ADC_LDO_ENB = 1;
+    	snsv7_r18.CDC_LDO_CDC_LDO_DLY_ENB = 1;
+    	snsv7_r18.CDC_LDO_CDC_LDO_ENB = 1;
+		bat_discharging = 0x0;
+    	mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
+		delay(MBUS_DELAY);
+	    // Reset PMU solar clamp
+	    reset_pmu_solar_short();
             // Go to sleep without timer
             operation_sleep_notimer();
         }
@@ -1266,12 +1421,15 @@ int main() {
 		}else{
 			operation_tx_stored();
 		}
-		
+
     }else if(wakeup_data_header == 7){
 		// Transmit PMU's ADC reading as a battery voltage indicator
 		// wakeup_data[7:0] is the # of transmissions
 		// wakeup_data[15:8] is the user-specified period 
+	    // wakeup_data[23:16] is the battery discharging threshold 
+
 		WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+		bat_discharge_thresh = wakeup_data_field_2;
 		exec_count = 0;
 
         if (exec_count_irq < wakeup_data_field_0){
@@ -1282,7 +1440,9 @@ int main() {
 				mbus_remote_register_write(PMU_ADDR,0x00,0x03);
 				delay(MBUS_DELAY);
 				delay(MBUS_DELAY);
-				read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
+				read_data_vbat = *((volatile uint32_t *) REG0) & 0xFF;
+				batadc_reset();
+				delay(MBUS_DELAY);
 		
 				// Prepare radio TX
 				radio_power_on();
@@ -1291,7 +1451,7 @@ int main() {
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm(0,0xBBB000+read_data_batadc);	
+				send_radio_data_ppm(0,0xBBB000+read_data_vbat);	
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
@@ -1301,10 +1461,14 @@ int main() {
             exec_count_irq = 0;
             // radio
             send_radio_data_ppm(1,0xFAF000);	
+			// Release reset of PMU ADC
+			batadc_resetrelease();
             // Go to sleep without timer
             operation_sleep_notimer();
         }
 
+
+		
     }else if(wakeup_data_header == 8){
 		// Discharge battery by staying active and TX radio
 		// wakeup_data[15:0] is the # of transmissions
@@ -1430,6 +1594,8 @@ int main() {
             exec_count_irq = 0;
             // radio
             send_radio_data_ppm(1,0xFAF000);	
+			// Release reset of PMU ADC
+			batadc_resetrelease();
             // Go to sleep without timer
             operation_sleep_notimer();
         }

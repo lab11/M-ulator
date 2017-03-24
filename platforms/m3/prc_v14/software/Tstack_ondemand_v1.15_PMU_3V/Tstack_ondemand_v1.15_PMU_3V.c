@@ -21,12 +21,14 @@
 //			v1.13: Optimizing PMU sleep/active settings
 //				   Lower sleep power, higher sleep power during radio sleep
 //				   PMU ADC disabled during radio sleep
+//			v1.14: Fixing how PMU ADC is reset
+//			v1.15: Turning off VDD_CLK->VBAT during PMU ADC routine
+//				   Getting rid of all non-32 bit declarations
 //*******************************************************************
 #include "PRCv14.h"
 #include "PRCv14_RF.h"
 #include "mbus.h"
 #include "SNSv7.h"
-#include "HRVv2.h"
 #include "RADv9.h"
 #include "PMUv3_RF.h"
 
@@ -122,8 +124,6 @@ volatile radv9_r12_t radv9_r12 = RADv9_R12_DEFAULT;
 volatile radv9_r13_t radv9_r13 = RADv9_R13_DEFAULT;
 volatile radv9_r14_t radv9_r14 = RADv9_R14_DEFAULT;
 
-volatile hrvv2_r0_t hrvv2_r0 = HRVv2_R0_DEFAULT;
-
 volatile prcv14_r0B_t prcv14_r0B = PRCv14_R0B_DEFAULT;
 
 //*******************************************************************
@@ -167,8 +167,8 @@ void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
 //************************************
 
 inline static void set_pmu_adc_period(uint32_t val){
-	// PMU_CONTROLLER_DESIRED_STATE
-	mbus_remote_register_write(PMU_ADDR,0x3B,
+	// PMU_CONTROLLER_DESIRED_STATE Active
+	mbus_remote_register_write(PMU_ADDR,0x3C,
 		((  1 << 0) //state_sar_scn_on
 		| (0 << 1) //state_wait_for_clock_cycles
 		| (1 << 2) //state_wait_for_time
@@ -180,7 +180,7 @@ inline static void set_pmu_adc_period(uint32_t val){
 		| (1 << 8) //state_upconverter_on
 		| (1 << 9) //state_upconverter_stabilized
 		| (1 << 10) //state_refgen_on
-		| (1 << 11) //state_adc_output_ready
+		| (0 << 11) //state_adc_output_ready
 		| (0 << 12) //state_adc_adjusted
 		| (0 << 13) //state_sar_scn_ratio_adjusted
 		| (1 << 14) //state_downconverter_on
@@ -196,8 +196,8 @@ inline static void set_pmu_adc_period(uint32_t val){
     mbus_remote_register_write(PMU_ADDR,0x36,val); 
 	delay(MBUS_DELAY*10);
 
-	// PMU_CONTROLLER_DESIRED_STATE
-	mbus_remote_register_write(PMU_ADDR,0x3B,
+	// PMU_CONTROLLER_DESIRED_STATE Active
+	mbus_remote_register_write(PMU_ADDR,0x3C,
 		((  1 << 0) //state_sar_scn_on
 		| (1 << 1) //state_wait_for_clock_cycles
 		| (1 << 2) //state_wait_for_time
@@ -209,9 +209,9 @@ inline static void set_pmu_adc_period(uint32_t val){
 		| (1 << 8) //state_upconverter_on
 		| (1 << 9) //state_upconverter_stabilized
 		| (1 << 10) //state_refgen_on
-		| (1 << 11) //state_adc_output_ready
+		| (0 << 11) //state_adc_output_ready
 		| (0 << 12) //state_adc_adjusted
-		| (1 << 13) //state_sar_scn_ratio_adjusted
+		| (0 << 13) //state_sar_scn_ratio_adjusted
 		| (1 << 14) //state_downconverter_on
 		| (1 << 15) //state_downconverter_stabilized
 		| (1 << 16) //state_vdd_3p6_turned_on
@@ -220,7 +220,6 @@ inline static void set_pmu_adc_period(uint32_t val){
 		| (1 << 19) //state_state_horizon
 	));
 	delay(MBUS_DELAY);
-
 }
 
 inline static void set_pmu_sleep_clk_radio(){
@@ -373,7 +372,7 @@ inline static void set_pmu_clk_init(){
 	));
 	delay(MBUS_DELAY);
     mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
-		( (0 << 13) // Enables override setting [12] (1'b1)
+		( (1 << 13) // Enables override setting [12] (1'b1)
 		| (0 << 12) // Let VDD_CLK always connected to vbat
 		| (1 << 11) // Enable override setting [10] (1'h0)
 		| (0 << 10) // Have the converter have the periodic reset (1'h0)
@@ -384,13 +383,41 @@ inline static void set_pmu_clk_init(){
 	));
 	delay(MBUS_DELAY);
 
-	set_pmu_adc_period(0x100); // 0x100 about 1 min for 1/2/1 1P2 setting
+	set_pmu_adc_period(0); // 0x100 about 1 min for 1/2/1 1P2 setting
 }
 
 
-inline static void batadc_reset(){
-	// Manually reset ADC
-	// PMU_CONTROLLER_DESIRED_STATE
+inline static void pmu_adc_reset_setting(){
+	// PMU ADC will be automatically reset when system wakes up
+	// PMU_CONTROLLER_DESIRED_STATE Active
+	mbus_remote_register_write(PMU_ADDR,0x3C,
+		((  1 << 0) //state_sar_scn_on
+		| (1 << 1) //state_wait_for_clock_cycles
+		| (1 << 2) //state_wait_for_time
+		| (1 << 3) //state_sar_scn_reset
+		| (1 << 4) //state_sar_scn_stabilized
+		| (1 << 5) //state_sar_scn_ratio_roughly_adjusted
+		| (1 << 6) //state_clock_supply_switched
+		| (1 << 7) //state_control_supply_switched
+		| (1 << 8) //state_upconverter_on
+		| (1 << 9) //state_upconverter_stabilized
+		| (1 << 10) //state_refgen_on
+		| (0 << 11) //state_adc_output_ready
+		| (0 << 12) //state_adc_adjusted
+		| (0 << 13) //state_sar_scn_ratio_adjusted
+		| (1 << 14) //state_downconverter_on
+		| (1 << 15) //state_downconverter_stabilized
+		| (1 << 16) //state_vdd_3p6_turned_on
+		| (1 << 17) //state_vdd_1p2_turned_on
+		| (1 << 18) //state_vdd_0P6_turned_on
+		| (1 << 19) //state_state_horizon
+	));
+	delay(MBUS_DELAY);
+}
+
+inline static void pmu_adc_disable(){
+	// PMU ADC will be automatically reset when system wakes up
+	// PMU_CONTROLLER_DESIRED_STATE Sleep
 	mbus_remote_register_write(PMU_ADDR,0x3B,
 		((  1 << 0) //state_sar_scn_on
 		| (1 << 1) //state_wait_for_clock_cycles
@@ -416,7 +443,9 @@ inline static void batadc_reset(){
 	delay(MBUS_DELAY);
 }
 
-inline static void batadc_resetrelease(){
+inline static void pmu_adc_enable(){
+	// PMU ADC will be automatically reset when system wakes up
+	// PMU_CONTROLLER_DESIRED_STATE Sleep
 	mbus_remote_register_write(PMU_ADDR,0x3B,
 		((  1 << 0) //state_sar_scn_on
 		| (1 << 1) //state_wait_for_clock_cycles
@@ -430,7 +459,7 @@ inline static void batadc_resetrelease(){
 		| (1 << 9) //state_upconverter_stabilized
 		| (1 << 10) //state_refgen_on
 		| (1 << 11) //state_adc_output_ready
-		| (0 << 12) //state_adc_adjusted
+		| (0 << 12) //state_adc_adjusted // Turning off offset cancellation
 		| (1 << 13) //state_sar_scn_ratio_adjusted
 		| (1 << 14) //state_downconverter_on
 		| (1 << 15) //state_downconverter_stabilized
@@ -474,8 +503,11 @@ inline static void reset_pmu_solar_short(){
 //***************************************************
 
 static void radio_power_on(){
+	radv9_r2_t  radv9_r2_temp;
+	radv9_r13_t radv9_r13_temp;
+
 	// Turn off PMU ADC
-	batadc_reset();
+	pmu_adc_disable();
 
 	// Need to speed up sleep pmu clock
 	set_pmu_sleep_clk_radio();
@@ -485,58 +517,80 @@ static void radio_power_on(){
 
     // Release FSM Sleep - Requires >2s stabilization time
     radio_on = 1;
-    radv9_r13.RAD_FSM_SLEEP = 0;
+	radv9_r13_temp.as_int = radv9_r13.as_int;
+    radv9_r13_temp.RAD_FSM_SLEEP = 0;
+	radv9_r13.as_int = radv9_r13_temp.as_int;
     mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
     delay(MBUS_DELAY);
     // Release SCRO Reset
-    radv9_r2.SCRO_RESET = 0;
+	radv9_r2_temp.as_int = radv9_r2.as_int;
+    radv9_r2_temp.SCRO_RESET = 0;
+	radv9_r2.as_int = radv9_r2_temp.as_int;
     mbus_remote_register_write(RAD_ADDR,2,radv9_r2.as_int);
     
     // Additional delay required after SCRO Reset release
     delay(MBUS_DELAY*3); // At least 20ms required
     
     // Enable SCRO
-    radv9_r2.SCRO_ENABLE = 1;
+	radv9_r2_temp.as_int = radv9_r2.as_int;
+    radv9_r2_temp.SCRO_ENABLE = 1;
+	radv9_r2.as_int = radv9_r2_temp.as_int;
     mbus_remote_register_write(RAD_ADDR,2,radv9_r2.as_int);
     delay(MBUS_DELAY);
 
 	// Release FSM Isolate
-	radv9_r13.RAD_FSM_ISOLATE = 0;
+	radv9_r13_temp.as_int = radv9_r13.as_int;
+	radv9_r13_temp.RAD_FSM_ISOLATE = 0;
+	radv9_r13.as_int = radv9_r13_temp.as_int;
 	mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
     delay(MBUS_DELAY);
 
 }
 
 static void radio_power_off(){
+	radv9_r2_t  radv9_r2_temp;
+	radv9_r13_t radv9_r13_temp;
+
 	// Need to restore sleep pmu clock
 	set_pmu_sleep_clk_low();
 	
 	// Enable PMU ADC
-	batadc_resetrelease();
+	pmu_adc_enable();
 
     // Turn off everything
     radio_on = 0;
 	radio_ready = 0;
-    radv9_r2.SCRO_ENABLE = 0;
-    radv9_r2.SCRO_RESET  = 1;
+	radv9_r2_temp.as_int = radv9_r2.as_int;
+    radv9_r2_temp.SCRO_ENABLE = 0;
+    radv9_r2_temp.SCRO_RESET  = 1;
+	radv9_r2.as_int = radv9_r2_temp.as_int;
     mbus_remote_register_write(RAD_ADDR,2,radv9_r2.as_int);
-    radv9_r13.RAD_FSM_SLEEP 	= 1;
-    radv9_r13.RAD_FSM_ISOLATE 	= 1;
-    radv9_r13.RAD_FSM_RESETn 	= 0;
-    radv9_r13.RAD_FSM_ENABLE 	= 0;
+	radv9_r13_temp.as_int = radv9_r13.as_int;
+    radv9_r13_temp.RAD_FSM_SLEEP 	= 1;
+    radv9_r13_temp.RAD_FSM_ISOLATE 	= 1;
+    radv9_r13_temp.RAD_FSM_RESETn 	= 0;
+    radv9_r13_temp.RAD_FSM_ENABLE 	= 0;
+	radv9_r13.as_int = radv9_r13_temp.as_int;
     mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
 }
 
-static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
+static void send_radio_data_ppm(uint32_t last_packet, uint32_t radio_data){
+	radv9_r3_t  radv9_r3_temp;
+	radv9_r13_t radv9_r13_temp;
+
     // Write Data: Only up to 24bit data for now
-    radv9_r3.RAD_FSM_DATA = radio_data;
+	radv9_r3_temp.as_int = radv9_r3.as_int;
+	radv9_r3_temp.RAD_FSM_DATA = radio_data;
+	radv9_r3.as_int = radv9_r3_temp.as_int;
     mbus_remote_register_write(RAD_ADDR,3,radv9_r3.as_int);
 
     if (!radio_ready){
 		radio_ready = 1;
 
 		// Release FSM Reset
-		radv9_r13.RAD_FSM_RESETn = 1;
+		radv9_r13_temp.as_int = radv9_r13.as_int;
+		radv9_r13_temp.RAD_FSM_RESETn = 1;
+		radv9_r13.as_int = radv9_r13_temp.as_int;
 		mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
 		delay(MBUS_DELAY);
     }
@@ -558,7 +612,9 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 				radio_ready = 0;
 				radio_power_off();
 			}else{
-				radv9_r13.RAD_FSM_ENABLE = 0;
+				radv9_r13_temp.as_int = radv9_r13.as_int;
+				radv9_r13_temp.RAD_FSM_ENABLE = 0;
+				radv9_r13.as_int = radv9_r13_temp.as_int;
 				mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
 			}
 			return;
@@ -577,34 +633,52 @@ static void send_radio_data_ppm(bool last_packet, uint32_t radio_data){
 //***************************************************
 
 static void temp_sensor_enable(){
-    snsv7_r14.TEMP_SENSOR_ENABLEb = 0x0;
-    mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
+	snsv7_r14_t snsv7_r14_temp;
+	snsv7_r14_temp.as_int = snsv7_r14.as_int;
+	snsv7_r14_temp.TEMP_SENSOR_ENABLEb = 0x0;
+	snsv7_r14.as_int = snsv7_r14_temp.as_int;
+	mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
 }
 static void temp_sensor_disable(){
-    snsv7_r14.TEMP_SENSOR_ENABLEb = 1;
-    mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
+	snsv7_r14_t snsv7_r14_temp;
+	snsv7_r14_temp.as_int = snsv7_r14.as_int;
+	snsv7_r14_temp.TEMP_SENSOR_ENABLEb = 1;
+	snsv7_r14.as_int = snsv7_r14_temp.as_int;
+	mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
 }
 static void temp_sensor_release_reset(){
-    snsv7_r14.TEMP_SENSOR_RESETn = 1;
-    snsv7_r14.TEMP_SENSOR_ISO = 0;
-    mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
+	snsv7_r14_t snsv7_r14_temp;
+	snsv7_r14_temp.as_int = snsv7_r14.as_int;
+	snsv7_r14_temp.TEMP_SENSOR_RESETn = 1;
+	snsv7_r14_temp.TEMP_SENSOR_ISO = 0;
+	snsv7_r14.as_int = snsv7_r14_temp.as_int;
+	mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
 }
 static void temp_sensor_assert_reset(){
-    snsv7_r14.TEMP_SENSOR_RESETn = 0;
-    snsv7_r14.TEMP_SENSOR_ISO = 1;
-    mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
+	snsv7_r14_t snsv7_r14_temp;
+	snsv7_r14_temp.as_int = snsv7_r14.as_int;
+	snsv7_r14_temp.TEMP_SENSOR_RESETn = 0;
+	snsv7_r14_temp.TEMP_SENSOR_ISO = 1;
+	snsv7_r14.as_int = snsv7_r14_temp.as_int;
+	mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
 }
 static void ldo_power_off(){
-    snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB = 1;
-    snsv7_r18.ADC_LDO_ADC_LDO_ENB = 1;
-    mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
+	snsv7_r18_t snsv7_r18_temp;
+	snsv7_r18_temp.as_int = snsv7_r18.as_int;
+	snsv7_r18_temp.ADC_LDO_ADC_LDO_DLY_ENB = 1;
+	snsv7_r18_temp.ADC_LDO_ADC_LDO_ENB = 1;
+	snsv7_r18.as_int = snsv7_r18_temp.as_int;
+	mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
 }
 static void temp_power_off(){
-    snsv7_r14.TEMP_SENSOR_ENABLEb = 1;
-    snsv7_r14.TEMP_SENSOR_RESETn = 0;
-    snsv7_r14.TEMP_SENSOR_ISO = 1;
-    mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
-    ldo_power_off();
+	snsv7_r14_t snsv7_r14_temp;
+	snsv7_r14_temp.as_int = snsv7_r14.as_int;
+	snsv7_r14_temp.TEMP_SENSOR_ENABLEb = 1;
+	snsv7_r14_temp.TEMP_SENSOR_RESETn = 0;
+	snsv7_r14_temp.TEMP_SENSOR_ISO = 1;
+	snsv7_r14.as_int = snsv7_r14_temp.as_int;
+	mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
+	ldo_power_off();
 }
 
 
@@ -734,11 +808,25 @@ static void measure_wakeup_period(void){
 
 static void operation_init(void){
   
+	prcv14_r0B_t prcv14_r0B_temp;
+	snsv7_r14_t snsv7_r14_temp;
+	snsv7_r15_t snsv7_r15_temp;
+	snsv7_r18_t snsv7_r18_temp;
+	snsv7_r25_t snsv7_r25_temp;
+	
+	radv9_r0_t  radv9_r0_temp;
+	radv9_r1_t  radv9_r1_temp;
+	radv9_r11_t radv9_r11_temp;
+	radv9_r12_t radv9_r12_temp;
+
+
 	// Set CPU & Mbus Clock Speeds
-    prcv14_r0B.DSLP_CLK_GEN_FAST_MODE = 0x1; // Default 0x0
-    prcv14_r0B.CLK_GEN_RING = 0x1; // Default 0x1
-    prcv14_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
-    prcv14_r0B.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
+	prcv14_r0B_temp.as_int = prcv14_r0B.as_int;
+    prcv14_r0B_temp.DSLP_CLK_GEN_FAST_MODE = 0x1; // Default 0x0
+    prcv14_r0B_temp.CLK_GEN_RING = 0x1; // Default 0x1
+    prcv14_r0B_temp.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
+    prcv14_r0B_temp.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
+	prcv14_r0B.as_int = prcv14_r0B_temp.as_int;
 	*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv14_r0B.as_int;
 
   
@@ -758,8 +846,6 @@ static void operation_init(void){
 	delay(MBUS_DELAY);
     mbus_enumerate(SNS_ADDR);
 	delay(MBUS_DELAY);
-    mbus_enumerate(HRV_ADDR);
-	delay(MBUS_DELAY);
  	mbus_enumerate(PMU_ADDR);
 	delay(MBUS_DELAY);
 
@@ -778,66 +864,83 @@ static void operation_init(void){
 	// PMU_CONTROLLER_STALL_ACTIVE
     mbus_remote_register_write(PMU_ADDR,0x3A, 
 		( (1 << 19) // ignore state_horizon; default 1
+		| (1 << 13) // ignore adc_output_ready; default 0
+		| (1 << 12) // ignore adc_output_ready; default 0
 		| (1 << 11) // ignore adc_output_ready; default 0
 	));
     delay(MBUS_DELAY);
-	batadc_reset();
+	pmu_adc_reset_setting();
+	delay(MBUS_DELAY);
+	pmu_adc_enable();
 	delay(MBUS_DELAY);
 
     // Temp Sensor Settings --------------------------------------
 	// SNSv7_R25
-	snsv7_r25.TEMP_SENSOR_IRQ_PACKET = 0x001000;
-    mbus_remote_register_write(SNS_ADDR,0x19,snsv7_r25.as_int);
-    // SNSv7_R14
-    snsv7_r14.TEMP_SENSOR_BURST_MODE = 0x0;
-	snsv7_r14.TEMP_SENSOR_DELAY_SEL = 5;
-    snsv7_r14.TEMP_SENSOR_R_tmod = 0x0;
-    snsv7_r14.TEMP_SENSOR_R_bmod = 0x0;
-    mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
-    // snsv7_R15
-    snsv7_r15.TEMP_SENSOR_AMP_BIAS = 0x7; // Default: 2
-    snsv7_r15.TEMP_SENSOR_CONT_MODEb = 0x0;
-	snsv7_r15.TEMP_SENSOR_SEL_CT = 6;
-    mbus_remote_register_write(SNS_ADDR,0xF,snsv7_r15.as_int);
+	snsv7_r25_temp.as_int = snsv7_r25.as_int;
+	snsv7_r25_temp.TEMP_SENSOR_IRQ_PACKET = 0x001000;
+	snsv7_r25.as_int = snsv7_r25_temp.as_int;
+	mbus_remote_register_write(SNS_ADDR,0x19,snsv7_r25.as_int);
+	// SNSv7_R14
+	snsv7_r14_temp.as_int = snsv7_r14.as_int;
+	snsv7_r14_temp.TEMP_SENSOR_BURST_MODE = 0x0;
+	snsv7_r14_temp.TEMP_SENSOR_DELAY_SEL = 5;
+	snsv7_r14_temp.TEMP_SENSOR_R_tmod = 0x0;
+	snsv7_r14_temp.TEMP_SENSOR_R_bmod = 0x0;
+	snsv7_r14.as_int = snsv7_r14_temp.as_int;
+	mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
+	// snsv7_R15
+	snsv7_r15_temp.as_int = snsv7_r15.as_int;
+	snsv7_r15_temp.TEMP_SENSOR_AMP_BIAS   = 0x7; // Default: 2
+	snsv7_r15_temp.TEMP_SENSOR_CONT_MODEb = 0x0;
+	snsv7_r15_temp.TEMP_SENSOR_SEL_CT     = 6;
+	snsv7_r15.as_int = snsv7_r15_temp.as_int;
+	mbus_remote_register_write(SNS_ADDR,0xF,snsv7_r15.as_int);
 
-    // snsv7_R18
-    snsv7_r18.ADC_LDO_ADC_LDO_ENB      = 0x1;
-    snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB  = 0x1;
-    snsv7_r18.ADC_LDO_ADC_CURRENT_2X  = 0x1;
-
-    // Set ADC LDO to around 1.37V: 0x3//0x20
-    snsv7_r18.ADC_LDO_ADC_VREF_MUX_SEL = 0x3;
-    snsv7_r18.ADC_LDO_ADC_VREF_SEL     = 0x20;
-
-    mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
+	// snsv7_R18
+	snsv7_r18_temp.as_int = snsv7_r18.as_int;
+	snsv7_r18_temp.ADC_LDO_ADC_LDO_ENB      = 0x1;
+	snsv7_r18_temp.ADC_LDO_ADC_LDO_DLY_ENB  = 0x1;
+	snsv7_r18_temp.ADC_LDO_ADC_CURRENT_2X   = 0x1;
+	snsv7_r18_temp.ADC_LDO_ADC_VREF_MUX_SEL = 0x3; // Set ADC LDO to around 1.37V: 0x3//0x20
+	snsv7_r18_temp.ADC_LDO_ADC_VREF_SEL     = 0x20; // Set ADC LDO to around 1.37V: 0x3//0x20
+	snsv7_r18.as_int = snsv7_r18_temp.as_int;
+	mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
 
 	// CDC Mbus return address; Needs to be between 0x18-0x1F
     mbus_remote_register_write(SNS_ADDR,0x18,0x1800);
 
 
     // Radio Settings --------------------------------------
-    radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
-    radv9_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
-    radv9_r0.RADIO_TUNE_FREQ2 = 0x0; //Tune Freq 2
-    radv9_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
-    mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
+	radv9_r0_temp.as_int = radv9_r0.as_int;
+	radv9_r0_temp.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
+	radv9_r0_temp.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
+	radv9_r0_temp.RADIO_TUNE_FREQ2 = 0x0; //Tune Freq 2
+	radv9_r0_temp.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
+	radv9_r0.as_int = radv9_r0_temp.as_int;
+	mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
 
-    // FSM data length setups
-    radv9_r11.RAD_FSM_H_LEN = 16; // N
-    radv9_r11.RAD_FSM_D_LEN = RADIO_DATA_LENGTH-1; // N-1
-    radv9_r11.RAD_FSM_C_LEN = 10;
-    mbus_remote_register_write(RAD_ADDR,11,radv9_r11.as_int);
-  
-    // Configure SCRO
-    radv9_r1.SCRO_FREQ_DIV = 3;
-    radv9_r1.SCRO_AMP_I_LEVEL_SEL = 2; // Default 2
-    radv9_r1.SCRO_I_LEVEL_SELB = 0x60; // Default 0x6F
-    mbus_remote_register_write(RAD_ADDR,1,radv9_r1.as_int);
-  
-    // LFSR Seed
-    radv9_r12.RAD_FSM_SEED = 4;
-    mbus_remote_register_write(RAD_ADDR,12,radv9_r12.as_int);
-  
+	// FSM data length setups
+	radv9_r11_temp.as_int = radv9_r11.as_int;
+	radv9_r11_temp.RAD_FSM_H_LEN = 16; // N
+	radv9_r11_temp.RAD_FSM_D_LEN = RADIO_DATA_LENGTH-1; // N-1
+	radv9_r11_temp.RAD_FSM_C_LEN = 10;
+	radv9_r11.as_int = radv9_r11_temp.as_int;
+	mbus_remote_register_write(RAD_ADDR,11,radv9_r11.as_int);
+	
+	// Configure SCRO
+	radv9_r1_temp.as_int = radv9_r1.as_int;
+	radv9_r1_temp.SCRO_FREQ_DIV = 3;
+	radv9_r1_temp.SCRO_AMP_I_LEVEL_SEL = 2; // Default 2
+	radv9_r1_temp.SCRO_I_LEVEL_SELB = 0x60; // Default 0x6F
+	radv9_r1.as_int = radv9_r1_temp.as_int;
+	mbus_remote_register_write(RAD_ADDR,1,radv9_r1.as_int);
+	
+	// LFSR Seed
+	radv9_r12_temp.as_int = radv9_r12.as_int;
+	radv9_r12_temp.RAD_FSM_SEED = 4;
+	radv9_r12.as_int = radv9_r12_temp.as_int;
+	mbus_remote_register_write(RAD_ADDR,12,radv9_r12.as_int);
+	
 	// Mbus return address; Needs to be between 0x18-0x1F
     mbus_remote_register_write(RAD_ADDR,0xF,0x1900);
 
@@ -854,16 +957,6 @@ static void operation_init(void){
 	wakeup_data = 0;
 	set_temp_exec_count = 0; // specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
 
-    // Harvester Settings --------------------------------------
-    hrvv2_r0.HRV_TOP_CONV_RATIO = 0x6;
-    mbus_remote_register_write(HRV_ADDR,0,hrvv2_r0.as_int);
-
-    delay(MBUS_DELAY);
-
-	// Release reset of PMU ADC
-	batadc_resetrelease();
-    delay(MBUS_DELAY);
-
     // Go to sleep without timer
     operation_sleep_notimer();
 }
@@ -873,6 +966,7 @@ static void operation_init(void){
 // Temperature measurement operation (SNSv7)
 //***************************************************
 static void operation_temp_run(void){
+    snsv7_r18_t snsv7_r18_temp;
 
 	if (Tstack_state == TSTK_IDLE){
 		#ifdef DEBUG_MBUS_MSG 
@@ -888,7 +982,9 @@ static void operation_temp_run(void){
 			radio_power_on();
 		}
 
-		snsv7_r18.ADC_LDO_ADC_LDO_ENB = 0x0;
+		snsv7_r18_temp.as_int = snsv7_r18.as_int;
+		snsv7_r18_temp.ADC_LDO_ADC_LDO_ENB = 0x0;
+		snsv7_r18.as_int = snsv7_r18_temp.as_int;
 		mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
 
 		// Put system to sleep
@@ -901,7 +997,9 @@ static void operation_temp_run(void){
 			delay(MBUS_DELAY*10);
 		#endif
 		Tstack_state = TSTK_TEMP_RSTRL;
-		snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
+		snsv7_r18_temp.as_int = snsv7_r18.as_int;
+		snsv7_r18_temp.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
+		snsv7_r18.as_int = snsv7_r18_temp.as_int;
 		mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
 		// Put system to sleep
 		set_wakeup_timer(WAKEUP_PERIOD_LDO, 0x1, 0x1);
@@ -1113,10 +1211,10 @@ int main() {
     // 0x78 is reserved for GOC-triggered wakeup (Named IRQ14VEC)
     // 8 MSB bits of the wakeup data are used for function ID
     wakeup_data = *((volatile uint32_t *) IRQ14VEC);
-    uint8_t wakeup_data_header = wakeup_data>>24;
-    uint8_t wakeup_data_field_0 = wakeup_data & 0xFF;
-    uint8_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;
-    uint8_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
+    uint32_t wakeup_data_header = (wakeup_data>>24) & 0xFF;
+    uint32_t wakeup_data_field_0 = wakeup_data & 0xFF;
+    uint32_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;
+    uint32_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
 
 	// In case GOC triggered in the middle of routines
 	if ((wakeup_data_header != 0) && (exec_count_irq == 0)){
@@ -1193,6 +1291,10 @@ int main() {
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period 
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+
+		temp_running = 0;
+		Tstack_state = TSTK_IDLE;
+
 
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
@@ -1272,7 +1374,6 @@ int main() {
 		// wakeup_data[7:0] is the # of transmissions
 		// wakeup_data[15:8] is the user-specified period 
 		WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
-		exec_count = 0;
 
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
@@ -1309,7 +1410,6 @@ int main() {
 		// Discharge battery by staying active and TX radio
 		// wakeup_data[15:0] is the # of transmissions
 		// wakeup_data[16] resets PMU solar clamp
-		exec_count = 0;
 
 		exec_count_irq++;
 		if (exec_count_irq == 1){
@@ -1345,6 +1445,7 @@ int main() {
 		operation_sleep_notimer();
 
 	}else if(wakeup_data_header == 0x13){
+    	radv9_r0_t  radv9_r0_temp;
 		// Change the RF frequency
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period
@@ -1352,8 +1453,10 @@ int main() {
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
         delay(MBUS_DELAY);
 
-		radv9_r0.RADIO_TUNE_FREQ1 = wakeup_data_field_2>>4; 
-		radv9_r0.RADIO_TUNE_FREQ2 = wakeup_data_field_2 & 0xF; 
+		radv9_r0_temp.as_int = radv9_r0.as_int;
+		radv9_r0_temp.RADIO_TUNE_FREQ1 = wakeup_data_field_2>>4; 
+		radv9_r0_temp.RADIO_TUNE_FREQ2 = wakeup_data_field_2 & 0xF; 
+		radv9_r0.as_int = radv9_r0_temp.as_int;
     	mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
 		delay(MBUS_DELAY);
 
@@ -1405,7 +1508,6 @@ int main() {
 		// wakeup_data[7:0] is the # of transmissions
 		// wakeup_data[15:8] is the user-specified period 
 		WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
-		exec_count = 0;
 
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;

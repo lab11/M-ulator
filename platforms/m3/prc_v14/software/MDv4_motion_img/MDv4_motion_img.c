@@ -2,9 +2,10 @@
 //Author: 		Gyouho Kim
 //Description: 	Code for Motion Detection with MDv4
 //				Derived from MDv3_motion_img_v3
+//				Verified for 2017 MOD Demo
 //*******************************************************************
-#include "PRCv13.h"
-#include "PRCv13_RF.h"
+#include "PRCv14.h"
+#include "PRCv14_RF.h"
 #include "mbus.h"
 #include "MDv3.h"
 #include "SNSv7.h"
@@ -17,7 +18,7 @@
 //#define SNS_ADDR 0x4           //SNSv1 Short Address
 
 #define MBUS_DELAY 200
-#define WAKEUP_DELAY 20000 // 20s
+#define WAKEUP_DELAY 10000 // 20s
 #define DELAY_1 40000 // 1s
 #define DELAY_0P5 20000
 #define IMG_TIMEOUT_COUNT 5000
@@ -33,6 +34,8 @@
 volatile uint32_t enumerated;
 volatile uint32_t mbus_msg_flag;
 
+volatile uint32_t MD_INT_TIME_USR = 15;
+
 volatile mdv3_r0_t mdv3_r0 = MDv3_R0_DEFAULT;
 volatile mdv3_r1_t mdv3_r1 = MDv3_R1_DEFAULT;
 volatile mdv3_r2_t mdv3_r2 = MDv3_R2_DEFAULT;
@@ -44,7 +47,7 @@ volatile mdv3_r7_t mdv3_r7 = MDv3_R7_DEFAULT;
 volatile mdv3_r8_t mdv3_r8 = MDv3_R8_DEFAULT;
 volatile mdv3_r9_t mdv3_r9 = MDv3_R9_DEFAULT;
 
-volatile prcv13_r0B_t prcv13_r0B = PRCv13_R0B_DEFAULT;
+volatile prcv14_r0B_t prcv14_r0B = PRCv14_R0B_DEFAULT;
 
 //************************************
 //Interrupt Handlers
@@ -90,7 +93,6 @@ void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
 
 static void initialize_md_reg(){
 
-	uint32_t MD_INT_TIME_USR = 10;
 	mdv3_r0.INT_TIME = MD_INT_TIME_USR*2;
 	mdv3_r0.MD_INT_TIME = MD_INT_TIME_USR;
 	mdv3_r1.MD_TH = 10;
@@ -106,16 +108,18 @@ static void initialize_md_reg(){
 	mdv3_r3.SEL_VREFP = 7;
 	mdv3_r3.SEL_VBN = 3;
 	mdv3_r3.SEL_VBP = 3;
-	mdv3_r3.SEL_VB_RAMP = 15;
-	mdv3_r3.SEL_RAMP = 1;
+	mdv3_r3.SEL_VB_RAMP = 8;
+	mdv3_r3.SEL_RAMP = 0x10;
 
 	mdv3_r4.SEL_CC  = 7;
 	mdv3_r4.SEL_CC_B  = 0;
+	mdv3_r4.PULSE_SKIP  = 1;
+	mdv3_r4.PULSE_SKIP_COL  = 0;
 
 	mdv3_r5.SEL_CLK_RING = 2;
-	mdv3_r5.SEL_CLK_DIV = 4;
+	mdv3_r5.SEL_CLK_DIV = 3;
 	mdv3_r5.SEL_CLK_RING_4US = 0;
-	mdv3_r5.SEL_CLK_DIV_4US = 1;
+	mdv3_r5.SEL_CLK_DIV_4US = 2; // This affects MD
 	mdv3_r5.SEL_CLK_RING_ADC = 2; 
 	mdv3_r5.SEL_CLK_DIV_ADC = 1;
 	mdv3_r5.SEL_CLK_RING_LC = 0;
@@ -164,10 +168,7 @@ static void start_md(){
 	mdv3_r0.START_MD = 0;
 	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
 
-	delay(DELAY_1); // about 0.5s
-	delay(DELAY_1); // about 0.5s
-	delay(DELAY_1); // about 0.5s
-	delay(DELAY_1); // about 0.5s
+	delay(MBUS_DELAY*50); // Need >100ms
 
 	// Enable MD Flag
 	// 1:3
@@ -284,7 +285,7 @@ static void poweron_array_adc(){
 	// 2:19
 	mdv3_r2.SLEEP_ADC = 0;
 	mbus_remote_register_write(MD_ADDR,0x2,mdv3_r2.as_int);
-	delay(DELAY_1);
+	delay(MBUS_DELAY);
 
 	// Release ADC Isolation
 	// 7:17
@@ -386,9 +387,6 @@ static void operation_sleep(void){
 	// Reset IRQ14VEC
 	*((volatile uint32_t *) IRQ14VEC) = 0;
 
-	// Reset wakeup timer
-	*WUPT_RESET = 0x01;
-
     // Go to Sleep
     mbus_sleep_all();
     while(1);
@@ -396,9 +394,6 @@ static void operation_sleep(void){
 }
 
 static void operation_sleep_noirqreset(void){
-
-	// Reset wakeup timer
-	*WUPT_RESET = 0x01;
 
     // Go to Sleep
     mbus_sleep_all();
@@ -451,13 +446,13 @@ int main() {
 		//*((volatile uint32_t *) 0xA2000008) = 0x00202603;
 		
 		// Set CPU & Mbus Clock Speeds
-		prcv13_r0B.DSLP_CLK_GEN_FAST_MODE = 0x1; // Default 0x0
-		prcv13_r0B.CLK_GEN_RING = 0x1; // Default 0x1
-		prcv13_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
-		prcv13_r0B.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
-		*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv13_r0B.as_int;
+		prcv14_r0B.DSLP_CLK_GEN_FAST_MODE = 0x1; // Default 0x0
+		prcv14_r0B.CLK_GEN_RING = 0x3; // Default 0x1
+		prcv14_r0B.CLK_GEN_DIV_MBC = 0x0; // Default 0x1
+		prcv14_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
+		*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv14_r0B.as_int;
 	  
-		delay(1000);
+		delay(MBUS_DELAY*10);
   
 		// Disable MBus Watchdog Timer
 		//*REG_MBUS_WD = 0;
@@ -483,9 +478,20 @@ int main() {
 	  poweron_frame_controller_short();
 	}
 
-	// Capture 3 images
 	poweron_array_adc();
-	delay(MBUS_DELAY*20);
+
+	// Note: delay here will screw up the first image (!?)
+
+	uint32_t img_count, ii;
+/*
+	for(ii=16; ii<128; ii++){
+		mdv3_r3.SEL_RAMP = ii;
+		mbus_write_message32(0xAA, img_count);
+		img_count++;
+		mbus_write_message32(0xA0, ii);
+		mbus_remote_register_write(MD_ADDR,0x3,mdv3_r3.as_int);
+*/
+	// Capture 3 images
 	capture_image_single();
 	wait_for_interrupt(IMG_TIMEOUT_COUNT);	
 	capture_image_single();
@@ -495,14 +501,15 @@ int main() {
 
 	poweroff_array_adc();
 
-	// Start motion detection
-	//start_md();
+/*
+	MD_INT_TIME_USR++;
+	mdv3_r0.INT_TIME = MD_INT_TIME_USR*2;
+	mdv3_r0.MD_INT_TIME = MD_INT_TIME_USR;
+	mbus_remote_register_write(MD_ADDR,0x0,mdv3_r0.as_int);
+*/
 
-	//clear_md_flag();
-	delay(MBUS_DELAY);
+
 	start_md();
-
-	delay(MBUS_DELAY);
 
 	operation_sleep_notimer();
 
