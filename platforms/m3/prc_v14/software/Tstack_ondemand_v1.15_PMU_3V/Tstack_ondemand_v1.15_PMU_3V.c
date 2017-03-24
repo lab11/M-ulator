@@ -29,7 +29,6 @@
 #include "PRCv14_RF.h"
 #include "mbus.h"
 #include "SNSv7.h"
-#include "HRVv2.h"
 #include "RADv9.h"
 #include "PMUv3_RF.h"
 
@@ -124,8 +123,6 @@ volatile radv9_r11_t radv9_r11 = RADv9_R11_DEFAULT;
 volatile radv9_r12_t radv9_r12 = RADv9_R12_DEFAULT;
 volatile radv9_r13_t radv9_r13 = RADv9_R13_DEFAULT;
 volatile radv9_r14_t radv9_r14 = RADv9_R14_DEFAULT;
-
-volatile hrvv2_r0_t hrvv2_r0 = HRVv2_R0_DEFAULT;
 
 volatile prcv14_r0B_t prcv14_r0B = PRCv14_R0B_DEFAULT;
 
@@ -604,9 +601,7 @@ static void send_radio_data_ppm(uint32_t last_packet, uint32_t radio_data){
     // Fire off data
     uint32_t count;
     mbus_msg_flag = 0;
-	radv9_r13_temp.as_int = radv9_r13.as_int;
-    radv9_r13_temp.RAD_FSM_ENABLE = 1;
-	radv9_r13.as_int = radv9_r13_temp.as_int;
+    radv9_r13.RAD_FSM_ENABLE = 1;
     mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
 
     for( count=0; count<RADIO_TIMEOUT_COUNT; count++ ){
@@ -824,8 +819,6 @@ static void operation_init(void){
 	radv9_r11_t radv9_r11_temp;
 	radv9_r12_t radv9_r12_temp;
 
-	hrvv2_r0_t hrvv2_r0_temp;
-
 
 	// Set CPU & Mbus Clock Speeds
 	prcv14_r0B_temp.as_int = prcv14_r0B.as_int;
@@ -852,8 +845,6 @@ static void operation_init(void){
     mbus_enumerate(RAD_ADDR);
 	delay(MBUS_DELAY);
     mbus_enumerate(SNS_ADDR);
-	delay(MBUS_DELAY);
-    mbus_enumerate(HRV_ADDR);
 	delay(MBUS_DELAY);
  	mbus_enumerate(PMU_ADDR);
 	delay(MBUS_DELAY);
@@ -965,14 +956,6 @@ static void operation_init(void){
     radio_on = 0;
 	wakeup_data = 0;
 	set_temp_exec_count = 0; // specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
-
-    // Harvester Settings --------------------------------------
-	hrvv2_r0_temp.as_int = hrvv2_r0.as_int;
-	hrvv2_r0_temp.HRV_TOP_CONV_RATIO = 0x6;
-	hrvv2_r0.as_int = hrvv2_r0_temp.as_int;
-    mbus_remote_register_write(HRV_ADDR,0,hrvv2_r0.as_int);
-
-    delay(MBUS_DELAY);
 
     // Go to sleep without timer
     operation_sleep_notimer();
