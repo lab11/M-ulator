@@ -390,7 +390,7 @@ static void operation_cdc_run(){
 
     }else if (Pstack_state == PSTK_CDC2_RST){
 		delay(MBUS_DELAY*20);
-		fire_cdc_meas();
+		fire_cdc2_meas();
 
 		// Use Timer32 as timeout counter
 		config_timer32(0x5000, 1, 0, 0); // 1/10 of MBUS watchdog timer default
@@ -479,6 +479,7 @@ static void operation_cdc_run(){
 
 			// Repeat measurement while awake
 			release_cdc_meas();
+			release_cdc2_meas();
 			delay(MBUS_DELAY);
 			Pstack_state = PSTK_CDC_RST;
 				
@@ -488,6 +489,7 @@ static void operation_cdc_run(){
 
 			// Finalize CDC operation
 			release_cdc_meas();
+			release_cdc2_meas();
 			assert_cdc_reset();
 			Pstack_state = PSTK_IDLE;
 			
