@@ -6,7 +6,7 @@
 #include "mbus.h"
 #include "../../software/PMUv3H_temp_deepsleep_v2/PMUv3H_temp_deepsleep_v2.bootinc"
 
-#define FLPv2      
+//#define FLPv2      
 #define PRC_ADDR 0x1
 #define RAD_ADDR 0x4
 #define SNS_ADDR 0x5

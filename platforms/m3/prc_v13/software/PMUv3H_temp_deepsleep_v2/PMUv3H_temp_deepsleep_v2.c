@@ -13,7 +13,7 @@
 // uncomment this for debug mbus message
 // #define DEBUG_MBUS_MSG
 
-// TStack order  PRC->RAD->SNS->PMU
+// TStack order  PRC->RAD->HRV->SNS->FLP->PMU
 #define PRC_ADDR 0x1
 #define RAD_ADDR 0x4
 #define SNS_ADDR 0x5
