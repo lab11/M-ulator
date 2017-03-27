@@ -310,7 +310,7 @@ inline static void set_pmu_clk_init(){
 	));
 	delay(MBUS_DELAY);
 
-	set_pmu_adc_period(0x10); // 0x100 about 1 min for 1/2/1 1P2 setting
+	set_pmu_adc_period(0x200); // 0x100 about 1 min for 1/2/1 1P2 setting
 }
 
 
