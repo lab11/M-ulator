@@ -84,10 +84,10 @@
 //#define TX_AVERAGE
 
 // Stack order  PRC->RAD->SNS->HRV->PMU
+#define HRV_ADDR 0x3
 #define RAD_ADDR 0x4
 #define SNS_ADDR 0x5
-#define HRV_ADDR 0x6
-#define PMU_ADDR 0x7
+#define PMU_ADDR 0x6
 
 // CDC parameters
 #define	MBUS_DELAY 100 //Amount of delay between successive messages; 100: 6-7ms
@@ -138,7 +138,6 @@ volatile uint32_t cdc_storage_cref_latest;
 volatile uint32_t cdc_storage_count;
 volatile uint32_t cdc_run_single;
 volatile uint32_t cdc_running;
-volatile uint32_t cdc_reset_timeout_count;
 volatile uint32_t wfi_timeout_flag;
 volatile uint32_t set_cdc_exec_count;
 
@@ -565,7 +564,7 @@ static void radio_power_on(){
     radio_on = 1;
 	radv9_r13_temp.as_int = radv9_r13.as_int;
     radv9_r13_temp.RAD_FSM_SLEEP = 0;
-	radv9_r13_temp.as_int = radv9_r13_temp.as_int;
+	radv9_r13.as_int = radv9_r13_temp.as_int;
     mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
     delay(MBUS_DELAY);
     // Release SCRO Reset
@@ -696,7 +695,6 @@ static void release_cdc_isolate(){
     snsv7_r0_temp.CDCW_ISO = 0x0;
 	snsv7_r0.as_int = snsv7_r0_temp.as_int;
     mbus_remote_register_write(SNS_ADDR,0,snsv7_r0.as_int);
-    delay(MBUS_DELAY);
 }
 static void assert_cdc_reset(){
 	snsv7_r0_t snsv7_r0_temp;
@@ -704,7 +702,6 @@ static void assert_cdc_reset(){
     snsv7_r0_temp.CDCW_RESETn = 0x0;
 	snsv7_r0.as_int = snsv7_r0_temp.as_int;
     mbus_remote_register_write(SNS_ADDR,0,snsv7_r0.as_int);
-    delay(MBUS_DELAY);
 }
 static void release_cdc_reset(){
 	snsv7_r0_t snsv7_r0_temp;
@@ -712,7 +709,6 @@ static void release_cdc_reset(){
     snsv7_r0_temp.CDCW_RESETn = 0x1;
 	snsv7_r0.as_int = snsv7_r0_temp.as_int;
     mbus_remote_register_write(SNS_ADDR,0,snsv7_r0.as_int);
-    delay(MBUS_DELAY);
 }
 static void fire_cdc_meas(){
 	snsv7_r0_t snsv7_r0_temp;
@@ -720,7 +716,6 @@ static void fire_cdc_meas(){
     snsv7_r0_temp.CDCW_ENABLE = 0x1;
 	snsv7_r0.as_int = snsv7_r0_temp.as_int;
     mbus_remote_register_write(SNS_ADDR,0,snsv7_r0.as_int);
-    delay(MBUS_DELAY);
 }
 static void release_cdc_meas(){
 	snsv7_r0_t snsv7_r0_temp;
@@ -728,7 +723,6 @@ static void release_cdc_meas(){
     snsv7_r0_temp.CDCW_ENABLE = 0x0;
 	snsv7_r0.as_int = snsv7_r0_temp.as_int;
     mbus_remote_register_write(SNS_ADDR,0,snsv7_r0.as_int);
-    delay(MBUS_DELAY);
 }
 static void ldo_power_off(){
 	snsv7_r18_t snsv7_r18_temp;
@@ -739,7 +733,6 @@ static void ldo_power_off(){
     snsv7_r18_temp.ADC_LDO_ADC_LDO_ENB = 0x1;
 	snsv7_r18.as_int = snsv7_r18_temp.as_int;
     mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
-    delay(MBUS_DELAY);
 }
 static void cdc_power_off(){
 	snsv7_r0_t snsv7_r0_temp;
@@ -750,7 +743,6 @@ static void cdc_power_off(){
     snsv7_r0_temp.CDCW_PG_VLDO = 0x1;
 	snsv7_r0.as_int = snsv7_r0_temp.as_int;
     mbus_remote_register_write(SNS_ADDR,0,snsv7_r0.as_int);
-    delay(MBUS_DELAY);
     ldo_power_off();
 }
 
@@ -1012,7 +1004,6 @@ static void operation_cdc_run(){
 		#endif
 		Pstack_state = PSTK_LDO1;
 
-		cdc_reset_timeout_count = 0;
 		wfi_timeout_flag = 0;
 
 		// Power on radio
@@ -1152,19 +1143,23 @@ static void operation_cdc_run(){
 			// Check if this is for VBAT measurement
 			if (cdc_run_single){
 				cdc_run_single = 0;
-				#ifdef DEBUG_MBUS_MSG
-					mbus_write_message32(0xAA, 0x3333AAAA);
-				#endif
 				cdc_storage_cref_latest = read_data_reg10;
 				return;
+
 			}else{
 				exec_count++;
+
+				mbus_write_message32(0xC0, read_data);
+				mbus_write_message32(0xC1, read_data_reg6);
+				
+			
+				if (wfi_timeout_flag){
+					read_data = 0xFAFAFAFA;
+					read_data_reg6 = 0xFAFAFAFA;
+				}
+
 				// Store results in memory; unless buffer is full
 				if (cdc_storage_count < CDC_STORAGE_SIZE){
-					if (wfi_timeout_flag){
-						read_data = 0xFAFAFAFA;
-						read_data_reg6 = 0xFAFAFAFA;
-					}
 					cdc_storage[cdc_storage_count] = read_data;
 					cdc_storage_cref[cdc_storage_count] = read_data_reg6;
 					cdc_storage_cref_latest = read_data_reg6;
@@ -1267,7 +1262,7 @@ int main() {
     // Check if wakeup is due to GOC interrupt  
     // 0x78 is reserved for GOC-triggered wakeup (Named IRQ14VEC)
     // 8 MSB bits of the wakeup data are used for function ID
-    uint32_t wakeup_data = *((volatile uint32_t *) IRQ14VEC);
+    wakeup_data = *((volatile uint32_t *) IRQ14VEC);
     uint32_t wakeup_data_header = (wakeup_data>>24) & 0xFF;
     uint32_t wakeup_data_field_0 = wakeup_data & 0xFF;
     uint32_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;
@@ -1321,13 +1316,12 @@ int main() {
 
 		cdc_run_single = 0;
 
-        //set_pmu_sleep_clk_low();
-
 		if (!cdc_running){
 			// Go to sleep for initial settling of pressure // FIXME
 			set_wakeup_timer(5, 0x1, 0x1); // 150: around 5 min
 			cdc_running = 1;
 			set_cdc_exec_count = wakeup_data_field_2 >> 5;
+            exec_count_irq++;
 			operation_sleep_noirqreset();
 		}
 		exec_count = 0;
@@ -1339,7 +1333,7 @@ int main() {
 		*((volatile uint32_t *) IRQ14VEC) = 0;
 
 		// Run CDC Program
-		cdc_reset_timeout_count = 0;
+    	Pstack_state = PSTK_IDLE;
 		operation_cdc_run();
 
     }else if(wakeup_data_header == 3){

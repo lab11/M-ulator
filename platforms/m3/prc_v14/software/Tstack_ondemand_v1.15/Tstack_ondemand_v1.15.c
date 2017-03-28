@@ -1299,7 +1299,7 @@ int main() {
         exec_count_irq = 0;
 
 		// Run Temp Sensor Program
-		wfi_timeout_flag = 0;
+    	Tstack_state = TSTK_IDLE;
 		operation_temp_run();
 
     }else if(wakeup_data_header == 3){
@@ -1516,7 +1516,6 @@ int main() {
         exec_count_irq = 0;
 
 		// Run Temp Sensor Program
-		wfi_timeout_flag = 0;
 		operation_temp_run();
 
     }else if(wakeup_data_header == 0x15){
