@@ -46,7 +46,7 @@
 // "static" limits the variables to this file, giving compiler more freedom
 // "volatile" should only be used for MMIO --> ensures memory storage
 volatile uint32_t enumerated;
-volatile uint8_t Pstack_state;
+volatile uint32_t Pstack_state;
 volatile uint32_t exec_count;
 volatile uint32_t meas_count;
 volatile uint32_t exec_count_irq;
@@ -65,15 +65,15 @@ volatile uint32_t cdc_storage[CDC_STORAGE_SIZE] = {0};
 volatile uint32_t cdc_storage_cref[CDC_STORAGE_SIZE] = {0};
 volatile uint32_t cdc_storage_cref_latest;
 volatile uint32_t cdc_storage_count;
-volatile bool cdc_run_single;
-volatile bool cdc_running;
+volatile uint32_t cdc_run_single;
+volatile uint32_t cdc_running;
 volatile uint32_t set_cdc_exec_count;
 
 volatile uint32_t radio_tx_count;
 volatile uint32_t radio_tx_option;
 volatile uint32_t radio_tx_numdata;
-volatile bool radio_ready;
-volatile bool radio_on;
+volatile uint32_t radio_ready;
+volatile uint32_t radio_on;
 
 volatile prcv14_r0B_t prcv14_r0B = PRCv14_R0B_DEFAULT;
 
