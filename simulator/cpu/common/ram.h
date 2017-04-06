@@ -30,6 +30,7 @@
 #define RAMSIZE (RAMTOP - RAMBOT) // In bytes
 
 void flash_RAM(const uint8_t *image, int offset, uint32_t nbytes);
+size_t dump_RAM(FILE *fp);
 
 #endif //RAMBOT
 // Only include this peripheral if requested in the platform memmap.h //

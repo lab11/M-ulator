@@ -17,7 +17,6 @@
  * along with Mulator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "opcodes.h"
 #include "helpers.h"
 
 #include "cpu/registers.h"
@@ -51,7 +50,7 @@ static void UnsignedSatQ(int32_t i, uint8_t N, uint32_t *result, bool *sat) {
 	}
 }
 
-static inline void ssat(uint8_t rd, uint8_t rn, uint8_t saturate_to,
+void ssat(uint8_t rd, uint8_t rn, uint8_t saturate_to,
 		enum SRType shift_t, uint8_t shift_n) {
 	int32_t operand;
 
@@ -71,29 +70,7 @@ static inline void ssat(uint8_t rd, uint8_t rn, uint8_t saturate_to,
 	}
 }
 
-// arm-v7-m
-static void ssat_t1(uint32_t inst) {
-	uint8_t sat_imm = inst & 0x1f;
-	uint8_t imm2 = (inst >> 6) & 0x3;
-	uint8_t rd = (inst >> 8) & 0xf;
-	uint8_t imm3 = (inst >> 12) & 0x7;
-	uint8_t rn = (inst >> 16) & 0xf;
-	uint8_t sh = (inst >> 21) & 0x1;
-
-	uint8_t saturate_to = sat_imm+1;
-	enum SRType shift_t;
-	uint8_t shift_n;
-	DecodeImmShift(sh<<1, imm2|(imm3<<2), &shift_t, &shift_n);
-
-	if (BadReg(rd) || BadReg(rn))
-		CORE_ERR_unpredictable("ssat_t1 case\n");
-
-	OP_DECOMPILE("SSAT<c> <Rd>,#<imm5>,<Rn>{,<shift>}",
-			rd, saturate_to, rn, shift_t, shift_n);
-	return ssat(rd, rn, saturate_to, shift_t, shift_n);
-}
-
-static inline void usat(uint8_t rd, uint8_t rn, uint8_t saturate_to,
+void usat(uint8_t rd, uint8_t rn, uint8_t saturate_to,
 		enum SRType shift_t, uint8_t shift_n) {
 	int32_t operand;
 
@@ -111,37 +88,4 @@ static inline void usat(uint8_t rd, uint8_t rn, uint8_t saturate_to,
 		apsr.bits.Q = 1;
 		CORE_apsr_write(apsr);
 	}
-}
-
-// arm-v7-m
-static void usat_t1(uint32_t inst) {
-	uint8_t sat_imm = inst & 0x1f;
-	uint8_t imm2 = (inst >> 6) & 0x3;
-	uint8_t rd = (inst >> 8) & 0xf;
-	uint8_t imm3 = (inst >> 12) & 0x7;
-	uint8_t rn = (inst >> 16) & 0xf;
-	uint8_t sh = (inst >> 21) & 0x1;
-
-	uint8_t saturate_to = sat_imm;
-	enum SRType shift_t;
-	uint8_t shift_n;
-	DecodeImmShift(sh<<1, imm2|(imm3<<2), &shift_t, &shift_n);
-
-	if (BadReg(rd) || BadReg(rn))
-		CORE_ERR_unpredictable("ssat_t1 case\n");
-
-	OP_DECOMPILE("USAT<c> <Rd>,#<imm5>,<Rn>{,<shift>}",
-			rd, saturate_to, rn, shift_t, shift_n);
-	return usat(rd, rn, saturate_to, shift_t, shift_n);
-}
-
-__attribute__ ((constructor))
-static void register_opcodes_sat(void) {
-	// ssat_t1: 1111 0011 00x0 xxxx 0xxx xxxx xx0x xxxx
-	register_opcode_mask_32(0xf3000000, 0x0cd08020, ssat_t1);
-
-	// usat_t1: 1111 0011 10x0 xxxx 0xxx xxxx xx0x xxxx
-	register_opcode_mask_32_ex(0xf3800000, 0x0c508020, usat_t1,
-			0x200000, 0x70c0,
-			0, 0);
 }

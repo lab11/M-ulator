@@ -330,7 +330,7 @@ static void operation_init(void){
     // Radio Settings --------------------------------------
     //radv7_r0_t radv7_r0 = RADv7_R0_DEFAULT;
 
-    radv7_r0.RADIO_TUNE_CURRENT_LIMITER = 0x1F; //Current Limiter 2F = 30uA, 1F = 3uA
+    radv7_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
     radv7_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
     radv7_r0.RADIO_TUNE_FREQ2 = 0x0; //Tune Freq 2 //0x0,0x0 = 902MHz on Pblr005
     radv7_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
@@ -342,14 +342,14 @@ static void operation_init(void){
     delay(MBUS_DELAY);
 
 	// Continuous Mode
-	/*
+	
     radv7_r0.RADIO_TUNE_CURRENT_LIMITER = 0x3E; //Current Limiter 2F = 30uA, 1F = 3uA
     radv7_r0.RADIO_TUNE_POWER = 0x1F; 
     radv7_r0.RADIO_EXT_CTRL_EN = 1; 
     radv7_r0.RADIO_EXT_OSC_ENB = 0; 
     write_mbus_register(RAD_ADDR,0,radv7_r0.as_int);
     delay(MBUS_DELAY);
-	*/
+	while(1);	
 	
 	// Return address
 	radv7_r8.RAD_FSM_IRQ_REPLY_ADDRESS = 0x16;

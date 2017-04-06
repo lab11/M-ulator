@@ -17,23 +17,10 @@
  * along with Mulator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "opcodes.h"
-
 #include "cpu/misc.h"
 
 // arm-v7-m
-static void it(uint16_t inst) {
-	uint8_t itstate = inst & 0xff;
+void it(uint8_t itstate) {
 	write_itstate(itstate);
-	OP_DECOMPILE("IT{x{y{z}}}<q> <firstcond>", itstate); // IT -> special
-
-	DBG2("it{xxx} wrote itstate: %02x\n", itstate);
 }
 
-__attribute__ ((constructor))
-static void register_opcodes_it(void) {
-	// it_t1: 1011 1111 xxxx xxxx
-	register_opcode_mask_16_ex(0xbf00, 0x4000, it,
-			0x0000, 0x000f,
-			0, 0);
-}

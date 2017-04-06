@@ -1,0 +1,155 @@
+missing.txt
+===========
+
+This file documents all of the instructions in the v7m ARM ARM that are not implemented.
+
+Missing instructions are divided into three braod classes:
+  o Missing features: These instruction require a feature not yet implemented in the simulator
+  o ARMv7E-M: The ARM DSP extensions for the M profile
+  o Floating Point: Floating point extensions
+
+--- Missing features ---
+A7.7.17  BKPT, p247
+	 breakpoint, trigger DebugMonitor exception
+A7.7.22  CDP,CDP2 p253
+	 Coprocessor Data Processing, generates UsagesFault if no coproc present
+A7.7.23  CLREX, p255
+	 Clear Exclusive, clears exclusive address space access
+A7.7.29  CPS, p265
+	 Change Processor State, complicated.
+A7.7.32  DMB, p267
+	 Data Memory Barrier, it's a standard memory barrier
+A7.7.33  DSB, p269
+	 Data Synchronization Barrier, more aggressive barrier (think cache sync?, more)
+A7.7.36  ISB, p275
+	 Instruction Synchronization Barrier, forces pipeline flush
+A7.7.38  LDC,LDC2 (immediate) p279
+A7.7.39  LDC,LDC2 (literal) p281
+	 Load CoProcessor
+A7.7.48  LDRBT p299
+	 Load Register Byte Unpriviledged
+A7.7.51  LDREX p305
+	 Load Register Exclusive
+A7.7.52  LDREXB p306
+	 Load Register Exclusive Byte
+A7.7.52  LDREXH p307
+	 Load Register Exclusive Halfword
+A7.7.57  LDRBT p315
+	 Load Register Halfword Unpriviledged
+A7.7.61  LDRSBT
+	 Load Register Signed Byte Unpriviledged
+A7.7.65  LDRSBT
+	 Load Register Signed Halfword Unpriviledged
+A7.7.66  LDRT
+	 Load Register Unpriviledged
+A7.7.71  MCR,MCR2
+	 Move to Coprocessor from ARM Register
+A7.7.72  MCRR,MCRR2
+	 Move to Coprocessor from two ARM Registers
+A7.7.79  MRC, MRC2
+	 Move ARM Register from Coprocessor
+A7.7.80  MRRC, MRRC2
+	 Move ARM two Registers from Coprocessor
+A7.7.81  MRS
+	 Move to Register from Special register
+A7.7.82  MSR
+	 Move to Special Register from ARM Register
+A7.7.93  PLD (immediate)
+A7.7.94  PLD (literal)
+A7.7.95  PLD (register)
+A7.7.96  PLD (immediate, literal)
+	 Preload Data
+A7.7.97  PLI (register)
+	 Preload Instruction
+A7.7.155 STC,STC2
+	 Store Coprocessor
+A7.7.162 STRBT
+	 Store Register Byte Unpriviledged
+A7.7.164 STREX
+	 Store Register Exclusive
+A7.7.165 STREXB
+	 Store Register Exclusive Byte
+A7.7.166 STREXH
+	 Store Register Exclusive Halfword
+A7.7.169 STRHT
+	 Store Register Halfword Unpriviledged
+A7.7.170 STRT
+	 Store Register Unpriviledged
+A7.7.175 SVC
+	 Supervisor Call
+
+--- ARMv7E-M ---
+A7.7.92  PKHBT,PKHTB
+A7.7.100 QADD
+A7.7.101 QADD16
+A7.7.102 QADD8
+A7.7.103 QASX
+A7.7.104 QDADD
+A7.7.105 QDSUB
+A7.7.106 QSAX
+A7.7.107 QSUB
+A7.7.108 QSUB16
+A7.7.109 QSUB8
+A7.7.119 SADD16
+A7.7.120 SADD8
+A7.7.121 SASX
+A7.7.126 SEL
+A7.7.128 SHADD16
+A7.7.129 SHADD8
+A7.7.130 SHASX
+A7.7.131 SHSAX
+A7.7.132 SHSUB16
+A7.7.133 SHSUB8
+A7.7.134 SMLABB, SMLABT, SMLATB, SMLATT
+A7.7.135 SMLAD, SMLADX
+A7.7.136 SMLAL
+A7.7.137 SMLALBB, SMLALBT, SMLALTB, SMLALTT
+A7.7.138 SMLALD, SMLALDX
+A7.7.139 SMLAWB, SMLAWT
+A7.7.140 SMLSD, SMLSDX
+A7.7.141 SMLSLD, SMLSLDX
+A7.7.142 SMMLA, SMMLAR
+A7.7.143 SMMLS, SMMLSR
+A7.7.144 SMMUL, SMMULR
+A7.7.145 SMUAD, SMUADX
+A7.7.146 SMULBB, SMULBT, SMULTB, SMULTT
+A7.7.148 SMULWB, SMULWT
+A7.7.149 SMUSD, SMUSDX
+A7.7.151 SSAT16
+A7.7.152 SSAX
+A7.7.153 SSUB16
+A7.7.154 SSUB8
+A7.7.176 SXTAB
+A7.7.177 SXTAB16
+A7.7.178 SXTAH
+A7.7.180 SXTB16
+A7.7.187 UADD16
+A7.7.188 UADD8
+A7.7.189 UASX
+A7.7.190 UBFX
+A7.7.192 UHADD16
+A7.7.193 UHADD8
+A7.7.194 UHASX
+A7.7.195 UHSAX
+A7.7.196 UHSUB16
+A7.7.197 UHSUB8
+A7.7.198 UMAAL
+A7.7.201 UQADD16
+A7.7.202 UQADD8
+A7.7.203 UQASX
+A7.7.204 UQSAX
+A7.7.205 UQSUB16
+A7.7.206 UQSUB8
+A7.7.207 USAD8
+A7.7.208 USADA8
+A7.7.210 USAT16
+A7.7.211 USAX
+A7.7.212 USUB16
+A7.7.213 USUB8
+A7.7.214 UXTAB
+A7.7.215 UXTAB16
+A7.7.216 UXTAH
+A7.7.218 UXTB16
+
+--- Floating Point ---
+A7.7.220 - A7.7.249

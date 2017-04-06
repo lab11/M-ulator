@@ -289,7 +289,7 @@ static bool _wait_for_gdb(void) {
 	// In general, the empty response is allowed for unknown messages. For now,
 	// we try to explicitly identify the messages we don't recognize, and bail
 	// out on completely new ones.
-	DBG1("Waiting for a message from gdb...\n");
+	DBG2("Waiting for a message from gdb...\n");
 	long cmd_len;
 	char *cmd = gdb_get_message(&cmd_len);
 
@@ -432,7 +432,7 @@ static bool _wait_for_gdb(void) {
 				char *head = buf;
 				while (len) {
 					uint8_t val;
-					if (try_read_byte(addr, &val)) {
+					if (gdb_read_byte(addr, &val)) {
 						sprintf(head, "%02x", val);
 					} else {
 						// I thought you could write X's
@@ -471,7 +471,7 @@ static bool _wait_for_gdb(void) {
 				buf[0] = bytes[0];
 				buf[1] = bytes[1];
 				uint8_t val = strtol(buf, NULL, 16);
-				write_byte(addr, val);
+				gdb_write_byte(addr, val);
 				DBG2("0x%x=0x%02x\n", addr, val);
 				addr++;
 				bytes += 2;
@@ -536,11 +536,23 @@ static bool _wait_for_gdb(void) {
 				// support multithread, so an empty response says
 				// the 'default' thread is running, which is okay
 				gdb_send_message("");
-			} else
-			if (0 == strcmp("qAttached", cmd)) {
+			} else if (0 == strcmp("qfThreadInfo", cmd)) {
+				// Asking for info on all threads. Nope -> empty.
+				gdb_send_message("");
+			} else if (0 == strncmp("qL", cmd, 2)) {
+				// qL... messages are the legacy form of qfThreadInfo
+				gdb_send_message("");
+			} else if (0 == strcmp("qAttached", cmd)) {
 				// Wants to know whether attached to a process
 				// or spawned one, but we're bare metal and do
 				// not support this, so empty
+				gdb_send_message("");
+			} else if (0 == strcmp("qTStatus", cmd)) {
+				// Wants to know the status of any running traces
+				// https://sourceware.org/gdb/onlinedocs/gdb/Tracepoint-Packets.html#Tracepoint-Packets
+				// gdb_send_message("tnotrun:0");
+				// -> Bogus trace status reply from target: tnotrun:0
+				// Odd. We'll go with the empty / unsupported reply then
 				gdb_send_message("");
 			} else {
 				goto unknown_gdb;
@@ -596,28 +608,27 @@ static bool _wait_for_gdb(void) {
 			// protocol, should replicate 'M' at half the character
 			// count
 
-			// X addr,length:XX...
+			// Xaddr,length:XX...
 
 			const char *address = strtok(cmd+1, ",");
 			const char *length = strtok(NULL, ":");
-			unsigned char *data = (unsigned char*) strtok(NULL, "");
 
 			uint32_t addr = (uint32_t) strtoul(address, NULL, 16);
 			unsigned long len = strtoul(length, NULL, 16);
 
-#ifdef DEBG1
 			//                 X          addr       ,          length    :
 			unsigned msg_len = 1 + strlen(address) + 1 + strlen(length) + 1;
-			DBG1("X, addr %d len %d msg_len %d cmd_len %d\n",
-					addr, len, msg_len, cmd_len);
-#endif
+			DBG2("X, address %s addr %d length %s len %lu msg_len %d cmd_len %ld\n",
+					address, addr, length, len, msg_len, cmd_len);
+
+			unsigned char* data = (unsigned char*) cmd+msg_len;
 
 			while (len) {
 				if (*data == '}') {
 					data++;
 					*data ^= 0x20;
 				}
-				write_byte(addr, *data);
+				gdb_write_byte(addr, *data);
 				DBG2("0x%08x = %02x\n", addr, *data);
 				addr++;
 				len--;

@@ -208,7 +208,8 @@ static void print_m3_ctl_line(void) {
 	;
 }
 
-static void i2c_write(uint32_t addr, uint32_t val) {
+static void i2c_write(uint32_t addr, uint32_t val,
+		bool debugger __attribute__ ((unused)) ) {
 	assert((addr & 0xfffff000) == 0xA0000000);
 	uint8_t length = (addr >> 10) & 0x3;
 	if (length == 0)
@@ -219,7 +220,8 @@ static void i2c_write(uint32_t addr, uint32_t val) {
 	m3_ctl_send_i2c_message(address, length, (char*) &val);
 }
 
-static bool cpu_conf_regs_rd(uint32_t addr, uint32_t *val) {
+static bool cpu_conf_regs_rd(uint32_t addr, uint32_t *val,
+		bool debugger __attribute__ ((unused)) ) {
 	assert((addr & 0xfffff000) == 0xA0001000);
 	switch (addr) {
 		case CHIP_ID_REG_RD:
@@ -269,7 +271,8 @@ static bool cpu_conf_regs_rd(uint32_t addr, uint32_t *val) {
 	}
 }
 
-static void dma_write(uint32_t addr, uint32_t val) {
+static void dma_write(uint32_t addr, uint32_t val,
+		bool debugger __attribute__ ((unused)) ) {
 	assert((addr & 0xFF000000) == 0xA1000000);
 	uint8_t target = (addr >> 19) & 0x1f;
 	bool write = (addr >> 18) & 0x1;
@@ -323,7 +326,8 @@ static void dma_write(uint32_t addr, uint32_t val) {
 	}
 }
 
-static void cpu_conf_regs_wr(uint32_t addr, uint32_t val) {
+static void cpu_conf_regs_wr(uint32_t addr, uint32_t val,
+		bool debugger __attribute__ ((unused)) ) {
 	assert((addr & 0xfffffff0) == 0xA2000000);
 	switch (addr) {
 		case CHIP_ID_REG_WR:
@@ -349,7 +353,8 @@ static void cpu_conf_regs_wr(uint32_t addr, uint32_t val) {
 	}
 }
 
-static void pmu_special_wr(uint32_t addr, uint32_t val) {
+static void pmu_special_wr(uint32_t addr, uint32_t val,
+		bool debugger __attribute__ ((unused)) ) {
 	assert((addr & 0xfffffff0) & 0xA3000000);
 	switch (val) {
 		case 0x0:
@@ -363,7 +368,8 @@ static void pmu_special_wr(uint32_t addr, uint32_t val) {
 	}
 }
 
-static bool gpio_read(uint32_t addr, uint32_t *val) {
+static bool gpio_read(uint32_t addr, uint32_t *val,
+		bool debugger __attribute__ ((unused)) ) {
 	switch (addr) {
 		case 0xA4000000:
 			*val = gpio_data_I;
@@ -391,7 +397,8 @@ static void gpio_demux(uint32_t old, uint32_t new,
 	}
 }
 
-static void gpio_write(uint32_t addr, uint32_t val) {
+static void gpio_write(uint32_t addr, uint32_t val,
+		bool debugger __attribute__ ((unused)) ) {
 	switch (addr) {
 		case 0xA4000000:
 			gpio_demux(gpio_data_O, val, ice_gpio_out);
@@ -454,7 +461,7 @@ void register_periph_m3_ctl(void) {
 
 	{
 		// Connect to ICE Hardware Board
-		const char *host = "/tmp/com1";
+		const char *host = "/tmp/m3_ice_com1";
 		const uint16_t baud = 0; // use default baud
 
 		ice = create_ice_instance(host, baud);

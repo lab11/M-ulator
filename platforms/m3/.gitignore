@@ -2,3 +2,4 @@
 *.hex
 *.memmap
 *.asm
+*.boot*

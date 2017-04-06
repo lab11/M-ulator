@@ -100,7 +100,7 @@ class ICE(object):
             @functools.wraps(fn_being_decorated)
             def wrapped_fn(self, *args, **kwargs):
                 if not hasattr(self, "minor"):
-                    raise self.ICE_Error, "ICE must be connected first"
+                    raise self.ICE_Error, "ICE must be connected first ({})".format(fn_being_decorated)
                 major, minor = map(int, version.split('.'))
                 if major != 0:
                     raise self.ICE_Error, "Major version bump?"
@@ -170,7 +170,7 @@ class ICE(object):
         self.B_lock = threading.Lock()
         self.B_frag = ''
         self.msg_handler['B'] = self.B_defragger
-        self.B_formatter_success_only = True
+        self.B_formatter_success_only = False
         self.msg_handler['B+'] = self.B_formatter
         self.msg_handler['b+'] = self.b_formatter
 
@@ -214,29 +214,45 @@ class ICE(object):
 
     def spawn_handler(self, msg_type, event_id, length, msg):
         try:
-            t = threading.Thread(target=self.msg_handler[msg_type],
-                    args=(msg_type, event_id, length, msg))
-            t.daemon = True
-            t.start()
+            handler = self.msg_handler[msg_type]
+            #t = threading.Thread(target=self.msg_handler[msg_type],
+            #        args=(msg_type, event_id, length, msg))
+            #t.daemon = True
+            #t.start()
         except KeyError:
-            logger.warn("WARNING: No handler registered for message type: " +
-                    str(msg_type))
-            logger.warn("Known Types:")
-            for t,f in self.msg_handler.iteritems():
-                logger.warn("%s\t%s" % (t, str(f)))
-            logger.warn("         Dropping packet:")
-            logger.warn("")
-            logger.warn("    Type: %s" % (msg_type))
-            logger.warn("Event ID: %d" % (event_id))
-            logger.warn("  Length: %d" % (length))
-            logger.warn(" Message:" + msg.encode('hex'))
+            try:
+                logger.warn("WARNING: No handler registered for message type: " +
+                        str(msg_type))
+                logger.warn("Known Types:")
+                for t,f in self.msg_handler.iteritems():
+                    logger.warn("%s\t%s" % (t, str(f)))
+                logger.warn("         Dropping packet:")
+                logger.warn("")
+                logger.warn("    Type: %s" % (msg_type))
+                logger.warn("Event ID: %d" % (event_id))
+                logger.warn("  Length: %d" % (length))
+                logger.warn(" Message:" + msg.encode('hex'))
+            except Exception as e:
+                logger.warn("Unhandled exception trying to report unknown message.")
+                logger.warn(str(e))
+                logger.warn("Suppressed.")
+            return
+        handler(msg_type, event_id, length, msg)
+
+    def useful_read(self, length):
+        b = self.dev.read(length)
+        while len(b) < length:
+            r = self.dev.read(length - len(b))
+            b += r
+        assert len(b) == length
+        return b
 
     def communicator(self):
         while not self.communicator_stop_request.isSet():
             try:
                 # Read has a timeout of .1 s. Polling is the easiest way to
                 # do x-platform cancellation
-                msg_type, event_id, length = self.dev.read(3)
+                msg_type, event_id, length = self.useful_read(3)
             except ValueError:
                 continue
             except (serial.SerialException, OSError):
@@ -244,7 +260,9 @@ class ICE(object):
             msg_type = ord(msg_type)
             event_id = ord(event_id)
             length = ord(length)
-            msg = self.dev.read(length)
+            #print("Got msg type", msg_type, chr(msg_type), length)
+            msg = self.useful_read(length)
+            #print(msg.encode('hex'))
 
             if event_id == self.last_event_id:
                 logger.warn("WARNING: Duplicate event_id! THIS IS A BUG [somewhere]!!")
@@ -410,7 +428,7 @@ class ICE(object):
             Bpp_callback(address, data)
 
         If the second form is used, the member variable
-        "B_formatter_success_only" (default True) controls whether all messages
+        "B_formatter_success_only" (default False) controls whether all messages
         are forwarded or only messages that were ACK'd.
 
         This function may be safely overridden.
@@ -421,21 +439,31 @@ class ICE(object):
         # status_bits <= `SD status_bits | {4'b0000, mbus_rxfail, mbus_rxbcast, ice_export_control_bits};
         cb0 = bool(cb & 0x1)
         cb1 = bool(cb & 0x2)
+        success = cb0 & (~cb1) # XXX Something is wrong here [also fix default]
         try:
-            self.msg_handler[b_type](addr, data, cb0, cb1)
-        except TypeError:
-            logger.debug("Type error")
-            if not self.B_formatter_success_only or (success):
-                self.msg_handler[b_type](addr, data)
-            else:
-                logger.debug("no call")
+            handler = self.msg_handler[b_type]
         except KeyError:
-            logger.warn("No handler registered for B++ (formatted, snooped MBus) messages")
-            logger.warn("Dropping message:")
-            logger.warn("\taddr: " + addr.decode('hex'))
-            logger.warn("\tdata: " + data.decode('hex'))
-            logger.warn("\tstat: " + cb.decode('hex'))
-            logger.warn("")
+            logger.warn("All registered handlers: {}".format(self.msg_handler))
+            logger.warn("Looking up key >>{}<<".format(b_type))
+            try:
+                logger.warn("No handler registered for B++ (formatted, snooped MBus) messages")
+                logger.warn("Dropping message:")
+                logger.warn("\taddr: " + addr.decode('hex'))
+                logger.warn("\tdata: " + data.decode('hex'))
+                logger.warn("\tstat: " + cb.decode('hex'))
+                logger.warn("")
+            except Exception as e:
+                logger.warn("Unhandled exception trying to report missing B++ handler.")
+                logger.warn(str(e))
+                logger.warn("Suppressed.")
+            return
+        #except TypeError:
+        #    logger.debug("Type error")
+        #    if not self.B_formatter_success_only or (success):
+        #        self.msg_handler[b_type](addr, data)
+        #    else:
+        #        logger.debug("no call")
+        handler(addr, data)
 
 
     def send_message(self, msg_type, msg='', length=None):
@@ -594,7 +622,7 @@ class ICE(object):
 
     @min_proto_version("0.2")
     @capability('_')
-    def ice_set_baudrate(self, div):
+    def ice_set_baudrate(self, div, baudrate):
         '''
         Sets a new baud rate for the ICE bridge.
 
@@ -602,18 +630,48 @@ class ICE(object):
         '''
         self.min_version(0.2)
         self.send_message_until_acked('_', struct.pack("!BH", ord('b'), div))
+        try:
+            self.dev.baudrate = baudrate
+        except IOError as e:
+            if e.errno == 25:
+                logger.warn("Failed to set baud rate (if socat, ignore)")
+            else:
+                raise
 
     @min_proto_version("0.2")
     @capability('_')
     def ice_set_baudrate_to_115200(self):
-        self.ice_set_baudrate(0x00AE)
-        self.dev.baudrate = 115200
+        self.ice_set_baudrate(0x00AE, 115200)
+
+    @min_proto_version("0.2")
+    @capability('_')
+    def ice_set_baudrate_to_230400(self):
+        self.ice_set_baudrate(0x00AE/2, 115200*2)
+
+    @min_proto_version("0.2")
+    @capability('_')
+    def ice_set_baudrate_to_460800(self):
+        self.ice_set_baudrate(0x00AE/4, 115200*4)
+
+    @min_proto_version("0.2")
+    @capability('_')
+    def ice_set_baudrate_to_921600(self):
+        self.ice_set_baudrate(0x00AE/8, 115200*8)
+
+    @min_proto_version("0.2")
+    @capability('_')
+    def ice_set_baudrate_to_1843200(self):
+        self.ice_set_baudrate(0x00AE/16, 115200*16)
+
+    @min_proto_version("0.2")
+    @capability('_')
+    def ice_set_baudrate_to_2000000(self):
+        self.ice_set_baudrate(0x000A, 2000000)
 
     @min_proto_version("0.2")
     @capability('_')
     def ice_set_baudrate_to_3_megabaud(self):
-        self.ice_set_baudrate(0x0007)
-        self.dev.baudrate = 3000000
+        self.ice_set_baudrate(0x0007, 3000000)
 
     ## GOC VS EIN HANDLING ##
     def set_goc_ein(self, goc=0, ein=0, restore_clock_freq=True):

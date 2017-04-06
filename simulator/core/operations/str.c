@@ -17,40 +17,12 @@
  * along with Mulator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "opcodes.h"
 #include "helpers.h"
 
 #include "cpu/registers.h"
 #include "cpu/core.h"
 
-// arm-thumb
-static void str_imm_t1(uint16_t inst) {
-	uint8_t immed5 = (inst & 0x7c0) >> 6;
-	uint8_t rn = (inst & 0x38) >> 3;
-	uint8_t rt = (inst & 0x7) >> 0;
-
-	OP_DECOMPILE("STR<c> <Rt>, [<Rn>{,#<imm5>}]", rt, rn, immed5 * 4U);
-
-	uint32_t address = CORE_reg_read(rn) + (immed5 * 4U);
-	uint32_t rt_val = CORE_reg_read(rt);
-	write_word(address, rt_val);
-}
-
-// arm-thumb
-static void str_imm_t2(uint16_t inst) {
-	uint8_t rt = (inst & 0x700) >> 8;
-	uint16_t immed8 = inst & 0xff;
-
-	OP_DECOMPILE("STR<c> <Rt>,[SP,#<imm8>]", rt, immed8 << 2);
-
-	uint32_t sp = CORE_reg_read(SP_REG);
-	uint32_t rt_val = CORE_reg_read(rt);
-
-	uint32_t address = sp + (immed8 << 2);
-	write_word(address, rt_val);
-}
-
-static void str_imm(uint8_t rt, uint8_t rn, uint32_t imm32,
+void str_imm(uint8_t rt, uint8_t rn, uint32_t imm32,
 		bool index, bool add, bool wback) {
 	uint32_t rn_val = CORE_reg_read(rn);
 
@@ -67,59 +39,13 @@ static void str_imm(uint8_t rt, uint8_t rn, uint32_t imm32,
 		address = rn_val;
 
 	uint32_t rt_val = CORE_reg_read(rt);
-	write_word(address, rt_val);
+	write_word_unaligned(address, rt_val);
 
 	if (wback)
 		CORE_reg_write(rn, offset_addr);
 }
 
-// arm-v7-m
-static void str_imm_t3(uint32_t inst) {
-	uint16_t imm12 = inst & 0xfff;
-	uint8_t rt = (inst >> 12) & 0xf;
-	uint8_t rn = (inst >> 16) & 0xf;
-
-	uint32_t imm32 = imm12;
-	bool index = true;
-	bool add = true;
-	bool wback = false;
-
-	if (rt == 15)
-		CORE_ERR_unpredictable("bad reg\n");
-
-	OP_DECOMPILE("STR<c>.W <Rt>,[<Rn>,#<imm12>]", rt, rn, imm32);
-	return str_imm(rt, rn, imm32, index, add, wback);
-}
-
-// arm-v7-m
-static void str_imm_t4(uint32_t inst) {
-	uint8_t imm8 = inst & 0xff;
-	bool W = !!(inst & 0x100);
-	bool U = !!(inst & 0x200);
-	bool P = !!(inst & 0x400);
-	uint8_t rt = (inst >> 12) & 0xf;
-	uint8_t rn = (inst >> 16) & 0xf;
-
-	uint32_t imm32 = imm8;
-	bool index = P;
-	bool add = U;
-	bool wback = W;
-
-	if ((rt == 15) || (wback && (rn == rt)))
-		CORE_ERR_unpredictable("Bad regs\n");
-
-	if (index && !wback) // Offset
-		OP_DECOMPILE("STR<c> <Rt>,[<Rn>{, #+/-<imm>}]", rt, rn, add, imm32);
-	else if (index && wback) // Pre-indexed
-		OP_DECOMPILE("STR<c> <Rt>,[<Rn>, #+/-<imm>]!", rt, rn, add, imm32);
-	else if (!index && wback) // Post-indexed
-		OP_DECOMPILE("STR<c> <Rt>,[<Rn>], #+/-<imm>", rt, rn, add, imm32);
-	else // !index && !wback -- illegal
-		OP_DECOMPILE("!!STR !index && !wback illegal combination?");
-	return str_imm(rt, rn, imm32, index, add, wback);
-}
-
-static void str_reg(uint8_t rt, uint8_t rn, uint8_t rm,
+void str_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 		enum SRType shift_t, uint8_t shift_n) {
 	uint32_t rn_val = CORE_reg_read(rn);
 	uint32_t rm_val = CORE_reg_read(rm);
@@ -130,41 +56,10 @@ static void str_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 	uint32_t offset = Shift(rm_val, 32, shift_t, shift_n, apsr.bits.C);
 	uint32_t address = rn_val + offset;
 	uint32_t data = rt_val;
-	write_word(address, data);
+	write_word_unaligned(address, data);
 }
 
-// arm-thumb
-static void str_reg_t1(uint16_t inst) {
-	uint8_t rt = inst & 0x7;
-	uint8_t rn = (inst >> 3) & 0x7;
-	uint8_t rm = (inst >> 6) & 0x7;
-
-	enum SRType shift_t = LSL;
-	uint8_t shift_n = 0;
-
-	OP_DECOMPILE("STR<c> <Rt>,[<Rn>,<Rm>]", rt, rn, rm);
-	return str_reg(rt, rn, rm, shift_t, shift_n);
-}
-
-// arm-v7-m
-static void str_reg_t2(uint32_t inst) {
-	uint8_t rm = inst & 0xf;
-	uint8_t imm2 = (inst >> 4) & 0x3;
-	uint8_t rt = (inst >> 12) & 0xf;
-	uint8_t rn = (inst >> 16) & 0xf;
-
-	enum SRType shift_t = LSL;
-	uint8_t shift_n = imm2;
-
-	if ((rt == 15) || BadReg(rm))
-		CORE_ERR_unpredictable("bad reg\n");
-
-	OP_DECOMPILE("STR<c>.W <Rt>,[<Rn>,<Rm>{,LSL #<imm2>}]",
-			rt, rn, rm, shift_n);
-	return str_reg(rt, rn, rm, shift_t, shift_n);
-}
-
-static void strb_imm(uint8_t rt, uint8_t rn, uint32_t imm32,
+void strb_imm(uint8_t rt, uint8_t rn, uint32_t imm32,
 		bool index, bool add, bool wback) {
 	DBG2("strb r%02d, [r%02d, #%08x]\n", rt, rn, imm32);
 
@@ -196,72 +91,7 @@ static void strb_imm(uint8_t rt, uint8_t rn, uint32_t imm32,
 	DBG2("strb_imm ran\n");
 }
 
-// arm-thumb
-static void strb_imm_t1(uint16_t inst) {
-	uint8_t rt = inst & 0x7;
-	uint8_t rn = (inst >> 3) & 0x7;
-	uint8_t imm5 = (inst >> 6) & 0x1f;
-
-	uint32_t imm32 = imm5;
-	bool index = true;
-	bool add = true;
-	bool wback = false;
-
-	OP_DECOMPILE("STRB<c> <Rt>,[<Rn>,#<imm5>]", rt, rn, imm32);
-	return strb_imm(rt, rn, imm32, index, add, wback);
-}
-
-// arm-v7-m
-static void strb_imm_t2(uint32_t inst) {
-	uint16_t imm12 = inst & 0xfff;
-	uint8_t rt = (inst >> 12) & 0xf;
-	uint8_t rn = (inst >> 16) & 0xf;
-
-	if (rn == 0xf)
-		CORE_ERR_unpredictable("strb_imm_t2 rn == 0xf undef\n");
-
-	bool index = true;
-	bool add = true;
-	bool wback = false;
-
-	uint32_t imm32 = imm12;
-
-	if (rt >= 13)
-		CORE_ERR_unpredictable("strb_imm_t2 rt in {13,15}\n");
-
-	OP_DECOMPILE("STRB<c>.W <Rt>,[<Rn>,#<imm12>]", rt, rn, imm32);
-	return strb_imm(rt, rn, imm32, index, add, wback);
-}
-
-// arm-v7-m
-static void strb_imm_t3(uint32_t inst) {
-	uint8_t imm8 = inst & 0xff;
-	bool W = !!(inst & 0x100);
-	bool U = !!(inst & 0x200);
-	bool P = !!(inst & 0x400);
-	uint8_t rt = (inst >> 12) & 0xf;
-	uint8_t rn = (inst >> 16) & 0xf;
-
-	uint32_t imm32 = imm8;
-	bool index = P;
-	bool add = U;
-	bool wback = W;
-
-	if (BadReg(rt) || (wback && (rn == rt)))
-		CORE_ERR_unpredictable("bad reg\n");
-
-	if (index && !wback) // Offset
-		OP_DECOMPILE("STRB<c> <Rt>,[<Rn>{, #+/-<imm>}]", rt, rn, add, imm32);
-	else if (index && wback) // Pre-indexed
-		OP_DECOMPILE("STRB<c> <Rt>,[<Rn>, #+/-<imm>]!", rt, rn, add, imm32);
-	else if (!index && wback) // Post-indexed
-		OP_DECOMPILE("STRB<c> <Rt>,[<Rn>], #+/-<imm>", rt, rn, add, imm32);
-	else // !index && !wback -- illegal
-		OP_DECOMPILE("!!STRB !index && !wback illegal combination?");
-	return strb_imm(rt, rn, imm32, index, add, wback);
-}
-
-static void strb_reg(uint8_t rt, uint8_t rn, uint8_t rm,
+void strb_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 		enum SRType shift_t, uint8_t shift_n) {
 	union apsr_t apsr = CORE_apsr_read();
 
@@ -273,70 +103,8 @@ static void strb_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 	write_byte(address, CORE_reg_read(rt) & 0xff);
 }
 
-// arm-thumb
-static void strb_reg_t1(uint16_t inst) {
-	uint8_t rt = inst & 0x7;
-	uint8_t rn = (inst >> 3) & 0x7;
-	uint8_t rm = (inst >> 6) & 0x7;
-
-	enum SRType shift_t = SRType_LSL;
-	uint8_t shift_n = 0;
-
-	OP_DECOMPILE("STRB<c> <Rt>,[<Rn>,<Rm>]", rt, rn, rm);
-	return strb_reg(rt, rn, rm, shift_t, shift_n);
-}
-
-// arm-v7-m
-static void strb_reg_t2(uint32_t inst) {
-	uint8_t rm = inst & 0xf;
-	uint8_t imm2 = (inst >> 4) & 0x3;
-	uint8_t rt   = (inst >> 12) & 0xf;
-	uint8_t rn   = (inst >> 16) & 0xf;
-
-	enum SRType shift_t = SRType_LSL;
-	uint8_t shift_n = imm2;
-
-	if (BadReg(rt) || BadReg(rm))
-		CORE_ERR_unpredictable("strb_reg_t2 case\n");
-
-	OP_DECOMPILE("STRB<c>.W <Rt>,[<Rn>,<Rm>{,LSL #<imm2>}]",
-			rt, rn, rm, shift_n);
-	return strb_reg(rt, rn, rm, shift_t, shift_n);
-}
-
-// arm-v7-m
-static void strd_imm_t1(uint32_t inst) {
-	uint8_t imm8 = (inst & 0xff);
-	uint8_t rt2 = (inst & 0xf00) >> 8;
-	uint8_t rt = (inst & 0xf000) >> 12;
-	uint8_t rn = (inst & 0xf0000) >> 16;
-	uint8_t W = !!(inst & 0x200000);
-	uint8_t U = !!(inst & 0x800000);
-	uint8_t P = !!(inst & 0x1000000);
-
-	if ((P == 0) && (W == 0))
-		CORE_ERR_unpredictable("strd_imm_t1 -> EX\n");
-
-	uint32_t imm32 = imm8 << 2;
-	bool index = P;
-	bool add = U;
-	bool wback = W;
-
-	if (index && !wback) // Offset
-		OP_DECOMPILE("STRD<c> <Rt>,[<Rn>{, #+/-<imm>}]", rt, rn, add, imm8);
-	else if (index && wback) // Pre-indexed
-		OP_DECOMPILE("STRD<c> <Rt>,[<Rn>, #+/-<imm>]!", rt, rn, add, imm8);
-	else if (!index && wback) // Post-indexed
-		OP_DECOMPILE("STRD<c> <Rt>,[<Rn>], #+/-<imm>", rt, rn, add, imm8);
-	else // !index && !wback -- illegal
-		OP_DECOMPILE("!!STRD !index && !wback illegal combination?");
-
-	if (wback && ((rn == rt) || (rn == rt2)))
-		CORE_ERR_unpredictable("strd_imm_t1 wback + regs\n");
-
-	if ((rn == 15) || (rt >= 13) || (rt2 >= 13))
-		CORE_ERR_unpredictable("strd_imm_t1 bad regs\n");
-
+void strd_imm(uint8_t rt, uint8_t rt2, uint8_t rn, uint32_t imm32,
+		bool index, bool add, bool wback) {
 	uint32_t offset_addr;
 	if (add) {
 		offset_addr = CORE_reg_read(rn) + imm32;
@@ -351,15 +119,15 @@ static void strd_imm_t1(uint32_t inst) {
 		address = CORE_reg_read(rn);
 	}
 
-	write_word(address, CORE_reg_read(rt));
-	write_word(address + 4, CORE_reg_read(rt2));
+	write_word_aligned(address, CORE_reg_read(rt));
+	write_word_aligned(address + 4, CORE_reg_read(rt2));
 
 	if (wback) {
 		CORE_reg_write(rn, offset_addr);
 	}
 }
 
-static void strh_imm(uint8_t rt, uint8_t rn, uint32_t imm32,
+void strh_imm(uint8_t rt, uint8_t rn, uint32_t imm32,
 		bool index, bool add, bool wback) {
 	uint32_t rt_val = CORE_reg_read(rt);
 	uint32_t rn_val = CORE_reg_read(rn);
@@ -376,75 +144,13 @@ static void strh_imm(uint8_t rt, uint8_t rn, uint32_t imm32,
 	else
 		address = rn_val;
 
-	write_halfword(address, rt_val & 0xffff);
+	write_halfword_unaligned(address, rt_val & 0xffff);
 
 	if (wback)
 		CORE_reg_write(rn, offset_addr);
 }
 
-// arm-thumb
-static void strh_imm_t1(uint16_t inst) {
-	uint8_t rt = inst & 0x7;
-	uint8_t rn = (inst >> 3) & 0x7;
-	uint8_t imm5 = (inst >> 6) & 0x1f;
-
-	uint32_t imm32 = imm5 << 1;
-
-	bool index = true;
-	bool add = true;
-	bool wback = false;
-
-	OP_DECOMPILE("STRH<c> <Rt>,[<Rn>{,#<imm5>}]", rt, rn, imm32);
-	return strh_imm(rt, rn, imm32, index, add, wback);
-}
-
-// arm-v7-m
-static void strh_imm_t2(uint32_t inst) {
-	uint16_t imm12 = inst & 0xfff;
-	uint8_t rt = (inst >> 12) & 0xf;
-	uint8_t rn = (inst >> 16) & 0xf;
-
-	uint32_t imm32 = imm12;
-	bool index = true;
-	bool add = true;
-	bool wback = false;
-
-	if ((rt == 13) || (rt == 15))
-		CORE_ERR_unpredictable("Bad dest reg\n");
-
-	OP_DECOMPILE("STRH<c>.W <Rt>,[<Rn>{,#<imm12>}]", rt, rn, imm32);
-	return strh_imm(rt, rn, imm32, index, add, wback);
-}
-
-// arm-v7-m
-static void strh_imm_t3(uint32_t inst) {
-	uint8_t imm8 = inst & 0xff;
-	bool    W    = (inst >> 8) & 0x1;
-	bool    U    = (inst >> 9) & 0x1;
-	bool    P    = (inst >> 10) & 0x1;
-	uint8_t rt   = (inst >> 12) & 0xf;
-	uint8_t rn   = (inst >> 16) & 0xf;
-
-	uint32_t imm32 = imm8;
-	bool index = P==1;
-	bool add = U==1;
-	bool wback = W==1;
-
-	if (BadReg(rt) || (wback && (rn == rt)))
-		CORE_ERR_unpredictable("strh_imm_t3 case\n");
-
-	if (index && !wback) // Offset
-		OP_DECOMPILE("STRH<c> <Rt>,[<Rn>{, #+/-<imm>}]", rt, rn, add, imm32);
-	else if (index && wback) // Pre-indexed
-		OP_DECOMPILE("STRH<c> <Rt>,[<Rn>, #+/-<imm>]!", rt, rn, add, imm32);
-	else if (!index && wback) // Post-indexed
-		OP_DECOMPILE("STRH<c> <Rt>,[<Rn>], #+/-<imm>", rt, rn, add, imm32);
-	else // !index && !wback -- illegal
-		OP_DECOMPILE("!!STRH !index && !wback illegal combination?");
-	return strh_imm(rt, rn, imm32, index, add, wback);
-}
-
-static void strh_reg(uint8_t rt, uint8_t rn, uint8_t rm,
+void strh_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 		enum SRType shift_t, uint8_t shift_n) {
 	union apsr_t apsr = CORE_apsr_read();
 
@@ -453,113 +159,5 @@ static void strh_reg(uint8_t rt, uint8_t rn, uint8_t rm,
 	uint32_t address;
 	address = CORE_reg_read(rn) + offset;
 
-	write_halfword(address, CORE_reg_read(rt) & 0xffff);
-}
-
-// arm-thumb
-static void strh_reg_t1(uint16_t inst) {
-	uint8_t rt = inst & 0x7;
-	uint8_t rn = (inst >> 3) & 0x7;
-	uint8_t rm = (inst >> 6) & 0x7;
-
-	enum SRType shift_t = SRType_LSL;
-	uint8_t shift_n = 0;
-
-	OP_DECOMPILE("STRH<c> <Rt>,[<Rn>,<Rm>]", rt, rn, rm);
-	return strh_reg(rt, rn, rm, shift_t, shift_n);
-}
-
-// arm-v7-m
-static void strh_reg_t2(uint32_t inst) {
-	uint8_t rm = inst & 0xf;
-	uint8_t imm2 = (inst >> 4) & 0x3;
-	uint8_t rt   = (inst >> 12) & 0xf;
-	uint8_t rn   = (inst >> 16) & 0xf;
-
-	enum SRType shift_t = SRType_LSL;
-	uint8_t shift_n = imm2;
-
-	if (BadReg(rt) || BadReg(rm))
-		CORE_ERR_unpredictable("strh_reg_t2 case\n");
-
-	OP_DECOMPILE("STRH<c>.W <Rt>,[<Rn>,<Rm>{,LSL #<imm2>}]",
-			rt, rn, rm, shift_n);
-	return strh_reg(rt, rn, rm, shift_t, shift_n);
-}
-
-__attribute__ ((constructor))
-static void register_opcodes_str(void) {
-	// str_imm_t1: 0110 0<x's>
-	register_opcode_mask_16(0x6000, 0x9800, str_imm_t1);
-
-	// str_imm_t2: 1001 0<x's>
-	register_opcode_mask_16(0x9000, 0x6800, str_imm_t2);
-
-	// str_imm_t3: 1111 1000 1100 xxxx xxxx xxxx xxxx xxxx
-	register_opcode_mask_32_ex(0xf8c00000, 0x07300000, str_imm_t3,
-			0xf0000, 0x0,
-			0, 0);
-
-	// str_imm_t4: 1111 1000 0100 xxxx xxxx 1xxx xxxx xxxx
-	register_opcode_mask_32_ex(0xf8400800, 0x07b00000, str_imm_t4,
-			0x600, 0x100,
-			0xd0500, 0x20200,
-			0xf0000, 0x0,
-			0x0, 0x500,
-			0, 0);
-
-	// str_reg_t1: 0101 000x xxxx xxxx
-	register_opcode_mask_16(0x5000, 0xae00, str_reg_t1);
-
-	// str_reg_t2: 1111 1000 0100 xxxx xxxx 0000 00xx xxxx
-	register_opcode_mask_32_ex(0xf8400000, 0x07b00fc0, str_reg_t2,
-			0xf0000, 0x0,
-			0, 0);
-
-	// strb_imm_t1: 0111 0<x's>
-	register_opcode_mask_16(0x7000, 0x8800, strb_imm_t1);
-
-	// strb_imm_t2: 1111 1000 1000 <x's>
-	register_opcode_mask_32(0xf8800000, 0x07700000, strb_imm_t2);
-
-	// strb_imm_t3: 1111 1000 0000 xxxx xxxx 1xxx xxxx xxxx
-	register_opcode_mask_32_ex(0xf8000800, 0x07f00000, strb_imm_t3,
-			0x600, 0x100,
-			0xf0000, 0x0,
-			0x0, 0x500,
-			0, 0);
-
-	// strb_reg_t1: 0101 010x <x's>
-	register_opcode_mask_16(0x5400, 0xaa00, strb_reg_t1);
-
-	// strb_reg_t2: 1111 1000 0000 xxxx xxxx 0000 00xx xxxx
-	register_opcode_mask_32_ex(0xf8000000, 0x07f00fc0, strb_reg_t2,
-			0xf0000, 0x0,
-			0, 0);
-
-	// strd_imm_t1: 1110 100x x1x0 <x's>
-	register_opcode_mask_32(0xe8400000, 0x16100000, strd_imm_t1);
-
-	// strh_imm_t1: 1000 0<x's>
-	register_opcode_mask_16(0x8000, 0x7800, strh_imm_t1);
-
-	// strh_imm_t2: 1111 1000 1010 <x's>
-	register_opcode_mask_32_ex(0xf8a00000, 0x07500000, strh_imm_t2,
-			0x000f0000, 0x0,
-			0, 0);
-
-	// strh_imm_t3: 1111 1000 0010 xxxx xxxx 1xxx xxxx xxxx
-	register_opcode_mask_32_ex(0xf8200800, 0x07d00000, strh_imm_t3,
-			0x600, 0x100,
-			0xf0000, 0x0,
-			0x0, 0x500,
-			0, 0);
-
-	// strh_reg_t1: 0101 001x <x's>
-	register_opcode_mask_16(0x5200, 0xac00, strh_reg_t1);
-
-	// strh_reg_t2: 1111 1000 0010 xxxx xxxx 0000 00xx xxxx
-	register_opcode_mask_32_ex(0xf8200000, 0x07d00fc0, strh_reg_t2,
-			0xf0000, 0x0,
-			0, 0);
+	write_halfword_unaligned(address, CORE_reg_read(rt) & 0xffff);
 }

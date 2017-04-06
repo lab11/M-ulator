@@ -4,12 +4,14 @@ import logging
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
+import glob
 import os
 import pprint
 import sys
 import time
 
-sys.path.insert(0, '/home/ppannuto/code/sh/')
+# Or write fallback os.walk code for glob ** usage
+assert sys.version_info >= (3,5)
 
 import sh
 from sh import rm, mv, cp, ls, mkdir, tup, pwd
@@ -32,6 +34,7 @@ with sh.pushd(PRISTINE):
 	rm('-r', '-f', '.tup')
 	rm('-r', '-f', sh.glob('build-*'))
 
+variants = {}
 
 for variant_file in os.listdir('simulator/configs'):
 	log.info("Building {}".format(variant_file))
@@ -49,43 +52,23 @@ for variant_file in os.listdir('simulator/configs'):
 
 		log.info("Built {}".format(variant_file))
 
-		if variant_file[:2] == 'm3':
-			log.info("Skipping tests for {}".format(variant_file))
-			continue
-
-		log.info("Testing {}".format(variant_file))
-
-		def get_test_paths():
-			tests = {}
-			for family in os.listdir('tests/operations/'):
-				if not os.path.isdir(os.path.join('tests/operations/', family)):
-					continue
-
-				tests[family] = {}
-				for test in os.listdir(os.path.join('tests/operations/', family)):
-					if test[-2:] == '.s':
-						tests[family][test[:-2]] = {}
-			return tests
-
-		tests = get_test_paths()
 		any_fail = False
 
 		sim = sh.Command('./simulator')
-		for family in tests:
-			log.info("\tfamily: %s", family)
-			for test in tests[family]:
-				log.info("\t\ttest: %s", test)
-				image = os.path.join('tests/operations', family, test) + '.bin'
-				try:
-					sim('-f', image)
-					tests[family][test]['exit_code'] = 0
-					log.info("\t\t\tPASSED")
-				except sh.ErrorReturnCode as e:
-					tests[family][test]['exit_code'] = e.exit_code
-					tests[family][test]['exception'] = e
-					log.info("\t\t\tFAILED -- Error code %s", e.exit_code)
-					log.info("\t\t\t\t%s", e)
-					any_fail = True
+		for test in glob.iglob('tests/**/*.bin', recursive=True):
+			log.info("\t\ttest: %s", test)
+			try:
+				sim('-f', test)
+				log.info("\t\t\tPASSED")
+			except sh.ErrorReturnCode as e:
+				# XXX: This is a hack
+				if 'exceeds ram size' in e.stderr.decode('utf-8'):
+					log.info("\t\t\tSKIPPED -- Test too large for variant")
+					continue
+
+				log.info("\t\t\tFAILED -- Error code %s", e.exit_code)
+				log.info("\t\t\t\t%s", e)
+				any_fail = True
 
 		if any_fail:
 			raise NotImplementedError("Failed test cases")

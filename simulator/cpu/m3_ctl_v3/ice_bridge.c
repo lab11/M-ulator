@@ -261,8 +261,8 @@ static void create_ice_bridge(struct ice_instance* ice) {
 				if (PyErr_Occurred()) PyErr_Print();
 				WARN("\n");
 				WARN("TODO: Option mechanism for setting the path to the serial port where\n");
-				WARN("      ICE is located. This is currently hardcoded to /tmp/com1.\n");
-				WARN("      Setting up a simlink (e.g. ln -s /dev/ttyUSB0 /tmp/com1) is\n");
+				WARN("      ICE is located. This is currently hardcoded to /tmp/m3_ice_com1.\n");
+				WARN("      Setting up a simlink (e.g. ln -s /dev/ttyUSB0 /tmp/m3_ice_com1) is\n");
 				WARN("      an effective workaround for now.\n");
 				WARN("\n");
 				WARN("This module requires support from an external hardware board (ICE).\n");

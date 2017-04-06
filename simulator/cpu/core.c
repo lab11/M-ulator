@@ -19,6 +19,8 @@
 
 #include "core.h"
 
+#include "cpu/registers.h"
+
 #include "common/private_peripheral_bus/ppb.h"
 
 //#define TRAP_ALIGNMENT (read_word(CONFIGURATION_CONTROL) & CONFIGURATION_CONTROL_UNALIGN_TRP_MASK)
@@ -47,8 +49,12 @@ EXPORT void register_reset(void (*fn)(void)) {
 	reset_head = n;
 }
 
+EXPORT _Atomic _Bool _CORE_in_reset = false;
 EXPORT void reset(void) {
+	atomic_store(&_CORE_in_reset, true);
+#ifdef DEBUG1
 	print_memmap();
+#endif
 
 	// ARM ARM B1.5.5 Reset behavior (p641)
 
@@ -60,6 +66,8 @@ EXPORT void reset(void) {
 		r->fn();
 		r = r->next;
 	}
+
+	atomic_store(&_CORE_in_reset, false);
 }
 
 
@@ -305,19 +313,18 @@ EXPORT void print_memmap(void) {
 	printf("\n");
 }
 
-#ifdef DEBUG2
-static bool try_read_word(uint32_t addr, uint32_t *val, bool suppress) {
-	if (!suppress)
-		DBG2("addr %08x\n", addr);
-#else
-static bool try_read_word(uint32_t addr, uint32_t *val) {
-#endif
+static bool try_read_word(uint32_t addr, uint32_t *val, bool debugger) {
 	struct memmap *cur = reads;
 	while (cur != NULL) {
 		if (cur->alignment == 4)
 			if ((cur->bot <= addr) && (addr < cur->top))
-				return cur->mem_fn.R_fn32(addr, val);
+				return cur->mem_fn.R_fn32(addr, val, debugger);
 		cur = cur->next;
+	}
+
+	if (CONF_rzwi_memory) {
+		WARN("RZWI RD 0x%08x as 0\n", addr);
+		return true;
 	}
 
 	DBG1("addr %08x falls outside known range\n", addr);
@@ -329,43 +336,49 @@ static bool try_read_word(uint32_t addr, uint32_t *val) {
 	*/
 }
 
-#ifdef DEBUG2
 EXPORT uint32_t read_word_quiet(uint32_t addr) {
 	uint32_t val;
-	if (try_read_word(addr, &val, true)) {
+	if (try_read_word(addr, &val, false)) {
 		return val;
 	} else {
+		MEMTRACE_READ_ERR(4, addr)
 		print_memmap();
 		CORE_ERR_invalid_addr(false, addr);
 	}
 }
-#endif
 
 EXPORT uint32_t read_word(uint32_t addr) {
 	uint32_t val;
-#ifdef DEBUG2
 	if (try_read_word(addr, &val, false)) {
-#else
-	if (try_read_word(addr, &val)) {
-#endif
+		MEMTRACE_READ(4, addr, val);
 		return val;
 	} else {
+		MEMTRACE_READ_ERR(4, addr)
 		print_memmap();
 		CORE_ERR_invalid_addr(false, addr);
 	}
 }
 
-EXPORT void write_word(uint32_t addr, uint32_t val) {
+static void try_write_word(uint32_t addr, uint32_t val, bool debugger) {
 	DBG2("addr %08x val %08x\n", addr, val);
 
 	struct memmap *cur = writes;
 	while (cur != NULL) {
-		if (cur->alignment == 4)
-			if ((cur->bot <= addr) && (addr < cur->top))
-				return cur->mem_fn.W_fn32(addr, val);
+		if (cur->alignment == 4) {
+			if ((cur->bot <= addr) && (addr < cur->top)) {
+				MEMTRACE_WRITE(4, addr, val);
+				return cur->mem_fn.W_fn32(addr, val, debugger);
+			}
+		}
 		cur = cur->next;
 	}
 
+	if (CONF_rzwi_memory) {
+		WARN("RZWI WR 0x%08x = 0x%08x\n", addr, val);
+		return;
+	}
+
+	MEMTRACE_WRITE_ERR(4, addr, val);
 	print_memmap();
 	CORE_ERR_invalid_addr(true, addr);
 
@@ -373,6 +386,40 @@ EXPORT void write_word(uint32_t addr, uint32_t val) {
 	} else if (addr >= REGISTERS_BOT && addr < REGISTERS_TOP) {
 		ppb_write(addr, val);
 	*/
+}
+
+EXPORT void write_word(uint32_t addr, uint32_t val) {
+	return try_write_word(addr, val, false);
+}
+
+EXPORT void write_word_aligned(uint32_t addr, uint32_t val) {
+	return try_write_word(addr, val, false);
+}
+
+unsigned core_stats_unaligned_cycle_penalty = 0;
+EXPORT void write_word_unaligned(uint32_t addr, uint32_t val) {
+	if ( likely((addr & 0x3) == 0) ) {
+		return try_write_word(addr, val, false);
+	} else if (TRAP_ALIGNMENT) {
+		union ufsr_t ufsr = CORE_ufsr_read();
+		ufsr.UNALIGNED = 1;
+		CORE_ufsr_write(ufsr);
+		CORE_ERR_not_implemented("Trap Alignment exception (B2.2.5, p697)\n");
+	} else {
+		// XXX: Read AIRCR.ENDIANNESS. Currently assumes little endian
+
+		if (core_stats_unaligned_cycle_penalty == 0) {
+			WARN("Unaligned access writing 0x%08x = 0x%08x\n", addr, val);
+			WARN("Cortex-M's convert unaligned word writes into four 1-byte writes\n");
+			WARN("This warning will only issue once\n");
+		}
+		core_stats_unaligned_cycle_penalty += 3*2;
+
+		write_byte(addr, val & 0xff);
+		write_byte(addr + 1, (val >> 8) & 0xff);
+		write_byte(addr + 2, (val >> 16) & 0xff);
+		write_byte(addr + 3, (val >> 24) & 0xff);
+	}
 }
 
 EXPORT uint16_t read_halfword(uint32_t addr) {
@@ -410,6 +457,8 @@ EXPORT uint16_t read_halfword(uint32_t addr) {
 EXPORT void write_halfword(uint32_t addr, uint16_t val) {
 	DBG2("addr %08x val %04x\n", addr, val);
 
+	// XXX: This doesn't look right, esp w.r.t. alignment stuff
+
 	if ((addr & 0x1) & TRAP_ALIGNMENT) {
 		// misaligned access
 		assert(false && "Alignment exception");
@@ -441,22 +490,40 @@ EXPORT void write_halfword(uint32_t addr, uint16_t val) {
 	write_word(addr & 0xfffffffc, word);
 }
 
-EXPORT bool try_read_byte(uint32_t addr, uint8_t* val) {
+EXPORT void write_halfword_unaligned(uint32_t addr, uint16_t val) {
+	if ( likely((addr & 0x1) == 0) ) {
+		return write_halfword(addr, val);
+	} else if (TRAP_ALIGNMENT) {
+		union ufsr_t ufsr = CORE_ufsr_read();
+		ufsr.UNALIGNED = 1;
+		CORE_ufsr_write(ufsr);
+		CORE_ERR_not_implemented("Trap Alignment exception (B2.2.5, p697)\n");
+	} else {
+		// XXX: Read AIRCR.ENDIANNESS. Currently assumes little endian
 
+		if (core_stats_unaligned_cycle_penalty == 0) {
+			WARN("Unaligned access writing 0x%04x = 0x%04x\n", addr, val);
+			WARN("Cortex-M's convert unaligned writes into 1-byte writes\n");
+			WARN("This warning will only issue once\n");
+		}
+		core_stats_unaligned_cycle_penalty += 1*2;
+
+		write_byte(addr, val & 0xff);
+		write_byte(addr + 1, (val >> 8) & 0xff);
+	}
+}
+
+static bool try_read_byte(uint32_t addr, uint8_t* val, bool debugger) {
 	struct memmap *cur = reads;
 	while (cur != NULL) {
 		if (cur->alignment == 1)
 			if ((cur->bot <= addr) && (addr < cur->top))
-				return cur->mem_fn.R_fn8(addr, val);
+				return cur->mem_fn.R_fn8(addr, val, debugger);
 		cur = cur->next;
 	}
 
 	uint32_t word;
-#ifdef DEBUG2
-	if (!try_read_word(addr & 0xfffffffc, &word, false))
-#else
-	if (!try_read_word(addr & 0xfffffffc, &word))
-#endif
+	if (!try_read_word(addr & 0xfffffffc, &word, debugger))
 		return false;
 
 	switch (addr & 0x3) {
@@ -480,21 +547,25 @@ EXPORT bool try_read_byte(uint32_t addr, uint8_t* val) {
 	return true;
 }
 
+EXPORT bool gdb_read_byte(uint32_t addr, uint8_t* val) {
+	return try_read_byte(addr, val, true);
+}
+
 EXPORT uint8_t read_byte(uint32_t addr) {
 	uint8_t val;
-	if (try_read_byte(addr, &val)) {
+	if (try_read_byte(addr, &val, false)) {
 		return val;
 	} else {
 		CORE_ERR_unpredictable("read_byte failed unexpectedly\n");
 	}
 }
 
-EXPORT void write_byte(uint32_t addr, uint8_t val) {
+static void try_write_byte(uint32_t addr, uint8_t val, bool debugger) {
 	struct memmap *cur = writes;
 	while (cur != NULL) {
 		if (cur->alignment == 1)
 			if ((cur->bot <= addr) && (addr < cur->top))
-				return cur->mem_fn.W_fn8(addr, val);
+				return cur->mem_fn.W_fn8(addr, val, debugger);
 		cur = cur->next;
 	}
 
@@ -520,5 +591,13 @@ EXPORT void write_byte(uint32_t addr, uint8_t val) {
 			break;
 	}
 
-	write_word(addr & 0xfffffffc, word);
+	try_write_word(addr & 0xfffffffc, word, debugger);
+}
+
+EXPORT void gdb_write_byte(uint32_t addr, uint8_t val) {
+	return try_write_byte(addr, val, true);
+}
+
+EXPORT void write_byte(uint32_t addr, uint8_t val) {
+	return try_write_byte(addr, val, false);
 }

@@ -166,8 +166,7 @@ static void tick_if(void) {
 		SW(&pre_if_PC, pc);
 	} else {
 #ifdef M_PROFILE
-		flockfile(stderr);
-		fprintf(stderr, "if_id_PC: %08x\n", if_id_PC);
+		WARN("if_id_PC: %08x\n", if_id_PC);
 		CORE_ERR_not_implemented("This CPU conforms to the ARM-7M profile, which requires the T bit to always be set\n");
 #endif
 		CORE_ERR_not_implemented("IF stage for non M-Profile\n");

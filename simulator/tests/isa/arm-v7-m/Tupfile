@@ -1,0 +1,9 @@
+include ../Tuprules.tup
+
+ifeq (@(CPU),cortex-m3)
+: foreach *.s |> !arm_as |>
+: foreach *.o |> !arm_ld |>
+: foreach *.elf |> !arm_dump |>
+: foreach *.elf |> !arm_bin |>
+: foreach *.elf |> !arm_lst |>
+endif

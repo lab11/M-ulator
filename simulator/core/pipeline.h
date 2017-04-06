@@ -24,7 +24,7 @@
 
 #ifdef M_PROFILE
 
-#define INST_NOP 0x46c0U
+#define INST_NOP 0x4600U
 #define STALL_PC (-1U & 0xfffffffe)
 
 // Find something unused as a sentinel, we choose
