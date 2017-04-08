@@ -923,7 +923,7 @@ static void operation_init(void){
     snsv7_r18_temp.ADC_LDO_ADC_VREF_SEL     = 0x20;
   
     // Set CDC LDO to around 1.03V: 0x0//0x20
-    snsv7_r18_temp.CDC_LDO_CDC_VREF_MUX_SEL = 0x2;
+    snsv7_r18_temp.CDC_LDO_CDC_VREF_MUX_SEL = 0x3;
     snsv7_r18_temp.CDC_LDO_CDC_VREF_SEL     = 0x20;
 	snsv7_r18.as_int = snsv7_r18_temp.as_int;
 
