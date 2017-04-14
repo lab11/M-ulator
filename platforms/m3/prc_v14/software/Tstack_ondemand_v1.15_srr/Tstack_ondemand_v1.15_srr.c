@@ -897,15 +897,15 @@ static void operation_init(void){
     mrrv3_r00.MRR_CL_CTRL = 16; //Set CL 1-finite 16-20uA
 
     // TX Setup Carrier Freq
-    mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x3FFF;  //ANT CAP 14b unary 830.5 MHz
+    mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x0000;  //ANT CAP 14b unary 830.5 MHz
 	//mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x00FF;  //ANT CAP 14b unary 813.8 MHz
 	//mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x0FFF;  //ANT CAP 14b unary 805.5 MHz
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
-    mrrv3_r01.MRR_TRX_CAP_ANTN_TUNE = 0x3FFF; //ANT CAP 14b unary 830.5 MHz
+    mrrv3_r01.MRR_TRX_CAP_ANTN_TUNE = 0x0000; //ANT CAP 14b unary 830.5 MHz
 	//mrrv3_r01.MRR_TRX_CAP_ANTN_TUNE = 0x00FF; //ANT CAP 14b unary 813.8 MHz
 	//mrrv3_r01.MRR_TRX_CAP_ANTN_TUNE = 0x0FFF;  //ANT CAP 14b unary 805.5 MHz
     mbus_remote_register_write(MRR_ADDR,0x01,mrrv3_r01.as_int);
-    mrrv3_r02.MRR_TX_BIAS_TUNE = 0x00FF;  //Set TX BIAS TUNE 13b // Set to max
+    mrrv3_r02.MRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
     mbus_remote_register_write(MRR_ADDR,0x02,mrrv3_r02.as_int);
 
     // RX Setup
@@ -1242,7 +1242,7 @@ int main() {
 
 	//***************************************************
 	// For continuous mode
-/*
+
     mrrv3_r03.MRR_DCP_S_OW = 1;  //TX_Decap S
     mbus_remote_register_write(MRR_ADDR,3,mrrv3_r03.as_int);
     delay(MBUS_DELAY*100);
@@ -1258,7 +1258,7 @@ int main() {
     delay(MBUS_DELAY*100);
 
 	while(1);
-*/
+
 
 	//***************************************************
 	// FIXME

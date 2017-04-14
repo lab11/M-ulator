@@ -187,10 +187,10 @@ int main() {
     delay(MBUS_DELAY*10);
 
     //TX Set-up
-    mrrv2_r00.MRR_TRX_CAP_ANTP_TUNE = 0x0000;  //ANT CAP 14b unary
+    mrrv2_r00.MRR_TRX_CAP_ANTP_TUNE = 0x3FFF;  //ANT CAP 14b unary
     write_mbus_register(MRR_ADDR,0x00,mrrv2_r00.as_int);
     delay(MBUS_DELAY*10);
-    mrrv2_r01.MRR_TRX_CAP_ANTN_TUNE = 0x0000 ; //ANT CAP 14b unary
+    mrrv2_r01.MRR_TRX_CAP_ANTN_TUNE = 0x3FFF ; //ANT CAP 14b unary
     write_mbus_register(MRR_ADDR,0x01,mrrv2_r01.as_int);
     delay(MBUS_DELAY*10);
     mrrv2_r02.MRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b
@@ -199,7 +199,7 @@ int main() {
 
     //RX Set-up
 
-    mrrv2_r03.MRR_RX_BIAS_TUNE    = 0x0801;// 0x1FFF; // turn on Q_enhancement
+    mrrv2_r03.MRR_RX_BIAS_TUNE    = 0x0000;// 0x1FFF; // turn on Q_enhancement
     mrrv2_r03.MRR_RX_SAMPLE_CAP    = 0x1;  // RX_SAMPLE_CAP
     write_mbus_register(MRR_ADDR,3,mrrv2_r03.as_int);
     delay(MBUS_DELAY*10);
@@ -231,6 +231,9 @@ int main() {
     write_mbus_register(MRR_ADDR,0x0E,mrrv2_r0E.as_int);
     delay(MBUS_DELAY*10);
 
+    //mrrv2_r0F.MRR_RAD_FSM_TX_PW_LEN = 0; //4us PW
+    //mrrv2_r10.MRR_RAD_FSM_TX_C_LEN = 32; // (PW_LEN+1):C_LEN=1:32
+    //mrrv2_r0F.MRR_RAD_FSM_TX_PS_LEN = 0; // PW=PS
     //mrrv2_r0F.MRR_RAD_FSM_TX_PW_LEN = 1; //8us PW
     //mrrv2_r10.MRR_RAD_FSM_TX_C_LEN = 64; // (PW_LEN+1):C_LEN=1:32
     //mrrv2_r0F.MRR_RAD_FSM_TX_PS_LEN = 1; // PW=PS
@@ -262,10 +265,10 @@ int main() {
     mrrv2_r07.MRR_RAD_FSM_TX_DATA_1 = 0x5555; // alternating 10
     write_mbus_register(MRR_ADDR,0x06,mrrv2_r06.as_int);
     delay(MBUS_DELAY*10);
-<<<<<<< HEAD
+//<<<<<<< HEAD
     mrrv2_r07.MRR_RAD_FSM_TX_DATA_1 = 0x5555; // alternating 10
-=======
->>>>>>> c68953f854b6cdea9e96b6411ddf33448e1c7693
+//=======
+//>>>>>>> c68953f854b6cdea9e96b6411ddf33448e1c7693
     write_mbus_register(MRR_ADDR,0x07,mrrv2_r07.as_int);
     delay(MBUS_DELAY*10);
    
@@ -306,11 +309,11 @@ while(1){
     delay(MBUS_DELAY*10);
 
     //radio operate
-<<<<<<< HEAD
+//<<<<<<< HEAD
     delay(MBUS_DELAY*400); //800ms pulses 
-=======
-    delay(MBUS_DELAY*300); //1ms pulses,1.5s packet, 1.2s idle time 
->>>>>>> c68953f854b6cdea9e96b6411ddf33448e1c7693
+//=======
+//    delay(MBUS_DELAY*300); //1ms pulses,1.5s packet, 1.2s idle time 
+//>>>>>>> c68953f854b6cdea9e96b6411ddf33448e1c7693
     
     mrrv2_r03.MRR_TRX_ISOLATEN = 0;     //set ISOLATEN 0
     write_mbus_register(MRR_ADDR,0x03,mrrv2_r03.as_int);
