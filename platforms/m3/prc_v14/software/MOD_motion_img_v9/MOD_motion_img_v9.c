@@ -3,6 +3,7 @@
 //Description: 	IMGv3.0 System Code
 //				Imaging and motion detection with MDv3 or MDv4
 //				PRCv14/PMUv3/FLPv2/MRRv3
+//				v9: Optimizing PMU in active mode
 //*******************************************************************
 #include "PRCv14.h"
 #include "PRCv14_RF.h"
@@ -297,20 +298,20 @@ static void set_pmu_active_default(void){
 		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
 		| (0 << 13) // Enable main feedback loop
 		| (1 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
+		| (1 << 5)  // Frequency multiplier L (actually L+1)
 		| (10) 		// Floor frequency base (0-31)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x16: SAR_TRIM_v3_ACTIVE
-	// V1P2 Supply Active: need to support up to 200uA
+	// V1P2 Supply Active: need to support up to 100uA
     mbus_remote_register_write(PMU_ADDR,0x16, 
 		( (0 << 19) // Enable PFM even during periodic reset
 		| (0 << 18) // Enable PFM even when Vref is not used as ref
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (0 << 13) // Enable main feedback loop
-		| (5 << 9)  // Frequency multiplier R
-		| (5 << 5)  // Frequency multiplier L (actually L+1)
+		| (4 << 9)  // Frequency multiplier R
+		| (4 << 5)  // Frequency multiplier L (actually L+1)
 		| (16) 		// Floor frequency base (0-31) //16
 	));
 	delay(MBUS_DELAY);
@@ -319,7 +320,7 @@ static void set_pmu_active_default(void){
 	delay(MBUS_DELAY);
     mbus_remote_register_write(PMU_ADDR,0x1A,
 		( (0 << 13) // Enable main feedback loop
-		| (8 << 9)  // Frequency multiplier R
+		| (5 << 9)  // Frequency multiplier R
 		| (4 << 5)  // Frequency multiplier L (actually L+1)
 		| (16) 		// Floor frequency base (0-31)
 	));
@@ -338,8 +339,8 @@ static void set_pmu_active_img(void){
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (0 << 13) // Enable main feedback loop
-		| (7 << 9)  // Frequency multiplier R
-		| (7 << 5)  // Frequency multiplier L (actually L+1)
+		| (5 << 9)  // Frequency multiplier R
+		| (6 << 5)  // Frequency multiplier L (actually L+1)
 		| (16) 		// Floor frequency base (0-31) //16
 	));
 	delay(MBUS_DELAY);
@@ -348,8 +349,8 @@ static void set_pmu_active_img(void){
 	// V0P6 Supply Active: need to support up to 50uA
     mbus_remote_register_write(PMU_ADDR,0x1A,
 		( (0 << 13) // Enable main feedback loop
-		| (8 << 9)  // Frequency multiplier R
-		| (8 << 5)  // Frequency multiplier L (actually L+1)
+		| (6 << 9)  // Frequency multiplier R
+		| (6 << 5)  // Frequency multiplier L (actually L+1)
 		| (16) 		// Floor frequency base (0-31)
 	));
 	delay(MBUS_DELAY);
@@ -613,7 +614,7 @@ static void mrr_configure_pulse_width_long(){
     //mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 1; // PW=PS
 
     mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 24; //100us PW
-    mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 200; // (PW_LEN+1):C_LEN=1:16
+    mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 400; // (PW_LEN+1):C_LEN=1:16
     mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 24; // PW=PS   
     mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 5; //8 bit shift in LFSR
 
@@ -636,7 +637,7 @@ static void mrr_configure_pulse_width_long(){
     mbus_remote_register_write(MRR_ADDR,0x12,mrrv3_r12.as_int);
 
     // Current Limter set-up 
-    mrrv3_r00.MRR_CL_CTRL = 16; //Set CL 1-finite 16-20uA
+    mrrv3_r00.MRR_CL_CTRL = 16;
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
 
     mrrv3_r11.MRR_RAD_FSM_TX_POWERON_LEN = 7; //3bits
@@ -647,7 +648,7 @@ static void mrr_configure_pulse_width_long(){
 static void mrr_configure_pulse_width_short(){
 
     mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 0; //4us PW
-    mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 32; // (PW_LEN+1):C_LEN=1:32
+    mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 8; // (PW_LEN+1):C_LEN=1:32
     mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 0; // PW=PS
     mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 0; //no shift in LFSR
 
@@ -655,10 +656,10 @@ static void mrr_configure_pulse_width_short(){
     mbus_remote_register_write(MRR_ADDR,0x12,mrrv3_r12.as_int);
 
     // Current Limter set-up 
-    mrrv3_r00.MRR_CL_CTRL = 1; //Set CL 1-finite 16-20uA
+    mrrv3_r00.MRR_CL_CTRL = 1; //Set CL 1-finite 16-20uA; 8: 30uA, 16: 3uA
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
 
-    mrrv3_r11.MRR_RAD_FSM_TX_POWERON_LEN = 3; //3bits
+    mrrv3_r11.MRR_RAD_FSM_TX_POWERON_LEN = 7; //3bits
     mbus_remote_register_write(MRR_ADDR,0x11,mrrv3_r11.as_int);
 
 }
@@ -1384,21 +1385,8 @@ static void operation_init(void){
     mrrv3_r1C.LC_CLK_DIV = 0x3;  // ~ 150 kHz
     mbus_remote_register_write(MRR_ADDR,0x1C,mrrv3_r1C.as_int);
 
-    mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 0; //4us PW
-    mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 32; // (PW_LEN+1):C_LEN=1:32
-    mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 0; // PW=PS
-    mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 0; //no shift in LFSR
-
-    mbus_remote_register_write(MRR_ADDR,0x0F,mrrv3_r0F.as_int);
-    mbus_remote_register_write(MRR_ADDR,0x12,mrrv3_r12.as_int);
-
-    // Current Limter set-up 
-    mrrv3_r00.MRR_CL_CTRL = 1; //Set CL 1-finite 16-20uA; 8: 30uA, 16: 3uA
-    mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
-
-    mrrv3_r11.MRR_RAD_FSM_TX_POWERON_LEN = 7; //3bits
-    mbus_remote_register_write(MRR_ADDR,0x11,mrrv3_r11.as_int);
-
+	//mrr_configure_pulse_width_short();
+	mrr_configure_pulse_width_long();
 
     // TX Setup Carrier Freq
     mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x0000;  //ANT CAP 14b unary 830.5 MHz
@@ -1793,6 +1781,16 @@ int main() {
 			delay(MBUS_DELAY);
 		}
 		
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+    }else if(wakeup_data_header == 0x10){
+		mrr_configure_pulse_width_short();
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+    }else if(wakeup_data_header == 0x11){
+		mrr_configure_pulse_width_long();
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
