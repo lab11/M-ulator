@@ -22,7 +22,8 @@
 //				   Lower sleep power, higher sleep power during radio sleep
 //				   PMU ADC disabled during radio sleep
 //			v1.14: Fixing how PMU ADC is reset
-//                      v2.00: Added ADC Output Checking & Auto Harvesting
+//			v1.15: Turning off VDD_CLK->VBAT during PMU ADC routine
+//				   Getting rid of all non-32 bit declarations
 //*******************************************************************
 #include "PRCv14.h"
 #include "PRCv14_RF.h"
@@ -45,10 +46,12 @@
 
 // Temp Sensor parameters
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
-#define TEMP_TIMEOUT_COUNT 2000
 #define WAKEUP_PERIOD_RESET 2
 #define WAKEUP_PERIOD_LDO 2
 #define TEMP_CYCLE_INIT 5 
+
+// PMU parameters
+#define PMU_ADC_4P2_INIT 75
 
 // Tstack states
 #define	TSTK_IDLE       0x0
@@ -65,7 +68,7 @@
 #define RADIO_TIMEOUT_COUNT 50
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
-#define TEMP_STORAGE_SIZE 500 // Need to leave about 500 Bytes for stack
+#define TEMP_STORAGE_SIZE 600 // Need to leave about 500 Bytes for stack --> around 120 words
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y2 run default clock
 
@@ -77,10 +80,11 @@
 volatile uint32_t enumerated;
 volatile uint32_t wakeup_data;
 volatile uint32_t Tstack_state;
-volatile uint32_t temp_timeout_flag;
+volatile uint32_t wfi_timeout_flag;
 volatile uint32_t exec_count;
 volatile uint32_t meas_count;
 volatile uint32_t exec_count_irq;
+volatile uint32_t exec_count_irq_pmu;
 volatile uint32_t mbus_msg_flag;
 volatile uint32_t wakeup_period_count;
 volatile uint32_t wakeup_timer_multiplier;
@@ -112,6 +116,7 @@ volatile uint32_t radio_ready;
 volatile uint32_t radio_on;
 
 volatile uint32_t read_data_batadc;
+volatile uint32_t pmu_harvest_cfg;
 
 volatile radv9_r0_t radv9_r0 = RADv9_R0_DEFAULT;
 volatile radv9_r1_t radv9_r1 = RADv9_R1_DEFAULT;
@@ -147,7 +152,7 @@ void handler_ext_int_12(void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_13(void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_14(void) __attribute__ ((interrupt ("IRQ")));
 
-void handler_ext_int_0(void)  { *NVIC_ICPR = (0x1 << 0); temp_timeout_flag = 1;} // TIMER32
+void handler_ext_int_0(void)  { *NVIC_ICPR = (0x1 << 0); wfi_timeout_flag = 1;} // TIMER32
 void handler_ext_int_1(void)  { *NVIC_ICPR = (0x1 << 1);  } // TIMER16
 void handler_ext_int_2(void)  { *NVIC_ICPR = (0x1 << 2); mbus_msg_flag = 0x10; } // REG0
 void handler_ext_int_3(void)  { *NVIC_ICPR = (0x1 << 3); mbus_msg_flag = 0x11; } // REG1
@@ -197,6 +202,12 @@ inline static void set_pmu_adc_period(uint32_t val){
   // Register 0x36: TICK_REPEAT_VBAT_ADJUST
   mbus_remote_register_write(PMU_ADDR,0x36,val); 
   delay(MBUS_DELAY*10);
+
+  // Register 0x33: TICK_ADC_RESET
+  mbus_remote_register_write(PMU_ADDR,0x33,2);
+
+  // Register 0x34: TICK_ADC_CLK
+  mbus_remote_register_write(PMU_ADDR,0x34,2);
 
   // PMU_CONTROLLER_DESIRED_STATE Active
   mbus_remote_register_write(PMU_ADDR,0x3C,
@@ -374,7 +385,7 @@ inline static void set_pmu_clk_init(){
 			       ));
   delay(MBUS_DELAY);
   mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
-			     ( (0 << 13) // Enables override setting [12] (1'b1)
+			     ( (1 << 13) // Enables override setting [12] (1'b1)
 			       | (0 << 12) // Let VDD_CLK always connected to vbat
 			       | (1 << 11) // Enable override setting [10] (1'h0)
 			       | (0 << 10) // Have the converter have the periodic reset (1'h0)
@@ -385,7 +396,7 @@ inline static void set_pmu_clk_init(){
 			       ));
   delay(MBUS_DELAY);
 
-  set_pmu_adc_period(0x100); // 0x100 about 1 min for 1/2/1 1P2 setting
+  set_pmu_adc_period(1); // 0x100 about 1 min for 1/2/1 1P2 setting
 }
 
 
@@ -507,6 +518,7 @@ inline static void reset_pmu_solar_short(){
 static void radio_power_on(){
   radv9_r2_t  radv9_r2_temp;
   radv9_r13_t radv9_r13_temp;
+
   // Turn off PMU ADC
   pmu_adc_disable();
 
@@ -518,7 +530,6 @@ static void radio_power_on(){
 
   // Release FSM Sleep - Requires >2s stabilization time
   radio_on = 1;
-  
   radv9_r13_temp.as_int = radv9_r13.as_int;
   radv9_r13_temp.RAD_FSM_SLEEP = 0;
   radv9_r13.as_int = radv9_r13_temp.as_int;
@@ -562,7 +573,6 @@ static void radio_power_off(){
   // Turn off everything
   radio_on = 0;
   radio_ready = 0;
-
   radv9_r2_temp.as_int = radv9_r2.as_int;
   radv9_r2_temp.SCRO_ENABLE = 0;
   radv9_r2_temp.SCRO_RESET  = 1;
@@ -598,39 +608,36 @@ static void send_radio_data_ppm(uint32_t last_packet, uint32_t radio_data){
     delay(MBUS_DELAY);
   }
 
-  // Set CPU Halt Option as RX --> Use for register read e.g.
-  set_halt_until_mbus_rx();
+  // Use Timer32 as timeout counter
+  config_timer32(150000, 1, 0, 0); // 1/10 of MBUS watchdog timer default
 
   // Fire off data
-  uint32_t count;
   mbus_msg_flag = 0;
+  wfi_timeout_flag = 0;
   radv9_r13_temp.as_int = radv9_r13.as_int;
   radv9_r13_temp.RAD_FSM_ENABLE = 1;
   radv9_r13.as_int = radv9_r13_temp.as_int;
   mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
 
-  for( count=0; count<RADIO_TIMEOUT_COUNT; count++ ){
-    if( mbus_msg_flag ){
-      set_halt_until_mbus_tx();
-      mbus_msg_flag = 0;
-      if (last_packet){
-	radio_ready = 0;
-	radio_power_off();
-      }else{
-	radv9_r13_temp.as_int = radv9_r13.as_int;
-	radv9_r13_temp.RAD_FSM_ENABLE = 0;
-	radv9_r13.as_int = radv9_r13_temp.as_int;
-	mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
-      }
-      return;
-    }else{
-      delay(MBUS_DELAY);
-    }
+  // Wait for radio response
+  WFI();
+
+  // Turn off Timer32
+  *TIMER32_GO = 0;
+
+  if (wfi_timeout_flag){
+    mbus_write_message32(0xBB, 0xFAFAFAFA);
   }
-	
-  // Timeout
-  set_halt_until_mbus_tx();
-  mbus_write_message32(0xBB, 0xFAFAFAFA);
+
+  if (last_packet){
+    radio_ready = 0;
+    radio_power_off();
+  }else{
+    radv9_r13_temp.as_int = radv9_r13.as_int;
+    radv9_r13_temp.RAD_FSM_ENABLE = 0;
+    radv9_r13.as_int = radv9_r13_temp.as_int;
+    mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
+  }
 }
 
 //***************************************************
@@ -812,18 +819,20 @@ static void measure_wakeup_period(void){
 
 
 static void operation_init(void){
+  
   prcv14_r0B_t prcv14_r0B_temp;
   snsv7_r14_t snsv7_r14_temp;
   snsv7_r15_t snsv7_r15_temp;
   snsv7_r18_t snsv7_r18_temp;
   snsv7_r25_t snsv7_r25_temp;
-  
+	
   radv9_r0_t  radv9_r0_temp;
   radv9_r1_t  radv9_r1_temp;
   radv9_r11_t radv9_r11_temp;
   radv9_r12_t radv9_r12_temp;
 
   hrvv2_r0_t hrvv2_r0_temp;
+
 
   // Set CPU & Mbus Clock Speeds
   prcv14_r0B_temp.as_int = prcv14_r0B.as_int;
@@ -859,10 +868,6 @@ static void operation_init(void){
   // Set CPU Halt Option as TX --> Use for register write e.g.
   //    set_halt_until_mbus_tx();
 
-  // Disable PMUv2 IRQ
-  //mbus_remote_register_write(PMU_ADDR,0x51,0x09);
-  //delay(MBUS_DELAY);
-
   // PMU Settings ----------------------------------------------
   set_pmu_clk_init();
   reset_pmu_solar_short();
@@ -880,6 +885,7 @@ static void operation_init(void){
   delay(MBUS_DELAY);
   pmu_adc_enable();
   delay(MBUS_DELAY);
+  pmu_harvest_cfg = 1;
 
   // Temp Sensor Settings --------------------------------------
   // SNSv7_R25
@@ -933,7 +939,7 @@ static void operation_init(void){
   radv9_r11_temp.RAD_FSM_C_LEN = 10;
   radv9_r11.as_int = radv9_r11_temp.as_int;
   mbus_remote_register_write(RAD_ADDR,11,radv9_r11.as_int);
-  
+	
   // Configure SCRO
   radv9_r1_temp.as_int = radv9_r1.as_int;
   radv9_r1_temp.SCRO_FREQ_DIV = 3;
@@ -941,13 +947,13 @@ static void operation_init(void){
   radv9_r1_temp.SCRO_I_LEVEL_SELB = 0x60; // Default 0x6F
   radv9_r1.as_int = radv9_r1_temp.as_int;
   mbus_remote_register_write(RAD_ADDR,1,radv9_r1.as_int);
-  
+	
   // LFSR Seed
   radv9_r12_temp.as_int = radv9_r12.as_int;
   radv9_r12_temp.RAD_FSM_SEED = 4;
   radv9_r12.as_int = radv9_r12_temp.as_int;
   mbus_remote_register_write(RAD_ADDR,12,radv9_r12.as_int);
-  
+	
   // Mbus return address; Needs to be between 0x18-0x1F
   mbus_remote_register_write(RAD_ADDR,0xF,0x1900);
 
@@ -981,7 +987,7 @@ static void operation_init(void){
 // Temperature measurement operation (SNSv7)
 //***************************************************
 static void operation_temp_run(void){
-    snsv7_r18_t snsv7_r18_temp;
+  snsv7_r18_t snsv7_r18_temp;
 
   if (Tstack_state == TSTK_IDLE){
 #ifdef DEBUG_MBUS_MSG 
@@ -990,7 +996,7 @@ static void operation_temp_run(void){
 #endif
     Tstack_state = TSTK_LDO;
 
-    temp_timeout_flag = 0;
+    wfi_timeout_flag = 0;
 
     // Power on radio
     if (radio_tx_option || ((exec_count+1) < TEMP_CYCLE_INIT)){
@@ -1031,7 +1037,7 @@ static void operation_temp_run(void){
     temp_sensor_release_reset();
     delay(MBUS_DELAY);
 			
-    // Start Temp Sensor
+    // Start Temp Sensor; fist measurement is in sleep
     temp_sensor_enable();
 
     // Put system to sleep
@@ -1046,12 +1052,13 @@ static void operation_temp_run(void){
 #endif
 
     mbus_msg_flag = 0;
-
-    // Start Temp Sensor
-    temp_sensor_enable();
+    wfi_timeout_flag = 0;
 
     // Use Timer32 as timeout counter
     config_timer32(0x249F0, 1, 0, 0); // 1/10 of MBUS watchdog timer default
+
+    // Start Temp Sensor
+    temp_sensor_enable();
 
     // Wait for temp sensor output
     WFI();
@@ -1067,7 +1074,7 @@ static void operation_temp_run(void){
 #endif
 
     // Grab Temp Sensor Data
-    if (temp_timeout_flag){
+    if (wfi_timeout_flag){
       mbus_write_message32(0xFA, 0xFAFAFAFA);
     }else{
       read_data_reg11 = *((volatile uint32_t *) 0xA0000000);
@@ -1077,9 +1084,9 @@ static void operation_temp_run(void){
     // Last measurement from this wakeup
     if (meas_count == NUM_TEMP_MEAS){
       // No error; see if there was a timeout
-      if (temp_timeout_flag){
+      if (wfi_timeout_flag){
 	temp_storage_latest = 0x666;
-	temp_timeout_flag = 0;
+	wfi_timeout_flag = 0;
       }else{
 	temp_storage_latest = read_data_reg11;
 
@@ -1193,7 +1200,13 @@ static void operation_goc_trigger_init(void){
   // Initialize variables & registers
   temp_running = 0;
   Tstack_state = TSTK_IDLE;
-	
+
+  // Parking Lot Code Checking
+  if (exec_count_irq_pmu == 1){
+    mbus_remote_register_write(PMU_ADDR,0x33,0x32);
+    mbus_remote_register_write(PMU_ADDR,0x34,0x2);
+  }
+  
   radio_power_off();
   ldo_power_off();
   temp_power_off();
@@ -1204,7 +1217,6 @@ static void operation_goc_trigger_init(void){
 //********************************************************************
 
 int main() {
-
 
   // Reset Wakeup Timer; This is required for PRCv13
   //set_wakeup_timer(200, 0, 1);
@@ -1227,7 +1239,7 @@ int main() {
   // 0x78 is reserved for GOC-triggered wakeup (Named IRQ14VEC)
   // 8 MSB bits of the wakeup data are used for function ID
   wakeup_data = *((volatile uint32_t *) IRQ14VEC);
-  uint32_t wakeup_data_header = wakeup_data>>24;
+  uint32_t wakeup_data_header = (wakeup_data>>24) & 0xFF;
   uint32_t wakeup_data_field_0 = wakeup_data & 0xFF;
   uint32_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;
   uint32_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
@@ -1299,7 +1311,7 @@ int main() {
     exec_count_irq = 0;
 
     // Run Temp Sensor Program
-    temp_timeout_flag = 0;
+    Tstack_state = TSTK_IDLE;
     operation_temp_run();
 
   }else if(wakeup_data_header == 3){
@@ -1462,7 +1474,6 @@ int main() {
 
   }else if(wakeup_data_header == 0x13){
     radv9_r0_t  radv9_r0_temp;
-
     // Change the RF frequency
     // wakeup_data[7:0] is the # of transmissions
     // wakeup_data[15:8] is the user-specified period
@@ -1487,7 +1498,7 @@ int main() {
 	operation_sleep_noirqreset();
       }else{
 	// radio
-	send_radio_data_ppm(0,0xBBB000+exec_count_irq);	
+	send_radio_data_ppm(0,0xABC000+exec_count_irq);	
 	// set timer
 	set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 	// go to sleep and wake up with same condition
@@ -1517,7 +1528,6 @@ int main() {
     exec_count_irq = 0;
 
     // Run Temp Sensor Program
-    temp_timeout_flag = 0;
     operation_temp_run();
 
   }else if(wakeup_data_header == 0x15){
@@ -1552,7 +1562,162 @@ int main() {
       // Go to sleep without timer
       operation_sleep_notimer();
     }
-
+  }else if(wakeup_data_header == 0x17){
+    // Grab latest PMU ADC readings
+    // Speed up Clock First. Takes too long!
+    if (exec_count_irq == 0){
+      exec_count_irq++;
+      set_halt_until_mbus_rx();
+      mbus_remote_register_write(PMU_ADDR,0x33,0x1);
+      mbus_remote_register_write(PMU_ADDR,0x34,0x1);
+      set_wakeup_timer(3, 0x1, 0x1);
+      // go to sleep and wake up with same condition
+      operation_sleep_noirqreset();
+    }else{
+      set_halt_until_mbus_rx();
+      mbus_remote_register_write(PMU_ADDR,0x33,0x32);
+      mbus_remote_register_write(PMU_ADDR,0x34,0x2);
+      mbus_remote_register_write(PMU_ADDR,0x00,0x03);
+      read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
+      set_halt_until_mbus_tx();
+      delay(10*MBUS_DELAY);
+      mbus_write_message32(0xAB, read_data_batadc);
+      
+      exec_count_irq = 0;
+      // Go to sleep without timer
+      operation_sleep_notimer();
+    }
+  }else if(wakeup_data_header == 0x18){
+    // Grab latest PMU ADC readings
+    // Auto-Config based on ADC Readings
+    // Speed up Clock First. Takes too long!
+    if (exec_count_irq == 0){
+      exec_count_irq++;
+      set_halt_until_mbus_rx();
+      mbus_remote_register_write(PMU_ADDR,0x33,0x1);
+      mbus_remote_register_write(PMU_ADDR,0x34,0x1);
+      set_wakeup_timer(3, 0x1, 0x1);
+      // go to sleep and wake up with same condition
+      operation_sleep_noirqreset();
+    }else{
+      set_halt_until_mbus_rx();
+      mbus_remote_register_write(PMU_ADDR,0x33,0x32);
+      mbus_remote_register_write(PMU_ADDR,0x34,0x2);
+      mbus_remote_register_write(PMU_ADDR,0x00,0x03);
+      read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
+      
+      if (read_data_batadc <= (PMU_ADC_4P2_INIT + 2)){
+	// Stop Harvesting (4.1V)
+	// Register 0x0E: PMU_VOLTAGE_CLAMP_TRIM
+	mbus_remote_register_write(PMU_ADDR,0x0E, 
+				   (    ( 0 << 10) // When to turn on Harvester Inhibiting Switch
+				      | ( 1 <<  9) // Enables Override Settings [8]
+				      | ( 1 <<  8) // Turn On Harvester Inhibiting Switch
+				      | ( 1 <<  4) // Clamp Tune Bottom
+				      | ( 0 <<  0) // Clamp Tune Top
+				      ));
+	set_halt_until_mbus_tx();
+	delay(10*MBUS_DELAY);
+	mbus_write_message32(0xAB, read_data_batadc);
+	delay(10*MBUS_DELAY);
+	mbus_write_message32(0xAC, 0xDEADBEEF);
+      } 
+      else if (read_data_batadc >= PMU_ADC_4P2_INIT + 7){
+	//Start Harvesting (3.8V)
+	// Register 0x0E: PMU_VOLTAGE_CLAMP_TRIM
+	mbus_remote_register_write(PMU_ADDR,0x0E, 
+				   (    ( 0 << 10) // When to turn on Harvester Inhibiting Switch
+				      | ( 1 <<  9) // Enables Override Settings [8]
+				      | ( 0 <<  8) // Turn On Harvester Inhibiting Switch
+				      | ( 1 <<  4) // Clamp Tune Bottom
+				      | ( 0 <<  0) // Clamp Tune Top
+				      ));
+	set_halt_until_mbus_tx();
+	delay(10*MBUS_DELAY);
+	mbus_write_message32(0xAB, read_data_batadc);
+	delay(10*MBUS_DELAY);
+	mbus_write_message32(0xAC, 0xBEEFDEAD);
+      }
+      else{
+	set_halt_until_mbus_tx();
+	delay(10*MBUS_DELAY);
+	mbus_write_message32(0xAB, read_data_batadc);
+	delay(10*MBUS_DELAY);
+	mbus_write_message32(0xAC, 0xDEADDEAD);
+      }
+      exec_count_irq = 0;
+      // Go to sleep without timer
+      operation_sleep_notimer();
+    }
+  }else if(wakeup_data_header == 0x19){
+    // Grab latest PMU ADC readings
+    // Auto-Config based on ADC Readings
+    // Sleep & Wake!
+    // Speed up Clock First. Takes too long!
+    if (exec_count_irq_pmu == 0){
+      exec_count_irq_pmu++;
+      set_halt_until_mbus_rx();
+      mbus_remote_register_write(PMU_ADDR,0x33,0x1);
+      mbus_remote_register_write(PMU_ADDR,0x34,0x1);
+      set_wakeup_timer(3, 0x1, 0x1);
+      // go to sleep and wake up with same condition
+      operation_sleep_noirqreset();
+    }else{
+      set_halt_until_mbus_rx();
+      mbus_remote_register_write(PMU_ADDR,0x33,0x32);
+      mbus_remote_register_write(PMU_ADDR,0x34,0x2);
+      mbus_remote_register_write(PMU_ADDR,0x00,0x03);
+      read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
+      
+      if (read_data_batadc <= (PMU_ADC_4P2_INIT + 2)){
+	// Stop Harvesting (4.1V)
+	// Register 0x0E: PMU_VOLTAGE_CLAMP_TRIM
+	mbus_remote_register_write(PMU_ADDR,0x0E, 
+				   (    ( 0 << 10) // When to turn on Harvester Inhibiting Switch
+				      | ( 1 <<  9) // Enables Override Settings [8]
+				      | ( 1 <<  8) // Turn On Harvester Inhibiting Switch
+				      | ( 1 <<  4) // Clamp Tune Bottom
+				      | ( 0 <<  0) // Clamp Tune Top
+				      ));
+	set_halt_until_mbus_tx();
+	delay(10*MBUS_DELAY);
+	mbus_write_message32(0xAB, read_data_batadc);
+	delay(10*MBUS_DELAY);
+	mbus_write_message32(0xAC, 0xDEADBEEF);
+      } 
+      else if (read_data_batadc >= PMU_ADC_4P2_INIT + 7){
+	//Start Harvesting (3.8V)
+	// Register 0x0E: PMU_VOLTAGE_CLAMP_TRIM
+	mbus_remote_register_write(PMU_ADDR,0x0E, 
+				   (    ( 0 << 10) // When to turn on Harvester Inhibiting Switch
+				      | ( 1 <<  9) // Enables Override Settings [8]
+				      | ( 0 <<  8) // Turn On Harvester Inhibiting Switch
+				      | ( 1 <<  4) // Clamp Tune Bottom
+				      | ( 0 <<  0) // Clamp Tune Top
+				      ));
+	set_halt_until_mbus_tx();
+	delay(10*MBUS_DELAY);
+	mbus_write_message32(0xAB, read_data_batadc);
+	delay(10*MBUS_DELAY);
+	mbus_write_message32(0xAC, 0xBEEFDEAD);
+      }
+      else{
+	set_halt_until_mbus_tx();
+	delay(10*MBUS_DELAY);
+	mbus_write_message32(0xAB, read_data_batadc);
+	delay(10*MBUS_DELAY);
+	mbus_write_message32(0xAC, 0xDEADDEAD);
+      }
+      exec_count_irq_pmu = 0;
+      set_wakeup_timer(10, 0x1, 0x1);
+      operation_sleep_noirqreset();
+    }
+  }else{
+    if (wakeup_data_header != 0){
+      // Invalid GOC trigger
+      // Go to sleep without timer
+      operation_sleep_notimer();
+    }
   }
 
 
