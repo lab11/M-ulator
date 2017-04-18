@@ -24,6 +24,7 @@
 //			v1.14: Fixing how PMU ADC is reset
 //			v1.15: Turning off VDD_CLK->VBAT during PMU ADC routine
 //				   Getting rid of all non-32 bit declarations
+//			v2.00: Adding parking lot feature (automatic vbat mornitoring & charging)
 //*******************************************************************
 #include "PRCv14.h"
 #include "PRCv14_RF.h"

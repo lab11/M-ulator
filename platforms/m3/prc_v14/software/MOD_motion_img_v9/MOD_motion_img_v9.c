@@ -35,7 +35,7 @@
 #define COLS_TO_READ 39 // in # of words: 39 for full frame, 19 for half
 
 // Radio configurations
-#define RADIO_DATA_LENGTH 96
+#define RADIO_DATA_LENGTH 96 //96
 #define RADIO_TIMEOUT_COUNT 500
 #define WAKEUP_PERIOD_RADIO_INIT 3
 #define RADIO_PACKET_DELAY 4000 // Need 100-200ms
@@ -613,10 +613,10 @@ static void mrr_configure_pulse_width_long(){
     //mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 64; // (PW_LEN+1):C_LEN=1:32
     //mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 1; // PW=PS
 
-    mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 24; //100us PW
-    mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 400; // (PW_LEN+1):C_LEN=1:16
-    mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 24; // PW=PS   
-    mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 5; //8 bit shift in LFSR
+    //mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 15; //64us PW
+    //mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 512; // (PW_LEN+1):C_LEN=1:32
+    //mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 15; // PW=PS   
+    //mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 4; //8 bit shift in LFSR
 
     //mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 24; //100us PW
     //mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 800; // (PW_LEN+1):C_LEN=1:32
@@ -628,10 +628,10 @@ static void mrr_configure_pulse_width_long(){
     //mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 124; // PW=PS   
     //mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 7; //8 bit shift in LFSR
 
-    //mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 249; //1ms PW
-    //mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 8000; // (PW_LEN+1):C_LEN=1:32
-    //mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 249; // PW=PS
-    //mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 8; //8 bit shift in LFSR
+    mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 249; //1ms PW
+    mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 8000; // (PW_LEN+1):C_LEN=1:32
+    mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 249; // PW=PS
+    mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 8; //8 bit shift in LFSR
 
     mbus_remote_register_write(MRR_ADDR,0x0F,mrrv3_r0F.as_int);
     mbus_remote_register_write(MRR_ADDR,0x12,mrrv3_r12.as_int);
@@ -648,7 +648,7 @@ static void mrr_configure_pulse_width_long(){
 static void mrr_configure_pulse_width_short(){
 
     mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 0; //4us PW
-    mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 8; // (PW_LEN+1):C_LEN=1:32
+    mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 128; // (PW_LEN+1):C_LEN=1:32
     mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 0; // PW=PS
     mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 0; //no shift in LFSR
 
@@ -680,7 +680,7 @@ static void send_radio_data_ppm_96(uint32_t last_packet, uint32_t radio_data_0, 
 		radio_ready = 1;
 
 		// Set the correct data length
-		mrrv3_r0E.MRR_RAD_FSM_TX_D_LEN = 96;
+		mrrv3_r0E.MRR_RAD_FSM_TX_D_LEN = RADIO_DATA_LENGTH;
 		mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
 
 		// Release FSM Reset
@@ -1385,8 +1385,8 @@ static void operation_init(void){
     mrrv3_r1C.LC_CLK_DIV = 0x3;  // ~ 150 kHz
     mbus_remote_register_write(MRR_ADDR,0x1C,mrrv3_r1C.as_int);
 
-	//mrr_configure_pulse_width_short();
-	mrr_configure_pulse_width_long();
+	mrr_configure_pulse_width_short();
+	//mrr_configure_pulse_width_long();
 
     // TX Setup Carrier Freq
     mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x0000;  //ANT CAP 14b unary 830.5 MHz
@@ -1412,14 +1412,14 @@ static void operation_init(void){
     mbus_remote_register_write(MRR_ADDR,3,mrrv3_r03.as_int);
 
     mrrv3_r11.MRR_RAD_FSM_RX_POWERON_LEN = 0x0;  //Set RX Power on length
-    mrrv3_r11.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x3;  //Set RX Sample length  16us
-    //mrrv3_r11.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x0;  //Set RX Sample length  4us
+    //mrrv3_r11.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x3;  //Set RX Sample length  16us
+    mrrv3_r11.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x0;  //Set RX Sample length  4us
     mrrv3_r11.MRR_RAD_FSM_GUARD_LEN = 0x000F; //Set TX_RX Guard length, TX_RX guard 32 cycle (28+5)
     mbus_remote_register_write(MRR_ADDR,0x11,mrrv3_r11.as_int);
 
     mrrv3_r12.MRR_RAD_FSM_RX_HDR_BITS = 0x00;  //Set RX header
     mrrv3_r12.MRR_RAD_FSM_RX_HDR_TH = 0x00;    //Set RX header threshold
-    mrrv3_r12.MRR_RAD_FSM_RX_DATA_BITS = 0x10; //Set RX data 16b
+    mrrv3_r12.MRR_RAD_FSM_RX_DATA_BITS = 0x00; //Set RX data 1b
     mbus_remote_register_write(MRR_ADDR,0x12,mrrv3_r12.as_int);
 
     mrrv3_r1B.MRR_IRQ_REPLY_PACKET = 0x061400; //Read RX data Reply
