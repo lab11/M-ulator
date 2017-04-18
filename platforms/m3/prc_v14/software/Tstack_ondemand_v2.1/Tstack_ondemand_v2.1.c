@@ -44,6 +44,7 @@
 #define SNS_ADDR 0x5
 #define PMU_ADDR 0x6
 
+#define WAKEUP_PERIOD_PARKING 200
 
 // Temp Sensor parameters
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
@@ -767,10 +768,15 @@ static void operation_sleep_notimer(void){
     // Make sure Radio is off
     if (radio_on){radio_power_off();}
 
-    // Disable Timer
-    set_wakeup_timer(0, 0, 0);
+	// Check if sleep parking lot is on
+	if (pmu_parkinglot_mode & 0x2){
+		set_wakeup_timer(WAKEUP_PERIOD_PARKING,0x1,0x1);
+	}else{
+		// Disable Timer
+		set_wakeup_timer(0, 0, 0);
+	}
 
-    // Go to sleep without timer
+    // Go to sleep
     operation_sleep();
 
 }
@@ -883,6 +889,8 @@ static void operation_init(void){
     prcv14_r0B_temp.CLK_GEN_RING = 0x1; // Default 0x1
     prcv14_r0B_temp.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
     prcv14_r0B_temp.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
+    prcv14_r0B_temp.GOC_CLK_GEN_SEL_DIV = 0x0; // Default 0x0
+    prcv14_r0B_temp.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
 	prcv14_r0B.as_int = prcv14_r0B_temp.as_int;
 	*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv14_r0B.as_int;
 
@@ -963,8 +971,8 @@ static void operation_init(void){
 	snsv7_r18.as_int = snsv7_r18_temp.as_int;
 	mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
 
-	// CDC Mbus return address; Needs to be between 0x18-0x1F
-    mbus_remote_register_write(SNS_ADDR,0x18,0x1800);
+	// Temp sensor Mbus return address; Needs to be between 0x18-0x1F
+    mbus_remote_register_write(SNS_ADDR,0x19,0x1800);
 
 
     // Radio Settings --------------------------------------
@@ -1054,7 +1062,7 @@ static void operation_temp_run(void){
 
 		// Put system to sleep
 		set_wakeup_timer(WAKEUP_PERIOD_LDO, 0x1, 0x1);
-		operation_sleep_noirqreset();
+		operation_sleep();
 
     }else if (Tstack_state == TSTK_LDO){
 		#ifdef DEBUG_MBUS_MSG
@@ -1068,7 +1076,7 @@ static void operation_temp_run(void){
 		mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
 		// Put system to sleep
 		set_wakeup_timer(WAKEUP_PERIOD_LDO, 0x1, 0x1);
-		operation_sleep_noirqreset();
+		operation_sleep();
 
 	}else if (Tstack_state == TSTK_TEMP_RSTRL){
 		#ifdef DEBUG_MBUS_MSG
@@ -1086,7 +1094,7 @@ static void operation_temp_run(void){
 
 		// Put system to sleep
 		set_wakeup_timer(20, 0x1, 0x1); // FIXME timeout value should be set
-		operation_sleep_noirqreset();
+		operation_sleep();
 
 	}else if (Tstack_state == TSTK_TEMP_START){
 	// Start temp measurement
@@ -1218,7 +1226,7 @@ static void operation_temp_run(void){
 				temp_running = 0;
 				operation_sleep_notimer();
 			}else{
-				operation_sleep_noirqreset();
+				operation_sleep();
 			}
 
 		}
@@ -1272,6 +1280,12 @@ int main() {
         // Enumeration & RAD/SNS layer register configuration
         operation_init();
     }
+
+	if ((pmu_parkinglot_mode > 0) && (exec_count_irq == 0)){
+		mbus_write_message32(0xAA,0xABCDDCBA);
+		pmu_adc_read_latest();
+		pmu_parkinglot_decision();
+	}
 
     // Check if wakeup is due to GOC interrupt  
     // 0x78 is reserved for GOC-triggered wakeup (Named IRQ14VEC)
@@ -1442,6 +1456,10 @@ int main() {
 		pmu_adc_read_latest();
 
 
+		if (pmu_parkinglot_mode > 0){
+			pmu_parkinglot_decision();
+		}
+
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
 			if (exec_count_irq == 1){
@@ -1602,7 +1620,11 @@ int main() {
         // wakeup_data[23:16] is the desired parking lot threshold value
 		//					-->  if zero: uses the latest PMU ADC measurement
 		
-		if (wakeup_data_field_2 != 0){
+		if (wakeup_data_field_2 == 0){
+			// Read latest PMU ADC measurement
+			pmu_adc_read_latest();
+			PMU_ADC_4P2_VAL = read_data_batadc;
+		}else{
 			PMU_ADC_4P2_VAL = wakeup_data_field_2;
 		}
 
@@ -1630,9 +1652,6 @@ int main() {
             operation_sleep_notimer();
         }
 
-
-
-
     }else{
 		if (wakeup_data_header != 0){
 			// Invalid GOC trigger
@@ -1642,10 +1661,15 @@ int main() {
 	}
 
 
-    // Proceed to continuous mode
-    while(1){
-        operation_temp_run();
-    }
+	if (temp_running){
+		// Proceed to continuous mode
+		while(1){
+			operation_temp_run();
+		}
+	}
+
+	
+	operation_sleep_notimer();
 
     while(1);
 }

@@ -837,6 +837,8 @@ static void operation_init(void){
     prcv14_r0B_temp.CLK_GEN_RING = 0x1; // Default 0x1
     prcv14_r0B_temp.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
     prcv14_r0B_temp.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
+    prcv14_r0B_temp.GOC_CLK_GEN_SEL_DIV = 0x0; // Default 0x0
+    prcv14_r0B_temp.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
 	prcv14_r0B.as_int = prcv14_r0B_temp.as_int;
 	*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv14_r0B.as_int;
 
@@ -915,8 +917,8 @@ static void operation_init(void){
 	snsv7_r18.as_int = snsv7_r18_temp.as_int;
 	mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
 
-	// CDC Mbus return address; Needs to be between 0x18-0x1F
-    mbus_remote_register_write(SNS_ADDR,0x18,0x1800);
+	// Temp sensor Mbus return address; Needs to be between 0x18-0x1F
+    mbus_remote_register_write(SNS_ADDR,0x19,0x1800);
 
 
     // Radio Settings --------------------------------------
