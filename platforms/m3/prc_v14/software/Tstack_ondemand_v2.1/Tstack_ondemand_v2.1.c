@@ -44,7 +44,7 @@
 #define SNS_ADDR 0x5
 #define PMU_ADDR 0x6
 
-#define WAKEUP_PERIOD_PARKING 200
+#define WAKEUP_PERIOD_PARKING 2000 // 200: ~200sec
 
 // Temp Sensor parameters
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
@@ -501,6 +501,7 @@ inline static void pmu_parkinglot_decision(){
 	
 	if (read_data_batadc <= (PMU_ADC_4P2_VAL + 2)){
 		// Stop Harvesting (4.1V)
+		mbus_write_message32(0xAA, 0x000FF0FF);
 		// Register 0x0E: PMU_VOLTAGE_CLAMP_TRIM
 		mbus_remote_register_write(PMU_ADDR,0x0E, 
 		   (    ( 0 << 10) // When to turn on Harvester Inhibiting Switch
@@ -509,6 +510,7 @@ inline static void pmu_parkinglot_decision(){
 			  | ( 1 <<  4) // Clamp Tune Bottom
 			  | ( 0 <<  0) // Clamp Tune Top
 			  ));
+
 
 	}else if (read_data_batadc >= PMU_ADC_4P2_VAL + 7){
 		//Start Harvesting (3.8V)
@@ -525,7 +527,6 @@ inline static void pmu_parkinglot_decision(){
 	}
 
 }
-
 
 
 inline static void reset_pmu_solar_short(){
@@ -901,7 +902,7 @@ static void operation_init(void){
     exec_count = 0;
     exec_count_irq = 0;
     mbus_msg_flag = 0;
-	PMU_ADC_4P2_VAL = 75;
+	PMU_ADC_4P2_VAL = 0x4B;
 	pmu_parkinglot_mode = 0;
   
     // Set CPU Halt Option as RX --> Use for register read e.g.
@@ -1281,6 +1282,7 @@ int main() {
         operation_init();
     }
 
+	// Parking lot feature
 	if ((pmu_parkinglot_mode > 0) && (exec_count_irq == 0)){
 		mbus_write_message32(0xAA,0xABCDDCBA);
 		pmu_adc_read_latest();
