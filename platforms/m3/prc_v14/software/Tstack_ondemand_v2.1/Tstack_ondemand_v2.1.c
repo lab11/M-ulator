@@ -88,6 +88,7 @@ volatile uint32_t wakeup_period_count;
 volatile uint32_t wakeup_timer_multiplier;
 volatile uint32_t PMU_ADC_4P2_VAL;
 volatile uint32_t pmu_parkinglot_mode;
+volatile uint32_t pmu_harvesting_on;
 
 volatile snsv7_r14_t snsv7_r14 = SNSv7_R14_DEFAULT;
 volatile snsv7_r15_t snsv7_r15 = SNSv7_R15_DEFAULT;
@@ -501,7 +502,7 @@ inline static void pmu_parkinglot_decision(){
 	
 	if (read_data_batadc <= (PMU_ADC_4P2_VAL + 2)){
 		// Stop Harvesting (4.1V)
-		mbus_write_message32(0xAA, 0x000FF0FF);
+		pmu_harvesting_on = 0;
 		// Register 0x0E: PMU_VOLTAGE_CLAMP_TRIM
 		mbus_remote_register_write(PMU_ADDR,0x0E, 
 		   (    ( 0 << 10) // When to turn on Harvester Inhibiting Switch
@@ -514,6 +515,7 @@ inline static void pmu_parkinglot_decision(){
 
 	}else if (read_data_batadc >= PMU_ADC_4P2_VAL + 7){
 		//Start Harvesting (3.8V)
+		pmu_harvesting_on = 1;
 		// Register 0x0E: PMU_VOLTAGE_CLAMP_TRIM
 		mbus_remote_register_write(PMU_ADDR,0x0E, 
 		   (    ( 0 << 10) // When to turn on Harvester Inhibiting Switch
@@ -525,7 +527,10 @@ inline static void pmu_parkinglot_decision(){
 	}else{
 
 	}
-
+	
+	if (pmu_harvesting_on == 0){
+		mbus_write_message32(0xAA, 0x000FF0FF);
+	}
 }
 
 inline static void pmu_reset_solar_short(){
@@ -895,6 +900,7 @@ static void operation_init(void){
     mbus_msg_flag = 0;
 	PMU_ADC_4P2_VAL = 0x4B;
 	pmu_parkinglot_mode = 0;
+	pmu_harvesting_on = 1;
   
     // Set CPU Halt Option as RX --> Use for register read e.g.
 //    set_halt_until_mbus_rx();
@@ -1454,6 +1460,7 @@ int main() {
 		}else if (pmu_parkinglot_mode == 0){
 			// Start harvesting and let solar short be determined in hardware
 			pmu_reset_solar_short();
+			pmu_harvesting_on = 1;
 		}
 
         if (exec_count_irq < wakeup_data_field_0){
