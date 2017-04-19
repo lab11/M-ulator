@@ -513,8 +513,8 @@ inline static void pmu_parkinglot_decision(){
 			  ));
 
 
-	}else if (read_data_batadc >= PMU_ADC_4P2_VAL + 7){
-		//Start Harvesting (3.8V)
+	}else if (read_data_batadc >= PMU_ADC_4P2_VAL + 6){
+		//Start Harvesting (3.9V)
 		pmu_harvesting_on = 1;
 		// Register 0x0E: PMU_VOLTAGE_CLAMP_TRIM
 		mbus_remote_register_write(PMU_ADDR,0x0E, 
@@ -1454,18 +1454,19 @@ int main() {
 		// Read latest PMU ADC measurement
 		pmu_adc_read_latest();
 
-		if (pmu_parkinglot_mode > 0){
-			// Solar short based on PMU ADC reading
-			pmu_parkinglot_decision();
-		}else if (pmu_parkinglot_mode == 0){
-			// Start harvesting and let solar short be determined in hardware
-			pmu_reset_solar_short();
-			pmu_harvesting_on = 1;
-		}
-
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
 			if (exec_count_irq == 1){
+
+				if (pmu_parkinglot_mode > 0){
+					// Solar short based on PMU ADC reading
+					pmu_parkinglot_decision();
+				}else if (pmu_parkinglot_mode == 0){
+					// Start harvesting and let solar short be determined in hardware
+					pmu_reset_solar_short();
+					pmu_harvesting_on = 1;
+				}
+
 				// Prepare radio TX
 				radio_power_on();
 				// Go to sleep for SCRO stabilitzation
