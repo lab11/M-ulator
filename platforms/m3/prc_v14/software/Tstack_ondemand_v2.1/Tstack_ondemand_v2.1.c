@@ -528,16 +528,7 @@ inline static void pmu_parkinglot_decision(){
 
 }
 
-
-inline static void reset_pmu_solar_short(){
-    mbus_remote_register_write(PMU_ADDR,0x0E, 
-		( (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
-		| (1 << 9)  // Enables override setting [8]
-		| (0 << 8)  // Turn on the harvester-inhibiting switch
-		| (1 << 4)  // clamp_tune_bottom (increases clamp thresh)
-		| (0) 		// clamp_tune_top (decreases clamp thresh)
-	));
-	delay(MBUS_DELAY);
+inline static void pmu_reset_solar_short(){
     mbus_remote_register_write(PMU_ADDR,0x0E, 
 		( (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
 		| (1 << 9)  // Enables override setting [8]
@@ -924,7 +915,7 @@ static void operation_init(void){
 
 	// PMU Settings ----------------------------------------------
 	set_pmu_clk_init();
-	reset_pmu_solar_short();
+	pmu_reset_solar_short();
 
 	// Disable PMU ADC measurement in active mode
 	// PMU_CONTROLLER_STALL_ACTIVE
@@ -1457,9 +1448,12 @@ int main() {
 		// Read latest PMU ADC measurement
 		pmu_adc_read_latest();
 
-
 		if (pmu_parkinglot_mode > 0){
+			// Solar short based on PMU ADC reading
 			pmu_parkinglot_decision();
+		}else if (pmu_parkinglot_mode == 0){
+			// Start harvesting and let solar short be determined in hardware
+			pmu_reset_solar_short();
 		}
 
         if (exec_count_irq < wakeup_data_field_0){
@@ -1514,7 +1508,7 @@ int main() {
 
         if (wakeup_data_field_2 & 0x1){
 			// Reset PMU solar clamp
-			reset_pmu_solar_short();
+			pmu_reset_solar_short();
 		}
 
 		// Finalize
