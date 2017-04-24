@@ -50,7 +50,7 @@
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
 #define WAKEUP_PERIOD_RESET 2
 #define WAKEUP_PERIOD_LDO 2
-#define TEMP_CYCLE_INIT 5 
+#define TEMP_CYCLE_INIT 2 
 
 // Tstack states
 #define	TSTK_IDLE       0x0
@@ -500,7 +500,7 @@ inline static void pmu_adc_read_latest(){
 
 inline static void pmu_parkinglot_decision(){
 	
-	if (read_data_batadc <= (PMU_ADC_4P2_VAL + 2)){
+	if (read_data_batadc < (PMU_ADC_4P2_VAL + 2)){
 		// Stop Harvesting (4.1V)
 		pmu_harvesting_on = 0;
 		// Register 0x0E: PMU_VOLTAGE_CLAMP_TRIM
