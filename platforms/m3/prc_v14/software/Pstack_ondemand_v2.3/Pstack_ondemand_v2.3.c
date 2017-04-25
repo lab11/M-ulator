@@ -93,7 +93,7 @@
 #define	MBUS_DELAY 100 //Amount of delay between successive messages; 100: 6-7ms
 #define WAKEUP_PERIOD_RESET 2
 #define WAKEUP_PERIOD_LDO 2
-#define CDC_CYCLE_INIT 4
+#define CDC_CYCLE_INIT 3
 
 // Pstack states
 #define	PSTK_IDLE       0x0
@@ -119,6 +119,7 @@
 volatile uint32_t enumerated;
 volatile uint32_t wakeup_data;
 volatile uint32_t Pstack_state;
+volatile uint32_t wfi_timeout_flag;
 volatile uint32_t exec_count;
 volatile uint32_t meas_count;
 volatile uint32_t exec_count_irq;
@@ -138,7 +139,6 @@ volatile uint32_t cdc_storage_cref_latest;
 volatile uint32_t cdc_storage_count;
 volatile uint32_t cdc_run_single;
 volatile uint32_t cdc_running;
-volatile uint32_t wfi_timeout_flag;
 volatile uint32_t set_cdc_exec_count;
 
 volatile uint32_t radio_tx_count;

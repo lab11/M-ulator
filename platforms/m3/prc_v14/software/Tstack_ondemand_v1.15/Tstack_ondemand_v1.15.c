@@ -57,7 +57,7 @@
 #define TSTK_TEMP_START 0x2
 #define TSTK_TEMP_READ  0x6
 
-#define NUM_TEMP_MEAS 5 
+#define NUM_TEMP_MEAS 3 
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 24

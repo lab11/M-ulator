@@ -618,26 +618,26 @@ static void mrr_configure_pulse_width_long(){
     //mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 15; // PW=PS   
     //mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 4; //8 bit shift in LFSR
 
-    //mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 24; //100us PW
-    //mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 800; // (PW_LEN+1):C_LEN=1:32
-    //mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 24; // PW=PS   
-    //mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 5; //8 bit shift in LFSR
+    mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 24; //100us PW
+    mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 1600; // (PW_LEN+1):C_LEN=1:64
+    mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 24; // PW=PS   
+    mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 5; //8 bit shift in LFSR
 
     //mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 124; //500us PW
     //mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 4000; // (PW_LEN+1):C_LEN=1:32
     //mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 124; // PW=PS   
     //mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 7; //8 bit shift in LFSR
 
-    mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 249; //1ms PW
-    mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 8000; // (PW_LEN+1):C_LEN=1:32
-    mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 249; // PW=PS
-    mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 8; //8 bit shift in LFSR
+    //mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 249; //1ms PW
+    //mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 8000; // (PW_LEN+1):C_LEN=1:32
+    //mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 249; // PW=PS
+    //mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 8; //8 bit shift in LFSR
 
     mbus_remote_register_write(MRR_ADDR,0x0F,mrrv3_r0F.as_int);
     mbus_remote_register_write(MRR_ADDR,0x12,mrrv3_r12.as_int);
 
     // Current Limter set-up 
-    mrrv3_r00.MRR_CL_CTRL = 16;
+    mrrv3_r00.MRR_CL_CTRL = 1;
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
 
     mrrv3_r11.MRR_RAD_FSM_TX_POWERON_LEN = 7; //3bits
@@ -648,7 +648,7 @@ static void mrr_configure_pulse_width_long(){
 static void mrr_configure_pulse_width_short(){
 
     mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 0; //4us PW
-    mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 128; // (PW_LEN+1):C_LEN=1:32
+    mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 32; // (PW_LEN+1):C_LEN=1:32
     mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 0; // PW=PS
     mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 0; //no shift in LFSR
 
@@ -656,7 +656,7 @@ static void mrr_configure_pulse_width_short(){
     mbus_remote_register_write(MRR_ADDR,0x12,mrrv3_r12.as_int);
 
     // Current Limter set-up 
-    mrrv3_r00.MRR_CL_CTRL = 1; //Set CL 1-finite 16-20uA; 8: 30uA, 16: 3uA
+    mrrv3_r00.MRR_CL_CTRL = 1; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
 
     mrrv3_r11.MRR_RAD_FSM_TX_POWERON_LEN = 7; //3bits
@@ -1356,7 +1356,7 @@ static void operation_init(void){
 	// Stack order: PRC->MRR->HRV->MD->FLS->PMU
     mbus_enumerate(MRR_ADDR); //0x25
     delay(MBUS_DELAY);
-    mbus_enumerate(HRV_ADDR); //0x26
+    //mbus_enumerate(HRV_ADDR); //0x26
     delay(MBUS_DELAY);
     mbus_enumerate(MD_ADDR);  //0x24
     delay(MBUS_DELAY);
@@ -1407,11 +1407,11 @@ static void operation_init(void){
 
     // RX Setup
     //mrrv3_r03.MRR_RX_BIAS_TUNE    = 0x0AFF;//  turn on Q_enhancement
-	mrrv3_r03.MRR_RX_BIAS_TUNE    = 0x0000;//  turn off Q_enhancement
+	mrrv3_r03.MRR_RX_BIAS_TUNE    = 0x0001;//  turn off Q_enhancement
     mrrv3_r03.MRR_RX_SAMPLE_CAP    = 0x1;  // RX_SAMPLE_CAP
     mbus_remote_register_write(MRR_ADDR,3,mrrv3_r03.as_int);
 
-    mrrv3_r11.MRR_RAD_FSM_RX_POWERON_LEN = 0x0;  //Set RX Power on length
+    mrrv3_r11.MRR_RAD_FSM_RX_POWERON_LEN = 7;  //Set RX Power on length
     //mrrv3_r11.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x3;  //Set RX Sample length  16us
     mrrv3_r11.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x0;  //Set RX Sample length  4us
     mrrv3_r11.MRR_RAD_FSM_GUARD_LEN = 0x000F; //Set TX_RX Guard length, TX_RX guard 32 cycle (28+5)
@@ -1419,7 +1419,7 @@ static void operation_init(void){
 
     mrrv3_r12.MRR_RAD_FSM_RX_HDR_BITS = 0x00;  //Set RX header
     mrrv3_r12.MRR_RAD_FSM_RX_HDR_TH = 0x00;    //Set RX header threshold
-    mrrv3_r12.MRR_RAD_FSM_RX_DATA_BITS = 0x00; //Set RX data 1b
+    mrrv3_r12.MRR_RAD_FSM_RX_DATA_BITS = 0x03; //Set RX data 1b
     mbus_remote_register_write(MRR_ADDR,0x12,mrrv3_r12.as_int);
 
     mrrv3_r1B.MRR_IRQ_REPLY_PACKET = 0x061400; //Read RX data Reply
