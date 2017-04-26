@@ -102,6 +102,11 @@ static void usage_fail(int retcode) {
 \t\t\tPlease #define STATIC_ROM_BLURB in static_rom.h\n"
 	      );
 #endif
+    printf("\
+\t-n, --noterminate\n\
+\t\t Simulator continues to run forever\n\
+\t\t (Will not stop on branch-to-self\n\
+            ");
 	printf("\
 \n\
 "\
@@ -137,13 +142,14 @@ int main(int argc, char **argv) {
 			{"rzwi-memory",   no_argument,       &CONF_rzwi_memory, 2},
 			{"flash",         required_argument, 0,              'f'},
 			{"usetestflash",  no_argument,       &usetestflash,  1},
+			{"noterminate",   no_argument,       &noterminate,   'n'},
 			{"help",          no_argument,       0,              '?'},
 			{0,0,0,0}
 		};
 		int option_index = 0;
 		int c;
 
-		char optstring[64] = "g::c:y:aps:erl:f:?";
+		char optstring[64] = "g::c:y:aps:erl:f:n?";
 #ifdef HAVE_DECOMPILE
 		strncat(optstring, "d", 64);
 #endif
@@ -259,6 +265,11 @@ int main(int argc, char **argv) {
 				INFO("Simulator will use %s as flash\n",
 						flash_file);
 				break;
+
+            case'n':
+                INFO("Simulator will continue past branch-to-self\n");
+                noterminate = true;
+                break;
 
 			case '?':
 			default:
