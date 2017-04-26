@@ -10,13 +10,10 @@ import datetime
 from datetime import datetime
 
 
-from m3_common import m3_common
-
-#m3_common.configure_root_logger()
-#logger = logging.getLogger(__name__)
-
-from m3_logging import get_logger
-logger = get_logger(__name__)
+# If you version of m3-ice is out of date, 
+# you might need to do: 
+# $pip install -U m3
+from m3.m3_common import m3_common 
 
 logfile = open('mbus_snoop_log.txt','w')
 
@@ -44,7 +41,7 @@ class mbus_message_generator(m3_common):
 
     
     def add_parse_args(self):
-        super(mbus_message_generator, self).add_parse_args(require_binfile=False)
+        super(mbus_message_generator, self).add_parse_args()
         self.parser.add_argument('-fc','--filename_cref')
         self.parser.add_argument('-fo','--filename_outp')
         self.parser.add_argument('-k','--killcount',default=1e6,type=float)
