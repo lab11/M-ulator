@@ -4,11 +4,17 @@ import os
 import sys
 import logging
 import csv
+import binascii
 
 import time
 import datetime
 from datetime import datetime
 
+
+#Adjust the default timezone for Cygwin
+from sys import platform
+if platform == 'cygwin':
+    os.system('export TZ="UTC+4"')
 
 # If you version of m3-ice is out of date, 
 # you might need to do: 
@@ -54,34 +60,34 @@ class mbus_message_generator(m3_common):
         self.ice.msg_handler['b++'] = self.Bpp_callback
 
     def Bpp_callback(self, address, data, cb0=-1, cb1=-1):
-		print("@" + str(self.count) + " Time: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "  ADDR: 0x" + address.encode('hex') + "  DATA: 0x" + data.encode('hex') + "  (ACK: " + str(not cb1) + ")")
-		print >> logfile, "@" + str(self.count) + " Time: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "  ADDR: 0x" + address.encode('hex') + "  DATA: 0x" + data.encode('hex') + "  (ACK: " + str(not cb1) + ")"
-		if (str(int(address.encode('hex'),16))=="116"):
+		print("@" + str(self.count) + " Time: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "  ADDR: 0x" + binascii.hexlify(address)+ "  DATA: 0x" + binascii.hexlify(data) + "  (ACK: " + str(not cb1) + ")")
+		print >> logfile, "@" + str(self.count) + " Time: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "  ADDR: 0x" + binascii.hexlify(address) + "  DATA: 0x" + binascii.hexlify(data)+ "  (ACK: " + str(not cb1) + ")"
+		if (str(int(binascii.hexlify(address),16))=="116"):
 			self.cdc_group = True
-			self.cdc_cmeas = int(data.encode('hex'),16)
+			self.cdc_cmeas = int(binascii.hexlify(data),16)
 			self.cdc_time = datetime.now().strftime("%H:%M:%S.%f")[:-3]
 			self.cdc_date = datetime.now().strftime("%Y-%m-%d")
-		elif (str(int(address.encode('hex'),16))=="118"):
+		elif (str(int(binascii.hexlify(address),16))=="118"):
 			if self.cdc_group:
-				self.cdc_cref = int(data.encode('hex'),16)
-		elif (str(int(address.encode('hex'),16))=="119"):
+				self.cdc_cref = int(binascii.hexlify(data),16)
+		elif (str(int(binascii.hexlify(address),16))=="119"):
 			if self.cdc_group:
-				self.cdc_crev = int(data.encode('hex'),16)
-		elif (str(int(address.encode('hex'),16))=="121"):
+				self.cdc_crev = int(binascii.hexlify(data),16)
+		elif (str(int(binascii.hexlify(address),16))=="121"):
 			if self.cdc_group:
-				self.cdc_cpar = int(data.encode('hex'),16)
-		elif (str(int(address.encode('hex'),16))=="122"):
+				self.cdc_cpar = int(binascii.hexlify(data),16)
+		elif (str(int(binascii.hexlify(address),16))=="122"):
 			if self.cdc_group:
-				self.cdc2_cmeas = int(data.encode('hex'),16)
-		elif (str(int(address.encode('hex'),16))=="123"):
+				self.cdc2_cmeas = int(binascii.hexlify(data),16)
+		elif (str(int(binascii.hexlify(address),16))=="123"):
 			if self.cdc_group:
-				self.cdc2_cref = int(data.encode('hex'),16)
-		elif (str(int(address.encode('hex'),16))=="124"):
+				self.cdc2_cref = int(binascii.hexlify(data),16)
+		elif (str(int(binascii.hexlify(address),16))=="124"):
 			if self.cdc_group:
-				self.cdc2_crev = int(data.encode('hex'),16)
-		elif (str(int(address.encode('hex'),16))=="125"):
+				self.cdc2_crev = int(binascii.hexlify(data),16)
+		elif (str(int(binascii.hexlify(address),16))=="125"):
 			if self.cdc_group:
-				self.cdc2_cpar = int(data.encode('hex'),16)
+				self.cdc2_cpar = int(binascii.hexlify(data),16)
 				wr.writerow([self.cdc_date,self.cdc_time,self.cdc_cmeas,self.cdc_cref,self.cdc_crev,self.cdc_cpar,self.cdc2_cmeas,self.cdc2_cref,self.cdc2_crev,self.cdc2_cpar])
 				self.count += 1
 				self.cdc_group = False
