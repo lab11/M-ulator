@@ -174,6 +174,32 @@ void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
 // PMU Related Functions
 //************************************
 
+static void set_pmu_sar_override(uint32_t val){
+	// SAR_RATIO_OVERRIDE
+    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+		( (0 << 13) // Enables override setting [12] (1'b1)
+		| (0 << 12) // Let VDD_CLK always connected to vbat
+		| (1 << 11) // Enable override setting [10] (1'h0)
+		| (0 << 10) // Have the converter have the periodic reset (1'h0)
+		| (1 << 9) // Enable override setting [8] (1'h0)
+		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+		| (1 << 7) // Enable override setting [6:0] (1'h0)
+		| (val) 		// Binary converter's conversion ratio (7'h00)
+	));
+	delay(MBUS_DELAY*10);
+    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+		( (1 << 13) // Enables override setting [12] (1'b1)
+		| (0 << 12) // Let VDD_CLK always connected to vbat
+		| (1 << 11) // Enable override setting [10] (1'h0)
+		| (0 << 10) // Have the converter have the periodic reset (1'h0)
+		| (1 << 9) // Enable override setting [8] (1'h0)
+		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+		| (1 << 7) // Enable override setting [6:0] (1'h0)
+		| (val) 		// Binary converter's conversion ratio (7'h00)
+	));
+	delay(MBUS_DELAY*10);
+}
+
 inline static void set_pmu_adc_period(uint32_t val){
 	// PMU_CONTROLLER_DESIRED_STATE Active
 	mbus_remote_register_write(PMU_ADDR,0x3C,
@@ -501,13 +527,21 @@ inline static void pmu_adc_read_latest(){
 
 inline static void pmu_parkinglot_decision_3v_battery(){
 	
+	// Battery > 2.9V
 	if (read_data_batadc < (PMU_ADC_3P2_VAL + 4)){
+		set_pmu_sar_override(62);
 
+	// Battery 2.6V - 2.9V
 	}else if (read_data_batadc >= PMU_ADC_3P2_VAL + 6){
+		set_pmu_sar_override(68);
 
+	// Battery 2.3V - 2.6V
 	}else if (read_data_batadc >= PMU_ADC_3P2_VAL + 18){
+		set_pmu_sar_override(77);
 
+	// Battery 2.0V - 2.3V
 	}else if (read_data_batadc >= PMU_ADC_3P2_VAL + 34){
+		set_pmu_sar_override(86);
 
 	}else{
 
@@ -1265,7 +1299,7 @@ int main() {
 	if ((pmu_parkinglot_mode > 0) && (exec_count_irq == 0)){
 		mbus_write_message32(0xAA,0xABCDDCBA);
 		pmu_adc_read_latest();
-		pmu_parkinglot_decision();
+		pmu_parkinglot_decision_3v_battery();
 	}
 
     // Check if wakeup is due to GOC interrupt  
@@ -1442,7 +1476,7 @@ int main() {
 
 				if (pmu_parkinglot_mode > 0){
 					// Solar short based on PMU ADC reading
-					pmu_parkinglot_decision();
+					pmu_parkinglot_decision_3v_battery();
 				}else if (pmu_parkinglot_mode == 0){
 					// Start harvesting and let solar short be determined in hardware
 					pmu_reset_solar_short();
