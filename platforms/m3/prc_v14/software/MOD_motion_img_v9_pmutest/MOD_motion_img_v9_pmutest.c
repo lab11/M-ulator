@@ -400,6 +400,7 @@ static void set_pmu_sleep_default(void){
 		| (1 << 5)  // Frequency multiplier L (actually L+1)
 		| (8) 		// Floor frequency base (0-31)
 	));
+	delay(MBUS_DELAY);
 
 }
 
@@ -477,6 +478,14 @@ static void set_pmu_motion_img_default(void){
 
 	set_pmu_sleep_default();
 	set_pmu_active_default();
+	// PMU register read is handled differently
+	mbus_remote_register_write(PMU_ADDR,0x00,0x19);
+	delay(MBUS_DELAY);
+	delay(MBUS_DELAY);
+	mbus_remote_register_write(PMU_ADDR,0x00,0x18);
+	delay(MBUS_DELAY);
+	delay(MBUS_DELAY);
+	
 
 	set_pmu_adc_period(0x200); 
 }

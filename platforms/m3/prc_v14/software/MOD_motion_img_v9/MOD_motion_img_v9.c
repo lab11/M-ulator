@@ -400,6 +400,7 @@ static void set_pmu_sleep_default(void){
 		| (1 << 5)  // Frequency multiplier L (actually L+1)
 		| (8) 		// Floor frequency base (0-31)
 	));
+	delay(MBUS_DELAY);
 
 }
 

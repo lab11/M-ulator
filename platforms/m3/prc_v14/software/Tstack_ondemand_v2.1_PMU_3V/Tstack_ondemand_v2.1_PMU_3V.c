@@ -45,7 +45,7 @@
 #define SNS_ADDR 0x5
 #define PMU_ADDR 0x6
 
-#define WAKEUP_PERIOD_PARKING 2000 // 200: ~200sec
+#define WAKEUP_PERIOD_PARKING 4000 // 200: ~200sec
 
 // Temp Sensor parameters
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
@@ -87,7 +87,7 @@ volatile uint32_t exec_count_irq;
 volatile uint32_t mbus_msg_flag;
 volatile uint32_t wakeup_period_count;
 volatile uint32_t wakeup_timer_multiplier;
-volatile uint32_t PMU_ADC_3P2_VAL;
+volatile uint32_t PMU_ADC_3P0_VAL;
 volatile uint32_t pmu_parkinglot_mode;
 volatile uint32_t pmu_harvesting_on;
 
@@ -410,20 +410,10 @@ inline static void set_pmu_clk_init(){
 		| (0 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (0 << 7) // Enable override setting [6:0] (1'h0)
-		| (127) 		// Binary converter's conversion ratio (7'h00)
+		| (0x40) 		// Binary converter's conversion ratio (7'h00)
 	));
 	delay(MBUS_DELAY);
-    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
-		( (1 << 13) // Enables override setting [12] (1'b1)
-		| (0 << 12) // Let VDD_CLK always connected to vbat
-		| (1 << 11) // Enable override setting [10] (1'h0)
-		| (0 << 10) // Have the converter have the periodic reset (1'h0)
-		| (1 << 9) // Enable override setting [8] (1'h0)
-		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
-		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (127) 		// Binary converter's conversion ratio (7'h00)
-	));
-	delay(MBUS_DELAY);
+	set_pmu_sar_override(0x40);
 
 	set_pmu_adc_period(1); // 0x100 about 1 min for 1/2/1 1P2 setting
 }
@@ -527,24 +517,53 @@ inline static void pmu_adc_read_latest(){
 
 inline static void pmu_parkinglot_decision_3v_battery(){
 	
-	// Battery > 2.9V
-	if (read_data_batadc < (PMU_ADC_3P2_VAL + 4)){
-		set_pmu_sar_override(62);
+	// Battery > 3.0V
+	if (read_data_batadc < (PMU_ADC_3P0_VAL)){
+		set_pmu_sar_override(0x3C);
 
-	// Battery 2.6V - 2.9V
-	}else if (read_data_batadc >= PMU_ADC_3P2_VAL + 6){
-		set_pmu_sar_override(68);
+	// Battery 2.9V - 3.0V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 4){
+		set_pmu_sar_override(0x3F);
 
-	// Battery 2.3V - 2.6V
-	}else if (read_data_batadc >= PMU_ADC_3P2_VAL + 18){
-		set_pmu_sar_override(77);
+	// Battery 2.8V - 2.9V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 8){
+		set_pmu_sar_override(0x41);
 
-	// Battery 2.0V - 2.3V
-	}else if (read_data_batadc >= PMU_ADC_3P2_VAL + 34){
-		set_pmu_sar_override(86);
+	// Battery 2.7V - 2.8V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 12){
+		set_pmu_sar_override(0x43);
 
+	// Battery 2.6V - 2.7V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 17){
+		set_pmu_sar_override(0x45);
+
+	// Battery 2.5V - 2.6V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 21){
+		set_pmu_sar_override(0x48);
+
+	// Battery 2.4V - 2.5V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 27){
+		set_pmu_sar_override(0x4B);
+
+	// Battery 2.3V - 2.4V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 32){
+		set_pmu_sar_override(0x4E);
+
+	// Battery 2.2V - 2.3V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 39){
+		set_pmu_sar_override(0x51);
+
+	// Battery 2.1V - 2.2V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 46){
+		set_pmu_sar_override(0x56);
+
+	// Battery 2.0V - 2.1V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 53){
+		set_pmu_sar_override(0x5A);
+
+	// Battery <= 2.0V
 	}else{
-
+		set_pmu_sar_override(0x5F);
 	}
 	
 }
@@ -914,8 +933,8 @@ static void operation_init(void){
     exec_count = 0;
     exec_count_irq = 0;
     mbus_msg_flag = 0;
-	PMU_ADC_3P2_VAL = 0x4B;
-	pmu_parkinglot_mode = 0;
+	PMU_ADC_3P0_VAL = 0x69;
+	pmu_parkinglot_mode = 3;
 	pmu_harvesting_on = 1;
   
     // Set CPU Halt Option as RX --> Use for register read e.g.
@@ -927,7 +946,7 @@ static void operation_init(void){
 	delay(MBUS_DELAY);
     mbus_enumerate(SNS_ADDR);
 	delay(MBUS_DELAY);
-    mbus_enumerate(HRV_ADDR);
+    //mbus_enumerate(HRV_ADDR);
 	delay(MBUS_DELAY);
  	mbus_enumerate(PMU_ADDR);
 	delay(MBUS_DELAY);
@@ -1643,9 +1662,9 @@ int main() {
 		if (wakeup_data_field_2 == 0){
 			// Read latest PMU ADC measurement
 			pmu_adc_read_latest();
-			PMU_ADC_3P2_VAL = read_data_batadc;
+			PMU_ADC_3P0_VAL = read_data_batadc;
 		}else{
-			PMU_ADC_3P2_VAL = wakeup_data_field_2;
+			PMU_ADC_3P0_VAL = wakeup_data_field_2;
 		}
 
         if (exec_count_irq < wakeup_data_field_0){
@@ -1658,7 +1677,7 @@ int main() {
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm(0,0xABC000+PMU_ADC_3P2_VAL);	
+				send_radio_data_ppm(0,0xABC000+PMU_ADC_3P0_VAL);	
 				// set timer
 				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
@@ -1671,6 +1690,13 @@ int main() {
             // Go to sleep without timer
             operation_sleep_notimer();
         }
+
+	}else if(wakeup_data_header == 0x18){
+		// Manually override the SAR ratio
+		set_pmu_sar_override(wakeup_data_field_0);
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
 
     }else{
 		if (wakeup_data_header != 0){
