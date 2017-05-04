@@ -39,13 +39,13 @@
 // #define DEBUG_MBUS_MSG
 #define DEBUG_MBUS_MSG_1
 
-// TStack order  PRC->RAD->SNS->HRV->PMU
+// TStack order  PRC->RAD->SNS->PMU
 #define HRV_ADDR 0x3
 #define RAD_ADDR 0x4
 #define SNS_ADDR 0x5
 #define PMU_ADDR 0x6
 
-#define WAKEUP_PERIOD_PARKING 4000 // 200: ~200sec
+#define WAKEUP_PERIOD_PARKING 2000 // 200: ~200sec
 
 // Temp Sensor parameters
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
@@ -946,8 +946,6 @@ static void operation_init(void){
 	delay(MBUS_DELAY);
     mbus_enumerate(SNS_ADDR);
 	delay(MBUS_DELAY);
-    //mbus_enumerate(HRV_ADDR);
-	delay(MBUS_DELAY);
  	mbus_enumerate(PMU_ADDR);
 	delay(MBUS_DELAY);
 
@@ -1055,13 +1053,6 @@ static void operation_init(void){
 	wakeup_data = 0;
 	set_temp_exec_count = 0; // specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
 
-    // Harvester Settings --------------------------------------
-	hrvv2_r0_temp.as_int = hrvv2_r0.as_int;
-	hrvv2_r0_temp.HRV_TOP_CONV_RATIO = 0x6;
-	hrvv2_r0.as_int = hrvv2_r0_temp.as_int;
-    mbus_remote_register_write(HRV_ADDR,0,hrvv2_r0.as_int);
-
-    delay(MBUS_DELAY);
 
     // Go to sleep without timer
     operation_sleep_notimer();
