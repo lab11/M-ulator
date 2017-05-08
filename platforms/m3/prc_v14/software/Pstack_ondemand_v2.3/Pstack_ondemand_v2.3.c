@@ -1522,11 +1522,12 @@ int main() {
 	}
 
     // Proceed to continuous mode
-    while(1){
-        operation_cdc_run();
-    }
+	if (cdc_running){
+		while(1){
+			operation_cdc_run();
+		}
+	}
 
-    // Should not reach here
     operation_sleep_notimer();
 
     while(1);
