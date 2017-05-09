@@ -1418,13 +1418,9 @@ int main() {
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
 			if (exec_count_irq == 1){
-				// Grab latest PMU ADC readings
-				// PMUv2 register read is handled differently
-				mbus_remote_register_write(PMU_ADDR,0x00,0x03);
-				delay(MBUS_DELAY);
-				delay(MBUS_DELAY);
-				read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
-		
+				// Read latest PMU ADC measurement
+				pmu_adc_read_latest();
+
 				// Prepare radio TX
 				radio_power_on();
 				// Go to sleep for SCRO stabilitzation
@@ -1497,12 +1493,12 @@ int main() {
 		WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
 		pmu_parkinglot_mode = wakeup_data_field_2 & 0x3;
 
-		// Read latest PMU ADC measurement
-		pmu_adc_read_latest();
-
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
 			if (exec_count_irq == 1){
+
+				// Read latest PMU ADC measurement
+				pmu_adc_read_latest();
 
 				if (pmu_parkinglot_mode > 0){
 					// Solar short based on PMU ADC reading

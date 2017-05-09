@@ -1373,12 +1373,12 @@ int main() {
 		temp_running = 0;
 		Tstack_state = TSTK_IDLE;
 
-		// Read latest PMU ADC measurement
-		pmu_adc_read_latest();
-
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
 			if (exec_count_irq == 1){
+				// Read latest PMU ADC measurement
+				pmu_adc_read_latest();
+
 				// Prepare radio TX
 				radio_power_on();
 				// Go to sleep for SCRO stabilitzation
@@ -1451,12 +1451,12 @@ int main() {
 		WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
 		pmu_parkinglot_mode = wakeup_data_field_2 & 0x3;
 
-		// Read latest PMU ADC measurement
-		pmu_adc_read_latest();
-
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
 			if (exec_count_irq == 1){
+
+				// Read latest PMU ADC measurement
+				pmu_adc_read_latest();
 
 				if (pmu_parkinglot_mode > 0){
 					// Solar short based on PMU ADC reading
