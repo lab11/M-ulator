@@ -25,6 +25,7 @@
 //			v1.15: Turning off VDD_CLK->VBAT during PMU ADC routine
 //				   Getting rid of all non-32 bit declarations
 //			v2.00: Adding parking lot feature (automatic vbat mornitoring & charging)
+//			v2.1 3V: No harvesting, only for 3V seiko battery
 //*******************************************************************
 #include "PRCv14.h"
 #include "PRCv14_RF.h"
@@ -38,7 +39,7 @@
 // #define DEBUG_MBUS_MSG
 #define DEBUG_MBUS_MSG_1
 
-// TStack order  PRC->RAD->SNS->HRV->PMU
+// TStack order  PRC->RAD->SNS->PMU
 #define HRV_ADDR 0x3
 #define RAD_ADDR 0x4
 #define SNS_ADDR 0x5
@@ -67,7 +68,7 @@
 #define RADIO_TIMEOUT_COUNT 50
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
-#define TEMP_STORAGE_SIZE 600 // Need to leave about 500 Bytes for stack --> around 120 words
+#define TEMP_STORAGE_SIZE 550 // Need to leave about 500 Bytes for stack --> around 120 words
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y2 run default clock
 
@@ -86,9 +87,11 @@ volatile uint32_t exec_count_irq;
 volatile uint32_t mbus_msg_flag;
 volatile uint32_t wakeup_period_count;
 volatile uint32_t wakeup_timer_multiplier;
-volatile uint32_t PMU_ADC_4P2_VAL;
+volatile uint32_t PMU_ADC_3P0_VAL;
 volatile uint32_t pmu_parkinglot_mode;
 volatile uint32_t pmu_harvesting_on;
+volatile uint32_t pmu_sar_conv_ratio_val;
+volatile uint32_t read_data_batadc;
 
 volatile snsv7_r14_t snsv7_r14 = SNSv7_R14_DEFAULT;
 volatile snsv7_r15_t snsv7_r15 = SNSv7_R15_DEFAULT;
@@ -115,8 +118,6 @@ volatile uint32_t radio_tx_option;
 volatile uint32_t radio_tx_numdata;
 volatile uint32_t radio_ready;
 volatile uint32_t radio_on;
-
-volatile uint32_t read_data_batadc;
 
 volatile radv9_r0_t radv9_r0 = RADv9_R0_DEFAULT;
 volatile radv9_r1_t radv9_r1 = RADv9_R1_DEFAULT;
@@ -172,6 +173,32 @@ void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
 //************************************
 // PMU Related Functions
 //************************************
+
+static void set_pmu_sar_override(uint32_t val){
+	// SAR_RATIO_OVERRIDE
+    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+		( (0 << 13) // Enables override setting [12] (1'b1)
+		| (0 << 12) // Let VDD_CLK always connected to vbat
+		| (1 << 11) // Enable override setting [10] (1'h0)
+		| (0 << 10) // Have the converter have the periodic reset (1'h0)
+		| (1 << 9) // Enable override setting [8] (1'h0)
+		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+		| (1 << 7) // Enable override setting [6:0] (1'h0)
+		| (val) 		// Binary converter's conversion ratio (7'h00)
+	));
+	delay(MBUS_DELAY*10);
+    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+		( (1 << 13) // Enables override setting [12] (1'b1)
+		| (0 << 12) // Let VDD_CLK always connected to vbat
+		| (1 << 11) // Enable override setting [10] (1'h0)
+		| (0 << 10) // Have the converter have the periodic reset (1'h0)
+		| (1 << 9) // Enable override setting [8] (1'h0)
+		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+		| (1 << 7) // Enable override setting [6:0] (1'h0)
+		| (val) 		// Binary converter's conversion ratio (7'h00)
+	));
+	delay(MBUS_DELAY*10);
+}
 
 inline static void set_pmu_adc_period(uint32_t val){
 	// PMU_CONTROLLER_DESIRED_STATE Active
@@ -383,20 +410,10 @@ inline static void set_pmu_clk_init(){
 		| (0 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (0 << 7) // Enable override setting [6:0] (1'h0)
-		| (44) 		// Binary converter's conversion ratio (7'h00)
+		| (0x45) 		// Binary converter's conversion ratio (7'h00)
 	));
 	delay(MBUS_DELAY);
-    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
-		( (1 << 13) // Enables override setting [12] (1'b1)
-		| (0 << 12) // Let VDD_CLK always connected to vbat
-		| (1 << 11) // Enable override setting [10] (1'h0)
-		| (0 << 10) // Have the converter have the periodic reset (1'h0)
-		| (1 << 9) // Enable override setting [8] (1'h0)
-		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
-		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (44) 		// Binary converter's conversion ratio (7'h00)
-	));
-	delay(MBUS_DELAY);
+	set_pmu_sar_override(0x45);
 
 	set_pmu_adc_period(1); // 0x100 about 1 min for 1/2/1 1P2 setting
 }
@@ -498,39 +515,57 @@ inline static void pmu_adc_read_latest(){
 
 }
 
-inline static void pmu_parkinglot_decision(){
+inline static void pmu_parkinglot_decision_3v_battery(){
 	
-	if (read_data_batadc < (PMU_ADC_4P2_VAL + 2)){
-		// Stop Harvesting (4.1V)
-		pmu_harvesting_on = 0;
-		// Register 0x0E: PMU_VOLTAGE_CLAMP_TRIM
-		mbus_remote_register_write(PMU_ADDR,0x0E, 
-		   (    ( 0 << 10) // When to turn on Harvester Inhibiting Switch
-			  | ( 1 <<  9) // Enables Override Settings [8]
-			  | ( 1 <<  8) // Turn On Harvester Inhibiting Switch
-			  | ( 1 <<  4) // Clamp Tune Bottom
-			  | ( 0 <<  0) // Clamp Tune Top
-			  ));
+	// Battery > 3.0V
+	if (read_data_batadc < (PMU_ADC_3P0_VAL)){
+		set_pmu_sar_override(0x3C);
 
+	// Battery 2.9V - 3.0V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 4){
+		set_pmu_sar_override(0x3F);
 
-	}else if (read_data_batadc >= PMU_ADC_4P2_VAL + 6){
-		//Start Harvesting (3.9V)
-		pmu_harvesting_on = 1;
-		// Register 0x0E: PMU_VOLTAGE_CLAMP_TRIM
-		mbus_remote_register_write(PMU_ADDR,0x0E, 
-		   (    ( 0 << 10) // When to turn on Harvester Inhibiting Switch
-			  | ( 1 <<  9) // Enables Override Settings [8]
-			  | ( 0 <<  8) // Turn On Harvester Inhibiting Switch
-			  | ( 1 <<  4) // Clamp Tune Bottom
-			  | ( 0 <<  0) // Clamp Tune Top
-			  ));
+	// Battery 2.8V - 2.9V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 8){
+		set_pmu_sar_override(0x41);
+
+	// Battery 2.7V - 2.8V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 12){
+		set_pmu_sar_override(0x43);
+
+	// Battery 2.6V - 2.7V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 17){
+		set_pmu_sar_override(0x45);
+
+	// Battery 2.5V - 2.6V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 21){
+		set_pmu_sar_override(0x48);
+
+	// Battery 2.4V - 2.5V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 27){
+		set_pmu_sar_override(0x4B);
+
+	// Battery 2.3V - 2.4V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 32){
+		set_pmu_sar_override(0x4E);
+
+	// Battery 2.2V - 2.3V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 39){
+		set_pmu_sar_override(0x51);
+
+	// Battery 2.1V - 2.2V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 46){
+		set_pmu_sar_override(0x56);
+
+	// Battery 2.0V - 2.1V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 53){
+		set_pmu_sar_override(0x5A);
+
+	// Battery <= 2.0V
 	}else{
-
+		set_pmu_sar_override(0x5F);
 	}
 	
-	if (pmu_harvesting_on == 0){
-		mbus_write_message32(0xAA, 0x000FF0FF);
-	}
 }
 
 inline static void pmu_reset_solar_short(){
@@ -894,12 +929,12 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEEF;
+    enumerated = 0xDEADBEEA;
     exec_count = 0;
     exec_count_irq = 0;
     mbus_msg_flag = 0;
-	PMU_ADC_4P2_VAL = 0x4B;
-	pmu_parkinglot_mode = 0;
+	PMU_ADC_3P0_VAL = 0x69;
+	pmu_parkinglot_mode = 3;
 	pmu_harvesting_on = 1;
   
     // Set CPU Halt Option as RX --> Use for register read e.g.
@@ -910,8 +945,6 @@ static void operation_init(void){
     mbus_enumerate(RAD_ADDR);
 	delay(MBUS_DELAY);
     mbus_enumerate(SNS_ADDR);
-	delay(MBUS_DELAY);
-    mbus_enumerate(HRV_ADDR);
 	delay(MBUS_DELAY);
  	mbus_enumerate(PMU_ADDR);
 	delay(MBUS_DELAY);
@@ -1020,13 +1053,6 @@ static void operation_init(void){
 	wakeup_data = 0;
 	set_temp_exec_count = 0; // specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
 
-    // Harvester Settings --------------------------------------
-	hrvv2_r0_temp.as_int = hrvv2_r0.as_int;
-	hrvv2_r0_temp.HRV_TOP_CONV_RATIO = 0x6;
-	hrvv2_r0.as_int = hrvv2_r0_temp.as_int;
-    mbus_remote_register_write(HRV_ADDR,0,hrvv2_r0.as_int);
-
-    delay(MBUS_DELAY);
 
     // Go to sleep without timer
     operation_sleep_notimer();
@@ -1273,7 +1299,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEEF){
+    if (enumerated != 0xDEADBEEA){
         // Set up PMU/GOC register in PRC layer (every time)
         // Enumeration & RAD/SNS layer register configuration
         operation_init();
@@ -1283,7 +1309,7 @@ int main() {
 	if ((pmu_parkinglot_mode > 0) && (exec_count_irq == 0)){
 		mbus_write_message32(0xAA,0xABCDDCBA);
 		pmu_adc_read_latest();
-		pmu_parkinglot_decision();
+		pmu_parkinglot_decision_3v_battery();
 	}
 
     // Check if wakeup is due to GOC interrupt  
@@ -1373,12 +1399,12 @@ int main() {
 		temp_running = 0;
 		Tstack_state = TSTK_IDLE;
 
+		// Read latest PMU ADC measurement
+		pmu_adc_read_latest();
+
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
 			if (exec_count_irq == 1){
-				// Read latest PMU ADC measurement
-				pmu_adc_read_latest();
-
 				// Prepare radio TX
 				radio_power_on();
 				// Go to sleep for SCRO stabilitzation
@@ -1451,16 +1477,16 @@ int main() {
 		WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
 		pmu_parkinglot_mode = wakeup_data_field_2 & 0x3;
 
+		// Read latest PMU ADC measurement
+		pmu_adc_read_latest();
+
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
 			if (exec_count_irq == 1){
 
-				// Read latest PMU ADC measurement
-				pmu_adc_read_latest();
-
 				if (pmu_parkinglot_mode > 0){
 					// Solar short based on PMU ADC reading
-					pmu_parkinglot_decision();
+					pmu_parkinglot_decision_3v_battery();
 				}else if (pmu_parkinglot_mode == 0){
 					// Start harvesting and let solar short be determined in hardware
 					pmu_reset_solar_short();
@@ -1627,9 +1653,9 @@ int main() {
 		if (wakeup_data_field_2 == 0){
 			// Read latest PMU ADC measurement
 			pmu_adc_read_latest();
-			PMU_ADC_4P2_VAL = read_data_batadc;
+			PMU_ADC_3P0_VAL = read_data_batadc;
 		}else{
-			PMU_ADC_4P2_VAL = wakeup_data_field_2;
+			PMU_ADC_3P0_VAL = wakeup_data_field_2;
 		}
 
         if (exec_count_irq < wakeup_data_field_0){
@@ -1642,7 +1668,7 @@ int main() {
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm(0,0xABC000+PMU_ADC_4P2_VAL);	
+				send_radio_data_ppm(0,0xABC000+PMU_ADC_3P0_VAL);	
 				// set timer
 				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
@@ -1655,6 +1681,50 @@ int main() {
             // Go to sleep without timer
             operation_sleep_notimer();
         }
+
+	}else if(wakeup_data_header == 0x18){
+		// Manually override the SAR ratio
+		set_pmu_sar_override(wakeup_data_field_0);
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x19){
+		// Report PMU's SAR conversion ratio
+		// wakeup_data[7:0] is the # of transmissions
+		// wakeup_data[15:8] is the user-specified period 
+		WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+
+        if (exec_count_irq < wakeup_data_field_0){
+            exec_count_irq++;
+			if (exec_count_irq == 1){
+				// Read PMU register 5
+				// PMU register read is handled differently
+				mbus_remote_register_write(PMU_ADDR,0x00,0x05);
+				delay(MBUS_DELAY);
+				delay(MBUS_DELAY);
+				pmu_sar_conv_ratio_val = *((volatile uint32_t *) REG0) & 0x3F;
+
+				// Prepare radio TX
+				radio_power_on();
+				// Go to sleep for SCRO stabilitzation
+				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
+				operation_sleep_noirqreset();
+			}else{
+				// radio
+				send_radio_data_ppm(0,0xABC000+pmu_sar_conv_ratio_val);	
+				// set timer
+				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
+				// go to sleep and wake up with same condition
+				operation_sleep_noirqreset();
+			}
+        }else{
+            exec_count_irq = 0;
+            // radio
+            send_radio_data_ppm(1,0xFAF000);	
+            // Go to sleep without timer
+            operation_sleep_notimer();
+        }
+
 
     }else{
 		if (wakeup_data_header != 0){

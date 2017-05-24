@@ -847,6 +847,8 @@ static void operation_init(void){
     prcv14_r0B_temp.CLK_GEN_RING = 0x1; // Default 0x1
     prcv14_r0B_temp.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
     prcv14_r0B_temp.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
+    prcv14_r0B_temp.GOC_CLK_GEN_SEL_DIV = 0x0; // Default 0x0
+    prcv14_r0B_temp.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
 	prcv14_r0B.as_int = prcv14_r0B_temp.as_int;
 	*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv14_r0B.as_int;
 
@@ -1331,13 +1333,14 @@ int main() {
 
 		// Reset IRQ14VEC
 		*((volatile uint32_t *) IRQ14VEC) = 0;
+        exec_count_irq = 0;
 
 		// Run CDC Program
     	Pstack_state = PSTK_IDLE;
 		operation_cdc_run();
 
     }else if(wakeup_data_header == 3){
-		// Stop CDC program and transmit the execution count n times
+		// Stop CDC program and transmit the battery reading and execution count (alternating n times)
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period 
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
@@ -1347,6 +1350,13 @@ int main() {
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
 			if (exec_count_irq == 1){
+				// Grab latest PMU ADC readings
+				// PMUv2 register read is handled differently
+				mbus_remote_register_write(PMU_ADDR,0x00,0x03);
+				delay(MBUS_DELAY);
+				delay(MBUS_DELAY);
+				read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
+		
 				// Prepare radio TX
 				radio_power_on();
 				// Go to sleep for SCRO stabilitzation
@@ -1512,11 +1522,12 @@ int main() {
 	}
 
     // Proceed to continuous mode
-    while(1){
-        operation_cdc_run();
-    }
+	if (cdc_running){
+		while(1){
+			operation_cdc_run();
+		}
+	}
 
-    // Should not reach here
     operation_sleep_notimer();
 
     while(1);
