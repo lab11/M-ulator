@@ -44,8 +44,12 @@ class mbus_message_generator(m3_common):
         self.cdc_date = 0
         self.cdc_time = 0
         self.cdc_group = False
+        
+        #add our handlers here, so they don't get called
+        # before we're finished setup
+        self.ice.msg_handler['B++'] = self.Bpp_callback
+        self.ice.msg_handler['b++'] = self.Bpp_callback
 
-    
     def add_parse_args(self):
         super(mbus_message_generator, self).add_parse_args()
         self.parser.add_argument('-fc','--filename_cref')
@@ -55,11 +59,15 @@ class mbus_message_generator(m3_common):
     def parse_args(self):
         super(mbus_message_generator, self).parse_args()
 
-    def install_handler(self):
-        self.ice.msg_handler['B++'] = self.Bpp_callback
-        self.ice.msg_handler['b++'] = self.Bpp_callback
+    # no longer used
+    # this gets called by super().__init__() before we're finished
+    # doing setup, which caused Bpp_callback to get called by another thread
+    # before __init__ had completed
+    #def install_handler(self):
+    #    pass
 
     def Bpp_callback(self, address, data, cb0=-1, cb1=-1):
+
 		print("@" + str(self.count) + " Time: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "  ADDR: 0x" + binascii.hexlify(address)+ "  DATA: 0x" + binascii.hexlify(data) + "  (ACK: " + str(not cb1) + ")")
 		print >> logfile, "@" + str(self.count) + " Time: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "  ADDR: 0x" + binascii.hexlify(address) + "  DATA: 0x" + binascii.hexlify(data)+ "  (ACK: " + str(not cb1) + ")"
 		if (str(int(binascii.hexlify(address),16))=="116"):
