@@ -35,7 +35,7 @@
 #define COLS_TO_READ 39 // in # of words: 39 for full frame, 19 for half
 
 // Radio configurations
-#define RADIO_DATA_LENGTH 96 //96
+#define RADIO_DATA_LENGTH 108 //96
 #define RADIO_TIMEOUT_COUNT 500
 #define WAKEUP_PERIOD_RADIO_INIT 3
 #define RADIO_PACKET_DELAY 4000 // Need 100-200ms
@@ -400,6 +400,7 @@ static void set_pmu_sleep_default(void){
 		| (1 << 5)  // Frequency multiplier L (actually L+1)
 		| (8) 		// Floor frequency base (0-31)
 	));
+	delay(MBUS_DELAY);
 
 }
 
@@ -619,7 +620,7 @@ static void mrr_configure_pulse_width_long(){
     //mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 4; //8 bit shift in LFSR
 
     mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 24; //100us PW
-    mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 1600; // (PW_LEN+1):C_LEN=1:64
+    mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 800; // (PW_LEN+1):C_LEN=1:32
     mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 24; // PW=PS   
     mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 5; //8 bit shift in LFSR
 
@@ -637,7 +638,7 @@ static void mrr_configure_pulse_width_long(){
     mbus_remote_register_write(MRR_ADDR,0x12,mrrv3_r12.as_int);
 
     // Current Limter set-up 
-    mrrv3_r00.MRR_CL_CTRL = 1;
+    mrrv3_r00.MRR_CL_CTRL = 8;
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
 
     mrrv3_r11.MRR_RAD_FSM_TX_POWERON_LEN = 7; //3bits
@@ -656,7 +657,7 @@ static void mrr_configure_pulse_width_short(){
     mbus_remote_register_write(MRR_ADDR,0x12,mrrv3_r12.as_int);
 
     // Current Limter set-up 
-    mrrv3_r00.MRR_CL_CTRL = 1; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+    mrrv3_r00.MRR_CL_CTRL = 8; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
 
     mrrv3_r11.MRR_RAD_FSM_TX_POWERON_LEN = 7; //3bits
@@ -665,16 +666,18 @@ static void mrr_configure_pulse_width_short(){
 }
 
 
-static void send_radio_data_ppm_96(uint32_t last_packet, uint32_t radio_data_0, uint32_t radio_data_1, uint32_t radio_data_2, uint32_t radio_data_3){
+static void send_radio_data_ppm_96(uint32_t last_packet, uint32_t radio_data_0, uint32_t radio_data_1, uint32_t radio_data_2, uint32_t radio_data_3, uint32_t radio_data_4){
 	// Sends 96 bits of data (3 words, 4 RADv9 registers)
 	// radio_data_0: DATA[23:0]
 	// radio_data_1: DATA[47:24]
 	// radio_data_2: DATA[71:48]
 	// radio_data_3: DATA[95:72]
+	// radio_data_4: DATA[107:96]
     mbus_remote_register_write(MRR_ADDR,0x6,radio_data_0);
     mbus_remote_register_write(MRR_ADDR,0x7,radio_data_1);
     mbus_remote_register_write(MRR_ADDR,0x8,radio_data_2);
     mbus_remote_register_write(MRR_ADDR,0x9,radio_data_3);
+    mbus_remote_register_write(MRR_ADDR,0xA,radio_data_4);
 
     if (!radio_ready){
 		radio_ready = 1;
@@ -807,7 +810,7 @@ uint32_t send_radio_flash_sram(uint32_t addr_stamp, uint32_t length){
 			(flash_read_data[0]&0xFFFFFF),
 			((flash_read_data[0]&0xFF000000)>>24) | ((flash_read_data[1]&0xFFFF)<<8),
 			((flash_read_data[1]&0xFFFF0000)>>16) | ((flash_read_data[2]&0xFF)<<16),
-			((flash_read_data[2]&0xFFFFFF00)>>8));
+			((flash_read_data[2]&0xFFFFFF00)>>8),idx);
 		
 	}
 
@@ -1213,7 +1216,7 @@ static void operation_md(void){
 		clear_md_flag();
 		if (radio_tx_option){
 			// radio
-			send_radio_data_ppm_96(0,0x11223344,1,2,3);	
+			send_radio_data_ppm_96(0,0x11223344,1,2,3,4);	
 		}
 	}
 
@@ -1244,9 +1247,9 @@ static void operation_md(void){
 
 		if (radio_tx_option){
 			// Radio out image data stored in flash SRAM
-			send_radio_data_ppm_96(0,0xABC000,1,2,3);
+			send_radio_data_ppm_96(0,0xABC000,1,2,3,4);
 			send_radio_flash_sram(0xE4, 6475); // Full image
-			send_radio_data_ppm_96(1,0xABCFFF,1,2,3);
+			send_radio_data_ppm_96(1,0xABCFFF,1,2,3,4);
 		}
 
 		// Turn off only the Flash layer
@@ -1356,7 +1359,7 @@ static void operation_init(void){
 	// Stack order: PRC->MRR->HRV->MD->FLS->PMU
     mbus_enumerate(MRR_ADDR); //0x25
     delay(MBUS_DELAY);
-    //mbus_enumerate(HRV_ADDR); //0x26
+    mbus_enumerate(HRV_ADDR); //0x26
     delay(MBUS_DELAY);
     mbus_enumerate(MD_ADDR);  //0x24
     delay(MBUS_DELAY);
@@ -1385,8 +1388,8 @@ static void operation_init(void){
     mrrv3_r1C.LC_CLK_DIV = 0x3;  // ~ 150 kHz
     mbus_remote_register_write(MRR_ADDR,0x1C,mrrv3_r1C.as_int);
 
-	mrr_configure_pulse_width_short();
-	//mrr_configure_pulse_width_long();
+	//mrr_configure_pulse_width_short();
+	mrr_configure_pulse_width_long();
 
     // TX Setup Carrier Freq
     mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x0000;  //ANT CAP 14b unary 830.5 MHz
@@ -1568,7 +1571,7 @@ int main() {
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm_96(0,0xABC000+exec_count_irq,1,2,3);	
+				send_radio_data_ppm_96(0,0xABC000+exec_count_irq,1,2,3,4);	
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
@@ -1577,7 +1580,7 @@ int main() {
         }else{
             exec_count_irq = 0;
             // radio
-            send_radio_data_ppm_96(1,0xFAF000,1,2,3);	
+            send_radio_data_ppm_96(1,0xFAF000,1,2,3,4);	
             // Go to sleep without timer
             operation_sleep_notimer();
         }
@@ -1641,7 +1644,7 @@ int main() {
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm_96(0,0xC00000+img_count,1,2,3);	
+				send_radio_data_ppm_96(0,0xC00000+img_count,1,2,3,4);	
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
@@ -1649,7 +1652,7 @@ int main() {
 			}
         }else{
             exec_count_irq = 0;
-            send_radio_data_ppm_96(1,0xFAF000,1,2,3);	
+            send_radio_data_ppm_96(1,0xFAF000,1,2,3,4);	
             // Go to sleep without timer
             operation_sleep_notimer();
         }
@@ -1759,7 +1762,7 @@ int main() {
 				operation_sleep_noirqreset();
 			}else{
 				// radio
-				send_radio_data_ppm_96(0,0xBBB000+read_data_batadc,1,2,3);	
+				send_radio_data_ppm_96(0,0xBBB000+read_data_batadc,1,2,3,4);	
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 				// go to sleep and wake up with same condition
@@ -1768,7 +1771,7 @@ int main() {
         }else{
             exec_count_irq = 0;
             // radio
-            send_radio_data_ppm_96(1,0xFAF000,1,2,3);	
+            send_radio_data_ppm_96(1,0xFAF000,1,2,3,4);	
             // Go to sleep without timer
             operation_sleep_notimer();
         }

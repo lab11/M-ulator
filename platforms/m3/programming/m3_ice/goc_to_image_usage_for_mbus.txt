@@ -1,0 +1,1 @@
+python goc_to_image.py -f untitled.out -a 0x18 0x74

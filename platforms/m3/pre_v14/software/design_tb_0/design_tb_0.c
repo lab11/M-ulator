@@ -596,6 +596,37 @@ void cycle10 (void) {
     }
 }
 
+void cycle1_test (void) {
+        // Set Halt
+        set_halt_until_mbus_tx();
+
+//        mbus_write_message32(0xA0, 0x0);
+
+        uint32_t temp_data = *((volatile uint32_t *) 0xA0004000);
+        *((volatile uint32_t *) 0xA0001004) = temp_data;
+
+//        mbus_write_message32(0xA0, 0x1);
+//
+//        mbus_write_message32(0xA0, temp_data);
+//
+        mbus_write_message32(0xA0, *((volatile uint32_t *) 0xA0001004));
+//        delay(1000);
+//
+//        *((volatile uint32_t *) 0xA0004000)=0x00000C87;
+//
+//        mbus_write_message32(0xA0, *((volatile uint32_t *) 0xA0004000));
+//        delay(1000);
+//
+//        mbus_write_message32(0xA0, *((volatile uint32_t *) 0xA0004000));
+//        delay(1000);
+//
+//        mbus_write_message32(0xA0, *((volatile uint32_t *) 0xA0004000));
+//        delay(1000);
+//
+//        mbus_write_message32(0xA0, *((volatile uint32_t *) 0xA0004000));
+//        delay(1000);
+}
+
 void cycle11 (void) {
     if (do_cycle11 == 1) {
         // Set Halt
@@ -624,6 +655,22 @@ int main() {
     //Initialize Interrupts
     disable_all_irq();
 
+        set_halt_until_mbus_tx();
+
+////        mbus_write_message32(0xA0, 0x0);
+//
+//        uint32_t temp_data = *((volatile uint32_t *) 0xA0004FE0);
+//        *((volatile uint32_t *) 0xA0001004) = temp_data;
+//
+////        mbus_write_message32(0xA0, 0x1);
+////
+////        mbus_write_message32(0xA0, temp_data);
+////
+//        mbus_write_message32(0xA0, *((volatile uint32_t *) 0xA0001004));
+//
+//
+//        while(1);
+
     // Initialization Sequence
     if (enumerated != 0xDEADBEEF) { 
         initialization();
@@ -631,7 +678,8 @@ int main() {
 
     // Testing Sequence
     if      (cyc_num == 0)  cycle0();
-    else if (cyc_num == 1)  cycle1();
+//    else if (cyc_num == 1)  cycle1_test();
+    else if (cyc_num == 1) cycle1();
     else if (cyc_num == 2)  cycle2();
     else if (cyc_num == 3)  cycle3();
     else if (cyc_num == 4)  cycle4();

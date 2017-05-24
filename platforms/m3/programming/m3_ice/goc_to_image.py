@@ -1,5 +1,7 @@
 #!/usr/bin/env python2
 
+from __future__ import print_function
+
 import argparse
 import csv
 from pprint import pprint
@@ -17,6 +19,12 @@ import pygame
 import pygame.fastevent
 from pygame.locals import *
 
+try:
+    import colorama
+    print_bold = lambda x: print(colorama.Style.BRIGHT + x + colorama.Style.RESET_ALL)
+except ImportError:
+    print_bold = lambda x: print(x)
+
 import m3
 from m3 import m3_common
 from m3 import m3_logging
@@ -27,13 +35,17 @@ rotate_90 = True
 ################################################################################
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-f', '--file', default=None,
+
+input_group = parser.add_mutually_exclusive_group(required=True)
+input_group.add_argument('-f', '--file', default=None,
 		help="Read image data from a file saved from a Saleae capture")
+input_group.add_argument('-s', '--serial', default=None,
+		help="Snoop image data via an ICE board on this serial port")
+input_group.add_argument('-w', '--wireless-file', default=None,
+		help="File with image data formatted from a wireless capture")
+
 parser.add_argument('-b', '--batch', default=None, action="store_true",
 		help="Batch process a file and do not wait for user input")
-parser.add_argument('-s', '--serial', default=None,
-		help="Snoop image data via an ICE board on this serial port")
-
 parser.add_argument('-a', '--address',
 		type=lambda x: int(x, 0),
 		default=(0x17,),
@@ -57,18 +69,6 @@ parser.add_argument('--hot-pixel-threshold', type=int, default=25,
 		help="Pixels at or above this value will be considered hot")
 
 args = parser.parse_args()
-
-if args.file is None and args.serial is None:
-	print("Error: Must specify one of -f or -s")
-	print("")
-	parser.print_help()
-	sys.exit(1)
-
-if args.file is not None and args.serial is not None:
-	print("Error: Can only specify one of -f or -s")
-	print("")
-	parser.print_help()
-	sys.exit(1)
 
 os.mkdir(args.output_directory)
 
@@ -180,6 +180,123 @@ def get_addr17_msg_file():
         if line not in map(lambda a: 'Address {:x}'.format(a), args.address):
             searching = True
 
+
+# Generators are expected to send one row at a time, but the wireless file is
+# formatted as rows of (possibly missing) 12 bit entires, so we throw another
+# generator layer here. The first always returns the "next" 12 bits (either
+# padded from missing packets or from the file), the next level then returns
+# those as rows
+# to work out the padding correctly for, so we grab a whole image
+
+PIXELS_PER_PACKET = 12
+EXPECTED_NUMBER_OF_PACKETS = (args.pixels * args.pixels) / PIXELS_PER_PACKET
+EXPECTED_LAST_PACKET_NUMBER = EXPECTED_NUMBER_OF_PACKETS - 1
+
+def get_12bytes_from_wireless_file():
+    START_OF_IMAGE = "004000003000002000001ABC000"
+    END_OF_IMAGE = "004000003000002000001ABCFFF"
+
+    prior_packet_number = -1
+    for line in open(args.wireless_file):
+        line = line.strip()
+        packet_number = int(line[:3], 16)
+
+        # New Image?
+        #if packet_number < prior_packet_number:
+        if line == START_OF_IMAGE:
+            print_bold("Found START_OF_IMAGE")
+            # Now reset the prior_packet_number to start of next frame
+            prior_packet_number = -1
+            yield 'START'
+            continue
+
+        # End of Image?
+        if line == END_OF_IMAGE:
+            print_bold("Found END_OF_IMAGE")
+            # Now reset the prior_packet_number to start of next frame
+            prior_packet_number = -1
+            yield 'END'
+            continue
+
+        # Garbage packet?
+        # This a bit of a tricky thing to estimate, but we make the assumption
+        # here that not _too_ many packets were dropped.
+        if abs(prior_packet_number - packet_number) > 10:
+            print('Warn: Dropping packet "number" {}, the last packet was {}'.\
+                    format(packet_number, prior_packet_number))
+            print('      and this is likely a corrupted packet')
+            continue
+
+        # Drop any packets?
+        if (prior_packet_number + 1) != packet_number:
+            print("Warn: Dropped packet (prior packet number: {}, current: {})".\
+                    format(prior_packet_number, packet_number))
+            print("      Padding missed pixels with red")
+
+            while (prior_packet_number + 1) != packet_number:
+                yield (-1,) * 12
+                prior_packet_number += 1
+
+        # Parse this packet
+        data = line[3:]
+        if len(data) != 2*PIXELS_PER_PACKET:
+            print("Warn: Expected {} bytes in packet, got {}".\
+                    format(PIXELS_PER_PACKET, len(data)))
+        row_data = []
+        for b in range(0, len(data), 2):
+            row_data.append(int(data[b:b+2], 16))
+        # Each packet is 3 words, the words are in the reverse order, fix:
+        rd = [
+                row_data[8], row_data[9], row_data[10], row_data[11],
+                row_data[4], row_data[5], row_data[6], row_data[7],
+                row_data[0], row_data[1], row_data[2], row_data[3],
+                ]
+        yield rd
+
+        prior_packet_number = packet_number
+
+def get_individual_bytes_from_wireless_file():
+    EXPECTED_PIXEL_COUNT = args.pixels * args.pixels
+
+    packet_gen = get_12bytes_from_wireless_file()
+    pixel_count = -1
+    while True:
+        packet = packet_gen.next()
+        if packet == 'START':
+            if pixel_count != -1:
+                print("Warn: Unexpected START_OF_IMAGE - images may be wrong after this")
+        elif packet == 'END':
+            if pixel_count < EXPECTED_PIXEL_COUNT:
+                print("Warn: Not enough pixels. Padding end of image")
+            while pixel_count < EXPECTED_PIXEL_COUNT:
+                pixel_count += 1
+                yield -1
+            pixel_count = -1
+        else:
+            for byte in packet:
+                pixel_count += 1
+                if pixel_count >= EXPECTED_PIXEL_COUNT:
+                    break
+                yield byte
+
+def get_addr17_msg_wireless_file():
+    bytes_gen = get_individual_bytes_from_wireless_file()
+
+    while True:
+        # Grab one image's worth of rows (generator assures sync to image
+        # boundaries)
+        for rows in range(args.pixels):
+            row = []
+            while len(row) < args.pixels:
+                row.append(bytes_gen.next())
+            yield row
+
+        # Generate an end-of-image message
+        # ~0x0000CFFF
+        eoi = (0xff, 0xff, 0x30, 0x00)
+        yield eoi
+
+
 serial_queue = Queue.Queue()
 def get_addr17_msg_serial():
     while True:
@@ -204,6 +321,8 @@ class preparsed_snooper(m3_common.mbus_snooper):
 
 if args.file:
     get_addr17_msg = get_addr17_msg_file
+elif args.wireless_file:
+    get_addr17_msg = get_addr17_msg_wireless_file
 else:
     snooper = preparsed_snooper(args=args, callback=Bpp_callback)
     get_addr17_msg = get_addr17_msg_serial
@@ -234,16 +353,16 @@ def get_image_g(data_generator):
         for row in xrange(args.pixels):
             r = data_generator.next()
             while is_motion_detect_msg(r):
-                print "Skipping motion detect message"
+                print("Skipping motion detect message")
                 r = data_generator.next()
             if is_end_of_image_msg(r):
-                print "Unexpected end-of-image. Expecting row", row + 1
-                print "Returning partial image"
+                print("Unexpected end-of-image. Expecting row", row + 1)
+                print("Returning partial image")
                 end_of_image = True
                 break
             if len(r) != args.pixels:
-                print "Row %d message incorrect length: %d" % (row, len(r))
-                print "Using first %d pixel(s)" % (min(len(r), args.pixels))
+                print("Row %d message incorrect length: %d" % (row, len(r)))
+                print("Using first %d pixel(s)" % (min(len(r), args.pixels)))
             for p in xrange(min(len(r), args.pixels)):
                 data[row][p] = r[p] + 1
 
@@ -251,7 +370,7 @@ def get_image_g(data_generator):
             m = data_generator.next()
             if is_end_of_image_msg(m):
                 break
-            print "Expected end-of-image. Got message of length:", len(m)
+            print("Expected end-of-image. Got message of length:", len(m))
 
             # If imager sends more rows than expected, discard this earliest
             # received rows. Works around wakeup bug.
@@ -259,8 +378,8 @@ def get_image_g(data_generator):
             for p in xrange(min(len(m), args.pixels)):
                 data[-1][p] = m[p] + 1
             if len(m) != args.pixels:
-                print "Extra row message incorrect length: %d" % (len(m))
-                print "Zeroing remaining pixels"
+                print("Extra row message incorrect length: %d" % (len(m)))
+                print("Zeroing remaining pixels")
                 for p in xrange(len(m), args.pixels):
                     data[-1][p] = 0
 
@@ -337,6 +456,15 @@ def get_images():
 		print("Done reading file")
 		event = pygame.event.Event(pygame.USEREVENT)
 		pygame.fastevent.post(event)
+	elif args.wireless_file:
+		print("Processing wireless file")
+		images_g = get_image_g(get_addr17_msg_wireless_file())
+		for img in images_g:
+			hot = process_hot_pixels(img)
+			images_q.put((img, hot))
+		print("Done reading file")
+		event = pygame.event.Event(pygame.USEREVENT)
+		pygame.fastevent.post(event)
 	elif args.serial:
 		images_g = get_image_g(get_addr17_msg_serial())
 		for img in images_g:
@@ -372,24 +500,24 @@ pygame.event.set_allowed((QUIT, KEYUP, MOUSEBUTTONUP, MOUSEMOTION))
 goc_raw_Surface = pygame.Surface((args.pixels, args.pixels))
 
 def render_raw_goc_data(data):
-    print "Request to render raw goc data"
-    print "Correcting pixel order bug"
+    print("Request to render raw goc data")
+    print("Correcting pixel order bug")
     surface_array = pygame.surfarray.pixels2d(goc_raw_Surface)
     correct_endianish_thing(data, surface_array)
     del surface_array
-    print "Scaling %d pixel --> %d pixel%s" % (1, args.scale, ('s','')[args.scale == 1])
+    print("Scaling %d pixel --> %d pixel%s" % (1, args.scale, ('s','')[args.scale == 1]))
     pygame.transform.scale(goc_raw_Surface, (args.pixels*args.scale, args.pixels*args.scale), gocSurfaceObj)
-    print "Rendering Image"
+    print("Rendering Image")
     pygame.display.update()
-    print
+    print()
 
 def render_image_idx(idx):
-    print "Request to render image", idx
+    print("Request to render image", idx)
     render_raw_goc_data(get_image_idx(idx))
 
 def save_image(filename):
     pygame.image.save(gocSurfaceObj, filename)
-    print 'Image saved to', filename
+    print('Image saved to', filename)
 
 def save_image_hack():
 	imgname = "capture%02d.jpeg" % (current_idx)
@@ -406,7 +534,7 @@ def save_image_hack():
 		raw_csvname = os.path.join(args.output_directory, raw_csvname)
 		raw_ofile = csv.writer(open(raw_csvname, 'w'), dialect='excel')
 		raw_ofile.writerows(images_raw[current_idx])
-	print 'CSV of image saved to', csvname
+	print('CSV of image saved to', csvname)
 options['save'].on_click = save_image_hack
 
 def advance_image(bubble_index_error=False):
@@ -419,8 +547,8 @@ def advance_image(bubble_index_error=False):
         if bubble_index_error:
             raise
         current_idx -= 1
-        print "At last image. Display left at image", current_idx
-        print
+        print("At last image. Display left at image", current_idx)
+        print()
 options['next'].on_click = advance_image
 
 def rewind_image():
