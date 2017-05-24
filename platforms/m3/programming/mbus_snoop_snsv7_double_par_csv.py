@@ -45,6 +45,10 @@ class mbus_message_generator(m3_common):
         self.cdc_time = 0
         self.cdc_group = False
 
+        # add some handlers for ourselves
+        self.ice.msg_handler['B++'] = self.Bpp_callback
+        self.ice.msg_handler['b++'] = self.Bpp_callback
+
     
     def add_parse_args(self):
         super(mbus_message_generator, self).add_parse_args()
@@ -54,10 +58,6 @@ class mbus_message_generator(m3_common):
 
     def parse_args(self):
         super(mbus_message_generator, self).parse_args()
-
-    def install_handler(self):
-        self.ice.msg_handler['B++'] = self.Bpp_callback
-        self.ice.msg_handler['b++'] = self.Bpp_callback
 
     def Bpp_callback(self, address, data, cb0=-1, cb1=-1):
 		print("@" + str(self.count) + " Time: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "  ADDR: 0x" + binascii.hexlify(address)+ "  DATA: 0x" + binascii.hexlify(data) + "  (ACK: " + str(not cb1) + ")")
