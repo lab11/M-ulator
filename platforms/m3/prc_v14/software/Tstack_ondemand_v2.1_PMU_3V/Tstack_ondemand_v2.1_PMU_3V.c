@@ -1702,7 +1702,7 @@ int main() {
 				mbus_remote_register_write(PMU_ADDR,0x00,0x05);
 				delay(MBUS_DELAY);
 				delay(MBUS_DELAY);
-				pmu_sar_conv_ratio_val = *((volatile uint32_t *) REG0) & 0x3F;
+				pmu_sar_conv_ratio_val = *((volatile uint32_t *) REG0) & 0x7F;
 
 				// Prepare radio TX
 				radio_power_on();
