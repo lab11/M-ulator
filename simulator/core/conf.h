@@ -20,6 +20,7 @@
 #ifndef CONF_H
 #define CONF_H
 
+extern int CONF_no_terminate;
 extern int CONF_rzwi_memory;
 
 #endif // CONF_H
