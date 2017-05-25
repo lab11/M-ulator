@@ -82,6 +82,8 @@ static void register_opcodes_arm_thumb_mov(void) {
 	// mov_reg_t1: 0100 0110 00<x's> <-- arm-thumb
 	if (strcmp(CPU, "cortex-m0") == 0) {
 		register_opcode_mask_16(0x4600, 0xb9c0, mov_reg_t1);
+        //HACK to allow gcc to use 'mov r8,r8' as nop
+		register_opcode_mask_16(0x46c0, ~0x46c0, mov_reg_t1);
 	} else {
 		register_opcode_mask_16(0x4600, 0xb900, mov_reg_t1);
 	}

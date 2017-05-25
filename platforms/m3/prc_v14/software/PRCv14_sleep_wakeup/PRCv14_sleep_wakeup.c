@@ -120,15 +120,15 @@ static void operation_init(void){
     mbus_msg_flag = 0;
   
     //Enumeration
-	delay(MBUS_DELAY);
-    mbus_enumerate(RAD_ADDR);
-	delay(MBUS_DELAY);
-    mbus_enumerate(SNS_ADDR);
-	delay(MBUS_DELAY);
-    mbus_enumerate(HRV_ADDR);
-	delay(MBUS_DELAY);
- 	mbus_enumerate(PMU_ADDR);
-	delay(MBUS_DELAY);
+	//delay(MBUS_DELAY);
+    //mbus_enumerate(RAD_ADDR);
+	//delay(MBUS_DELAY);
+    //mbus_enumerate(SNS_ADDR);
+	//delay(MBUS_DELAY);
+    //mbus_enumerate(HRV_ADDR);
+	//delay(MBUS_DELAY);
+ 	//mbus_enumerate(PMU_ADDR);
+	//delay(MBUS_DELAY);
 
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 2;   // 1: 2-4 sec with PRCv9
@@ -136,8 +136,9 @@ static void operation_init(void){
     delay(MBUS_DELAY);
 
     // Go to sleep without timer
-	set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
-    operation_sleep();
+    #warning "ANDREW: FIXME"
+	//set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
+    //operation_sleep();
 }
 
 
@@ -155,7 +156,7 @@ int main() {
 	enable_reg_irq();
   
     // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
-    config_timerwd(TIMERWD_VAL);
+    //config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
     if (enumerated != 0xDEADBEEE){
@@ -167,18 +168,22 @@ int main() {
 	set_halt_until_mbus_tx();
 	mbus_write_message32(0xAA,0xABCD1234);
     delay(MBUS_DELAY);
-
-    uint32_t count;
-    for( count=0; count<100; count++ ){
-		mbus_write_message32(0xAA,count);
-		delay(MBUS_DELAY);
-	}
+    
+    for (;;){
+        uint32_t count;
+        for( count=0; count<1000; count++ ){
+            mbus_write_message32(0xAA,count);
+            delay(MBUS_DELAY);
+            delay(MBUS_DELAY);
+        }
+    }
 
 	set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
     operation_sleep();
 
 
     while(1);
+
 }
 
 
