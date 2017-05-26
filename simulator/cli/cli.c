@@ -84,6 +84,8 @@ static void usage_fail(int retcode) {
 \t-l, --limit\n\
 \t\tLimit CPU execution to N cycles, returns failure if hit\n\
 \t\t(useful for catching runaway test cases)\n\
+\t-T, --no-terminate\n\
+\t\tDo not terminate when code branches to self (run forever)\n\
 \t--rzwi-memory\n\
 \t\tTreat accesses to unknown memory addresses as 'read zero,\n\
 \t\twrite ignore'. Can be useful for partially implemented cores\n\
@@ -134,6 +136,7 @@ int main(int argc, char **argv) {
 			{"raiseonerror",  no_argument,       &raiseonerror,  'e'},
 			{"returnr0",      no_argument,       &returnr0,      'r'},
 			{"limit",         required_argument, 0,              'l'},
+			{"no-terminate",  no_argument,       &CONF_no_terminate, 'T'},
 			{"rzwi-memory",   no_argument,       &CONF_rzwi_memory, 2},
 			{"flash",         required_argument, 0,              'f'},
 			{"usetestflash",  no_argument,       &usetestflash,  1},
@@ -143,7 +146,7 @@ int main(int argc, char **argv) {
 		int option_index = 0;
 		int c;
 
-		char optstring[64] = "g::c:y:aps:erl:f:?";
+		char optstring[64] = "g::c:y:aps:erl:Tf:?";
 #ifdef HAVE_DECOMPILE
 		strncat(optstring, "d", 64);
 #endif

@@ -17,4 +17,5 @@
  * along with Mulator.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+int CONF_no_terminate;
 int CONF_rzwi_memory;
