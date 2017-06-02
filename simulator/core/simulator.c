@@ -594,12 +594,21 @@ static int sim_execute(void) {
 	uint32_t cur_pc = CORE_reg_read(PC_REG);
 	if ((SR(&prev_pc) == cur_pc) && (SR(&prev_pc) != STALL_PC)) {
 		DBG1("cycle: %d prev_pc: %08x cur_pc: %08x\n", cycle, SR(&prev_pc), cur_pc);
-		if (GDB_ATTACHED) {
-			INFO("Simulator determined PC 0x%08x is branch to self, breaking for gdb.\n", cur_pc);
-			shell();
+		if (CONF_no_terminate) {
+			static bool notice = false;
+			if (!notice) {
+				INFO("PC 0x%08x is branch to self, simulation will loop forever.\n", cur_pc);
+				INFO("(ctrl-c to quit)\n");
+				notice = true;
+			}
 		} else {
-			INFO("Simulator determined PC 0x%08x is branch to self, terminating.\n", cur_pc);
-			sim_terminate(true);
+			if (GDB_ATTACHED) {
+				INFO("Simulator determined PC 0x%08x is branch to self, breaking for gdb.\n", cur_pc);
+				shell();
+			} else {
+				INFO("Simulator determined PC 0x%08x is branch to self, terminating.\n", cur_pc);
+				sim_terminate(true);
+			}
 		}
 	} else {
 		SW(&prev_pc, cur_pc);
