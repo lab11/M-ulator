@@ -1,5 +1,5 @@
 /* Mulator - An extensible {ARM} {e,si}mulator
- * Copyright 2011-2016  Pat Pannuto <pat.pannuto@gmail.com>
+ * Copyright 2011-2017  Pat Pannuto <pat.pannuto@gmail.com>
  *
  * This file is part of Mulator.
  *
@@ -22,21 +22,6 @@
 
 #include "core/operations/mov.h"
 
-// arm-thumb
-static void mov_imm_t1(uint16_t inst) {
-	uint8_t imm8 = inst & 0xff;
-	uint8_t rd = (inst >> 8) & 0x7;
-
-	bool setflags = !in_ITblock();
-	uint32_t imm32 = imm8;
-
-	union apsr_t apsr = CORE_apsr_read();
-	bool carry = apsr.bits.C;
-
-	OP_DECOMPILE("MOV<IT> <Rd>,#<imm8>", rd, imm8);
-	return mov_imm(apsr, setflags, imm32, rd, carry);
-}
-
 /* If <rd> and <rm> both in R0-R7 then all thumb */
 // arm-v6-m, arm-v7-m, arm-thumb*
 static void mov_reg_t1(uint16_t inst) {
@@ -58,30 +43,12 @@ static void mov_reg_t1(uint16_t inst) {
 	return mov_reg(rd, rm, setflags);
 }
 
-// arm-thumb
-static void mov_reg_t2(uint16_t inst) {
-	uint8_t rd = inst & 0x7;
-	uint8_t rm = (inst >> 3) & 0x7;
-
-	bool setflags = true;
-
-	if (in_ITblock())
-		CORE_ERR_unpredictable("illegal in it block\n");
-
-	OP_DECOMPILE("MOVS <Rd>,<Rm>", rd, rm);
-	return mov_reg(rd, rm, setflags);
-}
-
 __attribute__ ((constructor))
-static void register_opcodes_arm_thumb_mov(void) {
-	// mov1: 0010 0xxx <x's>
-	register_opcode_mask_16(0x2000, 0xd800, mov_imm_t1);
-
+static void register_opcodes_arm_v6_m_mov(void) {
 	// This is a weird corner case
 	// mov_reg_t1: 0100 0110 xx<x's> <-- arm-v6-m, arm-v7-m
 	// mov_reg_t1: 0100 0110 00<x's> <-- arm-thumb
-	register_opcode_mask_16(0x4600, 0xb9c0, mov_reg_t1);
-
-	// mov_reg_t2: 0000 0000 00xx xxxx
-	register_opcode_mask_16(0x0, 0xffc0, mov_reg_t2);
+	register_opcode_mask_16_ex(0x4600, 0xb9c0, mov_reg_t1,
+			0x00, 0xc0,
+			0, 0);
 }
