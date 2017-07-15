@@ -19,9 +19,15 @@
 
 #include <sys/stat.h>
 
+// **HACK** Sigh.. platform inconsistency, this needs something autotools-y
+//          to figure out if it's <libelf.h> or <libelf/libelf.h>, so for this
+//          moment, it's just turned off as nothing will ever trip this define
+#ifdef __HAVE_LIBELF__
+
 // ELF code relies heavily on `libelf by Example` by Joseph Koshy
 #include <libelf/libelf.h>
 #include <libelf/gelf.h>
+#endif // __HAVE_LIBELF__
 
 // Do this define manually b/c it's useful / common
 #define PT_ARM_EXIDX (PT_LOPROC + 1) // ARM unwind segment.
@@ -107,6 +113,7 @@ static void load_binary_file(const char* filename) {
 	INFO("Succesfully loaded image: %s\n", filename);
 }
 
+#ifdef __HAVE_LIBELF__
 #ifdef DEBUG1
 static const char* get_ptype(size_t pt) {
 #define C(V) case PT_##V: return #V; break
@@ -219,6 +226,7 @@ static void load_elf_file(const char* filename) {
 	elf_end(e);
 	close(fd);
 }
+#endif // __HAVE_LIBELF__
 
 EXPORT void load_file(const char* filename) {
 	const char* dot = strrchr(filename, '.');
@@ -226,9 +234,11 @@ EXPORT void load_file(const char* filename) {
 		WARN("No file extension. Guessing binary image.\n");
 		return load_binary_file(filename);
 	}
+#ifdef __HAVE_LIBELF__
 	if (strcmp(dot+1, "elf") == 0) {
 		return load_elf_file(filename);
 	}
+#endif // __HAVE_LIBELF__
 	if (strcmp(dot+1, "bin") == 0) {
 		return load_binary_file(filename);
 	}
