@@ -9,7 +9,7 @@ before_install:
     - sudo apt-get install gcc-snapshot -y
     - sudo apt-get update
     - sudo apt-get install -y aptitude
-    - sudo aptitude install -y libfuse-dev libelf-dev libelf-freebsd-dev python-dev gcc-arm-none-eabi python3-pip socat gcc-6 g++-6
+    - sudo aptitude install -y libfuse-dev libelf-dev python-dev gcc-arm-none-eabi python3-pip socat gcc-6 g++-6
     - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-6 60 --slave /usr/bin/g++ g++ /usr/bin/g++-6
     - pip install --user sh
     - pip3 install --user sh
