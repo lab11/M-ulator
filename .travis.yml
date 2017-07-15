@@ -3,24 +3,13 @@ language: c
 sudo: required
 dist: trusty
 
-# Grab something newer than gcc 4.6.3
-# https://docs.travis-ci.com/user/languages/c/#C11-C%2B%2B11-(and-Beyond)-and-Toolchain-Versioning
-matrix:
-  include:
-    - os: linux
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - g++-6
-      env:
-        - MATRIX_EVAL="CC=gcc-6 && CXX=g++-6"
-
 before_install:
-    - eval "${MATRIX_EVAL}"
+    - sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
     - sudo apt-get update
-    - sudo apt-get install -qq libfuse-dev libelf-dev python-dev gcc-arm-none-eabi python3-pip socat
+    - sudo apt-get install gcc-snapshot -y
+    - sudo apt-get update
+    - sudo apt-get install -qq libfuse-dev libelf-dev python-dev gcc-arm-none-eabi python3-pip socat gcc-6 g++-6
+    - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-6 60 --slave /usr/bin/g++ g++ /usr/bin/g++-6
     - pip install --user sh
     - pip3 install --user sh
     - pip install --user m3
