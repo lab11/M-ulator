@@ -5,6 +5,7 @@ log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 import glob
+import io
 import os
 import pprint
 import sys
@@ -50,7 +51,13 @@ for variant_file in os.listdir('simulator/configs'):
 	with sh.pushd(os.path.join(build_variant_dir, 'simulator')):
 		tup('init')
 		tup('generate', 'build.sh', '--config', os.path.join('configs', variant))
-		sh.Command('./build.sh')()
+		try:
+			errbuf = io.StringIO()
+			sh.sh('-x', 'build.sh', _err=errbuf)
+		finally:
+			errbuf.seek(0)
+			for l in errbuf.readlines():
+				print(l, end='')
 		sh.test('-x', 'simulator')
 
 		log.info("Built {}".format(variant_file))
