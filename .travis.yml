@@ -4,17 +4,24 @@ sudo: required
 dist: trusty
 
 before_install:
+    - sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
     - sudo apt-get update
-    - sudo apt-get install -qq libfuse-dev libelf-dev python-dev gcc-arm-none-eabi python3-pip socat
-    - pip install --user git+https://github.com/ppannuto/sh.git@fix_pushd
-    - pip3 install --user git+https://github.com/ppannuto/sh.git@fix_pushd
+    - sudo apt-get install gcc-snapshot -y
+    - sudo apt-get update
+    - sudo apt-get install -y aptitude
+    - sudo aptitude install -y libfuse-dev libelf-dev python-dev gcc-arm-none-eabi python3-pip socat gcc-6 g++-6
+    - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-6 60 --slave /usr/bin/g++ g++ /usr/bin/g++-6
+    - pip install --user sh
+    - pip3 install --user sh
     - pip install --user m3
     - pip3 install --user colorlog
+    - find /usr/include /usr/local/include | grep libelf
 
 before_script:
     - git clone https://github.com/gittup/tup.git
     - cd tup
     - ./build.sh
+    - ./build/tup init
     - ./build/tup generate gen.sh
     - ./gen.sh
     - mkdir -p bin && cp tup bin/
