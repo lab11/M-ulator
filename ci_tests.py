@@ -36,6 +36,8 @@ with sh.pushd(PRISTINE):
 
 variants = {}
 
+log.info(sh.cc('--version'))
+
 for variant_file in os.listdir('simulator/configs'):
 	log.info("Building {}".format(variant_file))
 
