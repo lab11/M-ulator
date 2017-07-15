@@ -12,7 +12,7 @@ matrix:
         apt:
           sources:
             - ubuntu-toolchain-r-test
-            - debian-sid
+            - debian-wheezy
           packages:
             - g++-6
             - libfuse-dev
