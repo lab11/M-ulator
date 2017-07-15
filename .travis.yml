@@ -15,6 +15,7 @@ before_install:
     - pip3 install --user sh
     - pip install --user m3
     - pip3 install --user colorlog
+    - find /usr/include /usr/local/include | grep libelf
 
 before_script:
     - git clone https://github.com/gittup/tup.git
