@@ -1,7 +1,7 @@
 language: c
 
-sudo: false
-dist: precise
+sudo: required
+dist: trusty
 
 # Grab something newer than gcc 4.6.3
 # https://docs.travis-ci.com/user/languages/c/#C11-C%2B%2B11-(and-Beyond)-and-Toolchain-Versioning
@@ -14,17 +14,13 @@ matrix:
             - ubuntu-toolchain-r-test
           packages:
             - g++-6
-            - libfuse-dev
-            - libelf-dev
-            - python-dev
-            - gcc-arm-none-eabi
-            - python3-pip
-            - socat
       env:
         - MATRIX_EVAL="CC=gcc-6 && CXX=g++-6"
 
 before_install:
     - eval "${MATRIX_EVAL}"
+    - sudo apt-get update
+    - sudo apt-get install -qq libfuse-dev libelf-dev python-dev gcc-arm-none-eabi python3-pip socat
     - pip install --user sh
     - pip3 install --user sh
     - pip install --user m3
