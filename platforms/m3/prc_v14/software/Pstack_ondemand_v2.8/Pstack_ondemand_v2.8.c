@@ -93,9 +93,6 @@
 // uncomment this for debug radio message
 //#define DEBUG_RADIO_MSG
 
-// uncomment this to only transmit average
-//#define TX_AVERAGE
-
 // Stack order  PRC->RAD->SNS->HRV->PMU
 #define HRV_ADDR 0x3
 #define RAD_ADDR 0x4
@@ -122,6 +119,7 @@
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
 #define CDC_STORAGE_SIZE 300 // FIXME
+#define CDC_NUM_MEAS 3 
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y2 run default clock
 
@@ -157,6 +155,10 @@ volatile uint32_t cdc_storage_count;
 volatile uint32_t cdc_run_single;
 volatile uint32_t cdc_running;
 volatile uint32_t set_cdc_exec_count;
+volatile uint32_t cdc_data_cmeas[CDC_NUM_MEAS] = {0};
+volatile uint32_t cdc_data_cref[CDC_NUM_MEAS] = {0};
+volatile uint32_t cdc_read_data;
+volatile uint32_t cdc_read_data_cref;
 
 volatile uint32_t radio_tx_count;
 volatile uint32_t radio_tx_option;
@@ -924,7 +926,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Pstack_state = PSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEE7;
+    enumerated = 0xDEADBEE8;
     exec_count = 0;
     exec_count_irq = 0;
     mbus_msg_flag = 0;
@@ -1067,9 +1069,72 @@ static void operation_init(void){
     operation_sleep_notimer();
 }
 
+
+
 //***************************************************
 // Pressure measurement operation (SNSv7)
 //***************************************************
+
+/*
+static void cdc_data_median(){
+
+	if (cdc_data_cmeas[0] > cdc_data_cmeas[1]){
+		if (cdc_data_cmeas[1] > cdc_data_cmeas[2]){
+			cdc_read_data = cdc_data_cmeas[1];
+			cdc_read_data_cref = cdc_data_cref[1];
+		}else if (cdc_data_cmeas[0] > cdc_data_cmeas[2]){
+			cdc_read_data = cdc_data_cmeas[2];
+			cdc_read_data_cref = cdc_data_cref[2];
+		}else{
+			cdc_read_data = cdc_data_cmeas[0];
+			cdc_read_data_cref = cdc_data_cref[0];	
+		}
+	}else{
+		if (cdc_data_cmeas[0] > cdc_data_cmeas[2]){
+			cdc_read_data = cdc_data_cmeas[0];
+			cdc_read_data_cref = cdc_data_cref[0];
+		}else if (cdc_data_cmeas[1] > cdc_data_cmeas[2]){
+			cdc_read_data = cdc_data_cmeas[2];
+			cdc_read_data_cref = cdc_data_cref[2];
+		}else{
+			cdc_read_data = cdc_data_cmeas[1];
+			cdc_read_data_cref = cdc_data_cref[1];
+		}
+	}
+
+}
+*/
+
+static uint32_t cdc_data_median(){
+
+	#ifdef DEBUG_MBUS_MSG
+		mbus_write_message32(0xD0, cdc_data_cmeas[0]);
+		mbus_write_message32(0xD1, cdc_data_cmeas[1]);
+		mbus_write_message32(0xD2, cdc_data_cmeas[2]);
+	#endif
+	
+
+	if (cdc_data_cmeas[0] > cdc_data_cmeas[1]){
+		if (cdc_data_cmeas[1] > cdc_data_cmeas[2]){
+			return 1;
+		}else if (cdc_data_cmeas[0] > cdc_data_cmeas[2]){
+			return 2;
+		}else{	
+			return 0;
+		}
+	}else{
+		if (cdc_data_cmeas[0] > cdc_data_cmeas[2]){
+			return 0;
+		}else if (cdc_data_cmeas[1] > cdc_data_cmeas[2]){
+			return 2;
+		}else{
+			return 1;
+		}
+	}
+
+}
+
+
 static void operation_cdc_run(){
     snsv7_r18_t snsv7_r18_temp;
 
@@ -1116,16 +1181,17 @@ static void operation_cdc_run(){
 		delay(MBUS_DELAY);
 	#endif
 
-		// Release CDC isolation
-		release_cdc_pg();
-		delay(MBUS_DELAY);
-		release_cdc_isolate();
-		delay(MBUS_DELAY*2);
+		if (meas_count == 0){
+			// Release CDC isolation
+			release_cdc_pg();
+			delay(MBUS_DELAY);
+			release_cdc_isolate();
+			delay(MBUS_DELAY);
 
-		// Release reset
-		release_cdc_reset();
-		delay(MBUS_DELAY*2);
-		
+			// Release reset
+			release_cdc_reset();
+			delay(MBUS_DELAY);
+		}
 		mbus_msg_flag = 0;
 		wfi_timeout_flag = 0;
 
@@ -1159,7 +1225,7 @@ static void operation_cdc_run(){
     	uint32_t read_data_reg7; // CONFIG 2; CMEAS reverse
     	uint32_t read_data_reg9; // CONFIG 4; CPAR
     	uint32_t read_data_reg10; // CONFIG 4; CREF5
-    	uint32_t read_data;      // Read data after parasitic cancellation
+    	uint32_t cdc_read_data;      // Read data after parasitic cancellation
 
 		// Set CPU Halt Option as RX --> Use for register read e.g.
 		set_halt_until_mbus_rx();
@@ -1178,29 +1244,31 @@ static void operation_cdc_run(){
 		// Set CPU Halt Option as TX --> Use for register write e.g.
 		set_halt_until_mbus_tx();
 
-		read_data = (read_data_reg4+read_data_reg7-read_data_reg9)/2;
+		cdc_read_data = (read_data_reg4+read_data_reg7-read_data_reg9)/2;
+		cdc_read_data_cref = read_data_reg6;
 
 	#ifdef DEBUG_MBUS_MSG
-		mbus_write_message32(0x70, radio_tx_count);
+		mbus_write_message32(0x74, cdc_read_data);
 		delay(MBUS_DELAY*20);
-		mbus_write_message32(0x74, read_data_reg7);
-		delay(MBUS_DELAY*20);
-		mbus_write_message32(0x76, read_data_reg6);
-		delay(MBUS_DELAY*20);
-		mbus_write_message32(0x70, radio_tx_count);
+		mbus_write_message32(0x76, cdc_read_data_cref);
 	#endif
 
-		// Option to take multiple measurements per wakeup
-		if (meas_count < 0){	
-			meas_count++;
+		if (wfi_timeout_flag){
+			cdc_read_data = 0;
+			cdc_read_data_cref = 0;
+		}
 
+		cdc_data_cmeas[meas_count] = cdc_read_data;
+		cdc_data_cref[meas_count] = cdc_read_data_cref;
+		meas_count++;
+
+		// Option to take multiple measurements per wakeup
+		if (meas_count < CDC_NUM_MEAS){	
 			// Repeat measurement while awake
 			release_cdc_meas();
-			delay(MBUS_DELAY);
 			Pstack_state = PSTK_CDC_RUN;
 				
 		}else{
-
 			meas_count = 0;
 
 			// Finalize CDC operation
@@ -1208,6 +1276,10 @@ static void operation_cdc_run(){
 			assert_cdc_reset();
 			Pstack_state = PSTK_IDLE;
 			
+			uint32_t median_idx = cdc_data_median();
+			mbus_write_message32(0xC0, cdc_data_cmeas[median_idx]);
+			mbus_write_message32(0xC1, cdc_data_cref[median_idx]);
+				
 			// Assert CDC isolation & turn off CDC power
 			cdc_power_off();
 
@@ -1224,20 +1296,12 @@ static void operation_cdc_run(){
 			}else{
 				exec_count++;
 
-				mbus_write_message32(0xC0, read_data);
-				mbus_write_message32(0xC1, read_data_reg6);
-				
 			
-				if (wfi_timeout_flag){
-					read_data = 0xFAFAFAFA;
-					read_data_reg6 = 0xFAFAFAFA;
-				}
-
 				// Store results in memory; unless buffer is full
 				if (cdc_storage_count < CDC_STORAGE_SIZE){
-					cdc_storage[cdc_storage_count] = read_data;
-					cdc_storage_cref[cdc_storage_count] = read_data_reg6;
-					cdc_storage_cref_latest = read_data_reg6;
+					cdc_storage[cdc_storage_count] = cdc_read_data;
+					cdc_storage_cref[cdc_storage_count] = cdc_read_data_cref;
+					cdc_storage_cref_latest = cdc_read_data_cref;
 					radio_tx_count = cdc_storage_count;
 					cdc_storage_count++;
 				}
@@ -1257,14 +1321,13 @@ static void operation_cdc_run(){
 					send_radio_data_ppm(0, 0xE00000 | read_data_reg7);
 					delay(RADIO_PACKET_DELAY);
 					send_radio_data_ppm(0, 0xF00000 | read_data_reg9);
-					delay(MBUS_DELAY);
+					delay(RADIO_PACKET_DELAY);
 				}
 
 				// Enter long sleep
 				if(exec_count < CDC_CYCLE_INIT){
 					// Send some signal
-					delay(RADIO_PACKET_DELAY);
-					send_radio_data_ppm(1, 0xFAF000);
+					send_radio_data_ppm(1, 0xABC000);
 					set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 
 				}else{
@@ -1334,7 +1397,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEE7){
+    if (enumerated != 0xDEADBEE8){
         // Set up PMU/GOC register in PRC layer (every time)
         // Enumeration & RAD/SNS layer register configuration
         operation_init();
@@ -1472,6 +1535,7 @@ int main() {
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
 
 		radio_tx_numdata = wakeup_data_field_0;
+		cdc_running = 0;
 		// Make sure the requested numdata makes sense
 		if (radio_tx_numdata >= cdc_storage_count){
 			radio_tx_numdata = 0;
@@ -1593,29 +1657,8 @@ int main() {
     	mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
 		delay(MBUS_DELAY);
 
-        if (exec_count_irq < wakeup_data_field_0){
-            exec_count_irq++;
-			if (exec_count_irq == 1){
-				// Prepare radio TX
-				radio_power_on();
-				// Go to sleep for SCRO stabilitzation
-				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
-				operation_sleep_noirqreset();
-			}else{
-				// radio
-				send_radio_data_ppm(0,0xABC000+exec_count_irq);	
-				// set timer
-				set_wakeup_timer (WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-				// go to sleep and wake up with same condition
-				operation_sleep_noirqreset();
-			}
-        }else{
-            exec_count_irq = 0;
-            // radio
-            send_radio_data_ppm(1,0xFAF000);	
-            // Go to sleep without timer
-            operation_sleep_notimer();
-        }
+		// Go to sleep without timer
+		operation_sleep_notimer();
 
 	}else if(wakeup_data_header == 0x17){
 		// Set parking lot threshold

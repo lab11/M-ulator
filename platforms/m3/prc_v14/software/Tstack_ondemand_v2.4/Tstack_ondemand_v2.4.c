@@ -900,7 +900,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEEF;
+    enumerated = 0xDEADBEE4;
     exec_count = 0;
     exec_count_irq = 0;
     mbus_msg_flag = 0;
@@ -1207,13 +1207,13 @@ static void operation_temp_run(void){
 				send_radio_data_ppm(0,0xBBB000+read_data_batadc);	
 				delay(RADIO_PACKET_DELAY);
 				send_radio_data_ppm(0, temp_storage_latest);
+				delay(RADIO_PACKET_DELAY);
 			}
 
 			// Enter long sleep
 			if(exec_count < TEMP_CYCLE_INIT){
 				// Send some signal
-				delay(RADIO_PACKET_DELAY);
-				send_radio_data_ppm(1, 0xFAF000);
+				send_radio_data_ppm(1, 0xABC000);
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 
 			}else{	
@@ -1287,7 +1287,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEEF){
+    if (enumerated != 0xDEADBEE4){
         // Set up PMU/GOC register in PRC layer (every time)
         // Enumeration & RAD/SNS layer register configuration
         operation_init();
@@ -1426,6 +1426,7 @@ int main() {
         // wakeup_data[15:8] is the user-specified period 
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
 
+		temp_running = 0;
 		radio_tx_numdata = wakeup_data_field_0;
 		// Make sure the requested numdata makes sense
 		if (radio_tx_numdata >= temp_storage_count){
