@@ -1512,7 +1512,7 @@ int main() {
 					send_radio_data_ppm(0,0xBBB000+read_data_batadc);	
 				}else{
 					// radio
-					send_radio_data_ppm(0,0xC00000+exec_count);	
+					send_radio_data_ppm(0,0xBC0000+exec_count);	
 				}
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
