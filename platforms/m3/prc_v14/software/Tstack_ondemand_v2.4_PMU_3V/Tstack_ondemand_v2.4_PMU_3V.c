@@ -515,7 +515,6 @@ inline static void pmu_adc_read_latest(){
 	// PMU register read is handled differently
 	mbus_remote_register_write(PMU_ADDR,0x00,0x03);
 	delay(MBUS_DELAY);
-	delay(MBUS_DELAY);
 	read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
 
 }
