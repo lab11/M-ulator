@@ -15,6 +15,7 @@
 //*********************************************************
 // Reserved IRQ Address
 //*********************************************************
+#define IRQ14VEC        ((volatile uint32_t *) 0x00000078)
 #define IRQ16VEC        ((volatile uint32_t *) 0x00000080)
 #define IRQ17VEC        ((volatile uint32_t *) 0x00000084)
 
@@ -437,6 +438,24 @@ void set_gpio_pad (uint8_t config);
  */
 void set_cps (uint32_t cps_config);
 
+
+/**
+ * @brief   Freeze SPI Output
+ *
+ * @param   config  1-bit pattern. 
+ *                  '1' freezes SPI Output pads
+ *                  '0' freezes SPI Output pads
+ */
+void freeze_spi_pad (uint8_t config);
+
+/**
+ * @brief   Freeze GPIO Output
+ *
+ * @param   config  1-bit pattern. 
+ *                  '1' freezes GPIO Output pads
+ *                  '0' freezes GPIO Output pads
+ */
+void freeze_gpio_pad (uint8_t config);
 
 //*******************************************************************
 // GPIO
