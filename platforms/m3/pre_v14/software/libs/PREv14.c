@@ -148,6 +148,18 @@ void set_gpio_pad (uint8_t config) {
 void set_cps (uint32_t cps_config) {
     *REG_CPS = 0x00000007 & cps_config;
 }
+void freeze_spi_pad (uint8_t config) {
+    uint32_t reg_ = *REG_SPI_GPIO;
+    reg_ = reg_ & 0xFFFFFFFF;
+    if (config == 1) reg_ = reg_ | 0x00800000;
+    *REG_SPI_GPIO = reg_;
+}
+void freeze_gpio_pad (uint8_t config) {
+    uint32_t reg_ = *REG_SPI_GPIO;
+    reg_ = reg_ & 0xFFFEFFFF;
+    if (config == 1) reg_ = reg_ | 0x00010000;
+    *REG_SPI_GPIO = reg_;
+}
 
 //***************************************************
 // GPIO
