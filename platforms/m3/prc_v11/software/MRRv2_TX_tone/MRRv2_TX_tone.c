@@ -422,11 +422,11 @@ int main() {
     //delay(MBUS_DELAY*10);
 
 // For CONT_TX testing
-    mrrv2_r00.MRR_TRX_CAP_ANTP_TUNE = 0x0FFF;  //ANT CAP(14b)
+    mrrv2_r00.MRR_TRX_CAP_ANTP_TUNE = 0x3FFF;  //ANT CAP(14b)
     write_mbus_register(MRR_ADDR,0x00,mrrv2_r00.as_int);
     delay(MBUS_DELAY*10);
 
-    mrrv2_r01.MRR_TRX_CAP_ANTN_TUNE = 0x0FFF ; //ANT CAP(14b)
+    mrrv2_r01.MRR_TRX_CAP_ANTN_TUNE = 0x3FFF ; //ANT CAP(14b)
     write_mbus_register(MRR_ADDR,0x01,mrrv2_r01.as_int);
     delay(MBUS_DELAY*10);
 

@@ -57,7 +57,7 @@
 #define TSTK_TEMP_START 0x2
 #define TSTK_TEMP_READ  0x6
 
-#define NUM_TEMP_MEAS 5 
+#define NUM_TEMP_MEAS 3 
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 24
@@ -200,9 +200,11 @@ inline static void set_pmu_adc_period(uint32_t val){
 
 	// Register 0x33: TICK_ADC_RESET
 	mbus_remote_register_write(PMU_ADDR,0x33,2);
+	delay(MBUS_DELAY);
 
 	// Register 0x34: TICK_ADC_CLK
 	mbus_remote_register_write(PMU_ADDR,0x34,2);
+	delay(MBUS_DELAY);
 
 	// PMU_CONTROLLER_DESIRED_STATE Active
 	mbus_remote_register_write(PMU_ADDR,0x3C,
@@ -230,7 +232,7 @@ inline static void set_pmu_adc_period(uint32_t val){
 	delay(MBUS_DELAY);
 }
 
-inline static void set_pmu_sleep_clk_radio(){
+inline static void set_pmu_sleep_radio(){
 	// Register 0x15: SAR_TRIM_v3_SLEEP
     mbus_remote_register_write(PMU_ADDR,0x15, 
 		( (0 << 19) // Enable PFM even during periodic reset
@@ -265,7 +267,7 @@ inline static void set_pmu_sleep_clk_radio(){
 	delay(MBUS_DELAY);
 }
 
-inline static void set_pmu_sleep_clk_low(){
+inline static void set_pmu_sleep_low(){
 	// Register 0x17: V3P6 Upconverter Sleep Settings
     mbus_remote_register_write(PMU_ADDR,0x17, 
 		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
@@ -518,7 +520,7 @@ static void radio_power_on(){
 	pmu_adc_disable();
 
 	// Need to speed up sleep pmu clock
-	set_pmu_sleep_clk_radio();
+	set_pmu_sleep_radio();
 	
 	// This can be safely assumed
 	radio_ready = 0;
@@ -560,7 +562,7 @@ static void radio_power_off(){
 	radv9_r13_t radv9_r13_temp;
 
 	// Need to restore sleep pmu clock
-	set_pmu_sleep_clk_low();
+	set_pmu_sleep_low();
 	
 	// Enable PMU ADC
 	pmu_adc_enable();
@@ -835,6 +837,8 @@ static void operation_init(void){
     prcv14_r0B_temp.CLK_GEN_RING = 0x1; // Default 0x1
     prcv14_r0B_temp.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
     prcv14_r0B_temp.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
+    prcv14_r0B_temp.GOC_CLK_GEN_SEL_DIV = 0x0; // Default 0x0
+    prcv14_r0B_temp.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
 	prcv14_r0B.as_int = prcv14_r0B_temp.as_int;
 	*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv14_r0B.as_int;
 
@@ -913,8 +917,8 @@ static void operation_init(void){
 	snsv7_r18.as_int = snsv7_r18_temp.as_int;
 	mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
 
-	// CDC Mbus return address; Needs to be between 0x18-0x1F
-    mbus_remote_register_write(SNS_ADDR,0x18,0x1800);
+	// Temp sensor Mbus return address; Needs to be between 0x18-0x1F
+    mbus_remote_register_write(SNS_ADDR,0x19,0x1800);
 
 
     // Radio Settings --------------------------------------
@@ -1279,7 +1283,6 @@ int main() {
         radio_tx_option = wakeup_data_field_2 & 0x10;
 
 		temp_run_single = 0;
-        //set_pmu_sleep_clk_low();
 
 		if (!temp_running){
 			// Go to sleep for initial settling of temp sensing // FIXME

@@ -84,37 +84,16 @@ union apsr_t {
  * ARM strongly recommends that software treats SP bits [1:0]
  * as SBZP for maximum portability across ARMv7 profiles.
  */
-export_inline uint32_t CORE_reg_read(int r) {
-	extern uint32_t physical_reg[SP_REG];
-	extern uint32_t *physical_sp_p;
-	extern uint32_t physical_lr;
-	extern uint32_t id_ex_PC;
-
-	assert(r >= 0 && r < 16 && "CORE_reg_read");
-	if (r == SP_REG) {
-		return SR(physical_sp_p) & 0xfffffffc;
-	} else if (r == LR_REG) {
-		return SR(&physical_lr);
-	} else if (r == PC_REG) {
-		return SR(&id_ex_PC) & 0xfffffffe;
-	} else {
-		return SR(&physical_reg[r]);
-	}
-}
+uint32_t    CORE_reg_read(int r);
 
 void		CORE_reg_write(int r, uint32_t val);
 
 uint32_t	CORE_xPSR_read(void);
 void		CORE_xPSR_write(uint32_t);
 
-export_inline enum Mode CORE_CurrentMode_read(void) {
-	extern enum Mode CurrentMode;
-	return SR(&CurrentMode);
-}
-export_inline void CORE_CurrentMode_write(enum Mode mode) {
-	extern enum Mode CurrentMode;
-	return SW(&CurrentMode, mode);
-}
+enum Mode CORE_CurrentMode_read(void);
+
+void CORE_CurrentMode_write(enum Mode mode);
 
 //union __attribute__ ((__packed__)) apsr_t {
 union apsr_t {
@@ -138,26 +117,10 @@ union apsr_t {
 		unsigned N		:  1;
 	} bits;
 };
-export_inline union apsr_t CORE_apsr_read(void) {
-	extern union apsr_t physical_apsr;
-	union apsr_t a;
-	a.storage = SR(&physical_apsr.storage);
-	return a;
-}
-export_inline void CORE_apsr_write(union apsr_t val) {
-	extern union apsr_t physical_apsr;
-	uint8_t in_ITblock(void);
 
-	if (in_ITblock()) {
-		DBG1("WARN update of apsr in IT block\n");
-	}
-#ifdef M_PROFILE
-	if (val.storage & 0x07f0ffff) {
-		DBG1("WARN update of reserved APSR bits\n");
-	}
-#endif
-	SW(&physical_apsr.storage, val.storage);
-}
+union apsr_t CORE_apsr_read(void);
+
+void CORE_apsr_write(union apsr_t val);
 
 
 //union __attribute__ ((__packed__)) ipsr_t {
@@ -170,16 +133,10 @@ union ipsr_t {
 		unsigned reserved0	: 23;
 	} bits;
 };
-export_inline union ipsr_t CORE_ipsr_read(void) {
-	extern union ipsr_t physical_ipsr;
-	union ipsr_t i;
-	i.storage = SR(&physical_ipsr.storage);
-	return i;
-}
-export_inline void CORE_ipsr_write(union ipsr_t val) {
-	extern union ipsr_t physical_ipsr;
-	SW(&physical_ipsr.storage, val.storage);
-}
+
+union ipsr_t CORE_ipsr_read(void);
+
+void CORE_ipsr_write(union ipsr_t val);
 
 
 //union __attribute__ ((__packed__)) epsr_t {
@@ -200,16 +157,10 @@ union epsr_t {
 		unsigned reserved2	:  5;
 	} bits;
 };
-export_inline union epsr_t CORE_epsr_read(void) {
-	extern union epsr_t physical_epsr;
-	union epsr_t e;
-	e.storage = SR(&physical_epsr.storage);
-	return e;
-}
-export_inline void CORE_epsr_write(union epsr_t val) {
-	extern union epsr_t physical_epsr;
-	SW(&physical_epsr.storage, val.storage);
-}
+
+union epsr_t CORE_epsr_read(void);
+
+void CORE_epsr_write(union epsr_t val);
 
 
 //union __attribute__ ((__packed__)) control_t {
@@ -226,57 +177,34 @@ union control_t {
 #endif
 	};
 };
-export_inline bool CORE_control_nPRIV_read(void) {
-	extern union control_t physical_control;
-	union control_t c;
-	c.storage = SR(&physical_control.storage);
-	return c.nPRIV;
-}
-export_inline void CORE_control_nPRIV_write(bool npriv) {
-	extern union control_t physical_control;
-	union control_t c;
-	c.storage = SR(&physical_control.storage);
-	c.nPRIV = npriv;
-	SW(&physical_control.storage, c.storage);
-}
-export_inline bool CORE_control_SPSEL_read(void) {
-	extern union control_t physical_control;
-	union control_t c;
-	c.storage = SR(&physical_control.storage);
-	return c.SPSEL;
-}
-void		CORE_control_SPSEL_write(bool spsel);
+
+bool CORE_control_nPRIV_read(void);
+
+void CORE_control_nPRIV_write(bool npriv);
+
+bool CORE_control_SPSEL_read(void);
+
+void CORE_control_SPSEL_write(bool spsel);
+
 // XXX: Workaround for SR/SW of dependent actions:
 void CORE_update_mode_and_SPSEL(enum Mode mode, bool spsel);
+
 #ifdef HAVE_FP
 bool		CORE_control_FPCA_read(void);
 void		CORE_control_FPCA_write(bool fpca);
 #endif
 
-export_inline bool CORE_primask_read(void) {
-	extern uint32_t physical_primask;
-	return SR(&physical_primask);
-}
-export_inline void CORE_primask_write(bool val) {
-	extern uint32_t physical_primask;
-	SW(&physical_primask, val);
-}
-export_inline uint8_t CORE_basepri_read(void) {
-	extern uint32_t physical_basepri;
-	return SR(&physical_basepri);
-}
-export_inline void CORE_basepri_write(uint8_t val) {
-	extern uint32_t physical_basepri;
-	SW(&physical_basepri, val);
-}
-export_inline bool CORE_faultmask_read(void) {
-	extern uint32_t physical_faultmask;
-	return SR(&physical_faultmask);
-}
-export_inline void CORE_faultmask_write(bool val) {
-	extern uint32_t physical_faultmask;
-	SW(&physical_faultmask, val);
-}
+bool CORE_primask_read(void);
+
+void CORE_primask_write(bool val);
+
+uint8_t CORE_basepri_read(void);
+
+void CORE_basepri_write(uint8_t val);
+
+bool CORE_faultmask_read(void); 
+
+void CORE_faultmask_write(bool val);
 
 union ufsr_t {
 	uint32_t storage;
@@ -291,16 +219,11 @@ union ufsr_t {
 		unsigned reserved1   : 22;
 	};
 };
-export_inline union ufsr_t CORE_ufsr_read(void) {
-	extern union ufsr_t ufsr;
-	union ufsr_t u;
-	u.storage = SR(&ufsr.storage);
-	return u;
-}
-export_inline void CORE_ufsr_write(union ufsr_t u) {
-	extern union ufsr_t ufsr;
-	SW(&ufsr.storage, u.storage);
-}
+
+union ufsr_t CORE_ufsr_read(void);
+
+void CORE_ufsr_write(union ufsr_t u);
+
 
 #endif // M_PROFILE
 

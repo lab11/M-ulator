@@ -5,6 +5,7 @@ log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 import glob
+import io
 import os
 import pprint
 import sys
@@ -36,6 +37,8 @@ with sh.pushd(PRISTINE):
 
 variants = {}
 
+log.info(sh.cc('--version'))
+
 for variant_file in os.listdir('simulator/configs'):
 	log.info("Building {}".format(variant_file))
 
@@ -46,8 +49,16 @@ for variant_file in os.listdir('simulator/configs'):
 	cp('-r', PRISTINE, build_variant_dir)
 
 	with sh.pushd(os.path.join(build_variant_dir, 'simulator')):
+		tup('init')
 		tup('generate', 'build.sh', '--config', os.path.join('configs', variant))
-		sh.Command('./build.sh')()
+		try:
+			errbuf = io.StringIO()
+			sh.sh('-x', 'build.sh', _err=errbuf)
+		except:
+			errbuf.seek(0)
+			for l in errbuf.readlines():
+				print(l, end='')
+			raise
 		sh.test('-x', 'simulator')
 
 		log.info("Built {}".format(variant_file))
