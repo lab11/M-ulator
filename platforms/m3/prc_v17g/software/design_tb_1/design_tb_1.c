@@ -1,8 +1,8 @@
 //*******************************************************************
 //Author: Yejoong Kim
-//Description: Developed during PRCv17 tape-out for verification
+//Description: Developed during PRCv17G tape-out for verification
 //*******************************************************************
-#include "PRCv17.h"
+#include "PRCv17G.h"
 #include "FLPv2S_RF.h"
 #include "PMUv7H_RF.h"
 #include "SNSv10_RF.h"
@@ -55,7 +55,7 @@ volatile snsv10_r19_t SNSv10_R19_WUP_THRES  = SNSv10_R19_DEFAULT;
 
 
 // Select Testing
-#ifdef PREv17
+#ifdef PREv17G
 volatile uint32_t do_cycle0  = 1; // Wakeup through GPIO (only for PRE)
 volatile uint32_t do_cycle1  = 1; // Wakeup through XO (only for PRE)
 #else
@@ -212,7 +212,7 @@ void fail (uint32_t id, uint32_t data) {
 
 void cycle0 (void) {
     if (do_cycle0 == 1) {
-    #ifdef PREv17
+    #ifdef PREv17G
         arb_debug_reg(0x40, 0x00000000);
 
         //----------------------------------------------------------------------------------------------------------    
@@ -276,7 +276,7 @@ void cycle0 (void) {
 
 void cycle1 (void) {
     if (do_cycle1 == 1) {
-    #ifdef PREv17
+    #ifdef PREv17G
         arb_debug_reg(0x41, 0x00000000);
 
         //----------------------------------------------------------------------------------------------------------    

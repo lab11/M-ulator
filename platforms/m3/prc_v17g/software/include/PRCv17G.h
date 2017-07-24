@@ -1,11 +1,11 @@
 //*******************************************************************
 //Author: Yejoong Kim
-//Description: PREv17 header file
+//Description: PRCv17G header file
 //*******************************************************************
 
-#ifndef PREV17_H
-#define PREV17_H
-#define PREv17
+#ifndef PRCV17G_H
+#define PRCV17G_H
+#define PRCv17G
 
 //*********************************************************
 // Boolean Constants
@@ -17,7 +17,7 @@
 // M0 Interrupts
 //---------------------------------------------------------
 // NOTE: These values must be consistent with files below:
-//       vectors.s, PREv17.v, PREv17_debug.v
+//       vectors.s, PRCv17G.v, PRCv17G_debug.v
 //*********************************************************
 #define IRQ_WAKEUP     0
 #define IRQ_SOFT_RESET 1
@@ -36,8 +36,6 @@
 #define IRQ_REG6       14
 #define IRQ_REG7       15
 #define IRQ_MBUS_MEM   16
-#define IRQ_GPIO       17
-#define IRQ_SPI        18
 
 //*********************************************************
 // ARMv6 Architecture NVIC Registers
@@ -85,20 +83,12 @@
 #define REG_MBUS_BITS   ((volatile uint32_t *) 0xA0000024)
 #define REG_FLAGS       ((volatile uint32_t *) 0xA0000028)
 #define REG_CLKGEN_TUNE ((volatile uint32_t *) 0xA000002C)
-#define REG_XO_CONTROL  ((volatile uint32_t *) 0xA0000030)
 #define REG_SRAM_TUNE   ((volatile uint32_t *) 0xA0000034)
 #define REG_GOC_TIMEOUT ((volatile uint32_t *) 0xA0000038)
 #define REG_GOCEP_FLAG  ((volatile uint32_t *) 0xA000003C)
 #define REG_RUN_CPU     ((volatile uint32_t *) 0xA0000040)
 #define REG_WUPT_CONFIG ((volatile uint32_t *) 0xA0000044)
 #define REG_WUPT_VAL    ((volatile uint32_t *) 0xA0000048)
-#define REG_XOT_CONFIG  ((volatile uint32_t *) 0xA000004C)
-#define REG_XOT_CONFIGU ((volatile uint32_t *) 0xA0000050)
-#define REG_XOT_VAL_L   ((volatile uint32_t *) 0xA0000054)
-#define REG_XOT_VAL_U   ((volatile uint32_t *) 0xA0000058)
-#define REG_CPS         ((volatile uint32_t *) 0xA000005C)
-#define REG_PERIPHERAL  ((volatile uint32_t *) 0xA0000060)
-#define REG_XO_CONFIG   ((volatile uint32_t *) 0xA0000064)
 #define REG_SOFT_RESET  ((volatile uint32_t *) 0xA0000068)
 #define REG_MBUS_FLAG   ((volatile uint32_t *) 0xA0000078)
 #define REG_MBUS_WD     ((volatile uint32_t *) 0xA000007C)
@@ -144,55 +134,20 @@
 #define WUPT_VAL        ((volatile uint32_t *) 0xA0001300)
 
 //*********************************************************
-// XO Timer
-//*********************************************************
-#define XOT_RESET       ((volatile uint32_t *) 0xA0001400)
-#define XOT_VAL         ((volatile uint32_t *) 0xA0001400)
-
-//*********************************************************
 // MBus Watchdog Timer
 //*********************************************************
 #define MBCWD_RESET_REQ ((volatile uint32_t *) 0xA0001500)
 #define MBCWD_RESET     ((volatile uint32_t *) 0xA0001504)
 
 //*********************************************************
-// SPI (0xA000_4000 - 0xA000_4FFF)
-//*********************************************************
-#define SPI_SSPCR0      ((volatile uint32_t *) 0xA0004000) // Control register 0 (Default: 16'h0000)
-#define SPI_SSPCR1      ((volatile uint32_t *) 0xA0004004) // Control register 1 (Default: 4'h0)
-#define SPI_SSPDR       ((volatile uint32_t *) 0xA0004008) // Data register (Default: 16'h0000)
-#define SPI_SSPSR       ((volatile uint32_t *) 0xA000400C) // Status register (Default: 5'h03)
-#define SPI_SSPCPSR     ((volatile uint32_t *) 0xA0004010) // Clock prescale register (Default: 8'h00)
-#define SPI_SSPIMSC     ((volatile uint32_t *) 0xA0004014) // Interrupt mask set or clear register (Default: 4'h0)
-#define SPI_SSPRIS      ((volatile uint32_t *) 0xA0004018) // Raw interrupt status register (Default: 4'h8)
-#define SPI_SSPMIS      ((volatile uint32_t *) 0xA000401C) // Masked interrupt status register (Default: 4'h0)
-#define SPI_SSPICR      ((volatile uint32_t *) 0xA0004020) // Interrupt clear register (Default: 4'h0)
-#define SPI_SSPDMACR    ((volatile uint32_t *) 0xA0004024) // DMA control register (Default: 2'h0)
-#define SPI_SSPPID0     ((volatile uint32_t *) 0xA0004FE0) // Peripheral Identification Register 0
-#define SPI_SSPPID1     ((volatile uint32_t *) 0xA0004FE4) // Peripheral Identification Register 1
-#define SPI_SSPPID2     ((volatile uint32_t *) 0xA0004FE8) // Peripheral Identification Register 2
-#define SPI_SSPPID3     ((volatile uint32_t *) 0xA0004FEC) // Peripheral Identification Register 3
-#define SPI_SSPPCID0    ((volatile uint32_t *) 0xA0004FF0) // PrimeCell Identification Register 0
-#define SPI_SSPPCID1    ((volatile uint32_t *) 0xA0004FF4) // PrimeCell Identification Register 1
-#define SPI_SSPPCID2    ((volatile uint32_t *) 0xA0004FF8) // PrimeCell Identification Register 2
-#define SPI_SSPPCID3    ((volatile uint32_t *) 0xA0004FFC) // PrimeCell Identification Register 3
-
-//*********************************************************
-// GPIO (0xA000_5000 - 0xA000_5FFF)
-//*********************************************************
-#define GPIO_DATA       ((volatile uint32_t *) 0xA0005000) // Data to be set or read depending on DIR register
-#define GPIO_DIR        ((volatile uint32_t *) 0xA0005400) // Controls direction of PAD enable (0=Output) (1=Input)
-#define GPIO_IRQ_MASK   ((volatile uint32_t *) 0xA0005410) // (Active High) Controls whitch GPIO lines to monitor for interrupt
-
-//*********************************************************
-// PRC/PREv17 System Registers
+// PRC/PREv17G System Registers
 //*********************************************************
 #define SREG_CONF_HALT      ((volatile uint32_t *) 0xA000A000)
 #define SREG_MBUS_TX_IRQ    ((volatile uint32_t *) 0xA000A004)
 #define SREG_WAKEUP_SOURCE  ((volatile uint32_t *) 0xA000A008)  // Read-Only
 
 //*********************************************************
-// PRC/PREv17 System Control
+// PRC/PREv17G System Control
 //*********************************************************
 #define SCTR_REG_HALT_ADDR      ((volatile uint32_t *) 0xAFFFF000)
 #define SCTR_REG_RESUME_ADDR    ((volatile uint32_t *) 0xAFFFF004)
@@ -222,7 +177,7 @@
 //*********************************************************
 #include <stdint.h>
 #include <stdbool.h>
-#include "PREv17_RF.h"
+#include "PRCv17G_RF.h"
 
 
 //*********************************************************
@@ -450,16 +405,6 @@ void set_wakeup_timer( uint16_t timestamp, uint8_t irq_en, uint8_t reset );
 
 
 /**
- * @brief   Configure the XO timer
- *
- * @param   timestamp   Counter value at which the timer generates an interrupt
- * @param   irq_en      Interrupt Enable
- * @param   reset       1 will reset the XO timer
- */
-void set_xo_timer( uint32_t timestamp, uint8_t irq_en, uint8_t reset );
-
-
-/**
  * @brief   Write into ARB debug register
  *          !!!    THIS IS FOR VERILOG SIM ONLY    !!!
  *
@@ -469,185 +414,4 @@ void set_xo_timer( uint32_t timestamp, uint8_t irq_en, uint8_t reset );
 void arb_debug_reg (uint8_t id, uint32_t code);
 
 
-//**************************************************
-// IO Pad and COTS Power Switch
-//**************************************************
-
-/**
- * @brief   Enable/Disable SPI Input/Output
- *
- * @param   config  1-bit pattern. 
- *                  '1' enables SPI Input/Output pads
- *                  '0' disables SPI Input/Output pads
- */
-void set_spi_pad (uint8_t config);
-
-
-/**
- * @brief   Enable/Disable GPIO pads
- *
- * @param   config  8-bit pattern. 
- *                  '1' enables the corresponding GPIO pad
- *                  '0' disables the corresponding GPIO pad
- */
-void set_gpio_pad (uint8_t config);
-
-
-/**
- * @brief   Freese/Unfreeze SPI output pads
- *
- * @param   N/A
- */
-void freeze_spi_out (void);
-void unfreeze_spi_out (void);
-
-
-/**
- * @brief   Freese/Unfreeze GPIO output pads
- *
- * @param   N/A
- */
-void freeze_gpio_out (void);
-void unfreeze_gpio_out (void);
-
-
-/**
- * @brief   Configure Posedge/Negedge Wake-up IRQ setting for GPIO pads
- *
- * @param   config  4-bit pattern, which represents GPIO[3:0]
- *                      '1' enables the wake-up IRQ at the specified edge.
- *                      '0' disables the wake-up IRQ at the specified edge.
- */
-void config_gpio_posedge_wirq (uint32_t config);
-void config_gpio_negedge_wirq (uint32_t config);
-
-/**
- * @brief   Enable/Disable COTS switches
- *
- * @param   cps_config  3-bit pattern. 
- *                      '1' enables the corresponding COTS switch.
- *                      '0' disables the corresponding COTS switch.
- */
-void set_cps (uint32_t cps_config);
-
-
-//*******************************************************************
-// GPIO
-//*******************************************************************
-
-/**
- * @brief   Initialize GPIO
- *
- * @param   dir     8-bit pattern setting GPIO directions.
- *                  '1' sets the corresponding GPIO bit as output
- *                  '0' sets the corresponding GPIO bit as input
- */
-void gpio_init (uint32_t dir);
-
-
-/**
- * @brief   Set GPIO directions
- *
- * @param   dir     8-bit pattern setting GPIO directions.
- *                  '1' sets the corresponding GPIO bit as output
- *                  '0' sets the corresponding GPIO bit as input
- */
-void gpio_set_dir (uint32_t dir);
-
-
-/**
- * @brief   Return the current GPIO directions
- *          The return value is a 8-bit pattern indicating GPIO directions.
- *              '1' means the corresponding GPIO bit is output.
- *              '0' means the corresponding GPIO bit is input.
- */
-uint32_t gpio_get_dir (void);
-
-
-/**
- * @brief   Return the current GPIO data
- *          The return value is a 8-bit GPIO data
- */
-uint32_t gpio_get_data (void);
-
-
-/**
- * @brief   Set GPIO data
- *          It does NOT change GPIO output. It just sets the internal variable 'gpio_data_'.
- *          In order to change the GPIO output, use this function, and then use gpio_write_current_data()
- *          If you want to change gpio_data_ as well as the actual GPIO output, then use gpio_write_data()
- *
- * @param   data    8-bit data
- */
-void gpio_set_data (uint32_t data);
-
-
-/**
- * @brief   Change GPIO output using gpio_data_
- *          Make sure gpio_data_ has the correct value. You may need to use gpio_set_data().
- */
-void gpio_write_current_data (void);
-
-
-
-/**
- * @brief   Change GPIO output
- *          This function changes the GPIO output as well as gpio_data_.
- *
- * @param   data    8-bit data
- */
-void gpio_write_data (uint32_t data);
-
-
-/**
- * @brief   Change GPIO output
- *          This function changes the GPIO output, but does NOT update gpio_data_.
- *
- * @param   data    8-bit data
- */
-void gpio_write_raw (uint32_t data);
-
-
-/**
- * @brief   Set the corresponding GPIO bit to 1
- *
- * @param   loc     GPIO pin location.
- */
-void gpio_set_bit (uint32_t loc);
-
-
-/**
- * @brief   Set the corresponding GPIO bit to 0
- *
- * @param   loc     GPIO pin location.
- */
-void gpio_kill_bit (uint32_t loc);
-
-
-/**
- * @brief   Set the corresponding GPIO bits to 1. You are setting the 2 bits at the same time.
- *
- * @param   loc0    GPIO pin location.
- * @param   loc1    GPIO pin location.
- */
-void gpio_set_2bits (uint32_t loc0, uint32_t loc1);
-
-
-/**
- * @brief   Set GPIO Interrupt mask
- *          '1' means the corresponding bit's IRQ is enabled.
- *          '0' means the corresponding bit's IRQ is disabled.
- *
- * @param   mask    8-bit mask pattern
- */
-void gpio_set_irq_mask (uint32_t mask);
-
-
-/**
- * @brief   Terminate GPIO operations.
- *          Internally, it is same as disable_io_pad()
- */
-void gpio_close (void);
-
-#endif // PREV17_H
-
+#endif // PRCV17_H

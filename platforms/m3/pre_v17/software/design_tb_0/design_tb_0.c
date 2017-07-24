@@ -5,12 +5,15 @@
 #include "PREv17.h"
 #include "FLPv2S_RF.h"
 #include "PMUv7H_RF.h"
+#include "SNSv10_RF.h"
+#include "RDCv1_RF.h"
 #include "mbus.h"
 
 #define PRE_ADDR    0x1
 #define FLP_ADDR    0x4
 #define NODE_A_ADDR 0x8
-#define NODE_B_ADDR 0xC
+#define SNS_ADDR    0xC
+#define RDC_ADDR    0x5
 #define PMU_ADDR    0xE
 
 // FLPv2S Payloads
@@ -40,7 +43,7 @@ volatile pmuv7h_r51_t PMUv7H_R51_CONF = PMUv7H_R51_DEFAULT;
 volatile pmuv7h_r52_t PMUv7H_R52_IRQ  = PMUv7H_R52_DEFAULT;
 
 // Select Testing
-volatile uint32_t do_cycle0  = 1; // Reserved
+volatile uint32_t do_cycle0  = 1; // System Halt and Resume
 volatile uint32_t do_cycle1  = 1; // PMU Testing
 volatile uint32_t do_cycle2  = 1; // Register test
 volatile uint32_t do_cycle3  = 1; // MEM IRQ
@@ -184,7 +187,8 @@ void initialization (void) {
     // Enumeration
     mbus_enumerate(FLP_ADDR);
     mbus_enumerate(NODE_A_ADDR);
-    mbus_enumerate(NODE_B_ADDR);
+    mbus_enumerate(SNS_ADDR);
+    mbus_enumerate(RDC_ADDR);
     mbus_enumerate(PMU_ADDR);
 
     //Set Halt
@@ -207,6 +211,31 @@ void fail (uint32_t id, uint32_t data) {
 void cycle0 (void) {
     if (do_cycle0 == 1) {
         arb_debug_reg(0x30, 0x00000000);
+
+        // --- Send a dummy reg write message to NODE A to wakeup its (fake) layer controller
+        mbus_write_message32( (NODE_A_ADDR << 4), 0x00000000);
+
+        // --- System Halt by CPU
+        arb_debug_reg(0x30, 0x00000001);
+        halt_cpu();
+
+        // Other layer should send the specific mbus message to resume CPU operation
+        // Once you see (0x30, 0x0000000l), you need to wait for a while, and then 
+        // send the following messages in sequence:
+        // MEM[0xAFFFF004] <= 0xCAFEF00D
+
+        // --- System Halt by MBus Message
+        // Once you see (0x30, 0x00000002), you need to send the following messages in sequence:
+        // MEM[0xAFFFF000] <= 0xBAADF00D
+        // MEM[0xA0000000] <= 0x00000001
+        // MEM[0xAFFFF004] <= 0xCAFEF00D
+        *REG0 = 0;
+        arb_debug_reg(0x30, 0x00000002);
+
+        while (*REG0 == 0) {delay(100);}
+
+        // Testing Successful
+        arb_debug_reg(0x30, 0x00000003);
     }
 }
 
@@ -543,10 +572,10 @@ void cycle5 (void) {
         set_halt_until_mbus_fwd();
         mbus_copy_mem_from_remote_to_any_bulk (FLP_ADDR, 0x00000000, NODE_A_ADDR, 0x00000000, 511);
 
-        // Put the Flash SRAM data (very long) on the bus (to NODE_B)
+        // Put the Flash SRAM data (very long) on the bus (to NODE_A)
         arb_debug_reg (0x35, 0x00000003);
         set_halt_until_mbus_tx();
-        mbus_copy_mem_from_remote_to_any_bulk (FLP_ADDR, 0x00000000, NODE_B_ADDR, 0x00000000, 300);
+        mbus_copy_mem_from_remote_to_any_bulk (FLP_ADDR, 0x00000000, NODE_A_ADDR, 0x00000000, 300);
 
         // Halt CPU
         arb_debug_reg (0x35, 0x00000004);
@@ -581,10 +610,10 @@ void cycle6 (void) {
         set_halt_until_mbus_fwd();
         mbus_copy_mem_from_remote_to_any_stream (0, FLP_ADDR, 0x00000000, NODE_A_ADDR, 511);
 
-        // Put the Flash SRAM data (very long) on the bus (to NODE_B). I will use halt_cpu() here.
+        // Put the Flash SRAM data (very long) on the bus (to NODE_A). I will use halt_cpu() here.
         arb_debug_reg (0x36, 0x00000003);
         set_halt_until_mbus_tx();
-        mbus_copy_mem_from_remote_to_any_stream (1, FLP_ADDR, 0x00000000, NODE_B_ADDR, 511);
+        mbus_copy_mem_from_remote_to_any_stream (1, FLP_ADDR, 0x00000000, NODE_A_ADDR, 511);
 
         // Halt CPU
         arb_debug_reg (0x36, 0x00000004);
@@ -842,4 +871,3 @@ int main() {
 
     return 1;
 }
-

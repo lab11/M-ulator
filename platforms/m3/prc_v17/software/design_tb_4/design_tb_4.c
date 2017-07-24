@@ -4,7 +4,7 @@
 //*******************************************************************
 #include "PRCv17.h"
 #include "FLPv2S_RF.h"
-#include "PMUv7H_RF.h"
+#include "PMUv8_RF.h"
 #include "SNSv10_RF.h"
 #include "RDCv1_RF.h"
 #include "mbus.h"
@@ -16,49 +16,38 @@
 #define RDC_ADDR    0x5
 #define PMU_ADDR    0xE
 
-// FLPv2S Payloads
-#define ERASE_PASS  0x4F
-
 // Flag Idx
-#define FLAG_ENUM        0
+#define FLAG_ENUM       0
+#define FLAG_VCO        1
 
 //********************************************************************
 // Global Variables
 //********************************************************************
 volatile uint32_t cyc_num;
 volatile uint32_t irq_history;
-
-volatile uint32_t mem_rsvd_0[10];
-volatile uint32_t mem_rsvd_1[10];
-
+volatile uint32_t temp_val;
 
 volatile flpv2s_r0F_t FLPv2S_R0F_IRQ      = FLPv2S_R0F_DEFAULT;
 volatile flpv2s_r12_t FLPv2S_R12_PWR_CONF = FLPv2S_R12_DEFAULT;
 volatile flpv2s_r07_t FLPv2S_R07_GO       = FLPv2S_R07_DEFAULT;
 
-volatile pmuv7h_r51_t PMUv7H_R51_CONF = PMUv7H_R51_DEFAULT;
-volatile pmuv7h_r52_t PMUv7H_R52_IRQ  = PMUv7H_R52_DEFAULT;
-
-volatile rdcv1_r10_t RDCv1_R10_BRDC_IRQ_1 = RDCv1_R10_DEFAULT;
-volatile rdcv1_r11_t RDCv1_R11_BRDC_IRQ_2 = RDCv1_R11_DEFAULT;
-volatile rdcv1_r12_t RDCv1_R12_BRDC_RST   = RDCv1_R12_DEFAULT;
+volatile pmuv8_r51_t PMUv8_R51_CONF = PMUv8_R51_DEFAULT;
+volatile pmuv8_r52_t PMUv8_R52_IRQ  = PMUv8_R52_DEFAULT;
+volatile pmuv8_r53_t PMUv8_R53_VCO  = PMUv8_R53_DEFAULT;
 
 // Select Testing
-#ifdef PREv17
-#else
-#endif
-volatile uint32_t do_cycle0  = 1; // GOCEP GEN_IRQ Check
-volatile uint32_t do_cycle1  = 1; // 
-volatile uint32_t do_cycle2  = 0; // 
-volatile uint32_t do_cycle3  = 0; // 
-volatile uint32_t do_cycle4  = 0; // 
-volatile uint32_t do_cycle5  = 0; // 
-volatile uint32_t do_cycle6  = 0; // 
-volatile uint32_t do_cycle7  = 0; // 
-volatile uint32_t do_cycle8  = 0; // 
-volatile uint32_t do_cycle9  = 0; // 
-volatile uint32_t do_cycle10 = 0; // 
-volatile uint32_t do_cycle11 = 1; // Watch-Dog Timer
+volatile uint32_t do_cycle0  = 1; // VCO Counter
+volatile uint32_t do_cycle1  = 0;
+volatile uint32_t do_cycle2  = 0;
+volatile uint32_t do_cycle3  = 0;
+volatile uint32_t do_cycle4  = 0;
+volatile uint32_t do_cycle5  = 0;
+volatile uint32_t do_cycle6  = 0;
+volatile uint32_t do_cycle7  = 0;
+volatile uint32_t do_cycle8  = 0;
+volatile uint32_t do_cycle9  = 0;
+volatile uint32_t do_cycle10 = 0;
+volatile uint32_t do_cycle11 = 1; // Watch-Dog
 
 //*******************************************************************
 // INTERRUPT HANDLERS
@@ -168,6 +157,7 @@ void initialization (void) {
 
     set_flag(FLAG_ENUM, 1);
     cyc_num = 0;
+    irq_history = 0;
 
     // Set Halt
     set_halt_until_mbus_trx();
@@ -196,50 +186,89 @@ void fail (uint32_t id, uint32_t data) {
     *REG_CHIP_ID = 0xFFFF; // This will stop the verilog sim.
 }
 
-void cycle0 (void) { 
-    if (do_cycle0 == 1) { 
-        arb_debug_reg(0x50, 0x00000000);
-    
-        if (irq_history == ((0x1 << IRQ_WAKEUP) | (0x1 << IRQ_GOCEP))) {
-               pass (0x0, irq_history); irq_history = 0; disable_all_irq(); }
-        else { fail (0x0, irq_history); disable_all_irq(); }
-    } 
+void cycle0 (void) {
+    if (do_cycle0 == 1) {
+        arb_debug_reg(0x70, 0x00000000);
+
+        if (!get_flag(FLAG_VCO)) {
+            set_flag(FLAG_VCO, 1);
+
+            // Reset VCO_CNT_ENABLE (unnecessary, but..)
+            PMUv8_R53_VCO.VCO_CNT_ENABLE    = 0x0;
+            PMUv8_R53_VCO.VCO_CNT_MODE      = 0x0;
+            PMUv8_R53_VCO.VCO_CNT_THRESHOLD = 0x0;
+            mbus_remote_register_write(PMU_ADDR, 0x53, PMUv8_R53_VCO.as_int);
+
+            // Reset TIMER32 (unnecessary, but..)
+            *TIMER32_GO   = 0;
+            *TIMER32_CMP  = 0;
+	        *TIMER32_ROI  = 0;
+	        *TIMER32_CNT  = 0;
+	        *TIMER32_STAT = 0;
+	        *TIMER32_GO   = 0x1;
+
+            // Start Active Measurement
+            arb_debug_reg(0x70, 0x10000000);
+            set_halt_until_mbus_trx();
+            PMUv8_R53_VCO.VCO_CNT_ENABLE    = 0x1;
+            PMUv8_R53_VCO.VCO_CNT_MODE      = 0x1;
+            PMUv8_R53_VCO.VCO_CNT_THRESHOLD = 1000;
+            mbus_remote_register_write(PMU_ADDR, 0x53, PMUv8_R53_VCO.as_int);
+
+            // Get TIMER32 measurement
+            temp_val = *TIMER32_CNT;
+            *TIMER32_GO = 0;
+            set_halt_until_mbus_tx();
+
+            arb_debug_reg(0x70, (0x20 << 24) | temp_val);
+
+            // Reset VCO_CNT_ENABLE
+            PMUv8_R53_VCO.VCO_CNT_ENABLE    = 0x0;
+            PMUv8_R53_VCO.VCO_CNT_MODE      = 0x0;
+            PMUv8_R53_VCO.VCO_CNT_THRESHOLD = 0x0;
+            mbus_remote_register_write(PMU_ADDR, 0x53, PMUv8_R53_VCO.as_int);
+
+            // Start Sleep Measurement
+            PMUv8_R53_VCO.VCO_CNT_ENABLE    = 0x1;
+            PMUv8_R53_VCO.VCO_CNT_MODE      = 0x0;
+            PMUv8_R53_VCO.VCO_CNT_THRESHOLD = 0x1000;
+            mbus_remote_register_write(PMU_ADDR, 0x53, PMUv8_R53_VCO.as_int);
+
+            // Go to sleep 
+            arb_debug_reg(0x70, 0x30000000);
+            set_wakeup_timer(100, 0, 1);
+            mbus_sleep_all();
+        }
+        else {
+            // Reset VCO_CNT_ENABLE
+            PMUv8_R53_VCO.VCO_CNT_ENABLE    = 0x0;
+            PMUv8_R53_VCO.VCO_CNT_MODE      = 0x0;
+            PMUv8_R53_VCO.VCO_CNT_THRESHOLD = 0x0;
+            mbus_remote_register_write(PMU_ADDR, 0x53, PMUv8_R53_VCO.as_int);
+
+            arb_debug_reg(0x70, 0x40000000);
+        }
+    }
 }
 
-void cycle1 (void) { 
-    if (do_cycle1 == 1) { 
-        // Set up RDC IRQ Configuration
-        RDCv1_R11_BRDC_IRQ_2.BRDC_IRQ_LENGTH_1 = 3;
-        RDCv1_R11_BRDC_IRQ_2.BRDC_IRQ_PAYLOAD_ADDR = 0x20;
-        mbus_remote_register_write(RDC_ADDR, 0x11, RDCv1_R11_BRDC_IRQ_2.as_int);
-
-        // Start BRDC
-        set_halt_until_mbus_trx();
-        RDCv1_R12_BRDC_RST.BRDC_RSTB = 1;
-        RDCv1_R12_BRDC_RST.BRDC_IB_ENB = 0;
-        RDCv1_R12_BRDC_RST.BRDC_OSC_RESET = 0;
-        mbus_remote_register_write(RDC_ADDR, 0x12, RDCv1_R12_BRDC_RST.as_int);
-
-        set_halt_until_mbus_tx();
-    } 
-}
-void cycle2 (void) { if (do_cycle2 == 1) { } }
-void cycle3 (void) { if (do_cycle3 == 1) { } }
-void cycle4 (void) { if (do_cycle4 == 1) { } }
-void cycle5 (void) { if (do_cycle5 == 1) { } }
-void cycle6 (void) { if (do_cycle6 == 1) { } }
-void cycle7 (void) { if (do_cycle7 == 1) { } }
-void cycle8 (void) { if (do_cycle8 == 1) { } }
-void cycle9 (void) { if (do_cycle9 == 1) { } }
+void cycle1  (void) { if (do_cycle1  == 1) { } }
+void cycle2  (void) { if (do_cycle2  == 1) { } }
+void cycle3  (void) { if (do_cycle3  == 1) { } }
+void cycle4  (void) { if (do_cycle4  == 1) { } }
+void cycle5  (void) { if (do_cycle5  == 1) { } }
+void cycle6  (void) { if (do_cycle6  == 1) { } }
+void cycle7  (void) { if (do_cycle7  == 1) { } }
+void cycle8  (void) { if (do_cycle8  == 1) { } }
+void cycle9  (void) { if (do_cycle9  == 1) { } }
 void cycle10 (void) { if (do_cycle10 == 1) { } }
 
 void cycle11 (void) {
     if (do_cycle11 == 1) {
-        arb_debug_reg (0x4B, 0x00000000);
+        arb_debug_reg (0x3B, 0x00000000);
         set_halt_until_mbus_tx();
 
         // Watch-Dog Timer (You should see TIMERWD triggered)
-        arb_debug_reg (0x4B, 0x00000001);
+        arb_debug_reg (0x3B, 0x00000001);
         config_timerwd(100);
 
         // Wait here until PMU resets everything
@@ -247,15 +276,14 @@ void cycle11 (void) {
     }
 }
 
+
 //********************************************************************
 // MAIN function starts here             
 //********************************************************************
 
 int main() {
-    irq_history = 0;
-
-    // Enable Wake-Up/Soft-Reset/GOCEP IRQs
-    *NVIC_ISER = (0x1 << IRQ_WAKEUP) | (0x1 << IRQ_SOFT_RESET) | (0x1 << IRQ_GOCEP);
+    // Enable Wake-Up IRQ
+    *NVIC_ISER = (0x1 << IRQ_WAKEUP);
 
     // Initialization Sequence
     if (!get_flag(FLAG_ENUM)) { 
@@ -296,5 +324,4 @@ int main() {
 
     return 1;
 }
-
 

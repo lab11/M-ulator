@@ -1,8 +1,8 @@
 //*******************************************************************
 //Author: Yejoong Kim
-//Description: Developed during PRCv17 tape-out for verification
+//Description: Developed during PRCv17G tape-out for verification
 //*******************************************************************
-#include "PRCv17.h"
+#include "PRCv17G.h"
 #include "FLPv2S_RF.h"
 #include "PMUv7H_RF.h"
 #include "SNSv10_RF.h"
@@ -52,7 +52,7 @@ volatile uint32_t do_cycle5  = 1; // Memory Streaming 1
 volatile uint32_t do_cycle6  = 1; // Memory Streaming 2
 volatile uint32_t do_cycle7  = 1; // TIMER16
 volatile uint32_t do_cycle8  = 1; // TIMER32
-#ifdef PREv17
+#ifdef PREv17G
 volatile uint32_t do_cycle9  = 1; // GPIO (only for PRE)
 volatile uint32_t do_cycle10 = 1; // SPI (only for PRE)
 #else
@@ -704,7 +704,7 @@ void cycle8 (void) {
 
 void cycle9 (void) {
     if (do_cycle9 == 1) {
-    #ifdef PREv17
+    #ifdef PREv17G
         arb_debug_reg (0x39, 0x00000000);
         if (!get_flag(FLAG_GPIO_SUB)) {
             set_flag(FLAG_GPIO_SUB, 1);
@@ -766,7 +766,7 @@ void cycle9 (void) {
 
 void cycle10 (void) {
     if (do_cycle10 == 1) {
-    #ifdef PREv17
+    #ifdef PREv17G
         arb_debug_reg (0x3A, 0x00000000);
         set_halt_until_mbus_tx();
 

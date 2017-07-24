@@ -149,8 +149,10 @@
 //*********************************************************
 // PRC/PREv17 System Control
 //*********************************************************
-#define SCTR_REG_ADDR     ((volatile uint32_t *) 0xAFFFF000)
-#define SCTR_CMD_HALT_CPU 0xCAFEF00D
+#define SCTR_REG_HALT_ADDR      ((volatile uint32_t *) 0xAFFFF000)
+#define SCTR_REG_RESUME_ADDR    ((volatile uint32_t *) 0xAFFFF004)
+#define SCTR_CMD_HALT_CPU       0xBAADF00D
+#define SCTR_CMD_RESUME_CPU     0xCAFEF00D
 
 //*********************************************************
 // SREG_CONF_HALT Values

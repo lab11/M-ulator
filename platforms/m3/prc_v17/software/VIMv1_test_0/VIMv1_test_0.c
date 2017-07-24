@@ -1,26 +1,23 @@
 //*******************************************************************
 //Author: Yejoong Kim
-//Description: Developed during PRCv17 tape-out for verification
+//Description: Developed during VIMv1 tape-out for verification
 //*******************************************************************
 #include "PRCv17.h"
 #include "FLPv2S_RF.h"
+#include "VIMv1_RF.h"
 #include "PMUv7H_RF.h"
-#include "SNSv10_RF.h"
-#include "RDCv1_RF.h"
 #include "mbus.h"
 
 #define PRC_ADDR    0x1
 #define FLP_ADDR    0x4
-#define NODE_A_ADDR 0x8
-#define SNS_ADDR    0xC
-#define RDC_ADDR    0x5
+#define VIM_ADDR    0x5
 #define PMU_ADDR    0xE
 
 // FLPv2S Payloads
 #define ERASE_PASS  0x4F
 
 // Flag Idx
-#define FLAG_ENUM        0
+#define FLAG_ENUM       0
 
 //********************************************************************
 // Global Variables
@@ -31,7 +28,6 @@ volatile uint32_t irq_history;
 volatile uint32_t mem_rsvd_0[10];
 volatile uint32_t mem_rsvd_1[10];
 
-
 volatile flpv2s_r0F_t FLPv2S_R0F_IRQ      = FLPv2S_R0F_DEFAULT;
 volatile flpv2s_r12_t FLPv2S_R12_PWR_CONF = FLPv2S_R12_DEFAULT;
 volatile flpv2s_r07_t FLPv2S_R07_GO       = FLPv2S_R07_DEFAULT;
@@ -39,26 +35,22 @@ volatile flpv2s_r07_t FLPv2S_R07_GO       = FLPv2S_R07_DEFAULT;
 volatile pmuv7h_r51_t PMUv7H_R51_CONF = PMUv7H_R51_DEFAULT;
 volatile pmuv7h_r52_t PMUv7H_R52_IRQ  = PMUv7H_R52_DEFAULT;
 
-volatile rdcv1_r10_t RDCv1_R10_BRDC_IRQ_1 = RDCv1_R10_DEFAULT;
-volatile rdcv1_r11_t RDCv1_R11_BRDC_IRQ_2 = RDCv1_R11_DEFAULT;
-volatile rdcv1_r12_t RDCv1_R12_BRDC_RST   = RDCv1_R12_DEFAULT;
+volatile vimv1_r1A_t VIMv1_R1A_CTRL_POWER    = VIMv1_R1A_DEFAULT;
+volatile vimv1_r1B_t VIMv1_R1B_IRQ_SHORT_ADDR= VIMv1_R1B_DEFAULT;
+volatile vimv1_r1C_t VIMv1_R1C_IRQ_REG_ADDR  = VIMv1_R1C_DEFAULT;
+volatile vimv1_r20_t VIMv1_R20_ENABLE_LC_MEM = VIMv1_R20_DEFAULT;
 
 // Select Testing
-#ifdef PREv17
-#else
-#endif
-volatile uint32_t do_cycle0  = 1; // GOCEP GEN_IRQ Check
-volatile uint32_t do_cycle1  = 1; // 
-volatile uint32_t do_cycle2  = 0; // 
-volatile uint32_t do_cycle3  = 0; // 
-volatile uint32_t do_cycle4  = 0; // 
-volatile uint32_t do_cycle5  = 0; // 
-volatile uint32_t do_cycle6  = 0; // 
-volatile uint32_t do_cycle7  = 0; // 
-volatile uint32_t do_cycle8  = 0; // 
-volatile uint32_t do_cycle9  = 0; // 
-volatile uint32_t do_cycle10 = 0; // 
-volatile uint32_t do_cycle11 = 1; // Watch-Dog Timer
+volatile uint32_t do_cycle0  = 1; // System Halt and Resume
+volatile uint32_t do_cycle1  = 1; // PMU Testing
+volatile uint32_t do_cycle2  = 1; // Register test
+volatile uint32_t do_cycle3  = 1; // MEM IRQ
+volatile uint32_t do_cycle4  = 1; // Flash Erase
+volatile uint32_t do_cycle5  = 1; // Memory Streaming 1
+volatile uint32_t do_cycle6  = 1; // Memory Streaming 2
+volatile uint32_t do_cycle7  = 1; // TIMER16
+volatile uint32_t do_cycle8  = 1; // TIMER32
+volatile uint32_t do_cycle11 = 1; // Watch-Dog
 
 //*******************************************************************
 // INTERRUPT HANDLERS
@@ -168,15 +160,14 @@ void initialization (void) {
 
     set_flag(FLAG_ENUM, 1);
     cyc_num = 0;
+    irq_history = 0;
 
     // Set Halt
     set_halt_until_mbus_trx();
 
     // Enumeration
     mbus_enumerate(FLP_ADDR);
-    mbus_enumerate(NODE_A_ADDR);
-    mbus_enumerate(SNS_ADDR);
-    mbus_enumerate(RDC_ADDR);
+    mbus_enumerate(VIM_ADDR);
     mbus_enumerate(PMU_ADDR);
 
     //Set Halt
@@ -196,55 +187,70 @@ void fail (uint32_t id, uint32_t data) {
     *REG_CHIP_ID = 0xFFFF; // This will stop the verilog sim.
 }
 
-void cycle0 (void) { 
-    if (do_cycle0 == 1) { 
-        arb_debug_reg(0x50, 0x00000000);
-    
-        if (irq_history == ((0x1 << IRQ_WAKEUP) | (0x1 << IRQ_GOCEP))) {
-               pass (0x0, irq_history); irq_history = 0; disable_all_irq(); }
-        else { fail (0x0, irq_history); disable_all_irq(); }
-    } 
+void VIMv1_load_imem() {
+    // VIMv1_CTRL power must be on and un-isolated to access IMEM
+    //---------------------------------------
+    // NOTE: CTRL_POWER_CTRL[3]: CTRL_RESET
+    //       CTRL_POWER_CTRL[2]: CTRL_ISOLATE
+    //       CTRL_POWER_CTRL[1]: CTRL_SLEEP
+    //       CTRL_POWER_CTRL[0]: IMEM_SLEEP
+    //---------------------------------------
+
+    // Release Sleep
+    VIMv1_R1A_CTRL_POWER.CTRL_POWER_CTRL = 0xC;
+    mbus_remote_register_write(VIM_ADDR, 0x1A, VIMv1_R1A_CTRL_POWER.as_int);
+
+    // Release Isolation
+    VIMv1_R1A_CTRL_POWER.CTRL_POWER_CTRL = 0x8;
+    mbus_remote_register_write(VIM_ADDR, 0x1A, VIMv1_R1A_CTRL_POWER.as_int);
+
+    // Enable LC_MEM interface in VIMv1
+    VIMv1_R20_ENABLE_LC_MEM.ENABLE_LC_MEM = 0x1;
+    mbus_remote_register_write(VIM_ADDR, 0x20, VIMv1_R20_ENABLE_LC_MEM.as_int);
+
+    // Copy the instruction from Flash (Total 2kB)
+    set_halt_until_mbus_fwd();
+    mbus_copy_mem_from_remote_to_any_bulk (FLP_ADDR, (uint32_t *) 0x0, VIM_ADDR, (uint32_t *) 0x0, 0x1FF);
+    set_halt_until_mbus_tx();
+
+    // Disable LC_MEM interface in VIMv1
+    VIMv1_R20_ENABLE_LC_MEM.ENABLE_LC_MEM = 0x0;
+    mbus_remote_register_write(VIM_ADDR, 0x20, VIMv1_R20_ENABLE_LC_MEM.as_int);
 }
 
-void cycle1 (void) { 
-    if (do_cycle1 == 1) { 
-        // Set up RDC IRQ Configuration
-        RDCv1_R11_BRDC_IRQ_2.BRDC_IRQ_LENGTH_1 = 3;
-        RDCv1_R11_BRDC_IRQ_2.BRDC_IRQ_PAYLOAD_ADDR = 0x20;
-        mbus_remote_register_write(RDC_ADDR, 0x11, RDCv1_R11_BRDC_IRQ_2.as_int);
+void VIMv1_start() {
+    //---------------------------------------
+    // NOTE: CTRL_POWER_CTRL[3]: CTRL_RESET
+    //       CTRL_POWER_CTRL[2]: CTRL_ISOLATE
+    //       CTRL_POWER_CTRL[1]: CTRL_SLEEP
+    //       CTRL_POWER_CTRL[0]: IMEM_SLEEP
+    //---------------------------------------
 
-        // Start BRDC
-        set_halt_until_mbus_trx();
-        RDCv1_R12_BRDC_RST.BRDC_RSTB = 1;
-        RDCv1_R12_BRDC_RST.BRDC_IB_ENB = 0;
-        RDCv1_R12_BRDC_RST.BRDC_OSC_RESET = 0;
-        mbus_remote_register_write(RDC_ADDR, 0x12, RDCv1_R12_BRDC_RST.as_int);
-
-        set_halt_until_mbus_tx();
-    } 
+    // Release Reset; this should start the clock
+    VIMv1_R1A_CTRL_POWER.CTRL_POWER_CTRL = 0x0;
+    mbus_remote_register_write(VIM_ADDR, 0x1A, VIMv1_R1A_CTRL_POWER.as_int);
 }
-void cycle2 (void) { if (do_cycle2 == 1) { } }
-void cycle3 (void) { if (do_cycle3 == 1) { } }
-void cycle4 (void) { if (do_cycle4 == 1) { } }
-void cycle5 (void) { if (do_cycle5 == 1) { } }
-void cycle6 (void) { if (do_cycle6 == 1) { } }
-void cycle7 (void) { if (do_cycle7 == 1) { } }
-void cycle8 (void) { if (do_cycle8 == 1) { } }
-void cycle9 (void) { if (do_cycle9 == 1) { } }
-void cycle10 (void) { if (do_cycle10 == 1) { } }
 
-void cycle11 (void) {
-    if (do_cycle11 == 1) {
-        arb_debug_reg (0x4B, 0x00000000);
-        set_halt_until_mbus_tx();
+void VIMv1_stop() {
+    // Power off the controller 
+    //---------------------------------------
+    // NOTE: CTRL_POWER_CTRL[3]: CTRL_RESET
+    //       CTRL_POWER_CTRL[2]: CTRL_ISOLATE
+    //       CTRL_POWER_CTRL[1]: CTRL_SLEEP
+    //       CTRL_POWER_CTRL[0]: IMEM_SLEEP
+    //---------------------------------------
 
-        // Watch-Dog Timer (You should see TIMERWD triggered)
-        arb_debug_reg (0x4B, 0x00000001);
-        config_timerwd(100);
+    // Assert Reset; this should stop the clock
+    VIMv1_R1A_CTRL_POWER.CTRL_POWER_CTRL = 0x8;
+    mbus_remote_register_write(VIM_ADDR, 0x1A, VIMv1_R1A_CTRL_POWER.as_int);
 
-        // Wait here until PMU resets everything
-        while(1);
-    }
+    // Assert Isolation
+    VIMv1_R1A_CTRL_POWER.CTRL_POWER_CTRL = 0xC;
+    mbus_remote_register_write(VIM_ADDR, 0x1A, VIMv1_R1A_CTRL_POWER.as_int);
+
+    // Assert Sleep
+    VIMv1_R1A_CTRL_POWER.CTRL_POWER_CTRL = 0xF;
+    mbus_remote_register_write(VIM_ADDR, 0x1A, VIMv1_R1A_CTRL_POWER.as_int);
 }
 
 //********************************************************************
@@ -252,36 +258,27 @@ void cycle11 (void) {
 //********************************************************************
 
 int main() {
-    irq_history = 0;
-
-    // Enable Wake-Up/Soft-Reset/GOCEP IRQs
-    *NVIC_ISER = (0x1 << IRQ_WAKEUP) | (0x1 << IRQ_SOFT_RESET) | (0x1 << IRQ_GOCEP);
+    // Enable Wake-Up IRQ & REG7 IRQ 
+    *NVIC_ISER = ((0x1 << IRQ_WAKEUP) | (0x1 << IRQ_REG7));
 
     // Initialization Sequence
     if (!get_flag(FLAG_ENUM)) { 
         initialization();
     }
 
-    arb_debug_reg(0x20, cyc_num);
-
     // Testing Sequence
-    if      (cyc_num == 0)  cycle0();
-    else if (cyc_num == 1)  cycle1();
-    else if (cyc_num == 2)  cycle2();
-    else if (cyc_num == 3)  cycle3();
-    else if (cyc_num == 4)  cycle4();
-    else if (cyc_num == 5)  cycle5();
-    else if (cyc_num == 6)  cycle6();
-    else if (cyc_num == 7)  cycle7();
-    else if (cyc_num == 8)  cycle8();
-    else if (cyc_num == 9)  cycle9();
-    else if (cyc_num == 10) cycle10();
-    else if (cyc_num == 11) cycle11();
-    else cyc_num = 999;
+    VIMv1_load_imem();
+    VIMv1_start();
 
-    arb_debug_reg(0x2F, cyc_num);
+    while (1) {
+        WFI();
+        if (*REG7 == 0xABC) break;
+    }
+
+    VIMv1_stop();
 
     // Sleep/Wakeup OR Terminate operation
+    cyc_num = 999;
     if (cyc_num == 999) *REG_CHIP_ID = 0xFFFF; // This will stop the verilog sim.
     else {
         cyc_num++;
@@ -296,5 +293,3 @@ int main() {
 
     return 1;
 }
-
-

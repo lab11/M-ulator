@@ -5,24 +5,29 @@
 #include "PREv17.h"
 #include "FLPv2S_RF.h"
 #include "PMUv7H_RF.h"
+#include "SNSv10_RF.h"
+#include "RDCv1_RF.h"
 #include "mbus.h"
 
 #define PRE_ADDR    0x1
 #define FLP_ADDR    0x4
 #define NODE_A_ADDR 0x8
-#define NODE_B_ADDR 0xC
+#define SNS_ADDR    0xC
+#define RDC_ADDR    0x5
 #define PMU_ADDR    0xE
 
 // FLPv2S Payloads
 #define ERASE_PASS  0x4F
 
 // Flag Idx
-#define FLAG_ENUM        0
-#define FLAG_GPIO_SUB_0  1
-#define FLAG_GPIO_SUB_1  2
-#define FLAG_XO_SUB      3
-#define FLAG_SOFT_RESET  4
-#define FLAG_GOCEP_SUB   5
+#define FLAG_ENUM         0
+#define FLAG_GPIO_SUB_0   1
+#define FLAG_GPIO_SUB_1   2
+#define FLAG_XO_SUB       3
+#define FLAG_SOFT_RESET   4
+#define FLAG_GOCEP_SUB    5
+#define FLAG_SNSWUP_SUB_0 6
+#define FLAG_SNSWUP_SUB_1 7
 
 //********************************************************************
 // Global Variables
@@ -34,12 +39,20 @@ volatile uint32_t mem_rsvd_0[10];
 volatile uint32_t mem_rsvd_1[10];
 
 
-volatile flpv2s_r0F_t FLPv2S_R0F_IRQ      = FLPv2S_R0F_DEFAULT;
-volatile flpv2s_r12_t FLPv2S_R12_PWR_CONF = FLPv2S_R12_DEFAULT;
-volatile flpv2s_r07_t FLPv2S_R07_GO       = FLPv2S_R07_DEFAULT;
+volatile flpv2s_r0F_t FLPv2S_R0F_IRQ        = FLPv2S_R0F_DEFAULT;
+volatile flpv2s_r12_t FLPv2S_R12_PWR_CONF   = FLPv2S_R12_DEFAULT;
+volatile flpv2s_r07_t FLPv2S_R07_GO         = FLPv2S_R07_DEFAULT;
 
-volatile pmuv7h_r51_t PMUv7H_R51_CONF = PMUv7H_R51_DEFAULT;
-volatile pmuv7h_r52_t PMUv7H_R52_IRQ  = PMUv7H_R52_DEFAULT;
+volatile pmuv7h_r51_t PMUv7H_R51_CONF       = PMUv7H_R51_DEFAULT;
+volatile pmuv7h_r52_t PMUv7H_R52_IRQ        = PMUv7H_R52_DEFAULT;
+
+volatile snsv10_r00_t SNSv10_R00_LDO        = SNSv10_R00_DEFAULT;
+volatile snsv10_r01_t SNSv10_R01_TSNS       = SNSv10_R01_DEFAULT;
+volatile snsv10_r07_t SNSv10_R07_TSNS_IRQ   = SNSv10_R07_DEFAULT;
+volatile snsv10_r17_t SNSv10_R17_WUP_CONF   = SNSv10_R17_DEFAULT;
+volatile snsv10_r18_t SNSv10_R18_WUP_PYLD   = SNSv10_R18_DEFAULT;
+volatile snsv10_r19_t SNSv10_R19_WUP_THRES  = SNSv10_R19_DEFAULT;
+
 
 // Select Testing
 #ifdef PREv17
@@ -54,7 +67,7 @@ volatile uint32_t do_cycle3  = 1; // GOC in Active
 volatile uint32_t do_cycle4  = 1; // GOC in Sleep
 volatile uint32_t do_cycle5  = 1; // GOC Write Access
 volatile uint32_t do_cycle6  = 1; // GOC Read Access
-volatile uint32_t do_cycle7  = 0; // 
+volatile uint32_t do_cycle7  = 1; // SNSv10 Wakeup Timer
 volatile uint32_t do_cycle8  = 0; // 
 volatile uint32_t do_cycle9  = 0; // 
 volatile uint32_t do_cycle10 = 0; // 
@@ -186,7 +199,8 @@ void initialization (void) {
     // Enumeration
     mbus_enumerate(FLP_ADDR);
     mbus_enumerate(NODE_A_ADDR);
-    mbus_enumerate(NODE_B_ADDR);
+    mbus_enumerate(SNS_ADDR);
+    mbus_enumerate(RDC_ADDR);
     mbus_enumerate(PMU_ADDR);
 
     //Set Halt
@@ -415,7 +429,105 @@ void cycle6 (void) {
     } 
 }
 
-void cycle7 (void) { if (do_cycle7 == 1) { } }
+// SNSv10 Wakeup Timer
+void cycle7 (void) { 
+    if (do_cycle7 == 1) { 
+        arb_debug_reg(0x47, 0x00000000);
+        if ((!get_flag(FLAG_SNSWUP_SUB_1)) & (!get_flag(FLAG_SNSWUP_SUB_0))) {
+
+            arb_debug_reg(0x47, 0x00000001);
+
+            set_flag(FLAG_SNSWUP_SUB_1, 0);
+            set_flag(FLAG_SNSWUP_SUB_0, 1);
+
+            // Configure LDO
+            SNSv10_R00_LDO.LDO_EN_IREF = 0x1;
+            SNSv10_R00_LDO.LDO_EN_VREF = 0x1;
+            mbus_remote_register_write(SNS_ADDR, 0x00, SNSv10_R00_LDO.as_int);
+            
+            SNSv10_R00_LDO.LDO_EN_TSNS_OUT = 0x1;
+            mbus_remote_register_write(SNS_ADDR, 0x00, SNSv10_R00_LDO.as_int);
+
+            // Configure Temp Sensor
+            SNSv10_R01_TSNS.TSNS_SEL_LDO = 0x1;         // Turn on Digital
+            SNSv10_R01_TSNS.TSNS_EN_SENSOR_LDO = 0x1;   // Turn on Analog
+            mbus_remote_register_write(SNS_ADDR, 0x01, SNSv10_R01_TSNS.as_int);
+
+            SNSv10_R01_TSNS.TSNS_ISOLATE = 0x0;     // Release Isolation
+            mbus_remote_register_write(SNS_ADDR, 0x01, SNSv10_R01_TSNS.as_int);
+
+            SNSv10_R01_TSNS.TSNS_RESETn = 0x1;     // Start Reference Clock
+            mbus_remote_register_write(SNS_ADDR, 0x01, SNSv10_R01_TSNS.as_int);
+
+            // Configure Wakeup Timer
+            SNSv10_R17_WUP_CONF.WUP_INT_RPLY_REG_ADDR   = 0x07;
+            SNSv10_R17_WUP_CONF.WUP_INT_RPLY_SHORT_ADDR = 0x10;
+            SNSv10_R17_WUP_CONF.WUP_AUTO_RESET = 0x1;
+            SNSv10_R17_WUP_CONF.WUP_LC_IRQ_EN = 0x1;
+            SNSv10_R17_WUP_CONF.WUP_ENABLE = 0x1;
+            mbus_remote_register_write(SNS_ADDR, 0x17, SNSv10_R17_WUP_CONF.as_int);
+
+            SNSv10_R19_WUP_THRES.WUP_THRESHOLD = 1000;
+            mbus_remote_register_write(SNS_ADDR, 0x19, SNSv10_R19_WUP_THRES.as_int);
+
+            arb_debug_reg(0x47, 0x000000FF);
+
+            // Go to Sleep
+            set_wakeup_timer(100, 0, 1);
+            mbus_sleep_all();
+        }
+        else if ((!get_flag(FLAG_SNSWUP_SUB_1)) & get_flag(FLAG_SNSWUP_SUB_0)) {
+
+            arb_debug_reg(0x47, 0x00000002);
+
+            set_flag(FLAG_SNSWUP_SUB_1, 1);
+            set_flag(FLAG_SNSWUP_SUB_0, 0);
+
+            // Configure Wakeup Timer
+            SNSv10_R19_WUP_THRES.WUP_THRESHOLD = 5000;
+            mbus_remote_register_write(SNS_ADDR, 0x19, SNSv10_R19_WUP_THRES.as_int);
+
+            arb_debug_reg(0x47, 0x000000FF);
+
+            // Go to Sleep
+            set_wakeup_timer(100, 0, 1);
+            mbus_sleep_all();
+        }
+        else if (get_flag(FLAG_SNSWUP_SUB_1) & (!get_flag(FLAG_SNSWUP_SUB_0))) {
+
+            arb_debug_reg(0x47, 0x00000003);
+
+            set_flag(FLAG_SNSWUP_SUB_1, 1);
+            set_flag(FLAG_SNSWUP_SUB_0, 1);
+
+            // Configure Wakeup Timer
+            SNSv10_R19_WUP_THRES.WUP_THRESHOLD = 1000;
+            mbus_remote_register_write(SNS_ADDR, 0x19, SNSv10_R19_WUP_THRES.as_int);
+
+            SNSv10_R17_WUP_CONF.WUP_AUTO_RESET = 0x0;
+            SNSv10_R17_WUP_CONF.WUP_ENABLE = 0x0;
+            mbus_remote_register_write(SNS_ADDR, 0x17, SNSv10_R17_WUP_CONF.as_int);
+
+            SNSv10_R17_WUP_CONF.WUP_ENABLE = 0x1;
+            mbus_remote_register_write(SNS_ADDR, 0x17, SNSv10_R17_WUP_CONF.as_int);
+
+            arb_debug_reg(0x47, 0x000000FF);
+
+            // Go to Sleep
+            set_wakeup_timer(100, 0, 1);
+            mbus_sleep_all();
+        }
+        else if (get_flag(FLAG_SNSWUP_SUB_1) & get_flag(FLAG_SNSWUP_SUB_0)) {
+
+            arb_debug_reg(0x47, 0x00000004);
+
+            SNSv10_R17_WUP_CONF.WUP_ENABLE = 0x0;
+            SNSv10_R17_WUP_CONF.WUP_AUTO_RESET = 0x1;
+            mbus_remote_register_write(SNS_ADDR, 0x17, SNSv10_R17_WUP_CONF.as_int);
+        }
+    } 
+}
+
 void cycle8 (void) { if (do_cycle8 == 1) { } }
 void cycle9 (void) { if (do_cycle9 == 1) { } }
 void cycle10 (void) { if (do_cycle10 == 1) { } }
@@ -483,5 +595,3 @@ int main() {
 
     return 1;
 }
-
-

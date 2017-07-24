@@ -5,12 +5,15 @@
 #include "PRCv17.h"
 #include "FLPv2S_RF.h"
 #include "PMUv7H_RF.h"
+#include "SNSv10_RF.h"
+#include "RDCv1_RF.h"
 #include "mbus.h"
 
 #define PRC_ADDR    0x1
 #define FLP_ADDR    0x4
 #define NODE_A_ADDR 0x8
-#define NODE_B_ADDR 0xC
+#define SNS_ADDR    0xC
+#define RDC_ADDR    0x5
 #define PMU_ADDR    0xE
 
 // FLPv2S Payloads
@@ -169,7 +172,8 @@ void initialization (void) {
     // Enumeration
     mbus_enumerate(FLP_ADDR);
     mbus_enumerate(NODE_A_ADDR);
-    mbus_enumerate(NODE_B_ADDR);
+    mbus_enumerate(SNS_ADDR);
+    mbus_enumerate(RDC_ADDR);
     mbus_enumerate(PMU_ADDR);
 
     //Set Halt
