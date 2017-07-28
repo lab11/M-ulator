@@ -13,8 +13,7 @@
 #include "PMUv3_RF.h"
 
 // uncomment this for debug mbus message
-// #define DEBUG_MBUS_MSG
-//#define DEBUG_MBUS_MSG_1
+ #define DEBUG_MBUS_MSG
 
 // TStack order  PRC->RAD->SNS->HRV->PMU
 #define HRV_ADDR 0x3
@@ -47,7 +46,7 @@
 #define RADIO_TIMEOUT_COUNT 50
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
-#define DATA_STORAGE_SIZE 120 // Need to leave about 500 Bytes for stack --> around  words
+#define DATA_STORAGE_SIZE 100 // Need to leave about 500 Bytes for stack --> around  words
 #define CDC_NUM_MEAS 3 
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y2 run default clock
@@ -787,7 +786,6 @@ static void temp_power_off(){
 	snsv7_r14_temp.TEMP_SENSOR_ISO = 1;
 	snsv7_r14.as_int = snsv7_r14_temp.as_int;
 	mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
-	ldo_power_off();
 }
 
 
@@ -839,7 +837,7 @@ static void operation_tx_stored(void){
 
     //Fire off stored data to radio
     while(((!radio_tx_numdata)&&(radio_tx_count > 0)) | ((radio_tx_numdata)&&((radio_tx_numdata+radio_tx_count) > sns_storage_count))){
-		#ifdef DEBUG_MBUS_MSG_1
+		#ifdef DEBUG_MBUS_MSG
 			mbus_write_message32(0xDD, radio_tx_count);
 			delay(MBUS_DELAY);
 			mbus_write_message32(0xDD, temp_storage[radio_tx_count]);
@@ -1272,7 +1270,7 @@ static void operation_sns_run(void){
 				}else{
 					temp_storage_diff = temp_storage_last_wakeup_adjust - temp_storage_latest;
 				}
-				#ifdef DEBUG_MBUS_MSG_1
+				#ifdef DEBUG_MBUS_MSG
 					mbus_write_message32(0xEA, temp_storage_diff);
 					delay(MBUS_DELAY);
 				#endif
@@ -1361,7 +1359,7 @@ static void operation_sns_run(void){
 
     }else if (Pstack_state == PSTK_CDC_RUN){
 		#ifdef DEBUG_MBUS_MSG
-			mbus_write_message32(0xBB, 0xFBFB4444);
+			mbus_write_message32(0xBB, 0xFBFB5555);
 			delay(MBUS_DELAY);
 		#endif
 
@@ -1400,7 +1398,7 @@ static void operation_sns_run(void){
 
     }else if (Pstack_state == PSTK_CDC_READ){
 		#ifdef DEBUG_MBUS_MSG
-			mbus_write_message32(0xBB, 0xFBFB5555);
+			mbus_write_message32(0xBB, 0xFBFB6666);
 		#endif
 
 		// Grab CDC Data
@@ -1641,6 +1639,9 @@ int main() {
     	WAKEUP_PERIOD_CONT_USER = (wakeup_data_field_0 + (wakeup_data_field_1<<8));
         WAKEUP_PERIOD_CONT_INIT = (wakeup_data_field_2 & 0xF);
         radio_tx_option = wakeup_data_field_2 & 0x10;
+
+		// FIXME: Wakeup period adjustment based on temp reading disabled for now
+		WAKEUP_PERIOD_CONT = WAKEUP_PERIOD_CONT_USER;
 
 		temp_run_single = 0;
 
