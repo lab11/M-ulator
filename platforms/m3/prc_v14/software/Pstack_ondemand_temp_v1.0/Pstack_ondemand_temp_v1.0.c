@@ -46,7 +46,7 @@
 #define RADIO_TIMEOUT_COUNT 50
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
-#define DATA_STORAGE_SIZE 100 // Need to leave about 500 Bytes for stack --> around  words
+#define DATA_STORAGE_SIZE 120 // Need to leave about 500 Bytes for stack --> around  words
 #define CDC_NUM_MEAS 3 
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y2 run default clock
@@ -93,7 +93,6 @@ volatile uint32_t read_data_temp; // [23:0] Temp Sensor D Out
 
 volatile uint32_t cdc_storage[DATA_STORAGE_SIZE] = {0};
 volatile uint32_t cdc_storage_cref[DATA_STORAGE_SIZE] = {0};
-volatile uint32_t cdc_storage_cref_latest;
 volatile uint32_t cdc_data_cmeas[CDC_NUM_MEAS] = {0};
 volatile uint32_t cdc_data_cref[CDC_NUM_MEAS] = {0};
 volatile uint32_t cdc_read_data;
@@ -1469,9 +1468,8 @@ static void operation_sns_run(void){
 			// Store results in memory; unless buffer is full
 			if (sns_storage_count < DATA_STORAGE_SIZE){
 				temp_storage[sns_storage_count] = temp_storage_latest;
-				cdc_storage[sns_storage_count] = cdc_read_data;
-				cdc_storage_cref[sns_storage_count] = cdc_read_data_cref;
-				cdc_storage_cref_latest = cdc_read_data_cref;
+				cdc_storage[sns_storage_count] = cdc_data_cmeas[median_idx];
+				cdc_storage_cref[sns_storage_count] = cdc_data_cref[median_idx];
 				radio_tx_count = sns_storage_count;
 				sns_storage_count++;
 			}
@@ -1484,15 +1482,11 @@ static void operation_sns_run(void){
 				delay(RADIO_PACKET_DELAY);
 				send_radio_data_ppm(0,0xBBB000+read_data_batadc);	
 				delay(RADIO_PACKET_DELAY);
-				send_radio_data_ppm(0, 0xC00000 | read_data_reg4);
+				send_radio_data_ppm(0, 0xC00000 | (0xFFFFF & cdc_data_cmeas[median_idx]));
 				delay(RADIO_PACKET_DELAY);
-				send_radio_data_ppm(0, 0xD00000 | read_data_reg6);
+				send_radio_data_ppm(0, 0xD00000 | (0xFFFFF & cdc_data_cref[median_idx]));
 				delay(RADIO_PACKET_DELAY);
-				send_radio_data_ppm(0, 0xE00000 | read_data_reg7);
-				delay(RADIO_PACKET_DELAY);
-				send_radio_data_ppm(0, 0xF00000 | read_data_reg9);
-				delay(RADIO_PACKET_DELAY);
-				send_radio_data_ppm(0, 0xFF0000 | temp_storage_latest);
+				send_radio_data_ppm(0, 0xE00000 | temp_storage_latest);
 				delay(RADIO_PACKET_DELAY);
 			}
 

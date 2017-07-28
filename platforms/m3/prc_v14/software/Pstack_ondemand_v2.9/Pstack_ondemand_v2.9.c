@@ -1278,8 +1278,8 @@ static void operation_cdc_run(){
 			Pstack_state = PSTK_IDLE;
 			
 			uint32_t median_idx = cdc_data_median();
-			mbus_write_message32(0xC0, cdc_data_cmeas[median_idx]);
-			mbus_write_message32(0xC1, cdc_data_cref[median_idx]);
+			mbus_write_message32(0xC1, cdc_data_cmeas[median_idx]);
+			mbus_write_message32(0xC2, cdc_data_cref[median_idx]);
 				
 			// Assert CDC isolation & turn off CDC power
 			cdc_power_off();
@@ -1300,9 +1300,9 @@ static void operation_cdc_run(){
 			
 				// Store results in memory; unless buffer is full
 				if (cdc_storage_count < CDC_STORAGE_SIZE){
-					cdc_storage[cdc_storage_count] = cdc_read_data;
-					cdc_storage_cref[cdc_storage_count] = cdc_read_data_cref;
-					cdc_storage_cref_latest = cdc_read_data_cref;
+					cdc_storage[cdc_storage_count] = cdc_data_cmeas[median_idx];
+					cdc_storage_cref[cdc_storage_count] = cdc_data_cref[median_idx];
+					cdc_storage_cref_latest = cdc_data_cref[median_idx];
 					radio_tx_count = cdc_storage_count;
 					cdc_storage_count++;
 				}
@@ -1315,13 +1315,9 @@ static void operation_cdc_run(){
 					delay(RADIO_PACKET_DELAY);
 					send_radio_data_ppm(0,0xBBB000+read_data_batadc);	
 					delay(RADIO_PACKET_DELAY);
-					send_radio_data_ppm(0, 0xC00000 | read_data_reg4);
+					send_radio_data_ppm(0, 0xC00000 | (0xFFFFF & cdc_data_cmeas[median_idx]));
 					delay(RADIO_PACKET_DELAY);
-					send_radio_data_ppm(0, 0xD00000 | read_data_reg6);
-					delay(RADIO_PACKET_DELAY);
-					send_radio_data_ppm(0, 0xE00000 | read_data_reg7);
-					delay(RADIO_PACKET_DELAY);
-					send_radio_data_ppm(0, 0xF00000 | read_data_reg9);
+					send_radio_data_ppm(0, 0xD00000 | (0xFFFFF & cdc_data_cref[median_idx]));
 					delay(RADIO_PACKET_DELAY);
 				}
 
