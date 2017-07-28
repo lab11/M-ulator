@@ -65,7 +65,6 @@ volatile uint32_t meas_count;
 volatile uint32_t exec_count_irq;
 volatile uint32_t mbus_msg_flag;
 volatile uint32_t wakeup_period_count;
-volatile uint32_t wakeup_timer_multiplier;
 volatile uint32_t PMU_ADC_4P2_VAL;
 volatile uint32_t pmu_parkinglot_mode;
 volatile uint32_t pmu_harvesting_on;
