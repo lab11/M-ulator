@@ -668,7 +668,7 @@ static void operation_init(void){
   mbus_remote_register_write(MRR_ADDR,0x07,mrrv3_r07.as_int);
 
   // Lower BaseBand Frequency
-  mrrv3_r05.MRR_SCRO_R_SEL = 0x1FF;
+  mrrv3_r05.MRR_SCRO_R_SEL = 0x5FF;
   mbus_remote_register_write(MRR_ADDR,0x05,mrrv3_r05.as_int);
   
   operation_sleep_notimer();
