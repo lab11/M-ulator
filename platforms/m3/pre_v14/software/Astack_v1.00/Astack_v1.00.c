@@ -668,7 +668,7 @@ static void operation_init(void){
   mbus_remote_register_write(MRR_ADDR,0x07,mrrv3_r07.as_int);
 
   // Lower BaseBand Frequency
-  mrrv3_r05.MRR_SCRO_R_SEL = 0x5FF;
+  mrrv3_r05.MRR_SCRO_R_SEL = 0x47F;
   mbus_remote_register_write(MRR_ADDR,0x05,mrrv3_r05.as_int);
   
   operation_sleep_notimer();
@@ -785,26 +785,30 @@ int main() {
     }
     mbus_write_message32(0xAA,0x12);
     operation_sleep_notimer();
-  }else if{wkp_data_hdr == 0x20){
+  }else if(wkp_data_hdr == 0x20){
     // Change Carrier Frequency
-    mbus_write_message(0xAA,0x20);
+    mbus_write_message32(0xAA,0x20);
     mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = (wakeup_data & 0x3FFF);
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
-    mrrv3_r00.MRR_TRX_CAP_ANTN_TUNE = (wakeup_data & 0x3FFF);
+    mrrv3_r01.MRR_TRX_CAP_ANTN_TUNE = (wakeup_data & 0x3FFF);
     mbus_remote_register_write(MRR_ADDR,0x01,mrrv3_r01.as_int);
     operation_sleep_notimer();
-  }else if{wkp_data_hdr == 0x21){
+  }else if(wkp_data_hdr == 0x21){
     // Change BaseBand Frequency
-    mbus_write_message(0xAA,0x21);
+    mbus_write_message32(0xAA,0x21);
     mrrv3_r05.MRR_SCRO_R_SEL = (wakeup_data & 0x7FF);
     mbus_remote_register_write(MRR_ADDR,0x05,mrrv3_r05.as_int);
     operation_sleep_notimer();
-  }else if{wkp_data_hdr == 0x22){
+  }else if(wkp_data_hdr == 0x22){
     //Turn On Continuous Tone
+    mbus_write_message32(0xAA,0x22);
+    disable_timerwd();
     
-  }else if{wkp_data_hdr == 0x23){
+  }else if(wkp_data_hdr == 0x23){
     //Turn Off Continuous Tone
-    
+    mbus_write_message32(0xAA,0x23);
+    enable_timerwd();
+
   }else{
     //Invalid GOC Header
     mbus_write_message32(0xAA,0xFF);
