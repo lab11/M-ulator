@@ -445,7 +445,6 @@ static void mrr_configure_pulse_width_short(){
 static void mrr_send_packet(){
   
   mrrv3_r00.MRR_CL_EN = 1;  //Enable CL
-  //mrrv3_r00.MRR_CL_CTRL = 0x01; //Set CL 1-finite 16-20uA
   mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
   delay(MBUS_DELAY*10);
   
@@ -609,10 +608,6 @@ static void operation_init(void){
   //mrr_configure_pulse_width_long();
 
   // TX Setup Carrier Freq
-  //0x0000 930MHz
-  //0x001F 921MHz
-  //0x003F 917MHz
-  //0x0FFF 891MHz
   mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x01FF;  //ANT CAP 14b unary 830.5 MHz
   //mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x00FF;  //ANT CAP 14b unary 813.8 MHz
   //mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x0FFF;  //ANT CAP 14b unary 805.5 MHz
@@ -671,7 +666,10 @@ static void operation_init(void){
   mbus_remote_register_write(MRR_ADDR,0x06,mrrv3_r06.as_int);
   mrrv3_r07.MRR_RAD_FSM_TX_DATA_1 = 0x00616C;
   mbus_remote_register_write(MRR_ADDR,0x07,mrrv3_r07.as_int);
-  
+
+  // Lower BaseBand Frequency
+  mrrv3_r05.MRR_SCRO_R_SEL = 0x1FF;
+  mbus_remote_register_write(MRR_ADDR,0x05,mrrv3_r05.as_int);
   
   operation_sleep_notimer();
 }
@@ -787,6 +785,26 @@ int main() {
     }
     mbus_write_message32(0xAA,0x12);
     operation_sleep_notimer();
+  }else if{wkp_data_hdr == 0x20){
+    // Change Carrier Frequency
+    mbus_write_message(0xAA,0x20);
+    mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = (wakeup_data & 0x3FFF);
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
+    mrrv3_r00.MRR_TRX_CAP_ANTN_TUNE = (wakeup_data & 0x3FFF);
+    mbus_remote_register_write(MRR_ADDR,0x01,mrrv3_r01.as_int);
+    operation_sleep_notimer();
+  }else if{wkp_data_hdr == 0x21){
+    // Change BaseBand Frequency
+    mbus_write_message(0xAA,0x21);
+    mrrv3_r05.MRR_SCRO_R_SEL = (wakeup_data & 0x7FF);
+    mbus_remote_register_write(MRR_ADDR,0x05,mrrv3_r05.as_int);
+    operation_sleep_notimer();
+  }else if{wkp_data_hdr == 0x22){
+    //Turn On Continuous Tone
+    
+  }else if{wkp_data_hdr == 0x23){
+    //Turn Off Continuous Tone
+    
   }else{
     //Invalid GOC Header
     mbus_write_message32(0xAA,0xFF);
