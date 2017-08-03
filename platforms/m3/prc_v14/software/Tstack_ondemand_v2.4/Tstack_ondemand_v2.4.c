@@ -799,7 +799,7 @@ static void operation_tx_stored(void){
 		config_timerwd(TIMERWD_VAL);
 
 		// Radio out data
-		send_radio_data_ppm(0, 0xA00000 | temp_storage[radio_tx_count]);
+		send_radio_data_ppm(0, 0xC00000 | temp_storage[radio_tx_count]);
 		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 
 		radio_tx_count--;

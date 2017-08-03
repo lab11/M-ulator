@@ -851,6 +851,7 @@ static void operation_tx_stored(void){
 		send_radio_data_ppm(0, 0xD00000 | (0xFFFFF & cdc_storage_cref[radio_tx_count]));
 		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 		send_radio_data_ppm(0, 0xE00000 | temp_storage[radio_tx_count]);
+		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 		radio_tx_count--;
     }
 
@@ -951,7 +952,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Pstack_state = PSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEE0;
+    enumerated = 0xDEADBEE1;
     exec_count = 0;
     exec_count_irq = 0;
     mbus_msg_flag = 0;
@@ -1104,7 +1105,7 @@ static void operation_init(void){
     radio_on = 0;
 	wakeup_data = 0;
 	set_sns_exec_count = 0; // specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
-	RADIO_PACKET_DELAY = 4000;
+	RADIO_PACKET_DELAY = 2000;
 	
 
     // Harvester Settings --------------------------------------
@@ -1565,7 +1566,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEE0){
+    if (enumerated != 0xDEADBEE1){
         // Set up PMU/GOC register in PRC layer (every time)
         // Enumeration & RAD/SNS layer register configuration
         operation_init();
