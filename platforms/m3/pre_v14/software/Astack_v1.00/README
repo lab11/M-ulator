@@ -1,0 +1,87 @@
+  //ONLY FOR TESTING CONTINUOUS TONE
+  /*
+  mrrv3_r00.MRR_CL_CTRL = 1; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+  mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
+  
+  mrrv3_r02.MRR_TX_EN_OW = 0x1;
+  mbus_remote_register_write(MRR_ADDR,0x02,mrrv3_r02.as_int);
+
+  mrrv3_r02.MRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
+  mbus_remote_register_write(MRR_ADDR,0x02,mrrv3_r02.as_int);
+
+  mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x0000;  //ANT CAP 14b unary 830.5 MHz
+  //mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x00FF;  //ANT CAP 14b unary 813.8 MHz
+  //mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x0FFF;  //ANT CAP 14b unary 805.5 MHz
+  mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
+  mrrv3_r01.MRR_TRX_CAP_ANTN_TUNE = 0x0000; //ANT CAP 14b unary 830.5 MHz
+  //mrrv3_r01.MRR_TRX_CAP_ANTN_TUNE = 0x00FF; //ANT CAP 14b unary 813.8 MHz
+  //mrrv3_r01.MRR_TRX_CAP_ANTN_TUNE = 0x0FFF;  //ANT CAP 14b unary 805.5 MHz
+  mbus_remote_register_write(MRR_ADDR,0x01,mrrv3_r01.as_int);
+
+  mrrv3_r03.MRR_TRX_ISOLATEN = 0;
+  mrrv3_r03.MRR_DCP_S_OW = 1;
+  mbus_remote_register_write(MRR_ADDR,0x3,mrrv3_r03.as_int);
+
+  mrrv3_r00.MRR_CL_EN = 1;
+  mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
+  */
+
+
+  //ONLY FOR TESTING CONTINUOUS TRANSMISSION OF GARBAGE PACKET
+  
+  mrrv3_r00.MRR_CL_EN = 1;  //Enable CL
+  //mrrv3_r00.MRR_CL_CTRL = 0x01; //Set CL 1-finite 16-20uA
+  mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
+  delay(MBUS_DELAY*10);
+  
+  //Timer & State Machine run
+  
+  mrrv3_r04.MRR_SCRO_EN_TIMER = 1;  //power on TIMER
+  mbus_remote_register_write(MRR_ADDR,0x04,mrrv3_r04.as_int);
+  delay(MBUS_DELAY*300); //LDO stab 1s
+  
+  mrrv3_r04.MRR_SCRO_RSTN_TIMER = 1;  //UNRST TIMER
+  mbus_remote_register_write(MRR_ADDR,0x04,mrrv3_r04.as_int);
+  delay(MBUS_DELAY*100); //freq stab 5s
+  
+  mrrv3_r04.MRR_SCRO_EN_CLK = 1;  //Enable clk
+  mbus_remote_register_write(MRR_ADDR,0x04,mrrv3_r04.as_int);
+  delay(MBUS_DELAY*100); //freq stab 5s
+  
+  mrrv3_r0E.MRR_RAD_FSM_SLEEP = 0;  // Power on BB
+  mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
+  delay(MBUS_DELAY*100);
+  
+  //End testing
+
+
+  while(1){
+
+    mrrv3_r0E.MRR_RAD_FSM_RSTN = 1;  //UNRST BB
+    mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
+    delay(MBUS_DELAY*10);
+    
+    mrrv3_r03.MRR_TRX_ISOLATEN = 1;     //set ISOLATEN 1, let state machine control
+    mbus_remote_register_write(MRR_ADDR,0x03,mrrv3_r03.as_int);
+    delay(MBUS_DELAY*10);
+    
+    mrrv3_r0E.MRR_RAD_FSM_EN = 1;  //Start BB
+    mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
+    delay(MBUS_DELAY*10);
+    
+    delay(MBUS_DELAY*500);
+    
+    mrrv3_r03.MRR_TRX_ISOLATEN = 0;     //set ISOLATEN 0
+    mbus_remote_register_write(MRR_ADDR,0x03,mrrv3_r03.as_int);
+    delay(MBUS_DELAY*10);
+    
+    mrrv3_r0E.MRR_RAD_FSM_EN = 0;  //Stop BB
+    mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
+    delay(MBUS_DELAY*50);
+    
+    mrrv3_r0E.MRR_RAD_FSM_RSTN = 0;  //RST BB
+    mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
+    delay(MBUS_DELAY*50);
+    
+  }
+  
