@@ -787,7 +787,7 @@ int main() {
 		mbus_remote_register_write(SNS_ADDR,0,snsv7_r0.as_int);
 
 		// Use Timer32 as timeout counter
-		config_timer32(0x2000, 1, 0, 0); // 1/10 of MBUS watchdog timer default
+		config_timer32(0x20000, 1, 0, 0); // 1/10 of MBUS watchdog timer default
 
 		// Wait for temp sensor output
 		WFI();

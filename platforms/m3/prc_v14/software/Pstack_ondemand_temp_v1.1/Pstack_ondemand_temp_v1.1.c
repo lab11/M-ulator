@@ -638,7 +638,7 @@ static void send_radio_data_ppm(uint32_t last_packet, uint32_t radio_data){
     }
 
 	// Use Timer32 as timeout counter
-	config_timer32(150000, 1, 0, 0); // 1/10 of MBUS watchdog timer default
+	config_timer32(0x20000, 1, 0, 0); // 1/10 of MBUS watchdog timer default
 
     // Fire off data
     mbus_msg_flag = 0;
@@ -1225,7 +1225,7 @@ static void operation_sns_run(void){
 		wfi_timeout_flag = 0;
 
 		// Use Timer32 as timeout counter
-		config_timer32(0x249F0, 1, 0, 0); // 1/10 of MBUS watchdog timer default
+		config_timer32(0x20000, 1, 0, 0); // 1/10 of MBUS watchdog timer default
 
 		// Start Temp Sensor
 		temp_sensor_enable();
@@ -1377,7 +1377,7 @@ static void operation_sns_run(void){
 		wfi_timeout_flag = 0;
 
 		// Use Timer32 as timeout counter
-		config_timer32(0x249F0, 1, 0, 0); // 1/10 of MBUS watchdog timer default
+		config_timer32(0x20000, 1, 0, 0); // 1/10 of MBUS watchdog timer default
 
 		// Start CDC measurement
 		fire_cdc_meas();
@@ -1587,7 +1587,8 @@ int main() {
 
     // Initialize Interrupts
     // Only enable register-related interrupts
-	enable_reg_irq();
+	//enable_reg_irq();
+	enable_all_irq();
   
     // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
     config_timerwd(TIMERWD_VAL);
