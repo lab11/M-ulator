@@ -22,10 +22,18 @@
 
 #include "core/common.h"
 
+#include <stdbool.h>
+
 #ifndef PP_STRING
 #define PP_STRING "COR"
 #include "core/pretty_print.h"
 #endif
+
+/* in case some compilers don't recognize this keyword */
+#ifndef _Atomic
+#warning "Skipping _Atomic"
+#define _Atomic 
+#endif 
 
 void register_reset(void(*fn)(void));
 
@@ -44,6 +52,7 @@ void register_memmap(
 		uint32_t bot,
 		uint32_t top
 	);
+
 
 extern _Atomic _Bool	_CORE_in_reset;
 void		reset(void);
