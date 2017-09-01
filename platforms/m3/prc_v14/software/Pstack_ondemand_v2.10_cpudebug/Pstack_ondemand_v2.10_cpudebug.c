@@ -731,6 +731,7 @@ int main() {
     // Reset Wakeup Timer; This is required for PRCv13
     //set_wakeup_timer(100, 0, 1);
 
+	mbus_write_message32(0xAA, 0x12341234);
     // Initialize Interrupts
     // Only enable register-related interrupts
 	//enable_reg_irq();
