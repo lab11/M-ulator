@@ -25,14 +25,13 @@
 
 #define WAKEUP_PERIOD_PARKING 2000 // 200: ~200sec
 
-// RDC parameters
+// System parameters
 #define	MBUS_DELAY 100 //Amount of delay between successive messages; 100: 6-7ms
 #define WAKEUP_PERIOD_LDO 1
 #define RDC_CYCLE_INIT 3
 
 // Pstack states
 #define	PSTK_IDLE       0x0
-#define PSTK_LDO1   	0x1
 #define PSTK_RDC_READ   0x3
 #define PSTK_RDC_RUN 	0x5
 
@@ -41,7 +40,7 @@
 #define RADIO_TIMEOUT_COUNT 50
 #define WAKEUP_PERIOD_RADIO_INIT 2
 
-#define RDC_STORAGE_SIZE 600 // Need to leave about 500 Bytes for stack --> around 60
+#define RDC_STORAGE_SIZE 700 // Need to leave about 500 Bytes for stack --> around 120
 #define RDC_NUM_MEAS 3 
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y2 run default clock
@@ -779,9 +778,6 @@ static void operation_sleep_notimer(void){
 static void operation_tx_stored(void){
 
     while(((!radio_tx_numdata)&&(radio_tx_count > 0)) | ((radio_tx_numdata)&&((radio_tx_numdata+radio_tx_count) > rdc_storage_count))){
-		// Config watchdog timer to about 10 sec; default: 0x02FFFFFF
-		config_timerwd(0xFFFFF); // 0xFFFFF about 13 sec with Y2 run default clock
-
 		//Fire off stored data to radio
 		#ifdef DEBUG_MBUS_MSG
 			delay(MBUS_DELAY*10);
@@ -792,6 +788,10 @@ static void operation_tx_stored(void){
 			mbus_write_message32(0x70, radio_tx_count);
 			delay(MBUS_DELAY*10);
 		#endif
+
+		// Config watchdog timer to about 10 sec; default: 0x02FFFFFF
+		config_timerwd(TIMERWD_VAL); // 0xFFFFF about 13 sec with Y2 run default clock
+
 		send_radio_data_ppm(0, 0xC00000 | (0xFFFFF & rdc_storage[radio_tx_count]));
 		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 
@@ -800,10 +800,12 @@ static void operation_tx_stored(void){
 
 	send_radio_data_ppm(0, 0xC00000 | (0xFFFFF & rdc_storage[radio_tx_count]));
 
-	delay(RADIO_PACKET_DELAY*3);
+	delay(RADIO_PACKET_DELAY*2);
 	send_radio_data_ppm(1, 0xFAF000);
+
 	// This is also the end of this IRQ routine
 	exec_count_irq = 0;
+
 	// Go to sleep without timer
 	radio_tx_count = rdc_storage_count; // allows data to be sent more than once
 	operation_sleep_notimer();
@@ -901,8 +903,8 @@ static void operation_init(void){
     mbus_remote_register_write(RDC_ADDR,0x1C,0xFFFF);
     mbus_remote_register_write(RDC_ADDR,0x1D,0x0000);
 
-	// RDC Mbus return address; Needs to be between 0x18-0x1F
-    mbus_remote_register_write(RDC_ADDR,0x11,0x0018);
+	// RDC IRQ Setting
+    mbus_remote_register_write(RDC_ADDR,0x11,0x0020);
 
     // Radio Settings --------------------------------------
 	radv9_r0_temp.as_int = radv9_r0.as_int;
@@ -968,7 +970,7 @@ static void operation_init(void){
 
 
 //***************************************************
-// Pressure measurement operation (SNSv7)
+// Pressure measurement operation
 //***************************************************
 
 static uint32_t rdc_data_median(){
@@ -1004,38 +1006,35 @@ static uint32_t rdc_data_median(){
 static void operation_rdc_run(){
 
     if (Pstack_state == PSTK_IDLE){
-		#ifdef DEBUG_MBUS_MSG
-			mbus_write_message32(0xAA, 0x0);
-		#endif
-		Pstack_state = PSTK_RDC_RUN;
 
 		wfi_timeout_flag = 0;
+
+		Pstack_state = PSTK_RDC_RUN;
 
 		// Power on radio
 		if (radio_tx_option || ((exec_count+1) < RDC_CYCLE_INIT)){
 			radio_power_on();
+			// Put system to sleep
+			set_wakeup_timer(WAKEUP_PERIOD_LDO, 0x1, 0x1);
+			operation_sleep_noirqreset();
 		}
 
-		// Put system to sleep
-		set_wakeup_timer(WAKEUP_PERIOD_LDO, 0x1, 0x1);
-		operation_sleep_noirqreset();
-
     }else if (Pstack_state == PSTK_RDC_RUN){
-	#ifdef DEBUG_MBUS_MSG
-		mbus_write_message32(0xAA, 0x11111111);
-		delay(MBUS_DELAY);
-	#endif
 
 		mbus_msg_flag = 0;
 		wfi_timeout_flag = 0;
 
 		if (meas_count == 0){
-			// Release RDC isolation
+			// Release RDC power gates / isolation
 			rdc_release_v1p2_pg();
+			delay(MBUS_DELAY);
 			rdc_release_pg();
+			delay(MBUS_DELAY);
 			rdc_release_isolate();
 
+			// Need delay for osc to stabilize
 			rdc_osc_enable();
+			delay(MBUS_DELAY*10);
 		}
 
 		// Use Timer32 as timeout counter
@@ -1058,15 +1057,13 @@ static void operation_rdc_run(){
 
 
     }else if (Pstack_state == PSTK_RDC_READ){
-		#ifdef DEBUG_MBUS_MSG
-			mbus_write_message32(0xAA, 0x22222222);
-		#endif
 
+		// Grab RDC Data
 		if (wfi_timeout_flag){
 			read_data_rdc = 0xFAFA;
 			mbus_write_message32(0xFA, 0xFAFAFAFA);
 		}else{
-			// Read register fixme
+			// Read register
 			set_halt_until_mbus_rx();
 			mbus_remote_register_read(RDC_ADDR,0x20,1);
 			read_data_rdc = *REG1;
@@ -1085,12 +1082,14 @@ static void operation_rdc_run(){
 			meas_count = 0;
 
 			// Assert RDC isolation & turn off RDC power
+			rdc_disable();
 			rdc_osc_disable();
 			rdc_assert_pg();
 			Pstack_state = PSTK_IDLE;
 			
 			
 			uint32_t median_idx = rdc_data_median();
+			mbus_write_message32(0xCC, exec_count);
 			mbus_write_message32(0xC1, rdc_data[median_idx]);
 				
 			#ifdef DEBUG_MBUS_MSG
@@ -1470,6 +1469,18 @@ int main() {
 		}else{
 			RADIO_PACKET_DELAY = user_val;
 		}
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x30){
+		// Change RDC OSR value (7bit)
+
+		rdcv1_r1A_t rdcv1_r1A_temp;
+		rdcv1_r1A_temp.as_int = rdcv1_r1A.as_int;
+		rdcv1_r1A_temp.BRDC_OSR= wakeup_data_field_0;
+		rdcv1_r1A.as_int = rdcv1_r1A_temp.as_int;
+		mbus_remote_register_write(RDC_ADDR,0x1A,rdcv1_r1A.as_int);
+
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
