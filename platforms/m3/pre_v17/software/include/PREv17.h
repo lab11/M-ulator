@@ -14,6 +14,13 @@
 #define FALSE 0
 
 //*********************************************************
+// Reserved IRQ Address
+//*********************************************************
+#define IRQ14VEC        ((volatile uint32_t *) 0x00000078)
+#define IRQ16VEC        ((volatile uint32_t *) 0x00000080)
+#define IRQ17VEC        ((volatile uint32_t *) 0x00000084)
+
+//*********************************************************
 // M0 Interrupts
 //---------------------------------------------------------
 // NOTE: These values must be consistent with files below:
