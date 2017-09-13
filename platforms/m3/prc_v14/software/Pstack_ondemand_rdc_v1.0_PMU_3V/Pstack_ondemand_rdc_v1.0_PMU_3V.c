@@ -385,7 +385,7 @@ inline static void set_pmu_clk_init(){
 		| (0x45) 		// Binary converter's conversion ratio (7'h00)
 	));
 	delay(MBUS_DELAY);
-	set_pmu_sar_override(0x45);
+	set_pmu_sar_override(0x4D);
 
 	set_pmu_adc_period(1); // 0x100 about 1 min for 1/2/1 1P2 setting
 }
@@ -914,7 +914,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Pstack_state = PSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEE5;
+    enumerated = 0xDEADBEE1;
     exec_count = 0;
     exec_count_irq = 0;
     mbus_msg_flag = 0;
@@ -969,11 +969,11 @@ static void operation_init(void){
 	rdcv1_r14.as_int = rdcv1_r14_temp.as_int;
 	mbus_remote_register_write(RDC_ADDR,0x14,rdcv1_r14.as_int);
 
-    mbus_remote_register_write(RDC_ADDR,0x15,0x7FFF);
-    mbus_remote_register_write(RDC_ADDR,0x16,0xFFFF);
-    mbus_remote_register_write(RDC_ADDR,0x1B,0x0FFF);
-    mbus_remote_register_write(RDC_ADDR,0x1C,0xFFFF);
-    mbus_remote_register_write(RDC_ADDR,0x1D,0x0000);
+    mbus_remote_register_write(RDC_ADDR,0x15,0x0000);
+    mbus_remote_register_write(RDC_ADDR,0x16,0x0FFF);
+    mbus_remote_register_write(RDC_ADDR,0x1B,0x0000);
+    mbus_remote_register_write(RDC_ADDR,0x1C,0x0FFF);
+    //mbus_remote_register_write(RDC_ADDR,0x1D,0x0000);
 
 	// RDC Mbus return address; Needs to be between 0x18-0x1F
     mbus_remote_register_write(RDC_ADDR,0x11,0x0018);
@@ -1274,7 +1274,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEE5){
+    if (enumerated != 0xDEADBEE1){
         // Set up PMU/GOC register in PRC layer (every time)
         // Enumeration & RAD/SNS layer register configuration
         operation_init();
@@ -1652,6 +1652,36 @@ int main() {
 		rdcv1_r1A.as_int = rdcv1_r1A_temp.as_int;
 		mbus_remote_register_write(RDC_ADDR,0x1A,rdcv1_r1A.as_int);
 
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+    }else if(wakeup_data_header == 0x31){
+        // Debug mode: Transmit something via radio and go to sleep w/o timer
+        // wakeup_data[7:0] is the # of transmissions
+        // wakeup_data[15:8] is the user-specified period
+        // wakeup_data[23:16] is the MSB of # of transmissions
+		operation_goc_trigger_radio(wakeup_data_field_0 + (wakeup_data_field_2<<8), wakeup_data_field_1, 0xABC000, exec_count_irq);
+
+	}else if(wakeup_data_header == 0x35){
+	    mbus_remote_register_write(RDC_ADDR,0x15, wakeup_data & 0xFFFF);
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x36){
+
+		mbus_remote_register_write(RDC_ADDR,0x16, wakeup_data & 0xFFFF);
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x3B){
+
+		mbus_remote_register_write(RDC_ADDR,0x1B, wakeup_data & 0xFFFF);
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x3C){
+
+		mbus_remote_register_write(RDC_ADDR,0x1C, wakeup_data & 0xFFFF);
 		// Go to sleep without timer
 		operation_sleep_notimer();
 

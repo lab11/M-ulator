@@ -420,7 +420,7 @@ inline static void set_pmu_clk_init(){
 		| (0x45) 		// Binary converter's conversion ratio (7'h00)
 	));
 	delay(MBUS_DELAY);
-	set_pmu_sar_override(0x45);
+	set_pmu_sar_override(0x4D);
 
 	set_pmu_adc_period(1); // 0x100 about 1 min for 1/2/1 1P2 setting
 }

@@ -841,7 +841,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Pstack_state = PSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEEA;
+    enumerated = 0xDEADBEE0;
     exec_count = 0;
     exec_count_irq = 0;
     mbus_msg_flag = 0;
@@ -897,11 +897,11 @@ static void operation_init(void){
 	rdcv1_r14.as_int = rdcv1_r14_temp.as_int;
 	mbus_remote_register_write(RDC_ADDR,0x14,rdcv1_r14.as_int);
 
-    mbus_remote_register_write(RDC_ADDR,0x15,0x7FFF);
-    mbus_remote_register_write(RDC_ADDR,0x16,0xFFFF);
-    mbus_remote_register_write(RDC_ADDR,0x1B,0x0FFF);
-    mbus_remote_register_write(RDC_ADDR,0x1C,0xFFFF);
-    mbus_remote_register_write(RDC_ADDR,0x1D,0x0000);
+    mbus_remote_register_write(RDC_ADDR,0x15,0x0000);
+    mbus_remote_register_write(RDC_ADDR,0x16,0x0FFF);
+    mbus_remote_register_write(RDC_ADDR,0x1B,0x0000);
+    mbus_remote_register_write(RDC_ADDR,0x1C,0x0FFF);
+    //mbus_remote_register_write(RDC_ADDR,0x1D,0x0000);
 
 	// RDC IRQ Setting
     mbus_remote_register_write(RDC_ADDR,0x11,0x0020);
@@ -1027,14 +1027,13 @@ static void operation_rdc_run(){
 		if (meas_count == 0){
 			// Release RDC power gates / isolation
 			rdc_release_v1p2_pg();
-			delay(MBUS_DELAY);
 			rdc_release_pg();
 			delay(MBUS_DELAY);
 			rdc_release_isolate();
 
 			// Need delay for osc to stabilize
 			rdc_osc_enable();
-			delay(MBUS_DELAY*10);
+			delay(MBUS_DELAY*2);
 		}
 
 		// Use Timer32 as timeout counter
@@ -1216,7 +1215,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEEA){
+    if (enumerated != 0xDEADBEE0){
         // Set up PMU/GOC register in PRC layer (every time)
         // Enumeration & RAD/SNS layer register configuration
         operation_init();
@@ -1481,6 +1480,29 @@ int main() {
 		rdcv1_r1A.as_int = rdcv1_r1A_temp.as_int;
 		mbus_remote_register_write(RDC_ADDR,0x1A,rdcv1_r1A.as_int);
 
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x35){
+	    mbus_remote_register_write(RDC_ADDR,0x15, wakeup_data & 0xFFFF);
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x36){
+
+		mbus_remote_register_write(RDC_ADDR,0x16, wakeup_data & 0xFFFF);
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x3B){
+
+		mbus_remote_register_write(RDC_ADDR,0x1B, wakeup_data & 0xFFFF);
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x3C){
+
+		mbus_remote_register_write(RDC_ADDR,0x1C, wakeup_data & 0xFFFF);
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
