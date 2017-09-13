@@ -885,10 +885,10 @@ static void operation_init(void){
 
 	// RDC Settings ----------------------------------------
 	rdcv1_r1A_temp.as_int = rdcv1_r1A.as_int;
-	rdcv1_r1A_temp.BRDC_OSR= 0;
+	rdcv1_r1A_temp.BRDC_OSR= 32;
 	rdcv1_r1A_temp.BRDC_SAMPLE_TIME_SEL = 15;
-	rdcv1_r1A_temp.BRDC_TICK_SPL_TO_SPL = 400;
-	rdcv1_r1A_temp.BRDC_TICK_VREF_SPL_REDIS_WAIT = 7;
+	rdcv1_r1A_temp.BRDC_TICK_SPL_TO_SPL = 0;
+	rdcv1_r1A_temp.BRDC_TICK_VREF_SPL_REDIS_WAIT = 2;
 	rdcv1_r1A.as_int = rdcv1_r1A_temp.as_int;
 	mbus_remote_register_write(RDC_ADDR,0x1A,rdcv1_r1A.as_int);
 
