@@ -199,8 +199,6 @@
  * @usage   delay(100);
  */
 void delay(unsigned ticks);
-
-
 /**
  * @brief   Wait for interrupt
  *
@@ -209,8 +207,6 @@ void delay(unsigned ticks);
  * @usage   WFI();
  */
 void WFI();
-
-
 /**
  * @brief   Enable all interrupts
  *
@@ -219,8 +215,6 @@ void WFI();
  * @usage   enable_all_irq();
  */
 void enable_all_irq();
-
-
 /**
  * @brief   Disable all interrupts
  *
@@ -229,8 +223,6 @@ void enable_all_irq();
  * @usage   disable_all_irq();
  */
 void disable_all_irq();
-
-
 /**
  * @brief   Clear all pending interrupts
  *
@@ -239,8 +231,14 @@ void disable_all_irq();
  * @usage   clear_all_pend_irq();
  */
 void clear_all_pend_irq();
-
-
+/**
+ * @brief   Eanbles all register interrupts
+ *
+ * @param   N/A
+ *
+ * @usage   enable_reg_irq();
+ */
+void enable_reg_irq();
 /**
  * @brief   Set a new CONFIG_HALT_CPU value
  *
@@ -250,8 +248,6 @@ void clear_all_pend_irq();
  *          set_halt_config(HALT_UNTIL_MBUS_RX);
  */
 void set_halt_config(uint8_t new_config);
-
-
 /**
  * @brief   Return the current CONFIG_HALT_CPU value
  *
@@ -260,8 +256,6 @@ void set_halt_config(uint8_t new_config);
  * @usage   uint8_t current_halt_cpu_setting = get_current_halt_config();
  */
 uint8_t get_current_halt_config(void);
-
-
 /**
  * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
  *              CONFIG_HALT_CPU     = reg_id;
@@ -271,8 +265,6 @@ uint8_t get_current_halt_config(void);
  * @usage   set_halt_until_reg(0xF0);
  */
 void set_halt_until_reg(uint8_t reg_id);
-
-
 /**
  * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
  *              CONFIG_HALT_CPU     = HALT_UNTIL_MEM_WR;
@@ -282,8 +274,6 @@ void set_halt_until_reg(uint8_t reg_id);
  * @usage   set_halt_until_mem_wr();
  */
 void set_halt_until_mem_wr(void);
-
-
 /**
  * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
  *              CONFIG_HALT_CPU     = HALT_UNTIL_MBUS_RX;
@@ -293,8 +283,6 @@ void set_halt_until_mem_wr(void);
  * @usage   set_halt_until_mbus_rx();
  */
 void set_halt_until_mbus_rx(void);
-
-
 /**
  * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
  *              CONFIG_HALT_CPU     = HALT_UNTIL_MBUS_TX;
@@ -304,8 +292,6 @@ void set_halt_until_mbus_rx(void);
  * @usage   set_halt_until_mbus_tx();
  */
 void set_halt_until_mbus_tx(void);
-
-
 /**
  * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
  *              CONFIG_HALT_CPU     = HALT_UNTIL_MBUS_FWD;
@@ -315,8 +301,6 @@ void set_halt_until_mbus_tx(void);
  * @usage   set_halt_until_mbus_fwd();
  */
 void set_halt_until_mbus_fwd(void);
-
-
 /**
  * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
  *              CONFIG_HALT_CPU     = HALT_DISABLE;
@@ -326,8 +310,6 @@ void set_halt_until_mbus_fwd(void);
  * @usage   set_halt_disable();
  */
 void set_halt_disable(void);
-
-
 /**
  * @brief   Immediately put CPU in halt. CPU resumes its operation when the event specifiedin CONFIG_HALT_CPU occurs.
  *
@@ -336,8 +318,6 @@ void set_halt_disable(void);
  * @usage   halt_cpu();
  */
 void halt_cpu(void);
-
-
 /**
  * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
  *              OLD_MSG_REG_MASK     = 1;
@@ -347,8 +327,6 @@ void halt_cpu(void);
  * @usage   enable_old_msg_irq();
  */
 void enable_old_msg_irq(void);
-
-
 /**
  * @brief   This configures Register0x0A (MMIO 0xA0000028) like below:
  *              OLD_MSG_REG_MASK     = 0;
@@ -358,8 +336,6 @@ void enable_old_msg_irq(void);
  * @usage   disable_old_msg_irq();
  */
 void disable_old_msg_irq(void);
-
-
 /**
  * @brief   Configure the 16-bit timer
  *
@@ -370,8 +346,6 @@ void disable_old_msg_irq(void);
  * @param   status  Manually set the timer status
  */
 void config_timer16(uint32_t cmp0, uint32_t cmp1, uint8_t irq_en, uint32_t cnt, uint32_t status);
-
-
 /**
  * @brief   Configure the 32-bit timer
  *
@@ -381,15 +355,12 @@ void config_timer16(uint32_t cmp0, uint32_t cmp1, uint8_t irq_en, uint32_t cnt, 
  * @param   status  Manually set the timer status
  */
 void config_timer32(uint32_t cmp, uint8_t roi, uint32_t cnt, uint32_t status);
-
 /**
  * @brief   Configure the Watch-Dog timer
  *
  * @param   cnt     Manually set the timer counter
  */
 void config_timerwd(uint32_t cnt);
-
-
 /**
  * @brief   Configure the wake-up timer
  *
@@ -397,9 +368,15 @@ void config_timerwd(uint32_t cnt);
  * @param   irq_en      Interrupt Enable
  * @param   reset       1 will reset the wake-up timer
  */
+void disable_timerwd();
+/**
+ * @brief   Disables the wake-up timer
+ */
+void enable_timerwd();
+/**
+ * @brief   Enables the wake-up timer
+ */
 void set_wakeup_timer( uint16_t timestamp, uint8_t irq_en, uint8_t reset );
-
-
 /**
  * @brief   Write into ARB debug register
  *          !!!    THIS IS FOR VERILOG SIM ONLY    !!!
@@ -421,8 +398,6 @@ void arb_debug_reg (uint32_t code);
  *                  '0' disables SPI Input/Output pads
  */
 void set_spi_pad (uint8_t config);
-
-
 /**
  * @brief   Enable/Disable GPIO pads
  *
@@ -431,8 +406,6 @@ void set_spi_pad (uint8_t config);
  *                  '0' disables the corresponding GPIO pad
  */
 void set_gpio_pad (uint8_t config);
-
-
 /**
  * @brief   Enable/Disable COTS switches
  *
@@ -441,8 +414,6 @@ void set_gpio_pad (uint8_t config);
  *                      '0' disables the corresponding COTS switch.
  */
 void set_cps (uint32_t cps_config);
-
-
 /**
  * @brief   Freeze SPI Output
  *
@@ -451,7 +422,6 @@ void set_cps (uint32_t cps_config);
  *                  '0' freezes SPI Output pads
  */
 void freeze_spi_pad (uint8_t config);
-
 /**
  * @brief   Freeze GPIO Output
  *
@@ -473,8 +443,6 @@ void freeze_gpio_pad (uint8_t config);
  *                  '0' sets the corresponding GPIO bit as input
  */
 void gpio_init (uint32_t dir);
-
-
 /**
  * @brief   Set GPIO directions
  *
@@ -483,8 +451,6 @@ void gpio_init (uint32_t dir);
  *                  '0' sets the corresponding GPIO bit as input
  */
 void gpio_set_dir (uint32_t dir);
-
-
 /**
  * @brief   Return the current GPIO directions
  *          The return value is a 8-bit pattern indicating GPIO directions.
@@ -492,15 +458,11 @@ void gpio_set_dir (uint32_t dir);
  *              '0' means the corresponding GPIO bit is input.
  */
 uint32_t gpio_get_dir (void);
-
-
 /**
  * @brief   Return the current GPIO data
  *          The return value is a 8-bit GPIO data
  */
 uint32_t gpio_get_data (void);
-
-
 /**
  * @brief   Set GPIO data
  *          It does NOT change GPIO output. It just sets the internal variable 'gpio_data_'.
@@ -510,16 +472,11 @@ uint32_t gpio_get_data (void);
  * @param   data    8-bit data
  */
 void gpio_set_data (uint32_t data);
-
-
 /**
  * @brief   Change GPIO output using gpio_data_
  *          Make sure gpio_data_ has the correct value. You may need to use gpio_set_data().
  */
 void gpio_write_current_data (void);
-
-
-
 /**
  * @brief   Change GPIO output
  *          This function changes the GPIO output as well as gpio_data_.
@@ -527,8 +484,6 @@ void gpio_write_current_data (void);
  * @param   data    8-bit data
  */
 void gpio_write_data (uint32_t data);
-
-
 /**
  * @brief   Change GPIO output
  *          This function changes the GPIO output, but does NOT update gpio_data_.
@@ -536,24 +491,18 @@ void gpio_write_data (uint32_t data);
  * @param   data    8-bit data
  */
 void gpio_write_raw (uint32_t data);
-
-
 /**
  * @brief   Set the corresponding GPIO bit to 1
  *
  * @param   loc     GPIO pin location.
  */
 void gpio_set_bit (uint32_t loc);
-
-
 /**
  * @brief   Set the corresponding GPIO bit to 0
  *
  * @param   loc     GPIO pin location.
  */
 void gpio_kill_bit (uint32_t loc);
-
-
 /**
  * @brief   Set the corresponding GPIO bits to 1. You are setting the 2 bits at the same time.
  *
@@ -561,8 +510,6 @@ void gpio_kill_bit (uint32_t loc);
  * @param   loc1    GPIO pin location.
  */
 void gpio_set_2bits (uint32_t loc0, uint32_t loc1);
-
-
 /**
  * @brief   Set GPIO Interrupt mask
  *          '1' means the corresponding bit's IRQ is enabled.
@@ -571,8 +518,6 @@ void gpio_set_2bits (uint32_t loc0, uint32_t loc1);
  * @param   mask    8-bit mask pattern
  */
 void gpio_set_irq_mask (uint32_t mask);
-
-
 /**
  * @brief   Terminate GPIO operations.
  *          Internally, it is same as disable_io_pad()

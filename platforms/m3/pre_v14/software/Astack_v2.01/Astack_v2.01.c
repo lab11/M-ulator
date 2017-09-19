@@ -21,14 +21,17 @@
 // Global Variables
 //********************************************************************
 volatile uint32_t enumerated;
-volatile uint32_t test_var;
-volatile uint32_t test_dat;
-volatile uint32_t test_i;
-volatile uint32_t wakeup_data_header ;
-volatile uint32_t wakeup_data ;
-volatile uint32_t exec_cnt;
-
-volatile uint32_t radio_ready;
+volatile uint32_t wkp_data ;
+volatile uint32_t exec_cnt_irq;
+volatile uint32_t exec_cnt_cont;
+volatile uint32_t wkp_prd_adxl362;
+volatile uint32_t wkp_prd_mrr;
+volatile uint32_t voltage_storage[400] = {0};
+volatile uint32_t voltage_storage_ptr;
+volatile uint32_t trigger_storage[200] = {0};
+volatile uint32_t trigger_storage_ptr;
+volatile uint32_t read_data_batadc;
+volatile uint32_t pmu_adc_3p0_val;
 
 volatile prev14_r0B_t prev14_r0B = PREv14_R0B_DEFAULT;
 
@@ -377,52 +380,68 @@ static void pmu_adc_disable(){
 			      ));
 }
 
+inline static void pmu_adc_read_latest(){
+  // Grab latest PMU ADC readings
+  // PMU register read is handled differently
+  mbus_remote_register_write(PMU_ADDR,0x00,0x03);
+  delay(MBUS_DELAY);
+  read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
+}
+
+static void pmu_set_sar_override(uint32_t val){
+  // SAR_RATIO_OVERRIDE
+  mbus_remote_register_write(PMU_ADDR,0x05,
+			     ((  0 << 13) // Enables override setting [12] (1'b1)
+			      | (0 << 12) // Let VDD_CLK always connected to vbat
+			      | (1 << 11) // Enable override setting [10] (1'h0)
+			      | (0 << 10) // Have the converter have the periodic reset (1'h0)
+			      | (1 << 9)  // Enable override setting [8] (1'h0)
+			      | (0 << 8)  // Switch input / output power rails for upconversion (1'h0)
+			      | (1 << 7)  // Enable override setting [6:0] (1'h0)
+			      | (val)     // Binary converter's conversion ratio (7'h00)
+			      ));
+  mbus_remote_register_write(PMU_ADDR,0x05,
+			     ((  1 << 13) // Enables override setting [12] (1'b1)
+			      | (0 << 12) // Let VDD_CLK always connected to vbat
+			      | (1 << 11) // Enable override setting [10] (1'h0)
+			      | (0 << 10) // Have the converter have the periodic reset (1'h0)
+			      | (1 << 9)  // Enable override setting [8] (1'h0)
+			      | (0 << 8)  // Switch input / output power rails for upconversion (1'h0)
+			      | (1 << 7)  // Enable override setting [6:0] (1'h0)
+			      | (val)     // Binary converter's conversion ratio (7'h00)
+			      ));
+}
+
+inline static void pmu_parkinglot_decision_3v_battery(){
+  // Battery > 3.0V
+  if      (read_data_batadc < pmu_adc_3p0_val     ) pmu_set_sar_override(0x3C);
+  // Battery 2.9V - 3.0V
+  else if (read_data_batadc < pmu_adc_3p0_val + 4 ) pmu_set_sar_override(0x3F);
+  // Battery 2.8V - 2.9V
+  else if (read_data_batadc < pmu_adc_3p0_val + 8 ) pmu_set_sar_override(0x41);
+  // Battery 2.7V - 2.8V
+  else if (read_data_batadc < pmu_adc_3p0_val + 12) pmu_set_sar_override(0x43);
+  // Battery 2.6V - 2.7V
+  else if (read_data_batadc < pmu_adc_3p0_val + 17) pmu_set_sar_override(0x45);
+  // Battery 2.5V - 2.6V
+  else if (read_data_batadc < pmu_adc_3p0_val + 21) pmu_set_sar_override(0x48);
+  // Battery 2.4V - 2.5V
+  else if (read_data_batadc < pmu_adc_3p0_val + 27) pmu_set_sar_override(0x4B);
+  // Battery 2.3V - 2.4V
+  else if (read_data_batadc < pmu_adc_3p0_val + 32) pmu_set_sar_override(0x4E);
+  // Battery 2.2V - 2.3V
+  else if (read_data_batadc < pmu_adc_3p0_val + 39) pmu_set_sar_override(0x51);
+  // Battery 2.1V - 2.2V
+  else if (read_data_batadc < pmu_adc_3p0_val + 46) pmu_set_sar_override(0x56);
+  // Battery 2.0V - 2.1V
+  else if (read_data_batadc < pmu_adc_3p0_val + 53) pmu_set_sar_override(0x5A);
+  // Battery <= 2.0V
+  else                                              pmu_set_sar_override(0x5F);
+}
+
 //***************************************************
 // MRR Functions
 //***************************************************
-
-static void mrr_configure_pulse_width_long(){
-
-    //mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 0; //4us PW
-    //mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 32; // (PW_LEN+1):C_LEN=1:32
-    //mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 0; // PW=PS
-    //mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 0; //no shift in LFSR
-
-    //mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 1; //8us PW
-    //mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 64; // (PW_LEN+1):C_LEN=1:32
-    //mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 1; // PW=PS
-
-    //mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 15; //64us PW
-    //mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 512; // (PW_LEN+1):C_LEN=1:32
-    //mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 15; // PW=PS   
-    //mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 4; //8 bit shift in LFSR
-
-    mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 24; //100us PW
-    mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 800; // (PW_LEN+1):C_LEN=1:32
-    mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 24; // PW=PS   
-    mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 5; //8 bit shift in LFSR
-
-    //mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 124; //500us PW
-    //mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 4000; // (PW_LEN+1):C_LEN=1:32
-    //mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 124; // PW=PS   
-    //mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 7; //8 bit shift in LFSR
-
-    //mrrv3_r0F.MRR_RAD_FSM_TX_PW_LEN = 249; //1ms PW
-    //mrrv3_r10.MRR_RAD_FSM_TX_C_LEN = 8000; // (PW_LEN+1):C_LEN=1:32
-    //mrrv3_r0F.MRR_RAD_FSM_TX_PS_LEN = 249; // PW=PS
-    //mrrv3_r12.MRR_RAD_FSM_TX_HDR_CNST = 8; //8 bit shift in LFSR
-
-    mbus_remote_register_write(MRR_ADDR,0x0F,mrrv3_r0F.as_int);
-    mbus_remote_register_write(MRR_ADDR,0x12,mrrv3_r12.as_int);
-
-    // Current Limter set-up 
-    mrrv3_r00.MRR_CL_CTRL = 8;
-    mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
-
-    mrrv3_r11.MRR_RAD_FSM_TX_POWERON_LEN = 7; //3bits
-    mbus_remote_register_write(MRR_ADDR,0x11,mrrv3_r11.as_int);
-
-}
 
 static void mrr_configure_pulse_width_short(){
 
@@ -443,11 +462,12 @@ static void mrr_configure_pulse_width_short(){
 
 }
 
-static void mrr_send_packet(){
+static void mrr_radio_power_on(){
+  // Turn off PMU ADC
+  pmu_adc_disable();
   
   mrrv3_r00.MRR_CL_EN = 1;  //Enable CL
   mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
-  delay(MBUS_DELAY*10);
   
   mrrv3_r04.MRR_SCRO_EN_TIMER = 1;  //Power On TIMER
   mbus_remote_register_write(MRR_ADDR,0x04,mrrv3_r04.as_int);
@@ -472,13 +492,9 @@ static void mrr_send_packet(){
   mrrv3_r03.MRR_TRX_ISOLATEN = 1; //Set ISOLATEN 1, let state machine control
   mbus_remote_register_write(MRR_ADDR,0x03,mrrv3_r03.as_int);
   delay(MBUS_DELAY*10);
-  
-  mrrv3_r0E.MRR_RAD_FSM_EN = 1;  //Start BB
-  mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
-  delay(MBUS_DELAY*10);
-  
-  delay(MBUS_DELAY*500);
-  
+}
+
+static void mrr_radio_power_off(){
   mrrv3_r03.MRR_TRX_ISOLATEN = 0;  //set ISOLATEN 0
   mbus_remote_register_write(MRR_ADDR,0x03,mrrv3_r03.as_int);
   mrrv3_r0E.MRR_RAD_FSM_EN = 0; //Stop BB
@@ -487,10 +503,20 @@ static void mrr_send_packet(){
   mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
   mrrv3_r04.MRR_SCRO_EN_CLK = 0; // Disable clk
   mrrv3_r04.MRR_SCRO_RSTN_TIMER = 0; //Reset SCRO
-  mrrv3_r04.MRR_SCRO_EN_TIMER = 1; //Power off SCRO
+  mrrv3_r04.MRR_SCRO_EN_TIMER = 0; //Power off SCRO
   mbus_remote_register_write(MRR_ADDR,0x04,mrrv3_r04.as_int);
   mrrv3_r00.MRR_CL_EN = 0;  //Disable CL
   mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
+
+}
+static void mrr_send_packet(){
+  mrrv3_r0E.MRR_RAD_FSM_EN = 1;  //Start BB
+  mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
+  
+  WFI();
+  
+  mrrv3_r0E.MRR_RAD_FSM_EN = 0;  //Start BB
+  mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
 }
 
 //***************************************************
@@ -537,7 +563,7 @@ static void ADXL362_init(){
   ADXL362_reg_wr(ADXL362_INTMAP1,0x10);
 
   // Set Activity Threshold
-  ADXL362_reg_wr(ADXL362_THRESH_ACT_L,0x20);
+  ADXL362_reg_wr(ADXL362_THRESH_ACT_L,0x30);
   ADXL362_reg_wr(ADXL362_THRESH_ACT_H,0x00);
 
   // Set Actvity/Inactivity Control
@@ -590,6 +616,7 @@ static void operation_init(void){
   set_halt_until_mbus_rx();
   mbus_enumerate(MRR_ADDR);
   mbus_enumerate(PMU_ADDR);
+  enumerated = 0xDEADBEEF;
 
   // PMU
   pmu_set_clk_init();
@@ -598,62 +625,26 @@ static void operation_init(void){
   pmu_adc_reset_setting();
   pmu_adc_enable();
   set_halt_until_mbus_tx();
-  enumerated = 0xDEADBEEF;
   
   // MRR
   mrrv3_r1C.LC_CLK_RING = 0x3;  // ~ 150 kHz
   mrrv3_r1C.LC_CLK_DIV = 0x3;  // ~ 150 kHz
   mbus_remote_register_write(MRR_ADDR,0x1C,mrrv3_r1C.as_int);
   
-  //mrr_configure_pulse_width_short();
-  mrr_configure_pulse_width_long();
+  mrr_configure_pulse_width_short();
 
   // TX Setup Carrier Freq
   mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x01FF;  //ANT CAP 14b unary 830.5 MHz
-  //mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x00FF;  //ANT CAP 14b unary 813.8 MHz
-  //mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = 0x0FFF;  //ANT CAP 14b unary 805.5 MHz
   mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
   mrrv3_r01.MRR_TRX_CAP_ANTN_TUNE = 0x01FF; //ANT CAP 14b unary 830.5 MHz
-  //mrrv3_r01.MRR_TRX_CAP_ANTN_TUNE = 0x00FF; //ANT CAP 14b unary 813.8 MHz
-  //mrrv3_r01.MRR_TRX_CAP_ANTN_TUNE = 0x0FFF;  //ANT CAP 14b unary 805.5 MHz
   mbus_remote_register_write(MRR_ADDR,0x01,mrrv3_r01.as_int);
   mrrv3_r02.MRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
   mbus_remote_register_write(MRR_ADDR,0x02,mrrv3_r02.as_int);
 
-  // Forces decaps to be parallel
-  //mrrv3_r03.MRR_DCP_S_OW = 0;  //TX_Decap S (forced charge decaps)
-  //mrrv3_r03.MRR_DCP_P_OW = 1;  //RX_Decap P 
-  //mbus_remote_register_write(MRR_ADDR,3,mrrv3_r03.as_int);
-  
-  // RX Setup
-  //mrrv3_r03.MRR_RX_BIAS_TUNE    = 0x0AFF;//  turn on Q_enhancement
-  mrrv3_r03.MRR_RX_BIAS_TUNE    = 0x0001;//  turn off Q_enhancement
-  mrrv3_r03.MRR_RX_SAMPLE_CAP    = 0x1;  // RX_SAMPLE_CAP
-  mbus_remote_register_write(MRR_ADDR,3,mrrv3_r03.as_int);
-  
-  mrrv3_r11.MRR_RAD_FSM_RX_POWERON_LEN = 7;  //Set RX Power on length
-  //mrrv3_r11.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x3;  //Set RX Sample length  16us
-  mrrv3_r11.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x0;  //Set RX Sample length  4us
-  mrrv3_r11.MRR_RAD_FSM_GUARD_LEN = 0x000F; //Set TX_RX Guard length, TX_RX guard 32 cycle (28+5)
-  mbus_remote_register_write(MRR_ADDR,0x11,mrrv3_r11.as_int);
-  
-  mrrv3_r12.MRR_RAD_FSM_RX_HDR_BITS = 0x00;  //Set RX header
-  mrrv3_r12.MRR_RAD_FSM_RX_HDR_TH = 0x00;    //Set RX header threshold
-  mrrv3_r12.MRR_RAD_FSM_RX_DATA_BITS = 0x03; //Set RX data 1b
-  mbus_remote_register_write(MRR_ADDR,0x12,mrrv3_r12.as_int);
-  
-  mrrv3_r1B.MRR_IRQ_REPLY_PACKET = 0x061400; //Read RX data Reply
-  mbus_remote_register_write(MRR_ADDR,0x1B,mrrv3_r1B.as_int);
-  
   // RAD_FSM set-up 
   mrrv3_r0E.MRR_RAD_FSM_TX_H_LEN = 31; //31-31b header (max)
   mrrv3_r0E.MRR_RAD_FSM_TX_D_LEN = 40; //0-skip tx data
   mbus_remote_register_write(MRR_ADDR,0x0E,mrrv3_r0E.as_int);
-  
-  // Use pulse generator -- Not used currently
-  mrrv3_r02.MRR_TX_PULSE_FINE = 0;
-  mrrv3_r02.MRR_TX_PULSE_FINE_TUNE = 3;
-  mbus_remote_register_write(MRR_ADDR,0x02,mrrv3_r02.as_int);
   
   mrrv3_r10.MRR_RAD_FSM_SEED = 1; //default
   mrrv3_r10.MRR_RAD_FSM_TX_MODE = 3; //code rate 0:4 1:3 2:2 3:1(baseline) 4:1/2 5:1/3 6:1/4
@@ -662,20 +653,15 @@ static void operation_init(void){
   // Mbus return address; Needs to be between 0x18-0x1F
   mbus_remote_register_write(MRR_ADDR,0x1B,0x1A00);
 
-  // Sends "AELRT"
-  mrrv3_r06.MRR_RAD_FSM_TX_DATA_0 = 0x657274;
-  mbus_remote_register_write(MRR_ADDR,0x06,mrrv3_r06.as_int);
-  mrrv3_r07.MRR_RAD_FSM_TX_DATA_1 = 0x00616C;
-  mbus_remote_register_write(MRR_ADDR,0x07,mrrv3_r07.as_int);
-
   // Lower BaseBand Frequency
   mrrv3_r05.MRR_SCRO_R_SEL = 0x47F;
   mbus_remote_register_write(MRR_ADDR,0x05,mrrv3_r05.as_int);
 
-  *REG_GOC_TIMEOUT = 0xFFFFFF;
-  
-  exec_cnt = 0;
-  
+  exec_cnt_irq = 0;
+  exec_cnt_cont = 0;
+  voltage_storage_ptr = 0;
+  trigger_storage_ptr = 0;
+
   operation_sleep_notimer();
 }
 
@@ -689,6 +675,7 @@ int main() {
   // Initialize Interrupts
   clear_all_pend_irq();
   //enable_all_irq();
+  enable_reg_irq();
   
   disable_timerwd();
 
@@ -699,106 +686,240 @@ int main() {
   
   set_halt_until_mbus_tx();
 
-  wakeup_data = *((volatile uint32_t *) IRQ14VEC);
-  uint32_t wkp_data_hdr   = wakeup_data >> 24;
-  uint32_t wkp_data_fld_0 = wakeup_data >>  0  & 0xFF;
-  uint32_t wkp_data_fld_1 = wakeup_data >>  8  & 0xFF;
-  uint32_t wkp_data_fld_2 = wakeup_data >> 16 & 0xFF;
+  wkp_data = *((volatile uint32_t *) IRQ14VEC);
+  uint32_t wkp_data_hdr   = wkp_data >> 24;
+  uint32_t wkp_data_fld_0 = wkp_data >>  0  & 0xFF;
+  uint32_t wkp_data_fld_1 = wkp_data >>  8  & 0xFF;
+  uint32_t wkp_data_fld_2 = wkp_data >> 16 & 0xFF;
 
-  uint32_t test_i = 0;
+  //GOC Triggers
 
+  //Operational GOC
+  //0x01 --> 0x0F
+  //0x01 --> Start Taking Measurements
+  //0x02 --> Stop Taking Measurements
+  // (Cannot be running programs)
+  //0x03 --> Sends out all PMU Voltage Data
+  //0x04 --> Sends out all Trigger Data
+  //0x05 --> Resets all Data
+  
+  //Program Configs (Cannot be running programs)
+  //0x10 --> 0x1F
+  //0x10 --> Sets PMU_ADC_3P0
+
+  //MRR Debugging (Cannot be running programs)
+  //0x20 --> 0x2F
+  //0x20 --> Change Carrier Frequency
+  //0x21 --> Change BaseBand Frequency
+  //0x22 --> Enable  MRR Continuous Tone
+  //0x23 --> Disable MRR Continuous Tone
+  
   if(wkp_data_hdr == 0x00){
     operation_sleep_notimer();
   }else if(wkp_data_hdr == 0x01){
-    mbus_write_message32(0xAA,0x01);
+    mbus_write_message32(0xAA,wkp_data_hdr);
     //Start Taking Measurements
     operation_spi_init();
-    delay(100);
-    *REG_CPS = 2;
-    delay(200);
-    ADXL362_init();
-    delay(200);
-    operation_sleep_notimer();
+    if((*REG_CPS & 0x2) == 0){
+      wkp_prd_adxl362 = (wkp_data_fld_1 << 8 | wkp_data_fld_0);
+      wkp_prd_mrr = wkp_data_fld_2;
+      delay(100);
+      *REG_CPS = 2;
+      delay(200);
+      ADXL362_init();
+      delay(200);
+    }else{
+      freeze_gpio_pad(0);
+      set_gpio_pad(3);
+      if ((*GPIO_DATA & 0x2) == 2){
+	// Sends "ALERT"
+	mrrv3_r06.MRR_RAD_FSM_TX_DATA_0 = 0x657230 | (exec_cnt_cont&0xF);
+	mbus_remote_register_write(MRR_ADDR,0x06,mrrv3_r06.as_int);
+	mrrv3_r07.MRR_RAD_FSM_TX_DATA_1 = 0x00616C;
+	mbus_remote_register_write(MRR_ADDR,0x07,mrrv3_r07.as_int);
+	mrr_radio_power_on();
+	mrr_send_packet();
+	mrr_radio_power_off();
+	ADXL362_reg_rd(ADXL362_STATUS);
+	//Track all triggers
+	trigger_storage[trigger_storage_ptr] = exec_cnt_irq;
+	trigger_storage_ptr++;
+	exec_cnt_cont++;
+      }
+      else{
+	exec_cnt_cont = 0;
+      }
+      set_gpio_pad(1);
+      freeze_gpio_pad(1);
+      if((exec_cnt_irq & 0x3) == 0){
+	// Sends "ALIVE"
+	mrrv3_r06.MRR_RAD_FSM_TX_DATA_0 = 0x697665;
+	mbus_remote_register_write(MRR_ADDR,0x06,mrrv3_r06.as_int);
+	mrrv3_r07.MRR_RAD_FSM_TX_DATA_1 = 0x00616C;
+	mbus_remote_register_write(MRR_ADDR,0x07,mrrv3_r07.as_int);
+	mrr_radio_power_on();
+	mrr_send_packet();
+	mrr_radio_power_off();
+	//Check PMU Voltage
+	pmu_adc_read_latest();
+	voltage_storage[voltage_storage_ptr] = read_data_batadc;
+	voltage_storage_ptr++;
+	pmu_parkinglot_decision_3v_battery();
+      }
+      exec_cnt_irq++;
+    }
+
+    mbus_write_message32(0xAA,0xFF00);
+    if (exec_cnt_cont == 3){
+      mbus_write_message32(0xAA,0xFF01);
+      // Sends out all PMU Voltage Data
+      uint32_t test_i;
+      mrrv3_r06.MRR_RAD_FSM_TX_DATA_0 = 0x545254;
+      mbus_remote_register_write(MRR_ADDR,0x06,mrrv3_r06.as_int);
+      mrrv3_r07.MRR_RAD_FSM_TX_DATA_1 = 0x005653;
+      mbus_remote_register_write(MRR_ADDR,0x07,mrrv3_r07.as_int);
+      mrr_radio_power_on();
+      mrr_send_packet();
+      mrrv3_r06.MRR_RAD_FSM_TX_DATA_0 = (voltage_storage_ptr & 0xFFFFFF);
+      mbus_remote_register_write(MRR_ADDR,0x06,mrrv3_r06.as_int);
+      mrrv3_r07.MRR_RAD_FSM_TX_DATA_1 = ((voltage_storage_ptr>>24) & 0xFF);
+      mbus_remote_register_write(MRR_ADDR,0x07,mrrv3_r07.as_int);
+      mrr_send_packet();
+      for(test_i=0; test_i<voltage_storage_ptr; test_i++){
+	mrrv3_r06.MRR_RAD_FSM_TX_DATA_0 = (voltage_storage[test_i] & 0xFFFFFF);
+	mbus_remote_register_write(MRR_ADDR,0x06,mrrv3_r06.as_int);
+	mrrv3_r07.MRR_RAD_FSM_TX_DATA_1 = ((voltage_storage[test_i]>>24) & 0xFF);
+	mbus_remote_register_write(MRR_ADDR,0x07,mrrv3_r07.as_int);
+	mrr_send_packet();
+      }
+      mrr_radio_power_off();
+
+      // Sends out all Trigger Data
+      mrrv3_r06.MRR_RAD_FSM_TX_DATA_0 = 0x545254;
+      mbus_remote_register_write(MRR_ADDR,0x06,mrrv3_r06.as_int);
+      mrrv3_r07.MRR_RAD_FSM_TX_DATA_1 = 0x005453;
+      mbus_remote_register_write(MRR_ADDR,0x07,mrrv3_r07.as_int);
+      mrr_radio_power_on();
+      mrr_send_packet();
+      mrrv3_r06.MRR_RAD_FSM_TX_DATA_0 = (exec_cnt_irq & 0xFFFFFF);
+      mbus_remote_register_write(MRR_ADDR,0x06,mrrv3_r06.as_int);
+      mrrv3_r07.MRR_RAD_FSM_TX_DATA_1 = ((exec_cnt_irq>>24) & 0xFF);
+      mbus_remote_register_write(MRR_ADDR,0x07,mrrv3_r07.as_int);
+      mrr_send_packet();
+      mrrv3_r06.MRR_RAD_FSM_TX_DATA_0 = (trigger_storage_ptr & 0xFFFFFF);
+      mbus_remote_register_write(MRR_ADDR,0x06,mrrv3_r06.as_int);
+      mrrv3_r07.MRR_RAD_FSM_TX_DATA_1 = ((trigger_storage_ptr>>24) & 0xFF);
+      mbus_remote_register_write(MRR_ADDR,0x07,mrrv3_r07.as_int);
+      mrr_send_packet();
+      for(test_i=0; test_i<trigger_storage_ptr; test_i++){
+	mrrv3_r06.MRR_RAD_FSM_TX_DATA_0 = (trigger_storage[test_i] & 0xFFFFFF);
+	mbus_remote_register_write(MRR_ADDR,0x06,mrrv3_r06.as_int);
+	mrrv3_r07.MRR_RAD_FSM_TX_DATA_1 = ((trigger_storage[test_i]>>24) & 0xFF);
+	mbus_remote_register_write(MRR_ADDR,0x07,mrrv3_r07.as_int);
+	mrr_send_packet();
+      }
+      mrr_radio_power_off();
+
+      //Cleanup
+      exec_cnt_irq = 0;
+      exec_cnt_cont = 0;
+      voltage_storage_ptr = 0;
+      trigger_storage_ptr = 0;
+    }
+    mbus_write_message32(0xAA,0xFF02);
+    
+    set_wakeup_timer(wkp_prd_adxl362, 0x1, 0x1);
+    operation_sleep_noirqreset();
   }else if(wkp_data_hdr == 0x02){
-    mbus_write_message32(0xAA,0x02);
+    mbus_write_message32(0xAA,wkp_data_hdr);
     //Stop Taking Measurements
     operation_spi_stop();
     delay(1000);
     *REG_CPS = 0;
     operation_sleep_notimer();
   }else if(wkp_data_hdr == 0x03){
-    //TEST
-    mbus_write_message32(0xAA,0x03);
+    mbus_write_message32(0xAA,wkp_data_hdr);
+    // Sends out all PMU Voltage Data
+    uint32_t test_i;
+    mrrv3_r06.MRR_RAD_FSM_TX_DATA_0 = (voltage_storage_ptr & 0xFFFFFF);
+    mbus_remote_register_write(MRR_ADDR,0x06,mrrv3_r06.as_int);
+    mrrv3_r07.MRR_RAD_FSM_TX_DATA_1 = ((voltage_storage_ptr>>24) & 0xFF);
+    mbus_remote_register_write(MRR_ADDR,0x07,mrrv3_r07.as_int);
+    mrr_radio_power_on();
+    mrr_send_packet();
+    for(test_i=0; test_i<voltage_storage_ptr; test_i++){
+      mrrv3_r06.MRR_RAD_FSM_TX_DATA_0 = (voltage_storage[test_i] & 0xFFFFFF);
+      mbus_remote_register_write(MRR_ADDR,0x06,mrrv3_r06.as_int);
+      mrrv3_r07.MRR_RAD_FSM_TX_DATA_1 = ((voltage_storage[test_i]>>24) & 0xFF);
+      mbus_remote_register_write(MRR_ADDR,0x07,mrrv3_r07.as_int);
+      mrr_send_packet();
+    }
+    mrr_radio_power_off();
     operation_sleep_notimer();
   }else if(wkp_data_hdr == 0x04){
-    uint32_t saw_activity;
-    //Continuous Measurements
-    mbus_write_message32(0xAA,0x04);
-    operation_spi_init();
-    freeze_gpio_pad(0);
-    set_gpio_pad(3);
-    saw_activity = *GPIO_DATA & 0x00000002;
-    mbus_write_message32(0xAB,saw_activity);
-    if (saw_activity == 2){
-      //mrr_configure_pulse_width_short();
-      mrr_send_packet();
-      ADXL362_reg_rd(ADXL362_STATUS);
-    }else{
-    }
-    set_gpio_pad(1);
-    freeze_gpio_pad(1);
-    set_wakeup_timer(0x2, 0x1, 0x1);
-    operation_sleep_noirqreset();
-  }else if (wkp_data_hdr == 0x05){
-    //Long Distance Testing
-    mbus_write_message32(0xAA,0x05);
-    //mrr_configure_pulse_width_long();
+    mbus_write_message32(0xAA,wkp_data_hdr);
+    // Sends out all Trigger Data
+    uint32_t test_i;
+    mrrv3_r06.MRR_RAD_FSM_TX_DATA_0 = (exec_cnt_irq & 0xFFFFFF);
+    mbus_remote_register_write(MRR_ADDR,0x06,mrrv3_r06.as_int);
+    mrrv3_r07.MRR_RAD_FSM_TX_DATA_1 = ((exec_cnt_irq>>24) & 0xFF);
+    mbus_remote_register_write(MRR_ADDR,0x07,mrrv3_r07.as_int);
+    mrr_radio_power_on();
     mrr_send_packet();
-    set_wakeup_timer(0x2, 0x1, 0x1);
-    operation_sleep_noirqreset();
-  }else if(wkp_data_hdr == 0x10){
-    // Write to ADXL362 reg
-    // wakeup_data[ 7: 0] 8-bit Addr
-    // wakeup_data[15: 8] 8-bit Data
-    operation_spi_init();
-    ADXL362_reg_wr(wkp_data_fld_0, wkp_data_fld_1);
-    mbus_write_message32(0xAA,0x10);
-    operation_sleep_notimer();
-  }else if(wkp_data_hdr == 0x11){
-    // Read fr ADXL362 reg
-    // wkp_data[ 7: 0] 8-bit Addr
-    operation_spi_init();
-    ADXL362_reg_rd(wkp_data_fld_0);
-    mbus_write_message32(0xAA,0x11);
-    operation_sleep_notimer();
-  }else if(wkp_data_hdr == 0x12){
-    // Read Successive ADXL362 reg
-    // wkp_data[ 7: 0] 8-bit Start Addr
-    // wkp_data[15: 8] Length + 1
-    uint32_t i;
-    operation_spi_init();
-    for(i = 0; i <= wkp_data_fld_1; i++){
-      ADXL362_reg_rd(wkp_data_fld_0+i);
+    mrrv3_r06.MRR_RAD_FSM_TX_DATA_0 = (trigger_storage_ptr & 0xFFFFFF);
+    mbus_remote_register_write(MRR_ADDR,0x06,mrrv3_r06.as_int);
+    mrrv3_r07.MRR_RAD_FSM_TX_DATA_1 = ((trigger_storage_ptr>>24) & 0xFF);
+    mbus_remote_register_write(MRR_ADDR,0x07,mrrv3_r07.as_int);
+    mrr_send_packet();
+    for(test_i=0; test_i<trigger_storage_ptr; test_i++){
+      mrrv3_r06.MRR_RAD_FSM_TX_DATA_0 = (trigger_storage[test_i] & 0xFFFFFF);
+      mbus_remote_register_write(MRR_ADDR,0x06,mrrv3_r06.as_int);
+      mrrv3_r07.MRR_RAD_FSM_TX_DATA_1 = ((trigger_storage[test_i]>>24) & 0xFF);
+      mbus_remote_register_write(MRR_ADDR,0x07,mrrv3_r07.as_int);
+      mrr_send_packet();
     }
-    mbus_write_message32(0xAA,0x12);
+    mrr_radio_power_off();
     operation_sleep_notimer();
+  }else if(wkp_data_hdr == 0x05){
+    // Resets all arrays
+    mbus_write_message32(0xAA,wkp_data_hdr);
+    voltage_storage_ptr = 0;
+    trigger_storage_ptr = 0;
+    operation_sleep_notimer();
+    /////////////////
+    //Program Configs
+    /////////////////
+  }else if(wkp_data_hdr == 0x10){
+    //Sets PMU_ADC_3P0
+    mbus_write_message32(0xAA,wkp_data_hdr);
+    if(wkp_data_fld_1 == 0x01){
+      pmu_adc_3p0_val = wkp_data_fld_0;
+    }else{
+      //Check PMU Voltage
+      pmu_adc_read_latest();
+      pmu_adc_3p0_val = read_data_batadc;
+    }
+    operation_sleep_notimer();
+    ///////////////
+    //MRR Debugging
+    ///////////////
   }else if(wkp_data_hdr == 0x20){
     // Change Carrier Frequency
-    mbus_write_message32(0xAA,0x20);
-    mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = (wakeup_data & 0x3FFF);
+    mbus_write_message32(0xAA,wkp_data_hdr);
+    mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = (wkp_data & 0x3FFF);
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
-    mrrv3_r01.MRR_TRX_CAP_ANTN_TUNE = (wakeup_data & 0x3FFF);
+    mrrv3_r01.MRR_TRX_CAP_ANTN_TUNE = (wkp_data & 0x3FFF);
     mbus_remote_register_write(MRR_ADDR,0x01,mrrv3_r01.as_int);
     operation_sleep_notimer();
   }else if(wkp_data_hdr == 0x21){
     // Change BaseBand Frequency
-    mbus_write_message32(0xAA,0x21);
-    mrrv3_r05.MRR_SCRO_R_SEL = (wakeup_data & 0x7FF);
+    mbus_write_message32(0xAA,wkp_data_hdr);
+    mrrv3_r05.MRR_SCRO_R_SEL = (wkp_data & 0x7FF);
     mbus_remote_register_write(MRR_ADDR,0x05,mrrv3_r05.as_int);
     operation_sleep_notimer();
   }else if(wkp_data_hdr == 0x22){
-    //Turn On Continuous Tone
-    mbus_write_message32(0xAA,0x22);
+    // Turn On Continuous Tone
+    mbus_write_message32(0xAA,wkp_data_hdr);
     disable_timerwd();
     mrrv3_r00.MRR_CL_CTRL = 1; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
@@ -806,13 +927,13 @@ int main() {
     mbus_remote_register_write(MRR_ADDR,0x02,mrrv3_r02.as_int);
     mrrv3_r03.MRR_TRX_ISOLATEN = 0;
     mrrv3_r03.MRR_DCP_S_OW = 1;
-    mbus_remote_register_write(MRR_ADDR,0x3,mrrv3_r03.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x03,mrrv3_r03.as_int);
     mrrv3_r00.MRR_CL_EN = 1;
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
     operation_sleep_notimer();
   }else if(wkp_data_hdr == 0x23){
-    //Turn Off Continuous Tone
-    mbus_write_message32(0xAA,0x23);
+    // Turn Off Continuous Tone
+    mbus_write_message32(0xAA,wkp_data_hdr);
     enable_timerwd();
     mrrv3_r00.MRR_CL_CTRL = 8; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
@@ -825,36 +946,21 @@ int main() {
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
     operation_sleep_notimer();
   }else if(wkp_data_hdr == 0x24){
-    //Random Testing
-    //mbus_write_message32(0xAA,0x24);
-    //for(test_i = 0; test_i < 5000; test_i++){
-    //mrrv3_r00.MRR_CL_CTRL = 8; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
-    //mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
-    //}
-    //operation_sleep_notimer();
-    if (exec_cnt == 0){
-      exec_cnt++;
-      set_wakeup_timer(0x5, 0x1, 0x1);
-      operation_sleep_noirqreset();
+    // Turn On Continuous Packet
+    mbus_write_message32(0xAA,wkp_data_hdr);
+    disable_timerwd();
+    uint32_t test_i;
+    mrr_radio_power_on();
+    for(test_i=0; test_i<wkp_data_fld_0; test_i++){
+      mrrv3_r06.MRR_RAD_FSM_TX_DATA_0 = 0x535421;
+      mbus_remote_register_write(MRR_ADDR,0x06,mrrv3_r06.as_int);
+      mrrv3_r07.MRR_RAD_FSM_TX_DATA_1 = 0x005445;
+      mbus_remote_register_write(MRR_ADDR,0x07,mrrv3_r07.as_int);
+      mrr_send_packet();
+      delay(10000);
     }
-    else{
-      for(test_i = 0; test_i < 5000; test_i++){
-	//mrrv3_r00.MRR_CL_CTRL = 8; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
-	mbus_remote_register_write(0xA,0x00,0x000024);
-      }
-    }
-  }else if(wkp_data_hdr == 0x25){
-    //Random Testing
-    mbus_write_message32(0xAA,0x25);
-    mrrv3_r1C.LC_CLK_RING = wkp_data_fld_0;  // ~ 150 kHz
-    mrrv3_r1C.LC_CLK_DIV  = wkp_data_fld_1;  // ~ 150 kHz
-    mbus_remote_register_write(MRR_ADDR,0x1C,mrrv3_r1C.as_int);
-    operation_sleep_notimer();
-  }else if(wkp_data_hdr == 0x26){
-    //Random Testing
-    mbus_write_message32(0xAA,0x24);
-    delay(5000000);
-    mbus_write_message32(0xAA,0x24);
+    mrr_radio_power_off();
+    enable_timerwd();
     operation_sleep_notimer();
   }else{
     //Invalid GOC Header
