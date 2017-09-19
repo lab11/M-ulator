@@ -714,8 +714,8 @@ static void rdc_assert_pg(){
 //***************************************************
 static void operation_sleep(void){
 
-	// Reset IRQ14VEC
-	*((volatile uint32_t *) IRQ14VEC) = 0;
+	// Reset GOC_DATA_IRQ
+	*((volatile uint32_t *) GOC_DATA_IRQ) = 0;
 
     // Go to Sleep
     mbus_sleep_all();
@@ -1216,9 +1216,9 @@ int main() {
 	}
 
     // Check if wakeup is due to GOC interrupt  
-    // 0x78 is reserved for GOC-triggered wakeup (Named IRQ14VEC)
+    // 0x78 is reserved for GOC-triggered wakeup (Named GOC_DATA_IRQ)
     // 8 MSB bits of the wakeup data are used for function ID
-    wakeup_data = *((volatile uint32_t *) IRQ14VEC);
+    wakeup_data = *((volatile uint32_t *) GOC_DATA_IRQ);
     uint32_t wakeup_data_header = (wakeup_data>>24) & 0xFF;
     uint32_t wakeup_data_field_0 = wakeup_data & 0xFF;
     uint32_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;
@@ -1261,8 +1261,8 @@ int main() {
 		rdc_storage_count = 0;
 		radio_tx_count = 0;
 
-		// Reset IRQ14VEC
-		*((volatile uint32_t *) IRQ14VEC) = 0;
+		// Reset GOC_DATA_IRQ
+		*((volatile uint32_t *) GOC_DATA_IRQ) = 0;
         exec_count_irq = 0;
 
 		// Run Temp Sensor Program
@@ -1461,8 +1461,8 @@ int main() {
 		rdc_storage_count = 0;
 		radio_tx_count = 0;
 
-		// Reset IRQ14VEC
-		*((volatile uint32_t *) IRQ14VEC) = 0;
+		// Reset GOC_DATA_IRQ
+		*((volatile uint32_t *) GOC_DATA_IRQ) = 0;
         exec_count_irq = 0;
 
 		// Run Temp Sensor Program
