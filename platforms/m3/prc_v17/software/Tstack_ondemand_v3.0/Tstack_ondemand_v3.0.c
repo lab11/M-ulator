@@ -75,7 +75,7 @@
 #define RADIO_TIMEOUT_COUNT 50
 #define WAKEUP_PERIOD_RADIO_INIT 10
 
-#define TEMP_STORAGE_SIZE 700 // Need to leave about 500 Bytes for stack --> around 120
+#define TEMP_STORAGE_SIZE 500 // Need to leave about 500 Bytes for stack --> around 120
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y2 run default clock
 
@@ -84,6 +84,7 @@
 //********************************************************************
 // "static" limits the variables to this file, giving compiler more freedom
 // "volatile" should only be used for MMIO --> ensures memory storage
+volatile uint32_t irq_history;
 volatile uint32_t enumerated;
 volatile uint32_t wakeup_data;
 volatile uint32_t Tstack_state;
@@ -145,38 +146,74 @@ volatile prcv17_r0B_t prcv17_r0B = PRCv17_R0B_DEFAULT;
 //*******************************************************************
 // INTERRUPT HANDLERS
 //*******************************************************************
-void handler_ext_int_0(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_1(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_2(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_3(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_4(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_5(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_6(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_7(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_8(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_9(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_10(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_11(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_12(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_13(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_14(void) __attribute__ ((interrupt ("IRQ")));
 
-void handler_ext_int_0(void)  { *NVIC_ICPR = (0x1 << 0); wfi_timeout_flag = 1;} // TIMER32
-void handler_ext_int_1(void)  { *NVIC_ICPR = (0x1 << 1);  } // TIMER16
-void handler_ext_int_2(void)  { *NVIC_ICPR = (0x1 << 2); mbus_msg_flag = 0x10; } // REG0
-void handler_ext_int_3(void)  { *NVIC_ICPR = (0x1 << 3); mbus_msg_flag = 0x11; } // REG1
-void handler_ext_int_4(void)  { *NVIC_ICPR = (0x1 << 4); mbus_msg_flag = 0x12; } // REG2
-void handler_ext_int_5(void)  { *NVIC_ICPR = (0x1 << 5); mbus_msg_flag = 0x13; } // REG3
-void handler_ext_int_6(void)  { *NVIC_ICPR = (0x1 << 6); mbus_msg_flag = 0x14; } // REG4
-void handler_ext_int_7(void)  { *NVIC_ICPR = (0x1 << 7); mbus_msg_flag = 0x15; } // REG5
-void handler_ext_int_8(void)  { *NVIC_ICPR = (0x1 << 8); mbus_msg_flag = 0x16; } // REG6
-void handler_ext_int_9(void)  { *NVIC_ICPR = (0x1 << 9); mbus_msg_flag = 0x17; } // REG7
-void handler_ext_int_10(void) { *NVIC_ICPR = (0x1 << 10); } // MEM WR
-void handler_ext_int_11(void) { *NVIC_ICPR = (0x1 << 11); } // MBUS_RX
-void handler_ext_int_12(void) { *NVIC_ICPR = (0x1 << 12); } // MBUS_TX
-void handler_ext_int_13(void) { *NVIC_ICPR = (0x1 << 13); } // MBUS_FWD
-void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
+void handler_ext_int_wakeup   (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_softreset(void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_gocep    (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_timer32  (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_mbustx   (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_mbusrx   (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_mbusfwd  (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg0     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg1     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg2     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg3     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_mbusmem  (void) __attribute__ ((interrupt ("IRQ")));
 
+void handler_ext_int_timer32(void) { // TIMER32
+    *NVIC_ICPR = (0x1 << IRQ_TIMER32);
+    *REG1 = *TIMER32_CNT;
+    *REG2 = *TIMER32_STAT;
+    *TIMER32_STAT = 0x0;
+    arb_debug_reg(IRQ_TIMER32, 0x00000000);
+    arb_debug_reg(IRQ_TIMER32, (0x10 << 24) | *REG1); // TIMER32_CNT
+    arb_debug_reg(IRQ_TIMER32, (0x20 << 24) | *REG2); // TIMER32_STAT
+    }
+void handler_ext_int_reg0(void) { // REG0
+    *NVIC_ICPR = (0x1 << IRQ_REG0);
+    arb_debug_reg(IRQ_REG0, 0x00000000);
+}
+void handler_ext_int_reg1(void) { // REG1
+    *NVIC_ICPR = (0x1 << IRQ_REG1);
+    arb_debug_reg(IRQ_REG1, 0x00000000);
+}
+void handler_ext_int_reg2(void) { // REG2
+    *NVIC_ICPR = (0x1 << IRQ_REG2);
+    arb_debug_reg(IRQ_REG2, 0x00000000);
+}
+void handler_ext_int_reg3(void) { // REG3
+    *NVIC_ICPR = (0x1 << IRQ_REG3);
+    arb_debug_reg(IRQ_REG3, 0x00000000);
+}
+void handler_ext_int_mbusmem(void) { // MBUS_MEM_WR
+    *NVIC_ICPR = (0x1 << IRQ_MBUS_MEM);
+    arb_debug_reg(IRQ_MBUS_MEM, 0x00000000);
+}
+void handler_ext_int_mbusrx(void) { // MBUS_RX
+    *NVIC_ICPR = (0x1 << IRQ_MBUS_RX);
+    arb_debug_reg(IRQ_MBUS_RX, 0x00000000);
+}
+void handler_ext_int_mbustx(void) { // MBUS_TX
+    *NVIC_ICPR = (0x1 << IRQ_MBUS_TX);
+    arb_debug_reg(IRQ_MBUS_TX, 0x00000000);
+}
+void handler_ext_int_mbusfwd(void) { // MBUS_FWD
+    *NVIC_ICPR = (0x1 << IRQ_MBUS_FWD);
+    arb_debug_reg(IRQ_MBUS_FWD, 0x00000000);
+}
+void handler_ext_int_gocep(void) { // GOCEP
+    *NVIC_ICPR = (0x1 << IRQ_GOCEP);
+    arb_debug_reg(IRQ_GOCEP, 0x00000000);
+}
+void handler_ext_int_softreset(void) { // SOFT_RESET
+    *NVIC_ICPR = (0x1 << IRQ_SOFT_RESET);
+    arb_debug_reg(IRQ_SOFT_RESET, 0x00000000);
+}
+void handler_ext_int_wakeup(void) { // WAKE-UP
+    *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
+    arb_debug_reg(IRQ_WAKEUP, (0x10 << 24) | *SREG_WAKEUP_SOURCE);
+    *SREG_WAKEUP_SOURCE = 0;
+}
 
 //************************************
 // PMU Related Functions
@@ -866,20 +903,20 @@ static void operation_init(void){
 	mbus_write_message32(0xAA,0xABCD1234);
 
     // Set CPU Halt Option as RX --> Use for register read e.g.
-    set_halt_until_mbus_rx();
+    //set_halt_until_mbus_rx();
 
     //Enumeration
     mbus_enumerate(RAD_ADDR);
-	//delay(MBUS_DELAY);
+	delay(MBUS_DELAY);
     mbus_enumerate(SNS_ADDR);
-	//delay(MBUS_DELAY);
+	delay(MBUS_DELAY);
     mbus_enumerate(HRV_ADDR);
-	//delay(MBUS_DELAY);
+	delay(MBUS_DELAY);
  	mbus_enumerate(PMU_ADDR);
-	//delay(MBUS_DELAY);
+	delay(MBUS_DELAY);
 
     // Set CPU Halt Option as TX --> Use for register write e.g.
-	    set_halt_until_mbus_tx();
+	//set_halt_until_mbus_tx();
 
 	// PMU Settings ----------------------------------------------
 	set_pmu_clk_init();
