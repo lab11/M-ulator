@@ -39,7 +39,7 @@
 #include "PRCv17.h"
 #include "PRCv17_RF.h"
 #include "mbus.h"
-#include "SNSv10.h"
+#include "SNSv10_RF.h"
 #include "HRVv5.h"
 #include "RADv9.h"
 #include "PMUv7_RF.h"
@@ -54,11 +54,11 @@
 #define SNS_ADDR 0x5
 #define PMU_ADDR 0x6
 
-#define WAKEUP_PERIOD_PARKING 2000 // 200: ~200sec
+#define WAKEUP_PERIOD_PARKING 20000 // FIXME
 
 // Temp Sensor parameters
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
-#define WAKEUP_PERIOD_LDO 1
+#define WAKEUP_PERIOD_LDO 10
 #define TEMP_CYCLE_INIT 3 
 
 // Tstack states
@@ -73,9 +73,9 @@
 // Radio configurations
 #define RADIO_DATA_LENGTH 24
 #define RADIO_TIMEOUT_COUNT 50
-#define WAKEUP_PERIOD_RADIO_INIT 2
+#define WAKEUP_PERIOD_RADIO_INIT 10
 
-#define TEMP_STORAGE_SIZE 600 // Need to leave about 500 Bytes for stack --> around 120
+#define TEMP_STORAGE_SIZE 700 // Need to leave about 500 Bytes for stack --> around 120
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y2 run default clock
 
@@ -98,11 +98,6 @@ volatile uint32_t PMU_ADC_4P2_VAL;
 volatile uint32_t pmu_parkinglot_mode;
 volatile uint32_t pmu_harvesting_on;
 
-volatile snsv7_r14_t snsv7_r14 = SNSv7_R14_DEFAULT;
-volatile snsv7_r15_t snsv7_r15 = SNSv7_R15_DEFAULT;
-volatile snsv7_r18_t snsv7_r18 = SNSv7_R18_DEFAULT;
-volatile snsv7_r25_t snsv7_r25 = SNSv7_R25_DEFAULT;
-  
 volatile uint32_t WAKEUP_PERIOD_CONT_USER; 
 volatile uint32_t WAKEUP_PERIOD_CONT; 
 volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
@@ -116,7 +111,7 @@ volatile uint32_t temp_storage_count;
 volatile uint32_t temp_run_single;
 volatile uint32_t temp_running;
 volatile uint32_t set_temp_exec_count;
-volatile uint32_t read_data_reg11; // [23:0] Temp Sensor D Out
+volatile uint32_t read_data_temp; // [23:0] Temp Sensor D Out
 
 volatile uint32_t radio_tx_count;
 volatile uint32_t radio_tx_option;
@@ -126,6 +121,11 @@ volatile uint32_t radio_on;
 volatile uint32_t RADIO_PACKET_DELAY;
 
 volatile uint32_t read_data_batadc;
+
+volatile snsv10_r00_t snsv10_r00 = SNSv10_R00_DEFAULT;
+volatile snsv10_r01_t snsv10_r01 = SNSv10_R01_DEFAULT;
+volatile snsv10_r03_t snsv10_r03 = SNSv10_R03_DEFAULT;
+volatile snsv10_r17_t snsv10_r17 = SNSv10_R17_DEFAULT;
 
 volatile radv9_r0_t radv9_r0 = RADv9_R0_DEFAULT;
 volatile radv9_r1_t radv9_r1 = RADv9_R1_DEFAULT;
@@ -664,38 +664,52 @@ static void send_radio_data_ppm(uint32_t last_packet, uint32_t radio_data){
 }
 
 //***************************************************
-// Temp Sensor Functions (SNSv7)
+// Temp Sensor Functions (SNSv10)
 //***************************************************
 
-static void temp_sensor_enable(){
-	snsv7_r14.TEMP_SENSOR_ENABLEb = 0x0;
-	mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
+static void temp_sensor_start(){
+	snsv10_r01.TSNS_RESETn = 1;
+	mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
 }
-static void temp_sensor_disable(){
-	snsv7_r14.TEMP_SENSOR_ENABLEb = 1;
-	mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
+static void temp_sensor_reset(){
+	snsv10_r01.TSNS_RESETn = 0;
+	mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
 }
-static void temp_sensor_release_reset(){
-	snsv7_r14.TEMP_SENSOR_RESETn = 1;
-	snsv7_r14.TEMP_SENSOR_ISO = 0;
-	mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
+static void temp_sensor_power_on(){
+	// Turn on digital block
+	snsv10_r01.TSNS_SEL_LDO = 1;
+	mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
+	// Turn on analog block
+	snsv10_r01.TSNS_EN_SENSOR_LDO = 1;
+	mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
+
+	delay(MBUS_DELAY);
+
+	// Release isolation
+	snsv10_r01.TSNS_ISOLATE = 0;
+	mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
 }
-static void temp_sensor_assert_reset(){
-	snsv7_r14.TEMP_SENSOR_RESETn = 0;
-	snsv7_r14.TEMP_SENSOR_ISO = 1;
-	mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
+static void temp_sensor_power_off(){
+	snsv10_r01.TSNS_SEL_LDO = 0;
+	snsv10_r01.TSNS_EN_SENSOR_LDO = 0;
+	snsv10_r01.TSNS_ISOLATE = 1;
+	mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
 }
-static void ldo_power_off(){
-	snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB = 1;
-	snsv7_r18.ADC_LDO_ADC_LDO_ENB = 1;
-	mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
+static void sns_ldo_vref_on(){
+	snsv10_r00.LDO_EN_VREF 	= 1;
+	mbus_remote_register_write(SNS_ADDR,0,snsv10_r00.as_int);
 }
-static void temp_power_off(){
-	snsv7_r14.TEMP_SENSOR_ENABLEb = 1;
-	snsv7_r14.TEMP_SENSOR_RESETn = 0;
-	snsv7_r14.TEMP_SENSOR_ISO = 1;
-	mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
-	ldo_power_off();
+
+static void sns_ldo_power_on(){
+	snsv10_r00.LDO_EN_IREF 	= 1;
+	snsv10_r00.LDO_EN_TSNS_OUT	= 1;
+	mbus_remote_register_write(SNS_ADDR,0,snsv10_r00.as_int);
+}
+static void sns_ldo_power_off(){
+	snsv10_r00.LDO_EN_VREF 	= 0;
+	snsv10_r00.LDO_EN_IREF 	= 0;
+	snsv10_r00.LDO_EN_TSNS_OUT	= 0;
+	mbus_remote_register_write(SNS_ADDR,0,snsv10_r00.as_int);
 }
 
 
@@ -724,7 +738,7 @@ static void operation_sleep_noirqreset(void){
 static void operation_sleep_notimer(void){
     
     // Make sure LDO is off
-    ldo_power_off();
+    if (temp_running){sns_ldo_power_off();}
 	
     // Make sure Radio is off
     if (radio_on){radio_power_off();}
@@ -831,13 +845,12 @@ static void measure_wakeup_period(void){
 static void operation_init(void){
   
 	// Set CPU & Mbus Clock Speeds
-    prcv17_r0B.DSLP_CLK_GEN_FAST_MODE = 0x1; // Default 0x0
     prcv17_r0B.CLK_GEN_RING = 0x1; // Default 0x1
     prcv17_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
     prcv17_r0B.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
     prcv17_r0B.GOC_CLK_GEN_SEL_DIV = 0x0; // Default 0x0
     prcv17_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
-	*((volatile uint32_t *) REG_CLKGEN_TUNE ) = prcv17_r0B.as_int;
+	*REG_CLKGEN_TUNE = prcv17_r0B.as_int;
 
   
     //Enumerate & Initialize Registers
@@ -850,22 +863,23 @@ static void operation_init(void){
 	pmu_parkinglot_mode = 0;
 	pmu_harvesting_on = 1;
   
+	mbus_write_message32(0xAA,0xABCD1234);
+
     // Set CPU Halt Option as RX --> Use for register read e.g.
-//    set_halt_until_mbus_rx();
+    set_halt_until_mbus_rx();
 
     //Enumeration
-	delay(MBUS_DELAY);
     mbus_enumerate(RAD_ADDR);
-	delay(MBUS_DELAY);
+	//delay(MBUS_DELAY);
     mbus_enumerate(SNS_ADDR);
-	delay(MBUS_DELAY);
+	//delay(MBUS_DELAY);
     mbus_enumerate(HRV_ADDR);
-	delay(MBUS_DELAY);
+	//delay(MBUS_DELAY);
  	mbus_enumerate(PMU_ADDR);
-	delay(MBUS_DELAY);
+	//delay(MBUS_DELAY);
 
     // Set CPU Halt Option as TX --> Use for register write e.g.
-	//    set_halt_until_mbus_tx();
+	    set_halt_until_mbus_tx();
 
 	// PMU Settings ----------------------------------------------
 	set_pmu_clk_init();
@@ -886,32 +900,16 @@ static void operation_init(void){
 	delay(MBUS_DELAY);
 
     // Temp Sensor Settings --------------------------------------
-	// SNSv7_R25
-	snsv7_r25.TEMP_SENSOR_IRQ_PACKET = 0x001000;
-	mbus_remote_register_write(SNS_ADDR,0x19,snsv7_r25.as_int);
-	// SNSv7_R14
-	snsv7_r14.TEMP_SENSOR_BURST_MODE = 0x0;
-	snsv7_r14.TEMP_SENSOR_DELAY_SEL = 5;
-	snsv7_r14.TEMP_SENSOR_R_tmod = 0x0;
-	snsv7_r14.TEMP_SENSOR_R_bmod = 0x0;
-	mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
-	// snsv7_R15
-	snsv7_r15.TEMP_SENSOR_AMP_BIAS   = 0x7; // Default: 2
-	snsv7_r15.TEMP_SENSOR_CONT_MODEb = 0x0;
-	snsv7_r15.TEMP_SENSOR_SEL_CT     = 6;
-	mbus_remote_register_write(SNS_ADDR,0xF,snsv7_r15.as_int);
 
-	// snsv7_R18
-	snsv7_r18.ADC_LDO_ADC_LDO_ENB      = 0x1;
-	snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB  = 0x1;
-	snsv7_r18.ADC_LDO_ADC_CURRENT_2X   = 0x1;
-	snsv7_r18.ADC_LDO_ADC_VREF_MUX_SEL = 0x3; // Set ADC LDO to around 1.37V: 0x3//0x20
-	snsv7_r18.ADC_LDO_ADC_VREF_SEL     = 0x20; // Set ADC LDO to around 1.37V: 0x3//0x20
-	mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
+    // snsv10_r01
+    snsv10_r01.TSNS_EN_IRQ = 1;
+    snsv10_r01.TSNS_BURST_MODE = 0;
+    snsv10_r01.TSNS_CONT_MODE = 0;
+    mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
 
-	// Temp sensor Mbus return address; Needs to be between 0x18-0x1F
-    mbus_remote_register_write(SNS_ADDR,0x19,0x1800);
-
+	// Set temp sensor conversion time
+	//snsv10_r03.TSNS_SEL_CONV_TIME = 0xF;
+	//mbus_remote_register_write(SNS_ADDR,0x03,snsv10_r03.as_int);
 
     // Radio Settings --------------------------------------
 	radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
@@ -941,7 +939,7 @@ static void operation_init(void){
 
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 33750;   // 1: 2-4 sec with PRCv9
-    WAKEUP_PERIOD_CONT_INIT = 3;   // 0x1E (30): ~1 min with PRCv9
+    WAKEUP_PERIOD_CONT_INIT = 10;   // 
     temp_storage_count = 0;
     radio_tx_count = 0;
     radio_tx_option = 0; //enables radio tx for each measurement 
@@ -966,15 +964,11 @@ static void operation_init(void){
 
 
 //***************************************************
-// Temperature measurement operation (SNSv7)
+// Temperature measurement operation (SNSv10)
 //***************************************************
 static void operation_temp_run(void){
 
 	if (Tstack_state == TSTK_IDLE){
-		#ifdef DEBUG_MBUS_MSG 
-			mbus_write_message32(0xBB, 0xFBFB0000);
-			delay(MBUS_DELAY*10);
-		#endif
 		Tstack_state = TSTK_LDO;
 
 		wfi_timeout_flag = 0;
@@ -984,49 +978,27 @@ static void operation_temp_run(void){
 			radio_power_on();
 		}
 
-		snsv7_r18.ADC_LDO_ADC_LDO_ENB = 0x0;
-		mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
+		// Turn on SNS LDO VREF; requires settling
+		sns_ldo_vref_on();
 
 		// Put system to sleep
 		set_wakeup_timer(WAKEUP_PERIOD_LDO, 0x1, 0x1);
 		operation_sleep();
 
     }else if (Tstack_state == TSTK_LDO){
-		#ifdef DEBUG_MBUS_MSG
-			mbus_write_message32(0xBB, 0xFBFB1111);
-			delay(MBUS_DELAY*10);
-		#endif
-		Tstack_state = TSTK_TEMP_RSTRL;
-		snsv7_r18.ADC_LDO_ADC_LDO_DLY_ENB = 0x0;
-		mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
-		// Put system to sleep
-		set_wakeup_timer(WAKEUP_PERIOD_LDO, 0x1, 0x1);
-		operation_sleep();
+		Tstack_state = TSTK_TEMP_START;
 
-	}else if (Tstack_state == TSTK_TEMP_RSTRL){
-		#ifdef DEBUG_MBUS_MSG
-			mbus_write_message32(0xBB, 0xFBFB2222);
-			delay(MBUS_DELAY*10);
-		#endif
-		Tstack_state = TSTK_TEMP_READ;
+		// Power on SNS LDO
+		sns_ldo_power_on;
+		delay(MBUS_DELAY);
 
-		// Release Temp Sensor Reset
-		temp_sensor_release_reset();
+		// Power on temp sensor
+		temp_sensor_power_on();
 		delay(MBUS_DELAY);
 			
-		// Start Temp Sensor; fist measurement is in sleep
-		temp_sensor_enable();
-
-		// Put system to sleep
-		set_wakeup_timer(20, 0x1, 0x1); // FIXME timeout value should be set
-		operation_sleep();
 
 	}else if (Tstack_state == TSTK_TEMP_START){
 	// Start temp measurement
-	#ifdef DEBUG_MBUS_MSG
-		mbus_write_message32(0xBB, 0xFBFB3333);
-		delay(MBUS_DELAY*10);
-	#endif
 
 		mbus_msg_flag = 0;
 		wfi_timeout_flag = 0;
@@ -1035,7 +1007,7 @@ static void operation_temp_run(void){
 		config_timer32(0x20000, 1, 0, 0); // 1/10 of MBUS watchdog timer default
 
 		// Start Temp Sensor
-		temp_sensor_enable();
+		temp_sensor_start();
 
 		// Wait for temp sensor output
 		WFI();
@@ -1045,16 +1017,16 @@ static void operation_temp_run(void){
 		Tstack_state = TSTK_TEMP_READ;
 
 	}else if (Tstack_state == TSTK_TEMP_READ){
-		#ifdef DEBUG_MBUS_MSG
-			mbus_write_message32(0xBB, 0xFBFB4444);
-			delay(MBUS_DELAY*10);
-		#endif
 
 		// Grab Temp Sensor Data
 		if (wfi_timeout_flag){
 			mbus_write_message32(0xFA, 0xFAFAFAFA);
 		}else{
-			read_data_reg11 = *((volatile uint32_t *) 0xA0000000);
+			// Read register
+			set_halt_until_mbus_rx();
+			mbus_remote_register_read(SNS_ADDR,0x6,1);
+			read_data_temp = *REG1;
+			set_halt_until_mbus_tx();
 		}
 		meas_count++;
 
@@ -1065,7 +1037,7 @@ static void operation_temp_run(void){
 				temp_storage_latest = 0x666;
 				wfi_timeout_flag = 0;
 			}else{
-				temp_storage_latest = read_data_reg11;
+				temp_storage_latest = read_data_temp;
 
 				// Record temp difference from last wakeup adjustment
 				if (temp_storage_latest > temp_storage_last_wakeup_adjust){
@@ -1081,7 +1053,7 @@ static void operation_temp_run(void){
 				// FIXME: for now, do this every time					
 				//measure_wakeup_period();
 				
-				if ((temp_storage_diff > 10) || (exec_count < 2)){
+				if ((temp_storage_diff > 20) || (exec_count < 2)){
 					measure_wakeup_period();
 					temp_storage_last_wakeup_adjust = temp_storage_latest;
 				}
@@ -1092,14 +1064,15 @@ static void operation_temp_run(void){
 		// Option to take multiple measurements per wakeup
 		if (meas_count < NUM_TEMP_MEAS){	
 			// Repeat measurement while awake
-			temp_sensor_disable();
+			temp_sensor_reset();
 			Tstack_state = TSTK_TEMP_START;
 				
 		}else{
 			meas_count = 0;
 
 			// Assert temp sensor isolation & turn off temp sensor power
-			temp_power_off();
+			temp_sensor_power_off();
+			sns_ldo_power_off();
 			Tstack_state = TSTK_IDLE;
 
 			#ifdef DEBUG_MBUS_MSG_1
@@ -1165,8 +1138,8 @@ static void operation_temp_run(void){
     }else{
         //default:  // THIS SHOULD NOT HAPPEN
 		// Reset Temp Sensor 
-		temp_sensor_assert_reset();
-		temp_power_off();
+		temp_sensor_power_off();
+		sns_ldo_power_off();
 		operation_sleep_notimer();
     }
 
@@ -1185,8 +1158,8 @@ static void operation_goc_trigger_init(void){
 	Tstack_state = TSTK_IDLE;
 	
 	radio_power_off();
-	ldo_power_off();
-	temp_power_off();
+	temp_sensor_power_off();
+	sns_ldo_power_off();
 }
 
 static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_timer_val, uint32_t radio_tx_prefix, uint32_t radio_tx_data){
@@ -1222,9 +1195,6 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
 
 int main() {
 
-    // Reset Wakeup Timer; This is required for PRCv13
-    //set_wakeup_timer(200, 0, 1);
-
     // Initialize Interrupts
     // Only enable register-related interrupts
 	//enable_reg_irq();
@@ -1235,8 +1205,6 @@ int main() {
 
     // Initialization sequence
     if (enumerated != 0xDEADBEE5){
-        // Set up PMU/GOC register in PRC layer (every time)
-        // Enumeration & RAD/SNS layer register configuration
         operation_init();
     }
 
@@ -1248,7 +1216,7 @@ int main() {
 	}
 
     // Check if wakeup is due to GOC interrupt  
-    // 0x78 is reserved for GOC-triggered wakeup (Named GOC_DATA_IRQ)
+    // 0x8C is reserved for GOC-triggered wakeup (Named GOC_DATA_IRQ)
     // 8 MSB bits of the wakeup data are used for function ID
     wakeup_data = *((volatile uint32_t *) GOC_DATA_IRQ);
     uint32_t wakeup_data_header = (wakeup_data>>24) & 0xFF;

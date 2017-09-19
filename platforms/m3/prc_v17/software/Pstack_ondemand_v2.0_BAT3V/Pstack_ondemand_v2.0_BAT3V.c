@@ -65,17 +65,6 @@ volatile uint32_t pmu_harvesting_on;
 volatile uint32_t pmu_sar_conv_ratio_val;
 volatile uint32_t read_data_batadc;
 
-volatile rdcv1_r11_t rdcv1_r11 = RDCv1_R11_DEFAULT;
-volatile rdcv1_r12_t rdcv1_r12 = RDCv1_R12_DEFAULT;
-volatile rdcv1_r13_t rdcv1_r13 = RDCv1_R13_DEFAULT;
-volatile rdcv1_r14_t rdcv1_r14 = RDCv1_R14_DEFAULT;
-volatile rdcv1_r15_t rdcv1_r15 = RDCv1_R15_DEFAULT;
-volatile rdcv1_r16_t rdcv1_r16 = RDCv1_R16_DEFAULT;
-volatile rdcv1_r1A_t rdcv1_r1A = RDCv1_R1A_DEFAULT;
-volatile rdcv1_r1B_t rdcv1_r1B = RDCv1_R1B_DEFAULT;
-volatile rdcv1_r1C_t rdcv1_r1C = RDCv1_R1C_DEFAULT;
-volatile rdcv1_r1D_t rdcv1_r1D = RDCv1_R1D_DEFAULT;
-  
 volatile uint32_t WAKEUP_PERIOD_CONT_USER; 
 volatile uint32_t WAKEUP_PERIOD_CONT; 
 volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
@@ -95,6 +84,22 @@ volatile uint32_t radio_ready;
 volatile uint32_t radio_on;
 volatile uint32_t RADIO_PACKET_DELAY;
 
+volatile snsv10_r00_t snsv10_r00 = SNSv10_R00_DEFAULT;
+volatile snsv10_r01_t snsv10_r01 = SNSv10_R01_DEFAULT;
+volatile snsv10_r03_t snsv10_r03 = SNSv10_R03_DEFAULT;
+volatile snsv10_r17_t snsv10_r17 = SNSv10_R17_DEFAULT;
+
+volatile rdcv1_r11_t rdcv1_r11 = RDCv1_R11_DEFAULT;
+volatile rdcv1_r12_t rdcv1_r12 = RDCv1_R12_DEFAULT;
+volatile rdcv1_r13_t rdcv1_r13 = RDCv1_R13_DEFAULT;
+volatile rdcv1_r14_t rdcv1_r14 = RDCv1_R14_DEFAULT;
+volatile rdcv1_r15_t rdcv1_r15 = RDCv1_R15_DEFAULT;
+volatile rdcv1_r16_t rdcv1_r16 = RDCv1_R16_DEFAULT;
+volatile rdcv1_r1A_t rdcv1_r1A = RDCv1_R1A_DEFAULT;
+volatile rdcv1_r1B_t rdcv1_r1B = RDCv1_R1B_DEFAULT;
+volatile rdcv1_r1C_t rdcv1_r1C = RDCv1_R1C_DEFAULT;
+volatile rdcv1_r1D_t rdcv1_r1D = RDCv1_R1D_DEFAULT;
+  
 volatile radv9_r0_t radv9_r0 = RADv9_R0_DEFAULT;
 volatile radv9_r1_t radv9_r1 = RADv9_R1_DEFAULT;
 volatile radv9_r2_t radv9_r2 = RADv9_R2_DEFAULT;
@@ -843,7 +848,6 @@ static void measure_wakeup_period(void){
 static void operation_init(void){
   
 	// Set CPU & Mbus Clock Speeds
-    prcv17_r0B.DSLP_CLK_GEN_FAST_MODE = 0x1; // Default 0x0
     prcv17_r0B.CLK_GEN_RING = 0x1; // Default 0x1
     prcv17_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
     prcv17_r0B.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
