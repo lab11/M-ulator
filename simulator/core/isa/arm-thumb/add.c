@@ -74,7 +74,7 @@ static void add_reg_t1(uint16_t inst) {
 // arm-thumb
 static void add_reg_t2(uint16_t inst) {
 	uint8_t rm = (inst & 0x78) >> 3;
-	uint8_t rd = (((inst & 0x80) >> 7) | ((inst & 0x7) >> 0));
+	uint8_t rd = (((inst & 0x80) >> 4) | ((inst & 0x7) >> 0));
 
 	if ((rd == 13) || (rm == 13))
 		CORE_ERR_not_implemented("add_reg_t2 -> SP+reg\n");
