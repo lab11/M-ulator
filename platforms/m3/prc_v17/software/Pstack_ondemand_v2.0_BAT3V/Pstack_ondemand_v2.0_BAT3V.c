@@ -43,6 +43,7 @@
 #define RDC_NUM_MEAS 3 
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y2 run default clock
+#define TIMER32_VAL 0x20000 // 0x20000 about 1 sec with Y5 run default clock
 
 //********************************************************************
 // Global Variables
@@ -56,7 +57,6 @@ volatile uint32_t wfi_timeout_flag;
 volatile uint32_t exec_count;
 volatile uint32_t meas_count;
 volatile uint32_t exec_count_irq;
-volatile uint32_t mbus_msg_flag;
 volatile uint32_t wakeup_period_count;
 volatile uint32_t wakeup_timer_multiplier;
 volatile uint32_t PMU_ADC_3P0_VAL;
@@ -114,39 +114,43 @@ volatile radv9_r14_t radv9_r14 = RADv9_R14_DEFAULT;
 volatile prcv17_r0B_t prcv17_r0B = PRCv17_R0B_DEFAULT;
 
 //*******************************************************************
-// INTERRUPT HANDLERS
+// INTERRUPT HANDLERS (Updated for PRCv17)
 //*******************************************************************
-void handler_ext_int_0(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_1(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_2(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_3(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_4(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_5(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_6(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_7(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_8(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_9(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_10(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_11(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_12(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_13(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_14(void) __attribute__ ((interrupt ("IRQ")));
 
-void handler_ext_int_0(void)  { *NVIC_ICPR = (0x1 << 0); wfi_timeout_flag = 1;} // TIMER32
-void handler_ext_int_1(void)  { *NVIC_ICPR = (0x1 << 1);  } // TIMER16
-void handler_ext_int_2(void)  { *NVIC_ICPR = (0x1 << 2); mbus_msg_flag = 0x10; } // REG0
-void handler_ext_int_3(void)  { *NVIC_ICPR = (0x1 << 3); mbus_msg_flag = 0x11; } // REG1
-void handler_ext_int_4(void)  { *NVIC_ICPR = (0x1 << 4); mbus_msg_flag = 0x12; } // REG2
-void handler_ext_int_5(void)  { *NVIC_ICPR = (0x1 << 5); mbus_msg_flag = 0x13; } // REG3
-void handler_ext_int_6(void)  { *NVIC_ICPR = (0x1 << 6); mbus_msg_flag = 0x14; } // REG4
-void handler_ext_int_7(void)  { *NVIC_ICPR = (0x1 << 7); mbus_msg_flag = 0x15; } // REG5
-void handler_ext_int_8(void)  { *NVIC_ICPR = (0x1 << 8); mbus_msg_flag = 0x16; } // REG6
-void handler_ext_int_9(void)  { *NVIC_ICPR = (0x1 << 9); mbus_msg_flag = 0x17; } // REG7
-void handler_ext_int_10(void) { *NVIC_ICPR = (0x1 << 10); } // MEM WR
-void handler_ext_int_11(void) { *NVIC_ICPR = (0x1 << 11); } // MBUS_RX
-void handler_ext_int_12(void) { *NVIC_ICPR = (0x1 << 12); } // MBUS_TX
-void handler_ext_int_13(void) { *NVIC_ICPR = (0x1 << 13); } // MBUS_FWD
-void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
+void handler_ext_int_wakeup   (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_gocep    (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_timer32  (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg0     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg1     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg2     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg3     (void) __attribute__ ((interrupt ("IRQ")));
+
+void handler_ext_int_timer32(void) { // TIMER32
+    *NVIC_ICPR = (0x1 << IRQ_TIMER32);
+    *REG1 = *TIMER32_CNT;
+    *REG2 = *TIMER32_STAT;
+    *TIMER32_STAT = 0x0;
+	wfi_timeout_flag = 1;
+    }
+void handler_ext_int_reg0(void) { // REG0
+    *NVIC_ICPR = (0x1 << IRQ_REG0);
+}
+void handler_ext_int_reg1(void) { // REG1
+    *NVIC_ICPR = (0x1 << IRQ_REG1);
+}
+void handler_ext_int_reg2(void) { // REG2
+    *NVIC_ICPR = (0x1 << IRQ_REG2);
+}
+void handler_ext_int_reg3(void) { // REG3
+    *NVIC_ICPR = (0x1 << IRQ_REG3);
+}
+void handler_ext_int_gocep(void) { // GOCEP
+    *NVIC_ICPR = (0x1 << IRQ_GOCEP);
+}
+void handler_ext_int_wakeup(void) { // WAKE-UP
+    *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
+    *SREG_WAKEUP_SOURCE = 0;
+}
 
 
 //************************************
@@ -641,10 +645,9 @@ static void send_radio_data_ppm(uint32_t last_packet, uint32_t radio_data){
     }
 
 	// Use Timer32 as timeout counter
-	config_timer32(0x20000, 1, 0, 0); // 1/10 of MBUS watchdog timer default
+	config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
 
     // Fire off data
-    mbus_msg_flag = 0;
 	wfi_timeout_flag = 0;
     radv9_r13.RAD_FSM_ENABLE = 1;
     mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
@@ -861,7 +864,6 @@ static void operation_init(void){
     enumerated = 0xDEADBEE1;
     exec_count = 0;
     exec_count_irq = 0;
-    mbus_msg_flag = 0;
 	PMU_ADC_3P0_VAL = 0x62;
 	pmu_parkinglot_mode = 3;
 	pmu_harvesting_on = 1;
@@ -1016,7 +1018,6 @@ static void operation_rdc_run(void){
 	}else if (Pstack_state == PSTK_RDC_RUN){
 	// Start RDC measurement
 
-		mbus_msg_flag = 0;
 		wfi_timeout_flag = 0;
 
 		if (meas_count == 0){
@@ -1033,7 +1034,7 @@ static void operation_rdc_run(void){
 		}
 
 		// Use Timer32 as timeout counter
-		config_timer32(0x20000, 1, 0, 0); // 1/10 of MBUS watchdog timer default
+		config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
 
 		// Start RDC
 		rdc_enable();
