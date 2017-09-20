@@ -19,7 +19,7 @@ LDFLAGS += -lelf
 #: {objs} $(SUBS) |> !ld |> simulator
 #!ld = |> ^ LINK %o^ $(CC) $(LDFLAGS) %f -o %o |>
 ifeq (@(DEBUG_SYMBOLS),y)
-: <objs> <cli_objs> |> ^c LINK %o^ $(CC) %<objs> %<cli_objs> $(LDFLAGS) -o %o |> simulator
+: <objs> <cpu_objs> <cli_objs> |> ^c LINK %o^ $(CC) %<objs> %<cpu_objs> %<cli_objs> $(LDFLAGS) -o %o |> simulator
 else
-: <objs> <cli_objs> |> ^ LINK %o^ $(CC) %<objs> %<cli_objs> $(LDFLAGS) -o %o |> simulator
+: <objs> <cpu_objs> <cli_objs> |> ^ LINK %o^ $(CC) %<objs> %<cpu_objs> %<cli_objs> $(LDFLAGS) -o %o |> simulator
 endif

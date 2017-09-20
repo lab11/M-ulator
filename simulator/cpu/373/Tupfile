@@ -1,5 +1,5 @@
 ifeq (@(PLATFORM),373)
 include_rules
 
-: foreach *.c |> !cc |> %B.o ../../<objs>
+: foreach *.c |> !cc |> %B.o ../../<cpu_objs>
 endif

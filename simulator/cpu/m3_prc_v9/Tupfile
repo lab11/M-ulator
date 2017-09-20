@@ -5,5 +5,5 @@ include_rules
 #CFLAGS += `python2-config --includes`
 #endif
 
-: foreach *.c |> !cc |> %B.o ../../<objs>
+: foreach *.c |> !cc |> %B.o ../../<cpu_objs>
 endif
