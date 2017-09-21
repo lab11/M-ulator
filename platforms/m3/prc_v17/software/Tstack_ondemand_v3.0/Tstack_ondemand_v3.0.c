@@ -102,7 +102,7 @@ volatile uint32_t WAKEUP_PERIOD_CONT_INIT;
 
 //volatile uint32_t temp_meas_data[NUM_TEMP_MEAS] = {0};
 volatile uint32_t temp_storage[TEMP_STORAGE_SIZE] = {0};
-volatile uint32_t temp_storage_latest = 2000;
+volatile uint32_t temp_storage_latest = 2000; // FIXME
 volatile uint32_t temp_storage_last_wakeup_adjust = 2000;
 volatile uint32_t temp_storage_diff = 0;
 volatile uint32_t temp_storage_count;
