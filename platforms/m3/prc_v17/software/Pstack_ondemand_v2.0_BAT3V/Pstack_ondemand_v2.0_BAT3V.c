@@ -17,16 +17,17 @@
 // #define DEBUG_MBUS_MSG
 //#define DEBUG_MBUS_MSG_1
 
-// TStack order  PRC->RAD->SNS->PMU
+// TStack order  PRC->RAD->SNS->RDC->PMU
 #define RAD_ADDR 0x4
-#define RDC_ADDR 0x5
+#define SNS_ADDR 0x5
 #define PMU_ADDR 0x6
+#define RDC_ADDR 0x7
 
-#define WAKEUP_PERIOD_PARKING 2000 // 200: ~200sec
+#define WAKEUP_PERIOD_PARKING 30000 // About 2 hoours (PRCv17)
 
 // System parameters
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
-#define WAKEUP_PERIOD_LDO 1
+#define WAKEUP_PERIOD_LDO 5 // About 1 sec (PRCv17)
 #define RDC_CYCLE_INIT 3 
 
 // Pstack states
@@ -36,20 +37,20 @@
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 24
-#define RADIO_TIMEOUT_COUNT 50
-#define WAKEUP_PERIOD_RADIO_INIT 2
+#define WAKEUP_PERIOD_RADIO_INIT 10 // About 2 sec (PRCv17)
 
 #define RDC_STORAGE_SIZE 600 // Need to leave about 500 Bytes for stack --> around 120 words
 #define RDC_NUM_MEAS 3 
 
-#define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y2 run default clock
-#define TIMER32_VAL 0x20000 // 0x20000 about 1 sec with Y5 run default clock
+#define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y5 run default clock (PRCv17)
+#define TIMER32_VAL 0x20000 // 0x20000 about 1 sec with Y5 run default clock (PRCv17)
 
 //********************************************************************
 // Global Variables
 //********************************************************************
 // "static" limits the variables to this file, giving compiler more freedom
 // "volatile" should only be used for MMIO --> ensures memory storage
+volatile uint32_t irq_history;
 volatile uint32_t enumerated;
 volatile uint32_t wakeup_data;
 volatile uint32_t Pstack_state;
@@ -723,7 +724,7 @@ static void rdc_assert_pg(){
 static void operation_sleep(void){
 
 	// Reset GOC_DATA_IRQ
-	*((volatile uint32_t *) GOC_DATA_IRQ) = 0;
+	*GOC_DATA_IRQ = 0;
 
     // Go to Sleep
     mbus_sleep_all();
@@ -767,9 +768,7 @@ static void operation_tx_stored(void){
     while(((!radio_tx_numdata)&&(radio_tx_count > 0)) | ((radio_tx_numdata)&&((radio_tx_numdata+radio_tx_count) > rdc_storage_count))){
 		#ifdef DEBUG_MBUS_MSG_1
 			mbus_write_message32(0xDD, radio_tx_count);
-			delay(MBUS_DELAY);
 			mbus_write_message32(0xDD, rdc_storage[radio_tx_count]);
-			delay(MBUS_DELAY);
 		#endif
 
 		// Reset watchdog timer
@@ -824,27 +823,28 @@ uint32_t dumb_divide(uint32_t nu, uint32_t de) {
 static void measure_wakeup_period(void){
 
 	mbus_write_message32(0xE0, 0x0);
-	// Prevent watchdog kicking in
-   	config_timerwd(TIMERWD_VAL);
+	// Prevent watchdogs from kicking in
+   	config_timerwd(TIMERWD_VAL*2);
+	*REG_MBUS_WD = 1500000*3; // default: 1500000
 
-	uint32_t wakeup_timer_val_0 = *((volatile uint32_t *) REG_WUPT_VAL);
+	uint32_t wakeup_timer_val_0 = *REG_WUPT_VAL;
 	wakeup_period_count = 0;
 
-	while( *((volatile uint32_t *) REG_WUPT_VAL) == wakeup_timer_val_0){
+	while( *REG_WUPT_VAL == wakeup_timer_val_0){
 		wakeup_period_count = 0;
 	}
-	wakeup_timer_val_0++;
-	mbus_write_message32(0xE1, wakeup_timer_val_0);
-	while( *((volatile uint32_t *) REG_WUPT_VAL) == wakeup_timer_val_0){
+	while( *REG_WUPT_VAL == wakeup_timer_val_0 + 1){
+		wakeup_period_count = 0;
+	}
+	while( *REG_WUPT_VAL == wakeup_timer_val_0 + 2){
 		wakeup_period_count++;
 	}
+	mbus_write_message32(0xE1, wakeup_timer_val_0);
 	mbus_write_message32(0xE2, wakeup_period_count);
-	delay(MBUS_DELAY);
 
    	config_timerwd(TIMERWD_VAL);
-	WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*10, wakeup_period_count);
+	WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*7, wakeup_period_count);
 	mbus_write_message32(0xED, WAKEUP_PERIOD_CONT); 
-	delay(MBUS_DELAY);
 }
 
 
@@ -861,7 +861,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Pstack_state = PSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEE1;
+    enumerated = 0xDEADBEE0;
     exec_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_3P0_VAL = 0x62;
@@ -872,8 +872,9 @@ static void operation_init(void){
 //    set_halt_until_mbus_rx();
 
     //Enumeration
-	delay(MBUS_DELAY);
     mbus_enumerate(RAD_ADDR);
+	delay(MBUS_DELAY);
+    mbus_enumerate(SNS_ADDR);
 	delay(MBUS_DELAY);
     mbus_enumerate(RDC_ADDR);
 	delay(MBUS_DELAY);
@@ -1081,13 +1082,6 @@ static void operation_rdc_run(void){
 			mbus_write_message32(0xCC, exec_count);
 			mbus_write_message32(0xC1, rdc_data[median_idx]);
 				
-			#ifdef DEBUG_MBUS_MSG_1
-				mbus_write_message32(0xCC, exec_count);
-				delay(MBUS_DELAY);
-				mbus_write_message32(0xC0, read_data_rdc);
-				delay(MBUS_DELAY);
-			#endif
-
 			exec_count++;
 
 			// Store results in memory; unless buffer is full
@@ -1195,21 +1189,16 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
 
 int main() {
 
-    // Reset Wakeup Timer; This is required for PRCv13
-    //set_wakeup_timer(200, 0, 1);
-
-    // Initialize Interrupts
-    // Only enable register-related interrupts
+    // Only enable relevant interrupts (PRCv17)
 	//enable_reg_irq();
-	enable_all_irq();
+	//enable_all_irq();
+	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3);
   
     // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEE1){
-        // Set up PMU/GOC register in PRC layer (every time)
-        // Enumeration & RAD/SNS layer register configuration
+    if (enumerated != 0xDEADBEE0){
         operation_init();
     }
 
@@ -1221,9 +1210,9 @@ int main() {
 	}
 
     // Check if wakeup is due to GOC interrupt  
-    // 0x78 is reserved for GOC-triggered wakeup (Named GOC_DATA_IRQ)
+    // 0x8C is reserved for GOC-triggered wakeup (Named GOC_DATA_IRQ)
     // 8 MSB bits of the wakeup data are used for function ID
-    wakeup_data = *((volatile uint32_t *) GOC_DATA_IRQ);
+    wakeup_data = *GOC_DATA_IRQ;
     uint32_t wakeup_data_header = (wakeup_data>>24) & 0xFF;
     uint32_t wakeup_data_field_0 = wakeup_data & 0xFF;
     uint32_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;
@@ -1267,7 +1256,7 @@ int main() {
 		radio_tx_count = 0;
 
 		// Reset GOC_DATA_IRQ
-		*((volatile uint32_t *) GOC_DATA_IRQ) = 0;
+		*GOC_DATA_IRQ = 0;
         exec_count_irq = 0;
 
 		// Run Temp Sensor Program
@@ -1467,7 +1456,7 @@ int main() {
 		radio_tx_count = 0;
 
 		// Reset GOC_DATA_IRQ
-		*((volatile uint32_t *) GOC_DATA_IRQ) = 0;
+		*GOC_DATA_IRQ = 0;
         exec_count_irq = 0;
 
 		// Run Temp Sensor Program

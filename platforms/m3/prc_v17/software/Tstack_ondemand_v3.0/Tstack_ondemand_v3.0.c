@@ -57,7 +57,7 @@
 
 // Temp Sensor parameters
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
-#define WAKEUP_PERIOD_LDO 5 // About 1 sec
+#define WAKEUP_PERIOD_LDO 5 // About 1 sec (PRCv17)
 #define TEMP_CYCLE_INIT 3 
 
 // Tstack states
@@ -70,7 +70,7 @@
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 24
-#define WAKEUP_PERIOD_RADIO_INIT 10 // About 2 sec
+#define WAKEUP_PERIOD_RADIO_INIT 10 // About 2 sec (PRCv17)
 
 #define TEMP_STORAGE_SIZE 700 // Need to leave about 500 Bytes for stack --> around 120
 
@@ -720,7 +720,7 @@ static void sns_ldo_power_off(){
 static void operation_sleep(void){
 
 	// Reset GOC_DATA_IRQ
-	*((volatile uint32_t *) GOC_DATA_IRQ) = 0;
+	*GOC_DATA_IRQ = 0;
 
     // Go to Sleep
     mbus_sleep_all();
@@ -839,7 +839,6 @@ static void measure_wakeup_period(void){
    	config_timerwd(TIMERWD_VAL);
 	WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*7, wakeup_period_count);
 	mbus_write_message32(0xED, WAKEUP_PERIOD_CONT); 
-	delay(MBUS_DELAY);
 }
 
 
@@ -856,15 +855,13 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEE5;
+    enumerated = 0xDEADBEE0;
     exec_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_4P2_VAL = 0x4B;
 	pmu_parkinglot_mode = 0;
 	pmu_harvesting_on = 1;
   
-	mbus_write_message32(0xAA,0xABCD1234);
-
     // Set CPU Halt Option as RX --> Use for register read e.g.
     //set_halt_until_mbus_rx();
 
@@ -1191,18 +1188,16 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
 
 int main() {
 
-    // Only enable relevant interrupts
+    // Only enable relevant interrupts (PRCv17)
 	//enable_reg_irq();
 	//enable_all_irq();
-
-	// New to PRCv17
 	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3);
   
     // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEE5){
+    if (enumerated != 0xDEADBEE0){
         operation_init();
     }
 
@@ -1261,7 +1256,7 @@ int main() {
 		radio_tx_count = 0;
 
 		// Reset GOC_DATA_IRQ
-		*((volatile uint32_t *) GOC_DATA_IRQ) = 0;
+		*GOC_DATA_IRQ = 0;
         exec_count_irq = 0;
 
 		// Run Temp Sensor Program
@@ -1448,7 +1443,7 @@ int main() {
 		radio_tx_count = 0;
 
 		// Reset GOC_DATA_IRQ
-		*((volatile uint32_t *) GOC_DATA_IRQ) = 0;
+		*GOC_DATA_IRQ = 0;
         exec_count_irq = 0;
 
 		// Run Temp Sensor Program
