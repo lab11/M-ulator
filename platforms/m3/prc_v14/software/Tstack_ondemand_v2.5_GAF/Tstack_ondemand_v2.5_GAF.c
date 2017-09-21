@@ -49,10 +49,10 @@
 #define DEBUG_MBUS_MSG_1
 
 // TStack order  PRC->RAD->SNS->HRV->PMU
-#define HRV_ADDR 0x3
+#define HRV_ADDR 0x7
 #define RAD_ADDR 0x4
 #define SNS_ADDR 0x5
-#define PMU_ADDR 0x6
+#define PMU_ADDR 0x3
 
 #define WAKEUP_PERIOD_PARKING 2000 // 200: ~200sec
 
@@ -902,7 +902,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEE0;
+    enumerated = 0xDEADBEE1;
     exec_count = 0;
     exec_count_irq = 0;
     mbus_msg_flag = 0;
@@ -1317,7 +1317,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEE0){
+    if (enumerated != 0xDEADBEE1){
         // Set up PMU/GOC register in PRC layer (every time)
         // Enumeration & RAD/SNS layer register configuration
         operation_init();
