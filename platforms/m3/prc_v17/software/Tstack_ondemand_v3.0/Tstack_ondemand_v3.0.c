@@ -45,8 +45,7 @@
 #include "PMUv7_RF.h"
 
 // uncomment this for debug mbus message
-// #define DEBUG_MBUS_MSG
-#define DEBUG_MBUS_MSG_1
+//#define DEBUG_MBUS_MSG_1
 
 // TStack order  PRC->RAD->SNS->HRV->PMU
 #define HRV_ADDR 0x3
@@ -54,11 +53,11 @@
 #define SNS_ADDR 0x5
 #define PMU_ADDR 0x6
 
-#define WAKEUP_PERIOD_PARKING 20000 // FIXME
+#define WAKEUP_PERIOD_PARKING 30000 // About 2 hoours (PRCv17)
 
 // Temp Sensor parameters
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
-#define WAKEUP_PERIOD_LDO 10 // FIXME
+#define WAKEUP_PERIOD_LDO 5 // About 1 sec
 #define TEMP_CYCLE_INIT 3 
 
 // Tstack states
@@ -71,13 +70,12 @@
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 24
-#define RADIO_TIMEOUT_COUNT 50
-#define WAKEUP_PERIOD_RADIO_INIT 10
+#define WAKEUP_PERIOD_RADIO_INIT 10 // About 2 sec
 
 #define TEMP_STORAGE_SIZE 700 // Need to leave about 500 Bytes for stack --> around 120
 
-#define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y2 run default clock
-#define TIMER32_VAL 0x20000 // 0x20000 about 1 sec with Y5 run default clock
+#define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y5 run default clock (PRCv17)
+#define TIMER32_VAL 0x20000 // 0x20000 about 1 sec with Y5 run default clock (PRCv17)
 
 //********************************************************************
 // Global Variables
@@ -766,9 +764,7 @@ static void operation_tx_stored(void){
     while(((!radio_tx_numdata)&&(radio_tx_count > 0)) | ((radio_tx_numdata)&&((radio_tx_numdata+radio_tx_count) > temp_storage_count))){
 		#ifdef DEBUG_MBUS_MSG_1
 			mbus_write_message32(0xDD, radio_tx_count);
-			delay(MBUS_DELAY);
 			mbus_write_message32(0xDD, temp_storage[radio_tx_count]);
-			delay(MBUS_DELAY);
 		#endif
 
 		// Reset watchdog timer
@@ -821,25 +817,27 @@ uint32_t dumb_divide(uint32_t nu, uint32_t de) {
 static void measure_wakeup_period(void){
 
 	mbus_write_message32(0xE0, 0x0);
-	// Prevent watchdog kicking in
-   	config_timerwd(TIMERWD_VAL);
+	// Prevent watchdogs from kicking in
+   	config_timerwd(TIMERWD_VAL*2);
+	*REG_MBUS_WD = 1500000*3; // default: 1500000
 
-	uint32_t wakeup_timer_val_0 = *((volatile uint32_t *) REG_WUPT_VAL);
+	uint32_t wakeup_timer_val_0 = *REG_WUPT_VAL;
 	wakeup_period_count = 0;
 
-	while( *((volatile uint32_t *) REG_WUPT_VAL) == wakeup_timer_val_0){
+	while( *REG_WUPT_VAL == wakeup_timer_val_0){
 		wakeup_period_count = 0;
 	}
-	wakeup_timer_val_0++;
-	mbus_write_message32(0xE1, wakeup_timer_val_0);
-	while( *((volatile uint32_t *) REG_WUPT_VAL) == wakeup_timer_val_0){
+	while( *REG_WUPT_VAL == wakeup_timer_val_0 + 1){
+		wakeup_period_count = 0;
+	}
+	while( *REG_WUPT_VAL == wakeup_timer_val_0 + 2){
 		wakeup_period_count++;
 	}
+	mbus_write_message32(0xE1, wakeup_timer_val_0);
 	mbus_write_message32(0xE2, wakeup_period_count);
-	delay(MBUS_DELAY);
 
    	config_timerwd(TIMERWD_VAL);
-	WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*10, wakeup_period_count);
+	WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*7, wakeup_period_count);
 	mbus_write_message32(0xED, WAKEUP_PERIOD_CONT); 
 	delay(MBUS_DELAY);
 }
@@ -910,8 +908,8 @@ static void operation_init(void){
     mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
 
 	// Set temp sensor conversion time
-	//snsv10_r03.TSNS_SEL_CONV_TIME = 0xF;
-	//mbus_remote_register_write(SNS_ADDR,0x03,snsv10_r03.as_int);
+	snsv10_r03.TSNS_SEL_CONV_TIME = 0x3; // Default: 0x6
+	mbus_remote_register_write(SNS_ADDR,0x03,snsv10_r03.as_int);
 
     // Radio Settings --------------------------------------
 	radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
@@ -972,7 +970,6 @@ static void operation_init(void){
 static void operation_temp_run(void){
 
 	if (Tstack_state == TSTK_IDLE){
-		mbus_write_message32(0xAA, 0x0);
 		Tstack_state = TSTK_LDO;
 
 		wfi_timeout_flag = 0;
@@ -990,21 +987,18 @@ static void operation_temp_run(void){
 		operation_sleep();
 
     }else if (Tstack_state == TSTK_LDO){
-		mbus_write_message32(0xAA, 0x1);
 		Tstack_state = TSTK_TEMP_START;
 
 		// Power on SNS LDO
 		sns_ldo_power_on();
 		delay(MBUS_DELAY);
 
-		mbus_write_message32(0xAA, 0x11);
 		// Power on temp sensor
 		temp_sensor_power_on();
 		delay(MBUS_DELAY);
 			
 
 	}else if (Tstack_state == TSTK_TEMP_START){
-		mbus_write_message32(0xAA, 0x2);
 		// Start temp measurement
 
 		wfi_timeout_flag = 0;
@@ -1023,7 +1017,6 @@ static void operation_temp_run(void){
 		Tstack_state = TSTK_TEMP_READ;
 
 	}else if (Tstack_state == TSTK_TEMP_READ){
-		mbus_write_message32(0xAA, 0x3);
 
 		// Grab Temp Sensor Data
 		if (wfi_timeout_flag){
@@ -1082,12 +1075,8 @@ static void operation_temp_run(void){
 			sns_ldo_power_off();
 			Tstack_state = TSTK_IDLE;
 
-			#ifdef DEBUG_MBUS_MSG_1
-				mbus_write_message32(0xCC, exec_count);
-				delay(MBUS_DELAY);
-				mbus_write_message32(0xC0, temp_storage_latest);
-				delay(MBUS_DELAY);
-			#endif
+			mbus_write_message32(0xCC, exec_count);
+			mbus_write_message32(0xC0, temp_storage_latest);
 
 			exec_count++;
 			// Store results in memory; unless buffer is full
