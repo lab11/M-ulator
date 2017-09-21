@@ -1,9 +1,8 @@
 //*******************************************************************
 //Author: Gyouho Kim
-//Description: Pressure Sensing system with RDC
-//			Modified from 'Tstack_ondemand_v2.5_PMU_3V'
-//			v1.0: Changing chip order
-//			v2.0: PRCv17, SNSv10, PMUv7
+//Description: Pressure Sensing system with RDC and new temp sensor
+//			Modified from 'Tstack_ondemand_v2.5_PMU_3V' and 'Pstack_ondemand_rdc_v1.0'
+//			v3.0: PRCv17, SNSv10, PMUv7, RDCv1
 //*******************************************************************
 #include "PRCv17.h"
 #include "PRCv17_RF.h"
