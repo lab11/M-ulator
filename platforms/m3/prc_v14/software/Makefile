@@ -98,11 +98,13 @@ $(DIRS):
 	$(OBJCOPY) -O binary $< $@
 
 # Mind the order here to align -T$^
-%.elf:	libs/memmap $(LIBS) %.o
+%.elf: COBJ=$(patsubst %.c,%.o,$(wildcard $(dir $@)*.c))
+%.elf: SOBJ=$(patsubst %.s,%.o,$(wildcard $(dir $@)*.s))
+%.elf:	libs/memmap $(LIBS) $$(COBJ) $$(SOBJ)
 	$(LD) $(LDFLAGS) -T$^ "$$(echo $$(arm-none-eabi-gcc -print-libgcc-file-name) | tr -d '\r')" -o $@
 	$(OBJDUMP) -Sd $@ > $*.asm
 
-.PRECIOUS: %.elf
+.PRECIOUS: %.elf %.o
 
 
 ##########
