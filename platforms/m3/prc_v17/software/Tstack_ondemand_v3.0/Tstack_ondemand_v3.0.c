@@ -53,7 +53,7 @@
 #define SNS_ADDR 0x5
 #define PMU_ADDR 0x6
 
-#define WAKEUP_PERIOD_PARKING 30000 // About 2 hoours (PRCv17)
+#define WAKEUP_PERIOD_PARKING 30000 // About 2 hours (PRCv17)
 
 // Temp Sensor parameters
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
@@ -102,8 +102,8 @@ volatile uint32_t WAKEUP_PERIOD_CONT_INIT;
 
 //volatile uint32_t temp_meas_data[NUM_TEMP_MEAS] = {0};
 volatile uint32_t temp_storage[TEMP_STORAGE_SIZE] = {0};
-volatile uint32_t temp_storage_latest = 2000; // FIXME
-volatile uint32_t temp_storage_last_wakeup_adjust = 2000;
+volatile uint32_t temp_storage_latest = 150; // SNSv10
+volatile uint32_t temp_storage_last_wakeup_adjust = 150; // SNSv10
 volatile uint32_t temp_storage_diff = 0;
 volatile uint32_t temp_storage_count;
 volatile uint32_t temp_run_single;
@@ -772,11 +772,13 @@ static void operation_tx_stored(void){
 		config_timerwd(TIMERWD_VAL);
 
 		// Radio out data
-		send_radio_data_ppm(0, 0xBC0000 | temp_storage[radio_tx_count]);
+		send_radio_data_ppm(0, 0xD00000 | (0xFFFFF & temp_storage[radio_tx_count]));
 		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 
 		radio_tx_count--;
     }
+
+	send_radio_data_ppm(0, 0xD00000 | (0xFFFFF & temp_storage[radio_tx_count]));
 
 	delay(RADIO_PACKET_DELAY*2); //Set delays between sending subsequent packet
 	send_radio_data_ppm(1, 0xFAF000);
@@ -838,7 +840,7 @@ static void measure_wakeup_period(void){
 	mbus_write_message32(0xE2, wakeup_period_count);
 
    	config_timerwd(TIMERWD_VAL);
-	WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*7, wakeup_period_count);
+	WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*8, wakeup_period_count);
 	mbus_write_message32(0xED, WAKEUP_PERIOD_CONT); 
 }
 
@@ -1289,7 +1291,7 @@ int main() {
 					send_radio_data_ppm(0,0xBBB000+read_data_batadc);	
 				}else{
 					// radio
-					send_radio_data_ppm(0,0xC00000+exec_count);	
+					send_radio_data_ppm(0,0xCC0000+exec_count);	
 				}
 				// set timer
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
