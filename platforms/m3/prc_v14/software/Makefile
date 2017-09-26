@@ -67,12 +67,19 @@ LIBS := $(subst .c,.o,$(wildcard libs/*.c))
 LIBS += $(subst .s,.o,$(wildcard libs/*.s))
 HEADERS := $(wildcard include/*.h)
 
-DIRS := $(patsubst %/,%,$(filter-out libs/,$(filter-out include/,$(wildcard */))))
+GDB:= $(subst .c,.o,$(wildcard gdb/*.c))
+GDB+= $(subst .s,.o,$(wildcard gdb/*.s))
+
+DIRS := $(patsubst %/,%,\
+			$(filter-out libs/,\
+				$(filter-out include/,\
+					$(filter-out gdb/,\
+						$(wildcard */)))))
 BINS := $(foreach var,$(DIRS),$(var)/$(var).bin)
 HEXS := $(foreach var,$(DIRS),$(var)/$(var).hex)
 ELFS := $(foreach var,$(DIRS),$(var)/$(var).elf)
 
-.PRECIOUS: $(LIBS) $(BINS) $(ELFS)
+.PRECIOUS: $(LIBS) $(BINS) $(ELFS) 
 
 .PHONY: all
 
@@ -87,7 +94,7 @@ $(DIRS):
 
 #%.bin:	$$(wildcard $$(dir $$*)*.c)
 
-%.o: $(HEADERS)
+%.o: $(HEADERS) $(GDB)
 
 %.hex:	%.bin
 	xxd -g1 -c1 $< | cut -d' ' -f2 > $@
@@ -98,10 +105,17 @@ $(DIRS):
 	$(OBJCOPY) -O binary $< $@
 
 # Mind the order here to align -T$^
+# This will link in GDB support if you #include "gdb.h" in any of the c/s files
 %.elf: COBJ=$(patsubst %.c,%.o,$(wildcard $(dir $@)*.c))
 %.elf: SOBJ=$(patsubst %.s,%.o,$(wildcard $(dir $@)*.s))
-%.elf:	libs/memmap $(LIBS) $$(COBJ) $$(SOBJ)
-	$(LD) $(LDFLAGS) -T$^ "$$(echo $$(arm-none-eabi-gcc -print-libgcc-file-name) | tr -d '\r')" -o $@
+%.elf:	libs/memmap $(LIBS) $$(COBJ) $$(SOBJ) 
+	@if [ -n "$$(echo $$(arm-none-eabi-nm $(filter-out $<,$^) | grep use_gdb))" ]; then  \
+		$(LD) $(LDFLAGS) -T$^ $(GDB) \
+			"$$(echo $$(arm-none-eabi-gcc -print-libgcc-file-name) | tr -d '\r')" -o $@ ;\
+	else \
+		$(LD) $(LDFLAGS) -T$^ \
+			"$$(echo $$(arm-none-eabi-gcc -print-libgcc-file-name) | tr -d '\r')" -o $@ ;\
+	fi				
 	$(OBJDUMP) -Sd $@ > $*.asm
 
 .PRECIOUS: %.elf %.o
