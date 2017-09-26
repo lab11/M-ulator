@@ -8,6 +8,8 @@
 #include "PRCv14_RF.h"
 #include "mbus.h"
 
+#include "gdb.h"
+
 // uncomment this for debug mbus message
 // #define DEBUG_MBUS_MSG
 #define DEBUG_MBUS_MSG_1
@@ -57,7 +59,7 @@ void handler_ext_int_5(void)  __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_6(void)  __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_7(void)  __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_8(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_9(void)  __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_9(void)  __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_10(void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_11(void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_12(void) __attribute__ ((interrupt ("IRQ")));
@@ -73,7 +75,7 @@ void handler_ext_int_5(void)  { *NVIC_ICPR = (0x1 << 5); mbus_msg_flag = 0x13; }
 void handler_ext_int_6(void)  { *NVIC_ICPR = (0x1 << 6); mbus_msg_flag = 0x14; } // REG4
 void handler_ext_int_7(void)  { *NVIC_ICPR = (0x1 << 7); mbus_msg_flag = 0x15; } // REG5
 void handler_ext_int_8(void)  { *NVIC_ICPR = (0x1 << 8); mbus_msg_flag = 0x16; } // REG6
-void handler_ext_int_9(void)  { *NVIC_ICPR = (0x1 << 9); mbus_msg_flag = 0x17; } // REG7
+//void handler_ext_int_9(void)  { *NVIC_ICPR = (0x1 << 9); mbus_msg_flag = 0x17; } // REG7
 void handler_ext_int_10(void) { *NVIC_ICPR = (0x1 << 10); } // MEM WR
 void handler_ext_int_11(void) { *NVIC_ICPR = (0x1 << 11); } // MBUS_RX
 void handler_ext_int_12(void) { *NVIC_ICPR = (0x1 << 12); } // MBUS_TX
