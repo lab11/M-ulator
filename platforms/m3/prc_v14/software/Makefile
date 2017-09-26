@@ -52,6 +52,7 @@ CXX     := $(CROSS_COMPILE)-g++
 LD      := $(CROSS_COMPILE)-ld
 OBJDUMP := $(CROSS_COMPILE)-objdump
 OBJCOPY := $(CROSS_COMPILE)-objcopy
+NM		:= $(CROSS_COMPILE)-nm
 
 ################################################################################
 ## You should not need to edit this makefile beyond this point
@@ -109,12 +110,12 @@ $(DIRS):
 %.elf: COBJ=$(patsubst %.c,%.o,$(wildcard $(dir $@)*.c))
 %.elf: SOBJ=$(patsubst %.s,%.o,$(wildcard $(dir $@)*.s))
 %.elf:	libs/memmap $(LIBS) $$(COBJ) $$(SOBJ) 
-	@if [ -n "$$(echo $$(arm-none-eabi-nm $(filter-out $<,$^) | grep use_gdb))" ]; then  \
+	@if [ -n "$$(echo $$( $(NM) $(filter-out $<,$^) | grep use_gdb))" ]; then  \
 		$(LD) $(LDFLAGS) -T$^ $(GDB) \
-			"$$(echo $$(arm-none-eabi-gcc -print-libgcc-file-name) | tr -d '\r')" -o $@ ;\
+			"$$(echo $$( $(CC) -print-libgcc-file-name) | tr -d '\r')" -o $@ ;\
 	else \
 		$(LD) $(LDFLAGS) -T$^ \
-			"$$(echo $$(arm-none-eabi-gcc -print-libgcc-file-name) | tr -d '\r')" -o $@ ;\
+			"$$(echo $$( $(CC) -print-libgcc-file-name) | tr -d '\r')" -o $@ ;\
 	fi				
 	$(OBJDUMP) -Sd $@ > $*.asm
 
