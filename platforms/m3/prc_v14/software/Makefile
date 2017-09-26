@@ -79,11 +79,11 @@ BINS := $(foreach var,$(DIRS),$(var)/$(var).bin)
 HEXS := $(foreach var,$(DIRS),$(var)/$(var).hex)
 ELFS := $(foreach var,$(DIRS),$(var)/$(var).elf)
 
-.PRECIOUS: $(LIBS) $(BINS) $(ELFS) 
+.PRECIOUS: $(LIBS) $(BINS) $(ELFS) $(GDB)
 
 .PHONY: all
 
-all: $(HEXS)
+all: $(GDB) $(HEXS)
 
 $(DIRS):
 	$(MAKE) $@/$@.hex
@@ -94,7 +94,7 @@ $(DIRS):
 
 #%.bin:	$$(wildcard $$(dir $$*)*.c)
 
-%.o: $(HEADERS) $(GDB)
+%.o: $(HEADERS) 
 
 %.hex:	%.bin
 	xxd -g1 -c1 $< | cut -d' ' -f2 > $@
@@ -129,6 +129,7 @@ clean:
 	rm -f $(HEXS)
 	rm -f $(LIBS)
 	rm -f $(ELFS)
+	rm -f $(GDB)
 
 clean-%:
 	rm -f $*/$*.bin $*/$*.hex

@@ -20,8 +20,6 @@
 
 #include "PRCv14.h"
 
-#include "gdb.h"
-
 /* this struct is used by the assembley-level file 'gdb.s'
  * and must stay in this specific order
  */
@@ -68,7 +66,7 @@ struct svc_args
  * 
  */
 void _gdb_break( struct svc_args * regs) 
-    __attribute__ ((noinline,used,section("gdb")));
+    __attribute__ ((noinline,used));
 
 /** 
  * High-level (C) function called in reponse to a "halt" interrupt 
@@ -77,7 +75,7 @@ void _gdb_break( struct svc_args * regs)
  * @regs:  a copy of the processor registers as the existed pre-halt
  */
 void _gdb_halt( struct svc_args * regs) 
-    __attribute__ ((noinline,used,section("gdb")));
+    __attribute__ ((noinline,used));
 
 /**
  * writes a 32-bit message over MBUS
@@ -89,7 +87,7 @@ void _gdb_halt( struct svc_args * regs)
  * @data the 32-bit data to be written
  */
 uint32_t _gdb_mbus_write_message32(uint32_t addr, uint32_t data) 
-                                    __attribute__ ((used,section("gdb")));
+                                    __attribute__ ((used));
 
 
 
@@ -160,7 +158,7 @@ void _gdb_break( struct svc_args * regs)
 }
 
 //so we can soft-step into mbus_write_message32
-uint32_t gdb_mbus_write_message32(uint32_t addr, uint32_t data) {
+uint32_t _gdb_mbus_write_message32(uint32_t addr, uint32_t data) {
     uint32_t mbus_addr = 0xA0003000 | (addr << 4);
     *((volatile uint32_t *) mbus_addr) = data;
     return 1;
