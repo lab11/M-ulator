@@ -5,6 +5,7 @@
 ################################################################################
 
 CFLAGS :=
+CLDFLAGS :=
 ASFLAGS :=
 
 ##########################
@@ -13,13 +14,13 @@ ASFLAGS :=
 #CFLAGS  += -Wall -Wextra -Werror -mthumb -mcpu=cortex-m0 -ffreestanding
 # Don't care about the warnings not compiling. It's annoying.
 CFLAGS  += -Os -Wall -Wextra -mthumb -mcpu=cortex-m0 -ffreestanding -fdata-sections -ffunction-sections -g
-LDFLAGS += -Os -static -S -nostartfiles --gc-sections -e _start #-dead_strip #-why_live read_mbus_register_RADv4
+CFLAGS += -flto -ffat-lto-objects
+CLDFLAGS = -static -nostdlib -Wl,--gc-sections --entry=_start 
+
+# no longer usling linker, as it can't do link-time-optimization, using gcc  with CLDFLAGS
+#LDFLAGS += -Os -static -S -nostartfiles --gc-sections -e _start #-dead_strip #-why_live read_mbus_register_RADv4
 #LDFLAGS += -Os -static -S -nostartfiles -nodefaultlibs -nostdlib --gc-sections -e _start #-dead_strip #-why_live read_mbus_register_RADv4
 ASFLAGS += -mthumb --warn -mcpu=cortex-m0
-
-# Experiments in not linking unused sections
-#CFLAGS  += -fvtable-gc -fdata-sections -ffunction-sections -Wl,-static -Wl,--gc-sections -s
-#LDFLAGS += -nostartfiles -nodefaultlibs -nostdlib
 
 # Attempt to divine ARM toolchain
 SHELL=/bin/bash
@@ -86,7 +87,8 @@ ELFS := $(foreach var,$(DIRS),$(var)/$(var).elf)
 
 .PHONY: all
 
-all: $(GDB) $(HEXS)
+# GDB needs to be first if we want to link against it
+all: $(GDB) $(HEXS) libs/memmap
 
 $(DIRS):
 	$(MAKE) $@/$@.hex
@@ -107,22 +109,21 @@ $(DIRS):
 %.bin:	%.elf
 	$(OBJCOPY) -O binary $< $@
 
-# Mind the order here to align -T$^
-# This will link in GDB support if you #include "gdb.h" in any of the c/s files
+# Uses GCC (not LD) to do the linking to make use of LTO
+# This will link in GDB support if you #include "gdb.h" in any of the source files
 %.elf: COBJ=$(patsubst %.c,%.o,$(wildcard $(dir $@)*.c))
 %.elf: SOBJ=$(patsubst %.s,%.o,$(wildcard $(dir $@)*.s))
-%.elf:	libs/memmap $(LIBS) $$(COBJ) $$(SOBJ) 
-	@if [ -n "$$(echo $$( $(NM) $(filter-out $<,$^) | grep use_gdb))" ]; then  \
-		$(LD) $(LDFLAGS) -T$^ $(GDB) \
-			$(GCCLIB)  -o $@ ;\
+%.elf:	$(LIBS) $$(COBJ) $$(SOBJ) 
+	if [ -n "$$(echo $$( $(NM) $(filter-out $<,$^) | grep use_gdb))" ]; then  \
+		$(CC) $(CFLAGS) $(CLDFLAGS) -Tlibs/memmap \
+			-Wl,--start-group $^ $(GCCLIB) $(GDB) -Wl,--end-group -o $@ ; \
 	else \
-		$(LD) $(LDFLAGS) -T$^ \
-			$(GCCLIB) -o $@ ;\
+		$(CC) $(CFLAGS) $(CLDFLAGS) -Tlibs/memmap \
+			-Wl,--start-group $^ $(GCCLIB) -Wl,--end-group -o $@ ;\
 	fi				
 	$(OBJDUMP) -Sd $@ > $*.asm
 
 .PRECIOUS: %.elf %.o
-
 
 ##########
 ## Cleanup
