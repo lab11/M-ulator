@@ -86,8 +86,8 @@ void _gdb_halt( struct svc_args * regs)
  * @addr the mbus address to write to
  * @data the 32-bit data to be written
  */
-uint32_t _gdb_mbus_write_message32(uint32_t addr, uint32_t data) 
-                                    __attribute__ ((used));
+inline static 
+uint32_t _gdb_mbus_write_message32(uint32_t addr, uint32_t data);
 
 
 
