@@ -64,6 +64,8 @@ NM		:= $(CROSS_COMPILE)-nm
 ASFLAGS += -Iinclude/
 CFLAGS += -Iinclude/
 
+GCCLIB := $(shell arm-none-eabi-gcc -print-libgcc-file-name | tr -d '\r')
+
 LIBS := $(subst .c,.o,$(wildcard libs/*.c))
 LIBS += $(subst .s,.o,$(wildcard libs/*.s))
 HEADERS := $(wildcard include/*.h)
@@ -112,10 +114,10 @@ $(DIRS):
 %.elf:	libs/memmap $(LIBS) $$(COBJ) $$(SOBJ) 
 	@if [ -n "$$(echo $$( $(NM) $(filter-out $<,$^) | grep use_gdb))" ]; then  \
 		$(LD) $(LDFLAGS) -T$^ $(GDB) \
-			"$$(echo $$( $(CC) -print-libgcc-file-name) | tr -d '\r')" -o $@ ;\
+			$(GCCLIB)  -o $@ ;\
 	else \
 		$(LD) $(LDFLAGS) -T$^ \
-			"$$(echo $$( $(CC) -print-libgcc-file-name) | tr -d '\r')" -o $@ ;\
+			$(GCCLIB) -o $@ ;\
 	fi				
 	$(OBJDUMP) -Sd $@ > $*.asm
 
