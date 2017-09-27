@@ -99,7 +99,7 @@ $(DIRS):
 
 #%.bin:	$$(wildcard $$(dir $$*)*.c)
 
-%.o: $(HEADERS) 
+%.o: $(HEADERS)
 
 %.hex:	%.bin
 	xxd -g1 -c1 $< | cut -d' ' -f2 > $@
@@ -114,7 +114,7 @@ $(DIRS):
 %.elf: COBJ=$(patsubst %.c,%.o,$(wildcard $(dir $@)*.c))
 %.elf: SOBJ=$(patsubst %.s,%.o,$(wildcard $(dir $@)*.s))
 %.elf:	$(LIBS) $$(COBJ) $$(SOBJ) 
-	if [ -n "$$(echo $$( $(NM) $(filter-out $<,$^) | grep use_gdb))" ]; then  \
+	if [ -n "$$(echo $$( $(NM) $^ | grep use_gdb))" ]; then  \
 		$(CC) $(CFLAGS) $(CLDFLAGS) -Tlibs/memmap \
 			-Wl,--start-group $^ $(GCCLIB) $(GDB) -Wl,--end-group -o $@ ; \
 	else \
