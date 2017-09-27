@@ -780,6 +780,16 @@ static void rdc_assert_pg(){
 //***************************************************
 // End of Program Sleep Operation
 //***************************************************
+static void operation_sns_sleep_check(void){
+	// Make sure LDO is off
+	if (sns_running){
+		sns_running = 0;
+		temp_sensor_power_off();
+		sns_ldo_power_off();
+		rdc_assert_pg();
+	}
+}
+
 static void operation_sleep(void){
 
 	// Reset GOC_DATA_IRQ
@@ -801,13 +811,8 @@ static void operation_sleep_noirqreset(void){
 
 static void operation_sleep_notimer(void){
     
-    // Make sure LDO is off
-    if (sns_running){
-		temp_sensor_power_off();
-		sns_ldo_power_off();
-		rdc_assert_pg();
-	}
-	
+	operation_sns_sleep_check();	
+
     // Make sure Radio is off
     if (radio_on){radio_power_off();}
 
@@ -1459,7 +1464,8 @@ int main() {
         // wakeup_data[15:8] is the user-specified period 
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
 
-		sns_running = 0;
+		operation_sns_sleep_check();
+	
 		Pstack_state = PSTK_IDLE;
 
 		// Read latest PMU ADC measurement
@@ -1501,7 +1507,8 @@ int main() {
         // wakeup_data[15:8] is the user-specified period 
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
 
-		sns_running = 0;
+		operation_sns_sleep_check();
+		
 		Pstack_state = PSTK_IDLE;
 
 		radio_tx_numdata = wakeup_data_field_0;
