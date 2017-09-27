@@ -1502,7 +1502,10 @@ int main() {
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
 
 		sns_running = 0;
+		Pstack_state = PSTK_IDLE;
+
 		radio_tx_numdata = wakeup_data_field_0;
+
 		// Make sure the requested numdata makes sense
 		if (radio_tx_numdata >= data_storage_count){
 			radio_tx_numdata = 0;
