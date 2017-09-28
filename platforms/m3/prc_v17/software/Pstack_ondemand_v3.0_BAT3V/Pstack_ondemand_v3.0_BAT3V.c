@@ -46,7 +46,7 @@
 #define TEMP_NUM_MEAS 2
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y5 run default clock (PRCv17)
-#define TIMER32_VAL 0x20000 // 0x20000 about 1 sec with Y5 run default clock (PRCv17)
+#define TIMER32_VAL 0x50000 // 0x20000 about 1 sec with Y5 run default clock (PRCv17)
 
 //********************************************************************
 // Global Variables
@@ -1191,7 +1191,7 @@ static void operation_sns_run(void){
 			// FIXME: for now, do this every time					
 			//measure_wakeup_period();
 			
-			if ((temp_storage_diff > 20) || (exec_count < 2)){
+			if ((temp_storage_diff > 20) || (exec_count < 2)){ // FIXME: value of 20 correct?
 				measure_wakeup_period();
 				temp_storage_last_wakeup_adjust = temp_storage_latest;
 			}
@@ -1699,6 +1699,15 @@ int main() {
 		}else{
 			RADIO_PACKET_DELAY = user_val;
 		}
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x25){
+		// Change the conversion time of the temp sensor
+
+		snsv10_r03.TSNS_SEL_CONV_TIME = wakeup_data & 0xF; // Default: 0x6
+		mbus_remote_register_write(SNS_ADDR,0x03,snsv10_r03.as_int);
+
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
