@@ -1510,17 +1510,6 @@ int main() {
 		// Go to sleep without timer
 		operation_sleep_notimer();
 */
-	}else if(wakeup_data_header == 0x13){
-		// Change the RF frequency
-        // Debug mode: Transmit something via radio and go to sleep w/o timer
-        // wakeup_data[7:0] is the # of transmissions
-        // wakeup_data[15:8] is the user-specified period
-        // wakeup_data[23:16] is the desired RF tuning value (RADv9)
-
-		// FIXME
-		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xABC000, exec_count_irq);
-
-
     }else if(wakeup_data_header == 0x14){
 		// Run temp sensor once to update room temperature reference
         radio_tx_option = 1;
@@ -1618,9 +1607,18 @@ int main() {
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
+	}else if(wakeup_data_header == 0x22){
+		// Change carrier frequency
+		mrrv3_r00.MRR_TRX_CAP_ANTP_TUNE = (wakeup_data & 0x3FFF);
+		mbus_remote_register_write(MRR_ADDR,0x00,mrrv3_r00.as_int);
+		mrrv3_r01.MRR_TRX_CAP_ANTN_TUNE = (wakeup_data & 0x3FFF);
+		mbus_remote_register_write(MRR_ADDR,0x01,mrrv3_r01.as_int);
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
 	}else if(wakeup_data_header == 0x25){
 		// Change the conversion time of the temp sensor
-
 		snsv10_r03.TSNS_SEL_CONV_TIME = wakeup_data & 0xF; // Default: 0x6
 		mbus_remote_register_write(SNS_ADDR,0x03,snsv10_r03.as_int);
 
