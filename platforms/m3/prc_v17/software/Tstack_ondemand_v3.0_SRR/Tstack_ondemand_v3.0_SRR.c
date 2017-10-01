@@ -43,6 +43,7 @@
 #include "HRVv5.h"
 #include "RADv9.h"
 #include "PMUv7_RF.h"
+#include "MRRv3.h"
 
 // uncomment this for debug mbus message
 //#define DEBUG_MBUS_MSG_1
@@ -1516,10 +1517,7 @@ int main() {
         // wakeup_data[15:8] is the user-specified period
         // wakeup_data[23:16] is the desired RF tuning value (RADv9)
 
-		radv9_r0.RADIO_TUNE_FREQ1 = wakeup_data_field_2>>4; 
-		radv9_r0.RADIO_TUNE_FREQ2 = wakeup_data_field_2 & 0xF; 
-    	mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
-
+		// FIXME
 		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xABC000, exec_count_irq);
 
 
