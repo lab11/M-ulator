@@ -270,7 +270,7 @@ inline static void set_pmu_sleep_radio(){
 		| (0 << 13) // Enable main feedback loop
 		| (14 << 9)  // Frequency multiplier R
 		| (14 << 5)  // Frequency multiplier L (actually L+1)
-		| (1) 		// Floor frequency base (0-63)
+		| (3) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
     mbus_remote_register_write(PMU_ADDR,0x15, 
@@ -281,7 +281,7 @@ inline static void set_pmu_sleep_radio(){
 		| (0 << 13) // Enable main feedback loop
 		| (14 << 9)  // Frequency multiplier R
 		| (14 << 5)  // Frequency multiplier L (actually L+1)
-		| (1) 		// Floor frequency base (0-63)
+		| (3) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
 	// Register 0x17: V3P6 Upconverter Sleep Settings
@@ -406,7 +406,7 @@ inline static void set_pmu_clk_init(){
 		| (0 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (0 << 7) // Enable override setting [6:0] (1'h0)
-		| (44) 		// Binary converter's conversion ratio (7'h00)
+		| (47) 		// Binary converter's conversion ratio (7'h00)
 	));
 	delay(MBUS_DELAY);
     mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
@@ -417,7 +417,7 @@ inline static void set_pmu_clk_init(){
 		| (1 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (44) 		// Binary converter's conversion ratio (7'h00)
+		| (47) 		// Binary converter's conversion ratio (7'h00)
 	));
 	delay(MBUS_DELAY);
 

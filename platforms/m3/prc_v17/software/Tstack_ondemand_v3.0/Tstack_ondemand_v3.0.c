@@ -393,7 +393,7 @@ inline static void set_pmu_clk_init(){
 		| (0 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (0 << 7) // Enable override setting [6:0] (1'h0)
-		| (44) 		// Binary converter's conversion ratio (7'h00)
+		| (47) 		// Binary converter's conversion ratio (7'h00)
 	));
 	delay(MBUS_DELAY);
     mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
@@ -404,7 +404,7 @@ inline static void set_pmu_clk_init(){
 		| (1 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (44) 		// Binary converter's conversion ratio (7'h00)
+		| (47) 		// Binary converter's conversion ratio (7'h00)
 	));
 	delay(MBUS_DELAY);
 
