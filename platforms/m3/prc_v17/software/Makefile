@@ -5,6 +5,7 @@
 ################################################################################
 
 CFLAGS :=
+CLDFLAGS :=
 ASFLAGS :=
 
 ##########################
@@ -13,13 +14,12 @@ ASFLAGS :=
 #CFLAGS  += -Wall -Wextra -Werror -mthumb -mcpu=cortex-m0 -ffreestanding
 # Don't care about the warnings not compiling. It's annoying.
 CFLAGS  += -Os -Wall -Wextra -mthumb -mcpu=cortex-m0 -ffreestanding -fdata-sections -ffunction-sections -g
-LDFLAGS += -Os -static -S -nostartfiles --gc-sections -e _start #-dead_strip #-why_live read_mbus_register_RADv4
-#LDFLAGS += -Os -static -S -nostartfiles -nodefaultlibs -nostdlib --gc-sections -e _start #-dead_strip #-why_live read_mbus_register_RADv4
+# turn on Link-time-optimization
+CFLAGS += -flto 
+CLDFLAGS = -static -nostdlib -Wl,--gc-sections --entry=_start
+# no longer usling standard linker, as it can't do LTO, using gcc instead
+#LDFLAGS += -Os -static -S -nostartfiles --gc-sections -e _start #-dead_strip #-why_live read_mbus_register_RADv4
 ASFLAGS += -mthumb --warn -mcpu=cortex-m0
-
-# Experiments in not linking unused sections
-#CFLAGS  += -fvtable-gc -fdata-sections -ffunction-sections -Wl,-static -Wl,--gc-sections -s
-#LDFLAGS += -nostartfiles -nodefaultlibs -nostdlib
 
 # Attempt to divine ARM toolchain
 SHELL=/bin/bash
@@ -74,11 +74,13 @@ HEXS := $(foreach var,$(DIRS),$(var)/$(var).hex)
 ELFS := $(foreach var,$(DIRS),$(var)/$(var).elf)
 LSTS := $(foreach var,$(DIRS),$(var)/$(var).lst)
 
+GCCLIB := $(shell arm-none-eabi-gcc -print-libgcc-file-name | tr -d '\r')
+
 .PRECIOUS: $(LIBS) $(BINS) $(ELFS)
 
 .PHONY: all
 
-all: $(HEXS) $(LSTS)
+all: libs/memmap $(HEXS) $(LSTS)
 
 $(DIRS):
 	$(MAKE) $@/$@.hex
@@ -103,11 +105,13 @@ $(DIRS):
 %.bin:	%.elf
 	$(OBJCOPY) -O binary $< $@
 
+#Uses GCC (not LD) to do the linking to make use of LTO
 # Mind the order here to align -T$^
 %.elf: COBJ=$(patsubst %.c,%.o,$(wildcard $(dir $@)*.c))
 %.elf: SOBJ=$(patsubst %.s,%.o,$(wildcard $(dir $@)*.s))
-%.elf:	libs/memmap $(LIBS) $$(COBJ) $$(SOBJ)
-	$(LD) $(LDFLAGS) -T$^ "$$(echo $$(arm-none-eabi-gcc -print-libgcc-file-name) | tr -d '\r')" -o $@
+%.elf:	$(LIBS) $$(COBJ) $$(SOBJ)
+	$(CC) $(CFLAGS) $(CLDFLAGS) -Tlibs/memmap \
+		-Wl,--start-group $^ $(GCCLIB) -Wl,--end-group -o $@
 	$(OBJDUMP) -Sd $@ > $*.asm
 
 .PRECIOUS: %.elf %.o
