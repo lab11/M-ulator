@@ -111,7 +111,7 @@ $(DIRS):
 %.elf: SOBJ=$(patsubst %.s,%.o,$(wildcard $(dir $@)*.s))
 %.elf:	$(LIBS) $$(COBJ) $$(SOBJ)
 	$(CC) $(CFLAGS) $(CLDFLAGS) -Tlibs/memmap \
-		-Wl,--start-group $^ $(GCCLIB) -Wl,--end-group -o $@
+		-Wl,--start-group $^ "$(GCCLIB)" -Wl,--end-group -o $@
 	$(OBJDUMP) -Sd $@ > $*.asm
 
 .PRECIOUS: %.elf %.o
