@@ -87,7 +87,7 @@ m.power_on(wait_for_rails_to_settle=False)
 m.ice.mbus_set_internal_reset(True)
 m.ice.mbus_set_master_onoff(False)
 
-m.ice.mbus_set_snoop(False)
+m.ice.mbus_set_snoop(True)
 
 #isp = m.default_value("ICE address", "0111")
 #m.ice.mbus_set_short_prefix(isp)
