@@ -71,8 +71,8 @@ class mbus_message_generator(m3_common):
 			self.rdc_date = datetime.now().strftime("%Y-%m-%d")
 		elif (str(int(binascii.hexlify(address),16))=="194"):
 			if self.rdc_group:
-				self.rdc_cref = int(binascii.hexlify(data),16)
-				wr.writerow([self.rdc_date,self.rdc_time,self.rdc_cmeas,self.rdc_cref,self.rdc_crev,self.rdc_cpar,self.cdc2_cmeas,self.cdc2_cref,self.cdc2_crev,self.cdc2_cpar])
+				self.rdc2_data = int(binascii.hexlify(data),16)
+				wr.writerow([self.rdc_date,self.rdc_time,self.rdc1_data,self.rdc2_data])
 				self.count += 1
 				self.rdc_group = False
 		if self.count>self.args.killcount:
