@@ -576,6 +576,8 @@ static void operation_spi_stop(){
 
 static void operation_init(void){
   prev14_r0B_t prev14_r0B_temp;
+    mbus_write_message32(0xFF,0x01);
+    mbus_write_message32(0xFF,0x02);
   
   // Set CPU & Mbus Clock Speeds
   prev14_r0B_temp.as_int = prev14_r0B.as_int;
