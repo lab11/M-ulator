@@ -1,46 +1,15 @@
 //*******************************************************************
 //Author: Gyouho Kim
-//Description: Temperature Sensing System
-//			Modified from 'Pstack_Ondemand_v2.0'
-//			v1.1: Changing chip order
-//			v1.2: Increasing PMU floors for long term stability
-//			v1.3: PMU IRQ off for stability issues
-//				  RADv9 settings updated for shifted center freq and higher curr lim
-//			v1.4: Decrease PMU sleep floors for reduced sleep power
-//			v1.6: PMUv3; Use for Tstack batch 4 onward
-//			v1.7: Chaging RF tuning to 0x04, GOC-based triggers reinitializes reg
-//			v1.8: Adding battery measurement, PMU battery clamp reset, and battery discharge mode
-//			v1.9: Stays awake during data TX, changing temp sensor tuning 
-//			v1.10: Records 0x666 if temp sensor times out and moves on  
-//				   Incorporating trig2 wakeup time adjustment based on temp measurement 
-//				   LDO voltage set to be highest
-//			   	  -->Used for AEC France Test in Nov 2016
-//			v1.12: Dynamic adjustment of wakeup time based on CPU clock cycle
-//				   Changed temp sensor polling to wfi  
-//			v1.13: Optimizing PMU sleep/active settings
-//				   Lower sleep power, higher sleep power during radio sleep
-//				   PMU ADC disabled during radio sleep
-//			v1.14: Fixing how PMU ADC is reset
-//			v1.15: Turning off VDD_CLK->VBAT during PMU ADC routine
-//				   Getting rid of all non-32 bit declarations
-//			v2.00: Adding parking lot feature (automatic vbat mornitoring & charging)
-//			v2.1:  Usability improvements
-//			v2.2:  Increasing radio packet distance; adding header for data TX
-//			v2.3:  Add option to start charging when configuring parking
-//			v2.4:  During Trig 2, if radio option is on, transmit PMU ADC and count
-//				   Radio packet delay is configurable now
-//				   Initial trig2 delay removed
-//			v2.5:  Sleep power reduced
-//				   Chip ID configuration
-//				   Reducing LDO sleep time
-//			 	   Consolidated trigger radio routine
-//			v3.0:  PRCv17, SNSv10, PMUv7 update
-//			v3.1: Shallower parking range
+//Description: Pressure Sensing System with RDC and new temp sensor
+//			Modified from 'Tstack_Ondemand_v3.0'
+//			v3.0:  PRCv17, SNSv10, PMUv7, RDCv1 
+//			v3.1: RDCv1 offset configuration
 //				  Trig4 now reports battery and execution count in the beginning
 //*******************************************************************
 #include "PRCv17.h"
 #include "PRCv17_RF.h"
 #include "mbus.h"
+#include "RDCv1_RF.h"
 #include "SNSv10_RF.h"
 #include "HRVv5.h"
 #include "RADv9.h"
@@ -49,32 +18,35 @@
 // uncomment this for debug mbus message
 //#define DEBUG_MBUS_MSG_1
 
-// TStack order  PRC->RAD->SNS->HRV->PMU
+// Pstack order  PRC->RAD->SNS->RDC->HRV->PMU
 #define HRV_ADDR 0x3
 #define RAD_ADDR 0x4
 #define SNS_ADDR 0x5
 #define PMU_ADDR 0x6
+#define RDC_ADDR 0x7
 
 #define WAKEUP_PERIOD_PARKING 30000 // About 2 hours (PRCv17)
 
 // Temp Sensor parameters
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
 #define WAKEUP_PERIOD_LDO 5 // About 1 sec (PRCv17)
-#define TEMP_CYCLE_INIT 3 
+#define SNS_CYCLE_INIT 3 
 
-// Tstack states
-#define	TSTK_IDLE       0x0
-#define	TSTK_LDO        0x1
-#define TSTK_TEMP_START 0x2
-#define TSTK_TEMP_READ  0x6
-
-#define NUM_TEMP_MEAS 2
+// Pstack states
+#define	PSTK_IDLE		0x0
+#define	PSTK_LDO		0x1
+#define	PSTK_TEMP_START 0x2
+#define	PSTK_TEMP_READ  0x3
+#define PSTK_RDC_RUN 	0x4
+#define PSTK_RDC_READ  	0x5
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 24
 #define WAKEUP_PERIOD_RADIO_INIT 10 // About 2 sec (PRCv17)
 
-#define TEMP_STORAGE_SIZE 600 // Need to leave about 500 Bytes for stack --> around 120
+#define DATA_STORAGE_SIZE 200 // Need to leave about 500 Bytes for stack --> around 60 words
+#define RDC_NUM_MEAS 2 
+#define TEMP_NUM_MEAS 2
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y5 run default clock (PRCv17)
 #define TIMER32_VAL 0x50000 // 0x20000 about 1 sec with Y5 run default clock (PRCv17)
@@ -87,7 +59,7 @@
 volatile uint32_t irq_history;
 volatile uint32_t enumerated;
 volatile uint32_t wakeup_data;
-volatile uint32_t Tstack_state;
+volatile uint32_t Pstack_state;
 volatile uint32_t wfi_timeout_flag;
 volatile uint32_t exec_count;
 volatile uint32_t meas_count;
@@ -102,16 +74,19 @@ volatile uint32_t WAKEUP_PERIOD_CONT_USER;
 volatile uint32_t WAKEUP_PERIOD_CONT; 
 volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
 
-//volatile uint32_t temp_meas_data[NUM_TEMP_MEAS] = {0};
-volatile uint32_t temp_storage[TEMP_STORAGE_SIZE] = {0};
+volatile uint32_t temp_storage[DATA_STORAGE_SIZE] = {0};
 volatile uint32_t temp_storage_latest = 150; // SNSv10
 volatile uint32_t temp_storage_last_wakeup_adjust = 150; // SNSv10
 volatile uint32_t temp_storage_diff = 0;
-volatile uint32_t temp_storage_count;
-volatile uint32_t temp_run_single;
-volatile uint32_t temp_running;
-volatile uint32_t set_temp_exec_count;
 volatile uint32_t read_data_temp; // [23:0] Temp Sensor D Out
+
+volatile uint32_t rdc_storage[DATA_STORAGE_SIZE] = {0};
+volatile uint32_t rdc_data[RDC_NUM_MEAS] = {0};
+volatile uint32_t data_storage_count;
+volatile uint32_t sns_run_single;
+volatile uint32_t sns_running;
+volatile uint32_t set_sns_exec_count;
+volatile uint32_t read_data_rdc;
 
 volatile uint32_t radio_tx_count;
 volatile uint32_t radio_tx_option;
@@ -126,6 +101,17 @@ volatile snsv10_r00_t snsv10_r00 = SNSv10_R00_DEFAULT;
 volatile snsv10_r01_t snsv10_r01 = SNSv10_R01_DEFAULT;
 volatile snsv10_r03_t snsv10_r03 = SNSv10_R03_DEFAULT;
 volatile snsv10_r17_t snsv10_r17 = SNSv10_R17_DEFAULT;
+
+volatile rdcv1_r11_t rdcv1_r11 = RDCv1_R11_DEFAULT;
+volatile rdcv1_r12_t rdcv1_r12 = RDCv1_R12_DEFAULT;
+volatile rdcv1_r13_t rdcv1_r13 = RDCv1_R13_DEFAULT;
+volatile rdcv1_r14_t rdcv1_r14 = RDCv1_R14_DEFAULT;
+volatile rdcv1_r15_t rdcv1_r15 = RDCv1_R15_DEFAULT;
+volatile rdcv1_r16_t rdcv1_r16 = RDCv1_R16_DEFAULT;
+volatile rdcv1_r1A_t rdcv1_r1A = RDCv1_R1A_DEFAULT;
+volatile rdcv1_r1B_t rdcv1_r1B = RDCv1_R1B_DEFAULT;
+volatile rdcv1_r1C_t rdcv1_r1C = RDCv1_R1C_DEFAULT;
+volatile rdcv1_r1D_t rdcv1_r1D = RDCv1_R1D_DEFAULT;
 
 volatile radv9_r0_t radv9_r0 = RADv9_R0_DEFAULT;
 volatile radv9_r1_t radv9_r1 = RADv9_R1_DEFAULT;
@@ -718,14 +704,60 @@ static void sns_ldo_power_off(){
 
 
 //***************************************************
+// RDC Functions (RDCv1)
+//***************************************************
+
+static void rdc_enable(){
+	rdcv1_r12.BRDC_RSTB = 1;
+	mbus_remote_register_write(RDC_ADDR,0x12,rdcv1_r12.as_int);
+}
+static void rdc_disable(){
+	rdcv1_r12.BRDC_RSTB = 0;
+	mbus_remote_register_write(RDC_ADDR,0x12,rdcv1_r12.as_int);
+}
+static void rdc_osc_enable(){
+	rdcv1_r12.BRDC_OSC_RESET = 0;
+	rdcv1_r12.BRDC_IB_ENB = 0;
+	mbus_remote_register_write(RDC_ADDR,0x12,rdcv1_r12.as_int);
+}
+static void rdc_osc_disable(){
+	rdcv1_r12.BRDC_OSC_RESET = 1;
+	rdcv1_r12.BRDC_IB_ENB = 1;
+	mbus_remote_register_write(RDC_ADDR,0x12,rdcv1_r12.as_int);
+}
+static void rdc_release_v1p2_pg(){
+	rdcv1_r13.BRDC_V1P2_PG_EN = 0;
+	mbus_remote_register_write(RDC_ADDR,0x13,rdcv1_r13.as_int);
+}
+static void rdc_release_pg(){
+	rdcv1_r13.BRDC_V3P6_PG_EN = 0;
+	rdcv1_r13.BRDC_OSC_V1P2_PG_EN = 0;
+	mbus_remote_register_write(RDC_ADDR,0x13,rdcv1_r13.as_int);
+}
+static void rdc_release_isolate(){
+	rdcv1_r13.BRDC_V3P6_ISOLB = 1;
+	rdcv1_r13.BRDC_OSC_ISOLATE = 0;
+	mbus_remote_register_write(RDC_ADDR,0x13,rdcv1_r13.as_int);
+}
+static void rdc_assert_pg(){ 
+	rdcv1_r13.BRDC_V1P2_PG_EN = 1;
+	rdcv1_r13.BRDC_V3P6_PG_EN = 1;
+	rdcv1_r13.BRDC_OSC_V1P2_PG_EN = 1;
+	rdcv1_r13.BRDC_V3P6_ISOLB = 0;
+	rdcv1_r13.BRDC_OSC_ISOLATE = 1;
+	mbus_remote_register_write(RDC_ADDR,0x13,rdcv1_r13.as_int);
+}
+
+//***************************************************
 // End of Program Sleep Operation
 //***************************************************
 static void operation_sns_sleep_check(void){
 	// Make sure LDO is off
-	if (temp_running){
-		temp_running = 0;
+	if (sns_running){
+		sns_running = 0;
 		temp_sensor_power_off();
 		sns_ldo_power_off();
+		rdc_assert_pg();
 	}
 }
 
@@ -768,14 +800,13 @@ static void operation_sleep_notimer(void){
 
 }
 
-
 static void operation_tx_stored(void){
 
     //Fire off stored data to radio
-    while(((!radio_tx_numdata)&&(radio_tx_count > 0)) | ((radio_tx_numdata)&&((radio_tx_numdata+radio_tx_count) > temp_storage_count))){
+    while(((!radio_tx_numdata)&&(radio_tx_count > 0)) | ((radio_tx_numdata)&&((radio_tx_numdata+radio_tx_count) > data_storage_count))){
 		#ifdef DEBUG_MBUS_MSG_1
 			mbus_write_message32(0xDD, radio_tx_count);
-			mbus_write_message32(0xDD, temp_storage[radio_tx_count]);
+			mbus_write_message32(0xDD, rdc_storage[radio_tx_count]);
 		#endif
 
 		// Reset watchdog timer
@@ -784,11 +815,15 @@ static void operation_tx_stored(void){
 		// Radio out data
 		send_radio_data_ppm(0, 0xD00000 | (0xFFFFF & temp_storage[radio_tx_count]));
 		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
+		send_radio_data_ppm(0, 0xE00000 | (0xFFFFF & rdc_storage[radio_tx_count]));
+		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 
 		radio_tx_count--;
     }
 
 	send_radio_data_ppm(0, 0xD00000 | (0xFFFFF & temp_storage[radio_tx_count]));
+	delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
+	send_radio_data_ppm(0, 0xE00000 | (0xFFFFF & rdc_storage[radio_tx_count]));
 
 	delay(RADIO_PACKET_DELAY*2); //Set delays between sending subsequent packet
 	send_radio_data_ppm(1, 0xFAF000);
@@ -797,9 +832,11 @@ static void operation_tx_stored(void){
 	exec_count_irq = 0;
 
 	// Go to sleep without timer
-	radio_tx_count = temp_storage_count; // allows data to be sent more than once
+	radio_tx_count = data_storage_count; // allows data to be sent more than once
 	operation_sleep_notimer();
 }
+
+
 
 uint32_t dumb_divide(uint32_t nu, uint32_t de) {
 // Returns quotient of nu/de
@@ -867,7 +904,7 @@ static void operation_init(void){
 
   
     //Enumerate & Initialize Registers
-    Tstack_state = TSTK_IDLE; 	//0x0;
+    Pstack_state = PSTK_IDLE; 	//0x0;
     enumerated = 0xDEADBEE0;
     exec_count = 0;
     exec_count_irq = 0;
@@ -883,7 +920,9 @@ static void operation_init(void){
 	delay(MBUS_DELAY);
     mbus_enumerate(SNS_ADDR);
 	delay(MBUS_DELAY);
-    mbus_enumerate(HRV_ADDR);
+    mbus_enumerate(RDC_ADDR);
+	delay(MBUS_DELAY);
+    mbus_enumerate(HRV_ADDR); 
 	delay(MBUS_DELAY);
  	mbus_enumerate(PMU_ADDR);
 	delay(MBUS_DELAY);
@@ -923,6 +962,25 @@ static void operation_init(void){
 	snsv10_r03.TSNS_SEL_CONV_TIME = 0x3; // Default: 0x6
 	mbus_remote_register_write(SNS_ADDR,0x03,snsv10_r03.as_int);
 
+	// RDC Settings ----------------------------------------
+	rdcv1_r1A.BRDC_OSR= 32;
+	rdcv1_r1A.BRDC_SAMPLE_TIME_SEL = 15;
+	rdcv1_r1A.BRDC_TICK_SPL_TO_SPL = 0;
+	rdcv1_r1A.BRDC_TICK_VREF_SPL_REDIS_WAIT = 2;
+	mbus_remote_register_write(RDC_ADDR,0x1A,rdcv1_r1A.as_int);
+
+	rdcv1_r14.BRDC_MODES= 1; //0: single, 1: oversample, 2: always
+	mbus_remote_register_write(RDC_ADDR,0x14,rdcv1_r14.as_int);
+
+    mbus_remote_register_write(RDC_ADDR,0x15,0x0000);
+    mbus_remote_register_write(RDC_ADDR,0x16,0x0FFF);
+    mbus_remote_register_write(RDC_ADDR,0x1B,0x0000);
+    mbus_remote_register_write(RDC_ADDR,0x1C,0x0FFF);
+    //mbus_remote_register_write(RDC_ADDR,0x1D,0x0000);
+
+	// RDC Mbus return address; Needs to be between 0x18-0x1F
+    mbus_remote_register_write(RDC_ADDR,0x11,0x0018);
+
     // Radio Settings --------------------------------------
 	radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
 	radv9_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
@@ -953,15 +1011,15 @@ static void operation_init(void){
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 33750;   // 1: 2-4 sec with PRCv9
     WAKEUP_PERIOD_CONT_INIT = 10;   // 
-    temp_storage_count = 0;
+    data_storage_count = 0;
     radio_tx_count = 0;
     radio_tx_option = 0; //enables radio tx for each measurement 
-    temp_run_single = 0;
-    temp_running = 0;
+    sns_run_single = 0;
+    sns_running = 0;
     radio_ready = 0;
     radio_on = 0;
 	wakeup_data = 0;
-	set_temp_exec_count = 0; // specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
+	set_sns_exec_count = 0; // specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
 	RADIO_PACKET_DELAY = 2000;
 	
 
@@ -977,28 +1035,61 @@ static void operation_init(void){
 
 
 //***************************************************
-// Temperature measurement operation (SNSv10)
+// Pressure measurement operation
 //***************************************************
-static void operation_temp_run(void){
 
-	if (Tstack_state == TSTK_IDLE){
-		Tstack_state = TSTK_LDO;
+static uint32_t rdc_data_median(){
+
+	#ifdef DEBUG_MBUS_MSG
+		mbus_write_message32(0xD0, rdc_data[0]);
+		mbus_write_message32(0xD1, rdc_data[1]);
+		mbus_write_message32(0xD2, rdc_data[2]);
+	#endif
+	
+
+	if (rdc_data[0] > rdc_data[1]){
+		if (rdc_data[1] > rdc_data[2]){
+			return 1;
+		}else if (rdc_data[0] > rdc_data[2]){
+			return 2;
+		}else{	
+			return 0;
+		}
+	}else{
+		if (rdc_data[0] > rdc_data[2]){
+			return 0;
+		}else if (rdc_data[1] > rdc_data[2]){
+			return 2;
+		}else{
+			return 1;
+		}
+	}
+
+}
+
+
+static void operation_sns_run(void){
+
+	if (Pstack_state == PSTK_IDLE){
 
 		wfi_timeout_flag = 0;
+		meas_count = 0;
+
+		Pstack_state = PSTK_LDO;
 
 		// Turn on SNS LDO VREF; requires settling
 		sns_ldo_vref_on();
 
 		// Power on radio
-		if (radio_tx_option || ((exec_count+1) < TEMP_CYCLE_INIT)){
+		if (radio_tx_option || ((exec_count+1) < SNS_CYCLE_INIT)){
 			radio_power_on();
 			// Put system to sleep
 			set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
 			operation_sleep();
 		}
 
-    }else if (Tstack_state == TSTK_LDO){
-		Tstack_state = TSTK_TEMP_START;
+    }else if (Pstack_state == PSTK_LDO){
+		Pstack_state = PSTK_TEMP_START;
 
 		// Power on SNS LDO
 		sns_ldo_power_on();
@@ -1007,7 +1098,7 @@ static void operation_temp_run(void){
 		temp_sensor_power_on();
 		delay(MBUS_DELAY);
 
-	}else if (Tstack_state == TSTK_TEMP_START){
+	}else if (Pstack_state == PSTK_TEMP_START){
 		// Start temp measurement
 
 		wfi_timeout_flag = 0;
@@ -1023,12 +1114,13 @@ static void operation_temp_run(void){
 
 		// Turn off Timer32
 		*TIMER32_GO = 0;
-		Tstack_state = TSTK_TEMP_READ;
+		Pstack_state = PSTK_TEMP_READ;
 
-	}else if (Tstack_state == TSTK_TEMP_READ){
+	}else if (Pstack_state == PSTK_TEMP_READ){
 
 		// Grab Temp Sensor Data
 		if (wfi_timeout_flag){
+			read_data_temp = 0xFAFA;
 			mbus_write_message32(0xFA, 0xFAFAFAFA);
 		}else{
 			// Read register
@@ -1036,63 +1128,123 @@ static void operation_temp_run(void){
 			mbus_remote_register_read(SNS_ADDR,0x6,1);
 			read_data_temp = *REG1;
 			set_halt_until_mbus_tx();
+			temp_storage_latest = read_data_temp;
 		}
 		meas_count++;
 
-		// Last measurement from this wakeup
-		if (meas_count == NUM_TEMP_MEAS){
-			// No error; see if there was a timeout
-			if (wfi_timeout_flag){
-				temp_storage_latest = 0x666;
-				wfi_timeout_flag = 0;
-			}else{
-				temp_storage_latest = read_data_temp;
-
-				// Record temp difference from last wakeup adjustment
-				if (temp_storage_latest > temp_storage_last_wakeup_adjust){
-					temp_storage_diff = temp_storage_latest - temp_storage_last_wakeup_adjust;
-				}else{
-					temp_storage_diff = temp_storage_last_wakeup_adjust - temp_storage_latest;
-				}
-				#ifdef DEBUG_MBUS_MSG_1
-					mbus_write_message32(0xEA, temp_storage_diff);
-					delay(MBUS_DELAY);
-				#endif
-				
-				// FIXME: for now, do this every time					
-				//measure_wakeup_period();
-				
-				if ((temp_storage_diff > 10) || (exec_count < (TEMP_CYCLE_INIT+5))){ // FIXME: value of 20 correct?
-					measure_wakeup_period();
-					temp_storage_last_wakeup_adjust = temp_storage_latest;
-				}
-				
-			}
-		}
-
 		// Option to take multiple measurements per wakeup
-		if (meas_count < NUM_TEMP_MEAS){	
+		if (meas_count < TEMP_NUM_MEAS){	
 			// Repeat measurement while awake
 			temp_sensor_reset();
-			Tstack_state = TSTK_TEMP_START;
+			Pstack_state = PSTK_TEMP_START;
 				
 		}else{
+			// Last measurement from this wakeup
 			meas_count = 0;
 
 			// Assert temp sensor isolation & turn off temp sensor power
 			temp_sensor_power_off();
 			sns_ldo_power_off();
-			Tstack_state = TSTK_IDLE;
+			Pstack_state = PSTK_RDC_RUN;
+
+			// Wakeup time adjustment
+			// Record temp difference from last wakeup adjustment
+			if (temp_storage_latest > temp_storage_last_wakeup_adjust){
+				temp_storage_diff = temp_storage_latest - temp_storage_last_wakeup_adjust;
+			}else{
+				temp_storage_diff = temp_storage_last_wakeup_adjust - temp_storage_latest;
+			}
+			#ifdef DEBUG_MBUS_MSG_1
+				mbus_write_message32(0xEA, temp_storage_diff);
+				delay(MBUS_DELAY);
+			#endif
+			
+			// FIXME: for now, do this every time					
+			//measure_wakeup_period();
+			
+			if ((temp_storage_diff > 10) || (exec_count < (SNS_CYCLE_INIT+5))){ // FIXME: value of 20 correct?
+				measure_wakeup_period();
+				temp_storage_last_wakeup_adjust = temp_storage_latest;
+			}
+				
+		}
+
+	}else if (Pstack_state == PSTK_RDC_RUN){
+	// Start RDC measurement
+
+		wfi_timeout_flag = 0;
+
+		if (meas_count == 0){
+			// Release RDC power gates / isolation
+			rdc_release_v1p2_pg();
+			rdc_release_pg();
+			delay(MBUS_DELAY);
+			rdc_release_isolate();
+
+			// Need delay for osc to stabilize
+			rdc_osc_enable();
+			delay(MBUS_DELAY*2);
+		}
+
+		// Use Timer32 as timeout counter
+		config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
+
+		// Start RDC
+		rdc_enable();
+
+		// Wait for output
+		WFI();
+
+		// Turn off Timer32
+		*TIMER32_GO = 0;
+		Pstack_state = PSTK_RDC_READ;
+
+	}else if (Pstack_state == PSTK_RDC_READ){
+
+		// Grab RDC Data
+		if (wfi_timeout_flag){
+			read_data_rdc = 0xFAFA;
+			mbus_write_message32(0xFA, 0xFAFAFAFA);
+		}else{
+			// Read register
+			set_halt_until_mbus_rx();
+			mbus_remote_register_read(RDC_ADDR,0x20,1);
+			read_data_rdc = *REG1;
+			set_halt_until_mbus_tx();
+		}
+		rdc_data[meas_count] = read_data_rdc;
+		meas_count++;
+
+		// Option to take multiple measurements per wakeup
+		if (meas_count < RDC_NUM_MEAS){	
+			// Repeat measurement while awake
+			rdc_disable();
+			Pstack_state = PSTK_RDC_RUN;
+				
+		}else{
+			meas_count = 0;
+
+			// Assert RDC isolation & turn off RDC power
+			rdc_disable();
+			rdc_osc_disable();
+			rdc_assert_pg();
+			Pstack_state = PSTK_IDLE;
+
+			// Don't use median for now
+			//uint32_t median_idx = rdc_data_median();
 
 			mbus_write_message32(0xCC, exec_count);
-			mbus_write_message32(0xC0, temp_storage_latest);
-
+			mbus_write_message32(0xC0, read_data_temp);
+			mbus_write_message32(0xC1, read_data_rdc);
+				
 			exec_count++;
+
 			// Store results in memory; unless buffer is full
-			if (temp_storage_count < TEMP_STORAGE_SIZE){
-				temp_storage[temp_storage_count] = temp_storage_latest;
-				radio_tx_count = temp_storage_count;
-				temp_storage_count++;
+			if (data_storage_count < DATA_STORAGE_SIZE){
+				rdc_storage[data_storage_count] = read_data_rdc;
+				temp_storage[data_storage_count] = read_data_temp;
+				radio_tx_count = data_storage_count;
+				data_storage_count++;
 			}
 
 			// Optionally transmit the data
@@ -1103,12 +1255,14 @@ static void operation_temp_run(void){
 				delay(RADIO_PACKET_DELAY);
 				send_radio_data_ppm(0,0xBBB000+read_data_batadc);	
 				delay(RADIO_PACKET_DELAY);
-				send_radio_data_ppm(0, temp_storage_latest);
+				send_radio_data_ppm(0, 0xD00000 | (0xFFFFF & read_data_temp));
+				delay(RADIO_PACKET_DELAY);
+				send_radio_data_ppm(0, 0xE00000 | (0xFFFFF & read_data_rdc));
 				delay(RADIO_PACKET_DELAY);
 			}
 
 			// Enter long sleep
-			if(exec_count < TEMP_CYCLE_INIT){
+			if (exec_count < SNS_CYCLE_INIT){
 				// Send some signal
 				send_radio_data_ppm(1, 0xABC000);
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
@@ -1123,16 +1277,16 @@ static void operation_temp_run(void){
 				radio_power_off();
 			}
 
-			if (temp_run_single){
-				temp_run_single = 0;
-				temp_running = 0;
+			if (sns_run_single){
+				sns_run_single = 0;
+				sns_running = 0;
 				operation_sleep_notimer();
 			}
 
-			if ((set_temp_exec_count != 0) && (exec_count > (50<<set_temp_exec_count))){
+			if ((set_sns_exec_count != 0) && (exec_count > (50<<set_sns_exec_count))){
 				// No more measurement required
 				// Make sure temp sensor is off
-				temp_running = 0;
+				sns_running = 0;
 				operation_sleep_notimer();
 			}else{
 				operation_sleep();
@@ -1142,9 +1296,10 @@ static void operation_temp_run(void){
 
     }else{
         //default:  // THIS SHOULD NOT HAPPEN
-		// Reset Temp Sensor 
-		temp_sensor_power_off();
-		sns_ldo_power_off();
+		// Reset RDC 
+		rdc_assert_pg();
+		rdc_disable();
+		rdc_osc_disable();
 		operation_sleep_notimer();
     }
 
@@ -1159,8 +1314,8 @@ static void operation_goc_trigger_init(void){
 	mbus_write_message32(0xAA,wakeup_data);
 
 	// Initialize variables & registers
-	temp_running = 0;
-	Tstack_state = TSTK_IDLE;
+	sns_running = 0;
+	Pstack_state = PSTK_IDLE;
 	
 	radio_power_off();
 	temp_sensor_power_off();
@@ -1252,19 +1407,19 @@ int main() {
         WAKEUP_PERIOD_CONT_INIT = (wakeup_data_field_2 & 0xF);
         radio_tx_option = wakeup_data_field_2 & 0x10;
 
-		temp_run_single = 0;
+		sns_run_single = 0;
 
-		if (!temp_running){
+		if (!sns_running){
 			// Go to sleep for initial settling of temp sensing // FIXME
 			//set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-			temp_running = 1;
-			set_temp_exec_count = wakeup_data_field_2 >> 5;
+			sns_running = 1;
+			set_sns_exec_count = wakeup_data_field_2 >> 5;
             exec_count_irq++;
 			//operation_sleep_noirqreset();
 		}
 		exec_count = 0;
 		meas_count = 0;
-		temp_storage_count = 0;
+		data_storage_count = 0;
 		radio_tx_count = 0;
 
 		// Reset GOC_DATA_IRQ
@@ -1272,8 +1427,8 @@ int main() {
         exec_count_irq = 0;
 
 		// Run Temp Sensor Program
-    	Tstack_state = TSTK_IDLE;
-		operation_temp_run();
+    	Pstack_state = PSTK_IDLE;
+		operation_sns_run();
 
     }else if(wakeup_data_header == 3){
 		// Stop temp sensor program and transmit the battery reading and execution count (alternating n times)
@@ -1283,7 +1438,7 @@ int main() {
 
 		operation_sns_sleep_check();
 
-		Tstack_state = TSTK_IDLE;
+		Pstack_state = PSTK_IDLE;
 
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
@@ -1326,12 +1481,12 @@ int main() {
 
 		operation_sns_sleep_check();
 
-		Tstack_state = TSTK_IDLE;
+		Pstack_state = PSTK_IDLE;
 
 		radio_tx_numdata = wakeup_data_field_0;
 
 		// Make sure the requested numdata makes sense
-		if (radio_tx_numdata >= temp_storage_count){
+		if (radio_tx_numdata >= data_storage_count){
 			radio_tx_numdata = 0;
 		}
 		
@@ -1450,12 +1605,12 @@ int main() {
     }else if(wakeup_data_header == 0x14){
 		// Run temp sensor once to update room temperature reference
         radio_tx_option = 1;
-		temp_run_single = 1;
-		temp_running = 1;
+		sns_run_single = 1;
+		sns_running = 1;
 
 		exec_count = 0;
 		meas_count = 0;
-		temp_storage_count = 0;
+		data_storage_count = 0;
 		radio_tx_count = 0;
 
 		// Reset GOC_DATA_IRQ
@@ -1463,7 +1618,7 @@ int main() {
         exec_count_irq = 0;
 
 		// Run Temp Sensor Program
-		operation_temp_run();
+		operation_sns_run();
 
     }else if(wakeup_data_header == 0x15){
 		// Transmit wakeup period as counted by (roughly) CPU clock
@@ -1530,7 +1685,7 @@ int main() {
 			*REG_CHIP_ID = chip_id_user;
 		}
 
-		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xCC0000, chip_id_user);
+		operation_goc_trigger_radio(wakeup_data_field_0, 2, 0xCC0000, chip_id_user);
 
 
 	}else if(wakeup_data_header == 0x21){
@@ -1553,6 +1708,49 @@ int main() {
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
+	}else if(wakeup_data_header == 0x30){
+		// Change RDC OSR value (7bit)
+
+		rdcv1_r1A.BRDC_OSR= wakeup_data_field_0;
+		mbus_remote_register_write(RDC_ADDR,0x1A,rdcv1_r1A.as_int);
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x31){
+		// Change RDC Offset value (10bit)
+
+		rdcv1_r1D.BRDC_OFSBOT_IN = wakeup_data & 0x3FF;
+		mbus_remote_register_write(RDC_ADDR,0x1D,rdcv1_r1D.as_int);
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x35){
+	    mbus_remote_register_write(RDC_ADDR,0x15, wakeup_data & 0xFFFF);
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x36){
+
+		mbus_remote_register_write(RDC_ADDR,0x16, wakeup_data & 0xFFFF);
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x3B){
+
+		mbus_remote_register_write(RDC_ADDR,0x1B, wakeup_data & 0xFFFF);
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x3C){
+
+		mbus_remote_register_write(RDC_ADDR,0x1C, wakeup_data & 0xFFFF);
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+
+
     }else{
 		if (wakeup_data_header != 0){
 			// Invalid GOC trigger
@@ -1562,10 +1760,10 @@ int main() {
 	}
 
 
-	if (temp_running){
+	if (sns_running){
 		// Proceed to continuous mode
 		while(1){
-			operation_temp_run();
+			operation_sns_run();
 		}
 	}
 

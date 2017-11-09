@@ -1198,7 +1198,7 @@ static void operation_sns_run(void){
 			// FIXME: for now, do this every time					
 			//measure_wakeup_period();
 			
-			if ((temp_storage_diff > 10) || (exec_count < 2)){ // FIXME: value of 20 correct?
+			if ((temp_storage_diff > 10) || (exec_count < (SNS_CYCLE_INIT+5))){ // FIXME: value of 20 correct?
 				measure_wakeup_period();
 				temp_storage_last_wakeup_adjust = temp_storage_latest;
 			}
@@ -1700,7 +1700,7 @@ int main() {
 			*REG_CHIP_ID = chip_id_user;
 		}
 
-		operation_goc_trigger_radio(wakeup_data_field_0, 2, 0xCC0000, chip_id_user);
+		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xCC0000, chip_id_user);
 
 
 	}else if(wakeup_data_header == 0x21){
