@@ -191,6 +191,8 @@ static void operation_init(void){
 // MAIN function starts here             
 //********************************************************************
 
+#define SRAM_NON_CODE_START_ADDR 1000
+
 int main() {
 
     // Only enable relevant interrupts (PRCv17)
@@ -211,49 +213,62 @@ int main() {
 	set_halt_until_mbus_tx();
 	mbus_write_message32(0xAA,0xABCD1234);
     delay(MBUS_DELAY);
-	mbus_write_message32(0xAA,exec_count);
 
-    uint32_t count, addr, data, read_data;
-    addr = 0;
+    uint32_t addr, data, read_data;
+    uint32_t ii;
+    for(ii=0;ii<100;ii=ii+1){
+    addr = SRAM_NON_CODE_START_ADDR;
     data = 0xAAAAAAAA;
-    for( count=0; count<2048; count++ ){
-		mbus_write_message32(0xAA,addr);
-		mbus_write_message32(0xAB,data);
+    while(addr<8192){
+	    //mbus_write_message32(0xAA,addr);
         *((volatile uint32_t *) addr) = data;
         if (*((volatile uint32_t *) addr) == data){
         }else{
 		    mbus_write_message32(0xFA,0xFAFAFAFA);
+		    mbus_write_message32(0xAA,addr);
+		    mbus_write_message32(0xAD,data);
 		    mbus_write_message32(0xFA,*((volatile uint32_t *) addr));
         }
         addr = addr + 4;
-        delay(MBUS_DELAY);
 	}
 
-    addr = 0;
+	mbus_write_message32(0xAB,0x1);
+
+    addr = SRAM_NON_CODE_START_ADDR;
     data = 0x55555555;
-    for( count=0; count<2048; count++ ){
-		mbus_write_message32(0xAA,data);
+    while(addr<8192){
+	    //mbus_write_message32(0xAA,addr);
         *((volatile uint32_t *) addr) = data;
         if (*((volatile uint32_t *) addr) == data){
         }else{
 		    mbus_write_message32(0xFA,0xFAFAFAFA);
+		    mbus_write_message32(0xAA,addr);
+		    mbus_write_message32(0xAD,data);
 		    mbus_write_message32(0xFA,*((volatile uint32_t *) addr));
         }
         addr = addr + 4;
 	}
 
-    addr = 0;
+	mbus_write_message32(0xAB,0x2);
+
+    addr = SRAM_NON_CODE_START_ADDR;
     data = 0xABCD1234;
-    for( count=0; count<2048; count++ ){
-		mbus_write_message32(0xAA,data);
+    while(addr<8192){
+	    //mbus_write_message32(0xAA,addr);
         *((volatile uint32_t *) addr) = data;
         if (*((volatile uint32_t *) addr) == data){
         }else{
 		    mbus_write_message32(0xFA,0xFAFAFAFA);
+		    mbus_write_message32(0xAA,addr);
+		    mbus_write_message32(0xAD,data);
 		    mbus_write_message32(0xFA,*((volatile uint32_t *) addr));
         }
         addr = addr + 4;
 	}
+    
+    }
+    
+	mbus_write_message32(0xAB,0xF);
     operation_sleep_notimer();
 
     while(1);

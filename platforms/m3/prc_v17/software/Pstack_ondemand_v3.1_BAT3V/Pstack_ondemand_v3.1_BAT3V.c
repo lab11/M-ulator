@@ -1198,7 +1198,7 @@ static void operation_sns_run(void){
 			// FIXME: for now, do this every time					
 			//measure_wakeup_period();
 			
-			if ((temp_storage_diff > 20) || (exec_count < 2)){ // FIXME: value of 20 correct?
+			if ((temp_storage_diff > 10) || (exec_count < 2)){ // FIXME: value of 20 correct?
 				measure_wakeup_period();
 				temp_storage_last_wakeup_adjust = temp_storage_latest;
 			}
