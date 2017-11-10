@@ -38,6 +38,7 @@
 //			v3.1: Shallower parking range
 //				  Trig4 now reports battery and execution count in the beginning
 //			v3.2: Improving wakeup timer measurement
+//			      Trig2 with cont TX has headers for data
 //*******************************************************************
 #include "PRCv17.h"
 #include "PRCv17_RF.h"
@@ -1099,11 +1100,11 @@ static void operation_temp_run(void){
 			if (radio_tx_option){
 				// Read latest PMU ADC measurement
 				pmu_adc_read_latest();
-				send_radio_data_ppm(0, exec_count);
+				send_radio_data_ppm(0, 0xCC0000+exec_count);
 				delay(RADIO_PACKET_DELAY);
 				send_radio_data_ppm(0,0xBBB000+read_data_batadc);	
 				delay(RADIO_PACKET_DELAY);
-				send_radio_data_ppm(0, temp_storage_latest);
+		        send_radio_data_ppm(0, 0xD00000 | (0xFFFFF & temp_storage_latest));
 				delay(RADIO_PACKET_DELAY);
 			}
 
