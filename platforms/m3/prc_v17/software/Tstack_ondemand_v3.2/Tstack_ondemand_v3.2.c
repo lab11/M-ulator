@@ -37,7 +37,7 @@
 //			v3.0:  PRCv17, SNSv10, PMUv7 update
 //			v3.1: Shallower parking range
 //				  Trig4 now reports battery and execution count in the beginning
-//			v3.2: Improving wakeup timer measurement
+//			v3.2: Improving wakeup timer measurement; WUPT max value is 0x7FFF
 //			      Trig2 with cont TX has headers for data
 //*******************************************************************
 #include "PRCv17.h"
@@ -853,6 +853,9 @@ static void measure_wakeup_period(void){
 
    	config_timerwd(TIMERWD_VAL);
 	WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*8, wakeup_period_count);
+    if (WAKEUP_PERIOD_CONT > 0x7FFF){
+        WAKEUP_PERIOD_CONT = 0x7FFF;
+    }
 	mbus_write_message32(0xED, WAKEUP_PERIOD_CONT); 
 }
 
