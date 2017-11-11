@@ -179,7 +179,7 @@ static void operation_init(void){
 
 
     // Initialize other global variables
-    WAKEUP_PERIOD_CONT = 10;   // 10: 2-4 sec with PRCv17
+    WAKEUP_PERIOD_CONT = 100;   // 10: 2-4 sec with PRCv17
 	wakeup_data = 0;
 
     delay(MBUS_DELAY);
@@ -196,6 +196,9 @@ static void operation_init(void){
 //********************************************************************
 
 int main() {
+
+	// Wakeup timer value
+	//mbus_write_message32(0xAA,*REG_WUPT_VAL);
 
     // Only enable relevant interrupts (PRCv17)
 	//enable_reg_irq();
@@ -215,12 +218,16 @@ int main() {
     delay(MBUS_DELAY);
 
     uint32_t count;
-    for( count=0; count<100; count++ ){
+    for( count=0; count<1; count++ ){
 		mbus_write_message32(0xAA,count);
 		delay(MBUS_DELAY);
 	}
 
+	mbus_write_message32(0xC0,30);
+
+
 	set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
+	//mbus_write_message32(0xFF,*REG_WUPT_VAL);
     operation_sleep();
 
     while(1);
