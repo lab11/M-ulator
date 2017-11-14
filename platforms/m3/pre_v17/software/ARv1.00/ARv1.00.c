@@ -28,6 +28,7 @@ volatile uint32_t test_dat;
 volatile uint32_t test_i;
 volatile uint32_t wakeup_data ;
 volatile uint32_t exec_cnt;
+volatile uint32_t wfi_timeout_flag;
 
 volatile uint32_t radio_ready;
 
@@ -59,49 +60,53 @@ volatile mrrv5_r13_t mrrv5_r13 = MRRv5_R13_DEFAULT;
 volatile mrrv5_r1B_t mrrv5_r1B = MRRv5_R1B_DEFAULT;
 volatile mrrv5_r1C_t mrrv5_r1C = MRRv5_R1C_DEFAULT;
 
-//*******************************************************************
-// INTERRUPT HANDLERS
-//*******************************************************************
-void handler_ext_int_0(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_1(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_2(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_3(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_4(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_5(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_6(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_7(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_8(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_9(void)  __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_10(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_11(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_12(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_13(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_14(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_15(void) __attribute__ ((interrupt ("IRQ")));
 
-void handler_ext_int_0 (void) { *NVIC_ICPR = (0x1 << 0);  } // TIMER32
-void handler_ext_int_1 (void) { *NVIC_ICPR = (0x1 << 1);  } // TIMER16
-void handler_ext_int_2 (void) { *NVIC_ICPR = (0x1 << 2);  } // REG0
-void handler_ext_int_3 (void) { *NVIC_ICPR = (0x1 << 3);  } // REG1
-void handler_ext_int_4 (void) { *NVIC_ICPR = (0x1 << 4);  } // REG2
-void handler_ext_int_5 (void) { *NVIC_ICPR = (0x1 << 5);  } // REG3
-void handler_ext_int_6 (void) { *NVIC_ICPR = (0x1 << 6);  } // REG4
-void handler_ext_int_7 (void) { *NVIC_ICPR = (0x1 << 7);  } // REG5
-void handler_ext_int_8 (void) { *NVIC_ICPR = (0x1 << 8);  } // REG6
-void handler_ext_int_9 (void) { *NVIC_ICPR = (0x1 << 9);  } // REG7
-void handler_ext_int_10(void) { *NVIC_ICPR = (0x1 << 10); } // MEM WR
-void handler_ext_int_11(void) { *NVIC_ICPR = (0x1 << 11); } // MBUS_RX
-void handler_ext_int_12(void) { *NVIC_ICPR = (0x1 << 12); } // MBUS_TX
-void handler_ext_int_13(void) { *NVIC_ICPR = (0x1 << 13); } // MBUS_FWD
-void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // SPI
-void handler_ext_int_15(void) { *NVIC_ICPR = (0x1 << 15); } // GPIO
+//*******************************************************************
+// INTERRUPT HANDLERS (Updated for PRCv17)
+//*******************************************************************
+
+void handler_ext_int_wakeup   (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_gocep    (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_timer32  (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg0     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg1     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg2     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg3     (void) __attribute__ ((interrupt ("IRQ")));
+
+void handler_ext_int_timer32(void) { // TIMER32
+    *NVIC_ICPR = (0x1 << IRQ_TIMER32);
+    *REG1 = *TIMER32_CNT;
+    *REG2 = *TIMER32_STAT;
+    *TIMER32_STAT = 0x0;
+	wfi_timeout_flag = 1;
+    }
+void handler_ext_int_reg0(void) { // REG0
+    *NVIC_ICPR = (0x1 << IRQ_REG0);
+}
+void handler_ext_int_reg1(void) { // REG1
+    *NVIC_ICPR = (0x1 << IRQ_REG1);
+}
+void handler_ext_int_reg2(void) { // REG2
+    *NVIC_ICPR = (0x1 << IRQ_REG2);
+}
+void handler_ext_int_reg3(void) { // REG3
+    *NVIC_ICPR = (0x1 << IRQ_REG3);
+}
+void handler_ext_int_gocep(void) { // GOCEP
+    *NVIC_ICPR = (0x1 << IRQ_GOCEP);
+}
+void handler_ext_int_wakeup(void) { // WAKE-UP
+    *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
+    *SREG_WAKEUP_SOURCE = 0;
+}
 
 //***************************************************
 // End of Program Sleep Functions
 //***************************************************
 static void operation_sleep(void){
-  // Reset IRQ14VEC
-  *IRQ14VEC = 0;
+	// Reset GOC_DATA_IRQ
+	*GOC_DATA_IRQ = 0;
+
   mbus_sleep_all();
   while(1);
 }
@@ -534,10 +539,13 @@ static void operation_init(void){
   *REG_CLKGEN_TUNE = prev17_r0B.as_int;
   
   // Enumerate
-  set_halt_until_mbus_rx();
+  //set_halt_until_mbus_rx();
   mbus_enumerate(SNS_ADDR);
+	delay(MBUS_DELAY);
   mbus_enumerate(MRR_ADDR);
+	delay(MBUS_DELAY);
   mbus_enumerate(PMU_ADDR);
+	delay(MBUS_DELAY);
 
   // PMU
   pmu_set_clk_init();
@@ -545,7 +553,7 @@ static void operation_init(void){
   pmu_adc_active_disable();
   pmu_adc_reset_setting();
   pmu_adc_enable();
-  set_halt_until_mbus_tx();
+  //set_halt_until_mbus_tx();
   enumerated = 0xDEADBEEF;
   
   // MRR
@@ -608,7 +616,7 @@ static void operation_init(void){
   mbus_remote_register_write(MRR_ADDR,0x10,mrrv5_r10.as_int);
   
   // Mbus return address; Needs to be between 0x18-0x1F
-  mbus_remote_register_write(MRR_ADDR,0x1B,0x1A00);
+  mbus_remote_register_write(MRR_ADDR,0x1B,0x1002);
 
   // Lower BaseBand Frequency
   mrrv5_r05.MRR_SCRO_R_SEL = 0x47F;
@@ -628,9 +636,10 @@ static void operation_init(void){
 
 int main() {
 
-  // Initialize Interrupts
-  clear_all_pend_irq();
-  
+    // Only enable relevant interrupts (PRCv17)
+	//enable_reg_irq();
+	//enable_all_irq();
+	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3);
   disable_timerwd();
 
   // Initialization Routine
@@ -638,9 +647,9 @@ int main() {
 	operation_init();
   }
   
-  set_halt_until_mbus_tx();
+  //set_halt_until_mbus_tx();
 
-  wakeup_data = *((volatile uint32_t *) IRQ14VEC);
+    wakeup_data = *GOC_DATA_IRQ;
   uint32_t wkp_data_hdr   = wakeup_data >> 24;
   uint32_t wkp_data_fld_0 = wakeup_data >>  0 & 0xFF;
   uint32_t wkp_data_fld_1 = wakeup_data >>  8 & 0xFF;
