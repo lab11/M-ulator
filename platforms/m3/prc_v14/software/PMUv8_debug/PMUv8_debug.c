@@ -51,6 +51,7 @@
 // "static" limits the variables to this file, giving compiler more freedom
 // "volatile" should only be used for MMIO --> ensures memory storage
 volatile uint32_t enumerated;
+volatile uint32_t target_pmu_addr;
 volatile uint32_t wakeup_data;
 volatile uint32_t Tstack_state;
 volatile uint32_t wfi_timeout_flag;
@@ -733,20 +734,6 @@ static void operation_sleep_noirqreset(void){
 
 static void operation_sleep_notimer(void){
     
-    // Make sure LDO is off
-    ldo_power_off();
-	
-    // Make sure Radio is off
-    if (radio_on){radio_power_off();}
-
-	// Check if sleep parking lot is on
-	if (pmu_parkinglot_mode & 0x2){
-		set_wakeup_timer(WAKEUP_PERIOD_PARKING,0x1,0x1);
-	}else{
-		// Disable Timer
-		set_wakeup_timer(0, 0, 0);
-	}
-
     // Go to sleep
     operation_sleep();
 
@@ -904,75 +891,6 @@ static void operation_init(void){
 	pmu_adc_enable();
 	delay(MBUS_DELAY);
 
-    // Temp Sensor Settings --------------------------------------
-	// SNSv7_R25
-	snsv7_r25_temp.as_int = snsv7_r25.as_int;
-	snsv7_r25_temp.TEMP_SENSOR_IRQ_PACKET = 0x001000;
-	snsv7_r25.as_int = snsv7_r25_temp.as_int;
-	mbus_remote_register_write(SNS_ADDR,0x19,snsv7_r25.as_int);
-	// SNSv7_R14
-	snsv7_r14_temp.as_int = snsv7_r14.as_int;
-	snsv7_r14_temp.TEMP_SENSOR_BURST_MODE = 0x0;
-	snsv7_r14_temp.TEMP_SENSOR_DELAY_SEL = 5;
-	snsv7_r14_temp.TEMP_SENSOR_R_tmod = 0x0;
-	snsv7_r14_temp.TEMP_SENSOR_R_bmod = 0x0;
-	snsv7_r14.as_int = snsv7_r14_temp.as_int;
-	mbus_remote_register_write(SNS_ADDR,0xE,snsv7_r14.as_int);
-	// snsv7_R15
-	snsv7_r15_temp.as_int = snsv7_r15.as_int;
-	snsv7_r15_temp.TEMP_SENSOR_AMP_BIAS   = 0x7; // Default: 2
-	snsv7_r15_temp.TEMP_SENSOR_CONT_MODEb = 0x0;
-	snsv7_r15_temp.TEMP_SENSOR_SEL_CT     = 6;
-	snsv7_r15.as_int = snsv7_r15_temp.as_int;
-	mbus_remote_register_write(SNS_ADDR,0xF,snsv7_r15.as_int);
-
-	// snsv7_R18
-	snsv7_r18_temp.as_int = snsv7_r18.as_int;
-	snsv7_r18_temp.ADC_LDO_ADC_LDO_ENB      = 0x1;
-	snsv7_r18_temp.ADC_LDO_ADC_LDO_DLY_ENB  = 0x1;
-	snsv7_r18_temp.ADC_LDO_ADC_CURRENT_2X   = 0x1;
-	snsv7_r18_temp.ADC_LDO_ADC_VREF_MUX_SEL = 0x3; // Set ADC LDO to around 1.37V: 0x3//0x20
-	snsv7_r18_temp.ADC_LDO_ADC_VREF_SEL     = 0x20; // Set ADC LDO to around 1.37V: 0x3//0x20
-	snsv7_r18.as_int = snsv7_r18_temp.as_int;
-	mbus_remote_register_write(SNS_ADDR,18,snsv7_r18.as_int);
-
-	// Temp sensor Mbus return address; Needs to be between 0x18-0x1F
-    mbus_remote_register_write(SNS_ADDR,0x19,0x1800);
-
-
-    // Radio Settings --------------------------------------
-	radv9_r0_temp.as_int = radv9_r0.as_int;
-	radv9_r0_temp.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
-	radv9_r0_temp.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1
-	radv9_r0_temp.RADIO_TUNE_FREQ2 = 0x0; //Tune Freq 2
-	radv9_r0_temp.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
-	radv9_r0.as_int = radv9_r0_temp.as_int;
-	mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
-
-	// FSM data length setups
-	radv9_r11_temp.as_int = radv9_r11.as_int;
-	radv9_r11_temp.RAD_FSM_H_LEN = 16; // N
-	radv9_r11_temp.RAD_FSM_D_LEN = RADIO_DATA_LENGTH-1; // N-1
-	radv9_r11_temp.RAD_FSM_C_LEN = 10;
-	radv9_r11.as_int = radv9_r11_temp.as_int;
-	mbus_remote_register_write(RAD_ADDR,11,radv9_r11.as_int);
-	
-	// Configure SCRO
-	radv9_r1_temp.as_int = radv9_r1.as_int;
-	radv9_r1_temp.SCRO_FREQ_DIV = 3;
-	radv9_r1_temp.SCRO_AMP_I_LEVEL_SEL = 2; // Default 2
-	radv9_r1_temp.SCRO_I_LEVEL_SELB = 0x60; // Default 0x6F
-	radv9_r1.as_int = radv9_r1_temp.as_int;
-	mbus_remote_register_write(RAD_ADDR,1,radv9_r1.as_int);
-	
-	// LFSR Seed
-	radv9_r12_temp.as_int = radv9_r12.as_int;
-	radv9_r12_temp.RAD_FSM_SEED = 4;
-	radv9_r12.as_int = radv9_r12_temp.as_int;
-	mbus_remote_register_write(RAD_ADDR,12,radv9_r12.as_int);
-	
-	// Mbus return address; Needs to be between 0x18-0x1F
-    mbus_remote_register_write(RAD_ADDR,0xF,0x1900);
 
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 33750;   // 1: 2-4 sec with PRCv9
@@ -1016,7 +934,8 @@ int main() {
     // Initialize Interrupts
     // Only enable register-related interrupts
 	//enable_reg_irq();
-	enable_all_irq();
+	//enable_all_irq();
+    disable_all_irq();
   
     // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
     config_timerwd(TIMERWD_VAL);
@@ -1025,7 +944,17 @@ int main() {
     if (enumerated != 0xDEADBEE5){
         // Set up PMU/GOC register in PRC layer (every time)
         // Enumeration & RAD/SNS layer register configuration
+ 	    mbus_enumerate(PMU_ADDR);
+    	delay(MBUS_DELAY);
+
+        enumerated = 0xDEADBEE5;
+        operation_sleep_notimer();
         operation_init();
+    }
+
+    if (*REG2 == 0x123456) {
+        *REG2 = 0;
+		mbus_remote_register_write(PMU_ADDR, 0x53, (0x0 << 23) | (0x1 << 22) | wakeup_data & 0x3FFFFF);
     }
 
 
@@ -1039,18 +968,46 @@ int main() {
     uint32_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
 
 
+	mbus_write_message32(0xAA,0xABCD1234);
+	mbus_write_message32(0xAA,wakeup_data);
+
     if(wakeup_data_header == 1){
 		// Read arbitrary PMU register	
 		// PMU register read is handled differently
 		mbus_remote_register_write(PMU_ADDR,0x00,wakeup_data & 0xFF);
 		delay(MBUS_DELAY);
+		delay(MBUS_DELAY);
+		delay(MBUS_DELAY);
         operation_sleep_notimer();
 
     }else if(wakeup_data_header == 2){
 
-    }else if(wakeup_data_header == 3){
+        target_pmu_addr = wakeup_data & 0xFF;
+        operation_sleep_notimer();
 
+    }else if(wakeup_data_header == 3){
+		mbus_remote_register_write(PMU_ADDR,target_pmu_addr,wakeup_data & 0xFFFFFF);
+		delay(MBUS_DELAY);
+        operation_sleep_notimer();
+
+    }else if(wakeup_data_header == 4){
+        set_halt_until_mbus_rx();
+		mbus_remote_register_write(PMU_ADDR, 0x45, 0x248); // SAR converter
+        set_halt_until_mbus_rx();
+		mbus_remote_register_write(PMU_ADDR, 0x53, (0x1 << 23) | (0x1 << 22) | wakeup_data & 0x3FFFFF);
+        set_halt_until_mbus_tx();
+		mbus_remote_register_write(PMU_ADDR, 0x53, (0x0 << 23) | (0x1 << 22) | wakeup_data & 0x3FFFFF);
+        operation_sleep_notimer();
+    }else if(wakeup_data_header == 5){
+        set_halt_until_mbus_rx();
+		mbus_remote_register_write(PMU_ADDR, 0x45, 0x248); // SAR converter
+        set_halt_until_mbus_tx();
+		mbus_remote_register_write(PMU_ADDR, 0x53, (0x1 << 23) | (0x0 << 22) | wakeup_data & 0x3FFFFF);
+        *IRQ14VEC = 0;
+        *REG2 = 0x123456;
+        operation_sleep_notimer();
     }else{
+	    mbus_write_message32(0xAA,0xDEADBEEF);
 		if (wakeup_data_header != 0){
 			// Invalid GOC trigger
             // Go to sleep without timer
@@ -1060,6 +1017,7 @@ int main() {
 
 
 	
+	mbus_write_message32(0xAA,0xDEADBEE1);
 	operation_sleep_notimer();
 
     while(1);

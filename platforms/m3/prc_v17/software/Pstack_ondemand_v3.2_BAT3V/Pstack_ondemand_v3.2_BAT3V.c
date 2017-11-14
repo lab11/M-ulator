@@ -6,6 +6,8 @@
 //			v3.1: Adding trig X that only records if temp > threshold
 //				  RDCv1 offset configuration
 //				  Trig4 now reports battery and execution count in the beginning
+//			v3.2: Improving wakeup timer measurement; WUPT max value is 0x7FFF
+//			      Trig2 with cont TX has headers for data
 //*******************************************************************
 #include "PRCv17.h"
 #include "PRCv17_RF.h"
@@ -909,6 +911,9 @@ uint32_t dumb_divide(uint32_t nu, uint32_t de) {
 
 static void measure_wakeup_period(void){
 
+    // Reset Wakeup Timer
+    *WUPT_RESET = 1;
+
 	mbus_write_message32(0xE0, 0x0);
 	// Prevent watchdogs from kicking in
    	config_timerwd(TIMERWD_VAL*2);
@@ -917,13 +922,10 @@ static void measure_wakeup_period(void){
 	uint32_t wakeup_timer_val_0 = *REG_WUPT_VAL;
 	wakeup_period_count = 0;
 
-	while( *REG_WUPT_VAL == wakeup_timer_val_0){
+	while( *REG_WUPT_VAL <= wakeup_timer_val_0 + 1){
 		wakeup_period_count = 0;
 	}
-	while( *REG_WUPT_VAL == wakeup_timer_val_0 + 1){
-		wakeup_period_count = 0;
-	}
-	while( *REG_WUPT_VAL == wakeup_timer_val_0 + 2){
+	while( *REG_WUPT_VAL <= wakeup_timer_val_0 + 2){
 		wakeup_period_count++;
 	}
 	mbus_write_message32(0xE1, wakeup_timer_val_0);
@@ -931,8 +933,12 @@ static void measure_wakeup_period(void){
 
    	config_timerwd(TIMERWD_VAL);
 	WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*8, wakeup_period_count);
+    if (WAKEUP_PERIOD_CONT > 0x7FFF){
+        WAKEUP_PERIOD_CONT = 0x7FFF;
+    }
 	mbus_write_message32(0xED, WAKEUP_PERIOD_CONT); 
 }
+
 
 
 static void operation_init(void){
@@ -948,7 +954,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Pstack_state = PSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEE1;
+    enumerated = 0xDEADBEE2;
     exec_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_3P0_VAL = 0x62;
@@ -1290,7 +1296,7 @@ static void operation_sns_run(void){
 			if (radio_tx_option){
 				// Read latest PMU ADC measurement
 				pmu_adc_read_latest();
-				send_radio_data_ppm(0, exec_count);
+				send_radio_data_ppm(0, 0xCC0000+exec_count);
 				delay(RADIO_PACKET_DELAY);
 				send_radio_data_ppm(0,0xBBB000+read_data_batadc);	
 				delay(RADIO_PACKET_DELAY);
@@ -1403,7 +1409,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEE1){
+    if (enumerated != 0xDEADBEE2){
         operation_init();
     }
 
@@ -1595,6 +1601,7 @@ int main() {
 
 		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xABC000, exec_count_irq);
 
+/*
     }else if(wakeup_data_header == 0x14){
 		// Run temp sensor once to update room temperature reference
         radio_tx_option = 1;
@@ -1613,7 +1620,6 @@ int main() {
 		// Run Temp Sensor Program
 		operation_sns_run();
 
-/*
     }else if(wakeup_data_header == 0x15){
 		// Transmit wakeup period as counted by (roughly) CPU clock
 		// wakeup_data[7:0] is the # of transmissions

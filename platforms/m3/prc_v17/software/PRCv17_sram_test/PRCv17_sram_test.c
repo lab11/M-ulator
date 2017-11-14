@@ -164,6 +164,7 @@ static void operation_init(void){
     // Set CPU Halt Option as RX --> Use for register read e.g.
     //set_halt_until_mbus_rx();
 
+/*
     //Enumeration
     mbus_enumerate(RAD_ADDR);
 	delay(MBUS_DELAY);
@@ -173,20 +174,15 @@ static void operation_init(void){
 	delay(MBUS_DELAY);
  	mbus_enumerate(PMU_ADDR);
 	delay(MBUS_DELAY);
-
+*/
     // Set CPU Halt Option as TX --> Use for register write e.g.
 	//set_halt_until_mbus_tx();
 
 
     // Initialize other global variables
-    WAKEUP_PERIOD_CONT = 100;   // 10: 2-4 sec with PRCv17
+    WAKEUP_PERIOD_CONT = 10;   // 10: 2-4 sec with PRCv17
 	wakeup_data = 0;
 
-    delay(MBUS_DELAY);
-
-    // Go to sleep
-	set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
-    operation_sleep();
 }
 
 
@@ -195,10 +191,9 @@ static void operation_init(void){
 // MAIN function starts here             
 //********************************************************************
 
-int main() {
+#define SRAM_NON_CODE_START_ADDR 1000
 
-	// Wakeup timer value
-	//mbus_write_message32(0xAA,*REG_WUPT_VAL);
+int main() {
 
     // Only enable relevant interrupts (PRCv17)
 	//enable_reg_irq();
@@ -206,7 +201,9 @@ int main() {
 	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3);
   
     // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
-    config_timerwd(TIMERWD_VAL);
+    //config_timerwd(TIMERWD_VAL);
+    *TIMERWD_GO = 0;
+    *MBCWD_RESET = 1;
 
     // Initialization sequence
     if (enumerated != 0xDEADBEE0){
@@ -217,18 +214,62 @@ int main() {
 	mbus_write_message32(0xAA,0xABCD1234);
     delay(MBUS_DELAY);
 
-    uint32_t count;
-    for( count=0; count<1; count++ ){
-		mbus_write_message32(0xAA,count);
-		delay(MBUS_DELAY);
+    uint32_t addr, data, read_data;
+    uint32_t ii;
+    for(ii=0;ii<100;ii=ii+1){
+    addr = SRAM_NON_CODE_START_ADDR;
+    data = 0xAAAAAAAA;
+    while(addr<8192){
+	    //mbus_write_message32(0xAA,addr);
+        *((volatile uint32_t *) addr) = data;
+        if (*((volatile uint32_t *) addr) == data){
+        }else{
+		    mbus_write_message32(0xFA,0xFAFAFAFA);
+		    mbus_write_message32(0xAA,addr);
+		    mbus_write_message32(0xAD,data);
+		    mbus_write_message32(0xFA,*((volatile uint32_t *) addr));
+        }
+        addr = addr + 4;
 	}
 
-	mbus_write_message32(0xC0,30);
+	mbus_write_message32(0xAB,0x1);
 
+    addr = SRAM_NON_CODE_START_ADDR;
+    data = 0x55555555;
+    while(addr<8192){
+	    //mbus_write_message32(0xAA,addr);
+        *((volatile uint32_t *) addr) = data;
+        if (*((volatile uint32_t *) addr) == data){
+        }else{
+		    mbus_write_message32(0xFA,0xFAFAFAFA);
+		    mbus_write_message32(0xAA,addr);
+		    mbus_write_message32(0xAD,data);
+		    mbus_write_message32(0xFA,*((volatile uint32_t *) addr));
+        }
+        addr = addr + 4;
+	}
 
-	set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
-	//mbus_write_message32(0xFF,*REG_WUPT_VAL);
-    operation_sleep();
+	mbus_write_message32(0xAB,0x2);
+
+    addr = SRAM_NON_CODE_START_ADDR;
+    data = 0xABCD1234;
+    while(addr<8192){
+	    //mbus_write_message32(0xAA,addr);
+        *((volatile uint32_t *) addr) = data;
+        if (*((volatile uint32_t *) addr) == data){
+        }else{
+		    mbus_write_message32(0xFA,0xFAFAFAFA);
+		    mbus_write_message32(0xAA,addr);
+		    mbus_write_message32(0xAD,data);
+		    mbus_write_message32(0xFA,*((volatile uint32_t *) addr));
+        }
+        addr = addr + 4;
+	}
+    
+    }
+    
+	mbus_write_message32(0xAB,0xF);
+    operation_sleep_notimer();
 
     while(1);
 }
