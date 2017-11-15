@@ -187,7 +187,7 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
 // PMU Related Functions
 //************************************
 
-inline static void set_pmu_adc_period(uint32_t val){
+inline static void pmu_set_adc_period(uint32_t val){
 	// PMU_CONTROLLER_DESIRED_STATE Active
 	mbus_remote_register_write(PMU_ADDR,0x3C,
 		((  1 << 0) //state_sar_scn_on
@@ -251,7 +251,7 @@ inline static void set_pmu_adc_period(uint32_t val){
 	delay(MBUS_DELAY);
 }
 
-inline static void set_pmu_sleep_radio(){
+inline static void pmu_set_sleep_radio(){
 	// Register 0x15: SAR_TRIM_v3_SLEEP
     mbus_remote_register_write(PMU_ADDR,0x15, 
 		( (0 << 19) // Enable PFM even during periodic reset
@@ -286,7 +286,7 @@ inline static void set_pmu_sleep_radio(){
 	delay(MBUS_DELAY);
 }
 
-inline static void set_pmu_sleep_low(){
+inline static void pmu_set_sleep_low(){
 	// Register 0x17: V3P6 Upconverter Sleep Settings
     mbus_remote_register_write(PMU_ADDR,0x17, 
 		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
@@ -319,7 +319,7 @@ inline static void set_pmu_sleep_low(){
 }
 
 
-inline static void set_pmu_clk_init(){
+inline static void pmu_set_clk_init(){
 	// Register 0x17: V3P6 Upconverter Sleep Settings
     mbus_remote_register_write(PMU_ADDR,0x17, 
 		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
@@ -412,7 +412,7 @@ inline static void set_pmu_clk_init(){
 	));
 	delay(MBUS_DELAY);
 
-	set_pmu_adc_period(1); // 0x100 about 1 min for 1/2/1 1P2 setting
+	pmu_set_adc_period(1); // 0x100 about 1 min for 1/2/1 1P2 setting
 }
 
 
@@ -575,7 +575,7 @@ static void radio_power_on(){
 	pmu_adc_disable();
 
 	// Need to speed up sleep pmu clock
-	set_pmu_sleep_radio();
+	pmu_set_sleep_radio();
 	
 	// This can be safely assumed
 	radio_ready = 0;
@@ -607,7 +607,7 @@ static void radio_power_on(){
 static void radio_power_off(){
 
 	// Need to restore sleep pmu clock
-	set_pmu_sleep_low();
+	pmu_set_sleep_low();
 	
 	// Enable PMU ADC
 	pmu_adc_enable();
@@ -897,7 +897,7 @@ static void operation_init(void){
 	//set_halt_until_mbus_tx();
 
 	// PMU Settings ----------------------------------------------
-	set_pmu_clk_init();
+	pmu_set_clk_init();
 	pmu_reset_solar_short();
 
 	// Disable PMU ADC measurement in active mode

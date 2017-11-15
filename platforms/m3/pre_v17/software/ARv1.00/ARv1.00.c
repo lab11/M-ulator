@@ -254,7 +254,7 @@ static void pmu_set_clk_init(){
 							  | ( 0 <<  9) // Enable override setting [8] (1'h0)
 							  | ( 0 <<  8) // Switch input / output power rails for upconversion (1'h0)
 							  | ( 0 <<  7) // Enable override setting [6:0] (1'h0)
-							  | (65 <<  0) // Binary converter's conversion ratio (7'h00)
+							  | (0x4D <<  0) // Binary converter's conversion ratio (7'h00)
 							  ));
   mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
 							 ((   1 << 13) // Enables override setting [12] (1'b1)
@@ -264,9 +264,9 @@ static void pmu_set_clk_init(){
 							  | ( 1 <<  9) // Enable override setting [8] (1'h0)
 							  | ( 0 <<  8) // Switch input / output power rails for upconversion (1'h0)
 							  | ( 1 <<  7) // Enable override setting [6:0] (1'h0)
-							  | (65 <<  0) // Binary converter's conversion ratio (7'h00)
+							  | (0x4D <<  0) // Binary converter's conversion ratio (7'h00)
 							  ));
-  pmu_set_adc_period(0x100); // 0x100 about 1 min for 1/2/1 1P2 setting
+  pmu_set_adc_period(1); // 0x100 about 1 min for 1/2/1 1P2 setting
 }
 
 static void pmu_reset_solar_short(){
@@ -667,6 +667,8 @@ int main() {
 	operation_sleep_notimer();
   }else if(wkp_data_hdr == 0x02){
 	mbus_write_message32(0xAA,wkp_data_hdr);
+	  pmu_adc_read_latest();
+	  pmu_parkinglot_decision_3v_battery();
 	operation_sleep_notimer();
 
   }else if(wkp_data_hdr == 0x10){

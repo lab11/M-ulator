@@ -174,7 +174,7 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
 // PMU Related Functions
 //************************************
 
-static void set_pmu_sar_override(uint32_t val){
+static void pmu_set_sar_override(uint32_t val){
 	// SAR_RATIO_OVERRIDE
     mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
 		( (0 << 13) // Enables override setting [12] (1'b1)
@@ -200,7 +200,7 @@ static void set_pmu_sar_override(uint32_t val){
 	delay(MBUS_DELAY*2);
 }
 
-inline static void set_pmu_adc_period(uint32_t val){
+inline static void pmu_set_adc_period(uint32_t val){
 	// PMU_CONTROLLER_DESIRED_STATE Active
 	mbus_remote_register_write(PMU_ADDR,0x3C,
 		((  1 << 0) //state_sar_scn_on
@@ -264,7 +264,7 @@ inline static void set_pmu_adc_period(uint32_t val){
 	delay(MBUS_DELAY);
 }
 
-inline static void set_pmu_sleep_radio(){
+inline static void pmu_set_sleep_radio(){
 	// Register 0x15: SAR_TRIM_v3_SLEEP
     mbus_remote_register_write(PMU_ADDR,0x15, 
 		( (0 << 19) // Enable PFM even during periodic reset
@@ -299,7 +299,7 @@ inline static void set_pmu_sleep_radio(){
 	delay(MBUS_DELAY);
 }
 
-inline static void set_pmu_sleep_low(){
+inline static void pmu_set_sleep_low(){
 	// Register 0x17: V3P6 Upconverter Sleep Settings
     mbus_remote_register_write(PMU_ADDR,0x17, 
 		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
@@ -332,7 +332,7 @@ inline static void set_pmu_sleep_low(){
 }
 
 
-inline static void set_pmu_clk_init(){
+inline static void pmu_set_clk_init(){
 	// Register 0x17: V3P6 Upconverter Sleep Settings
     mbus_remote_register_write(PMU_ADDR,0x17, 
 		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
@@ -413,9 +413,9 @@ inline static void set_pmu_clk_init(){
 		| (0x45) 		// Binary converter's conversion ratio (7'h00)
 	));
 	delay(MBUS_DELAY);
-	set_pmu_sar_override(0x4D);
+	pmu_set_sar_override(0x4D);
 
-	set_pmu_adc_period(1); // 0x100 about 1 min for 1/2/1 1P2 setting
+	pmu_set_adc_period(1); // 0x100 about 1 min for 1/2/1 1P2 setting
 }
 
 
@@ -518,51 +518,51 @@ inline static void pmu_parkinglot_decision_3v_battery(){
 	
 	// Battery > 3.0V
 	if (read_data_batadc < (PMU_ADC_3P0_VAL)){
-		set_pmu_sar_override(0x3C);
+		pmu_set_sar_override(0x3C);
 
 	// Battery 2.9V - 3.0V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 4){
-		set_pmu_sar_override(0x3F);
+		pmu_set_sar_override(0x3F);
 
 	// Battery 2.8V - 2.9V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 8){
-		set_pmu_sar_override(0x41);
+		pmu_set_sar_override(0x41);
 
 	// Battery 2.7V - 2.8V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 12){
-		set_pmu_sar_override(0x43);
+		pmu_set_sar_override(0x43);
 
 	// Battery 2.6V - 2.7V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 17){
-		set_pmu_sar_override(0x45);
+		pmu_set_sar_override(0x45);
 
 	// Battery 2.5V - 2.6V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 21){
-		set_pmu_sar_override(0x48);
+		pmu_set_sar_override(0x48);
 
 	// Battery 2.4V - 2.5V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 27){
-		set_pmu_sar_override(0x4B);
+		pmu_set_sar_override(0x4B);
 
 	// Battery 2.3V - 2.4V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 32){
-		set_pmu_sar_override(0x4E);
+		pmu_set_sar_override(0x4E);
 
 	// Battery 2.2V - 2.3V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 39){
-		set_pmu_sar_override(0x51);
+		pmu_set_sar_override(0x51);
 
 	// Battery 2.1V - 2.2V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 46){
-		set_pmu_sar_override(0x56);
+		pmu_set_sar_override(0x56);
 
 	// Battery 2.0V - 2.1V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 53){
-		set_pmu_sar_override(0x5A);
+		pmu_set_sar_override(0x5A);
 
 	// Battery <= 2.0V
 	}else{
-		set_pmu_sar_override(0x5F);
+		pmu_set_sar_override(0x5F);
 	}
 	
 }
@@ -596,7 +596,7 @@ static void radio_power_on(){
 	pmu_adc_disable();
 
 	// Need to speed up sleep pmu clock
-	set_pmu_sleep_radio();
+	pmu_set_sleep_radio();
 	
 	// This can be safely assumed
 	radio_ready = 0;
@@ -628,7 +628,7 @@ static void radio_power_on(){
 static void radio_power_off(){
 
 	// Need to restore sleep pmu clock
-	set_pmu_sleep_low();
+	pmu_set_sleep_low();
 	
 	// Enable PMU ADC
 	pmu_adc_enable();
@@ -978,7 +978,7 @@ static void operation_init(void){
 	//    set_halt_until_mbus_tx();
 
 	// PMU Settings ----------------------------------------------
-	set_pmu_clk_init();
+	pmu_set_clk_init();
 	pmu_reset_solar_short();
 
 	// Disable PMU ADC measurement in active mode
@@ -1673,7 +1673,7 @@ int main() {
 
 	}else if(wakeup_data_header == 0x18){
 		// Manually override the SAR ratio
-		set_pmu_sar_override(wakeup_data_field_0);
+		pmu_set_sar_override(wakeup_data_field_0);
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
