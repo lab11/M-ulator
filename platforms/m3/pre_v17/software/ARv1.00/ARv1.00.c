@@ -754,7 +754,7 @@ int main() {
   
   //set_halt_until_mbus_tx();
 
-    wakeup_data = *GOC_DATA_IRQ;
+  wakeup_data = *GOC_DATA_IRQ;
   uint32_t wkp_data_hdr   = wakeup_data >> 24;
   uint32_t wkp_data_fld_0 = wakeup_data >>  0 & 0xFF;
   uint32_t wkp_data_fld_1 = wakeup_data >>  8 & 0xFF;
