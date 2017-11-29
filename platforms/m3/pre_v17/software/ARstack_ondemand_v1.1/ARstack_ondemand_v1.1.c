@@ -839,7 +839,10 @@ static void operation_sleep_noirqreset(void){
 }
 
 static void operation_sleep_notimer(void){
-    
+
+	// Maks sure the irq counter is reset    
+    exec_count_irq = 0;
+
 	operation_sns_sleep_check();	
 
     // Make sure Radio is off
