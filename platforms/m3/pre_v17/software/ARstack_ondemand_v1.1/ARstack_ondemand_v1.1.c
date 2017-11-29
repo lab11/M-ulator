@@ -37,7 +37,7 @@
 #define RADIO_DATA_LENGTH 120
 #define WAKEUP_PERIOD_RADIO_INIT 10 // About 2 sec (PRCv17)
 
-#define DATA_STORAGE_SIZE 200 // Need to leave about 500 Bytes for stack --> around 60 words
+#define DATA_STORAGE_SIZE 600 // Need to leave about 500 Bytes for stack --> around 60 words
 #define TEMP_NUM_MEAS 2
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y5 run default clock (PRCv17)
