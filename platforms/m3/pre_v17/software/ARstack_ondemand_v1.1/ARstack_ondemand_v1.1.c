@@ -1312,7 +1312,7 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
 			operation_sleep_noirqreset();
 		}else{
 			// radio
-			send_radio_data_mrr(0, radio_tx_prefix | radio_tx_data,0,0);
+			send_radio_data_mrr(0, radio_tx_data,radio_tx_prefix,0);
 			// set timer
 			set_wakeup_timer (wakeup_timer_val, 0x1, 0x1);
 			// go to sleep and wake up with same condition
