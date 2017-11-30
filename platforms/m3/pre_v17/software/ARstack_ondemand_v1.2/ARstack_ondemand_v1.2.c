@@ -3,7 +3,7 @@
 //Description: AR stack with MRR and SNSv10
 //			Modified from 'Tstack_ondemand_v3.2_BAT3V'
 //			v1.0: PREv17, SNSv10, PMUv7, MRRv5
-//			v1.2: 4-position ppm, optional freq hopping
+//			v1.2: increasing guard interval, optional freq hopping
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -689,7 +689,7 @@ static void mrr_configure_pulse_width_short(){
 
     mrrv5_r0F.MRR_RAD_FSM_TX_PW_LEN = 0; //4us PW
     mrrv5_r10.MRR_RAD_FSM_TX_C_LEN = 32; // (PW_LEN+1):C_LEN=1:32
-    mrrv5_r0F.MRR_RAD_FSM_TX_PS_LEN = 0; // PW=PS
+    mrrv5_r0F.MRR_RAD_FSM_TX_PS_LEN = 1; // PW=PS guard interval betwen 0 and 1 pulse
     mrrv5_r12.MRR_RAD_FSM_TX_HDR_CNST = 0; //no shift in LFSR
 
     mbus_remote_register_write(MRR_ADDR,0x0F,mrrv5_r0F.as_int);
