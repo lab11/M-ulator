@@ -656,7 +656,7 @@ static void mrr_configure_pulse_width_long(){
     //mrrv5_r12.MRR_RAD_FSM_TX_HDR_CNST = 4; //8 bit shift in LFSR
 
     mrrv5_r0F.MRR_RAD_FSM_TX_PW_LEN = 24; //100us PW
-    mrrv5_r10.MRR_RAD_FSM_TX_C_LEN = 800; // (PW_LEN+1):C_LEN=1:32
+    mrrv5_r10.MRR_RAD_FSM_TX_C_LEN = 2800; // (PW_LEN+1):C_LEN=1:32
     mrrv5_r0F.MRR_RAD_FSM_TX_PS_LEN = 24; // PW=PS   
     mrrv5_r12.MRR_RAD_FSM_TX_HDR_CNST = 5; //8 bit shift in LFSR
 
@@ -674,7 +674,7 @@ static void mrr_configure_pulse_width_long(){
     mbus_remote_register_write(MRR_ADDR,0x12,mrrv5_r12.as_int);
 
     // Current Limter set-up 
-    mrrv5_r00.MRR_CL_CTRL = 8;
+    mrrv5_r00.MRR_CL_CTRL = 1;
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv5_r00.as_int);
 
     mrrv5_r11.MRR_RAD_FSM_TX_POWERON_LEN = 7; //3bits
@@ -1035,7 +1035,7 @@ static void operation_init(void){
 	mbus_remote_register_write(MRR_ADDR,0x1C,mrrv5_r1C.as_int);
 
 	mrr_configure_pulse_width_short();
-
+	//mrr_configure_pulse_width_long();
 
 	// TX Setup Carrier Freq
 	mrrv5_r00.MRR_TRX_CAP_ANTP_TUNE = 0x01FF;  //ANT CAP 14b unary 830.5 MHz

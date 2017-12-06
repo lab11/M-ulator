@@ -884,6 +884,32 @@ int main() {
 	  operation_sleep_notimer();
 	}
   }else if(wkp_data_hdr == 0x16){
+	//Turn on Continuous Packets Forever (Sleep in between)
+	mbus_write_message32(0xAA,wkp_data_hdr);
+	mbus_write_message32(0xAA,test_i);
+	if(test_i == 0){
+	  // Sends "AELRT"
+	  mrrv5_r06.MRR_RAD_FSM_TX_DATA_0 = 0x000000;
+	  mbus_remote_register_write(MRR_ADDR,0x06,mrrv5_r06.as_int);
+	  mrrv5_r07.MRR_RAD_FSM_TX_DATA_1 = 0x7AC800;
+	  mbus_remote_register_write(MRR_ADDR,0x07,mrrv5_r07.as_int);
+	  mrrv5_r08.MRR_RAD_FSM_TX_DATA_2 = (0x535430 | wkp_data_fld_2);
+	  mbus_remote_register_write(MRR_ADDR,0x08,mrrv5_r08.as_int);
+	  mrrv5_r09.MRR_RAD_FSM_TX_DATA_3 = 0x005445;
+	  mbus_remote_register_write(MRR_ADDR,0x09,mrrv5_r09.as_int);
+	}
+	mrr_radio_power_on();
+	mrr_send_packet();
+	mrr_radio_power_off();
+	test_i++;
+	if ((test_i & 0x3) == 0){
+	  //Every 16 transmits, check VBAT
+	  pmu_adc_read_latest();
+	  pmu_parkinglot_decision_3v_battery();
+	}
+	set_wakeup_timer(wkp_data_fld_1, 0x1, 0x1);
+	operation_sleep_noirqreset();
+  }else if(wkp_data_hdr == 0x17){
 	//Turn on Continuous Packets (No sleep in between)
 	mbus_write_message32(0xAA,wkp_data_hdr);
 	for(test_i = 0; test_i < wkp_data_fld_0; test_i++){

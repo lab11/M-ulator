@@ -347,8 +347,8 @@ inline static void pmu_set_clk_init(){
     mbus_remote_register_write(PMU_ADDR,0x18, 
 		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
 		| (0 << 13) // Enable main feedback loop
-		| (15 << 9)  // Frequency multiplier R
-		| (1 << 5)  // Frequency multiplier L (actually L+1)
+		| (1 << 9)  // Frequency multiplier R
+		| (12 << 5)  // Frequency multiplier L (actually L+1)
 		| (16) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
@@ -662,7 +662,7 @@ static void mrr_configure_pulse_width_long(){
 
     mrrv5_r0F.MRR_RAD_FSM_TX_PW_LEN = 24; //100us PW
     mrrv5_r10.MRR_RAD_FSM_TX_C_LEN = 800; // (PW_LEN+1):C_LEN=1:32
-    mrrv5_r0F.MRR_RAD_FSM_TX_PS_LEN = 24; // PW=PS   
+    mrrv5_r0F.MRR_RAD_FSM_TX_PS_LEN = 48; // PW=PS   
     mrrv5_r12.MRR_RAD_FSM_TX_HDR_CNST = 5; //8 bit shift in LFSR
 
     //mrrv5_r0F.MRR_RAD_FSM_TX_PW_LEN = 124; //500us PW
@@ -676,10 +676,11 @@ static void mrr_configure_pulse_width_long(){
     //mrrv5_r12.MRR_RAD_FSM_TX_HDR_CNST = 8; //8 bit shift in LFSR
 
     mbus_remote_register_write(MRR_ADDR,0x0F,mrrv5_r0F.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x10,mrrv5_r10.as_int);
     mbus_remote_register_write(MRR_ADDR,0x12,mrrv5_r12.as_int);
 
     // Current Limter set-up 
-    mrrv5_r00.MRR_CL_CTRL = 8;
+    mrrv5_r00.MRR_CL_CTRL = 0x8;
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv5_r00.as_int);
 
     mrrv5_r11.MRR_RAD_FSM_TX_POWERON_LEN = 7; //3bits
@@ -695,6 +696,7 @@ static void mrr_configure_pulse_width_short(){
     mrrv5_r12.MRR_RAD_FSM_TX_HDR_CNST = 0; //no shift in LFSR
 
     mbus_remote_register_write(MRR_ADDR,0x0F,mrrv5_r0F.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x10,mrrv5_r10.as_int);
     mbus_remote_register_write(MRR_ADDR,0x12,mrrv5_r12.as_int);
 
     // Current Limter set-up 
