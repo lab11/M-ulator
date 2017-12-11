@@ -1696,6 +1696,18 @@ int main() {
 		}else if (wakeup_data_field_0 == 0x0){
 			mrr_configure_pulse_width_short();
 		}
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x77){
+	// temporary trigger
+
+    mrrv5_r10.MRR_RAD_FSM_TX_C_LEN = wakeup_data & 0xFFFF; // (PW_LEN+1):C_LEN=1:32
+    mbus_remote_register_write(MRR_ADDR,0x10,mrrv5_r10.as_int);
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
 	}else if(wakeup_data_header == 0x25){
 		// Change the conversion time of the temp sensor
 
