@@ -80,6 +80,8 @@ BINS := $(foreach var,$(DIRS),$(var)/$(var).bin)
 HEXS := $(foreach var,$(DIRS),$(var)/$(var).hex)
 ELFS := $(foreach var,$(DIRS),$(var)/$(var).elf)
 LSTS := $(foreach var,$(DIRS),$(var)/$(var).lst)
+ASMS := $(foreach var,$(DIRS),$(var)/$(var).asm)
+OBJS := $(foreach var,$(DIRS),$(var)/$(var).o)
 
 .PRECIOUS: $(LIBS) $(BINS) $(ELFS) $(GDB)
 
@@ -139,6 +141,9 @@ clean:
 	rm -f $(HEXS)
 	rm -f $(LIBS)
 	rm -f $(ELFS)
+	rm -f $(ASMS)
+	rm -f $(LSTS)
+	rm -f $(OBJS)
 	rm -f $(GDB)
 
 clean-%:
