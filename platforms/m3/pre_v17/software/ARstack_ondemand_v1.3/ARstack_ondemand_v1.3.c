@@ -662,7 +662,7 @@ static void mrr_configure_pulse_width_long(){
 
     mrrv5_r0F.MRR_RAD_FSM_TX_PW_LEN = 24; //100us PW
     mrrv5_r10.MRR_RAD_FSM_TX_C_LEN = 800; // (PW_LEN+1):C_LEN=1:32
-    mrrv5_r0F.MRR_RAD_FSM_TX_PS_LEN = 48; // PW=PS   
+    mrrv5_r0F.MRR_RAD_FSM_TX_PS_LEN = 49; // PW=PS   
     mrrv5_r12.MRR_RAD_FSM_TX_HDR_CNST = 5; //8 bit shift in LFSR
 
     //mrrv5_r0F.MRR_RAD_FSM_TX_PW_LEN = 124; //500us PW
