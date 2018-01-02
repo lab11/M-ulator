@@ -400,6 +400,12 @@ void config_timerwd(uint32_t cnt);
 
 
 /**
+ * @brief Disables the Watch-Dog timer
+ *
+ */
+void disable_timerwd();
+
+/**
  * @brief   Configure the wake-up timer
  *
  * @param   timestamp   Counter value at which the timer generates an interrupt

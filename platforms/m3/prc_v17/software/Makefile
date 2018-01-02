@@ -13,8 +13,7 @@ ASFLAGS :=
 #CFLAGS  += -Wall -Wextra -Werror -mthumb -mcpu=cortex-m0 -ffreestanding
 # Don't care about the warnings not compiling. It's annoying.
 CFLAGS  += -Os -Wall -Wextra -mthumb -mcpu=cortex-m0 -ffreestanding -fdata-sections -ffunction-sections -g
-LDFLAGS += -Os -static -S -nostartfiles --gc-sections -e _start #-dead_strip #-why_live read_mbus_register_RADv4
-#LDFLAGS += -Os -static -S -nostartfiles -nodefaultlibs -nostdlib --gc-sections -e _start #-dead_strip #-why_live read_mbus_register_RADv4
+LDFLAGS += -Os -static -nostartfiles --gc-sections -e _start #-dead_strip #-why_live read_mbus_register_RADv4
 ASFLAGS += -mthumb --warn -mcpu=cortex-m0
 
 # Experiments in not linking unused sections
@@ -52,6 +51,7 @@ CXX     := $(CROSS_COMPILE)-g++
 LD      := $(CROSS_COMPILE)-ld
 OBJDUMP := $(CROSS_COMPILE)-objdump
 OBJCOPY := $(CROSS_COMPILE)-objcopy
+NM		:= $(CROSS_COMPILE)-nm
 
 ################################################################################
 ## You should not need to edit this makefile beyond this point
@@ -66,19 +66,27 @@ OBJDUMP_FLAGS += --disassemble-all --source --disassembler-options=force-thumb -
 
 LIBS := $(subst .c,.o,$(wildcard libs/*.c))
 LIBS += $(subst .s,.o,$(wildcard libs/*.s))
+GDB	 := $(subst .c,.o,$(wildcard gdb/*.c))
+GDB	 += $(subst .s,.o,$(wildcard gdb/*.s))
 HEADERS := $(wildcard include/*.h)
 
-DIRS := $(patsubst %/,%,$(filter-out libs/,$(filter-out include/,$(wildcard */))))
+DIRS := $(patsubst %/,%,\
+			$(filter-out libs/,\
+				$(filter-out include/,\
+					$(filter-out gdb/,\
+						$(wildcard */)))))
 BINS := $(foreach var,$(DIRS),$(var)/$(var).bin)
 HEXS := $(foreach var,$(DIRS),$(var)/$(var).hex)
 ELFS := $(foreach var,$(DIRS),$(var)/$(var).elf)
 LSTS := $(foreach var,$(DIRS),$(var)/$(var).lst)
+ASMS := $(foreach var,$(DIRS),$(var)/$(var).asm)
+OBJS := $(foreach var,$(DIRS),$(var)/$(var).o)
 
-.PRECIOUS: $(LIBS) $(BINS) $(ELFS)
+.PRECIOUS: $(LIBS) $(BINS) $(ELFS) $(GDB)
 
 .PHONY: all
 
-all: $(HEXS) $(LSTS)
+all: $(GDB) $(HEXS) $(LSTS)
 
 $(DIRS):
 	$(MAKE) $@/$@.hex
@@ -89,7 +97,7 @@ $(DIRS):
 
 #%.bin:	$$(wildcard $$(dir $$*)*.c)
 
-%.o: $(HEADERS)
+%.o: $(HEADERS) $(GDB)
 
 %.hex:	%.bin
 	xxd -g1 -c1 $< | cut -d' ' -f2 > $@
@@ -103,11 +111,22 @@ $(DIRS):
 %.bin:	%.elf
 	$(OBJCOPY) -O binary $< $@
 
+# This will link together the object files into a single ELF
+# It will link in GDB support if any of the source files use '#include "gdb.h"'
 # Mind the order here to align -T$^
 %.elf: COBJ=$(patsubst %.c,%.o,$(wildcard $(dir $@)*.c))
 %.elf: SOBJ=$(patsubst %.s,%.o,$(wildcard $(dir $@)*.s))
 %.elf:	libs/memmap $(LIBS) $$(COBJ) $$(SOBJ)
-	$(LD) $(LDFLAGS) -T$^ "$$(echo $$(arm-none-eabi-gcc -print-libgcc-file-name) | tr -d '\r')" -o $@
+	if [ -n "$$(echo $$( $(NM) $(filter-out $<,$^) | grep _use_gdb))" ];\
+	then  \
+		$(LD) $(LDFLAGS) -T$^ $(GDB) \
+			"$$(echo $$( $(CC) -print-libgcc-file-name) | tr -d '\r')" \
+			-o $@ ;\
+ 	else \
+		$(LD) $(LDFLAGS) -T$^ \
+			"$$(echo $$( $(CC) -print-libgcc-file-name) | tr -d '\r')" \
+			-o $@ ;\
+	fi
 	$(OBJDUMP) -Sd $@ > $*.asm
 
 .PRECIOUS: %.elf %.o
@@ -121,6 +140,10 @@ clean:
 	rm -f $(HEXS)
 	rm -f $(LIBS)
 	rm -f $(ELFS)
+	rm -f $(ASMS)
+	rm -f $(LSTS)
+	rm -f $(OBJS)
+	rm -f $(GDB)
 
 clean-%:
 	rm -f $*/$*.bin $*/$*.hex
