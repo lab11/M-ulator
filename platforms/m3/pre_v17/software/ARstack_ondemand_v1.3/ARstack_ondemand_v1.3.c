@@ -1064,7 +1064,7 @@ static void operation_init(void){
 
 	mrr_configure_pulse_width_short();
 
-	mrr_freq_hopping = 0;
+	mrr_freq_hopping = 1;
 	mrr_cfo_vals[0] = 0x01FF;
 	mrr_cfo_vals[1] = 0x03FF;
 	mrr_cfo_vals[2] = 0x00FF;
