@@ -35,10 +35,11 @@ volatile flpv2s_r07_t FLPv2S_R07_GO       = FLPv2S_R07_DEFAULT;
 volatile pmuv7h_r51_t PMUv7H_R51_CONF = PMUv7H_R51_DEFAULT;
 volatile pmuv7h_r52_t PMUv7H_R52_IRQ  = PMUv7H_R52_DEFAULT;
 
-volatile vimv1_r1A_t VIMv1_R1A_CTRL_POWER    = VIMv1_R1A_DEFAULT;
-volatile vimv1_r1B_t VIMv1_R1B_IRQ_SHORT_ADDR= VIMv1_R1B_DEFAULT;
-volatile vimv1_r1C_t VIMv1_R1C_IRQ_REG_ADDR  = VIMv1_R1C_DEFAULT;
-volatile vimv1_r20_t VIMv1_R20_ENABLE_LC_MEM = VIMv1_R20_DEFAULT;
+volatile vimv1_r07_t VIMv1_R07_TMR           = VIMv1_R07_DEFAULT;
+volatile vimv1_r3B_t VIMv1_R3B_IRQ_SHORT_ADDR= VIMv1_R3B_DEFAULT;
+volatile vimv1_r3C_t VIMv1_R3C_IRQ_REG_ADDR  = VIMv1_R3C_DEFAULT;
+volatile vimv1_r40_t VIMv1_R40_ENABLE_LC_MEM = VIMv1_R40_DEFAULT;
+volatile vimv1_r41_t VIMv1_R41_CTRL_POWER    = VIMv1_R41_DEFAULT;
 
 // Select Testing
 volatile uint32_t do_cycle0  = 1; // System Halt and Resume
@@ -189,24 +190,24 @@ void fail (uint32_t id, uint32_t data) {
 
 void VIMv1_load_imem() {
     // VIMv1_CTRL power must be on and un-isolated to access IMEM
-    //---------------------------------------
-    // NOTE: CTRL_POWER_CTRL[3]: CTRL_RESET
-    //       CTRL_POWER_CTRL[2]: CTRL_ISOLATE
-    //       CTRL_POWER_CTRL[1]: CTRL_SLEEP
-    //       CTRL_POWER_CTRL[0]: IMEM_SLEEP
-    //---------------------------------------
 
     // Release Sleep
-    VIMv1_R1A_CTRL_POWER.CTRL_POWER_CTRL = 0xC;
-    mbus_remote_register_write(VIM_ADDR, 0x1A, VIMv1_R1A_CTRL_POWER.as_int);
+    VIMv1_R41_CTRL_POWER.CTRL_RESET   = 0x1;
+    VIMv1_R41_CTRL_POWER.CTRL_ISOLATE = 0x1;
+    VIMv1_R41_CTRL_POWER.CTRL_SLEEP   = 0x0;
+    mbus_remote_register_write(VIM_ADDR, 0x41, VIMv1_R41_CTRL_POWER.as_int);
 
     // Release Isolation
-    VIMv1_R1A_CTRL_POWER.CTRL_POWER_CTRL = 0x8;
-    mbus_remote_register_write(VIM_ADDR, 0x1A, VIMv1_R1A_CTRL_POWER.as_int);
+    VIMv1_R41_CTRL_POWER.CTRL_RESET   = 0x1;
+    VIMv1_R41_CTRL_POWER.CTRL_ISOLATE = 0x0;
+    VIMv1_R41_CTRL_POWER.CTRL_SLEEP   = 0x0;
+    mbus_remote_register_write(VIM_ADDR, 0x41, VIMv1_R41_CTRL_POWER.as_int);
 
     // Enable LC_MEM interface in VIMv1
-    VIMv1_R20_ENABLE_LC_MEM.ENABLE_LC_MEM = 0x1;
-    mbus_remote_register_write(VIM_ADDR, 0x20, VIMv1_R20_ENABLE_LC_MEM.as_int);
+    VIMv1_R40_ENABLE_LC_MEM.DEBUG_CLK_SOURCE = 0x0;
+    VIMv1_R40_ENABLE_LC_MEM.ENABLE_DEBUG     = 0x0;
+    VIMv1_R40_ENABLE_LC_MEM.ENABLE_LC_MEM    = 0x1;
+    mbus_remote_register_write(VIM_ADDR, 0x40, VIMv1_R40_ENABLE_LC_MEM.as_int);
 
     // Copy the instruction from Flash (Total 2kB)
     set_halt_until_mbus_fwd();
@@ -214,43 +215,66 @@ void VIMv1_load_imem() {
     set_halt_until_mbus_tx();
 
     // Disable LC_MEM interface in VIMv1
-    VIMv1_R20_ENABLE_LC_MEM.ENABLE_LC_MEM = 0x0;
-    mbus_remote_register_write(VIM_ADDR, 0x20, VIMv1_R20_ENABLE_LC_MEM.as_int);
+    VIMv1_R40_ENABLE_LC_MEM.DEBUG_CLK_SOURCE = 0x0;
+    VIMv1_R40_ENABLE_LC_MEM.ENABLE_DEBUG     = 0x0;
+    VIMv1_R40_ENABLE_LC_MEM.ENABLE_LC_MEM    = 0x0;
+    mbus_remote_register_write(VIM_ADDR, 0x40, VIMv1_R40_ENABLE_LC_MEM.as_int);
 }
 
 void VIMv1_start() {
-    //---------------------------------------
-    // NOTE: CTRL_POWER_CTRL[3]: CTRL_RESET
-    //       CTRL_POWER_CTRL[2]: CTRL_ISOLATE
-    //       CTRL_POWER_CTRL[1]: CTRL_SLEEP
-    //       CTRL_POWER_CTRL[0]: IMEM_SLEEP
-    //---------------------------------------
+    // NOTE: You need to start Clock first, and then release the reset;
+    //       This is to guarantee correct operation even with the layer
+    //       ctrl clock speed is very low.
+    //       If the layer ctrl clock speed is on par with the VIM_CTRL
+    //       clock speed, then the clock/release sequence may not matter.
 
-    // Release Reset; this should start the clock
-    VIMv1_R1A_CTRL_POWER.CTRL_POWER_CTRL = 0x0;
-    mbus_remote_register_write(VIM_ADDR, 0x1A, VIMv1_R1A_CTRL_POWER.as_int);
+    // Start Clock
+    VIMv1_R07_TMR.R_TMR_MASTEREN   = 0x1;
+    VIMv1_R07_TMR.R_TMR_PADTESTCLK = 0x0;
+    VIMv1_R07_TMR.R_TMR_DEBUGDIV   = 0x0;
+    VIMv1_R07_TMR.R_TMR_DEBUGFAST  = 0x0;
+    VIMv1_R07_TMR.R_TMR_DEBUGSLOW  = 0x0;
+    VIMv1_R07_TMR.R_TMR_PADMONITOR = 0x0;
+    VIMv1_R07_TMR.C_TMR_FASTDIV    = 0x0;
+    VIMv1_R07_TMR.C_TMR_SLOWFAST   = 0x0;
+    mbus_remote_register_write(VIM_ADDR, 0x07, VIMv1_R07_TMR.as_int);
+
+    // Release Reset
+    VIMv1_R41_CTRL_POWER.CTRL_RESET   = 0x0;
+    VIMv1_R41_CTRL_POWER.CTRL_ISOLATE = 0x0;
+    VIMv1_R41_CTRL_POWER.CTRL_SLEEP   = 0x0;
+    mbus_remote_register_write(VIM_ADDR, 0x41, VIMv1_R41_CTRL_POWER.as_int);
 }
 
 void VIMv1_stop() {
-    // Power off the controller 
-    //---------------------------------------
-    // NOTE: CTRL_POWER_CTRL[3]: CTRL_RESET
-    //       CTRL_POWER_CTRL[2]: CTRL_ISOLATE
-    //       CTRL_POWER_CTRL[1]: CTRL_SLEEP
-    //       CTRL_POWER_CTRL[0]: IMEM_SLEEP
-    //---------------------------------------
+    // Stop Clock
+    VIMv1_R07_TMR.R_TMR_MASTEREN   = 0x0;
+    VIMv1_R07_TMR.R_TMR_PADTESTCLK = 0x0;
+    VIMv1_R07_TMR.R_TMR_DEBUGDIV   = 0x0;
+    VIMv1_R07_TMR.R_TMR_DEBUGFAST  = 0x0;
+    VIMv1_R07_TMR.R_TMR_DEBUGSLOW  = 0x0;
+    VIMv1_R07_TMR.R_TMR_PADMONITOR = 0x0;
+    VIMv1_R07_TMR.C_TMR_FASTDIV    = 0x0;
+    VIMv1_R07_TMR.C_TMR_SLOWFAST   = 0x0;
+    mbus_remote_register_write(VIM_ADDR, 0x07, VIMv1_R07_TMR.as_int);
 
     // Assert Reset; this should stop the clock
-    VIMv1_R1A_CTRL_POWER.CTRL_POWER_CTRL = 0x8;
-    mbus_remote_register_write(VIM_ADDR, 0x1A, VIMv1_R1A_CTRL_POWER.as_int);
+    VIMv1_R41_CTRL_POWER.CTRL_RESET   = 0x1;
+    VIMv1_R41_CTRL_POWER.CTRL_ISOLATE = 0x0;
+    VIMv1_R41_CTRL_POWER.CTRL_SLEEP   = 0x0;
+    mbus_remote_register_write(VIM_ADDR, 0x41, VIMv1_R41_CTRL_POWER.as_int);
 
     // Assert Isolation
-    VIMv1_R1A_CTRL_POWER.CTRL_POWER_CTRL = 0xC;
-    mbus_remote_register_write(VIM_ADDR, 0x1A, VIMv1_R1A_CTRL_POWER.as_int);
+    VIMv1_R41_CTRL_POWER.CTRL_RESET   = 0x1;
+    VIMv1_R41_CTRL_POWER.CTRL_ISOLATE = 0x1;
+    VIMv1_R41_CTRL_POWER.CTRL_SLEEP   = 0x0;
+    mbus_remote_register_write(VIM_ADDR, 0x41, VIMv1_R41_CTRL_POWER.as_int);
 
     // Assert Sleep
-    VIMv1_R1A_CTRL_POWER.CTRL_POWER_CTRL = 0xF;
-    mbus_remote_register_write(VIM_ADDR, 0x1A, VIMv1_R1A_CTRL_POWER.as_int);
+    VIMv1_R41_CTRL_POWER.CTRL_RESET   = 0x1;
+    VIMv1_R41_CTRL_POWER.CTRL_ISOLATE = 0x1;
+    VIMv1_R41_CTRL_POWER.CTRL_SLEEP   = 0x1;
+    mbus_remote_register_write(VIM_ADDR, 0x41, VIMv1_R41_CTRL_POWER.as_int);
 }
 
 //********************************************************************
@@ -273,6 +297,7 @@ int main() {
     while (1) {
         WFI();
         if (*REG7 == 0xABC) break;
+        if (*REG7 == 0x123) mbus_remote_register_write(VIM_ADDR, 0x44, 0x1);
     }
 
     VIMv1_stop();
@@ -293,4 +318,3 @@ int main() {
 
     return 1;
 }
-
