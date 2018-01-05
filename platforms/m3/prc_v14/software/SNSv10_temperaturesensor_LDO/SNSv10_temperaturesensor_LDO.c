@@ -171,8 +171,9 @@ int main() {
 
 //    snsv10_r03.TSNS_SEL_STB_TIME	= 1;
 //    snsv10_r03.TSNS_SEL_CONV_TIME	= 3;
+    snsv10_r03.TSNS_SEL_VVDD	= 14;
 
-//    mbus_remote_register_write(SNS_ADDR,3,snsv10_r03.as_int);
+    mbus_remote_register_write(SNS_ADDR,3,snsv10_r03.as_int);
 //	delay(MBUS_DELAY*100);
 
     // snsv10_r00
