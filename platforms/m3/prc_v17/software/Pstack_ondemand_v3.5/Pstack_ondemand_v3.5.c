@@ -9,6 +9,7 @@
 //			      Trig2 with cont TX has headers for data
 //			v3.3: Every PMU reg write should be followed by explicit delay to be safe
 //			v3.4: Removing parking; charging controlled by pmu solar short vclamp
+//			v3.5: Adding trigger to change solar short vclamp; battery logged with temp
 //*******************************************************************
 #include "PRCv17.h"
 #include "PRCv17_RF.h"
@@ -89,6 +90,7 @@ volatile uint32_t set_sns_exec_count;
 volatile uint32_t read_data_rdc;
 
 volatile uint32_t radio_tx_count;
+volatile uint32_t radio_tx_batt;
 volatile uint32_t radio_tx_option;
 volatile uint32_t radio_tx_numdata;
 volatile uint32_t radio_ready;
@@ -780,6 +782,10 @@ static void operation_tx_stored(void){
 		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 		send_radio_data_ppm(0, 0xE00000 | (0xFFFFF & rdc_storage[radio_tx_count]));
 		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
+		if (radio_tx_batt){
+			send_radio_data_ppm(0, 0xBBB000 | (0xFF & (temp_storage[radio_tx_count]>>24)));
+			delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
+		}
 
 		radio_tx_count--;
     }
@@ -787,6 +793,10 @@ static void operation_tx_stored(void){
 	send_radio_data_ppm(0, 0xD00000 | (0xFFFFF & temp_storage[radio_tx_count]));
 	delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 	send_radio_data_ppm(0, 0xE00000 | (0xFFFFF & rdc_storage[radio_tx_count]));
+	if (radio_tx_batt){
+		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
+		send_radio_data_ppm(0, 0xBBB000 | (0xFF & (temp_storage[radio_tx_count]>>24)));
+	}
 
 	delay(RADIO_PACKET_DELAY*2); //Set delays between sending subsequent packet
 	send_radio_data_ppm(1, 0xFAF000);
@@ -1207,7 +1217,7 @@ static void operation_sns_run(void){
 			// Store results in memory; unless buffer is full
 			if (data_storage_count < DATA_STORAGE_SIZE){
 				rdc_storage[data_storage_count] = read_data_rdc;
-				temp_storage[data_storage_count] = read_data_temp;
+				temp_storage[data_storage_count] = (temp_storage_latest & 0xFFFFFF) | ((read_data_batadc & 0xFF)<<24);
 				radio_tx_count = data_storage_count;
 				data_storage_count++;
 			}
@@ -1435,6 +1445,8 @@ int main() {
         // Transmit the stored temp sensor data
         // wakeup_data[7:0] is the # of data to transmit; if zero, all stored data is sent
         // wakeup_data[15:8] is the user-specified period 
+		// wakeup_data[16] transmits battery recording too
+
         WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
 
 		operation_sns_sleep_check();
@@ -1442,6 +1454,7 @@ int main() {
 		Pstack_state = PSTK_IDLE;
 
 		radio_tx_numdata = wakeup_data_field_0;
+		radio_tx_batt = wakeup_data_field_2 & 0x1;
 
 		// Make sure the requested numdata makes sense
 		if (radio_tx_numdata >= data_storage_count){
@@ -1669,6 +1682,28 @@ int main() {
 		operation_sleep_notimer();
 
 
+	}else if(wakeup_data_header == 0x41){
+		// Change PMU solar short clamp value
+
+		mbus_remote_register_write(PMU_ADDR,0x0E, 
+			( (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
+			| (1 << 9)  // Enables override setting [8]
+			| (0 << 8)  // Turn on the harvester-inhibiting switch
+			| (wakeup_data & 0xF0)  // clamp_tune_bottom (increases clamp thresh)
+			| (wakeup_data & 0xF) 		// clamp_tune_top (decreases clamp thresh)
+		));
+		delay(MBUS_DELAY);
+		mbus_remote_register_write(PMU_ADDR,0x0E, 
+			( (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
+			| (0 << 9)  // Enables override setting [8]
+			| (0 << 8)  // Turn on the harvester-inhibiting switch
+			| (wakeup_data & 0xF0)  // clamp_tune_bottom (increases clamp thresh)
+			| (wakeup_data & 0xF) 		// clamp_tune_top (decreases clamp thresh)
+		));
+		delay(MBUS_DELAY);
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
 
     }else{
 		if (wakeup_data_header != 0){
