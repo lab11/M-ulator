@@ -844,6 +844,8 @@ static void operation_sleep_notimer(void){
 
 static void operation_tx_stored(void){
 
+	uint32_t radio_tx_count_init = radio_tx_count;
+
     //Fire off stored data to radio
     while(((!radio_tx_numdata)&&(radio_tx_count > 0)) | ((radio_tx_numdata)&&((radio_tx_numdata+radio_tx_count) > data_storage_count))){
 		#ifdef DEBUG_MBUS_MSG_1
@@ -882,7 +884,7 @@ static void operation_tx_stored(void){
 	exec_count_irq = 0;
 
 	// Go to sleep without timer
-	radio_tx_count = data_storage_count; // allows data to be sent more than once
+	radio_tx_count = radio_tx_count_init; // allows data to be sent more than once
 	operation_sleep_notimer();
 }
 
