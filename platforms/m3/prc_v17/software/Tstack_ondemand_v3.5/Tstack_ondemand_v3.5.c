@@ -902,7 +902,7 @@ static void operation_init(void){
     // Radio Settings --------------------------------------
 	radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
 	radv9_r0.RADIO_TUNE_FREQ1 = 0x0; //Tune Freq 1 (MSB)
-	radv9_r0.RADIO_TUNE_FREQ2 = 0x8; //Tune Freq 2 (LSB)
+	radv9_r0.RADIO_TUNE_FREQ2 = 0xA; //Tune Freq 2 (LSB)
 	radv9_r0.RADIO_TUNE_TX_TIME = 0x6; //Tune TX Time
 	mbus_remote_register_write(RAD_ADDR,0,radv9_r0.as_int);
 
