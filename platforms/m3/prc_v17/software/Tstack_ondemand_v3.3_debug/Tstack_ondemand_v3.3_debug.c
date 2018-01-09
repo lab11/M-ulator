@@ -1136,6 +1136,7 @@ static void operation_temp_run(void){
 
 			if (temp_run_single){
 				temp_storage[0] = temp_run_single;
+				temp_storage[2] = temp_run_single>>16;
 				temp_run_single = 0;
 				temp_running = 0;
 				temp_storage[1] = 0xFFFFFFFF;

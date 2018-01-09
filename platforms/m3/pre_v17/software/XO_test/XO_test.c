@@ -14,6 +14,7 @@
 //********************************************************************
 volatile uint32_t enumerated;
 
+volatile prev17_r0B_t prev17_r0B = PREv17_R0B_DEFAULT;
 //*******************************************************************
 // INTERRUPT HANDLERS
 //*******************************************************************
@@ -51,6 +52,37 @@ void handler_ext_int_13(void) { *NVIC_ICPR = (0x1 << 13); } // MBUS_FWD
 void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
 
 //*******************************************************************
+// FUNCTION HEADER DECLERATIONS
+//*******************************************************************
+
+//***************************************************
+// End of Program Sleep Functions
+//***************************************************
+static void operation_sleep(void);
+static void operation_sleep_noirqreset(void);
+static void operation_sleep_notimer(void);
+
+//***************************************************
+// End of Program Sleep Functions
+//***************************************************
+static void operation_sleep(void){
+  // Reset IRQ14VEC
+  *IRQ14VEC = 0;
+  mbus_sleep_all();
+  while(1);
+}
+
+static void operation_sleep_noirqreset(void){
+  mbus_sleep_all();
+  while(1);
+}
+
+static void operation_sleep_notimer(void){
+  set_wakeup_timer(0, 0, 0);
+  operation_sleep();
+}
+
+//*******************************************************************
 // USER FUNCTIONS
 //*******************************************************************
 void XO_ctrl (uint32_t xo_pulse_sel,
@@ -75,19 +107,20 @@ void XO_ctrl (uint32_t xo_pulse_sel,
 		    (xo_rp_svt       << 2) |
 		    (xo_scn_clk_sel  << 1) |
 		    (xo_scn_enb      << 0));
+  mbus_write_message32(0xA1,*REG_XO_CONTROL);
 }
 
 static void XO_init(void) {
 
   // XO_CLK Output Pad (0: Disabled, 1: 32kHz, 2: 16kHz, 3: 8kHz)
-  uint32_t xot_clk_out_sel = 0x0;
+  uint32_t xot_clk_out_sel = 0x2;
   // Parasitic Capacitance Tuning (6-bit for each; Each 1 adds 1.8pF)
-  uint32_t xo_cap_in  = 0x1F; // Additional Cap on OSC_IN
-  uint32_t xo_cap_drv = 0x00; // Additional Cap on OSC_DRV
+  uint32_t xo_cap_in  = 0x3F; // Additional Cap on OSC_IN
+  uint32_t xo_cap_drv = 0x07; // Additional Cap on OSC_DRV
   
   // Pulse Length Selection
-  uint32_t xo_pulse_sel = 0x4; // XO_PULSE_SEL
-  uint32_t xo_delay_en  = 0x3; // XO_DELAY_EN
+  uint32_t xo_pulse_sel = 0x8; // XO_PULSE_SEL
+  uint32_t xo_delay_en  = 0x7; // XO_DELAY_EN
   
   // Pseudo-Resistor Selection
   uint32_t xo_rp_low   = 0x0;
@@ -97,12 +130,12 @@ static void XO_init(void) {
 		    
   // Parasitic Capacitance Tuning
   *REG_XO_CONFIG = ((xot_clk_out_sel << 16) |
-		    (cap_in          << 6) |
-		    (cap_drv         << 0));
+		    (xo_cap_in       << 6) |
+		    (xo_cap_drv      << 0));
   
   // Start XO Clock
   //XO_ctrl(xo_pulse_sel, xo_delay_en, xo_drv_start_up, xo_drv_core, xo_rp_low, xo_rp_media, xo_rp_mvt, xo_rp_svt, xo_scn_clk_sel, xo_scn_enb);
-  XO_ctrl(xo_pulse_sel, xo_delay_en, 0, 0, xo_rp_low, xo_rp_media, xo_rp_mvt, xo_rp_svt, 0, 1); delay(10000); //Default
+  //XO_ctrl(xo_pulse_sel, xo_delay_en, 0, 0, xo_rp_low, xo_rp_media, xo_rp_mvt, xo_rp_svt, 0, 1); delay(10000); //Default
   XO_ctrl(xo_pulse_sel, xo_delay_en, 1, 0, xo_rp_low, xo_rp_media, xo_rp_mvt, xo_rp_svt, 0, 1); delay(10000); //XO_DRV_START_UP = 1
   XO_ctrl(xo_pulse_sel, xo_delay_en, 1, 0, xo_rp_low, xo_rp_media, xo_rp_mvt, xo_rp_svt, 1, 1); delay(10000); //XO_SCN_CLK_SEL = 1
   XO_ctrl(xo_pulse_sel, xo_delay_en, 1, 0, xo_rp_low, xo_rp_media, xo_rp_mvt, xo_rp_svt, 0, 0); delay(10000); //XO_SCN_CLK_SEL = 0 & XO_SCN_ENB = 0
@@ -110,7 +143,9 @@ static void XO_init(void) {
 }
 
 static void XOT_init(void){
+  mbus_write_message32(0xA0,0x6);
   *XOT_RESET = 0x1;
+  mbus_write_message32(0xA0,0x7);
 }
 
 static void operation_init(void){
@@ -139,13 +174,22 @@ int main() {
 
   config_timerwd(0xFFFFFFFF); // Config watchdog timer to about 20 sec (default: 0x0016E360)
 
+  if (enumerated != 0xDEADBEEF){
+    operation_init();
+  }
+  
+  set_halt_until_mbus_tx();
   XO_init();
-
   XOT_init();
+  delay(10000);
+  operation_sleep_notimer(); 
+  
 
   while(1){
-    delay(100);
+    delay(50000);
     mbus_write_message32(0xAA,*XOT_VAL);
+    //mbus_write_message32(0xAB,*REG_XOT_VAL_L);
+    //mbus_write_message32(0xAC,*REG_XOT_VAL_U);
   }
   
   while(1){  //Never Quit (should not come here.)
