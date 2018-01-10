@@ -4,7 +4,7 @@
 //*******************************************************************
 #include "PRCv17.h"
 #include "PRCv17_RF.h"
-#include "SNT_v1_RF.h"
+#include "SNTv1_RF.h"
 #include "mbus.h"
 
 #define PRC_ADDR    0x1

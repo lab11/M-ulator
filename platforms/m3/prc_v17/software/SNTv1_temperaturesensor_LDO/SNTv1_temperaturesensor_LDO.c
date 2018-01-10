@@ -6,7 +6,7 @@
 #include "PRCv17.h"
 #include "PRCv17_RF.h"
 #include "mbus.h"
-#include "SNT_v1_RF.h"
+#include "SNTv1_RF.h"
 
 // uncomment this for debug mbus message
 #define DEBUG_MBUS_MSG
