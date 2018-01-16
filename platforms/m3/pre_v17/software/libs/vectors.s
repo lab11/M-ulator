@@ -74,6 +74,7 @@ hang:   b .
 .func _start
 .global _start
 _start:
+	bl crt0
 	bl main		@ call main() function
 	b _start	@ expect to never get here, but just in case restart
 .endfunc

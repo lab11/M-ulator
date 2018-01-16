@@ -13,5 +13,7 @@ SECTIONS
 	} > RRAM
 	
 	.data : { *(.data) } > RRAM
+	_bss_start = .;
 	.bss : { *.(bss) } > RRAM
+	_bss_end = .;
 }
