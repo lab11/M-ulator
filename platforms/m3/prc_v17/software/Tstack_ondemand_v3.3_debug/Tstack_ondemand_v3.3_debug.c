@@ -145,6 +145,8 @@ volatile radv9_r14_t radv9_r14 = RADv9_R14_DEFAULT;
 volatile hrvv5_r0_t hrvv5_r0 = HRVv5_R0_DEFAULT;
 
 volatile prcv17_r0B_t prcv17_r0B = PRCv17_R0B_DEFAULT;
+volatile prcv17_r0D_t prcv17_r0D = PRCv17_R0D_DEFAULT;
+
 
 //*******************************************************************
 // INTERRUPT HANDLERS (Updated for PRCv17)
@@ -877,6 +879,9 @@ static void operation_init(void){
     prcv17_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
 	*REG_CLKGEN_TUNE = prcv17_r0B.as_int;
 
+    prcv17_r0D.SRAM_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
+    prcv17_r0D.SRAM_TUNE_DECODER_DLY = 15; // Default 0x2, 4 bits
+	*REG_SRAM_TUNE = prcv17_r0D.as_int;
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
@@ -1134,20 +1139,27 @@ static void operation_temp_run(void){
 				radio_power_off();
 			}
 
-			if (temp_run_single){
-				temp_storage[0] = temp_run_single;
-				temp_storage[2] = temp_run_single>>16;
+            uint32_t a = temp_run_single;
+
+			if (a){
+				temp_storage[0] = a;
+				temp_storage[2] = a>>16;
 				temp_run_single = 0;
 				temp_running = 0;
 				temp_storage[1] = 0xFFFFFFFF;
 				operation_sleep_notimer();
 			}
 
-			if ((set_temp_exec_count != 0) && (exec_count > (50<<set_temp_exec_count))){
+            a = set_temp_exec_count;
+            uint32_t b = exec_count;
+
+			if ((a != 0) && (b > (50<<a))){
 				// No more measurement required
 				// Make sure temp sensor is off
 				temp_running = 0;
 				temp_storage[2] = 0xFFFFFFFF;
+				temp_storage[3] = a;
+				temp_storage[4] = b;
 				operation_sleep_notimer();
 			}else{
 				operation_sleep();
