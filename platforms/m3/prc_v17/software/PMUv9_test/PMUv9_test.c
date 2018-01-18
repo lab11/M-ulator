@@ -184,7 +184,7 @@ inline static void pmu_set_adc_period(uint32_t val){
 		| (1 << 8) //state_upconverter_on
 		| (1 << 9) //state_upconverter_stabilized
 		| (1 << 10) //state_refgen_on
-		| (1 << 11) //state_adc_output_ready
+		| (0 << 11) //state_adc_output_ready
 		| (0 << 12) //state_adc_adjusted
 		| (0 << 13) //state_sar_scn_ratio_adjusted
 		| (1 << 14) //state_downconverter_on
@@ -223,7 +223,7 @@ inline static void pmu_set_adc_period(uint32_t val){
 		| (1 << 8) //state_upconverter_on
 		| (1 << 9) //state_upconverter_stabilized
 		| (1 << 10) //state_refgen_on
-		| (1 << 11) //state_adc_output_ready
+		| (0 << 11) //state_adc_output_ready
 		| (0 << 12) //state_adc_adjusted
 		| (0 << 13) //state_sar_scn_ratio_adjusted
 		| (1 << 14) //state_downconverter_on
@@ -418,7 +418,7 @@ inline static void pmu_adc_reset_setting(){
 		| (1 << 8) //state_upconverter_on
 		| (1 << 9) //state_upconverter_stabilized
 		| (1 << 10) //state_refgen_on
-		| (1 << 11) //state_adc_output_ready
+		| (0 << 11) //state_adc_output_ready
 		| (0 << 12) //state_adc_adjusted
 		| (0 << 13) //state_sar_scn_ratio_adjusted
 		| (1 << 14) //state_downconverter_on
@@ -480,7 +480,7 @@ inline static void pmu_adc_enable(){
 		| (1 << 10) //state_refgen_on
 		| (1 << 11) //state_adc_output_ready
 		| (0 << 12) //state_adc_adjusted // Turning off offset cancellation
-		| (1 << 13) //state_sar_scn_ratio_adjusted
+		| (0 << 13) //state_sar_scn_ratio_adjusted
 		| (1 << 14) //state_downconverter_on
 		| (1 << 15) //state_downconverter_stabilized
 		| (1 << 16) //state_vdd_3p6_turned_on
@@ -649,6 +649,9 @@ int main() {
     uint32_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
 
 
+
+	pmu_set_sleep_low();
+
     if(wakeup_data_header == 1){
 
 		pmu_adc_read_latest();
@@ -666,10 +669,19 @@ int main() {
 		pmu_adc_read_latest();
 		delay(MBUS_DELAY);
 		mbus_write_message32(0xC0,read_data_batadc);
-		set_wakeup_timer(0x5, 0x1, 0x1);
+		set_wakeup_timer(3000, 0x1, 0x1);
 		operation_sleep_noirqreset();
 			
 
+    }else if(wakeup_data_header == 3){
+
+		pmu_set_sleep_radio();
+		pmu_adc_read_latest();
+		delay(MBUS_DELAY);
+		mbus_write_message32(0xC0,read_data_batadc);
+		set_wakeup_timer(0x5, 0x1, 0x1);
+		operation_sleep_noirqreset();
+			
     }else{
 		if (wakeup_data_header != 0){
 			// Invalid GOC trigger
