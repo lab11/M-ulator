@@ -1393,6 +1393,10 @@ int main() {
 		// Debug trigger for MRR testing; repeat trigger 1 for 0xFFFFFFFF times
 		operation_goc_trigger_radio(0xFFFFFFFF, wakeup_data_field_1, 0xABC000, exec_count_irq);
 
+    }else if(wakeup_data_header == 0x71){
+		// Debug trigger for MRR testing; repeat trigger 1 for 0xFFFFFFFF times
+		operation_goc_trigger_radio(0xFFFFFFFF, 0x10, 0xABC000, wakeup_data & 0xFFFFFF);
+
     }else if(wakeup_data_header == 2){
 		// Slow down PMU sleep osc and run temp sensor code with desired wakeup period
         // wakeup_data[15:0] is the user-specified period
