@@ -673,7 +673,7 @@ static void mrr_configure_pulse_width_long(){
     mrrv6_r00.MRR_CL_CTRL = 0x8;
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
 
-    mrrv6_r14.MRR_RAD_FSM_TX_POWERON_LEN = 7; //3bits
+    mrrv6_r14.MRR_RAD_FSM_TX_POWERON_LEN = 2; //3bits
     mbus_remote_register_write(MRR_ADDR,0x14,mrrv6_r14.as_int);
 
 }
@@ -691,7 +691,7 @@ static void mrr_configure_pulse_width_short(){
     mrrv6_r00.MRR_CL_CTRL = 8; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
 
-    mrrv6_r14.MRR_RAD_FSM_TX_POWERON_LEN = 7; //3bits
+    mrrv6_r14.MRR_RAD_FSM_TX_POWERON_LEN = 2; //3bits
     mbus_remote_register_write(MRR_ADDR,0x14,mrrv6_r14.as_int);
 
 }
