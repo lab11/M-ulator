@@ -1062,7 +1062,8 @@ static void operation_init(void){
 	mrrv5_r1C.LC_CLK_DIV = 0x3;  // ~ 150 kHz
 	mbus_remote_register_write(MRR_ADDR,0x1C,mrrv5_r1C.as_int);
 
-	mrr_configure_pulse_width_short();
+	mrr_configure_pulse_width_long();
+	//mrr_configure_pulse_width_short();
 
 	mrr_freq_hopping = 1;
 	mrr_cfo_vals[0] = 0x01FF;
