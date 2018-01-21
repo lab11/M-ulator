@@ -683,7 +683,7 @@ static void mrr_configure_pulse_width_long(){
     mrrv5_r00.MRR_CL_CTRL = 0x8;
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv5_r00.as_int);
 
-    mrrv5_r11.MRR_RAD_FSM_TX_POWERON_LEN = 7; //3bits
+    mrrv5_r11.MRR_RAD_FSM_TX_POWERON_LEN = 2; //3bits
     mbus_remote_register_write(MRR_ADDR,0x11,mrrv5_r11.as_int);
 
 }
@@ -703,7 +703,7 @@ static void mrr_configure_pulse_width_short(){
     mrrv5_r00.MRR_CL_CTRL = 8; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv5_r00.as_int);
 
-    mrrv5_r11.MRR_RAD_FSM_TX_POWERON_LEN = 7; //3bits
+    mrrv5_r11.MRR_RAD_FSM_TX_POWERON_LEN = 2; //3bits
     mbus_remote_register_write(MRR_ADDR,0x11,mrrv5_r11.as_int);
 
 }
@@ -1092,7 +1092,7 @@ static void operation_init(void){
 	mrrv5_r03.MRR_RX_SAMPLE_CAP    = 0x1;  // RX_SAMPLE_CAP
 	mbus_remote_register_write(MRR_ADDR,3,mrrv5_r03.as_int);
 
-	mrrv5_r11.MRR_RAD_FSM_RX_POWERON_LEN = 0x7;  //Set RX Power on length
+	mrrv5_r11.MRR_RAD_FSM_RX_POWERON_LEN = 0x2;  //Set RX Power on length
 	//mrrv5_r11.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x3;  //Set RX Sample length  16us
 	mrrv5_r11.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x0;  //Set RX Sample length  4us
 	mrrv5_r11.MRR_RAD_FSM_GUARD_LEN = 0x000F; //Set TX_RX Guard length, TX_RX guard 32 cycle (28+5)
@@ -1408,6 +1408,10 @@ int main() {
     }else if(wakeup_data_header == 0x51){
 		// Debug trigger for MRR testing; repeat trigger 1 for 0xFFFFFFFF times
 		operation_goc_trigger_radio(0xFFFFFFFF, wakeup_data_field_1, 0xABC000, exec_count_irq);
+
+    }else if(wakeup_data_header == 0x71){
+		// Debug trigger for MRR testing; repeat trigger 1 for 0xFFFFFFFF times
+		operation_goc_trigger_radio(0xFFFFFFFF, 0x10, 0xABC000, wakeup_data & 0xFFFFFF);
 
     }else if(wakeup_data_header == 2){
 		// Slow down PMU sleep osc and run temp sensor code with desired wakeup period
