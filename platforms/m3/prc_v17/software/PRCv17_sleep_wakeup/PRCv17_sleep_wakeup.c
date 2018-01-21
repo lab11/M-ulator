@@ -179,7 +179,7 @@ static void operation_init(void){
 
 
     // Initialize other global variables
-    WAKEUP_PERIOD_CONT = 100;   // 10: 2-4 sec with PRCv17
+    WAKEUP_PERIOD_CONT = 10;   // 10: 2-4 sec with PRCv17
 	wakeup_data = 0;
 
     delay(MBUS_DELAY);

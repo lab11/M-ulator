@@ -99,6 +99,7 @@ volatile snsv10_r03_t snsv10_r03 = SNSv10_R03_DEFAULT;
 volatile snsv10_r17_t snsv10_r17 = SNSv10_R17_DEFAULT;
 
 volatile prev17_r0B_t prev17_r0B = PREv17_R0B_DEFAULT;
+volatile prev17_r0D_t prev17_r0D = PREv17_R0D_DEFAULT;
 
 volatile mrrv6_r00_t mrrv6_r00 = MRRv6_R00_DEFAULT;
 volatile mrrv6_r01_t mrrv6_r01 = MRRv6_R01_DEFAULT;
@@ -271,7 +272,7 @@ inline static void pmu_set_sleep_radio(){
 		| (3 << 14) // Comparator clock division ratio
 		| (0 << 13) // Enable main feedback loop
 		| (10 << 9)  // Frequency multiplier R
-		| (5 << 5)  // Frequency multiplier L (actually L+1)
+		| (10 << 5)  // Frequency multiplier L (actually L+1)
 		| (5) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
@@ -282,7 +283,7 @@ inline static void pmu_set_sleep_radio(){
 		| (3 << 14) // Comparator clock division ratio
 		| (0 << 13) // Enable main feedback loop
 		| (10 << 9)  // Frequency multiplier R
-		| (5 << 5)  // Frequency multiplier L (actually L+1)
+		| (10 << 5)  // Frequency multiplier L (actually L+1)
 		| (5) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
@@ -599,6 +600,11 @@ static void radio_power_on(){
     mrrv6_r00.MRR_CL_EN = 1;  //Enable CL
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
 
+    // Release timer power-gate
+    mrrv6_r04.RO_EN_RO_V1P2 = 1;  //Use V1P2 for TIMER
+    mbus_remote_register_write(MRR_ADDR,0x04,mrrv6_r04.as_int);
+    delay(MBUS_DELAY*10);
+
 	// Turn on timer
     mrrv6_r04.RO_RESET = 0;  //Release Reset TIMER
     mbus_remote_register_write(MRR_ADDR,0x04,mrrv6_r04.as_int);
@@ -614,7 +620,7 @@ static void radio_power_on(){
     // Release FSM Sleep
     mrrv6_r11.MRR_RAD_FSM_SLEEP = 0;  // Power on BB
     mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
-	delay(MBUS_DELAY*100); // Freq stab
+	delay(MBUS_DELAY*10); // Freq stab
 
     radio_on = 1;
 
@@ -646,6 +652,10 @@ static void radio_power_off(){
     mrrv6_r04.RO_RESET = 1;  //Release Reset TIMER
     mrrv6_r04.RO_EN_CLK = 0; //Enable CLK TIMER
     mrrv6_r04.RO_ISOLATE_CLK = 1; //Set Isolate CLK to 0 TIMER
+    mbus_remote_register_write(MRR_ADDR,0x04,mrrv6_r04.as_int);
+
+    // Enable timer power-gate
+    mrrv6_r04.RO_EN_RO_V1P2 = 0;  //Use V1P2 for TIMER
     mbus_remote_register_write(MRR_ADDR,0x04,mrrv6_r04.as_int);
 
 }
@@ -978,6 +988,10 @@ static void operation_init(void){
     prev17_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
 	*REG_CLKGEN_TUNE = prev17_r0B.as_int;
 
+    prev17_r0D.SRAM_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
+    prev17_r0D.SRAM_TUNE_DECODER_DLY = 15; // Default 0x2, 4 bits
+	*REG_SRAM_TUNE = prev17_r0D.as_int;
+  
   
     //Enumerate & Initialize Registers
     stack_state = STK_IDLE; 	//0x0;
@@ -1048,6 +1062,7 @@ static void operation_init(void){
 	mrr_cfo_vals[1] = 0x03FF;
 	mrr_cfo_vals[2] = 0x00FF;
 
+
 	// TX Setup Carrier Freq
 	mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = mrr_cfo_vals[0];  //ANT CAP 14b unary 830.5 MHz
 	//mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = 0x00FF;  //ANT CAP 14b unary 813.8 MHz
@@ -1061,7 +1076,7 @@ static void operation_init(void){
 	mbus_remote_register_write(MRR_ADDR,0x02,mrrv6_r02.as_int);
 
 	// Keep decap charged in the background
-	mrrv6_r03.MRR_DCP_S_OW = 1;  //TX_Decap S (forced charge decaps)
+	//mrrv6_r03.MRR_DCP_S_OW = 1;  //TX_Decap S (forced charge decaps)
 
 	// Forces decaps to be parallel
 	//mrrv6_r03.MRR_DCP_S_OW = 0;  //TX_Decap S (forced charge decaps)
@@ -1069,8 +1084,8 @@ static void operation_init(void){
 	//mbus_remote_register_write(MRR_ADDR,3,mrrv6_r03.as_int);
 
 	// RX Setup
-	//mrrv6_r03.MRR_RX_BIAS_TUNE    = 0x0AFF;//  turn on Q_enhancement
-	mrrv6_r03.MRR_RX_BIAS_TUNE    = 0x0001;//  turn off Q_enhancement
+    mrrv6_r03.MRR_RX_BIAS_TUNE    = 0x02AF;//  turn on Q_enhancement
+	//mrrv6_r03.MRR_RX_BIAS_TUNE    = 0x0001;//  turn off Q_enhancement
 	mrrv6_r03.MRR_RX_SAMPLE_CAP    = 0x1;  // RX_SAMPLE_CAP
 	mbus_remote_register_write(MRR_ADDR,3,mrrv6_r03.as_int);
 
@@ -1085,9 +1100,6 @@ static void operation_init(void){
 	mrrv6_r15.MRR_RAD_FSM_RX_DATA_BITS = 0x03; //Set RX data 1b
 	mbus_remote_register_write(MRR_ADDR,0x15,mrrv6_r15.as_int);
 
-	mrrv6_r1E.MRR_IRQ_REPLY_PACKET = 0x061400; //Read RX data Reply
-	mbus_remote_register_write(MRR_ADDR,0x1E,mrrv6_r1E.as_int);
-
 	// RAD_FSM set-up 
 	// Using first 48 bits of data as header
 	mrrv6_r09.MRR_RAD_FSM_TX_DATA_0 = 0x000000;
@@ -1101,12 +1113,8 @@ static void operation_init(void){
 	mrrv6_r13.MRR_RAD_FSM_TX_MODE = 3; //code rate 0:4 1:3 2:2 3:1(baseline) 4:1/2 5:1/3 6:1/4
 	mbus_remote_register_write(MRR_ADDR,0x13,mrrv6_r13.as_int);
 
-    //TIMER set-up
-    mrrv6_r04.RO_EN_RO_V1P2 = 1;  //Use V1P2 for TIMER
-    mbus_remote_register_write(MRR_ADDR,0x04,mrrv6_r04.as_int);
-
-	// Mbus return address; Needs to be between 0x18-0x1F
-	mbus_remote_register_write(MRR_ADDR,0x1B,0x1002);
+	// Mbus return address
+	mbus_remote_register_write(MRR_ADDR,0x1E,0x1002);
 
 
     // Initialize other global variables
