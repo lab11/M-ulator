@@ -98,6 +98,7 @@ volatile snsv10_r03_t snsv10_r03 = SNSv10_R03_DEFAULT;
 volatile snsv10_r17_t snsv10_r17 = SNSv10_R17_DEFAULT;
 
 volatile prev17_r0B_t prev17_r0B = PREv17_R0B_DEFAULT;
+volatile prev17_r0D_t prev17_r0D = PREv17_R0D_DEFAULT;
 
 volatile mrrv5_r00_t mrrv5_r00 = MRRv5_R00_DEFAULT;
 volatile mrrv5_r01_t mrrv5_r01 = MRRv5_R01_DEFAULT;
@@ -1000,6 +1001,10 @@ static void operation_init(void){
     prev17_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
 	*REG_CLKGEN_TUNE = prev17_r0B.as_int;
 
+    prev17_r0D.SRAM_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
+    prev17_r0D.SRAM_TUNE_DECODER_DLY = 15; // Default 0x2, 4 bits
+	*REG_SRAM_TUNE = prev17_r0D.as_int;
+  
   
     //Enumerate & Initialize Registers
     stack_state = STK_IDLE; 	//0x0;
