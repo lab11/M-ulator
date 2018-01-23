@@ -1005,6 +1005,7 @@ static void operation_init(void){
 
     prev17_r0D.SRAM_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
     prev17_r0D.SRAM_TUNE_DECODER_DLY = 15; // Default 0x2, 4 bits
+    prev17_r0D.SRAM_USE_INVERTER_SA= 1; 
 	*REG_SRAM_TUNE = prev17_r0D.as_int;
   
   
