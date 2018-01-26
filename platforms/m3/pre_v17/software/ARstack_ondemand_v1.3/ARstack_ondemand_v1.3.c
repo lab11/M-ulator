@@ -1074,9 +1074,9 @@ static void operation_init(void){
 	//mrr_configure_pulse_width_short();
 
 	mrr_freq_hopping = 1;
-	mrr_cfo_vals[0] = 0x01FF;
-	mrr_cfo_vals[1] = 0x03FF;
-	mrr_cfo_vals[2] = 0x00FF;
+	mrr_cfo_vals[0] = 0x0001;//0x01FF;
+	mrr_cfo_vals[1] = 0x0003;//0x03FF;
+	mrr_cfo_vals[2] = 0x0000;//0x00FF;
 
 	// TX Setup Carrier Freq
 	mrrv5_r00.MRR_TRX_CAP_ANTP_TUNE = mrr_cfo_vals[0];  //ANT CAP 14b unary 830.5 MHz
