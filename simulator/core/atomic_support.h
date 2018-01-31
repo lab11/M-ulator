@@ -55,7 +55,9 @@
 #  define atomic_flag_test_and_set(_p) __sync_lock_test_and_set(_p, 1)
 #  define atomic_flag_clear(_p)        __sync_lock_release(_p)
 # endif
-# if __has_include(<threads.h>)
+# ifdef __CYGWIN__
+#  define thread_local __thread
+# elif __has_include(<threads.h>)
 #  include <threads.h>
 # else
 #  define thread_local __thread

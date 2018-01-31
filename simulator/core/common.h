@@ -40,7 +40,8 @@
 #include <time.h>
 #include <fcntl.h>
 #include <errno.h>
-#ifndef __APPLE__
+
+#ifdef  __linux__
 #include <sys/prctl.h>
 #endif
 
@@ -150,6 +151,8 @@ void	CORE_ERR_not_implemented(const char *opt_msg) __attribute__ ((noreturn));
 
 
 #ifdef __APPLE__
+#define _DBG_T_NAME_HELPER(_t_buf) pthread_getname_np(pthread_self(), _t_buf, 16)
+#elif defined(__CYGWIN__)
 #define _DBG_T_NAME_HELPER(_t_buf) pthread_getname_np(pthread_self(), _t_buf, 16)
 #else
 #define _DBG_T_NAME_HELPER(_t_buf) prctl(PR_GET_NAME, _t_buf, 0, 0, 0)
