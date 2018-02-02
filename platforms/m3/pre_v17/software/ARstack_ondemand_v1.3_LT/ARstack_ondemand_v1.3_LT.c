@@ -1763,7 +1763,6 @@ int main() {
 		operation_sleep_notimer();
 
 	}else if(wakeup_data_header == 0x2B){
-		mrr_freq_hopping = wakeup_data_field_2;
 		mrr_cfo_vals[2] = wakeup_data & 0x3FFF;
 
 		// Go to sleep without timer
