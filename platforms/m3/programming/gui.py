@@ -16,19 +16,19 @@ import ttk
 import tkFileDialog, tkMessageBox
 from idlelib.WidgetRedirector import WidgetRedirector
 
-import m3_logging
+from m3 import m3_logging
 logger = m3_logging.get_logger(__name__)
 logger.debug('Got gui.py logger')
 
 
-from ice import ICE
+from m3.ice import ICE
 for name,method in inspect.getmembers(ICE, inspect.ismethod):
-	setattr(ICE, name, m3_logging.trace(getattr(ICE, name)))
+	setattr(ICE, name, m3_logging.trace(logger, getattr(ICE, name)))
 
 # Import serial after ice as ice prints a nice message about pyserial
 import serial
 
-from m3_common import m3_common
+from m3.m3_common import m3_common
 
 if sys.hexversion < 0x02070000:
 	logger.error('Python Version 2.7+ is required')
@@ -42,11 +42,11 @@ def new_init(self, *args, **kwargs):
 		try:
 			if 'command' in arg:
 				bound = True
-				arg['command'] = m3_logging.trace(arg['command'])
+				arg['command'] = m3_logging.trace(logger, arg['command'])
 		except TypeError:
 			pass
 	try:
-		kwargs['kw']['command'] = m3_logging.trace(kwargs['kw']['command'])
+		kwargs['kw']['command'] = m3_logging.trace(logger, kwargs['kw']['command'])
 		bound = True
 	except KeyError:
 		pass
@@ -61,7 +61,7 @@ def new_init(self, *args, **kwargs):
 	def new_bind(self, fn):
 		#logger.trace('new_bind. args{} ||| kwargs{}'.format(args, kwargs))
 		#logger.trace('new_bind self {}'.format(repr(self)))
-		orig_bind(self, m3_logging.trace(fn))
+		orig_bind(self, m3_logging.trace(logger, fn))
 	self.bind = new_bind
 Tk.Widget.__init__ = new_init
 
@@ -1777,7 +1777,8 @@ class MainPane(M3Gui):
 		# handler that is installed by default. But I don't know how to do that
 		# and it doesn't matter yet, so... tomorrow Pat's problem.
 		for l in logging.Logger.manager.loggerDict.values():
-			l.addHandler(self.terminal_logger_handler)
+			if not isinstance(l, logging.PlaceHolder):
+				l.addHandler(self.terminal_logger_handler)
 
 		# Monitor window for MBus messages
 		#self.monitorpane = ttk.LabelFrame(self.mainpane, text="MBus Monitor")
@@ -1806,7 +1807,8 @@ def setup_file_logger(config_file, uniq):
 	file_handler.level = logging.DEBUG
 	file_handler.formatter = file_formatter
 	for l in logging.Logger.manager.loggerDict.values():
-		l.addHandler(file_handler)
+		if not isinstance(l, logging.PlaceHolder):
+			l.addHandler(file_handler)
 	setup_file_logger.logfile = logfile
 
 if __name__ == '__main__':
