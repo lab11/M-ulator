@@ -1076,8 +1076,11 @@ static void operation_init(void){
 	mrrv6_r02.MRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
 	mbus_remote_register_write(MRR_ADDR,0x02,mrrv6_r02.as_int);
 
+	// Turn off RX mode
+    mrrv6_r03.MRR_TRX_MODE_EN = 0; //Set TRX mode
+
 	// Keep decap charged in the background
-	//mrrv6_r03.MRR_DCP_S_OW = 1;  //TX_Decap S (forced charge decaps)
+	mrrv6_r03.MRR_DCP_S_OW = 1;  //TX_Decap S (forced charge decaps)
 
 	// Forces decaps to be parallel
 	//mrrv6_r03.MRR_DCP_S_OW = 0;  //TX_Decap S (forced charge decaps)
@@ -1098,7 +1101,7 @@ static void operation_init(void){
 
 	mrrv6_r15.MRR_RAD_FSM_RX_HDR_BITS = 0x00;  //Set RX header
 	mrrv6_r15.MRR_RAD_FSM_RX_HDR_TH = 0x00;    //Set RX header threshold
-	mrrv6_r15.MRR_RAD_FSM_RX_DATA_BITS = 0x03; //Set RX data 1b
+	mrrv6_r15.MRR_RAD_FSM_RX_DATA_BITS = 0x00; //Set RX data 1b
 	mbus_remote_register_write(MRR_ADDR,0x15,mrrv6_r15.as_int);
 
 	// RAD_FSM set-up 
