@@ -6,7 +6,7 @@
 //			v1.2: increasing guard interval, optional freq hopping
 //			v1.3: increasing PMU strength for V1P2 and V3P6
 //			      ability to switch between short/long pulse
-//			v1.5: MRRv6
+//			v1.5: MRRv6; MRR decap configured to remain charged
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -110,13 +110,6 @@ volatile mrrv6_r05_t mrrv6_r05 = MRRv6_R05_DEFAULT;
 volatile mrrv6_r06_t mrrv6_r06 = MRRv6_R06_DEFAULT;
 volatile mrrv6_r07_t mrrv6_r07 = MRRv6_R07_DEFAULT;
 volatile mrrv6_r08_t mrrv6_r08 = MRRv6_R08_DEFAULT;
-volatile mrrv6_r09_t mrrv6_r09 = MRRv6_R09_DEFAULT;
-volatile mrrv6_r0A_t mrrv6_r0A = MRRv6_R0A_DEFAULT;
-volatile mrrv6_r0B_t mrrv6_r0B = MRRv6_R0B_DEFAULT;
-volatile mrrv6_r0C_t mrrv6_r0C = MRRv6_R0C_DEFAULT;
-volatile mrrv6_r0D_t mrrv6_r0D = MRRv6_R0D_DEFAULT;
-volatile mrrv6_r0E_t mrrv6_r0E = MRRv6_R0E_DEFAULT;
-volatile mrrv6_r0F_t mrrv6_r0F = MRRv6_R0F_DEFAULT;
 volatile mrrv6_r10_t mrrv6_r10 = MRRv6_R10_DEFAULT;
 volatile mrrv6_r11_t mrrv6_r11 = MRRv6_R11_DEFAULT;
 volatile mrrv6_r12_t mrrv6_r12 = MRRv6_R12_DEFAULT;
@@ -726,14 +719,14 @@ static void send_radio_data_mrr_sub1(){
 
 static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uint32_t radio_data_1, uint32_t radio_data_2){
 	// Sends 120 bit packet, of which 72b is actual data
-	// MRR REG6: reserved for header
-	// MRR REG7: reserved for header
-	// MRR REG8: DATA[23:0]
-	// MRR REG9: DATA[47:24]
-	// MRR REGA: DATA[71:48]
-    mbus_remote_register_write(MRR_ADDR,0x8,radio_data_0);
-    mbus_remote_register_write(MRR_ADDR,0x9,radio_data_1);
-    mbus_remote_register_write(MRR_ADDR,0xA,radio_data_2);
+	// MRR REG_9: reserved for header
+	// MRR REG_A: reserved for header
+	// MRR REG_B: DATA[23:0]
+	// MRR REG_C: DATA[47:24]
+	// MRR REG_D: DATA[71:48]
+    mbus_remote_register_write(MRR_ADDR,0xB,radio_data_0);
+    mbus_remote_register_write(MRR_ADDR,0xC,radio_data_1);
+    mbus_remote_register_write(MRR_ADDR,0xD,radio_data_2);
 
     if (!radio_ready){
 		radio_ready = 1;
@@ -1106,10 +1099,8 @@ static void operation_init(void){
 
 	// RAD_FSM set-up 
 	// Using first 48 bits of data as header
-	mrrv6_r09.MRR_RAD_FSM_TX_DATA_0 = 0x000000;
-	mbus_remote_register_write(MRR_ADDR,0x09,mrrv6_r09.as_int);
-	mrrv6_r0A.MRR_RAD_FSM_TX_DATA_1 = 0x7AC800;
-	mbus_remote_register_write(MRR_ADDR,0x0A,mrrv6_r0A.as_int);
+	mbus_remote_register_write(MRR_ADDR,0x09,0x0);
+	mbus_remote_register_write(MRR_ADDR,0x0A,0x7AC800);
 	mrrv6_r11.MRR_RAD_FSM_TX_H_LEN = 0; //31-31b header (max)
 	mrrv6_r11.MRR_RAD_FSM_TX_D_LEN = RADIO_DATA_LENGTH; //0-skip tx data
 	mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
