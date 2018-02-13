@@ -9,6 +9,7 @@
 //			v1.5: MRRv6; MRR decap configured to remain charged
 //			v1.6: CLEN default changed to 300; skip sleeping for timer settling
 //				  radio needs to be turned on/off for every wakeup
+//				  optimizing current limiter setting to minimize v drop
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -109,9 +110,7 @@ volatile mrrv6_r02_t mrrv6_r02 = MRRv6_R02_DEFAULT;
 volatile mrrv6_r03_t mrrv6_r03 = MRRv6_R03_DEFAULT;
 volatile mrrv6_r04_t mrrv6_r04 = MRRv6_R04_DEFAULT;
 volatile mrrv6_r05_t mrrv6_r05 = MRRv6_R05_DEFAULT;
-volatile mrrv6_r06_t mrrv6_r06 = MRRv6_R06_DEFAULT;
 volatile mrrv6_r07_t mrrv6_r07 = MRRv6_R07_DEFAULT;
-volatile mrrv6_r08_t mrrv6_r08 = MRRv6_R08_DEFAULT;
 volatile mrrv6_r10_t mrrv6_r10 = MRRv6_R10_DEFAULT;
 volatile mrrv6_r11_t mrrv6_r11 = MRRv6_R11_DEFAULT;
 volatile mrrv6_r12_t mrrv6_r12 = MRRv6_R12_DEFAULT;
@@ -591,6 +590,10 @@ static void radio_power_on(){
 	// Need to speed up sleep pmu clock
 	//pmu_set_sleep_radio();
 
+	// Current Limter set-up 
+	mrrv6_r00.MRR_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+	mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
+
     // Turn on Current Limter
     mrrv6_r00.MRR_CL_EN = 1;  //Enable CL
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
@@ -628,6 +631,10 @@ static void radio_power_off(){
 	// Enable PMU ADC
 	//pmu_adc_enable();
 
+	// Current Limter set-up 
+	mrrv6_r00.MRR_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+	mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
+
     // Turn off everything
     mrrv6_r03.MRR_TRX_ISOLATEN = 0;     //set ISOLATEN 0
     mbus_remote_register_write(MRR_ADDR,0x03,mrrv6_r03.as_int);
@@ -658,15 +665,11 @@ static void radio_power_off(){
 static void mrr_configure_pulse_width_long(){
 
     mrrv6_r12.MRR_RAD_FSM_TX_PW_LEN = 24; //100us PW
-    mrrv6_r13.MRR_RAD_FSM_TX_C_LEN = 400; // (PW_LEN+1):C_LEN=1:32
+    mrrv6_r13.MRR_RAD_FSM_TX_C_LEN = 200; // (PW_LEN+1):C_LEN=1:32
     mrrv6_r12.MRR_RAD_FSM_TX_PS_LEN = 49; // PW=PS   
 
     mbus_remote_register_write(MRR_ADDR,0x12,mrrv6_r12.as_int);
     mbus_remote_register_write(MRR_ADDR,0x13,mrrv6_r13.as_int);
-
-    // Current Limter set-up 
-    mrrv6_r00.MRR_CL_CTRL = 0x8;
-    mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
 
     mrrv6_r14.MRR_RAD_FSM_TX_POWERON_LEN = 2; //3bits
     mbus_remote_register_write(MRR_ADDR,0x14,mrrv6_r14.as_int);
@@ -681,10 +684,6 @@ static void mrr_configure_pulse_width_short(){
 
     mbus_remote_register_write(MRR_ADDR,0x12,mrrv6_r12.as_int);
     mbus_remote_register_write(MRR_ADDR,0x13,mrrv6_r13.as_int);
-
-    // Current Limter set-up 
-    mrrv6_r00.MRR_CL_CTRL = 8; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
-    mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
 
     mrrv6_r14.MRR_RAD_FSM_TX_POWERON_LEN = 2; //3bits
     mbus_remote_register_write(MRR_ADDR,0x14,mrrv6_r14.as_int);
@@ -741,6 +740,11 @@ static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uin
     	mrrv6_r03.MRR_TRX_ISOLATEN = 1;     //set ISOLATEN 1, let state machine control
     	mbus_remote_register_write(MRR_ADDR,0x03,mrrv6_r03.as_int);
 		delay(MBUS_DELAY*10);
+
+		// Current Limter set-up 
+		mrrv6_r00.MRR_CL_CTRL = 2; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+		mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
+
     }
 
 	uint32_t count = 0;
@@ -1058,6 +1062,17 @@ static void operation_init(void){
 	mrr_cfo_vals[1] = 0x03FF;
 	mrr_cfo_vals[2] = 0x00FF;
 
+	// RO setup (SFO)
+	// Adjust Diffusion R
+	mbus_remote_register_write(MRR_ADDR,0x06,0x1000); // RO_PDIFF
+
+	// Adjust Poly R
+	mbus_remote_register_write(MRR_ADDR,0x08,0x400000); // RO_POLY
+
+	// Adjust C
+	mrrv6_r07.RO_MOM = 0x10;
+	mrrv6_r07.RO_MIM = 0x10;
+	mbus_remote_register_write(MRR_ADDR,0x07,mrrv6_r07.as_int);
 
 	// TX Setup Carrier Freq
 	mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = mrr_cfo_vals[0];  //ANT CAP 14b unary 830.5 MHz
@@ -1623,7 +1638,10 @@ int main() {
 
 	}else if(wakeup_data_header == 0x23){
 		// Change the baseband frequency of MRR (SFO)
-
+		mrrv6_r07.RO_MOM = wakeup_data & 0x3F;
+		mrrv6_r07.RO_MIM = wakeup_data & 0x3F;
+		mbus_remote_register_write(MRR_ADDR,0x07,mrrv6_r07.as_int);
+		
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
@@ -1647,6 +1665,17 @@ int main() {
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
+	}else if(wakeup_data_header == 0x78){
+	// temporary trigger
+
+		// Current Limter set-up 
+		mrrv6_r00.MRR_CL_CTRL = wakeup_data & 0xFF; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+		mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+
 	}else if(wakeup_data_header == 0x25){
 		// Change the conversion time of the temp sensor
 
@@ -1663,7 +1692,6 @@ int main() {
 		operation_sleep_notimer();
 
 	}else if(wakeup_data_header == 0x2B){
-		mrr_freq_hopping = wakeup_data_field_2;
 		mrr_cfo_vals[2] = wakeup_data & 0x3FFF;
 
 		// Go to sleep without timer
