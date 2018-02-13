@@ -8,6 +8,7 @@
 //			      ability to switch between short/long pulse
 //			v1.5: MRRv6; MRR decap configured to remain charged
 //			v1.6: CLEN default changed to 300; skip sleeping for timer settling
+//				  radio needs to be turned on/off for every wakeup
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -588,7 +589,7 @@ static void radio_power_on(){
 	//pmu_adc_disable();
 
 	// Need to speed up sleep pmu clock
-	pmu_set_sleep_radio();
+	//pmu_set_sleep_radio();
 
     // Turn on Current Limter
     mrrv6_r00.MRR_CL_EN = 1;  //Enable CL
@@ -622,15 +623,12 @@ static void radio_power_on(){
 
 static void radio_power_off(){
 	// Need to restore sleep pmu clock
-	pmu_set_sleep_low();
+	//pmu_set_sleep_low();
 
 	// Enable PMU ADC
 	//pmu_adc_enable();
 
     // Turn off everything
-    radio_on = 0;
-	radio_ready = 0;
-
     mrrv6_r03.MRR_TRX_ISOLATEN = 0;     //set ISOLATEN 0
     mbus_remote_register_write(MRR_ADDR,0x03,mrrv6_r03.as_int);
 
@@ -652,12 +650,15 @@ static void radio_power_off(){
     mrrv6_r04.RO_EN_RO_V1P2 = 0;  //Use V1P2 for TIMER
     mbus_remote_register_write(MRR_ADDR,0x04,mrrv6_r04.as_int);
 
+    radio_on = 0;
+	radio_ready = 0;
+
 }
 
 static void mrr_configure_pulse_width_long(){
 
     mrrv6_r12.MRR_RAD_FSM_TX_PW_LEN = 24; //100us PW
-    mrrv6_r13.MRR_RAD_FSM_TX_C_LEN = 800; // (PW_LEN+1):C_LEN=1:32
+    mrrv6_r13.MRR_RAD_FSM_TX_C_LEN = 400; // (PW_LEN+1):C_LEN=1:32
     mrrv6_r12.MRR_RAD_FSM_TX_PS_LEN = 49; // PW=PS   
 
     mbus_remote_register_write(MRR_ADDR,0x12,mrrv6_r12.as_int);
@@ -885,13 +886,13 @@ static void operation_tx_stored(void){
 
 		
 		// Radio out data
-		send_radio_data_mrr(0, 0xFFFFFF & temp_storage[radio_tx_count],0xD,0xCC | (radio_tx_count & 0xFFFF));
+		send_radio_data_mrr(0, 0xCC0000 | (radio_tx_count & 0xFFFF), 0xFFFFFF & temp_storage[radio_tx_count], 0xD);
 		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 
 		radio_tx_count--;
     }
 
-	send_radio_data_mrr(0, 0xFFFFFF & temp_storage[radio_tx_count],0xD,0xCC | (radio_tx_count & 0xFFFF));
+	send_radio_data_mrr(0, 0xCC0000 | (radio_tx_count & 0xFFFF), 0xFFFFFF & temp_storage[radio_tx_count], 0xD);
 
 	delay(RADIO_PACKET_DELAY*2); //Set delays between sending subsequent packet
 	send_radio_data_mrr(1, 0xFAF000,0,0);
@@ -1147,14 +1148,6 @@ static void operation_sns_run(void){
 		// Turn on SNS LDO VREF; requires settling
 		sns_ldo_vref_on();
 
-		// Power on radio
-		if (radio_tx_option || ((exec_count+1) < SNS_CYCLE_INIT)){
-			radio_power_on();
-			// Put system to sleep
-			set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
-			operation_sleep();
-		}
-
     }else if (stack_state == STK_LDO){
 		stack_state = STK_TEMP_START;
 
@@ -1251,12 +1244,17 @@ static void operation_sns_run(void){
 			if (radio_tx_option){
 				// Read latest PMU ADC measurement
 				pmu_adc_read_latest();
-				send_radio_data_mrr(0, 0xD00000 | (0xFFFFF & read_data_temp), 0xB00000+read_data_batadc,0xC00000+exec_count);
+
+				// Prepare for radio tx
+				radio_power_on();
+				send_radio_data_mrr(1, 0xD00000 | (0xFFFFF & read_data_temp), 0xB00000+read_data_batadc,0xC00000+exec_count);
 				delay(RADIO_PACKET_DELAY);
 			}
 
 			// Enter long sleep
 			if (exec_count < SNS_CYCLE_INIT){
+				// Prepare for radio tx
+				radio_power_on();
 				// Send some signal
 				send_radio_data_mrr(1, 0xABC000,0,0);
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
@@ -1267,7 +1265,6 @@ static void operation_sns_run(void){
 
 			// Make sure Radio is off
 			if (radio_on){
-				radio_ready = 0;
 				radio_power_off();
 			}
 
@@ -1314,15 +1311,14 @@ static void operation_goc_trigger_init(void){
 
 static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_timer_val, uint32_t radio_tx_prefix, uint32_t radio_tx_data){
 
+	// Prepare radio TX
+	radio_power_on();
+
 	if (exec_count_irq < radio_tx_num){
 		exec_count_irq++;
-		if (exec_count_irq == 1){
-			// Prepare radio TX
-			radio_power_on();
-		}
 
 		// radio
-		send_radio_data_mrr(0, radio_tx_data,radio_tx_prefix,0);
+		send_radio_data_mrr(1, radio_tx_data,radio_tx_prefix,0);
 		// set timer
 		set_wakeup_timer (wakeup_timer_val, 0x1, 0x1);
 		// go to sleep and wake up with same condition
@@ -1389,7 +1385,7 @@ int main() {
 
     }else if(wakeup_data_header == 0x71){
 		// Debug trigger for MRR testing; repeat trigger 1 for 0xFFFFFFFF times
-		operation_goc_trigger_radio(0xFFFFFFFF, 0xABC000, wakeup_data & 0xFFFFFF, exec_count_irq);
+		operation_goc_trigger_radio(0xFFFFFFFF, 0x10, wakeup_data & 0xFFFFFF, exec_count_irq);
 
     }else if(wakeup_data_header == 2){
 		// Slow down PMU sleep osc and run temp sensor code with desired wakeup period
@@ -1437,16 +1433,16 @@ int main() {
 	
 		stack_state = STK_IDLE;
 
+		// Prepare radio TX
+		radio_power_on();
+
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
 			if (exec_count_irq == 1){
 				// Read latest PMU ADC measurement
 				pmu_adc_read_latest();
-
-				// Prepare radio TX
-				radio_power_on();
 			}
-			send_radio_data_mrr(0,0,0xB00000+read_data_batadc,0xC00000+exec_count);	
+			send_radio_data_mrr(1,0,0xB00000+read_data_batadc,0xC00000+exec_count);	
 			// set timer
 			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 			// go to sleep and wake up with same condition
@@ -1478,17 +1474,17 @@ int main() {
 			radio_tx_numdata = 0;
 		}
 		
+		// Prepare radio TX
+		radio_power_on();
+
         if (exec_count_irq < 5){
 			exec_count_irq++;
 			if (exec_count_irq == 1){
 				// Read latest PMU ADC measurement
 				pmu_adc_read_latest();
-
-				// Prepare radio TX
-				radio_power_on();
 			}
 
-			send_radio_data_mrr(0,0,0xB00000+read_data_batadc,0xC00000+exec_count);	
+			send_radio_data_mrr(1,0,0xB00000+read_data_batadc,0xC00000+exec_count);	
 			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 			// go to sleep and wake up with same condition
 			operation_sleep_noirqreset();
@@ -1543,38 +1539,6 @@ int main() {
 		// Run Temp Sensor Program
 		operation_sns_run();
 
-    }else if(wakeup_data_header == 0x15){
-		// Transmit wakeup period as counted by (roughly) CPU clock
-		// wakeup_data[7:0] is the # of transmissions
-		// wakeup_data[15:8] is the user-specified period 
-		WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
-
-        if (exec_count_irq < wakeup_data_field_0){
-            exec_count_irq++;
-			if (exec_count_irq == 1){
-				// Measure wakeup period
-				measure_wakeup_period();
-
-				// Prepare radio TX
-				radio_power_on();
-				// Go to sleep for SCRO stabilitzation
-				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
-				operation_sleep_noirqreset();
-			}else{
-				// radio
-				send_radio_data_mrr(0,0xC00000+wakeup_period_count);	
-				// set timer
-				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-				// go to sleep and wake up with same condition
-				operation_sleep_noirqreset();
-			}
-        }else{
-            exec_count_irq = 0;
-            // radio
-            send_radio_data_mrr(1,0xFAF000);	
-            // Go to sleep without timer
-            operation_sleep_notimer();
-        }
 */
 
 	}else if(wakeup_data_header == 0x17){
