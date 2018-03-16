@@ -1091,7 +1091,7 @@ static void operation_init(void){
     radio_on = 0;
 	wakeup_data = 0;
 	set_sns_exec_count = 0; // specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
-	RADIO_PACKET_DELAY = 2000;
+	RADIO_PACKET_DELAY = 800;
 
     // Go to sleep without timer
     operation_sleep_notimer();
@@ -1736,7 +1736,7 @@ int main() {
 		// Change the radio tx packet delay
 		uint32_t user_val = wakeup_data & 0xFFFFFF;
 		if (user_val < 500){
-			RADIO_PACKET_DELAY = 4000;
+			RADIO_PACKET_DELAY = 2000;
 		}else{
 			RADIO_PACKET_DELAY = user_val;
 		}

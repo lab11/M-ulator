@@ -1232,6 +1232,31 @@ int main() {
 		mbus_remote_register_write(MRR_ADDR,0x02,mrrv6_r02.as_int);
 
 
+    }else if(wakeup_data_header == 4){
+
+	// Turn on cont mode
+
+		disable_timerwd();
+		*MBCWD_RESET = 1;
+
+		mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = 0xFF;  //ANT CAP 14b unary 805.5 MHz
+		mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
+		mrrv6_r01.MRR_TRX_CAP_ANTN_TUNE = 0xFF;  //ANT CAP 14b unary 805.5 MHz
+		mbus_remote_register_write(MRR_ADDR,0x01,mrrv6_r01.as_int);
+
+		mrrv6_r02.MRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
+		mbus_remote_register_write(MRR_ADDR,0x02,mrrv6_r02.as_int);
+
+		mrrv6_r00.MRR_CL_CTRL = 1;
+		mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
+		mrrv6_r00.MRR_CL_EN = 1;
+		mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
+		mrrv6_r03.MRR_TRX_ISOLATEN = 0;
+		mrrv6_r03.MRR_DCP_S_OW = 1;
+		mbus_remote_register_write(MRR_ADDR,0x03,mrrv6_r03.as_int);
+		mrrv6_r02.MRR_TX_EN_OW = 0x1;
+		mbus_remote_register_write(MRR_ADDR,0x02,mrrv6_r02.as_int);
+
 
 
     }else{
