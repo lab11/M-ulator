@@ -84,20 +84,20 @@ int main() {
 
   //Adjust Capacitance
   mbus_remote_register_write(MRR_ADDR,0x07, 
-	( (0x16 << 7) // 4'h1C RO_MIM
-	| (0x16) 	// 7'h1C RO_MOM
+	( (0x10 << 7) // 4'h1C RO_MIM
+	| (0x10) 	// 7'h1C RO_MOM
   ));
   //delay(10); 
 
   //Adjust Diffusion Resistor
   mbus_remote_register_write(MRR_ADDR,0x06, 
-	( (0x0080) // 15'h0080 RO_PDIFF
+	( (0x1000) // 15'h0080 RO_PDIFF
   ));
   //delay(10); 
 
   //Adjust Poly Resistor
   mbus_remote_register_write(MRR_ADDR,0x08, 
-	( (0x010000) // 24'h000040 RO_POLY
+	( (0x400000) // 24'h000040 RO_POLY
   ));
   //delay(10); 
   

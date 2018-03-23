@@ -66,6 +66,7 @@ volatile uint32_t WAKEUP_PERIOD_CONT;
 volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
 
 volatile prcv17_r0B_t prcv17_r0B = PRCv17_R0B_DEFAULT;
+volatile prcv17_r0D_t prcv17_r0D = PRCv17_R0D_DEFAULT;
 
 //*******************************************************************
 // INTERRUPT HANDLERS (Updated for PRCv17)
@@ -151,6 +152,11 @@ static void operation_init(void){
     prcv17_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
 	*REG_CLKGEN_TUNE = prcv17_r0B.as_int;
 
+    prcv17_r0D.SRAM_USE_INVERTER_SA = 1;
+	*REG_CLKGEN_TUNE = prcv17_r0D.as_int;
+    
+	mbus_write_message32(0xDD,prcv17_r0D.as_int);
+
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
@@ -218,7 +224,7 @@ int main() {
     uint32_t ii;
     for(ii=0;ii<100;ii=ii+1){
     addr = SRAM_NON_CODE_START_ADDR;
-    data = 0xAAAAAAAA;
+    data = 0xFFFFFFFF;
     while(addr<8192){
 	    //mbus_write_message32(0xAA,addr);
         *((volatile uint32_t *) addr) = data;
