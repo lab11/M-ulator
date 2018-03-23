@@ -1,15 +1,7 @@
 //*******************************************************************
 //Author: Gyouho Kim
-//Description: AR stack with MRR and SNSv10
-//			Modified from 'Tstack_ondemand_v3.2_BAT3V'
-//			v1.0: PREv17, SNSv10, PMUv7, mrrv6
-//			v1.2: increasing guard interval, optional freq hopping
-//			v1.3: increasing PMU strength for V1P2 and V3P6
-//			      ability to switch between short/long pulse
-//			v1.5: MRRv6; MRR decap configured to remain charged
-//			v1.6: CLEN default changed to 300; skip sleeping for timer settling
-//				  radio needs to be turned on/off for every wakeup
-//				  optimizing current limiter setting to minimize v drop
+//Description: AM stack with MRRv6 and SNSv10, ADXL362
+//			Modified from 'ARstack_ondemand_v1.7.c'
 //			v1.7: CL unlimited during tx, shortening CLEN, pulse width
 //*******************************************************************
 #include "PREv17.h"
@@ -18,6 +10,7 @@
 #include "SNSv10_RF.h"
 #include "PMUv7_RF.h"
 #include "MRRv6_RF.h"
+#include "ADXL362.h"
 
 // uncomment this for debug mbus message
 // #define DEBUG_MBUS_MSG
@@ -41,15 +34,21 @@
 #define	STK_TEMP_START 0x2
 #define	STK_TEMP_READ  0x3
 
+// ADXL362 Defines
+#define SPI_TIME 250
+
 // Radio configurations
 #define RADIO_DATA_LENGTH 120
 #define WAKEUP_PERIOD_RADIO_INIT 10 // About 2 sec (PRCv17)
 
-#define DATA_STORAGE_SIZE 400 // Need to leave about 500 Bytes for stack --> around 60 words
+#define DATA_STORAGE_SIZE 200 // Need to leave about 500 Bytes for stack --> around 60 words
 #define TEMP_NUM_MEAS 2
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y5 run default clock (PRCv17)
 #define TIMER32_VAL 0x50000 // 0x20000 about 1 sec with Y5 run default clock (PRCv17)
+
+#define GPIO_ADXL_INT 0
+#define GPIO_ADXL_EN 4
 
 //********************************************************************
 // Global Variables
@@ -87,6 +86,9 @@ volatile uint32_t sns_run_single;
 volatile uint32_t sns_run_ht_mode;
 volatile uint32_t sns_running;
 volatile uint32_t set_sns_exec_count;
+volatile uint32_t adxl_enabled;
+volatile uint32_t adxl_motion_detected;
+volatile uint32_t adxl_user_threshold;
 
 volatile uint32_t radio_tx_count;
 volatile uint32_t radio_tx_option;
@@ -124,6 +126,16 @@ volatile mrrv6_r1E_t mrrv6_r1E = MRRv6_R1E_DEFAULT;
 volatile mrrv6_r1F_t mrrv6_r1F = MRRv6_R1F_DEFAULT;
 
 
+//***************************************************
+// ADXL362 Functions
+//***************************************************
+static void ADXL362_reg_wr (uint8_t reg_id, uint8_t);
+static void ADXL362_reg_rd (uint8_t reg_id);
+static void ADXL362_init(void);
+static void ADXL362_stop(void);
+static void operation_spi_init(void);
+static void operation_spi_stop(void);
+
 //*******************************************************************
 // INTERRUPT HANDLERS (Updated for PRCv17)
 //*******************************************************************
@@ -159,10 +171,132 @@ void handler_ext_int_gocep(void) { // GOCEP
     *NVIC_ICPR = (0x1 << IRQ_GOCEP);
 }
 void handler_ext_int_wakeup(void) { // WAKE-UP
+//[ 0] = GOC/EP
+//[ 1] = Wakeuptimer
+//[ 2] = XO timer
+//[ 3] = gpio_pad
+//[ 4] = mbus message
+//[ 8] = gpio[0]
+//[ 9] = gpio[1]
+//[10] = gpio[2]
+//[11] = gpio[3]
+	// FIXME
     *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
-    *SREG_WAKEUP_SOURCE = 0;
 }
 
+
+//***************************************************
+// ADXL362 Functions
+//***************************************************
+static void ADXL362_reg_wr (uint8_t reg_id, uint8_t reg_data){
+  gpio_write_data((0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+  *SPI_SSPDR = 0x0A;
+  *SPI_SSPDR = reg_id;
+  *SPI_SSPDR = reg_data;
+  *SPI_SSPCR1 = 0x2;
+  while((*SPI_SSPSR>>4)&0x1){}//Spin
+  gpio_write_data((1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+  *SPI_SSPCR1 = 0x0;
+}
+
+static void ADXL362_reg_rd (uint8_t reg_id){
+  gpio_write_data((0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+  *SPI_SSPDR = 0x0B;
+  *SPI_SSPDR = reg_id;
+  *SPI_SSPDR = 0x00;
+  *SPI_SSPCR1 = 0x2;
+  while((*SPI_SSPSR>>4)&0x1){}//Spin
+  gpio_write_data((1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+  *SPI_SSPCR1 = 0x0;
+  mbus_write_message32(0xB1,*SPI_SSPDR);
+}
+
+static void ADXL362_init(){
+  // Soft Reset
+  ADXL362_reg_wr(ADXL362_SOFT_RESET,0x52);
+  
+  // Check if Alive
+  ADXL362_reg_rd(ADXL362_DEVID_AD);
+  ADXL362_reg_rd(ADXL362_DEVID_MST);
+  ADXL362_reg_rd(ADXL362_PARTID);
+  ADXL362_reg_rd(ADXL362_REVID);
+
+  // Set Interrupt1 Awake Bit [4]
+  ADXL362_reg_wr(ADXL362_INTMAP1,0x10);
+
+  // Set Activity Threshold
+  ADXL362_reg_wr(ADXL362_THRESH_ACT_L,adxl_user_threshold & 0xFF);
+  ADXL362_reg_wr(ADXL362_THRESH_ACT_H,(adxl_user_threshold>>8) & 0xFF);
+
+  // Set Actvity/Inactivity Control
+  ADXL362_reg_wr(ADXL362_ACT_INACT_CTL,0x03);
+
+  // Enter Measurement Mode
+  ADXL362_reg_wr(ADXL362_POWER_CTL,0x0A);
+
+  // Check Status (Clears first false positive)
+  delay(5000);
+  ADXL362_reg_rd(ADXL362_STATUS);
+}
+
+static void ADXL362_enable(){
+
+	// Initialize Interrupts
+	*NVIC_ISER = 1<<IRQ_WAKEUP;
+
+	operation_spi_init();
+	delay(MBUS_DELAY);
+	
+
+	// Turn PRE power switch on
+	*REG_CPS = 1;
+	delay(MBUS_DELAY*2);
+
+	// Initialize ADXL
+	ADXL362_init();
+	delay(MBUS_DELAY*2);
+	config_gpio_posedge_wirq((0<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
+	operation_spi_stop();
+
+	adxl_enabled = 1;
+	adxl_motion_detected = 0;
+}
+
+static void ADXL362_stop(){
+	config_gpio_posedge_wirq(0x0);
+	*NVIC_ISER = 0<<IRQ_WAKEUP;
+	unfreeze_gpio_out();
+	set_gpio_pad((1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
+	gpio_set_dir((1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
+	gpio_write_data(0);
+	freeze_gpio_out();
+	adxl_enabled = 0;
+}
+
+static void operation_spi_init(){
+  *SPI_SSPCR0 =  0x0207; // Motorola Mode
+  *SPI_SSPCPSR = 0x02;   // Clock Prescale Register
+
+	// Enable SPI Input/Output
+	mbus_write_message32(0xFF,0x11);
+  set_spi_pad(1);
+	mbus_write_message32(0xFF,0x12);
+  set_gpio_pad((1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
+	mbus_write_message32(0xFF,0x13);
+  gpio_set_dir((1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+	mbus_write_message32(0xFF,0x14);
+  gpio_write_data((1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT)); // << Crashes here
+	mbus_write_message32(0xFF,0x15);
+  unfreeze_gpio_out();
+	mbus_write_message32(0xFF,0x16);
+  unfreeze_spi_out();
+	mbus_write_message32(0xFF,0x17);
+}
+
+static void operation_spi_stop(){
+  freeze_spi_out();
+  freeze_gpio_out();
+}
 
 //************************************
 // PMU Related Functions
@@ -258,74 +392,6 @@ inline static void pmu_set_adc_period(uint32_t val){
 	delay(MBUS_DELAY);
 }
 
-inline static void pmu_set_sleep_radio(){
-	// Register 0x15: SAR_TRIM_v3_SLEEP
-    mbus_remote_register_write(PMU_ADDR,0x15, 
-		( (0 << 19) // Enable PFM even during periodic reset
-		| (0 << 18) // Enable PFM even when Vref is not used as ref
-		| (0 << 17) // Enable PFM
-		| (3 << 14) // Comparator clock division ratio
-		| (0 << 13) // Enable main feedback loop
-		| (10 << 9)  // Frequency multiplier R
-		| (10 << 5)  // Frequency multiplier L (actually L+1)
-		| (5) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
-    mbus_remote_register_write(PMU_ADDR,0x15, 
-		( (0 << 19) // Enable PFM even during periodic reset
-		| (0 << 18) // Enable PFM even when Vref is not used as ref
-		| (0 << 17) // Enable PFM
-		| (3 << 14) // Comparator clock division ratio
-		| (0 << 13) // Enable main feedback loop
-		| (10 << 9)  // Frequency multiplier R
-		| (10 << 5)  // Frequency multiplier L (actually L+1)
-		| (5) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
-	// Register 0x17: V3P6 Upconverter Sleep Settings
-    mbus_remote_register_write(PMU_ADDR,0x17, 
-		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
-		| (0 << 13) // Enable main feedback loop
-		| (2 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (5) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
-}
-
-inline static void pmu_set_sleep_low(){
-	// Register 0x17: V3P6 Upconverter Sleep Settings
-    mbus_remote_register_write(PMU_ADDR,0x17, 
-		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
-		| (0 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (1) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
-    mbus_remote_register_write(PMU_ADDR,0x17, 
-		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
-		| (0 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (1) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
-	// Register 0x15: SAR_TRIM_v3_SLEEP
-    mbus_remote_register_write(PMU_ADDR,0x15, 
-		( (0 << 19) // Enable PFM even during periodic reset
-		| (0 << 18) // Enable PFM even when Vref is not used as ref
-		| (0 << 17) // Enable PFM
-		| (3 << 14) // Comparator clock division ratio
-		| (0 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (1) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
-}
-
-
 inline static void pmu_set_clk_init(){
 	// Register 0x17: V3P6 Upconverter Sleep Settings
     mbus_remote_register_write(PMU_ADDR,0x17, 
@@ -377,7 +443,7 @@ inline static void pmu_set_clk_init(){
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (0 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
+		| (2 << 9)  // Frequency multiplier R
 		| (2 << 5)  // Frequency multiplier L (actually L+1)
 		| (1) 		// Floor frequency base (0-63)
 	));
@@ -627,7 +693,6 @@ static void radio_power_on(){
 
 static void radio_power_off(){
 	// Need to restore sleep pmu clock
-	//pmu_set_sleep_low();
 
 	// Enable PMU ADC
 	//pmu_adc_enable();
@@ -996,7 +1061,12 @@ static void measure_wakeup_period(void){
 	mbus_write_message32(0xE2, wakeup_period_count);
 
    	config_timerwd(TIMERWD_VAL);
-	WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*8, wakeup_period_count);
+
+	if (adxl_enabled){
+		WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*8*60, wakeup_period_count);
+	}else{
+		WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*8, wakeup_period_count);
+	}
     if (WAKEUP_PERIOD_CONT > 0x7FFF){
         WAKEUP_PERIOD_CONT = 0x7FFF;
     }
@@ -1176,7 +1246,11 @@ static void operation_init(void){
     radio_on = 0;
 	wakeup_data = 0;
 	set_sns_exec_count = 0; // specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
-	RADIO_PACKET_DELAY = 2000;
+	RADIO_PACKET_DELAY = 800;
+	
+	adxl_enabled = 0;
+	adxl_motion_detected = 0;
+	adxl_user_threshold = 0x0060;
 
     // Go to sleep without timer
     operation_sleep_notimer();
@@ -1297,33 +1371,46 @@ static void operation_sns_run(void){
 
 				// Prepare for radio tx
 				radio_power_on();
-				send_radio_data_mrr(1, 0xD00000 | (0xFFFFF & read_data_temp), 0xB00000+read_data_batadc,0xC00000+exec_count);
+				if (adxl_motion_detected){
+					send_radio_data_mrr(1, 0xD00000 | (0xFFFFF & read_data_temp), 0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF&exec_count));
+				}else{
+					send_radio_data_mrr(1, 0xD00000 | (0xFFFFF & read_data_temp), 0xBBBA00+read_data_batadc,0xC00000 | (0xFFFFF&exec_count));
+				}
 				delay(RADIO_PACKET_DELAY);
 			}
 
-			// Enter long sleep
-			if (exec_count < SNS_CYCLE_INIT){
-				// Prepare for radio tx
-				radio_power_on();
-				// Send some signal
-				send_radio_data_mrr(1, 0xABC000,0,0);
-				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
+			if (adxl_enabled){
 
-			}else{	
+				// Reset ADXL flag
+				adxl_motion_detected = 0;
+	
+				operation_spi_init();
+				ADXL362_reg_rd(ADXL362_STATUS);
+				ADXL362_reg_rd(ADXL362_XDATA);
+				ADXL362_reg_rd(ADXL362_YDATA);
+				ADXL362_reg_rd(ADXL362_ZDATA);
+				operation_spi_stop();
+				
 				set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
+
+			}else{
+				if (exec_count < SNS_CYCLE_INIT){
+					// Prepare for radio tx
+					radio_power_on();
+					// Send some signal
+					send_radio_data_mrr(1, 0xABC000,0,0);
+					set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
+
+				}else{	
+					set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
+				}
 			}
 
 			// Make sure Radio is off
 			if (radio_on){
 				radio_power_off();
 			}
-
-			if (sns_run_single){
-				sns_run_single = 0;
-				sns_running = 0;
-				operation_sleep_notimer();
-			}
-
+	
 			if ((set_sns_exec_count != 0) && (exec_count > (50<<set_sns_exec_count))){
 				// No more measurement required
 				// Make sure temp sensor is off
@@ -1332,7 +1419,6 @@ static void operation_sns_run(void){
 			}else{
 				operation_sleep();
 			}
-
 		}
 
     }else{
@@ -1386,7 +1472,7 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
 // MAIN function starts here             
 //********************************************************************
 
-int main() {
+int main(){
 
     // Only enable relevant interrupts (PRCv17)
 	//enable_reg_irq();
@@ -1396,6 +1482,14 @@ int main() {
     // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
     config_timerwd(TIMERWD_VAL);
 
+	// Figure out who triggered wakeup
+	if(*SREG_WAKEUP_SOURCE & 0x00000008){
+		mbus_write_message32(0xAA,0x11331133);
+		adxl_motion_detected = 1;
+	}
+	//Woke up via Wakeup Timer
+	if(*SREG_WAKEUP_SOURCE & 0x00000002){
+	}
     // Initialization sequence
     if (enumerated != 0xDEADBEE1){
         operation_init();
@@ -1433,12 +1527,8 @@ int main() {
 		// Debug trigger for MRR testing; repeat trigger 1 for 0xFFFFFFFF times
 		operation_goc_trigger_radio(0xFFFFFFFF, wakeup_data_field_1, 0xABC000, exec_count_irq);
 
-    }else if(wakeup_data_header == 0x71){
-		// Debug trigger for MRR testing; repeat trigger 1 for 0xFFFFFFFF times
-		operation_goc_trigger_radio(0xFFFFFFFF, 0x10, wakeup_data & 0xFFFFFF, exec_count_irq);
-
     }else if(wakeup_data_header == 2){
-		// Slow down PMU sleep osc and run temp sensor code with desired wakeup period
+		// Run temp measurement routine with desired wakeup period
         // wakeup_data[15:0] is the user-specified period
         // wakeup_data[19:17] is the initial user-specified period (LSB assumed to be 0)
 		// wakeup_data[16] is HT mode -- only save data above a certain HT
@@ -1473,6 +1563,80 @@ int main() {
     	stack_state = STK_IDLE;
 		operation_sns_run();
 
+    }else if(wakeup_data_header == 0x32){
+		// Run temp measurement routine with desired wakeup period and ADXL running in the background
+        // wakeup_data[15:0] is the user-specified period in minutes
+        // wakeup_data[19:17] is the initial user-specified period (LSB assumed to be 0)
+        // wakeup_data[23:21] specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
+    	WAKEUP_PERIOD_CONT_USER = (wakeup_data_field_0 + (wakeup_data_field_1<<8));
+        WAKEUP_PERIOD_CONT_INIT = (wakeup_data_field_2 & 0xE);
+        radio_tx_option = 1;
+
+		sns_run_single = 0;
+		sns_run_ht_mode = 0;
+		
+		ADXL362_enable();
+
+		sns_running = 1;
+		set_sns_exec_count = wakeup_data_field_2 >> 5;
+		exec_count = 0;
+		meas_count = 0;
+		data_storage_count = 0;
+		radio_tx_count = 0;
+
+		// Reset GOC_DATA_IRQ
+		*GOC_DATA_IRQ = 0;
+        exec_count_irq = 0;
+
+		// Run Temp Sensor Program
+    	stack_state = STK_IDLE;
+		operation_sns_run();
+
+    }else if(wakeup_data_header == 0x33){
+		// Stop temp & ADXL program and transmit the battery reading and execution count (alternating n times)
+        // wakeup_data[7:0] is the # of transmissions
+        // wakeup_data[15:8] is the user-specified period 
+        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+
+		operation_sns_sleep_check();
+	
+		stack_state = STK_IDLE;
+
+		// Stop ADXL
+		ADXL362_stop();
+		delay(MBUS_DELAY*10);
+		*REG_CPS = 0;
+
+		// Prepare radio TX
+		radio_power_on();
+
+        if (exec_count_irq < wakeup_data_field_0){
+            exec_count_irq++;
+			if (exec_count_irq == 1){
+				// Read latest PMU ADC measurement
+				pmu_adc_read_latest();
+			}
+			send_radio_data_mrr(1,0,0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF & exec_count));
+			// set timer
+			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
+			// go to sleep and wake up with same condition
+			operation_sleep_noirqreset();
+
+        }else{
+            exec_count_irq = 0;
+            // radio
+            send_radio_data_mrr(1,0xFAF000,0,0);	
+            // Go to sleep without timer
+            operation_sleep_notimer();
+        }
+
+	}else if(wakeup_data_header == 0x3A){
+		// Change ADXL threshold
+		adxl_user_threshold = wakeup_data & 0xFFFF;
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
     }else if(wakeup_data_header == 3){
 		// Stop temp sensor program and transmit the battery reading and execution count (alternating n times)
         // wakeup_data[7:0] is the # of transmissions
@@ -1492,7 +1656,7 @@ int main() {
 				// Read latest PMU ADC measurement
 				pmu_adc_read_latest();
 			}
-			send_radio_data_mrr(1,0,0xB00000+read_data_batadc,0xC00000+exec_count);	
+			send_radio_data_mrr(1,0,0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF &exec_count));	
 			// set timer
 			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 			// go to sleep and wake up with same condition
@@ -1534,7 +1698,7 @@ int main() {
 				pmu_adc_read_latest();
 			}
 
-			send_radio_data_mrr(1,0,0xB00000+read_data_batadc,0xC00000+exec_count);	
+			send_radio_data_mrr(1,0,0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF & exec_count));
 			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 			// go to sleep and wake up with same condition
 			operation_sleep_noirqreset();
@@ -1569,27 +1733,6 @@ int main() {
 
 		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xBBB000, read_data_batadc);
 
-
-/*
-    }else if(wakeup_data_header == 0x14){
-		// Run temp sensor once to update room temperature reference
-        radio_tx_option = 1;
-		sns_run_single = 1;
-		sns_running = 1;
-
-		exec_count = 0;
-		meas_count = 0;
-		data_storage_count = 0;
-		radio_tx_count = 0;
-
-		// Reset GOC_DATA_IRQ
-		*GOC_DATA_IRQ = 0;
-        exec_count_irq = 0;
-
-		// Run Temp Sensor Program
-		operation_sns_run();
-
-*/
 
 	}else if(wakeup_data_header == 0x17){
 		// Set parking lot threshold
