@@ -4,6 +4,8 @@
 //			Modified from 'ARstack_ondemand_v1.7.c'
 //			v1.7: CL unlimited during tx, shortening CLEN, pulse width
 //			v1.8: Incorporate HRV light detection
+//			FIXME: need to change PMU strength based on temp
+//			FIXME: need to mask either light or motion
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -44,7 +46,7 @@
 #define RADIO_DATA_LENGTH 120
 #define WAKEUP_PERIOD_RADIO_INIT 10 // About 2 sec (PRCv17)
 
-#define DATA_STORAGE_SIZE 200 // Need to leave about 500 Bytes for stack --> around 60 words
+#define DATA_STORAGE_SIZE 100 // Need to leave about 500 Bytes for stack --> around 60 words
 #define TEMP_NUM_MEAS 2
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y5 run default clock (PRCv17)
@@ -70,7 +72,6 @@ volatile uint32_t wakeup_period_count;
 volatile uint32_t wakeup_timer_multiplier;
 volatile uint32_t PMU_ADC_3P0_VAL;
 volatile uint32_t pmu_parkinglot_mode;
-volatile uint32_t pmu_harvesting_on;
 volatile uint32_t pmu_sar_conv_ratio_val;
 volatile uint32_t read_data_batadc;
 
@@ -83,9 +84,9 @@ volatile uint32_t temp_storage_latest = 150; // SNSv10
 volatile uint32_t temp_storage_last_wakeup_adjust = 150; // SNSv10
 volatile uint32_t temp_storage_diff = 0;
 volatile uint32_t read_data_temp;
+volatile uint32_t pmu_setting_temp_vals[3] = {0};
 
 volatile uint32_t data_storage_count;
-volatile uint32_t sns_run_single;
 volatile uint32_t sns_run_ht_mode;
 volatile uint32_t sns_running;
 volatile uint32_t set_sns_exec_count;
@@ -1126,7 +1127,6 @@ static void operation_init(void){
     exec_count_irq = 0;
 	PMU_ADC_3P0_VAL = 0x62;
 	pmu_parkinglot_mode = 3;
-	pmu_harvesting_on = 1;
   
     // Set CPU Halt Option as RX --> Use for register read e.g.
 //    set_halt_until_mbus_rx();
@@ -1283,7 +1283,6 @@ static void operation_init(void){
     data_storage_count = 0;
     radio_tx_count = 0;
     radio_tx_option = 0; //enables radio tx for each measurement 
-    sns_run_single = 0;
     sns_running = 0;
     radio_ready = 0;
     radio_on = 0;
@@ -1558,6 +1557,7 @@ int main(){
 		set_halt_until_mbus_tx();
 		mbus_write_message32(0xBB,(hrv_light_count));
 		hrv_light_reset();
+		// FIXME: need to do something if light change is > thresh
 	}
 
     // Check if wakeup is due to GOC interrupt  
@@ -1575,7 +1575,7 @@ int main(){
 	}
 
     if(wakeup_data_header == 1){
-        // Debug mode: Transmit something via radio and go to sleep w/o timer
+        // Transmit something via radio and go to sleep w/o timer
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period
         // wakeup_data[23:16] is the MSB of # of transmissions
@@ -1596,7 +1596,6 @@ int main(){
         WAKEUP_PERIOD_CONT_INIT = (wakeup_data_field_2 & 0xE);
         radio_tx_option = wakeup_data_field_2 & 0x10;
 
-		sns_run_single = 0;
 		sns_run_ht_mode = (wakeup_data_field_2) & 0x1;
 		
 
@@ -1630,7 +1629,6 @@ int main(){
         WAKEUP_PERIOD_CONT_INIT = (wakeup_data_field_2 & 0xE);
         radio_tx_option = 1;
 
-		sns_run_single = 0;
 		sns_run_ht_mode = 0;
 		
 		ADXL362_enable();
@@ -1759,7 +1757,7 @@ int main(){
 		// Prepare radio TX
 		radio_power_on();
 
-        if (exec_count_irq < 5){
+        if (exec_count_irq < 3){
 			exec_count_irq++;
 			if (exec_count_irq == 1){
 				// Read latest PMU ADC measurement
@@ -1776,12 +1774,11 @@ int main(){
 		}
 		
     }else if(wakeup_data_header == 7){
-		// Transmit PMU's ADC reading as a battery voltage indicator
+		// Status Inquiry - Transmit PMU's ADC reading & Chip ID
 		// wakeup_data[7:0] is the # of transmissions
 		// wakeup_data[15:8] is the user-specified period 
 		// wakeup_data[16] enables parking lot feature (harvesting on/off based on PMU ADC reading)
 		// wakeup_data[17] enables parking lot feature in sleep mode (wakes up occasionally) 
-		// wakeup_data[18] starts charging 
 		pmu_parkinglot_mode = wakeup_data_field_2 & 0x3;
 
 		if (exec_count_irq == 0){
@@ -1789,17 +1786,12 @@ int main(){
 			pmu_adc_read_latest();
 
 			if (pmu_parkinglot_mode > 0){
-				// Solar short based on PMU ADC reading
+				// Automatic adjustment of PMU ratio based on batt voltage
 				pmu_parkinglot_decision_3v_battery();
-			}else if (pmu_parkinglot_mode == 0){
-				// Start harvesting and let solar short be determined in hardware
-				pmu_reset_solar_short();
-				pmu_harvesting_on = 1;
 			}
-
 		}
 
-		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xBBB000, read_data_batadc);
+		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xBBB000 | read_data_batadc, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF));
 
 
 	}else if(wakeup_data_header == 0x17){
@@ -1908,31 +1900,22 @@ int main(){
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
-	}else if(wakeup_data_header == 0x77){
-	// temporary trigger
-
-		mrrv6_r13.MRR_RAD_FSM_TX_C_LEN = wakeup_data & 0xFFFF; // (PW_LEN+1):C_LEN=1:32
-		mbus_remote_register_write(MRR_ADDR,0x13,mrrv6_r13.as_int);
-
-		// Go to sleep without timer
-		operation_sleep_notimer();
-
-	}else if(wakeup_data_header == 0x78){
-	// temporary trigger
-
-		// Current Limter set-up 
-		mrrv6_r00.MRR_CL_CTRL = wakeup_data & 0xFF; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
-		mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
-
-		// Go to sleep without timer
-		operation_sleep_notimer();
-
-
 	}else if(wakeup_data_header == 0x25){
 		// Change the conversion time of the temp sensor
 
 		snsv10_r03.TSNS_SEL_CONV_TIME = wakeup_data & 0xF; // Default: 0x6
 		mbus_remote_register_write(SNS_ADDR,0x03,snsv10_r03.as_int);
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x26){
+		// Change the temp thresholds for different PMU settings
+		// wakeup_data[23:20] == 0: Low temp (<20C)
+		// wakeup_data[23:20] == 1: Room temp
+		// wakeup_data[23:20] == 2: High temp (>45C)
+
+		pmu_setting_temp_vals[wakeup_data_field_2>>4] = wakeup_data & 0xFFFFF;
 
 		// Go to sleep without timer
 		operation_sleep_notimer();
@@ -1945,6 +1928,15 @@ int main(){
 
 	}else if(wakeup_data_header == 0x2B){
 		mrr_cfo_vals[2] = wakeup_data & 0x3FFF;
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x2C){
+		// Change C_LEN
+
+		mrrv6_r13.MRR_RAD_FSM_TX_C_LEN = wakeup_data & 0xFFFF; // (PW_LEN+1):C_LEN=1:32
+		mbus_remote_register_write(MRR_ADDR,0x13,mrrv6_r13.as_int);
 
 		// Go to sleep without timer
 		operation_sleep_notimer();

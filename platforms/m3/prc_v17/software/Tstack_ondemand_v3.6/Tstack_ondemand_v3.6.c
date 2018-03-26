@@ -948,7 +948,7 @@ static void operation_init(void){
 	
 
     // Harvester Settings --------------------------------------
-	hrvv5_r0.HRV_TOP_CONV_RATIO = 0x6;
+	hrvv5_r0.HRV_TOP_CONV_RATIO = 0x9;
     mbus_remote_register_write(HRV_ADDR,0,hrvv5_r0.as_int);
 
     delay(MBUS_DELAY);

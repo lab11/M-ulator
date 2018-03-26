@@ -11,12 +11,14 @@
 #include "PMUv7_RF.h"
 #include "MRRv6_RF.h"
 #include "ADXL362.h"
+#include "HRVv5.h"
 
 // uncomment this for debug mbus message
 // #define DEBUG_MBUS_MSG
 //#define DEBUG_MBUS_MSG_1
 
 // AR stack order  PRE->SNS->MRR->PMU
+#define HRV_ADDR 0x3
 #define MRR_ADDR 0x4
 #define SNS_ADDR 0x5
 #define PMU_ADDR 0x6
@@ -71,6 +73,10 @@ volatile uint32_t pmu_harvesting_on;
 volatile uint32_t pmu_sar_conv_ratio_val;
 volatile uint32_t read_data_batadc;
 
+
+volatile uint32_t hrv_light_count;
+
+
 volatile uint32_t WAKEUP_PERIOD_CONT_USER; 
 volatile uint32_t WAKEUP_PERIOD_CONT; 
 volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
@@ -88,7 +94,6 @@ volatile uint32_t sns_running;
 volatile uint32_t set_sns_exec_count;
 volatile uint32_t adxl_enabled;
 volatile uint32_t adxl_motion_detected;
-volatile uint32_t adxl_user_threshold;
 
 volatile uint32_t radio_tx_count;
 volatile uint32_t radio_tx_option;
@@ -186,6 +191,28 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
 
 
 //***************************************************
+// HRV Functions
+//***************************************************
+static void hrv_light_reset(void){
+  mbus_remote_register_write(HRV_ADDR,0x01,
+			     ( (0  << 5)  // HRV_CNT_CNT_IRQ (default: 0)
+			       | (0  << 4)  // HRV_CNT_CNT_ENABLE (default: 0)
+			       | (2  << 2)  // LC_CLK_DIV (default: 2)
+			       | (1)        // LC_CLK_RING (default: 1)
+			       ));
+}
+	
+static void hrv_light_start(void){
+  mbus_remote_register_write(HRV_ADDR,0x01,
+			     ( (0  << 5)  // HRV_CNT_CNT_IRQ (default: 0)
+			       | (1  << 4)  // HRV_CNT_CNT_ENABLE (default: 0)
+			       | (2  << 2)  // LC_CLK_DIV (default: 2)
+			       | (1)        // LC_CLK_RING (default: 1)
+			       ));
+	hrv_light_count = 0;
+}
+
+//***************************************************
 // ADXL362 Functions
 //***************************************************
 static void ADXL362_reg_wr (uint8_t reg_id, uint8_t reg_data){
@@ -225,8 +252,8 @@ static void ADXL362_init(){
   ADXL362_reg_wr(ADXL362_INTMAP1,0x10);
 
   // Set Activity Threshold
-  ADXL362_reg_wr(ADXL362_THRESH_ACT_L,adxl_user_threshold & 0xFF);
-  ADXL362_reg_wr(ADXL362_THRESH_ACT_H,(adxl_user_threshold>>8) & 0xFF);
+  ADXL362_reg_wr(ADXL362_THRESH_ACT_L,0x60);
+  ADXL362_reg_wr(ADXL362_THRESH_ACT_H,0x00);
 
   // Set Actvity/Inactivity Control
   ADXL362_reg_wr(ADXL362_ACT_INACT_CTL,0x03);
@@ -1104,9 +1131,7 @@ static void operation_init(void){
 //    set_halt_until_mbus_rx();
 
     //Enumeration
-    mbus_enumerate(SNS_ADDR);
-	delay(MBUS_DELAY);
-    mbus_enumerate(MRR_ADDR);
+    mbus_enumerate(HRV_ADDR);
 	delay(MBUS_DELAY);
  	mbus_enumerate(PMU_ADDR);
 	delay(MBUS_DELAY);
@@ -1132,106 +1157,18 @@ static void operation_init(void){
 	pmu_adc_enable();
 	delay(MBUS_DELAY);
 
-    // Temp Sensor Settings --------------------------------------
-
-    // snsv10_r01
-	snsv10_r01.TSNS_RESETn = 0;
-    snsv10_r01.TSNS_EN_IRQ = 1;
-    snsv10_r01.TSNS_BURST_MODE = 0;
-    snsv10_r01.TSNS_CONT_MODE = 0;
-    mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
-
-	// Set temp sensor conversion time
-	snsv10_r03.TSNS_SEL_STB_TIME = 0x1; 
-	snsv10_r03.TSNS_SEL_CONV_TIME = 0x3; // Default: 0x6
-	mbus_remote_register_write(SNS_ADDR,0x03,snsv10_r03.as_int);
-
-    // MRR Settings --------------------------------------
-
-	mrrv6_r1F.LC_CLK_RING = 0x3;  // ~ 150 kHz
-	mrrv6_r1F.LC_CLK_DIV = 0x3;  // ~ 150 kHz
-	mbus_remote_register_write(MRR_ADDR,0x1F,mrrv6_r1F.as_int);
-
-	//mrr_configure_pulse_width_short();
-	mrr_configure_pulse_width_long();
-
-	mrr_freq_hopping = 1;
-
-	mrr_cfo_vals[0] = 0x0001;
-	mrr_cfo_vals[1] = 0x0003;
-	mrr_cfo_vals[2] = 0x0000;
-
-	mrr_cfo_vals[0] = 0x01FF;
-	mrr_cfo_vals[1] = 0x03FF;
-	mrr_cfo_vals[2] = 0x00FF;
-
-	// RO setup (SFO)
-	// Adjust Diffusion R
-	mbus_remote_register_write(MRR_ADDR,0x06,0x1000); // RO_PDIFF
-
-	// Adjust Poly R
-	mbus_remote_register_write(MRR_ADDR,0x08,0x400000); // RO_POLY
-
-	// Adjust C
-	mrrv6_r07.RO_MOM = 0x10;
-	mrrv6_r07.RO_MIM = 0x10;
-	mbus_remote_register_write(MRR_ADDR,0x07,mrrv6_r07.as_int);
-
-	// TX Setup Carrier Freq
-	mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = mrr_cfo_vals[0];  //ANT CAP 14b unary 830.5 MHz
-	//mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = 0x00FF;  //ANT CAP 14b unary 813.8 MHz
-	//mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = 0x0FFF;  //ANT CAP 14b unary 805.5 MHz
-	mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
-	mrrv6_r01.MRR_TRX_CAP_ANTN_TUNE = mrr_cfo_vals[0]; //ANT CAP 14b unary 830.5 MHz
-	//mrrv6_r01.MRR_TRX_CAP_ANTN_TUNE = 0x00FF; //ANT CAP 14b unary 813.8 MHz
-	//mrrv6_r01.MRR_TRX_CAP_ANTN_TUNE = 0x0FFF;  //ANT CAP 14b unary 805.5 MHz
-	mbus_remote_register_write(MRR_ADDR,0x01,mrrv6_r01.as_int);
-	mrrv6_r02.MRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
-	mbus_remote_register_write(MRR_ADDR,0x02,mrrv6_r02.as_int);
-
-	// Turn off RX mode
-    mrrv6_r03.MRR_TRX_MODE_EN = 0; //Set TRX mode
-
-	// Keep decap charged in the background
-	mrrv6_r03.MRR_DCP_S_OW = 1;  //TX_Decap S (forced charge decaps)
-
-	// Forces decaps to be parallel
-	//mrrv6_r03.MRR_DCP_S_OW = 0;  //TX_Decap S (forced charge decaps)
-	//mrrv6_r03.MRR_DCP_P_OW = 1;  //RX_Decap P 
-	//mbus_remote_register_write(MRR_ADDR,3,mrrv6_r03.as_int);
-
-	// RX Setup
-    mrrv6_r03.MRR_RX_BIAS_TUNE    = 0x02AF;//  turn on Q_enhancement
-	//mrrv6_r03.MRR_RX_BIAS_TUNE    = 0x0001;//  turn off Q_enhancement
-	mrrv6_r03.MRR_RX_SAMPLE_CAP    = 0x1;  // RX_SAMPLE_CAP
-	mbus_remote_register_write(MRR_ADDR,3,mrrv6_r03.as_int);
-
-	mrrv6_r14.MRR_RAD_FSM_RX_POWERON_LEN = 0x0;  //Set RX Power on length
-	//mrrv6_r14.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x3;  //Set RX Sample length  16us
-	mrrv6_r14.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x0;  //Set RX Sample length  4us
-	mrrv6_r14.MRR_RAD_FSM_GUARD_LEN = 0x000F; //Set TX_RX Guard length, TX_RX guard 32 cycle (28+5)
-	mbus_remote_register_write(MRR_ADDR,0x14,mrrv6_r14.as_int);
-
-    mrrv6_r14.MRR_RAD_FSM_TX_POWERON_LEN = 2; //3bits
-	mrrv6_r15.MRR_RAD_FSM_RX_HDR_BITS = 0x00;  //Set RX header
-	mrrv6_r15.MRR_RAD_FSM_RX_HDR_TH = 0x00;    //Set RX header threshold
-	mrrv6_r15.MRR_RAD_FSM_RX_DATA_BITS = 0x00; //Set RX data 1b
-	mbus_remote_register_write(MRR_ADDR,0x15,mrrv6_r15.as_int);
-
-	// RAD_FSM set-up 
-	// Using first 48 bits of data as header
-	mbus_remote_register_write(MRR_ADDR,0x09,0x0);
-	mbus_remote_register_write(MRR_ADDR,0x0A,0x7AC800);
-	mrrv6_r11.MRR_RAD_FSM_TX_H_LEN = 0; //31-31b header (max)
-	mrrv6_r11.MRR_RAD_FSM_TX_D_LEN = RADIO_DATA_LENGTH; //0-skip tx data
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
-
-	mrrv6_r13.MRR_RAD_FSM_TX_MODE = 3; //code rate 0:4 1:3 2:2 3:1(baseline) 4:1/2 5:1/3 6:1/4
-	mbus_remote_register_write(MRR_ADDR,0x13,mrrv6_r13.as_int);
-
-	// Mbus return address
-	mbus_remote_register_write(MRR_ADDR,0x1E,0x1002);
-
+	// HRV
+	mbus_remote_register_write(HRV_ADDR,0x00,6); // HRV_TOP_CONV_RATIO(0~15 >> 9x~23x); default: 14
+	mbus_remote_register_write(HRV_ADDR,0x01,
+		 ( (0  << 5)  // HRV_CNT_CNT_IRQ (default: 0)
+		   | (0  << 4)  // HRV_CNT_CNT_ENABLE (default: 0)
+		   | (2  << 2)  // LC_CLK_DIV (default: 2)
+		   | (1)        // LC_CLK_RING (default: 1)
+		   ));
+	mbus_remote_register_write(HRV_ADDR,0x03,0xFFFFFF); // HRV_CNT_CNT_THRESHOLD (default: 0xFFFFFF) 
+	mbus_remote_register_write(HRV_ADDR,0x04,0x001000); // HRV_CNT_IRQ_PACKET (default: 0x001400) 
+	hrv_light_reset();
+	hrv_light_count = 0;
 
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 33750;   // 1: 2-4 sec with PRCv9
@@ -1249,183 +1186,11 @@ static void operation_init(void){
 	
 	adxl_enabled = 0;
 	adxl_motion_detected = 0;
-	adxl_user_threshold = 0x0060;
 
     // Go to sleep without timer
     operation_sleep_notimer();
 }
 
-//***************************************************
-// Temperature measurement operation
-//***************************************************
-
-static void operation_sns_run(void){
-
-	if (stack_state == STK_IDLE){
-
-		wfi_timeout_flag = 0;
-		meas_count = 0;
-
-		stack_state = STK_LDO;
-
-		// Turn on SNS LDO VREF; requires settling
-		sns_ldo_vref_on();
-
-    }else if (stack_state == STK_LDO){
-		stack_state = STK_TEMP_START;
-
-		// Power on SNS LDO
-		sns_ldo_power_on();
-
-		// Power on temp sensor
-		temp_sensor_power_on();
-		delay(MBUS_DELAY);
-
-	}else if (stack_state == STK_TEMP_START){
-		// Start temp measurement
-
-		wfi_timeout_flag = 0;
-
-		// Use Timer32 as timeout counter
-		config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
-
-		// Start Temp Sensor
-		temp_sensor_start();
-
-		// Wait for temp sensor output
-		WFI();
-
-		// Turn off Timer32
-		*TIMER32_GO = 0;
-		stack_state = STK_TEMP_READ;
-
-	}else if (stack_state == STK_TEMP_READ){
-
-		// Grab Temp Sensor Data
-		if (wfi_timeout_flag){
-			read_data_temp = 0xFAFA;
-			mbus_write_message32(0xFA, 0xFAFAFAFA);
-		}else{
-			// Read register
-			set_halt_until_mbus_rx();
-			mbus_remote_register_read(SNS_ADDR,0x6,1);
-			read_data_temp = *REG1;
-			set_halt_until_mbus_tx();
-			temp_storage_latest = read_data_temp;
-		}
-		meas_count++;
-
-		// Option to take multiple measurements per wakeup
-		if (meas_count < TEMP_NUM_MEAS){	
-			// Repeat measurement while awake
-			temp_sensor_reset();
-			stack_state = STK_TEMP_START;
-				
-		}else{
-			// Last measurement from this wakeup
-			meas_count = 0;
-
-			// Assert temp sensor isolation & turn off temp sensor power
-			temp_sensor_power_off();
-			sns_ldo_power_off();
-			stack_state = STK_IDLE;
-
-			// Wakeup time adjustment
-			// Record temp difference from last wakeup adjustment
-			if (temp_storage_latest > temp_storage_last_wakeup_adjust){
-				temp_storage_diff = temp_storage_latest - temp_storage_last_wakeup_adjust;
-			}else{
-				temp_storage_diff = temp_storage_last_wakeup_adjust - temp_storage_latest;
-			}
-			#ifdef DEBUG_MBUS_MSG_1
-				mbus_write_message32(0xEA, temp_storage_diff);
-				delay(MBUS_DELAY);
-			#endif
-			
-			// FIXME: for now, do this every time					
-			//measure_wakeup_period();
-			
-			if ((temp_storage_diff > 10) || (exec_count < (SNS_CYCLE_INIT+5))){ // FIXME: value of 20 correct?
-				measure_wakeup_period();
-				temp_storage_last_wakeup_adjust = temp_storage_latest;
-			}
-				
-
-			mbus_write_message32(0xCC, exec_count);
-			mbus_write_message32(0xC0, read_data_temp);
-				
-			exec_count++;
-
-			// Store results in memory; unless buffer is full
-			if (data_storage_count < DATA_STORAGE_SIZE){
-				temp_storage[data_storage_count] = read_data_temp;
-				radio_tx_count = data_storage_count;
-				data_storage_count++;
-			}
-
-			// Optionally transmit the data
-			if (radio_tx_option){
-				// Read latest PMU ADC measurement
-				pmu_adc_read_latest();
-
-				// Prepare for radio tx
-				radio_power_on();
-				if (adxl_motion_detected){
-					send_radio_data_mrr(1, 0xD00000 | (0xFFFFF & read_data_temp), 0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF&exec_count));
-				}else{
-					send_radio_data_mrr(1, 0xD00000 | (0xFFFFF & read_data_temp), 0xBBBA00+read_data_batadc,0xC00000 | (0xFFFFF&exec_count));
-				}
-				delay(RADIO_PACKET_DELAY);
-			}
-
-			if (adxl_enabled){
-
-				// Reset ADXL flag
-				adxl_motion_detected = 0;
-	
-				operation_spi_init();
-				ADXL362_reg_rd(ADXL362_STATUS);
-				ADXL362_reg_rd(ADXL362_XDATA);
-				ADXL362_reg_rd(ADXL362_YDATA);
-				ADXL362_reg_rd(ADXL362_ZDATA);
-				operation_spi_stop();
-				
-				set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
-
-			}else{
-				if (exec_count < SNS_CYCLE_INIT){
-					// Prepare for radio tx
-					radio_power_on();
-					// Send some signal
-					send_radio_data_mrr(1, 0xABC000,0,0);
-					set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-
-				}else{	
-					set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
-				}
-			}
-
-			// Make sure Radio is off
-			if (radio_on){
-				radio_power_off();
-			}
-	
-			if ((set_sns_exec_count != 0) && (exec_count > (50<<set_sns_exec_count))){
-				// No more measurement required
-				// Make sure temp sensor is off
-				sns_running = 0;
-				operation_sleep_notimer();
-			}else{
-				operation_sleep();
-			}
-		}
-
-    }else{
-        //default:  // THIS SHOULD NOT HAPPEN
-		operation_sleep_notimer();
-    }
-
-}
 
 
 static void operation_goc_trigger_init(void){
@@ -1516,352 +1281,24 @@ int main(){
 	}
 
     if(wakeup_data_header == 1){
-        // Debug mode: Transmit something via radio and go to sleep w/o timer
-        // wakeup_data[7:0] is the # of transmissions
-        // wakeup_data[15:8] is the user-specified period
-        // wakeup_data[23:16] is the MSB of # of transmissions
-		operation_goc_trigger_radio(wakeup_data_field_0 + (wakeup_data_field_2<<8), wakeup_data_field_1, 0xABC000, exec_count_irq);
-
-    }else if(wakeup_data_header == 0x51){
-		// Debug trigger for MRR testing; repeat trigger 1 for 0xFFFFFFFF times
-		operation_goc_trigger_radio(0xFFFFFFFF, wakeup_data_field_1, 0xABC000, exec_count_irq);
-
-    }else if(wakeup_data_header == 2){
-		// Run temp measurement routine with desired wakeup period
-        // wakeup_data[15:0] is the user-specified period
-        // wakeup_data[19:17] is the initial user-specified period (LSB assumed to be 0)
-		// wakeup_data[16] is HT mode -- only save data above a certain HT
-        // wakeup_data[20] enables radio tx for each measurement
-        // wakeup_data[23:21] specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
-    	WAKEUP_PERIOD_CONT_USER = (wakeup_data_field_0 + (wakeup_data_field_1<<8));
-        WAKEUP_PERIOD_CONT_INIT = (wakeup_data_field_2 & 0xE);
-        radio_tx_option = wakeup_data_field_2 & 0x10;
-
-		sns_run_single = 0;
-		sns_run_ht_mode = (wakeup_data_field_2) & 0x1;
-		
-
-		if (!sns_running){
-			// Go to sleep for initial settling of temp sensing // FIXME
-			//set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-			sns_running = 1;
-			set_sns_exec_count = wakeup_data_field_2 >> 5;
-            exec_count_irq++;
-			//operation_sleep_noirqreset();
-		}
-		exec_count = 0;
-		meas_count = 0;
-		data_storage_count = 0;
-		radio_tx_count = 0;
-
-		// Reset GOC_DATA_IRQ
-		*GOC_DATA_IRQ = 0;
-        exec_count_irq = 0;
-
-		// Run Temp Sensor Program
-    	stack_state = STK_IDLE;
-		operation_sns_run();
-
-    }else if(wakeup_data_header == 0x32){
-		// Run temp measurement routine with desired wakeup period and ADXL running in the background
-        // wakeup_data[15:0] is the user-specified period in minutes
-        // wakeup_data[19:17] is the initial user-specified period (LSB assumed to be 0)
-        // wakeup_data[23:21] specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
-    	WAKEUP_PERIOD_CONT_USER = (wakeup_data_field_0 + (wakeup_data_field_1<<8));
-        WAKEUP_PERIOD_CONT_INIT = (wakeup_data_field_2 & 0xE);
-        radio_tx_option = 1;
-
-		sns_run_single = 0;
-		sns_run_ht_mode = 0;
-		
-		ADXL362_enable();
-
-		sns_running = 1;
-		set_sns_exec_count = wakeup_data_field_2 >> 5;
-		exec_count = 0;
-		meas_count = 0;
-		data_storage_count = 0;
-		radio_tx_count = 0;
-
-		// Reset GOC_DATA_IRQ
-		*GOC_DATA_IRQ = 0;
-        exec_count_irq = 0;
-
-		// Run Temp Sensor Program
-    	stack_state = STK_IDLE;
-		operation_sns_run();
-
-    }else if(wakeup_data_header == 0x33){
-		// Stop temp & ADXL program and transmit the battery reading and execution count (alternating n times)
-        // wakeup_data[7:0] is the # of transmissions
-        // wakeup_data[15:8] is the user-specified period 
-        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
-
-		operation_sns_sleep_check();
-	
-		stack_state = STK_IDLE;
-
-		// Stop ADXL
-		ADXL362_stop();
-		delay(MBUS_DELAY*10);
-		*REG_CPS = 0;
-
-		// Prepare radio TX
-		radio_power_on();
-
-        if (exec_count_irq < wakeup_data_field_0){
-            exec_count_irq++;
-			if (exec_count_irq == 1){
-				// Read latest PMU ADC measurement
-				pmu_adc_read_latest();
-			}
-			send_radio_data_mrr(1,0,0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF & exec_count));
-			// set timer
-			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-			// go to sleep and wake up with same condition
-			operation_sleep_noirqreset();
-
-        }else{
-            exec_count_irq = 0;
-            // radio
-            send_radio_data_mrr(1,0xFAF000,0,0);	
-            // Go to sleep without timer
-            operation_sleep_notimer();
-        }
-
-	}else if(wakeup_data_header == 0x3A){
-		// Change ADXL threshold
-		adxl_user_threshold = wakeup_data & 0xFFFF;
-
-		// Go to sleep without timer
+		// Start Light Harvesting
+		mbus_write_message32(0xAA,0x01);
+		hrv_light_start();
 		operation_sleep_notimer();
+	
 
     }else if(wakeup_data_header == 3){
-		// Stop temp sensor program and transmit the battery reading and execution count (alternating n times)
-        // wakeup_data[7:0] is the # of transmissions
-        // wakeup_data[15:8] is the user-specified period 
-        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
 
-		operation_sns_sleep_check();
-	
-		stack_state = STK_IDLE;
-
-		// Prepare radio TX
-		radio_power_on();
-
-        if (exec_count_irq < wakeup_data_field_0){
-            exec_count_irq++;
-			if (exec_count_irq == 1){
-				// Read latest PMU ADC measurement
-				pmu_adc_read_latest();
-			}
-			send_radio_data_mrr(1,0,0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF &exec_count));	
-			// set timer
-			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-			// go to sleep and wake up with same condition
-			operation_sleep_noirqreset();
-
-        }else{
-            exec_count_irq = 0;
-            // radio
-            send_radio_data_mrr(1,0xFAF000,0,0);	
-            // Go to sleep without timer
-            operation_sleep_notimer();
-        }
-
-
-    }else if(wakeup_data_header == 4){
-        // Transmit the stored sns data
-        // wakeup_data[7:0] is the # of data to transmit; if zero, all stored data is sent
-        // wakeup_data[15:8] is the user-specified period 
-        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
-
-		operation_sns_sleep_check();
-		
-		stack_state = STK_IDLE;
-
-		radio_tx_numdata = wakeup_data_field_0;
-
-		// Make sure the requested numdata makes sense
-		if (radio_tx_numdata >= data_storage_count){
-			radio_tx_numdata = 0;
-		}
-		
-		// Prepare radio TX
-		radio_power_on();
-
-        if (exec_count_irq < 5){
-			exec_count_irq++;
-			if (exec_count_irq == 1){
-				// Read latest PMU ADC measurement
-				pmu_adc_read_latest();
-			}
-
-			send_radio_data_mrr(1,0,0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF & exec_count));
-			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-			// go to sleep and wake up with same condition
-			operation_sleep_noirqreset();
-
-		}else{
-			operation_tx_stored();
-		}
-		
-    }else if(wakeup_data_header == 7){
-		// Transmit PMU's ADC reading as a battery voltage indicator
-		// wakeup_data[7:0] is the # of transmissions
-		// wakeup_data[15:8] is the user-specified period 
-		// wakeup_data[16] enables parking lot feature (harvesting on/off based on PMU ADC reading)
-		// wakeup_data[17] enables parking lot feature in sleep mode (wakes up occasionally) 
-		pmu_parkinglot_mode = wakeup_data_field_2 & 0x3;
-
-		if (exec_count_irq == 0){
-			// Read latest PMU ADC measurement
-			pmu_adc_read_latest();
-
-			if (pmu_parkinglot_mode > 0){
-				// Automatic adjustment of PMU ratio based on batt voltage
-				pmu_parkinglot_decision_3v_battery();
-			}
-		}
-
-		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xBBB000 | read_data_batadc, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF));
-
-
-	}else if(wakeup_data_header == 0x17){
-		// Set parking lot threshold
-        // wakeup_data[7:0] is the # of transmissions
-        // wakeup_data[15:8] is the user-specified period
-        // wakeup_data[23:16] is the desired parking lot threshold value
-		//					-->  if zero: uses the latest PMU ADC measurement
-		
-		if (wakeup_data_field_2 == 0){
-			// Read latest PMU ADC measurement
-			pmu_adc_read_latest();
-			PMU_ADC_3P0_VAL = read_data_batadc;
-		}else{
-			PMU_ADC_3P0_VAL = wakeup_data_field_2;
-		}
-
-		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xABC000, PMU_ADC_3P0_VAL);
-
-	}else if(wakeup_data_header == 0x18){
-		// Manually override the SAR ratio
-		pmu_set_sar_override(wakeup_data_field_0);
-		// Go to sleep without timer
-		operation_sleep_notimer();
-
-	}else if(wakeup_data_header == 0x19){
-		// Report PMU's SAR conversion ratio
-		// wakeup_data[7:0] is the # of transmissions
-		// wakeup_data[15:8] is the user-specified period 
-		if (exec_count_irq == 0){
-			// Read PMU register 5
-			// PMU register read is handled differently
-			mbus_remote_register_write(PMU_ADDR,0x00,0x05);
-			delay(MBUS_DELAY);
-			delay(MBUS_DELAY);
-			pmu_sar_conv_ratio_val = *((volatile uint32_t *) REG0) & 0x7F;
-		}
-
-		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xABC000, pmu_sar_conv_ratio_val);
-
-	}else if(wakeup_data_header == 0x20){
-        // wakeup_data[7:0] is the # of transmissions
-        // wakeup_data[23:8] is the desired chip id value
-		//					-->  if zero: reports current chip id
-		
-		uint32_t chip_id_user;
-		chip_id_user = (wakeup_data>>8) & 0xFFFF;
-
-		if (chip_id_user == 0){
-			chip_id_user = *REG_CHIP_ID;
-		}else{
-			*REG_CHIP_ID = chip_id_user;
-		}
-
-		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xCC0000, chip_id_user);
-
-
-	}else if(wakeup_data_header == 0x21){
-		// Change the radio tx packet delay
-		uint32_t user_val = wakeup_data & 0xFFFFFF;
-		if (user_val < 500){
-			RADIO_PACKET_DELAY = 4000;
-		}else{
-			RADIO_PACKET_DELAY = user_val;
-		}
-		// Go to sleep without timer
-		operation_sleep_notimer();
-
-	}else if(wakeup_data_header == 0x22){
-		// Change the carrier frequency of MRR (CFO)
-		// wakeup_data[23:16]: Turn on/off freq hopping 
-		mrr_freq_hopping = wakeup_data_field_2;
-
-		mrr_cfo_vals[0] = wakeup_data & 0x3FFF;
-		mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = mrr_cfo_vals[0]; 
-		mrrv6_r01.MRR_TRX_CAP_ANTN_TUNE = mrr_cfo_vals[0];
-		mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
-		mbus_remote_register_write(MRR_ADDR,0x01,mrrv6_r01.as_int);
-
-		// Go to sleep without timer
-		operation_sleep_notimer();
-
-	}else if(wakeup_data_header == 0x23){
-		// Change the baseband frequency of MRR (SFO)
-		mrrv6_r07.RO_MOM = wakeup_data & 0x3F;
-		mrrv6_r07.RO_MIM = wakeup_data & 0x3F;
-		mbus_remote_register_write(MRR_ADDR,0x07,mrrv6_r07.as_int);
-		
-		// Go to sleep without timer
-		operation_sleep_notimer();
-
-	}else if(wakeup_data_header == 0x24){
-		// Switch between short / long pulse
-		if (wakeup_data_field_0 == 0x1) {
-			mrr_configure_pulse_width_long_3();
-			
-		}else if (wakeup_data_field_0 == 0x2){
-			mrr_configure_pulse_width_long_2();
-			
-		}else if (wakeup_data_field_0 == 0x3){
-			mrr_configure_pulse_width_long();
-
-		}else if (wakeup_data_field_0 == 0x0){
-			mrr_configure_pulse_width_short();
-		}
-		// Go to sleep without timer
-		operation_sleep_notimer();
-
-
-	}else if(wakeup_data_header == 0x25){
-		// Change the conversion time of the temp sensor
-
-		snsv10_r03.TSNS_SEL_CONV_TIME = wakeup_data & 0xF; // Default: 0x6
-		mbus_remote_register_write(SNS_ADDR,0x03,snsv10_r03.as_int);
-
-		// Go to sleep without timer
-		operation_sleep_notimer();
-
-	}else if(wakeup_data_header == 0x2A){
-		mrr_cfo_vals[1] = wakeup_data & 0x3FFF;
-
-		// Go to sleep without timer
-		operation_sleep_notimer();
-
-	}else if(wakeup_data_header == 0x2B){
-		mrr_cfo_vals[2] = wakeup_data & 0x3FFF;
-
-		// Go to sleep without timer
-		operation_sleep_notimer();
-
-	}else if(wakeup_data_header == 0x2C){
-		// Change C_LEN
-
-		mrrv6_r13.MRR_RAD_FSM_TX_C_LEN = wakeup_data & 0xFFFF; // (PW_LEN+1):C_LEN=1:32
-		mbus_remote_register_write(MRR_ADDR,0x13,mrrv6_r13.as_int);
-
-		// Go to sleep without timer
+		mbus_write_message32(0xAA,0x03);
+		set_halt_until_mbus_rx();
+		mbus_remote_register_read(HRV_ADDR,0x02,1);
+		hrv_light_count = *((volatile uint32_t *) REG1);
+		set_halt_until_mbus_tx();
+		mbus_write_message32(0xBB,(hrv_light_count));
+		hrv_light_reset();
+		// Need a lot of delay for the counter to reset
+		delay(MBUS_DELAY*10);
+		hrv_light_start();
 		operation_sleep_notimer();
 
 
@@ -1874,12 +1311,6 @@ int main(){
 	}
 
 
-	if (sns_running){
-		// Proceed to continuous mode
-		while(1){
-			operation_sns_run();
-		}
-	}
 
 	
 	operation_sleep_notimer();
