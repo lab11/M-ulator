@@ -5,7 +5,6 @@
 //			v1.7: CL unlimited during tx, shortening CLEN, pulse width
 //			v1.8: Incorporate HRV light detection
 //			FIXME: need to change PMU strength based on temp
-//			FIXME: need to mask either light or motion
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -1382,9 +1381,6 @@ static void operation_sns_run(void){
 				delay(MBUS_DELAY);
 			#endif
 			
-			// FIXME: for now, do this every time					
-			//measure_wakeup_period();
-			
 			if ((temp_storage_diff > 200) || (exec_count < (SNS_CYCLE_INIT))){ // FIXME: value of 20 correct?
 				measure_wakeup_period();
 				temp_storage_last_wakeup_adjust = temp_storage_latest;
@@ -1470,8 +1466,10 @@ static void operation_goc_trigger_init(void){
 
 	// This is critical
 	set_halt_until_mbus_tx();
-	mbus_write_message32(0xAA,0xABCD1234);
-	mbus_write_message32(0xAA,wakeup_data);
+
+	// Debug
+	//mbus_write_message32(0xAA,0xABCD1234);
+	//mbus_write_message32(0xAA,wakeup_data);
 
 	// Initialize variables & registers
 	sns_running = 0;
@@ -1525,7 +1523,8 @@ int main(){
 
 	// Figure out who triggered wakeup
 	if(*SREG_WAKEUP_SOURCE & 0x00000008){
-		mbus_write_message32(0xAA,0x11331133);
+		// Debug
+		//mbus_write_message32(0xAA,0x11331133);
 		adxl_motion_detected = 1;
 	}
 	//Woke up via Wakeup Timer
@@ -1559,7 +1558,7 @@ int main(){
 		else hrv_light_detected = 0;
 			
 		// Debug
-		mbus_write_message32(0xAA,hrv_light_count);
+		mbus_write_message32(0xAC,(hrv_light_detected<<23) | hrv_light_count);
 		hrv_light_reset();
 		hrv_light_count_prev = hrv_light_count;
 	}
@@ -1665,6 +1664,7 @@ int main(){
 		operation_sns_sleep_check();
 	
 		stack_state = STK_IDLE;
+		astack_detection_mode = 0;
 
 		// Stop ADXL
 		if (adxl_enabled) ADXL362_stop();
