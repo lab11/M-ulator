@@ -3,7 +3,7 @@
 //Description: AM stack with MRRv6 and SNSv10, ADXL362
 //			Modified from 'ARstack_ondemand_v1.7.c'
 //			v1.7: CL unlimited during tx, shortening CLEN, pulse width
-//			v1.8: Incorporate HRV light detection
+//			v1.8: Incorporate HRV light detection & adjusting PMU strength based on temp
 //			FIXME: need to change PMU strength based on temp
 //*******************************************************************
 #include "PREv17.h"
@@ -46,7 +46,7 @@
 #define WAKEUP_PERIOD_RADIO_INIT 10 // About 2 sec (PRCv17)
 
 #define DATA_STORAGE_SIZE 100 // Need to leave about 500 Bytes for stack --> around 60 words
-#define TEMP_NUM_MEAS 2
+#define TEMP_NUM_MEAS 1
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y5 run default clock (PRCv17)
 #define TIMER32_VAL 0x50000 // 0x20000 about 1 sec with Y5 run default clock (PRCv17)

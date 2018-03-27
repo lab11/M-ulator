@@ -72,7 +72,7 @@
 #define TSTK_TEMP_START 0x2
 #define TSTK_TEMP_READ  0x6
 
-#define NUM_TEMP_MEAS 2
+#define NUM_TEMP_MEAS 1
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 24
@@ -902,7 +902,7 @@ static void operation_init(void){
 
 	// Set temp sensor conversion time
 	snsv10_r03.TSNS_SEL_STB_TIME = 0x1; 
-	snsv10_r03.TSNS_SEL_CONV_TIME = 0x3; // Default: 0x6
+	snsv10_r03.TSNS_SEL_CONV_TIME = 0x6; // Default: 0x6
 	mbus_remote_register_write(SNS_ADDR,0x03,snsv10_r03.as_int);
 
     // Radio Settings --------------------------------------

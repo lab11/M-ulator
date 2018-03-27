@@ -49,7 +49,7 @@
 
 #define DATA_STORAGE_SIZE 200 // Need to leave about 500 Bytes for stack --> around 60 words
 #define RDC_NUM_MEAS 2 
-#define TEMP_NUM_MEAS 2
+#define TEMP_NUM_MEAS 1
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y5 run default clock (PRCv17)
 #define TIMER32_VAL 0x50000 // 0x20000 about 1 sec with Y5 run default clock (PRCv17)
@@ -1026,7 +1026,7 @@ static void operation_init(void){
 
 	// Set temp sensor conversion time
 	snsv10_r03.TSNS_SEL_STB_TIME = 0x1; 
-	snsv10_r03.TSNS_SEL_CONV_TIME = 0x3; // Default: 0x6
+	snsv10_r03.TSNS_SEL_CONV_TIME = 0x6; // Default: 0x6
 	mbus_remote_register_write(SNS_ADDR,0x03,snsv10_r03.as_int);
 
 	// RDC Settings ----------------------------------------
