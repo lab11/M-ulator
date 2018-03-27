@@ -38,7 +38,7 @@
 #define SPI_TIME 250
 
 // Radio configurations
-#define RADIO_DATA_LENGTH 120
+#define RADIO_DATA_LENGTH 148
 #define WAKEUP_PERIOD_RADIO_INIT 10 // About 2 sec (PRCv17)
 
 #define DATA_STORAGE_SIZE 200 // Need to leave about 500 Bytes for stack --> around 60 words
@@ -803,15 +803,16 @@ static void send_radio_data_mrr_sub1(){
 }
 
 static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uint32_t radio_data_1, uint32_t radio_data_2){
-	// Sends 120 bit packet, of which 72b is actual data
+	// Sends 148 bit packet, of which 72b is actual data
 	// MRR REG_9: reserved for header
 	// MRR REG_A: reserved for header
-	// MRR REG_B: DATA[23:0]
-	// MRR REG_C: DATA[47:24]
-	// MRR REG_D: DATA[71:48]
-    mbus_remote_register_write(MRR_ADDR,0xB,radio_data_0);
-    mbus_remote_register_write(MRR_ADDR,0xC,radio_data_1);
-    mbus_remote_register_write(MRR_ADDR,0xD,radio_data_2);
+	// MRR REG_B: reserved for header
+	// MRR REG_C: DATA[23:0]
+	// MRR REG_D: DATA[47:24]
+	// MRR REG_E: DATA[71:48]
+    mbus_remote_register_write(MRR_ADDR,0xC,radio_data_0);
+    mbus_remote_register_write(MRR_ADDR,0xD,radio_data_1);
+    mbus_remote_register_write(MRR_ADDR,0xE,radio_data_2);
 
     if (!radio_ready){
 		radio_ready = 1;
@@ -835,13 +836,6 @@ static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uin
 	uint32_t num_packets = 1;
 	if (mrr_freq_hopping) num_packets = 3;
 	
-	// Dummy packet to discharge decap
-	mrrv6_r11.MRR_RAD_FSM_TX_D_LEN = 20; //0-skip tx data
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
-	send_radio_data_mrr_sub1();
-	mrrv6_r11.MRR_RAD_FSM_TX_D_LEN = RADIO_DATA_LENGTH; //0-skip tx data
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
-
 	while (count < num_packets){
 	
 		mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = mrr_cfo_vals[count]; 
@@ -983,16 +977,16 @@ static void operation_tx_stored(void){
 
 		
 		// Radio out data
-		send_radio_data_mrr(0, 0xCC0000 | (radio_tx_count & 0xFFFF), 0xFFFFFF & temp_storage[radio_tx_count], 0xD);
+		send_radio_data_mrr(0, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xCC0000 | (radio_tx_count & 0xFFFF), 0xFFFFFF & temp_storage[radio_tx_count]);
 		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 
 		radio_tx_count--;
     }
 
-	send_radio_data_mrr(0, 0xCC0000 | (radio_tx_count & 0xFFFF), 0xFFFFFF & temp_storage[radio_tx_count], 0xD);
+	send_radio_data_mrr(0, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xCC0000 | (radio_tx_count & 0xFFFF), 0xFFFFFF & temp_storage[radio_tx_count]);
 
 	delay(RADIO_PACKET_DELAY*2); //Set delays between sending subsequent packet
-	send_radio_data_mrr(1, 0xFAF000,0,0);
+	send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xFAF000,0);	
 
 	// This is also the end of this IRQ routine
 	exec_count_irq = 0;
@@ -1221,7 +1215,8 @@ static void operation_init(void){
 	// RAD_FSM set-up 
 	// Using first 48 bits of data as header
 	mbus_remote_register_write(MRR_ADDR,0x09,0x0);
-	mbus_remote_register_write(MRR_ADDR,0x0A,0x7AC800);
+	mbus_remote_register_write(MRR_ADDR,0x0A,0x0);
+	mbus_remote_register_write(MRR_ADDR,0x0B,0x7AC800);
 	mrrv6_r11.MRR_RAD_FSM_TX_H_LEN = 0; //31-31b header (max)
 	mrrv6_r11.MRR_RAD_FSM_TX_D_LEN = RADIO_DATA_LENGTH; //0-skip tx data
 	mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
@@ -1245,7 +1240,7 @@ static void operation_init(void){
     radio_on = 0;
 	wakeup_data = 0;
 	set_sns_exec_count = 0; // specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
-	RADIO_PACKET_DELAY = 800;
+	RADIO_PACKET_DELAY = 2500;
 	
 	adxl_enabled = 0;
 	adxl_motion_detected = 0;
@@ -1397,7 +1392,7 @@ static void operation_sns_run(void){
 					// Prepare for radio tx
 					radio_power_on();
 					// Send some signal
-					send_radio_data_mrr(1, 0xABC000,0,0);
+					send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xBBB000 | read_data_batadc, 0xD00000 | (0xFFFFF & read_data_temp));
 					set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 
 				}else{	
@@ -1444,7 +1439,7 @@ static void operation_goc_trigger_init(void){
 	sns_ldo_power_off();
 }
 
-static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_timer_val, uint32_t radio_tx_prefix, uint32_t radio_tx_data){
+static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_timer_val, uint32_t radio_tx_data0, uint32_t radio_tx_data1){
 
 	// Prepare radio TX
 	radio_power_on();
@@ -1453,7 +1448,7 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
 		exec_count_irq++;
 
 		// radio
-		send_radio_data_mrr(1, radio_tx_data,radio_tx_prefix,0);
+		send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), radio_tx_data0, radio_tx_data1);
 		// set timer
 		set_wakeup_timer (wakeup_timer_val, 0x1, 0x1);
 		// go to sleep and wake up with same condition
@@ -1462,7 +1457,7 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
 	}else{
 		exec_count_irq = 0;
 		// radio
-		send_radio_data_mrr(1,0xFAF000,0,0);	
+		send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xFAF000,0);	
 		// Go to sleep without timer
 		operation_sleep_notimer();
 	}
@@ -1615,7 +1610,7 @@ int main(){
 				// Read latest PMU ADC measurement
 				pmu_adc_read_latest();
 			}
-			send_radio_data_mrr(1,0,0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF & exec_count));
+			send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF),0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF & exec_count));
 			// set timer
 			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 			// go to sleep and wake up with same condition
@@ -1624,7 +1619,7 @@ int main(){
         }else{
             exec_count_irq = 0;
             // radio
-            send_radio_data_mrr(1,0xFAF000,0,0);	
+			send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xFAF000,0);	
             // Go to sleep without timer
             operation_sleep_notimer();
         }
@@ -1655,7 +1650,7 @@ int main(){
 				// Read latest PMU ADC measurement
 				pmu_adc_read_latest();
 			}
-			send_radio_data_mrr(1,0,0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF &exec_count));	
+			send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF),0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF & exec_count));
 			// set timer
 			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 			// go to sleep and wake up with same condition
@@ -1664,7 +1659,7 @@ int main(){
         }else{
             exec_count_irq = 0;
             // radio
-            send_radio_data_mrr(1,0xFAF000,0,0);	
+			send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xFAF000,0);	
             // Go to sleep without timer
             operation_sleep_notimer();
         }
@@ -1690,7 +1685,7 @@ int main(){
 		// Prepare radio TX
 		radio_power_on();
 
-        if (exec_count_irq < 5){
+        if (exec_count_irq < 3){
 			exec_count_irq++;
 			if (exec_count_irq == 1){
 				// Read latest PMU ADC measurement

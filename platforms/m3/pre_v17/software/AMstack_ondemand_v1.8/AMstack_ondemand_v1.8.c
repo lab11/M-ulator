@@ -43,7 +43,7 @@
 #define SPI_TIME 250
 
 // Radio configurations
-#define RADIO_DATA_LENGTH 120
+#define RADIO_DATA_LENGTH 148
 #define WAKEUP_PERIOD_RADIO_INIT 10 // About 2 sec (PRCv17)
 
 #define DATA_STORAGE_SIZE 100 // Need to leave about 500 Bytes for stack --> around 60 words
@@ -90,12 +90,17 @@ volatile uint32_t data_storage_count;
 volatile uint32_t sns_run_ht_mode;
 volatile uint32_t sns_running;
 volatile uint32_t set_sns_exec_count;
+
+volatile uint32_t astack_detection_mode;
 volatile uint32_t adxl_enabled;
 volatile uint32_t adxl_motion_detected;
 volatile uint32_t adxl_user_threshold;
 
 volatile uint32_t hrv_light_count;
-volatile uint32_t hrv_light_threshold;
+volatile uint32_t hrv_light_count_prev;
+volatile uint32_t hrv_light_diff;
+volatile uint32_t hrv_light_threshold_factor;
+volatile uint32_t hrv_light_detected;
 
 volatile uint32_t radio_tx_count;
 volatile uint32_t radio_tx_option;
@@ -285,19 +290,12 @@ static void operation_spi_init(){
   *SPI_SSPCPSR = 0x02;   // Clock Prescale Register
 
 	// Enable SPI Input/Output
-	mbus_write_message32(0xFF,0x11);
   set_spi_pad(1);
-	mbus_write_message32(0xFF,0x12);
   set_gpio_pad((1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
-	mbus_write_message32(0xFF,0x13);
   gpio_set_dir((1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
-	mbus_write_message32(0xFF,0x14);
   gpio_write_data((1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT)); // << Crashes here
-	mbus_write_message32(0xFF,0x15);
   unfreeze_gpio_out();
-	mbus_write_message32(0xFF,0x16);
   unfreeze_spi_out();
-	mbus_write_message32(0xFF,0x17);
 }
 
 static void operation_spi_stop(){
@@ -810,15 +808,16 @@ static void send_radio_data_mrr_sub1(){
 }
 
 static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uint32_t radio_data_1, uint32_t radio_data_2){
-	// Sends 120 bit packet, of which 72b is actual data
+	// Sends 148 bit packet, of which 72b is actual data
 	// MRR REG_9: reserved for header
 	// MRR REG_A: reserved for header
-	// MRR REG_B: DATA[23:0]
-	// MRR REG_C: DATA[47:24]
-	// MRR REG_D: DATA[71:48]
-    mbus_remote_register_write(MRR_ADDR,0xB,radio_data_0);
-    mbus_remote_register_write(MRR_ADDR,0xC,radio_data_1);
-    mbus_remote_register_write(MRR_ADDR,0xD,radio_data_2);
+	// MRR REG_B: reserved for header
+	// MRR REG_C: DATA[23:0]
+	// MRR REG_D: DATA[47:24]
+	// MRR REG_E: DATA[71:48]
+    mbus_remote_register_write(MRR_ADDR,0xC,radio_data_0);
+    mbus_remote_register_write(MRR_ADDR,0xD,radio_data_1);
+    mbus_remote_register_write(MRR_ADDR,0xE,radio_data_2);
 
     if (!radio_ready){
 		radio_ready = 1;
@@ -842,13 +841,6 @@ static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uin
 	uint32_t num_packets = 1;
 	if (mrr_freq_hopping) num_packets = 3;
 	
-	// Dummy packet to discharge decap
-	mrrv6_r11.MRR_RAD_FSM_TX_D_LEN = 20; //0-skip tx data
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
-	send_radio_data_mrr_sub1();
-	mrrv6_r11.MRR_RAD_FSM_TX_D_LEN = RADIO_DATA_LENGTH; //0-skip tx data
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
-
 	while (count < num_packets){
 	
 		mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = mrr_cfo_vals[count]; 
@@ -856,10 +848,10 @@ static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uin
 		mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
 		mbus_remote_register_write(MRR_ADDR,0x01,mrrv6_r01.as_int);
 		send_radio_data_mrr_sub1();
-		count++;
 		if (count < num_packets){
 			delay(RADIO_PACKET_DELAY);
 		}
+		count++;
 	}
 
 	if (last_packet){
@@ -1012,16 +1004,16 @@ static void operation_tx_stored(void){
 
 		
 		// Radio out data
-		send_radio_data_mrr(0, 0xCC0000 | (radio_tx_count & 0xFFFF), 0xFFFFFF & temp_storage[radio_tx_count], 0xD);
+		send_radio_data_mrr(0, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xCC0000 | (radio_tx_count & 0xFFFF), 0xFFFFFF & temp_storage[radio_tx_count]);
 		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 
 		radio_tx_count--;
     }
 
-	send_radio_data_mrr(0, 0xCC0000 | (radio_tx_count & 0xFFFF), 0xFFFFFF & temp_storage[radio_tx_count], 0xD);
+	send_radio_data_mrr(0, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xCC0000 | (radio_tx_count & 0xFFFF), 0xFFFFFF & temp_storage[radio_tx_count]);
 
-	delay(RADIO_PACKET_DELAY*2); //Set delays between sending subsequent packet
-	send_radio_data_mrr(1, 0xFAF000,0,0);
+	delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
+	send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xFAF000,0);	
 
 	// This is also the end of this IRQ routine
 	exec_count_irq = 0;
@@ -1091,11 +1083,9 @@ static void measure_wakeup_period(void){
 
    	config_timerwd(TIMERWD_VAL);
 
-	if (adxl_enabled){
-		WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*8*60, wakeup_period_count);
-	}else{
-		WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*8, wakeup_period_count);
-	}
+	WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*8, wakeup_period_count);
+
+	// Limitation of PRCv17
     if (WAKEUP_PERIOD_CONT > 0x7FFF){
         WAKEUP_PERIOD_CONT = 0x7FFF;
     }
@@ -1173,7 +1163,7 @@ static void operation_init(void){
 
 	// Set temp sensor conversion time
 	snsv10_r03.TSNS_SEL_STB_TIME = 0x1; 
-	snsv10_r03.TSNS_SEL_CONV_TIME = 0x3; // Default: 0x6
+	snsv10_r03.TSNS_SEL_CONV_TIME = 0x6; // Default: 0x6
 	mbus_remote_register_write(SNS_ADDR,0x03,snsv10_r03.as_int);
 
     // MRR Settings --------------------------------------
@@ -1252,7 +1242,8 @@ static void operation_init(void){
 	// RAD_FSM set-up 
 	// Using first 48 bits of data as header
 	mbus_remote_register_write(MRR_ADDR,0x09,0x0);
-	mbus_remote_register_write(MRR_ADDR,0x0A,0x7AC800);
+	mbus_remote_register_write(MRR_ADDR,0x0A,0x0);
+	mbus_remote_register_write(MRR_ADDR,0x0B,0x7AC800);
 	mrrv6_r11.MRR_RAD_FSM_TX_H_LEN = 0; //31-31b header (max)
 	mrrv6_r11.MRR_RAD_FSM_TX_D_LEN = RADIO_DATA_LENGTH; //0-skip tx data
 	mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
@@ -1288,12 +1279,17 @@ static void operation_init(void){
     radio_on = 0;
 	wakeup_data = 0;
 	set_sns_exec_count = 0; // specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
-	RADIO_PACKET_DELAY = 800;
+	RADIO_PACKET_DELAY = 2500;
 	
+	astack_detection_mode = 0;
 	adxl_enabled = 0;
 	adxl_motion_detected = 0;
+	hrv_light_count = 0;
+	hrv_light_count_prev = 0;
+	hrv_light_detected = 0;
+	
+	hrv_light_threshold_factor = 2;
 	adxl_user_threshold = 0x0060;
-	hrv_light_threshold = 0x100;
 
     // Go to sleep without timer
     operation_sleep_notimer();
@@ -1389,7 +1385,7 @@ static void operation_sns_run(void){
 			// FIXME: for now, do this every time					
 			//measure_wakeup_period();
 			
-			if ((temp_storage_diff > 10) || (exec_count < (SNS_CYCLE_INIT+5))){ // FIXME: value of 20 correct?
+			if ((temp_storage_diff > 200) || (exec_count < (SNS_CYCLE_INIT))){ // FIXME: value of 20 correct?
 				measure_wakeup_period();
 				temp_storage_last_wakeup_adjust = temp_storage_latest;
 			}
@@ -1414,12 +1410,7 @@ static void operation_sns_run(void){
 
 				// Prepare for radio tx
 				radio_power_on();
-				if (adxl_motion_detected){
-					send_radio_data_mrr(1, 0xD00000 | (0xFFFFF & read_data_temp), 0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF&exec_count));
-				}else{
-					send_radio_data_mrr(1, 0xD00000 | (0xFFFFF & read_data_temp), 0xBBBA00+read_data_batadc,0xC00000 | (0xFFFFF&exec_count));
-				}
-				delay(RADIO_PACKET_DELAY);
+				send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), (0xB00000| (read_data_batadc<<12)) | (hrv_light_detected<<4) | adxl_motion_detected, 0xD00000 | (0xFFFFF & read_data_temp));
 			}
 
 			if (adxl_enabled){
@@ -1441,7 +1432,7 @@ static void operation_sns_run(void){
 					// Prepare for radio tx
 					radio_power_on();
 					// Send some signal
-					send_radio_data_mrr(1, 0xABC000,0,0);
+					send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xABC000, 0);
 					set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 
 				}else{	
@@ -1455,7 +1446,7 @@ static void operation_sns_run(void){
 			}
 	
 			// Start HRV Light Counter
-			hrv_light_start();
+			if (astack_detection_mode & 0x2) hrv_light_start();
 		
 			if ((set_sns_exec_count != 0) && (exec_count > (50<<set_sns_exec_count))){
 				// No more measurement required
@@ -1486,12 +1477,16 @@ static void operation_goc_trigger_init(void){
 	sns_running = 0;
 	stack_state = STK_IDLE;
 	
+	if (adxl_enabled) ADXL362_stop();
+	delay(MBUS_DELAY*10);
+	*REG_CPS = 0;
+
 	radio_power_off();
 	temp_sensor_power_off();
 	sns_ldo_power_off();
 }
 
-static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_timer_val, uint32_t radio_tx_prefix, uint32_t radio_tx_data){
+static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_timer_val, uint32_t radio_tx_data0, uint32_t radio_tx_data1){
 
 	// Prepare radio TX
 	radio_power_on();
@@ -1500,7 +1495,7 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
 		exec_count_irq++;
 
 		// radio
-		send_radio_data_mrr(1, radio_tx_data,radio_tx_prefix,0);
+		send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), radio_tx_data0, radio_tx_data1);
 		// set timer
 		set_wakeup_timer (wakeup_timer_val, 0x1, 0x1);
 		// go to sleep and wake up with same condition
@@ -1509,7 +1504,7 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
 	}else{
 		exec_count_irq = 0;
 		// radio
-		send_radio_data_mrr(1,0xFAF000,0,0);	
+		send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xFAF000,0);	
 		// Go to sleep without timer
 		operation_sleep_notimer();
 	}
@@ -1549,15 +1544,24 @@ int main(){
 		pmu_parkinglot_decision_3v_battery();
 	}
 
-	if (adxl_enabled){
+	if (astack_detection_mode & 0x2){
 		// Check light count
 		set_halt_until_mbus_rx();
 		mbus_remote_register_read(HRV_ADDR,0x02,1);
 		hrv_light_count = *((volatile uint32_t *) REG1);
 		set_halt_until_mbus_tx();
-		mbus_write_message32(0xBB,(hrv_light_count));
+		if (hrv_light_count_prev > hrv_light_count){
+			hrv_light_diff = hrv_light_count_prev - hrv_light_count;
+		}else{
+			hrv_light_diff = hrv_light_count - hrv_light_count_prev;
+		}
+		if (hrv_light_diff > (hrv_light_count_prev>>hrv_light_threshold_factor)) hrv_light_detected = 1;
+		else hrv_light_detected = 0;
+			
+		// Debug
+		mbus_write_message32(0xAA,hrv_light_count);
 		hrv_light_reset();
-		// FIXME: need to do something if light change is > thresh
+		hrv_light_count_prev = hrv_light_count;
 	}
 
     // Check if wakeup is due to GOC interrupt  
@@ -1598,6 +1602,7 @@ int main(){
 
 		sns_run_ht_mode = (wakeup_data_field_2) & 0x1;
 		
+		astack_detection_mode = 0;
 
 		if (!sns_running){
 			// Go to sleep for initial settling of temp sensing // FIXME
@@ -1622,16 +1627,19 @@ int main(){
 
     }else if(wakeup_data_header == 0x32){
 		// Run temp measurement routine with desired wakeup period and ADXL running in the background
-        // wakeup_data[15:0] is the user-specified period in minutes
+        // wakeup_data[15:0] is the user-specified period in seconds
         // wakeup_data[19:17] is the initial user-specified period (LSB assumed to be 0)
-        // wakeup_data[23:21] specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
+        // wakeup_data[20]: enable motion detection with ADXL
+		// wakeup_data[21]: enable light detection with HRV
     	WAKEUP_PERIOD_CONT_USER = (wakeup_data_field_0 + (wakeup_data_field_1<<8));
         WAKEUP_PERIOD_CONT_INIT = (wakeup_data_field_2 & 0xE);
         radio_tx_option = 1;
 
 		sns_run_ht_mode = 0;
 		
-		ADXL362_enable();
+		astack_detection_mode = (wakeup_data_field_2>>4) & 0x3;
+
+		if (astack_detection_mode & 0x1) ADXL362_enable();
 
 		sns_running = 1;
 		set_sns_exec_count = wakeup_data_field_2 >> 5;
@@ -1659,12 +1667,9 @@ int main(){
 		stack_state = STK_IDLE;
 
 		// Stop ADXL
-		ADXL362_stop();
+		if (adxl_enabled) ADXL362_stop();
 		delay(MBUS_DELAY*10);
 		*REG_CPS = 0;
-
-		// Reset HRV
-		hrv_light_reset();
 
 		// Prepare radio TX
 		radio_power_on();
@@ -1675,7 +1680,7 @@ int main(){
 				// Read latest PMU ADC measurement
 				pmu_adc_read_latest();
 			}
-			send_radio_data_mrr(1,0,0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF & exec_count));
+			send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF),0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF & exec_count));
 			// set timer
 			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 			// go to sleep and wake up with same condition
@@ -1684,7 +1689,7 @@ int main(){
         }else{
             exec_count_irq = 0;
             // radio
-            send_radio_data_mrr(1,0xFAF000,0,0);	
+			send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xFAF000,0);	
             // Go to sleep without timer
             operation_sleep_notimer();
         }
@@ -1698,7 +1703,7 @@ int main(){
 
 	}else if(wakeup_data_header == 0x3B){
 		// Change Light Thresold
-		hrv_light_threshold = wakeup_data & 0xFFFFFF;
+		hrv_light_threshold_factor = wakeup_data & 0xFFFFFF;
 
 		// Go to sleep without timer
 		operation_sleep_notimer();
@@ -1722,7 +1727,7 @@ int main(){
 				// Read latest PMU ADC measurement
 				pmu_adc_read_latest();
 			}
-			send_radio_data_mrr(1,0,0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF &exec_count));	
+			send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF),0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF & exec_count));
 			// set timer
 			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 			// go to sleep and wake up with same condition
@@ -1731,7 +1736,7 @@ int main(){
         }else{
             exec_count_irq = 0;
             // radio
-            send_radio_data_mrr(1,0xFAF000,0,0);	
+			send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xFAF000,0);	
             // Go to sleep without timer
             operation_sleep_notimer();
         }
@@ -1764,7 +1769,7 @@ int main(){
 				pmu_adc_read_latest();
 			}
 
-			send_radio_data_mrr(1,0,0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF & exec_count));
+			send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF),0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF & exec_count));
 			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 			// go to sleep and wake up with same condition
 			operation_sleep_noirqreset();
@@ -1791,7 +1796,7 @@ int main(){
 			}
 		}
 
-		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xBBB000 | read_data_batadc, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF));
+		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xBBB000 | read_data_batadc, exec_count_irq);
 
 
 	}else if(wakeup_data_header == 0x17){
