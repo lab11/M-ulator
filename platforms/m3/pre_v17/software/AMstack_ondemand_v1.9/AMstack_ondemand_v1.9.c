@@ -3,7 +3,8 @@
 //Description: AM stack with MRRv6 and SNSv10, ADXL362
 //			Modified from 'ARstack_ondemand_v1.7.c'
 //			v1.7: CL unlimited during tx, shortening CLEN, pulse width
-//			v1.8: Incorporate HRV light detection 
+//			v1.8: Incorporate HRV light detection & clean up 
+//			v1.9: PMU setting adjustment based on temp
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -395,74 +396,88 @@ inline static void pmu_set_adc_period(uint32_t val){
 	delay(MBUS_DELAY);
 }
 
-inline static void pmu_set_clk_init(){
-	// Register 0x17: V3P6 Upconverter Sleep Settings
-    mbus_remote_register_write(PMU_ADDR,0x17, 
-		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
-		| (0 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (1) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
+inline static void pmu_set_active_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1p2){
+
 	// The first register write to PMU needs to be repeated
-    mbus_remote_register_write(PMU_ADDR,0x17, 
-		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
-		| (0 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (1) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
-	// Register 0x18: V3P6 Upconverter Active Settings
-    mbus_remote_register_write(PMU_ADDR,0x18, 
-		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
-		| (0 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (12 << 5)  // Frequency multiplier L (actually L+1)
-		| (16) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
-	// Register 0x19: DOWNCONV_TRIM_V3_SLEEP
-    mbus_remote_register_write(PMU_ADDR,0x19,
-		( (0 << 13) // Enable main feedback loop
-		| (1 << 9)  // Frequency multiplier R
-		| (1 << 5)  // Frequency multiplier L (actually L+1)
-		| (1) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
-	// Register 0x1A: DOWNCONV_TRIM_V3_ACTIVE
-    mbus_remote_register_write(PMU_ADDR,0x1A,
-		( (0 << 13) // Enable main feedback loop
-		| (4 << 9)  // Frequency multiplier R
-		| (0 << 5)  // Frequency multiplier L (actually L+1)
-		| (16) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
-	// Register 0x15: V1P2 SAR_TRIM_v3_SLEEP
-    mbus_remote_register_write(PMU_ADDR,0x15, 
-		( (0 << 19) // Enable PFM even during periodic reset
-		| (0 << 18) // Enable PFM even when Vref is not used as ref
-		| (0 << 17) // Enable PFM
-		| (3 << 14) // Comparator clock division ratio
-		| (0 << 13) // Enable main feedback loop
-		| (2 << 9)  // Frequency multiplier R
-		| (2 << 5)  // Frequency multiplier L (actually L+1)
-		| (1) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
-	// Register 0x16: V1P2 SAR_TRIM_v3_ACTIVE
+	// Register 0x16: V1P2 Active
     mbus_remote_register_write(PMU_ADDR,0x16, 
 		( (0 << 19) // Enable PFM even during periodic reset
 		| (0 << 18) // Enable PFM even when Vref is not used as ref
 		| (0 << 17) // Enable PFM
 		| (3 << 14) // Comparator clock division ratio
 		| (0 << 13) // Enable main feedback loop
-		| (4 << 9)  // Frequency multiplier R
-		| (12 << 5)  // Frequency multiplier L (actually L+1)
-		| (16) 		// Floor frequency base (0-63)
+		| (r << 9)  // Frequency multiplier R
+		| (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
+		| (base) 		// Floor frequency base (0-63)
 	));
 	delay(MBUS_DELAY);
+    mbus_remote_register_write(PMU_ADDR,0x16, 
+		( (0 << 19) // Enable PFM even during periodic reset
+		| (0 << 18) // Enable PFM even when Vref is not used as ref
+		| (0 << 17) // Enable PFM
+		| (3 << 14) // Comparator clock division ratio
+		| (0 << 13) // Enable main feedback loop
+		| (r << 9)  // Frequency multiplier R
+		| (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
+		| (base) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x18: V3P6 Active 
+    mbus_remote_register_write(PMU_ADDR,0x18, 
+		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+		| (0 << 13) // Enable main feedback loop
+		| (r << 9)  // Frequency multiplier R
+		| (l << 5)  // Frequency multiplier L (actually L+1)
+		| (base) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x1A: V0P6 Active
+    mbus_remote_register_write(PMU_ADDR,0x1A,
+		( (0 << 13) // Enable main feedback loop
+		| (r << 9)  // Frequency multiplier R
+		| (l << 5)  // Frequency multiplier L (actually L+1)
+		| (base) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+
+}
+
+inline static void pmu_set_sleep_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1p2){
+
+	// Register 0x17: V3P6 Sleep
+    mbus_remote_register_write(PMU_ADDR,0x17, 
+		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+		| (0 << 13) // Enable main feedback loop
+		| (r << 9)  // Frequency multiplier R
+		| (l << 5)  // Frequency multiplier L (actually L+1)
+		| (base) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x15: V1P2 Sleep
+    mbus_remote_register_write(PMU_ADDR,0x15, 
+		( (0 << 19) // Enable PFM even during periodic reset
+		| (0 << 18) // Enable PFM even when Vref is not used as ref
+		| (0 << 17) // Enable PFM
+		| (3 << 14) // Comparator clock division ratio
+		| (0 << 13) // Enable main feedback loop
+		| (r << 9)  // Frequency multiplier R
+		| (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
+		| (base) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x19: V0P6 Sleep
+    mbus_remote_register_write(PMU_ADDR,0x19,
+		( (0 << 13) // Enable main feedback loop
+		| (r << 9)  // Frequency multiplier R
+		| (l << 5)  // Frequency multiplier L (actually L+1)
+		| (base) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+
+}
+inline static void pmu_set_clk_init(){
+	pmu_set_active_clk(0xC,0x1,0x10,0x2);
+	pmu_set_sleep_clk(0xF,0x0,0x1,0x1);
 	// SAR_RATIO_OVERRIDE
 	// Use the new reset scheme in PMUv3
     mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
@@ -1120,7 +1135,8 @@ static void operation_init(void){
 //    set_halt_until_mbus_rx();
 
     //Enumeration
-    mbus_enumerate(HRV_ADDR);
+	// FIXME
+    //mbus_enumerate(HRV_ADDR);
 	delay(MBUS_DELAY);
     mbus_enumerate(SNS_ADDR);
 	delay(MBUS_DELAY);
@@ -1602,14 +1618,8 @@ int main(){
 		
 		astack_detection_mode = 0;
 
-		if (!sns_running){
-			// Go to sleep for initial settling of temp sensing // FIXME
-			//set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-			sns_running = 1;
-			set_sns_exec_count = wakeup_data_field_2 >> 5;
-            exec_count_irq++;
-			//operation_sleep_noirqreset();
-		}
+		sns_running = 1;
+		set_sns_exec_count = wakeup_data_field_2 >> 5;
 		exec_count = 0;
 		meas_count = 0;
 		data_storage_count = 0;
