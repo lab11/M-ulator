@@ -5,6 +5,7 @@
 //			v1.7: CL unlimited during tx, shortening CLEN, pulse width
 //			v1.8: Incorporate HRV light detection & clean up 
 //			v1.9: PMU setting adjustment based on temp
+//			FIXME: need to add radio only when activity detected, check in every n times
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
