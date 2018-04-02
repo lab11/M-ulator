@@ -1056,11 +1056,8 @@ static void measure_wakeup_period(void){
 
    	config_timerwd(TIMERWD_VAL);
 
-	if (adxl_enabled){
-		WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*8*60, wakeup_period_count);
-	}else{
-		WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*8, wakeup_period_count);
-	}
+	WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*8, wakeup_period_count);
+
     if (WAKEUP_PERIOD_CONT > 0x7FFF){
         WAKEUP_PERIOD_CONT = 0x7FFF;
     }
@@ -1559,7 +1556,7 @@ int main(){
 
     }else if(wakeup_data_header == 0x32){
 		// Run temp measurement routine with desired wakeup period and ADXL running in the background
-        // wakeup_data[15:0] is the user-specified period in minutes
+        // wakeup_data[15:0] is the user-specified period in seconds
         // wakeup_data[19:17] is the initial user-specified period (LSB assumed to be 0)
         // wakeup_data[23:21] specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
     	WAKEUP_PERIOD_CONT_USER = (wakeup_data_field_0 + (wakeup_data_field_1<<8));
