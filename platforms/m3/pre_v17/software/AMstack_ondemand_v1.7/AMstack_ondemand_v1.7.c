@@ -1241,7 +1241,7 @@ static void operation_init(void){
 	
 	adxl_enabled = 0;
 	adxl_motion_detected = 0;
-	adxl_user_threshold = 0x0060;
+	adxl_user_threshold = 0x0100; // 0060
 
     // Go to sleep without timer
     operation_sleep_notimer();

@@ -477,7 +477,7 @@ inline static void pmu_set_sleep_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t
 
 }
 inline static void pmu_set_clk_init(){
-	pmu_set_active_clk(0xC,0x1,0x10,0x2);
+	pmu_set_active_clk(0xA,0x1,0x10,0x2);
 	pmu_set_sleep_clk(0xF,0x0,0x1,0x1);
 	// SAR_RATIO_OVERRIDE
 	// Use the new reset scheme in PMUv3
@@ -1093,7 +1093,8 @@ static void measure_wakeup_period(void){
 		wakeup_period_count++;
 	}
 	mbus_write_message32(0xE1, wakeup_timer_val_0);
-	mbus_write_message32(0xE2, wakeup_period_count);
+    // Debug
+	//mbus_write_message32(0xE2, wakeup_period_count);
 
    	config_timerwd(TIMERWD_VAL);
 
@@ -1103,7 +1104,8 @@ static void measure_wakeup_period(void){
     if (WAKEUP_PERIOD_CONT > 0x7FFF){
         WAKEUP_PERIOD_CONT = 0x7FFF;
     }
-	mbus_write_message32(0xED, WAKEUP_PERIOD_CONT); 
+    // Debug
+	//mbus_write_message32(0xED, WAKEUP_PERIOD_CONT); 
 }
 
 
@@ -1137,7 +1139,7 @@ static void operation_init(void){
 
     //Enumeration
 	// FIXME
-    //mbus_enumerate(HRV_ADDR);
+    mbus_enumerate(HRV_ADDR);
 	delay(MBUS_DELAY);
     mbus_enumerate(SNS_ADDR);
 	delay(MBUS_DELAY);
@@ -1304,7 +1306,7 @@ static void operation_init(void){
 	hrv_light_detected = 0;
 	
 	hrv_light_threshold_factor = 2;
-	adxl_user_threshold = 0x0060;
+	adxl_user_threshold = 0x0100; // 0060
 
     // Go to sleep without timer
     operation_sleep_notimer();
@@ -1651,7 +1653,7 @@ int main(){
 		if (astack_detection_mode & 0x1) ADXL362_enable();
 
 		sns_running = 1;
-		set_sns_exec_count = wakeup_data_field_2 >> 5;
+		set_sns_exec_count = 0;
 		exec_count = 0;
 		meas_count = 0;
 		data_storage_count = 0;

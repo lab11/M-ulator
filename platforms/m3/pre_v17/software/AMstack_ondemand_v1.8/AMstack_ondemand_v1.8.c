@@ -1287,7 +1287,7 @@ static void operation_init(void){
 	hrv_light_detected = 0;
 	
 	hrv_light_threshold_factor = 2;
-	adxl_user_threshold = 0x0060;
+	adxl_user_threshold = 0x0100; // 0060
 
     // Go to sleep without timer
     operation_sleep_notimer();
