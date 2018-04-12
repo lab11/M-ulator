@@ -6,7 +6,7 @@
 //			v1.8: Incorporate HRV light detection & clean up 
 //			v1.9: PMU setting adjustment based on temp
 //			v1.10: Use case update; send radio only when activity detected, check in every n wakeups
-//			FIXME: need to implement false trigger prevention, and batt overcharging protection
+//			       False trigger prevention, and (FIXME: batt overcharging protection)
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -18,7 +18,7 @@
 #include "HRVv5.h"
 
 // uncomment this for debug mbus message
-//#define DEBUG_MBUS_MSG
+#define DEBUG_MBUS_MSG
 
 // AM stack 
 #define HRV_ADDR 0x3
@@ -1412,28 +1412,6 @@ static void operation_sns_run(void){
 				data_storage_count++;
 			}
 
-			// Optionally transmit the data
-			// Transmit if: Either motion or light change detected OR
-			// 				Running in motion only mode (no frequent wakeup) OR
-			//				Light detection is running (hence frequent wakeup) and haven't sent out a radio for hrv_exec_checkin times
-			if (radio_tx_option && (adxl_motion_detected || hrv_light_detected || (astack_detection_mode == 0x1) || (hrv_exec_count > hrv_exec_checkin))){
-				// Read latest PMU ADC measurement
-				pmu_adc_read_latest();
-
-				// Prepare for radio tx
-				radio_power_on();
-				if (adxl_motion_detected || hrv_light_detected){
-					send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), (0xB00000| (read_data_batadc<<12)) | (hrv_light_detected<<4) | adxl_motion_detected, 0xD00000 | (0xFFFFF & read_data_temp));
-			#ifdef DEBUG_MBUS_MSG
-					send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), hrv_light_count_prev, hrv_light_count);
-			#endif
-				}else{
-					// Check-in message
-					send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), (0xB00000| (read_data_batadc<<12)), 0xD00000 | (0xFFFFF & read_data_temp));
-
-				}
-			}
-
 			uint32_t sleep_time_threshold = WAKEUP_PERIOD_CONT>>sleep_time_threshold_factor; // how fast is too fast?
 			if ((WAKEUP_PERIOD_CONT>>5) == 0) sleep_time_threshold = 3;
 
@@ -1456,8 +1434,33 @@ static void operation_sns_run(void){
 						ADXL362_enable();
 					}
 				}
-
 			}
+
+			// Optionally transmit the data
+			// Transmit if: Either motion or light change detected OR
+			// 				Running in motion only mode (no frequent wakeup) OR
+			//				Light detection is running (hence frequent wakeup) and haven't sent out a radio for hrv_exec_checkin times
+			if (radio_tx_option && (adxl_motion_detected || hrv_light_detected || (astack_detection_mode == 0x1) || (hrv_exec_count > hrv_exec_checkin))){
+				// Read latest PMU ADC measurement
+				pmu_adc_read_latest();
+
+				// Prepare for radio tx
+				radio_power_on();
+				if (adxl_motion_detected || hrv_light_detected){
+					send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), (0xB00000| (read_data_batadc<<12)) | (adxl_motion_trigger_count<<8) | (hrv_light_detected<<4) | adxl_motion_detected, 0xD00000 | (0xFFFFF & read_data_temp));
+			#ifdef DEBUG_MBUS_MSG
+				    radio_power_on();
+					send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), hrv_light_count_prev, hrv_light_count);
+			#endif
+				}else{
+					// Check-in message
+					send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), (0xB00000| (read_data_batadc<<12)), 0xD00000 | (0xFFFFF & read_data_temp));
+				}
+                
+                // Reset Check-in message count
+                hrv_exec_count = 0;
+			}
+
 
 			if (adxl_enabled){
 				// Reset ADXL flag
@@ -1492,7 +1495,6 @@ static void operation_sns_run(void){
 	
 			// Start HRV Light Counter
 			hrv_light_count_prev = hrv_light_count;
-			if (hrv_exec_count > hrv_exec_checkin) hrv_exec_count = 0;
 			if (astack_detection_mode & 0x2) hrv_light_start();
 		
 			if ((set_sns_exec_count != 0) && (exec_count > (50<<set_sns_exec_count))){
