@@ -18,8 +18,7 @@
 #include "HRVv5.h"
 
 // uncomment this for debug mbus message
-// #define DEBUG_MBUS_MSG
-//#define DEBUG_MBUS_MSG_1
+//#define DEBUG_MBUS_MSG
 
 // AM stack 
 #define HRV_ADDR 0x3
@@ -106,7 +105,7 @@ volatile uint32_t hrv_light_diff;
 volatile uint32_t hrv_light_threshold_factor;
 volatile uint32_t hrv_light_detected;
 volatile uint32_t hrv_exec_count = 0;
-volatile uint32_t hrv_exec_threshold = 12;
+volatile uint32_t hrv_exec_checkin = 12;
 
 volatile uint32_t radio_tx_count;
 volatile uint32_t radio_tx_option;
@@ -1014,13 +1013,8 @@ static void operation_tx_stored(void){
 
     //Fire off stored data to radio
     while(((!radio_tx_numdata)&&(radio_tx_count > 0)) | ((radio_tx_numdata)&&((radio_tx_numdata+radio_tx_count) > data_storage_count))){
-		#ifdef DEBUG_MBUS_MSG_1
-			mbus_write_message32(0xDD, radio_tx_count);
-		#endif
-
 		// Reset watchdog timer
 		config_timerwd(TIMERWD_VAL);
-
 		
 		// Radio out data
 		send_radio_data_mrr(0, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xCC0000 | (radio_tx_count & 0xFFFF), 0xFFFFFF & temp_storage[radio_tx_count]);
@@ -1048,20 +1042,10 @@ uint32_t dumb_divide(uint32_t nu, uint32_t de) {
     uint32_t temp = 1;
     uint32_t quotient = 0;
 
-		#ifdef DEBUG_MBUS_MSG_1
-	mbus_write_message32(0xAA, nu);
-	mbus_write_message32(0xBB, de);
-		#endif
-
     while (de <= nu) {
         de <<= 1;
         temp <<= 1;
     }
-
-		#ifdef DEBUG_MBUS_MSG_1
-	mbus_write_message32(0xAA, nu);
-	mbus_write_message32(0xBB, de);
-		#endif
 
     //printf("%d %d\n",de,temp,nu);
     while (temp > 1) {
@@ -1309,11 +1293,12 @@ static void operation_init(void){
 	hrv_light_count = 0;
 	hrv_light_count_prev = 0;
 	hrv_light_detected = 0;
+	hrv_exec_checkin = 12;
 
 	adxl_trigger_mute_count = 3;
 	sleep_time_threshold_factor = 1;
 	
-	hrv_light_threshold_factor = 2;
+	hrv_light_threshold_factor = 1;
 	adxl_user_threshold = 0x0100; // 0060
 
     // Go to sleep without timer
@@ -1402,7 +1387,7 @@ static void operation_sns_run(void){
 			}else{
 				temp_storage_diff = temp_storage_last_wakeup_adjust - temp_storage_latest;
 			}
-			#ifdef DEBUG_MBUS_MSG_1
+			#ifdef DEBUG_MBUS_MSG
 				mbus_write_message32(0xEA, temp_storage_diff);
 				delay(MBUS_DELAY);
 			#endif
@@ -1413,8 +1398,10 @@ static void operation_sns_run(void){
 			}
 				
 
+			#ifdef DEBUG_MBUS_MSG
 			mbus_write_message32(0xCC, exec_count);
 			mbus_write_message32(0xC0, read_data_temp);
+			#endif
 				
 			exec_count++;
 
@@ -1428,8 +1415,8 @@ static void operation_sns_run(void){
 			// Optionally transmit the data
 			// Transmit if: Either motion or light change detected OR
 			// 				Running in motion only mode (no frequent wakeup) OR
-			//				Light detection is running (hence frequent wakeup) and haven't sent out a radio for hrv_exec_threshold times
-			if (radio_tx_option && (adxl_motion_detected || hrv_light_detected || (astack_detection_mode == 0x1) || (hrv_exec_count > hrv_exec_threshold))){
+			//				Light detection is running (hence frequent wakeup) and haven't sent out a radio for hrv_exec_checkin times
+			if (radio_tx_option && (adxl_motion_detected || hrv_light_detected || (astack_detection_mode == 0x1) || (hrv_exec_count > hrv_exec_checkin))){
 				// Read latest PMU ADC measurement
 				pmu_adc_read_latest();
 
@@ -1437,6 +1424,9 @@ static void operation_sns_run(void){
 				radio_power_on();
 				if (adxl_motion_detected || hrv_light_detected){
 					send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), (0xB00000| (read_data_batadc<<12)) | (hrv_light_detected<<4) | adxl_motion_detected, 0xD00000 | (0xFFFFF & read_data_temp));
+			#ifdef DEBUG_MBUS_MSG
+					send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), hrv_light_count_prev, hrv_light_count);
+			#endif
 				}else{
 					// Check-in message
 					send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), (0xB00000| (read_data_batadc<<12)), 0xD00000 | (0xFFFFF & read_data_temp));
@@ -1501,7 +1491,8 @@ static void operation_sns_run(void){
 			}
 	
 			// Start HRV Light Counter
-			if (hrv_exec_count > hrv_exec_threshold) hrv_exec_count = 0;
+			hrv_light_count_prev = hrv_light_count;
+			if (hrv_exec_count > hrv_exec_checkin) hrv_exec_count = 0;
 			if (astack_detection_mode & 0x2) hrv_light_start();
 		
 			if ((set_sns_exec_count != 0) && (exec_count > (50<<set_sns_exec_count))){
@@ -1584,7 +1575,9 @@ int main(){
 	// Figure out who triggered wakeup
 	if(*SREG_WAKEUP_SOURCE & 0x00000008){
 		// Debug
-		//mbus_write_message32(0xAA,0x11331133);
+		#ifdef DEBUG_MBUS_MSG
+		mbus_write_message32(0xAA,0x11331133);
+		#endif
 		adxl_motion_detected = 1;
 
 	}
@@ -1595,7 +1588,9 @@ int main(){
 	// Record previous sleep time
 	sleep_time_prev = *REG_WUPT_VAL;
 	// Debug
+	#ifdef DEBUG_MBUS_MSG
 	mbus_write_message32(0xAB, sleep_time_prev);
+	#endif
 
     // Initialization sequence
     if (enumerated != 0xDEADBEE1){
@@ -1625,9 +1620,11 @@ int main(){
 		else hrv_light_detected = 0;
 			
 		// Debug
+		#ifdef DEBUG_MBUS_MSG
 		mbus_write_message32(0xAC,(hrv_light_detected<<23) | hrv_light_count);
+		#endif
+
 		hrv_light_reset();
-		hrv_light_count_prev = hrv_light_count;
 
 		hrv_exec_count++;
 	}
@@ -1657,6 +1654,7 @@ int main(){
 		// Debug trigger for MRR testing; repeat trigger 1 for 0xFFFFFFFF times
 		operation_goc_trigger_radio(0xFFFFFFFF, wakeup_data_field_1, 0xABC000, exec_count_irq);
 
+/*
     }else if(wakeup_data_header == 2){
 		// Run temp measurement routine with desired wakeup period
         // wakeup_data[15:0] is the user-specified period
@@ -1686,108 +1684,6 @@ int main(){
 		// Run Temp Sensor Program
     	stack_state = STK_IDLE;
 		operation_sns_run();
-
-    }else if(wakeup_data_header == 0x32){
-		// Run temp measurement routine with desired wakeup period and ADXL running in the background
-        // wakeup_data[15:0] is the user-specified period in seconds
-        // wakeup_data[19:17] is the initial user-specified period (LSB assumed to be 0)
-        // wakeup_data[20]: enable motion detection with ADXL
-		// wakeup_data[21]: enable light detection with HRV
-    	WAKEUP_PERIOD_CONT_USER = (wakeup_data_field_0 + (wakeup_data_field_1<<8));
-        WAKEUP_PERIOD_CONT_INIT = (wakeup_data_field_2 & 0xE);
-        radio_tx_option = 1;
-
-		sns_run_ht_mode = 0;
-		
-		astack_detection_mode = (wakeup_data_field_2>>4) & 0x3;
-
-		if (astack_detection_mode & 0x1) ADXL362_enable();
-
-		sns_running = 1;
-		set_sns_exec_count = 0;
-		exec_count = 0;
-		hrv_exec_count = 0;
-		meas_count = 0;
-		data_storage_count = 0;
-		radio_tx_count = 0;
-		adxl_motion_trigger_count = 0;
-
-		// Reset GOC_DATA_IRQ
-		*GOC_DATA_IRQ = 0;
-        exec_count_irq = 0;
-
-		// Run Temp Sensor Program
-    	stack_state = STK_IDLE;
-		operation_sns_run();
-
-    }else if(wakeup_data_header == 0x33){
-		// Stop temp & ADXL program and transmit the battery reading and execution count (alternating n times)
-        // wakeup_data[7:0] is the # of transmissions
-        // wakeup_data[15:8] is the user-specified period 
-        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
-
-		operation_sns_sleep_check();
-	
-		stack_state = STK_IDLE;
-		astack_detection_mode = 0;
-
-		// Stop ADXL
-		if (adxl_enabled) ADXL362_stop();
-		delay(MBUS_DELAY*10);
-		*REG_CPS = 0;
-
-		// Prepare radio TX
-		radio_power_on();
-
-        if (exec_count_irq < wakeup_data_field_0){
-            exec_count_irq++;
-			if (exec_count_irq == 1){
-				// Read latest PMU ADC measurement
-				pmu_adc_read_latest();
-			}
-			send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF),0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF & exec_count));
-			// set timer
-			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-			// go to sleep and wake up with same condition
-			operation_sleep_noirqreset();
-
-        }else{
-            exec_count_irq = 0;
-            // radio
-			send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xFAF000,0);	
-            // Go to sleep without timer
-            operation_sleep_notimer();
-        }
-
-	}else if(wakeup_data_header == 0x3A){
-		// Change ADXL threshold
-		adxl_user_threshold = wakeup_data & 0xFFFF;
-
-		// Go to sleep without timer
-		operation_sleep_notimer();
-
-	}else if(wakeup_data_header == 0x3B){
-		// Change Light Thresold
-		hrv_light_threshold_factor = wakeup_data & 0xFFFFFF;
-
-		// Go to sleep without timer
-		operation_sleep_notimer();
-
-	}else if(wakeup_data_header == 0x3C){
-		// Change how often to send check-in message
-		// Set to zero to TX every wakeup
-		hrv_exec_threshold = wakeup_data & 0xFFFFFF;
-
-		// Go to sleep without timer
-		operation_sleep_notimer();
-
-	}else if(wakeup_data_header == 0x3D){
-		// Change ADXL mute settings
-		adxl_trigger_mute_count = wakeup_data_field_0;
-		sleep_time_threshold_factor = wakeup_data_field_1;
-
-		// Go to sleep without timer
-		operation_sleep_notimer();
 
     }else if(wakeup_data_header == 3){
 		// Stop temp sensor program and transmit the battery reading and execution count (alternating n times)
@@ -1858,7 +1754,7 @@ int main(){
 		}else{
 			operation_tx_stored();
 		}
-		
+	*/	
     }else if(wakeup_data_header == 7){
 		// Status Inquiry - Transmit PMU's ADC reading & Chip ID
 		// wakeup_data[7:0] is the # of transmissions
@@ -2023,6 +1919,108 @@ int main(){
 
 		mrrv6_r13.MRR_RAD_FSM_TX_C_LEN = wakeup_data & 0xFFFF; // (PW_LEN+1):C_LEN=1:32
 		mbus_remote_register_write(MRR_ADDR,0x13,mrrv6_r13.as_int);
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+    }else if(wakeup_data_header == 0x32){
+		// Run temp measurement routine with desired wakeup period and ADXL running in the background
+        // wakeup_data[15:0] is the user-specified period in seconds
+        // wakeup_data[19:17] is the initial user-specified period (LSB assumed to be 0)
+        // wakeup_data[20]: enable motion detection with ADXL
+		// wakeup_data[21]: enable light detection with HRV
+    	WAKEUP_PERIOD_CONT_USER = (wakeup_data_field_0 + (wakeup_data_field_1<<8));
+        WAKEUP_PERIOD_CONT_INIT = (wakeup_data_field_2 & 0xE);
+        radio_tx_option = 1;
+
+		sns_run_ht_mode = 0;
+		
+		astack_detection_mode = (wakeup_data_field_2>>4) & 0x3;
+
+		if (astack_detection_mode & 0x1) ADXL362_enable();
+
+		sns_running = 1;
+		set_sns_exec_count = 0;
+		exec_count = 0;
+		hrv_exec_count = 0;
+		meas_count = 0;
+		data_storage_count = 0;
+		radio_tx_count = 0;
+		adxl_motion_trigger_count = 0;
+
+		// Reset GOC_DATA_IRQ
+		*GOC_DATA_IRQ = 0;
+        exec_count_irq = 0;
+
+		// Run Temp Sensor Program
+    	stack_state = STK_IDLE;
+		operation_sns_run();
+
+    }else if(wakeup_data_header == 0x33){
+		// Stop temp & ADXL program and transmit the battery reading and execution count (alternating n times)
+        // wakeup_data[7:0] is the # of transmissions
+        // wakeup_data[15:8] is the user-specified period 
+        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
+
+		operation_sns_sleep_check();
+	
+		stack_state = STK_IDLE;
+		astack_detection_mode = 0;
+
+		// Stop ADXL
+		if (adxl_enabled) ADXL362_stop();
+		delay(MBUS_DELAY*10);
+		*REG_CPS = 0;
+
+		// Prepare radio TX
+		radio_power_on();
+
+        if (exec_count_irq < wakeup_data_field_0){
+            exec_count_irq++;
+			if (exec_count_irq == 1){
+				// Read latest PMU ADC measurement
+				pmu_adc_read_latest();
+			}
+			send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF),0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF & exec_count));
+			// set timer
+			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
+			// go to sleep and wake up with same condition
+			operation_sleep_noirqreset();
+
+        }else{
+            exec_count_irq = 0;
+            // radio
+			send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xFAF000,0);	
+            // Go to sleep without timer
+            operation_sleep_notimer();
+        }
+
+	}else if(wakeup_data_header == 0x3A){
+		// Change ADXL threshold
+		adxl_user_threshold = wakeup_data & 0xFFFF;
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x3B){
+		// Change Light Thresold
+		hrv_light_threshold_factor = wakeup_data & 0xFFFFFF;
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x3C){
+		// Change how often to send check-in message
+		// Set to zero to TX every wakeup
+		hrv_exec_checkin = wakeup_data & 0xFFFFFF;
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x3D){
+		// Change ADXL mute settings
+		adxl_trigger_mute_count = wakeup_data_field_0;
+		sleep_time_threshold_factor = wakeup_data_field_1;
 
 		// Go to sleep without timer
 		operation_sleep_notimer();
