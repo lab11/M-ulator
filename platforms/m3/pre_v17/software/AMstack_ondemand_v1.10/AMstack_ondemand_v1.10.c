@@ -18,7 +18,7 @@
 #include "HRVv5.h"
 
 // uncomment this for debug mbus message
-#define DEBUG_MBUS_MSG
+//#define DEBUG_MBUS_MSG
 
 // AM stack 
 #define HRV_ADDR 0x3
@@ -1298,7 +1298,7 @@ static void operation_init(void){
 	adxl_trigger_mute_count = 3;
 	sleep_time_threshold_factor = 1;
 	
-	hrv_light_threshold_factor = 1;
+	hrv_light_threshold_factor = 0;
 	adxl_user_threshold = 0x0100; // 0060
 
     // Go to sleep without timer
