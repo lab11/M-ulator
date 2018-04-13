@@ -1298,7 +1298,7 @@ static void operation_init(void){
 	adxl_trigger_mute_count = 3;
 	sleep_time_threshold_factor = 1;
 	
-	hrv_light_threshold_factor = 0;
+	hrv_light_threshold_factor = 1;
 	adxl_user_threshold = 0x0100; // 0060
 
     // Go to sleep without timer
