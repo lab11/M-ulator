@@ -1462,17 +1462,20 @@ static void operation_sns_run(void){
 			}
 
 
-			if (adxl_enabled){
-				// Reset ADXL flag
-				adxl_motion_detected = 0;
-	
-				operation_spi_init();
-				ADXL362_reg_rd(ADXL362_STATUS);
-				ADXL362_reg_rd(ADXL362_XDATA);
-				ADXL362_reg_rd(ADXL362_YDATA);
-				ADXL362_reg_rd(ADXL362_ZDATA);
-				operation_spi_stop();
-				
+			// Get ready for sleep
+			if (astack_detection_mode > 0){
+				if (adxl_enabled){
+					// Reset ADXL flag
+					adxl_motion_detected = 0;
+		
+					operation_spi_init();
+					ADXL362_reg_rd(ADXL362_STATUS);
+					ADXL362_reg_rd(ADXL362_XDATA);
+					ADXL362_reg_rd(ADXL362_YDATA);
+					ADXL362_reg_rd(ADXL362_ZDATA);
+					operation_spi_stop();
+				}
+					
 				set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
 
 			}else{
@@ -1495,6 +1498,7 @@ static void operation_sns_run(void){
 	
 			// Start HRV Light Counter
 			hrv_light_count_prev = hrv_light_count;
+			hrv_light_detected = 0;
 			if (astack_detection_mode & 0x2) hrv_light_start();
 		
 			if ((set_sns_exec_count != 0) && (exec_count > (50<<set_sns_exec_count))){
@@ -1613,13 +1617,16 @@ int main(){
 		mbus_remote_register_read(HRV_ADDR,0x02,1);
 		hrv_light_count = *((volatile uint32_t *) REG1);
 		set_halt_until_mbus_tx();
-		if (hrv_light_count_prev > hrv_light_count){
-			hrv_light_diff = hrv_light_count_prev - hrv_light_count;
-		}else{
-			hrv_light_diff = hrv_light_count - hrv_light_count_prev;
+		// First measurement will be off
+		if (hrv_exec_count > 0){
+			if (hrv_light_count_prev > hrv_light_count){
+				hrv_light_diff = hrv_light_count_prev - hrv_light_count;
+			}else{
+				hrv_light_diff = hrv_light_count - hrv_light_count_prev;
+			}
+			if (hrv_light_diff > (hrv_light_count_prev>>hrv_light_threshold_factor)) hrv_light_detected = 1;
+			else hrv_light_detected = 0;
 		}
-		if (hrv_light_diff > (hrv_light_count_prev>>hrv_light_threshold_factor)) hrv_light_detected = 1;
-		else hrv_light_detected = 0;
 			
 		// Debug
 		#ifdef DEBUG_MBUS_MSG
