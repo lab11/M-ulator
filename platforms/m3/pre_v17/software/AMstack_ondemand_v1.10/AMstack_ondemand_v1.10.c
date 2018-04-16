@@ -1453,14 +1453,14 @@ static void operation_sns_run(void){
 				// Prepare for radio tx
 				radio_power_on();
 				if (adxl_motion_detected || hrv_light_detected){
-					send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), (0xB00000| (read_data_batadc<<12)) | (adxl_enabled<<8) | (hrv_light_count_enabled<<9) | (hrv_light_detected<<4) | adxl_motion_detected, (0xF&radio_packet_count)<<20 | 0xD0000 | (0xFFFF & read_data_temp));
+					send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12) | (adxl_enabled<<8) | (hrv_light_count_enabled<<9) | (hrv_light_detected<<4) | adxl_motion_detected, (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & read_data_temp));
 			#ifdef DEBUG_MBUS_MSG
 				    radio_power_on();
 					send_radio_data_mrr(1, 0xFD0000 | (*REG_CHIP_ID & 0xFFFF), hrv_light_count_prev, (0xF&radio_packet_count)<<20 | hrv_light_count);
 			#endif
 				}else{
 					// Check-in message
-					send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), (0xB00000| (read_data_batadc<<12)), (0xF&radio_packet_count)<<20 | 0xD0000 | (0xFFFF & read_data_temp));
+					send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12) | (adxl_enabled<<8) | (hrv_light_count_enabled<<9), (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & read_data_temp));
 				}
                 
                 // Reset Check-in message count
