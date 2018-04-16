@@ -68,7 +68,6 @@ volatile uint32_t wfi_timeout_flag;
 volatile uint32_t exec_count;
 volatile uint32_t meas_count;
 volatile uint32_t exec_count_irq;
-volatile uint32_t wakeup_period_count;
 volatile uint32_t PMU_ADC_3P0_VAL;
 volatile uint32_t pmu_parkinglot_mode;
 volatile uint32_t pmu_sar_conv_ratio_val;
@@ -1067,13 +1066,15 @@ static void measure_wakeup_period(void){
     // Reset Wakeup Timer
     *WUPT_RESET = 1;
 
+	#ifdef DEBUG_MBUS_MSG
 	mbus_write_message32(0xE0, 0x0);
+	#endif
 	// Prevent watchdogs from kicking in
    	config_timerwd(TIMERWD_VAL*2);
 	*REG_MBUS_WD = 1500000*3; // default: 1500000
 
 	uint32_t wakeup_timer_val_0 = *REG_WUPT_VAL;
-	wakeup_period_count = 0;
+	uint32_t wakeup_period_count = 0;
 
 	while( *REG_WUPT_VAL <= wakeup_timer_val_0 + 1){
 		wakeup_period_count = 0;
@@ -1081,9 +1082,10 @@ static void measure_wakeup_period(void){
 	while( *REG_WUPT_VAL <= wakeup_timer_val_0 + 2){
 		wakeup_period_count++;
 	}
-	mbus_write_message32(0xE1, wakeup_timer_val_0);
-    // Debug
-	//mbus_write_message32(0xE2, wakeup_period_count);
+	mbus_write_message32(0xE1, wakeup_period_count);
+	#ifdef DEBUG_MBUS_MSG
+	mbus_write_message32(0xE2, *REG_WUPT_VAL);
+	#endif
 
    	config_timerwd(TIMERWD_VAL);
 
@@ -1093,8 +1095,10 @@ static void measure_wakeup_period(void){
     if (WAKEUP_PERIOD_CONT > 0x7FFF){
         WAKEUP_PERIOD_CONT = 0x7FFF;
     }
-    // Debug
-	//mbus_write_message32(0xED, WAKEUP_PERIOD_CONT); 
+
+	#ifdef DEBUG_MBUS_MSG
+	mbus_write_message32(0xED, WAKEUP_PERIOD_CONT); 
+	#endif
 }
 
 
