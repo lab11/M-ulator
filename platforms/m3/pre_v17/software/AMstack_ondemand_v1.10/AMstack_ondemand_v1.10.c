@@ -156,6 +156,15 @@ static void ADXL362_stop(void);
 static void operation_spi_init(void);
 static void operation_spi_stop(void);
 
+//***************************************************
+// Sleep Functions
+//***************************************************
+static void operation_sns_sleep_check(void);
+static void operation_sleep(void);
+static void operation_sleep_noirqreset(void);
+static void operation_sleep_notimer(void);
+
+
 //*******************************************************************
 // INTERRUPT HANDLERS (Updated for PRCv17)
 //*******************************************************************
@@ -883,7 +892,7 @@ static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uin
 		count++;
 	}
 
-	radio_pacekt_count++;
+	radio_packet_count++;
 
 	if (last_packet){
 		radio_ready = 0;
