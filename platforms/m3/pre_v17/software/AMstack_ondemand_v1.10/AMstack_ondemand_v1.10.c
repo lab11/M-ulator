@@ -6,7 +6,9 @@
 //			v1.8: Incorporate HRV light detection & clean up 
 //			v1.9: PMU setting adjustment based on temp
 //			v1.10: Use case update; send radio only when activity detected, check in every n wakeups
-//			       False trigger prevention, and (FIXME: batt overcharging protection)
+//			FIXME: battery overcharging protection -- possible?
+//			FIXME: number all radio packets
+//			FIXME: verify stopping adxl works with other triggers than 0x33
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -99,6 +101,7 @@ volatile uint32_t adxl_motion_trigger_count;
 volatile uint32_t adxl_trigger_mute_count;
 
 volatile uint32_t hrv_light_count;
+volatile uint32_t hrv_light_count_enabled;
 volatile uint32_t hrv_light_count_prev;
 volatile uint32_t hrv_light_diff;
 volatile uint32_t hrv_light_threshold_factor;
@@ -114,6 +117,7 @@ volatile uint32_t radio_on;
 volatile uint32_t mrr_freq_hopping;
 volatile uint32_t mrr_cfo_vals[3] = {0};
 volatile uint32_t RADIO_PACKET_DELAY;
+volatile uint32_t radio_packet_count;
 
 volatile snsv10_r00_t snsv10_r00 = SNSv10_R00_DEFAULT;
 volatile snsv10_r01_t snsv10_r01 = SNSv10_R01_DEFAULT;
@@ -643,8 +647,16 @@ inline static void pmu_parkinglot_decision_3v_battery(){
 		pmu_set_sar_override(0x5A);
 
 	// Battery <= 2.0V
-	}else{
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 53){
 		pmu_set_sar_override(0x5F);
+
+	}else{
+		// Brown out
+		pmu_set_sar_override(0x65);
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
 	}
 	
 }
@@ -871,6 +883,8 @@ static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uin
 		count++;
 	}
 
+	radio_pacekt_count++;
+
 	if (last_packet){
 		radio_ready = 0;
 		radio_power_off();
@@ -939,6 +953,7 @@ static void hrv_light_reset(void){
 			       | (2  << 2)  // LC_CLK_DIV (default: 2)
 			       | (1)        // LC_CLK_RING (default: 1)
 			       ));
+	hrv_light_count_enabled = 0;
 }
 	
 static void hrv_light_start(void){
@@ -949,6 +964,7 @@ static void hrv_light_start(void){
 			       | (1)        // LC_CLK_RING (default: 1)
 			       ));
 	hrv_light_count = 0;
+	hrv_light_count_enabled = 1;
 }
 
 
@@ -989,6 +1005,15 @@ static void operation_sleep_notimer(void){
 	// Make sure the irq counter is reset    
     exec_count_irq = 0;
 
+	if (hrv_light_count_enabled) hrv_light_reset();
+	
+	if (adxl_enabled){
+		ADXL362_stop();
+		delay(MBUS_DELAY*10);
+		*REG_CPS = 0;
+		delay(MBUS_DELAY*200);
+	}
+
 	operation_sns_sleep_check();	
 
     // Make sure Radio is off
@@ -1007,33 +1032,6 @@ static void operation_sleep_notimer(void){
 
 }
 
-
-static void operation_tx_stored(void){
-
-    //Fire off stored data to radio
-    while(((!radio_tx_numdata)&&(radio_tx_count > 0)) | ((radio_tx_numdata)&&((radio_tx_numdata+radio_tx_count) > data_storage_count))){
-		// Reset watchdog timer
-		config_timerwd(TIMERWD_VAL);
-		
-		// Radio out data
-		send_radio_data_mrr(0, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xCC0000 | (radio_tx_count & 0xFFFF), 0xFFFFFF & temp_storage[radio_tx_count]);
-		delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
-
-		radio_tx_count--;
-    }
-
-	send_radio_data_mrr(0, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xCC0000 | (radio_tx_count & 0xFFFF), 0xFFFFFF & temp_storage[radio_tx_count]);
-
-	delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
-	send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xFAF000,0);	
-
-	// This is also the end of this IRQ routine
-	exec_count_irq = 0;
-
-	// Go to sleep without timer
-	radio_tx_count = data_storage_count; // allows data to be sent more than once
-	operation_sleep_notimer();
-}
 
 uint32_t dumb_divide(uint32_t nu, uint32_t de) {
 // Returns quotient of nu/de
@@ -1266,16 +1264,10 @@ static void operation_init(void){
 
 
 	// HRV
+	hrv_light_reset();
 	mbus_remote_register_write(HRV_ADDR,0x00,6); // HRV_TOP_CONV_RATIO(0~15 >> 9x~23x); default: 14
-	mbus_remote_register_write(HRV_ADDR,0x01,
-		 ( (0  << 5)  // HRV_CNT_CNT_IRQ (default: 0)
-		   | (0  << 4)  // HRV_CNT_CNT_ENABLE (default: 0)
-		   | (2  << 2)  // LC_CLK_DIV (default: 2)
-		   | (1)        // LC_CLK_RING (default: 1)
-		   ));
 	mbus_remote_register_write(HRV_ADDR,0x03,0xFFFFFF); // HRV_CNT_CNT_THRESHOLD (default: 0xFFFFFF) 
 	mbus_remote_register_write(HRV_ADDR,0x04,0x001000); // HRV_CNT_IRQ_PACKET (default: 0x001400) 
-	hrv_light_reset();
 	hrv_light_count = 0;
 
     // Initialize other global variables
@@ -1290,6 +1282,7 @@ static void operation_init(void){
 	wakeup_data = 0;
 	set_sns_exec_count = 0; // specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
 	RADIO_PACKET_DELAY = 2500;
+	radio_packet_count = 0;
 	
 	astack_detection_mode = 0;
 	adxl_enabled = 0;
@@ -1451,14 +1444,14 @@ static void operation_sns_run(void){
 				// Prepare for radio tx
 				radio_power_on();
 				if (adxl_motion_detected || hrv_light_detected){
-					send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), (0xB00000| (read_data_batadc<<12)) | (adxl_motion_trigger_count<<8) | (hrv_light_detected<<4) | adxl_motion_detected, 0xD00000 | (0xFFFFF & read_data_temp));
+					send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), (0xB00000| (read_data_batadc<<12)) | (adxl_enabled<<8) | (hrv_light_count_enabled<<9) | (hrv_light_detected<<4) | adxl_motion_detected, (0xF&radio_packet_count)<<20 | 0xD0000 | (0xFFFF & read_data_temp));
 			#ifdef DEBUG_MBUS_MSG
 				    radio_power_on();
-					send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), hrv_light_count_prev, hrv_light_count);
+					send_radio_data_mrr(1, 0xFD0000 | (*REG_CHIP_ID & 0xFFFF), hrv_light_count_prev, (0xF&radio_packet_count)<<20 | hrv_light_count);
 			#endif
 				}else{
 					// Check-in message
-					send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), (0xB00000| (read_data_batadc<<12)), 0xD00000 | (0xFFFFF & read_data_temp));
+					send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), (0xB00000| (read_data_batadc<<12)), (0xF&radio_packet_count)<<20 | 0xD0000 | (0xFFFF & read_data_temp));
 				}
                 
                 // Reset Check-in message count
@@ -1487,7 +1480,7 @@ static void operation_sns_run(void){
 					// Prepare for radio tx
 					radio_power_on();
 					// Send some signal
-					send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xABC000, 0);
+					send_radio_data_mrr(1, 0xFD0000 | (*REG_CHIP_ID & 0xFFFF), 0xABC000,(0xF&radio_packet_count)<<20);
 					set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 
 				}else{	
@@ -1536,13 +1529,18 @@ static void operation_goc_trigger_init(void){
 	sns_running = 0;
 	stack_state = STK_IDLE;
 	
-	if (adxl_enabled) ADXL362_stop();
-	delay(MBUS_DELAY*10);
-	*REG_CPS = 0;
+	if (adxl_enabled) {
+		ADXL362_stop();
+		delay(MBUS_DELAY*10);
+		*REG_CPS = 0;
+		delay(MBUS_DELAY*200);
+	}
 
 	radio_power_off();
 	temp_sensor_power_off();
 	sns_ldo_power_off();
+
+	radio_packet_count = 0;
 }
 
 static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_timer_val, uint32_t radio_tx_data0, uint32_t radio_tx_data1){
@@ -1554,7 +1552,7 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
 		exec_count_irq++;
 
 		// radio
-		send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), radio_tx_data0, radio_tx_data1);
+		send_radio_data_mrr(1, 0xFD0000 | (*REG_CHIP_ID & 0xFFFF), radio_tx_data0, radio_tx_data1);
 		// set timer
 		set_wakeup_timer (wakeup_timer_val, 0x1, 0x1);
 		// go to sleep and wake up with same condition
@@ -1563,7 +1561,7 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
 	}else{
 		exec_count_irq = 0;
 		// radio
-		send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xFAF000,0);	
+		send_radio_data_mrr(1,0xFD0000 | (*REG_CHIP_ID & 0xFFFF), 0xFAF000, (0xF&radio_packet_count)<<20);	
 		// Go to sleep without timer
 		operation_sleep_notimer();
 	}
@@ -1981,9 +1979,14 @@ int main(){
 		astack_detection_mode = 0;
 
 		// Stop ADXL
-		if (adxl_enabled) ADXL362_stop();
-		delay(MBUS_DELAY*10);
-		*REG_CPS = 0;
+		if (adxl_enabled){
+			ADXL362_stop();
+			delay(MBUS_DELAY*10);
+			*REG_CPS = 0;
+		}
+
+		// Stop light counting
+		hrv_light_reset();
 
 		// Prepare radio TX
 		radio_power_on();
@@ -1994,7 +1997,7 @@ int main(){
 				// Read latest PMU ADC measurement
 				pmu_adc_read_latest();
 			}
-			send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF),0xBBB000+read_data_batadc,0xC00000 | (0xFFFFF & exec_count));
+			send_radio_data_mrr(1,0x3D0000 | (*REG_CHIP_ID & 0xFFFF),0xBBB000+read_data_batadc, (0xF&radio_packet_count)<<20 | 0xC0000 | (0xFFFF & exec_count));
 			// set timer
 			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 			// go to sleep and wake up with same condition
@@ -2003,7 +2006,7 @@ int main(){
         }else{
             exec_count_irq = 0;
             // radio
-			send_radio_data_mrr(1,0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xFAF000,0);	
+			send_radio_data_mrr(1,0x3D0000 | (*REG_CHIP_ID & 0xFFFF), 0xFAF000,(0xF&radio_packet_count)<<20);	
             // Go to sleep without timer
             operation_sleep_notimer();
         }
