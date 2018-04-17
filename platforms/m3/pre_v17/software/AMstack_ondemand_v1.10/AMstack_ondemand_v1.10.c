@@ -6,9 +6,7 @@
 //			v1.8: Incorporate HRV light detection & clean up 
 //			v1.9: PMU setting adjustment based on temp
 //			v1.10: Use case update; send radio only when activity detected, check in every n wakeups
-//			FIXME: battery overcharging protection -- possible?
-//			FIXME: number all radio packets
-//			FIXME: verify stopping adxl works with other triggers than 0x33
+//			FIXME: manual override of light detection at low lights
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -89,7 +87,6 @@ volatile uint32_t read_data_temp;
 volatile uint32_t pmu_setting_temp_vals[3] = {0};
 
 volatile uint32_t data_storage_count;
-volatile uint32_t sns_run_ht_mode;
 volatile uint32_t sns_running;
 volatile uint32_t set_sns_exec_count;
 
@@ -1442,13 +1439,14 @@ static void operation_sns_run(void){
 				}
 			}
 
+			pmu_adc_read_latest();
+
 			// Optionally transmit the data
 			// Transmit if: Either motion or light change detected OR
 			// 				Running in motion only mode (no frequent wakeup) OR
 			//				Light detection is running (hence frequent wakeup) and haven't sent out a radio for hrv_exec_checkin times
 			if (radio_tx_option && (adxl_motion_detected || hrv_light_detected || (astack_detection_mode == 0x1) || (hrv_exec_count > hrv_exec_checkin))){
 				// Read latest PMU ADC measurement
-				pmu_adc_read_latest();
 
 				// Prepare for radio tx
 				radio_power_on();
@@ -1485,16 +1483,12 @@ static void operation_sns_run(void){
 				set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
 
 			}else{
-				if (exec_count < SNS_CYCLE_INIT){
-					// Prepare for radio tx
-					radio_power_on();
-					// Send some signal
-					send_radio_data_mrr(1, 0xFD0000 | (*REG_CHIP_ID & 0xFFFF), 0xABC000,(0xF&radio_packet_count)<<20);
-					set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-
-				}else{	
-					set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
-				}
+				// Radio Test mode
+				// Prepare for radio tx
+				radio_power_on();
+				// Send debug signal
+				send_radio_data_mrr(1, 0xFD0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12),(0xF&radio_packet_count)<<20 | 0xA0000 | exec_count & 0xFFFF);
+				set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
 			}
 
 			// Make sure Radio is off
@@ -1686,8 +1680,6 @@ int main(){
         WAKEUP_PERIOD_CONT_INIT = (wakeup_data_field_2 & 0xE);
         radio_tx_option = wakeup_data_field_2 & 0x10;
 
-		sns_run_ht_mode = (wakeup_data_field_2) & 0x1;
-		
 		astack_detection_mode = 0;
 
 		sns_running = 1;
@@ -1953,8 +1945,6 @@ int main(){
         WAKEUP_PERIOD_CONT_INIT = (wakeup_data_field_2 & 0xE);
         radio_tx_option = 1;
 
-		sns_run_ht_mode = 0;
-		
 		astack_detection_mode = (wakeup_data_field_2>>4) & 0x3;
 
 		if (astack_detection_mode & 0x1) ADXL362_enable();
