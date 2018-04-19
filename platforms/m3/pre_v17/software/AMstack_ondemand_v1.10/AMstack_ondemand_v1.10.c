@@ -6,6 +6,7 @@
 //			v1.8: Incorporate HRV light detection & clean up 
 //			v1.9: PMU setting adjustment based on temp
 //			v1.10: Use case update; send radio only when activity detected, check in every n wakeups
+//                  Header increased to 96b
 //			FIXME: manual override of light detection at low lights
 //*******************************************************************
 #include "PREv17.h"
@@ -43,7 +44,7 @@
 #define SPI_TIME 250
 
 // Radio configurations
-#define RADIO_DATA_LENGTH 148
+#define RADIO_DATA_LENGTH 168
 #define WAKEUP_PERIOD_RADIO_INIT 10 // About 2 sec (PRCv17)
 
 #define DATA_STORAGE_SIZE 10 // Need to leave about 500 Bytes for stack --> around 60 words
@@ -847,12 +848,13 @@ static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uin
 	// MRR REG_9: reserved for header
 	// MRR REG_A: reserved for header
 	// MRR REG_B: reserved for header
-	// MRR REG_C: DATA[23:0]
-	// MRR REG_D: DATA[47:24]
-	// MRR REG_E: DATA[71:48]
-    mbus_remote_register_write(MRR_ADDR,0xC,radio_data_0);
-    mbus_remote_register_write(MRR_ADDR,0xD,radio_data_1);
-    mbus_remote_register_write(MRR_ADDR,0xE,radio_data_2);
+	// MRR REG_C: reserved for header
+	// MRR REG_D: DATA[23:0]
+	// MRR REG_E: DATA[47:24]
+	// MRR REG_F: DATA[71:48]
+    mbus_remote_register_write(MRR_ADDR,0xD,radio_data_0);
+    mbus_remote_register_write(MRR_ADDR,0xE,radio_data_1);
+    mbus_remote_register_write(MRR_ADDR,0xF,radio_data_2);
 
     if (!radio_ready){
 		radio_ready = 1;
@@ -1257,7 +1259,8 @@ static void operation_init(void){
 	// Using first 48 bits of data as header
 	mbus_remote_register_write(MRR_ADDR,0x09,0x0);
 	mbus_remote_register_write(MRR_ADDR,0x0A,0x0);
-	mbus_remote_register_write(MRR_ADDR,0x0B,0x7AC800);
+	mbus_remote_register_write(MRR_ADDR,0x0B,0x0);
+	mbus_remote_register_write(MRR_ADDR,0x0C,0x7AC800);
 	mrrv6_r11.MRR_RAD_FSM_TX_H_LEN = 0; //31-31b header (max)
 	mrrv6_r11.MRR_RAD_FSM_TX_D_LEN = RADIO_DATA_LENGTH; //0-skip tx data
 	mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
