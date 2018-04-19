@@ -6,8 +6,8 @@
 //			v1.8: Incorporate HRV light detection & clean up 
 //			v1.9: PMU setting adjustment based on temp
 //			v1.10: Use case update; send radio only when activity detected, check in every n wakeups
-//                  Header increased to 96b
-//			FIXME: manual override of light detection at low lights
+//                 Header increased to 96b
+//				   Different thresholding for low light conditions
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -103,6 +103,8 @@ volatile uint32_t hrv_light_count_enabled;
 volatile uint32_t hrv_light_count_prev;
 volatile uint32_t hrv_light_diff;
 volatile uint32_t hrv_light_threshold_factor;
+volatile uint32_t hrv_low_light_threshold_factor;
+volatile uint32_t hrv_low_light_threshold = 0x200;
 volatile uint32_t hrv_light_detected;
 volatile uint32_t hrv_exec_count = 0;
 volatile uint32_t hrv_exec_checkin = 12;
@@ -844,7 +846,7 @@ static void send_radio_data_mrr_sub1(){
 }
 
 static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uint32_t radio_data_1, uint32_t radio_data_2){
-	// Sends 148 bit packet, of which 72b is actual data
+	// Sends 168 bit packet, of which 72b is actual data
 	// MRR REG_9: reserved for header
 	// MRR REG_A: reserved for header
 	// MRR REG_B: reserved for header
@@ -1301,6 +1303,9 @@ static void operation_init(void){
 	hrv_light_detected = 0;
 	hrv_exec_checkin = 12;
 
+	hrv_low_light_threshold_factor = 1;
+	hrv_low_light_threshold = 0x200;
+
 	adxl_trigger_mute_count = 3;
 	sleep_time_threshold_factor = 1;
 	
@@ -1632,8 +1637,13 @@ int main(){
 			}else{
 				hrv_light_diff = hrv_light_count - hrv_light_count_prev;
 			}
-			if (hrv_light_diff > (hrv_light_count_prev>>hrv_light_threshold_factor)) hrv_light_detected = 1;
-			else hrv_light_detected = 0;
+			if (hrv_light_count_prev < hrv_low_light_threshold){
+				// Low light condition
+				if (hrv_light_diff > (hrv_light_count_prev<<hrv_low_light_threshold_factor)) hrv_light_detected = 1;
+		
+			}else{
+				if (hrv_light_diff > (hrv_light_count_prev>>hrv_light_threshold_factor)) hrv_light_detected = 1;
+			}
 		}
 			
 		// Debug
@@ -2043,6 +2053,13 @@ int main(){
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
+	}else if(wakeup_data_header == 0x3E){
+		// Change Low Light Thresold
+		hrv_low_light_threshold = wakeup_data & 0x00FFFF;
+		hrv_low_light_threshold_factor = wakeup_data_field_2;
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
 
     }else{
 		if (wakeup_data_header != 0){
