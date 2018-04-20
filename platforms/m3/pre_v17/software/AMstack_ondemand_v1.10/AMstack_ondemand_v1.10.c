@@ -19,7 +19,7 @@
 #include "HRVv5.h"
 
 // uncomment this for debug mbus message
-//#define DEBUG_MBUS_MSG
+#define DEBUG_MBUS_MSG
 
 // AM stack 
 #define HRV_ADDR 0x3
@@ -704,6 +704,8 @@ static void radio_power_on(){
 	mrrv6_r00.MRR_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
 	mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
 
+    radio_on = 1;
+
     // Turn on Current Limter
     mrrv6_r00.MRR_CL_EN = 1;  //Enable CL
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
@@ -729,8 +731,6 @@ static void radio_power_on(){
     mrrv6_r11.MRR_RAD_FSM_SLEEP = 0;  // Power on BB
     mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
 	delay(MBUS_DELAY*50); // Freq stab
-
-    radio_on = 1;
 
 }
 
@@ -1310,7 +1310,7 @@ static void operation_init(void){
 	sleep_time_threshold_factor = 1;
 	
 	hrv_light_threshold_factor = 1;
-	adxl_user_threshold = 0x0100; // 0060
+	adxl_user_threshold = 0x060; // rec. 0x60, max 0x7FF
 
     // Go to sleep without timer
     operation_sleep_notimer();
