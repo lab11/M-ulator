@@ -19,7 +19,7 @@
 #include "HRVv5.h"
 
 // uncomment this for debug mbus message
-#define DEBUG_MBUS_MSG
+//#define DEBUG_MBUS_MSG
 
 // AM stack 
 #define HRV_ADDR 0x3
