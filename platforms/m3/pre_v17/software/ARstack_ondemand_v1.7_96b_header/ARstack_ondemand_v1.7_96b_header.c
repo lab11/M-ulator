@@ -42,7 +42,7 @@
 #define	STK_TEMP_READ  0x3
 
 // Radio configurations
-#define RADIO_DATA_LENGTH 148
+#define RADIO_DATA_LENGTH 168
 #define WAKEUP_PERIOD_RADIO_INIT 10 // About 2 sec (PRCv17)
 
 #define DATA_STORAGE_SIZE 400 // Need to leave about 500 Bytes for stack --> around 60 words
@@ -595,6 +595,8 @@ static void radio_power_on(){
 	mrrv6_r00.MRR_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
 	mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
 
+    radio_on = 1;
+
     // Turn on Current Limter
     mrrv6_r00.MRR_CL_EN = 1;  //Enable CL
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
@@ -621,7 +623,6 @@ static void radio_power_on(){
     mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
 	delay(MBUS_DELAY*50); // Freq stab
 
-    radio_on = 1;
 
 }
 

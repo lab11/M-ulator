@@ -599,6 +599,8 @@ static void radio_power_on(){
     mrrv6_r00.MRR_CL_EN = 1;  //Enable CL
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
 
+    radio_on = 1;
+
     // Release timer power-gate
     mrrv6_r04.RO_EN_RO_V1P2 = 1;  //Use V1P2 for TIMER
     mbus_remote_register_write(MRR_ADDR,0x04,mrrv6_r04.as_int);
@@ -621,7 +623,6 @@ static void radio_power_on(){
     mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
 	delay(MBUS_DELAY*50); // Freq stab
 
-    radio_on = 1;
 
 }
 
