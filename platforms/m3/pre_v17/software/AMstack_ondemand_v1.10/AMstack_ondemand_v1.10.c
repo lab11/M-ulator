@@ -209,7 +209,6 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
 //[ 9] = gpio[1]
 //[10] = gpio[2]
 //[11] = gpio[3]
-	// FIXME
     *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
 }
 
@@ -299,6 +298,13 @@ static void ADXL362_stop(){
 	gpio_write_data(0);
 	freeze_gpio_out();
 	adxl_enabled = 0;
+}
+
+static void ADXL362_power_off(){
+	ADXL362_stop();
+	delay(MBUS_DELAY*10);
+	*REG_CPS = 0;
+	delay(MBUS_DELAY*200);
 }
 
 static void operation_spi_init(){
@@ -1018,10 +1024,7 @@ static void operation_sleep_notimer(void){
 	if (hrv_light_count_enabled) hrv_light_reset();
 	
 	if (adxl_enabled){
-		ADXL362_stop();
-		delay(MBUS_DELAY*10);
-		*REG_CPS = 0;
-		delay(MBUS_DELAY*200);
+		ADXL362_power_off();
 	}
 
 	operation_sns_sleep_check();	
@@ -1139,7 +1142,6 @@ static void operation_init(void){
 //    set_halt_until_mbus_rx();
 
     //Enumeration
-	// FIXME
     mbus_enumerate(HRV_ADDR);
 	delay(MBUS_DELAY);
     mbus_enumerate(SNS_ADDR);
@@ -1306,7 +1308,7 @@ static void operation_init(void){
 	hrv_low_light_threshold_factor = 1;
 	hrv_low_light_threshold = 0x200;
 
-	adxl_trigger_mute_count = 3;
+	adxl_trigger_mute_count = 2;
 	sleep_time_threshold_factor = 1;
 	
 	hrv_light_threshold_factor = 1;
@@ -1436,9 +1438,16 @@ static void operation_sns_run(void){
 
 				if (adxl_motion_trigger_count > adxl_trigger_mute_count){
 					// Triggering too much; stop ADXL
-					ADXL362_stop();
-					delay(MBUS_DELAY*10);
-					*REG_CPS = 0;
+					if (adxl_enabled){
+						// Need to reset interrupt
+						operation_spi_init();
+						ADXL362_reg_rd(ADXL362_STATUS);
+						ADXL362_reg_rd(ADXL362_XDATA);
+						ADXL362_reg_rd(ADXL362_YDATA);
+						ADXL362_reg_rd(ADXL362_ZDATA);
+						operation_spi_stop();
+						ADXL362_power_off();
+					}
 				}else{
 					if (adxl_enabled == 0){
 						// Re-enable ADXL
@@ -1446,8 +1455,6 @@ static void operation_sns_run(void){
 					}
 				}
 			}
-
-			pmu_adc_read_latest();
 
 			// Optionally transmit the data
 			// Transmit if: Either motion or light change detected OR
@@ -1541,10 +1548,7 @@ static void operation_goc_trigger_init(void){
 	stack_state = STK_IDLE;
 	
 	if (adxl_enabled) {
-		ADXL362_stop();
-		delay(MBUS_DELAY*10);
-		*REG_CPS = 0;
-		delay(MBUS_DELAY*200);
+		ADXL362_power_off();
 	}
 
 	radio_power_off();
@@ -1992,9 +1996,7 @@ int main(){
 
 		// Stop ADXL
 		if (adxl_enabled){
-			ADXL362_stop();
-			delay(MBUS_DELAY*10);
-			*REG_CPS = 0;
+			ADXL362_power_off();
 		}
 
 		// Stop light counting
