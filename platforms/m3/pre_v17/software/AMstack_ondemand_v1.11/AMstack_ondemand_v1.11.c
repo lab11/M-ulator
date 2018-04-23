@@ -710,8 +710,9 @@ static void radio_power_on(){
 
 	// Set decap to series
 	// FIXME: verify with Li
-	mrrv6_r03.MRR_DCP_S_OW = 1;  //TX_Decap S (forced charge decaps)
 	mrrv6_r03.MRR_DCP_P_OW = 0;  //RX_Decap P 
+	mbus_remote_register_write(MRR_ADDR,3,mrrv6_r03.as_int);
+	mrrv6_r03.MRR_DCP_S_OW = 1;  //TX_Decap S (forced charge decaps)
 	mbus_remote_register_write(MRR_ADDR,3,mrrv6_r03.as_int);
 
 	// Current Limter set-up 
@@ -784,6 +785,7 @@ static void radio_power_off(){
 	if (mrr_set_decap_parallel){
 		// FIXME: verify with Li
 		mrrv6_r03.MRR_DCP_S_OW = 0;  //TX_Decap S (forced charge decaps)
+		mbus_remote_register_write(MRR_ADDR,3,mrrv6_r03.as_int);
 		mrrv6_r03.MRR_DCP_P_OW = 1;  //RX_Decap P 
 		mbus_remote_register_write(MRR_ADDR,3,mrrv6_r03.as_int);
 	}
