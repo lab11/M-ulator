@@ -8,7 +8,7 @@
 //			v1.10: Use case update; send radio only when activity detected, check in every n wakeups
 //                 Header increased to 96b
 //				   Different thresholding for low light conditions
-//			v1.11: Adding hard reset trigger
+//			v1.11: Adding hard reset trigger; adding option to set decap in parallel
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -117,6 +117,7 @@ volatile uint32_t radio_ready;
 volatile uint32_t radio_on;
 volatile uint32_t mrr_freq_hopping;
 volatile uint32_t mrr_cfo_vals[3] = {0};
+volatile uint32_t mrr_set_decap_parallel;
 volatile uint32_t RADIO_PACKET_DELAY;
 volatile uint32_t radio_packet_count;
 
@@ -707,6 +708,12 @@ static void radio_power_on(){
 	// Need to speed up sleep pmu clock
 	//pmu_set_sleep_radio();
 
+	// Set decap to series
+	// FIXME: verify with Li
+	mrrv6_r03.MRR_DCP_S_OW = 1;  //TX_Decap S (forced charge decaps)
+	mrrv6_r03.MRR_DCP_P_OW = 0;  //RX_Decap P 
+	mbus_remote_register_write(MRR_ADDR,3,mrrv6_r03.as_int);
+
 	// Current Limter set-up 
 	mrrv6_r00.MRR_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
 	mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
@@ -772,6 +779,14 @@ static void radio_power_off(){
     // Enable timer power-gate
     mrrv6_r04.RO_EN_RO_V1P2 = 0;  //Use V1P2 for TIMER
     mbus_remote_register_write(MRR_ADDR,0x04,mrrv6_r04.as_int);
+
+	// Set decap to parallel
+	if (mrr_set_decap_parallel){
+		// FIXME: verify with Li
+		mrrv6_r03.MRR_DCP_S_OW = 0;  //TX_Decap S (forced charge decaps)
+		mrrv6_r03.MRR_DCP_P_OW = 1;  //RX_Decap P 
+		mbus_remote_register_write(MRR_ADDR,3,mrrv6_r03.as_int);
+	}
 
     radio_on = 0;
 	radio_ready = 0;
@@ -1189,6 +1204,7 @@ static void operation_init(void){
 
     // MRR Settings --------------------------------------
 
+	mrr_set_decap_parallel = 0;
 	mrrv6_r1F.LC_CLK_RING = 0x3;  // ~ 150 kHz
 	mrrv6_r1F.LC_CLK_DIV = 0x3;  // ~ 150 kHz
 	mbus_remote_register_write(MRR_ADDR,0x1F,mrrv6_r1F.as_int);
@@ -1953,6 +1969,12 @@ int main(){
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
+	}else if(wakeup_data_header == 0x2D){
+		mrr_set_decap_parallel = wakeup_data & 0xF;
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+		
     }else if(wakeup_data_header == 0x32){
 		// Run temp measurement routine with desired wakeup period and ADXL running in the background
         // wakeup_data[15:0] is the user-specified period in seconds
