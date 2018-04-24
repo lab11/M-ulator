@@ -76,6 +76,7 @@ volatile uint32_t pmu_sar_conv_ratio_val;
 volatile uint32_t read_data_batadc;
 volatile uint32_t sleep_time_prev;
 volatile uint32_t sleep_time_threshold_factor;
+volatile uint32_t wakeup_period_calc_factor;
 
 volatile uint32_t WAKEUP_PERIOD_CONT_USER; 
 volatile uint32_t WAKEUP_PERIOD_CONT; 
@@ -1118,7 +1119,7 @@ static void measure_wakeup_period(void){
 
    	config_timerwd(TIMERWD_VAL);
 
-	WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*8, wakeup_period_count);
+	WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*wakeup_period_calc_factor, wakeup_period_count);
 
 	// Limitation of PRCv17
     if (WAKEUP_PERIOD_CONT > 0x7FFF){
@@ -1333,6 +1334,8 @@ static void operation_init(void){
 	hrv_light_threshold_factor = 1;
 	adxl_user_threshold = 0x060; // rec. 0x60, max 0x7FF
 
+	wakeup_period_calc_factor = 10;
+
     // Go to sleep without timer
     operation_sleep_notimer();
 }
@@ -1521,7 +1524,7 @@ static void operation_sns_run(void){
 				// Prepare for radio tx
 				radio_power_on();
 				// Send debug signal
-				send_radio_data_mrr(1, 0xFD0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12),(0xF&radio_packet_count)<<20 | 0xA0000 | exec_count & 0xFFFF);
+				send_radio_data_mrr(1, 0x4D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12),(0xF&radio_packet_count)<<20 | 0xA0000 | exec_count & 0xFFFF);
 				set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
 			}
 
@@ -1823,6 +1826,10 @@ int main(){
 
 		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xBBB000 | read_data_batadc, exec_count_irq);
 
+	}else if(wakeup_data_header == 0x16){
+		wakeup_period_calc_factor = wakeup_data & 0xFFFFFF;
+		// Go to sleep without timer
+		operation_sleep_notimer();
 
 	}else if(wakeup_data_header == 0x17){
 		// Set parking lot threshold
@@ -2036,7 +2043,7 @@ int main(){
 				// Read latest PMU ADC measurement
 				pmu_adc_read_latest();
 			}
-			send_radio_data_mrr(1,0x3D0000 | (*REG_CHIP_ID & 0xFFFF),0xBBB000+read_data_batadc, (0xF&radio_packet_count)<<20 | 0xC0000 | (0xFFFF & exec_count));
+			send_radio_data_mrr(1,0x3D0000 | (*REG_CHIP_ID & 0xFFFF),0xBBB000+read_data_batadc, (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & exec_count));
 			// set timer
 			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 			// go to sleep and wake up with same condition
@@ -2045,7 +2052,7 @@ int main(){
         }else{
             exec_count_irq = 0;
             // radio
-			send_radio_data_mrr(1,0x3D0000 | (*REG_CHIP_ID & 0xFFFF), 0xFAF000,(0xF&radio_packet_count)<<20);	
+			send_radio_data_mrr(1,0x3D0000 | (*REG_CHIP_ID & 0xFFFF),0xBBB000+read_data_batadc, (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & exec_count));
             // Go to sleep without timer
             operation_sleep_notimer();
         }
