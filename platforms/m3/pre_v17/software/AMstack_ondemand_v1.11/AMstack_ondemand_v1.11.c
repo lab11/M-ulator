@@ -1151,7 +1151,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     stack_state = STK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEE1;
+    enumerated = 0xDEADBE11;
     exec_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_3P0_VAL = 0x62;
@@ -1207,7 +1207,7 @@ static void operation_init(void){
 
     // MRR Settings --------------------------------------
 
-	mrr_set_decap_parallel = 0;
+	mrr_set_decap_parallel = 0xF;
 	mrrv6_r1F.LC_CLK_RING = 0x3;  // ~ 150 kHz
 	mrrv6_r1F.LC_CLK_DIV = 0x3;  // ~ 150 kHz
 	mbus_remote_register_write(MRR_ADDR,0x1F,mrrv6_r1F.as_int);
@@ -1638,7 +1638,7 @@ int main(){
 	#endif
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEE1){
+    if (enumerated != 0xDEADBE11){
         operation_init();
     }
 
