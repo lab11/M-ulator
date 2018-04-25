@@ -316,8 +316,6 @@ static void ADXL362_stop(){
 }
 
 static void ADXL362_power_off(){
-	ADXL362_init();
-	delay(MBUS_DELAY*2);
 	ADXL362_stop();
 	delay(MBUS_DELAY*10);
 	*REG_CPS = 0;
