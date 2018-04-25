@@ -294,6 +294,17 @@ static void ADXL362_enable(){
 }
 
 static void ADXL362_stop(){
+	operation_spi_init();
+	delay(MBUS_DELAY);
+
+	// Put in Standby Mode
+	ADXL362_reg_wr(ADXL362_POWER_CTL,0x0);
+
+	// Soft Reset
+	ADXL362_reg_wr(ADXL362_SOFT_RESET,0x52);
+  
+	operation_spi_stop();
+
 	config_gpio_posedge_wirq(0x0);
 	*NVIC_ISER = 0<<IRQ_WAKEUP;
 	unfreeze_gpio_out();
@@ -1465,12 +1476,6 @@ static void operation_sns_run(void){
 					// Triggering too much; stop ADXL
 					if (adxl_enabled){
 						// Need to reset interrupt
-						operation_spi_init();
-						ADXL362_reg_rd(ADXL362_STATUS);
-						ADXL362_reg_rd(ADXL362_XDATA);
-						ADXL362_reg_rd(ADXL362_YDATA);
-						ADXL362_reg_rd(ADXL362_ZDATA);
-						operation_spi_stop();
 						ADXL362_power_off();
 					}
 				}else{
