@@ -10,6 +10,7 @@
 //				   Different thresholding for low light conditions
 //			v1.11: Adding hard reset trigger; adding option to set decap in parallel
 //			v1.12: Fixing high current issue when disabling ADXL after false trigger
+//				   Making freq hopping configurable, only need the min cap setting now
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -118,7 +119,7 @@ volatile uint32_t radio_tx_numdata;
 volatile uint32_t radio_ready;
 volatile uint32_t radio_on;
 volatile uint32_t mrr_freq_hopping;
-volatile uint32_t mrr_cfo_vals[3] = {0};
+volatile uint32_t mrr_cfo_val_min;
 volatile uint32_t mrr_set_decap_parallel;
 volatile uint32_t RADIO_PACKET_DELAY;
 volatile uint32_t radio_packet_count;
@@ -914,13 +915,24 @@ static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uin
     }
 
 	uint32_t count = 0;
+	uint32_t mrr_cfo_val = 0;
 	uint32_t num_packets = 1;
-	if (mrr_freq_hopping) num_packets = 3;
+	if (mrr_freq_hopping) num_packets = mrr_freq_hopping;
 	
 	while (count < num_packets){
-	
-		mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = mrr_cfo_vals[count]; 
-		mrrv6_r01.MRR_TRX_CAP_ANTN_TUNE = mrr_cfo_vals[count];
+		mrr_cfo_val = mrr_cfo_val_min;
+		uint32_t i;
+		for(i=0; i<count;i++){
+			mrr_cfo_val = (mrr_cfo_val << 1) | 0x1;
+		}
+		mrr_cfo_val = mrr_cfo_val & 0x3FFF; // 14 bits
+
+		#ifdef DEBUG_MBUS_MSG
+		mbus_write_message32(0xCE, mrr_cfo_val);
+		#endif
+
+		mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = mrr_cfo_val; 
+		mrrv6_r01.MRR_TRX_CAP_ANTN_TUNE = mrr_cfo_val;
 		mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
 		mbus_remote_register_write(MRR_ADDR,0x01,mrrv6_r01.as_int);
 		send_radio_data_mrr_sub1();
@@ -1227,16 +1239,9 @@ static void operation_init(void){
 	//mrr_configure_pulse_width_short();
 	mrr_configure_pulse_width_long();
 
-	mrr_freq_hopping = 1;
+	mrr_freq_hopping = 3;
 
-	mrr_cfo_vals[0] = 0x0001;
-	mrr_cfo_vals[1] = 0x0003;
-	mrr_cfo_vals[2] = 0x0000;
-
-	//mrr_cfo_vals[0] = 0x01FF;
-	//mrr_cfo_vals[1] = 0x03FF;
-	//mrr_cfo_vals[2] = 0x00FF;
-
+	mrr_cfo_val_min = 0x0000;
 
 	// RO setup (SFO)
 	// Adjust Diffusion R
@@ -1251,11 +1256,11 @@ static void operation_init(void){
 	mbus_remote_register_write(MRR_ADDR,0x07,mrrv6_r07.as_int);
 
 	// TX Setup Carrier Freq
-	mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = mrr_cfo_vals[0];  //ANT CAP 14b unary 830.5 MHz
+	mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = mrr_cfo_val_min;  //ANT CAP 14b unary 830.5 MHz
 	//mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = 0x00FF;  //ANT CAP 14b unary 813.8 MHz
 	//mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = 0x0FFF;  //ANT CAP 14b unary 805.5 MHz
 	mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
-	mrrv6_r01.MRR_TRX_CAP_ANTN_TUNE = mrr_cfo_vals[0]; //ANT CAP 14b unary 830.5 MHz
+	mrrv6_r01.MRR_TRX_CAP_ANTN_TUNE = mrr_cfo_val_min; //ANT CAP 14b unary 830.5 MHz
 	//mrrv6_r01.MRR_TRX_CAP_ANTN_TUNE = 0x00FF; //ANT CAP 14b unary 813.8 MHz
 	//mrrv6_r01.MRR_TRX_CAP_ANTN_TUNE = 0x0FFF;  //ANT CAP 14b unary 805.5 MHz
 	mbus_remote_register_write(MRR_ADDR,0x01,mrrv6_r01.as_int);
@@ -1908,11 +1913,7 @@ int main(){
 		// wakeup_data[23:16]: Turn on/off freq hopping 
 		mrr_freq_hopping = wakeup_data_field_2;
 
-		mrr_cfo_vals[0] = wakeup_data & 0x3FFF;
-		mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = mrr_cfo_vals[0]; 
-		mrrv6_r01.MRR_TRX_CAP_ANTN_TUNE = mrr_cfo_vals[0];
-		mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
-		mbus_remote_register_write(MRR_ADDR,0x01,mrrv6_r01.as_int);
+		mrr_cfo_val_min = wakeup_data & 0x0FFF;
 
 		// Go to sleep without timer
 		operation_sleep_notimer();
@@ -1959,18 +1960,6 @@ int main(){
 		// wakeup_data[23:20] == 2: High temp (>45C)
 
 		pmu_setting_temp_vals[wakeup_data_field_2>>4] = wakeup_data & 0xFFFFF;
-
-		// Go to sleep without timer
-		operation_sleep_notimer();
-
-	}else if(wakeup_data_header == 0x2A){
-		mrr_cfo_vals[1] = wakeup_data & 0x3FFF;
-
-		// Go to sleep without timer
-		operation_sleep_notimer();
-
-	}else if(wakeup_data_header == 0x2B){
-		mrr_cfo_vals[2] = wakeup_data & 0x3FFF;
 
 		// Go to sleep without timer
 		operation_sleep_notimer();
