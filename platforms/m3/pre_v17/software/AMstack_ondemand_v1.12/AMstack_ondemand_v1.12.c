@@ -1351,7 +1351,7 @@ static void operation_init(void){
 	hrv_light_threshold_factor = 1;
 	adxl_user_threshold = 0x060; // rec. 0x60, max 0x7FF
 
-	wakeup_period_calc_factor = 10;
+	wakeup_period_calc_factor = 16;
 
     // Go to sleep without timer
     operation_sleep_notimer();
