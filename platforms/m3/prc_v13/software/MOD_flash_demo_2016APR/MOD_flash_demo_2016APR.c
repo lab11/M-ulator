@@ -117,14 +117,17 @@ void MF_initialization (void) {
 
     // FLS
     mbus_write_message32 ((FLS_ADDR << 4), (0x19 << 24) | 0x3C4703); // Voltage Clamper Tuning (Same as in FLP)
-    mbus_write_message32 ((FLS_ADDR << 4), (0x02 << 24) | 0x000100); // Terase (may need to be longer)
+    mbus_write_message32 ((FLS_ADDR << 4), (0x00 << 24) | 0x041209); // Reg0 (Tprog = 0x009)
+    mbus_write_message32 ((FLS_ADDR << 4), (0x01 << 24) | 0x020063); // Reg1 (Tread = 0x20)
+    mbus_write_message32 ((FLS_ADDR << 4), (0x02 << 24) | 0x000100); // Terase
     mbus_write_message32 ((FLS_ADDR << 4), (0x04 << 24) | 0x000020); // Tcyc_prog
     mbus_write_message32 ((FLS_ADDR << 4), (0x0F << 24) | 0x001007); // IRQ Reply Address
     
     // FLP
     mbus_write_message32 ((FLP_ADDR << 4), (0x19 << 24) | 0x000F03); // Voltage Clamper Tuning
+    mbus_write_message32 ((FLP_ADDR << 4), (0x01 << 24) | 0x010009); // Tread becomes half to get the same read speed
     mbus_write_message32 ((FLP_ADDR << 4), (0x02 << 24) | 0x000100); // Terase
-    mbus_write_message32 ((FLP_ADDR << 4), (0x04 << 24) | 0x000020); // Tcyc_prog
+    mbus_write_message32 ((FLP_ADDR << 4), (0x04 << 24) | 0x00000B); // Tcyc_prog (overall program speed is 2x faster than FLS, to make same bps)
     mbus_write_message32 ((FLP_ADDR << 4), (0x0F << 24) | 0x001007); // IRQ Reply Address
 }
 
@@ -162,6 +165,17 @@ void MF_fail (uint32_t id, uint32_t data0, uint32_t data1, uint32_t data2, uint3
     mbus_sleep_all();
 }
 
+void MF_sleep_all (void) {
+    // Turn off VC and Flash
+    MF_mbus_msg32_irq_7 (0xBB, (FLS_ADDR << 4), ((0x11 << 24) | 0x00003D));
+    MF_mbus_msg32_irq_7 (0xBB, (FLP_ADDR << 4), ((0x11 << 24) | 0x00002D));
+    // Send Sleep Msg
+    mbus_write_message32 (0xEE, 0x0EA7F00D);
+    delay(MBUS_DELAY);
+    mbus_sleep_all();
+    while(1) { asm("nop;"); }
+}
+
 void MF_flash_operation (uint32_t op_id) {
     
     uint32_t idx_i, idx_j, idx_k;
@@ -190,12 +204,13 @@ void MF_flash_operation (uint32_t op_id) {
     uint32_t do_use_flash_fls = do_fls & (do_idle | do_erase | do_prog | do_read | do_all1_chk | do_all0_chk);
     uint32_t do_use_flash_flp = do_flp & (do_idle | do_erase | do_prog | do_read | do_all1_chk | do_all0_chk);
 
-    if      (do_fls) {targ_addr = FLS_ADDR; num_shift = 9; num_pages = 256; prog_cmd = 0x0001FFE5;} // Normal Program
+    //if      (do_fls) {targ_addr = FLS_ADDR; num_shift = 9; num_pages = 256; prog_cmd = 0x0001FFE5;} // Normal Program
+    if      (do_fls) {targ_addr = FLS_ADDR; num_shift = 9; num_pages = 256; prog_cmd = 0x0001FFE7;} // Fast Program
     else if (do_flp) {targ_addr = FLP_ADDR; num_shift = 8; num_pages = 128; prog_cmd = 0x0001FFE7;} // Fast Program
     else             {targ_addr = 0; num_shift = 0; num_pages = 0; prog_cmd = 0;}
 
     // Turn on VC and Flash
-    if (do_use_flash_fls) MF_mbus_msg32_irq_7 (0xB5, (FLS_ADDR << 4), ((0x11 << 24) | 0x00003F));
+    if (do_use_flash_fls) MF_mbus_msg32_irq_7 (0xB5, (FLS_ADDR << 4), ((0x11 << 24) | 0x00001F)); // Do not turn on VC clamp
     if (do_use_flash_flp) MF_mbus_msg32_irq_7 (0xB5, (FLP_ADDR << 4), ((0x11 << 24) | 0x00002F));
 
     // Test Cases: FSM Power Measurement
@@ -210,13 +225,14 @@ void MF_flash_operation (uint32_t op_id) {
     }
     // Test Cases: Flash Erase Power Measurement
     else if (do_erase) {
-        for (idx_i=0; idx_i<128; idx_i++){
+        for (idx_i=0; idx_i<1024; idx_i++){
             page_addr = (idx_i << num_shift);
             mbus_write_message32 ((targ_addr << 4), ((0x09 << 24) | page_addr)); // Set FLSH_START_ADDR
             set_halt_until_mbus_rx();
             mbus_write_message32 ((targ_addr << 4), ((0x07 << 24) | 0x000029)); // Page Erase
             set_halt_until_mbus_tx();
         }
+        MF_sleep_all();
     }
     // Test Cases: Flash Program Power Measurement
     else if (do_prog) {
@@ -227,6 +243,7 @@ void MF_flash_operation (uint32_t op_id) {
             mbus_write_message32 ((targ_addr << 4), ((0x07 << 24) | prog_cmd)); // SRAM -> Flash (8kB)
             set_halt_until_mbus_tx();
         }
+        MF_sleep_all();
     }
     // Test Cases: Flash Read Power Measurement
     else if (do_read) {
@@ -237,6 +254,7 @@ void MF_flash_operation (uint32_t op_id) {
             mbus_write_message32 ((targ_addr << 4), ((0x07 << 24) | 0x01FFE3)); // Flash -> SRAM (8kB)
             set_halt_until_mbus_tx();
         }
+        MF_sleep_all();
     }
     // Test Cases: All 1 Check / All 0 Check
     else if (do_all1_chk | do_all0_chk) {
@@ -270,6 +288,7 @@ void MF_flash_operation (uint32_t op_id) {
                         MF_fail (debug_id, idx_i, idx_j, idx_k, mem_rsvd[idx_k]);
             }
         }
+        MF_sleep_all();
     }
     // Test Cases: Write All 0 into SRAM / Write All 1 into SRAM
     else if (do_all1_sram | do_all0_sram) {
@@ -293,15 +312,8 @@ void MF_flash_operation (uint32_t op_id) {
     }
     // Test Cases: Go to Sleep
     else if (do_sleep) {
-        MF_mbus_msg32_irq_7 (0xBB, (FLS_ADDR << 4), ((0x11 << 24) | 0x00003D));
-        MF_mbus_msg32_irq_7 (0xBB, (FLP_ADDR << 4), ((0x11 << 24) | 0x00002D));
-        mbus_sleep_all();
-        while(1) { asm("nop;"); }
+        MF_sleep_all();
     }
-
-    // Turn off VC and Flash
-    if (do_use_flash_fls) MF_mbus_msg32_irq_7 (0xBB, (FLS_ADDR << 4), ((0x11 << 24) | 0x00003D));
-    if (do_use_flash_flp) MF_mbus_msg32_irq_7 (0xBB, (FLP_ADDR << 4), ((0x11 << 24) | 0x00002D));
 }
 
 
@@ -310,8 +322,9 @@ void MF_flash_operation (uint32_t op_id) {
 //********************************************************************
 
 int main() {
-    // Initialize IRQ
+    // Initialize IRQ & Disable Watch-dog
     disable_all_irq();
+    disable_timerwd();
 
     if (*REG_CHIP_ID != 0xBEEF) {
         // Reset Sleep Timer
@@ -332,9 +345,6 @@ int main() {
     delay(MBUS_DELAY);
 
     MF_flash_operation (*REG0);
-
-    mbus_write_message32 (0xE2, 0x0EA7F00D);
-    delay(MBUS_DELAY);
 
     while(1) { asm("nop;"); }
     return 1;
