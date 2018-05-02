@@ -935,7 +935,7 @@ static void operation_sns_run(void){
 			rdc_osc_disable();
 			rdc_assert_pg();
 
-			RDC_ADDR = 7;
+			RDC_ADDR = 8;
 			Pstack_state = PSTK_RDC3_RUN;
 
 			mbus_write_message32(0xCC, exec_count);
@@ -1003,7 +1003,7 @@ static void operation_sns_run(void){
 			rdc_osc_disable();
 			rdc_assert_pg();
 
-			RDC_ADDR = 7;
+			RDC_ADDR = 9;
 			Pstack_state = PSTK_RDC4_RUN;
 
 			mbus_write_message32(0xCC, exec_count);
