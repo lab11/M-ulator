@@ -110,7 +110,7 @@ volatile uint32_t hrv_light_count_prev;
 volatile uint32_t hrv_light_diff;
 volatile uint32_t hrv_light_threshold_factor;
 volatile uint32_t hrv_low_light_threshold_factor;
-volatile uint32_t hrv_low_light_threshold = 0x200;
+volatile uint32_t hrv_low_light_threshold = 0x100;
 volatile uint32_t hrv_light_detected;
 volatile uint32_t hrv_exec_count = 0;
 volatile uint32_t hrv_exec_checkin = 12;
@@ -1345,7 +1345,7 @@ static void operation_init(void){
 	hrv_exec_checkin = 12;
 
 	hrv_low_light_threshold_factor = 1;
-	hrv_low_light_threshold = 0x200;
+	hrv_low_light_threshold = 0x100;
 
 	adxl_trigger_mute_count = 2;
 	sleep_time_threshold_factor = 1;
@@ -1602,7 +1602,7 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
 		exec_count_irq++;
 
 		// radio
-		send_radio_data_mrr(1, 0xFD0000 | (*REG_CHIP_ID & 0xFFFF), radio_tx_data0, radio_tx_data1);
+		send_radio_data_mrr(1, 0xFD0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000 | (0xFFFFF & radio_tx_data0), (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & radio_tx_data1));
 		// set timer
 		set_wakeup_timer (wakeup_timer_val, 0x1, 0x1);
 		// go to sleep and wake up with same condition
@@ -1611,7 +1611,7 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
 	}else{
 		exec_count_irq = 0;
 		// radio
-		send_radio_data_mrr(1,0xFD0000 | (*REG_CHIP_ID & 0xFFFF), 0xFAF000, (0xF&radio_packet_count)<<20);	
+		send_radio_data_mrr(1,0xFD0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000, (0xF&radio_packet_count)<<20 | 0xA0000);	
 		// Go to sleep without timer
 		operation_sleep_notimer();
 	}
@@ -1837,7 +1837,7 @@ int main(){
 			}
 		}
 
-		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xBBB000 | read_data_batadc, exec_count_irq);
+		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xB00000| (read_data_batadc<<12), exec_count_irq);
 
 	}else if(wakeup_data_header == 0x16){
 		wakeup_period_calc_factor = wakeup_data & 0xFFFFFF;
@@ -1859,7 +1859,7 @@ int main(){
 			PMU_ADC_3P0_VAL = wakeup_data_field_2;
 		}
 
-		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xABC000, PMU_ADC_3P0_VAL);
+		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xB00000| (read_data_batadc<<12), PMU_ADC_3P0_VAL);
 
 	}else if(wakeup_data_header == 0x18){
 		// Manually override the SAR ratio
@@ -1880,7 +1880,7 @@ int main(){
 			pmu_sar_conv_ratio_val = *((volatile uint32_t *) REG0) & 0x7F;
 		}
 
-		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xABC000, pmu_sar_conv_ratio_val);
+		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xB00000| (read_data_batadc<<12), pmu_sar_conv_ratio_val);
 
 	}else if(wakeup_data_header == 0x20){
         // wakeup_data[7:0] is the # of transmissions
@@ -1896,7 +1896,7 @@ int main(){
 			*REG_CHIP_ID = chip_id_user;
 		}
 
-		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xCC0000, chip_id_user);
+		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xB00000| (read_data_batadc<<12), chip_id_user);
 
 
 	}else if(wakeup_data_header == 0x21){
