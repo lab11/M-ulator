@@ -1178,7 +1178,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     stack_state = STK_IDLE; 	//0x0;
-    enumerated = 0xDEADBE13;
+    enumerated = 0xDEADBE14;
     exec_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_3P0_VAL = 0x62;
@@ -1652,7 +1652,7 @@ int main(){
 	#endif
 
     // Initialization sequence
-    if (enumerated != 0xDEADBE13){
+    if (enumerated != 0xDEADBE14){
         operation_init();
     }
 
