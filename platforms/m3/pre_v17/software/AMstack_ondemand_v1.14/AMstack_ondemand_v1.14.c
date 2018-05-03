@@ -1343,6 +1343,8 @@ static void operation_init(void){
 	RADIO_PACKET_DELAY = 2500;
 	radio_packet_count = 0;
 	
+	gpio_interrupt_flag = 0;
+
 	astack_detection_mode = 0;
 	adxl_enabled = 0;
 	adxl_motion_detected = 0;
@@ -1477,7 +1479,10 @@ static void operation_sns_run(void){
 		}
 
 	}else if (stack_state == STK_RADIO){
-			
+		
+		// Refresh watchdog	
+    	config_timerwd(TIMERWD_VAL);
+
 		// Check if motion is constantly triggering
 		uint32_t sleep_time_threshold = WAKEUP_PERIOD_CONT>>sleep_time_threshold_factor; // how fast is too fast?
 		if ((WAKEUP_PERIOD_CONT>>5) == 0) sleep_time_threshold = 3;
@@ -2018,6 +2023,7 @@ int main(){
 		radio_tx_count = 0;
 		adxl_motion_trigger_count = 0;
 
+		gpio_interrupt_flag = 0;
 		adxl_motion_detected = 0;
 		hrv_light_detected = 0;
 
