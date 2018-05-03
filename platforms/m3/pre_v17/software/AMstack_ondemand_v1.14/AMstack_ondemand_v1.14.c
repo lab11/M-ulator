@@ -13,7 +13,7 @@
 //				   Making freq hopping configurable, only need the min cap setting now
 //			v1.13: Fixing flag initialization in 0x32 trig, battery field in 0x3D packet
 //				   Changing some default values
-//			v1.14: Trying Loop mode for ADXL
+//			v1.14: Changing how ADXL interrupt is handled in PRE
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -45,6 +45,7 @@
 #define	STK_LDO		0x1
 #define	STK_TEMP_START 0x2
 #define	STK_TEMP_READ  0x3
+#define	STK_RADIO 0x4
 
 // ADXL362 Defines
 #define SPI_TIME 250
@@ -67,11 +68,11 @@
 //********************************************************************
 // "static" limits the variables to this file, giving compiler more freedom
 // "volatile" should only be used for MMIO --> ensures memory storage
-volatile uint32_t irq_history;
 volatile uint32_t enumerated;
 volatile uint32_t wakeup_data;
 volatile uint32_t stack_state;
 volatile uint32_t wfi_timeout_flag;
+volatile uint32_t gpio_interrupt_flag;
 volatile uint32_t exec_count;
 volatile uint32_t meas_count;
 volatile uint32_t exec_count_irq;
@@ -184,6 +185,7 @@ void handler_ext_int_reg0     (void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_reg1     (void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_reg2     (void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_reg3     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_gpio     (void) __attribute__ ((interrupt ("IRQ")));
 
 void handler_ext_int_timer32(void) { // TIMER32
     *NVIC_ICPR = (0x1 << IRQ_TIMER32);
@@ -219,7 +221,11 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
 //[11] = gpio[3]
     *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
 }
-
+void handler_ext_int_gpio(void) { // WAKE-UP
+    *NVIC_ICPR = (0x1 << IRQ_GPIO);
+	adxl_motion_detected = 1;
+	gpio_interrupt_flag = 1;
+}
 
 //***************************************************
 // ADXL362 Functions
@@ -1467,91 +1473,96 @@ static void operation_sns_run(void){
 				data_storage_count++;
 			}
 
-			uint32_t sleep_time_threshold = WAKEUP_PERIOD_CONT>>sleep_time_threshold_factor; // how fast is too fast?
-			if ((WAKEUP_PERIOD_CONT>>5) == 0) sleep_time_threshold = 3;
+			stack_state = STK_RADIO;
+		}
 
-			// Check if motion is constantly triggering
-			if (astack_detection_mode & 0x1){ // motion detection enabled
-				if (sleep_time_prev < sleep_time_threshold){ // woke up fast
-					if (adxl_motion_detected) adxl_motion_trigger_count++;
-				}else{
-					adxl_motion_trigger_count = 0;
-				}
+	}else if (stack_state == STK_RADIO){
+			
+		// Check if motion is constantly triggering
+		uint32_t sleep_time_threshold = WAKEUP_PERIOD_CONT>>sleep_time_threshold_factor; // how fast is too fast?
+		if ((WAKEUP_PERIOD_CONT>>5) == 0) sleep_time_threshold = 3;
 
-				if (adxl_motion_trigger_count > adxl_trigger_mute_count){
-					// Triggering too much; stop ADXL
-					if (adxl_enabled){
-						// Need to reset interrupt
-						ADXL362_power_off();
-					}
-				}else{
-					if (adxl_enabled == 0){
-						// Re-enable ADXL
-						ADXL362_enable();
-					}
-				}
-			}
-
-			// Optionally transmit the data
-			// Transmit if: Either motion or light change detected OR
-			// 				Running in motion only mode (no frequent wakeup) OR
-			//				Light detection is running (hence frequent wakeup) and haven't sent out a radio for hrv_exec_checkin times
-			if (radio_tx_option && (adxl_motion_detected || hrv_light_detected || (astack_detection_mode == 0x1) || (hrv_exec_count > hrv_exec_checkin))){
-				// Read latest PMU ADC measurement
-
-				// Prepare for radio tx
-				radio_power_on();
-				if (adxl_motion_detected || hrv_light_detected){
-					send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12) | (adxl_enabled<<8) | (hrv_light_count_enabled<<9) | (hrv_light_detected<<4) | adxl_motion_detected, (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & read_data_temp));
-			#ifdef DEBUG_MBUS_MSG
-				    radio_power_on();
-					send_radio_data_mrr(1, 0xFD0000 | (*REG_CHIP_ID & 0xFFFF), hrv_light_count_prev, (0xF&radio_packet_count)<<20 | hrv_light_count);
-			#endif
-				}else{
-					// Check-in message
-					send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12) | (adxl_enabled<<8) | (hrv_light_count_enabled<<9), (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & read_data_temp));
-				}
-                
-                // Reset Check-in message count
-                hrv_exec_count = 0;
-			}
-
-
-			// Get ready for sleep
-			if (astack_detection_mode > 0){
-				if (adxl_enabled){
-					// Reset ADXL flag
-					adxl_motion_detected = 0;
-		
-					operation_spi_init();
-					ADXL362_reg_rd(ADXL362_STATUS);
-					ADXL362_reg_rd(ADXL362_XDATA);
-					ADXL362_reg_rd(ADXL362_YDATA);
-					ADXL362_reg_rd(ADXL362_ZDATA);
-					operation_spi_stop();
-				}
-					
-				set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
-
+		if (astack_detection_mode & 0x1){ // motion detection enabled
+			if (sleep_time_prev < sleep_time_threshold){ // woke up fast
+				if (adxl_motion_detected) adxl_motion_trigger_count++;
 			}else{
-				// Radio Test mode
-				// Prepare for radio tx
-				radio_power_on();
-				// Send debug signal
-				send_radio_data_mrr(1, 0x4D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12),(0xF&radio_packet_count)<<20 | 0xA0000 | exec_count & 0xFFFF);
-				set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
+				adxl_motion_trigger_count = 0;
 			}
 
-			// Make sure Radio is off
-			if (radio_on){
-				radio_power_off();
+			if (adxl_motion_trigger_count > adxl_trigger_mute_count){
+				// Triggering too much; stop ADXL
+				if (adxl_enabled){
+					// Need to reset interrupt
+					ADXL362_power_off();
+				}
+			}else{
+				if (adxl_enabled == 0){
+					// Re-enable ADXL
+					ADXL362_enable();
+				}
 			}
+		}
+
+		// Optionally transmit the data
+		// Transmit if: Either motion or light change detected OR
+		// 				Running in motion only mode (no frequent wakeup) OR
+		//				Light detection is running (hence frequent wakeup) and haven't sent out a radio for hrv_exec_checkin times
+		if (radio_tx_option && (adxl_motion_detected || hrv_light_detected || (astack_detection_mode == 0x1) || (hrv_exec_count > hrv_exec_checkin))){
+			// Read latest PMU ADC measurement
+
+			// Prepare for radio tx
+			radio_power_on();
+			if (adxl_motion_detected || hrv_light_detected){
+				send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12) | (adxl_enabled<<8) | (hrv_light_count_enabled<<9) | (hrv_light_detected<<4) | adxl_motion_detected, (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & read_data_temp));
+		#ifdef DEBUG_MBUS_MSG
+				radio_power_on();
+				send_radio_data_mrr(1, 0xFD0000 | (*REG_CHIP_ID & 0xFFFF), hrv_light_count_prev, (0xF&radio_packet_count)<<20 | hrv_light_count);
+		#endif
+			}else{
+				// Check-in message
+				send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12) | (adxl_enabled<<8) | (hrv_light_count_enabled<<9), (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & read_data_temp));
+			}
+			
+			// Reset Check-in message count
+			hrv_exec_count = 0;
+		}
+
+		// Make sure Radio is off
+		if (radio_on){
+			radio_power_off();
+		}
+
+		// Start HRV Light Counter
+		hrv_light_count_prev = hrv_light_count;
+		hrv_light_detected = 0;
+		if (astack_detection_mode & 0x2) hrv_light_start();
+
+		// Get ready for sleep
+		if (astack_detection_mode > 0){
+			if (adxl_enabled){
+				// Reset ADXL flag
+				adxl_motion_detected = 0;
+				gpio_interrupt_flag = 0;
 	
-			// Start HRV Light Counter
-			hrv_light_count_prev = hrv_light_count;
-			hrv_light_detected = 0;
-			if (astack_detection_mode & 0x2) hrv_light_start();
-		
+				operation_spi_init();
+				ADXL362_reg_rd(ADXL362_STATUS);
+				operation_spi_stop();
+			}
+				
+			set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
+
+		}else{
+			// Radio Test mode
+			// Prepare for radio tx
+			radio_power_on();
+			// Send debug signal
+			send_radio_data_mrr(1, 0x4D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000 | (read_data_batadc<<12), ((0xF&radio_packet_count)<<20) | 0xA0000 | (exec_count & 0xFFFF));
+			set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
+		}
+
+		// Double check on ADXL interrupt
+		// Only go to sleep if interrupt didn't trigger again
+		if (gpio_interrupt_flag == 0){
 			if ((set_sns_exec_count != 0) && (exec_count > (50<<set_sns_exec_count))){
 				// No more measurement required
 				// Make sure temp sensor is off
@@ -1560,6 +1571,8 @@ static void operation_sns_run(void){
 			}else{
 				operation_sleep();
 			}
+		}else{
+			// Repeat this state again
 		}
 
     }else{
@@ -1626,7 +1639,7 @@ int main(){
     // Only enable relevant interrupts (PRCv17)
 	//enable_reg_irq();
 	//enable_all_irq();
-	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3);
+	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3) | (1 << IRQ_GPIO);
   
     // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
     config_timerwd(TIMERWD_VAL);
