@@ -254,31 +254,32 @@ static void ADXL362_reg_rd (uint8_t reg_id){
 }
 
 static void ADXL362_init(){
-  // Soft Reset
-  ADXL362_reg_wr(ADXL362_SOFT_RESET,0x52);
-  
-  // Check if Alive
-  ADXL362_reg_rd(ADXL362_DEVID_AD);
-  ADXL362_reg_rd(ADXL362_DEVID_MST);
-  ADXL362_reg_rd(ADXL362_PARTID);
-  ADXL362_reg_rd(ADXL362_REVID);
+	// Soft Reset
+	ADXL362_reg_wr(ADXL362_SOFT_RESET,0x52);
 
-  // Set Interrupt1 Awake Bit [4]
-  ADXL362_reg_wr(ADXL362_INTMAP1,0x10);
+	// Check if Alive
+	ADXL362_reg_rd(ADXL362_DEVID_AD);
+	ADXL362_reg_rd(ADXL362_DEVID_MST);
+	ADXL362_reg_rd(ADXL362_PARTID);
+	ADXL362_reg_rd(ADXL362_REVID);
 
-  // Set Activity Threshold
-  ADXL362_reg_wr(ADXL362_THRESH_ACT_L,adxl_user_threshold & 0xFF);
-  ADXL362_reg_wr(ADXL362_THRESH_ACT_H,(adxl_user_threshold>>8) & 0xFF);
+	// Set Interrupt1 Awake Bit [4]
+	ADXL362_reg_wr(ADXL362_INTMAP1,0x10);
 
-  // Set Actvity/Inactivity Control
-  ADXL362_reg_wr(ADXL362_ACT_INACT_CTL,0x3F);
+	// Set Activity Threshold
+	ADXL362_reg_wr(ADXL362_THRESH_ACT_L,adxl_user_threshold & 0xFF);
+	ADXL362_reg_wr(ADXL362_THRESH_ACT_H,(adxl_user_threshold>>8) & 0xFF);
 
-  // Enter Measurement Mode
-  ADXL362_reg_wr(ADXL362_POWER_CTL,0x0A);
+	// Set Actvity/Inactivity Control
+	ADXL362_reg_wr(ADXL362_ACT_INACT_CTL,0x3F);
 
-  // Check Status (Clears first false positive)
-  delay(5000);
-  ADXL362_reg_rd(ADXL362_STATUS);
+	// Enter Measurement Mode
+	ADXL362_reg_wr(ADXL362_POWER_CTL,0x0A);
+
+	// Check Status (Clears first false positive)
+	delay(5000);
+	gpio_interrupt_flag = 0;
+	ADXL362_reg_rd(ADXL362_STATUS);
 }
 
 static void ADXL362_enable(){
