@@ -13,6 +13,7 @@
 //				   Making freq hopping configurable, only need the min cap setting now
 //			v1.13: Fixing flag initialization in 0x32 trig, battery field in 0x3D packet
 //				   Changing some default values
+//					v1.13 used for MOD demo & delivery May 2018
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
