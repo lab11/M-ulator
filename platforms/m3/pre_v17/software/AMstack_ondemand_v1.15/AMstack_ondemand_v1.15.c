@@ -162,6 +162,7 @@ static void ADXL362_reg_wr (uint8_t reg_id, uint8_t);
 static void ADXL362_reg_rd (uint8_t reg_id);
 static void ADXL362_init(void);
 static void ADXL362_stop(void);
+static void ADXL362_power_off(void);
 static void operation_spi_init(void);
 static void operation_spi_stop(void);
 
@@ -221,153 +222,6 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
     *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
 }
 
-
-//***************************************************
-// ADXL362 Functions
-//***************************************************
-static void ADXL362_reg_wr (uint8_t reg_id, uint8_t reg_data){
-	gpio_write_data((0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
-	// Use Timer32 as timeout counter
-	wfi_timeout_flag = 0;
-	config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
-
-	*SPI_SSPDR = 0x0A;
-	*SPI_SSPDR = reg_id;
-	*SPI_SSPDR = reg_data;
-	*SPI_SSPCR1 = 0x2;
-	while((*SPI_SSPSR>>4)&0x1){}//Spin
-
-	// Turn off Timer32
-	*TIMER32_GO = 0;
-	if (wfi_timeout_flag){
-		mbus_write_message32(0xFA, 0xFAFAFAFA);
-	}
-
-	gpio_write_data((1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
-	*SPI_SSPCR1 = 0x0;
-}
-
-static void ADXL362_reg_rd (uint8_t reg_id){
-	gpio_write_data((0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
-	// Use Timer32 as timeout counter
-	wfi_timeout_flag = 0;
-	config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
-
-	*SPI_SSPDR = 0x0B;
-	*SPI_SSPDR = reg_id;
-	*SPI_SSPDR = 0x00;
-	*SPI_SSPCR1 = 0x2;
-	while((*SPI_SSPSR>>4)&0x1){}//Spin
-
-	// Turn off Timer32
-	*TIMER32_GO = 0;
-	if (wfi_timeout_flag){
-		mbus_write_message32(0xFA, 0xFAFAFAFA);
-	}
-
-	gpio_write_data((1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
-	*SPI_SSPCR1 = 0x0;
-	#ifdef DEBUG_MBUS_MSG
-	mbus_write_message32(0xB1,*SPI_SSPDR);
-	#endif
-}
-
-static void ADXL362_init(){
-	// Soft Reset
-	ADXL362_reg_wr(ADXL362_SOFT_RESET,0x52);
-
-	// Check if Alive
-	ADXL362_reg_rd(ADXL362_DEVID_AD);
-	ADXL362_reg_rd(ADXL362_DEVID_MST);
-	ADXL362_reg_rd(ADXL362_PARTID);
-	ADXL362_reg_rd(ADXL362_REVID);
-
-	// Set Interrupt1 Awake Bit [4]
-	ADXL362_reg_wr(ADXL362_INTMAP1,0x10);
-
-	// Set Activity Threshold
-	ADXL362_reg_wr(ADXL362_THRESH_ACT_L,adxl_user_threshold & 0xFF);
-	ADXL362_reg_wr(ADXL362_THRESH_ACT_H,(adxl_user_threshold>>8) & 0xFF);
-
-	// Set Actvity/Inactivity Control
-	ADXL362_reg_wr(ADXL362_ACT_INACT_CTL,0x03);
-
-	// Enter Measurement Mode
-	ADXL362_reg_wr(ADXL362_POWER_CTL,0x0A);
-
-	// Check Status (Clears first false positive)
-	delay(5000);
-	ADXL362_reg_rd(ADXL362_STATUS);
-}
-
-static void ADXL362_enable(){
-
-	// Initialize Interrupts
-	*NVIC_ISER = 1<<IRQ_WAKEUP;
-
-	operation_spi_init();
-	delay(MBUS_DELAY);
-
-	// Turn PRE power switch on
-	*REG_CPS = 1;
-	delay(MBUS_DELAY*2);
-
-	// Initialize ADXL
-	ADXL362_init();
-	delay(MBUS_DELAY*2);
-	config_gpio_posedge_wirq((0<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
-	operation_spi_stop();
-
-	adxl_enabled = 1;
-	adxl_motion_detected = 0;
-}
-
-static void ADXL362_stop(){
-	operation_spi_init();
-	delay(MBUS_DELAY);
-
-	// Put in Standby Mode
-	ADXL362_reg_wr(ADXL362_POWER_CTL,0x0);
-
-	// Soft Reset
-	ADXL362_reg_wr(ADXL362_SOFT_RESET,0x52);
-  
-	operation_spi_stop();
-
-	config_gpio_posedge_wirq(0x0);
-	*NVIC_ISER = 0<<IRQ_WAKEUP;
-	unfreeze_gpio_out();
-	set_gpio_pad((1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
-	gpio_set_dir((1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
-	gpio_write_data(0);
-	freeze_gpio_out();
-	adxl_enabled = 0;
-}
-
-static void ADXL362_power_off(){
-	ADXL362_stop();
-	delay(MBUS_DELAY*10);
-	*REG_CPS = 0;
-	delay(MBUS_DELAY*200);
-}
-
-static void operation_spi_init(){
-  *SPI_SSPCR0 =  0x0207; // Motorola Mode
-  *SPI_SSPCPSR = 0x02;   // Clock Prescale Register
-
-	// Enable SPI Input/Output
-  set_spi_pad(1);
-  set_gpio_pad((1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
-  gpio_set_dir((1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
-  gpio_write_data((1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT)); // << Crashes here
-  unfreeze_gpio_out();
-  unfreeze_spi_out();
-}
-
-static void operation_spi_stop(){
-  freeze_spi_out();
-  freeze_gpio_out();
-}
 
 //************************************
 // PMU Related Functions
@@ -1184,6 +1038,157 @@ static void measure_wakeup_period(void){
 }
 
 
+//***************************************************
+// ADXL362 Functions
+//***************************************************
+static void ADXL362_reg_wr (uint8_t reg_id, uint8_t reg_data){
+	gpio_write_data((0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+	// Use Timer32 as timeout counter
+	wfi_timeout_flag = 0;
+	config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
+
+	*SPI_SSPDR = 0x0A;
+	*SPI_SSPDR = reg_id;
+	*SPI_SSPDR = reg_data;
+	*SPI_SSPCR1 = 0x2;
+	while((*SPI_SSPSR>>4)&0x1){}//Spin
+
+	// Turn off Timer32
+	*TIMER32_GO = 0;
+	if (wfi_timeout_flag){
+		mbus_write_message32(0xFA, 0xFAFAFAFA);
+		radio_power_on();
+		send_radio_data_mrr(1,0xFD0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000 | 0xA, (0xF&radio_packet_count)<<20 | 0xA0000 | reg_id);	
+	}
+
+	gpio_write_data((1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+	*SPI_SSPCR1 = 0x0;
+}
+
+static void ADXL362_reg_rd (uint8_t reg_id){
+	gpio_write_data((0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+	// Use Timer32 as timeout counter
+	wfi_timeout_flag = 0;
+	config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
+
+	*SPI_SSPDR = 0x0B;
+	*SPI_SSPDR = reg_id;
+	*SPI_SSPDR = 0x00;
+	*SPI_SSPCR1 = 0x2;
+	while((*SPI_SSPSR>>4)&0x1){}//Spin
+
+	// Turn off Timer32
+	*TIMER32_GO = 0;
+	if (wfi_timeout_flag){
+		mbus_write_message32(0xFA, 0xFAFAFAFA);
+		radio_power_on();
+		send_radio_data_mrr(1,0xFD0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000 | 0xB, (0xF&radio_packet_count)<<20 | 0xA0000 | reg_id);	
+	}
+
+	gpio_write_data((1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+	*SPI_SSPCR1 = 0x0;
+	#ifdef DEBUG_MBUS_MSG
+	mbus_write_message32(0xB1,*SPI_SSPDR);
+	#endif
+}
+
+static void ADXL362_init(){
+	// Soft Reset
+	ADXL362_reg_wr(ADXL362_SOFT_RESET,0x52);
+
+	// Check if Alive
+	ADXL362_reg_rd(ADXL362_DEVID_AD);
+	ADXL362_reg_rd(ADXL362_DEVID_MST);
+	ADXL362_reg_rd(ADXL362_PARTID);
+	ADXL362_reg_rd(ADXL362_REVID);
+
+	// Set Interrupt1 Awake Bit [4]
+	ADXL362_reg_wr(ADXL362_INTMAP1,0x10);
+
+	// Set Activity Threshold
+	ADXL362_reg_wr(ADXL362_THRESH_ACT_L,adxl_user_threshold & 0xFF);
+	ADXL362_reg_wr(ADXL362_THRESH_ACT_H,(adxl_user_threshold>>8) & 0xFF);
+
+	// Set Actvity/Inactivity Control
+	ADXL362_reg_wr(ADXL362_ACT_INACT_CTL,0x03);
+
+	// Enter Measurement Mode
+	ADXL362_reg_wr(ADXL362_POWER_CTL,0x0A);
+
+	// Check Status (Clears first false positive)
+	delay(5000);
+	ADXL362_reg_rd(ADXL362_STATUS);
+}
+
+static void ADXL362_enable(){
+
+	// Initialize Interrupts
+	*NVIC_ISER = 1<<IRQ_WAKEUP;
+
+	operation_spi_init();
+	delay(MBUS_DELAY);
+
+	// Turn PRE power switch on
+	*REG_CPS = 1;
+	delay(MBUS_DELAY*2);
+
+	// Initialize ADXL
+	ADXL362_init();
+	delay(MBUS_DELAY*2);
+	config_gpio_posedge_wirq((0<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
+	operation_spi_stop();
+
+	adxl_enabled = 1;
+	adxl_motion_detected = 0;
+}
+
+static void ADXL362_stop(){
+	operation_spi_init();
+	delay(MBUS_DELAY);
+
+	// Put in Standby Mode
+	ADXL362_reg_wr(ADXL362_POWER_CTL,0x0);
+
+	// Soft Reset
+	ADXL362_reg_wr(ADXL362_SOFT_RESET,0x52);
+  
+	operation_spi_stop();
+
+	config_gpio_posedge_wirq(0x0);
+	*NVIC_ISER = 0<<IRQ_WAKEUP;
+	unfreeze_gpio_out();
+	set_gpio_pad((1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
+	gpio_set_dir((1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
+	gpio_write_data(0);
+	freeze_gpio_out();
+	adxl_enabled = 0;
+}
+
+static void ADXL362_power_off(){
+	ADXL362_stop();
+	delay(MBUS_DELAY*10);
+	*REG_CPS = 0;
+	delay(MBUS_DELAY*200);
+}
+
+static void operation_spi_init(){
+  *SPI_SSPCR0 =  0x0207; // Motorola Mode
+  *SPI_SSPCPSR = 0x02;   // Clock Prescale Register
+
+	// Enable SPI Input/Output
+  set_spi_pad(1);
+  set_gpio_pad((1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
+  gpio_set_dir((1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+  gpio_write_data((1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT)); // << Crashes here
+  unfreeze_gpio_out();
+  unfreeze_spi_out();
+}
+
+static void operation_spi_stop(){
+  freeze_spi_out();
+  freeze_gpio_out();
+}
+
 
 static void operation_init(void){
   
@@ -1571,7 +1576,7 @@ static void operation_sns_run(void){
 				// Prepare for radio tx
 				radio_power_on();
 				// Send debug signal
-				send_radio_data_mrr(1, 0x4D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12),(0xF&radio_packet_count)<<20 | 0xA0000 | exec_count & 0xFFFF);
+				send_radio_data_mrr(1, 0x4D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12),((0xF&radio_packet_count)<<20) | 0xA0000 | (exec_count & 0xFFFF));
 				set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
 			}
 
