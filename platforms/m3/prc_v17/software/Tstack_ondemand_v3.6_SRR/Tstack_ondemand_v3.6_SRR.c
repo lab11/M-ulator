@@ -554,16 +554,16 @@ static void radio_power_on(){
     // Release timer power-gate
     srrv4_r04.RO_EN_RO_V1P2 = 1;  //Use V1P2 for TIMER
     mbus_remote_register_write(SRR_ADDR,0x04,srrv4_r04.as_int);
-    delay(MBUS_DELAY*10);
+    delay(MBUS_DELAY*5);
 
 	// Turn on timer
     srrv4_r04.RO_RESET = 0;  //Release Reset TIMER
     mbus_remote_register_write(SRR_ADDR,0x04,srrv4_r04.as_int);
-    delay(MBUS_DELAY*10);
+    delay(MBUS_DELAY*5);
 
     srrv4_r04.RO_EN_CLK = 1; //Enable CLK TIMER
     mbus_remote_register_write(SRR_ADDR,0x04,srrv4_r04.as_int);
-    delay(MBUS_DELAY*10);
+    delay(MBUS_DELAY*5);
 
     srrv4_r04.RO_ISOLATE_CLK = 0; //Set Isolate CLK to 0 TIMER
     mbus_remote_register_write(SRR_ADDR,0x04,srrv4_r04.as_int);
@@ -571,7 +571,7 @@ static void radio_power_on(){
     // Release FSM Sleep
     srrv4_r11.SRR_RAD_FSM_SLEEP = 0;  // Power on BB
     mbus_remote_register_write(SRR_ADDR,0x11,srrv4_r11.as_int);
-	delay(MBUS_DELAY*50); // Freq stab
+	delay(MBUS_DELAY*5); // Freq stab
 
 }
 
@@ -656,11 +656,11 @@ static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uin
 		// Release FSM Reset
 		srrv4_r11.SRR_RAD_FSM_RSTN = 1;  //UNRST BB
 		mbus_remote_register_write(SRR_ADDR,0x11,srrv4_r11.as_int);
-		delay(MBUS_DELAY*10);
+		delay(MBUS_DELAY*5);
 
     	srrv4_r03.SRR_TRX_ISOLATEN = 1;     //set ISOLATEN 1, let state machine control
     	mbus_remote_register_write(SRR_ADDR,0x03,srrv4_r03.as_int);
-		delay(MBUS_DELAY*10);
+		delay(MBUS_DELAY*5);
 
     }
 
@@ -671,9 +671,6 @@ static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uin
 	if (last_packet){
 		radio_ready = 0;
 		radio_power_off();
-	}else{
-		srrv4_r11.SRR_RAD_FSM_EN = 0;
-		mbus_remote_register_write(SRR_ADDR,0x11,srrv4_r11.as_int);
 	}
 }
 
@@ -995,24 +992,20 @@ static void operation_init(void){
 
     srrv4_r15.SRR_RAD_FSM_RX_HDR_BITS = 0x00;  //Set RX header
     srrv4_r15.SRR_RAD_FSM_RX_HDR_TH = 0x00;    //Set RX header threshold
-    srrv4_r15.SRR_RAD_FSM_RX_DATA_BITS = 0x10; //Set RX data 16b
+    srrv4_r15.SRR_RAD_FSM_RX_DATA_BITS = 0x0; //Set RX data 16b
     mbus_remote_register_write(SRR_ADDR,0x15,srrv4_r15.as_int);
 
     srrv4_r1E.SRR_IRQ_REPLY_PACKET = 0x061400; //Read RX data Reply
     mbus_remote_register_write(SRR_ADDR,0x1E,srrv4_r1E.as_int);
 
-    mbus_remote_register_write(SRR_ADDR,0x12,srrv4_r12.as_int);
     mbus_remote_register_write(SRR_ADDR,0x15,srrv4_r15.as_int);
     
-	// Use pulse generator -- Not used currently
+	// Use pulse generator
     srrv4_r02.SRR_TX_PULSE_FINE = 1;
     srrv4_r02.SRR_TX_PULSE_FINE_TUNE = 3;
     mbus_remote_register_write(SRR_ADDR,0x02,srrv4_r02.as_int);
 
     srrv4_r13.SRR_RAD_FSM_SEED = 1; //default
-    srrv4_r13.SRR_RAD_FSM_TX_MODE = 3; //code rate 0:4 1:3 2:2 3:1(baseline) 4:1/2 5:1/3 6:1/4
-    mbus_remote_register_write(SRR_ADDR,0x13,srrv4_r13.as_int);
-
     srrv4_r14.SRR_RAD_FSM_TX_POWERON_LEN = 7; //3bits
     mbus_remote_register_write(SRR_ADDR,0x14,srrv4_r14.as_int);
 
@@ -1074,9 +1067,6 @@ static void operation_temp_run(void){
 		// Power on radio
 		if (radio_tx_option || ((exec_count+1) < TEMP_CYCLE_INIT)){
 			radio_power_on();
-			// Put system to sleep
-			set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
-			operation_sleep();
 		}
 
     }else if (Tstack_state == TSTK_LDO){
@@ -1251,22 +1241,18 @@ static void operation_goc_trigger_init(void){
 
 static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_timer_val, uint32_t radio_tx_prefix, uint32_t radio_tx_data){
 
+	// Prepare radio TX
+	radio_power_on();
+
 	if (exec_count_irq < radio_tx_num){
 		exec_count_irq++;
-		if (exec_count_irq == 1){
-			// Prepare radio TX
-			radio_power_on();
-			// Go to sleep for SCRO stabilitzation
-			set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
-			operation_sleep_noirqreset();
-		}else{
-			// radio
-			send_radio_data_mrr(0, 0, 0, radio_tx_prefix | radio_tx_data);	
-			// set timer
-			set_wakeup_timer (wakeup_timer_val, 0x1, 0x1);
-			// go to sleep and wake up with same condition
-			operation_sleep_noirqreset();
-		}
+		// radio
+		send_radio_data_mrr(1, 0, 0, radio_tx_prefix | radio_tx_data);	
+		// set timer
+		set_wakeup_timer (wakeup_timer_val, 0x1, 0x1);
+		// go to sleep and wake up with same condition
+		operation_sleep_noirqreset();
+
 	}else{
 		exec_count_irq = 0;
 		// radio
@@ -1360,30 +1346,25 @@ int main() {
 
 		Tstack_state = TSTK_IDLE;
 
+		// Read latest PMU ADC measurement
+		pmu_adc_read_latest();
+
+		// Prepare radio TX
+		radio_power_on();
+
         if (exec_count_irq < wakeup_data_field_0){
             exec_count_irq++;
-			if (exec_count_irq == 1){
-				// Read latest PMU ADC measurement
-				pmu_adc_read_latest();
-
-				// Prepare radio TX
-				radio_power_on();
-				// Go to sleep for SCRO stabilitzation
-				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
-				operation_sleep_noirqreset();
+			if (exec_count_irq & 0x1){
+				// radio
+				send_radio_data_mrr(1, 0, 0, 0xBBB000+read_data_batadc);	
 			}else{
-				if (exec_count_irq & 0x1){
-					// radio
-					send_radio_data_mrr(0, 0, 0, 0xBBB000+read_data_batadc);	
-				}else{
-					// radio
-					send_radio_data_mrr(0, 0, 0, 0xCC0000+exec_count);	
-				}
-				// set timer
-				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-				// go to sleep and wake up with same condition
-				operation_sleep_noirqreset();
+				// radio
+				send_radio_data_mrr(1, 0, 0, 0xCC0000+exec_count);	
 			}
+			// set timer
+			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
+			// go to sleep and wake up with same condition
+			operation_sleep_noirqreset();
         }else{
             exec_count_irq = 0;
             // radio
@@ -1413,25 +1394,20 @@ int main() {
 			radio_tx_numdata = 0;
 		}
 		
+		// Read latest PMU ADC measurement
+		pmu_adc_read_latest();
+
+		// Prepare radio TX
+		radio_power_on();
+
         if (exec_count_irq < 5){
 			exec_count_irq++;
-			if (exec_count_irq == 1){
-				// Read latest PMU ADC measurement
-				pmu_adc_read_latest();
-
-				// Prepare radio TX
-				radio_power_on();
-				// Go to sleep for SCRO stabilitzation
-				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
-				operation_sleep_noirqreset();
-			}else{
-				send_radio_data_mrr(0, 0, 0, 0xBBB000+read_data_batadc);	
-				delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
-				send_radio_data_mrr(0, 0, 0, 0xCC0000+exec_count);	
-				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-				// go to sleep and wake up with same condition
-				operation_sleep_noirqreset();
-			}
+			send_radio_data_mrr(0, 0, 0, 0xBBB000+read_data_batadc);	
+			delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
+			send_radio_data_mrr(1, 0, 0, 0xCC0000+exec_count);	
+			set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
+			// go to sleep and wake up with same condition
+			operation_sleep_noirqreset();
 		}else{
 			operation_tx_stored();
 		}
@@ -1545,6 +1521,34 @@ int main() {
 
 		// Go to sleep without timer
 		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x2F){
+		// Change C_LEN
+
+    	srrv4_r00.SRR_CL_CTRL = wakeup_data & 0xFF; //Set CL 1-finite 16-20uA
+		mbus_remote_register_write(SRR_ADDR,0x00,srrv4_r00.as_int);
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x52){
+		// Start TX Continuous mode
+    	srrv4_r00.SRR_CL_CTRL = 1; //Set CL 1-finite 16-20uA
+		mbus_remote_register_write(SRR_ADDR,0x00,srrv4_r00.as_int);
+		srrv4_r00.SRR_CL_EN = 1;  //Enable CL
+		mbus_remote_register_write(SRR_ADDR,0x00,srrv4_r00.as_int);
+
+		srrv4_r02.SRR_TX_EN_OW = 1;
+		mbus_remote_register_write(SRR_ADDR,0x02,srrv4_r02.as_int);
+	
+	}else if(wakeup_data_header == 0x53){
+		// Stop TX Continuous mode
+		srrv4_r02.SRR_TX_EN_OW = 0;
+		mbus_remote_register_write(SRR_ADDR,0x02,srrv4_r02.as_int);
+
+		srrv4_r00.SRR_CL_EN = 0;  //Enable CL
+		mbus_remote_register_write(SRR_ADDR,0x00,srrv4_r00.as_int);
+
 
 	}else if(wakeup_data_header == 0x41){
 		// Change PMU solar short clamp value
