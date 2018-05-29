@@ -1520,8 +1520,8 @@ static void operation_sns_run(void){
 			}
 
 			// FIXME: debugging light count
-			//radio_power_on();
-			//send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12) | (adxl_enabled<<8) | (hrv_light_count_enabled<<9), (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & hrv_light_count));
+			radio_power_on();
+			send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12) | (adxl_enabled<<8) | (hrv_light_count_enabled<<9), (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & hrv_light_count));
 
 			// Get ready for sleep
 			if (astack_detection_mode > 0){
