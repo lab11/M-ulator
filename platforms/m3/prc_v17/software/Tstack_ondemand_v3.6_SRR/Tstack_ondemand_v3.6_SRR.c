@@ -976,7 +976,7 @@ static void operation_init(void){
 	//srrv4_r01.SRR_TRX_CAP_ANTN_TUNE = 0x00FF; //ANT CAP 14b unary 813.8 MHz
 	//srrv4_r01.SRR_TRX_CAP_ANTN_TUNE = 0x0FFF;  //ANT CAP 14b unary 805.5 MHz
     mbus_remote_register_write(SRR_ADDR,0x01,srrv4_r01.as_int);
-    srrv4_r02.SRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
+    srrv4_r02.SRR_TX_BIAS_TUNE = 0x0FFF;  //Set TX BIAS TUNE 13b // Set to max
     mbus_remote_register_write(SRR_ADDR,0x02,srrv4_r02.as_int);
 
     // RX Setup
@@ -992,7 +992,7 @@ static void operation_init(void){
 
     srrv4_r15.SRR_RAD_FSM_RX_HDR_BITS = 0x00;  //Set RX header
     srrv4_r15.SRR_RAD_FSM_RX_HDR_TH = 0x00;    //Set RX header threshold
-    srrv4_r15.SRR_RAD_FSM_RX_DATA_BITS = 0x0; //Set RX data 16b
+    srrv4_r15.SRR_RAD_FSM_RX_DATA_BITS = 0x1; //Set RX data 16b
     mbus_remote_register_write(SRR_ADDR,0x15,srrv4_r15.as_int);
 
     srrv4_r1E.SRR_IRQ_REPLY_PACKET = 0x061400; //Read RX data Reply
@@ -1001,8 +1001,8 @@ static void operation_init(void){
     mbus_remote_register_write(SRR_ADDR,0x15,srrv4_r15.as_int);
     
 	// Use pulse generator
-    srrv4_r02.SRR_TX_PULSE_FINE = 1;
-    srrv4_r02.SRR_TX_PULSE_FINE_TUNE = 3;
+    srrv4_r02.SRR_TX_PULSE_FINE = 0;
+    srrv4_r02.SRR_TX_PULSE_FINE_TUNE = 7;
     mbus_remote_register_write(SRR_ADDR,0x02,srrv4_r02.as_int);
 
     srrv4_r13.SRR_RAD_FSM_SEED = 1; //default
