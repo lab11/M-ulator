@@ -1326,6 +1326,7 @@ static void operation_init(void){
 	mbus_remote_register_write(HRV_ADDR,0x04,0x001000); // HRV_CNT_IRQ_PACKET (default: 0x001400) 
 	hrv_light_count = 0;
 	hrv_light_count_old = 0;
+	hrv_light_count_prev = 0;
 
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 33750;   // 1: 2-4 sec with PRCv9
@@ -1344,8 +1345,6 @@ static void operation_init(void){
 	astack_detection_mode = 0;
 	adxl_enabled = 0;
 	adxl_motion_detected = 0;
-	hrv_light_count = 0;
-	hrv_light_count_prev = 0;
 	hrv_light_detected = 0;
 	hrv_exec_checkin = 12;
 
@@ -1358,7 +1357,7 @@ static void operation_init(void){
 	hrv_light_threshold_factor = 1;
 	adxl_user_threshold = 0x060; // rec. 0x60, max 0x7FF
 
-	wakeup_period_calc_factor = 16;
+	wakeup_period_calc_factor = 20;
 
     // Go to sleep without timer
     operation_sleep_notimer();
@@ -1521,8 +1520,8 @@ static void operation_sns_run(void){
 			}
 
 			// FIXME: debugging light count
-			radio_power_on();
-			send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12) | (adxl_enabled<<8) | (hrv_light_count_enabled<<9), (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & hrv_light_count));
+			//radio_power_on();
+			//send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12) | (adxl_enabled<<8) | (hrv_light_count_enabled<<9), (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & hrv_light_count));
 
 			// Get ready for sleep
 			if (astack_detection_mode > 0){
@@ -1676,15 +1675,15 @@ int main(){
 		uint32_t hrv_light_count_temp;
 		hrv_light_count_temp = *((volatile uint32_t *) REG1);
 		set_halt_until_mbus_tx();
-		if (hrv_light_count_temp > hrv_light_count_old){
+		if (hrv_light_count_temp >= hrv_light_count_old){
 			hrv_light_count = hrv_light_count_temp - hrv_light_count_old;
 		}else{
 			hrv_light_count = 0xFFFFFF + hrv_light_count_temp - hrv_light_count_old;
 		}
 		hrv_light_count_old = hrv_light_count_temp;
 
-		// First measurement will be off
-		if (hrv_exec_count > 0){
+		// First two measurements will be off
+		if (hrv_exec_count > 1){
 			if (hrv_light_count_prev > hrv_light_count){
 				hrv_light_diff = hrv_light_count_prev - hrv_light_count;
 			}else{
@@ -1705,8 +1704,6 @@ int main(){
 		#ifdef DEBUG_MBUS_MSG
 		mbus_write_message32(0xAC,(hrv_light_detected<<23) | hrv_light_count);
 		#endif
-
-		hrv_light_reset();
 
 		hrv_exec_count++;
 	}
@@ -2010,6 +2007,8 @@ int main(){
 		astack_detection_mode = (wakeup_data_field_2>>4) & 0x3;
 
 		if (astack_detection_mode & 0x1) ADXL362_enable();
+
+		if (astack_detection_mode & 0x2) hrv_light_start();
 
 		sns_running = 1;
 		set_sns_exec_count = 0;
