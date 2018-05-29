@@ -1190,7 +1190,7 @@ static void operation_init(void){
 	//One quick way to check if stack is alive. Do this before programming too. First page of gui, there's a stop operation button. Click that. It'll send a radio message out.
 	
 	
-    enumerated = 0xDEADBE07;
+    enumerated = 0xDEADBE11;
     exec_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_3P0_VAL = 0x62;
@@ -1330,7 +1330,7 @@ static void operation_init(void){
 
 	// HRV
 	hrv_light_reset();
-	mbus_remote_register_write(HRV_ADDR,0x00,6); // HRV_TOP_CONV_RATIO(0~15 >> 9x~23x); default: 14
+	mbus_remote_register_write(HRV_ADDR,0x00,7); // HRV_TOP_CONV_RATIO(0~15 >> 9x~23x); default: 14 //Originally 6 in v1.13
 	mbus_remote_register_write(HRV_ADDR,0x03,0xFFFFFF); // HRV_CNT_CNT_THRESHOLD (default: 0xFFFFFF) 
 	mbus_remote_register_write(HRV_ADDR,0x04,0x001000); // HRV_CNT_IRQ_PACKET (default: 0x001400) 
 	hrv_light_count = 0;
@@ -1528,6 +1528,7 @@ static void operation_sns_run(void){
                 hrv_exec_count = 0;
 			}
 			//ZhiYoong
+			radio_power_on();
 			send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12) | (adxl_enabled<<8) | (hrv_light_count_enabled<<9), (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & hrv_light_count));
                 
 
@@ -1668,7 +1669,7 @@ int main(){
 
     // Initialization sequence
 	//Zhiyoong
-    if (enumerated != 0xDEADBE07){
+    if (enumerated != 0xDEADBE11){
         operation_init();
     }
 

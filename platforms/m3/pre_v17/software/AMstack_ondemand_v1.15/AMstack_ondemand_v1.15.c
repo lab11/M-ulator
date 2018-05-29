@@ -26,7 +26,7 @@
 #include "HRVv5.h"
 
 // uncomment this for debug mbus message
-//#define DEBUG_MBUS_MSG
+#define DEBUG_MBUS_MSG
 
 // AM stack 
 #define HRV_ADDR 0x3
@@ -54,7 +54,7 @@
 #define RADIO_DATA_LENGTH 168
 #define WAKEUP_PERIOD_RADIO_INIT 10 // About 2 sec (PRCv17)
 
-#define DATA_STORAGE_SIZE 10 // Need to leave about 500 Bytes for stack --> around 60 words
+#define DATA_STORAGE_SIZE 0 // Need to leave about 500 Bytes for stack --> around 60 words
 #define TEMP_NUM_MEAS 1
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y5 run default clock (PRCv17)
@@ -778,6 +778,13 @@ static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uin
     mbus_remote_register_write(MRR_ADDR,0xE,radio_data_1);
     mbus_remote_register_write(MRR_ADDR,0xF,radio_data_2);
 
+	// Prevent watchdog from kicking in
+   	config_timerwd(TIMERWD_VAL);
+
+	if (!radio_power_on){
+		radio_power_on();
+	}
+
     if (!radio_ready){
 		radio_ready = 1;
 
@@ -829,9 +836,6 @@ static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uin
 	if (last_packet){
 		radio_ready = 0;
 		radio_power_off();
-	}else{
-		mrrv6_r11.MRR_RAD_FSM_EN = 0;
-		mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
 	}
 }
 //***************************************************
@@ -929,6 +933,8 @@ static void operation_sleep(void){
 
     // Go to Sleep
     mbus_sleep_all();
+	delay(MBUS_DELAY*100);
+    mbus_sleep_all();
     while(1);
 
 }
@@ -936,6 +942,8 @@ static void operation_sleep(void){
 static void operation_sleep_noirqreset(void){
 
     // Go to Sleep
+    mbus_sleep_all();
+	delay(MBUS_DELAY*100);
     mbus_sleep_all();
     while(1);
 
@@ -1208,7 +1216,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     stack_state = STK_IDLE; 	//0x0;
-    enumerated = 0xDEADBE15;
+    enumerated = 0xDEADBB15;
     exec_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_3P0_VAL = 0x62;
@@ -1405,6 +1413,11 @@ static void operation_sns_run(void){
 
 		// Turn on SNS LDO VREF; requires settling
 		sns_ldo_vref_on();
+	
+		#ifdef DEBUG_MBUS_MSG
+		radio_power_on();
+		send_radio_data_mrr(0,0xFD0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000 | 0xA1, (0xF&radio_packet_count)<<20 | 0xA0000);	
+		#endif
 
     }else if (stack_state == STK_LDO){
 		stack_state = STK_TEMP_START;
@@ -1433,6 +1446,11 @@ static void operation_sns_run(void){
 		// Turn off Timer32
 		*TIMER32_GO = 0;
 		stack_state = STK_TEMP_READ;
+
+		#ifdef DEBUG_MBUS_MSG
+		send_radio_data_mrr(0,0xFD0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000 | 0xA2, (0xF&radio_packet_count)<<20 | 0xA0000);	
+			delay(RADIO_PACKET_DELAY);
+		#endif
 
 	}else if (stack_state == STK_TEMP_READ){
 
@@ -1464,6 +1482,11 @@ static void operation_sns_run(void){
 			temp_sensor_power_off();
 			sns_ldo_power_off();
 			stack_state = STK_IDLE;
+
+			#ifdef DEBUG_MBUS_MSG
+			send_radio_data_mrr(0,0xFD0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000 | 0xA3, (0xF&radio_packet_count)<<20 | 0xA0000);	
+			delay(RADIO_PACKET_DELAY);
+			#endif
 
 			// Wakeup time adjustment
 			// Record temp difference from last wakeup adjustment
@@ -1500,6 +1523,11 @@ static void operation_sns_run(void){
 			uint32_t sleep_time_threshold = WAKEUP_PERIOD_CONT>>sleep_time_threshold_factor; // how fast is too fast?
 			if ((WAKEUP_PERIOD_CONT>>5) == 0) sleep_time_threshold = 3;
 
+			#ifdef DEBUG_MBUS_MSG
+			send_radio_data_mrr(0,0xFD0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000 | 0xA4, (0xF&radio_packet_count)<<20 | 0xA0000);	
+			delay(RADIO_PACKET_DELAY);
+			#endif
+
 			// Check if motion is constantly triggering
 			if (astack_detection_mode & 0x1){ // motion detection enabled
 				if (sleep_time_prev < sleep_time_threshold){ // woke up fast
@@ -1533,10 +1561,6 @@ static void operation_sns_run(void){
 				radio_power_on();
 				if (adxl_motion_detected || hrv_light_detected){
 					send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12) | (adxl_enabled<<8) | (hrv_light_count_enabled<<9) | (hrv_light_detected<<4) | adxl_motion_detected, (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & read_data_temp));
-			#ifdef DEBUG_MBUS_MSG
-				    radio_power_on();
-					send_radio_data_mrr(1, 0xFD0000 | (*REG_CHIP_ID & 0xFFFF), hrv_light_count_prev, (0xF&radio_packet_count)<<20 | hrv_light_count);
-			#endif
 				}else{
 					// Check-in message
 					send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12) | (adxl_enabled<<8) | (hrv_light_count_enabled<<9), (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & read_data_temp));
@@ -1579,6 +1603,7 @@ static void operation_sns_run(void){
 				send_radio_data_mrr(1, 0x4D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12),((0xF&radio_packet_count)<<20) | 0xA0000 | (exec_count & 0xFFFF));
 				set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
 			}
+
 
 			if ((set_sns_exec_count != 0) && (exec_count > (50<<set_sns_exec_count))){
 				// No more measurement required
@@ -1680,7 +1705,7 @@ int main(){
 	#endif
 
     // Initialization sequence
-    if (enumerated != 0xDEADBE15){
+    if (enumerated != 0xDEADBB15){
         operation_init();
     }
 
@@ -1868,6 +1893,7 @@ int main(){
 
 		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xB00000| (read_data_batadc<<12), exec_count_irq);
 
+/*
 	}else if(wakeup_data_header == 0x16){
 		wakeup_period_calc_factor = wakeup_data & 0xFFFFFF;
 		// Go to sleep without timer
@@ -1911,6 +1937,8 @@ int main(){
 
 		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xB00000| (read_data_batadc<<12), pmu_sar_conv_ratio_val);
 
+
+*/
 	}else if(wakeup_data_header == 0x20){
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[23:8] is the desired chip id value
@@ -1927,7 +1955,7 @@ int main(){
 
 		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xB00000| (read_data_batadc<<12), chip_id_user);
 
-
+/*
 	}else if(wakeup_data_header == 0x21){
 		// Change the radio tx packet delay
 		uint32_t user_val = wakeup_data & 0xFFFFFF;
@@ -1938,6 +1966,7 @@ int main(){
 		}
 		// Go to sleep without timer
 		operation_sleep_notimer();
+*/
 
 	}else if(wakeup_data_header == 0x22){
 		// Change the carrier frequency of MRR (CFO)
@@ -1958,6 +1987,7 @@ int main(){
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
+/*
 	}else if(wakeup_data_header == 0x24){
 		// Switch between short / long pulse
 		if (wakeup_data_field_0 == 0x1) {
@@ -1974,7 +2004,7 @@ int main(){
 		}
 		// Go to sleep without timer
 		operation_sleep_notimer();
-
+*/
 	}else if(wakeup_data_header == 0x25){
 		// Change the conversion time of the temp sensor
 
