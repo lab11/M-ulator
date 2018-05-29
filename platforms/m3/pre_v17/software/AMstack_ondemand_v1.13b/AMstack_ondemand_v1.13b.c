@@ -111,6 +111,7 @@ volatile uint32_t hrv_light_count;
 volatile uint32_t hrv_light_count_enabled;
 volatile uint32_t hrv_light_count_prev;
 volatile uint32_t hrv_light_count_old;
+volatile uint32_t hrv_light_count_read;
 volatile uint32_t hrv_light_diff;
 volatile uint32_t hrv_light_threshold_factor;
 volatile uint32_t hrv_low_light_threshold_factor;
@@ -1521,7 +1522,7 @@ static void operation_sns_run(void){
 
 			// FIXME: debugging light count
 			radio_power_on();
-			send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12) | (adxl_enabled<<8) | (hrv_light_count_enabled<<9), (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & hrv_light_count));
+			send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| 0xFFFFF & hrv_light_count_read, (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & hrv_light_count));
 
 			// Get ready for sleep
 			if (astack_detection_mode > 0){
@@ -1672,15 +1673,14 @@ int main(){
 		// Check light count
 		set_halt_until_mbus_rx();
 		mbus_remote_register_read(HRV_ADDR,0x02,1);
-		uint32_t hrv_light_count_temp;
-		hrv_light_count_temp = *((volatile uint32_t *) REG1);
+		hrv_light_count_read = *((volatile uint32_t *) REG1);
 		set_halt_until_mbus_tx();
-		if (hrv_light_count_temp >= hrv_light_count_old){
-			hrv_light_count = hrv_light_count_temp - hrv_light_count_old;
+		if (hrv_light_count_read >= hrv_light_count_old){
+			hrv_light_count = hrv_light_count_read - hrv_light_count_old;
 		}else{
-			hrv_light_count = 0xFFFFFF + hrv_light_count_temp - hrv_light_count_old;
+			hrv_light_count = 0xFFFFFF + hrv_light_count_read - hrv_light_count_old;
 		}
-		hrv_light_count_old = hrv_light_count_temp;
+		hrv_light_count_old = hrv_light_count_read;
 
 		// First two measurements will be off
 		if (exec_count > 1){
