@@ -1683,7 +1683,7 @@ int main(){
 		hrv_light_count_old = hrv_light_count_temp;
 
 		// First two measurements will be off
-		if (hrv_exec_count > 1){
+		if (exec_count > 1){
 			if (hrv_light_count_prev > hrv_light_count){
 				hrv_light_diff = hrv_light_count_prev - hrv_light_count;
 			}else{
