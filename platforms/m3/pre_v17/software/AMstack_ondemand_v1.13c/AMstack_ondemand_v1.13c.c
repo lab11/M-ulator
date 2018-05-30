@@ -1681,8 +1681,8 @@ int main(){
 		}
 		hrv_light_count_old = hrv_light_count_read;
 
-		// First measurement will be off
-		if (exec_count > 0){
+		// First two measurements will be off
+		if (exec_count > 1){
 			if (hrv_low_light_threshold_factor == 0){ // use this as default now
 				if ((hrv_light_count_prev < hrv_low_light_threshold) && (hrv_light_count > hrv_low_light_threshold)){
 					hrv_light_detected = 1;	
