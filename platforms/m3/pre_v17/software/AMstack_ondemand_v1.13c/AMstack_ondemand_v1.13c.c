@@ -1349,7 +1349,7 @@ static void operation_init(void){
 	hrv_exec_checkin = 12;
 
 	hrv_low_light_threshold_factor = 0;
-	hrv_low_light_threshold = 0x400;
+	hrv_low_light_threshold = 0x300;
 
 	adxl_trigger_mute_count = 2;
 	sleep_time_threshold_factor = 1;
@@ -1357,7 +1357,7 @@ static void operation_init(void){
 	hrv_light_threshold_factor = 1;
 	adxl_user_threshold = 0x060; // rec. 0x60, max 0x7FF
 
-	wakeup_period_calc_factor = 20;
+	wakeup_period_calc_factor = 18;
 
     // Go to sleep without timer
     operation_sleep_notimer();
@@ -2120,6 +2120,10 @@ int main(){
 
 		// Go to sleep without timer
 		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0xF0){
+
+		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xB00000| (read_data_batadc<<12), enumerated);
 
 	}else if(wakeup_data_header == 0xFA){
 
