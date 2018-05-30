@@ -16,6 +16,7 @@
 //					v1.13 used for MOD demo & delivery May 2018
 //			v1.13b: Changing hrv light count -- don't reset, keep counter rolling
 //				    Changing hrv conv ratio to 16
+//			v1.13c: Chaging hrv light detection method -- fixed threshold
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -115,7 +116,7 @@ volatile uint32_t hrv_light_count_read;
 volatile uint32_t hrv_light_diff;
 volatile uint32_t hrv_light_threshold_factor;
 volatile uint32_t hrv_low_light_threshold_factor;
-volatile uint32_t hrv_low_light_threshold = 0x100;
+volatile uint32_t hrv_low_light_threshold;
 volatile uint32_t hrv_light_detected;
 volatile uint32_t hrv_exec_count = 0;
 volatile uint32_t hrv_exec_checkin = 12;
@@ -730,7 +731,6 @@ static void radio_power_on(){
 	//pmu_set_sleep_radio();
 
 	// Set decap to series
-	// FIXME: verify with Li
 	mrrv6_r03.MRR_DCP_P_OW = 0;  //RX_Decap P 
 	mbus_remote_register_write(MRR_ADDR,3,mrrv6_r03.as_int);
 	mrrv6_r03.MRR_DCP_S_OW = 1;  //TX_Decap S (forced charge decaps)
@@ -804,7 +804,6 @@ static void radio_power_off(){
 
 	// Set decap to parallel
 	if (mrr_set_decap_parallel){
-		// FIXME: verify with Li
 		mrrv6_r03.MRR_DCP_S_OW = 0;  //TX_Decap S (forced charge decaps)
 		mbus_remote_register_write(MRR_ADDR,3,mrrv6_r03.as_int);
 		mrrv6_r03.MRR_DCP_P_OW = 1;  //RX_Decap P 
@@ -1182,7 +1181,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     stack_state = STK_IDLE; 	//0x0;
-    enumerated = 0xDEADBE13;
+    enumerated = 0xDEADBC13;
     exec_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_3P0_VAL = 0x62;
@@ -1349,8 +1348,8 @@ static void operation_init(void){
 	hrv_light_detected = 0;
 	hrv_exec_checkin = 12;
 
-	hrv_low_light_threshold_factor = 1;
-	hrv_low_light_threshold = 0x100;
+	hrv_low_light_threshold_factor = 0;
+	hrv_low_light_threshold = 0x400;
 
 	adxl_trigger_mute_count = 2;
 	sleep_time_threshold_factor = 1;
@@ -1521,8 +1520,8 @@ static void operation_sns_run(void){
 			}
 
 			// FIXME: debugging light count
-			radio_power_on();
-			send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| 0xFFFFF & hrv_light_count_read, (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & hrv_light_count));
+			//radio_power_on();
+			//send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| 0xFFFFF & hrv_light_count_read, (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & hrv_light_count));
 
 			// Get ready for sleep
 			if (astack_detection_mode > 0){
@@ -1657,7 +1656,7 @@ int main(){
 	#endif
 
     // Initialization sequence
-    if (enumerated != 0xDEADBE13){
+    if (enumerated != 0xDEADBC13){
         operation_init();
     }
 
@@ -1682,29 +1681,39 @@ int main(){
 		}
 		hrv_light_count_old = hrv_light_count_read;
 
-		// First two measurements will be off
-		if (exec_count > 1){
-			if (hrv_light_count_prev > hrv_light_count){
-				hrv_light_diff = hrv_light_count_prev - hrv_light_count;
+		// First measurement will be off
+		if (exec_count > 0){
+			if (hrv_low_light_threshold_factor == 0){ // use this as default now
+				if ((hrv_light_count_prev < hrv_low_light_threshold) && (hrv_light_count > hrv_low_light_threshold)){
+					hrv_light_detected = 1;	
+				}
+				if ((hrv_light_count_prev > hrv_low_light_threshold) && (hrv_light_count < hrv_low_light_threshold)){
+					hrv_light_detected = 1;	
+				}
 			}else{
-				hrv_light_diff = hrv_light_count - hrv_light_count_prev;
-			}
-			if (hrv_light_count_prev < hrv_low_light_threshold){
-				// Low light condition
-				if (hrv_light_diff > (hrv_light_count_prev<<hrv_low_light_threshold_factor)) hrv_light_detected = 1;
-		
-			}else{
-				if (hrv_light_diff > (hrv_light_count_prev>>hrv_light_threshold_factor)) hrv_light_detected = 1;
+				// Old method
+				if (hrv_light_count_prev > hrv_light_count){
+					hrv_light_diff = hrv_light_count_prev - hrv_light_count;
+				}else{
+					hrv_light_diff = hrv_light_count - hrv_light_count_prev;
+				}
+				if (hrv_light_count_prev < hrv_low_light_threshold){
+					// Low light condition
+					if (hrv_light_diff > (hrv_light_count_prev<<hrv_low_light_threshold_factor)) hrv_light_detected = 1;
+			
+				}else{
+					if (hrv_light_diff > (hrv_light_count_prev>>hrv_light_threshold_factor)) hrv_light_detected = 1;
+				}
+
 			}
 		}
 			
 		hrv_light_count_prev = hrv_light_count;
 
 		// Debug
+		// FIXME
 		//#ifdef DEBUG_MBUS_MSG
-		//mbus_write_message32(0xAC,(hrv_light_detected<<23) | hrv_light_count_read);
-		mbus_write_message32(0xAC, hrv_light_count_read);
-		mbus_write_message32(0xAD, hrv_light_count);
+		mbus_write_message32(0xAC,(hrv_light_detected<<23) | hrv_light_count);
 		//#endif
 
 		hrv_exec_count++;
