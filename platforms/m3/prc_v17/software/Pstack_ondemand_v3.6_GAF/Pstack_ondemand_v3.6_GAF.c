@@ -10,13 +10,13 @@
 //			v3.3: Every PMU reg write should be followed by explicit delay to be safe
 //			v3.4: Removing parking; charging controlled by pmu solar short vclamp
 //			v3.5: Adding trigger to change solar short vclamp; battery logged with temp
+//			v3.5_GAF: No HRV layer
 //*******************************************************************
 #include "PRCv17.h"
 #include "PRCv17_RF.h"
 #include "mbus.h"
 #include "RDCv1_RF.h"
 #include "SNSv10_RF.h"
-#include "HRVv5.h"
 #include "RADv9.h"
 #include "PMUv7_RF.h"
 
@@ -24,7 +24,6 @@
 //#define DEBUG_MBUS_MSG_1
 
 // Pstack order  PRC->RAD->SNS->RDC->HRV->PMU
-#define HRV_ADDR 0x3
 #define RAD_ADDR 0x4
 #define SNS_ADDR 0x5
 #define PMU_ADDR 0x6
@@ -125,8 +124,6 @@ volatile radv9_r11_t radv9_r11 = RADv9_R11_DEFAULT;
 volatile radv9_r12_t radv9_r12 = RADv9_R12_DEFAULT;
 volatile radv9_r13_t radv9_r13 = RADv9_R13_DEFAULT;
 volatile radv9_r14_t radv9_r14 = RADv9_R14_DEFAULT;
-
-volatile hrvv5_r0_t hrvv5_r0 = HRVv5_R0_DEFAULT;
 
 volatile prcv17_r0B_t prcv17_r0B = PRCv17_R0B_DEFAULT;
 volatile prcv17_r0D_t prcv17_r0D = PRCv17_R0D_DEFAULT;
@@ -889,7 +886,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Pstack_state = PSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBE36;
+    enumerated = 0xDAF00036;
     exec_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_4P2_VAL = 0x4B;
@@ -903,8 +900,6 @@ static void operation_init(void){
     mbus_enumerate(SNS_ADDR);
 	delay(MBUS_DELAY);
     mbus_enumerate(RDC_ADDR);
-	delay(MBUS_DELAY);
-    mbus_enumerate(HRV_ADDR); 
 	delay(MBUS_DELAY);
  	mbus_enumerate(PMU_ADDR);
 	delay(MBUS_DELAY);
@@ -1004,10 +999,6 @@ static void operation_init(void){
 	set_sns_exec_count = 0; // specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
 	RADIO_PACKET_DELAY = 800;
 	
-
-    // Harvester Settings --------------------------------------
-	hrvv5_r0.HRV_TOP_CONV_RATIO = 0x9;
-    mbus_remote_register_write(HRV_ADDR,0,hrvv5_r0.as_int);
 
     delay(MBUS_DELAY);
 
@@ -1346,7 +1337,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0xDEADBE36){
+    if (enumerated != 0xDAF00036){
         operation_init();
     }
 
