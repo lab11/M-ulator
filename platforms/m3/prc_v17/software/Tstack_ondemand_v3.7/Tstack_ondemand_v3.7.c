@@ -43,8 +43,8 @@
 //			v3.4: Removing parking; charging controlled by pmu solar short vclamp
 //			v3.5: Adding trigger to change solar short vclamp; battery logged with temp
 //			v3.6: Using SRAM inverter SA
-//			v3.7: Using SNTv1 instead of SNSv10
-//				FIXME: incorporate SNTv1 wakeup timer
+//			v3.7: Using SNTv1 instead of SNSv10; wakeup timer for Trig2 now using SNTv1
+//			FIXME: confirm rollover, in case of timeout, wakeup timer needs adjustment
 //*******************************************************************
 #include "PRCv17.h"
 #include "PRCv17_RF.h"
@@ -60,13 +60,13 @@
 // TStack order  PRC->RAD->SNS->HRV->PMU
 #define HRV_ADDR 0x3
 #define RAD_ADDR 0x4
-#define SNS_ADDR 0x5
+#define SNT_ADDR 0x5
 #define PMU_ADDR 0x6
 
 // Temp Sensor parameters
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
 #define WAKEUP_PERIOD_LDO 5 // About 1 sec (PRCv17)
-#define TEMP_CYCLE_INIT 3 
+#define TEMP_CYCLE_INIT 1 
 
 // Tstack states
 #define	TSTK_IDLE       0x0
@@ -112,10 +112,12 @@ volatile uint32_t temp_storage_latest = 150; // SNSv10
 volatile uint32_t temp_storage_last_wakeup_adjust = 150; // SNSv10
 volatile uint32_t temp_storage_diff = 0;
 volatile uint32_t temp_storage_count;
-volatile uint32_t temp_run_single;
 volatile uint32_t temp_running;
 volatile uint32_t set_temp_exec_count;
 volatile uint32_t read_data_temp; // [23:0] Temp Sensor D Out
+
+volatile uint32_t snt_wup_counter_cur;
+volatile uint32_t snt_timer_enabled = 0;
 
 volatile uint32_t radio_tx_count;
 volatile uint32_t radio_tx_batt;
@@ -130,6 +132,9 @@ volatile uint32_t read_data_batadc;
 volatile sntv1_r00_t sntv1_r00 = SNTv1_R00_DEFAULT;
 volatile sntv1_r01_t sntv1_r01 = SNTv1_R01_DEFAULT;
 volatile sntv1_r03_t sntv1_r03 = SNTv1_R03_DEFAULT;
+volatile sntv1_r08_t sntv1_r08 = SNTv1_R08_DEFAULT;
+volatile sntv1_r09_t sntv1_r09 = SNTv1_R09_DEFAULT;
+volatile sntv1_r0A_t sntv1_r0A = SNTv1_R0A_DEFAULT;
 volatile sntv1_r17_t sntv1_r17 = SNTv1_R17_DEFAULT;
 
 volatile radv9_r0_t radv9_r0 = RADv9_R0_DEFAULT;
@@ -535,6 +540,127 @@ inline static void pmu_reset_solar_short(){
 }
 
 //***************************************************
+// Temp Sensor Functions (SNTv1)
+//***************************************************
+
+static void temp_sensor_start(){
+	sntv1_r01.TSNS_RESETn = 1;
+	mbus_remote_register_write(SNT_ADDR,1,sntv1_r01.as_int);
+}
+static void temp_sensor_reset(){
+	sntv1_r01.TSNS_RESETn = 0;
+	mbus_remote_register_write(SNT_ADDR,1,sntv1_r01.as_int);
+}
+static void temp_sensor_power_on(){
+	// Turn on digital block
+	sntv1_r01.TSNS_SEL_LDO = 1;
+	mbus_remote_register_write(SNT_ADDR,1,sntv1_r01.as_int);
+	// Turn on analog block
+	sntv1_r01.TSNS_EN_SENSOR_LDO = 1;
+	mbus_remote_register_write(SNT_ADDR,1,sntv1_r01.as_int);
+
+	delay(MBUS_DELAY);
+
+	// Release isolation
+	sntv1_r01.TSNS_ISOLATE = 0;
+	mbus_remote_register_write(SNT_ADDR,1,sntv1_r01.as_int);
+}
+static void temp_sensor_power_off(){
+	sntv1_r01.TSNS_RESETn = 0;
+	sntv1_r01.TSNS_SEL_LDO = 0;
+	sntv1_r01.TSNS_EN_SENSOR_LDO = 0;
+	sntv1_r01.TSNS_ISOLATE = 1;
+	mbus_remote_register_write(SNT_ADDR,1,sntv1_r01.as_int);
+}
+static void sns_ldo_vref_on(){
+	sntv1_r00.LDO_EN_VREF 	= 1;
+	mbus_remote_register_write(SNT_ADDR,0,sntv1_r00.as_int);
+}
+
+static void sns_ldo_power_on(){
+	sntv1_r00.LDO_EN_IREF 	= 1;
+	sntv1_r00.LDO_EN_LDO	= 1;
+	mbus_remote_register_write(SNT_ADDR,0,sntv1_r00.as_int);
+}
+static void sns_ldo_power_off(){
+	sntv1_r00.LDO_EN_VREF 	= 0;
+	sntv1_r00.LDO_EN_IREF 	= 0;
+	sntv1_r00.LDO_EN_LDO	= 0;
+	mbus_remote_register_write(SNT_ADDR,0,sntv1_r00.as_int);
+}
+
+static void snt_read_wup_counter(){
+
+	set_halt_until_mbus_rx();
+	mbus_remote_register_read(SNT_ADDR,0x1B,1); // CNT_VALUE_EXT
+	snt_wup_counter_cur = (*REG1 & 0xFF)<<24;
+	mbus_remote_register_read(SNT_ADDR,0x1C,1); // CNT_VALUE
+	snt_wup_counter_cur = snt_wup_counter_cur | (*REG1 & 0xFFFFFF);
+	set_halt_until_mbus_tx();
+
+}
+	
+static void snt_start_timer_presleep(){
+
+	// TIMER SELF_EN Disable 
+	sntv1_r09.TMR_SELF_EN = 0x0; // Default : 0x1
+	mbus_remote_register_write(SNT_ADDR,0x09,sntv1_r09.as_int);
+
+	// EN_OSC 
+	sntv1_r08.TMR_EN_OSC = 0x1; // Default : 0x0
+	mbus_remote_register_write(SNT_ADDR,0x08,sntv1_r08.as_int);
+
+	// Release Reset 
+	sntv1_r08.TMR_RESETB = 0x1; // Default : 0x0
+	sntv1_r08.TMR_RESETB_DIV = 0x1; // Default : 0x0
+	sntv1_r08.TMR_RESETB_DCDC = 0x1; // Default : 0x0
+	mbus_remote_register_write(SNT_ADDR,0x08,sntv1_r08.as_int);
+
+	// TIMER EN_SEL_CLK Reset 
+	sntv1_r08.TMR_EN_SELF_CLK = 0x1; // Default : 0x0
+	mbus_remote_register_write(SNT_ADDR,0x08,sntv1_r08.as_int);
+
+	// TIMER SELF_EN 
+	sntv1_r09.TMR_SELF_EN = 0x1; // Default : 0x0
+	mbus_remote_register_write(SNT_ADDR,0x09,sntv1_r09.as_int);
+    //delay(100000); 
+
+	snt_timer_enabled = 1;
+}
+
+static void snt_start_timer_postsleep(){
+	// Turn off sloscillator
+	sntv1_r08.TMR_EN_OSC = 0x0; // Default : 0x0
+	mbus_remote_register_write(SNT_ADDR,0x08,sntv1_r08.as_int);
+}
+
+
+static void snt_stop_timer(){
+
+	// EN_OSC
+	sntv1_r08.TMR_EN_OSC = 0x0; // Default : 0x0
+	// RESET
+	sntv1_r08.TMR_EN_SELF_CLK = 0x0; // Default : 0x0
+	sntv1_r08.TMR_RESETB = 0x0;// Default : 0x0
+	sntv1_r08.TMR_RESETB_DIV = 0x0; // Default : 0x0
+	sntv1_r08.TMR_RESETB_DCDC = 0x0; // Default : 0x0
+	mbus_remote_register_write(SNT_ADDR,0x08,sntv1_r08.as_int);
+	snt_timer_enabled = 0;
+}
+
+static void snt_set_wup_timer(uint32_t sleep_count){
+	
+	snt_wup_counter_cur = sleep_count + snt_wup_counter_cur; // should handle rollover
+
+	mbus_remote_register_write(SNT_ADDR,0x19,snt_wup_counter_cur>>24);
+	mbus_remote_register_write(SNT_ADDR,0x1A,snt_wup_counter_cur & 0xFFFFFF);
+	
+	sntv1_r17.WUP_ENABLE = 0x1; // Default : 0x
+	mbus_remote_register_write(SNT_ADDR,0x17,sntv1_r17.as_int);
+
+}
+
+//***************************************************
 // Radio transmission routines for PPM Radio (RADv9)
 //***************************************************
 
@@ -626,6 +752,8 @@ static void send_radio_data_ppm(uint32_t last_packet, uint32_t radio_data){
 
 	if (wfi_timeout_flag){
 		mbus_write_message32(0xBB, 0xFAFAFAFA);
+		// In case of timeout, wakeup counter needs to be adjusted 
+		snt_read_wup_counter();
 	}
 
 	if (last_packet){
@@ -635,56 +763,6 @@ static void send_radio_data_ppm(uint32_t last_packet, uint32_t radio_data){
 		radv9_r13.RAD_FSM_ENABLE = 0;
 		mbus_remote_register_write(RAD_ADDR,13,radv9_r13.as_int);
 	}
-}
-
-//***************************************************
-// Temp Sensor Functions (SNTv1)
-//***************************************************
-
-static void temp_sensor_start(){
-	sntv1_r01.TSNS_RESETn = 1;
-	mbus_remote_register_write(SNS_ADDR,1,sntv1_r01.as_int);
-}
-static void temp_sensor_reset(){
-	sntv1_r01.TSNS_RESETn = 0;
-	mbus_remote_register_write(SNS_ADDR,1,sntv1_r01.as_int);
-}
-static void temp_sensor_power_on(){
-	// Turn on digital block
-	sntv1_r01.TSNS_SEL_LDO = 1;
-	mbus_remote_register_write(SNS_ADDR,1,sntv1_r01.as_int);
-	// Turn on analog block
-	sntv1_r01.TSNS_EN_SENSOR_LDO = 1;
-	mbus_remote_register_write(SNS_ADDR,1,sntv1_r01.as_int);
-
-	delay(MBUS_DELAY);
-
-	// Release isolation
-	sntv1_r01.TSNS_ISOLATE = 0;
-	mbus_remote_register_write(SNS_ADDR,1,sntv1_r01.as_int);
-}
-static void temp_sensor_power_off(){
-	sntv1_r01.TSNS_RESETn = 0;
-	sntv1_r01.TSNS_SEL_LDO = 0;
-	sntv1_r01.TSNS_EN_SENSOR_LDO = 0;
-	sntv1_r01.TSNS_ISOLATE = 1;
-	mbus_remote_register_write(SNS_ADDR,1,sntv1_r01.as_int);
-}
-static void sns_ldo_vref_on(){
-	sntv1_r00.LDO_EN_VREF 	= 1;
-	mbus_remote_register_write(SNS_ADDR,0,sntv1_r00.as_int);
-}
-
-static void sns_ldo_power_on(){
-	sntv1_r00.LDO_EN_IREF 	= 1;
-	sntv1_r00.LDO_EN_LDO	= 1;
-	mbus_remote_register_write(SNS_ADDR,0,sntv1_r00.as_int);
-}
-static void sns_ldo_power_off(){
-	sntv1_r00.LDO_EN_VREF 	= 0;
-	sntv1_r00.LDO_EN_IREF 	= 0;
-	sntv1_r00.LDO_EN_LDO	= 0;
-	mbus_remote_register_write(SNS_ADDR,0,sntv1_r00.as_int);
 }
 
 
@@ -711,6 +789,20 @@ static void operation_sleep(void){
 
 }
 
+static void operation_sleep_snt_timer(void){
+
+	// Reset GOC_DATA_IRQ
+	*GOC_DATA_IRQ = 0;
+
+	// Disable PRC Timer
+	set_wakeup_timer(0, 0, 0);
+
+    // Go to Sleep
+    mbus_sleep_all();
+    while(1);
+
+}
+
 static void operation_sleep_noirqreset(void){
 
     // Go to Sleep
@@ -727,7 +819,14 @@ static void operation_sleep_notimer(void){
 	operation_sns_sleep_check();
 
     // Make sure Radio is off
-    if (radio_on){radio_power_off();}
+    if (radio_on){
+		radio_power_off();
+	}
+
+	// Make sure SNT timer is off
+	if (snt_timer_enabled){
+		snt_stop_timer();
+	}
 
 	// Disable Timer
 	set_wakeup_timer(0, 0, 0);
@@ -806,36 +905,6 @@ uint32_t dumb_divide(uint32_t nu, uint32_t de) {
     return quotient;
 }
 
-static void measure_wakeup_period(void){
-
-    // Reset Wakeup Timer
-    *WUPT_RESET = 1;
-
-	mbus_write_message32(0xE0, 0x0);
-	// Prevent watchdogs from kicking in
-   	config_timerwd(TIMERWD_VAL*2);
-	*REG_MBUS_WD = 1500000*3; // default: 1500000
-
-	uint32_t wakeup_timer_val_0 = *REG_WUPT_VAL;
-	wakeup_period_count = 0;
-
-	while( *REG_WUPT_VAL <= wakeup_timer_val_0 + 1){
-		wakeup_period_count = 0;
-	}
-	while( *REG_WUPT_VAL <= wakeup_timer_val_0 + 2){
-		wakeup_period_count++;
-	}
-	mbus_write_message32(0xE1, wakeup_timer_val_0);
-	mbus_write_message32(0xE2, wakeup_period_count);
-
-   	config_timerwd(TIMERWD_VAL);
-	WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*8, wakeup_period_count);
-    if (WAKEUP_PERIOD_CONT > 0x7FFF){
-        WAKEUP_PERIOD_CONT = 0x7FFF;
-    }
-	mbus_write_message32(0xED, WAKEUP_PERIOD_CONT); 
-}
-
 
 static void operation_init(void){
   
@@ -854,7 +923,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEE4;
+    enumerated = 0xDEADBE37;
     exec_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_4P2_VAL = 0x4B;
@@ -865,7 +934,7 @@ static void operation_init(void){
     //Enumeration
     mbus_enumerate(RAD_ADDR);
 	delay(MBUS_DELAY);
-    mbus_enumerate(SNS_ADDR);
+    mbus_enumerate(SNT_ADDR);
 	delay(MBUS_DELAY);
     mbus_enumerate(HRV_ADDR);
 	delay(MBUS_DELAY);
@@ -894,18 +963,39 @@ static void operation_init(void){
 	delay(MBUS_DELAY);
 
     // Temp Sensor Settings --------------------------------------
-
     // sntv1_r01
 	sntv1_r01.TSNS_RESETn = 0;
     sntv1_r01.TSNS_EN_IRQ = 1;
     sntv1_r01.TSNS_BURST_MODE = 0;
     sntv1_r01.TSNS_CONT_MODE = 0;
-    mbus_remote_register_write(SNS_ADDR,1,sntv1_r01.as_int);
+    mbus_remote_register_write(SNT_ADDR,1,sntv1_r01.as_int);
 
 	// Set temp sensor conversion time
 	sntv1_r03.TSNS_SEL_STB_TIME = 0x1; 
 	sntv1_r03.TSNS_SEL_CONV_TIME = 0x6; // Default: 0x6
-	mbus_remote_register_write(SNS_ADDR,0x03,sntv1_r03.as_int);
+	mbus_remote_register_write(SNT_ADDR,0x03,sntv1_r03.as_int);
+
+    // Wakeup Timer Settings --------------------------------------
+    // Config Register A
+	sntv1_r0A.TMR_S = 0x1; // Default: 0x4, use 1 for good TC
+	// Tune R for TC
+    sntv1_r0A.TMR_DIFF_CON = 0x3FFD; // Default: 0x3FFB
+    sntv1_r0A.TMR_POLY_CON = 0x1; // Default: 0x1
+    mbus_remote_register_write(SNT_ADDR,0x0A,sntv1_r0A.as_int);
+
+	// TIMER CAP_TUNE  
+	// Tune C for freq
+	sntv1_r09.TMR_SEL_CAP = 0x80; // Default : 8'h8
+	sntv1_r09.TMR_SEL_DCAP = 0x3F; // Default : 6'h4
+
+	sntv1_r09.TMR_EN_TUNE1 = 0x1; // Default : 1'h1
+	sntv1_r09.TMR_EN_TUNE2 = 0x1; // Default : 1'h1
+	mbus_remote_register_write(SNT_ADDR,0x09,sntv1_r09.as_int);
+
+	// Wakeup Counter setting
+	sntv1_r17.WUP_CLK_SEL = 0x0; 
+	sntv1_r17.WUP_AUTO_RESET = 0x0; // Automatically reset counter to 0 upon sleep 
+	mbus_remote_register_write(SNT_ADDR,0x17,sntv1_r17.as_int);
 
     // Radio Settings --------------------------------------
 	radv9_r0.RADIO_TUNE_CURRENT_LIMITER = 0x2F; //Current Limiter 2F = 30uA, 1F = 3uA
@@ -940,7 +1030,6 @@ static void operation_init(void){
     temp_storage_count = 0;
     radio_tx_count = 0;
     radio_tx_option = 0; //enables radio tx for each measurement 
-    temp_run_single = 0;
     temp_running = 0;
     radio_ready = 0;
     radio_on = 0;
@@ -1017,7 +1106,7 @@ static void operation_temp_run(void){
 		}else{
 			// Read register
 			set_halt_until_mbus_rx();
-			mbus_remote_register_read(SNS_ADDR,0x6,1);
+			mbus_remote_register_read(SNT_ADDR,0x6,1);
 			read_data_temp = *REG1;
 			set_halt_until_mbus_tx();
 		}
@@ -1029,27 +1118,11 @@ static void operation_temp_run(void){
 			if (wfi_timeout_flag){
 				temp_storage_latest = 0x666;
 				wfi_timeout_flag = 0;
+				// In case of timeout, wakeup counter needs to be adjusted 
+				snt_read_wup_counter();
 			}else{
 				temp_storage_latest = read_data_temp;
 
-				// Record temp difference from last wakeup adjustment
-				if (temp_storage_latest > temp_storage_last_wakeup_adjust){
-					temp_storage_diff = temp_storage_latest - temp_storage_last_wakeup_adjust;
-				}else{
-					temp_storage_diff = temp_storage_last_wakeup_adjust - temp_storage_latest;
-				}
-				#ifdef DEBUG_MBUS_MSG_1
-					mbus_write_message32(0xEA, temp_storage_diff);
-					delay(MBUS_DELAY);
-				#endif
-				
-				// FIXME: for now, do this every time					
-				//measure_wakeup_period();
-				
-				if ((temp_storage_diff > 10) || (exec_count < (TEMP_CYCLE_INIT+5))){ // FIXME: value of 20 correct?
-					measure_wakeup_period();
-					temp_storage_last_wakeup_adjust = temp_storage_latest;
-				}
 			}
 		}
 
@@ -1095,22 +1168,13 @@ static void operation_temp_run(void){
 			if(exec_count < TEMP_CYCLE_INIT){
 				// Send some signal
 				send_radio_data_ppm(1, 0xABC000);
-				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-
-			}else{	
-				set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
 			}
+
 
 			// Make sure Radio is off
 			if (radio_on){
 				radio_ready = 0;
 				radio_power_off();
-			}
-
-			if (temp_run_single){
-				temp_run_single = 0;
-				temp_running = 0;
-				operation_sleep_notimer();
 			}
 
 			if ((set_temp_exec_count != 0) && (exec_count > (50<<set_temp_exec_count))){
@@ -1119,7 +1183,8 @@ static void operation_temp_run(void){
 				temp_running = 0;
 				operation_sleep_notimer();
 			}else{
-				operation_sleep();
+				snt_set_wup_timer(WAKEUP_PERIOD_CONT_USER);
+				operation_sleep_snt_timer();
 			}
 
 		}
@@ -1193,7 +1258,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEE4){
+    if (enumerated != 0xDEADBE37){
         operation_init();
     }
 
@@ -1221,24 +1286,27 @@ int main() {
 
     }else if(wakeup_data_header == 2){
 		// Slow down PMU sleep osc and run temp sensor code with desired wakeup period
-        // wakeup_data[15:0] is the user-specified period
-        // wakeup_data[19:16] is the initial user-specified period
         // wakeup_data[20] enables radio tx for each measurement
         // wakeup_data[23:21] specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
-    	WAKEUP_PERIOD_CONT_USER = (wakeup_data_field_0 + (wakeup_data_field_1<<8));
-        WAKEUP_PERIOD_CONT_INIT = (wakeup_data_field_2 & 0xF);
         radio_tx_option = wakeup_data_field_2 & 0x10;
 
-		temp_run_single = 0;
+        exec_count_irq++;
+		if (exec_count_irq == 1){
+			snt_start_timer_presleep();
+			// Go to sleep for >3s for timer stabilization
+			set_wakeup_timer (0x20, 0x1, 0x1);
+			operation_sleep_noirqreset();
+		}else if (exec_count_irq == 2){
+			snt_start_timer_postsleep();
+			// Read existing counter value; in case not reset to zero
+			snt_read_wup_counter();
+		}
 
 		if (!temp_running){
-			// Go to sleep for initial settling of temp sensing // FIXME
-			//set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
 			temp_running = 1;
 			set_temp_exec_count = wakeup_data_field_2 >> 5;
-            exec_count_irq++;
-			//operation_sleep_noirqreset();
 		}
+
 		exec_count = 0;
 		meas_count = 0;
 		temp_storage_count = 0;
@@ -1490,7 +1558,7 @@ int main() {
 		// Change the conversion time of the temp sensor
 
 		sntv1_r03.TSNS_SEL_CONV_TIME = wakeup_data & 0xF; // Default: 0x6
-		mbus_remote_register_write(SNS_ADDR,0x03,sntv1_r03.as_int);
+		mbus_remote_register_write(SNT_ADDR,0x03,sntv1_r03.as_int);
 
 		// Go to sleep without timer
 		operation_sleep_notimer();
@@ -1517,6 +1585,35 @@ int main() {
 
 		// Go to sleep without timer
 		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0xA0){
+	// FIXME: Test for SNTv1 wakeup timer
+		
+		exec_count_irq++;
+		if (exec_count_irq == 1){
+			snt_start_timer_presleep();
+			// Go to sleep for >3s for timer stabilization
+			set_wakeup_timer (0x20, 0x1, 0x1);
+			operation_sleep_noirqreset();
+		}else if (exec_count_irq == 2){
+			snt_start_timer_postsleep();
+			// Read existing counter value; in case not reset to zero
+			snt_read_wup_counter();
+		}
+		snt_set_wup_timer(wakeup_data & 0xFFFFFF);
+
+		operation_sleep_noirqreset();
+		
+		
+	}else if(wakeup_data_header == 0xA2){
+    	WAKEUP_PERIOD_CONT_USER = wakeup_data & 0xFFFFFF;
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0xF0){
+
+		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0x0, enumerated);
 
     }else{
 		if (wakeup_data_header != 0){

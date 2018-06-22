@@ -892,7 +892,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBEE4;
+    enumerated = 0xDEADBE36;
     exec_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_4P2_VAL = 0x4B;
@@ -1277,7 +1277,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0xDEADBEE4){
+    if (enumerated != 0xDEADBE36){
         operation_init();
     }
 
@@ -1572,6 +1572,11 @@ int main() {
 
 		// Go to sleep without timer
 		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0xF0){
+
+		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0x0, enumerated);
+
 
     }else{
 		if (wakeup_data_header != 0){
