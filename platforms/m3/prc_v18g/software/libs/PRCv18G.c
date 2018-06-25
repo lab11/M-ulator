@@ -49,10 +49,10 @@ void disable_timerwd(){
 	*TIMERWD_GO  = 0x0;
 }
 
-void set_wakeup_timer( uint16_t timestamp, uint8_t irq_en, uint8_t reset ){
+void set_wakeup_timer( uint32_t timestamp, uint8_t irq_en, uint8_t reset ){
 	uint32_t regval = timestamp;
-	if( irq_en ) regval |= 0x30000; // IRQ in Sleep-Only
-	else		 regval &= 0x07FFF;
+	if( irq_en ) regval |= 0xC00000; // IRQ in Sleep-Only
+	else		 regval &= 0x3FFFFF;
     *REG_WUPT_CONFIG = regval;
 
 	if( reset ) *WUPT_RESET = 0x01;

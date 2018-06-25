@@ -84,17 +84,17 @@
 #define REG5            ((volatile uint32_t *) 0xA0000014)
 #define REG6            ((volatile uint32_t *) 0xA0000018)
 #define REG7            ((volatile uint32_t *) 0xA000001C)
-#define REG_CHIP_ID     ((volatile uint32_t *) 0xA0000020)
+#define REG_GOC_CHIP_ID ((volatile uint32_t *) 0xA0000020)
 #define REG_MBUS_BITS   ((volatile uint32_t *) 0xA0000024)
 #define REG_FLAGS       ((volatile uint32_t *) 0xA0000028)
 #define REG_CLKGEN_TUNE ((volatile uint32_t *) 0xA000002C)
-#define REG_SRAM_TUNE   ((volatile uint32_t *) 0xA0000034)
+#define REG_PUF_CHIP_ID ((volatile uint32_t *) 0xA0000034)
 #define REG_GOC_TIMEOUT ((volatile uint32_t *) 0xA0000038)
 #define REG_GOCEP_FLAG  ((volatile uint32_t *) 0xA000003C)
 #define REG_RUN_CPU     ((volatile uint32_t *) 0xA0000040)
 #define REG_WUPT_CONFIG ((volatile uint32_t *) 0xA0000044)
 #define REG_WUPT_VAL    ((volatile uint32_t *) 0xA0000048)
-#define REG_SOFT_RESET  ((volatile uint32_t *) 0xA0000068)
+#define REG_SYS_CONF    ((volatile uint32_t *) 0xA000006C)
 #define REG_MBUS_FLAG   ((volatile uint32_t *) 0xA0000078)
 #define REG_MBUS_WD     ((volatile uint32_t *) 0xA000007C)
 #define REG_STR1_BUFL   ((volatile uint32_t *) 0xA00000A4)
@@ -106,6 +106,7 @@
 #define REG_STR0_EN     ((volatile uint32_t *) 0xA00000BC)
 #define REG_STR0_OFF    ((volatile uint32_t *) 0xA00000C0)
 #define REG_BLK_WR      ((volatile uint32_t *) 0xA00000CC)
+#define REG_CHIP_ID     ((volatile uint32_t *) 0xA00000FC)
 
 //*********************************************************
 // TIMER16 MMIO Addresses
@@ -154,8 +155,10 @@
 //*********************************************************
 // PRC/PREv18G System Control
 //*********************************************************
-#define SCTR_REG_HALT_ADDR      ((volatile uint32_t *) 0xAFFFF000)
-#define SCTR_REG_RESUME_ADDR    ((volatile uint32_t *) 0xAFFFF004)
+#define SCTR_REG_HALT_ADDR          ((volatile uint32_t *) 0xAFFFF000)
+#define SCTR_REG_RESUME_ADDR        ((volatile uint32_t *) 0xAFFFF004)
+#define SCTR_REG_CLR_WUP_PEND_REQ   ((volatile uint32_t *) 0xAFFFF008)
+#define SCTR_REG_CLR_WUP_SOURCE     ((volatile uint32_t *) 0xAFFFF00C)
 #define SCTR_CMD_HALT_CPU       0xBAADF00D
 #define SCTR_CMD_RESUME_CPU     0xCAFEF00D
 
@@ -412,7 +415,7 @@ void disable_timerwd();
  * @param   irq_en      Interrupt Enable
  * @param   reset       1 will reset the wake-up timer
  */
-void set_wakeup_timer( uint16_t timestamp, uint8_t irq_en, uint8_t reset );
+void set_wakeup_timer( uint32_t timestamp, uint8_t irq_en, uint8_t reset );
 
 
 /**

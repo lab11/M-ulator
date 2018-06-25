@@ -1,0 +1,81 @@
+# NUMA_compiler
+####################################################################################
+## Compiler and test case generator for Non-Uniform Memory DNN Accelerator project
+ ##
+EECS, University of Michigan
+
+Check and use ./test.sh to generate memory footprint and ARM code.
+Usually, scripts in compiler/ generates memory footprint and PE instructions. PE instructions are then copied to ARM_code/libs/, and be compiled into ARM code for M0 execution.
+
+Here are the description of the test cases:
+### MOV_FULL
+Test intra- and inter-PE mov instructions. 
+Six instructions in three stages:
+a.) PE0->PE0 and PE1->PE2
+b.) PE0->PE0 and PE2->PE3
+c.) PE0->PE0 and PE3->PE1
+Configurations and memory footprint names can be found in compiler/MOV_FULL.pl
+
+### MAC_MOV
+Test one parallel MAC (4PE) instruction and one parallel MOV (4PE) instruction
+
+### MACNLI_MOV
+Test one parallel MAC (4PE) instruction with non-linear function and one parallel MOV (4PE) instruction.
+Memory footprint names can be found in compiler/MACNLI_MOV_PAR.pl
+
+### MOV_MAC_small
+Test one single MAC (1PE) instruction. 
+Initially, all the data (weights, inputs, and offsets) are stored in one bank to minimize time to write data to SRAM during chip testing. The instruction is preceeded by two MOV instructions to mov the inputs and offests to other banks.  
+
+### DNN
+Test the 3 layer DNN for keyword spotting application.  
+Configurations can be found in compiler/dnn_gen_fake_mac.py
+Memory footprint names can be found in compiler/MOV_FULL.pl
+
+### FFT_FULL
+Test a full FFT operation. Each FFT stage is an instruction. 
+*** IMPORTANT *** The generated golden memory footprints can be different from actual circuit results due to rounding errors (for instance, 0.5 can be rounded to 0 in one case while 1 in another). But the overhead should be small (less than 0.5%).
+
+To change precision: besides gen_fake_fft.py, FFT_FULL.pl, need to change $COMMON_I_PREC, etc in FFT_sub.pm, FFT_GEN_WEIGHT.pm as well. Also the total number of instructions could change as well.
+
+#######
+##### HOW MAC ZERO-PADDING WORKS ON THE ACCELERATOR
+The acceleator works on a 96-bit word basis. Therefore, 1 word would contain multiple elements. If the total number of elements does not sit right on a bounary of words, we need zero-padding. For instance, 20 8-bit elements will occupy 2 words in total, and need 32 bits zero-padding.
+It becomes more complicated with MAC when the precisions of inputs, outputs and weights are different. Basically, we need to find a setup that can fill the zero-padding gap of all configurations. This can be achieved by finding the least common multiple of all words.
+
+To do so, we need to define:
+Minimum factor for #cols in weight matrix = #input elements / word
+Minimum factor for #rows in weight matrix = LCM{LCM(#W/word, #I/word) / #I/word, #TO/word, #O/word} [LCM: least common multiple]
+For instance, when input / output is 12bits, weight 6bits, temp_out 32bits, 
+#min_cols = 8
+#min_rows = LCM(LCM(16, 8) / 8, 3, 8) = LCM(2,3,8) = 24
+And the number of inputs of MAC operation should be a mulitple of min_cols, number of outputs a mulitple of min_rows.
+
+#######
+##### HOW FFT WORKS ON THE ACCELERATOR
+** Summary ** 
+First do DFT on M0, then FFT on accelerator. The points of DFT depends on precision. 
+
+** ** 
+The FFT algorithm used here first bit-reverse FFT inputs, and produces outputs in regular order. For instance, for a 8-point FFT, the sequence would be 3 stage of butterfly operations:
+
+Inputs 1-pt-but.  2-pt.but.  4-pt.but.   Outputs
+0(000)   -- [0(000) -- 0(000)   --] 0(000)
+4(100)   -- [2(010) -- 1(000)   --] 1(000)
+2(010)   -- [4(100) -- 2(010)   --] 2(010)
+6(110)   -- [6(110) -- 3(011)   --] 3(011)
+1(001)   -- [1(001) -- 4(100)   --] 4(100)
+5(101)   -- [3(011) -- 5(101)   --] 5(101)
+3(011)   -- [5(101) -- 6(110)   --] 6(110)
+7(111)   -- [7(111) -- 7(111)   --] 7(111)
+*1-pt-but: 1 point butterfly operation, which involves 2 units. Here in the 1st stage there are 4 such operations.
+*2-pt-but: 2 point butterfly operation, which involves 4 units. Here in the 1st stage there are 2 such operations.
+*4-pt-but: 4 point butterfly operation, which involves 8 units. Here in the 1st stage there are 1 such operation.
+
+However, the butterfly operation can only be done between data in different words, not data in same words. For instance, in the above example, in the first stage, data #0 and data #4 has to be in different stages in order to do a butterfly operation between them. 
+Since the acceleator works on a 96-bit word basis and the maximum precision for data is 16-bit, and if we store them in different words, it would cost significant amount of zero-padding in memory and a overhead in memory space. 
+Therefore, we start from the stage where the data can fit in a 96-bit word. For instnance, in the above example, if the data is 12bit which means 4 complex numbers per word, we should start from the third stage -- 4 point butterfly. The previous stages would be done by DCT on the M0. If the data is 16bit which means 2 complex numbers per word, we can start from the second stage -- 2 point butterfly -- instead. The reason 2 not 3 is explained in the following section. 
+
+For 8-bit and 16-bit precision, a word would contain 6 and 3 complex numbers. The accelerator is designed to accommodate data with the number of 2's exponents. Therefore, for 8-bit and 16-bit there would be 2 and 1 complex numbers of zero-padding.
+
+

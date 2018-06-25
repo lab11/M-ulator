@@ -1,12 +1,13 @@
 //*******************************************************************
 //Author: Yejoong Kim
-//Description: Developed during PRCv17 tape-out for verification
+//Description: Developed during PRCv18G tape-out for verification
 //*******************************************************************
-#include "PRCv17.h"
-#include "FLPv2S_RF.h"
-#include "PMUv7H_RF.h"
-#include "SNSv10_RF.h"
-#include "RDCv1_RF.h"
+#include "PRCv18G.h"
+#include "FLPv3S.h"
+#include "FLPv3S_RF.h"
+#include "PMUv9_RF.h"
+#include "SNSv11_RF.h"
+#include "RDCv2_RF.h"
 #include "mbus.h"
 
 #define PRC_ADDR    0x1
@@ -16,7 +17,7 @@
 #define RDC_ADDR    0x5
 #define PMU_ADDR    0xE
 
-// FLPv2S Payloads
+// FLPv3S Payloads
 #define ERASE_PASS  0x4F
 
 // Flag Idx
@@ -35,12 +36,12 @@ volatile uint32_t mem_rsvd_0[10];
 volatile uint32_t mem_rsvd_1[10];
 
 
-volatile flpv2s_r0F_t FLPv2S_R0F_IRQ      = FLPv2S_R0F_DEFAULT;
-volatile flpv2s_r12_t FLPv2S_R12_PWR_CONF = FLPv2S_R12_DEFAULT;
-volatile flpv2s_r07_t FLPv2S_R07_GO       = FLPv2S_R07_DEFAULT;
+volatile flpv3s_r0F_t FLPv3S_REG_IRQ     = FLPv3S_R0F_DEFAULT;
+volatile flpv3s_r12_t FLPv3S_REG_PWR_CNF = FLPv3S_R12_DEFAULT;
+volatile flpv3s_r09_t FLPv3S_REG_GO      = FLPv3S_R09_DEFAULT;
 
-volatile pmuv7h_r51_t PMUv7H_R51_CONF = PMUv7H_R51_DEFAULT;
-volatile pmuv7h_r52_t PMUv7H_R52_IRQ  = PMUv7H_R52_DEFAULT;
+volatile pmuv9_r51_t PMUv9_REG_CONF = PMUv9_R51_DEFAULT;
+volatile pmuv9_r52_t PMUv9_REG_IRQ  = PMUv9_R52_DEFAULT;
 
 // Select Testing
 volatile uint32_t do_cycle0  = 1; // System Halt and Resume
@@ -52,7 +53,7 @@ volatile uint32_t do_cycle5  = 1; // Memory Streaming 1
 volatile uint32_t do_cycle6  = 1; // Memory Streaming 2
 volatile uint32_t do_cycle7  = 1; // TIMER16
 volatile uint32_t do_cycle8  = 1; // TIMER32
-#ifdef PREv17
+#ifdef PREv18G
 volatile uint32_t do_cycle9  = 1; // GPIO (only for PRE)
 volatile uint32_t do_cycle10 = 1; // SPI (only for PRE)
 #else
@@ -195,7 +196,7 @@ void fail (uint32_t id, uint32_t data) {
     arb_debug_reg(0xE8, 0x0);
     arb_debug_reg(0xE9, id);
     arb_debug_reg(0xEA, data);
-    *REG_CHIP_ID = 0xFFFF; // This will stop the verilog sim.
+    *REG_CHIP_ID = 0xFFFFFF; // This will stop the verilog sim.
 }
 
 void cycle0 (void) {
@@ -260,9 +261,9 @@ void cycle1 (void) {
 
             // Enable PMU Write Check
             set_halt_until_mbus_tx();
-            PMUv7H_R51_CONF.PMU_IRQ_EN = 0x1;
-            PMUv7H_R51_CONF.PMU_CHECK_WRITE = 0x1;
-            mbus_remote_register_write(PMU_ADDR, 0x51, PMUv7H_R51_CONF.as_int);
+            PMUv9_REG_CONF.PMU_IRQ_EN = 0x1;
+            PMUv9_REG_CONF.PMU_CHECK_WRITE = 0x1;
+            mbus_remote_register_write(PMU_ADDR, 0x51, PMUv9_REG_CONF.as_int);
 
             // Write to PMU Registers (without write check)
             set_halt_until_mbus_trx();
@@ -297,10 +298,10 @@ void cycle1 (void) {
 
             // Enable PMU Write Check
             set_halt_until_mbus_tx();
-            PMUv7H_R51_CONF.PMU_IRQ_EN = 0x1;
-            PMUv7H_R51_CONF.PMU_CHECK_WRITE = 0x0;
-            PMUv7H_R51_CONF.EN_GLITCH_FILT = 0x1;
-            mbus_remote_register_write(PMU_ADDR, 0x51, PMUv7H_R51_CONF.as_int);
+            PMUv9_REG_CONF.PMU_IRQ_EN = 0x1;
+            PMUv9_REG_CONF.PMU_CHECK_WRITE = 0x0;
+            PMUv9_REG_CONF.EN_GLITCH_FILT = 0x1;
+            mbus_remote_register_write(PMU_ADDR, 0x51, PMUv9_REG_CONF.as_int);
 
             // Set Flags
             set_flag(FLAG_PMU_SUB_1, 1);
@@ -467,27 +468,27 @@ void cycle4 (void) {
     ///////////////////////////
     
         // Set FLP INT_SHORT_PREFIX = 10, REG_ADDR = 00
-        FLPv2S_R0F_IRQ.INT_RPLY_REG_ADDR = 0x00;
-        FLPv2S_R0F_IRQ.INT_RPLY_SHORT_ADDR = 0x10;
-        mbus_remote_register_write(FLP_ADDR, 0x0F, FLPv2S_R0F_IRQ.as_int);
+        FLPv3S_REG_IRQ.INT_RPLY_REG_ADDR = 0x00;
+        FLPv3S_REG_IRQ.INT_RPLY_SHORT_ADDR = 0x10;
+        mbus_remote_register_write(FLP_ADDR, 0x0F, FLPv3S_REG_IRQ.as_int);
 
         // Set FLP Power Configuration (Auto On/Off)
-        FLPv2S_R12_PWR_CONF.FLASH_AUTO_ON = 0x1;
-        FLPv2S_R12_PWR_CONF.FLASH_AUTO_OFF = 0x1;
-        FLPv2S_R12_PWR_CONF.FLASH_AUTO_USE_CUSTOM = 0x0;
-        FLPv2S_R12_PWR_CONF.SEL_PWR_ON_WUP = 0x0;
-        FLPv2S_R12_PWR_CONF.IRQ_PWR_ON_WUP = 0x0;
-        mbus_remote_register_write(FLP_ADDR, 0x12, FLPv2S_R12_PWR_CONF.as_int);
+        FLPv3S_REG_PWR_CNF.FLASH_AUTO_ON = 0x1;
+        FLPv3S_REG_PWR_CNF.FLASH_AUTO_OFF = 0x1;
+        FLPv3S_REG_PWR_CNF.FLASH_AUTO_USE_CUSTOM = 0x0;
+        FLPv3S_REG_PWR_CNF.SEL_PWR_ON_WUP = 0x0;
+        FLPv3S_REG_PWR_CNF.IRQ_PWR_ON_WUP = 0x0;
+        mbus_remote_register_write(FLP_ADDR, 0x12, FLPv3S_REG_PWR_CNF.as_int);
     
         // Set HALT_UNTIL_REG0
         set_halt_until_reg(0);
     
         // Start Flash Erase
-        FLPv2S_R07_GO.GO = 0x1;
-        FLPv2S_R07_GO.CMD = 0x4; // Erase Flash
-        FLPv2S_R07_GO.IRQ_EN = 0x1;
-        FLPv2S_R07_GO.LENGTH = 0x0;
-        mbus_remote_register_write(FLP_ADDR, 0x07, FLPv2S_R07_GO.as_int);
+        FLPv3S_REG_GO.GO = 0x1;
+        FLPv3S_REG_GO.CMD = FLPV3_CMD_ERASE;
+        FLPv3S_REG_GO.IRQ_EN = 0x1;
+        FLPv3S_REG_GO.LENGTH = 0x0;
+        mbus_remote_register_write(FLP_ADDR, 0x09, FLPv3S_REG_GO.as_int);
 
         // Check the payload
         if (*REG0 == ERASE_PASS) { pass (0x8, *REG0); }
@@ -502,16 +503,16 @@ void cycle4 (void) {
     ///////////////////////////
 
         // Set FLP INT_SHORT_PREFIX = 10, REG_ADDR = 04
-        FLPv2S_R0F_IRQ.INT_RPLY_REG_ADDR = 0x04;
-        FLPv2S_R0F_IRQ.INT_RPLY_SHORT_ADDR = 0x10;
-        mbus_remote_register_write(FLP_ADDR, 0x0F, FLPv2S_R0F_IRQ.as_int);
+        FLPv3S_REG_IRQ.INT_RPLY_REG_ADDR = 0x04;
+        FLPv3S_REG_IRQ.INT_RPLY_SHORT_ADDR = 0x10;
+        mbus_remote_register_write(FLP_ADDR, 0x0F, FLPv3S_REG_IRQ.as_int);
 
         // Set HALT_UNTIL_REG0
         set_halt_until_reg(4);
     
         // Start Flash Erase
-        FLPv2S_R07_GO.GO = 0x1;
-        mbus_remote_register_write(FLP_ADDR, 0x07, FLPv2S_R07_GO.as_int);
+        FLPv3S_REG_GO.GO = 0x1;
+        mbus_remote_register_write(FLP_ADDR, 0x09, FLPv3S_REG_GO.as_int);
 
         // Check the payload
         if (*REG4 == ERASE_PASS) { pass (0x9, *REG4); }
@@ -526,16 +527,16 @@ void cycle4 (void) {
     ///////////////////////////
 
         // Set FLP INT_SHORT_PREFIX = 10, REG_ADDR = 07
-        FLPv2S_R0F_IRQ.INT_RPLY_REG_ADDR = 0x07;
-        FLPv2S_R0F_IRQ.INT_RPLY_SHORT_ADDR = 0x10;
-        mbus_remote_register_write(FLP_ADDR, 0x0F, FLPv2S_R0F_IRQ.as_int);
+        FLPv3S_REG_IRQ.INT_RPLY_REG_ADDR = 0x07;
+        FLPv3S_REG_IRQ.INT_RPLY_SHORT_ADDR = 0x10;
+        mbus_remote_register_write(FLP_ADDR, 0x0F, FLPv3S_REG_IRQ.as_int);
 
         // Set HALT_UNTIL_REG0
         set_halt_until_reg(7);
     
         // Start Flash Erase
-        FLPv2S_R07_GO.GO = 0x1;
-        mbus_remote_register_write(FLP_ADDR, 0x07, FLPv2S_R07_GO.as_int);
+        FLPv3S_REG_GO.GO = 0x1;
+        mbus_remote_register_write(FLP_ADDR, 0x09, FLPv3S_REG_GO.as_int);
 
         // Check the payload
         if (*REG7 == ERASE_PASS) { pass (0xA, *REG7); }
@@ -704,7 +705,7 @@ void cycle8 (void) {
 
 void cycle9 (void) {
     if (do_cycle9 == 1) {
-    #ifdef PREv17
+    #ifdef PREv18G
         arb_debug_reg (0x39, 0x00000000);
         if (!get_flag(FLAG_GPIO_SUB)) {
             set_flag(FLAG_GPIO_SUB, 1);
@@ -766,7 +767,7 @@ void cycle9 (void) {
 
 void cycle10 (void) {
     if (do_cycle10 == 1) {
-    #ifdef PREv17
+    #ifdef PREv18G
         arb_debug_reg (0x3A, 0x00000000);
         set_halt_until_mbus_tx();
 
@@ -847,7 +848,7 @@ int main() {
     arb_debug_reg(0x2F, cyc_num);
 
     // Sleep/Wakeup OR Terminate operation
-    if (cyc_num == 999) *REG_CHIP_ID = 0xFFFF; // This will stop the verilog sim.
+    if (cyc_num == 999) *REG_CHIP_ID = 0xFFFFFF; // This will stop the verilog sim.
     else {
         cyc_num++;
         set_wakeup_timer(5, 1, 1);

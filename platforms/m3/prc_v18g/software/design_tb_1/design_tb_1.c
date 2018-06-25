@@ -1,12 +1,13 @@
 //*******************************************************************
 //Author: Yejoong Kim
-//Description: Developed during PRCv17 tape-out for verification
+//Description: Developed during PRCv18G tape-out for verification
 //*******************************************************************
-#include "PRCv17.h"
-#include "FLPv2S_RF.h"
-#include "PMUv7H_RF.h"
-#include "SNSv10_RF.h"
-#include "RDCv1_RF.h"
+#include "PRCv18G.h"
+#include "FLPv3S.h"
+#include "FLPv3S_RF.h"
+#include "PMUv9_RF.h"
+#include "SNSv11_RF.h"
+#include "RDCv2_RF.h"
 #include "mbus.h"
 
 #define PRC_ADDR    0x1
@@ -16,7 +17,7 @@
 #define RDC_ADDR    0x5
 #define PMU_ADDR    0xE
 
-// FLPv2S Payloads
+// FLPv3S Payloads
 #define ERASE_PASS  0x4F
 
 // Flag Idx
@@ -39,23 +40,23 @@ volatile uint32_t mem_rsvd_0[10];
 volatile uint32_t mem_rsvd_1[10];
 
 
-volatile flpv2s_r0F_t FLPv2S_R0F_IRQ      = FLPv2S_R0F_DEFAULT;
-volatile flpv2s_r12_t FLPv2S_R12_PWR_CONF = FLPv2S_R12_DEFAULT;
-volatile flpv2s_r07_t FLPv2S_R07_GO       = FLPv2S_R07_DEFAULT;
+volatile flpv3s_r0F_t FLPv3S_REG_IRQ     = FLPv3S_R0F_DEFAULT;
+volatile flpv3s_r12_t FLPv3S_REG_PWR_CNF = FLPv3S_R12_DEFAULT;
+volatile flpv3s_r09_t FLPv3S_REG_GO      = FLPv3S_R09_DEFAULT;
 
-volatile pmuv7h_r51_t PMUv7H_R51_CONF = PMUv7H_R51_DEFAULT;
-volatile pmuv7h_r52_t PMUv7H_R52_IRQ  = PMUv7H_R52_DEFAULT;
+volatile pmuv9_r51_t PMUv9_REG_CONF = PMUv9_R51_DEFAULT;
+volatile pmuv9_r52_t PMUv9_REG_IRQ  = PMUv9_R52_DEFAULT;
 
-volatile snsv10_r00_t SNSv10_R00_LDO        = SNSv10_R00_DEFAULT;
-volatile snsv10_r01_t SNSv10_R01_TSNS       = SNSv10_R01_DEFAULT;
-volatile snsv10_r07_t SNSv10_R07_TSNS_IRQ   = SNSv10_R07_DEFAULT;
-volatile snsv10_r17_t SNSv10_R17_WUP_CONF   = SNSv10_R17_DEFAULT;
-volatile snsv10_r18_t SNSv10_R18_WUP_PYLD   = SNSv10_R18_DEFAULT;
-volatile snsv10_r19_t SNSv10_R19_WUP_THRES  = SNSv10_R19_DEFAULT;
+volatile snsv11_r00_t SNSv11_REG_LDO        = SNSv11_R00_DEFAULT;
+volatile snsv11_r01_t SNSv11_REG_TSNS       = SNSv11_R01_DEFAULT;
+volatile snsv11_r07_t SNSv11_REG_TSNS_IRQ   = SNSv11_R07_DEFAULT;
+volatile snsv11_r17_t SNSv11_REG_WUP_CNF    = SNSv11_R17_DEFAULT;
+volatile snsv11_r18_t SNSv11_REG_WUP_PYLD   = SNSv11_R18_DEFAULT;
+volatile snsv11_r1A_t SNSv11_REG_WUP_THRES  = SNSv11_R1A_DEFAULT;
 
 
 // Select Testing
-#ifdef PREv17
+#ifdef PREv18G
 volatile uint32_t do_cycle0  = 1; // Wakeup through GPIO (only for PRE)
 volatile uint32_t do_cycle1  = 1; // Wakeup through XO (only for PRE)
 #else
@@ -67,7 +68,7 @@ volatile uint32_t do_cycle3  = 1; // GOC in Active
 volatile uint32_t do_cycle4  = 1; // GOC in Sleep
 volatile uint32_t do_cycle5  = 1; // GOC Write Access
 volatile uint32_t do_cycle6  = 1; // GOC Read Access
-volatile uint32_t do_cycle7  = 1; // SNSv10 Wakeup Timer
+volatile uint32_t do_cycle7  = 1; // SNSv11 Wakeup Timer
 volatile uint32_t do_cycle8  = 0; // 
 volatile uint32_t do_cycle9  = 0; // 
 volatile uint32_t do_cycle10 = 0; // 
@@ -207,12 +208,12 @@ void fail (uint32_t id, uint32_t data) {
     arb_debug_reg(0xE8, 0x0);
     arb_debug_reg(0xE9, id);
     arb_debug_reg(0xEA, data);
-    *REG_CHIP_ID = 0xFFFF; // This will stop the verilog sim.
+    *REG_CHIP_ID = 0xFFFFFF; // This will stop the verilog sim.
 }
 
 void cycle0 (void) {
     if (do_cycle0 == 1) {
-    #ifdef PREv17
+    #ifdef PREv18G
         arb_debug_reg(0x40, 0x00000000);
 
         //----------------------------------------------------------------------------------------------------------    
@@ -276,7 +277,7 @@ void cycle0 (void) {
 
 void cycle1 (void) {
     if (do_cycle1 == 1) {
-    #ifdef PREv17
+    #ifdef PREv18G
         arb_debug_reg(0x41, 0x00000000);
 
         //----------------------------------------------------------------------------------------------------------    
@@ -319,7 +320,7 @@ void cycle2 (void) {
 
             set_flag(FLAG_SOFT_RESET, 1);
 
-            *REG_SOFT_RESET = 0;
+            *REG_SYS_CONF = 0x60;
 
             arb_debug_reg(0x42, 0x00000001);
             mbus_copy_mem_from_local_to_remote_bulk (FLP_ADDR, 0x0, 0x0, 15);
@@ -330,7 +331,7 @@ void cycle2 (void) {
 
             set_halt_until_mbus_tx();
 
-            *REG_SOFT_RESET = 1;
+            *REG_SYS_CONF = 0x70;
 
             set_halt_until_mbus_trx();
             arb_debug_reg(0x42, 0x00000003);
@@ -341,7 +342,7 @@ void cycle2 (void) {
         //----------------------------------------------------------------------------------------------------------    
         // End of Testing
         else {
-            *REG_SOFT_RESET = 0;
+            *REG_SYS_CONF = 0x60;
 
             if (irq_history == (0x1 << IRQ_SOFT_RESET)) {
                    pass (0x0, irq_history); irq_history = 0; disable_all_irq(); }
@@ -419,7 +420,7 @@ void cycle6 (void) {
     } 
 }
 
-// SNSv10 Wakeup Timer
+// SNSv11 Wakeup Timer
 void cycle7 (void) { 
     if (do_cycle7 == 1) { 
         arb_debug_reg(0x47, 0x00000000);
@@ -431,34 +432,35 @@ void cycle7 (void) {
             set_flag(FLAG_SNSWUP_SUB_0, 1);
 
             // Configure LDO
-            SNSv10_R00_LDO.LDO_EN_IREF = 0x1;
-            SNSv10_R00_LDO.LDO_EN_VREF = 0x1;
-            mbus_remote_register_write(SNS_ADDR, 0x00, SNSv10_R00_LDO.as_int);
+            SNSv11_REG_LDO.LDO_EN_IREF = 0x1;
+            SNSv11_REG_LDO.LDO_EN_VREF = 0x1;
+            mbus_remote_register_write(SNS_ADDR, 0x00, SNSv11_REG_LDO.as_int);
             
-            SNSv10_R00_LDO.LDO_EN_TSNS_OUT = 0x1;
-            mbus_remote_register_write(SNS_ADDR, 0x00, SNSv10_R00_LDO.as_int);
+            SNSv11_REG_LDO.LDO_EN_TSNS_OUT = 0x1;
+            mbus_remote_register_write(SNS_ADDR, 0x00, SNSv11_REG_LDO.as_int);
 
             // Configure Temp Sensor
-            SNSv10_R01_TSNS.TSNS_SEL_LDO = 0x1;         // Turn on Digital
-            SNSv10_R01_TSNS.TSNS_EN_SENSOR_LDO = 0x1;   // Turn on Analog
-            mbus_remote_register_write(SNS_ADDR, 0x01, SNSv10_R01_TSNS.as_int);
+            SNSv11_REG_TSNS.TSNS_SEL_LDO = 0x1;         // Turn on Digital
+            SNSv11_REG_TSNS.TSNS_EN_SENSOR_LDO = 0x1;   // Turn on Analog
+            SNSv11_REG_TSNS.TSNS_EN_CLK_REF = 0x1;      // Enable Clock Reference
+            mbus_remote_register_write(SNS_ADDR, 0x01, SNSv11_REG_TSNS.as_int);
 
-            SNSv10_R01_TSNS.TSNS_ISOLATE = 0x0;     // Release Isolation
-            mbus_remote_register_write(SNS_ADDR, 0x01, SNSv10_R01_TSNS.as_int);
+            SNSv11_REG_TSNS.TSNS_ISOLATE = 0x0;     // Release Isolation
+            mbus_remote_register_write(SNS_ADDR, 0x01, SNSv11_REG_TSNS.as_int);
 
-            SNSv10_R01_TSNS.TSNS_RESETn = 0x1;     // Start Reference Clock
-            mbus_remote_register_write(SNS_ADDR, 0x01, SNSv10_R01_TSNS.as_int);
+            SNSv11_REG_TSNS.TSNS_RESETn = 0x1;     // Start Reference Clock
+            mbus_remote_register_write(SNS_ADDR, 0x01, SNSv11_REG_TSNS.as_int);
 
             // Configure Wakeup Timer
-            SNSv10_R17_WUP_CONF.WUP_INT_RPLY_REG_ADDR   = 0x07;
-            SNSv10_R17_WUP_CONF.WUP_INT_RPLY_SHORT_ADDR = 0x10;
-            SNSv10_R17_WUP_CONF.WUP_AUTO_RESET = 0x1;
-            SNSv10_R17_WUP_CONF.WUP_LC_IRQ_EN = 0x1;
-            SNSv10_R17_WUP_CONF.WUP_ENABLE = 0x1;
-            mbus_remote_register_write(SNS_ADDR, 0x17, SNSv10_R17_WUP_CONF.as_int);
+            SNSv11_REG_WUP_CNF.WUP_INT_RPLY_REG_ADDR   = 0x07;
+            SNSv11_REG_WUP_CNF.WUP_INT_RPLY_SHORT_ADDR = 0x10;
+            SNSv11_REG_WUP_CNF.WUP_AUTO_RESET = 0x1;
+            SNSv11_REG_WUP_CNF.WUP_LC_IRQ_EN = 0x1;
+            SNSv11_REG_WUP_CNF.WUP_ENABLE = 0x1;
+            mbus_remote_register_write(SNS_ADDR, 0x17, SNSv11_REG_WUP_CNF.as_int);
 
-            SNSv10_R19_WUP_THRES.WUP_THRESHOLD = 1000;
-            mbus_remote_register_write(SNS_ADDR, 0x19, SNSv10_R19_WUP_THRES.as_int);
+            SNSv11_REG_WUP_THRES.WUP_THRESHOLD = 1000;
+            mbus_remote_register_write(SNS_ADDR, 0x1A, SNSv11_REG_WUP_THRES.as_int);
 
             arb_debug_reg(0x47, 0x000000FF);
 
@@ -474,8 +476,8 @@ void cycle7 (void) {
             set_flag(FLAG_SNSWUP_SUB_0, 0);
 
             // Configure Wakeup Timer
-            SNSv10_R19_WUP_THRES.WUP_THRESHOLD = 5000;
-            mbus_remote_register_write(SNS_ADDR, 0x19, SNSv10_R19_WUP_THRES.as_int);
+            SNSv11_REG_WUP_THRES.WUP_THRESHOLD = 5000;
+            mbus_remote_register_write(SNS_ADDR, 0x1A, SNSv11_REG_WUP_THRES.as_int);
 
             arb_debug_reg(0x47, 0x000000FF);
 
@@ -491,15 +493,15 @@ void cycle7 (void) {
             set_flag(FLAG_SNSWUP_SUB_0, 1);
 
             // Configure Wakeup Timer
-            SNSv10_R19_WUP_THRES.WUP_THRESHOLD = 1000;
-            mbus_remote_register_write(SNS_ADDR, 0x19, SNSv10_R19_WUP_THRES.as_int);
+            SNSv11_REG_WUP_THRES.WUP_THRESHOLD = 1000;
+            mbus_remote_register_write(SNS_ADDR, 0x1A, SNSv11_REG_WUP_THRES.as_int);
 
-            SNSv10_R17_WUP_CONF.WUP_AUTO_RESET = 0x0;
-            SNSv10_R17_WUP_CONF.WUP_ENABLE = 0x0;
-            mbus_remote_register_write(SNS_ADDR, 0x17, SNSv10_R17_WUP_CONF.as_int);
+            SNSv11_REG_WUP_CNF.WUP_AUTO_RESET = 0x0;
+            SNSv11_REG_WUP_CNF.WUP_ENABLE = 0x0;
+            mbus_remote_register_write(SNS_ADDR, 0x17, SNSv11_REG_WUP_CNF.as_int);
 
-            SNSv10_R17_WUP_CONF.WUP_ENABLE = 0x1;
-            mbus_remote_register_write(SNS_ADDR, 0x17, SNSv10_R17_WUP_CONF.as_int);
+            SNSv11_REG_WUP_CNF.WUP_ENABLE = 0x1;
+            mbus_remote_register_write(SNS_ADDR, 0x17, SNSv11_REG_WUP_CNF.as_int);
 
             arb_debug_reg(0x47, 0x000000FF);
 
@@ -511,9 +513,9 @@ void cycle7 (void) {
 
             arb_debug_reg(0x47, 0x00000004);
 
-            SNSv10_R17_WUP_CONF.WUP_ENABLE = 0x0;
-            SNSv10_R17_WUP_CONF.WUP_AUTO_RESET = 0x1;
-            mbus_remote_register_write(SNS_ADDR, 0x17, SNSv10_R17_WUP_CONF.as_int);
+            SNSv11_REG_WUP_CNF.WUP_ENABLE = 0x0;
+            SNSv11_REG_WUP_CNF.WUP_AUTO_RESET = 0x1;
+            mbus_remote_register_write(SNS_ADDR, 0x17, SNSv11_REG_WUP_CNF.as_int);
         }
     } 
 }
@@ -571,7 +573,7 @@ int main() {
     arb_debug_reg(0x2F, cyc_num);
 
     // Sleep/Wakeup OR Terminate operation
-    if (cyc_num == 999) *REG_CHIP_ID = 0xFFFF; // This will stop the verilog sim.
+    if (cyc_num == 999) *REG_CHIP_ID = 0xFFFFFF; // This will stop the verilog sim.
     else {
         cyc_num++;
         set_wakeup_timer(5, 1, 1);
