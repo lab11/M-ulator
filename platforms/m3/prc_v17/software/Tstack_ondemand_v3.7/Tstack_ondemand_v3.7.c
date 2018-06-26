@@ -1273,7 +1273,7 @@ static void operation_snt_calibration_radio(uint32_t tuning_num){
 			snt_start_timer_postsleep();
 			// Read existing counter value; in case not reset to zero
 			snt_read_wup_counter();
-			snt_set_wup_timer(WAKEUP_PERIOD_CONT_USER);
+			snt_set_wup_timer(WAKEUP_PERIOD_CONT_USER*360); // FIXME: go to sleep for 30 min
 			operation_sleep_noirqreset();
 		}else{
 			// radio
