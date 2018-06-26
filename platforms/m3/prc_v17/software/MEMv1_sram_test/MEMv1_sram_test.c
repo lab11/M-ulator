@@ -49,6 +49,7 @@
 //********************************************************************
 // "static" limits the variables to this file, giving compiler more freedom
 // "volatile" should only be used for MMIO --> ensures memory storage
+volatile uint32_t test_state;
 volatile uint32_t enumerated;
 volatile uint32_t wakeup_data;
 volatile uint32_t Tstack_state;
@@ -180,12 +181,13 @@ static void operation_init(void){
 	delay(MBUS_DELAY);
     mbus_enumerate(HRV_ADDR);
 	delay(MBUS_DELAY);
+*/
  	mbus_enumerate(PMU_ADDR);
 	delay(MBUS_DELAY);
-*/
     // Set CPU Halt Option as TX --> Use for register write e.g.
 	//set_halt_until_mbus_tx();
 
+	test_state = 0;
 
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 10;   // 10: 2-4 sec with PRCv17
@@ -193,7 +195,37 @@ static void operation_init(void){
 
 }
 
+static void mem_write_memory_test(uint32_t data){
+    uint32_t addr = 0;
+    //while(addr<8192){
+    while(addr<16384){
+		// Write memory
+		mbus_copy_mem_from_local_to_remote_bulk(MEM_ADDR, (uint32_t*)addr, (uint32_t*)&data, 0);
+        addr = addr + 4;
+	}
+}
 
+static void mem_read_memory_test(uint32_t data){
+    uint32_t addr = 0;
+    uint32_t read_data = 0;
+
+    //while(addr<8192){
+    while(addr<16384){
+		// Read memory
+		set_halt_until_mbus_rx();
+		mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*)addr, 0x01, (uint32_t*)&read_data, 0);
+		set_halt_until_mbus_tx();
+
+        if (read_data == data){
+        }else{
+		    mbus_write_message32(0xFA,0xFAFAFA11);
+		    mbus_write_message32(0xAA,addr);
+		    mbus_write_message32(0xAD,data);
+		    mbus_write_message32(0xDD,read_data);
+        }
+        addr = addr + 4;
+	}
+}
 
 //********************************************************************
 // MAIN function starts here             
@@ -222,66 +254,117 @@ int main() {
 	mbus_write_message32(0xAA,0xABCD1234);
     delay(MBUS_DELAY);
 
-    uint32_t addr, data, read_data;
-    uint32_t ii;
-    for(ii=0;ii<100;ii=ii+1){
-    addr = SRAM_NON_CODE_START_ADDR;
-    data = 0xFFFFFFFF;
-	read_data = 0;
-    while(addr<8192){
-        //*((volatile uint32_t *) addr) = data;
-		// Write memory
-		mbus_copy_mem_from_local_to_remote_bulk(MEM_ADDR, (uint32_t*)addr, (uint32_t*)&data, 0);
-		// Read memory
-		mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*)addr, 0x01, (uint32_t*)&read_data, 0);
+	test_state++;
+	if (test_state == 1){
+		mbus_write_message32(0xAA,test_state);
+		mem_write_memory_test(0xFFFFFFFF);
+		
+		// set timer
+		set_wakeup_timer (0xA, 0x1, 0x1);
+		// go to sleep
+		operation_sleep();
 
-        if (read_data == data){
-        }else{
-		    mbus_write_message32(0xFA,0xFAFAFAFA);
-		    mbus_write_message32(0xAA,addr);
-		    mbus_write_message32(0xAD,data);
-		    mbus_write_message32(0xFA,*((volatile uint32_t *) addr));
-        }
-        addr = addr + 4;
+	}else if (test_state == 2){
+		mbus_write_message32(0xAA,test_state);
+		mem_read_memory_test(0xFFFFFFFF);
+		
+		// set timer
+		set_wakeup_timer (0xA, 0x1, 0x1);
+		// go to sleep
+		operation_sleep();
+
+
+	}else if (test_state == 3){
+		mbus_write_message32(0xAA,test_state);
+		mem_write_memory_test(0x0);
+		
+		// set timer
+		set_wakeup_timer (0xA, 0x1, 0x1);
+		// go to sleep
+		operation_sleep();
+
+
+	}else if (test_state == 4){
+		mbus_write_message32(0xAA,test_state);
+		mem_read_memory_test(0x0);
+		
+		// set timer
+		set_wakeup_timer (0xA, 0x1, 0x1);
+		// go to sleep
+		operation_sleep();
+
+	}else if (test_state == 5){
+		mbus_write_message32(0xAA,test_state);
+		mem_write_memory_test(0xAAAAAAAA);
+		
+		// set timer
+		set_wakeup_timer (0xA, 0x1, 0x1);
+		// go to sleep
+		operation_sleep();
+
+
+	}else if (test_state == 6){
+		mbus_write_message32(0xAA,test_state);
+		mem_read_memory_test(0xAAAAAAAA);
+		
+		// set timer
+		set_wakeup_timer (0xA, 0x1, 0x1);
+		// go to sleep
+		operation_sleep();
+
+	}else if (test_state == 7){
+		mbus_write_message32(0xAA,test_state);
+		mem_write_memory_test(0x55555555);
+		
+		// set timer
+		set_wakeup_timer (0xA, 0x1, 0x1);
+		// go to sleep
+		operation_sleep();
+
+
+	}else if (test_state == 8){
+		mbus_write_message32(0xAA,test_state);
+		mem_read_memory_test(0x55555555);
+		
+		// set timer
+		set_wakeup_timer (0xA, 0x1, 0x1);
+		// go to sleep
+		operation_sleep();
+
+	}else if (test_state == 9){
+		mbus_write_message32(0xAA,test_state);
+		mem_write_memory_test(0xABCD1234);
+		
+		// set timer
+		set_wakeup_timer (0xA, 0x1, 0x1);
+		// go to sleep
+		operation_sleep();
+
+
+	}else if (test_state == 10){
+		mbus_write_message32(0xAA,test_state);
+		mem_read_memory_test(0xABCD1234);
+		
+		// set timer
+		set_wakeup_timer (0xA, 0x1, 0x1);
+		// go to sleep
+		operation_sleep();
+
+
+
+	}else if (test_state == 11){
+		mbus_write_message32(0xAA,test_state);
+		mem_read_memory_test(0xABCD1234);
+		
+		// set timer
+		set_wakeup_timer (0xA, 0x1, 0x1);
+		// go to sleep
+		operation_sleep();
+ 	}else{
+
 	}
-/*
-	mbus_write_message32(0xAB,0x1);
 
-    addr = SRAM_NON_CODE_START_ADDR;
-    data = 0x55555555;
-    while(addr<8192){
-	    //mbus_write_message32(0xAA,addr);
-        *((volatile uint32_t *) addr) = data;
-        if (*((volatile uint32_t *) addr) == data){
-        }else{
-		    mbus_write_message32(0xFA,0xFAFAFAFA);
-		    mbus_write_message32(0xAA,addr);
-		    mbus_write_message32(0xAD,data);
-		    mbus_write_message32(0xFA,*((volatile uint32_t *) addr));
-        }
-        addr = addr + 4;
-	}
-
-	mbus_write_message32(0xAB,0x2);
-
-    addr = SRAM_NON_CODE_START_ADDR;
-    data = 0xABCD1234;
-    while(addr<8192){
-	    //mbus_write_message32(0xAA,addr);
-        *((volatile uint32_t *) addr) = data;
-        if (*((volatile uint32_t *) addr) == data){
-        }else{
-		    mbus_write_message32(0xFA,0xFAFAFAFA);
-		    mbus_write_message32(0xAA,addr);
-		    mbus_write_message32(0xAD,data);
-		    mbus_write_message32(0xFA,*((volatile uint32_t *) addr));
-        }
-        addr = addr + 4;
-	}
-    
-    }
-*/  
-	mbus_write_message32(0xAB,0xF);
+	mbus_write_message32(0xAA,test_state);
     operation_sleep_notimer();
 
     while(1);

@@ -1243,6 +1243,53 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
 	}
 }
 
+static void operation_snt_calibration_radio(uint32_t tuning_num){
+
+	uint32_t exec_count_irq_sub;
+	exec_count_irq_sub = exec_count_irq >>4; // Divide by 16
+	
+	if (exec_count_irq_sub < tuning_num){
+
+		if (exec_count_irq & 0xF){ // every 16 iterations
+			sntv1_r0A.TMR_DIFF_CON++; // Default: 0x3FFB
+			mbus_remote_register_write(SNT_ADDR,0x0A,sntv1_r0A.as_int);
+
+		}
+
+		exec_count_irq++;
+		if (exec_count_irq == 1){
+			// Tune R for TC
+			sntv1_r0A.TMR_DIFF_CON = 0x3FE0; // Default: 0x3FFB
+			mbus_remote_register_write(SNT_ADDR,0x0A,sntv1_r0A.as_int);
+
+			// Prepare radio TX
+			radio_power_on();
+			snt_start_timer_presleep();
+			// Go to sleep for SCRO stabilitzation
+			// Go to sleep for >3s for timer stabilization
+			set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT*3, 0x1, 0x1);
+			operation_sleep_noirqreset();
+		}else if (exec_count_irq == 2){
+			snt_start_timer_postsleep();
+			// Read existing counter value; in case not reset to zero
+			snt_read_wup_counter();
+			snt_set_wup_timer(WAKEUP_PERIOD_CONT_USER);
+			operation_sleep_noirqreset();
+		}else{
+			// radio
+			send_radio_data_ppm(0, sntv1_r0A.TMR_DIFF_CON);	
+			snt_set_wup_timer(WAKEUP_PERIOD_CONT_USER);
+			operation_sleep_noirqreset();
+		}
+	}else{
+		exec_count_irq = 0;
+		// radio
+		send_radio_data_ppm(1,0xFAF000);	
+		// Go to sleep without timer
+		operation_sleep_notimer();
+	}
+}
+
 //********************************************************************
 // MAIN function starts here             
 //********************************************************************
@@ -1586,6 +1633,12 @@ int main() {
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
+	}else if(wakeup_data_header == 0x71){
+		// Calibration routine for SNT wakeup timer
+
+		operation_snt_calibration_radio(wakeup_data & 0xFFFF);
+
+
 	}else if(wakeup_data_header == 0xA0){
 	// FIXME: Test for SNTv1 wakeup timer
 		
@@ -1605,12 +1658,6 @@ int main() {
 		operation_sleep_noirqreset();
 		
 		
-	}else if(wakeup_data_header == 0xA2){
-    	WAKEUP_PERIOD_CONT_USER = wakeup_data & 0xFFFFFF;
-
-		// Go to sleep without timer
-		operation_sleep_notimer();
-
 	}else if(wakeup_data_header == 0xF0){
 
 		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0x0, enumerated);
