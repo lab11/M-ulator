@@ -1249,10 +1249,9 @@ static void operation_snt_calibration_radio(uint32_t tuning_num){
 	
 	if (exec_count_irq_sub < tuning_num){
 
-		if (exec_count_irq & 0xF){ // every 16 iterations
+		if (exec_count_irq & 0xF == 0xF){ // every 16 iterations
 			sntv1_r0A.TMR_DIFF_CON++; // Default: 0x3FFB
 			mbus_remote_register_write(SNT_ADDR,0x0A,sntv1_r0A.as_int);
-
 		}
 
 		exec_count_irq++;
