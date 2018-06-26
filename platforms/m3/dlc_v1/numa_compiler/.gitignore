@@ -1,0 +1,25 @@
+*.swp
+
+## ARM
+*.o
+*.mem
+*.asm
+*.bin
+*.boothex
+*.bootinc
+*.elf
+*.hex
+*.memmap
+
+## compiler
+*.data
+*.goldendata
+*.testdata
+*.debug
+compiler/*.log
+compiler/*.inst
+*.pyc
+compiler/*.offsets
+compiler/*.outputs
+compiler/*.weights
+compiler/*.inputs

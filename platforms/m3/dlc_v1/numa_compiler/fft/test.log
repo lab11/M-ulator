@@ -1,0 +1,6165 @@
+dft_size:8	fft_num_bits:6
+
+## fft inputs ##
+0	1	2	3	4	5	6	7	8	9	10	11	12	13	14	15	16	17	18	19	20	21	22	23	24	25	26	27	28	29	30	31	32	33	34	35	36	37	38	39	40	41	42	43	44	45	46	47	48	49	50	51	52	53	54	55	56	57	58	59	60	61	62	63	64	65	66	67	68	69	70	71	72	73	74	75	76	77	78	79	80	81	82	83	84	85	86	87	88	89	90	91	92	93	94	95	96	97	98	99	100	101	102	103	104	105	106	107	108	109	110	111	112	113	114	115	116	117	118	119	120	121	122	123	124	125	126	127	128	129	130	131	132	133	134	135	136	137	138	139	140	141	142	143	144	145	146	147	148	149	150	151	152	153	154	155	156	157	158	159	160	161	162	163	164	165	166	167	168	169	170	171	172	173	174	175	176	177	178	179	180	181	182	183	184	185	186	187	188	189	190	191	192	193	194	195	196	197	198	199	200	201	202	203	204	205	206	207	208	209	210	211	212	213	214	215	216	217	218	219	220	221	222	223	224	225	226	227	228	229	230	231	232	233	234	235	236	237	238	239	240	241	242	243	244	245	246	247	248	249	250	251	252	253	254	255	256	257	258	259	260	261	262	263	264	265	266	267	268	269	270	271	272	273	274	275	276	277	278	279	280	281	282	283	284	285	286	287	288	289	290	291	292	293	294	295	296	297	298	299	300	301	302	303	304	305	306	307	308	309	310	311	312	313	314	315	316	317	318	319	320	321	322	323	324	325	326	327	328	329	330	331	332	333	334	335	336	337	338	339	340	341	342	343	344	345	346	347	348	349	350	351	352	353	354	355	356	357	358	359	360	361	362	363	364	365	366	367	368	369	370	371	372	373	374	375	376	377	378	379	380	381	382	383	384	385	386	387	388	389	390	391	392	393	394	395	396	397	398	399	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	
+## bit reversed inputs for dft ##
+0	64	128	192	256	320	384	0	32	96	160	224	288	352	0	0	16	80	144	208	272	336	0	0	48	112	176	240	304	368	0	0	8	72	136	200	264	328	392	0	40	104	168	232	296	360	0	0	24	88	152	216	280	344	0	0	56	120	184	248	312	376	0	0	4	68	132	196	260	324	388	0	36	100	164	228	292	356	0	0	20	84	148	212	276	340	0	0	52	116	180	244	308	372	0	0	12	76	140	204	268	332	396	0	44	108	172	236	300	364	0	0	28	92	156	220	284	348	0	0	60	124	188	252	316	380	0	0	2	66	130	194	258	322	386	0	34	98	162	226	290	354	0	0	18	82	146	210	274	338	0	0	50	114	178	242	306	370	0	0	10	74	138	202	266	330	394	0	42	106	170	234	298	362	0	0	26	90	154	218	282	346	0	0	58	122	186	250	314	378	0	0	6	70	134	198	262	326	390	0	38	102	166	230	294	358	0	0	22	86	150	214	278	342	0	0	54	118	182	246	310	374	0	0	14	78	142	206	270	334	398	0	46	110	174	238	302	366	0	0	30	94	158	222	286	350	0	0	62	126	190	254	318	382	0	0	1	65	129	193	257	321	385	0	33	97	161	225	289	353	0	0	17	81	145	209	273	337	0	0	49	113	177	241	305	369	0	0	9	73	137	201	265	329	393	0	41	105	169	233	297	361	0	0	25	89	153	217	281	345	0	0	57	121	185	249	313	377	0	0	5	69	133	197	261	325	389	0	37	101	165	229	293	357	0	0	21	85	149	213	277	341	0	0	53	117	181	245	309	373	0	0	13	77	141	205	269	333	397	0	45	109	173	237	301	365	0	0	29	93	157	221	285	349	0	0	61	125	189	253	317	381	0	0	3	67	131	195	259	323	387	0	35	99	163	227	291	355	0	0	19	83	147	211	275	339	0	0	51	115	179	243	307	371	0	0	11	75	139	203	267	331	395	0	43	107	171	235	299	363	0	0	27	91	155	219	283	347	0	0	59	123	187	251	315	379	0	0	7	71	135	199	263	327	391	0	39	103	167	231	295	359	0	0	23	87	151	215	279	343	0	0	55	119	183	247	311	375	0	0	15	79	143	207	271	335	399	0	47	111	175	239	303	367	0	0	31	95	159	223	287	351	0	0	63	127	191	255	319	383	0	0	
+## dft outputs ##
+1344	0	-571	303	-255	-191	61	-210	192	0	61	209	-255	190	-571	-304	1152	0	-594	-135	160	-223	84	182	-191	0	85	-183	159	223	-595	134	1056	0	-583	-108	144	-207	73	177	-191	0	74	-178	143	207	-584	107	1248	0	-605	-162	176	-239	95	187	-191	0	96	-188	175	239	-606	161	1400	0	-577	297	-255	-199	67	-216	200	0	67	215	-256	198	-577	-298	1200	0	-600	-149	168	-231	90	184	-191	0	91	-185	167	231	-601	148	1104	0	-588	-121	152	-215	78	180	-191	0	79	-181	151	215	-589	120	1296	0	-611	-176	184	-247	101	189	-191	0	102	-190	183	247	-612	175	1372	0	-574	300	-255	-195	64	-213	196	0	64	212	-256	194	-574	-301	1176	0	-597	-142	164	-227	87	183	-191	0	88	-184	163	227	-598	141	1080	0	-585	-114	148	-211	75	179	-191	0	76	-180	147	211	-586	113	1272	0	-608	-169	180	-243	98	188	-191	0	99	-189	179	243	-609	168	1428	0	-580	294	-255	-203	70	-219	204	0	70	218	-256	202	-580	-295	1224	0	-602	-155	172	-235	92	186	-191	0	93	-187	171	235	-603	154	1128	0	-591	-128	156	-219	81	181	-191	0	82	-182	155	219	-592	127	1320	0	-614	-183	188	-251	104	190	-191	0	105	-191	187	251	-615	182	1358	0	-573	301	-255	-193	63	-212	194	0	63	211	-256	192	-573	-302	1164	0	-595	-138	162	-225	85	183	-191	0	86	-184	161	225	-596	137	1068	0	-585	-110	146	-209	75	179	-191	0	76	-180	145	209	-586	109	1260	0	-607	-166	178	-241	97	187	-191	0	98	-188	177	241	-608	165	1414	0	-578	296	-255	-201	68	-217	202	0	68	216	-256	200	-578	-297	1212	0	-601	-152	170	-233	91	185	-191	0	92	-186	169	233	-602	151	1116	0	-590	-125	154	-217	80	180	-191	0	81	-181	153	217	-591	124	1308	0	-612	-179	186	-249	102	190	-191	0	103	-191	185	249	-613	178	1386	0	-576	298	-255	-197	66	-215	198	0	66	214	-256	196	-576	-299	1188	0	-598	-145	166	-229	88	184	-191	0	89	-185	165	229	-599	144	1092	0	-587	-118	150	-213	77	179	-191	0	78	-180	149	213	-588	117	1284	0	-609	-172	182	-245	99	189	-191	0	100	-190	181	245	-610	171	1442	0	-581	293	-255	-205	71	-220	206	0	71	219	-256	204	-581	-294	1236	0	-604	-159	174	-237	94	186	-191	0	95	-187	173	237	-605	158	1140	0	-592	-131	158	-221	82	182	-191	0	83	-183	157	221	-593	130	1332	0	-615	-186	190	-253	105	191	-191	0	106	-192	189	253	-616	185	1351	0	-572	302	-255	-192	62	-211	193	0	62	210	-256	191	-572	-303	1158	0	-595	-137	161	-224	85	182	-191	0	86	-183	160	224	-596	136	1062	0	-583	-109	145	-208	73	178	-191	0	74	-179	144	208	-584	108	1254	0	-606	-164	177	-240	96	187	-191	0	97	-188	176	240	-607	163	1407	0	-578	296	-255	-200	68	-217	201	0	68	216	-256	199	-578	-297	1206	0	-600	-150	169	-232	90	185	-191	0	91	-186	168	232	-601	149	1110	0	-589	-123	153	-216	79	180	-191	0	80	-181	152	216	-590	122	1302	0	-612	-178	185	-248	102	189	-191	0	103	-190	184	248	-613	177	1379	0	-575	299	-255	-196	65	-214	197	0	65	213	-256	195	-575	-300	1182	0	-597	-143	165	-228	87	184	-191	0	88	-185	164	228	-598	142	1086	0	-586	-116	149	-212	76	179	-191	0	77	-180	148	212	-587	115	1278	0	-609	-171	181	-244	99	188	-191	0	100	-189	180	244	-610	170	1435	0	-580	294	-255	-204	70	-219	205	0	70	218	-256	203	-580	-295	1230	0	-603	-157	173	-236	93	186	-191	0	94	-187	172	236	-604	156	1134	0	-592	-130	157	-220	82	181	-191	0	83	-182	156	220	-593	129	1326	0	-614	-184	189	-252	104	191	-191	0	105	-192	188	252	-615	183	1365	0	-573	301	-255	-194	63	-212	195	0	63	211	-256	193	-573	-302	1170	0	-596	-140	163	-226	86	183	-191	0	87	-184	162	226	-597	139	1074	0	-585	-113	147	-210	75	178	-191	0	76	-179	146	210	-586	112	1266	0	-607	-167	179	-242	97	188	-191	0	98	-189	178	242	-608	166	1421	0	-579	295	-255	-202	69	-218	203	0	69	217	-256	201	-579	-296	1218	0	-602	-154	171	-234	92	185	-191	0	93	-186	170	234	-603	153	1122	0	-590	-126	155	-218	80	181	-191	0	81	-182	154	218	-591	125	1314	0	-613	-181	187	-250	103	190	-191	0	104	-191	186	250	-614	180	1393	0	-576	298	-255	-198	66	-215	199	0	66	214	-256	197	-576	-299	1194	0	-599	-147	167	-230	89	184	-191	0	90	-185	166	230	-600	146	1098	0	-588	-120	151	-214	78	179	-191	0	79	-180	150	214	-589	119	1290	0	-610	-174	183	-246	100	189	-191	0	101	-190	182	246	-611	173	1449	0	-582	292	-255	-206	72	-221	207	0	72	220	-256	205	-582	-293	1242	0	-604	-160	175	-238	94	187	-191	0	95	-188	174	238	-605	159	1146	0	-593	-133	159	-222	83	182	-191	0	84	-183	158	222	-594	132	1338	0	-616	-188	191	-254	106	191	-191	0	107	-192	190	254	-617	187	
+## bit reversed inputs for fft ##
+0	256	128	384	64	320	192	0	32	288	160	0	96	352	224	0	16	272	144	0	80	336	208	0	48	304	176	0	112	368	240	0	8	264	136	392	72	328	200	0	40	296	168	0	104	360	232	0	24	280	152	0	88	344	216	0	56	312	184	0	120	376	248	0	4	260	132	388	68	324	196	0	36	292	164	0	100	356	228	0	20	276	148	0	84	340	212	0	52	308	180	0	116	372	244	0	12	268	140	396	76	332	204	0	44	300	172	0	108	364	236	0	28	284	156	0	92	348	220	0	60	316	188	0	124	380	252	0	2	258	130	386	66	322	194	0	34	290	162	0	98	354	226	0	18	274	146	0	82	338	210	0	50	306	178	0	114	370	242	0	10	266	138	394	74	330	202	0	42	298	170	0	106	362	234	0	26	282	154	0	90	346	218	0	58	314	186	0	122	378	250	0	6	262	134	390	70	326	198	0	38	294	166	0	102	358	230	0	22	278	150	0	86	342	214	0	54	310	182	0	118	374	246	0	14	270	142	398	78	334	206	0	46	302	174	0	110	366	238	0	30	286	158	0	94	350	222	0	62	318	190	0	126	382	254	0	1	257	129	385	65	321	193	0	33	289	161	0	97	353	225	0	17	273	145	0	81	337	209	0	49	305	177	0	113	369	241	0	9	265	137	393	73	329	201	0	41	297	169	0	105	361	233	0	25	281	153	0	89	345	217	0	57	313	185	0	121	377	249	0	5	261	133	389	69	325	197	0	37	293	165	0	101	357	229	0	21	277	149	0	85	341	213	0	53	309	181	0	117	373	245	0	13	269	141	397	77	333	205	0	45	301	173	0	109	365	237	0	29	285	157	0	93	349	221	0	61	317	189	0	125	381	253	0	3	259	131	387	67	323	195	0	35	291	163	0	99	355	227	0	19	275	147	0	83	339	211	0	51	307	179	0	115	371	243	0	11	267	139	395	75	331	203	0	43	299	171	0	107	363	235	0	27	283	155	0	91	347	219	0	59	315	187	0	123	379	251	0	7	263	135	391	71	327	199	0	39	295	167	0	103	359	231	0	23	279	151	0	87	343	215	0	55	311	183	0	119	375	247	0	15	271	143	399	79	335	207	0	47	303	175	0	111	367	239	0	31	287	159	0	95	351	223	0	63	319	191	0	127	383	255	0	
+dft_size:1
+r[idx]:0	r[idx+dft_size]:256	i[idx]:0	i[idx+dft_size]0
+i+idx:0	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:256.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:2	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:384.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:4	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:320.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:6	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:8	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:288.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:10	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:12	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:352.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:14	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:16	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:272.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:18	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:20	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:336.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:22	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:24	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:304.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:26	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:28	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:368.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:30	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:32	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:264.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:34	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:392.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:36	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:328.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:38	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:40	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:296.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:42	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:44	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:360.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:46	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:48	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:280.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:50	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:52	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:344.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:54	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:56	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:312.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:58	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:60	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:376.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:62	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:64	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:260.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:66	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:388.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:68	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:324.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:70	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:72	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:292.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:74	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:76	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:356.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:78	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:80	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:276.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:82	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:84	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:340.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:86	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:88	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:308.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:90	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:92	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:372.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:94	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:96	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:268.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:98	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:396.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:100	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:332.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:102	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:104	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:300.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:106	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:108	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:364.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:110	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:112	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:284.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:114	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:116	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:348.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:118	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:120	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:316.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:122	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:124	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:380.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:126	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:128	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:258.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:130	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:386.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:132	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:322.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:134	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:136	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:290.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:138	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:140	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:354.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:142	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:144	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:274.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:146	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:148	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:338.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:150	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:152	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:306.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:154	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:156	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:370.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:158	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:160	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:266.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:162	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:394.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:164	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:330.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:166	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:168	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:298.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:170	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:172	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:362.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:174	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:176	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:282.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:178	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:180	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:346.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:182	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:184	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:314.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:186	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:188	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:378.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:190	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:192	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:262.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:194	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:390.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:196	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:326.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:198	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:200	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:294.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:202	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:204	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:358.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:206	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:208	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:278.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:210	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:212	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:342.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:214	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:216	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:310.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:218	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:220	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:374.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:222	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:224	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:270.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:226	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:398.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:228	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:334.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:230	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:232	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:302.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:234	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:236	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:366.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:238	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:240	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:286.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:242	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:244	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:350.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:246	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:248	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:318.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:250	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:252	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:382.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:254	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:256	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:257.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:258	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:385.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:260	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:321.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:262	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:264	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:289.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:266	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:268	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:353.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:270	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:272	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:273.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:274	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:276	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:337.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:278	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:280	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:305.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:282	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:284	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:369.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:286	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:288	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:265.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:290	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:393.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:292	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:329.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:294	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:296	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:297.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:298	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:300	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:361.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:302	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:304	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:281.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:306	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:308	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:345.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:310	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:312	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:313.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:314	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:316	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:377.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:318	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:320	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:261.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:322	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:389.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:324	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:325.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:326	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:328	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:293.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:330	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:332	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:357.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:334	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:336	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:277.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:338	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:340	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:341.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:342	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:344	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:309.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:346	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:348	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:373.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:350	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:352	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:269.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:354	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:397.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:356	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:333.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:358	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:360	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:301.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:362	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:364	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:365.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:366	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:368	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:285.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:370	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:372	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:349.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:374	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:376	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:317.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:378	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:380	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:381.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:382	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:384	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:259.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:386	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:387.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:388	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:323.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:390	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:392	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:291.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:394	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:396	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:355.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:398	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:400	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:275.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:402	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:404	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:339.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:406	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:408	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:307.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:410	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:412	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:371.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:414	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:416	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:267.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:418	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:395.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:420	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:331.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:422	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:424	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:299.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:426	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:428	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:363.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:430	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:432	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:283.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:434	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:436	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:347.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:438	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:440	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:315.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:442	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:444	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:379.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:446	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:448	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:263.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:450	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:391.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:452	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:327.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:454	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:456	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:295.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:458	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:460	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:359.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:462	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:464	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:279.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:466	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:468	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:343.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:470	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:472	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:311.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:474	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:476	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:375.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:478	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:480	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:271.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:482	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:399.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:484	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:335.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:486	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:488	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:303.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:490	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:492	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:367.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:494	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:496	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:287.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:498	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:500	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:351.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:502	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:504	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:319.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:506	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:508	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:383.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:510	dft_size:1
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:0.00	tempi:0.00
+r[idx]:256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+## fft 1: ##
+0	256	0
+1	-256	0
+2	512	0
+3	-256	0
+4	384	0
+5	-256	0
+6	192	0
+7	192	0
+8	320	0
+9	-256	0
+10	160	0
+11	160	0
+12	448	0
+13	-256	0
+14	224	0
+15	224	0
+16	288	0
+17	-256	0
+18	144	0
+19	144	0
+20	416	0
+21	-256	0
+22	208	0
+23	208	0
+24	352	0
+25	-256	0
+26	176	0
+27	176	0
+28	480	0
+29	-256	0
+30	240	0
+31	240	0
+32	272	0
+33	-256	0
+34	528	0
+35	-256	0
+36	400	0
+37	-256	0
+38	200	0
+39	200	0
+40	336	0
+41	-256	0
+42	168	0
+43	168	0
+44	464	0
+45	-256	0
+46	232	0
+47	232	0
+48	304	0
+49	-256	0
+50	152	0
+51	152	0
+52	432	0
+53	-256	0
+54	216	0
+55	216	0
+56	368	0
+57	-256	0
+58	184	0
+59	184	0
+60	496	0
+61	-256	0
+62	248	0
+63	248	0
+64	264	0
+65	-256	0
+66	520	0
+67	-256	0
+68	392	0
+69	-256	0
+70	196	0
+71	196	0
+72	328	0
+73	-256	0
+74	164	0
+75	164	0
+76	456	0
+77	-256	0
+78	228	0
+79	228	0
+80	296	0
+81	-256	0
+82	148	0
+83	148	0
+84	424	0
+85	-256	0
+86	212	0
+87	212	0
+88	360	0
+89	-256	0
+90	180	0
+91	180	0
+92	488	0
+93	-256	0
+94	244	0
+95	244	0
+96	280	0
+97	-256	0
+98	536	0
+99	-256	0
+100	408	0
+101	-256	0
+102	204	0
+103	204	0
+104	344	0
+105	-256	0
+106	172	0
+107	172	0
+108	472	0
+109	-256	0
+110	236	0
+111	236	0
+112	312	0
+113	-256	0
+114	156	0
+115	156	0
+116	440	0
+117	-256	0
+118	220	0
+119	220	0
+120	376	0
+121	-256	0
+122	188	0
+123	188	0
+124	504	0
+125	-256	0
+126	252	0
+127	252	0
+128	260	0
+129	-256	0
+130	516	0
+131	-256	0
+132	388	0
+133	-256	0
+134	194	0
+135	194	0
+136	324	0
+137	-256	0
+138	162	0
+139	162	0
+140	452	0
+141	-256	0
+142	226	0
+143	226	0
+144	292	0
+145	-256	0
+146	146	0
+147	146	0
+148	420	0
+149	-256	0
+150	210	0
+151	210	0
+152	356	0
+153	-256	0
+154	178	0
+155	178	0
+156	484	0
+157	-256	0
+158	242	0
+159	242	0
+160	276	0
+161	-256	0
+162	532	0
+163	-256	0
+164	404	0
+165	-256	0
+166	202	0
+167	202	0
+168	340	0
+169	-256	0
+170	170	0
+171	170	0
+172	468	0
+173	-256	0
+174	234	0
+175	234	0
+176	308	0
+177	-256	0
+178	154	0
+179	154	0
+180	436	0
+181	-256	0
+182	218	0
+183	218	0
+184	372	0
+185	-256	0
+186	186	0
+187	186	0
+188	500	0
+189	-256	0
+190	250	0
+191	250	0
+192	268	0
+193	-256	0
+194	524	0
+195	-256	0
+196	396	0
+197	-256	0
+198	198	0
+199	198	0
+200	332	0
+201	-256	0
+202	166	0
+203	166	0
+204	460	0
+205	-256	0
+206	230	0
+207	230	0
+208	300	0
+209	-256	0
+210	150	0
+211	150	0
+212	428	0
+213	-256	0
+214	214	0
+215	214	0
+216	364	0
+217	-256	0
+218	182	0
+219	182	0
+220	492	0
+221	-256	0
+222	246	0
+223	246	0
+224	284	0
+225	-256	0
+226	540	0
+227	-256	0
+228	412	0
+229	-256	0
+230	206	0
+231	206	0
+232	348	0
+233	-256	0
+234	174	0
+235	174	0
+236	476	0
+237	-256	0
+238	238	0
+239	238	0
+240	316	0
+241	-256	0
+242	158	0
+243	158	0
+244	444	0
+245	-256	0
+246	222	0
+247	222	0
+248	380	0
+249	-256	0
+250	190	0
+251	190	0
+252	508	0
+253	-256	0
+254	254	0
+255	254	0
+256	258	0
+257	-256	0
+258	514	0
+259	-256	0
+260	386	0
+261	-256	0
+262	193	0
+263	193	0
+264	322	0
+265	-256	0
+266	161	0
+267	161	0
+268	450	0
+269	-256	0
+270	225	0
+271	225	0
+272	290	0
+273	-256	0
+274	145	0
+275	145	0
+276	418	0
+277	-256	0
+278	209	0
+279	209	0
+280	354	0
+281	-256	0
+282	177	0
+283	177	0
+284	482	0
+285	-256	0
+286	241	0
+287	241	0
+288	274	0
+289	-256	0
+290	530	0
+291	-256	0
+292	402	0
+293	-256	0
+294	201	0
+295	201	0
+296	338	0
+297	-256	0
+298	169	0
+299	169	0
+300	466	0
+301	-256	0
+302	233	0
+303	233	0
+304	306	0
+305	-256	0
+306	153	0
+307	153	0
+308	434	0
+309	-256	0
+310	217	0
+311	217	0
+312	370	0
+313	-256	0
+314	185	0
+315	185	0
+316	498	0
+317	-256	0
+318	249	0
+319	249	0
+320	266	0
+321	-256	0
+322	522	0
+323	-256	0
+324	394	0
+325	-256	0
+326	197	0
+327	197	0
+328	330	0
+329	-256	0
+330	165	0
+331	165	0
+332	458	0
+333	-256	0
+334	229	0
+335	229	0
+336	298	0
+337	-256	0
+338	149	0
+339	149	0
+340	426	0
+341	-256	0
+342	213	0
+343	213	0
+344	362	0
+345	-256	0
+346	181	0
+347	181	0
+348	490	0
+349	-256	0
+350	245	0
+351	245	0
+352	282	0
+353	-256	0
+354	538	0
+355	-256	0
+356	410	0
+357	-256	0
+358	205	0
+359	205	0
+360	346	0
+361	-256	0
+362	173	0
+363	173	0
+364	474	0
+365	-256	0
+366	237	0
+367	237	0
+368	314	0
+369	-256	0
+370	157	0
+371	157	0
+372	442	0
+373	-256	0
+374	221	0
+375	221	0
+376	378	0
+377	-256	0
+378	189	0
+379	189	0
+380	506	0
+381	-256	0
+382	253	0
+383	253	0
+384	262	0
+385	-256	0
+386	518	0
+387	-256	0
+388	390	0
+389	-256	0
+390	195	0
+391	195	0
+392	326	0
+393	-256	0
+394	163	0
+395	163	0
+396	454	0
+397	-256	0
+398	227	0
+399	227	0
+400	294	0
+401	-256	0
+402	147	0
+403	147	0
+404	422	0
+405	-256	0
+406	211	0
+407	211	0
+408	358	0
+409	-256	0
+410	179	0
+411	179	0
+412	486	0
+413	-256	0
+414	243	0
+415	243	0
+416	278	0
+417	-256	0
+418	534	0
+419	-256	0
+420	406	0
+421	-256	0
+422	203	0
+423	203	0
+424	342	0
+425	-256	0
+426	171	0
+427	171	0
+428	470	0
+429	-256	0
+430	235	0
+431	235	0
+432	310	0
+433	-256	0
+434	155	0
+435	155	0
+436	438	0
+437	-256	0
+438	219	0
+439	219	0
+440	374	0
+441	-256	0
+442	187	0
+443	187	0
+444	502	0
+445	-256	0
+446	251	0
+447	251	0
+448	270	0
+449	-256	0
+450	526	0
+451	-256	0
+452	398	0
+453	-256	0
+454	199	0
+455	199	0
+456	334	0
+457	-256	0
+458	167	0
+459	167	0
+460	462	0
+461	-256	0
+462	231	0
+463	231	0
+464	302	0
+465	-256	0
+466	151	0
+467	151	0
+468	430	0
+469	-256	0
+470	215	0
+471	215	0
+472	366	0
+473	-256	0
+474	183	0
+475	183	0
+476	494	0
+477	-256	0
+478	247	0
+479	247	0
+480	286	0
+481	-256	0
+482	542	0
+483	-256	0
+484	414	0
+485	-256	0
+486	207	0
+487	207	0
+488	350	0
+489	-256	0
+490	175	0
+491	175	0
+492	478	0
+493	-256	0
+494	239	0
+495	239	0
+496	318	0
+497	-256	0
+498	159	0
+499	159	0
+500	446	0
+501	-256	0
+502	223	0
+503	223	0
+504	382	0
+505	-256	0
+506	191	0
+507	191	0
+508	510	0
+509	-256	0
+510	255	0
+511	255	0
+
+dft_size:2
+r[idx]:256	r[idx+dft_size]:512	i[idx]:0	i[idx+dft_size]0
+i+idx:0	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:512.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:1	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:-0.00	tempi:256.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:4	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:192.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:5	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-192.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:8	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:160.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:9	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-160.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:12	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:224.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:13	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-224.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:16	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:144.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:17	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-144.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:20	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:208.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:21	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-208.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:24	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:176.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:25	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-176.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:28	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:240.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:29	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-240.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:32	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:528.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:33	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:-0.00	tempi:256.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:36	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:200.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:37	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-200.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:40	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:168.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:41	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-168.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:44	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:232.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:45	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-232.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:48	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:152.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:49	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-152.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:52	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:216.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:53	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-216.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:56	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:184.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:57	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-184.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:60	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:248.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:61	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-248.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:64	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:520.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:65	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:-0.00	tempi:256.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:68	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:196.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:69	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-196.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:72	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:164.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:73	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-164.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:76	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:228.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:77	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-228.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:80	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:148.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:81	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-148.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:84	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:212.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:85	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-212.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:88	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:180.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:89	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-180.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:92	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:244.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:93	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-244.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:96	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:536.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:97	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:-0.00	tempi:256.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:100	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:204.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:101	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-204.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:104	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:172.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:105	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-172.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:108	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:236.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:109	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-236.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:112	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:156.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:113	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-156.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:116	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:220.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:117	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-220.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:120	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:188.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:121	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-188.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:124	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:252.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:125	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-252.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:128	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:516.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:129	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:-0.00	tempi:256.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:132	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:194.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:133	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-194.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:136	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:162.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:137	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-162.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:140	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:226.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:141	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-226.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:144	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:146.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:145	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-146.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:148	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:210.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:149	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-210.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:152	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:178.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:153	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-178.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:156	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:242.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:157	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-242.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:160	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:532.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:161	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:-0.00	tempi:256.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:164	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:202.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:165	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-202.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:168	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:170.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:169	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-170.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:172	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:234.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:173	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-234.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:176	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:154.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:177	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-154.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:180	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:218.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:181	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-218.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:184	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:186.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:185	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-186.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:188	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:250.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:189	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-250.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:192	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:524.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:193	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:-0.00	tempi:256.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:196	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:198.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:197	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-198.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:200	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:166.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:201	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-166.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:204	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:230.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:205	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-230.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:208	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:150.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:209	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-150.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:212	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:214.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:213	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-214.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:216	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:182.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:217	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-182.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:220	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:246.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:221	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-246.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:224	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:540.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:225	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:-0.00	tempi:256.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:228	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:206.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:229	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-206.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:232	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:174.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:233	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-174.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:236	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:238.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:237	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-238.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:240	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:158.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:241	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-158.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:244	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:222.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:245	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-222.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:248	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:190.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:249	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-190.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:252	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:254.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:253	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-254.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:256	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:514.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:257	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:-0.00	tempi:256.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:260	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:193.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:261	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-193.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:264	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:161.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:265	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-161.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:268	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:225.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:269	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-225.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:272	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:145.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:273	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-145.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:276	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:209.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:277	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-209.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:280	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:177.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:281	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-177.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:284	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:241.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:285	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-241.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:288	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:530.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:289	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:-0.00	tempi:256.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:292	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:201.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:293	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-201.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:296	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:169.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:297	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-169.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:300	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:233.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:301	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-233.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:304	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:153.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:305	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-153.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:308	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:217.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:309	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-217.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:312	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:185.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:313	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-185.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:316	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:249.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:317	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-249.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:320	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:522.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:321	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:-0.00	tempi:256.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:324	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:197.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:325	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-197.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:328	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:165.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:329	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-165.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:332	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:229.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:333	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-229.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:336	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:149.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:337	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-149.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:340	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:213.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:341	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-213.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:344	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:181.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:345	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-181.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:348	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:245.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:349	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-245.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:352	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:538.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:353	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:-0.00	tempi:256.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:356	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:205.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:357	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-205.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:360	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:173.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:361	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-173.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:364	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:237.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:365	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-237.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:368	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:157.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:369	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-157.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:372	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:221.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:373	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-221.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:376	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:189.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:377	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-189.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:380	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:253.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:381	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-253.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:384	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:518.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:385	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:-0.00	tempi:256.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:388	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:195.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:389	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-195.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:392	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:163.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:393	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-163.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:396	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:227.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:397	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-227.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:400	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:147.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:401	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-147.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:404	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:211.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:405	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-211.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:408	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:179.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:409	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-179.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:412	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:243.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:413	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-243.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:416	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:534.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:417	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:-0.00	tempi:256.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:420	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:203.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:421	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-203.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:424	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:171.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:425	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-171.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:428	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:235.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:429	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-235.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:432	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:155.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:433	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-155.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:436	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:219.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:437	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-219.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:440	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:187.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:441	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-187.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:444	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:251.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:445	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-251.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:448	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:526.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:449	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:-0.00	tempi:256.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:452	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:199.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:453	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-199.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:456	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:167.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:457	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-167.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:460	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:231.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:461	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-231.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:464	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:151.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:465	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-151.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:468	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:215.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:469	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-215.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:472	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:183.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:473	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-183.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:476	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:247.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:477	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-247.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:480	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:542.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:481	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:-0.00	tempi:256.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:484	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:207.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:485	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-207.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:488	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:175.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:489	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-175.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:492	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:239.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:493	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-239.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:496	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:159.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:497	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-159.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:500	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:223.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:501	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-223.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:504	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:191.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:505	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-191.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+i+idx:508	dft_size:2
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:255.00	tempi:0.00
+r[idx]:768	r[idx+dft_size]:-256	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+i+idx:509	dft_size:2
+idx:1	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-255.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-256
+
+## fft 2: ##
+0	768	0
+1	-256	256
+2	-256	0
+3	-256	-256
+4	576	0
+5	-256	-192
+6	192	0
+7	-256	192
+8	480	0
+9	-256	-160
+10	160	0
+11	-256	160
+12	672	0
+13	-256	-224
+14	224	0
+15	-256	224
+16	432	0
+17	-256	-144
+18	144	0
+19	-256	144
+20	624	0
+21	-256	-208
+22	208	0
+23	-256	208
+24	528	0
+25	-256	-176
+26	176	0
+27	-256	176
+28	720	0
+29	-256	-240
+30	240	0
+31	-256	240
+32	800	0
+33	-256	256
+34	-256	0
+35	-256	-256
+36	600	0
+37	-256	-200
+38	200	0
+39	-256	200
+40	504	0
+41	-256	-168
+42	168	0
+43	-256	168
+44	696	0
+45	-256	-232
+46	232	0
+47	-256	232
+48	456	0
+49	-256	-152
+50	152	0
+51	-256	152
+52	648	0
+53	-256	-216
+54	216	0
+55	-256	216
+56	552	0
+57	-256	-184
+58	184	0
+59	-256	184
+60	744	0
+61	-256	-248
+62	248	0
+63	-256	248
+64	784	0
+65	-256	256
+66	-256	0
+67	-256	-256
+68	588	0
+69	-256	-196
+70	196	0
+71	-256	196
+72	492	0
+73	-256	-164
+74	164	0
+75	-256	164
+76	684	0
+77	-256	-228
+78	228	0
+79	-256	228
+80	444	0
+81	-256	-148
+82	148	0
+83	-256	148
+84	636	0
+85	-256	-212
+86	212	0
+87	-256	212
+88	540	0
+89	-256	-180
+90	180	0
+91	-256	180
+92	732	0
+93	-256	-244
+94	244	0
+95	-256	244
+96	816	0
+97	-256	256
+98	-256	0
+99	-256	-256
+100	612	0
+101	-256	-204
+102	204	0
+103	-256	204
+104	516	0
+105	-256	-172
+106	172	0
+107	-256	172
+108	708	0
+109	-256	-236
+110	236	0
+111	-256	236
+112	468	0
+113	-256	-156
+114	156	0
+115	-256	156
+116	660	0
+117	-256	-220
+118	220	0
+119	-256	220
+120	564	0
+121	-256	-188
+122	188	0
+123	-256	188
+124	756	0
+125	-256	-252
+126	252	0
+127	-256	252
+128	776	0
+129	-256	256
+130	-256	0
+131	-256	-256
+132	582	0
+133	-256	-194
+134	194	0
+135	-256	194
+136	486	0
+137	-256	-162
+138	162	0
+139	-256	162
+140	678	0
+141	-256	-226
+142	226	0
+143	-256	226
+144	438	0
+145	-256	-146
+146	146	0
+147	-256	146
+148	630	0
+149	-256	-210
+150	210	0
+151	-256	210
+152	534	0
+153	-256	-178
+154	178	0
+155	-256	178
+156	726	0
+157	-256	-242
+158	242	0
+159	-256	242
+160	808	0
+161	-256	256
+162	-256	0
+163	-256	-256
+164	606	0
+165	-256	-202
+166	202	0
+167	-256	202
+168	510	0
+169	-256	-170
+170	170	0
+171	-256	170
+172	702	0
+173	-256	-234
+174	234	0
+175	-256	234
+176	462	0
+177	-256	-154
+178	154	0
+179	-256	154
+180	654	0
+181	-256	-218
+182	218	0
+183	-256	218
+184	558	0
+185	-256	-186
+186	186	0
+187	-256	186
+188	750	0
+189	-256	-250
+190	250	0
+191	-256	250
+192	792	0
+193	-256	256
+194	-256	0
+195	-256	-256
+196	594	0
+197	-256	-198
+198	198	0
+199	-256	198
+200	498	0
+201	-256	-166
+202	166	0
+203	-256	166
+204	690	0
+205	-256	-230
+206	230	0
+207	-256	230
+208	450	0
+209	-256	-150
+210	150	0
+211	-256	150
+212	642	0
+213	-256	-214
+214	214	0
+215	-256	214
+216	546	0
+217	-256	-182
+218	182	0
+219	-256	182
+220	738	0
+221	-256	-246
+222	246	0
+223	-256	246
+224	824	0
+225	-256	256
+226	-256	0
+227	-256	-256
+228	618	0
+229	-256	-206
+230	206	0
+231	-256	206
+232	522	0
+233	-256	-174
+234	174	0
+235	-256	174
+236	714	0
+237	-256	-238
+238	238	0
+239	-256	238
+240	474	0
+241	-256	-158
+242	158	0
+243	-256	158
+244	666	0
+245	-256	-222
+246	222	0
+247	-256	222
+248	570	0
+249	-256	-190
+250	190	0
+251	-256	190
+252	762	0
+253	-256	-254
+254	254	0
+255	-256	254
+256	772	0
+257	-256	256
+258	-256	0
+259	-256	-256
+260	579	0
+261	-256	-193
+262	193	0
+263	-256	193
+264	483	0
+265	-256	-161
+266	161	0
+267	-256	161
+268	675	0
+269	-256	-225
+270	225	0
+271	-256	225
+272	435	0
+273	-256	-145
+274	145	0
+275	-256	145
+276	627	0
+277	-256	-209
+278	209	0
+279	-256	209
+280	531	0
+281	-256	-177
+282	177	0
+283	-256	177
+284	723	0
+285	-256	-241
+286	241	0
+287	-256	241
+288	804	0
+289	-256	256
+290	-256	0
+291	-256	-256
+292	603	0
+293	-256	-201
+294	201	0
+295	-256	201
+296	507	0
+297	-256	-169
+298	169	0
+299	-256	169
+300	699	0
+301	-256	-233
+302	233	0
+303	-256	233
+304	459	0
+305	-256	-153
+306	153	0
+307	-256	153
+308	651	0
+309	-256	-217
+310	217	0
+311	-256	217
+312	555	0
+313	-256	-185
+314	185	0
+315	-256	185
+316	747	0
+317	-256	-249
+318	249	0
+319	-256	249
+320	788	0
+321	-256	256
+322	-256	0
+323	-256	-256
+324	591	0
+325	-256	-197
+326	197	0
+327	-256	197
+328	495	0
+329	-256	-165
+330	165	0
+331	-256	165
+332	687	0
+333	-256	-229
+334	229	0
+335	-256	229
+336	447	0
+337	-256	-149
+338	149	0
+339	-256	149
+340	639	0
+341	-256	-213
+342	213	0
+343	-256	213
+344	543	0
+345	-256	-181
+346	181	0
+347	-256	181
+348	735	0
+349	-256	-245
+350	245	0
+351	-256	245
+352	820	0
+353	-256	256
+354	-256	0
+355	-256	-256
+356	615	0
+357	-256	-205
+358	205	0
+359	-256	205
+360	519	0
+361	-256	-173
+362	173	0
+363	-256	173
+364	711	0
+365	-256	-237
+366	237	0
+367	-256	237
+368	471	0
+369	-256	-157
+370	157	0
+371	-256	157
+372	663	0
+373	-256	-221
+374	221	0
+375	-256	221
+376	567	0
+377	-256	-189
+378	189	0
+379	-256	189
+380	759	0
+381	-256	-253
+382	253	0
+383	-256	253
+384	780	0
+385	-256	256
+386	-256	0
+387	-256	-256
+388	585	0
+389	-256	-195
+390	195	0
+391	-256	195
+392	489	0
+393	-256	-163
+394	163	0
+395	-256	163
+396	681	0
+397	-256	-227
+398	227	0
+399	-256	227
+400	441	0
+401	-256	-147
+402	147	0
+403	-256	147
+404	633	0
+405	-256	-211
+406	211	0
+407	-256	211
+408	537	0
+409	-256	-179
+410	179	0
+411	-256	179
+412	729	0
+413	-256	-243
+414	243	0
+415	-256	243
+416	812	0
+417	-256	256
+418	-256	0
+419	-256	-256
+420	609	0
+421	-256	-203
+422	203	0
+423	-256	203
+424	513	0
+425	-256	-171
+426	171	0
+427	-256	171
+428	705	0
+429	-256	-235
+430	235	0
+431	-256	235
+432	465	0
+433	-256	-155
+434	155	0
+435	-256	155
+436	657	0
+437	-256	-219
+438	219	0
+439	-256	219
+440	561	0
+441	-256	-187
+442	187	0
+443	-256	187
+444	753	0
+445	-256	-251
+446	251	0
+447	-256	251
+448	796	0
+449	-256	256
+450	-256	0
+451	-256	-256
+452	597	0
+453	-256	-199
+454	199	0
+455	-256	199
+456	501	0
+457	-256	-167
+458	167	0
+459	-256	167
+460	693	0
+461	-256	-231
+462	231	0
+463	-256	231
+464	453	0
+465	-256	-151
+466	151	0
+467	-256	151
+468	645	0
+469	-256	-215
+470	215	0
+471	-256	215
+472	549	0
+473	-256	-183
+474	183	0
+475	-256	183
+476	741	0
+477	-256	-247
+478	247	0
+479	-256	247
+480	828	0
+481	-256	256
+482	-256	0
+483	-256	-256
+484	621	0
+485	-256	-207
+486	207	0
+487	-256	207
+488	525	0
+489	-256	-175
+490	175	0
+491	-256	175
+492	717	0
+493	-256	-239
+494	239	0
+495	-256	239
+496	477	0
+497	-256	-159
+498	159	0
+499	-256	159
+500	669	0
+501	-256	-223
+502	223	0
+503	-256	223
+504	573	0
+505	-256	-191
+506	191	0
+507	-256	191
+508	765	0
+509	-256	-255
+510	255	0
+511	-256	255
+
+dft_size:4
+r[idx]:768	r[idx+dft_size]:576	i[idx]:0	i[idx+dft_size]0
+i+idx:0	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:576.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:256	i[idx+dft_size]-192
+i+idx:1	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-316.78	tempi:45.25
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:2	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-192.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-256	i[idx+dft_size]192
+i+idx:3	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:316.78	tempi:45.25
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:8	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:672.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:9	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-339.41	tempi:22.63
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:10	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-224.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:11	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:339.41	tempi:22.63
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:16	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:624.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:17	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-328.10	tempi:33.94
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:18	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-208.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:19	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:328.10	tempi:33.94
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:24	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:720.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:25	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-350.72	tempi:11.31
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:26	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-240.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:27	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:350.72	tempi:11.31
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:32	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:600.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:33	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-322.44	tempi:39.60
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:34	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-200.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:35	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:322.44	tempi:39.60
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:40	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:696.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:41	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-345.07	tempi:16.97
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:42	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-232.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:43	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:345.07	tempi:16.97
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:48	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:648.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:49	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-333.75	tempi:28.28
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:50	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-216.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:51	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:333.75	tempi:28.28
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:56	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:744.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:57	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-356.38	tempi:5.66
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:58	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-248.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:59	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:356.38	tempi:5.66
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:64	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:588.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:65	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-319.61	tempi:42.43
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:66	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-196.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:67	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:319.61	tempi:42.43
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:72	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:684.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:73	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-342.24	tempi:19.80
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:74	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-228.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:75	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:342.24	tempi:19.80
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:80	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:636.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:81	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-330.93	tempi:31.11
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:82	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-212.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:83	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:330.93	tempi:31.11
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:88	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:732.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:89	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-353.55	tempi:8.49
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:90	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-244.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:91	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:353.55	tempi:8.49
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:96	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:612.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:97	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-325.27	tempi:36.77
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:98	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-204.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:99	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:325.27	tempi:36.77
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:104	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:708.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:105	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-347.90	tempi:14.14
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:106	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-236.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:107	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:347.90	tempi:14.14
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:112	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:660.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:113	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-336.58	tempi:25.46
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:114	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-220.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:115	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:336.58	tempi:25.46
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:120	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:756.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:121	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-359.21	tempi:2.83
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:122	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-252.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:123	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:359.21	tempi:2.83
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:128	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:582.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:129	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-318.20	tempi:43.84
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:130	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-194.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:131	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:318.20	tempi:43.84
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:136	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:678.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:137	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-340.83	tempi:21.21
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:138	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-226.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:139	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:340.83	tempi:21.21
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:144	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:630.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:145	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-329.51	tempi:32.53
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:146	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-210.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:147	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:329.51	tempi:32.53
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:152	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:726.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:153	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-352.14	tempi:9.90
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:154	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-242.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:155	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:352.14	tempi:9.90
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:160	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:606.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:161	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-323.85	tempi:38.18
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:162	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-202.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:163	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:323.85	tempi:38.18
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:168	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:702.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:169	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-346.48	tempi:15.56
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:170	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-234.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:171	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:346.48	tempi:15.56
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:176	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:654.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:177	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-335.17	tempi:26.87
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:178	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-218.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:179	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:335.17	tempi:26.87
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:184	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:750.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:185	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-357.80	tempi:4.24
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:186	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-250.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:187	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:357.80	tempi:4.24
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:192	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:594.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:193	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-321.03	tempi:41.01
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:194	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-198.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:195	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:321.03	tempi:41.01
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:200	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:690.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:201	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-343.65	tempi:18.38
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:202	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-230.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:203	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:343.65	tempi:18.38
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:208	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:642.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:209	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-332.34	tempi:29.70
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:210	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-214.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:211	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:332.34	tempi:29.70
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:216	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:738.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:217	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-354.97	tempi:7.07
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:218	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-246.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:219	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:354.97	tempi:7.07
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:224	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:618.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:225	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-326.68	tempi:35.36
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:226	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-206.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:227	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:326.68	tempi:35.36
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:232	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:714.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:233	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-349.31	tempi:12.73
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:234	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-238.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:235	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:349.31	tempi:12.73
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:240	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:666.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:241	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-338.00	tempi:24.04
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:242	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-222.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:243	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:338.00	tempi:24.04
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:248	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:762.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:249	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-360.62	tempi:1.41
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:250	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-254.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:251	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:360.62	tempi:1.41
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:256	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:579.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:257	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-317.49	tempi:44.55
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:258	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-193.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:259	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:317.49	tempi:44.55
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:264	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:675.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:265	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-340.12	tempi:21.92
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:266	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-225.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:267	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:340.12	tempi:21.92
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:272	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:627.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:273	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-328.80	tempi:33.23
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:274	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-209.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:275	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:328.80	tempi:33.23
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:280	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:723.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:281	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-351.43	tempi:10.61
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:282	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-241.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:283	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:351.43	tempi:10.61
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:288	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:603.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:289	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-323.15	tempi:38.89
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:290	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-201.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:291	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:323.15	tempi:38.89
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:296	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:699.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:297	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-345.78	tempi:16.26
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:298	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-233.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:299	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:345.78	tempi:16.26
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:304	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:651.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:305	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-334.46	tempi:27.58
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:306	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-217.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:307	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:334.46	tempi:27.58
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:312	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:747.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:313	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-357.09	tempi:4.95
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:314	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-249.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:315	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:357.09	tempi:4.95
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:320	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:591.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:321	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-320.32	tempi:41.72
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:322	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-197.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:323	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:320.32	tempi:41.72
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:328	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:687.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:329	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-342.95	tempi:19.09
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:330	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-229.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:331	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:342.95	tempi:19.09
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:336	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:639.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:337	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-331.63	tempi:30.41
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:338	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-213.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:339	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:331.63	tempi:30.41
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:344	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:735.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:345	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-354.26	tempi:7.78
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:346	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-245.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:347	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:354.26	tempi:7.78
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:352	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:615.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:353	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-325.98	tempi:36.06
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:354	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-205.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:355	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:325.98	tempi:36.06
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:360	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:711.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:361	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-348.60	tempi:13.44
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:362	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-237.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:363	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:348.60	tempi:13.44
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:368	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:663.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:369	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-337.29	tempi:24.75
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:370	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-221.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:371	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:337.29	tempi:24.75
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:376	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:759.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:377	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-359.92	tempi:2.12
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:378	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-253.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:379	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:359.92	tempi:2.12
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:384	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:585.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:385	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-318.91	tempi:43.13
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:386	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-195.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:387	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:318.91	tempi:43.13
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:392	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:681.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:393	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-341.53	tempi:20.51
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:394	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-227.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:395	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:341.53	tempi:20.51
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:400	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:633.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:401	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-330.22	tempi:31.82
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:402	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-211.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:403	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:330.22	tempi:31.82
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:408	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:729.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:409	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-352.85	tempi:9.19
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:410	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-243.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:411	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:352.85	tempi:9.19
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:416	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:609.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:417	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-324.56	tempi:37.48
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:418	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-203.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:419	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:324.56	tempi:37.48
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:424	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:705.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:425	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-347.19	tempi:14.85
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:426	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-235.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:427	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:347.19	tempi:14.85
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:432	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:657.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:433	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-335.88	tempi:26.16
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:434	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-219.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:435	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:335.88	tempi:26.16
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:440	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:753.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:441	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-358.50	tempi:3.54
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:442	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-251.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:443	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:358.50	tempi:3.54
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:448	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:597.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:449	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-321.73	tempi:40.31
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:450	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-199.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:451	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:321.73	tempi:40.31
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:456	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:693.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:457	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-344.36	tempi:17.68
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:458	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-231.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:459	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:344.36	tempi:17.68
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:464	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:645.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:465	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-333.05	tempi:28.99
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:466	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-215.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:467	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:333.05	tempi:28.99
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:472	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:741.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:473	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-355.67	tempi:6.36
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:474	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-247.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:475	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:355.67	tempi:6.36
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:480	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:621.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:481	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-327.39	tempi:34.65
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:482	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-207.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:483	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:327.39	tempi:34.65
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:488	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:717.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:489	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-350.02	tempi:12.02
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:490	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-239.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:491	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:350.02	tempi:12.02
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:496	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:669.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:497	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-338.70	tempi:23.33
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:498	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-223.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:499	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:338.70	tempi:23.33
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+i+idx:504	dft_size:4
+idx:0	twi_idx:0	twidr:1.00	twidi:0.00
+tempr:765.00	tempi:0.00
+r[idx]:1344	r[idx+dft_size]:192	i[idx]:0	i[idx+dft_size]0
+
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+i+idx:505	dft_size:4
+idx:1	twi_idx:64	twidr:0.71	twidi:-0.71
+tempr:-361.33	tempi:0.71
+r[idx]:-572	r[idx+dft_size]:60	i[idx]:301	i[idx+dft_size]210
+
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+i+idx:506	dft_size:4
+idx:2	twi_idx:128	twidr:0.00	twidi:-1.00
+tempr:0.00	tempi:-255.00
+r[idx]:-256	r[idx+dft_size]:-256	i[idx]:-192	i[idx+dft_size]192
+
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+i+idx:507	dft_size:4
+idx:3	twi_idx:192	twidr:-0.71	twidi:-0.71
+tempr:361.33	tempi:0.71
+r[idx]:60	r[idx+dft_size]:-572	i[idx]:-210	i[idx+dft_size]-301
+
+## fft 4: ##
+0	1344	0
+1	-572	301
+2	-256	-192
+3	60	-210
+4	192	0
+5	60	210
+6	-256	192
+7	-572	-301
+8	1152	0
+9	-595	-137
+10	160	-224
+11	83	182
+12	-192	0
+13	83	-182
+14	160	224
+15	-595	137
+16	1056	0
+17	-584	-110
+18	144	-208
+19	72	177
+20	-192	0
+21	72	-177
+22	144	208
+23	-584	110
+24	1248	0
+25	-606	-164
+26	176	-240
+27	94	187
+28	-192	0
+29	94	-187
+30	176	240
+31	-606	164
+32	1400	0
+33	-578	295
+34	-256	-200
+35	66	-216
+36	200	0
+37	66	216
+38	-256	200
+39	-578	-295
+40	1200	0
+41	-601	-151
+42	168	-232
+43	89	184
+44	-192	0
+45	89	-184
+46	168	232
+47	-601	151
+48	1104	0
+49	-589	-123
+50	152	-216
+51	77	180
+52	-192	0
+53	77	-180
+54	152	216
+55	-589	123
+56	1296	0
+57	-612	-178
+58	184	-248
+59	100	189
+60	-192	0
+61	100	-189
+62	184	248
+63	-612	178
+64	1372	0
+65	-575	298
+66	-256	-196
+67	63	-213
+68	196	0
+69	63	213
+70	-256	196
+71	-575	-298
+72	1176	0
+73	-598	-144
+74	164	-228
+75	86	183
+76	-192	0
+77	86	-183
+78	164	228
+79	-598	144
+80	1080	0
+81	-586	-116
+82	148	-212
+83	74	179
+84	-192	0
+85	74	-179
+86	148	212
+87	-586	116
+88	1272	0
+89	-609	-171
+90	180	-244
+91	97	188
+92	-192	0
+93	97	-188
+94	180	244
+95	-609	171
+96	1428	0
+97	-581	292
+98	-256	-204
+99	69	-219
+100	204	0
+101	69	219
+102	-256	204
+103	-581	-292
+104	1224	0
+105	-603	-157
+106	172	-236
+107	91	186
+108	-192	0
+109	91	-186
+110	172	236
+111	-603	157
+112	1128	0
+113	-592	-130
+114	156	-220
+115	80	181
+116	-192	0
+117	80	-181
+118	156	220
+119	-592	130
+120	1320	0
+121	-615	-185
+122	188	-252
+123	103	190
+124	-192	0
+125	103	-190
+126	188	252
+127	-615	185
+128	1358	0
+129	-574	299
+130	-256	-194
+131	62	-212
+132	194	0
+133	62	212
+134	-256	194
+135	-574	-299
+136	1164	0
+137	-596	-140
+138	162	-226
+139	84	183
+140	-192	0
+141	84	-183
+142	162	226
+143	-596	140
+144	1068	0
+145	-585	-113
+146	146	-210
+147	73	178
+148	-192	0
+149	73	-178
+150	146	210
+151	-585	113
+152	1260	0
+153	-608	-168
+154	178	-242
+155	96	187
+156	-192	0
+157	96	-187
+158	178	242
+159	-608	168
+160	1414	0
+161	-579	294
+162	-256	-202
+163	67	-217
+164	202	0
+165	67	217
+166	-256	202
+167	-579	-294
+168	1212	0
+169	-602	-154
+170	170	-234
+171	90	185
+172	-192	0
+173	90	-185
+174	170	234
+175	-602	154
+176	1116	0
+177	-591	-127
+178	154	-218
+179	79	180
+180	-192	0
+181	79	-180
+182	154	218
+183	-591	127
+184	1308	0
+185	-613	-181
+186	186	-250
+187	101	190
+188	-192	0
+189	101	-190
+190	186	250
+191	-613	181
+192	1386	0
+193	-577	297
+194	-256	-198
+195	65	-214
+196	198	0
+197	65	214
+198	-256	198
+199	-577	-297
+200	1188	0
+201	-599	-147
+202	166	-230
+203	87	184
+204	-192	0
+205	87	-184
+206	166	230
+207	-599	147
+208	1092	0
+209	-588	-120
+210	150	-214
+211	76	179
+212	-192	0
+213	76	-179
+214	150	214
+215	-588	120
+216	1284	0
+217	-610	-174
+218	182	-246
+219	98	189
+220	-192	0
+221	98	-189
+222	182	246
+223	-610	174
+224	1442	0
+225	-582	291
+226	-256	-206
+227	70	-220
+228	206	0
+229	70	220
+230	-256	206
+231	-582	-291
+232	1236	0
+233	-605	-161
+234	174	-238
+235	93	186
+236	-192	0
+237	93	-186
+238	174	238
+239	-605	161
+240	1140	0
+241	-593	-133
+242	158	-222
+243	81	182
+244	-192	0
+245	81	-182
+246	158	222
+247	-593	133
+248	1332	0
+249	-616	-188
+250	190	-254
+251	104	191
+252	-192	0
+253	104	-191
+254	190	254
+255	-616	188
+256	1351	0
+257	-573	300
+258	-256	-193
+259	61	-211
+260	193	0
+261	61	211
+262	-256	193
+263	-573	-300
+264	1158	0
+265	-596	-139
+266	161	-225
+267	84	182
+268	-192	0
+269	84	-182
+270	161	225
+271	-596	139
+272	1062	0
+273	-584	-111
+274	145	-209
+275	72	178
+276	-192	0
+277	72	-178
+278	145	209
+279	-584	111
+280	1254	0
+281	-607	-166
+282	177	-241
+283	95	187
+284	-192	0
+285	95	-187
+286	177	241
+287	-607	166
+288	1407	0
+289	-579	294
+290	-256	-201
+291	67	-217
+292	201	0
+293	67	217
+294	-256	201
+295	-579	-294
+296	1206	0
+297	-601	-152
+298	169	-233
+299	89	185
+300	-192	0
+301	89	-185
+302	169	233
+303	-601	152
+304	1110	0
+305	-590	-125
+306	153	-217
+307	78	180
+308	-192	0
+309	78	-180
+310	153	217
+311	-590	125
+312	1302	0
+313	-613	-180
+314	185	-249
+315	101	189
+316	-192	0
+317	101	-189
+318	185	249
+319	-613	180
+320	1379	0
+321	-576	297
+322	-256	-197
+323	64	-214
+324	197	0
+325	64	214
+326	-256	197
+327	-576	-297
+328	1182	0
+329	-598	-145
+330	165	-229
+331	86	184
+332	-192	0
+333	86	-184
+334	165	229
+335	-598	145
+336	1086	0
+337	-587	-118
+338	149	-213
+339	75	179
+340	-192	0
+341	75	-179
+342	149	213
+343	-587	118
+344	1278	0
+345	-610	-173
+346	181	-245
+347	98	188
+348	-192	0
+349	98	-188
+350	181	245
+351	-610	173
+352	1435	0
+353	-581	292
+354	-256	-205
+355	69	-219
+356	205	0
+357	69	219
+358	-256	205
+359	-581	-292
+360	1230	0
+361	-604	-159
+362	173	-237
+363	92	186
+364	-192	0
+365	92	-186
+366	173	237
+367	-604	159
+368	1134	0
+369	-593	-132
+370	157	-221
+371	81	181
+372	-192	0
+373	81	-181
+374	157	221
+375	-593	132
+376	1326	0
+377	-615	-186
+378	189	-253
+379	103	191
+380	-192	0
+381	103	-191
+382	189	253
+383	-615	186
+384	1365	0
+385	-574	299
+386	-256	-195
+387	62	-212
+388	195	0
+389	62	212
+390	-256	195
+391	-574	-299
+392	1170	0
+393	-597	-142
+394	163	-227
+395	85	183
+396	-192	0
+397	85	-183
+398	163	227
+399	-597	142
+400	1074	0
+401	-586	-115
+402	147	-211
+403	74	178
+404	-192	0
+405	74	-178
+406	147	211
+407	-586	115
+408	1266	0
+409	-608	-169
+410	179	-243
+411	96	188
+412	-192	0
+413	96	-188
+414	179	243
+415	-608	169
+416	1421	0
+417	-580	293
+418	-256	-203
+419	68	-218
+420	203	0
+421	68	218
+422	-256	203
+423	-580	-293
+424	1218	0
+425	-603	-156
+426	171	-235
+427	91	185
+428	-192	0
+429	91	-185
+430	171	235
+431	-603	156
+432	1122	0
+433	-591	-128
+434	155	-219
+435	79	181
+436	-192	0
+437	79	-181
+438	155	219
+439	-591	128
+440	1314	0
+441	-614	-183
+442	187	-251
+443	102	190
+444	-192	0
+445	102	-190
+446	187	251
+447	-614	183
+448	1393	0
+449	-577	296
+450	-256	-199
+451	65	-215
+452	199	0
+453	65	215
+454	-256	199
+455	-577	-296
+456	1194	0
+457	-600	-149
+458	167	-231
+459	88	184
+460	-192	0
+461	88	-184
+462	167	231
+463	-600	149
+464	1098	0
+465	-589	-122
+466	151	-215
+467	77	179
+468	-192	0
+469	77	-179
+470	151	215
+471	-589	122
+472	1290	0
+473	-611	-176
+474	183	-247
+475	99	189
+476	-192	0
+477	99	-189
+478	183	247
+479	-611	176
+480	1449	0
+481	-583	290
+482	-256	-207
+483	71	-221
+484	207	0
+485	71	221
+486	-256	207
+487	-583	-290
+488	1242	0
+489	-606	-162
+490	175	-239
+491	94	187
+492	-192	0
+493	94	-187
+494	175	239
+495	-606	162
+496	1146	0
+497	-594	-135
+498	159	-223
+499	82	182
+500	-192	0
+501	82	-182
+502	159	223
+503	-594	135
+504	1338	0
+505	-617	-190
+506	191	-255
+507	105	191
+508	-192	0
+509	105	-191
+510	191	255
+511	-617	190
+
+## fft (on m0) outputs ##
+1344	0	-572	301	-256	-192	60	-210	192	0	60	210	-256	192	-572	-301	1152	0	-595	-137	160	-224	83	182	-192	0	83	-182	160	224	-595	137	1056	0	-584	-110	144	-208	72	177	-192	0	72	-177	144	208	-584	110	1248	0	-606	-164	176	-240	94	187	-192	0	94	-187	176	240	-606	164	1400	0	-578	295	-256	-200	66	-216	200	0	66	216	-256	200	-578	-295	1200	0	-601	-151	168	-232	89	184	-192	0	89	-184	168	232	-601	151	1104	0	-589	-123	152	-216	77	180	-192	0	77	-180	152	216	-589	123	1296	0	-612	-178	184	-248	100	189	-192	0	100	-189	184	248	-612	178	1372	0	-575	298	-256	-196	63	-213	196	0	63	213	-256	196	-575	-298	1176	0	-598	-144	164	-228	86	183	-192	0	86	-183	164	228	-598	144	1080	0	-586	-116	148	-212	74	179	-192	0	74	-179	148	212	-586	116	1272	0	-609	-171	180	-244	97	188	-192	0	97	-188	180	244	-609	171	1428	0	-581	292	-256	-204	69	-219	204	0	69	219	-256	204	-581	-292	1224	0	-603	-157	172	-236	91	186	-192	0	91	-186	172	236	-603	157	1128	0	-592	-130	156	-220	80	181	-192	0	80	-181	156	220	-592	130	1320	0	-615	-185	188	-252	103	190	-192	0	103	-190	188	252	-615	185	1358	0	-574	299	-256	-194	62	-212	194	0	62	212	-256	194	-574	-299	1164	0	-596	-140	162	-226	84	183	-192	0	84	-183	162	226	-596	140	1068	0	-585	-113	146	-210	73	178	-192	0	73	-178	146	210	-585	113	1260	0	-608	-168	178	-242	96	187	-192	0	96	-187	178	242	-608	168	1414	0	-579	294	-256	-202	67	-217	202	0	67	217	-256	202	-579	-294	1212	0	-602	-154	170	-234	90	185	-192	0	90	-185	170	234	-602	154	1116	0	-591	-127	154	-218	79	180	-192	0	79	-180	154	218	-591	127	1308	0	-613	-181	186	-250	101	190	-192	0	101	-190	186	250	-613	181	1386	0	-577	297	-256	-198	65	-214	198	0	65	214	-256	198	-577	-297	1188	0	-599	-147	166	-230	87	184	-192	0	87	-184	166	230	-599	147	1092	0	-588	-120	150	-214	76	179	-192	0	76	-179	150	214	-588	120	1284	0	-610	-174	182	-246	98	189	-192	0	98	-189	182	246	-610	174	1442	0	-582	291	-256	-206	70	-220	206	0	70	220	-256	206	-582	-291	1236	0	-605	-161	174	-238	93	186	-192	0	93	-186	174	238	-605	161	1140	0	-593	-133	158	-222	81	182	-192	0	81	-182	158	222	-593	133	1332	0	-616	-188	190	-254	104	191	-192	0	104	-191	190	254	-616	188	1351	0	-573	300	-256	-193	61	-211	193	0	61	211	-256	193	-573	-300	1158	0	-596	-139	161	-225	84	182	-192	0	84	-182	161	225	-596	139	1062	0	-584	-111	145	-209	72	178	-192	0	72	-178	145	209	-584	111	1254	0	-607	-166	177	-241	95	187	-192	0	95	-187	177	241	-607	166	1407	0	-579	294	-256	-201	67	-217	201	0	67	217	-256	201	-579	-294	1206	0	-601	-152	169	-233	89	185	-192	0	89	-185	169	233	-601	152	1110	0	-590	-125	153	-217	78	180	-192	0	78	-180	153	217	-590	125	1302	0	-613	-180	185	-249	101	189	-192	0	101	-189	185	249	-613	180	1379	0	-576	297	-256	-197	64	-214	197	0	64	214	-256	197	-576	-297	1182	0	-598	-145	165	-229	86	184	-192	0	86	-184	165	229	-598	145	1086	0	-587	-118	149	-213	75	179	-192	0	75	-179	149	213	-587	118	1278	0	-610	-173	181	-245	98	188	-192	0	98	-188	181	245	-610	173	1435	0	-581	292	-256	-205	69	-219	205	0	69	219	-256	205	-581	-292	1230	0	-604	-159	173	-237	92	186	-192	0	92	-186	173	237	-604	159	1134	0	-593	-132	157	-221	81	181	-192	0	81	-181	157	221	-593	132	1326	0	-615	-186	189	-253	103	191	-192	0	103	-191	189	253	-615	186	1365	0	-574	299	-256	-195	62	-212	195	0	62	212	-256	195	-574	-299	1170	0	-597	-142	163	-227	85	183	-192	0	85	-183	163	227	-597	142	1074	0	-586	-115	147	-211	74	178	-192	0	74	-178	147	211	-586	115	1266	0	-608	-169	179	-243	96	188	-192	0	96	-188	179	243	-608	169	1421	0	-580	293	-256	-203	68	-218	203	0	68	218	-256	203	-580	-293	1218	0	-603	-156	171	-235	91	185	-192	0	91	-185	171	235	-603	156	1122	0	-591	-128	155	-219	79	181	-192	0	79	-181	155	219	-591	128	1314	0	-614	-183	187	-251	102	190	-192	0	102	-190	187	251	-614	183	1393	0	-577	296	-256	-199	65	-215	199	0	65	215	-256	199	-577	-296	1194	0	-600	-149	167	-231	88	184	-192	0	88	-184	167	231	-600	149	1098	0	-589	-122	151	-215	77	179	-192	0	77	-179	151	215	-589	122	1290	0	-611	-176	183	-247	99	189	-192	0	99	-189	183	247	-611	176	1449	0	-583	290	-256	-207	71	-221	207	0	71	221	-256	207	-583	-290	1242	0	-606	-162	175	-239	94	187	-192	0	94	-187	175	239	-606	162	1146	0	-594	-135	159	-223	82	182	-192	0	82	-182	159	223	-594	135	1338	0	-617	-190	191	-255	105	191	-192	0	105	-191	191	255	-617	190	

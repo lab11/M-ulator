@@ -1,12 +1,12 @@
 //*******************************************************************
 //Author: Yejoong Kim
-//Description: Developed during PRCv17 tape-out for verification
+//Description: Developed during PRCv18G tape-out for verification
 //*******************************************************************
-#include "PRCv17.h"
-#include "FLPv2S_RF.h"
-#include "PMUv7H_RF.h"
-#include "SNSv10_RF.h"
-#include "RDCv1_RF.h"
+#include "PRCv18G.h"
+#include "FLPv3S_RF.h"
+#include "PMUv9_RF.h"
+#include "SNSv11_RF.h"
+#include "RDCv2_RF.h"
 #include "mbus.h"
 
 #define PRC_ADDR    0x1
@@ -16,7 +16,7 @@
 #define RDC_ADDR    0x5
 #define PMU_ADDR    0xE
 
-// FLPv2S Payloads
+// FLPv3S Payloads
 #define ERASE_PASS  0x4F
 
 // Flag Idx
@@ -32,19 +32,20 @@ volatile uint32_t mem_rsvd_0[10];
 volatile uint32_t mem_rsvd_1[10];
 
 
-volatile flpv2s_r0F_t FLPv2S_R0F_IRQ      = FLPv2S_R0F_DEFAULT;
-volatile flpv2s_r12_t FLPv2S_R12_PWR_CONF = FLPv2S_R12_DEFAULT;
-volatile flpv2s_r07_t FLPv2S_R07_GO       = FLPv2S_R07_DEFAULT;
+volatile flpv3s_r0F_t FLPv3S_REG_IRQ    = FLPv3S_R0F_DEFAULT;
+volatile flpv3s_r12_t FLPv3S_PWR_CNF    = FLPv3S_R12_DEFAULT;
+volatile flpv3s_r09_t FLPv3S_R07_GO     = FLPv3S_R09_DEFAULT;
 
-volatile pmuv7h_r51_t PMUv7H_R51_CONF = PMUv7H_R51_DEFAULT;
-volatile pmuv7h_r52_t PMUv7H_R52_IRQ  = PMUv7H_R52_DEFAULT;
+volatile pmuv9_r51_t PMUv9_REG_CNF = PMUv9_R51_DEFAULT;
+volatile pmuv9_r52_t PMUv9_REG_IRQ = PMUv9_R52_DEFAULT;
 
-volatile rdcv1_r10_t RDCv1_R10_BRDC_IRQ_1 = RDCv1_R10_DEFAULT;
-volatile rdcv1_r11_t RDCv1_R11_BRDC_IRQ_2 = RDCv1_R11_DEFAULT;
-volatile rdcv1_r12_t RDCv1_R12_BRDC_RST   = RDCv1_R12_DEFAULT;
+volatile rdcv2_r10_t RDCv2_REG_BRDC_IRQ_1 = RDCv2_R10_DEFAULT;
+volatile rdcv2_r11_t RDCv2_REG_BRDC_IRQ_2 = RDCv2_R11_DEFAULT;
+volatile rdcv2_r12_t RDCv2_REG_BRDC_RST   = RDCv2_R12_DEFAULT;
+volatile rdcv2_r13_t RDCv2_REG_BRDC_ISOL  = RDCv2_R13_DEFAULT;
 
 // Select Testing
-#ifdef PREv17
+#ifdef PREv18G
 #else
 #endif
 volatile uint32_t do_cycle0  = 1; // GOCEP GEN_IRQ Check
@@ -193,7 +194,7 @@ void fail (uint32_t id, uint32_t data) {
     arb_debug_reg(0xE8, 0x0);
     arb_debug_reg(0xE9, id);
     arb_debug_reg(0xEA, data);
-    *REG_CHIP_ID = 0xFFFF; // This will stop the verilog sim.
+    *REG_CHIP_ID = 0xFFFFFF; // This will stop the verilog sim.
 }
 
 void cycle0 (void) { 
@@ -209,18 +210,38 @@ void cycle0 (void) {
 void cycle1 (void) { 
     if (do_cycle1 == 1) { 
         // Set up RDC IRQ Configuration
-        RDCv1_R11_BRDC_IRQ_2.BRDC_IRQ_LENGTH_1 = 3;
-        RDCv1_R11_BRDC_IRQ_2.BRDC_IRQ_PAYLOAD_ADDR = 0x20;
-        mbus_remote_register_write(RDC_ADDR, 0x11, RDCv1_R11_BRDC_IRQ_2.as_int);
+        RDCv2_REG_BRDC_IRQ_2.BRDC_IRQ_LENGTH_1 = 3;
+        RDCv2_REG_BRDC_IRQ_2.BRDC_IRQ_PAYLOAD_ADDR = 0x20;
+        mbus_remote_register_write(RDC_ADDR, 0x11, RDCv2_REG_BRDC_IRQ_2.as_int);
+
+        // Un-isolate BRDC
+        RDCv2_REG_BRDC_ISOL.BRDC_ISOLATE = 0;
+        RDCv2_REG_BRDC_ISOL.BRDC_V3P6_PG_EN = 0;
+        RDCv2_REG_BRDC_ISOL.BRDC_V3P6_ISOLB = 1;
+        RDCv2_REG_BRDC_ISOL.BRDC_V1P2_PG_EN = 0;
+        RDCv2_REG_BRDC_ISOL.BRDC_OSC_V1P2_PG_EN = 0;
+        RDCv2_REG_BRDC_ISOL.BRDC_OSC_ISOLATE = 0;
+        RDCv2_REG_BRDC_ISOL.BRDC_ISOLATE_DOUT = 0;
+        mbus_remote_register_write(RDC_ADDR, 0x13, RDCv2_REG_BRDC_ISOL.as_int);
 
         // Start BRDC
         set_halt_until_mbus_trx();
-        RDCv1_R12_BRDC_RST.BRDC_RSTB = 1;
-        RDCv1_R12_BRDC_RST.BRDC_IB_ENB = 0;
-        RDCv1_R12_BRDC_RST.BRDC_OSC_RESET = 0;
-        mbus_remote_register_write(RDC_ADDR, 0x12, RDCv1_R12_BRDC_RST.as_int);
+        RDCv2_REG_BRDC_RST.BRDC_RSTB = 1;
+        RDCv2_REG_BRDC_RST.BRDC_IB_ENB = 0;
+        RDCv2_REG_BRDC_RST.BRDC_OSC_RESET = 0;
+        mbus_remote_register_write(RDC_ADDR, 0x12, RDCv2_REG_BRDC_RST.as_int);
 
         set_halt_until_mbus_tx();
+
+        // Isolate BRDC
+        RDCv2_REG_BRDC_ISOL.BRDC_ISOLATE = 1;
+        RDCv2_REG_BRDC_ISOL.BRDC_V3P6_PG_EN = 1;
+        RDCv2_REG_BRDC_ISOL.BRDC_V3P6_ISOLB = 0;
+        RDCv2_REG_BRDC_ISOL.BRDC_V1P2_PG_EN = 1;
+        RDCv2_REG_BRDC_ISOL.BRDC_OSC_V1P2_PG_EN = 1;
+        RDCv2_REG_BRDC_ISOL.BRDC_OSC_ISOLATE = 1;
+        RDCv2_REG_BRDC_ISOL.BRDC_ISOLATE_DOUT = 1;
+        mbus_remote_register_write(RDC_ADDR, 0x13, RDCv2_REG_BRDC_ISOL.as_int);
     } 
 }
 void cycle2 (void) { if (do_cycle2 == 1) { } }
@@ -282,7 +303,7 @@ int main() {
     arb_debug_reg(0x2F, cyc_num);
 
     // Sleep/Wakeup OR Terminate operation
-    if (cyc_num == 999) *REG_CHIP_ID = 0xFFFF; // This will stop the verilog sim.
+    if (cyc_num == 999) *REG_CHIP_ID = 0xFFFFFF; // This will stop the verilog sim.
     else {
         cyc_num++;
         set_wakeup_timer(5, 1, 1);

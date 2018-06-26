@@ -1,0 +1,5 @@
+This folder contains the trained weights and offsets, and sample input vectors for the 3-layer keyword spotting DNN.
+
+Raw data (floating points) are stored in .csv files, and processed data (fixed points, formatted for KWS compiler script) are stored in files with their respective extensions, like *.weight, *.offsets, etc.
+
+To transform raw data into processed data, use ./parse_csv.py; to zero-pad data use ./zero_padding.py.
