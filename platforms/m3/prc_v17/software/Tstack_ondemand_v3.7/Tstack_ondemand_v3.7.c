@@ -978,7 +978,7 @@ static void operation_init(void){
     // Config Register A
 	sntv1_r0A.TMR_S = 0x1; // Default: 0x4, use 1 for good TC
 	// Tune R for TC
-    sntv1_r0A.TMR_DIFF_CON = 0x3FFD; // Default: 0x3FFB
+    sntv1_r0A.TMR_DIFF_CON = 0x3FEF; // Default: 0x3FFB
     sntv1_r0A.TMR_POLY_CON = 0x1; // Default: 0x1
     mbus_remote_register_write(SNT_ADDR,0x0A,sntv1_r0A.as_int);
 
@@ -1659,6 +1659,12 @@ int main() {
 		
 	}else if(wakeup_data_header == 0xA2){
 		WAKEUP_PERIOD_CONT_USER = wakeup_data & 0xFFFFFF;
+        operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0xA3){
+		// Tune R for TC
+		sntv1_r0A.TMR_DIFF_CON = wakeup_data & 0x3FFF; // Default: 0x3FFB
+		mbus_remote_register_write(SNT_ADDR,0x0A,sntv1_r0A.as_int);
         operation_sleep_notimer();
 
 	}else if(wakeup_data_header == 0xF0){
