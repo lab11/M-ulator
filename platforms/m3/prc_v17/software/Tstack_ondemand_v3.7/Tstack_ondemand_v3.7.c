@@ -103,7 +103,6 @@ volatile uint32_t wakeup_timer_multiplier;
 volatile uint32_t PMU_ADC_4P2_VAL;
 
 volatile uint32_t WAKEUP_PERIOD_CONT_USER; 
-volatile uint32_t WAKEUP_PERIOD_CONT; 
 volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
 
 //volatile uint32_t temp_meas_data[NUM_TEMP_MEAS] = {0};
@@ -923,7 +922,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
-    enumerated = 0xDEADBE37;
+    enumerated = 0x37;
     exec_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_4P2_VAL = 0x4B;
@@ -1025,8 +1024,8 @@ static void operation_init(void){
     mbus_remote_register_write(RAD_ADDR,0xF,0x1002);
 
     // Initialize other global variables
-    WAKEUP_PERIOD_CONT = 33750;   // 1: 2-4 sec with PRCv9
     WAKEUP_PERIOD_CONT_INIT = 10;   // 
+	WAKEUP_PERIOD_CONT_USER = 0x2710;
     temp_storage_count = 0;
     radio_tx_count = 0;
     radio_tx_option = 0; //enables radio tx for each measurement 
@@ -1305,7 +1304,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0xDEADBE37){
+    if (enumerated != 0x37){
         operation_init();
     }
 
@@ -1657,7 +1656,10 @@ int main() {
 
 		operation_sleep_noirqreset();
 		
-		
+	}else if(wakeup_data_header == 0xA2){
+		WAKEUP_PERIOD_CONT_USER = wakeup_data & 0xFFFFFF;
+        operation_sleep_notimer();
+
 	}else if(wakeup_data_header == 0xF0){
 
 		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0x0, enumerated);
