@@ -1283,6 +1283,7 @@ static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t 
 		}
 	}else{
 		exec_count_irq = 0;
+		sntv1_r0A.TMR_DIFF_CON = 0x3FFB; // Default: 0x3FFB
 		// radio
 		send_radio_data_ppm(1,0xFAF000);	
 		// Go to sleep without timer
@@ -1331,6 +1332,8 @@ static void operation_snt_calibration_radio(uint32_t start_val, uint32_t settle_
 		}
 	}else{
 		exec_count_irq = 0;
+		sntv1_r0A.TMR_DIFF_CON = 0x3FFB; // Default: 0x3FFB
+		
 		// radio
 		send_radio_data_ppm(1,0xFAF000);	
 		// Go to sleep without timer
