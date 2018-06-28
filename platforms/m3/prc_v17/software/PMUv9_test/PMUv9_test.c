@@ -499,13 +499,17 @@ inline static void pmu_adc_read_latest(){
 	// PMU register read is handled differently
 	mbus_remote_register_write(PMU_ADDR,0x00,0x03);
 	delay(MBUS_DELAY);
+	// Updated for PMUv9
 	read_data_batadc = (*((volatile uint32_t *) REG0) >> 16) & 0xFF;
 
 }
 
 inline static void pmu_reset_solar_short(){
+	// Updated for PMUv9
     mbus_remote_register_write(PMU_ADDR,0x0E, 
-		( (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
+		( (0 << 12) // 1: solar short by latched vbat_high (new); 0: follow [10] setting
+		| (1 << 11) // Reset of vbat_high latch for [12]=1
+		| (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
 		| (1 << 9)  // Enables override setting [8]
 		| (0 << 8)  // Turn on the harvester-inhibiting switch
 		| (3 << 4)  // clamp_tune_bottom (increases clamp thresh)
@@ -513,7 +517,9 @@ inline static void pmu_reset_solar_short(){
 	));
 	delay(MBUS_DELAY);
     mbus_remote_register_write(PMU_ADDR,0x0E, 
-		( (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
+		( (0 << 12) // 1: solar short by latched vbat_high (new); 0: follow [10] setting
+		| (1 << 11) // Reset of vbat_high latch for [12]=1
+		| (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
 		| (0 << 9)  // Enables override setting [8]
 		| (0 << 8)  // Turn on the harvester-inhibiting switch
 		| (3 << 4)  // clamp_tune_bottom (increases clamp thresh)
@@ -604,8 +610,10 @@ static void operation_init(void){
 
 	// Disable PMU ADC measurement in active mode
 	// PMU_CONTROLLER_STALL_ACTIVE
+	// Updated for PMUv9
     mbus_remote_register_write(PMU_ADDR,0x3A, 
-		( (1 << 19) // ignore state_horizon; default 1
+		( (1 << 20) // ignore state_horizon; default 1
+		| (0 << 19) // state_vbat_read
 		| (1 << 13) // ignore adc_output_ready; default 0
 		| (1 << 12) // ignore adc_output_ready; default 0
 		| (1 << 11) // ignore adc_output_ready; default 0
