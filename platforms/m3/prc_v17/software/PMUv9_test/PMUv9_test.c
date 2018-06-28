@@ -595,7 +595,11 @@ static void operation_init(void){
 
 	// New for PMUv9
 	// VBAT_READ_TRIM Register
-    mbus_remote_register_write(PMU_ADDR,0x45,0x148);
+    mbus_remote_register_write(PMU_ADDR,0x45,
+		( (0x0 << 9) // 0x0: no mon; 0x1: sar conv mon; 0x2: up conv mon; 0x3: down conv mon
+		| (0x1 << 8) // 1: vbat_read_mode enable; 0: vbat_read_mode disable
+		| (0x48 << 0) //sampling multiplication factor N; vbat_read out = vbat/1p2*N
+	));
 	
 
 	// Disable PMU ADC measurement in active mode
