@@ -931,7 +931,7 @@ static void operation_init(void){
     //set_halt_until_mbus_rx();
 
     //Enumeration
-    //mbus_enumerate(RAD_ADDR);
+    mbus_enumerate(RAD_ADDR);
 	delay(MBUS_DELAY);
     mbus_enumerate(SNT_ADDR);
 	delay(MBUS_DELAY);
