@@ -80,7 +80,7 @@
 #define RADIO_DATA_LENGTH 24
 #define WAKEUP_PERIOD_RADIO_INIT 10 // About 2 sec (PRCv17)
 
-#define TEMP_STORAGE_SIZE 600 // Need to leave about 500 Bytes for stack --> around 120
+#define TEMP_STORAGE_SIZE 500 // Need to leave about 500 Bytes for stack --> around 120
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y5 run default clock (PRCv17)
 #define TIMER32_VAL 0x50000 // 0x20000 about 1 sec with Y5 run default clock (PRCv17)
@@ -931,7 +931,7 @@ static void operation_init(void){
     //set_halt_until_mbus_rx();
 
     //Enumeration
-    mbus_enumerate(RAD_ADDR);
+    //mbus_enumerate(RAD_ADDR);
 	delay(MBUS_DELAY);
     mbus_enumerate(SNT_ADDR);
 	delay(MBUS_DELAY);
@@ -1247,7 +1247,15 @@ static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t 
 	uint32_t exec_count_irq_sub;
 	exec_count_irq_sub = exec_count_irq >>4; // Divide by 16
 	
-	if (sntv1_r0A.TMR_DIFF_CON < 0x3FFF){
+	if ((sntv1_r0A.TMR_DIFF_CON == 0x3FFF) && ((exec_count_irq & 0xF) == 0xF)){
+		// Stop condition
+		exec_count_irq = 0;
+		sntv1_r0A.TMR_DIFF_CON = 0x3FFB; // Default: 0x3FFB
+		// radio
+		send_radio_data_ppm(1,0xFAF000);	
+		// Go to sleep without timer
+		operation_sleep_notimer();
+	}else{
 		// Debug
 		mbus_write_message32(0xBB,exec_count_irq);
 		
@@ -1281,65 +1289,9 @@ static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t 
 			snt_set_wup_timer(WAKEUP_PERIOD_CONT_USER);
 			operation_sleep_noirqreset();
 		}
-	}else{
-		exec_count_irq = 0;
-		sntv1_r0A.TMR_DIFF_CON = 0x3FFB; // Default: 0x3FFB
-		// radio
-		send_radio_data_ppm(1,0xFAF000);	
-		// Go to sleep without timer
-		operation_sleep_notimer();
 	}
 }
 
-static void operation_snt_calibration_radio(uint32_t start_val, uint32_t settle_time){
-
-	uint32_t exec_count_irq_sub;
-	exec_count_irq_sub = exec_count_irq >>4; // Divide by 16
-	
-	if (sntv1_r0A.TMR_DIFF_CON < 0x3FFF){
-		// Debug
-		mbus_write_message32(0xBB,exec_count_irq);
-		
-		if ((exec_count_irq & 0xF) == 0xF){ // every 16 iterations
-			sntv1_r0A.TMR_DIFF_CON++; // Default: 0x3FFB
-			mbus_remote_register_write(SNT_ADDR,0x0A,sntv1_r0A.as_int);
-		}
-
-		exec_count_irq++;
-		if (exec_count_irq == 1){
-			// Tune R for TC
-			sntv1_r0A.TMR_DIFF_CON = start_val; // Default: 0x3FFB
-			mbus_remote_register_write(SNT_ADDR,0x0A,sntv1_r0A.as_int);
-
-			// Prepare radio TX
-			radio_power_on();
-			snt_start_timer_presleep();
-			// Go to sleep for SCRO stabilitzation
-			// Go to sleep for >3s for timer stabilization
-			set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT*3, 0x1, 0x1);
-			operation_sleep_noirqreset();
-		}else if (exec_count_irq == 2){
-			snt_start_timer_postsleep();
-			// Read existing counter value; in case not reset to zero
-			snt_read_wup_counter();
-			snt_set_wup_timer(0x1D4C0*settle_time); // settling time in minutes
-			operation_sleep_noirqreset();
-		}else{
-			// radio
-			send_radio_data_ppm(0, sntv1_r0A.TMR_DIFF_CON);	
-			snt_set_wup_timer(WAKEUP_PERIOD_CONT_USER);
-			operation_sleep_noirqreset();
-		}
-	}else{
-		exec_count_irq = 0;
-		sntv1_r0A.TMR_DIFF_CON = 0x3FFB; // Default: 0x3FFB
-		
-		// radio
-		send_radio_data_ppm(1,0xFAF000);	
-		// Go to sleep without timer
-		operation_sleep_notimer();
-	}
-}
 
 //********************************************************************
 // MAIN function starts here             
@@ -1683,10 +1635,6 @@ int main() {
 
 		// Go to sleep without timer
 		operation_sleep_notimer();
-
-	}else if(wakeup_data_header == 0x71){
-		// Calibration routine for SNT wakeup timer
-		operation_snt_calibration_radio(wakeup_data & 0xFFFF, wakeup_data_field_2);
 
 	}else if(wakeup_data_header == 0x72){
 		// Calibration routine for SNT wakeup timer
