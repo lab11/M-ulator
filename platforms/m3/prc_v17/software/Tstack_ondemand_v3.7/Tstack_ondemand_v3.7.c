@@ -601,6 +601,9 @@ static void snt_read_wup_counter(){
 	
 static void snt_start_timer_presleep(){
 
+	sntv1_r09.TMR_IBIAS_REF = 0x4; // Default : 4'h4
+	mbus_remote_register_write(SNT_ADDR,0x09,sntv1_r09.as_int);
+
 	// TIMER SELF_EN Disable 
 	sntv1_r09.TMR_SELF_EN = 0x0; // Default : 0x1
 	mbus_remote_register_write(SNT_ADDR,0x09,sntv1_r09.as_int);
@@ -645,6 +648,9 @@ static void snt_stop_timer(){
 	sntv1_r08.TMR_RESETB_DCDC = 0x0; // Default : 0x0
 	mbus_remote_register_write(SNT_ADDR,0x08,sntv1_r08.as_int);
 	snt_timer_enabled = 0;
+
+	sntv1_r09.TMR_IBIAS_REF = 0x0; // Default : 4'h4
+	mbus_remote_register_write(SNT_ADDR,0x09,sntv1_r09.as_int);
 }
 
 static void snt_set_wup_timer(uint32_t sleep_count){
@@ -989,6 +995,10 @@ static void operation_init(void){
 
 	sntv1_r09.TMR_EN_TUNE1 = 0x1; // Default : 1'h1
 	sntv1_r09.TMR_EN_TUNE2 = 0x1; // Default : 1'h1
+
+	// to reduce standby current
+	sntv1_r09.TMR_IBIAS_REF = 0x0; // Default : 4'h4
+
 	mbus_remote_register_write(SNT_ADDR,0x09,sntv1_r09.as_int);
 
 	// Wakeup Counter setting
