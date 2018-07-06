@@ -1213,8 +1213,9 @@ static void operation_goc_trigger_init(void){
 
 	// This is critical
 	set_halt_until_mbus_tx();
-	mbus_write_message32(0xAA,0xABCD1234);
-	mbus_write_message32(0xAA,wakeup_data);
+
+	// Debug
+	mbus_write_message32(0xBA,wakeup_data);
 
 	// Initialize variables & registers
 	temp_running = 0;
@@ -1223,6 +1224,7 @@ static void operation_goc_trigger_init(void){
 	radio_power_off();
 	temp_sensor_power_off();
 	sns_ldo_power_off();
+
 }
 
 static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_timer_val, uint32_t radio_tx_prefix, uint32_t radio_tx_data){
@@ -1289,9 +1291,18 @@ static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t 
 			operation_sleep_noirqreset();
 		}else if (exec_count_irq == 2){
 			snt_start_timer_postsleep();
+	
+			// Disable PRC Wakeup Timer
+			set_wakeup_timer(0, 0, 0);
+
 			// Read existing counter value; in case not reset to zero
 			snt_read_wup_counter();
-			snt_set_wup_timer(0x1D4C0*settle_time); // settling time in minutes; assumes 2khz clock
+			if (settle_time == 0){
+				// set to 30s	
+				snt_set_wup_timer(0xEA60);
+			}else{
+				snt_set_wup_timer(0x1D4C0*settle_time); // settling time in minutes; assumes 2khz clock
+			}
 			operation_sleep_noirqreset();
 		}else{
 			// radio
@@ -1316,6 +1327,10 @@ int main() {
   
     // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
     config_timerwd(TIMERWD_VAL);
+
+	// Report who woke up
+	delay(MBUS_DELAY);
+	mbus_write_message32(0xAA,*SREG_WAKEUP_SOURCE);
 
     // Initialization sequence
     if (enumerated != 0x3701){
@@ -1352,6 +1367,8 @@ int main() {
 
         exec_count_irq++;
 		if (exec_count_irq == 1){
+			// SNT pulls higher current in the beginning
+			pmu_set_sleep_radio();
 			snt_start_timer_presleep();
 			// Go to sleep for >3s for timer stabilization
 			set_wakeup_timer (0x20, 0x1, 0x1);
@@ -1360,6 +1377,8 @@ int main() {
 			snt_start_timer_postsleep();
 			// Read existing counter value; in case not reset to zero
 			snt_read_wup_counter();
+			// Restore sleep setting to low
+			pmu_set_sleep_low();
 		}
 
 		if (!temp_running){
@@ -1479,45 +1498,6 @@ int main() {
 		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xBBB000, read_data_batadc);
 
 
-/*
-    }else if(wakeup_data_header == 8){
-		// Discharge battery by staying active and TX radio
-		// wakeup_data[15:0] is the # of transmissions
-		// wakeup_data[16] resets PMU solar clamp
-
-		exec_count_irq++;
-		if (exec_count_irq == 1){
-			// Prepare radio TX
-			radio_power_on();
-			// Go to sleep for SCRO stabilitzation
-			set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
-			operation_sleep_noirqreset();
-		}else{
-			// radio
-			uint32_t discharge_count = 0;
-			while (discharge_count < (wakeup_data_field_0 + (wakeup_data_field_1<<8))){
-				send_radio_data_ppm(0,0xBB0000+discharge_count);
-				discharge_count++;
-				delay(RADIO_PACKET_DELAY*2);
-				// Prevent watchdog kicking in
-    			config_timerwd(TIMERWD_VAL);
-				delay(RADIO_PACKET_DELAY*2);
-				
-			}
-		}
-
-        if (wakeup_data_field_2 & 0x1){
-			// Reset PMU solar clamp
-			pmu_reset_solar_short();
-		}
-
-		// Finalize
-		exec_count_irq = 0;
-		// radio
-		send_radio_data_ppm(1,0xFAF000);	
-		// Go to sleep without timer
-		operation_sleep_notimer();
-*/
 	}else if(wakeup_data_header == 0x13){
 		// Change the RF frequency
         // Debug mode: Transmit something via radio and go to sleep w/o timer
@@ -1531,59 +1511,6 @@ int main() {
 
 		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xABC000, exec_count_irq);
 
-
-/*
-    }else if(wakeup_data_header == 0x14){
-		// Run temp sensor once to update room temperature reference
-        radio_tx_option = 1;
-		temp_run_single = 1;
-		temp_running = 1;
-
-		exec_count = 0;
-		meas_count = 0;
-		temp_storage_count = 0;
-		radio_tx_count = 0;
-
-		// Reset GOC_DATA_IRQ
-		*GOC_DATA_IRQ = 0;
-        exec_count_irq = 0;
-
-		// Run Temp Sensor Program
-		operation_temp_run();
-
-    }else if(wakeup_data_header == 0x15){
-		// Transmit wakeup period as counted by (roughly) CPU clock
-		// wakeup_data[7:0] is the # of transmissions
-		// wakeup_data[15:8] is the user-specified period 
-		WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
-
-        if (exec_count_irq < wakeup_data_field_0){
-            exec_count_irq++;
-			if (exec_count_irq == 1){
-				// Measure wakeup period
-				measure_wakeup_period();
-
-				// Prepare radio TX
-				radio_power_on();
-				// Go to sleep for SCRO stabilitzation
-				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
-				operation_sleep_noirqreset();
-			}else{
-				// radio
-				send_radio_data_ppm(0,0xC00000+wakeup_period_count);	
-				// set timer
-				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
-				// go to sleep and wake up with same condition
-				operation_sleep_noirqreset();
-			}
-        }else{
-            exec_count_irq = 0;
-            // radio
-            send_radio_data_ppm(1,0xFAF000);	
-            // Go to sleep without timer
-            operation_sleep_notimer();
-        }
-*/
 
 
 	}else if(wakeup_data_header == 0x20){
@@ -1658,6 +1585,7 @@ int main() {
 		if (exec_count_irq == 1){
 			snt_start_timer_presleep();
 			// Go to sleep for >3s for timer stabilization
+			// FIXME: needs higher pmu setting; snt consumes more power in the beginning
 			set_wakeup_timer (0x20, 0x1, 0x1);
 			operation_sleep_noirqreset();
 		}else if (exec_count_irq == 2){
@@ -1670,11 +1598,12 @@ int main() {
 		operation_sleep_noirqreset();
 		
 	}else if(wakeup_data_header == 0xA2){
+	// Set SNT wakeup period
 		WAKEUP_PERIOD_CONT_USER = wakeup_data & 0xFFFFFF;
         operation_sleep_notimer();
 
 	}else if(wakeup_data_header == 0xA3){
-		// Tune R for TC
+	// Tune SNT Timer R for TC
 		sntv1_r0A.TMR_DIFF_CON = wakeup_data & 0x3FFF; // Default: 0x3FFB
 		mbus_remote_register_write(SNT_ADDR,0x0A,sntv1_r0A.as_int);
         operation_sleep_notimer();
@@ -1682,6 +1611,20 @@ int main() {
 	}else if(wakeup_data_header == 0xF0){
 
 		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0x0, enumerated);
+
+	}else if(wakeup_data_header == 0xFA){
+	// Soft reset routine
+
+		// Extra protection
+		if ((wakeup_data&0xFFFFFF) == 0x89D7E2){
+			config_timerwd(0xFF);
+			while(1){
+				mbus_write_message32(0xE0, 0x0);
+				delay(MBUS_DELAY);
+			}
+		}else{
+			operation_sleep_notimer();
+		}
 
     }else{
 		if (wakeup_data_header != 0){
