@@ -651,6 +651,10 @@ static void snt_stop_timer(){
 
 	sntv1_r09.TMR_IBIAS_REF = 0x0; // Default : 4'h4
 	mbus_remote_register_write(SNT_ADDR,0x09,sntv1_r09.as_int);
+
+	sntv1_r17.WUP_ENABLE = 0x0; // Default : 0x
+	mbus_remote_register_write(SNT_ADDR,0x17,sntv1_r17.as_int);
+
 }
 
 static void snt_set_wup_timer(uint32_t sleep_count){
