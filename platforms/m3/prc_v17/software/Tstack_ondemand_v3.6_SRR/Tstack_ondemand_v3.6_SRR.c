@@ -189,7 +189,9 @@ void handler_ext_int_gocep(void) { // GOCEP
 }
 void handler_ext_int_wakeup(void) { // WAKE-UP
     *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
-    *SREG_WAKEUP_SOURCE = 0;
+	// Report who woke up
+	delay(MBUS_DELAY);
+	mbus_write_message32(0xAA,*SREG_WAKEUP_SOURCE); // 0x1: GOC; 0x2: PRC Timer; 0x10: SNT
 }
 
 //************************************
