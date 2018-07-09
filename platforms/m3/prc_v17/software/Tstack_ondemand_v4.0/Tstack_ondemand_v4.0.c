@@ -117,9 +117,12 @@ volatile uint32_t temp_storage_count;
 volatile uint32_t temp_running;
 volatile uint32_t set_temp_exec_count;
 volatile uint32_t read_data_temp; // [23:0] Temp Sensor D Out
+volatile uint32_t TEMP_CALIB_A;
+volatile uint32_t TEMP_CALIB_B;
 
 volatile uint32_t snt_wup_counter_cur;
 volatile uint32_t snt_timer_enabled = 0;
+volatile uint32_t SNT_0P5S_VAL;
 
 volatile uint32_t radio_tx_count;
 volatile uint32_t radio_tx_batt;
@@ -203,6 +206,15 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
 	mbus_write_message32(0xAA,*SREG_WAKEUP_SOURCE); // 0x1: GOC; 0x2: PRC Timer; 0x10: SNT
 }
 
+//***************************************************
+// Sleep Functions
+//***************************************************
+static void operation_sns_sleep_check(void);
+static void operation_sleep(void);
+static void operation_sleep_noirqreset(void);
+static void operation_sleep_notimer(void);
+static void operation_sleep_snt_timer(void);
+
 //************************************
 // PMU Related Functions
 //************************************
@@ -271,6 +283,107 @@ inline static void pmu_set_adc_period(uint32_t val){
 	delay(MBUS_DELAY);
 }
 
+inline static void pmu_set_active_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1p2){
+
+	// The first register write to PMU needs to be repeated
+	// Register 0x16: V1P2 Active
+    mbus_remote_register_write(PMU_ADDR,0x16, 
+		( (0 << 19) // Enable PFM even during periodic reset
+		| (0 << 18) // Enable PFM even when Vref is not used as ref
+		| (0 << 17) // Enable PFM
+		| (3 << 14) // Comparator clock division ratio
+		| (0 << 13) // Enable main feedback loop
+		| (r << 9)  // Frequency multiplier R
+		| (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
+		| (base) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+    mbus_remote_register_write(PMU_ADDR,0x16, 
+		( (0 << 19) // Enable PFM even during periodic reset
+		| (0 << 18) // Enable PFM even when Vref is not used as ref
+		| (0 << 17) // Enable PFM
+		| (3 << 14) // Comparator clock division ratio
+		| (0 << 13) // Enable main feedback loop
+		| (r << 9)  // Frequency multiplier R
+		| (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
+		| (base) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x18: V3P6 Active 
+    mbus_remote_register_write(PMU_ADDR,0x18, 
+		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+		| (0 << 13) // Enable main feedback loop
+		| (r << 9)  // Frequency multiplier R
+		| (l << 5)  // Frequency multiplier L (actually L+1)
+		| (base) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x1A: V0P6 Active
+    mbus_remote_register_write(PMU_ADDR,0x1A,
+		( (0 << 13) // Enable main feedback loop
+		| (r << 9)  // Frequency multiplier R
+		| (l << 5)  // Frequency multiplier L (actually L+1)
+		| (base) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+
+}
+
+inline static void pmu_set_sleep_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1p2){
+
+	// Register 0x17: V3P6 Sleep
+    mbus_remote_register_write(PMU_ADDR,0x17, 
+		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+		| (0 << 13) // Enable main feedback loop
+		| (r << 9)  // Frequency multiplier R
+		| (l << 5)  // Frequency multiplier L (actually L+1)
+		| (base) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x15: V1P2 Sleep
+    mbus_remote_register_write(PMU_ADDR,0x15, 
+		( (0 << 19) // Enable PFM even during periodic reset
+		| (0 << 18) // Enable PFM even when Vref is not used as ref
+		| (0 << 17) // Enable PFM
+		| (3 << 14) // Comparator clock division ratio
+		| (0 << 13) // Enable main feedback loop
+		| (r << 9)  // Frequency multiplier R
+		| (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
+		| (base) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+	// Register 0x19: V0P6 Sleep
+    mbus_remote_register_write(PMU_ADDR,0x19,
+		( (0 << 13) // Enable main feedback loop
+		| (r << 9)  // Frequency multiplier R
+		| (l << 5)  // Frequency multiplier L (actually L+1)
+		| (base) 		// Floor frequency base (0-63)
+	));
+	delay(MBUS_DELAY);
+
+}
+/*
+inline static void pmu_set_clk_init(){
+	pmu_set_active_clk(0xA,0x1,0x10,0x2);
+	pmu_set_sleep_clk(0xF,0x0,0x1,0x1);
+	// SAR_RATIO_OVERRIDE
+	// Use the new reset scheme in PMUv3
+    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+		( (0 << 13) // Enables override setting [12] (1'b1)
+		| (0 << 12) // Let VDD_CLK always connected to vbat
+		| (1 << 11) // Enable override setting [10] (1'h0)
+		| (0 << 10) // Have the converter have the periodic reset (1'h0)
+		| (0 << 9) // Enable override setting [8] (1'h0)
+		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+		| (0 << 7) // Enable override setting [6:0] (1'h0)
+		| (0x45) 		// Binary converter's conversion ratio (7'h00)
+	));
+	delay(MBUS_DELAY);
+	pmu_set_sar_override(0x4D);
+
+	pmu_set_adc_period(1); // 0x100 about 1 min for 1/2/1 1P2 setting
+}
+*/
 inline static void pmu_set_sleep_radio(){
 	// Register 0x15: SAR_TRIM_v3_SLEEP
     mbus_remote_register_write(PMU_ADDR,0x15, 
@@ -963,7 +1076,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
-    enumerated = 0x3701;
+    enumerated = 0x4001;
     exec_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_4P2_VAL = 0x4B;
@@ -1138,6 +1251,9 @@ static void operation_init(void){
 	RADIO_PACKET_DELAY = 2000;
 	radio_packet_count = 0;
 	
+	SNT_0P5S_VAL = 1000;
+	TEMP_CALIB_A = 24000;
+	TEMP_CALIB_B = 3750000;
 
     // Harvester Settings --------------------------------------
 	hrvv5_r0.HRV_TOP_CONV_RATIO = 0x9;
@@ -1435,7 +1551,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0x3701){
+    if (enumerated != 0x4001){
         operation_init();
     }
 
@@ -1463,9 +1579,11 @@ int main() {
 
     }else if(wakeup_data_header == 2){
 		// Slow down PMU sleep osc and run temp sensor code with desired wakeup period
+		// wakeup_data[15:0] is the desired wakeup period in 0.5s (min 0.5s: 0x1, max 32767.5s: 0xFFFF)
         // wakeup_data[20] enables radio tx for each measurement
         // wakeup_data[23:21] specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
         radio_tx_option = wakeup_data_field_2 & 0x10;
+		WAKEUP_PERIOD_CONT_USER = (wakeup_data & 0xFFFF)*SNT_0P5S_VAL;
 
         exec_count_irq++;
 		if (exec_count_irq == 1){
@@ -1643,6 +1761,29 @@ int main() {
 
 		sntv1_r03.TSNS_SEL_CONV_TIME = wakeup_data & 0xF; // Default: 0x6
 		mbus_remote_register_write(SNT_ADDR,0x03,sntv1_r03.as_int);
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x26){
+		// Update SNT wakeup counter value for 0.5s
+		SNT_0P5S_VAL = wakeup_data & 0xFFFF;
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x2A){
+		// Update calibration coefficient A
+		// A is the slope, typical value is around 24.000, stored as A*1000
+		TEMP_CALIB_A = wakeup_data & 0xFFFFFF; 
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x2B){
+		// Update calibration coefficient B 
+		// B is the offset, typical value is around -3750.000, stored as -B*1000
+		TEMP_CALIB_B = wakeup_data & 0xFFFFFF; 
 
 		// Go to sleep without timer
 		operation_sleep_notimer();
