@@ -49,6 +49,8 @@
 //				  Up to 8192 temp data stored in MEMv1 (16-bit data)
 //				  CRC4 encoding for SRR packet
 //			FIXME: PMU setting change, CRC, calibration data storage, snt user input calibration
+//				  ability to set exact # of readings?
+//				  New way to report battery -- should store full battery value, and report diff
 //*******************************************************************
 #include "PRCv17.h"
 #include "PRCv17_RF.h"
@@ -133,7 +135,7 @@ volatile uint32_t radio_on;
 volatile uint32_t RADIO_PACKET_DELAY;
 volatile uint32_t radio_packet_count;
 
-volatile uint32_t read_data_batadc;
+volatile uint32_t read_data_batadc_diff;
 
 volatile sntv1_r00_t sntv1_r00 = SNTv1_R00_DEFAULT;
 volatile sntv1_r01_t sntv1_r01 = SNTv1_R01_DEFAULT;
@@ -640,7 +642,12 @@ inline static void pmu_adc_read_latest(){
 	// PMU register read is handled differently
 	mbus_remote_register_write(PMU_ADDR,0x00,0x03);
 	delay(MBUS_DELAY);
-	read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
+	uint32_t read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
+	if (read_data_batadc<PMU_ADC_4P2_VAL){
+		read_data_batadc_diff = 0;
+	}else{
+		read_data_batadc_diff = read_data_batadc - PMU_ADC_4P2_VAL;
+	}
 
 }
 
@@ -1388,7 +1395,7 @@ static void operation_temp_run(void){
 			if (radio_tx_option){
 				send_radio_data_srr(0,0,0, 0xCC0000+exec_count);
 				delay(RADIO_PACKET_DELAY);
-				send_radio_data_srr(0,0,0,0xBBB000+read_data_batadc);	
+				send_radio_data_srr(0,0,0,0xBBB000+read_data_batadc_diff);	
 				delay(RADIO_PACKET_DELAY);
 		        send_radio_data_srr(0,0,0, 0xD00000 | (0xFFFFF & temp_storage_latest));
 				delay(RADIO_PACKET_DELAY);
@@ -1470,7 +1477,7 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
 	}else{
 		exec_count_irq = 0;
 		// radio
-		send_radio_data_srr(1,0,0,0xFAF000);	
+		send_radio_data_srr(1,0,0, radio_tx_prefix | radio_tx_data);	
 		// Go to sleep without timer
 		operation_sleep_notimer();
 	}
@@ -1643,7 +1650,7 @@ int main() {
 			}else{
 				if (exec_count_irq & 0x1){
 					// radio
-					send_radio_data_srr(0,0,0,0xBBB000+read_data_batadc);	
+					send_radio_data_srr(0,0,0,0xBBB000+read_data_batadc_diff);	
 				}else{
 					// radio
 					send_radio_data_srr(0,0,0,0xCC0000+exec_count);	
@@ -1694,7 +1701,7 @@ int main() {
 				set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
 				operation_sleep_noirqreset();
 			}else{
-				send_radio_data_srr(0,0,0,0xBBB000+read_data_batadc);	
+				send_radio_data_srr(0,0,0,0xBBB000+read_data_batadc_diff);	
 				delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
 				send_radio_data_srr(0,0,0,0xCC0000+exec_count);	
 				set_wakeup_timer(WAKEUP_PERIOD_CONT_INIT, 0x1, 0x1);
@@ -1715,8 +1722,15 @@ int main() {
 			pmu_adc_read_latest();
 		}
 
-		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xBBB000, read_data_batadc);
+		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xBBB000, read_data_batadc_diff);
 
+
+    }else if(wakeup_data_header == 0x17){
+		// Change the 4.2V battery reference
+		PMU_ADC_4P2_VAL = wakeup_data_field_0;
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
 
 	}else if(wakeup_data_header == 0x20){
         // wakeup_data[7:0] is the # of transmissions
