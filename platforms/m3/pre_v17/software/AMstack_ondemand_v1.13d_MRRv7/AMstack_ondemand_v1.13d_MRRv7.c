@@ -942,7 +942,7 @@ static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uin
 			delay(RADIO_PACKET_DELAY);
 		}
 		count++;
-		mrr_cfo_val_fine = mrr_cfo_val_fine + 2; // 1: 0.8MHz, 2: 1.6MHz step
+		mrr_cfo_val_fine = mrr_cfo_val_fine + 4; // 1: 0.8MHz, 2: 1.6MHz step
 	}
 
 	radio_packet_count++;
@@ -1259,9 +1259,9 @@ static void operation_init(void){
 	mbus_remote_register_write(MRR_ADDR,0x07,mrrv7_r07.as_int);
 
 	// TX Setup Carrier Freq
-	//mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = ;  //ANT CAP 14b unary 830.5 MHz
-	//mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
-	//mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = ; //ANT CAP 14b unary 830.5 MHz
+	mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x1F;  //ANT CAP 10b unary 830.5 MHz
+	mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+	mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0x1F; //ANT CAP 10b unary 830.5 MHz
 	mrrv7_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min;  //ANT CAP 14b unary 830.5 MHz
 	mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min; //ANT CAP 14b unary 830.5 MHz
 	mbus_remote_register_write(MRR_ADDR,0x01,mrrv7_r01.as_int);
