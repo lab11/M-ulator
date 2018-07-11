@@ -926,10 +926,10 @@ static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uin
 	uint32_t num_packets = 1;
 	if (mrr_freq_hopping) num_packets = mrr_freq_hopping;
 	
-	while (count < num_packets){
-		// New for MRRv7
-		mrr_cfo_val_fine = mrr_cfo_val_fine_min;
+	// New for MRRv7
+	mrr_cfo_val_fine = mrr_cfo_val_fine_min;
 
+	while (count < num_packets){
 		#ifdef DEBUG_MBUS_MSG
 		mbus_write_message32(0xCE, mrr_cfo_val);
 		#endif
