@@ -93,6 +93,7 @@
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y5 run default clock (PRCv17)
 #define TIMER32_VAL 0x50000 // 0x20000 about 1 sec with Y5 run default clock (PRCv17)
 
+
 //********************************************************************
 // Global Variables
 //********************************************************************
@@ -155,15 +156,12 @@ volatile srrv4_r01_t srrv4_r01 = SRRv4_R01_DEFAULT;
 volatile srrv4_r02_t srrv4_r02 = SRRv4_R02_DEFAULT;
 volatile srrv4_r03_t srrv4_r03 = SRRv4_R03_DEFAULT;
 volatile srrv4_r04_t srrv4_r04 = SRRv4_R04_DEFAULT;
-volatile srrv4_r05_t srrv4_r05 = SRRv4_R05_DEFAULT;
 volatile srrv4_r07_t srrv4_r07 = SRRv4_R07_DEFAULT;
-volatile srrv4_r10_t srrv4_r10 = SRRv4_R10_DEFAULT;
 volatile srrv4_r11_t srrv4_r11 = SRRv4_R11_DEFAULT;
 volatile srrv4_r12_t srrv4_r12 = SRRv4_R12_DEFAULT;
 volatile srrv4_r13_t srrv4_r13 = SRRv4_R13_DEFAULT;
 volatile srrv4_r14_t srrv4_r14 = SRRv4_R14_DEFAULT;
 volatile srrv4_r15_t srrv4_r15 = SRRv4_R15_DEFAULT;
-volatile srrv4_r16_t srrv4_r16 = SRRv4_R16_DEFAULT;
 volatile srrv4_r1E_t srrv4_r1E = SRRv4_R1E_DEFAULT;
 volatile srrv4_r1F_t srrv4_r1F = SRRv4_R1F_DEFAULT;
 
@@ -212,6 +210,149 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
 	delay(MBUS_DELAY);
 	mbus_write_message32(0xAA,*SREG_WAKEUP_SOURCE); // 0x1: GOC; 0x2: PRC Timer; 0x10: SNT
 }
+
+//***************************************************
+// CRC16 Encoding
+//***************************************************
+
+
+#define INT_LEN 32
+#define DATA_LEN 96
+#define CRC_LEN 16
+
+
+uint8_t* myDec2Bin(uint32_t);
+uint32_t myBin2Dec(uint8_t []);
+uint32_t* crcEnc16(uint32_t, uint32_t, uint32_t); // CRC encoder
+uint32_t crcDec16(uint32_t, uint32_t, uint32_t); // CRC decoder (pass->1, error->0)
+
+uint8_t* myDec2Bin(uint32_t data)
+{
+    static uint8_t b[32];
+    uint8_t i;
+    for (i=0; i<32; i++)
+    {
+        b[31-i] = data & 1; //data % 2;
+        data = (data >> 1); //data / 2;
+    }
+    return b;
+}
+
+uint32_t myBin2Dec(uint8_t bin[])
+{
+    uint32_t d = 0;
+    uint8_t i;
+    for (i=0; i<INT_LEN; i++)
+    {
+        d = d << 1;
+        d = d + bin[i];
+    }
+    return d;
+}
+
+uint32_t* crcEnc16(uint32_t data2, uint32_t data1, uint32_t data0)
+{
+    // intialization
+    uint32_t crcLen = CRC_LEN;
+    uint8_t poly[17];
+    uint8_t remainder[16];
+    uint8_t remainder_next[16];
+    uint32_t i;
+
+	for (i=0;i<16;i++){
+		poly[i] = 0;
+		remainder[i] = 0;
+		remainder_next[i] = 0;
+	}
+
+	poly[0] = 1;
+	poly[2] = 1;
+	poly[15] = 1;
+	poly[16] = 1;
+
+    uint32_t* msg_tmp;
+    uint8_t msg2[INT_LEN];
+    uint8_t msg1[INT_LEN];
+    uint8_t msg0[INT_LEN];
+    
+    msg_tmp = myDec2Bin(data2);
+    for (i=0;i<INT_LEN;i++)
+    {
+        msg2[i] = msg_tmp[i];
+    }
+    msg_tmp = myDec2Bin(data1);
+    for (i=0;i<INT_LEN;i++)
+    {
+        msg1[i] = msg_tmp[i];
+    }
+    msg_tmp = myDec2Bin(data0);
+    for (i=0;i<INT_LEN;i++)
+    {
+        msg0[i] = msg_tmp[i];
+    }
+
+    uint32_t msg[96];
+    for (i=0; i<INT_LEN; i++)
+    {
+        msg[i] = msg2[i];
+        msg[i+INT_LEN] = msg1[i];
+        msg[i+2*INT_LEN] = msg0[i];
+    }
+    
+    // LFSR
+    for (i=0; i<DATA_LEN; i++)
+    {
+        if (i < DATA_LEN-CRC_LEN)
+            msg[i] = msg[i+CRC_LEN];
+        else
+            msg[i] = 0;
+    }    
+
+    for (i = 0; i < DATA_LEN; i++)
+    {
+        uint32_t MSB = remainder[0];
+        uint32_t j;
+        for (j = 0; j < CRC_LEN-1; j++)
+        {
+            if (poly[j])
+                remainder_next[j] = (remainder[j+1] != MSB);
+            else
+                remainder_next[j] = remainder[j+1];
+        }
+        remainder_next[CRC_LEN-1] = (msg[i] != MSB);
+        for (j=0; j<CRC_LEN; j++)
+        {
+            remainder[j] = remainder_next[j];
+        }
+    }
+
+    for (i=0; i<CRC_LEN; i++)
+    {
+        msg[DATA_LEN-CRC_LEN+i] = remainder[i];
+    }
+
+    uint8_t bin2[INT_LEN];
+    uint8_t bin1[INT_LEN];
+    uint8_t bin0[INT_LEN];
+    for (i=0; i<INT_LEN; i++)
+    {
+        bin2[i] = msg[i];
+        bin1[i] = msg[i+INT_LEN];
+        bin0[i] = msg[i+2*INT_LEN];
+    }
+
+    uint32_t data2_out = myBin2Dec(bin2);
+    uint32_t data1_out = myBin2Dec(bin1);
+    uint32_t data0_out = myBin2Dec(bin0);
+
+    static uint32_t msg_out[3];
+    msg_out[0] = data2_out;
+    msg_out[1] = data1_out;
+    msg_out[2] = data0_out;
+
+    return msg_out;    
+}
+
 
 //***************************************************
 // Sleep Functions
@@ -790,7 +931,12 @@ static void send_radio_data_srr(uint32_t last_packet, uint8_t radio_packet_prefi
     mbus_remote_register_write(SRR_ADDR,0xD,radio_data_0);
     mbus_remote_register_write(SRR_ADDR,0xE,radio_data_1);
     mbus_remote_register_write(SRR_ADDR,0xF,(radio_packet_prefix<<16)|radio_data_2);
-    mbus_remote_register_write(SRR_ADDR,0x10,(radio_packet_count<<16)|(0/*CRC16*/));
+    mbus_remote_register_write(SRR_ADDR,0x10,(radio_packet_count&0xFF)|(0/*CRC16*/<<8));
+
+    uint32_t* output_data;
+    output_data = crcEnc16(radio_data_2, radio_data_1, radio_data_0);
+
+	
 
     if (!radio_ready){
 		radio_ready = 1;
@@ -1296,7 +1442,7 @@ static void operation_temp_run(void){
 
 			// Optionally transmit the data
 			if (radio_tx_option | (exec_count < TEMP_CYCLE_INIT)){
-				send_radio_data_srr(1,0xCC,*REG_CHIP_ID,temp_storage_latest,exec_count);	
+				send_radio_data_srr(1,0xC0,*REG_CHIP_ID,((0xBB00|read_data_batadc_diff)<<8)|exec_count,temp_storage_latest);
 			}
 			
 
@@ -1382,12 +1528,10 @@ static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t 
 		exec_count_irq = 0;
 		sntv1_r0A.TMR_DIFF_CON = 0x3FFB; // Default: 0x3FFB
 		// radio
-		send_radio_data_srr(1,0xBB,*REG_CHIP_ID,sntv1_r0A.TMR_DIFF_CON,exec_count_irq);	
+		send_radio_data_srr(1,0xB0,*REG_CHIP_ID,sntv1_r0A.TMR_DIFF_CON,exec_count_irq);	
 		// Go to sleep without timer
 		operation_sleep_notimer();
 	}else{
-		// Debug
-		mbus_write_message32(0xBB,exec_count_irq);
 		
 		if ((exec_count_irq & 0xF) == 0xF){ // every 16 iterations
 			sntv1_r0A.TMR_DIFF_CON = sntv1_r0A.TMR_DIFF_CON<<1 | 0x1; // Default: 0x3FFB
@@ -1423,7 +1567,7 @@ static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t 
 			operation_sleep_noirqreset();
 		}else{
 			// radio
-			send_radio_data_srr(0,0xBB,*REG_CHIP_ID,sntv1_r0A.TMR_DIFF_CON, exec_count_irq);
+			send_radio_data_srr(0,0xB0,*REG_CHIP_ID,sntv1_r0A.TMR_DIFF_CON, exec_count_irq);
 			snt_set_wup_timer(WAKEUP_PERIOD_CONT_USER);
 			operation_sleep_noirqreset();
 		}
@@ -1469,7 +1613,7 @@ int main() {
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period
         // wakeup_data[23:16] is the MSB of # of transmissions
-		operation_goc_trigger_radio(wakeup_data_field_0 + (wakeup_data_field_2<<8), wakeup_data_field_1, 0xAA, 0, exec_count_irq);
+		operation_goc_trigger_radio(wakeup_data_field_0 + (wakeup_data_field_2<<8), wakeup_data_field_1, 0xA0, 0, exec_count_irq);
 
 
     }else if(wakeup_data_header == 2){
@@ -1529,7 +1673,7 @@ int main() {
 
 		Tstack_state = TSTK_IDLE;
 
-		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xCC, exec_count, exec_count_irq);
+		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xC1, exec_count_irq, temp_storage_count);
 
 
     }else if(wakeup_data_header == 4){
@@ -1653,7 +1797,7 @@ int main() {
 			*REG_CHIP_ID = chip_id_user;
 		}
 
-		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xAC, 0, chip_id_user);
+		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xA1, 0, chip_id_user);
 
 
 	}else if(wakeup_data_header == 0x21){
@@ -1779,7 +1923,7 @@ int main() {
 */		
 	}else if(wakeup_data_header == 0xF0){
 
-		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xAF, 0, enumerated);
+		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xA2, 0, enumerated);
 
 	}else if(wakeup_data_header == 0xFA){
 	// Soft reset routine
