@@ -13,16 +13,21 @@
 //				   Making freq hopping configurable, only need the min cap setting now
 //			v1.13: Fixing flag initialization in 0x32 trig, battery field in 0x3D packet
 //				   Changing some default values
-//			v1.14: Changing how ADXL interrupt is handled in PRE -- doesn't work as is
+//					v1.13 used for MOD demo & delivery May 2018
+//			v1.13b: Changing hrv light count -- don't reset, keep counter rolling
+//				    Changing hrv conv ratio to 16
+//			v1.13c: Chaging hrv light detection method -- fixed threshold
+//			v1.13d: Fixing hrv counter saturation issue
+//			v1.14: MRRv7 - larger tuning range, stronger drive
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
 #include "mbus.h"
 #include "SNSv10_RF.h"
 #include "PMUv7_RF.h"
-#include "MRRv6_RF.h"
 #include "ADXL362.h"
 #include "HRVv5.h"
+#include "MRRv7_RF.h"
 
 // uncomment this for debug mbus message
 //#define DEBUG_MBUS_MSG
@@ -45,7 +50,6 @@
 #define	STK_LDO		0x1
 #define	STK_TEMP_START 0x2
 #define	STK_TEMP_READ  0x3
-#define	STK_RADIO 0x4
 
 // ADXL362 Defines
 #define SPI_TIME 250
@@ -68,11 +72,11 @@
 //********************************************************************
 // "static" limits the variables to this file, giving compiler more freedom
 // "volatile" should only be used for MMIO --> ensures memory storage
+volatile uint32_t irq_history;
 volatile uint32_t enumerated;
 volatile uint32_t wakeup_data;
 volatile uint32_t stack_state;
 volatile uint32_t wfi_timeout_flag;
-volatile uint32_t gpio_interrupt_flag;
 volatile uint32_t exec_count;
 volatile uint32_t meas_count;
 volatile uint32_t exec_count_irq;
@@ -109,10 +113,12 @@ volatile uint32_t adxl_trigger_mute_count;
 volatile uint32_t hrv_light_count;
 volatile uint32_t hrv_light_count_enabled;
 volatile uint32_t hrv_light_count_prev;
+volatile uint32_t hrv_light_count_old;
+volatile uint32_t hrv_light_count_read;
 volatile uint32_t hrv_light_diff;
 volatile uint32_t hrv_light_threshold_factor;
 volatile uint32_t hrv_low_light_threshold_factor;
-volatile uint32_t hrv_low_light_threshold = 0x100;
+volatile uint32_t hrv_low_light_threshold;
 volatile uint32_t hrv_light_detected;
 volatile uint32_t hrv_exec_count = 0;
 volatile uint32_t hrv_exec_checkin = 12;
@@ -123,7 +129,7 @@ volatile uint32_t radio_tx_numdata;
 volatile uint32_t radio_ready;
 volatile uint32_t radio_on;
 volatile uint32_t mrr_freq_hopping;
-volatile uint32_t mrr_cfo_val_min;
+volatile uint32_t mrr_cfo_val_fine_min;
 volatile uint32_t mrr_set_decap_parallel;
 volatile uint32_t RADIO_PACKET_DELAY;
 volatile uint32_t radio_packet_count;
@@ -136,23 +142,23 @@ volatile snsv10_r17_t snsv10_r17 = SNSv10_R17_DEFAULT;
 volatile prev17_r0B_t prev17_r0B = PREv17_R0B_DEFAULT;
 volatile prev17_r0D_t prev17_r0D = PREv17_R0D_DEFAULT;
 
-volatile mrrv6_r00_t mrrv6_r00 = MRRv6_R00_DEFAULT;
-volatile mrrv6_r01_t mrrv6_r01 = MRRv6_R01_DEFAULT;
-volatile mrrv6_r02_t mrrv6_r02 = MRRv6_R02_DEFAULT;
-volatile mrrv6_r03_t mrrv6_r03 = MRRv6_R03_DEFAULT;
-volatile mrrv6_r04_t mrrv6_r04 = MRRv6_R04_DEFAULT;
-volatile mrrv6_r05_t mrrv6_r05 = MRRv6_R05_DEFAULT;
-volatile mrrv6_r07_t mrrv6_r07 = MRRv6_R07_DEFAULT;
-volatile mrrv6_r10_t mrrv6_r10 = MRRv6_R10_DEFAULT;
-volatile mrrv6_r11_t mrrv6_r11 = MRRv6_R11_DEFAULT;
-volatile mrrv6_r12_t mrrv6_r12 = MRRv6_R12_DEFAULT;
-volatile mrrv6_r13_t mrrv6_r13 = MRRv6_R13_DEFAULT;
-volatile mrrv6_r14_t mrrv6_r14 = MRRv6_R14_DEFAULT;
-volatile mrrv6_r15_t mrrv6_r15 = MRRv6_R15_DEFAULT;
-volatile mrrv6_r16_t mrrv6_r16 = MRRv6_R16_DEFAULT;
+volatile mrrv7_r00_t mrrv7_r00 = MRRv7_R00_DEFAULT;
+volatile mrrv7_r01_t mrrv7_r01 = MRRv7_R01_DEFAULT;
+volatile mrrv7_r02_t mrrv7_r02 = MRRv7_R02_DEFAULT;
+volatile mrrv7_r03_t mrrv7_r03 = MRRv7_R03_DEFAULT;
+volatile mrrv7_r04_t mrrv7_r04 = MRRv7_R04_DEFAULT;
+volatile mrrv7_r05_t mrrv7_r05 = MRRv7_R05_DEFAULT;
+volatile mrrv7_r07_t mrrv7_r07 = MRRv7_R07_DEFAULT;
+volatile mrrv7_r10_t mrrv7_r10 = MRRv7_R10_DEFAULT;
+volatile mrrv7_r11_t mrrv7_r11 = MRRv7_R11_DEFAULT;
+volatile mrrv7_r12_t mrrv7_r12 = MRRv7_R12_DEFAULT;
+volatile mrrv7_r13_t mrrv7_r13 = MRRv7_R13_DEFAULT;
+volatile mrrv7_r14_t mrrv7_r14 = MRRv7_R14_DEFAULT;
+volatile mrrv7_r15_t mrrv7_r15 = MRRv7_R15_DEFAULT;
+volatile mrrv7_r16_t mrrv7_r16 = MRRv7_R16_DEFAULT;
 
-volatile mrrv6_r1E_t mrrv6_r1E = MRRv6_R1E_DEFAULT;
-volatile mrrv6_r1F_t mrrv6_r1F = MRRv6_R1F_DEFAULT;
+volatile mrrv7_r1E_t mrrv7_r1E = MRRv7_R1E_DEFAULT;
+volatile mrrv7_r1F_t mrrv7_r1F = MRRv7_R1F_DEFAULT;
 
 
 //***************************************************
@@ -185,7 +191,6 @@ void handler_ext_int_reg0     (void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_reg1     (void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_reg2     (void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_reg3     (void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_gpio     (void) __attribute__ ((interrupt ("IRQ")));
 
 void handler_ext_int_timer32(void) { // TIMER32
     *NVIC_ICPR = (0x1 << IRQ_TIMER32);
@@ -221,11 +226,7 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
 //[11] = gpio[3]
     *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
 }
-void handler_ext_int_gpio(void) { // WAKE-UP
-    *NVIC_ICPR = (0x1 << IRQ_GPIO);
-	adxl_motion_detected = 1;
-	gpio_interrupt_flag = 1;
-}
+
 
 //***************************************************
 // ADXL362 Functions
@@ -254,32 +255,31 @@ static void ADXL362_reg_rd (uint8_t reg_id){
 }
 
 static void ADXL362_init(){
-	// Soft Reset
-	ADXL362_reg_wr(ADXL362_SOFT_RESET,0x52);
+  // Soft Reset
+  ADXL362_reg_wr(ADXL362_SOFT_RESET,0x52);
+  
+  // Check if Alive
+  ADXL362_reg_rd(ADXL362_DEVID_AD);
+  ADXL362_reg_rd(ADXL362_DEVID_MST);
+  ADXL362_reg_rd(ADXL362_PARTID);
+  ADXL362_reg_rd(ADXL362_REVID);
 
-	// Check if Alive
-	ADXL362_reg_rd(ADXL362_DEVID_AD);
-	ADXL362_reg_rd(ADXL362_DEVID_MST);
-	ADXL362_reg_rd(ADXL362_PARTID);
-	ADXL362_reg_rd(ADXL362_REVID);
+  // Set Interrupt1 Awake Bit [4]
+  ADXL362_reg_wr(ADXL362_INTMAP1,0x10);
 
-	// Set Interrupt1 Awake Bit [4]
-	ADXL362_reg_wr(ADXL362_INTMAP1,0x10);
+  // Set Activity Threshold
+  ADXL362_reg_wr(ADXL362_THRESH_ACT_L,adxl_user_threshold & 0xFF);
+  ADXL362_reg_wr(ADXL362_THRESH_ACT_H,(adxl_user_threshold>>8) & 0xFF);
 
-	// Set Activity Threshold
-	ADXL362_reg_wr(ADXL362_THRESH_ACT_L,adxl_user_threshold & 0xFF);
-	ADXL362_reg_wr(ADXL362_THRESH_ACT_H,(adxl_user_threshold>>8) & 0xFF);
+  // Set Actvity/Inactivity Control
+  ADXL362_reg_wr(ADXL362_ACT_INACT_CTL,0x03);
 
-	// Set Actvity/Inactivity Control
-	ADXL362_reg_wr(ADXL362_ACT_INACT_CTL,0x3F);
+  // Enter Measurement Mode
+  ADXL362_reg_wr(ADXL362_POWER_CTL,0x0A);
 
-	// Enter Measurement Mode
-	ADXL362_reg_wr(ADXL362_POWER_CTL,0x0A);
-
-	// Check Status (Clears first false positive)
-	delay(5000);
-	gpio_interrupt_flag = 0;
-	ADXL362_reg_rd(ADXL362_STATUS);
+  // Check Status (Clears first false positive)
+  delay(5000);
+  ADXL362_reg_rd(ADXL362_STATUS);
 }
 
 static void ADXL362_enable(){
@@ -733,42 +733,41 @@ static void radio_power_on(){
 	//pmu_set_sleep_radio();
 
 	// Set decap to series
-	// FIXME: verify with Li
-	mrrv6_r03.MRR_DCP_P_OW = 0;  //RX_Decap P 
-	mbus_remote_register_write(MRR_ADDR,3,mrrv6_r03.as_int);
-	mrrv6_r03.MRR_DCP_S_OW = 1;  //TX_Decap S (forced charge decaps)
-	mbus_remote_register_write(MRR_ADDR,3,mrrv6_r03.as_int);
+	mrrv7_r03.MRR_DCP_P_OW = 0;  //RX_Decap P 
+	mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
+	mrrv7_r03.MRR_DCP_S_OW = 1;  //TX_Decap S (forced charge decaps)
+	mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
 
 	// Current Limter set-up 
-	mrrv6_r00.MRR_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
-	mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
+	mrrv7_r00.MRR_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+	mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
     radio_on = 1;
 
     // Turn on Current Limter
-    mrrv6_r00.MRR_CL_EN = 1;  //Enable CL
-    mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
+    mrrv7_r00.MRR_CL_EN = 1;  //Enable CL
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
     // Release timer power-gate
-    mrrv6_r04.RO_EN_RO_V1P2 = 1;  //Use V1P2 for TIMER
-    mbus_remote_register_write(MRR_ADDR,0x04,mrrv6_r04.as_int);
+    mrrv7_r04.RO_EN_RO_V1P2 = 1;  //Use V1P2 for TIMER
+    mbus_remote_register_write(MRR_ADDR,0x04,mrrv7_r04.as_int);
     delay(MBUS_DELAY*10);
 
 	// Turn on timer
-    mrrv6_r04.RO_RESET = 0;  //Release Reset TIMER
-    mbus_remote_register_write(MRR_ADDR,0x04,mrrv6_r04.as_int);
+    mrrv7_r04.RO_RESET = 0;  //Release Reset TIMER
+    mbus_remote_register_write(MRR_ADDR,0x04,mrrv7_r04.as_int);
     delay(MBUS_DELAY*10);
 
-    mrrv6_r04.RO_EN_CLK = 1; //Enable CLK TIMER
-    mbus_remote_register_write(MRR_ADDR,0x04,mrrv6_r04.as_int);
+    mrrv7_r04.RO_EN_CLK = 1; //Enable CLK TIMER
+    mbus_remote_register_write(MRR_ADDR,0x04,mrrv7_r04.as_int);
     delay(MBUS_DELAY*10);
 
-    mrrv6_r04.RO_ISOLATE_CLK = 0; //Set Isolate CLK to 0 TIMER
-    mbus_remote_register_write(MRR_ADDR,0x04,mrrv6_r04.as_int);
+    mrrv7_r04.RO_ISOLATE_CLK = 0; //Set Isolate CLK to 0 TIMER
+    mbus_remote_register_write(MRR_ADDR,0x04,mrrv7_r04.as_int);
 
     // Release FSM Sleep
-    mrrv6_r11.MRR_RAD_FSM_SLEEP = 0;  // Power on BB
-    mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
+    mrrv7_r11.MRR_RAD_FSM_SLEEP = 0;  // Power on BB
+    mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
 	delay(MBUS_DELAY*50); // Freq stab
 
 }
@@ -780,38 +779,37 @@ static void radio_power_off(){
 	//pmu_adc_enable();
 
 	// Current Limter set-up 
-	mrrv6_r00.MRR_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
-	mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
+	mrrv7_r00.MRR_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+	mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
     // Turn off everything
-    mrrv6_r03.MRR_TRX_ISOLATEN = 0;     //set ISOLATEN 0
-    mbus_remote_register_write(MRR_ADDR,0x03,mrrv6_r03.as_int);
+    mrrv7_r03.MRR_TRX_ISOLATEN = 0;     //set ISOLATEN 0
+    mbus_remote_register_write(MRR_ADDR,0x03,mrrv7_r03.as_int);
 
-    mrrv6_r11.MRR_RAD_FSM_EN = 0;  //Stop BB
-    mrrv6_r11.MRR_RAD_FSM_RSTN = 0;  //RST BB
-    mrrv6_r11.MRR_RAD_FSM_SLEEP = 1;
-    mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
+    mrrv7_r11.MRR_RAD_FSM_EN = 0;  //Stop BB
+    mrrv7_r11.MRR_RAD_FSM_RSTN = 0;  //RST BB
+    mrrv7_r11.MRR_RAD_FSM_SLEEP = 1;
+    mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
 
     // Turn off Current Limter
-    mrrv6_r00.MRR_CL_EN = 0;  //Enable CL
-    mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
+    mrrv7_r00.MRR_CL_EN = 0;  //Enable CL
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
-    mrrv6_r04.RO_RESET = 1;  //Release Reset TIMER
-    mrrv6_r04.RO_EN_CLK = 0; //Enable CLK TIMER
-    mrrv6_r04.RO_ISOLATE_CLK = 1; //Set Isolate CLK to 0 TIMER
-    mbus_remote_register_write(MRR_ADDR,0x04,mrrv6_r04.as_int);
+    mrrv7_r04.RO_RESET = 1;  //Release Reset TIMER
+    mrrv7_r04.RO_EN_CLK = 0; //Enable CLK TIMER
+    mrrv7_r04.RO_ISOLATE_CLK = 1; //Set Isolate CLK to 0 TIMER
+    mbus_remote_register_write(MRR_ADDR,0x04,mrrv7_r04.as_int);
 
     // Enable timer power-gate
-    mrrv6_r04.RO_EN_RO_V1P2 = 0;  //Use V1P2 for TIMER
-    mbus_remote_register_write(MRR_ADDR,0x04,mrrv6_r04.as_int);
+    mrrv7_r04.RO_EN_RO_V1P2 = 0;  //Use V1P2 for TIMER
+    mbus_remote_register_write(MRR_ADDR,0x04,mrrv7_r04.as_int);
 
 	// Set decap to parallel
 	if (mrr_set_decap_parallel){
-		// FIXME: verify with Li
-		mrrv6_r03.MRR_DCP_S_OW = 0;  //TX_Decap S (forced charge decaps)
-		mbus_remote_register_write(MRR_ADDR,3,mrrv6_r03.as_int);
-		mrrv6_r03.MRR_DCP_P_OW = 1;  //RX_Decap P 
-		mbus_remote_register_write(MRR_ADDR,3,mrrv6_r03.as_int);
+		mrrv7_r03.MRR_DCP_S_OW = 0;  //TX_Decap S (forced charge decaps)
+		mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
+		mrrv7_r03.MRR_DCP_P_OW = 1;  //RX_Decap P 
+		mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
 	}
 
     radio_on = 0;
@@ -821,42 +819,42 @@ static void radio_power_off(){
 
 static void mrr_configure_pulse_width_long(){
 
-    mrrv6_r12.MRR_RAD_FSM_TX_PW_LEN = 24; //100us PW
-    mrrv6_r13.MRR_RAD_FSM_TX_C_LEN = 100; // (PW_LEN+1):C_LEN=1:32
-    mrrv6_r12.MRR_RAD_FSM_TX_PS_LEN = 49; // PW=PS   
+    mrrv7_r12.MRR_RAD_FSM_TX_PW_LEN = 24; //100us PW
+    mrrv7_r13.MRR_RAD_FSM_TX_C_LEN = 100; // (PW_LEN+1):C_LEN=1:32
+    mrrv7_r12.MRR_RAD_FSM_TX_PS_LEN = 49; // PW=PS   
 
-    mbus_remote_register_write(MRR_ADDR,0x12,mrrv6_r12.as_int);
-    mbus_remote_register_write(MRR_ADDR,0x13,mrrv6_r13.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x12,mrrv7_r12.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x13,mrrv7_r13.as_int);
 }
 
 static void mrr_configure_pulse_width_long_2(){
 
-    mrrv6_r12.MRR_RAD_FSM_TX_PW_LEN = 19; //80us PW
-    mrrv6_r13.MRR_RAD_FSM_TX_C_LEN = 100; // (PW_LEN+1):C_LEN=1:32
-    mrrv6_r12.MRR_RAD_FSM_TX_PS_LEN = 39; // PW=PS   
+    mrrv7_r12.MRR_RAD_FSM_TX_PW_LEN = 19; //80us PW
+    mrrv7_r13.MRR_RAD_FSM_TX_C_LEN = 100; // (PW_LEN+1):C_LEN=1:32
+    mrrv7_r12.MRR_RAD_FSM_TX_PS_LEN = 39; // PW=PS   
 
-    mbus_remote_register_write(MRR_ADDR,0x12,mrrv6_r12.as_int);
-    mbus_remote_register_write(MRR_ADDR,0x13,mrrv6_r13.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x12,mrrv7_r12.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x13,mrrv7_r13.as_int);
 }
 
 static void mrr_configure_pulse_width_long_3(){
 
-    mrrv6_r12.MRR_RAD_FSM_TX_PW_LEN = 9; //40us PW
-    mrrv6_r13.MRR_RAD_FSM_TX_C_LEN = 100; // (PW_LEN+1):C_LEN=1:32
-    mrrv6_r12.MRR_RAD_FSM_TX_PS_LEN = 19; // PW=PS   
+    mrrv7_r12.MRR_RAD_FSM_TX_PW_LEN = 9; //40us PW
+    mrrv7_r13.MRR_RAD_FSM_TX_C_LEN = 100; // (PW_LEN+1):C_LEN=1:32
+    mrrv7_r12.MRR_RAD_FSM_TX_PS_LEN = 19; // PW=PS   
 
-    mbus_remote_register_write(MRR_ADDR,0x12,mrrv6_r12.as_int);
-    mbus_remote_register_write(MRR_ADDR,0x13,mrrv6_r13.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x12,mrrv7_r12.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x13,mrrv7_r13.as_int);
 }
 
 static void mrr_configure_pulse_width_short(){
 
-    mrrv6_r12.MRR_RAD_FSM_TX_PW_LEN = 0; //4us PW
-    mrrv6_r13.MRR_RAD_FSM_TX_C_LEN = 32; // (PW_LEN+1):C_LEN=1:32
-    mrrv6_r12.MRR_RAD_FSM_TX_PS_LEN = 1; // PW=PS guard interval betwen 0 and 1 pulse
+    mrrv7_r12.MRR_RAD_FSM_TX_PW_LEN = 0; //4us PW
+    mrrv7_r13.MRR_RAD_FSM_TX_C_LEN = 32; // (PW_LEN+1):C_LEN=1:32
+    mrrv7_r12.MRR_RAD_FSM_TX_PS_LEN = 1; // PW=PS guard interval betwen 0 and 1 pulse
 
-    mbus_remote_register_write(MRR_ADDR,0x12,mrrv6_r12.as_int);
-    mbus_remote_register_write(MRR_ADDR,0x13,mrrv6_r13.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x12,mrrv7_r12.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x13,mrrv7_r13.as_int);
 }
 
 
@@ -868,12 +866,12 @@ static void send_radio_data_mrr_sub1(){
 	config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
 
     // Turn on Current Limter
-    mrrv6_r00.MRR_CL_EN = 1;
-    mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
+    mrrv7_r00.MRR_CL_EN = 1;
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
     // Fire off data
-	mrrv6_r11.MRR_RAD_FSM_EN = 1;  //Start BB
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
+	mrrv7_r11.MRR_RAD_FSM_EN = 1;  //Start BB
+	mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
 
 	// Wait for radio response
 	WFI();
@@ -886,11 +884,11 @@ static void send_radio_data_mrr_sub1(){
 	}
 
     // Turn off Current Limter
-    mrrv6_r00.MRR_CL_EN = 0;
-    mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
+    mrrv7_r00.MRR_CL_EN = 0;
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
-	mrrv6_r11.MRR_RAD_FSM_EN = 0;
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
+	mrrv7_r11.MRR_RAD_FSM_EN = 0;
+	mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
 }
 
 static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uint32_t radio_data_1, uint32_t radio_data_2){
@@ -910,46 +908,42 @@ static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uin
 		radio_ready = 1;
 
 		// Release FSM Reset
-		mrrv6_r11.MRR_RAD_FSM_RSTN = 1;  //UNRST BB
-		mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
+		mrrv7_r11.MRR_RAD_FSM_RSTN = 1;  //UNRST BB
+		mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
 		delay(MBUS_DELAY*10);
 
-    	mrrv6_r03.MRR_TRX_ISOLATEN = 1;     //set ISOLATEN 1, let state machine control
-    	mbus_remote_register_write(MRR_ADDR,0x03,mrrv6_r03.as_int);
+    	mrrv7_r03.MRR_TRX_ISOLATEN = 1;     //set ISOLATEN 1, let state machine control
+    	mbus_remote_register_write(MRR_ADDR,0x03,mrrv7_r03.as_int);
 		delay(MBUS_DELAY*10);
 
 		// Current Limter set-up 
-		mrrv6_r00.MRR_CL_CTRL = 2; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
-		mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
+		mrrv7_r00.MRR_CL_CTRL = 2; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+		mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
     }
 
 	uint32_t count = 0;
-	uint32_t mrr_cfo_val = 0;
+	uint32_t mrr_cfo_val_fine = 0;
 	uint32_t num_packets = 1;
 	if (mrr_freq_hopping) num_packets = mrr_freq_hopping;
 	
-	while (count < num_packets){
-		mrr_cfo_val = mrr_cfo_val_min;
-		uint32_t i;
-		for(i=0; i<count;i++){
-			mrr_cfo_val = (mrr_cfo_val << 1) | 0x1;
-		}
-		mrr_cfo_val = mrr_cfo_val & 0x3FFF; // 14 bits
+	// New for MRRv7
+	mrr_cfo_val_fine = mrr_cfo_val_fine_min;
 
+	while (count < num_packets){
 		#ifdef DEBUG_MBUS_MSG
 		mbus_write_message32(0xCE, mrr_cfo_val);
 		#endif
 
-		mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = mrr_cfo_val; 
-		mrrv6_r01.MRR_TRX_CAP_ANTN_TUNE = mrr_cfo_val;
-		mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
-		mbus_remote_register_write(MRR_ADDR,0x01,mrrv6_r01.as_int);
+		mrrv7_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine; 
+		mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine;
+		mbus_remote_register_write(MRR_ADDR,0x01,mrrv7_r01.as_int);
 		send_radio_data_mrr_sub1();
 		if (count < num_packets){
 			delay(RADIO_PACKET_DELAY);
 		}
 		count++;
+		mrr_cfo_val_fine = mrr_cfo_val_fine + 4; // 1: 0.8MHz, 2: 1.6MHz step
 	}
 
 	radio_packet_count++;
@@ -958,8 +952,8 @@ static void send_radio_data_mrr(uint32_t last_packet, uint32_t radio_data_0, uin
 		radio_ready = 0;
 		radio_power_off();
 	}else{
-		mrrv6_r11.MRR_RAD_FSM_EN = 0;
-		mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
+		mrrv7_r11.MRR_RAD_FSM_EN = 0;
+		mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
 	}
 }
 //***************************************************
@@ -1185,7 +1179,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     stack_state = STK_IDLE; 	//0x0;
-    enumerated = 0xDEADBE14;
+    enumerated = 0xDEADBD14;
     exec_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_3P0_VAL = 0x62;
@@ -1242,16 +1236,16 @@ static void operation_init(void){
     // MRR Settings --------------------------------------
 
 	mrr_set_decap_parallel = 0xF;
-	mrrv6_r1F.LC_CLK_RING = 0x3;  // ~ 150 kHz
-	mrrv6_r1F.LC_CLK_DIV = 0x3;  // ~ 150 kHz
-	mbus_remote_register_write(MRR_ADDR,0x1F,mrrv6_r1F.as_int);
+	mrrv7_r1F.LC_CLK_RING = 0x3;  // ~ 150 kHz
+	mrrv7_r1F.LC_CLK_DIV = 0x3;  // ~ 150 kHz
+	mbus_remote_register_write(MRR_ADDR,0x1F,mrrv7_r1F.as_int);
 
 	//mrr_configure_pulse_width_short();
 	mrr_configure_pulse_width_long();
 
 	mrr_freq_hopping = 5;
 
-	mrr_cfo_val_min = 0x0000;
+	mrr_cfo_val_fine_min = 0x0000;
 
 	// RO setup (SFO)
 	// Adjust Diffusion R
@@ -1261,50 +1255,48 @@ static void operation_init(void){
 	mbus_remote_register_write(MRR_ADDR,0x08,0x400000); // RO_POLY
 
 	// Adjust C
-	mrrv6_r07.RO_MOM = 0x10;
-	mrrv6_r07.RO_MIM = 0x10;
-	mbus_remote_register_write(MRR_ADDR,0x07,mrrv6_r07.as_int);
+	mrrv7_r07.RO_MOM = 0x10;
+	mrrv7_r07.RO_MIM = 0x10;
+	mbus_remote_register_write(MRR_ADDR,0x07,mrrv7_r07.as_int);
 
 	// TX Setup Carrier Freq
-	mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = mrr_cfo_val_min;  //ANT CAP 14b unary 830.5 MHz
-	//mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = 0x00FF;  //ANT CAP 14b unary 813.8 MHz
-	//mrrv6_r00.MRR_TRX_CAP_ANTP_TUNE = 0x0FFF;  //ANT CAP 14b unary 805.5 MHz
-	mbus_remote_register_write(MRR_ADDR,0x00,mrrv6_r00.as_int);
-	mrrv6_r01.MRR_TRX_CAP_ANTN_TUNE = mrr_cfo_val_min; //ANT CAP 14b unary 830.5 MHz
-	//mrrv6_r01.MRR_TRX_CAP_ANTN_TUNE = 0x00FF; //ANT CAP 14b unary 813.8 MHz
-	//mrrv6_r01.MRR_TRX_CAP_ANTN_TUNE = 0x0FFF;  //ANT CAP 14b unary 805.5 MHz
-	mbus_remote_register_write(MRR_ADDR,0x01,mrrv6_r01.as_int);
-	mrrv6_r02.MRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
-	mbus_remote_register_write(MRR_ADDR,0x02,mrrv6_r02.as_int);
+	mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x1F;  //ANT CAP 10b unary 830.5 MHz
+	mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+	mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0x1F; //ANT CAP 10b unary 830.5 MHz
+	mrrv7_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min;  //ANT CAP 14b unary 830.5 MHz
+	mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min; //ANT CAP 14b unary 830.5 MHz
+	mbus_remote_register_write(MRR_ADDR,0x01,mrrv7_r01.as_int);
+	mrrv7_r02.MRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
+	mbus_remote_register_write(MRR_ADDR,0x02,mrrv7_r02.as_int);
 
 	// Turn off RX mode
-    mrrv6_r03.MRR_TRX_MODE_EN = 0; //Set TRX mode
+    mrrv7_r03.MRR_TRX_MODE_EN = 0; //Set TRX mode
 
 	// Keep decap charged in the background
-	mrrv6_r03.MRR_DCP_S_OW = 1;  //TX_Decap S (forced charge decaps)
+	mrrv7_r03.MRR_DCP_S_OW = 1;  //TX_Decap S (forced charge decaps)
 
 	// Forces decaps to be parallel
-	//mrrv6_r03.MRR_DCP_S_OW = 0;  //TX_Decap S (forced charge decaps)
-	//mrrv6_r03.MRR_DCP_P_OW = 1;  //RX_Decap P 
-	//mbus_remote_register_write(MRR_ADDR,3,mrrv6_r03.as_int);
+	//mrrv7_r03.MRR_DCP_S_OW = 0;  //TX_Decap S (forced charge decaps)
+	//mrrv7_r03.MRR_DCP_P_OW = 1;  //RX_Decap P 
+	//mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
 
 	// RX Setup
-    mrrv6_r03.MRR_RX_BIAS_TUNE    = 0x02AF;//  turn on Q_enhancement
-	//mrrv6_r03.MRR_RX_BIAS_TUNE    = 0x0001;//  turn off Q_enhancement
-	mrrv6_r03.MRR_RX_SAMPLE_CAP    = 0x1;  // RX_SAMPLE_CAP
-	mbus_remote_register_write(MRR_ADDR,3,mrrv6_r03.as_int);
+    mrrv7_r03.MRR_RX_BIAS_TUNE    = 0x02AF;//  turn on Q_enhancement
+	//mrrv7_r03.MRR_RX_BIAS_TUNE    = 0x0001;//  turn off Q_enhancement
+	mrrv7_r03.MRR_RX_SAMPLE_CAP    = 0x1;  // RX_SAMPLE_CAP
+	mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
 
-	mrrv6_r14.MRR_RAD_FSM_RX_POWERON_LEN = 0x0;  //Set RX Power on length
-	//mrrv6_r14.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x3;  //Set RX Sample length  16us
-	mrrv6_r14.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x0;  //Set RX Sample length  4us
-	mrrv6_r14.MRR_RAD_FSM_GUARD_LEN = 0x000F; //Set TX_RX Guard length, TX_RX guard 32 cycle (28+5)
-	mbus_remote_register_write(MRR_ADDR,0x14,mrrv6_r14.as_int);
+	mrrv7_r14.MRR_RAD_FSM_RX_POWERON_LEN = 0x0;  //Set RX Power on length
+	//mrrv7_r14.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x3;  //Set RX Sample length  16us
+	mrrv7_r14.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x0;  //Set RX Sample length  4us
+	mrrv7_r14.MRR_RAD_FSM_GUARD_LEN = 0x000F; //Set TX_RX Guard length, TX_RX guard 32 cycle (28+5)
+	mbus_remote_register_write(MRR_ADDR,0x14,mrrv7_r14.as_int);
 
-    mrrv6_r14.MRR_RAD_FSM_TX_POWERON_LEN = 2; //3bits
-	mrrv6_r15.MRR_RAD_FSM_RX_HDR_BITS = 0x00;  //Set RX header
-	mrrv6_r15.MRR_RAD_FSM_RX_HDR_TH = 0x00;    //Set RX header threshold
-	mrrv6_r15.MRR_RAD_FSM_RX_DATA_BITS = 0x00; //Set RX data 1b
-	mbus_remote_register_write(MRR_ADDR,0x15,mrrv6_r15.as_int);
+    mrrv7_r14.MRR_RAD_FSM_TX_POWERON_LEN = 2; //3bits
+	mrrv7_r15.MRR_RAD_FSM_RX_HDR_BITS = 0x00;  //Set RX header
+	mrrv7_r15.MRR_RAD_FSM_RX_HDR_TH = 0x00;    //Set RX header threshold
+	mrrv7_r15.MRR_RAD_FSM_RX_DATA_BITS = 0x00; //Set RX data 1b
+	mbus_remote_register_write(MRR_ADDR,0x15,mrrv7_r15.as_int);
 
 	// RAD_FSM set-up 
 	// Using first 48 bits of data as header
@@ -1312,12 +1304,12 @@ static void operation_init(void){
 	mbus_remote_register_write(MRR_ADDR,0x0A,0x0);
 	mbus_remote_register_write(MRR_ADDR,0x0B,0x0);
 	mbus_remote_register_write(MRR_ADDR,0x0C,0x7AC800);
-	mrrv6_r11.MRR_RAD_FSM_TX_H_LEN = 0; //31-31b header (max)
-	mrrv6_r11.MRR_RAD_FSM_TX_D_LEN = RADIO_DATA_LENGTH; //0-skip tx data
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv6_r11.as_int);
+	mrrv7_r11.MRR_RAD_FSM_TX_H_LEN = 0; //31-31b header (max)
+	mrrv7_r11.MRR_RAD_FSM_TX_D_LEN = RADIO_DATA_LENGTH; //0-skip tx data
+	mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
 
-	mrrv6_r13.MRR_RAD_FSM_TX_MODE = 3; //code rate 0:4 1:3 2:2 3:1(baseline) 4:1/2 5:1/3 6:1/4
-	mbus_remote_register_write(MRR_ADDR,0x13,mrrv6_r13.as_int);
+	mrrv7_r13.MRR_RAD_FSM_TX_MODE = 3; //code rate 0:4 1:3 2:2 3:1(baseline) 4:1/2 5:1/3 6:1/4
+	mbus_remote_register_write(MRR_ADDR,0x13,mrrv7_r13.as_int);
 
 	// Mbus return address
 	mbus_remote_register_write(MRR_ADDR,0x1E,0x1002);
@@ -1325,10 +1317,12 @@ static void operation_init(void){
 
 	// HRV
 	hrv_light_reset();
-	mbus_remote_register_write(HRV_ADDR,0x00,6); // HRV_TOP_CONV_RATIO(0~15 >> 9x~23x); default: 14
+	mbus_remote_register_write(HRV_ADDR,0x00,7); // HRV_TOP_CONV_RATIO(0~15 >> 9x~23x); default: 14
 	mbus_remote_register_write(HRV_ADDR,0x03,0xFFFFFF); // HRV_CNT_CNT_THRESHOLD (default: 0xFFFFFF) 
 	mbus_remote_register_write(HRV_ADDR,0x04,0x001000); // HRV_CNT_IRQ_PACKET (default: 0x001400) 
 	hrv_light_count = 0;
+	hrv_light_count_old = 0;
+	hrv_light_count_prev = 0;
 
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 33750;   // 1: 2-4 sec with PRCv9
@@ -1344,18 +1338,14 @@ static void operation_init(void){
 	RADIO_PACKET_DELAY = 2500;
 	radio_packet_count = 0;
 	
-	gpio_interrupt_flag = 0;
-
 	astack_detection_mode = 0;
 	adxl_enabled = 0;
 	adxl_motion_detected = 0;
-	hrv_light_count = 0;
-	hrv_light_count_prev = 0;
 	hrv_light_detected = 0;
 	hrv_exec_checkin = 12;
 
-	hrv_low_light_threshold_factor = 1;
-	hrv_low_light_threshold = 0x100;
+	hrv_low_light_threshold_factor = 0;
+	hrv_low_light_threshold = 0x300;
 
 	adxl_trigger_mute_count = 2;
 	sleep_time_threshold_factor = 1;
@@ -1363,7 +1353,7 @@ static void operation_init(void){
 	hrv_light_threshold_factor = 1;
 	adxl_user_threshold = 0x060; // rec. 0x60, max 0x7FF
 
-	wakeup_period_calc_factor = 16;
+	wakeup_period_calc_factor = 18;
 
     // Go to sleep without timer
     operation_sleep_notimer();
@@ -1476,99 +1466,92 @@ static void operation_sns_run(void){
 				data_storage_count++;
 			}
 
-			stack_state = STK_RADIO;
-		}
+			uint32_t sleep_time_threshold = WAKEUP_PERIOD_CONT>>sleep_time_threshold_factor; // how fast is too fast?
+			if ((WAKEUP_PERIOD_CONT>>5) == 0) sleep_time_threshold = 3;
 
-	}else if (stack_state == STK_RADIO){
-		
-		// Refresh watchdog	
-    	config_timerwd(TIMERWD_VAL);
-
-		// Check if motion is constantly triggering
-		uint32_t sleep_time_threshold = WAKEUP_PERIOD_CONT>>sleep_time_threshold_factor; // how fast is too fast?
-		if ((WAKEUP_PERIOD_CONT>>5) == 0) sleep_time_threshold = 3;
-
-		if (astack_detection_mode & 0x1){ // motion detection enabled
-			if (sleep_time_prev < sleep_time_threshold){ // woke up fast
-				if (adxl_motion_detected) adxl_motion_trigger_count++;
-			}else{
-				adxl_motion_trigger_count = 0;
-			}
-
-			if (adxl_motion_trigger_count > adxl_trigger_mute_count){
-				// Triggering too much; stop ADXL
-				if (adxl_enabled){
-					// Need to reset interrupt
-					ADXL362_power_off();
+			// Check if motion is constantly triggering
+			if (astack_detection_mode & 0x1){ // motion detection enabled
+				if (sleep_time_prev < sleep_time_threshold){ // woke up fast
+					if (adxl_motion_detected) adxl_motion_trigger_count++;
+				}else{
+					adxl_motion_trigger_count = 0;
 				}
-			}else{
-				if (adxl_enabled == 0){
-					// Re-enable ADXL
-					ADXL362_enable();
+
+				if (adxl_motion_trigger_count > adxl_trigger_mute_count){
+					// Triggering too much; stop ADXL
+					if (adxl_enabled){
+						// Need to reset interrupt
+						ADXL362_power_off();
+					}
+				}else{
+					if (adxl_enabled == 0){
+						// Re-enable ADXL
+						ADXL362_enable();
+					}
 				}
 			}
-		}
 
-		// Optionally transmit the data
-		// Transmit if: Either motion or light change detected OR
-		// 				Running in motion only mode (no frequent wakeup) OR
-		//				Light detection is running (hence frequent wakeup) and haven't sent out a radio for hrv_exec_checkin times
-		if (radio_tx_option && (adxl_motion_detected || hrv_light_detected || (astack_detection_mode == 0x1) || (hrv_exec_count > hrv_exec_checkin))){
-			// Read latest PMU ADC measurement
+			// Optionally transmit the data
+			// Transmit if: Either motion or light change detected OR
+			// 				Running in motion only mode (no frequent wakeup) OR
+			//				Light detection is running (hence frequent wakeup) and haven't sent out a radio for hrv_exec_checkin times
+			if (radio_tx_option && (adxl_motion_detected || hrv_light_detected || (astack_detection_mode == 0x1) || (hrv_exec_count > hrv_exec_checkin))){
+				// Read latest PMU ADC measurement
 
-			// Prepare for radio tx
-			radio_power_on();
-			if (adxl_motion_detected || hrv_light_detected){
-				send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12) | (adxl_enabled<<8) | (hrv_light_count_enabled<<9) | (hrv_light_detected<<4) | adxl_motion_detected, (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & read_data_temp));
-		#ifdef DEBUG_MBUS_MSG
+				// Prepare for radio tx
 				radio_power_on();
-				send_radio_data_mrr(1, 0xFD0000 | (*REG_CHIP_ID & 0xFFFF), hrv_light_count_prev, (0xF&radio_packet_count)<<20 | hrv_light_count);
-		#endif
+				if (adxl_motion_detected || hrv_light_detected){
+					send_radio_data_mrr(1, 0x1D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12) | (adxl_enabled<<8) | (hrv_light_count_enabled<<9) | (hrv_light_detected<<4) | adxl_motion_detected, (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & read_data_temp));
+			#ifdef DEBUG_MBUS_MSG
+				    radio_power_on();
+					send_radio_data_mrr(1, 0xFD0000 | (*REG_CHIP_ID & 0xFFFF), hrv_light_count_prev, (0xF&radio_packet_count)<<20 | hrv_light_count);
+			#endif
+				}else{
+					// Check-in message
+					send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12) | (adxl_enabled<<8) | (hrv_light_count_enabled<<9), (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & read_data_temp));
+				}
+                
+                // Reset Check-in message count
+                hrv_exec_count = 0;
+			}
+
+			// FIXME: debugging light count
+			//radio_power_on();
+			//send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| 0xFFFFF & hrv_light_count_read, (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & hrv_light_count));
+
+			// Get ready for sleep
+			if (astack_detection_mode > 0){
+				if (adxl_enabled){
+					// Reset ADXL flag
+					adxl_motion_detected = 0;
+		
+					operation_spi_init();
+					ADXL362_reg_rd(ADXL362_STATUS);
+					ADXL362_reg_rd(ADXL362_XDATA);
+					ADXL362_reg_rd(ADXL362_YDATA);
+					ADXL362_reg_rd(ADXL362_ZDATA);
+					operation_spi_stop();
+				}
+					
+				set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
+
 			}else{
-				// Check-in message
-				send_radio_data_mrr(1, 0x2D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12) | (adxl_enabled<<8) | (hrv_light_count_enabled<<9), (0xF&radio_packet_count)<<20 | 0xA0000 | (0xFFFF & read_data_temp));
+				// Radio Test mode
+				// Prepare for radio tx
+				radio_power_on();
+				// Send debug signal
+				send_radio_data_mrr(1, 0x4D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000| (read_data_batadc<<12),(0xF&radio_packet_count)<<20 | 0xA0000 | exec_count & 0xFFFF);
+				set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
 			}
-			
-			// Reset Check-in message count
-			hrv_exec_count = 0;
-		}
 
-		// Make sure Radio is off
-		if (radio_on){
-			radio_power_off();
-		}
-
-		// Start HRV Light Counter
-		hrv_light_count_prev = hrv_light_count;
-		hrv_light_detected = 0;
-		if (astack_detection_mode & 0x2) hrv_light_start();
-
-		// Get ready for sleep
-		if (astack_detection_mode > 0){
-			if (adxl_enabled){
-				// Reset ADXL flag
-				adxl_motion_detected = 0;
-				gpio_interrupt_flag = 0;
+			// Make sure Radio is off
+			if (radio_on){
+				radio_power_off();
+			}
 	
-				operation_spi_init();
-				ADXL362_reg_rd(ADXL362_STATUS);
-				operation_spi_stop();
-			}
-				
-			set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
-
-		}else{
-			// Radio Test mode
-			// Prepare for radio tx
-			radio_power_on();
-			// Send debug signal
-			send_radio_data_mrr(1, 0x4D0000 | (*REG_CHIP_ID & 0xFFFF), 0xB00000 | (read_data_batadc<<12), ((0xF&radio_packet_count)<<20) | 0xA0000 | (exec_count & 0xFFFF));
-			set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
-		}
-
-		// Double check on ADXL interrupt
-		// Only go to sleep if interrupt didn't trigger again
-		if (gpio_interrupt_flag == 0){
+			// Start HRV Light Counter
+			hrv_light_detected = 0;
+		
 			if ((set_sns_exec_count != 0) && (exec_count > (50<<set_sns_exec_count))){
 				// No more measurement required
 				// Make sure temp sensor is off
@@ -1577,8 +1560,6 @@ static void operation_sns_run(void){
 			}else{
 				operation_sleep();
 			}
-		}else{
-			// Repeat this state again
 		}
 
     }else{
@@ -1645,7 +1626,7 @@ int main(){
     // Only enable relevant interrupts (PRCv17)
 	//enable_reg_irq();
 	//enable_all_irq();
-	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3) | (1 << IRQ_GPIO);
+	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3);
   
     // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
     config_timerwd(TIMERWD_VAL);
@@ -1671,7 +1652,7 @@ int main(){
 	#endif
 
     // Initialization sequence
-    if (enumerated != 0xDEADBE14){
+    if (enumerated != 0xDEADBD14){
         operation_init();
     }
 
@@ -1687,30 +1668,62 @@ int main(){
 		// Check light count
 		set_halt_until_mbus_rx();
 		mbus_remote_register_read(HRV_ADDR,0x02,1);
-		hrv_light_count = *((volatile uint32_t *) REG1);
+		hrv_light_count_read = *((volatile uint32_t *) REG1);
 		set_halt_until_mbus_tx();
-		// First measurement will be off
-		if (hrv_exec_count > 0){
-			if (hrv_light_count_prev > hrv_light_count){
-				hrv_light_diff = hrv_light_count_prev - hrv_light_count;
-			}else{
-				hrv_light_diff = hrv_light_count - hrv_light_count_prev;
-			}
-			if (hrv_light_count_prev < hrv_low_light_threshold){
-				// Low light condition
-				if (hrv_light_diff > (hrv_light_count_prev<<hrv_low_light_threshold_factor)) hrv_light_detected = 1;
 		
+		// Counter saturation condition
+		if (hrv_light_count_read == 0xFFFFFF){
+			hrv_light_reset();
+			hrv_light_count_old = 0;
+			exec_count = 0;
+			// Go to sleep
+			set_wakeup_timer(0xA, 0x1, 0x1);
+			operation_sleep();
+		}else if (hrv_light_count_read == 0){
+			hrv_light_start();
+		}
+
+		if (hrv_light_count_read >= hrv_light_count_old){
+			hrv_light_count = hrv_light_count_read - hrv_light_count_old;
+		}else{
+			hrv_light_count = 0xFFFFFF + hrv_light_count_read - hrv_light_count_old;
+		}
+		hrv_light_count_old = hrv_light_count_read;
+
+		// First two measurements will be off
+		if (exec_count > 1){
+			if (hrv_low_light_threshold_factor == 0){ // use this as default now
+				if ((hrv_light_count_prev < hrv_low_light_threshold) && (hrv_light_count > hrv_low_light_threshold)){
+					hrv_light_detected = 1;	
+				}
+				if ((hrv_light_count_prev > hrv_low_light_threshold) && (hrv_light_count < hrv_low_light_threshold)){
+					hrv_light_detected = 1;	
+				}
 			}else{
-				if (hrv_light_diff > (hrv_light_count_prev>>hrv_light_threshold_factor)) hrv_light_detected = 1;
+				// Old method
+				if (hrv_light_count_prev > hrv_light_count){
+					hrv_light_diff = hrv_light_count_prev - hrv_light_count;
+				}else{
+					hrv_light_diff = hrv_light_count - hrv_light_count_prev;
+				}
+				if (hrv_light_count_prev < hrv_low_light_threshold){
+					// Low light condition
+					if (hrv_light_diff > (hrv_light_count_prev<<hrv_low_light_threshold_factor)) hrv_light_detected = 1;
+			
+				}else{
+					if (hrv_light_diff > (hrv_light_count_prev>>hrv_light_threshold_factor)) hrv_light_detected = 1;
+				}
+
 			}
 		}
 			
-		// Debug
-		#ifdef DEBUG_MBUS_MSG
-		mbus_write_message32(0xAC,(hrv_light_detected<<23) | hrv_light_count);
-		#endif
+		hrv_light_count_prev = hrv_light_count;
 
-		hrv_light_reset();
+		// Debug
+		// FIXME
+		//#ifdef DEBUG_MBUS_MSG
+		mbus_write_message32(0xAC,(hrv_light_detected<<23) | hrv_light_count);
+		//#endif
 
 		hrv_exec_count++;
 	}
@@ -1932,19 +1945,26 @@ int main(){
 
 	}else if(wakeup_data_header == 0x22){
 		// Change the carrier frequency of MRR (CFO)
+		// Updated for MRRv7
+		// wakeup_data[15:0]: Fine+Coarse setting
 		// wakeup_data[23:16]: Turn on/off freq hopping 
 		mrr_freq_hopping = wakeup_data_field_2;
 
-		mrr_cfo_val_min = wakeup_data & 0x0FFF;
+		mrr_cfo_val_fine_min = (wakeup_data >> 10) & 0x3F; // 6 bit
+	
+		mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = wakeup_data & 0x3FF; // 10 bit coarse setting 
+		mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+		mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = wakeup_data & 0x3FF; // 10 bit coarse setting
+		mbus_remote_register_write(MRR_ADDR,0x01,mrrv7_r01.as_int);
 
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
 	}else if(wakeup_data_header == 0x23){
 		// Change the baseband frequency of MRR (SFO)
-		mrrv6_r07.RO_MOM = wakeup_data & 0x3F;
-		mrrv6_r07.RO_MIM = wakeup_data & 0x3F;
-		mbus_remote_register_write(MRR_ADDR,0x07,mrrv6_r07.as_int);
+		mrrv7_r07.RO_MOM = wakeup_data & 0x3F;
+		mrrv7_r07.RO_MIM = wakeup_data & 0x3F;
+		mbus_remote_register_write(MRR_ADDR,0x07,mrrv7_r07.as_int);
 		
 		// Go to sleep without timer
 		operation_sleep_notimer();
@@ -1989,8 +2009,8 @@ int main(){
 	}else if(wakeup_data_header == 0x2C){
 		// Change C_LEN
 
-		mrrv6_r13.MRR_RAD_FSM_TX_C_LEN = wakeup_data & 0xFFFF; // (PW_LEN+1):C_LEN=1:32
-		mbus_remote_register_write(MRR_ADDR,0x13,mrrv6_r13.as_int);
+		mrrv7_r13.MRR_RAD_FSM_TX_C_LEN = wakeup_data & 0xFFFF; // (PW_LEN+1):C_LEN=1:32
+		mbus_remote_register_write(MRR_ADDR,0x13,mrrv7_r13.as_int);
 
 		// Go to sleep without timer
 		operation_sleep_notimer();
@@ -2015,6 +2035,8 @@ int main(){
 
 		if (astack_detection_mode & 0x1) ADXL362_enable();
 
+		if (astack_detection_mode & 0x2) hrv_light_start();
+
 		sns_running = 1;
 		set_sns_exec_count = 0;
 		exec_count = 0;
@@ -2024,7 +2046,6 @@ int main(){
 		radio_tx_count = 0;
 		adxl_motion_trigger_count = 0;
 
-		gpio_interrupt_flag = 0;
 		adxl_motion_detected = 0;
 		hrv_light_detected = 0;
 
@@ -2115,6 +2136,10 @@ int main(){
 
 		// Go to sleep without timer
 		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0xF0){
+
+		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xB00000| (read_data_batadc<<12), enumerated);
 
 	}else if(wakeup_data_header == 0xFA){
 

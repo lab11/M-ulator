@@ -49,21 +49,9 @@
 // "static" limits the variables to this file, giving compiler more freedom
 // "volatile" should only be used for MMIO --> ensures memory storage
 volatile uint32_t enumerated;
-volatile uint32_t wakeup_data;
-volatile uint32_t Tstack_state;
 volatile uint32_t wfi_timeout_flag;
-volatile uint32_t exec_count;
-volatile uint32_t meas_count;
-volatile uint32_t exec_count_irq;
-volatile uint32_t wakeup_period_count;
-volatile uint32_t wakeup_timer_multiplier;
-volatile uint32_t PMU_ADC_4P2_VAL;
-volatile uint32_t pmu_parkinglot_mode;
-volatile uint32_t pmu_harvesting_on;
 
-volatile uint32_t WAKEUP_PERIOD_CONT_USER; 
 volatile uint32_t WAKEUP_PERIOD_CONT; 
-volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
 
 volatile prcv17_r0B_t prcv17_r0B = PRCv17_R0B_DEFAULT;
 
@@ -122,23 +110,6 @@ static void operation_sleep(void){
 
 }
 
-static void operation_sleep_noirqreset(void){
-
-    // Go to Sleep
-    mbus_sleep_all();
-    while(1);
-
-}
-
-static void operation_sleep_notimer(void){
-    
-	// Disable Timer
-	set_wakeup_timer(0, 0, 0);
-
-    // Go to sleep
-    operation_sleep();
-
-}
 
 
 static void operation_init(void){
@@ -151,36 +122,15 @@ static void operation_init(void){
     prcv17_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
 	*REG_CLKGEN_TUNE = prcv17_r0B.as_int;
 
-  
     //Enumerate & Initialize Registers
-    Tstack_state = TSTK_IDLE; 	//0x0;
     enumerated = 0xDEADBEE0;
-    exec_count = 0;
-    exec_count_irq = 0;
-	PMU_ADC_4P2_VAL = 0x4B;
-	pmu_parkinglot_mode = 0;
-	pmu_harvesting_on = 1;
   
     // Set CPU Halt Option as RX --> Use for register read e.g.
     //set_halt_until_mbus_rx();
 
-    //Enumeration
-    mbus_enumerate(RAD_ADDR);
-	delay(MBUS_DELAY);
-    mbus_enumerate(SNS_ADDR);
-	delay(MBUS_DELAY);
-    mbus_enumerate(HRV_ADDR);
-	delay(MBUS_DELAY);
- 	mbus_enumerate(PMU_ADDR);
-	delay(MBUS_DELAY);
-
-    // Set CPU Halt Option as TX --> Use for register write e.g.
-	//set_halt_until_mbus_tx();
-
 
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 10;   // 10: 2-4 sec with PRCv17
-	wakeup_data = 0;
 
     delay(MBUS_DELAY);
 
@@ -227,108 +177,90 @@ uint32_t myBin2Dec(uint8_t bin[])
     }
     return d;
 }
-
 uint32_t* crcEnc16(uint32_t data2, uint32_t data1, uint32_t data0)
 {
     // intialization
-    uint32_t crcLen = CRC_LEN;
-    uint8_t poly[17];
-    uint8_t remainder[16];
-    uint8_t remainder_next[16];
     uint32_t i;
-
-	for (i=0;i<16;i++){
-		poly[i] = 0;
-		remainder[i] = 0;
-		remainder_next[i] = 0;
-	}
-
-	poly[0] = 1;
-	poly[2] = 1;
-	poly[15] = 1;
-	poly[16] = 1;
-
-    uint32_t* msg_tmp;
-    uint8_t msg2[INT_LEN];
-    uint8_t msg1[INT_LEN];
-    uint8_t msg0[INT_LEN];
-    
-    msg_tmp = myDec2Bin(data2);
-    for (i=0;i<INT_LEN;i++)
-    {
-        msg2[i] = msg_tmp[i];
-    }
-    msg_tmp = myDec2Bin(data1);
-    for (i=0;i<INT_LEN;i++)
-    {
-        msg1[i] = msg_tmp[i];
-    }
-    msg_tmp = myDec2Bin(data0);
-    for (i=0;i<INT_LEN;i++)
-    {
-        msg0[i] = msg_tmp[i];
-    }
-
-    uint32_t msg[96];
-    for (i=0; i<INT_LEN; i++)
-    {
-        msg[i] = msg2[i];
-        msg[i+INT_LEN] = msg1[i];
-        msg[i+2*INT_LEN] = msg0[i];
-    }
+   
+    uint16_t poly = 0xc002;
+    uint16_t poly_not = ~poly;
+    uint16_t remainder = 0x0000;
+    uint16_t remainder_shift = 0x0000;
+    data2 = (data2 << CRC_LEN) + (data1 >> CRC_LEN);
+    data1 = (data1 << CRC_LEN) + (data0 >> CRC_LEN);
+    data0 = data0 << CRC_LEN;
     
     // LFSR
-    for (i=0; i<DATA_LEN; i++)
-    {
-        if (i < DATA_LEN-CRC_LEN)
-            msg[i] = msg[i+CRC_LEN];
-        else
-            msg[i] = 0;
-    }    
-
+    uint16_t input_bit;
     for (i = 0; i < DATA_LEN; i++)
     {
-        uint32_t MSB = remainder[0];
-        uint32_t j;
-        for (j = 0; j < CRC_LEN-1; j++)
-        {
-            if (poly[j])
-                remainder_next[j] = (remainder[j+1] != MSB);
-            else
-                remainder_next[j] = remainder[j+1];
-        }
-        remainder_next[CRC_LEN-1] = (msg[i] != MSB);
-        for (j=0; j<CRC_LEN; j++)
-        {
-            remainder[j] = remainder_next[j];
-        }
+        uint16_t MSB;
+        if (remainder > 0x7fff)
+            MSB = 0xffff;
+        else
+            MSB = 0x0000;
+        
+        if (i < 32)
+            input_bit = ((data2 << i) > 0x7fffffff);
+        else if (i < 64)
+            input_bit = (data1 << (i-32)) > 0x7fffffff;
+        else
+            input_bit = (data0 << (i-64)) > 0x7fffffff;
+
+        remainder_shift = remainder << 1;
+        remainder = (poly&((remainder_shift)^MSB))|((poly_not)&(remainder_shift))
+                         + (input_bit^(remainder > 0x7fff));
     }
 
-    for (i=0; i<CRC_LEN; i++)
-    {
-        msg[DATA_LEN-CRC_LEN+i] = remainder[i];
-    }
-
-    uint8_t bin2[INT_LEN];
-    uint8_t bin1[INT_LEN];
-    uint8_t bin0[INT_LEN];
-    for (i=0; i<INT_LEN; i++)
-    {
-        bin2[i] = msg[i];
-        bin1[i] = msg[i+INT_LEN];
-        bin0[i] = msg[i+2*INT_LEN];
-    }
-
-    uint32_t data2_out = myBin2Dec(bin2);
-    uint32_t data1_out = myBin2Dec(bin1);
-    uint32_t data0_out = myBin2Dec(bin0);
+    data0 = data0 + remainder;
 
     static uint32_t msg_out[3];
-    msg_out[0] = data2_out;
-    msg_out[1] = data1_out;
-    msg_out[2] = data0_out;
+    msg_out[0] = data2;
+    msg_out[1] = data1;
+    msg_out[2] = data0;
 
     return msg_out;    
+}
+uint32_t crcDec16(uint32_t data2, uint32_t data1, uint32_t data0)
+{
+    // intialization
+    uint32_t i;
+   
+    uint16_t poly = 0xc002;
+    uint16_t poly_not = ~poly;
+    uint16_t remainder = 0x0000;
+    uint16_t remainder_shift = 0x0000;
+    
+    // LFSR
+    uint16_t input_bit;
+    for (i = 0; i < DATA_LEN; i++)
+    {
+        uint16_t MSB;
+        if (remainder > 0x7fff)
+            MSB = 0xffff;
+        else
+            MSB = 0x0000;
+        
+        if (i < 32)
+            input_bit = ((data2 << i) > 0x7fffffff);
+        else if (i < 64)
+            input_bit = (data1 << (i-32)) > 0x7fffffff;
+        else
+            input_bit = (data0 << (i-64)) > 0x7fffffff;
+
+        remainder_shift = remainder << 1;
+        remainder = (poly&((remainder_shift)^MSB))|((poly_not)&(remainder_shift))
+                         + (input_bit^(remainder > 0x7fff));
+    }
+    //printf("remainder = %x\n",remainder);
+    uint32_t crcPass;
+	// FIXME: debug
+	mbus_write_message32(0xFA,remainder);
+    if (remainder == 0x0)
+        crcPass = 1;
+    else
+        crcPass = 0;
+    return crcPass;
 }
 
 
@@ -365,24 +297,27 @@ int main() {
 		delay(MBUS_DELAY);
 	}
 
-	uint32_t radio_data_0 = 0x11112222;
-	uint32_t radio_data_1 = 0x33334444;
-	uint32_t radio_data_2 = 0x00005555;
+	uint32_t radio_data_0 = 0x9879a546;
+	uint32_t radio_data_1 = 0x76465426;
+	uint32_t radio_data_2 = 0x2481;
 
     uint32_t* output_data;
 	mbus_write_message32(0xCC,0);
     output_data = crcEnc16(radio_data_2, radio_data_1, radio_data_0);
 
+	mbus_write_message32(0xC0,output_data[0]);
+	mbus_write_message32(0xC1,output_data[1]);
+	mbus_write_message32(0xC2,output_data[2]);
+
+
+	uint32_t crc_check;
+
+	crc_check = crcDec16(output_data[0],output_data[1],output_data[2]);
+	mbus_write_message32(0xCC,crc_check);
+	crc_check = crcDec16(output_data[0]>>1,output_data[1],output_data[2]);
+	mbus_write_message32(0xCC,crc_check);
 	
-	*output_data = 0xAAAAAAA1;
-	*(output_data+1) = 0xAAAAAAA2;
-	*(output_data+2) = 0xAAAAAAA3;
-
-	mbus_write_message32(0xC0,*output_data);
-	mbus_write_message32(0xC1,*(output_data+1));
-	mbus_write_message32(0xC2,*(output_data+2));
-
-
+	
 	set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
 	//mbus_write_message32(0xFF,*REG_WUPT_VAL);
     operation_sleep();
