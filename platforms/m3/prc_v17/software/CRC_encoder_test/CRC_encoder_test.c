@@ -1,6 +1,8 @@
 //*******************************************************************
 //Author: Gyouho Kim
 //Description: Simple code that repeats sleep/wakeup
+//			Encoding/Decoding functions written by Chin-wei
+//			Verified by Gyouho 7/16/2018
 //*******************************************************************
 #include "PRCv17.h"
 #include "PRCv17_RF.h"
@@ -149,34 +151,9 @@ static void operation_init(void){
 #define CRC_LEN 16
 
 
-uint8_t* myDec2Bin(uint32_t);
-uint32_t myBin2Dec(uint8_t []);
 uint32_t* crcEnc16(uint32_t, uint32_t, uint32_t); // CRC encoder
 uint32_t crcDec16(uint32_t, uint32_t, uint32_t); // CRC decoder (pass->1, error->0)
 
-uint8_t* myDec2Bin(uint32_t data)
-{
-    static uint8_t b[32];
-    uint8_t i;
-    for (i=0; i<32; i++)
-    {
-        b[31-i] = data & 1; //data % 2;
-        data = (data >> 1); //data / 2;
-    }
-    return b;
-}
-
-uint32_t myBin2Dec(uint8_t bin[])
-{
-    uint32_t d = 0;
-    uint8_t i;
-    for (i=0; i<INT_LEN; i++)
-    {
-        d = d << 1;
-        d = d + bin[i];
-    }
-    return d;
-}
 uint32_t* crcEnc16(uint32_t data2, uint32_t data1, uint32_t data0)
 {
     // intialization
@@ -305,9 +282,9 @@ int main() {
 	mbus_write_message32(0xCC,0);
     output_data = crcEnc16(radio_data_2, radio_data_1, radio_data_0);
 
-	mbus_write_message32(0xC0,output_data[0]);
-	mbus_write_message32(0xC1,output_data[1]);
-	mbus_write_message32(0xC2,output_data[2]);
+	mbus_write_message32(0xC0,output_data[0]); // 0x24817646
+	mbus_write_message32(0xC1,output_data[1]); // 0x54269879
+	mbus_write_message32(0xC2,output_data[2]); // 0xA546511F; 0x511F is the CRC encoding
 
 
 	uint32_t crc_check;
