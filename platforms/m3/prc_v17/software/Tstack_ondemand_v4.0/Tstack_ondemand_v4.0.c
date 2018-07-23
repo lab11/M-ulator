@@ -1734,9 +1734,8 @@ int main() {
 		NUM_MEAS_USER = wakeup_data & 0x3FFF;
 		if (NUM_MEAS_USER > 8192) NUM_MEAS_USER = 8192;
 		if (NUM_MEAS_USER < 5) NUM_MEAS_USER = 5;
-		if (wakeup_data & 0x3FFF == 0) NUM_MEAS_USER = 0;
+		if ((wakeup_data & 0x3FFF) == 0) NUM_MEAS_USER = 0;
         operation_sleep_notimer();
-
 
 	}else if(wakeup_data_header == 0x13){
 	// Tune SNT Timer R for TC
