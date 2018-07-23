@@ -47,7 +47,6 @@
 //			FIXME: confirm rollover, in case of timeout, wakeup timer needs adjustment
 //			v4.0: MEMv1, SRRv4, PMU setting change based on temp
 //				  Up to 8192 temp data stored in MEMv1 (16-bit data)
-//				  fixme: ability to set exact # of readings? NUM_MEAS_USER implement for both trig2 and radio tx
 //*******************************************************************
 #include "PRCv17.h"
 #include "PRCv17_RF.h"
@@ -117,26 +116,27 @@ volatile uint32_t NUM_MEAS_USER;
 
 
 volatile uint32_t WAKEUP_PERIOD_CONT_USER; 
-volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
+volatile uint32_t WAKEUP_PERIOD_CONT; 
 
 //volatile uint32_t temp_meas_data[NUM_TEMP_MEAS] = {0};
 //volatile uint32_t temp_storage[TEMP_STORAGE_SIZE] = {0};
 volatile uint32_t temp_storage_latest = 150; // SNSv10
+volatile uint32_t temp_storage_last_wakeup_adjust = 150; // SNSv10
+volatile uint32_t temp_storage_diff = 0;
 volatile uint32_t temp_storage_count;
+volatile uint32_t temp_storage_debug;
 volatile uint32_t temp_running;
-volatile uint32_t set_temp_exec_count;
 volatile uint32_t read_data_temp; // [23:0] Temp Sensor D Out
 volatile uint32_t TEMP_CALIB_A;
 volatile uint32_t TEMP_CALIB_B;
 
+volatile uint32_t wakeup_timer_option;
 volatile uint32_t snt_wup_counter_cur;
 volatile uint32_t snt_timer_enabled = 0;
 volatile uint32_t SNT_0P5S_VAL;
 
 volatile uint32_t radio_tx_count;
-volatile uint32_t radio_tx_batt;
 volatile uint32_t radio_tx_option;
-volatile uint32_t radio_tx_numdata;
 volatile uint32_t radio_ready;
 volatile uint32_t radio_on;
 volatile uint32_t RADIO_PACKET_DELAY;
@@ -421,7 +421,7 @@ inline static void pmu_set_sleep_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t
 }
 
 inline static void pmu_set_sleep_radio(){
-	pmu_set_sleep_clk(0xF,0xF,0x1,0xF/*V1P2*/);
+	pmu_set_sleep_clk(0xF,0xA,0x5,0xF/*V1P2*/);
 }
 
 inline static void pmu_set_sleep_low(){
@@ -430,6 +430,8 @@ inline static void pmu_set_sleep_low(){
 
 
 inline static void pmu_setting_temp_based(){
+	
+	mbus_write_message32(0xB7, pmu_setting_state);
 	if (pmu_setting_state == PMU_85C){
 		pmu_set_active_clk(0x2,0x0,0x8,0x2/*V1P2*/);
 		pmu_set_sleep_clk(0x1,0x0,0x1,0x0/*V1P2*/);
@@ -730,7 +732,7 @@ static void snt_set_wup_timer(uint32_t sleep_count){
 static void radio_power_on(){
 
 	// Switch PMU to higher setting
-	pmu_set_sleep_radio();
+	//pmu_set_sleep_radio();
 	
     radio_on = 1;
 
@@ -765,7 +767,7 @@ static void radio_power_on(){
 static void radio_power_off(){
 
 	// Switch PMU to lower setting
-	pmu_set_sleep_low();
+	//pmu_set_sleep_low();
 
     // Turn off everything
     srrv4_r03.SRR_TRX_ISOLATEN = 0;     //set ISOLATEN 0
@@ -948,7 +950,7 @@ static void operation_tx_stored(void){
 
     //Fire off stored data to radio
 	uint32_t radio_tx_limit;
-	if (temp_storage_count < NUM_MEAS_USER){
+	if (temp_storage_count < NUM_MEAS_USER || (NUM_MEAS_USER == 0)){
 		radio_tx_limit = temp_storage_count;
 	}else{
 		radio_tx_limit = NUM_MEAS_USER;
@@ -967,7 +969,7 @@ static void operation_tx_stored(void){
 		uint32_t mem_read_data[2];
 		set_halt_until_mbus_rx();
 		// Read 2 words (4 data points) at a time
-		mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*)(radio_tx_count>>2), 0x01, (uint32_t*)&mem_read_data, 1);
+		mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*)((radio_tx_count>>1)<<2), 0x01, (uint32_t*)&mem_read_data, 1);
 		set_halt_until_mbus_tx();
 		
 		send_radio_data_srr(0,0xDD,mem_read_data[1]>>16,((mem_read_data[1]&0xFFFF)<<8) | (mem_read_data[0]>>24),mem_read_data[0]&0xFFFFFF);
@@ -1006,6 +1008,36 @@ uint32_t dumb_divide(uint32_t nu, uint32_t de) {
     }
 
     return quotient;
+}
+
+static void measure_wakeup_period(void){
+
+    // Reset Wakeup Timer
+    *WUPT_RESET = 1;
+
+	mbus_write_message32(0xE0, 0x0);
+	// Prevent watchdogs from kicking in
+   	config_timerwd(TIMERWD_VAL*2);
+	*REG_MBUS_WD = 1500000*3; // default: 1500000
+
+	uint32_t wakeup_timer_val_0 = *REG_WUPT_VAL;
+	wakeup_period_count = 0;
+
+	while( *REG_WUPT_VAL <= wakeup_timer_val_0 + 1){
+		wakeup_period_count = 0;
+	}
+	while( *REG_WUPT_VAL <= wakeup_timer_val_0 + 2){
+		wakeup_period_count++;
+	}
+	mbus_write_message32(0xE1, wakeup_timer_val_0);
+	mbus_write_message32(0xE2, wakeup_period_count);
+
+   	config_timerwd(TIMERWD_VAL);
+	WAKEUP_PERIOD_CONT = dumb_divide(WAKEUP_PERIOD_CONT_USER*1000*8, wakeup_period_count);
+    if (WAKEUP_PERIOD_CONT > 0x7FFF){
+        WAKEUP_PERIOD_CONT = 0x7FFF;
+    }
+	mbus_write_message32(0xED, WAKEUP_PERIOD_CONT); 
 }
 
 
@@ -1188,7 +1220,6 @@ static void operation_init(void){
 
 
     // Initialize other global variables
-    WAKEUP_PERIOD_CONT_INIT = 10;   // 
 	WAKEUP_PERIOD_CONT_USER = 0x2710;
     temp_storage_count = 0;
     radio_tx_count = 0;
@@ -1197,7 +1228,6 @@ static void operation_init(void){
     radio_ready = 0;
     radio_on = 0;
 	wakeup_data = 0;
-	set_temp_exec_count = 0; // specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
 	RADIO_PACKET_DELAY = 2000;
 	radio_packet_count = 0;
 	
@@ -1239,8 +1269,8 @@ static void operation_temp_run(void){
 		if (radio_tx_option || ((exec_count+1) < TEMP_CYCLE_INIT)){
 			radio_power_on();
 			// Put system to sleep
-			set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
-			operation_sleep();
+			//set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
+			//operation_sleep();
 		}
 
     }else if (Tstack_state == TSTK_LDO){
@@ -1296,6 +1326,19 @@ static void operation_temp_run(void){
 			}else{
 				temp_storage_latest = read_data_temp;
 
+				if (wakeup_timer_option){ // Only if PRC wakeup timer is used
+					// Record temp difference from last wakeup adjustment
+					if (temp_storage_latest > temp_storage_last_wakeup_adjust){
+						temp_storage_diff = temp_storage_latest - temp_storage_last_wakeup_adjust;
+					}else{
+						temp_storage_diff = temp_storage_last_wakeup_adjust - temp_storage_latest;
+					}
+					
+					if ((temp_storage_diff > 10) || (exec_count < (TEMP_CYCLE_INIT+5))){ // FIXME: value of 20 correct?
+						measure_wakeup_period();
+						temp_storage_last_wakeup_adjust = temp_storage_latest;
+					}
+				}
 			}
 		}
 
@@ -1334,16 +1377,26 @@ static void operation_temp_run(void){
 			sns_ldo_power_off();
 			Tstack_state = TSTK_IDLE;
 
+			#ifdef DEBUG_MBUS_MSG_1
 			mbus_write_message32(0xCC, exec_count);
+			#endif
 			mbus_write_message32(0xC0, temp_storage_latest);
 
 			exec_count++;
+
+			if (temp_storage_debug){
+				temp_storage_latest = exec_count;
+			}
+
 			// Store results in MEMv1; unless memory is full
 			if (temp_storage_count < TEMP_STORAGE_SIZE){
 				// Read destination address
+				// Memory address is per byte
+				// Memory is word-addressable; first word: 0x0, second word: 0x4, third word: 0x8 ...
+			
 				uint32_t mem_read_data;
 				set_halt_until_mbus_rx();
-				mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*)(temp_storage_count>>1), 0x01, (uint32_t*)&mem_read_data, 0);
+				mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*)((temp_storage_count>>1)<<2), 0x01, (uint32_t*)&mem_read_data, 0);
 				set_halt_until_mbus_tx();
 				if (temp_storage_count & 0x1){
 					// Second half word
@@ -1353,8 +1406,7 @@ static void operation_temp_run(void){
 					// First half word
 					mem_read_data = temp_storage_latest;
 				}
-				mbus_copy_mem_from_local_to_remote_bulk(MEM_ADDR, (uint32_t*)(temp_storage_count>>1), (uint32_t*)&mem_read_data, 0);
-				radio_tx_count = temp_storage_count;
+				mbus_copy_mem_from_local_to_remote_bulk(MEM_ADDR, (uint32_t*)((temp_storage_count>>1)<<2), (uint32_t*)&mem_read_data, 0);
 				temp_storage_count++;
 			}
 
@@ -1362,7 +1414,6 @@ static void operation_temp_run(void){
 			if (radio_tx_option | (exec_count < TEMP_CYCLE_INIT)){
 				send_radio_data_srr(1,0xC0,*REG_CHIP_ID,((0xBB00|read_data_batadc_diff)<<8)|exec_count,temp_storage_latest);
 			}
-			
 
 			// Make sure Radio is off
 			if (radio_on){
@@ -1370,15 +1421,24 @@ static void operation_temp_run(void){
 				radio_power_off();
 			}
 
-			if ((pmu_setting_state == PMU_25C) && ((set_temp_exec_count != 0) && (exec_count > (50<<set_temp_exec_count)))){
+			// If NUM_MEAS_USER == 0, meas infinitely
+			if ((pmu_setting_state == PMU_25C) && (NUM_MEAS_USER && (exec_count >= NUM_MEAS_USER))){
 				// Trig 2 stop condition; Need to run until PMU setting is back at RT
 				// No more measurement required
 				// Make sure temp sensor is off
 				temp_running = 0;
 				operation_sleep_notimer();
 			}else{
-				snt_set_wup_timer(WAKEUP_PERIOD_CONT_USER);
-				operation_sleep_snt_timer();
+				if (wakeup_timer_option){
+					// Use PRC Timer
+					set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
+					operation_sleep();
+				}else{
+					// Use SNT Timer	
+					snt_set_wup_timer(WAKEUP_PERIOD_CONT_USER);
+					operation_sleep_snt_timer();
+				}
+
 			}
 
 		}
@@ -1418,14 +1478,15 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
 	if (exec_count_irq == 0){
 		// Read latest PMU ADC measurement
 		pmu_adc_read_latest();
-		// Prepare radio TX
-		radio_power_on();
 	}
+
+	// Prepare radio TX
+	radio_power_on();
 
 	if (exec_count_irq < radio_tx_num){
 		exec_count_irq++;
 		// radio
-		send_radio_data_srr(0,radio_tx_prefix,*REG_CHIP_ID,((0xBB00|read_data_batadc_diff)<<8)|radio_tx_data1,radio_tx_data0);	
+		send_radio_data_srr(1,radio_tx_prefix,*REG_CHIP_ID,((0xBB00|read_data_batadc_diff)<<8)|radio_tx_data1,radio_tx_data0);	
 		// set timer
 		set_wakeup_timer (wakeup_timer_val, 0x1, 0x1);
 		// go to sleep and wake up with same condition
@@ -1440,6 +1501,9 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
 }
 
 static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t settle_time){
+
+	// Prepare radio TX
+	radio_power_on();
 
 	if ((sntv1_r0A.TMR_DIFF_CON == 0x3FFF) && ((exec_count_irq & 0xF) == 0xF)){
 		// Stop condition
@@ -1462,8 +1526,6 @@ static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t 
 			sntv1_r0A.TMR_DIFF_CON = start_val; // Default: 0x3FFB
 			mbus_remote_register_write(SNT_ADDR,0x0A,sntv1_r0A.as_int);
 
-			// Prepare radio TX
-			radio_power_on();
 			snt_start_timer_presleep();
 			// Go to sleep for >3s for timer stabilization
 			set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT*3, 0x1, 0x1);
@@ -1485,7 +1547,7 @@ static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t 
 			operation_sleep_noirqreset();
 		}else{
 			// radio
-			send_radio_data_srr(0,0xB0,*REG_CHIP_ID,sntv1_r0A.TMR_DIFF_CON, exec_count_irq);
+			send_radio_data_srr(1,0xB0,*REG_CHIP_ID,sntv1_r0A.TMR_DIFF_CON, exec_count_irq);
 			snt_set_wup_timer(WAKEUP_PERIOD_CONT_USER);
 			operation_sleep_noirqreset();
 		}
@@ -1526,7 +1588,7 @@ int main() {
 		operation_goc_trigger_init();
 	}
 
-    if(wakeup_data_header == 1){
+    if(wakeup_data_header == 0x01){
         // Debug mode: Transmit something via radio and go to sleep w/o timer
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period
@@ -1534,15 +1596,30 @@ int main() {
 		operation_goc_trigger_radio(wakeup_data_field_0 + (wakeup_data_field_2<<8), wakeup_data_field_1, 0xA0, 0, exec_count_irq);
 
 
-    }else if(wakeup_data_header == 2){
+    }else if(wakeup_data_header == 0x02){
 		// Slow down PMU sleep osc and run temp sensor code with desired wakeup period
 		// wakeup_data[15:0] is the desired wakeup period in 0.5s (min 0.5s: 0x1, max 32767.5s: 0xFFFF)
         // wakeup_data[20] enables radio tx for each measurement
-        // wakeup_data[23:21] specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
+        // wakeup_data[21] specifies which wakeup timer to use 0: SNT timer, 1: PRC timer
+        // wakeup_data[23] is debug mode: logs the execution count as opposed to temp data
         radio_tx_option = wakeup_data_field_2 & 0x10;
-		WAKEUP_PERIOD_CONT_USER = (wakeup_data & 0xFFFF)*SNT_0P5S_VAL;
+		wakeup_timer_option = wakeup_data_field_2 & 0x20;
+		temp_storage_debug = wakeup_data_field_2 & 0x80;
+		
+		if (wakeup_timer_option){
+			// Use PRC timer
+			WAKEUP_PERIOD_CONT_USER = wakeup_data & 0xFFFF; // Unit is 1s
+		}else{
+			// Use SNT timer
+			WAKEUP_PERIOD_CONT_USER = (wakeup_data & 0xFFFF)*SNT_0P5S_VAL; // Unit is 0.5s
+		}
 
         exec_count_irq++;
+
+		// Skip SNT timer settings if PRC timer is to be used
+		if ((exec_count_irq == 1) && wakeup_timer_option)
+			exec_count_irq = 3;
+
 		if (exec_count_irq == 1){
 			// SNT pulls higher current in the beginning
 			pmu_set_sleep_radio();
@@ -1560,7 +1637,6 @@ int main() {
 
 		if (!temp_running){
 			temp_running = 1;
-			set_temp_exec_count = wakeup_data_field_2 >> 5;
 		}
 
 		exec_count = 0;
@@ -1576,11 +1652,10 @@ int main() {
     	Tstack_state = TSTK_IDLE;
 		operation_temp_run();
 
-    }else if(wakeup_data_header == 3){
+    }else if(wakeup_data_header == 0x03){
 		// Stop temp sensor program and transmit the battery reading and execution count (alternating n times)
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period 
-        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
 
 		if (pmu_setting_state != PMU_25C){
 			// Set PMU to room temp setting
@@ -1594,44 +1669,38 @@ int main() {
 		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xC1, exec_count_irq, temp_storage_count);
 
 
-    }else if(wakeup_data_header == 4){
+    }else if(wakeup_data_header == 0x04){
         // Transmit the stored temp sensor data
         // wakeup_data[7:0] is the # of data to transmit; if zero, all stored data is sent
         // wakeup_data[15:8] is the user-specified period 
 		// wakeup_data[16] transmits battery recording too
 
-        WAKEUP_PERIOD_CONT_INIT = wakeup_data_field_1;
-
 		operation_sns_sleep_check();
 
 		Tstack_state = TSTK_IDLE;
 
-		radio_tx_numdata = wakeup_data_field_0;
-		radio_tx_batt = wakeup_data_field_2 & 0x1;
+		radio_tx_count = 0;
 
 		uint32_t not_enough_batt = 0;
 	
+		// Prepare radio TX
+		radio_power_on();
+
 		if (exec_count_irq == 0){
 			// Read latest PMU ADC measurement
 			pmu_adc_read_latest();
-			// Prepare radio TX
-			radio_power_on();
 			// Make sure the battery capacity is enough for transmission
+			// FIXME
 			if (temp_storage_count > 4000){
-				if (read_data_batadc_diff > 0x1){
+				if (read_data_batadc_diff > 0x2){ // 0x4D okay
 					not_enough_batt = 1;
 				}
-			}else if (temp_storage_count > 1000){
-				if (read_data_batadc_diff > 0x2){
-					not_enough_batt = 1;
-				}
-
-			}else if (temp_storage_count > 500){
+			}else if (temp_storage_count > 2000){ // 0x4E okay
 				if (read_data_batadc_diff > 0x3){
 					not_enough_batt = 1;
 				}
-			}else if (temp_storage_count > 250){
-				if (read_data_batadc_diff > 0x4){
+			}else{
+				if (read_data_batadc_diff > 0x4){ // 0x4F okay
 					not_enough_batt = 1;
 				}
 			}
@@ -1648,9 +1717,9 @@ int main() {
 			exec_count_irq++;
 
 			if (exec_count_irq == 1){
-				send_radio_data_srr(0,0xD0,*REG_CHIP_ID,(0xBB00|read_data_batadc_diff)<<8,temp_storage_count);	
+				send_radio_data_srr(1,0xD0,*REG_CHIP_ID,(0xBB00|read_data_batadc_diff)<<8,temp_storage_count);	
 			}else{
-				send_radio_data_srr(0,0xD1,*REG_CHIP_ID,TEMP_CALIB_A,TEMP_CALIB_B);	
+				send_radio_data_srr(1,0xD1,*REG_CHIP_ID,TEMP_CALIB_A,TEMP_CALIB_B);	
 			}
 			set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
 			operation_sleep_noirqreset();
@@ -1664,6 +1733,7 @@ int main() {
 		NUM_MEAS_USER = wakeup_data & 0x3FFF;
 		if (NUM_MEAS_USER > 8192) NUM_MEAS_USER = 8192;
 		if (NUM_MEAS_USER < 5) NUM_MEAS_USER = 5;
+		if (NUM_MEAS_USER == 0) NUM_MEAS_USER = 0;
         operation_sleep_notimer();
 
 
