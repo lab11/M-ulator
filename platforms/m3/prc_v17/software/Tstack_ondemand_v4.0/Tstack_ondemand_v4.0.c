@@ -143,6 +143,7 @@ volatile uint32_t RADIO_PACKET_DELAY;
 volatile uint32_t radio_packet_count;
 
 volatile uint32_t read_data_batadc_diff;
+volatile uint32_t read_data_batadc;
 
 volatile sntv1_r00_t sntv1_r00 = SNTv1_R00_DEFAULT;
 volatile sntv1_r01_t sntv1_r01 = SNTv1_R01_DEFAULT;
@@ -570,7 +571,7 @@ inline static void pmu_adc_read_latest(){
 	// PMU register read is handled differently
 	mbus_remote_register_write(PMU_ADDR,0x00,0x03);
 	delay(MBUS_DELAY);
-	uint32_t read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
+	read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
 	if (read_data_batadc<PMU_ADC_4P2_VAL){
 		read_data_batadc_diff = 0;
 	}else{
@@ -1593,7 +1594,7 @@ int main() {
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period
         // wakeup_data[23:16] is the MSB of # of transmissions
-		operation_goc_trigger_radio(wakeup_data_field_0 + (wakeup_data_field_2<<8), wakeup_data_field_1, 0xA0, 0, exec_count_irq);
+		operation_goc_trigger_radio(wakeup_data_field_0 + (wakeup_data_field_2<<8), wakeup_data_field_1, 0xA0, read_data_batadc, exec_count_irq);
 
 
     }else if(wakeup_data_header == 0x02){
