@@ -1059,7 +1059,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
-    enumerated = 0x4001;
+    enumerated = 0x54434000;
     exec_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_4P2_VAL = 0x4B;
@@ -1233,7 +1233,7 @@ static void operation_init(void){
 	radio_packet_count = 0;
 	
 	pmu_setting_state = PMU_25C;
-	PMU_15C_threshold_sns = 800; // Around 15C
+	PMU_15C_threshold_sns = 1000; // Around 15C
 	PMU_85C_threshold_sns = 9000; // Around 85C
 
 	SNT_0P5S_VAL = 1000;
@@ -1463,6 +1463,9 @@ static void operation_goc_trigger_init(void){
 	// Debug
 	mbus_write_message32(0xBA,wakeup_data);
 
+	// Read latest PMU ADC measurement
+	pmu_adc_read_latest();
+
 	// Initialize variables & registers
 	temp_running = 0;
 	radio_packet_count = 0;
@@ -1475,11 +1478,6 @@ static void operation_goc_trigger_init(void){
 }
 
 static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_timer_val, uint8_t radio_tx_prefix, uint8_t radio_tx_data1, uint32_t radio_tx_data0){
-
-	if (exec_count_irq == 0){
-		// Read latest PMU ADC measurement
-		pmu_adc_read_latest();
-	}
 
 	// Prepare radio TX
 	radio_power_on();
@@ -1571,7 +1569,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0x4001){
+    if (enumerated != 0x54434000){
         operation_init();
     }
 
@@ -1688,8 +1686,6 @@ int main() {
 		radio_power_on();
 
 		if (exec_count_irq == 0){
-			// Read latest PMU ADC measurement
-			pmu_adc_read_latest();
 			// Make sure the battery capacity is enough for transmission
 			// FIXME
 			if (temp_storage_count > 4000){
@@ -1756,7 +1752,8 @@ int main() {
     }else if(wakeup_data_header == 0x17){
 		// Change the 4.2V battery reference
 		if (wakeup_data_field_0 == 0){
-			PMU_ADC_4P2_VAL = 0x4B;
+			// Update with the current value
+			PMU_ADC_4P2_VAL = read_data_batadc;
 		}else{
 			PMU_ADC_4P2_VAL = wakeup_data_field_0;
 		}
