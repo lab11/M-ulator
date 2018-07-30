@@ -1345,7 +1345,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     stack_state = STK_IDLE; 	//0x0;
-    enumerated = 0x41481140; // 0x4148 is AH in ascii
+    enumerated = 0x4148114A; // 0x4148 is AH in ascii
     exec_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_3P0_VAL = 0x62;
@@ -1528,6 +1528,7 @@ static void operation_sns_run(void){
 
 		if (radio_tx_option && (adxl_motion_detected || (astack_detection_mode & 0x2) || (astack_detection_mode == 0))){
 			// Prepare for radio tx
+			// Transmit if: Either motion change detected OR humidity sensing is on OR radio test mode
 			if (!radio_on)
 				radio_power_on();
 		}
@@ -1652,8 +1653,7 @@ static void operation_sns_run(void){
 			}
 
 			// Optionally transmit the data
-			// Transmit if: Either motion change detected OR humidity sensing is on
-			if (radio_tx_option && (adxl_motion_detected || (astack_detection_mode & 0x2))){
+			if (radio_on){
 				
 				uint32_t packet_code;
 
@@ -1793,7 +1793,7 @@ int main(){
 	#endif
 
     // Initialization sequence
-    if (enumerated != 0x41481140){
+    if (enumerated != 0x4148114A){
         operation_init();
     }
 
