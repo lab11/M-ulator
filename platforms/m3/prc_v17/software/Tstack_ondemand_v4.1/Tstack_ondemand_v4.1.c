@@ -1060,7 +1060,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
-    enumerated = 0x54434100;
+    enumerated = 0x5443410A;
     exec_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_4P2_VAL = 0x4B;
@@ -1503,7 +1503,9 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
 static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t settle_time){
 
 	// Prepare radio TX
-	radio_power_on();
+	if (exec_count_irq > 1){
+		radio_power_on();
+	}
 
 	if ((sntv1_r0A.TMR_DIFF_CON == 0x3FFF) && ((exec_count_irq & 0xF) == 0xF)){
 		// Stop condition
@@ -1575,7 +1577,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0x54434100){
+    if (enumerated != 0x5443410A){
         operation_init();
     }
 
