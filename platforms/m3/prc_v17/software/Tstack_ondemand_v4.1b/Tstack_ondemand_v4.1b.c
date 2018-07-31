@@ -48,6 +48,8 @@
 //			v4.0: MEMv1, SRRv4, PMU setting change based on temp
 //				  Up to 8192 temp data stored in MEMv1 (16-bit data)
 //			v4.1: Calibration routine pmu setting fix
+//			v4.1b: Adding Data TX Finish message
+//				  SNT wakeup timer disable before enabling
 //*******************************************************************
 #include "PRCv17.h"
 #include "PRCv17_RF.h"
@@ -713,6 +715,10 @@ static void snt_stop_timer(){
 
 	sntv1_r09.TMR_IBIAS_REF = 0x0; // Default : 4'h4
 	mbus_remote_register_write(SNT_ADDR,0x09,sntv1_r09.as_int);
+
+	sntv1_r17.WUP_ENABLE = 0x0; // Default : 0x
+	mbus_remote_register_write(SNT_ADDR,0x17,sntv1_r17.as_int);
+
 }
 
 static void snt_set_wup_timer(uint32_t sleep_count){
@@ -1672,6 +1678,7 @@ int main() {
 			pmu_setting_temp_based();
 		}
 		operation_sns_sleep_check();
+		snt_stop_timer();
 
 		Tstack_state = TSTK_IDLE;
 
@@ -1685,6 +1692,7 @@ int main() {
 		// wakeup_data[16] transmits battery recording too
 
 		operation_sns_sleep_check();
+		snt_stop_timer();
 
 		Tstack_state = TSTK_IDLE;
 
