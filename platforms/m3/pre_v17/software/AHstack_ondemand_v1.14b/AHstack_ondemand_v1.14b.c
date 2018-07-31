@@ -8,6 +8,7 @@
 //				   SHT35 uses power switch [0]
 //				   ADXL uses power switch [1]
 //			v1.14b: fixes a bug in humidty/temp reading
+//					fixes a bug in REG_CPS control
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -278,7 +279,7 @@ static void ADXL362_enable(){
 	delay(MBUS_DELAY);
 
 	// Turn PRE power switch on
-	*REG_CPS = 2;
+	*REG_CPS = *REG_CPS | 0x2;
 	delay(MBUS_DELAY*2);
 
 	// Initialize ADXL
@@ -316,7 +317,7 @@ static void ADXL362_stop(){
 static void ADXL362_power_off(){
 	ADXL362_stop();
 	delay(MBUS_DELAY*10);
-	*REG_CPS = 0;
+	*REG_CPS = *REG_CPS & 0xFFFFFFFD;
 	delay(MBUS_DELAY*200);
 }
 
@@ -526,7 +527,7 @@ static void sht35_meas_data(){
 	uint8_t i2c_data_rx;
 	// FIXME
 	// Power on
-	*REG_CPS = 1;
+	*REG_CPS = *REG_CPS | 0x1;
 	delay(1000);
 	// Start measurement
 	operation_i2c_start();
@@ -551,7 +552,7 @@ static void sht35_meas_data(){
 	sht35_hum_data = sht35_hum_data | i2c_data_rx;
 	i2c_data_rx = operation_i2c_rd(0x0); // CRC
 	operation_i2c_stop();
-	*REG_CPS = 0;
+	*REG_CPS = *REG_CPS & 0xFFFFFFFE;
 }
 
 //************************************
