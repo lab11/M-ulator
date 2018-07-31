@@ -1231,7 +1231,7 @@ static void operation_init(void){
     radio_ready = 0;
     radio_on = 0;
 	wakeup_data = 0;
-	RADIO_PACKET_DELAY = 2000;
+	RADIO_PACKET_DELAY = 1200;
 	radio_packet_count = 0;
 	
 	pmu_setting_state = PMU_25C;
@@ -1634,7 +1634,7 @@ int main() {
 			pmu_set_sleep_radio();
 			snt_start_timer_presleep();
 			// Go to sleep for >3s for timer stabilization
-			set_wakeup_timer (0x20, 0x1, 0x1);
+			set_wakeup_timer (WAKEUP_PERIOD_RADIO_INIT*3, 0x1, 0x1);
 			operation_sleep_noirqreset();
 		}else if (exec_count_irq == 2){
 			snt_start_timer_postsleep();
