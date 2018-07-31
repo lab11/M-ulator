@@ -51,6 +51,7 @@
 //			v4.1b: Adding Data TX Finish message
 //				  SNT wakeup timer disable before enabling
 //			v4.1c: Separate SFO tuning for MIM and MOM
+//					Fixes CRC bug
 //*******************************************************************
 #include "PRCv17.h"
 #include "PRCv17_RF.h"
@@ -851,7 +852,7 @@ static void send_radio_data_srr(uint32_t last_packet, uint8_t radio_packet_prefi
 
 	// CRC16 Encoding 
     uint32_t* output_data;
-    output_data = crcEnc16(radio_data_2, radio_data_1, radio_data_0);
+    output_data = crcEnc16(((radio_packet_count & 0xFF)<<8) | radio_packet_prefix, (radio_data_2 <<16) | (radio_data_1 >>8), (radio_data_1 << 24) | radio_data_0);
 
     mbus_remote_register_write(SRR_ADDR,0xD,radio_data_0);
     mbus_remote_register_write(SRR_ADDR,0xE,radio_data_1);
@@ -1081,7 +1082,7 @@ static void operation_init(void){
 	delay(MBUS_DELAY);
     mbus_enumerate(SNT_ADDR);
 	delay(MBUS_DELAY);
-    mbus_enumerate(HRV_ADDR);
+    //mbus_enumerate(HRV_ADDR);
 	delay(MBUS_DELAY);
  	mbus_enumerate(PMU_ADDR);
 	delay(MBUS_DELAY);

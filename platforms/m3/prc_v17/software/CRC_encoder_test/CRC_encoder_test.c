@@ -274,9 +274,13 @@ int main() {
 		delay(MBUS_DELAY);
 	}
 
-	uint32_t radio_data_0 = 0x9879a546;
-	uint32_t radio_data_1 = 0x76465426;
-	uint32_t radio_data_2 = 0x2481;
+//	uint32_t radio_data_2 = 0x2481;
+//	uint32_t radio_data_1 = 0x76465426;
+//	uint32_t radio_data_0 = 0x9879a546;
+
+	uint32_t radio_data_2 = 0x02a0;
+	uint32_t radio_data_1 = 0x0000BB01;
+	uint32_t radio_data_0 = 0x4c000002;
 
     uint32_t* output_data;
 	mbus_write_message32(0xCC,0);
@@ -290,9 +294,9 @@ int main() {
 	uint32_t crc_check;
 
 	crc_check = crcDec16(output_data[0],output_data[1],output_data[2]);
-	mbus_write_message32(0xCC,crc_check);
+	mbus_write_message32(0xCC,crc_check); // should pass
 	crc_check = crcDec16(output_data[0]>>1,output_data[1],output_data[2]);
-	mbus_write_message32(0xCC,crc_check);
+	mbus_write_message32(0xCC,crc_check); // should fail
 	
 	
 	set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);

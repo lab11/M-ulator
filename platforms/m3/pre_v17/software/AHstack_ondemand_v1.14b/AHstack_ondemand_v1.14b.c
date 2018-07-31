@@ -9,6 +9,7 @@
 //				   ADXL uses power switch [1]
 //			v1.14b: fixes a bug in humidty/temp reading
 //					fixes a bug in REG_CPS control
+//					fixes CRC bug
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -1097,7 +1098,7 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
 
 	// CRC16 Encoding 
     uint32_t* output_data;
-    output_data = crcEnc16(radio_data_2, radio_data_1, radio_data_0);
+    output_data = crcEnc16(((radio_packet_count & 0xFF)<<8) | radio_packet_prefix, (radio_data_2 <<16) | (radio_data_1 >>8), (radio_data_1 << 24) | radio_data_0);
 
     mbus_remote_register_write(MRR_ADDR,0xD,radio_data_0);
     mbus_remote_register_write(MRR_ADDR,0xE,radio_data_1);
