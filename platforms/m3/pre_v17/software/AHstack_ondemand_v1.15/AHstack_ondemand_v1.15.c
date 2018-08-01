@@ -1683,6 +1683,9 @@ static void operation_sns_run(void){
 				}
 				send_radio_data_mrr(1,packet_code,*REG_CHIP_ID,((0xBB00|read_data_batadc)<<8)|(sht35_hum_data>>8 & 0xFF),((sht35_hum_data&0xFF)<<16) | (sht35_temp_data&0xFFFF));	
 			}
+			
+			// Make sure SDA and SCL are high
+  			gpio_write_data_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
 
 			// Get ready for sleep
 			if (astack_detection_mode & 0x1){
