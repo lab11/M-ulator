@@ -312,8 +312,8 @@ static void ADXL362_stop(){
 	config_gpio_posedge_wirq(0x0);
 	*NVIC_ISER = 0<<IRQ_WAKEUP;
 	unfreeze_gpio_out();
-	set_gpio_pad((1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
-	gpio_set_dir((1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
+	set_gpio_pad_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
+	gpio_set_dir_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
 	gpio_write_data_with_mask(adxl_mask,0);
 	freeze_gpio_out();
 	adxl_enabled = 0;
@@ -332,8 +332,8 @@ static void operation_spi_init(){
 
 	// Enable SPI Input/Output
   set_spi_pad(1);
-  set_gpio_pad((1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
-  gpio_set_dir((1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+  set_gpio_pad_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
+  gpio_set_dir_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
   gpio_write_data_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT)); // << Crashes here
   unfreeze_gpio_out();
   unfreeze_spi_out();
