@@ -95,6 +95,7 @@ volatile uint32_t adxl_motion_detected;
 volatile uint32_t adxl_user_threshold;
 volatile uint32_t adxl_motion_trigger_count;
 volatile uint32_t adxl_trigger_mute_count;
+volatile uint32_t adxl_mask = (1<<GPIO_ADXL_INT) | (1<<GPIO_ADXL_EN);
 
 volatile uint32_t sht35_temp_data, sht35_hum_data;
 volatile uint32_t sht35_mask = (1<<GPIO_SDA) | (1<<GPIO_SCL);
@@ -223,24 +224,24 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
 // ADXL362 Functions
 //***************************************************
 static void ADXL362_reg_wr (uint8_t reg_id, uint8_t reg_data){
-  gpio_write_data((0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+  gpio_write_data_with_mask(adxl_mask,(0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
   *SPI_SSPDR = 0x0A;
   *SPI_SSPDR = reg_id;
   *SPI_SSPDR = reg_data;
   *SPI_SSPCR1 = 0x2;
   while((*SPI_SSPSR>>4)&0x1){}//Spin
-  gpio_write_data((1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+  gpio_write_data_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
   *SPI_SSPCR1 = 0x0;
 }
 
 static void ADXL362_reg_rd (uint8_t reg_id){
-  gpio_write_data((0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+  gpio_write_data_with_mask(adxl_mask,(0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
   *SPI_SSPDR = 0x0B;
   *SPI_SSPDR = reg_id;
   *SPI_SSPDR = 0x00;
   *SPI_SSPCR1 = 0x2;
   while((*SPI_SSPSR>>4)&0x1){}//Spin
-  gpio_write_data((1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+  gpio_write_data_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
   *SPI_SSPCR1 = 0x0;
   mbus_write_message32(0xB1,*SPI_SSPDR);
 }
@@ -313,7 +314,7 @@ static void ADXL362_stop(){
 	unfreeze_gpio_out();
 	set_gpio_pad((1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
 	gpio_set_dir((1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
-	gpio_write_data(0);
+	gpio_write_data_with_mask(adxl_mask,0);
 	freeze_gpio_out();
 	adxl_enabled = 0;
 }
@@ -333,7 +334,7 @@ static void operation_spi_init(){
   set_spi_pad(1);
   set_gpio_pad((1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
   gpio_set_dir((1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
-  gpio_write_data((1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT)); // << Crashes here
+  gpio_write_data_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT)); // << Crashes here
   unfreeze_gpio_out();
   unfreeze_spi_out();
 }
@@ -1024,6 +1025,7 @@ static void mrr_configure_pulse_width_long(){
     mbus_remote_register_write(MRR_ADDR,0x13,mrrv7_r13.as_int);
 }
 
+/*
 static void mrr_configure_pulse_width_long_2(){
 
     mrrv7_r12.MRR_RAD_FSM_TX_PW_LEN = 19; //80us PW
@@ -1053,7 +1055,7 @@ static void mrr_configure_pulse_width_short(){
     mbus_remote_register_write(MRR_ADDR,0x12,mrrv7_r12.as_int);
     mbus_remote_register_write(MRR_ADDR,0x13,mrrv7_r13.as_int);
 }
-
+*/
 
 
 static void send_radio_data_mrr_sub1(){
@@ -1913,6 +1915,7 @@ int main(){
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
+/*
 	}else if(wakeup_data_header == 0x24){
 		// Switch between short / long pulse
 		if (wakeup_data_field_0 == 0x1) {
@@ -1929,6 +1932,7 @@ int main(){
 		}
 		// Go to sleep without timer
 		operation_sleep_notimer();
+*/
 
     }else if(wakeup_data_header == 0x32){
 		// Run temp measurement routine with desired wakeup period and ADXL running in the background
