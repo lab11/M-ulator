@@ -278,9 +278,9 @@ int main() {
 //	uint32_t radio_data_1 = 0x76465426;
 //	uint32_t radio_data_0 = 0x9879a546;
 
-	uint32_t radio_data_2 = 0x02a0;
-	uint32_t radio_data_1 = 0x0000BB01;
-	uint32_t radio_data_0 = 0x4c000002;
+	uint32_t radio_data_2 = 0xa2;
+	uint32_t radio_data_1 = 0x0000bb01;
+	uint32_t radio_data_0 = 0x0043410d;
 
     uint32_t* output_data;
 	mbus_write_message32(0xCC,0);
