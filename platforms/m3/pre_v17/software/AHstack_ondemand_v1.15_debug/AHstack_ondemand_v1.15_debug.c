@@ -2061,3 +2061,4 @@ int main(){
 //  Try 4   : Modified debug_reset_peripheral to have
 //                  gpio_set_dir(0xFB);
 //                  gpio_write_data(0xFF);
+//  Try 5   : ADXL_INT is always input
