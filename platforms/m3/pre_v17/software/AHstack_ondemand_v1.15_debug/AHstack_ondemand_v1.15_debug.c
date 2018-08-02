@@ -11,6 +11,9 @@
 //					fixes a bug in REG_CPS control
 //					fixes CRC bug
 //			v1.15: fixes ADXL / SHT35 conflict
+//
+//  Try 1   : Added freeze_gpio_out & freeze_spi_out in:
+//                  operation_sleep, operation_sleep_noirqreset, opeartion_sleep_notimer
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -1230,6 +1233,9 @@ static void operation_sleep(void){
 	// Reset GOC_DATA_IRQ
 	*GOC_DATA_IRQ = 0;
 
+    freeze_gpio_out();
+    freeze_spi_out();
+
     // Go to Sleep
     mbus_sleep_all();
     while(1);
@@ -1237,6 +1243,9 @@ static void operation_sleep(void){
 }
 
 static void operation_sleep_noirqreset(void){
+
+    freeze_gpio_out();
+    freeze_spi_out();
 
     // Go to Sleep
     mbus_sleep_all();
@@ -1260,6 +1269,9 @@ static void operation_sleep_notimer(void){
 
 	// Disable Timer
 	set_wakeup_timer(0, 0, 0);
+
+    freeze_gpio_out();
+    freeze_spi_out();
 
     // Go to sleep
     operation_sleep();

@@ -1,3 +1,21 @@
+<Both>
+wakeup_data_header == 0x32,
+wakeup_data[21] = 1 // SHT35
+wakeup_data[20] = 1 // ADXL
+
+-> sleep current = ~380nA
+
+<Stop>
+
+-> sleep current = ~180nA
+
+<SHT Only>
+wakeup_data_header == 0x32,
+wakeup_data[21] = 1 // SHT35
+wakeup_data[20] = 0 // ADXL
+
+-> sleep current = ~30nA
+
 
 1780:   int main(){
 1812:   pmu_adc_read_latest();
