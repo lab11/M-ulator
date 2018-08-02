@@ -1221,8 +1221,10 @@ static void sns_ldo_power_off(){
 //***************************************************
 static void debug_reset_peripheral(void) {
     unfreeze_gpio_out();
-    gpio_set_dir_with_mask(sht35_mask, 0xFF);
-    gpio_write_data_with_mask(sht35_mask, 0xFF);
+    //gpio_set_dir_with_mask(sht35_mask, 0xFF);
+    //gpio_write_data_with_mask(sht35_mask, 0xFF);
+    gpio_set_dir(0xFB);
+    gpio_write_data(0xFF);
     freeze_gpio_out();
 }
 
@@ -2070,3 +2072,6 @@ int main(){
 //              Added gpio_set_dir(GPIO_DIR_ALL_OUT) before freeze_gpio_out() (2 places)
 //  Try 3   : Revoke Try 2
 //              Added debug_reset_peripheral in sleep functions.
+//  Try 4   : Modified debug_reset_peripheral to have
+//                  gpio_set_dir(0xFB);
+//                  gpio_write_data(0xFF);
