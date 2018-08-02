@@ -123,10 +123,9 @@ void set_gpio_pad (uint8_t config) {
     reg_ = reg_ & 0xFFFFFF00;
     *REG_PERIPHERAL = reg_ | config;
 }
-void set_gpio_pad_with_mask (uint8_t mask, uint8_t config) {
-    uint32_t reg_ = *REG_PERIPHERAL;
-    reg_ = reg_ & 0xFFFFFF00;
-    *REG_PERIPHERAL = (reg_ & ~mask) | (mask & config);
+void set_gpio_pad_with_mask (uint32_t mask, uint8_t config) {
+	mask = mask & 0xFF;
+    *REG_PERIPHERAL = (*REG_PERIPHERAL & ~mask) | (mask & config);
 }
 void freeze_spi_out (void) {
     uint32_t reg_ = *REG_PERIPHERAL | 0x00800000;

@@ -503,7 +503,7 @@ void set_spi_pad (uint8_t config);
  *                  '0' disables the corresponding GPIO pad
  */
 void set_gpio_pad (uint8_t config);
-void set_gpio_pad_with_mask (uint8_t mask, uint8_t config);
+void set_gpio_pad_with_mask (uint32_t mask, uint8_t config);
 
 
 /**
