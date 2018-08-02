@@ -1,0 +1,96 @@
+
+1780:   int main(){
+1812:   pmu_adc_read_latest();
+1955:   if (astack_detection_mode & 0x1) ADXL362_enable();
+283:        operation_spi_init();
+336:            gpio_set_dir_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+337:            gpio_write_data_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT)); // << Crashes here
+338:            unfreeze_gpio_out();
+339:            unfreeze_spi_out();
+287:        *REG_CPS = *REG_CPS | 0x2;      // Turn on ADXL
+291:        ADXL362_init();
+251:            ADXL362_reg_wr(ADXL362_SOFT_RESET,0x52);
+227:                gpio_write_data_with_mask(adxl_mask,(0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+233:                gpio_write_data_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+275:            ADXL362_reg_rd(ADXL362_STATUS);
+238:                gpio_write_data_with_mask(adxl_mask,(0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+244:                gpio_write_data_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+294         operation_spi_stop();
+343:            freeze_spi_out();
+344:            freeze_gpio_out();
+1974:   operation_sns_run();
+
+1549:       sht35_meas_data();
+535:            *REG_CPS = *REG_CPS | 0x1;      // Turn on SHT
+538:            operation_i2c_start();
+353:                gpio_write_data_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+355:                gpio_set_dir_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+356:                unfreeze_gpio_out();    // No freeze following?
+542:            operation_i2c_stop();   
+560:            *REG_CPS = *REG_CPS & 0xFFFFFFFE;   // Turn off SHT
+
+1653:       ADXL362_power_off();
+323:            ADXL362_stop();
+301:                operation_spi_init();
+336:                    gpio_set_dir_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+337:                    gpio_write_data_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT)); // << Crashes here
+338:                    unfreeze_gpio_out();
+339:                    unfreeze_spi_out();
+310:                operation_spi_stop();
+343:                    freeze_spi_out();
+344:                    freeze_gpio_out();
+314:                unfreeze_gpio_out();                // ????
+316:                gpio_set_dir_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
+317:                gpio_write_data_with_mask(adxl_mask,0);
+318:                freeze_gpio_out();
+325:            *REG_CPS = *REG_CPS & 0xFFFFFFFD;   // Turn off ADXL
+1658:       ADXL362_enable();
+283:            operation_spi_init();
+336:                gpio_set_dir_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+337:                gpio_write_data_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT)); // << Crashes here
+338:                unfreeze_gpio_out();
+339:                unfreeze_spi_out();
+287:            *REG_CPS = *REG_CPS | 0x2;      // Turn on ADXL
+291:            ADXL362_init();
+251:                ADXL362_reg_wr(ADXL362_SOFT_RESET,0x52);
+227:                    gpio_write_data_with_mask(adxl_mask,(0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+233:                    gpio_write_data_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+275:                ADXL362_reg_rd(ADXL362_STATUS);
+238:                    gpio_write_data_with_mask(adxl_mask,(0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+244:                    gpio_write_data_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+294             operation_spi_stop();
+343:                freeze_spi_out();
+344:                freeze_gpio_out();
+1688:       gpio_write_data_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+1696        operation_spi_init();
+336:            gpio_set_dir_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+337:            gpio_write_data_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT)); // << Crashes here
+338:            unfreeze_gpio_out();
+339:            unfreeze_spi_out();
+1697        ADXL362_reg_rd(ADXL362_STATUS);
+238:            gpio_write_data_with_mask(adxl_mask,(0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+244:            gpio_write_data_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+1701        operation_spi_stop();
+343:             freeze_spi_out();
+344:             freeze_gpio_out();
+1717:       operation_sleep_notimer();
+1253:           ADXL362_power_off();
+323:                ADXL362_stop();
+301:                    operation_spi_init();
+336:                        gpio_set_dir_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+337:                        gpio_write_data_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT)); // << Crashes here
+338:                        unfreeze_gpio_out();
+339:                        unfreeze_spi_out();
+310:                    operation_spi_stop();
+343:                        freeze_spi_out();
+344:                        freeze_gpio_out();
+314:                    unfreeze_gpio_out();            // ????
+316:                    gpio_set_dir_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
+317:                    gpio_write_data_with_mask(adxl_mask,0);
+318:                    freeze_gpio_out();
+325:                *REG_CPS = *REG_CPS & 0xFFFFFFFD;   // Turn off ADXL
+1256:           operation_sns_sleep_check();    
+1265:       operation_sleep();
+1234:           mbus_sleep_all();
+2940    operation_sns_run(); (?)
+2044    operation_sleep_notimer();
