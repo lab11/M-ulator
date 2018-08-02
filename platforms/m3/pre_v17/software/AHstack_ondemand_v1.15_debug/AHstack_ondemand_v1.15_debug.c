@@ -1221,8 +1221,8 @@ static void sns_ldo_power_off(){
 //***************************************************
 static void debug_reset_peripheral(void) {
     unfreeze_gpio_out();
-    gpio_set_dir_with_mask(sht_mask, 0xFF);
-    gpio_write_data_with_mask(sht_mask, 0xFF);
+    gpio_set_dir_with_mask(sht35_mask, 0xFF);
+    gpio_write_data_with_mask(sht35_mask, 0xFF);
     freeze_gpio_out();
 }
 
