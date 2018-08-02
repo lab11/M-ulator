@@ -6,6 +6,7 @@ wakeup_data[20] = 1 // ADXL
 -> sleep current = ~380nA
 
 <Stop>
+wakeup_data_header = 0x33
 
 -> sleep current = ~180nA
 
@@ -112,3 +113,12 @@ wakeup_data[20] = 0 // ADXL
 1234:           mbus_sleep_all();
 2940    operation_sns_run(); (?)
 2044    operation_sleep_notimer();
+
+
+< STOP >
+1976:}else if(wakeup_data_header == 0x33){
+
+1982:   operation_sns_sleep_check();
+1989:   ADXL362_power_off();
+1993:   radio_power_on();
+1995:   operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xC1, exec_count_irq, exec_count); 
