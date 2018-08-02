@@ -316,8 +316,7 @@ static void ADXL362_stop(){
 	*NVIC_ISER = 0<<IRQ_WAKEUP;
 	unfreeze_gpio_out();
 	set_gpio_pad_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
-	//gpio_set_dir_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
-	gpio_set_dir(GPIO_DIR_ALL_OUT);
+	gpio_set_dir_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
 	gpio_write_data_with_mask(adxl_mask,0);
 	freeze_gpio_out();
 	adxl_enabled = 0;
@@ -345,7 +344,6 @@ static void operation_spi_init(){
 
 static void operation_spi_stop(){
   freeze_spi_out();
-	gpio_set_dir(GPIO_DIR_ALL_OUT);
   freeze_gpio_out();
 }
 
@@ -1221,6 +1219,13 @@ static void sns_ldo_power_off(){
 //***************************************************
 // End of Program Sleep Operation
 //***************************************************
+static void debug_reset_peripheral(void) {
+    unfreeze_gpio_out();
+    gpio_set_dir_with_mask(sht_mask, 0xFF);
+    gpio_write_data_with_mask(sht_mask, 0xFF);
+    freeze_gpio_out();
+}
+
 static void operation_sns_sleep_check(void){
 	// Make sure LDO is off
 	if (sns_running){
@@ -1235,6 +1240,8 @@ static void operation_sleep(void){
 	// Reset GOC_DATA_IRQ
 	*GOC_DATA_IRQ = 0;
 
+    debug_reset_peripheral();
+
     // Go to Sleep
     mbus_sleep_all();
     while(1);
@@ -1242,6 +1249,8 @@ static void operation_sleep(void){
 }
 
 static void operation_sleep_noirqreset(void){
+
+    debug_reset_peripheral();
 
     // Go to Sleep
     mbus_sleep_all();
@@ -1265,6 +1274,8 @@ static void operation_sleep_notimer(void){
 
 	// Disable Timer
 	set_wakeup_timer(0, 0, 0);
+
+    debug_reset_peripheral();
 
     // Go to sleep
     operation_sleep();
@@ -2057,3 +2068,5 @@ int main(){
 //                  operation_sleep, operation_sleep_noirqreset, opeartion_sleep_notimer
 //  Try 2   : Revoke Try 1
 //              Added gpio_set_dir(GPIO_DIR_ALL_OUT) before freeze_gpio_out() (2 places)
+//  Try 3   : Revoke Try 2
+//              Added debug_reset_peripheral in sleep functions.
