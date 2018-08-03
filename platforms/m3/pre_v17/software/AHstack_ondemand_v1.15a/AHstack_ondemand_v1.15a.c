@@ -11,7 +11,6 @@
 //					fixes a bug in REG_CPS control
 //					fixes CRC bug
 //			v1.15: fixes ADXL / SHT35 conflict
-//			v1.15a: fixes ADXL / SHT35 conflict
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -520,6 +519,7 @@ static uint8_t operation_i2c_rd(uint8_t ACK){
 		gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
 	}
 	else{
+		gpio_set_dir_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
 		gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
 		gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
 	}
@@ -1354,7 +1354,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     stack_state = STK_IDLE; 	//0x0;
-    enumerated = 0x4148115A; // 0x4148 is AH in ascii
+    enumerated = 0x41481150; // 0x4148 is AH in ascii
     exec_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_3P0_VAL = 0x62;
@@ -1805,7 +1805,7 @@ int main(){
 	#endif
 
     // Initialization sequence
-    if (enumerated != 0x4148115A){
+    if (enumerated != 0x41481150){
         operation_init();
     }
 

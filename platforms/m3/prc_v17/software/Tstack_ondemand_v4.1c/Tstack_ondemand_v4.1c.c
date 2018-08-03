@@ -1082,7 +1082,7 @@ static void operation_init(void){
 	delay(MBUS_DELAY);
     mbus_enumerate(SNT_ADDR);
 	delay(MBUS_DELAY);
-    //mbus_enumerate(HRV_ADDR);
+    mbus_enumerate(HRV_ADDR);
 	delay(MBUS_DELAY);
  	mbus_enumerate(PMU_ADDR);
 	delay(MBUS_DELAY);
