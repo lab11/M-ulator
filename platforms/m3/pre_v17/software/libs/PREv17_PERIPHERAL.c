@@ -20,8 +20,8 @@
 //*********************************************************
 // GPIO Retentive Variables
 //*********************************************************
-volatile uint32_t __gpio_data__ = 0x0;
-volatile uint32_t __gpio_dir__  = 0x0;
+volatile uint32_t __gpio_data__;
+volatile uint32_t __gpio_dir__;
 
 //**************************************************
 // SPI
@@ -46,6 +46,11 @@ void spi_unfreeze (void) {
 //**************************************************
 // GPIO
 //**************************************************
+
+void gpio_initialize (void) {
+    __gpio_data__ = 0;
+    __gpio_dir__ = 0;
+}
 
 void gpio_enable_pad (uint8_t pattern) {
     uint32_t pattern_ = pattern & 0xFF;

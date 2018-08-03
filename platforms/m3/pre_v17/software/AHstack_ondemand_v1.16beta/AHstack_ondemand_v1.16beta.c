@@ -1374,6 +1374,9 @@ static void operation_init(void){
  	mbus_enumerate(PMU_ADDR);
 	delay(MBUS_DELAY);
 
+    // GPIO Initialization
+    gpio_initialize();
+
     // Set CPU Halt Option as TX --> Use for register write e.g.
 	//    set_halt_until_mbus_tx();
 

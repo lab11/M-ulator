@@ -11,6 +11,7 @@
 // void spi_disable_pad (void);
 // void spi_freeze (void);
 // void spi_unfreeze (void);
+// void gpio_initialize (void)
 // void gpio_enable_pad (uint8_t pattern);
 // void gpio_disable_pad (uint8_t pattern);
 // void gpio_freeze (void);
@@ -77,6 +78,12 @@ void spi_freeze (void);
  * @param   none
  */
 void spi_unfreeze (void);
+
+/**
+ * @brief   Initialize GPIO global variables
+ * @param   none
+ */
+void gpio_initialize (void);
 
 /**
  * @brief   Enable GPIO Pads
