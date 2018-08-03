@@ -20,8 +20,8 @@
 //*********************************************************
 // GPIO Retentive Variables
 //*********************************************************
-volatile uint32_t gpio_data__;
-volatile uint32_t gpio_dir__;
+static volatile uint32_t gpio_data__;
+static volatile uint32_t gpio_dir__;
 
 //**************************************************
 // SPI
