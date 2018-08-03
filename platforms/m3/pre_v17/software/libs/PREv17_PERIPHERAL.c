@@ -77,7 +77,7 @@ void gpio_enable_pos_wreq (uint8_t pattern) {
 }
 
 void gpio_disable_pos_wreq (uint8_t pattern) {
-    uint32_t pattern_ = ~((pattern << 12) | 0x00000000);
+    uint32_t pattern_ = ~((pattern | 0x00000000) << 12);
     *REG_PERIPHERAL = *REG_PERIPHERAL & pattern_;
 }
 
@@ -87,7 +87,7 @@ void gpio_enable_neg_wreq (uint8_t pattern) {
 }
 
 void gpio_disable_neg_wreq (uint8_t pattern) {
-    uint32_t pattern_ = ~((pattern << 8) | 0x00000000);
+    uint32_t pattern_ = ~((pattern | 0x00000000) << 8);
     *REG_PERIPHERAL = *REG_PERIPHERAL & pattern_;
 }
 
