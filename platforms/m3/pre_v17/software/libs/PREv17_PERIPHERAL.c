@@ -141,7 +141,7 @@ uint32_t gpio_read (void) {
 // If DIR = OUT, use __gpio_data__
 // If DIR = IN,  use *GPIO_DATA
     uint32_t dir_out = __gpio_dir__;
-    return (*GPIO_DATA & ~dir_out) | (__gpio_data__ & dir_out);
+    return ((*GPIO_DATA & ~dir_out) | (__gpio_data__ & dir_out));
 }
 
 void gpio_enable_irq (uint8_t pattern) {
