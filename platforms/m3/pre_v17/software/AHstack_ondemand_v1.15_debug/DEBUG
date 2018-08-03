@@ -122,3 +122,15 @@ wakeup_data[20] = 0 // ADXL
 1989:   ADXL362_power_off();
 1993:   radio_power_on();
 1995:   operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xC1, exec_count_irq, exec_count); 
+
+
+
+0xA0005000 => 0x02
+0x1F0 => 0x4B034318
+0x1F4 => 0x681B6018
+0x200 => 0x00001884
+0x1F8 => 0x47706013
+0x1884 <= 0x12
+0x1884 => 0x12
+0x1FC => 0xA0005000
+0xA0005000 <= 0x12

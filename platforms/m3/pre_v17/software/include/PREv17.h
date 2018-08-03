@@ -569,6 +569,8 @@ void gpio_set_dir (uint32_t dir);
 
 void gpio_set_dir_with_mask (uint32_t mask, uint32_t dir);
 
+void gpio_write_data_with_mask (uint32_t mask, uint32_t data);
+
 
 /**
  * @brief   Return the current GPIO directions
