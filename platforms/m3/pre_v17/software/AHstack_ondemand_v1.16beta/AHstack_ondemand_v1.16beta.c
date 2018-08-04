@@ -231,7 +231,7 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
     gpio_unfreeze();
 	// Report who woke up
 	delay(MBUS_DELAY);
-	mbus_write_message32(0xAA,*SREG_WAKEUP_SOURCE); // 0x1: GOC; 0x2: PRC Timer; 0x10: SNT
+//	mbus_write_message32(0xAA,*SREG_WAKEUP_SOURCE); // 0x1: GOC; 0x2: PRC Timer; 0x10: SNT
 }
 
 
@@ -258,7 +258,7 @@ static void ADXL362_reg_rd (uint8_t reg_id){
   while((*SPI_SSPSR>>4)&0x1){}//Spin
   gpio_write_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
   *SPI_SSPCR1 = 0x0;
-  mbus_write_message32(0xB1,*SPI_SSPDR);
+//  mbus_write_message32(0xB1,*SPI_SSPDR);
 }
 
 static void ADXL362_init(){
@@ -1083,9 +1083,9 @@ static void send_radio_data_mrr_sub1(){
 	// Turn off Timer32
 	*TIMER32_GO = 0;
 
-	if (wfi_timeout_flag){
-		mbus_write_message32(0xFA, 0xFAFAFAFA);
-	}
+//	if (wfi_timeout_flag){
+//		mbus_write_message32(0xFA, 0xFAFAFAFA);
+//	}
 
     // Turn off Current Limter
     mrrv7_r00.MRR_CL_EN = 0;
@@ -1143,7 +1143,7 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
 
 	while (count < num_packets){
 		#ifdef DEBUG_MBUS_MSG
-		mbus_write_message32(0xCE, mrr_cfo_val);
+//		mbus_write_message32(0xCE, mrr_cfo_val);
 		#endif
 
 		mrrv7_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine; 
@@ -1302,7 +1302,7 @@ static void measure_wakeup_period(void){
     *WUPT_RESET = 1;
 
 	#ifdef DEBUG_MBUS_MSG
-	mbus_write_message32(0xE0, 0x0);
+//	mbus_write_message32(0xE0, 0x0);
 	#endif
 	// Prevent watchdogs from kicking in
    	config_timerwd(TIMERWD_VAL*2);
@@ -1317,9 +1317,9 @@ static void measure_wakeup_period(void){
 	while( *REG_WUPT_VAL <= wakeup_timer_val_0 + 2){
 		wakeup_period_count++;
 	}
-	mbus_write_message32(0xE1, wakeup_period_count);
+//	mbus_write_message32(0xE1, wakeup_period_count);
 	#ifdef DEBUG_MBUS_MSG
-	mbus_write_message32(0xE2, *REG_WUPT_VAL);
+//	mbus_write_message32(0xE2, *REG_WUPT_VAL);
 	#endif
 
    	config_timerwd(TIMERWD_VAL);
@@ -1332,7 +1332,7 @@ static void measure_wakeup_period(void){
     }
 
 	#ifdef DEBUG_MBUS_MSG
-	mbus_write_message32(0xED, WAKEUP_PERIOD_CONT); 
+//	mbus_write_message32(0xED, WAKEUP_PERIOD_CONT); 
 	#endif
 }
 
@@ -1590,7 +1590,7 @@ static void operation_sns_run(void){
 		// Grab Temp Sensor Data
 		if (wfi_timeout_flag){
 			read_data_temp = 0xFAFA;
-			mbus_write_message32(0xFA, 0xFAFAFAFA);
+//			mbus_write_message32(0xFA, 0xFAFAFAFA);
 		}else{
 			// Read register
 			set_halt_until_mbus_rx();
@@ -1624,7 +1624,7 @@ static void operation_sns_run(void){
 				temp_storage_diff = temp_storage_last_wakeup_adjust - temp_storage_latest;
 			}
 			#ifdef DEBUG_MBUS_MSG
-				mbus_write_message32(0xEA, temp_storage_diff);
+//				mbus_write_message32(0xEA, temp_storage_diff);
 				delay(MBUS_DELAY);
 			#endif
 			
@@ -1635,8 +1635,8 @@ static void operation_sns_run(void){
 				
 
 			#ifdef DEBUG_MBUS_MSG
-			mbus_write_message32(0xCC, exec_count);
-			mbus_write_message32(0xC0, read_data_temp);
+//			mbus_write_message32(0xCC, exec_count);
+//			mbus_write_message32(0xC0, read_data_temp);
 			#endif
 				
 			exec_count++;
@@ -1796,7 +1796,7 @@ int main(){
 	if(*SREG_WAKEUP_SOURCE & 0x00000008){
 		// Debug
 		#ifdef DEBUG_MBUS_MSG
-		mbus_write_message32(0xAA,0x11331133);
+//		mbus_write_message32(0xAA,0x11331133);
 		#endif
 		adxl_motion_detected = 1;
 	}
@@ -1805,7 +1805,7 @@ int main(){
 	sleep_time_prev = *REG_WUPT_VAL;
 	// Debug
 	#ifdef DEBUG_MBUS_MSG
-	mbus_write_message32(0xAB, sleep_time_prev);
+//	mbus_write_message32(0xAB, sleep_time_prev);
 	#endif
 
     // Initialization sequence
@@ -2024,8 +2024,8 @@ int main(){
 		if ((wakeup_data&0xFFFFFF) == 0x89D7E2){
 			config_timerwd(0xFF);
 			while(1){
-				mbus_write_message32(0xE0, 0x0);
-				delay(MBUS_DELAY);
+//				mbus_write_message32(0xE0, 0x0);
+//				delay(MBUS_DELAY);
 			}
 		}else{
 			operation_sleep_notimer();
@@ -2046,9 +2046,9 @@ int main(){
 		}
 	}
 
-	operation_sleep_notimer();
-
-    while(1);
+//	operation_sleep_notimer();
+//
+//    while(1);
 }
 
 
