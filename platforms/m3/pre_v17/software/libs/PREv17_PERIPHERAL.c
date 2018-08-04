@@ -22,6 +22,7 @@
 //*********************************************************
 volatile uint32_t gpio_data__;
 volatile uint32_t gpio_dir__;
+volatile uint32_t gpio_irq_mask__;
 
 //**************************************************
 // SPI
@@ -48,8 +49,12 @@ void spi_unfreeze (void) {
 //**************************************************
 
 void gpio_initialize (void) {
-    gpio_data__ = 0;
-    gpio_dir__ = 0;
+    gpio_data__ = 0x00; // All Zero
+    gpio_dir__ = 0x00;  // All Input
+    gpio_irq_mask__ = 0x00;  // All Disabled
+    *GPIO_DATA = gpio_data__;
+    *GPIO_DIR  = gpio_dir__;
+    *GPIO_IRQ_MASK  = gpio_irq_mask__;
 }
 
 void gpio_enable_pad (uint8_t pattern) {
@@ -68,6 +73,8 @@ void gpio_freeze (void) {
 
 void gpio_unfreeze (void) {
     *GPIO_DATA = gpio_data__;
+    *GPIO_DIR  = gpio_dir__;
+    *GPIO_IRQ_MASK  = gpio_irq_mask__;
     *REG_PERIPHERAL = *REG_PERIPHERAL & 0xFFFEFFFF;
 }
 
@@ -151,12 +158,14 @@ uint32_t gpio_read (void) {
 
 void gpio_enable_irq (uint8_t pattern) {
     uint32_t pattern_ = pattern & 0xFF;
-    *GPIO_IRQ_MASK = *GPIO_IRQ_MASK | pattern_;
+    gpio_irq_mask__ = gpio_irq_mask__ | pattern_;
+    *GPIO_IRQ_MASK = gpio_irq_mask__;
 }
 
 void gpio_disable_irq (uint8_t pattern) {
     uint32_t pattern_ = ~(pattern | 0x00000000);
-    *GPIO_IRQ_MASK = *GPIO_IRQ_MASK & pattern_;
+    gpio_irq_mask__ = gpio_irq_mask__ & pattern_;
+    *GPIO_IRQ_MASK = gpio_irq_mask__;
 }
 
 void gpio_mbus_sleep_all (void) {

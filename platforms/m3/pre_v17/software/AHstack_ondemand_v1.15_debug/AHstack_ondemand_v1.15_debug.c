@@ -362,7 +362,6 @@ static void operation_i2c_start(){
 
 static void operation_i2c_stop(){
   // Stop
-  gpio_set_dir_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
   gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
   gpio_write_data_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
 }
@@ -1710,6 +1709,7 @@ static void operation_sns_run(void){
 			if (radio_on){
 				radio_power_off();
 			}
+
 	
 			set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
 
