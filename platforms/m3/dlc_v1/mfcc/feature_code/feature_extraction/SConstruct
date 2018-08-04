@@ -1,8 +1,0 @@
-env = Environment(CFLAGS = '-g -std=gnu99',CPPPATH = 'include/')
-lib_audio_io = "libaudio_io"
-lib_src = ["src/audio_io.c","src/audio_fft.c","src/audio_preprocess.c","src/audio_mfcc.c", "src/common.c"]
-example_src = ["examples/example.c"]
-example_target = "examples/example"
-library = env.StaticLibrary(target = lib_audio_io, source = lib_src, LIBS = ['libsndfile'])
-env.Install('lib', library)
-env.Program(target = example_target, source = example_src, LIBS = ['libaudio_io', 'libsndfile', 'libm', 'profiler'], LIBPATH = ['lib/'])
