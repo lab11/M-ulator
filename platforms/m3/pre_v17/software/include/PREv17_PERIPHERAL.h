@@ -52,6 +52,15 @@
 #include <stdbool.h>
 
 //*********************************************************
+// MMIO Defines
+//*********************************************************
+#define PRE17P_REG_CPS          ((volatile uint32_t *) 0xA000005C)
+#define PRE17P_REG_PERI         ((volatile uint32_t *) 0xA0000060)
+#define PRE17P_GPIO_DATA        ((volatile uint32_t *) 0xA0005000) // Data to be set or read depending on DIR register
+#define PRE17P_GPIO_DIR         ((volatile uint32_t *) 0xA0005400) // Controls direction of PAD enable (0=Output) (1=Input)
+#define PRE17P_GPIO_IRQ_MASK    ((volatile uint32_t *) 0xA0005410) // (Active High) Controls whitch GPIO lines to monitor for interrupt
+
+//*********************************************************
 // FUNCTIONS
 //*********************************************************
 
