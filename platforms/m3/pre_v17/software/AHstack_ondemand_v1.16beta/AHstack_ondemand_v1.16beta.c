@@ -17,7 +17,6 @@
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
-#include "PREv17_PERIPHERAL.h"
 #include "mbus.h"
 #include "SNSv10_RF.h"
 #include "PMUv7_RF.h"
