@@ -61,24 +61,14 @@
 #define GPIO_SDA 1
 #define GPIO_SCL 0
 
-//#define BIT_ADXL_INT  (1 << GPIO_ADXL_INT)
-//#define BIT_ADXL_EN   (1 << GPIO_ADXL_EN)
-//#define BIT_SDA       (1 << GPIO_SDA)
-//#define BIT_SCL       (1 << GPIO_SCL)
-//#define BIT_ADXL      (BIT_ADXL_INT | BIT_ADXL_EN)
-//#define BIT_SHT       (BIT_SCL | BIT_SDA)
-//
-//#define CPS_ADXL      0x2
-//#define CPS_SHT       0x1
-
-volatile uint32_t BIT_ADXL_INT =  (1 << GPIO_ADXL_INT);
-volatile uint32_t BIT_ADXL_EN  =  (1 << GPIO_ADXL_EN);
-volatile uint32_t BIT_SDA      =  (1 << GPIO_SDA);
-volatile uint32_t BIT_SCL      =  (1 << GPIO_SCL);
-volatile uint32_t BIT_ADXL     =  ((1<<GPIO_ADXL_INT) | (1<<GPIO_ADXL_EN));
-volatile uint32_t BIT_SHT      =  ((1<<GPIO_SCL) | (1<<GPIO_SDA));
-volatile uint32_t CPS_ADXL     =  0x2;
-volatile uint32_t CPS_SHT      =  0x1;
+#define BIT_ADXL_INT (1 << GPIO_ADXL_INT)
+#define BIT_ADXL_EN  (1 << GPIO_ADXL_EN)
+#define BIT_SDA      (1 << GPIO_SDA)
+#define BIT_SCL      (1 << GPIO_SCL)
+#define BIT_ADXL     ((1<<GPIO_ADXL_INT) | (1<<GPIO_ADXL_EN))
+#define BIT_SHT      ((1<<GPIO_SCL) | (1<<GPIO_SDA))
+#define CPS_ADXL     0x2
+#define CPS_SHT      0x1
 
 //********************************************************************
 // Global Variables
@@ -397,7 +387,7 @@ static void operation_i2c_addr(uint8_t addr, uint8_t RWn){
   //Assume started
   gpio_set_dir_out(BIT_SHT);
   for(i=6; i>=1; i--){
-    gpio_write_scl_sda(0, ((addr>>i)&0x1)<<GPIO_SDA);
+    gpio_write_scl_sda(0, (addr>>i)&0x1);
     gpio_write_scl(1);
   }
   //WRITEn/READ
@@ -427,7 +417,7 @@ static void operation_i2c_cmd(uint8_t cmd){
     uint32_t i;
   gpio_set_dir_out(BIT_SHT);
   for(i=7; i>0; i--){
-    gpio_write_scl_sda(0, ((cmd>>i)&0x1)<<GPIO_SDA);
+    gpio_write_scl_sda(0, (cmd>>i)&0x1);
     gpio_write_scl(1);
   }
   //[0]
