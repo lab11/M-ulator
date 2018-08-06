@@ -13,15 +13,13 @@
 //  Yejoong Kim (yejoong@umich.edu)
 //******************************************************************************************* 
 
+#include "PREv17.h"
 #include "PREv17_PERIPHERAL.h"
 #include "mbus.h"
 
 //*********************************************************
 // GPIO Retentive Variables
 //*********************************************************
-volatile uint32_t __gpio_data__;
-volatile uint32_t __gpio_dir__;
-volatile uint32_t __gpio_irq_mask__;
 
 //**************************************************
 // SPI
