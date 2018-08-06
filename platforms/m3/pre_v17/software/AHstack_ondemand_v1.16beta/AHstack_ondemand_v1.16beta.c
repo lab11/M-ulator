@@ -160,6 +160,7 @@ static void ADXL362_reg_rd (uint8_t reg_id);
 static void ADXL362_init(void);
 static void ADXL362_stop(void);
 static void operation_spi_init(void);
+static void operation_spi_stop(void);
 
 //***************************************************
 // SHT35 Functions
@@ -322,6 +323,7 @@ static void ADXL362_enable(){
 	delay(MBUS_DELAY*2);
     gpio_disable_pos_wreq(0xF);
     gpio_enable_pos_wreq(BIT_ADXL_INT);
+	operation_spi_stop();
 
 	adxl_enabled = 1;
 	adxl_motion_detected = 0;
@@ -337,10 +339,14 @@ static void ADXL362_stop(){
 	// Soft Reset
 	ADXL362_reg_wr(ADXL362_SOFT_RESET,0x52);
   
+	operation_spi_stop();
+
     gpio_disable_pos_wreq(0xF);
 	*NVIC_ISER = 0<<IRQ_WAKEUP;
+    gpio_unfreeze();
     gpio_set_dir_out(BIT_ADXL);
 	gpio_write_mask(adxl_mask,0);
+    gpio_freeze();
 	adxl_enabled = 0;
 }
 
@@ -359,6 +365,13 @@ static void operation_spi_init(){
   gpio_set_dir_in(BIT_ADXL_INT);
   gpio_set_dir_out(BIT_ADXL_EN);
   gpio_write_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT)); // << Crashes here
+  gpio_unfreeze();
+  spi_unfreeze();
+}
+
+static void operation_spi_stop(){
+  spi_unfreeze();
+  gpio_unfreeze();
 }
 
 //***************************************************
@@ -369,6 +382,7 @@ static void operation_i2c_start(){
   // Enable GPIO OUTPUT
   gpio_write_scl_sda(1, 1);
   gpio_set_dir_out(BIT_SHT);
+  gpio_unfreeze();
   //Start
   gpio_write_scl_sda(1, 0);
   gpio_write_scl_sda(0, 0);
@@ -1657,6 +1671,7 @@ static void operation_sns_run(void){
 					//ADXL362_reg_rd(ADXL362_XDATA);
 					//ADXL362_reg_rd(ADXL362_YDATA);
 					//ADXL362_reg_rd(ADXL362_ZDATA);
+					operation_spi_stop();
 				}
 			}
 
@@ -1764,10 +1779,6 @@ int main(){
     // Initialization sequence
     if (enumerated != 0x4148115A){
         operation_init();
-    }
-    else {
-        // Unfreeze GPIO
-        gpio_unfreeze();
     }
 
 	// Read latest batt voltage
