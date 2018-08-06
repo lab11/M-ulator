@@ -61,15 +61,24 @@
 #define GPIO_SDA 1
 #define GPIO_SCL 0
 
-#define BIT_ADXL_INT  (1 << GPIO_ADXL_INT)
-#define BIT_ADXL_EN   (1 << GPIO_ADXL_EN)
-#define BIT_SDA       (1 << GPIO_SDA)
-#define BIT_SCL       (1 << GPIO_SCL)
-#define BIT_ADXL      (BIT_ADXL_INT | BIT_ADXL_EN)
-#define BIT_SHT       (BIT_SCL | BIT_SDA)
+//#define BIT_ADXL_INT  (1 << GPIO_ADXL_INT)
+//#define BIT_ADXL_EN   (1 << GPIO_ADXL_EN)
+//#define BIT_SDA       (1 << GPIO_SDA)
+//#define BIT_SCL       (1 << GPIO_SCL)
+//#define BIT_ADXL      (BIT_ADXL_INT | BIT_ADXL_EN)
+//#define BIT_SHT       (BIT_SCL | BIT_SDA)
+//
+//#define CPS_ADXL      0x2
+//#define CPS_SHT       0x1
 
-#define CPS_ADXL      0x2
-#define CPS_SHT       0x1
+volatile uint32_t BIT_ADXL_INT =  (1 << GPIO_ADXL_INT);
+volatile uint32_t BIT_ADXL_EN  =  (1 << GPIO_ADXL_EN);
+volatile uint32_t BIT_SDA      =  (1 << GPIO_SDA);
+volatile uint32_t BIT_SCL      =  (1 << GPIO_SCL);
+volatile uint32_t BIT_ADXL     =  ((1<<GPIO_ADXL_INT) | (1<<GPIO_ADXL_EN));
+volatile uint32_t BIT_SHT      =  ((1<<GPIO_SCL) | (1<<GPIO_SDA));
+volatile uint32_t CPS_ADXL     =  0x2;
+volatile uint32_t CPS_SHT      =  0x1;
 
 //********************************************************************
 // Global Variables
@@ -2002,9 +2011,9 @@ int main(){
 		}
 	}
 
-//	operation_sleep_notimer();
-//
-//    while(1);
+	operation_sleep_notimer();
+
+    while(1);
 }
 
 
