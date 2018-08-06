@@ -244,8 +244,6 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
 //[10] = gpio[2]
 //[11] = gpio[3]
     *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
-    // Unfreeze GPIO
-    gpio_unfreeze();
 	// Report who woke up
 	delay(MBUS_DELAY);
 //	mbus_write_message32(0xAA,*SREG_WAKEUP_SOURCE); // 0x1: GOC; 0x2: PRC Timer; 0x10: SNT
@@ -1766,6 +1764,10 @@ int main(){
     // Initialization sequence
     if (enumerated != 0x4148115A){
         operation_init();
+    }
+    else {
+        // Unfreeze GPIO
+        gpio_unfreeze();
     }
 
 	// Read latest batt voltage
