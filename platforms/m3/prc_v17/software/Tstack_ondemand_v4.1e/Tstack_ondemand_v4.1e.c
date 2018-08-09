@@ -88,7 +88,7 @@
 #define	PMU_10C 0x0
 #define PMU_20C 0x1
 #define	PMU_25C 0x2
-#define	PMU_65C 0x3
+#define	PMU_55C 0x3
 #define	PMU_85C 0x4
 
 #define NUM_TEMP_MEAS 1
@@ -122,7 +122,7 @@ volatile uint32_t PMU_ADC_4P2_VAL;
 volatile uint32_t pmu_setting_state;
 volatile uint32_t PMU_10C_threshold_sns;
 volatile uint32_t PMU_20C_threshold_sns;
-volatile uint32_t PMU_65C_threshold_sns;
+volatile uint32_t PMU_55C_threshold_sns;
 volatile uint32_t PMU_85C_threshold_sns;
 
 volatile uint32_t NUM_MEAS_USER;
@@ -450,7 +450,7 @@ inline static void pmu_setting_temp_based(){
 		pmu_set_active_clk(0x2,0x0,0x8,0x2/*V1P2*/);
 		pmu_set_sleep_clk(0x1,0x0,0x1,0x0/*V1P2*/);
 
-	}else if (pmu_setting_state == PMU_65C){
+	}else if (pmu_setting_state == PMU_55C){
 		pmu_set_active_clk(0x1,0x0,0x10,0x2/*V1P2*/);
 		pmu_set_sleep_clk(0x1,0x1,0x1,0x1/*V1P2*/);
 
@@ -1264,7 +1264,7 @@ static void operation_init(void){
 	pmu_setting_state = PMU_25C;
 	PMU_10C_threshold_sns = 600; // Around 10C
 	PMU_20C_threshold_sns = 1000; // Around 20C
-	PMU_65C_threshold_sns = 5000; // Around 55C
+	PMU_55C_threshold_sns = 4000; // Around 55C
 	PMU_85C_threshold_sns = 9000; // Around 85C
 
 	SNT_0P5S_VAL = 1000;
@@ -1392,9 +1392,9 @@ static void operation_temp_run(void){
 					pmu_setting_state = PMU_85C;
 					pmu_setting_temp_based();
 				}
-			}else if (temp_storage_latest > PMU_65C_threshold_sns){
-				if (pmu_setting_state != PMU_65C){
-					pmu_setting_state = PMU_65C;
+			}else if (temp_storage_latest > PMU_55C_threshold_sns){
+				if (pmu_setting_state != PMU_55C){
+					pmu_setting_state = PMU_55C;
 					pmu_setting_temp_based();
 				}
 			}else if (temp_storage_latest < PMU_10C_threshold_sns){
@@ -1827,7 +1827,7 @@ int main() {
 		operation_sleep_notimer();
 
     }else if(wakeup_data_header == 0x1C){
-		PMU_65C_threshold_sns = wakeup_data & 0xFFFFFF; // Around 65C
+		PMU_55C_threshold_sns = wakeup_data & 0xFFFFFF; // Around 55C
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
