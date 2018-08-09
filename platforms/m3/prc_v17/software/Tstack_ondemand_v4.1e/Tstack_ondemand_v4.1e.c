@@ -55,6 +55,7 @@
 //			v4.1e: Two more PMU setting threshold
 //					Double send data TX headers
 //					Use pulse generator for SRR
+//					Trig 2 now runs forever until Trig 3
 //*******************************************************************
 #include "PRCv17.h"
 #include "PRCv17_RF.h"
@@ -976,7 +977,7 @@ static void operation_tx_stored(void){
 
     //Fire off stored data to radio
 	uint32_t radio_tx_limit;
-	if (temp_storage_count < NUM_MEAS_USER || (NUM_MEAS_USER == 0)){
+	if (temp_storage_count < NUM_MEAS_USER){
 		radio_tx_limit = temp_storage_count;
 	}else{
 		radio_tx_limit = NUM_MEAS_USER;
@@ -1270,7 +1271,7 @@ static void operation_init(void){
 	TEMP_CALIB_A = 24000;
 	TEMP_CALIB_B = 3750000;
 
-	NUM_MEAS_USER = 2000;
+	NUM_MEAS_USER = 8000;
 
     // Harvester Settings --------------------------------------
 	hrvv5_r0.HRV_TOP_CONV_RATIO = 0x9;
@@ -1464,24 +1465,24 @@ static void operation_temp_run(void){
 			}
 
 			// If NUM_MEAS_USER == 0, meas infinitely
-			if ((pmu_setting_state == PMU_25C) && (NUM_MEAS_USER && (exec_count >= NUM_MEAS_USER))){
+			//if ((pmu_setting_state == PMU_25C) && (NUM_MEAS_USER && (exec_count >= NUM_MEAS_USER))){
 				// Trig 2 stop condition; Need to run until PMU setting is back at RT
 				// No more measurement required
 				// Make sure temp sensor is off
-				temp_running = 0;
-				operation_sleep_notimer();
+		//		temp_running = 0;
+		//		operation_sleep_notimer();
+		//	}else{
+			if (wakeup_timer_option){
+				// Use PRC Timer
+				set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
+				operation_sleep();
 			}else{
-				if (wakeup_timer_option){
-					// Use PRC Timer
-					set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
-					operation_sleep();
-				}else{
-					// Use SNT Timer	
-					snt_set_wup_timer(WAKEUP_PERIOD_CONT_USER);
-					operation_sleep_snt_timer();
-				}
-
+				// Use SNT Timer	
+				snt_set_wup_timer(WAKEUP_PERIOD_CONT_USER);
+				operation_sleep_snt_timer();
 			}
+
+		//	}
 
 		}
 
