@@ -52,8 +52,9 @@
 //				  SNT wakeup timer disable before enabling
 //			v4.1c: Separate SFO tuning for MIM and MOM
 //					Fixes CRC bug
-//			v4.1e: One more PMU setting threshold
+//			v4.1e: Two more PMU setting threshold
 //					Double send data TX headers
+//					Use pulse generator for SRR
 //*******************************************************************
 #include "PRCv17.h"
 #include "PRCv17_RF.h"
@@ -83,10 +84,11 @@
 #define TSTK_TEMP_START 0x2
 #define TSTK_TEMP_READ  0x6
 
-#define	PMU_25C 0x0
-#define	PMU_65C 0x1
-#define	PMU_85C 0x2
-#define PMU_15C 0x3
+#define	PMU_10C 0x0
+#define PMU_20C 0x1
+#define	PMU_25C 0x2
+#define	PMU_65C 0x3
+#define	PMU_85C 0x4
 
 #define NUM_TEMP_MEAS 1
 
@@ -117,7 +119,8 @@ volatile uint32_t wakeup_period_count;
 volatile uint32_t wakeup_timer_multiplier;
 volatile uint32_t PMU_ADC_4P2_VAL;
 volatile uint32_t pmu_setting_state;
-volatile uint32_t PMU_15C_threshold_sns;
+volatile uint32_t PMU_10C_threshold_sns;
+volatile uint32_t PMU_20C_threshold_sns;
 volatile uint32_t PMU_65C_threshold_sns;
 volatile uint32_t PMU_85C_threshold_sns;
 
@@ -450,7 +453,11 @@ inline static void pmu_setting_temp_based(){
 		pmu_set_active_clk(0x1,0x0,0x10,0x2/*V1P2*/);
 		pmu_set_sleep_clk(0x1,0x1,0x1,0x1/*V1P2*/);
 
-	}else if (pmu_setting_state == PMU_15C){
+	}else if (pmu_setting_state == PMU_20C){
+		pmu_set_active_clk(0x7,0x2,0x10,0x4/*V1P2*/);
+		pmu_set_sleep_clk(0xF,0x0,0x1,0x1/*V1P2*/);
+
+	}else if (pmu_setting_state == PMU_10C){
 		pmu_set_active_clk(0xD,0x2,0x10,0x4/*V1P2*/);
 		pmu_set_sleep_clk(0xF,0x0,0x1,0x1/*V1P2*/);
 
@@ -1216,8 +1223,8 @@ static void operation_init(void){
     mbus_remote_register_write(SRR_ADDR,0x15,srrv4_r15.as_int);
     
 	// Use pulse generator
-    srrv4_r02.SRR_TX_PULSE_FINE = 0;
-    srrv4_r02.SRR_TX_PULSE_FINE_TUNE = 7;
+    srrv4_r02.SRR_TX_PULSE_FINE = 1;
+    srrv4_r02.SRR_TX_PULSE_FINE_TUNE = 1;
     mbus_remote_register_write(SRR_ADDR,0x02,srrv4_r02.as_int);
 
     srrv4_r13.SRR_RAD_FSM_SEED = 1; //default
@@ -1254,7 +1261,8 @@ static void operation_init(void){
 	radio_packet_count = 0;
 	
 	pmu_setting_state = PMU_25C;
-	PMU_15C_threshold_sns = 1000; // Around 15C
+	PMU_10C_threshold_sns = 600; // Around 10C
+	PMU_20C_threshold_sns = 1000; // Around 20C
 	PMU_65C_threshold_sns = 5000; // Around 55C
 	PMU_85C_threshold_sns = 9000; // Around 85C
 
@@ -1388,9 +1396,14 @@ static void operation_temp_run(void){
 					pmu_setting_state = PMU_65C;
 					pmu_setting_temp_based();
 				}
-			}else if (temp_storage_latest < PMU_15C_threshold_sns){
-				if (pmu_setting_state != PMU_15C){
-					pmu_setting_state = PMU_15C;
+			}else if (temp_storage_latest < PMU_10C_threshold_sns){
+				if (pmu_setting_state != PMU_10C){
+					pmu_setting_state = PMU_10C;
+					pmu_setting_temp_based();
+				}
+			}else if (temp_storage_latest < PMU_20C_threshold_sns){
+				if (pmu_setting_state != PMU_20C){
+					pmu_setting_state = PMU_20C;
 					pmu_setting_temp_based();
 				}
 			}else{
@@ -1803,11 +1816,21 @@ int main() {
 		operation_sleep_notimer();
 
     }else if(wakeup_data_header == 0x1A){
-		PMU_15C_threshold_sns = wakeup_data & 0xFFFF; // Around 15C
+		PMU_10C_threshold_sns = wakeup_data & 0xFFFF; // Around 10C
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
     }else if(wakeup_data_header == 0x1B){
+		PMU_20C_threshold_sns = wakeup_data & 0xFFFF; // Around 20C
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+    }else if(wakeup_data_header == 0x1C){
+		PMU_65C_threshold_sns = wakeup_data & 0xFFFFFF; // Around 65C
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+    }else if(wakeup_data_header == 0x1C){
 		PMU_85C_threshold_sns = wakeup_data & 0xFFFFFF; // Around 85C
 		// Go to sleep without timer
 		operation_sleep_notimer();
@@ -1856,6 +1879,17 @@ int main() {
 		srrv4_r07.RO_MIM = wakeup_data_field_1 & 0x3F;
 		mbus_remote_register_write(SRR_ADDR,0x07,srrv4_r07.as_int);
 		
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x24){
+		// Pulse generator settings
+
+		// Use pulse generator
+		srrv4_r02.SRR_TX_PULSE_FINE = wakeup_data_field_1;
+		srrv4_r02.SRR_TX_PULSE_FINE_TUNE = wakeup_data_field_0 & 0xF;
+		mbus_remote_register_write(SRR_ADDR,0x02,srrv4_r02.as_int);
+
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
