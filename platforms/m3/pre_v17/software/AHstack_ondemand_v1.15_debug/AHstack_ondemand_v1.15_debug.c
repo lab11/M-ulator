@@ -11,6 +11,7 @@
 //					fixes a bug in REG_CPS control
 //					fixes CRC bug
 //			v1.15: fixes ADXL / SHT35 conflict
+//          v1.15_debug: Removed HRV, MRR, SNS, PMU operations
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -25,10 +26,10 @@
 //#define DEBUG_MBUS_MSG
 
 // AM stack 
-#define HRV_ADDR 0x3
-#define MRR_ADDR 0x4
-#define SNS_ADDR 0x5
-#define PMU_ADDR 0x6
+//#define HRV_ADDR 0x3
+//#define MRR_ADDR 0x4
+//#define SNS_ADDR 0x5
+//#define PMU_ADDR 0x6
 
 // System parameters
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
@@ -57,9 +58,6 @@
 #define GPIO_ADXL_EN 4
 #define GPIO_SDA 1
 #define GPIO_SCL 0
-
-#define GPIO_DIR_ALL_OUT    0xFF
-#define GPIO_DIR_NORMAL     0xFB    // GPIO_ADXL_INT = 0 (IN)
 
 //********************************************************************
 // Global Variables
@@ -274,7 +272,7 @@ static void ADXL362_init(){
   ADXL362_reg_wr(ADXL362_POWER_CTL,0x0A);
 
   // Check Status (Clears first false positive)
-  delay(5000);
+  delay(100);
   ADXL362_reg_rd(ADXL362_STATUS);
 }
 
@@ -288,11 +286,11 @@ static void ADXL362_enable(){
 
 	// Turn PRE power switch on
 	*REG_CPS = *REG_CPS | 0x2;
-	delay(MBUS_DELAY*2);
+	delay(MBUS_DELAY);
 
 	// Initialize ADXL
 	ADXL362_init();
-	delay(MBUS_DELAY*2);
+	delay(MBUS_DELAY);
 	config_gpio_posedge_wirq((0<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
 	operation_spi_stop();
 
@@ -316,8 +314,7 @@ static void ADXL362_stop(){
 	*NVIC_ISER = 0<<IRQ_WAKEUP;
 	unfreeze_gpio_out();
 	set_gpio_pad_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
-	//gpio_set_dir_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
-	gpio_set_dir_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+	gpio_set_dir_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
 	gpio_write_data_with_mask(adxl_mask,0);
 	freeze_gpio_out();
 	adxl_enabled = 0;
@@ -325,9 +322,9 @@ static void ADXL362_stop(){
 
 static void ADXL362_power_off(){
 	ADXL362_stop();
-	delay(MBUS_DELAY*10);
+	delay(MBUS_DELAY);
 	*REG_CPS = *REG_CPS & 0xFFFFFFFD;
-	delay(MBUS_DELAY*200);
+	delay(MBUS_DELAY);
 }
 
 static void operation_spi_init(){
@@ -417,9 +414,9 @@ static void operation_i2c_addr(uint8_t addr, uint8_t RWn){
 
   //Wait for ACK
   gpio_set_dir_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-  while((*GPIO_DATA>>GPIO_SDA)&0x1){
-    //mbus_write_message32(0xCE, *GPIO_DATA);
-  }
+//  while((*GPIO_DATA>>GPIO_SDA)&0x1){
+//    //mbus_write_message32(0xCE, *GPIO_DATA);
+//  }
   gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
   gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
   gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
@@ -470,9 +467,9 @@ static void operation_i2c_cmd(uint8_t cmd){
   
   //Wait for ACK
   gpio_set_dir_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-  while((*GPIO_DATA>>GPIO_SDA)&0x1){
-    //mbus_write_message32(0xCF, *GPIO_DATA);
-  }
+//  while((*GPIO_DATA>>GPIO_SDA)&0x1){
+//    //mbus_write_message32(0xCF, *GPIO_DATA);
+//  }
   gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
   gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
   gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
@@ -537,7 +534,7 @@ static void sht35_meas_data(){
 	// FIXME
 	// Power on
 	*REG_CPS = *REG_CPS | 0x1;
-	delay(1000);
+	delay(100);
 	// Start measurement
 	operation_i2c_start();
 	operation_i2c_addr(0x44,0);
@@ -545,7 +542,7 @@ static void sht35_meas_data(){
 	operation_i2c_cmd(0x0B);
 	operation_i2c_stop();
 
-	delay(MBUS_DELAY*2); // about 10ms delay
+	delay(MBUS_DELAY); // about 10ms delay
 
 	// Read
 	operation_i2c_start();
@@ -570,306 +567,306 @@ static void sht35_meas_data(){
 
 static void pmu_set_sar_override(uint32_t val){
 	// SAR_RATIO_OVERRIDE
-    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
-		( (0 << 13) // Enables override setting [12] (1'b1)
-		| (0 << 12) // Let VDD_CLK always connected to vbat
-		| (1 << 11) // Enable override setting [10] (1'h0)
-		| (0 << 10) // Have the converter have the periodic reset (1'h0)
-		| (1 << 9) // Enable override setting [8] (1'h0)
-		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
-		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (val) 		// Binary converter's conversion ratio (7'h00)
-	));
-	delay(MBUS_DELAY*2);
-    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
-		( (1 << 13) // Enables override setting [12] (1'b1)
-		| (0 << 12) // Let VDD_CLK always connected to vbat
-		| (1 << 11) // Enable override setting [10] (1'h0)
-		| (0 << 10) // Have the converter have the periodic reset (1'h0)
-		| (1 << 9) // Enable override setting [8] (1'h0)
-		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
-		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (val) 		// Binary converter's conversion ratio (7'h00)
-	));
-	delay(MBUS_DELAY*2);
+//    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+//		( (0 << 13) // Enables override setting [12] (1'b1)
+//		| (0 << 12) // Let VDD_CLK always connected to vbat
+//		| (1 << 11) // Enable override setting [10] (1'h0)
+//		| (0 << 10) // Have the converter have the periodic reset (1'h0)
+//		| (1 << 9) // Enable override setting [8] (1'h0)
+//		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+//		| (1 << 7) // Enable override setting [6:0] (1'h0)
+//		| (val) 		// Binary converter's conversion ratio (7'h00)
+//	));
+//	delay(MBUS_DELAY*2);
+//    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+//		( (1 << 13) // Enables override setting [12] (1'b1)
+//		| (0 << 12) // Let VDD_CLK always connected to vbat
+//		| (1 << 11) // Enable override setting [10] (1'h0)
+//		| (0 << 10) // Have the converter have the periodic reset (1'h0)
+//		| (1 << 9) // Enable override setting [8] (1'h0)
+//		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+//		| (1 << 7) // Enable override setting [6:0] (1'h0)
+//		| (val) 		// Binary converter's conversion ratio (7'h00)
+//	));
+//	delay(MBUS_DELAY*2);
 }
 
 inline static void pmu_set_adc_period(uint32_t val){
 	// PMU_CONTROLLER_DESIRED_STATE Active
-	mbus_remote_register_write(PMU_ADDR,0x3C,
-		((  1 << 0) //state_sar_scn_on
-		| (0 << 1) //state_wait_for_clock_cycles
-		| (1 << 2) //state_wait_for_time
-		| (1 << 3) //state_sar_scn_reset
-		| (1 << 4) //state_sar_scn_stabilized
-		| (1 << 5) //state_sar_scn_ratio_roughly_adjusted
-		| (1 << 6) //state_clock_supply_switched
-		| (1 << 7) //state_control_supply_switched
-		| (1 << 8) //state_upconverter_on
-		| (1 << 9) //state_upconverter_stabilized
-		| (1 << 10) //state_refgen_on
-		| (0 << 11) //state_adc_output_ready
-		| (0 << 12) //state_adc_adjusted
-		| (0 << 13) //state_sar_scn_ratio_adjusted
-		| (1 << 14) //state_downconverter_on
-		| (1 << 15) //state_downconverter_stabilized
-		| (1 << 16) //state_vdd_3p6_turned_on
-		| (1 << 17) //state_vdd_1p2_turned_on
-		| (1 << 18) //state_vdd_0P6_turned_on
-		| (1 << 19) //state_state_horizon
-	));
-	delay(MBUS_DELAY*10);
+//	mbus_remote_register_write(PMU_ADDR,0x3C,
+//		((  1 << 0) //state_sar_scn_on
+//		| (0 << 1) //state_wait_for_clock_cycles
+//		| (1 << 2) //state_wait_for_time
+//		| (1 << 3) //state_sar_scn_reset
+//		| (1 << 4) //state_sar_scn_stabilized
+//		| (1 << 5) //state_sar_scn_ratio_roughly_adjusted
+//		| (1 << 6) //state_clock_supply_switched
+//		| (1 << 7) //state_control_supply_switched
+//		| (1 << 8) //state_upconverter_on
+//		| (1 << 9) //state_upconverter_stabilized
+//		| (1 << 10) //state_refgen_on
+//		| (0 << 11) //state_adc_output_ready
+//		| (0 << 12) //state_adc_adjusted
+//		| (0 << 13) //state_sar_scn_ratio_adjusted
+//		| (1 << 14) //state_downconverter_on
+//		| (1 << 15) //state_downconverter_stabilized
+//		| (1 << 16) //state_vdd_3p6_turned_on
+//		| (1 << 17) //state_vdd_1p2_turned_on
+//		| (1 << 18) //state_vdd_0P6_turned_on
+//		| (1 << 19) //state_state_horizon
+//	));
+//	delay(MBUS_DELAY*10);
 
 	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
-    mbus_remote_register_write(PMU_ADDR,0x36,val); 
-	delay(MBUS_DELAY*10);
+//    mbus_remote_register_write(PMU_ADDR,0x36,val); 
+//	delay(MBUS_DELAY*10);
 
 	// Register 0x33: TICK_ADC_RESET
-	mbus_remote_register_write(PMU_ADDR,0x33,2);
-	delay(MBUS_DELAY);
+//	mbus_remote_register_write(PMU_ADDR,0x33,2);
+//	delay(MBUS_DELAY);
 
 	// Register 0x34: TICK_ADC_CLK
-	mbus_remote_register_write(PMU_ADDR,0x34,2);
-	delay(MBUS_DELAY);
+//	mbus_remote_register_write(PMU_ADDR,0x34,2);
+//	delay(MBUS_DELAY);
 
 	// PMU_CONTROLLER_DESIRED_STATE Active
-	mbus_remote_register_write(PMU_ADDR,0x3C,
-		((  1 << 0) //state_sar_scn_on
-		| (1 << 1) //state_wait_for_clock_cycles
-		| (1 << 2) //state_wait_for_time
-		| (1 << 3) //state_sar_scn_reset
-		| (1 << 4) //state_sar_scn_stabilized
-		| (1 << 5) //state_sar_scn_ratio_roughly_adjusted
-		| (1 << 6) //state_clock_supply_switched
-		| (1 << 7) //state_control_supply_switched
-		| (1 << 8) //state_upconverter_on
-		| (1 << 9) //state_upconverter_stabilized
-		| (1 << 10) //state_refgen_on
-		| (0 << 11) //state_adc_output_ready
-		| (0 << 12) //state_adc_adjusted
-		| (0 << 13) //state_sar_scn_ratio_adjusted
-		| (1 << 14) //state_downconverter_on
-		| (1 << 15) //state_downconverter_stabilized
-		| (1 << 16) //state_vdd_3p6_turned_on
-		| (1 << 17) //state_vdd_1p2_turned_on
-		| (1 << 18) //state_vdd_0P6_turned_on
-		| (1 << 19) //state_state_horizon
-	));
-	delay(MBUS_DELAY);
+//	mbus_remote_register_write(PMU_ADDR,0x3C,
+//		((  1 << 0) //state_sar_scn_on
+//		| (1 << 1) //state_wait_for_clock_cycles
+//		| (1 << 2) //state_wait_for_time
+//		| (1 << 3) //state_sar_scn_reset
+//		| (1 << 4) //state_sar_scn_stabilized
+//		| (1 << 5) //state_sar_scn_ratio_roughly_adjusted
+//		| (1 << 6) //state_clock_supply_switched
+//		| (1 << 7) //state_control_supply_switched
+//		| (1 << 8) //state_upconverter_on
+//		| (1 << 9) //state_upconverter_stabilized
+//		| (1 << 10) //state_refgen_on
+//		| (0 << 11) //state_adc_output_ready
+//		| (0 << 12) //state_adc_adjusted
+//		| (0 << 13) //state_sar_scn_ratio_adjusted
+//		| (1 << 14) //state_downconverter_on
+//		| (1 << 15) //state_downconverter_stabilized
+//		| (1 << 16) //state_vdd_3p6_turned_on
+//		| (1 << 17) //state_vdd_1p2_turned_on
+//		| (1 << 18) //state_vdd_0P6_turned_on
+//		| (1 << 19) //state_state_horizon
+//	));
+//	delay(MBUS_DELAY);
 }
 
 inline static void pmu_set_active_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1p2){
 
 	// The first register write to PMU needs to be repeated
 	// Register 0x16: V1P2 Active
-    mbus_remote_register_write(PMU_ADDR,0x16, 
-		( (0 << 19) // Enable PFM even during periodic reset
-		| (0 << 18) // Enable PFM even when Vref is not used as ref
-		| (0 << 17) // Enable PFM
-		| (3 << 14) // Comparator clock division ratio
-		| (0 << 13) // Enable main feedback loop
-		| (r << 9)  // Frequency multiplier R
-		| (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
-		| (base) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
-    mbus_remote_register_write(PMU_ADDR,0x16, 
-		( (0 << 19) // Enable PFM even during periodic reset
-		| (0 << 18) // Enable PFM even when Vref is not used as ref
-		| (0 << 17) // Enable PFM
-		| (3 << 14) // Comparator clock division ratio
-		| (0 << 13) // Enable main feedback loop
-		| (r << 9)  // Frequency multiplier R
-		| (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
-		| (base) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
+//    mbus_remote_register_write(PMU_ADDR,0x16, 
+//		( (0 << 19) // Enable PFM even during periodic reset
+//		| (0 << 18) // Enable PFM even when Vref is not used as ref
+//		| (0 << 17) // Enable PFM
+//		| (3 << 14) // Comparator clock division ratio
+//		| (0 << 13) // Enable main feedback loop
+//		| (r << 9)  // Frequency multiplier R
+//		| (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
+//		| (base) 		// Floor frequency base (0-63)
+//	));
+//	delay(MBUS_DELAY);
+//    mbus_remote_register_write(PMU_ADDR,0x16, 
+//		( (0 << 19) // Enable PFM even during periodic reset
+//		| (0 << 18) // Enable PFM even when Vref is not used as ref
+//		| (0 << 17) // Enable PFM
+//		| (3 << 14) // Comparator clock division ratio
+//		| (0 << 13) // Enable main feedback loop
+//		| (r << 9)  // Frequency multiplier R
+//		| (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
+//		| (base) 		// Floor frequency base (0-63)
+//	));
+//	delay(MBUS_DELAY);
 	// Register 0x18: V3P6 Active 
-    mbus_remote_register_write(PMU_ADDR,0x18, 
-		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
-		| (0 << 13) // Enable main feedback loop
-		| (r << 9)  // Frequency multiplier R
-		| (l << 5)  // Frequency multiplier L (actually L+1)
-		| (base) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
+//    mbus_remote_register_write(PMU_ADDR,0x18, 
+//		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+//		| (0 << 13) // Enable main feedback loop
+//		| (r << 9)  // Frequency multiplier R
+//		| (l << 5)  // Frequency multiplier L (actually L+1)
+//		| (base) 		// Floor frequency base (0-63)
+//	));
+//	delay(MBUS_DELAY);
 	// Register 0x1A: V0P6 Active
-    mbus_remote_register_write(PMU_ADDR,0x1A,
-		( (0 << 13) // Enable main feedback loop
-		| (r << 9)  // Frequency multiplier R
-		| (l << 5)  // Frequency multiplier L (actually L+1)
-		| (base) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
+//    mbus_remote_register_write(PMU_ADDR,0x1A,
+//		( (0 << 13) // Enable main feedback loop
+//		| (r << 9)  // Frequency multiplier R
+//		| (l << 5)  // Frequency multiplier L (actually L+1)
+//		| (base) 		// Floor frequency base (0-63)
+//	));
+//	delay(MBUS_DELAY);
 
 }
 
 inline static void pmu_set_sleep_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1p2){
 
 	// Register 0x17: V3P6 Sleep
-    mbus_remote_register_write(PMU_ADDR,0x17, 
-		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
-		| (0 << 13) // Enable main feedback loop
-		| (r << 9)  // Frequency multiplier R
-		| (l << 5)  // Frequency multiplier L (actually L+1)
-		| (base) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
+//    mbus_remote_register_write(PMU_ADDR,0x17, 
+//		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+//		| (0 << 13) // Enable main feedback loop
+//		| (r << 9)  // Frequency multiplier R
+//		| (l << 5)  // Frequency multiplier L (actually L+1)
+//		| (base) 		// Floor frequency base (0-63)
+//	));
+//	delay(MBUS_DELAY);
 	// Register 0x15: V1P2 Sleep
-    mbus_remote_register_write(PMU_ADDR,0x15, 
-		( (0 << 19) // Enable PFM even during periodic reset
-		| (0 << 18) // Enable PFM even when Vref is not used as ref
-		| (0 << 17) // Enable PFM
-		| (3 << 14) // Comparator clock division ratio
-		| (0 << 13) // Enable main feedback loop
-		| (r << 9)  // Frequency multiplier R
-		| (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
-		| (base) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
+//    mbus_remote_register_write(PMU_ADDR,0x15, 
+//		( (0 << 19) // Enable PFM even during periodic reset
+//		| (0 << 18) // Enable PFM even when Vref is not used as ref
+//		| (0 << 17) // Enable PFM
+//		| (3 << 14) // Comparator clock division ratio
+//		| (0 << 13) // Enable main feedback loop
+//		| (r << 9)  // Frequency multiplier R
+//		| (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
+//		| (base) 		// Floor frequency base (0-63)
+//	));
+//	delay(MBUS_DELAY);
 	// Register 0x19: V0P6 Sleep
-    mbus_remote_register_write(PMU_ADDR,0x19,
-		( (0 << 13) // Enable main feedback loop
-		| (r << 9)  // Frequency multiplier R
-		| (l << 5)  // Frequency multiplier L (actually L+1)
-		| (base) 		// Floor frequency base (0-63)
-	));
-	delay(MBUS_DELAY);
+//    mbus_remote_register_write(PMU_ADDR,0x19,
+//		( (0 << 13) // Enable main feedback loop
+//		| (r << 9)  // Frequency multiplier R
+//		| (l << 5)  // Frequency multiplier L (actually L+1)
+//		| (base) 		// Floor frequency base (0-63)
+//	));
+//	delay(MBUS_DELAY);
 
 }
 inline static void pmu_set_clk_init(){
-	pmu_set_active_clk(0xA,0x1,0x10,0x2);
-	pmu_set_sleep_clk(0xF,0x0,0x1,0x1);
+//	pmu_set_active_clk(0xA,0x1,0x10,0x2);
+//	pmu_set_sleep_clk(0xF,0x0,0x1,0x1);
 	// SAR_RATIO_OVERRIDE
 	// Use the new reset scheme in PMUv3
-    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
-		( (0 << 13) // Enables override setting [12] (1'b1)
-		| (0 << 12) // Let VDD_CLK always connected to vbat
-		| (1 << 11) // Enable override setting [10] (1'h0)
-		| (0 << 10) // Have the converter have the periodic reset (1'h0)
-		| (0 << 9) // Enable override setting [8] (1'h0)
-		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
-		| (0 << 7) // Enable override setting [6:0] (1'h0)
-		| (0x45) 		// Binary converter's conversion ratio (7'h00)
-	));
-	delay(MBUS_DELAY);
-	pmu_set_sar_override(0x3C);
-
-	pmu_set_adc_period(1); // 0x100 about 1 min for 1/2/1 1P2 setting
+//    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+//		( (0 << 13) // Enables override setting [12] (1'b1)
+//		| (0 << 12) // Let VDD_CLK always connected to vbat
+//		| (1 << 11) // Enable override setting [10] (1'h0)
+//		| (0 << 10) // Have the converter have the periodic reset (1'h0)
+//		| (0 << 9) // Enable override setting [8] (1'h0)
+//		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+//		| (0 << 7) // Enable override setting [6:0] (1'h0)
+//		| (0x45) 		// Binary converter's conversion ratio (7'h00)
+//	));
+//	delay(MBUS_DELAY);
+//	pmu_set_sar_override(0x3C);
+//
+//	pmu_set_adc_period(1); // 0x100 about 1 min for 1/2/1 1P2 setting
 }
 
 
 inline static void pmu_adc_reset_setting(){
 	// PMU ADC will be automatically reset when system wakes up
 	// PMU_CONTROLLER_DESIRED_STATE Active
-	mbus_remote_register_write(PMU_ADDR,0x3C,
-		((  1 << 0) //state_sar_scn_on
-		| (1 << 1) //state_wait_for_clock_cycles
-		| (1 << 2) //state_wait_for_time
-		| (1 << 3) //state_sar_scn_reset
-		| (1 << 4) //state_sar_scn_stabilized
-		| (1 << 5) //state_sar_scn_ratio_roughly_adjusted
-		| (1 << 6) //state_clock_supply_switched
-		| (1 << 7) //state_control_supply_switched
-		| (1 << 8) //state_upconverter_on
-		| (1 << 9) //state_upconverter_stabilized
-		| (1 << 10) //state_refgen_on
-		| (0 << 11) //state_adc_output_ready
-		| (0 << 12) //state_adc_adjusted
-		| (0 << 13) //state_sar_scn_ratio_adjusted
-		| (1 << 14) //state_downconverter_on
-		| (1 << 15) //state_downconverter_stabilized
-		| (1 << 16) //state_vdd_3p6_turned_on
-		| (1 << 17) //state_vdd_1p2_turned_on
-		| (1 << 18) //state_vdd_0P6_turned_on
-		| (1 << 19) //state_state_horizon
-	));
-	delay(MBUS_DELAY);
+//	mbus_remote_register_write(PMU_ADDR,0x3C,
+//		((  1 << 0) //state_sar_scn_on
+//		| (1 << 1) //state_wait_for_clock_cycles
+//		| (1 << 2) //state_wait_for_time
+//		| (1 << 3) //state_sar_scn_reset
+//		| (1 << 4) //state_sar_scn_stabilized
+//		| (1 << 5) //state_sar_scn_ratio_roughly_adjusted
+//		| (1 << 6) //state_clock_supply_switched
+//		| (1 << 7) //state_control_supply_switched
+//		| (1 << 8) //state_upconverter_on
+//		| (1 << 9) //state_upconverter_stabilized
+//		| (1 << 10) //state_refgen_on
+//		| (0 << 11) //state_adc_output_ready
+//		| (0 << 12) //state_adc_adjusted
+//		| (0 << 13) //state_sar_scn_ratio_adjusted
+//		| (1 << 14) //state_downconverter_on
+//		| (1 << 15) //state_downconverter_stabilized
+//		| (1 << 16) //state_vdd_3p6_turned_on
+//		| (1 << 17) //state_vdd_1p2_turned_on
+//		| (1 << 18) //state_vdd_0P6_turned_on
+//		| (1 << 19) //state_state_horizon
+//	));
+//	delay(MBUS_DELAY);
 }
 
 inline static void pmu_adc_disable(){
 	// PMU ADC will be automatically reset when system wakes up
 	// PMU_CONTROLLER_DESIRED_STATE Sleep
-	mbus_remote_register_write(PMU_ADDR,0x3B,
-		((  1 << 0) //state_sar_scn_on
-		| (1 << 1) //state_wait_for_clock_cycles
-		| (1 << 2) //state_wait_for_time
-		| (1 << 3) //state_sar_scn_reset
-		| (1 << 4) //state_sar_scn_stabilized
-		| (1 << 5) //state_sar_scn_ratio_roughly_adjusted
-		| (1 << 6) //state_clock_supply_switched
-		| (1 << 7) //state_control_supply_switched
-		| (1 << 8) //state_upconverter_on
-		| (1 << 9) //state_upconverter_stabilized
-		| (1 << 10) //state_refgen_on
-		| (0 << 11) //state_adc_output_ready
-		| (0 << 12) //state_adc_adjusted
-		| (0 << 13) //state_sar_scn_ratio_adjusted
-		| (1 << 14) //state_downconverter_on
-		| (1 << 15) //state_downconverter_stabilized
-		| (1 << 16) //state_vdd_3p6_turned_on
-		| (1 << 17) //state_vdd_1p2_turned_on
-		| (1 << 18) //state_vdd_0P6_turned_on
-		| (1 << 19) //state_state_horizon
-	));
-	delay(MBUS_DELAY);
+//	mbus_remote_register_write(PMU_ADDR,0x3B,
+//		((  1 << 0) //state_sar_scn_on
+//		| (1 << 1) //state_wait_for_clock_cycles
+//		| (1 << 2) //state_wait_for_time
+//		| (1 << 3) //state_sar_scn_reset
+//		| (1 << 4) //state_sar_scn_stabilized
+//		| (1 << 5) //state_sar_scn_ratio_roughly_adjusted
+//		| (1 << 6) //state_clock_supply_switched
+//		| (1 << 7) //state_control_supply_switched
+//		| (1 << 8) //state_upconverter_on
+//		| (1 << 9) //state_upconverter_stabilized
+//		| (1 << 10) //state_refgen_on
+//		| (0 << 11) //state_adc_output_ready
+//		| (0 << 12) //state_adc_adjusted
+//		| (0 << 13) //state_sar_scn_ratio_adjusted
+//		| (1 << 14) //state_downconverter_on
+//		| (1 << 15) //state_downconverter_stabilized
+//		| (1 << 16) //state_vdd_3p6_turned_on
+//		| (1 << 17) //state_vdd_1p2_turned_on
+//		| (1 << 18) //state_vdd_0P6_turned_on
+//		| (1 << 19) //state_state_horizon
+//	));
+//	delay(MBUS_DELAY);
 }
 
 inline static void pmu_adc_enable(){
 	// PMU ADC will be automatically reset when system wakes up
 	// PMU_CONTROLLER_DESIRED_STATE Sleep
-	mbus_remote_register_write(PMU_ADDR,0x3B,
-		((  1 << 0) //state_sar_scn_on
-		| (1 << 1) //state_wait_for_clock_cycles
-		| (1 << 2) //state_wait_for_time
-		| (1 << 3) //state_sar_scn_reset
-		| (1 << 4) //state_sar_scn_stabilized
-		| (1 << 5) //state_sar_scn_ratio_roughly_adjusted
-		| (1 << 6) //state_clock_supply_switched
-		| (1 << 7) //state_control_supply_switched
-		| (1 << 8) //state_upconverter_on
-		| (1 << 9) //state_upconverter_stabilized
-		| (1 << 10) //state_refgen_on
-		| (1 << 11) //state_adc_output_ready
-		| (0 << 12) //state_adc_adjusted // Turning off offset cancellation
-		| (1 << 13) //state_sar_scn_ratio_adjusted
-		| (1 << 14) //state_downconverter_on
-		| (1 << 15) //state_downconverter_stabilized
-		| (1 << 16) //state_vdd_3p6_turned_on
-		| (1 << 17) //state_vdd_1p2_turned_on
-		| (1 << 18) //state_vdd_0P6_turned_on
-		| (1 << 19) //state_state_horizon
-	));
-	delay(MBUS_DELAY);
+//	mbus_remote_register_write(PMU_ADDR,0x3B,
+//		((  1 << 0) //state_sar_scn_on
+//		| (1 << 1) //state_wait_for_clock_cycles
+//		| (1 << 2) //state_wait_for_time
+//		| (1 << 3) //state_sar_scn_reset
+//		| (1 << 4) //state_sar_scn_stabilized
+//		| (1 << 5) //state_sar_scn_ratio_roughly_adjusted
+//		| (1 << 6) //state_clock_supply_switched
+//		| (1 << 7) //state_control_supply_switched
+//		| (1 << 8) //state_upconverter_on
+//		| (1 << 9) //state_upconverter_stabilized
+//		| (1 << 10) //state_refgen_on
+//		| (1 << 11) //state_adc_output_ready
+//		| (0 << 12) //state_adc_adjusted // Turning off offset cancellation
+//		| (1 << 13) //state_sar_scn_ratio_adjusted
+//		| (1 << 14) //state_downconverter_on
+//		| (1 << 15) //state_downconverter_stabilized
+//		| (1 << 16) //state_vdd_3p6_turned_on
+//		| (1 << 17) //state_vdd_1p2_turned_on
+//		| (1 << 18) //state_vdd_0P6_turned_on
+//		| (1 << 19) //state_state_horizon
+//	));
+//	delay(MBUS_DELAY);
 }
 
 
 inline static void pmu_adc_read_latest(){
 	// Grab latest PMU ADC readings
 	// PMU register read is handled differently
-	mbus_remote_register_write(PMU_ADDR,0x00,0x03);
-	delay(MBUS_DELAY);
+//	mbus_remote_register_write(PMU_ADDR,0x00,0x03);
+//	delay(MBUS_DELAY);
 	read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
 
 }
 
 inline static void pmu_reset_solar_short(){
-    mbus_remote_register_write(PMU_ADDR,0x0E, 
-		( (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
-		| (1 << 9)  // Enables override setting [8]
-		| (0 << 8)  // Turn on the harvester-inhibiting switch
-		| (1 << 4)  // clamp_tune_bottom (increases clamp thresh)
-		| (0) 		// clamp_tune_top (decreases clamp thresh)
-	));
-	delay(MBUS_DELAY);
-    mbus_remote_register_write(PMU_ADDR,0x0E, 
-		( (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
-		| (0 << 9)  // Enables override setting [8]
-		| (0 << 8)  // Turn on the harvester-inhibiting switch
-		| (1 << 4)  // clamp_tune_bottom (increases clamp thresh)
-		| (0) 		// clamp_tune_top (decreases clamp thresh)
-	));
-	delay(MBUS_DELAY);
+//    mbus_remote_register_write(PMU_ADDR,0x0E, 
+//		( (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
+//		| (1 << 9)  // Enables override setting [8]
+//		| (0 << 8)  // Turn on the harvester-inhibiting switch
+//		| (1 << 4)  // clamp_tune_bottom (increases clamp thresh)
+//		| (0) 		// clamp_tune_top (decreases clamp thresh)
+//	));
+//	delay(MBUS_DELAY);
+//    mbus_remote_register_write(PMU_ADDR,0x0E, 
+//		( (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
+//		| (0 << 9)  // Enables override setting [8]
+//		| (0 << 8)  // Turn on the harvester-inhibiting switch
+//		| (1 << 4)  // clamp_tune_bottom (increases clamp thresh)
+//		| (0) 		// clamp_tune_top (decreases clamp thresh)
+//	));
+//	delay(MBUS_DELAY);
 }
 
 //***************************************************
@@ -936,41 +933,41 @@ static void radio_power_on(){
 
 	// Set decap to series
 	mrrv7_r03.MRR_DCP_P_OW = 0;  //RX_Decap P 
-	mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
+//	mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
 	mrrv7_r03.MRR_DCP_S_OW = 1;  //TX_Decap S (forced charge decaps)
-	mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
+//	mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
 
 	// Current Limter set-up 
 	mrrv7_r00.MRR_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
-	mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+//	mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
     radio_on = 1;
 
     // Turn on Current Limter
     mrrv7_r00.MRR_CL_EN = 1;  //Enable CL
-    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+//    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
     // Release timer power-gate
     mrrv7_r04.RO_EN_RO_V1P2 = 1;  //Use V1P2 for TIMER
-    mbus_remote_register_write(MRR_ADDR,0x04,mrrv7_r04.as_int);
-    delay(MBUS_DELAY*10);
+//    mbus_remote_register_write(MRR_ADDR,0x04,mrrv7_r04.as_int);
+//    delay(MBUS_DELAY*10);
 
 	// Turn on timer
     mrrv7_r04.RO_RESET = 0;  //Release Reset TIMER
-    mbus_remote_register_write(MRR_ADDR,0x04,mrrv7_r04.as_int);
-    delay(MBUS_DELAY*10);
+//    mbus_remote_register_write(MRR_ADDR,0x04,mrrv7_r04.as_int);
+//    delay(MBUS_DELAY*10);
 
     mrrv7_r04.RO_EN_CLK = 1; //Enable CLK TIMER
-    mbus_remote_register_write(MRR_ADDR,0x04,mrrv7_r04.as_int);
-    delay(MBUS_DELAY*10);
+//    mbus_remote_register_write(MRR_ADDR,0x04,mrrv7_r04.as_int);
+//    delay(MBUS_DELAY*10);
 
     mrrv7_r04.RO_ISOLATE_CLK = 0; //Set Isolate CLK to 0 TIMER
-    mbus_remote_register_write(MRR_ADDR,0x04,mrrv7_r04.as_int);
+//    mbus_remote_register_write(MRR_ADDR,0x04,mrrv7_r04.as_int);
 
     // Release FSM Sleep
     mrrv7_r11.MRR_RAD_FSM_SLEEP = 0;  // Power on BB
-    mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
-	delay(MBUS_DELAY*50); // Freq stab
+//    mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
+//	delay(MBUS_DELAY*50); // Freq stab
 
 }
 
@@ -982,36 +979,36 @@ static void radio_power_off(){
 
 	// Current Limter set-up 
 	mrrv7_r00.MRR_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
-	mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+//	mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
     // Turn off everything
     mrrv7_r03.MRR_TRX_ISOLATEN = 0;     //set ISOLATEN 0
-    mbus_remote_register_write(MRR_ADDR,0x03,mrrv7_r03.as_int);
+//    mbus_remote_register_write(MRR_ADDR,0x03,mrrv7_r03.as_int);
 
     mrrv7_r11.MRR_RAD_FSM_EN = 0;  //Stop BB
     mrrv7_r11.MRR_RAD_FSM_RSTN = 0;  //RST BB
     mrrv7_r11.MRR_RAD_FSM_SLEEP = 1;
-    mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
+//    mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
 
     // Turn off Current Limter
     mrrv7_r00.MRR_CL_EN = 0;  //Enable CL
-    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+//    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
     mrrv7_r04.RO_RESET = 1;  //Release Reset TIMER
     mrrv7_r04.RO_EN_CLK = 0; //Enable CLK TIMER
     mrrv7_r04.RO_ISOLATE_CLK = 1; //Set Isolate CLK to 0 TIMER
-    mbus_remote_register_write(MRR_ADDR,0x04,mrrv7_r04.as_int);
+//    mbus_remote_register_write(MRR_ADDR,0x04,mrrv7_r04.as_int);
 
     // Enable timer power-gate
     mrrv7_r04.RO_EN_RO_V1P2 = 0;  //Use V1P2 for TIMER
-    mbus_remote_register_write(MRR_ADDR,0x04,mrrv7_r04.as_int);
+//    mbus_remote_register_write(MRR_ADDR,0x04,mrrv7_r04.as_int);
 
 	// Set decap to parallel
 	if (mrr_set_decap_parallel){
 		mrrv7_r03.MRR_DCP_S_OW = 0;  //TX_Decap S (forced charge decaps)
-		mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
+//		mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
 		mrrv7_r03.MRR_DCP_P_OW = 1;  //RX_Decap P 
-		mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
+//		mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
 	}
 
     radio_on = 0;
@@ -1025,8 +1022,8 @@ static void mrr_configure_pulse_width_long(){
     mrrv7_r13.MRR_RAD_FSM_TX_C_LEN = 100; // (PW_LEN+1):C_LEN=1:32
     mrrv7_r12.MRR_RAD_FSM_TX_PS_LEN = 49; // PW=PS   
 
-    mbus_remote_register_write(MRR_ADDR,0x12,mrrv7_r12.as_int);
-    mbus_remote_register_write(MRR_ADDR,0x13,mrrv7_r13.as_int);
+//    mbus_remote_register_write(MRR_ADDR,0x12,mrrv7_r12.as_int);
+//    mbus_remote_register_write(MRR_ADDR,0x13,mrrv7_r13.as_int);
 }
 
 /*
@@ -1070,14 +1067,14 @@ static void send_radio_data_mrr_sub1(){
 
     // Turn on Current Limter
     mrrv7_r00.MRR_CL_EN = 1;
-    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+//    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
     // Fire off data
 	mrrv7_r11.MRR_RAD_FSM_EN = 1;  //Start BB
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
+//	mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
 
 	// Wait for radio response
-	WFI();
+//	WFI();
 
 	// Turn off Timer32
 	*TIMER32_GO = 0;
@@ -1088,10 +1085,10 @@ static void send_radio_data_mrr_sub1(){
 
     // Turn off Current Limter
     mrrv7_r00.MRR_CL_EN = 0;
-    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+//    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
 	mrrv7_r11.MRR_RAD_FSM_EN = 0;
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
+//	mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
 }
 
 static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefix, uint16_t radio_data_2, uint32_t radio_data_1, uint32_t radio_data_0){
@@ -1109,26 +1106,26 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
     uint32_t* output_data;
     output_data = crcEnc16(((radio_packet_count & 0xFF)<<8) | radio_packet_prefix, (radio_data_2 <<16) | ((radio_data_1 & 0xFFFFFF) >>8), (radio_data_1 << 24) | (radio_data_0 & 0xFFFFFF));
 
-    mbus_remote_register_write(MRR_ADDR,0xD,radio_data_0);
-    mbus_remote_register_write(MRR_ADDR,0xE,radio_data_1);
-    mbus_remote_register_write(MRR_ADDR,0xF,(radio_packet_prefix<<16)|radio_data_2);
-    mbus_remote_register_write(MRR_ADDR,0x10,(radio_packet_count&0xFF)|((output_data[2] & 0xFFFF)/*CRC16*/<<8));
+//    mbus_remote_register_write(MRR_ADDR,0xD,radio_data_0);
+//    mbus_remote_register_write(MRR_ADDR,0xE,radio_data_1);
+//    mbus_remote_register_write(MRR_ADDR,0xF,(radio_packet_prefix<<16)|radio_data_2);
+//    mbus_remote_register_write(MRR_ADDR,0x10,(radio_packet_count&0xFF)|((output_data[2] & 0xFFFF)/*CRC16*/<<8));
 
     if (!radio_ready){
 		radio_ready = 1;
 
 		// Release FSM Reset
 		mrrv7_r11.MRR_RAD_FSM_RSTN = 1;  //UNRST BB
-		mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
-		delay(MBUS_DELAY*10);
+//		mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
+//		delay(MBUS_DELAY*10);
 
     	mrrv7_r03.MRR_TRX_ISOLATEN = 1;     //set ISOLATEN 1, let state machine control
-    	mbus_remote_register_write(MRR_ADDR,0x03,mrrv7_r03.as_int);
-		delay(MBUS_DELAY*10);
+//    	mbus_remote_register_write(MRR_ADDR,0x03,mrrv7_r03.as_int);
+//		delay(MBUS_DELAY*10);
 
 		// Current Limter set-up 
 		mrrv7_r00.MRR_CL_CTRL = 2; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
-		mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+//		mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
     }
 
@@ -1147,10 +1144,10 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
 
 		mrrv7_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine; 
 		mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine;
-		mbus_remote_register_write(MRR_ADDR,0x01,mrrv7_r01.as_int);
+//		mbus_remote_register_write(MRR_ADDR,0x01,mrrv7_r01.as_int);
 		send_radio_data_mrr_sub1();
 		if (count < num_packets){
-			delay(RADIO_PACKET_DELAY);
+//			delay(RADIO_PACKET_DELAY);
 		}
 		count++;
 		mrr_cfo_val_fine = mrr_cfo_val_fine + mrr_freq_hopping_step; // 1: 0.8MHz, 2: 1.6MHz step
@@ -1163,7 +1160,7 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
 		radio_power_off();
 	}else{
 		mrrv7_r11.MRR_RAD_FSM_EN = 0;
-		mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
+//		mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
 	}
 }
 //***************************************************
@@ -1172,48 +1169,48 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
 
 static void temp_sensor_start(){
 	snsv10_r01.TSNS_RESETn = 1;
-	mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
+//	mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
 }
 static void temp_sensor_reset(){
 	snsv10_r01.TSNS_RESETn = 0;
-	mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
+//	mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
 }
 static void temp_sensor_power_on(){
 	// Turn on digital block
 	snsv10_r01.TSNS_SEL_LDO = 1;
-	mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
+//	mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
 	// Turn on analog block
 	snsv10_r01.TSNS_EN_SENSOR_LDO = 1;
-	mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
+//	mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
 
-	delay(MBUS_DELAY);
+//	delay(MBUS_DELAY);
 
 	// Release isolation
 	snsv10_r01.TSNS_ISOLATE = 0;
-	mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
+//	mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
 }
 static void temp_sensor_power_off(){
 	snsv10_r01.TSNS_RESETn = 0;
 	snsv10_r01.TSNS_SEL_LDO = 0;
 	snsv10_r01.TSNS_EN_SENSOR_LDO = 0;
 	snsv10_r01.TSNS_ISOLATE = 1;
-	mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
+//	mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
 }
 static void sns_ldo_vref_on(){
 	snsv10_r00.LDO_EN_VREF 	= 1;
-	mbus_remote_register_write(SNS_ADDR,0,snsv10_r00.as_int);
+//	mbus_remote_register_write(SNS_ADDR,0,snsv10_r00.as_int);
 }
 
 static void sns_ldo_power_on(){
 	snsv10_r00.LDO_EN_IREF 	= 1;
 	snsv10_r00.LDO_EN_TSNS_OUT	= 1;
-	mbus_remote_register_write(SNS_ADDR,0,snsv10_r00.as_int);
+//	mbus_remote_register_write(SNS_ADDR,0,snsv10_r00.as_int);
 }
 static void sns_ldo_power_off(){
 	snsv10_r00.LDO_EN_VREF 	= 0;
 	snsv10_r00.LDO_EN_IREF 	= 0;
 	snsv10_r00.LDO_EN_TSNS_OUT	= 0;
-	mbus_remote_register_write(SNS_ADDR,0,snsv10_r00.as_int);
+//	mbus_remote_register_write(SNS_ADDR,0,snsv10_r00.as_int);
 }
 
 
@@ -1366,14 +1363,14 @@ static void operation_init(void){
 //    set_halt_until_mbus_rx();
 
     //Enumeration
-    mbus_enumerate(HRV_ADDR);
-	delay(MBUS_DELAY);
-    mbus_enumerate(SNS_ADDR);
-	delay(MBUS_DELAY);
-    mbus_enumerate(MRR_ADDR);
-	delay(MBUS_DELAY);
- 	mbus_enumerate(PMU_ADDR);
-	delay(MBUS_DELAY);
+//    mbus_enumerate(HRV_ADDR);
+//	delay(MBUS_DELAY);
+//    mbus_enumerate(SNS_ADDR);
+//	delay(MBUS_DELAY);
+//    mbus_enumerate(MRR_ADDR);
+//	delay(MBUS_DELAY);
+// 	mbus_enumerate(PMU_ADDR);
+//	delay(MBUS_DELAY);
 
     // Set CPU Halt Option as TX --> Use for register write e.g.
 	//    set_halt_until_mbus_tx();
@@ -1384,13 +1381,13 @@ static void operation_init(void){
 
 	// Disable PMU ADC measurement in active mode
 	// PMU_CONTROLLER_STALL_ACTIVE
-    mbus_remote_register_write(PMU_ADDR,0x3A, 
-		( (1 << 19) // ignore state_horizon; default 1
-		| (1 << 13) // ignore adc_output_ready; default 0
-		| (1 << 12) // ignore adc_output_ready; default 0
-		| (1 << 11) // ignore adc_output_ready; default 0
-	));
-    delay(MBUS_DELAY);
+//    mbus_remote_register_write(PMU_ADDR,0x3A, 
+//		( (1 << 19) // ignore state_horizon; default 1
+//		| (1 << 13) // ignore adc_output_ready; default 0
+//		| (1 << 12) // ignore adc_output_ready; default 0
+//		| (1 << 11) // ignore adc_output_ready; default 0
+//	));
+//    delay(MBUS_DELAY);
 	pmu_adc_reset_setting();
 	delay(MBUS_DELAY);
 	pmu_adc_enable();
@@ -1403,19 +1400,19 @@ static void operation_init(void){
     snsv10_r01.TSNS_EN_IRQ = 1;
     snsv10_r01.TSNS_BURST_MODE = 0;
     snsv10_r01.TSNS_CONT_MODE = 0;
-    mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
+//    mbus_remote_register_write(SNS_ADDR,1,snsv10_r01.as_int);
 
 	// Set temp sensor conversion time
 	snsv10_r03.TSNS_SEL_STB_TIME = 0x1; 
 	snsv10_r03.TSNS_SEL_CONV_TIME = 0x6; // Default: 0x6
-	mbus_remote_register_write(SNS_ADDR,0x03,snsv10_r03.as_int);
+//	mbus_remote_register_write(SNS_ADDR,0x03,snsv10_r03.as_int);
 
     // MRR Settings --------------------------------------
 
 	mrr_set_decap_parallel = 0xF;
 	mrrv7_r1F.LC_CLK_RING = 0x3;  // ~ 150 kHz
 	mrrv7_r1F.LC_CLK_DIV = 0x3;  // ~ 150 kHz
-	mbus_remote_register_write(MRR_ADDR,0x1F,mrrv7_r1F.as_int);
+//	mbus_remote_register_write(MRR_ADDR,0x1F,mrrv7_r1F.as_int);
 
 	//mrr_configure_pulse_width_short();
 	mrr_configure_pulse_width_long();
@@ -1427,25 +1424,25 @@ static void operation_init(void){
 
 	// RO setup (SFO)
 	// Adjust Diffusion R
-	mbus_remote_register_write(MRR_ADDR,0x06,0x1000); // RO_PDIFF
+//	mbus_remote_register_write(MRR_ADDR,0x06,0x1000); // RO_PDIFF
 
 	// Adjust Poly R
-	mbus_remote_register_write(MRR_ADDR,0x08,0x400000); // RO_POLY
+//	mbus_remote_register_write(MRR_ADDR,0x08,0x400000); // RO_POLY
 
 	// Adjust C
 	mrrv7_r07.RO_MOM = 0x10;
 	mrrv7_r07.RO_MIM = 0x10;
-	mbus_remote_register_write(MRR_ADDR,0x07,mrrv7_r07.as_int);
+//	mbus_remote_register_write(MRR_ADDR,0x07,mrrv7_r07.as_int);
 
 	// TX Setup Carrier Freq
 	mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x1F;  //ANT CAP 10b unary 830.5 MHz
-	mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+//	mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 	mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0x1F; //ANT CAP 10b unary 830.5 MHz
 	mrrv7_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min;  //ANT CAP 14b unary 830.5 MHz
 	mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min; //ANT CAP 14b unary 830.5 MHz
-	mbus_remote_register_write(MRR_ADDR,0x01,mrrv7_r01.as_int);
+//	mbus_remote_register_write(MRR_ADDR,0x01,mrrv7_r01.as_int);
 	mrrv7_r02.MRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
-	mbus_remote_register_write(MRR_ADDR,0x02,mrrv7_r02.as_int);
+//	mbus_remote_register_write(MRR_ADDR,0x02,mrrv7_r02.as_int);
 
 	// Turn off RX mode
     mrrv7_r03.MRR_TRX_MODE_EN = 0; //Set TRX mode
@@ -1462,39 +1459,39 @@ static void operation_init(void){
     mrrv7_r03.MRR_RX_BIAS_TUNE    = 0x02AF;//  turn on Q_enhancement
 	//mrrv7_r03.MRR_RX_BIAS_TUNE    = 0x0001;//  turn off Q_enhancement
 	mrrv7_r03.MRR_RX_SAMPLE_CAP    = 0x1;  // RX_SAMPLE_CAP
-	mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
+//	mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
 
 	mrrv7_r14.MRR_RAD_FSM_RX_POWERON_LEN = 0x0;  //Set RX Power on length
 	//mrrv7_r14.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x3;  //Set RX Sample length  16us
 	mrrv7_r14.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x0;  //Set RX Sample length  4us
 	mrrv7_r14.MRR_RAD_FSM_GUARD_LEN = 0x000F; //Set TX_RX Guard length, TX_RX guard 32 cycle (28+5)
-	mbus_remote_register_write(MRR_ADDR,0x14,mrrv7_r14.as_int);
+//	mbus_remote_register_write(MRR_ADDR,0x14,mrrv7_r14.as_int);
 
     mrrv7_r14.MRR_RAD_FSM_TX_POWERON_LEN = 2; //3bits
 	mrrv7_r15.MRR_RAD_FSM_RX_HDR_BITS = 0x00;  //Set RX header
 	mrrv7_r15.MRR_RAD_FSM_RX_HDR_TH = 0x00;    //Set RX header threshold
 	mrrv7_r15.MRR_RAD_FSM_RX_DATA_BITS = 0x00; //Set RX data 1b
-	mbus_remote_register_write(MRR_ADDR,0x15,mrrv7_r15.as_int);
+//	mbus_remote_register_write(MRR_ADDR,0x15,mrrv7_r15.as_int);
 
 	// RAD_FSM set-up 
 	// Using first 48 bits of data as header
-	mbus_remote_register_write(MRR_ADDR,0x09,0x0);
-	mbus_remote_register_write(MRR_ADDR,0x0A,0x0);
-	mbus_remote_register_write(MRR_ADDR,0x0B,0x0);
-	mbus_remote_register_write(MRR_ADDR,0x0C,0x7AC800);
+//	mbus_remote_register_write(MRR_ADDR,0x09,0x0);
+//	mbus_remote_register_write(MRR_ADDR,0x0A,0x0);
+//	mbus_remote_register_write(MRR_ADDR,0x0B,0x0);
+//	mbus_remote_register_write(MRR_ADDR,0x0C,0x7AC800);
 	mrrv7_r11.MRR_RAD_FSM_TX_H_LEN = 0; //31-31b header (max)
 	mrrv7_r11.MRR_RAD_FSM_TX_D_LEN = RADIO_DATA_LENGTH; //0-skip tx data
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
+//	mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
 
 	mrrv7_r13.MRR_RAD_FSM_TX_MODE = 3; //code rate 0:4 1:3 2:2 3:1(baseline) 4:1/2 5:1/3 6:1/4
-	mbus_remote_register_write(MRR_ADDR,0x13,mrrv7_r13.as_int);
+//	mbus_remote_register_write(MRR_ADDR,0x13,mrrv7_r13.as_int);
 
 	// Mbus return address
-	mbus_remote_register_write(MRR_ADDR,0x1E,0x1002);
+//	mbus_remote_register_write(MRR_ADDR,0x1E,0x1002);
 
 
 	// HRV
-	mbus_remote_register_write(HRV_ADDR,0x00,7); // HRV_TOP_CONV_RATIO(0~15 >> 9x~23x); default: 14
+//	mbus_remote_register_write(HRV_ADDR,0x00,7); // HRV_TOP_CONV_RATIO(0~15 >> 9x~23x); default: 14
 
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 33750;   // 1: 2-4 sec with PRCv9
@@ -1577,7 +1574,8 @@ static void operation_sns_run(void){
 		temp_sensor_start();
 
 		// Wait for temp sensor output
-		WFI();
+		//WFI();
+        delay(MBUS_DELAY);
 
 		// Turn off Timer32
 		*TIMER32_GO = 0;
@@ -1592,7 +1590,7 @@ static void operation_sns_run(void){
 		}else{
 			// Read register
 			set_halt_until_mbus_rx();
-			mbus_remote_register_read(SNS_ADDR,0x6,1);
+//			mbus_remote_register_read(SNS_ADDR,0x6,1);
 			read_data_temp = *REG1;
 			set_halt_until_mbus_tx();
 			temp_storage_latest = read_data_temp;
@@ -1711,6 +1709,7 @@ static void operation_sns_run(void){
 			if (radio_on){
 				radio_power_off();
 			}
+
 	
 			set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
 
@@ -1858,7 +1857,7 @@ int main(){
 		if (exec_count_irq == 0){
 			// Read PMU register 5
 			// PMU register read is handled differently
-			mbus_remote_register_write(PMU_ADDR,0x00,0x05);
+//			mbus_remote_register_write(PMU_ADDR,0x00,0x05);
 			delay(MBUS_DELAY);
 			delay(MBUS_DELAY);
 			pmu_sar_conv_ratio_val = *((volatile uint32_t *) REG0) & 0x7F;
@@ -1906,9 +1905,9 @@ int main(){
 		mrr_cfo_val_fine_min = (wakeup_data >> 10) & 0x3F; // 6 bit
 	
 		mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = wakeup_data & 0x3FF; // 10 bit coarse setting 
-		mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+//		mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 		mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = wakeup_data & 0x3FF; // 10 bit coarse setting
-		mbus_remote_register_write(MRR_ADDR,0x01,mrrv7_r01.as_int);
+//		mbus_remote_register_write(MRR_ADDR,0x01,mrrv7_r01.as_int);
 
 		// Go to sleep without timer
 		operation_sleep_notimer();
@@ -1917,7 +1916,7 @@ int main(){
 		// Change the baseband frequency of MRR (SFO)
 		mrrv7_r07.RO_MOM = wakeup_data & 0x3F;
 		mrrv7_r07.RO_MIM = wakeup_data & 0x3F;
-		mbus_remote_register_write(MRR_ADDR,0x07,mrrv7_r07.as_int);
+//		mbus_remote_register_write(MRR_ADDR,0x07,mrrv7_r07.as_int);
 		
 		// Go to sleep without timer
 		operation_sleep_notimer();
@@ -2051,14 +2050,3 @@ int main(){
 }
 
 
-//
-//  Try 1   : Added freeze_gpio_out & freeze_spi_out in:
-//                  operation_sleep, operation_sleep_noirqreset, opeartion_sleep_notimer
-//  Try 2   : Revoke Try 1
-//              Added gpio_set_dir(GPIO_DIR_ALL_OUT) before freeze_gpio_out() (2 places)
-//  Try 3   : Revoke Try 2
-//              Added debug_reset_peripheral in sleep functions.
-//  Try 4   : Modified debug_reset_peripheral to have
-//                  gpio_set_dir(0xFB);
-//                  gpio_write_data(0xFF);
-//  Try 5   : ADXL_INT is always input

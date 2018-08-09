@@ -1,3 +1,31 @@
+freeze_gpio_out() in:
+    ADXL362_stop()
+    operation_spi_stop()
+        this is used in:
+            ADXL362_enable()
+            ADXL362_stop()
+            operation_sns_run() only if adxl_enabled=1
+
+unfreeze_gpio_out() in:
+    ADXL362_stop()
+    operation_spi_init()
+    operation_i2c_start()
+
+
+gpio_set_dir_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+    operation_i2c_start() in sht35_meas_data()
+    operation_i2c_addr()
+    operation_i2c_cmd()
+    operation_i2c_rd()
+
+In mbus_isolation,
+    GPIO_I1O0 becomes 0 when isolated by LRC_ISOLATE
+    => Default = output
+    GPIO_OUT becomes 0 when isolated by LRC_ISOLATE
+    => Default = 0
+
+
+
 <Both>
 wakeup_data_header == 0x32,
 wakeup_data[21] = 1 // SHT35
@@ -10,12 +38,88 @@ wakeup_data_header = 0x33
 
 -> sleep current = ~180nA
 
-<SHT Only>
-wakeup_data_header == 0x32,
-wakeup_data[21] = 1 // SHT35
-wakeup_data[20] = 0 // ADXL
 
--> sleep current = ~30nA
+<SHT Only>
+    wakeup_data_header == 0x32,
+    wakeup_data[21] = 1 // SHT35
+    wakeup_data[20] = 0 // ADXL
+    
+    
+    SDA=0, SCL=0, at then end of operation_i2c_addr(0x44,0x1);
+    Then, SDA becomes input in "operation_i2c_rd(0x0); // CRC"
+    
+    SCL=1 in operation_i2c_stop()
+    
+    But, there is no freeze_gpio_out(), 
+    so SDA=SCL=0, and SDA=SCL=output in sleep
+    
+    Result:
+        ADXL never enabled
+        SDA (output) = 0
+        SCL (output) = 0
+        sleep current = ~30nA
+
+
+<ADXL Only>
+    wakeup_data_header == 0x32,
+    wakeup_data[21] = 0 // SHT35
+    wakeup_data[20] = 1 // ADXL
+    
+    Result:
+        SHT never enabled
+        EN (output) = 1
+        INT (input)
+        sleep current = ~280nA
+
+
+<Both>
+    wakeup_data_header == 0x32,
+    wakeup_data[21] = 1 // SHT35
+    wakeup_data[20] = 1 // ADXL
+
+    WARNING: Use of *GPIO_DATA returns 0 whenever the pad is set to "output".
+            So gpio_write_data_with_mask(adxl_mask, *) sets SCL=SDA=0.
+            So gpio_write_data_with_mask(sht35_mask, *) sets ADXL_EN=0.
+
+    This causes SCL set to 0 in operation_spi_init() before going into sleep.
+
+    SDA becomes input in "operation_i2c_rd(0x0); // CRC" and never changes after that.
+
+    Result:
+        EN (output) = 1
+        INT (input)
+        SDA (input)
+        SCL (output) = 0
+        sleep current = ~280nA
+
+<Both -> Stop>
+    wakeup_data_header == 0x33,
+
+    Goes through ADXL362_power_off() -> ADXL362_stop()
+        Use of *GPIO_DIR in gpio_set_dir_with_mask(adxl_mask, *) sets SHT directions to input,
+        because SHT directions have never set in this wakeup session.
+
+    Result:
+        EN (output) = 0 
+        INT (output) = 0
+        SDA (input)
+        SCL (input)
+        sleep current = ~180nA
+
+
+<Both -> Stop -> SHT Only>
+    wakeup_data_header == 0x32,
+    wakeup_data[21] = 1 // SHT35
+    wakeup_data[20] = 0 // ADXL
+    
+    Result:
+        EN (output) = 0 
+        INT (output) = 0
+        SDA (output) = 0
+        SCL (output) = 0
+        sleep current = ~30nA
+
+
 
 
 1780:   int main(){
@@ -113,12 +217,3 @@ wakeup_data[20] = 0 // ADXL
 1234:           mbus_sleep_all();
 2940    operation_sns_run(); (?)
 2044    operation_sleep_notimer();
-
-
-< STOP >
-1976:}else if(wakeup_data_header == 0x33){
-
-1982:   operation_sns_sleep_check();
-1989:   ADXL362_power_off();
-1993:   radio_power_on();
-1995:   operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xC1, exec_count_irq, exec_count); 
