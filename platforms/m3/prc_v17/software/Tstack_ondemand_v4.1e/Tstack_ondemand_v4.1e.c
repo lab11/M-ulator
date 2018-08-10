@@ -1740,15 +1740,15 @@ int main() {
 			// Make sure the battery capacity is enough for transmission
 			// FIXME
 			if (temp_storage_count > 4000){
-				if (read_data_batadc_diff > 0x1){ // 0x4D okay
+				if (read_data_batadc_diff > 3){ // 0x4D okay
 					not_enough_batt = 1;
 				}
 			}else if (temp_storage_count > 2000){ // 0x4E okay
-				if (read_data_batadc_diff > 0x2){
+				if (read_data_batadc_diff > 4){
 					not_enough_batt = 1;
 				}
 			}else{
-				if (read_data_batadc_diff > 0x3){ // 0x4F okay
+				if (read_data_batadc_diff > 5){ // 0x4F okay
 					not_enough_batt = 1;
 				}
 			}
