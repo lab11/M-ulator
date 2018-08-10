@@ -1422,7 +1422,7 @@ static void operation_temp_run(void){
 			#ifdef DEBUG_MBUS_MSG_1
 			mbus_write_message32(0xCC, exec_count);
 			#endif
-			mbus_write_message32(0xC0, temp_storage_latest);
+			mbus_write_message32(0xC0, (exec_count << 16) | temp_storage_latest);
 
 
 			if (temp_storage_debug){
@@ -1831,7 +1831,7 @@ int main() {
 		// Go to sleep without timer
 		operation_sleep_notimer();
 
-    }else if(wakeup_data_header == 0x1C){
+    }else if(wakeup_data_header == 0x1D){
 		PMU_85C_threshold_sns = wakeup_data & 0xFFFFFF; // Around 85C
 		// Go to sleep without timer
 		operation_sleep_notimer();
