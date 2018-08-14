@@ -856,7 +856,7 @@ static void send_radio_data_srr_sub1(){
 	mbus_remote_register_write(SRR_ADDR,0x11,srrv4_r11.as_int);
 }
 
-static void send_radio_data_srr(uint32_t last_packet, uint8_t radio_packet_prefix, uint16_t radio_data_2, uint32_t radio_data_1, uint32_t radio_data_0){
+static void send_radio_data_srr(uint32_t last_packet, uint8_t radio_packet_prefix, uint16_t radio_data_2, uint32_t radio_data_1, uint32_t radio_data_0, uint8_t num_tx_duplicate){
 	// Sends 168 bit packet, of which 96b is actual data
 	// MRR REG_9: reserved for header
 	// MRR REG_A: reserved for header
@@ -890,8 +890,13 @@ static void send_radio_data_srr(uint32_t last_packet, uint8_t radio_packet_prefi
 		delay(MBUS_DELAY);
 
     }
+	uint8_t ii = 0;
 
-	send_radio_data_srr_sub1();
+	while (ii<=num_tx_duplicate){
+		send_radio_data_srr_sub1();
+		delay(RADIO_PACKET_DELAY);
+		ii++;
+	}
 
 	radio_packet_count++;
 
@@ -1000,19 +1005,11 @@ static void operation_tx_stored(uint8_t num_duplicate_packets){
 		mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*)((radio_tx_count>>1)<<2), 0x01, (uint32_t*)&mem_read_data, 1);
 		set_halt_until_mbus_tx();
 	
-		uint8_t ii = 0;
-
-		while(ii<=num_duplicate_packets){	
-			send_radio_data_srr(0,0xDD,mem_read_data[1]>>16,((mem_read_data[1]&0xFFFF)<<8) | (mem_read_data[0]>>24),mem_read_data[0]&0xFFFFFF);
-			delay(RADIO_PACKET_DELAY); //Set delays between sending subsequent packet
-			ii++;
-		}
+		send_radio_data_srr(0,0xDD,mem_read_data[1]>>16,((mem_read_data[1]&0xFFFF)<<8) | (mem_read_data[0]>>24),mem_read_data[0]&0xFFFFFF,num_duplicate_packets);
 		radio_tx_count = radio_tx_count + 4;
     }
 
-	send_radio_data_srr(0,0xD3,*REG_CHIP_ID,(0xBB00|read_data_batadc_diff)<<8,temp_storage_count);	
-	delay(RADIO_PACKET_DELAY*2); //Set delays between sending subsequent packet
-	send_radio_data_srr(1,0xD3,*REG_CHIP_ID,(0xBB00|read_data_batadc_diff)<<8,temp_storage_count);	
+	send_radio_data_srr(1,0xD3,*REG_CHIP_ID,(0xBB00|read_data_batadc_diff)<<8,temp_storage_count,1);	
 	// This is also the end of this IRQ routine
 	exec_count_irq = 0;
 
@@ -1459,7 +1456,7 @@ static void operation_temp_run(void){
 
 			// Optionally transmit the data
 			if (radio_tx_option | (exec_count < TEMP_CYCLE_INIT)){
-				send_radio_data_srr(1,0xC0,*REG_CHIP_ID,((0xBB00|read_data_batadc_diff)<<8)|exec_count,temp_storage_latest);
+				send_radio_data_srr(1,0xC0,*REG_CHIP_ID,((0xBB00|read_data_batadc_diff)<<8)|exec_count,temp_storage_latest,0);
 			}
 
 			exec_count++;
@@ -1533,7 +1530,7 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
 	if (exec_count_irq < radio_tx_num){
 		exec_count_irq++;
 		// radio
-		send_radio_data_srr(1,radio_tx_prefix,*REG_CHIP_ID,((0xBB00|read_data_batadc_diff)<<8)|radio_tx_data1,radio_tx_data0);	
+		send_radio_data_srr(1,radio_tx_prefix,*REG_CHIP_ID,((0xBB00|read_data_batadc_diff)<<8)|radio_tx_data1,radio_tx_data0,1);	
 		// set timer
 		set_wakeup_timer (wakeup_timer_val, 0x1, 0x1);
 		// go to sleep and wake up with same condition
@@ -1541,7 +1538,7 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
 
 	}else{
 		// radio
-		send_radio_data_srr(1,radio_tx_prefix,*REG_CHIP_ID,((0xBB00|read_data_batadc_diff)<<8)|radio_tx_data1,radio_tx_data0);	
+		send_radio_data_srr(1,radio_tx_prefix,*REG_CHIP_ID,((0xBB00|read_data_batadc_diff)<<8)|radio_tx_data1,radio_tx_data0,1);	
 		// Go to sleep without timer
 		operation_sleep_notimer();
 	}
@@ -1559,7 +1556,7 @@ static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t 
 		exec_count_irq = 0;
 		sntv1_r0A.TMR_DIFF_CON = 0x3FFB; // Default: 0x3FFB
 		// radio
-		send_radio_data_srr(1,0xB0,*REG_CHIP_ID,sntv1_r0A.TMR_DIFF_CON,exec_count_irq);	
+		send_radio_data_srr(1,0xB0,*REG_CHIP_ID,sntv1_r0A.TMR_DIFF_CON,exec_count_irq,0);	
 		// Go to sleep without timer
 		operation_sleep_notimer();
 	}else{
@@ -1601,7 +1598,7 @@ static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t 
 			operation_sleep_noirqreset();
 		}else{
 			// radio
-			send_radio_data_srr(1,0xB0,*REG_CHIP_ID,sntv1_r0A.TMR_DIFF_CON, exec_count_irq);
+			send_radio_data_srr(1,0xB0,*REG_CHIP_ID,sntv1_r0A.TMR_DIFF_CON, exec_count_irq,0);
 			snt_set_wup_timer(WAKEUP_PERIOD_CONT_USER);
 			operation_sleep_noirqreset();
 		}
@@ -1726,7 +1723,7 @@ int main() {
 
     }else if(wakeup_data_header == 0x04){
         // Transmit the stored temp sensor data
-		// wakeup_data[23:16] specifies # of duplicate packets sent during Data TX; if 0, no duplicate packets
+		// wakeup_data[7:0] specifies # of duplicate packets sent during Data TX; if 0, no duplicate packets
 
 		operation_sns_sleep_check();
 		snt_stop_timer();
@@ -1759,7 +1756,7 @@ int main() {
 		
 			if (not_enough_batt){
 				// Send Error Message & Go to sleep
-				send_radio_data_srr(1,0xDF,*REG_CHIP_ID,(0xBB00|read_data_batadc_diff)<<8,0xFAFAFA);	
+				send_radio_data_srr(1,0xDF,*REG_CHIP_ID,(0xBB00|read_data_batadc_diff)<<8,0xFAFAFA,1);	
 				// Go to sleep without timer
 				operation_sleep_notimer();
 			}
@@ -1769,19 +1766,15 @@ int main() {
 			exec_count_irq++;
 
 			if (exec_count_irq == 1){
-				send_radio_data_srr(0,0xD0,*REG_CHIP_ID,(0xBB00|read_data_batadc_diff)<<8,temp_storage_count);	
-				delay(RADIO_PACKET_DELAY*2);
-				send_radio_data_srr(1,0xD0,*REG_CHIP_ID,(0xBB00|read_data_batadc_diff)<<8,temp_storage_count);	
+				send_radio_data_srr(1,0xD0,*REG_CHIP_ID,(0xBB00|read_data_batadc_diff)<<8,temp_storage_count,1);	
 			}else{
-				send_radio_data_srr(0,0xD1,*REG_CHIP_ID,TEMP_CALIB_A,TEMP_CALIB_B);	
-				delay(RADIO_PACKET_DELAY*2);
-				send_radio_data_srr(1,0xD1,*REG_CHIP_ID,TEMP_CALIB_A,TEMP_CALIB_B);	
+				send_radio_data_srr(1,0xD1,*REG_CHIP_ID,TEMP_CALIB_A,TEMP_CALIB_B,1);	
 			}
 			set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
 			operation_sleep_noirqreset();
 		
 		}else{
-			operation_tx_stored(wakeup_data_field_2);
+			operation_tx_stored(wakeup_data_field_0);
 		}
 		
 	}else if(wakeup_data_header == 0x12){
