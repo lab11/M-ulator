@@ -100,6 +100,7 @@ volatile uint32_t adxl_mask = (1<<GPIO_ADXL_INT) | (1<<GPIO_ADXL_EN);
 
 volatile uint32_t sht35_temp_data, sht35_hum_data;
 volatile uint32_t sht35_mask = (1<<GPIO_SDA) | (1<<GPIO_SCL);
+volatile uint32_t sht35_user_repeatability; // Default 0x0B
 
 
 volatile uint32_t temp_alert;
@@ -540,7 +541,7 @@ static void sht35_meas_data(){
 	operation_i2c_start();
 	operation_i2c_addr(0x44,0);
 	operation_i2c_cmd(0x24);
-	operation_i2c_cmd(0x0B);
+	operation_i2c_cmd(sht35_user_repeatability); // Default 0x0B
 	operation_i2c_stop();
 
 	delay(MBUS_DELAY*2); // about 10ms delay
@@ -1514,6 +1515,7 @@ static void operation_init(void){
 	sleep_time_threshold_factor = 1;
 	
 	adxl_user_threshold = 0x060; // rec. 0x60, max 0x7FF
+	sht35_user_repeatability = 0x0B; // default 0x0B
 
 	wakeup_period_calc_factor = 18;
 
@@ -2005,6 +2007,13 @@ int main(){
 	}else if(wakeup_data_header == 0x3A){
 		// Change ADXL threshold
 		adxl_user_threshold = wakeup_data & 0xFFFF;
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x3C){
+		// Change SHT35 repeatability setting
+		sht35_user_repeatability = wakeup_data & 0xFF;
 
 		// Go to sleep without timer
 		operation_sleep_notimer();
