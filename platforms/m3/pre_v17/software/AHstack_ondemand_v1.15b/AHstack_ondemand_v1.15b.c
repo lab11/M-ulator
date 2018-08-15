@@ -12,6 +12,7 @@
 //					fixes CRC bug
 //			v1.15: fixes ADXL / SHT35 conflict
 //			v1.15b: improve latency of radio tx for motion detection
+//					adding configurability for SHT35
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
