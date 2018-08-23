@@ -115,7 +115,6 @@ volatile uint32_t radio_on;
 volatile uint32_t mrr_freq_hopping;
 volatile uint32_t mrr_freq_hopping_step;
 volatile uint32_t mrr_cfo_val_fine_min;
-volatile uint32_t mrr_set_decap_parallel;
 volatile uint32_t RADIO_PACKET_DELAY;
 volatile uint32_t radio_packet_count;
 
@@ -936,11 +935,23 @@ static void radio_power_on(){
 	// Need to speed up sleep pmu clock
 	//pmu_set_sleep_radio();
 
+    // Turn off Current Limter Briefly
+    mrrv7_r00.MRR_CL_EN = 0;  //Enable CL
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+
+	// Set decap to parallel
+	mrrv7_r03.MRR_DCP_S_OW = 0;  //TX_Decap S (forced charge decaps)
+	mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
+	mrrv7_r03.MRR_DCP_P_OW = 1;  //RX_Decap P 
+	mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
+    delay(MBUS_DELAY);
+
 	// Set decap to series
 	mrrv7_r03.MRR_DCP_P_OW = 0;  //RX_Decap P 
 	mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
 	mrrv7_r03.MRR_DCP_S_OW = 1;  //TX_Decap S (forced charge decaps)
 	mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
+    delay(MBUS_DELAY);
 
 	// Current Limter set-up 
 	mrrv7_r00.MRR_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
@@ -995,10 +1006,6 @@ static void radio_power_off(){
     mrrv7_r11.MRR_RAD_FSM_SLEEP = 1;
     mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
 
-    // Turn off Current Limter
-    mrrv7_r00.MRR_CL_EN = 0;  //Enable CL
-    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
-
     mrrv7_r04.RO_RESET = 1;  //Release Reset TIMER
     mrrv7_r04.RO_EN_CLK = 0; //Enable CLK TIMER
     mrrv7_r04.RO_ISOLATE_CLK = 1; //Set Isolate CLK to 0 TIMER
@@ -1007,14 +1014,6 @@ static void radio_power_off(){
     // Enable timer power-gate
     mrrv7_r04.RO_EN_RO_V1P2 = 0;  //Use V1P2 for TIMER
     mbus_remote_register_write(MRR_ADDR,0x04,mrrv7_r04.as_int);
-
-	// Set decap to parallel
-	if (mrr_set_decap_parallel){
-		mrrv7_r03.MRR_DCP_S_OW = 0;  //TX_Decap S (forced charge decaps)
-		mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
-		mrrv7_r03.MRR_DCP_P_OW = 1;  //RX_Decap P 
-		mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
-	}
 
     radio_on = 0;
 	radio_ready = 0;
@@ -1414,7 +1413,6 @@ static void operation_init(void){
 
     // MRR Settings --------------------------------------
 
-	mrr_set_decap_parallel = 0xF;
 	mrrv7_r1F.LC_CLK_RING = 0x3;  // ~ 150 kHz
 	mrrv7_r1F.LC_CLK_DIV = 0x3;  // ~ 150 kHz
 	mbus_remote_register_write(MRR_ADDR,0x1F,mrrv7_r1F.as_int);
