@@ -1077,6 +1077,10 @@ static void send_radio_data_mrr_sub1(){
     wfi_timeout_flag = 0;
 	config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
 
+    // Turn on Current Limter
+    mrrv7_r00.MRR_CL_EN = 1;
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+
     // Fire off data
 	mrrv7_r11.MRR_RAD_FSM_EN = 1;  //Start BB
 	mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
@@ -1090,6 +1094,10 @@ static void send_radio_data_mrr_sub1(){
 	if (wfi_timeout_flag){
 		mbus_write_message32(0xFA, 0xFAFAFAFA);
 	}
+
+    // Turn off Current Limter
+    mrrv7_r00.MRR_CL_EN = 0;
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
 	mrrv7_r11.MRR_RAD_FSM_EN = 0;
 	mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
@@ -1399,6 +1407,7 @@ static void operation_init(void){
 	delay(MBUS_DELAY);
 
     // Temp Sensor Settings --------------------------------------
+
     // snsv10_r01
 	snsv10_r01.TSNS_RESETn = 0;
     snsv10_r01.TSNS_EN_IRQ = 1;
@@ -1427,7 +1436,6 @@ static void operation_init(void){
     mrrv7_r00.MRR_CL_EN = 1;  //Enable CL
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 	delay(MBUS_DELAY*100); // Wait for decap to charge
-
 /*
 	mrrv7_r1F.LC_CLK_RING = 0x3;  // ~ 150 kHz
 	mrrv7_r1F.LC_CLK_DIV = 0x3;  // ~ 150 kHz
@@ -1510,6 +1518,8 @@ static void operation_init(void){
 
 	// HRV
 	mbus_remote_register_write(HRV_ADDR,0x00,7); // HRV_TOP_CONV_RATIO(0~15 >> 9x~23x); default: 14
+
+
 */
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 33750;   // 1: 2-4 sec with PRCv9
@@ -1530,11 +1540,12 @@ static void operation_init(void){
 	adxl_trigger_mute_count = 2;
 	sleep_time_threshold_factor = 1;
 	
+/*
 	adxl_user_threshold = 0x060; // rec. 0x60, max 0x7FF
 	sht35_user_repeatability = 0x0B; // default 0x0B
-
 	wakeup_period_calc_factor = 18;
 
+*/
     // Go to sleep without timer
     operation_sleep_notimer();
 }
