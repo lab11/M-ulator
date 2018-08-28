@@ -1077,6 +1077,10 @@ static void send_radio_data_mrr_sub1(){
     wfi_timeout_flag = 0;
 	config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
 
+    // Turn on Current Limter
+    mrrv7_r00.MRR_CL_EN = 1;
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+
     // Fire off data
 	mrrv7_r11.MRR_RAD_FSM_EN = 1;  //Start BB
 	mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
@@ -1090,6 +1094,10 @@ static void send_radio_data_mrr_sub1(){
 	if (wfi_timeout_flag){
 		mbus_write_message32(0xFA, 0xFAFAFAFA);
 	}
+
+    // Turn off Current Limter
+    mrrv7_r00.MRR_CL_EN = 0;
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
 	mrrv7_r11.MRR_RAD_FSM_EN = 0;
 	mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
