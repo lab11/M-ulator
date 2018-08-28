@@ -1366,6 +1366,7 @@ static void operation_init(void){
     // Set CPU Halt Option as RX --> Use for register read e.g.
 //    set_halt_until_mbus_rx();
 
+/*
     //Enumeration
     mbus_enumerate(HRV_ADDR);
 	delay(MBUS_DELAY);
@@ -1398,7 +1399,6 @@ static void operation_init(void){
 	delay(MBUS_DELAY);
 
     // Temp Sensor Settings --------------------------------------
-
     // snsv10_r01
 	snsv10_r01.TSNS_RESETn = 0;
     snsv10_r01.TSNS_EN_IRQ = 1;
@@ -1410,7 +1410,7 @@ static void operation_init(void){
 	snsv10_r03.TSNS_SEL_STB_TIME = 0x1; 
 	snsv10_r03.TSNS_SEL_CONV_TIME = 0x6; // Default: 0x6
 	mbus_remote_register_write(SNS_ADDR,0x03,snsv10_r03.as_int);
-
+*/
     // MRR Settings --------------------------------------
 
 	// Decap in series
@@ -1428,6 +1428,7 @@ static void operation_init(void){
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 	delay(MBUS_DELAY*100); // Wait for decap to charge
 
+/*
 	mrrv7_r1F.LC_CLK_RING = 0x3;  // ~ 150 kHz
 	mrrv7_r1F.LC_CLK_DIV = 0x3;  // ~ 150 kHz
 	mbus_remote_register_write(MRR_ADDR,0x1F,mrrv7_r1F.as_int);
@@ -1509,7 +1510,7 @@ static void operation_init(void){
 
 	// HRV
 	mbus_remote_register_write(HRV_ADDR,0x00,7); // HRV_TOP_CONV_RATIO(0~15 >> 9x~23x); default: 14
-
+*/
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 33750;   // 1: 2-4 sec with PRCv9
     WAKEUP_PERIOD_CONT_INIT = 3;   // 0x1E (30): ~1 min with PRCv9
