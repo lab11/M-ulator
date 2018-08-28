@@ -1374,7 +1374,6 @@ static void operation_init(void){
     // Set CPU Halt Option as RX --> Use for register read e.g.
 //    set_halt_until_mbus_rx();
 
-/*
     //Enumeration
     mbus_enumerate(HRV_ADDR);
 	delay(MBUS_DELAY);
@@ -1419,7 +1418,7 @@ static void operation_init(void){
 	snsv10_r03.TSNS_SEL_STB_TIME = 0x1; 
 	snsv10_r03.TSNS_SEL_CONV_TIME = 0x6; // Default: 0x6
 	mbus_remote_register_write(SNS_ADDR,0x03,snsv10_r03.as_int);
-*/
+
     // MRR Settings --------------------------------------
 
 	// Decap in series
@@ -1436,7 +1435,7 @@ static void operation_init(void){
     mrrv7_r00.MRR_CL_EN = 1;  //Enable CL
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 	delay(MBUS_DELAY*100); // Wait for decap to charge
-/*
+
 	mrrv7_r1F.LC_CLK_RING = 0x3;  // ~ 150 kHz
 	mrrv7_r1F.LC_CLK_DIV = 0x3;  // ~ 150 kHz
 	mbus_remote_register_write(MRR_ADDR,0x1F,mrrv7_r1F.as_int);
@@ -1447,7 +1446,7 @@ static void operation_init(void){
 	mrr_freq_hopping = 5;
 	mrr_freq_hopping_step = 4;
 
-	mrr_cfo_val_fine_min = 0x0000;
+	//mrr_cfo_val_fine_min = 0x0000;
 
 	// RO setup (SFO)
 	// Adjust Diffusion R
@@ -1457,14 +1456,14 @@ static void operation_init(void){
 	mbus_remote_register_write(MRR_ADDR,0x08,0x400000); // RO_POLY
 
 	// Adjust C
-	mrrv7_r07.RO_MOM = 0x10;
-	mrrv7_r07.RO_MIM = 0x10;
+	//mrrv7_r07.RO_MOM = 0x10;
+	//mrrv7_r07.RO_MIM = 0x10;
 	//mbus_remote_register_write(MRR_ADDR,0x07,mrrv7_r07.as_int);
 
 	// TX Setup Carrier Freq
-	mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x1F;  //ANT CAP 10b unary 830.5 MHz
+	//mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x1F;  //ANT CAP 10b unary 830.5 MHz
 	mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
-	mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0x1F; //ANT CAP 10b unary 830.5 MHz
+	//mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0x1F; //ANT CAP 10b unary 830.5 MHz
 	mrrv7_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min;  //ANT CAP 14b unary 830.5 MHz
 	mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min; //ANT CAP 14b unary 830.5 MHz
 	mbus_remote_register_write(MRR_ADDR,0x01,mrrv7_r01.as_int);
@@ -1519,8 +1518,6 @@ static void operation_init(void){
 	// HRV
 	mbus_remote_register_write(HRV_ADDR,0x00,7); // HRV_TOP_CONV_RATIO(0~15 >> 9x~23x); default: 14
 
-
-*/
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 33750;   // 1: 2-4 sec with PRCv9
     WAKEUP_PERIOD_CONT_INIT = 3;   // 0x1E (30): ~1 min with PRCv9
@@ -1540,12 +1537,11 @@ static void operation_init(void){
 	adxl_trigger_mute_count = 2;
 	sleep_time_threshold_factor = 1;
 	
-/*
 	adxl_user_threshold = 0x060; // rec. 0x60, max 0x7FF
 	sht35_user_repeatability = 0x0B; // default 0x0B
+
 	wakeup_period_calc_factor = 18;
 
-*/
     // Go to sleep without timer
     operation_sleep_notimer();
 }
