@@ -1358,7 +1358,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     stack_state = STK_IDLE; 	//0x0;
-    enumerated = 0x4148115B; // 0x4148 is AH in ascii
+    enumerated = 0x41481160; // 0x4148 is AH in ascii
     exec_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_3P0_VAL = 0x62;
@@ -1829,7 +1829,7 @@ int main(){
 	#endif
 
     // Initialization sequence
-    if (enumerated != 0x4148115B){
+    if (enumerated != 0x41481160){
         operation_init();
     }
 
