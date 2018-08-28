@@ -993,9 +993,17 @@ static void radio_power_off(){
 	// Enable PMU ADC
 	//pmu_adc_enable();
 
+    // Turn off Current Limter Briefly
+    mrrv7_r00.MRR_CL_EN = 0;  //Enable CL
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+
 	// Current Limter set-up 
 	mrrv7_r00.MRR_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
 	mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+
+    // Turn on Current Limter
+    mrrv7_r00.MRR_CL_EN = 1;  //Enable CL
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
     // Turn off everything
     mrrv7_r03.MRR_TRX_ISOLATEN = 0;     //set ISOLATEN 0
@@ -1069,10 +1077,6 @@ static void send_radio_data_mrr_sub1(){
     wfi_timeout_flag = 0;
 	config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
 
-    // Turn on Current Limter
-    mrrv7_r00.MRR_CL_EN = 1;
-    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
-
     // Fire off data
 	mrrv7_r11.MRR_RAD_FSM_EN = 1;  //Start BB
 	mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
@@ -1086,10 +1090,6 @@ static void send_radio_data_mrr_sub1(){
 	if (wfi_timeout_flag){
 		mbus_write_message32(0xFA, 0xFAFAFAFA);
 	}
-
-    // Turn off Current Limter
-    mrrv7_r00.MRR_CL_EN = 0;
-    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
 	mrrv7_r11.MRR_RAD_FSM_EN = 0;
 	mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
@@ -1413,6 +1413,21 @@ static void operation_init(void){
 
     // MRR Settings --------------------------------------
 
+	// Decap in series
+	mrrv7_r03.MRR_DCP_P_OW = 0;  //RX_Decap P 
+	mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
+	mrrv7_r03.MRR_DCP_S_OW = 1;  //TX_Decap S (forced charge decaps)
+	mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
+
+	// Current Limter set-up 
+	mrrv7_r00.MRR_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+	mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+
+    // Turn on Current Limter
+    mrrv7_r00.MRR_CL_EN = 1;  //Enable CL
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+	delay(MBUS_DELAY*100); // Wait for decap to charge
+
 	mrrv7_r1F.LC_CLK_RING = 0x3;  // ~ 150 kHz
 	mrrv7_r1F.LC_CLK_DIV = 0x3;  // ~ 150 kHz
 	mbus_remote_register_write(MRR_ADDR,0x1F,mrrv7_r1F.as_int);
@@ -1433,14 +1448,14 @@ static void operation_init(void){
 	mbus_remote_register_write(MRR_ADDR,0x08,0x400000); // RO_POLY
 
 	// Adjust C
-	mrrv7_r07.RO_MOM = 0x10;
-	mrrv7_r07.RO_MIM = 0x10;
-	mbus_remote_register_write(MRR_ADDR,0x07,mrrv7_r07.as_int);
+	//mrrv7_r07.RO_MOM = 0x10;
+	//mrrv7_r07.RO_MIM = 0x10;
+	//mbus_remote_register_write(MRR_ADDR,0x07,mrrv7_r07.as_int);
 
 	// TX Setup Carrier Freq
-	mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x1F;  //ANT CAP 10b unary 830.5 MHz
-	mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
-	mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0x1F; //ANT CAP 10b unary 830.5 MHz
+	//mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x1F;  //ANT CAP 10b unary 830.5 MHz
+	//mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+	//mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0x1F; //ANT CAP 10b unary 830.5 MHz
 	mrrv7_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min;  //ANT CAP 14b unary 830.5 MHz
 	mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min; //ANT CAP 14b unary 830.5 MHz
 	mbus_remote_register_write(MRR_ADDR,0x01,mrrv7_r01.as_int);
@@ -1491,7 +1506,6 @@ static void operation_init(void){
 
 	// Mbus return address
 	mbus_remote_register_write(MRR_ADDR,0x1E,0x1002);
-
 
 	// HRV
 	mbus_remote_register_write(HRV_ADDR,0x00,7); // HRV_TOP_CONV_RATIO(0~15 >> 9x~23x); default: 14
