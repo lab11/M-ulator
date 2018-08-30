@@ -1458,7 +1458,7 @@ static void operation_init(void){
 	// Adjust C
 	mrrv7_r07.RO_MOM = 0x10;
 	mrrv7_r07.RO_MIM = 0x10;
-	//mbus_remote_register_write(MRR_ADDR,0x07,mrrv7_r07.as_int);
+	mbus_remote_register_write(MRR_ADDR,0x07,mrrv7_r07.as_int);
 
 	// TX Setup Carrier Freq
 	mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x1F;  //ANT CAP 10b unary 830.5 MHz
