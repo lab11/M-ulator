@@ -58,6 +58,7 @@
 //					Trig 2 now runs forever until Trig 3
 //			v4.2: Duplicate data TX option
 //			v5.0: PMUv9
+//			v5.0a: NUM_MEAS_USER needs to be 8192, not 8000
 //*******************************************************************
 #include "PRCv17.h"
 #include "PRCv17_RF.h"
@@ -1109,7 +1110,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
-    enumerated = 0x54435000;
+    enumerated = 0x5443500A;
     exec_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_4P2_VAL = 0x4B;
@@ -1302,7 +1303,7 @@ static void operation_init(void){
 	TEMP_CALIB_A = 24000;
 	TEMP_CALIB_B = 3750000;
 
-	NUM_MEAS_USER = 8000;
+	NUM_MEAS_USER = TEMP_STORAGE_SIZE;
 
     // Harvester Settings --------------------------------------
 	hrvv5_r0.HRV_TOP_CONV_RATIO = 0x9;
@@ -1483,7 +1484,7 @@ static void operation_temp_run(void){
 			}
 
 			// Optionally transmit the data
-			if (radio_tx_option | (exec_count < TEMP_CYCLE_INIT)){
+			if (radio_tx_option || (exec_count < TEMP_CYCLE_INIT)){
 				send_radio_data_srr(1,0xC0,*REG_CHIP_ID,((0xBB00|read_data_batadc_diff)<<8)|exec_count,temp_storage_latest,0);
 			}
 
@@ -1648,7 +1649,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0x54435000){
+    if (enumerated != 0x5443500A){
         operation_init();
     }
 
