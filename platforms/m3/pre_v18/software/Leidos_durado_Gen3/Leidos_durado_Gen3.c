@@ -5,10 +5,10 @@
 //			v1.0: created
 //*******************************************************************
 #include "PREv18.h"
-#include "PREv18_RF.h"
+//#include "PREv18_RF.h"
 #include "mbus.h"
-#include "PMUv9_RF.h"
-#include "./MEM_Simple_Code.c"
+#include "PMUv7_RF.h"
+#include "./MEM_Simple_Code.c.bak"
 //#include "./sram_program_2tones_fp1.c"
 //#include "./MEM_192_20_nop_test.c"
 
@@ -208,7 +208,7 @@ volatile uint32_t scan2DSP_SRAM_MEM_EN_EXT=0x0;
 volatile uint32_t scan2DSP_SRAM_DATAIN_EXT=0x00000000;
 #define scan2DSP_SRAM_DATAIN_EXT_BIT	32
 volatile uint32_t scan2DSP_DNN_CTRL_SCAN_SEL=0x0;
-#define scan2DSP_SRAM_DNN_CTRL_SCAN_SEL_BIT	1
+#define scan2DSP_DNN_CTRL_SCAN_SEL_BIT	1
 volatile uint32_t scan2DSP_DNN_ISOLATEN_SCAN=0x0;
 #define scan2DSP_DNN_ISOLATEN_SCAN_BIT	1
 volatile uint32_t scan2DSP_PG_SLEEP_SCAN=0x1;
@@ -319,6 +319,8 @@ volatile uint32_t WAKEUP_PERIOD_CONT;
 volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
 
 volatile prev18_r0B_t prev18_r0B = PREv18_R0B_DEFAULT;
+volatile prev18_r19_t prev18_r19 = PREv18_R19_DEFAULT;
+volatile prev18_r1A_t prev18_r1A = PREv18_R1A_DEFAULT;
 volatile prev18_r1C_t prev18_r1C = PREv18_R1C_DEFAULT;
 
 
@@ -614,14 +616,14 @@ static void program_scan_cp(uint32_t data_val){
     if (data_val == 1) {
 	    scan2CP_CP_HVI_EN = 1;
 	    scan2CP_CP_HVI_VSH = 1;
-	    scan2CP_CP_RESETn = 1;
+	    scan2CP_RESETn = 1;
 	    program_scan();
         delay(CP_DELAY);    
 	    scan2CP_CP_HVI_VSH = 0;
 	    program_scan();
     }
     else {
-	    scan2CP_CP_RESETn = 0;
+	    scan2CP_RESETn = 0;
 	    program_scan();
     }
 }
