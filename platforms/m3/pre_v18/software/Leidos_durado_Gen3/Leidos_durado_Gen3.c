@@ -1,29 +1,21 @@
 //*******************************************************************
-//Author: Gyouho Kim
-//Description: AR stack with MRR and SNSv10
-//			Modified from 'Tstack_ondemand_v3.2_BAT3V'
-//			v1.0: PREv17, SNSv10, PMUv7, mrrv6
-//			v1.2: increasing guard interval, optional freq hopping
-//			v1.3: increasing PMU strength for V1P2 and V3P6
-//			      ability to switch between short/long pulse
-//			v1.5: MRRv6; MRR decap configured to remain charged
-//			v1.6: CLEN default changed to 300; skip sleeping for timer settling
-//				  radio needs to be turned on/off for every wakeup
-//				  optimizing current limiter setting to minimize v drop
-//			v1.7: CL unlimited during tx, shortening CLEN, pulse width
+//Author: Sechang Oh
+//Description: Leidos Gen3 
+//			Modified from 'Leidos_durado_v2'
+//			v1.0: created
 //*******************************************************************
-#include "PREv17.h"
+#include "PREv18.h"
+#include "PREv18_RF.h"
 #include "mbus.h"
-#include "PMUv7_RF.h"
-//#include "./MEM_Simple_Code.c"
- #include "./sram_program_2tones_fp1.c"
+#include "PMUv9_RF.h"
+#include "./MEM_Simple_Code.c"
+//#include "./sram_program_2tones_fp1.c"
 //#include "./MEM_192_20_nop_test.c"
 
 // uncomment this for debug mbus message
 // #define DEBUG_MBUS_MSG
 // #define DEBUG_MBUS_MSG_1
 
-// AR stack order  PRE->SNS->MRR->PMU
 #define PMU_ADDR 0x6
 #define WAKEUP_PERIOD_PARKING 30000 // About 2 hours (PRCv17)
 
@@ -36,6 +28,9 @@
 #define	STK_LDO		0x1
 #define	STK_TEMP_START 0x2
 #define	STK_TEMP_READ  0x3
+
+// CP parameter
+#define	CP_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
 
 //********************************************************************
 // Scan values
@@ -52,6 +47,7 @@
 #define scan_reset_BIT	1
 #define scan2pad_inen	0x0
 #define scan2pad_inen_BIT	1
+volatile uint32_t scan2pad_outen=1;
 #define scan2pad_outen_BIT	1
 #define scan2pad_dir	0x0		// changed from default
 #define scan2pad_dir_BIT	1
@@ -61,6 +57,7 @@
 #define scan2AMP_SEL_MEMS_BASE_BIT	1
 #define scan2AMP_EN_BUF		0x1
 #define scan2AMP_EN_BUF_BIT	1
+volatile uint32_t scan2AMP_EN_FS=0x0;
 #define scan2AMP_EN_FS_BIT	1
 #define scan2AMP_vb1_sel	0x0
 #define scan2AMP_vb1_sel_BIT	5
@@ -74,6 +71,7 @@
 #define scan2AMP_ctrlb_IB_BIT	4
 #define scan2AMP_ctrlb_Iamp	0xB
 #define scan2AMP_ctrlb_Iamp_BIT	4
+volatile uint32_t scan2AMP_SEL_Gain=0x3;
 #define scan2AMP_SEL_Gain_BIT	6
 #define scan2AMP_SEL_LOADp_BASE	0x0
 #define scan2AMP_SEL_LOADp_BASE_BIT	1
@@ -95,30 +93,39 @@
 #define scan2AMP_ctrl_IBUF_P_BIT	5
 #define scan2AMP_ctrl_IBUF_N	0x0
 #define scan2AMP_ctrl_IBUF_N_BIT	1
+volatile uint32_t scan2CP_RESETn=0;
 #define scan2CP_RESETn_BIT	1
 #define scan2CP_SEL_DIV	0x1
 #define scan2CP_SEL_DIV_BIT	3
-#define scan2CP_SHRT	0x0
-#define scan2CP_SHRT_BIT	2
 #define scan2CP_SEL_EXT_CLKb	0x1
 #define scan2CP_SEL_EXT_CLKb_BIT	1
+
+#define scan2CP_CP_CAS_EN	0x0
+#define scan2CP_CP_CAS_EN_BIT	1
+#define scan2CP_CP_CAS_VSH	0x0
+#define scan2CP_CP_CAS_VSH_BIT	2
+volatile uint32_t scan2CP_CP_HVI_EN=1;
+#define scan2CP_CP_HVI_EN_BIT	1
+volatile uint32_t scan2CP_CP_HVI_VSH=0;
+#define scan2CP_CP_HVI_VSH_BIT	1
+
 #define scan2CS_SELb_I	0x2A
 #define scan2CS_SELb_I_BIT	6
-#define scan2CS_SEL_VB_BIT	6
-#define scan2CS_SEL_VBH	0x0
-#define scan2CS_SEL_VBH_BIT	1
 #define scan2CS_SEL_I_DIVb	0x0
 #define scan2CS_SEL_I_DIVb_BIT	1
 #define scan2CS_SEL_I_EXT	0x0
 #define scan2CS_SEL_I_EXT_BIT	1
 #define scan2CS_SELb_I_DRV	0x1
 #define scan2CS_SELb_I_DRV_BIT	1
+volatile uint32_t scan2ADC_RESET=0x1;
 #define scan2ADC_RESET_BIT	1
 #define scan2ADC_OFFSET_SELP	0x0
 #define scan2ADC_OFFSET_SELP_BIT	3
 #define scan2ADC_OFFSET_SELN	0x0
 #define scan2ADC_OFFSET_SELN_BIT	3
+volatile uint32_t scan2ADC_DLY_SEL=0x0;
 #define scan2ADC_DLY_SEL_BIT	3
+volatile uint32_t scan2ADC_SDLY_SEL=0x0;
 #define scan2ADC_SDLY_SEL_BIT	2
 #define scan2CPSRAM_RESETn	0x0
 #define scan2CPSRAM_RESETn_BIT	1
@@ -134,8 +141,6 @@ volatile uint32_t scan2DSP_RESETn_DSP = 0;
 #define scan2DSP_EN_GC_BIT	1
 #define scan2DSP_EN_GC_ANA	0x0
 #define scan2DSP_EN_GC_ANA_BIT	1
-#define scan2DSP_EN_BUF_INC	0x1
-#define scan2DSP_EN_BUF_INC_BIT	1
 #define scan2DSP_SEL_EXT	0x0
 #define scan2DSP_SEL_EXT_BIT	1
 #define scan2DSP_N_START	0x0
@@ -144,12 +149,6 @@ volatile uint32_t scan2DSP_RESETn_DSP = 0;
 #define scan2DSP_N_FE_BIT	3
 #define scan2DSP_N_DFT	0x0
 #define scan2DSP_N_DFT_BIT	3
-#define scan2DSP_GC_WR	0x0
-#define scan2DSP_GC_WR_BIT	1
-#define scan2DSP_GC_WR_ADDR	0x4
-#define scan2DSP_GC_WR_ADDR_BIT	2
-#define scan2DSP_GC_DATA_IN	0x4
-#define scan2DSP_GC_DATA_IN_BIT	3
 #define scan2DSP_PHS_WR	0x0
 #define scan2DSP_PHS_WR_BIT	1
 #define scan2DSP_PHS_WR_ADDR	0x20
@@ -163,46 +162,72 @@ volatile uint32_t scan2DSP_RESETn_DSP = 0;
 #define scan2DSP_LUT_DATA_IN	0x7
 #define scan2DSP_LUT_DATA_IN_BIT	3
 #define scan2DSP_SRAM_ADDR_BASE		0xF0
-#define scan2DSP_SRAM_ADDR_BASE_BIT	11
-#define scan2DSP_RESETn_SRAM	0x1
-#define scan2DSP_RESETn_SRAM_BIT	1
-volatile uint32_t scan2DSP_SRAM_CLK_EXT=0x0;
-#define scan2DSP_SRAM_CLK_EXT_BIT	1
+#define scan2DSP_SRAM_ADDR_BASE_BIT	12
+
+#define scan2DSP_DNN_CLK_MON_EN		0x0
+#define scan2DSP_DNN_CLK_MON_EN_BIT	1
+#define scan2DSP_DNN_CLK_S_DIV		0x3
+#define scan2DSP_DNN_CLK_S_DIV_BIT	2
+#define scan2DSP_DNN_CLK_S_RING		0x4
+#define scan2DSP_DNN_CLK_S_RING_BIT	3
+#define scan2DSP_SRAM0_SA_SEL	0x0
+#define scan2DSP_SRAM0_SA_SEL_BIT	1
+#define scan2DSP_SRAM0_TUNE_DLY1	0x2
+#define scan2DSP_SRAM0_TUNE_DLY1_BIT	4
+#define scan2DSP_SRAM0_TUNE_DLY2	0x2
+#define scan2DSP_SRAM0_TUNE_DLY2_BIT	4
+#define scan2DSP_SRAM0_TUNE_RDRSB	0x0
+#define scan2DSP_SRAM0_TUNE_RDRSB_BIT	4
+#define scan2DSP_SRAM0_TUNE_RDRSB_EN	0x0
+#define scan2DSP_SRAM0_TUNE_RDRSB_EN_BIT	1
+#define scan2DSP_SRAM1_SA_SEL	0x0
+#define scan2DSP_SRAM1_SA_SEL_BIT	1
+#define scan2DSP_SRAM1_TUNE_DLY1	0x2
+#define scan2DSP_SRAM1_TUNE_DLY1_BIT	4
+#define scan2DSP_SRAM1_TUNE_DLY2	0x2
+#define scan2DSP_SRAM1_TUNE_DLY2_BIT	4
+#define scan2DSP_SRAM1_TUNE_RDRSB	0x0
+#define scan2DSP_SRAM1_TUNE_RDRSB_BIT	4
+#define scan2DSP_SRAM1_TUNE_RDRSB_EN	0x0
+#define scan2DSP_SRAM1_TUNE_RDRSB_EN_BIT	1
+#define scan2DSP_DNN_CLK_EXT_SEL		0x0
+#define scan2DSP_DNN_CLK_EXT_SEL_BIT	1
+
+volatile uint32_t scan2DSP_DNN_CLK_SCAN=0x0;
+#define scan2DSP_DNN_CLK_SCAN_BIT	1
+volatile uint32_t scan2DSP_DNN_CLK_SCAN_SEL=0x0;
+#define scan2DSP_DNN_CLK_SCAN_SEL_BIT	1
+volatile uint32_t scan2DSP_SRAM_EXT_SEL=0x0;
+#define scan2DSP_SRAM_EXT_SEL_BIT	1
 volatile uint32_t scan2DSP_SRAM_ADDR_EXT=0x552;
-#define scan2DSP_SRAM_ADDR_EXT_BIT	11
-volatile uint32_t scan2DSP_SRAM_DATAIN_EXT=0x00000000;
-#define scan2DSP_SRAM_DATAIN_EXT_BIT	32
+#define scan2DSP_SRAM_ADDR_EXT_BIT	12
 volatile uint32_t scan2DSP_SRAM_R0W1_EXT=0x0;
 #define scan2DSP_SRAM_R0W1_EXT_BIT	1
 volatile uint32_t scan2DSP_SRAM_MEM_EN_EXT=0x0;
 #define scan2DSP_SRAM_MEM_EN_EXT_BIT	1
-volatile uint32_t scan2DSP_SRAM_ISOLATEN_EXT=0x0;
-#define scan2DSP_SRAM_ISOLATEN_EXT_BIT	1
-volatile uint32_t scan2DSP_SRAM_PG_EXT=0x1;
-#define scan2DSP_SRAM_PG_EXT_BIT	1
-volatile uint32_t scan2DSP_SRAM_EXT_SEL=0x0;
-#define scan2DSP_SRAM_EXT_SEL_BIT	1
-volatile uint32_t scan2DSP_SRAM_ISOLATEN_EXT_SEL=0x0;
-#define scan2DSP_SRAM_ISOLATEN_EXT_SEL_BIT	1
-volatile uint32_t scan2DSP_SRAM_PG_EXT_SEL=0x0;
-#define scan2DSP_SRAM_PG_EXT_SEL_BIT	1
-#define scan2DSP_SA_SEL	0x0
-//#define scan2DSP_SA_SEL	0x1
-#define scan2DSP_SA_SEL_BIT	1
-#define scan2DSP_TUNE_DLY1	0xF
-#define scan2DSP_TUNE_DLY1_BIT	4
-#define scan2DSP_TUNE_DLY2	0x2
-#define scan2DSP_TUNE_DLY2_BIT	4
-#define scan2DSP_TUNE_RDRSB	0x0
-#define scan2DSP_TUNE_RDRSB_BIT	4
-#define scan2DSP_TUNE_RDRSB_EN	0x0
-#define scan2DSP_TUNE_RDRSB_EN_BIT	1
-#define scan2DSP_VREF_SEL	0x0
-#define scan2DSP_VREF_SEL_BIT	1
+volatile uint32_t scan2DSP_SRAM_DATAIN_EXT=0x00000000;
+#define scan2DSP_SRAM_DATAIN_EXT_BIT	32
+volatile uint32_t scan2DSP_DNN_CTRL_SCAN_SEL=0x0;
+#define scan2DSP_SRAM_DNN_CTRL_SCAN_SEL_BIT	1
+volatile uint32_t scan2DSP_DNN_ISOLATEN_SCAN=0x0;
+#define scan2DSP_DNN_ISOLATEN_SCAN_BIT	1
+volatile uint32_t scan2DSP_PG_SLEEP_SCAN=0x1;
+#define scan2DSP_PG_SLEEP_SCAN_BIT	1
+
+#define scan2DSP_DNN_CLKENB_SCAN	0x1
+#define scan2DSP_DNN_CLKENB_SCAN_BIT	1
+
+volatile uint32_t scan2DSP_DNN_RESETN_SCAN=0x0;
+#define scan2DSP_DNN_RESETN_SCAN_BIT	1
+
+#define scan2DSP_DNN_EN_SCAN	0x0
+#define scan2DSP_DNN_EN_SCAN_BIT	1
+
 #define scan2DSP_RF_MON_EN	0x0
 #define scan2DSP_RF_MON_EN_BIT	1
 #define scan2DSP_DBG_EN	0x0
 #define scan2DSP_DBG_EN_BIT	1
+volatile uint32_t scan2Timer_EN_OSC=0x0;
 #define scan2Timer_EN_OSC_BIT	1
 #define scan2Timer_AFC	0x1
 #define scan2Timer_AFC_BIT	3
@@ -252,23 +277,14 @@ volatile uint32_t scan2DSP_SRAM_PG_EXT_SEL=0x0;
 #define scan2Timer_SEL_D_TM2_BIT	3
 #define scan2Timer_AFC_TM2	0x7
 #define scan2Timer_AFC_TM2_BIT	3
+volatile uint32_t scan2Timer_RESETb_TM2=0x0;
 #define scan2Timer_RESETb_TM2_BIT	1
+volatile uint32_t scan2Timer_SEL_CLK=0x0;	// 0: EXT, 1:1nW time 2: SLOSC
 #define scan2Timer_SEL_CLK_BIT	2
 #define scan2mux_sel_clk	0x0
 #define scan2mux_sel_clk_BIT	1
 #define DSP2scan_SRAM_DATAOUT_EXT		0x0
 #define DSP2scan_SRAM_DATAOUT_EXT_BIT	32
-volatile uint32_t scan2AMP_SEL_Gain=0x3;
-volatile uint32_t scan2Timer_SEL_CLK=0x0;	// 0: EXT, 1:1nW time 2: SLOSC
-volatile uint32_t scan2pad_outen=1;
-volatile uint32_t scan2CP_RESETn=0;
-volatile uint32_t scan2AMP_EN_FS=0x0;
-volatile uint32_t scan2CS_SEL_VB=0x20; // Amplifier Bias Current
-volatile uint32_t scan2ADC_RESET=0x1;
-volatile uint32_t scan2ADC_DLY_SEL=0x0;
-volatile uint32_t scan2ADC_SDLY_SEL=0x0;
-volatile uint32_t scan2Timer_EN_OSC=0x1;
-volatile uint32_t scan2Timer_RESETb_TM2=0x1;
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y5 run default clock (PRCv17)
 #define TIMER32_VAL 0x50000 // 0x20000 about 1 sec with Y5 run default clock (PRCv17)
@@ -302,8 +318,8 @@ volatile uint32_t WAKEUP_PERIOD_CONT_USER;
 volatile uint32_t WAKEUP_PERIOD_CONT; 
 volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
 
-volatile prev17_r0B_t prev17_r0B = PREv17_R0B_DEFAULT;
-volatile prev17_r0D_t prev17_r0D = PREv17_R0D_DEFAULT;
+volatile prev18_r0B_t prev18_r0B = PREv18_R0B_DEFAULT;
+volatile prev18_r1C_t prev18_r1C = PREv18_R1C_DEFAULT;
 
 
 static void operation_sleep_notimer(void);
@@ -315,78 +331,59 @@ static void pmu_set_active_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1p2
 // XO Functions
 //*******************************************************************
 //
-
-void XO_ctrl (uint32_t xo_pulse_sel,
-		uint32_t xo_delay_en,
-		uint32_t xo_drv_start_up,
-		uint32_t xo_drv_core,
-		uint32_t xo_rp_low,
-		uint32_t xo_rp_media,
-		uint32_t xo_rp_mvt,
-		uint32_t xo_rp_svt,
-		uint32_t xo_scn_clk_sel,
-		uint32_t xo_scn_enb
-	     ){
-
-	*REG_XO_CONTROL =((xo_pulse_sel    << 11) |
-			(xo_delay_en     << 8) |
-			(xo_drv_start_up << 7) |
-			(xo_drv_core     << 6) |
-			(xo_rp_low       << 5) |
-			(xo_rp_media     << 4) |
-			(xo_rp_mvt       << 3) |
-			(xo_rp_svt       << 2) |
-			(xo_scn_clk_sel  << 1) |
-			(xo_scn_enb      << 0));
-	mbus_write_message32(0xA1,*REG_XO_CONTROL);
-}
-
-
 static void XO_div(uint32_t divVal) {
-	uint32_t xo_cap_drv = 0x3F; // Additional Cap on OSC_DRV
-	uint32_t xo_cap_in  = 0x3F; // Additional Cap on OSC_IN
-	*REG_XO_CONFIG = ((divVal << 16) |
-			(xo_cap_drv      << 6) |
-			(xo_cap_in       << 0));
+    prev18_r19.XO_S = divVal;
+    *REG_XO_CONF1 = prev18_r19.as_int;
+
 }
 
 static void XO_init(void) {
+    // Parasitic Capacitance Tuning (6-bit for each; Each 1 adds 1.8pF)
+    uint32_t xo_cap_drv = 0x3F; // Additional Cap on OSC_DRV
+    uint32_t xo_cap_in  = 0x3F; // Additional Cap on OSC_IN
+    prev18_r1A.XO_CAP_TUNE = (
+            (xo_cap_drv <<6) | 
+            (xo_cap_in <<0));   // XO_CLK Output Pad (0: Disabled, 1: 32kHz, 2: 16kHz, 3: 8kHz)
+    *REG_XO_CONF2 = prev18_r1A.as_int;
 
-	// XO_CLK Output Pad (0: Disabled, 1: 32kHz, 2: 16kHz, 3: 8kHz)
-	uint32_t xot_clk_out_sel = 0x3;
-	// Parasitic Capacitance Tuning (6-bit for each; Each 1 adds 1.8pF)
-	uint32_t xo_cap_drv = 0x3F; // Additional Cap on OSC_DRV
-	uint32_t xo_cap_in  = 0x3F; // Additional Cap on OSC_IN
-
-	// Pulse Length Selection
-	uint32_t xo_pulse_sel = 0x4; // XO_PULSE_SEL
-	uint32_t xo_delay_en  = 0x3; // XO_DELAY_EN
-
-	// Pseudo-Resistor Selection
-	uint32_t xo_rp_low   = 0x0;
-	uint32_t xo_rp_media = 0x0;
-	uint32_t xo_rp_mvt   = 0x1;
-	uint32_t xo_rp_svt   = 0x0;
-
-	// Parasitic Capacitance Tuning
-	*REG_XO_CONFIG = ((xot_clk_out_sel << 16) |
-			(xo_cap_drv      << 6) |
-			(xo_cap_in       << 0));
-
-	// Start XO Clock
-	//XO_ctrl(xo_pulse_sel, xo_delay_en, xo_drv_start_up, xo_drv_core, xo_rp_low, xo_rp_media, xo_rp_mvt, xo_rp_svt, xo_scn_clk_sel, xo_scn_enb);
-	//XO_ctrl(xo_pulse_sel, xo_delay_en, 0, 0, xo_rp_low, xo_rp_media, xo_rp_mvt, xo_rp_svt, 0, 1); delay(10000); //Default
-	XO_ctrl(xo_pulse_sel, xo_delay_en, 1, 0, xo_rp_low, xo_rp_media, xo_rp_mvt, xo_rp_svt, 0, 1); delay(10000); //XO_DRV_START_UP = 1
-	XO_ctrl(xo_pulse_sel, xo_delay_en, 1, 0, xo_rp_low, xo_rp_media, xo_rp_mvt, xo_rp_svt, 1, 1); delay(10000); //XO_SCN_CLK_SEL = 1
-	XO_ctrl(xo_pulse_sel, xo_delay_en, 1, 0, xo_rp_low, xo_rp_media, xo_rp_mvt, xo_rp_svt, 0, 0); delay(10000); //XO_SCN_CLK_SEL = 0 & XO_SCN_ENB = 0
-	XO_ctrl(xo_pulse_sel, xo_delay_en, 0, 1, xo_rp_low, xo_rp_media, xo_rp_mvt, xo_rp_svt, 1, 0); delay(10000); //XO_DRV_START_UP = 0 & XO_DRV_CORE = 1
-	//XO_ctrl(xo_pulse_sel, xo_delay_en, 1, 0, xo_rp_low, xo_rp_media, xo_rp_mvt, xo_rp_svt, 0, 0); delay(10000); //XO_DRV_START_UP = 1
-
+    // XO configuration
+    prev18_r19.XO_EN_DIV    = 0x1;// divider enable
+    prev18_r19.XO_S         = 0x5;// division ratio
+    prev18_r19.XO_SEL_CP_DIV= 0x0;// 1: 0.3V-generation charge-pump uses divided clock
+    prev18_r19.XO_EN_OUT    = 0x1;// XO ouput enable
+    prev18_r19.XO_PULSE_SEL = 0x4;// pulse width sel, 1-hot code
+    prev18_r19.XO_DELAY_EN  = 0x3;// pair usage together with xo_pulse_sel
+    // Pseudo-Resistor Selection
+    prev18_r19.XO_RP_LOW    = 0x0;
+    prev18_r19.XO_RP_MEDIA  = 0x0;
+    prev18_r19.XO_RP_MVT    = 0x1;
+    prev18_r19.XO_RP_SVT    = 0x0;
+ 
+    
+    prev18_r19.XO_SLEEP = 0x0;
+    *REG_XO_CONF1 = prev18_r19.as_int;
+    delay(100);
+    prev18_r19.XO_ISOLATE = 0x0;
+    *REG_XO_CONF1 = prev18_r19.as_int;
+    delay(100);
+    prev18_r19.XO_DRV_START_UP  = 0x1;// 1: enables start-up circuit
+    *REG_XO_CONF1 = prev18_r19.as_int;
+    delay(10000);
+    prev18_r19.XO_SCN_CLK_SEL   = 0x1;// scn clock 1: normal. 0.3V level up to 0.6V, 0:init
+    *REG_XO_CONF1 = prev18_r19.as_int;
+    delay(10000);
+    prev18_r19.XO_SCN_CLK_SEL   = 0x0;
+    prev18_r19.XO_SCN_ENB       = 0x0;// enable_bar of scn
+    *REG_XO_CONF1 = prev18_r19.as_int;
+    delay(10000);
+    prev18_r19.XO_DRV_START_UP  = 0x0;
+    prev18_r19.XO_DRV_CORE      = 0x1;// 1: enables core circuit
+    prev18_r19.XO_SCN_CLK_SEL   = 0x1;
+    *REG_XO_CONF1 = prev18_r19.as_int;
 }
 static void XOT_init(void){
 	mbus_write_message32(0xA0,0x6);
-	*XOT_RESET = 0x1;
-	mbus_write_message32(0xA0,0x7);
+	*XOT_RESET_CNT = 0x1;
 }
 
 
@@ -459,11 +456,12 @@ static void program_scan(void){
 	program_scan_word(scan2AMP_ctrl_IBUF_N, scan2AMP_ctrl_IBUF_N_BIT);
 	program_scan_word(scan2CP_RESETn, scan2CP_RESETn_BIT);
 	program_scan_word(scan2CP_SEL_DIV, scan2CP_SEL_DIV_BIT);
-	program_scan_word(scan2CP_SHRT, scan2CP_SHRT_BIT);
 	program_scan_word(scan2CP_SEL_EXT_CLKb, scan2CP_SEL_EXT_CLKb_BIT);
-	program_scan_word(scan2CS_SELb_I, scan2CS_SELb_I_BIT);
-	program_scan_word(scan2CS_SEL_VB, scan2CS_SEL_VB_BIT);
-	program_scan_word(scan2CS_SEL_VBH, scan2CS_SEL_VBH_BIT);
+	program_scan_word(scan2CP_CP_CAS_EN, scan2CP_CP_CAS_EN_BIT);
+	program_scan_word(scan2CP_CP_CAS_VSH, scan2CP_CP_CAS_VSH_BIT);
+	program_scan_word(scan2CP_CP_HVI_EN, scan2CP_CP_HVI_EN_BIT);
+	program_scan_word(scan2CP_CP_HVI_VSH, scan2CP_CP_HVI_VSH_BIT);
+    program_scan_word(scan2CS_SELb_I, scan2CS_SELb_I_BIT);
 	program_scan_word(scan2CS_SEL_I_DIVb, scan2CS_SEL_I_DIVb_BIT);
 	program_scan_word(scan2CS_SEL_I_EXT, scan2CS_SEL_I_EXT_BIT);
 	program_scan_word(scan2CS_SELb_I_DRV, scan2CS_SELb_I_DRV_BIT);
@@ -479,14 +477,10 @@ static void program_scan(void){
 	program_scan_word(scan2DSP_RESETn_DSP, scan2DSP_RESETn_DSP_BIT);
 	program_scan_word(scan2DSP_EN_GC, scan2DSP_EN_GC_BIT);
 	program_scan_word(scan2DSP_EN_GC_ANA, scan2DSP_EN_GC_ANA_BIT);
-	program_scan_word(scan2DSP_EN_BUF_INC, scan2DSP_EN_BUF_INC_BIT);
 	program_scan_word(scan2DSP_SEL_EXT, scan2DSP_SEL_EXT_BIT);
 	program_scan_word(scan2DSP_N_START, scan2DSP_N_START_BIT);
 	program_scan_word(scan2DSP_N_FE, scan2DSP_N_FE_BIT);
 	program_scan_word(scan2DSP_N_DFT, scan2DSP_N_DFT_BIT);
-	program_scan_word(scan2DSP_GC_WR, scan2DSP_GC_WR_BIT);
-	program_scan_word(scan2DSP_GC_WR_ADDR, scan2DSP_GC_WR_ADDR_BIT);
-	program_scan_word(scan2DSP_GC_DATA_IN, scan2DSP_GC_DATA_IN_BIT);
 	program_scan_word(scan2DSP_PHS_WR, scan2DSP_PHS_WR_BIT);
 	program_scan_word(scan2DSP_PHS_WR_ADDR, scan2DSP_PHS_WR_ADDR_BIT);
 	program_scan_word(scan2DSP_PHS_DATA_IN, scan2DSP_PHS_DATA_IN_BIT);
@@ -494,23 +488,34 @@ static void program_scan(void){
 	program_scan_word(scan2DSP_LUT_WR_ADDR, scan2DSP_LUT_WR_ADDR_BIT);
 	program_scan_word(scan2DSP_LUT_DATA_IN, scan2DSP_LUT_DATA_IN_BIT);
 	program_scan_word(scan2DSP_SRAM_ADDR_BASE, scan2DSP_SRAM_ADDR_BASE_BIT);
-	program_scan_word(scan2DSP_RESETn_SRAM, scan2DSP_RESETn_SRAM_BIT);
-	program_scan_word(scan2DSP_SRAM_CLK_EXT, scan2DSP_SRAM_CLK_EXT_BIT);
+	
+    program_scan_word(scan2DSP_DNN_CLK_MON_EN, scan2DSP_DNN_CLK_MON_EN_BIT);
+    program_scan_word(scan2DSP_DNN_CLK_S_DIV, scan2DSP_DNN_CLK_S_DIV_BIT);
+    program_scan_word(scan2DSP_DNN_CLK_S_RING, scan2DSP_DNN_CLK_S_RING_BIT);
+	program_scan_word(scan2DSP_SRAM0_SA_SEL,        scan2DSP_SRAM0_SA_SEL_BIT);
+	program_scan_word(scan2DSP_SRAM0_TUNE_DLY1,     scan2DSP_SRAM0_TUNE_DLY1_BIT);
+	program_scan_word(scan2DSP_SRAM0_TUNE_DLY2,     scan2DSP_SRAM0_TUNE_DLY2_BIT);
+	program_scan_word(scan2DSP_SRAM0_TUNE_RDRSB,    scan2DSP_SRAM0_TUNE_RDRSB_BIT);
+	program_scan_word(scan2DSP_SRAM0_TUNE_RDRSB_EN, scan2DSP_SRAM0_TUNE_RDRSB_EN_BIT);
+	program_scan_word(scan2DSP_SRAM1_SA_SEL,        scan2DSP_SRAM1_SA_SEL_BIT);
+	program_scan_word(scan2DSP_SRAM1_TUNE_DLY1,     scan2DSP_SRAM1_TUNE_DLY1_BIT);
+	program_scan_word(scan2DSP_SRAM1_TUNE_DLY2,     scan2DSP_SRAM1_TUNE_DLY2_BIT);
+	program_scan_word(scan2DSP_SRAM1_TUNE_RDRSB,    scan2DSP_SRAM1_TUNE_RDRSB_BIT);
+	program_scan_word(scan2DSP_SRAM1_TUNE_RDRSB_EN, scan2DSP_SRAM1_TUNE_RDRSB_EN_BIT);
+    program_scan_word(scan2DSP_DNN_CLK_EXT_SEL, scan2DSP_DNN_CLK_EXT_SEL_BIT);
+    program_scan_word(scan2DSP_DNN_CLK_SCAN, scan2DSP_DNN_CLK_SCAN_BIT);
+    program_scan_word(scan2DSP_DNN_CLK_SCAN_SEL, scan2DSP_DNN_CLK_SCAN_SEL_BIT);
+	program_scan_word(scan2DSP_SRAM_EXT_SEL, scan2DSP_SRAM_EXT_SEL_BIT);
 	program_scan_word(scan2DSP_SRAM_ADDR_EXT, scan2DSP_SRAM_ADDR_EXT_BIT);
-	program_scan_word(scan2DSP_SRAM_DATAIN_EXT, scan2DSP_SRAM_DATAIN_EXT_BIT);
 	program_scan_word(scan2DSP_SRAM_R0W1_EXT, scan2DSP_SRAM_R0W1_EXT_BIT);
 	program_scan_word(scan2DSP_SRAM_MEM_EN_EXT, scan2DSP_SRAM_MEM_EN_EXT_BIT);
-	program_scan_word(scan2DSP_SRAM_ISOLATEN_EXT, scan2DSP_SRAM_ISOLATEN_EXT_BIT);
-	program_scan_word(scan2DSP_SRAM_PG_EXT, scan2DSP_SRAM_PG_EXT_BIT);
-	program_scan_word(scan2DSP_SRAM_EXT_SEL, scan2DSP_SRAM_EXT_SEL_BIT);
-	program_scan_word(scan2DSP_SRAM_ISOLATEN_EXT_SEL, scan2DSP_SRAM_ISOLATEN_EXT_SEL_BIT);
-	program_scan_word(scan2DSP_SRAM_PG_EXT_SEL, scan2DSP_SRAM_PG_EXT_SEL_BIT);
-	program_scan_word(scan2DSP_SA_SEL, scan2DSP_SA_SEL_BIT);
-	program_scan_word(scan2DSP_TUNE_DLY1, scan2DSP_TUNE_DLY1_BIT);
-	program_scan_word(scan2DSP_TUNE_DLY2, scan2DSP_TUNE_DLY2_BIT);
-	program_scan_word(scan2DSP_TUNE_RDRSB, scan2DSP_TUNE_RDRSB_BIT);
-	program_scan_word(scan2DSP_TUNE_RDRSB_EN, scan2DSP_TUNE_RDRSB_EN_BIT);
-	program_scan_word(scan2DSP_VREF_SEL, scan2DSP_VREF_SEL_BIT);
+	program_scan_word(scan2DSP_SRAM_DATAIN_EXT, scan2DSP_SRAM_DATAIN_EXT_BIT);
+    program_scan_word(scan2DSP_DNN_CTRL_SCAN_SEL, scan2DSP_DNN_CTRL_SCAN_SEL_BIT);
+    program_scan_word(scan2DSP_DNN_ISOLATEN_SCAN, scan2DSP_DNN_ISOLATEN_SCAN_BIT);
+	program_scan_word(scan2DSP_PG_SLEEP_SCAN, scan2DSP_PG_SLEEP_SCAN_BIT);
+	program_scan_word(scan2DSP_DNN_CLKENB_SCAN, scan2DSP_DNN_CLKENB_SCAN_BIT);
+	program_scan_word(scan2DSP_DNN_RESETN_SCAN, scan2DSP_DNN_RESETN_SCAN_BIT);
+	program_scan_word(scan2DSP_DNN_EN_SCAN, scan2DSP_DNN_EN_SCAN_BIT);
 	program_scan_word(scan2DSP_RF_MON_EN, scan2DSP_RF_MON_EN_BIT);
 	program_scan_word(scan2DSP_DBG_EN, scan2DSP_DBG_EN_BIT);
 	program_scan_word(scan2Timer_EN_OSC, scan2Timer_EN_OSC_BIT);
@@ -551,15 +556,26 @@ static void program_scan_sram(void){
 	uint32_t i;
 	mbus_write_message32(0xEE, 0xDEAD);
 	scan2DSP_SRAM_EXT_SEL= 1;
-	scan2DSP_SRAM_ISOLATEN_EXT_SEL = 1;
-	scan2DSP_SRAM_PG_EXT_SEL = 1;
+	scan2DSP_DNN_CLK_SCAN_SEL = 1;
+	scan2DSP_DNN_CTRL_SCAN_SEL = 1;
 	program_scan();
 	mbus_write_message32(0xEE, 0xDEAD);
-	scan2DSP_SRAM_PG_EXT = 0;
+	scan2DSP_PG_SLEEP_SCAN = 0;
 	program_scan();
 	mbus_write_message32(0xEE, 0xDEAD);
-	scan2DSP_SRAM_ISOLATEN_EXT = 1;
+	scan2DSP_DNN_ISOLATEN_SCAN = 1;
 	program_scan();
+	scan2DSP_DNN_RESETN_SCAN = 1;
+	program_scan();
+
+    for(i = 0; i < 4; i++){
+		scan2DSP_DNN_CLK_SCAN = 1;
+		program_scan();
+		scan2DSP_DNN_CLK_SCAN = 0;
+		program_scan();
+		mbus_write_message32(0xEE, 0xDEAD);
+	}
+
 	scan2DSP_SRAM_MEM_EN_EXT = 1;
 	scan2DSP_SRAM_R0W1_EXT = 1;
 	program_scan();
@@ -568,9 +584,9 @@ static void program_scan_sram(void){
 	for(i = 0; i < SRAM_DATA_LENGTH; i++){
 		scan2DSP_SRAM_DATAIN_EXT = SRAM_DATA[i];
 		program_scan();
-		scan2DSP_SRAM_CLK_EXT = 1;
+		scan2DSP_DNN_CLK_SCAN = 1;
 		program_scan();
-		scan2DSP_SRAM_CLK_EXT = 0;
+		scan2DSP_DNN_CLK_SCAN = 0;
 		program_scan();
 		scan2DSP_SRAM_ADDR_EXT = scan2DSP_SRAM_ADDR_EXT + 1;
 		mbus_write_message32(0xEE, 0xDEAD);
@@ -579,18 +595,37 @@ static void program_scan_sram(void){
 	scan2DSP_SRAM_MEM_EN_EXT = 0;
 	scan2DSP_SRAM_R0W1_EXT = 0;
 	program_scan();
-	scan2DSP_SRAM_ISOLATEN_EXT = 0;
+	scan2DSP_DNN_RESETN_SCAN = 0;
 	program_scan();
-	scan2DSP_SRAM_PG_EXT = 1;
+	scan2DSP_DNN_ISOLATEN_SCAN = 0;
+	program_scan();
+	scan2DSP_PG_SLEEP_SCAN = 1;
 	program_scan();
 	scan2DSP_SRAM_EXT_SEL= 0;
-	scan2DSP_SRAM_ISOLATEN_EXT_SEL = 0;
-	scan2DSP_SRAM_PG_EXT_SEL = 0;
+	scan2DSP_DNN_CLK_SCAN_SEL = 0;
+	scan2DSP_DNN_CTRL_SCAN_SEL = 0;
 	program_scan();
 	scan2DSP_RESETn_DSP = 1;
 	program_scan();
 	mbus_write_message32(0xEE, 0xDEAD);
 }
+
+static void program_scan_cp(uint32_t data_val){
+    if (data_val == 1) {
+	    scan2CP_CP_HVI_EN = 1;
+	    scan2CP_CP_HVI_VSH = 1;
+	    scan2CP_CP_RESETn = 1;
+	    program_scan();
+        delay(CP_DELAY);    
+	    scan2CP_CP_HVI_VSH = 0;
+	    program_scan();
+    }
+    else {
+	    scan2CP_CP_RESETn = 0;
+	    program_scan();
+    }
+}
+
 
 //*******************************************************************
 // INTERRUPT HANDLERS (Updated for PRCv17)
@@ -624,12 +659,17 @@ void handler_ext_int_reg3(void) { // REG3
 	*NVIC_ICPR = (0x1 << IRQ_REG3);
 }
 void handler_ext_int_gocep(void) { // GOCEP
-	uint32_t data_cmd = *REG1;
-	uint32_t data_val = *REG0;
+    wakeup_data = *GOC_DATA_IRQ;
+	uint32_t data_cmd = (wakeup_data>>24) & 0xFF;
+	uint32_t data_val = wakeup_data & 0xFF;
+
+	//uint32_t data_cmd = *REG1;
+	//uint32_t data_val = *REG0;
 	init_scan();
 	unfreeze_gpio_out();
 
-	*NVIC_ICPR = (0x1 << IRQ_GOCEP);
+	*NVIC_ISER = (0x1 << IRQ_GOCEP);
+	//*NVIC_ICPR = (0x1 << IRQ_GOCEP);
 	mbus_write_message32(0xEE, data_cmd);
 	delay(MBUS_DELAY*10);
 	mbus_write_message32(0xEE, data_val);
@@ -639,16 +679,9 @@ void handler_ext_int_gocep(void) { // GOCEP
 		if(data_val) scan2AMP_EN_FS=0;
 		else scan2AMP_EN_FS=1;
 	}
-	else if(data_cmd == 1){		// CP enable
-		if(data_val) scan2CP_RESETn=1;
-		else scan2CP_RESETn=0;
-	}
 	else if(data_cmd == 2){		// ADC enable
 		if(data_val) scan2ADC_RESET=0;
 		else scan2ADC_RESET=1;
-	}
-	else if(data_cmd == 3){		// AMP current setting
-		scan2CS_SEL_VB = data_val;
 	}
 	else if(data_cmd == 4){		// Choose clock source
 		if(data_val==0){	// Crystal
@@ -684,8 +717,7 @@ void handler_ext_int_gocep(void) { // GOCEP
 //			pmu_set_sleep_clk(0xA,0x1,0x10,0x2);
 			pmu_set_sleep_clk(0xF,0xF,0xF,0xF);
 
-			pmu_set_active_clk(0xA,0x1,0x10,0x5);
-			//pmu_set_active_clk(0xA,0x1,0x10,0x2);
+			pmu_set_active_clk(0xA,0x1,0x10,0x2);
 		}
 		else{
 			pmu_set_sar_override(pmu_sar_conv_ratio_val_test_on);
@@ -709,6 +741,9 @@ void handler_ext_int_gocep(void) { // GOCEP
 
 	if(data_cmd == 0xFF){
 		program_scan_sram();
+	}
+	else if(data_cmd == 1){		// CP enable
+		program_scan_cp(data_val);
 	}
 	freeze_gpio_out();
 	operation_sleep_notimer();
@@ -1041,7 +1076,7 @@ inline static void pmu_reset_solar_short(){
 			));
 	delay(MBUS_DELAY);
 	mbus_remote_register_write(PMU_ADDR,0x0E, 
-			( (1 << 10) // When to turn on harvester-inhibiting switch (0: 00000001PoR, 1: VBAT high)
+			( (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
 			  | (0 << 9)  // Enables override setting [8]
 			  | (0 << 8)  // Turn on the harvester-inhibiting switch
 			  | (1 << 4)  // clamp_tune_bottom (increases clamp thresh)
@@ -1090,23 +1125,23 @@ static void operation_init(void){
 
 	pmu_sar_conv_ratio_val_test_on = 0x2D;
 	pmu_sar_conv_ratio_val_test_off = 0x2A;
-	// Config watchdog timer to about 10 sec; default: 0x02FFFFFF00000001
+	// Config watchdog timer to about 10 sec; default: 0x02FFFFFF
 	config_timerwd(TIMERWD_VAL);
 	*TIMERWD_GO = 0x0;
 
 	*REG_MBUS_WD = 0;
 	// Set CPU & Mbus Clock Speeds
-	prev17_r0B.CLK_GEN_RING = 0x1; // Default 0x1
-	prev17_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
-	prev17_r0B.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
-	prev17_r0B.GOC_CLK_GEN_SEL_DIV = 0x0; // Default 0x0
-	prev17_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
-	*REG_CLKGEN_TUNE = prev17_r0B.as_int;
+	prev18_r0B.CLK_GEN_RING = 0x1; // Default 0x1
+	prev18_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
+	prev18_r0B.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
+	prev18_r0B.GOC_CLK_GEN_SEL_DIV = 0x0; // Default 0x0
+	prev18_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
+	*REG_CLKGEN_TUNE = prev18_r0B.as_int;
 
-	prev17_r0D.SRAM_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
-	prev17_r0D.SRAM_TUNE_DECODER_DLY = 15; // Default 0x2, 4 bits
-	prev17_r0D.SRAM_USE_INVERTER_SA= 1; 
-	*REG_SRAM_TUNE = prev17_r0D.as_int;
+	prev18_r1C.SRAM0_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
+	prev18_r1C.SRAM0_TUNE_DECODER_DLY = 15; // Default 0x2, 4 bits
+	prev18_r1C.SRAM0_USE_INVERTER_SA= 1; 
+	*REG_SRAM0_TUNE = prev18_r1C.as_int;
 
 
 	//Enumerate & Initialize Registers
@@ -1155,33 +1190,10 @@ static void operation_init(void){
 
 	// Initialize N0 
 	init_scan();
-	scan2pad_outen=1;
-	scan2AMP_EN_FS=0x0;
-	scan2CP_RESETn=0;
-	scan2CS_SEL_VB=0x20; // Amplifier bias current
-	scan2ADC_RESET=0x1;
-	scan2ADC_DLY_SEL=0x0;
-	scan2ADC_SDLY_SEL=0x0;
-	scan2Timer_SEL_CLK=0x0;
-	scan2Timer_EN_OSC=0x0;
-	scan2Timer_RESETb_TM2=0x0;
-	scan2AMP_SEL_Gain=0x3;
-	scan2DSP_SRAM_ADDR_EXT=0x552;
-	scan2DSP_SRAM_DATAIN_EXT=0x00000000;
-	scan2DSP_SRAM_EXT_SEL=0x0;
-	scan2DSP_SRAM_ISOLATEN_EXT_SEL=0x0;
-	scan2DSP_SRAM_PG_EXT_SEL=0x0;
-	scan2DSP_SRAM_PG_EXT=0x1;
-	scan2DSP_SRAM_ISOLATEN_EXT=0x0;
-	scan2DSP_SRAM_MEM_EN_EXT=0x0;
-	scan2DSP_SRAM_R0W1_EXT=0x0;
-	scan2DSP_SRAM_CLK_EXT=0x0;
-	scan2DSP_RESETn_DSP = 0;
 	program_scan();
-
-	scan2CP_RESETn=1;
 	delay(MBUS_DELAY*10);
-	program_scan();
+
+    program_scan_cp(1);
 
 	scan2ADC_RESET=0x0;
 	delay(MBUS_DELAY*10);
@@ -1207,9 +1219,9 @@ int main() {
 
 	}
 
-    while(1); //added by Sechang
-	//operation_sleep_notimer();
-	//return 0;
+    operation_sleep_notimer();
+    //while(1); //added by Sechang
+	return 0;
 }
 
 
