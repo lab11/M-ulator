@@ -1050,9 +1050,9 @@ static void operation_init(void){
     prcv17_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
 	*REG_CLKGEN_TUNE = prcv17_r0B.as_int;
 
-    prcv17_r0D.SRAM_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
-    prcv17_r0D.SRAM_TUNE_DECODER_DLY = 15; // Default 0x2, 4 bits
-    prcv17_r0D.SRAM_USE_INVERTER_SA = 1; // Default 0x2, 4 bits
+    //prcv17_r0D.SRAM_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
+    //prcv17_r0D.SRAM_TUNE_DECODER_DLY = 15; // Default 0x2, 4 bits
+    //prcv17_r0D.SRAM_USE_INVERTER_SA = 1; // Default 0x2, 4 bits
 	//*REG_SRAM_TUNE = prcv17_r0D.as_int;
   
     //Enumerate & Initialize Registers
