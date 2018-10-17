@@ -95,6 +95,7 @@
 #define REG_WUPT_CONFIG ((volatile uint32_t *) 0xA0000044)
 #define REG_WUPT_VAL    ((volatile uint32_t *) 0xA0000048)
 #define REG_SYS_CONF    ((volatile uint32_t *) 0xA000006C)
+#define REG_SRAM0_TUNE  ((volatile uint32_t *) 0xA0000070)
 #define REG_MBUS_FLAG   ((volatile uint32_t *) 0xA0000078)
 #define REG_MBUS_WD     ((volatile uint32_t *) 0xA000007C)
 #define REG_STR1_BUFL   ((volatile uint32_t *) 0xA00000A4)

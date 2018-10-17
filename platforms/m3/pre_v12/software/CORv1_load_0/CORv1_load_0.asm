@@ -15,23 +15,23 @@ Disassembly of section .text:
 	...
   34:	00000090 	.word	0x00000090
 	...
-  40:	0000019d 	.word	0x0000019d
-  44:	000001a9 	.word	0x000001a9
-  48:	000001b5 	.word	0x000001b5
-  4c:	000001c1 	.word	0x000001c1
-  50:	000001cd 	.word	0x000001cd
-  54:	000001d9 	.word	0x000001d9
-  58:	000001e5 	.word	0x000001e5
-  5c:	000001f1 	.word	0x000001f1
-  60:	000001fd 	.word	0x000001fd
-  64:	0000020d 	.word	0x0000020d
-  68:	0000021d 	.word	0x0000021d
-  6c:	0000022d 	.word	0x0000022d
-  70:	0000023d 	.word	0x0000023d
-  74:	0000024d 	.word	0x0000024d
-  78:	0000025d 	.word	0x0000025d
-  7c:	0000026d 	.word	0x0000026d
-  80:	0000027d 	.word	0x0000027d
+  40:	00000205 	.word	0x00000205
+  44:	00000211 	.word	0x00000211
+  48:	0000021d 	.word	0x0000021d
+  4c:	00000229 	.word	0x00000229
+  50:	00000235 	.word	0x00000235
+  54:	00000241 	.word	0x00000241
+  58:	0000024d 	.word	0x0000024d
+  5c:	00000259 	.word	0x00000259
+  60:	00000265 	.word	0x00000265
+  64:	00000275 	.word	0x00000275
+  68:	00000285 	.word	0x00000285
+  6c:	00000295 	.word	0x00000295
+  70:	000002a5 	.word	0x000002a5
+  74:	000002b5 	.word	0x000002b5
+  78:	000002c5 	.word	0x000002c5
+  7c:	000002d5 	.word	0x000002d5
+  80:	000002e5 	.word	0x000002e5
 	...
 
 00000090 <hang>:
@@ -39,7 +39,7 @@ Disassembly of section .text:
 	...
 
 000000a0 <_start>:
-  a0:	f000 f912 	bl	2c8 <main>
+  a0:	f000 f946 	bl	330 <main>
   a4:	e7fc      	b.n	a0 <_start>
 
 Disassembly of section .text.delay:
@@ -158,361 +158,452 @@ Disassembly of section .text.mbus_enumerate:
  16e:	46c0      	nop			; (mov r8, r8)
  170:	a0003000 	.word	0xa0003000
 
-Disassembly of section .text.mbus_sleep_all:
+Disassembly of section .text.mbus_copy_registers_from_remote_to_local:
 
-00000174 <mbus_sleep_all>:
- 174:	4b01      	ldr	r3, [pc, #4]	; (17c <mbus_sleep_all+0x8>)
- 176:	2200      	movs	r2, #0
- 178:	601a      	str	r2, [r3, #0]
- 17a:	4770      	bx	lr
- 17c:	a0003010 	.word	0xa0003010
+00000174 <mbus_copy_registers_from_remote_to_local>:
+ 174:	b507      	push	{r0, r1, r2, lr}
+ 176:	0609      	lsls	r1, r1, #24
+ 178:	430a      	orrs	r2, r1
+ 17a:	2180      	movs	r1, #128	; 0x80
+ 17c:	0149      	lsls	r1, r1, #5
+ 17e:	430a      	orrs	r2, r1
+ 180:	041b      	lsls	r3, r3, #16
+ 182:	431a      	orrs	r2, r3
+ 184:	9201      	str	r2, [sp, #4]
+ 186:	0100      	lsls	r0, r0, #4
+ 188:	2201      	movs	r2, #1
+ 18a:	4310      	orrs	r0, r2
+ 18c:	b2c0      	uxtb	r0, r0
+ 18e:	a901      	add	r1, sp, #4
+ 190:	f7ff ffce 	bl	130 <mbus_write_message>
+ 194:	bd07      	pop	{r0, r1, r2, pc}
+
+Disassembly of section .text.mbus_remote_register_write:
+
+00000196 <mbus_remote_register_write>:
+ 196:	b507      	push	{r0, r1, r2, lr}
+ 198:	0212      	lsls	r2, r2, #8
+ 19a:	0a12      	lsrs	r2, r2, #8
+ 19c:	0609      	lsls	r1, r1, #24
+ 19e:	4311      	orrs	r1, r2
+ 1a0:	0100      	lsls	r0, r0, #4
+ 1a2:	9101      	str	r1, [sp, #4]
+ 1a4:	b2c0      	uxtb	r0, r0
+ 1a6:	a901      	add	r1, sp, #4
+ 1a8:	2201      	movs	r2, #1
+ 1aa:	f7ff ffc1 	bl	130 <mbus_write_message>
+ 1ae:	bd07      	pop	{r0, r1, r2, pc}
+
+Disassembly of section .text.mbus_remote_register_read:
+
+000001b0 <mbus_remote_register_read>:
+ 1b0:	b508      	push	{r3, lr}
+ 1b2:	2300      	movs	r3, #0
+ 1b4:	f7ff ffde 	bl	174 <mbus_copy_registers_from_remote_to_local>
+ 1b8:	bd08      	pop	{r3, pc}
+
+Disassembly of section .text.mbus_copy_mem_from_remote_to_any_bulk:
+
+000001ba <mbus_copy_mem_from_remote_to_any_bulk>:
+ 1ba:	b530      	push	{r4, r5, lr}
+ 1bc:	b085      	sub	sp, #20
+ 1be:	9d08      	ldr	r5, [sp, #32]
+ 1c0:	2480      	movs	r4, #128	; 0x80
+ 1c2:	04a4      	lsls	r4, r4, #18
+ 1c4:	0712      	lsls	r2, r2, #28
+ 1c6:	4322      	orrs	r2, r4
+ 1c8:	032c      	lsls	r4, r5, #12
+ 1ca:	0b24      	lsrs	r4, r4, #12
+ 1cc:	4322      	orrs	r2, r4
+ 1ce:	9201      	str	r2, [sp, #4]
+ 1d0:	0100      	lsls	r0, r0, #4
+ 1d2:	2203      	movs	r2, #3
+ 1d4:	4310      	orrs	r0, r2
+ 1d6:	9102      	str	r1, [sp, #8]
+ 1d8:	b2c0      	uxtb	r0, r0
+ 1da:	a901      	add	r1, sp, #4
+ 1dc:	9303      	str	r3, [sp, #12]
+ 1de:	f7ff ffa7 	bl	130 <mbus_write_message>
+ 1e2:	b005      	add	sp, #20
+ 1e4:	bd30      	pop	{r4, r5, pc}
 
 Disassembly of section .text.init_interrupt:
 
-00000180 <init_interrupt>:
- 180:	4a03      	ldr	r2, [pc, #12]	; (190 <init_interrupt+0x10>)
- 182:	4b04      	ldr	r3, [pc, #16]	; (194 <init_interrupt+0x14>)
- 184:	601a      	str	r2, [r3, #0]
- 186:	4b04      	ldr	r3, [pc, #16]	; (198 <init_interrupt+0x18>)
- 188:	2200      	movs	r2, #0
- 18a:	601a      	str	r2, [r3, #0]
- 18c:	4770      	bx	lr
- 18e:	46c0      	nop			; (mov r8, r8)
- 190:	0001ffff 	.word	0x0001ffff
- 194:	e000e280 	.word	0xe000e280
- 198:	e000e100 	.word	0xe000e100
+000001e8 <init_interrupt>:
+ 1e8:	4a03      	ldr	r2, [pc, #12]	; (1f8 <init_interrupt+0x10>)
+ 1ea:	4b04      	ldr	r3, [pc, #16]	; (1fc <init_interrupt+0x14>)
+ 1ec:	601a      	str	r2, [r3, #0]
+ 1ee:	4b04      	ldr	r3, [pc, #16]	; (200 <init_interrupt+0x18>)
+ 1f0:	2200      	movs	r2, #0
+ 1f2:	601a      	str	r2, [r3, #0]
+ 1f4:	4770      	bx	lr
+ 1f6:	46c0      	nop			; (mov r8, r8)
+ 1f8:	0001ffff 	.word	0x0001ffff
+ 1fc:	e000e280 	.word	0xe000e280
+ 200:	e000e100 	.word	0xe000e100
 
 Disassembly of section .text.handler_ext_int_0:
 
-0000019c <handler_ext_int_0>:
- 19c:	4b01      	ldr	r3, [pc, #4]	; (1a4 <handler_ext_int_0+0x8>)
- 19e:	2201      	movs	r2, #1
- 1a0:	601a      	str	r2, [r3, #0]
- 1a2:	4770      	bx	lr
- 1a4:	e000e280 	.word	0xe000e280
+00000204 <handler_ext_int_0>:
+ 204:	4b01      	ldr	r3, [pc, #4]	; (20c <handler_ext_int_0+0x8>)
+ 206:	2201      	movs	r2, #1
+ 208:	601a      	str	r2, [r3, #0]
+ 20a:	4770      	bx	lr
+ 20c:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_1:
 
-000001a8 <handler_ext_int_1>:
- 1a8:	4b01      	ldr	r3, [pc, #4]	; (1b0 <handler_ext_int_1+0x8>)
- 1aa:	2202      	movs	r2, #2
- 1ac:	601a      	str	r2, [r3, #0]
- 1ae:	4770      	bx	lr
- 1b0:	e000e280 	.word	0xe000e280
+00000210 <handler_ext_int_1>:
+ 210:	4b01      	ldr	r3, [pc, #4]	; (218 <handler_ext_int_1+0x8>)
+ 212:	2202      	movs	r2, #2
+ 214:	601a      	str	r2, [r3, #0]
+ 216:	4770      	bx	lr
+ 218:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_2:
 
-000001b4 <handler_ext_int_2>:
- 1b4:	4b01      	ldr	r3, [pc, #4]	; (1bc <handler_ext_int_2+0x8>)
- 1b6:	2204      	movs	r2, #4
- 1b8:	601a      	str	r2, [r3, #0]
- 1ba:	4770      	bx	lr
- 1bc:	e000e280 	.word	0xe000e280
+0000021c <handler_ext_int_2>:
+ 21c:	4b01      	ldr	r3, [pc, #4]	; (224 <handler_ext_int_2+0x8>)
+ 21e:	2204      	movs	r2, #4
+ 220:	601a      	str	r2, [r3, #0]
+ 222:	4770      	bx	lr
+ 224:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_3:
 
-000001c0 <handler_ext_int_3>:
- 1c0:	4b01      	ldr	r3, [pc, #4]	; (1c8 <handler_ext_int_3+0x8>)
- 1c2:	2208      	movs	r2, #8
- 1c4:	601a      	str	r2, [r3, #0]
- 1c6:	4770      	bx	lr
- 1c8:	e000e280 	.word	0xe000e280
+00000228 <handler_ext_int_3>:
+ 228:	4b01      	ldr	r3, [pc, #4]	; (230 <handler_ext_int_3+0x8>)
+ 22a:	2208      	movs	r2, #8
+ 22c:	601a      	str	r2, [r3, #0]
+ 22e:	4770      	bx	lr
+ 230:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_4:
 
-000001cc <handler_ext_int_4>:
- 1cc:	4b01      	ldr	r3, [pc, #4]	; (1d4 <handler_ext_int_4+0x8>)
- 1ce:	2210      	movs	r2, #16
- 1d0:	601a      	str	r2, [r3, #0]
- 1d2:	4770      	bx	lr
- 1d4:	e000e280 	.word	0xe000e280
+00000234 <handler_ext_int_4>:
+ 234:	4b01      	ldr	r3, [pc, #4]	; (23c <handler_ext_int_4+0x8>)
+ 236:	2210      	movs	r2, #16
+ 238:	601a      	str	r2, [r3, #0]
+ 23a:	4770      	bx	lr
+ 23c:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_5:
 
-000001d8 <handler_ext_int_5>:
- 1d8:	4b01      	ldr	r3, [pc, #4]	; (1e0 <handler_ext_int_5+0x8>)
- 1da:	2220      	movs	r2, #32
- 1dc:	601a      	str	r2, [r3, #0]
- 1de:	4770      	bx	lr
- 1e0:	e000e280 	.word	0xe000e280
+00000240 <handler_ext_int_5>:
+ 240:	4b01      	ldr	r3, [pc, #4]	; (248 <handler_ext_int_5+0x8>)
+ 242:	2220      	movs	r2, #32
+ 244:	601a      	str	r2, [r3, #0]
+ 246:	4770      	bx	lr
+ 248:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_6:
 
-000001e4 <handler_ext_int_6>:
- 1e4:	4b01      	ldr	r3, [pc, #4]	; (1ec <handler_ext_int_6+0x8>)
- 1e6:	2240      	movs	r2, #64	; 0x40
- 1e8:	601a      	str	r2, [r3, #0]
- 1ea:	4770      	bx	lr
- 1ec:	e000e280 	.word	0xe000e280
+0000024c <handler_ext_int_6>:
+ 24c:	4b01      	ldr	r3, [pc, #4]	; (254 <handler_ext_int_6+0x8>)
+ 24e:	2240      	movs	r2, #64	; 0x40
+ 250:	601a      	str	r2, [r3, #0]
+ 252:	4770      	bx	lr
+ 254:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_7:
 
-000001f0 <handler_ext_int_7>:
- 1f0:	4b01      	ldr	r3, [pc, #4]	; (1f8 <handler_ext_int_7+0x8>)
- 1f2:	2280      	movs	r2, #128	; 0x80
- 1f4:	601a      	str	r2, [r3, #0]
- 1f6:	4770      	bx	lr
- 1f8:	e000e280 	.word	0xe000e280
+00000258 <handler_ext_int_7>:
+ 258:	4b01      	ldr	r3, [pc, #4]	; (260 <handler_ext_int_7+0x8>)
+ 25a:	2280      	movs	r2, #128	; 0x80
+ 25c:	601a      	str	r2, [r3, #0]
+ 25e:	4770      	bx	lr
+ 260:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_8:
 
-000001fc <handler_ext_int_8>:
- 1fc:	4b02      	ldr	r3, [pc, #8]	; (208 <handler_ext_int_8+0xc>)
- 1fe:	2280      	movs	r2, #128	; 0x80
- 200:	0052      	lsls	r2, r2, #1
- 202:	601a      	str	r2, [r3, #0]
- 204:	4770      	bx	lr
- 206:	46c0      	nop			; (mov r8, r8)
- 208:	e000e280 	.word	0xe000e280
+00000264 <handler_ext_int_8>:
+ 264:	4b02      	ldr	r3, [pc, #8]	; (270 <handler_ext_int_8+0xc>)
+ 266:	2280      	movs	r2, #128	; 0x80
+ 268:	0052      	lsls	r2, r2, #1
+ 26a:	601a      	str	r2, [r3, #0]
+ 26c:	4770      	bx	lr
+ 26e:	46c0      	nop			; (mov r8, r8)
+ 270:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_9:
 
-0000020c <handler_ext_int_9>:
- 20c:	4b02      	ldr	r3, [pc, #8]	; (218 <handler_ext_int_9+0xc>)
- 20e:	2280      	movs	r2, #128	; 0x80
- 210:	0092      	lsls	r2, r2, #2
- 212:	601a      	str	r2, [r3, #0]
- 214:	4770      	bx	lr
- 216:	46c0      	nop			; (mov r8, r8)
- 218:	e000e280 	.word	0xe000e280
+00000274 <handler_ext_int_9>:
+ 274:	4b02      	ldr	r3, [pc, #8]	; (280 <handler_ext_int_9+0xc>)
+ 276:	2280      	movs	r2, #128	; 0x80
+ 278:	0092      	lsls	r2, r2, #2
+ 27a:	601a      	str	r2, [r3, #0]
+ 27c:	4770      	bx	lr
+ 27e:	46c0      	nop			; (mov r8, r8)
+ 280:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_10:
 
-0000021c <handler_ext_int_10>:
- 21c:	4b02      	ldr	r3, [pc, #8]	; (228 <handler_ext_int_10+0xc>)
- 21e:	2280      	movs	r2, #128	; 0x80
- 220:	00d2      	lsls	r2, r2, #3
- 222:	601a      	str	r2, [r3, #0]
- 224:	4770      	bx	lr
- 226:	46c0      	nop			; (mov r8, r8)
- 228:	e000e280 	.word	0xe000e280
+00000284 <handler_ext_int_10>:
+ 284:	4b02      	ldr	r3, [pc, #8]	; (290 <handler_ext_int_10+0xc>)
+ 286:	2280      	movs	r2, #128	; 0x80
+ 288:	00d2      	lsls	r2, r2, #3
+ 28a:	601a      	str	r2, [r3, #0]
+ 28c:	4770      	bx	lr
+ 28e:	46c0      	nop			; (mov r8, r8)
+ 290:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_11:
 
-0000022c <handler_ext_int_11>:
- 22c:	4b02      	ldr	r3, [pc, #8]	; (238 <handler_ext_int_11+0xc>)
- 22e:	2280      	movs	r2, #128	; 0x80
- 230:	0112      	lsls	r2, r2, #4
- 232:	601a      	str	r2, [r3, #0]
- 234:	4770      	bx	lr
- 236:	46c0      	nop			; (mov r8, r8)
- 238:	e000e280 	.word	0xe000e280
+00000294 <handler_ext_int_11>:
+ 294:	4b02      	ldr	r3, [pc, #8]	; (2a0 <handler_ext_int_11+0xc>)
+ 296:	2280      	movs	r2, #128	; 0x80
+ 298:	0112      	lsls	r2, r2, #4
+ 29a:	601a      	str	r2, [r3, #0]
+ 29c:	4770      	bx	lr
+ 29e:	46c0      	nop			; (mov r8, r8)
+ 2a0:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_12:
 
-0000023c <handler_ext_int_12>:
- 23c:	4b02      	ldr	r3, [pc, #8]	; (248 <handler_ext_int_12+0xc>)
- 23e:	2280      	movs	r2, #128	; 0x80
- 240:	0152      	lsls	r2, r2, #5
- 242:	601a      	str	r2, [r3, #0]
- 244:	4770      	bx	lr
- 246:	46c0      	nop			; (mov r8, r8)
- 248:	e000e280 	.word	0xe000e280
+000002a4 <handler_ext_int_12>:
+ 2a4:	4b02      	ldr	r3, [pc, #8]	; (2b0 <handler_ext_int_12+0xc>)
+ 2a6:	2280      	movs	r2, #128	; 0x80
+ 2a8:	0152      	lsls	r2, r2, #5
+ 2aa:	601a      	str	r2, [r3, #0]
+ 2ac:	4770      	bx	lr
+ 2ae:	46c0      	nop			; (mov r8, r8)
+ 2b0:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_13:
 
-0000024c <handler_ext_int_13>:
- 24c:	4b02      	ldr	r3, [pc, #8]	; (258 <handler_ext_int_13+0xc>)
- 24e:	2280      	movs	r2, #128	; 0x80
- 250:	0192      	lsls	r2, r2, #6
- 252:	601a      	str	r2, [r3, #0]
- 254:	4770      	bx	lr
- 256:	46c0      	nop			; (mov r8, r8)
- 258:	e000e280 	.word	0xe000e280
+000002b4 <handler_ext_int_13>:
+ 2b4:	4b02      	ldr	r3, [pc, #8]	; (2c0 <handler_ext_int_13+0xc>)
+ 2b6:	2280      	movs	r2, #128	; 0x80
+ 2b8:	0192      	lsls	r2, r2, #6
+ 2ba:	601a      	str	r2, [r3, #0]
+ 2bc:	4770      	bx	lr
+ 2be:	46c0      	nop			; (mov r8, r8)
+ 2c0:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_14:
 
-0000025c <handler_ext_int_14>:
- 25c:	4b02      	ldr	r3, [pc, #8]	; (268 <handler_ext_int_14+0xc>)
- 25e:	2280      	movs	r2, #128	; 0x80
- 260:	01d2      	lsls	r2, r2, #7
- 262:	601a      	str	r2, [r3, #0]
- 264:	4770      	bx	lr
- 266:	46c0      	nop			; (mov r8, r8)
- 268:	e000e280 	.word	0xe000e280
+000002c4 <handler_ext_int_14>:
+ 2c4:	4b02      	ldr	r3, [pc, #8]	; (2d0 <handler_ext_int_14+0xc>)
+ 2c6:	2280      	movs	r2, #128	; 0x80
+ 2c8:	01d2      	lsls	r2, r2, #7
+ 2ca:	601a      	str	r2, [r3, #0]
+ 2cc:	4770      	bx	lr
+ 2ce:	46c0      	nop			; (mov r8, r8)
+ 2d0:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_15:
 
-0000026c <handler_ext_int_15>:
- 26c:	4b02      	ldr	r3, [pc, #8]	; (278 <handler_ext_int_15+0xc>)
- 26e:	2280      	movs	r2, #128	; 0x80
- 270:	0212      	lsls	r2, r2, #8
- 272:	601a      	str	r2, [r3, #0]
- 274:	4770      	bx	lr
- 276:	46c0      	nop			; (mov r8, r8)
- 278:	e000e280 	.word	0xe000e280
+000002d4 <handler_ext_int_15>:
+ 2d4:	4b02      	ldr	r3, [pc, #8]	; (2e0 <handler_ext_int_15+0xc>)
+ 2d6:	2280      	movs	r2, #128	; 0x80
+ 2d8:	0212      	lsls	r2, r2, #8
+ 2da:	601a      	str	r2, [r3, #0]
+ 2dc:	4770      	bx	lr
+ 2de:	46c0      	nop			; (mov r8, r8)
+ 2e0:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.handler_ext_int_16:
 
-0000027c <handler_ext_int_16>:
- 27c:	4b02      	ldr	r3, [pc, #8]	; (288 <handler_ext_int_16+0xc>)
- 27e:	2280      	movs	r2, #128	; 0x80
- 280:	0252      	lsls	r2, r2, #9
- 282:	601a      	str	r2, [r3, #0]
- 284:	4770      	bx	lr
- 286:	46c0      	nop			; (mov r8, r8)
- 288:	e000e280 	.word	0xe000e280
+000002e4 <handler_ext_int_16>:
+ 2e4:	4b02      	ldr	r3, [pc, #8]	; (2f0 <handler_ext_int_16+0xc>)
+ 2e6:	2280      	movs	r2, #128	; 0x80
+ 2e8:	0252      	lsls	r2, r2, #9
+ 2ea:	601a      	str	r2, [r3, #0]
+ 2ec:	4770      	bx	lr
+ 2ee:	46c0      	nop			; (mov r8, r8)
+ 2f0:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.initialization:
 
-0000028c <initialization>:
- 28c:	b508      	push	{r3, lr}
- 28e:	4a09      	ldr	r2, [pc, #36]	; (2b4 <initialization+0x28>)
- 290:	4b09      	ldr	r3, [pc, #36]	; (2b8 <initialization+0x2c>)
- 292:	480a      	ldr	r0, [pc, #40]	; (2bc <initialization+0x30>)
- 294:	490a      	ldr	r1, [pc, #40]	; (2c0 <initialization+0x34>)
- 296:	601a      	str	r2, [r3, #0]
- 298:	f7ff ff0e 	bl	b8 <write_regfile>
- 29c:	4909      	ldr	r1, [pc, #36]	; (2c4 <initialization+0x38>)
- 29e:	20aa      	movs	r0, #170	; 0xaa
- 2a0:	f7ff ff3e 	bl	120 <mbus_write_message32>
- 2a4:	f7ff ff1c 	bl	e0 <set_halt_until_mbus_rx>
- 2a8:	2004      	movs	r0, #4
- 2aa:	f7ff ff59 	bl	160 <mbus_enumerate>
- 2ae:	f7ff ff27 	bl	100 <set_halt_until_mbus_tx>
- 2b2:	bd08      	pop	{r3, pc}
- 2b4:	deadbeef 	.word	0xdeadbeef
- 2b8:	00000c2c 	.word	0x00000c2c
- 2bc:	a0000020 	.word	0xa0000020
- 2c0:	0000dead 	.word	0x0000dead
- 2c4:	aaaaaaaa 	.word	0xaaaaaaaa
+000002f4 <initialization>:
+ 2f4:	b508      	push	{r3, lr}
+ 2f6:	4a09      	ldr	r2, [pc, #36]	; (31c <initialization+0x28>)
+ 2f8:	4b09      	ldr	r3, [pc, #36]	; (320 <initialization+0x2c>)
+ 2fa:	480a      	ldr	r0, [pc, #40]	; (324 <initialization+0x30>)
+ 2fc:	490a      	ldr	r1, [pc, #40]	; (328 <initialization+0x34>)
+ 2fe:	601a      	str	r2, [r3, #0]
+ 300:	f7ff feda 	bl	b8 <write_regfile>
+ 304:	4909      	ldr	r1, [pc, #36]	; (32c <initialization+0x38>)
+ 306:	20aa      	movs	r0, #170	; 0xaa
+ 308:	f7ff ff0a 	bl	120 <mbus_write_message32>
+ 30c:	f7ff fee8 	bl	e0 <set_halt_until_mbus_rx>
+ 310:	2004      	movs	r0, #4
+ 312:	f7ff ff25 	bl	160 <mbus_enumerate>
+ 316:	f7ff fef3 	bl	100 <set_halt_until_mbus_tx>
+ 31a:	bd08      	pop	{r3, pc}
+ 31c:	deadbeef 	.word	0xdeadbeef
+ 320:	00000ce8 	.word	0x00000ce8
+ 324:	a0000020 	.word	0xa0000020
+ 328:	0000dead 	.word	0x0000dead
+ 32c:	aaaaaaaa 	.word	0xaaaaaaaa
 
 Disassembly of section .text.startup.main:
 
-000002c8 <main>:
- 2c8:	b508      	push	{r3, lr}
- 2ca:	f7ff ff59 	bl	180 <init_interrupt>
- 2ce:	4b43      	ldr	r3, [pc, #268]	; (3dc <main+0x114>)
- 2d0:	681a      	ldr	r2, [r3, #0]
- 2d2:	4b43      	ldr	r3, [pc, #268]	; (3e0 <main+0x118>)
- 2d4:	429a      	cmp	r2, r3
- 2d6:	d001      	beq.n	2dc <main+0x14>
- 2d8:	f7ff ffd8 	bl	28c <initialization>
- 2dc:	f7ff ff10 	bl	100 <set_halt_until_mbus_tx>
- 2e0:	2139      	movs	r1, #57	; 0x39
- 2e2:	2040      	movs	r0, #64	; 0x40
- 2e4:	f7ff ff1c 	bl	120 <mbus_write_message32>
- 2e8:	493e      	ldr	r1, [pc, #248]	; (3e4 <main+0x11c>)
- 2ea:	2202      	movs	r2, #2
- 2ec:	2042      	movs	r0, #66	; 0x42
- 2ee:	f7ff ff1f 	bl	130 <mbus_write_message>
- 2f2:	493d      	ldr	r1, [pc, #244]	; (3e8 <main+0x120>)
- 2f4:	2202      	movs	r2, #2
- 2f6:	2042      	movs	r0, #66	; 0x42
- 2f8:	f7ff ff1a 	bl	130 <mbus_write_message>
- 2fc:	493b      	ldr	r1, [pc, #236]	; (3ec <main+0x124>)
- 2fe:	2202      	movs	r2, #2
- 300:	2042      	movs	r0, #66	; 0x42
- 302:	f7ff ff15 	bl	130 <mbus_write_message>
- 306:	493a      	ldr	r1, [pc, #232]	; (3f0 <main+0x128>)
- 308:	2202      	movs	r2, #2
- 30a:	2042      	movs	r0, #66	; 0x42
- 30c:	f7ff ff10 	bl	130 <mbus_write_message>
- 310:	4938      	ldr	r1, [pc, #224]	; (3f4 <main+0x12c>)
- 312:	2202      	movs	r2, #2
- 314:	2042      	movs	r0, #66	; 0x42
- 316:	f7ff ff0b 	bl	130 <mbus_write_message>
- 31a:	4937      	ldr	r1, [pc, #220]	; (3f8 <main+0x130>)
- 31c:	2202      	movs	r2, #2
- 31e:	2042      	movs	r0, #66	; 0x42
- 320:	f7ff ff06 	bl	130 <mbus_write_message>
- 324:	4935      	ldr	r1, [pc, #212]	; (3fc <main+0x134>)
- 326:	2202      	movs	r2, #2
- 328:	2042      	movs	r0, #66	; 0x42
- 32a:	f7ff ff01 	bl	130 <mbus_write_message>
- 32e:	4934      	ldr	r1, [pc, #208]	; (400 <main+0x138>)
- 330:	2203      	movs	r2, #3
- 332:	2042      	movs	r0, #66	; 0x42
- 334:	f7ff fefc 	bl	130 <mbus_write_message>
- 338:	4932      	ldr	r1, [pc, #200]	; (404 <main+0x13c>)
- 33a:	2203      	movs	r2, #3
- 33c:	2042      	movs	r0, #66	; 0x42
- 33e:	f7ff fef7 	bl	130 <mbus_write_message>
- 342:	4931      	ldr	r1, [pc, #196]	; (408 <main+0x140>)
- 344:	2202      	movs	r2, #2
- 346:	2042      	movs	r0, #66	; 0x42
- 348:	f7ff fef2 	bl	130 <mbus_write_message>
- 34c:	492f      	ldr	r1, [pc, #188]	; (40c <main+0x144>)
- 34e:	2202      	movs	r2, #2
- 350:	2042      	movs	r0, #66	; 0x42
- 352:	f7ff feed 	bl	130 <mbus_write_message>
- 356:	492e      	ldr	r1, [pc, #184]	; (410 <main+0x148>)
- 358:	2202      	movs	r2, #2
- 35a:	2042      	movs	r0, #66	; 0x42
- 35c:	f7ff fee8 	bl	130 <mbus_write_message>
- 360:	492c      	ldr	r1, [pc, #176]	; (414 <main+0x14c>)
- 362:	2202      	movs	r2, #2
- 364:	2042      	movs	r0, #66	; 0x42
- 366:	f7ff fee3 	bl	130 <mbus_write_message>
- 36a:	492b      	ldr	r1, [pc, #172]	; (418 <main+0x150>)
- 36c:	2202      	movs	r2, #2
- 36e:	2042      	movs	r0, #66	; 0x42
- 370:	f7ff fede 	bl	130 <mbus_write_message>
- 374:	4929      	ldr	r1, [pc, #164]	; (41c <main+0x154>)
- 376:	2202      	movs	r2, #2
- 378:	2042      	movs	r0, #66	; 0x42
- 37a:	f7ff fed9 	bl	130 <mbus_write_message>
- 37e:	4928      	ldr	r1, [pc, #160]	; (420 <main+0x158>)
- 380:	2202      	movs	r2, #2
- 382:	2042      	movs	r0, #66	; 0x42
- 384:	f7ff fed4 	bl	130 <mbus_write_message>
- 388:	4926      	ldr	r1, [pc, #152]	; (424 <main+0x15c>)
- 38a:	2202      	movs	r2, #2
- 38c:	2042      	movs	r0, #66	; 0x42
- 38e:	f7ff fecf 	bl	130 <mbus_write_message>
- 392:	4925      	ldr	r1, [pc, #148]	; (428 <main+0x160>)
- 394:	2202      	movs	r2, #2
- 396:	2042      	movs	r0, #66	; 0x42
- 398:	f7ff feca 	bl	130 <mbus_write_message>
- 39c:	4923      	ldr	r1, [pc, #140]	; (42c <main+0x164>)
- 39e:	2202      	movs	r2, #2
- 3a0:	2042      	movs	r0, #66	; 0x42
- 3a2:	f7ff fec5 	bl	130 <mbus_write_message>
- 3a6:	4922      	ldr	r1, [pc, #136]	; (430 <main+0x168>)
- 3a8:	4a22      	ldr	r2, [pc, #136]	; (434 <main+0x16c>)
- 3aa:	2042      	movs	r0, #66	; 0x42
- 3ac:	f7ff fec0 	bl	130 <mbus_write_message>
- 3b0:	4921      	ldr	r1, [pc, #132]	; (438 <main+0x170>)
- 3b2:	2202      	movs	r2, #2
- 3b4:	2042      	movs	r0, #66	; 0x42
- 3b6:	f7ff febb 	bl	130 <mbus_write_message>
- 3ba:	4920      	ldr	r1, [pc, #128]	; (43c <main+0x174>)
- 3bc:	2202      	movs	r2, #2
- 3be:	2042      	movs	r0, #66	; 0x42
- 3c0:	f7ff feb6 	bl	130 <mbus_write_message>
- 3c4:	491e      	ldr	r1, [pc, #120]	; (440 <main+0x178>)
- 3c6:	2202      	movs	r2, #2
- 3c8:	2042      	movs	r0, #66	; 0x42
- 3ca:	f7ff feb1 	bl	130 <mbus_write_message>
- 3ce:	491d      	ldr	r1, [pc, #116]	; (444 <main+0x17c>)
- 3d0:	20dd      	movs	r0, #221	; 0xdd
- 3d2:	f7ff fea5 	bl	120 <mbus_write_message32>
- 3d6:	f7ff fecd 	bl	174 <mbus_sleep_all>
- 3da:	e7fe      	b.n	3da <main+0x112>
- 3dc:	00000c2c 	.word	0x00000c2c
- 3e0:	deadbeef 	.word	0xdeadbeef
- 3e4:	00000c04 	.word	0x00000c04
- 3e8:	00000c0c 	.word	0x00000c0c
- 3ec:	00000c14 	.word	0x00000c14
- 3f0:	00000c1c 	.word	0x00000c1c
- 3f4:	00000c24 	.word	0x00000c24
- 3f8:	00000be8 	.word	0x00000be8
- 3fc:	00000bfc 	.word	0x00000bfc
- 400:	00000bf0 	.word	0x00000bf0
- 404:	00000bdc 	.word	0x00000bdc
- 408:	00000448 	.word	0x00000448
- 40c:	00000450 	.word	0x00000450
- 410:	00000458 	.word	0x00000458
- 414:	00000460 	.word	0x00000460
- 418:	00000468 	.word	0x00000468
- 41c:	00000470 	.word	0x00000470
- 420:	00000ba4 	.word	0x00000ba4
- 424:	00000bb4 	.word	0x00000bb4
- 428:	00000bc4 	.word	0x00000bc4
- 42c:	00000bcc 	.word	0x00000bcc
- 430:	00000478 	.word	0x00000478
- 434:	000001cb 	.word	0x000001cb
- 438:	00000bac 	.word	0x00000bac
- 43c:	00000bd4 	.word	0x00000bd4
- 440:	00000bbc 	.word	0x00000bbc
- 444:	0ea7f00d 	.word	0x0ea7f00d
+00000330 <main>:
+ 330:	b507      	push	{r0, r1, r2, lr}
+ 332:	f7ff ff59 	bl	1e8 <init_interrupt>
+ 336:	4b56      	ldr	r3, [pc, #344]	; (490 <main+0x160>)
+ 338:	681a      	ldr	r2, [r3, #0]
+ 33a:	4b56      	ldr	r3, [pc, #344]	; (494 <main+0x164>)
+ 33c:	429a      	cmp	r2, r3
+ 33e:	d001      	beq.n	344 <main+0x14>
+ 340:	f7ff ffd8 	bl	2f4 <initialization>
+ 344:	f7ff fedc 	bl	100 <set_halt_until_mbus_tx>
+ 348:	2004      	movs	r0, #4
+ 34a:	2100      	movs	r1, #0
+ 34c:	223d      	movs	r2, #61	; 0x3d
+ 34e:	f7ff ff22 	bl	196 <mbus_remote_register_write>
+ 352:	2004      	movs	r0, #4
+ 354:	2100      	movs	r1, #0
+ 356:	221d      	movs	r2, #29
+ 358:	f7ff ff1d 	bl	196 <mbus_remote_register_write>
+ 35c:	f7ff fec0 	bl	e0 <set_halt_until_mbus_rx>
+ 360:	2100      	movs	r1, #0
+ 362:	1c0a      	adds	r2, r1, #0
+ 364:	2004      	movs	r0, #4
+ 366:	f7ff ff23 	bl	1b0 <mbus_remote_register_read>
+ 36a:	f7ff fec9 	bl	100 <set_halt_until_mbus_tx>
+ 36e:	494a      	ldr	r1, [pc, #296]	; (498 <main+0x168>)
+ 370:	2202      	movs	r2, #2
+ 372:	2042      	movs	r0, #66	; 0x42
+ 374:	f7ff fedc 	bl	130 <mbus_write_message>
+ 378:	4948      	ldr	r1, [pc, #288]	; (49c <main+0x16c>)
+ 37a:	2202      	movs	r2, #2
+ 37c:	2042      	movs	r0, #66	; 0x42
+ 37e:	f7ff fed7 	bl	130 <mbus_write_message>
+ 382:	4947      	ldr	r1, [pc, #284]	; (4a0 <main+0x170>)
+ 384:	2202      	movs	r2, #2
+ 386:	2042      	movs	r0, #66	; 0x42
+ 388:	f7ff fed2 	bl	130 <mbus_write_message>
+ 38c:	4945      	ldr	r1, [pc, #276]	; (4a4 <main+0x174>)
+ 38e:	2202      	movs	r2, #2
+ 390:	2042      	movs	r0, #66	; 0x42
+ 392:	f7ff fecd 	bl	130 <mbus_write_message>
+ 396:	4944      	ldr	r1, [pc, #272]	; (4a8 <main+0x178>)
+ 398:	2202      	movs	r2, #2
+ 39a:	2042      	movs	r0, #66	; 0x42
+ 39c:	f7ff fec8 	bl	130 <mbus_write_message>
+ 3a0:	4942      	ldr	r1, [pc, #264]	; (4ac <main+0x17c>)
+ 3a2:	2202      	movs	r2, #2
+ 3a4:	2042      	movs	r0, #66	; 0x42
+ 3a6:	f7ff fec3 	bl	130 <mbus_write_message>
+ 3aa:	4941      	ldr	r1, [pc, #260]	; (4b0 <main+0x180>)
+ 3ac:	2202      	movs	r2, #2
+ 3ae:	2042      	movs	r0, #66	; 0x42
+ 3b0:	f7ff febe 	bl	130 <mbus_write_message>
+ 3b4:	493f      	ldr	r1, [pc, #252]	; (4b4 <main+0x184>)
+ 3b6:	2203      	movs	r2, #3
+ 3b8:	2042      	movs	r0, #66	; 0x42
+ 3ba:	f7ff feb9 	bl	130 <mbus_write_message>
+ 3be:	493e      	ldr	r1, [pc, #248]	; (4b8 <main+0x188>)
+ 3c0:	2203      	movs	r2, #3
+ 3c2:	2042      	movs	r0, #66	; 0x42
+ 3c4:	f7ff feb4 	bl	130 <mbus_write_message>
+ 3c8:	493c      	ldr	r1, [pc, #240]	; (4bc <main+0x18c>)
+ 3ca:	2202      	movs	r2, #2
+ 3cc:	2042      	movs	r0, #66	; 0x42
+ 3ce:	f7ff feaf 	bl	130 <mbus_write_message>
+ 3d2:	493b      	ldr	r1, [pc, #236]	; (4c0 <main+0x190>)
+ 3d4:	2202      	movs	r2, #2
+ 3d6:	2042      	movs	r0, #66	; 0x42
+ 3d8:	f7ff feaa 	bl	130 <mbus_write_message>
+ 3dc:	4939      	ldr	r1, [pc, #228]	; (4c4 <main+0x194>)
+ 3de:	2202      	movs	r2, #2
+ 3e0:	2042      	movs	r0, #66	; 0x42
+ 3e2:	f7ff fea5 	bl	130 <mbus_write_message>
+ 3e6:	4938      	ldr	r1, [pc, #224]	; (4c8 <main+0x198>)
+ 3e8:	2202      	movs	r2, #2
+ 3ea:	2042      	movs	r0, #66	; 0x42
+ 3ec:	f7ff fea0 	bl	130 <mbus_write_message>
+ 3f0:	4936      	ldr	r1, [pc, #216]	; (4cc <main+0x19c>)
+ 3f2:	2202      	movs	r2, #2
+ 3f4:	2042      	movs	r0, #66	; 0x42
+ 3f6:	f7ff fe9b 	bl	130 <mbus_write_message>
+ 3fa:	4935      	ldr	r1, [pc, #212]	; (4d0 <main+0x1a0>)
+ 3fc:	2202      	movs	r2, #2
+ 3fe:	2042      	movs	r0, #66	; 0x42
+ 400:	f7ff fe96 	bl	130 <mbus_write_message>
+ 404:	4933      	ldr	r1, [pc, #204]	; (4d4 <main+0x1a4>)
+ 406:	2202      	movs	r2, #2
+ 408:	2042      	movs	r0, #66	; 0x42
+ 40a:	f7ff fe91 	bl	130 <mbus_write_message>
+ 40e:	4932      	ldr	r1, [pc, #200]	; (4d8 <main+0x1a8>)
+ 410:	2202      	movs	r2, #2
+ 412:	2042      	movs	r0, #66	; 0x42
+ 414:	f7ff fe8c 	bl	130 <mbus_write_message>
+ 418:	4930      	ldr	r1, [pc, #192]	; (4dc <main+0x1ac>)
+ 41a:	2202      	movs	r2, #2
+ 41c:	2042      	movs	r0, #66	; 0x42
+ 41e:	f7ff fe87 	bl	130 <mbus_write_message>
+ 422:	492f      	ldr	r1, [pc, #188]	; (4e0 <main+0x1b0>)
+ 424:	2202      	movs	r2, #2
+ 426:	2042      	movs	r0, #66	; 0x42
+ 428:	f7ff fe82 	bl	130 <mbus_write_message>
+ 42c:	492d      	ldr	r1, [pc, #180]	; (4e4 <main+0x1b4>)
+ 42e:	4a2e      	ldr	r2, [pc, #184]	; (4e8 <main+0x1b8>)
+ 430:	2042      	movs	r0, #66	; 0x42
+ 432:	f7ff fe7d 	bl	130 <mbus_write_message>
+ 436:	492d      	ldr	r1, [pc, #180]	; (4ec <main+0x1bc>)
+ 438:	2202      	movs	r2, #2
+ 43a:	2042      	movs	r0, #66	; 0x42
+ 43c:	f7ff fe78 	bl	130 <mbus_write_message>
+ 440:	492b      	ldr	r1, [pc, #172]	; (4f0 <main+0x1c0>)
+ 442:	2202      	movs	r2, #2
+ 444:	2042      	movs	r0, #66	; 0x42
+ 446:	f7ff fe73 	bl	130 <mbus_write_message>
+ 44a:	20fa      	movs	r0, #250	; 0xfa
+ 44c:	0080      	lsls	r0, r0, #2
+ 44e:	f7ff fe2a 	bl	a6 <delay>
+ 452:	2202      	movs	r2, #2
+ 454:	4927      	ldr	r1, [pc, #156]	; (4f4 <main+0x1c4>)
+ 456:	2042      	movs	r0, #66	; 0x42
+ 458:	f7ff fe6a 	bl	130 <mbus_write_message>
+ 45c:	4826      	ldr	r0, [pc, #152]	; (4f8 <main+0x1c8>)
+ 45e:	f7ff fe22 	bl	a6 <delay>
+ 462:	4926      	ldr	r1, [pc, #152]	; (4fc <main+0x1cc>)
+ 464:	20dd      	movs	r0, #221	; 0xdd
+ 466:	f7ff fe5b 	bl	120 <mbus_write_message32>
+ 46a:	f7ff fe39 	bl	e0 <set_halt_until_mbus_rx>
+ 46e:	21e0      	movs	r1, #224	; 0xe0
+ 470:	00c9      	lsls	r1, r1, #3
+ 472:	2041      	movs	r0, #65	; 0x41
+ 474:	f7ff fe54 	bl	120 <mbus_write_message32>
+ 478:	20fa      	movs	r0, #250	; 0xfa
+ 47a:	0080      	lsls	r0, r0, #2
+ 47c:	f7ff fe13 	bl	a6 <delay>
+ 480:	2300      	movs	r3, #0
+ 482:	9300      	str	r3, [sp, #0]
+ 484:	2004      	movs	r0, #4
+ 486:	491e      	ldr	r1, [pc, #120]	; (500 <main+0x1d0>)
+ 488:	2207      	movs	r2, #7
+ 48a:	f7ff fe96 	bl	1ba <mbus_copy_mem_from_remote_to_any_bulk>
+ 48e:	e7fe      	b.n	48e <main+0x15e>
+ 490:	00000ce8 	.word	0x00000ce8
+ 494:	deadbeef 	.word	0xdeadbeef
+ 498:	00000cc0 	.word	0x00000cc0
+ 49c:	00000cc8 	.word	0x00000cc8
+ 4a0:	00000cd0 	.word	0x00000cd0
+ 4a4:	00000cd8 	.word	0x00000cd8
+ 4a8:	00000ce0 	.word	0x00000ce0
+ 4ac:	00000ca4 	.word	0x00000ca4
+ 4b0:	00000cb8 	.word	0x00000cb8
+ 4b4:	00000cac 	.word	0x00000cac
+ 4b8:	00000c98 	.word	0x00000c98
+ 4bc:	00000504 	.word	0x00000504
+ 4c0:	0000050c 	.word	0x0000050c
+ 4c4:	00000514 	.word	0x00000514
+ 4c8:	0000051c 	.word	0x0000051c
+ 4cc:	00000524 	.word	0x00000524
+ 4d0:	0000052c 	.word	0x0000052c
+ 4d4:	00000c60 	.word	0x00000c60
+ 4d8:	00000c70 	.word	0x00000c70
+ 4dc:	00000c80 	.word	0x00000c80
+ 4e0:	00000c88 	.word	0x00000c88
+ 4e4:	00000534 	.word	0x00000534
+ 4e8:	000001cb 	.word	0x000001cb
+ 4ec:	00000c68 	.word	0x00000c68
+ 4f0:	00000c90 	.word	0x00000c90
+ 4f4:	00000c78 	.word	0x00000c78
+ 4f8:	00002710 	.word	0x00002710
+ 4fc:	0ea7f00d 	.word	0x0ea7f00d
+ 500:	a2000124 	.word	0xa2000124

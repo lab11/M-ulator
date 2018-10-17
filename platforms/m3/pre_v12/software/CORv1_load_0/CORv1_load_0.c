@@ -18,8 +18,8 @@ volatile uint32_t enumerated;
 // INTERRUPT HANDLERS
 //*******************************************************************
 void init_interrupt (void) {
-  *NVIC_ICPR = 0x1FFFF; //Clear All Pending Interrupts
-  *NVIC_ISER = 0x0;     //Disable Interrupts
+	*NVIC_ICPR = 0x1FFFF; //Clear All Pending Interrupts
+	*NVIC_ISER = 0x0;     //Disable Interrupts
 }
 
 void handler_ext_int_0(void)  __attribute__ ((interrupt ("IRQ")));
@@ -101,8 +101,12 @@ int main() {
     //-- Stream the code into CORv1 --//
     
     // COR_RESETn
-    mbus_write_message32(((COR_ADDR << 4) | MPQ_REG_WRITE), 0x00000039);
-    
+	mbus_remote_register_write(COR_ADDR,0x0,0x00003D);
+	mbus_remote_register_write(COR_ADDR,0x0,0x00001D);
+    set_halt_until_mbus_rx();
+	mbus_remote_register_read(COR_ADDR,0x0,0x0);
+    set_halt_until_mbus_tx();
+
     // SET CLOCKS
     mbus_write_message ( ((COR_ADDR << 4) | MPQ_MEM_BULK_WRITE), cor_msg_00_00, COR_MSG_00_00);
     mbus_write_message ( ((COR_ADDR << 4) | MPQ_MEM_BULK_WRITE), cor_msg_00_01, COR_MSG_00_01);
@@ -134,13 +138,19 @@ int main() {
 
     // RESET
     mbus_write_message ( ((COR_ADDR << 4) | MPQ_MEM_BULK_WRITE), cor_msg_04_00, COR_MSG_04_00);
+    delay(1000);
     mbus_write_message ( ((COR_ADDR << 4) | MPQ_MEM_BULK_WRITE), cor_msg_04_01, COR_MSG_04_01);
 
     //-- End of the streaming --//
     
     // Notify the end of the program
+    delay(10000);
     mbus_write_message32(0xDD, 0x0EA7F00D);
-    mbus_sleep_all(); // Go to sleep indefinitely
+    set_halt_until_mbus_rx();
+    mbus_write_message32(((COR_ADDR << 4) | MPQ_REG_READ), 0x00000700);
+    delay(1000);
+    mbus_copy_mem_from_remote_to_any_bulk(COR_ADDR, 0xA2000124,0x7,0x00000000,0x00000000);
+    //mbus_sleep_all(); // Go to sleep indefinitely
     while(1);
 
     return 1;
