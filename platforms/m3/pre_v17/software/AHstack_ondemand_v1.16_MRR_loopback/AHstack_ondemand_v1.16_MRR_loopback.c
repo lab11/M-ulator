@@ -391,6 +391,7 @@ static void mrr_configure_pulse_width_long_3(){
     mbus_remote_register_write(MRR_ADDR,0x13,mrrv7_r13.as_int);
 }
 
+*/
 static void mrr_configure_pulse_width_short(){
 
     mrrv7_r12.MRR_RAD_FSM_TX_PW_LEN = 0; //4us PW
@@ -400,7 +401,6 @@ static void mrr_configure_pulse_width_short(){
     mbus_remote_register_write(MRR_ADDR,0x12,mrrv7_r12.as_int);
     mbus_remote_register_write(MRR_ADDR,0x13,mrrv7_r13.as_int);
 }
-*/
 
 
 static void send_radio_data_mrr_sub1(){
@@ -726,8 +726,8 @@ static void operation_init(void){
 	mrrv7_r1F.LC_CLK_DIV = 0x3;  // ~ 150 kHz
 	mbus_remote_register_write(MRR_ADDR,0x1F,mrrv7_r1F.as_int);
 
-	//mrr_configure_pulse_width_short();
-	mrr_configure_pulse_width_long();
+	mrr_configure_pulse_width_short();
+	//mrr_configure_pulse_width_long();
 
 	mrr_freq_hopping = 5;
 	mrr_freq_hopping_step = 4;
