@@ -1107,7 +1107,7 @@ static void operation_init(void){
     prcv17_r0D.SRAM_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
     prcv17_r0D.SRAM_TUNE_DECODER_DLY = 15; // Default 0x2, 4 bits
     prcv17_r0D.SRAM_USE_INVERTER_SA = 1; // Default 0x2, 4 bits
-	//*REG_SRAM_TUNE = prcv17_r0D.as_int;
+	*REG_SRAM_TUNE = prcv17_r0D.as_int;
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE; 	//0x0;
