@@ -1471,10 +1471,10 @@ static void operation_temp_run(void){
                 mbus_copy_mem_from_local_to_remote_bulk(MEM_ADDR, (uint32_t*)((temp_storage_count>>1)<<2), (uint32_t*)&mem_read_data, 0);
                 temp_storage_count++;
 
-                mbus_write_message32(0xCC, (uint32_t) &mem_read_data);
-                mbus_write_message32(0xCD, mem_read_data);
-                mbus_write_message32(0xCE, (uint32_t) &wakeup_timer_option);
-                mbus_write_message32(0xCF, wakeup_timer_option);
+                //mbus_write_message32(0xCC, (uint32_t) &mem_read_data);
+                //mbus_write_message32(0xCD, mem_read_data);
+                //mbus_write_message32(0xCE, (uint32_t) &wakeup_timer_option);
+                //mbus_write_message32(0xCF, wakeup_timer_option);
             }
 
             // Optionally transmit the data
