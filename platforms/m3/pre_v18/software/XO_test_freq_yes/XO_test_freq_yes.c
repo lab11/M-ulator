@@ -3,11 +3,11 @@
 //Description: PREv18's XTAL Testing
 //*******************************************************************
 #include "PREv18.h"
-#include "PREv18_RF.h"
+//#include "PREv18_RF.h"
 #include "mbus.h"
 
 #define PRE_ADDR    0x1
-#define PMU_ADDR    0x6
+#define SNS_ADDR    0x6
 
 //********************************************************************
 // Global Variables
@@ -56,7 +56,6 @@ void handler_ext_int_14(void) { *NVIC_ICPR = (0x1 << 14); } // MBUS_FWD
 //*******************************************************************
 // FUNCTION HEADER DECLERATIONS
 //*******************************************************************
-
 //***************************************************
 // End of Program Sleep Functions
 //***************************************************
@@ -93,8 +92,9 @@ static void XO_init(void) {
     uint32_t xo_cap_in  = 0x3F; // Additional Cap on OSC_IN
     prev18_r1A.XO_CAP_TUNE = (
             (xo_cap_drv <<6) | 
-            (xo_cap_in <<0));   // XO_CLK Output Pad (0: Disabled, 1: 32kHz, 2: 16kHz, 3: 8kHz)
+            (xo_cap_in <<0));   
     *REG_XO_CONF2 = prev18_r1A.as_int;
+    //mbus_write_message32(0xA0,*REG_XO_CONF2);
 
     // XO configuration
     prev18_r19.XO_EN_DIV    = 0x1;// divider enable
@@ -105,36 +105,45 @@ static void XO_init(void) {
     prev18_r19.XO_DELAY_EN  = 0x3;// pair usage together with xo_pulse_sel
     // Pseudo-Resistor Selection
     prev18_r19.XO_RP_LOW    = 0x0;
-    prev18_r19.XO_RP_MEDIA  = 0x0;
-    prev18_r19.XO_RP_MVT    = 0x1;
+    prev18_r19.XO_RP_MEDIA  = 0x1;
+    prev18_r19.XO_RP_MVT    = 0x0;
     prev18_r19.XO_RP_SVT    = 0x0;
  
     
     prev18_r19.XO_SLEEP = 0x0;
     *REG_XO_CONF1 = prev18_r19.as_int;
+    //mbus_write_message32(0xA0,*REG_XO_CONF1);
     delay(100);
     prev18_r19.XO_ISOLATE = 0x0;
     *REG_XO_CONF1 = prev18_r19.as_int;
+    //mbus_write_message32(0xA1,*REG_XO_CONF1);
     delay(100);
     prev18_r19.XO_DRV_START_UP  = 0x1;// 1: enables start-up circuit
     *REG_XO_CONF1 = prev18_r19.as_int;
-    delay(10000);
+    //mbus_write_message32(0xA2,*REG_XO_CONF1);
+    delay(1000);
     prev18_r19.XO_SCN_CLK_SEL   = 0x1;// scn clock 1: normal. 0.3V level up to 0.6V, 0:init
     *REG_XO_CONF1 = prev18_r19.as_int;
-    delay(10000);
+    //mbus_write_message32(0xA3,*REG_XO_CONF1);
+    delay(1000);
     prev18_r19.XO_SCN_CLK_SEL   = 0x0;
     prev18_r19.XO_SCN_ENB       = 0x0;// enable_bar of scn
     *REG_XO_CONF1 = prev18_r19.as_int;
-    delay(10000);
+    //mbus_write_message32(0xA4,*REG_XO_CONF1);
+    delay(1000);
     prev18_r19.XO_DRV_START_UP  = 0x0;
     prev18_r19.XO_DRV_CORE      = 0x1;// 1: enables core circuit
     prev18_r19.XO_SCN_CLK_SEL   = 0x1;
     *REG_XO_CONF1 = prev18_r19.as_int;
-}
+    //mbus_write_message32(0xA5,*REG_XO_CONF1);
 
-static void XOT_init(void){
-  mbus_write_message32(0xA0,0x6);
-  *XOT_RESET_CNT = 0x1;
+    // After enabling XO Driver
+    enable_xo_timer();
+    start_xo_cout(); // you should see clock output here
+
+    ////Disabling XO clock output
+    //stop_xo_cout(); // stop clock output
+    //disable_xo_timer();s.c:59:3: e
 }
 
 static void operation_init(void){
@@ -145,8 +154,8 @@ static void operation_init(void){
   *REG_CLKGEN_TUNE = prev18_r0B.as_int;
   
   // Enumerate
-  set_halt_until_mbus_rx();
-  mbus_enumerate(PMU_ADDR);
+  mbus_enumerate(SNS_ADDR);
+  delay(100);
   enumerated = 0xDEADBEEF;
   
   // Disable MBus Watchdog Timer
@@ -161,15 +170,16 @@ int main() {
 
   disable_all_irq();
 
+  //mbus_write_message32(0xA1,0x88);
   config_timerwd(0xFFFFFFFF); // Config watchdog timer to about 20 sec (default: 0x0016E360)
 
   if (enumerated != 0xDEADBEEF){
     operation_init();
+    //mbus_write_message32(0xA1,0xAB);
   }
   
-  set_halt_until_mbus_tx();
+  //mbus_write_message32(0xA1,0xAC);
   XO_init();
-  XOT_init();
   delay(10000);
   operation_sleep_notimer(); 
   
