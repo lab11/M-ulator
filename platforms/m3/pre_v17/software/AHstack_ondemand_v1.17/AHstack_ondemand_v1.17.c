@@ -15,7 +15,7 @@
 //					adding configurability for SHT35
 //			v1.16: improve latency of radio tx further
 //					changing MRR decap configuration and shorter SFO settling time
-//			v1.17: PMUv9
+//			v1.17: PMUv9, replacing delays for PMU reg write with set halt
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -570,9 +570,15 @@ static void sht35_meas_data(){
 // PMU Related Functions
 //************************************
 
+static void pmu_reg_write (uint32_t reg_addr, uint32_t reg_data) {
+    set_halt_until_mbus_trx();
+    mbus_remote_register_write(PMU_ADDR,reg_addr,reg_data);
+    set_halt_until_mbus_tx();
+}
+
 static void pmu_set_sar_override(uint32_t val){
 	// SAR_RATIO_OVERRIDE
-    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+    pmu_reg_write(0x05, //default 12'h000
 		( (0 << 13) // Enables override setting [12] (1'b1)
 		| (0 << 12) // Let VDD_CLK always connected to vbat
 		| (1 << 11) // Enable override setting [10] (1'h0)
@@ -582,8 +588,7 @@ static void pmu_set_sar_override(uint32_t val){
 		| (1 << 7) // Enable override setting [6:0] (1'h0)
 		| (val) 		// Binary converter's conversion ratio (7'h00)
 	));
-	delay(MBUS_DELAY*2);
-    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+    pmu_reg_write(0x05, //default 12'h000
 		( (1 << 13) // Enables override setting [12] (1'b1)
 		| (0 << 12) // Let VDD_CLK always connected to vbat
 		| (1 << 11) // Enable override setting [10] (1'h0)
@@ -593,13 +598,12 @@ static void pmu_set_sar_override(uint32_t val){
 		| (1 << 7) // Enable override setting [6:0] (1'h0)
 		| (val) 		// Binary converter's conversion ratio (7'h00)
 	));
-	delay(MBUS_DELAY*2);
 }
 
 inline static void pmu_set_adc_period(uint32_t val){
 	// PMU_CONTROLLER_DESIRED_STATE Active
 	// Updated for PMUv9
-	mbus_remote_register_write(PMU_ADDR,0x3C,
+	pmu_reg_write(0x3C,
 		((  1 << 0) //state_sar_scn_on
 		| (0 << 1) //state_wait_for_clock_cycles
 		| (1 << 2) //state_wait_for_time
@@ -622,22 +626,19 @@ inline static void pmu_set_adc_period(uint32_t val){
 		| (0 << 19) //state_vbat_read
 		| (1 << 20) //state_state_horizon
 	));
-	delay(MBUS_DELAY*10);
 
 	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
-    mbus_remote_register_write(PMU_ADDR,0x36,val); 
+    pmu_reg_write(0x36,val); 
 	delay(MBUS_DELAY*10);
 
 	// Register 0x33: TICK_ADC_RESET
-	mbus_remote_register_write(PMU_ADDR,0x33,2);
-	delay(MBUS_DELAY);
+	pmu_reg_write(0x33,2);
 
 	// Register 0x34: TICK_ADC_CLK
-	mbus_remote_register_write(PMU_ADDR,0x34,2);
-	delay(MBUS_DELAY);
+	pmu_reg_write(0x34,2);
 
 	// PMU_CONTROLLER_DESIRED_STATE Active
-	mbus_remote_register_write(PMU_ADDR,0x3C,
+	pmu_reg_write(0x3C,
 		((  1 << 0) //state_sar_scn_on
 		| (1 << 1) //state_wait_for_clock_cycles
 		| (1 << 2) //state_wait_for_time
@@ -660,14 +661,13 @@ inline static void pmu_set_adc_period(uint32_t val){
 		| (0 << 19) //state_vbat_read
 		| (1 << 20) //state_state_horizon
 	));
-	delay(MBUS_DELAY);
 }
 
 inline static void pmu_set_active_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1p2){
 
 	// The first register write to PMU needs to be repeated
 	// Register 0x16: V1P2 Active
-    mbus_remote_register_write(PMU_ADDR,0x16, 
+    pmu_reg_write(0x16, 
 		( (0 << 19) // Enable PFM even during periodic reset
 		| (0 << 18) // Enable PFM even when Vref is not used as ref
 		| (0 << 17) // Enable PFM
@@ -677,8 +677,7 @@ inline static void pmu_set_active_clk(uint8_t r, uint8_t l, uint8_t base, uint8_
 		| (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
 		| (base) 		// Floor frequency base (0-63)
 	));
-	delay(MBUS_DELAY);
-    mbus_remote_register_write(PMU_ADDR,0x16, 
+    pmu_reg_write(0x16, 
 		( (0 << 19) // Enable PFM even during periodic reset
 		| (0 << 18) // Enable PFM even when Vref is not used as ref
 		| (0 << 17) // Enable PFM
@@ -688,40 +687,36 @@ inline static void pmu_set_active_clk(uint8_t r, uint8_t l, uint8_t base, uint8_
 		| (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
 		| (base) 		// Floor frequency base (0-63)
 	));
-	delay(MBUS_DELAY);
 	// Register 0x18: V3P6 Active 
-    mbus_remote_register_write(PMU_ADDR,0x18, 
+    pmu_reg_write(0x18, 
 		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
 		| (0 << 13) // Enable main feedback loop
 		| (r << 9)  // Frequency multiplier R
 		| (l << 5)  // Frequency multiplier L (actually L+1)
 		| (base) 		// Floor frequency base (0-63)
 	));
-	delay(MBUS_DELAY);
 	// Register 0x1A: V0P6 Active
-    mbus_remote_register_write(PMU_ADDR,0x1A,
+    pmu_reg_write(0x1A,
 		( (0 << 13) // Enable main feedback loop
 		| (r << 9)  // Frequency multiplier R
 		| (l << 5)  // Frequency multiplier L (actually L+1)
 		| (base) 		// Floor frequency base (0-63)
 	));
-	delay(MBUS_DELAY);
 
 }
 
 inline static void pmu_set_sleep_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1p2){
 
 	// Register 0x17: V3P6 Sleep
-    mbus_remote_register_write(PMU_ADDR,0x17, 
+    pmu_reg_write(0x17, 
 		( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
 		| (0 << 13) // Enable main feedback loop
 		| (r << 9)  // Frequency multiplier R
 		| (l << 5)  // Frequency multiplier L (actually L+1)
 		| (base) 		// Floor frequency base (0-63)
 	));
-	delay(MBUS_DELAY);
 	// Register 0x15: V1P2 Sleep
-    mbus_remote_register_write(PMU_ADDR,0x15, 
+    pmu_reg_write(0x15, 
 		( (0 << 19) // Enable PFM even during periodic reset
 		| (0 << 18) // Enable PFM even when Vref is not used as ref
 		| (0 << 17) // Enable PFM
@@ -731,23 +726,21 @@ inline static void pmu_set_sleep_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t
 		| (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
 		| (base) 		// Floor frequency base (0-63)
 	));
-	delay(MBUS_DELAY);
 	// Register 0x19: V0P6 Sleep
-    mbus_remote_register_write(PMU_ADDR,0x19,
+    pmu_reg_write(0x19,
 		( (0 << 13) // Enable main feedback loop
 		| (r << 9)  // Frequency multiplier R
 		| (l << 5)  // Frequency multiplier L (actually L+1)
 		| (base) 		// Floor frequency base (0-63)
 	));
-	delay(MBUS_DELAY);
 
 }
 inline static void pmu_set_clk_init(){
-	pmu_set_active_clk(0xA,0x1,0x10,0x2);
+	pmu_set_active_clk(0xF,0x1,0x10,0x2);
 	pmu_set_sleep_clk(0xF,0x0,0x1,0x1);
 	// SAR_RATIO_OVERRIDE
 	// Use the new reset scheme in PMUv3
-    mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
+    pmu_reg_write(0x05, //default 12'h000
 		( (0 << 13) // Enables override setting [12] (1'b1)
 		| (0 << 12) // Let VDD_CLK always connected to vbat
 		| (1 << 11) // Enable override setting [10] (1'h0)
@@ -757,7 +750,6 @@ inline static void pmu_set_clk_init(){
 		| (0 << 7) // Enable override setting [6:0] (1'h0)
 		| (0x45) 		// Binary converter's conversion ratio (7'h00)
 	));
-	delay(MBUS_DELAY);
 	pmu_set_sar_override(0x3C);
 
 	pmu_set_adc_period(1); // 0x100 about 1 min for 1/2/1 1P2 setting
@@ -768,7 +760,7 @@ inline static void pmu_adc_reset_setting(){
 	// PMU ADC will be automatically reset when system wakes up
 	// PMU_CONTROLLER_DESIRED_STATE Active
 	// Updated for PMUv9
-	mbus_remote_register_write(PMU_ADDR,0x3C,
+	pmu_reg_write(0x3C,
 		((  1 << 0) //state_sar_scn_on
 		| (1 << 1) //state_wait_for_clock_cycles
 		| (1 << 2) //state_wait_for_time
@@ -791,14 +783,13 @@ inline static void pmu_adc_reset_setting(){
 		| (0 << 19) //state_vbat_read
 		| (1 << 20) //state_state_horizon
 	));
-	delay(MBUS_DELAY);
 }
 
 inline static void pmu_adc_disable(){
 	// PMU ADC will be automatically reset when system wakes up
 	// PMU_CONTROLLER_DESIRED_STATE Sleep
 	// Updated for PMUv9
-	mbus_remote_register_write(PMU_ADDR,0x3B,
+	pmu_reg_write(0x3B,
 		((  1 << 0) //state_sar_scn_on
 		| (1 << 1) //state_wait_for_clock_cycles
 		| (1 << 2) //state_wait_for_time
@@ -821,14 +812,13 @@ inline static void pmu_adc_disable(){
 		| (0 << 19) //state_vbat_read // Turn off for old adc
 		| (1 << 20) //state_state_horizon
 	));
-	delay(MBUS_DELAY);
 }
 
 inline static void pmu_adc_enable(){
 	// PMU ADC will be automatically reset when system wakes up
 	// PMU_CONTROLLER_DESIRED_STATE Sleep
 	// Updated for PMUv9
-	mbus_remote_register_write(PMU_ADDR,0x3B,
+	pmu_reg_write(0x3B,
 		((  1 << 0) //state_sar_scn_on
 		| (1 << 1) //state_wait_for_clock_cycles
 		| (1 << 2) //state_wait_for_time
@@ -851,15 +841,13 @@ inline static void pmu_adc_enable(){
 		| (0 << 19) //state_vbat_read // Turn off for old adc
 		| (1 << 20) //state_state_horizon
 	));
-	delay(MBUS_DELAY);
 }
 
 
 inline static void pmu_adc_read_latest(){
 	// Grab latest PMU ADC readings
 	// PMU register read is handled differently
-	mbus_remote_register_write(PMU_ADDR,0x00,0x03);
-	delay(MBUS_DELAY);
+	pmu_reg_write(0x00,0x03);
 	// Updated for PMUv9
 	read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
 
@@ -867,26 +855,24 @@ inline static void pmu_adc_read_latest(){
 
 inline static void pmu_reset_solar_short(){
 	// Updated for PMUv9
-    mbus_remote_register_write(PMU_ADDR,0x0E, 
+    pmu_reg_write(0x0E, 
 		( (0 << 12) // 1: solar short by latched vbat_high (new); 0: follow [10] setting
 		| (1 << 11) // Reset of vbat_high latch for [12]=1
 		| (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
 		| (1 << 9)  // Enables override setting [8]
 		| (0 << 8)  // Turn on the harvester-inhibiting switch
-		| (3 << 4)  // clamp_tune_bottom (increases clamp thresh)
+		| (1 << 4)  // clamp_tune_bottom (increases clamp thresh)
 		| (0) 		// clamp_tune_top (decreases clamp thresh)
 	));
-	delay(MBUS_DELAY);
-    mbus_remote_register_write(PMU_ADDR,0x0E, 
+    pmu_reg_write(0x0E, 
 		( (0 << 12) // 1: solar short by latched vbat_high (new); 0: follow [10] setting
 		| (1 << 11) // Reset of vbat_high latch for [12]=1
 		| (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
 		| (0 << 9)  // Enables override setting [8]
 		| (0 << 8)  // Turn on the harvester-inhibiting switch
-		| (3 << 4)  // clamp_tune_bottom (increases clamp thresh)
+		| (1 << 4)  // clamp_tune_bottom (increases clamp thresh)
 		| (0) 		// clamp_tune_top (decreases clamp thresh)
 	));
-	delay(MBUS_DELAY);
 }
 
 //***************************************************
@@ -1376,7 +1362,7 @@ static void operation_init(void){
 
     prev17_r0D.SRAM_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
     prev17_r0D.SRAM_TUNE_DECODER_DLY = 15; // Default 0x2, 4 bits
-    prev17_r0D.SRAM_USE_INVERTER_SA= 1; 
+    prev17_r0D.SRAM_USE_INVERTER_SA= 0; 
 	*REG_SRAM_TUNE = prev17_r0D.as_int;
   
   
@@ -1409,27 +1395,25 @@ static void operation_init(void){
 
 	// New for PMUv9
 	// VBAT_READ_TRIM Register
-    mbus_remote_register_write(PMU_ADDR,0x45,
+    pmu_reg_write(0x45,
 		( (0x0 << 9) // 0x0: no mon; 0x1: sar conv mon; 0x2: up conv mon; 0x3: down conv mon
 		| (0x0 << 8) // 1: vbat_read_mode enable; 0: vbat_read_mode disable
 		| (0x48 << 0) //sampling multiplication factor N; vbat_read out = vbat/1p2*N
 	));
-	
+
 	// Disable PMU ADC measurement in active mode
 	// PMU_CONTROLLER_STALL_ACTIVE
 	// Updated for PMUv9
-    mbus_remote_register_write(PMU_ADDR,0x3A, 
+    pmu_reg_write(0x3A, 
 		( (1 << 20) // ignore state_horizon; default 1
 		| (0 << 19) // state_vbat_read
 		| (1 << 13) // ignore adc_output_ready; default 0
 		| (1 << 12) // ignore adc_output_ready; default 0
 		| (1 << 11) // ignore adc_output_ready; default 0
 	));
-    delay(MBUS_DELAY);
+
 	pmu_adc_reset_setting();
-	delay(MBUS_DELAY);
 	pmu_adc_enable();
-	delay(MBUS_DELAY);
 
     // Temp Sensor Settings --------------------------------------
 
@@ -1913,9 +1897,7 @@ int main(){
 		if (exec_count_irq == 0){
 			// Read PMU register 5
 			// PMU register read is handled differently
-			mbus_remote_register_write(PMU_ADDR,0x00,0x05);
-			delay(MBUS_DELAY);
-			delay(MBUS_DELAY);
+			pmu_reg_write(0x00,0x05);
 			pmu_sar_conv_ratio_val = *((volatile uint32_t *) REG0) & 0x7F;
 		}
 

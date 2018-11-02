@@ -1092,7 +1092,8 @@ static void operation_init(void){
 		| (0x0 << 8) // 1: vbat_read_mode enable; 0: vbat_read_mode disable
 		| (0x48 << 0) //sampling multiplication factor N; vbat_read out = vbat/1p2*N
 	));
-	
+	delay(MBUS_DELAY);
+
 	// Disable PMU ADC measurement in active mode
 	// PMU_CONTROLLER_STALL_ACTIVE
 	// Updated for PMUv9

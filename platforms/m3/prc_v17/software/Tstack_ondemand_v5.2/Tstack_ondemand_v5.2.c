@@ -1158,9 +1158,7 @@ static void operation_init(void){
         | (1 << 11) // ignore adc_output_ready; default 0
     ));
     pmu_adc_reset_setting();
-    delay(MBUS_DELAY);
     pmu_adc_enable();
-    delay(MBUS_DELAY);
 
     // Temp Sensor Settings --------------------------------------
     // sntv1_r01
