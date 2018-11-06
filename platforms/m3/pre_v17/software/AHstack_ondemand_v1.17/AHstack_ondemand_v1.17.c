@@ -16,6 +16,7 @@
 //			v1.16: improve latency of radio tx further
 //					changing MRR decap configuration and shorter SFO settling time
 //			v1.17: PMUv9, replacing delays for PMU reg write with set halt
+//					adding a mode for mrr radio scan (0x52)
 //*******************************************************************
 #include "PREv17.h"
 #include "PREv17_RF.h"
@@ -1878,6 +1879,24 @@ int main(){
     }else if(wakeup_data_header == 0x51){
 		// Debug trigger for MRR testing; repeat trigger 1 for 0xFFFFFFFF times
 		operation_goc_trigger_radio(0xFFFFFFFF, wakeup_data_field_1, 0xA0, 0, exec_count_irq);
+
+    }else if(wakeup_data_header == 0x52){
+		// Debug trigger for MRR radio scanning
+		// Prepare radio TX
+		disable_timerwd();
+		radio_power_on();
+		uint32_t mrr_freq_hopping_saved = mrr_freq_hopping;
+		mrr_freq_hopping = 0;
+		uint32_t ii = 0;
+		// Packet Loop 
+		while (ii < (wakeup_data & 0xFFFF)){
+			send_radio_data_mrr(0,0xA0,*REG_CHIP_ID,((0xBB00|read_data_batadc)<<8),ii);	
+			ii++;
+		}
+			send_radio_data_mrr(1,0xA0,*REG_CHIP_ID,((0xBB00|read_data_batadc)<<8),ii);	
+
+		mrr_freq_hopping = mrr_freq_hopping_saved;
+		operation_sleep_notimer();
 
 	}else if(wakeup_data_header == 0x16){
 		wakeup_period_calc_factor = wakeup_data & 0xFFFFFF;
