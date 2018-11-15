@@ -3,8 +3,8 @@
 //Description: MRR stack for Monarch 
 //			Modified from 'MRR_counter_test'
 //*******************************************************************
-#include "PREv18.h"
-#include "PREv18_RF.h"
+#include "PREv17.h"
+#include "PREv17_RF.h"
 #include "mbus.h"
 //#include "SNSv10_RF.h"
 #include "PMUv7_RF.h"
@@ -88,13 +88,15 @@ volatile uint32_t mrr_cfo_val_fine_min;
 volatile uint32_t RADIO_PACKET_DELAY;
 volatile uint32_t radio_packet_count;
 
+volatile uint32_t mrr_cl_ctrl_on;
+
 //volatile snsv10_r00_t snsv10_r00 = SNSv10_R00_DEFAULT;
 //volatile snsv10_r01_t snsv10_r01 = SNSv10_R01_DEFAULT;
 //volatile snsv10_r03_t snsv10_r03 = SNSv10_R03_DEFAULT;
 //volatile snsv10_r17_t snsv10_r17 = SNSv10_R17_DEFAULT;
 
-volatile prev18_r0B_t prev18_r0B = PREv18_R0B_DEFAULT;
-//volatile prev18_r0D_t prev18_r0D = PREv18_R0D_DEFAULT;
+volatile prev17_r0B_t prev17_r0B = PREv17_R0B_DEFAULT;
+volatile prev17_r0D_t prev17_r0D = PREv17_R0D_DEFAULT;
 
 volatile mrrv7_r00_t mrrv7_r00 = MRRv7_R00_DEFAULT;
 volatile mrrv7_r01_t mrrv7_r01 = MRRv7_R01_DEFAULT;
@@ -447,7 +449,7 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
 		delay(MBUS_DELAY);
 
 		// Current Limter set-up 
-		mrrv7_r00.MRR_CL_CTRL = 1; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+		mrrv7_r00.MRR_CL_CTRL = mrr_cl_ctrl_on; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
 		mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
     }
@@ -566,17 +568,17 @@ int main() {
 
 
 	// Set CPU & Mbus Clock Speeds
-    prev18_r0B.CLK_GEN_RING = 0x1; // Default 0x1
-    prev18_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
-    prev18_r0B.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
-    prev18_r0B.GOC_CLK_GEN_SEL_DIV = 0x0; // Default 0x0
-    prev18_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
-	*REG_CLKGEN_TUNE = prev18_r0B.as_int;
+    prev17_r0B.CLK_GEN_RING = 0x1; // Default 0x1
+    prev17_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
+    prev17_r0B.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
+    prev17_r0B.GOC_CLK_GEN_SEL_DIV = 0x0; // Default 0x0
+    prev17_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
+	*REG_CLKGEN_TUNE = prev17_r0B.as_int;
 
-    //prev18_r0D.SRAM_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
-    //prev18_r0D.SRAM_TUNE_DECODER_DLY = 15; // Default 0x2, 4 bits
-    //prev18_r0D.SRAM_USE_INVERTER_SA= 1; 
-	//*REG_SRAM_TUNE = prev18_r0D.as_int;
+    prev17_r0D.SRAM_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
+    prev17_r0D.SRAM_TUNE_DECODER_DLY = 15; // Default 0x2, 4 bits
+    prev17_r0D.SRAM_USE_INVERTER_SA= 1; 
+	*REG_SRAM_TUNE = prev17_r0D.as_int;
   
     //Enumerate & Initialize Registers
     stack_state = STK_IDLE; 	//0x0;
@@ -696,6 +698,7 @@ int main() {
 	set_sns_exec_count = 0; // specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
 	RADIO_PACKET_DELAY = 2500;
 	radio_packet_count = 0;
+	mrr_cl_ctrl_on = 1;
 
     // Go to sleep without timer
     operation_sleep_notimer();
@@ -793,9 +796,11 @@ int main() {
 		mbus_remote_register_write(MRR_ADDR,0x02,mrrv7_r02.as_int);
 
     }else if(wakeup_data_header == 0x6){
-		mrrv7_r02.MRR_TX_BIAS_TUNE = (wakeup_data_field_2<<8) + wakeup_data_field_0; //0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
+
+		mrr_cl_ctrl_on = wakeup_data_field_2;
+		mrrv7_r02.MRR_TX_BIAS_TUNE = (wakeup_data_field_1<<8) + wakeup_data_field_0; //0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
 		mbus_remote_register_write(MRR_ADDR,0x02,mrrv7_r02.as_int);
-		operation_goc_trigger_radio(0xFFFFFFFF, wakeup_data_field_1, 0xA0, 0xCD, 0xEF1234);
+		operation_goc_trigger_radio(0xFFFFFFFF, 0x05, 0xA0, 0xCD, 0xEF1234);
 
     }else{
 		if (wakeup_data_header != 0){
