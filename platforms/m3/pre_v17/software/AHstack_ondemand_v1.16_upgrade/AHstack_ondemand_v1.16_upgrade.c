@@ -1158,10 +1158,10 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
 		mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine;
 		mbus_remote_register_write(MRR_ADDR,0x01,mrrv7_r01.as_int);
 		send_radio_data_mrr_sub1();
+		count++;
 		if (count < num_packets){
 			delay(RADIO_PACKET_DELAY);
 		}
-		count++;
 		mrr_cfo_val_fine = mrr_cfo_val_fine + mrr_freq_hopping_step; // 1: 0.8MHz, 2: 1.6MHz step
 	}
 

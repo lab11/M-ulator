@@ -8,9 +8,15 @@
 #include "mbus.h"
 #include "PMUv7_RF.h"
 
+
+//Uncomment this for 1st load (Commend this for 2nd load)
 #define ENUMID 0xDEADBEE1
-//#include "hexdata_mem_nzero_p2_test_2.txt"
 #include "hexdata_mem_nzero_p3_simple.txt"  
+
+////Uncomment this for 2nd load (Comment this for 1st load)
+//#define ENUMID 0xDEADBEE2
+//#include "hexdata_mem_nzero_p3_simple_2.txt"  
+
 #include "LUT_table.txt"
 #include "PHS_table.txt"
 
@@ -350,7 +356,7 @@ static void XO_init(void) {
     uint32_t xo_cap_in  = 0x3F; // Additional Cap on OSC_IN
     prev18_r1A.XO_CAP_TUNE = (
             (xo_cap_drv <<6) | 
-            (xo_cap_in <<0));   // XO_CLK Output Pad (0: Disabled, 1: 32kHz, 2: 16kHz, 3: 8kHz)
+            (xo_cap_in <<0));   // XO_CLK Output Pad 
     *REG_XO_CONF2 = prev18_r1A.as_int;
 
     // XO configuration
@@ -411,7 +417,6 @@ static void program_scan_word(uint32_t writeData, uint32_t nBits){
         *GPIO_DATA = ( (bitdata << SCAN_DATA_IN) | (1 << SCAN_PHI) );
         *GPIO_DATA = ( (bitdata << SCAN_DATA_IN) );
         *GPIO_DATA = ( (bitdata << SCAN_DATA_IN) | (1 << SCAN_PHI_BAR) );
-        //*GPIO_DATA = ( (bitdata << SCAN_DATA_IN) );
     }
 }
 
@@ -540,167 +545,6 @@ static void program_scan(void){
     *GPIO_DATA = 0;
 }
 
-static uint32_t program_scan_word_read(uint32_t nBits){
-    uint32_t i;
-    uint32_t bitdata_read;
-    uint32_t readData;
-    bitdata_read = 0;
-    readData = 0;
-    for(i = 0; i < nBits; i++){
-        *GPIO_DATA = 0;
-        *GPIO_DATA = ( (1 << SCAN_PHI) );
-        *GPIO_DATA = 0;
-        *GPIO_DATA = ( (1 << SCAN_PHI_BAR) );
-        *GPIO_DATA = 0;
-        bitdata_read = (*GPIO_DATA >> SCAN_DATA_OUT) & 1;
-        readData = (readData | bitdata_read) ; 
-        if(i != nBits-1) readData = (readData <<1);
-    }
-    return readData;
-}
-
-static void program_scan_read(void){
-    uint32_t scan_read_data;
-    uint32_t scan_read_data2;
-    uint32_t scan_read_data3;
-    uint32_t scan_read_data4;
-    uint32_t scan_read_data5;
-    uint32_t scan_read_data6;
-    uint32_t scan_read_data7;
-    *GPIO_DATA=0;
-    *GPIO_DATA = ( (1 << SCAN_LOAD_CHAIN) );
-    *GPIO_DATA=0;
-    scan_read_data =    program_scan_word_read(DSP2scan_SRAM_DATAOUT_EXT_BIT);
-    scan_read_data2 =   program_scan_word_read(scan2mux_sel_clk_BIT);
-    scan_read_data3 =   program_scan_word_read(scan2Timer_SEL_CLK_BIT);
-    scan_read_data4 =   program_scan_word_read(scan2Timer_RESETb_TM2_BIT);
-    scan_read_data5 =   program_scan_word_read(scan2Timer_AFC_TM2_BIT);
-    scan_read_data6 =   program_scan_word_read(scan2Timer_SEL_D_TM2_BIT);
-    scan_read_data7 =   program_scan_word_read(scan2Timer_SEL_VBH_BIT);
-    program_scan_word_read(	 scan2Timer_SEL_VB_BIT);
-    program_scan_word_read(	 scan2Timer_SEL_D_BIT);
-    program_scan_word_read(	 scan2Timer_LC_BIAS_BIT);
-    program_scan_word_read(	 scan2Timer_SEL_LC_CURR_EXT_BIT);
-    program_scan_word_read(	 scan2Timer_SEL_CLK_OSC_BIT);
-    program_scan_word_read(	 scan2Timer_SEL_CLK_DIV_BIT);
-    program_scan_word_read(	 scan2Timer_RESETB_DCDC_BIT);
-    program_scan_word_read(	 scan2Timer_EN_SELF_CLK_BIT);
-    program_scan_word_read(	 scan2Timer_SEL_CAP_BIT);
-    program_scan_word_read(	 scan2Timer_EN_TUNE2_RES_BIT);
-    program_scan_word_read(	 scan2Timer_EN_TUNE1_RES_BIT);
-    program_scan_word_read(	 scan2Timer_POLY_CON_BIT);
-    program_scan_word_read(	 scan2Timer_DIFF_CON_BIT);
-    program_scan_word_read(	 scan2Timer_SELF_EN_BIT);
-    program_scan_word_read(	 scan2Timer_SAMPLE_EN_BIT);
-    program_scan_word_read(	 scan2Timer_S_BIT);
-    program_scan_word_read(	 scan2Timer_RESETB_DIV_BIT);
-    program_scan_word_read(	 scan2Timer_RESETB_BIT);
-    program_scan_word_read(	 scan2Timer_IBIAS_REF_BIT);
-    program_scan_word_read(	 scan2Timer_CASCODE_BOOST_BIT);
-    program_scan_word_read(	 scan2Timer_AFC_BIT);
-    program_scan_word_read(	 scan2Timer_EN_OSC_BIT);
-    program_scan_word_read(	 scan2DSP_DBG_EN_BIT);
-    program_scan_word_read(	 scan2DSP_RF_MON_EN_BIT);
-    program_scan_word_read(	 scan2DSP_DNN_EN_SCAN_BIT);
-    program_scan_word_read(	 scan2DSP_DNN_RESETN_SCAN_BIT);
-    program_scan_word_read(	 scan2DSP_DNN_CLKENB_SCAN_BIT);
-    program_scan_word_read(	 scan2DSP_PG_SLEEP_SCAN_BIT);
-    program_scan_word_read(	 scan2DSP_DNN_ISOLATEN_SCAN_BIT);
-    program_scan_word_read(	 scan2DSP_DNN_CTRL_SCAN_SEL_BIT);
-    program_scan_word_read(	 scan2DSP_SRAM_DATAIN_EXT_BIT);
-    program_scan_word_read(	 scan2DSP_SRAM_MEM_EN_EXT_BIT);
-    program_scan_word_read(	 scan2DSP_SRAM_R0W1_EXT_BIT);
-    program_scan_word_read(	 scan2DSP_SRAM_ADDR_EXT_BIT);
-    program_scan_word_read(	 scan2DSP_SRAM_EXT_SEL_BIT);
-    program_scan_word_read(	 scan2DSP_DNN_CLK_SCAN_SEL_BIT);
-    program_scan_word_read(	 scan2DSP_DNN_CLK_SCAN_BIT);
-    program_scan_word_read(	 scan2DSP_DNN_CLK_EXT_SEL_BIT);
-    program_scan_word_read(	 scan2DSP_SRAM1_TUNE_RDRSB_EN_BIT);
-    program_scan_word_read(	    scan2DSP_SRAM1_TUNE_RDRSB_BIT);
-    program_scan_word_read(	     scan2DSP_SRAM1_TUNE_DLY2_BIT);
-    program_scan_word_read(	     scan2DSP_SRAM1_TUNE_DLY1_BIT);
-    program_scan_word_read(	        scan2DSP_SRAM1_SA_SEL_BIT);
-    program_scan_word_read(	 scan2DSP_SRAM0_TUNE_RDRSB_EN_BIT);
-    program_scan_word_read(	    scan2DSP_SRAM0_TUNE_RDRSB_BIT);
-    program_scan_word_read(	     scan2DSP_SRAM0_TUNE_DLY2_BIT);
-    program_scan_word_read(	     scan2DSP_SRAM0_TUNE_DLY1_BIT);
-    program_scan_word_read(	        scan2DSP_SRAM0_SA_SEL_BIT);
-    program_scan_word_read(	 scan2DSP_DNN_CLK_S_RING_BIT);
-    program_scan_word_read(	 scan2DSP_DNN_CLK_S_DIV_BIT);
-    program_scan_word_read(	 scan2DSP_DNN_CLK_MON_EN_BIT);
-    program_scan_word_read(	 scan2DSP_SRAM_ADDR_BASE_BIT);
-    program_scan_word_read(	 scan2DSP_LUT_DATA_IN_BIT);
-    program_scan_word_read(	 scan2DSP_LUT_WR_ADDR_BIT);
-    program_scan_word_read(	 scan2DSP_LUT_WR_BIT);
-    program_scan_word_read(	 scan2DSP_PHS_DATA_IN_BIT);
-    program_scan_word_read(	 scan2DSP_PHS_WR_ADDR_BIT);
-    program_scan_word_read(	 scan2DSP_PHS_WR_BIT);
-    program_scan_word_read(	 scan2DSP_N_DFT_BIT);
-    program_scan_word_read(	 scan2DSP_N_FE_BIT);
-    program_scan_word_read(	 scan2DSP_N_START_BIT);
-    program_scan_word_read(	 scan2DSP_SEL_EXT_BIT);
-    program_scan_word_read(	 scan2DSP_EN_GC_ANA_BIT);
-    program_scan_word_read(	 scan2DSP_EN_GC_BIT);
-    program_scan_word_read(	 scan2DSP_RESETn_DSP_BIT);
-    program_scan_word_read(	 scan2CPSRAM_SEL_EXT_CLKb_BIT);
-    program_scan_word_read(	 scan2CPSRAM_SHRT_BIT);
-    program_scan_word_read(	 scan2CPSRAM_SEL_DIV_BIT);
-    program_scan_word_read(	 scan2CPSRAM_RESETn_BIT);
-    program_scan_word_read(	 scan2ADC_SDLY_SEL_BIT);
-    program_scan_word_read(	 scan2ADC_DLY_SEL_BIT);
-    program_scan_word_read(	 scan2ADC_OFFSET_SELN_BIT);
-    program_scan_word_read(	 scan2ADC_OFFSET_SELP_BIT);
-    program_scan_word_read(	 scan2ADC_RESET_BIT);
-    program_scan_word_read(	 scan2CS_SELb_I_DRV_BIT);
-    program_scan_word_read(	 scan2CS_SEL_I_EXT_BIT);
-    program_scan_word_read(	 scan2CS_SEL_I_DIVb_BIT);
-    program_scan_word_read(	 scan2CS_SELb_I_BIT);
-    program_scan_word_read(	 scan2CP_CP_HVI_VSH_BIT);
-    program_scan_word_read(	 scan2CP_CP_HVI_EN_BIT);
-    program_scan_word_read(	 scan2CP_CP_CAS_VSH_BIT);
-    program_scan_word_read(	 scan2CP_CP_CAS_EN_BIT);
-    program_scan_word_read(	 scan2CP_SEL_EXT_CLKb_BIT);
-    program_scan_word_read(	 scan2CP_SEL_DIV_BIT);
-    program_scan_word_read(	 scan2CP_RESETn_BIT);
-    program_scan_word_read(	 scan2AMP_ctrl_IBUF_N_BIT);
-    program_scan_word_read(	 scan2AMP_ctrl_IBUF_P_BIT);
-    program_scan_word_read(	 scan2AMP_SEL_DRV_BIT);
-    program_scan_word_read(	 scan2AMP_SEL_ADC_BIT);
-    program_scan_word_read(	 scan2AMP_ctrlb_Iamp_2nd_p_BIT);
-    program_scan_word_read(	 scan2AMP_ctrlb_Iamp_2nd_BIT);
-    program_scan_word_read(	 scan2AMP_SEL_LOADn_BIT);
-    program_scan_word_read(	 scan2AMP_SEL_LOADn_BASE_BIT);
-    program_scan_word_read(	 scan2AMP_SEL_LOADp_BIT);
-    program_scan_word_read(	 scan2AMP_SEL_LOADp_BASE_BIT);
-    program_scan_word_read(	 scan2AMP_SEL_Gain_BIT);
-    program_scan_word_read(	 scan2AMP_ctrlb_Iamp_BIT);
-    program_scan_word_read(	 scan2AMP_ctrlb_IB_BIT);
-    program_scan_word_read(	 scan2AMP_vb4_sel_BIT);
-    program_scan_word_read(	 scan2AMP_vb3_sel_BIT);
-    program_scan_word_read(	 scan2AMP_vb2_sel_BIT);
-    program_scan_word_read(	 scan2AMP_vb1_sel_BIT);
-    program_scan_word_read(	 scan2AMP_EN_FS_BIT);
-    program_scan_word_read(	 scan2AMP_EN_BUF_BIT);
-    program_scan_word_read(	 scan2AMP_SEL_MEMS_BASE_BIT);
-    program_scan_word_read(	 scan2AMP_SEL_MEMS_BIT);
-    program_scan_word_read(	 scan2pad_dir_BIT);
-    program_scan_word_read(	 scan2pad_outen_BIT);
-    program_scan_word_read(	 scan2pad_inen_BIT);
-    program_scan_word_read(	 scan_reset_BIT);
-
-
-    *GPIO_DATA = 0;
-    mbus_write_message32(0xE1, scan_read_data);
-    mbus_write_message32(0xE2, scan_read_data2);
-    mbus_write_message32(0xE3, scan_read_data3);
-    mbus_write_message32(0xE4, scan_read_data4);
-    mbus_write_message32(0xE5, scan_read_data5);
-    mbus_write_message32(0xE6, scan_read_data6);
-    mbus_write_message32(0xE7, scan_read_data7);
-}
-
-
-
 static void program_scan_sram(void){
     uint32_t i;
     mbus_write_message32(0xEE, 0xDEAD);
@@ -748,16 +592,6 @@ static void program_scan_sram(void){
             delay(MBUS_DELAY);
         }
     }
-    //scan2DSP_SRAM_R0W1_EXT = 0;
-    //program_scan();
-    //scan2DSP_SRAM_ADDR_EXT = 0;
-    //program_scan();
-    //scan2DSP_DNN_CLK_SCAN = 1;
-    //program_scan();
-    //scan2DSP_DNN_CLK_SCAN = 0;
-    //scan load chain -
-    //scan rotate -
-    //read DSP2scan_SRAM_DATAOUT_EXT
 
     scan2DSP_SRAM_MEM_EN_EXT = 0;
     scan2DSP_SRAM_R0W1_EXT = 0;
@@ -772,8 +606,8 @@ static void program_scan_sram(void){
     scan2DSP_DNN_CLK_SCAN_SEL = 0;
     scan2DSP_DNN_CTRL_SCAN_SEL = 0;
     program_scan();
-    scan2DSP_RESETn_DSP = 1;
-    program_scan();
+    //scan2DSP_RESETn_DSP = 1;
+    //program_scan();
     mbus_write_message32(0xEE, 0xDEAF);
 
     // Return original PRE clock frequency
@@ -842,153 +676,6 @@ static void program_scan_cp(uint32_t data_val){
         scan2CP_SEL_DIV     = 1;
         program_scan();
     }
-}
-
-
-//*******************************************************************
-// INTERRUPT HANDLERS (Updated for PRCv17)
-//*******************************************************************
-
-void handler_ext_int_wakeup   (void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_gocep    (void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_timer32  (void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_reg0     (void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_reg1     (void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_reg2     (void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_reg3     (void) __attribute__ ((interrupt ("IRQ")));
-
-void handler_ext_int_timer32(void) { // TIMER32
-    *NVIC_ICPR = (0x1 << IRQ_TIMER32);
-    *REG1 = *TIMER32_CNT;
-    *REG2 = *TIMER32_STAT;
-    *TIMER32_STAT = 0x0;
-    wfi_timeout_flag = 1;
-}
-void handler_ext_int_reg0(void) { // REG0
-    *NVIC_ICPR = (0x1 << IRQ_REG0);
-}
-void handler_ext_int_reg1(void) { // REG1
-    *NVIC_ICPR = (0x1 << IRQ_REG1);
-}
-void handler_ext_int_reg2(void) { // REG2
-    *NVIC_ICPR = (0x1 << IRQ_REG2);
-}
-void handler_ext_int_reg3(void) { // REG3
-    *NVIC_ICPR = (0x1 << IRQ_REG3);
-}
-void handler_ext_int_gocep(void) { // GOCEP
-    *NVIC_ICPR = (0x1 << IRQ_GOCEP);
-    wakeup_data = *GOC_DATA_IRQ;
-    uint32_t data_cmd = (wakeup_data>>24) & 0xFF;
-    uint32_t data_val2 = (wakeup_data>>8) & 0xFF;
-    uint32_t data_val = wakeup_data & 0xFF;
-    //uint32_t data_cmd = *REG1;
-    //uint32_t data_val = *REG0;
-    init_scan();
-    unfreeze_gpio_out();
-
-    mbus_write_message32(0xEE, data_cmd);
-    delay(MBUS_DELAY*10);
-    mbus_write_message32(0xEE, data_val);
-
-    if(data_cmd == 0x11){      // Fast settling enable
-        if(data_val) scan2AMP_EN_FS=0;
-        else scan2AMP_EN_FS=1;
-        program_scan();
-    }
-    else if(data_cmd == 1){     // CP enable
-        program_scan_cp(data_val);
-    }
-    else if(data_cmd == 2){     // ADC enable
-        if(data_val) scan2ADC_RESET=0;
-        else scan2ADC_RESET=1;
-        program_scan();
-    }
-    else if(data_cmd == 3){     // Current tuning
-        scan2CS_SELb_I = data_val;
-        program_scan();
-    }
-    else if(data_cmd == 4){     // Choose clock source
-        if(data_val==0){    // Crystal
-            scan2Timer_SEL_CLK=0;   
-            scan2Timer_EN_OSC =0;
-            scan2Timer_RESETb_TM2=0;
-        }
-        else if(data_val==2){      //TM2 
-            scan2Timer_SEL_CLK=2;
-            scan2Timer_EN_OSC=0;
-            scan2Timer_RESETb_TM2=1;
-        }
-        else{
-            scan2Timer_SEL_CLK=0;   
-            scan2Timer_EN_OSC =0;
-            scan2Timer_RESETb_TM2=0;
-        }
-        program_scan();
-    }
-    else if(data_cmd == 5){     // Divider selection
-        if(data_val == 0) XO_div(0);        //32kHz
-        else if(data_val == 1) XO_div(1);   //16kHz
-        else if(data_val == 2) XO_div(2);   //8kHz
-        else if(data_val == 3) XO_div(3);   //4kHz
-        else if(data_val == 4) XO_div(4);   //2kHz
-        else if(data_val == 5) XO_div(5);   //1kHz - Default
-        else {
-            prev18_r19.XO_EN_DIV = 0x0;     //Divider disable
-            *REG_XO_CONF1 = prev18_r19.as_int;
-        }
-    }
-    else if(data_cmd ==6){
-        scan2AMP_SEL_Gain=data_val;
-        program_scan();
-    }
-    else if(data_cmd ==7){      // Test VDD enable
-        if(data_val == 0){  //TESTVDD OFF
-            *REG_CPS = 0x5; // 4: 0.6V, 2: TEST1.2V, 1: All 1.2V
-            pmu_set_sar_override(pmu_sar_conv_ratio_val_test_off);
-            pmu_set_sleep_clk(0xF,0xF,0xF,0xF);
-            pmu_set_active_clk(0xA,0x1,0x10,0x2);
-        }
-        else{   //TESTVDD ON
-            pmu_set_sar_override(pmu_sar_conv_ratio_val_test_on);
-            pmu_set_sleep_clk(0xA,0x1,0x10,0x2);
-            pmu_set_active_clk(0xA,0x1,0x10,0x2);
-            *REG_CPS = 0x7; // 4: 0.6V, 2: TEST1.2V, 1: All 1.2V
-        }
-    }
-    else if(data_cmd ==8){
-        pmu_set_sar_override(data_val);
-    }
-    else if(data_cmd ==9){      // DSP enable
-        if(data_val == 0) scan2DSP_RESETn_DSP = 0;
-        else scan2DSP_RESETn_DSP = 1;
-        program_scan();
-    }
-    else if (data_cmd == 0xA){  //PHS set
-        program_frequencies();
-    }
-    else if(data_cmd ==0xB){
-        //if(data_val == 0 | data_val == 1) pmu_set_sleep_clk(2,data_val,0x7,data_val);
-        //else pmu_set_sleep_clk(data_val,data_val,0x7,data_val);
-        if(data_val != 0xF) pmu_set_sleep_clk(data_val+1,data_val,data_val2,data_val);
-        else pmu_set_sleep_clk(data_val,data_val,data_val2,data_val);
-    }
-    else if(data_cmd == 0xFF){
-        program_scan_sram();
-    }
-    else if(data_cmd == 0xF0){
-        program_scan_read();
-    }
-    freeze_gpio_out();
-    operation_sleep_notimer();
-}
-
-
-
-
-void handler_ext_int_wakeup(void) { // WAKE-UP
-    *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
-    *SREG_WAKEUP_SOURCE = 0;
 }
 
 
@@ -1357,8 +1044,8 @@ static void operation_sleep_notimer(void){
 
 
 static void operation_init(void){
-    pmu_sar_conv_ratio_val_test_on = 0x2D;
-    pmu_sar_conv_ratio_val_test_off = 0x2A;
+    pmu_sar_conv_ratio_val_test_on = 0x2E;//0x2D;
+    pmu_sar_conv_ratio_val_test_off = 0x2C;//0x2A;
     // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
     config_timerwd(TIMERWD_VAL);
     *TIMERWD_GO = 0x0;
@@ -1466,6 +1153,145 @@ static void operation_init(void){
     program_scan_cp(1);
     mbus_write_message32(0xAF,0x0FAE);
     delay(MBUS_DELAY);
+}
+
+//*******************************************************************
+// INTERRUPT HANDLERS (Updated for PRCv17)
+//*******************************************************************
+
+void handler_ext_int_wakeup   (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_gocep    (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_timer32  (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg0     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg1     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg2     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg3     (void) __attribute__ ((interrupt ("IRQ")));
+
+void handler_ext_int_wakeup(void) { // WAKE-UP
+    *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
+    *SREG_WAKEUP_SOURCE = 0;
+}
+void handler_ext_int_timer32(void) { // TIMER32
+    *NVIC_ICPR = (0x1 << IRQ_TIMER32);
+    *REG1 = *TIMER32_CNT;
+    *REG2 = *TIMER32_STAT;
+    *TIMER32_STAT = 0x0;
+    wfi_timeout_flag = 1;
+}
+void handler_ext_int_reg0(void) { // REG0
+    *NVIC_ICPR = (0x1 << IRQ_REG0);
+}
+void handler_ext_int_reg1(void) { // REG1
+    *NVIC_ICPR = (0x1 << IRQ_REG1);
+}
+void handler_ext_int_reg2(void) { // REG2
+    *NVIC_ICPR = (0x1 << IRQ_REG2);
+}
+void handler_ext_int_reg3(void) { // REG3
+    *NVIC_ICPR = (0x1 << IRQ_REG3);
+}
+void handler_ext_int_gocep(void) { // GOCEP
+    *NVIC_ICPR = (0x1 << IRQ_GOCEP);
+    wakeup_data = *GOC_DATA_IRQ;
+    uint32_t data_cmd = (wakeup_data>>24) & 0xFF;
+    uint32_t data_val2 = (wakeup_data>>8) & 0xFF;
+    uint32_t data_val = wakeup_data & 0xFF;
+    //uint32_t data_cmd = *REG1;
+    //uint32_t data_val = *REG0;
+    init_scan();
+    unfreeze_gpio_out();
+
+    mbus_write_message32(0xEE, data_cmd);
+    delay(MBUS_DELAY*10);
+    mbus_write_message32(0xEE, data_val);
+
+    if(data_cmd == 0x11){      // Fast settling enable
+        if(data_val) scan2AMP_EN_FS=0;
+        else scan2AMP_EN_FS=1;
+        program_scan();
+    }
+    else if(data_cmd == 1){     // CP enable
+        program_scan_cp(data_val);
+    }
+    else if(data_cmd == 2){     // ADC enable
+        if(data_val) scan2ADC_RESET=0;
+        else scan2ADC_RESET=1;
+        program_scan();
+    }
+    else if(data_cmd == 3){     // Current tuning
+        scan2CS_SELb_I = data_val;
+        program_scan();
+    }
+    else if(data_cmd == 4){     // Choose clock source
+        if(data_val==0){    // Crystal
+            scan2Timer_SEL_CLK=0;   
+            scan2Timer_EN_OSC =0;
+            scan2Timer_RESETb_TM2=0;
+        }
+        else if(data_val==2){      //TM2 
+            scan2Timer_SEL_CLK=2;
+            scan2Timer_EN_OSC=0;
+            scan2Timer_RESETb_TM2=1;
+        }
+        else{
+            scan2Timer_SEL_CLK=0;   
+            scan2Timer_EN_OSC =0;
+            scan2Timer_RESETb_TM2=0;
+        }
+        program_scan();
+    }
+    else if(data_cmd == 5){     // Divider selection
+        if(data_val == 0) XO_div(0);        //32kHz
+        else if(data_val == 1) XO_div(1);   //16kHz
+        else if(data_val == 2) XO_div(2);   //8kHz
+        else if(data_val == 3) XO_div(3);   //4kHz
+        else if(data_val == 4) XO_div(4);   //2kHz
+        else if(data_val == 5) XO_div(5);   //1kHz - Default
+        else {
+            prev18_r19.XO_EN_DIV = 0x0;     //Divider disable
+            *REG_XO_CONF1 = prev18_r19.as_int;
+        }
+    }
+    else if(data_cmd ==6){
+        scan2AMP_SEL_Gain=data_val;
+        program_scan();
+    }
+    else if(data_cmd ==7){      // Test VDD enable
+        if(data_val == 0){  //TESTVDD OFF
+            *REG_CPS = 0x5; // 4: 0.6V, 2: TEST1.2V, 1: All 1.2V
+            pmu_set_sar_override(pmu_sar_conv_ratio_val_test_off);
+            pmu_set_sleep_clk(0xF,0xF,0xF,0xF);
+            pmu_set_active_clk(0xA,0x1,0x10,0x2);
+        }
+        else{   //TESTVDD ON
+            pmu_set_sar_override(pmu_sar_conv_ratio_val_test_on);
+            pmu_set_sleep_clk(0xA,0x1,0x10,0x2);
+            pmu_set_active_clk(0xA,0x1,0x10,0x2);
+            *REG_CPS = 0x7; // 4: 0.6V, 2: TEST1.2V, 1: All 1.2V
+        }
+    }
+    else if(data_cmd ==8){
+        pmu_set_sar_override(data_val);
+    }
+    else if(data_cmd ==9){      // DSP enable
+        if(data_val == 0) scan2DSP_RESETn_DSP = 0;
+        else scan2DSP_RESETn_DSP = 1;
+        program_scan();
+    }
+    else if (data_cmd == 0xA){  //PHS set
+        program_frequencies();
+    }
+    else if(data_cmd ==0xB){
+        //if(data_val == 0 | data_val == 1) pmu_set_sleep_clk(2,data_val,0x7,data_val);
+        //else pmu_set_sleep_clk(data_val,data_val,0x7,data_val);
+        if(data_val != 0xF) pmu_set_sleep_clk(data_val+1,data_val,data_val2,data_val);
+        else pmu_set_sleep_clk(data_val,data_val,data_val2,data_val);
+    }
+    else if(data_cmd == 0xFF){
+        program_scan_sram();
+    }
+    freeze_gpio_out();
+    operation_sleep_notimer();
 }
 
 

@@ -143,6 +143,10 @@ void set_gpio_pad (uint8_t config) {
     reg_ = reg_ & 0xFFFFFF00;
     *REG_PERIPHERAL = reg_ | config;
 }
+void set_gpio_pad_with_mask (uint32_t mask, uint8_t config) {
+	mask = mask & 0xFF;
+    *REG_PERIPHERAL = (*REG_PERIPHERAL & ~mask) | (mask & config);
+}
 void freeze_spi_out (void) {
     uint32_t reg_ = *REG_PERIPHERAL | 0x00800000;
     *REG_PERIPHERAL = reg_;
@@ -192,6 +196,10 @@ void gpio_set_dir (uint32_t dir) {
     // Direction: 1=Output, 0=Input
     *GPIO_DIR = dir;
 }
+void gpio_set_dir_with_mask (uint32_t mask, uint32_t dir) {
+    // Direction: 1=Output, 0=Input
+    *GPIO_DIR = (*GPIO_DIR & ~mask) | (mask & dir);
+}
 uint32_t gpio_get_dir (void) {
     return *GPIO_DIR;
 }
@@ -203,6 +211,10 @@ void gpio_set_data (uint32_t data) {
 }
 void gpio_write_data (uint32_t data) {
     gpio_data_ = data;
+    *GPIO_DATA = gpio_data_;
+}
+void gpio_write_data_with_mask (uint32_t mask, uint32_t data) {
+    gpio_data_ = (*GPIO_DATA & ~mask) | (mask & data);
     *GPIO_DATA = gpio_data_;
 }
 void gpio_write_current_data (void) {

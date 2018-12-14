@@ -106,6 +106,8 @@
 #define REG_XO_CONF1    ((volatile uint32_t *) 0xA0000064)
 #define REG_XO_CONF2    ((volatile uint32_t *) 0xA0000068)
 #define REG_SYS_CONF    ((volatile uint32_t *) 0xA000006C)
+#define REG_SRAM0_TUNE  ((volatile uint32_t *) 0xA0000070)
+#define REG_SRAM1_TUNE  ((volatile uint32_t *) 0xA0000074)
 #define REG_MBUS_FLAG   ((volatile uint32_t *) 0xA0000078)
 #define REG_MBUS_WD     ((volatile uint32_t *) 0xA000007C)
 #define REG_STR1_BUFL   ((volatile uint32_t *) 0xA00000A4)
@@ -553,6 +555,7 @@ void set_spi_pad (uint8_t config);
  *                  '0' disables the corresponding GPIO pad
  */
 void set_gpio_pad (uint8_t config);
+void set_gpio_pad_with_mask (uint32_t mask, uint8_t config);
 
 
 /**
@@ -616,6 +619,8 @@ void gpio_init (uint32_t dir);
  */
 void gpio_set_dir (uint32_t dir);
 
+void gpio_set_dir_with_mask (uint32_t mask, uint32_t dir);
+void gpio_write_data_with_mask (uint32_t mask, uint32_t data);
 
 /**
  * @brief   Return the current GPIO directions
@@ -642,6 +647,7 @@ uint32_t gpio_get_data (void);
  * @param   data    8-bit data
  */
 void gpio_set_data (uint32_t data);
+void gpio_set_data_with_mask (uint32_t mask, uint32_t data);
 
 
 /**

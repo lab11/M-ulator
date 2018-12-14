@@ -103,7 +103,22 @@ static void initialization(void){
 
     //Set Halt
     set_halt_until_mbus_tx();
+    
+}
 
+//***************************************************************************************
+// MAIN function starts here             
+//***************************************************************************************
+int main() {
+  
+    //Initialize Interrupts
+    init_interrupt();
+  
+    // Initialization sequence
+    if (enumerated != 0xDEADBEEF){
+		initialization();
+    }
+    
     //Enable DSP
     afev1_rB.DSP_EN = 1;
     afev1_rB.ADC_EN = 1;
@@ -270,23 +285,12 @@ static void initialization(void){
     afev1_rA.DSP_CONFIG = 0x16A15A;
     mbus_remote_register_write(AFE_ADDR,0xA,afev1_rA.as_int);
     delay(10000);
-    
-}
 
-//***************************************************************************************
-// MAIN function starts here             
-//***************************************************************************************
-int main() {
-  
-    //Initialize Interrupts
-    init_interrupt();
-  
-    // Initialization sequence
-    if (enumerated != 0xDEADBEEF){
-		initialization();
-    }
-    
-    while(1);
+
+
+
+
+	while(1);
     
     // Should not reach here
     mbus_sleep_all();

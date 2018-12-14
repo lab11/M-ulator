@@ -554,6 +554,7 @@ void set_spi_pad (uint8_t config);
  *                  '0' disables the corresponding GPIO pad
  */
 void set_gpio_pad (uint8_t config);
+void set_gpio_pad_with_mask (uint32_t mask, uint8_t config);
 
 
 /**
@@ -616,6 +617,9 @@ void gpio_init (uint32_t dir);
  *                  '0' sets the corresponding GPIO bit as input
  */
 void gpio_set_dir (uint32_t dir);
+
+void gpio_set_dir_with_mask (uint32_t mask, uint32_t dir);
+void gpio_write_data_with_mask (uint32_t mask, uint32_t data);
 
 
 /**
