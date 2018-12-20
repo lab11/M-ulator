@@ -1207,8 +1207,8 @@ int main() {
 
 	}
 
-    while(1); //added by Sechang
-	//operation_sleep_notimer();
+    //while(1); //added by Sechang
+	operation_sleep_notimer();
 	//return 0;
 }
 

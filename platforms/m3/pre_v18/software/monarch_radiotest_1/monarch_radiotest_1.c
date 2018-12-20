@@ -88,6 +88,8 @@ volatile uint32_t mrr_cfo_val_fine_min;
 volatile uint32_t RADIO_PACKET_DELAY;
 volatile uint32_t radio_packet_count;
 
+volatile uint32_t mrr_cl_ctrl_on;
+
 //volatile snsv10_r00_t snsv10_r00 = SNSv10_R00_DEFAULT;
 //volatile snsv10_r01_t snsv10_r01 = SNSv10_R01_DEFAULT;
 //volatile snsv10_r03_t snsv10_r03 = SNSv10_R03_DEFAULT;
@@ -447,7 +449,7 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
 		delay(MBUS_DELAY);
 
 		// Current Limter set-up 
-		mrrv7_r00.MRR_CL_CTRL = 1; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+		mrrv7_r00.MRR_CL_CTRL = mrr_cl_ctrl_on; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
 		mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
     }
@@ -696,6 +698,7 @@ int main() {
 	set_sns_exec_count = 0; // specifies how many temp sensor executes; 0: unlimited, n: 50*2^n
 	RADIO_PACKET_DELAY = 2500;
 	radio_packet_count = 0;
+	mrr_cl_ctrl_on = 1;
 
     // Go to sleep without timer
     operation_sleep_notimer();
@@ -793,9 +796,11 @@ int main() {
 		mbus_remote_register_write(MRR_ADDR,0x02,mrrv7_r02.as_int);
 
     }else if(wakeup_data_header == 0x6){
-		mrrv7_r02.MRR_TX_BIAS_TUNE = (wakeup_data_field_2<<8) + wakeup_data_field_0; //0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
+
+		mrr_cl_ctrl_on = wakeup_data_field_2;
+		mrrv7_r02.MRR_TX_BIAS_TUNE = (wakeup_data_field_1<<8) + wakeup_data_field_0; //0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
 		mbus_remote_register_write(MRR_ADDR,0x02,mrrv7_r02.as_int);
-		operation_goc_trigger_radio(0xFFFFFFFF, wakeup_data_field_1, 0xA0, 0xCD, 0xEF1234);
+		operation_goc_trigger_radio(0xFFFFFFFF, 0x05, 0xA0, 0xCD, 0xEF1234);
 
     }else{
 		if (wakeup_data_header != 0){
