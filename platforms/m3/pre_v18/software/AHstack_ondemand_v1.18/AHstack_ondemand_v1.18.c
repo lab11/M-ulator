@@ -18,7 +18,8 @@
 //			v1.17: PMUv9, replacing delays for PMU reg write with set halt
 //					adding a mode for mrr radio scan (0x52)
 //			v1.18: PREv18, SNTv1, no HRVv6
-//					Getting rid of motion muting
+//					Getting rid of motion muting in case of SNT timer
+//					Getting rid of temp sensing using SNT
 //*******************************************************************
 #include "PREv18.h"
 #include "PREv18_RF.h"
@@ -754,7 +755,8 @@ inline static void pmu_set_sleep_low(){
 
 inline static void pmu_set_clk_init(){
 	pmu_set_active_clk(0xF,0x1,0x10,0x2);
-	pmu_set_sleep_clk(0xF,0x0,0x1,0x1);
+	pmu_set_sleep_low();
+
 	// SAR_RATIO_OVERRIDE
 	// Use the new reset scheme in PMUv3
     pmu_reg_write(0x05, //default 12'h000
@@ -1633,6 +1635,9 @@ static void operation_sns_run(void){
 				radio_power_on();
 			if (adxl_motion_detected){
 				send_radio_data_mrr(0,0x1E,*REG_CHIP_ID,(0xBB00|read_data_batadc)<<8,0);	
+				// Need to grab SNT timer value
+				snt_read_wup_counter();
+				
 			}
 		}
 
@@ -1658,7 +1663,7 @@ static void operation_sns_run(void){
 			temp_storage_diff = temp_storage_last_wakeup_adjust - temp_storage_latest;
 		}
 		
-		if (wakeup_timer_option && (temp_storage_diff > 10)){ // FIXME: value of 10 correct?
+		if (wakeup_timer_option && ((temp_storage_diff > 10) || (exec_count < 1))){ // FIXME: value of 10 correct?
 			measure_wakeup_period();
 			temp_storage_last_wakeup_adjust = sht35_temp_data;
 		}
