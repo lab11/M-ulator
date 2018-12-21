@@ -1669,6 +1669,7 @@ static void operation_sns_run(void){
 		#endif
 			
 		exec_count++;
+		stack_state = STK_IDLE;
 
 		uint32_t sleep_time_threshold = WAKEUP_PERIOD_CONT>>sleep_time_threshold_factor; // how fast is too fast?
 		if ((WAKEUP_PERIOD_CONT>>5) == 0) sleep_time_threshold = 3;
