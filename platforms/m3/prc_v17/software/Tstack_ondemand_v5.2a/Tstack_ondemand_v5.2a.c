@@ -462,10 +462,10 @@ inline static void pmu_setting_temp_based(){
 
     }else if (pmu_setting_state == PMU_55C){
         pmu_set_active_clk(0x1,0x0,0x10,0x2/*V1P2*/);
-        pmu_set_sleep_clk(0x1,0x0,0x1,0x1/*V1P2*/);
+        pmu_set_sleep_clk(0x1,0x1,0x1,0x1/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_35C){
-        pmu_set_active_clk(0x2,0x0,0x10,0x2/*V1P2*/);
+        pmu_set_active_clk(0x2,0x1,0x10,0x2/*V1P2*/);
         pmu_set_sleep_clk(0x2,0x0,0x1,0x1/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_20C){
@@ -473,11 +473,11 @@ inline static void pmu_setting_temp_based(){
         pmu_set_sleep_clk(0xF,0x2,0x1,0x4/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_10C){
-        pmu_set_active_clk(0xD,0x4,0x10,0x8/*V1P2*/);
+        pmu_set_active_clk(0xD,0x3,0x10,0x7/*V1P2*/);
         pmu_set_sleep_clk(0xF,0x1,0x1,0x2/*V1P2*/);
 
     }else{ // 25C, default
-        pmu_set_active_clk(0x4,0x0,0x10,0x2/*V1P2*/);
+        pmu_set_active_clk(0x4,0x1,0x10,0x2/*V1P2*/);
         pmu_set_sleep_clk(0x2,0x1,0x1,0x2/*V1P2*/);
     }
 }
