@@ -477,7 +477,7 @@ inline static void pmu_setting_temp_based(){
         pmu_set_sleep_clk(0xF,0x1,0x1,0x2/*V1P2*/);
 
     }else{ // 25C, default
-        pmu_set_active_clk(0x4,0x1,0x10,0x2/*V1P2*/);
+        pmu_set_active_clk(0x3,0x1,0x10,0x2/*V1P2*/);
         pmu_set_sleep_clk(0x2,0x1,0x1,0x2/*V1P2*/);
     }
 }
