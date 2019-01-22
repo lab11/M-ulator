@@ -633,9 +633,9 @@ int main() {
 	mbus_remote_register_write(MRR_ADDR,0x07,mrrv7_r07.as_int);
 
 	// TX Setup Carrier Freq
-	mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x0;  //ANT CAP 10b unary 830.5 MHz
+	mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x1F;  //ANT CAP 10b unary 830.5 MHz
 	mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
-	mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0x0; //ANT CAP 10b unary 830.5 MHz
+	mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0x1F; //ANT CAP 10b unary 830.5 MHz
 	mrrv7_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min;  //ANT CAP 14b unary 830.5 MHz
 	mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min; //ANT CAP 14b unary 830.5 MHz
 	mbus_remote_register_write(MRR_ADDR,0x01,mrrv7_r01.as_int);
@@ -776,9 +776,9 @@ int main() {
 		mrrv7_r03.MRR_DCP_S_OW = 1;
 		mbus_remote_register_write(MRR_ADDR,0x03,mrrv7_r03.as_int);
 
-		mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x0;  
+		mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x1F;  
 		mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
-		mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0x0;   
+		mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0x1F;   
 		mbus_remote_register_write(MRR_ADDR,0x01,mrrv7_r01.as_int);
 
 		mrrv7_r02.MRR_TX_BIAS_TUNE = (wakeup_data_field_1<<8) + wakeup_data_field_0; //0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
@@ -796,6 +796,11 @@ int main() {
 		mbus_remote_register_write(MRR_ADDR,0x02,mrrv7_r02.as_int);
 
     }else if(wakeup_data_header == 0x6){
+
+		mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x1F;  
+		mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+		mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0x1F;   
+		mbus_remote_register_write(MRR_ADDR,0x01,mrrv7_r01.as_int);
 
 		mrr_cl_ctrl_on = wakeup_data_field_2;
 		mrrv7_r02.MRR_TX_BIAS_TUNE = (wakeup_data_field_1<<8) + wakeup_data_field_0; //0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
