@@ -459,11 +459,11 @@ inline static void pmu_setting_temp_based(){
     
     mbus_write_message32(0xB7, pmu_setting_state);
     if (pmu_setting_state == PMU_95C){
-        pmu_set_active_clk(0x1,0x1,0x7,0x2/*V1P2*/);
+        pmu_set_active_clk(0x7,0x2,0x7,0x4/*V1P2*/);
         pmu_set_sleep_clk(0x1,0x0,0x1,0x0/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_75C){
-        pmu_set_active_clk(0x2,0x1,0x7,0x2/*V1P2*/);
+        pmu_set_active_clk(0xA,0x4,0x7,0x8/*V1P2*/);
         pmu_set_sleep_clk(0x1,0x1,0x1,0x1/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_55C){
@@ -1311,7 +1311,7 @@ static void operation_init(void){
     PMU_35C_threshold_sns = 2000; // Around 35C
     PMU_55C_threshold_sns = 3200; // Around 55C
     PMU_75C_threshold_sns = 7000; // Around 75C
-    PMU_95C_threshold_sns = 10000; // Around 95C
+    PMU_95C_threshold_sns = 12000; // Around 95C
 
     SNT_0P5S_VAL = 1000;
     TEMP_CALIB_A = 24000;
