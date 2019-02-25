@@ -1606,7 +1606,7 @@ static void operation_init(void){
 	adxl_enabled = 0;
 	adxl_motion_detected = 0;
 
-	adxl_trigger_mute_count = 5;
+	adxl_trigger_mute_count = 0xFF;
 	sleep_time_threshold_factor = 1;
 	
 	adxl_user_threshold = 0x060; // rec. 0x60, max 0x7FF
