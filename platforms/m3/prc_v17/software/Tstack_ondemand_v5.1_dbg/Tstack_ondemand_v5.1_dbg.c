@@ -1099,7 +1099,7 @@ static void operation_init(void){
     //prcv17_r0D.SRAM_USE_INVERTER_SA = 1; // Default 0x2, 4 bits
     //*REG_SRAM_TUNE = prcv17_r0D.as_int;
     //*REG_SRAM_TUNE = 0x45; // use inverter SA
-    *REG_SRAM_TUNE = 0x44; // use default SA
+    //*REG_SRAM_TUNE = 0x44; // use default SA
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE;    //0x0;
