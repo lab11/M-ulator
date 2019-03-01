@@ -62,6 +62,7 @@
 //            v5.1: PRCv17 in Y8 has issues with SRAM inverter mode; disable it
 //            v5.2: Changing PMU mbus delays with set_halt
 //            v5.2a: More PMU margin for low temp operation
+//            v5.2b: Adding more PMU setting points
 //*******************************************************************
 #include "PRCv17.h"
 #include "PRCv17_RF.h"

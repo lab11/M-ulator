@@ -61,6 +61,8 @@
 //            v5.0a: NUM_MEAS_USER needs to be 8192, not 8000
 //            v5.1: PRCv18 in Y8 has issues with SRAM inverter mode; disable it
 //            v5.2: Changing PMU mbus delays with set_halt
+//            v5.2a: More PMU margin for low temp operation
+//            v5.2b: Adding more PMU setting points
 //            v6.0: PRCv18
 //*******************************************************************
 #include "PRCv18.h"
@@ -94,8 +96,10 @@
 #define    PMU_10C 0x0
 #define PMU_20C 0x1
 #define    PMU_25C 0x2
-#define    PMU_55C 0x3
-#define    PMU_85C 0x4
+#define    PMU_35C 0x3
+#define    PMU_55C 0x4
+#define    PMU_75C 0x5
+#define    PMU_95C 0x6
 
 #define NUM_TEMP_MEAS 1
 
@@ -128,8 +132,10 @@ volatile uint32_t PMU_ADC_4P2_VAL;
 volatile uint32_t pmu_setting_state;
 volatile uint32_t PMU_10C_threshold_sns;
 volatile uint32_t PMU_20C_threshold_sns;
+volatile uint32_t PMU_35C_threshold_sns;
 volatile uint32_t PMU_55C_threshold_sns;
-volatile uint32_t PMU_85C_threshold_sns;
+volatile uint32_t PMU_75C_threshold_sns;
+volatile uint32_t PMU_95C_threshold_sns;
 
 volatile uint32_t NUM_MEAS_USER;
 
@@ -454,25 +460,33 @@ inline static void pmu_set_sleep_low(){
 inline static void pmu_setting_temp_based(){
     
     mbus_write_message32(0xB7, pmu_setting_state);
-    if (pmu_setting_state == PMU_85C){
-        pmu_set_active_clk(0x2,0x0,0x8,0x2/*V1P2*/);
+    if (pmu_setting_state == PMU_95C){
+        pmu_set_active_clk(0x7,0x2,0x7,0x4/*V1P2*/);
         pmu_set_sleep_clk(0x1,0x0,0x1,0x0/*V1P2*/);
+
+    }else if (pmu_setting_state == PMU_75C){
+        pmu_set_active_clk(0xA,0x4,0x7,0x8/*V1P2*/);
+        pmu_set_sleep_clk(0x1,0x1,0x1,0x1/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_55C){
         pmu_set_active_clk(0x1,0x0,0x10,0x2/*V1P2*/);
         pmu_set_sleep_clk(0x1,0x1,0x1,0x1/*V1P2*/);
 
+    }else if (pmu_setting_state == PMU_35C){
+        pmu_set_active_clk(0x2,0x1,0x10,0x2/*V1P2*/);
+        pmu_set_sleep_clk(0x2,0x0,0x1,0x1/*V1P2*/);
+
     }else if (pmu_setting_state == PMU_20C){
         pmu_set_active_clk(0x7,0x2,0x10,0x4/*V1P2*/);
-        pmu_set_sleep_clk(0xF,0x0,0x1,0x1/*V1P2*/);
+        pmu_set_sleep_clk(0xF,0x2,0x1,0x4/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_10C){
         pmu_set_active_clk(0xD,0x2,0x10,0x4/*V1P2*/);
-        pmu_set_sleep_clk(0xF,0x0,0x1,0x1/*V1P2*/);
+        pmu_set_sleep_clk(0xF,0x1,0x1,0x2/*V1P2*/);
 
     }else{ // 25C, default
-        pmu_set_active_clk(0x2,0x0,0x10,0x4/*V1P2*/);
-        pmu_set_sleep_clk(0x1,0x1,0x1,0x1/*V1P2*/);
+        pmu_set_active_clk(0x5,0x1,0x10,0x2/*V1P2*/);
+        pmu_set_sleep_clk(0x2,0x1,0x1,0x2/*V1P2*/);
     }
 }
 
@@ -1105,7 +1119,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE;    //0x0;
-    enumerated = 0x54435020;
+    enumerated = 0x54436000;
     exec_count = 0;
     exec_count_irq = 0;
     PMU_ADC_4P2_VAL = 0x4B;
@@ -1296,8 +1310,10 @@ static void operation_init(void){
     pmu_setting_state = PMU_25C;
     PMU_10C_threshold_sns = 600; // Around 10C
     PMU_20C_threshold_sns = 1000; // Around 20C
-    PMU_55C_threshold_sns = 4000; // Around 55C
-    PMU_85C_threshold_sns = 9000; // Around 85C
+    PMU_35C_threshold_sns = 2000; // Around 35C
+    PMU_55C_threshold_sns = 3200; // Around 55C
+    PMU_75C_threshold_sns = 7000; // Around 75C
+    PMU_95C_threshold_sns = 12000; // Around 95C
 
     SNT_0P5S_VAL = 1000;
     TEMP_CALIB_A = 24000;
@@ -1419,14 +1435,24 @@ static void operation_temp_run(void){
             pmu_adc_read_latest();
         
             // Change PMU based on temp
-            if (temp_storage_latest > PMU_85C_threshold_sns){
-                if (pmu_setting_state != PMU_85C){
-                    pmu_setting_state = PMU_85C;
+            if (temp_storage_latest > PMU_95C_threshold_sns){
+                if (pmu_setting_state != PMU_95C){
+                    pmu_setting_state = PMU_95C;
+                    pmu_setting_temp_based();
+                }
+            }else if (temp_storage_latest > PMU_75C_threshold_sns){
+                if (pmu_setting_state != PMU_75C){
+                    pmu_setting_state = PMU_75C;
                     pmu_setting_temp_based();
                 }
             }else if (temp_storage_latest > PMU_55C_threshold_sns){
                 if (pmu_setting_state != PMU_55C){
                     pmu_setting_state = PMU_55C;
+                    pmu_setting_temp_based();
+                }
+            }else if (temp_storage_latest > PMU_35C_threshold_sns){
+                if (pmu_setting_state != PMU_35C){
+                    pmu_setting_state = PMU_35C;
                     pmu_setting_temp_based();
                 }
             }else if (temp_storage_latest < PMU_10C_threshold_sns){
@@ -1650,7 +1676,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0x54435020){
+    if (enumerated != 0x54436000){
         operation_init();
     }
 
@@ -1856,12 +1882,22 @@ int main() {
         operation_sleep_notimer();
 
     }else if(wakeup_data_header == 0x1C){
-        PMU_55C_threshold_sns = wakeup_data & 0xFFFFFF; // Around 55C
+        PMU_35C_threshold_sns = wakeup_data & 0xFFFFFF; // Around 55C
         // Go to sleep without timer
         operation_sleep_notimer();
 
     }else if(wakeup_data_header == 0x1D){
-        PMU_85C_threshold_sns = wakeup_data & 0xFFFFFF; // Around 85C
+        PMU_55C_threshold_sns = wakeup_data & 0xFFFFFF; // Around 55C
+        // Go to sleep without timer
+        operation_sleep_notimer();
+
+    }else if(wakeup_data_header == 0x1E){
+        PMU_75C_threshold_sns = wakeup_data & 0xFFFFFF; // Around 75C
+        // Go to sleep without timer
+        operation_sleep_notimer();
+
+    }else if(wakeup_data_header == 0x1F){
+        PMU_95C_threshold_sns = wakeup_data & 0xFFFFFF; // Around 95C
         // Go to sleep without timer
         operation_sleep_notimer();
 
@@ -2043,11 +2079,6 @@ int main() {
         }else{
             operation_sleep_notimer();
         }
-
-    }else if(wakeup_data_header == 0xFF){
-    // Memory Tuning
-        *REG_SRAM0_TUNE = wakeup_data & 0xFFFF;
-        operation_sleep_notimer();
 
     }else{
         if (wakeup_data_header != 0){
