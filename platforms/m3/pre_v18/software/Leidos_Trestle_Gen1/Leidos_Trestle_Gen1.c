@@ -1168,10 +1168,7 @@ void handler_ext_int_reg0(void) { // REG0
     mbus_write_message32(0xE0, *REG0);
     if(*REG0 == 1){ // LP -> HP mode change
         *EP_MODE = 1;
-        //adov5v_r14.CP_CLK_EN_1P2 = 1;
-        //adov5v_r14.CP_CLK_DIV_1P2 = 0;
-        //mbus_remote_register_write(ADO_ADDR, 0x14, adov5v_r14.as_int);
-        
+                
         adov5v_r0D.DSP_LP_RESETN = 0;
         mbus_remote_register_write(ADO_ADDR, 0x0D, adov5v_r0D.as_int);//03B80A
        
@@ -1221,6 +1218,10 @@ void handler_ext_int_gocep(void) { // GOCEP
         if(data_val==1){        //ON
             adov5v_r14.CP_CLK_EN_1P2 = 1;
             adov5v_r14.CP_CLK_DIV_1P2 = 0;
+            adov5v_r14.CP_VDOWN_1P2 = 0;
+            mbus_remote_register_write(ADO_ADDR, 0x14, adov5v_r14.as_int);
+            delay(CP_DELAY); 
+            adov5v_r14.CP_VDOWN_1P2 = 1;
             mbus_remote_register_write(ADO_ADDR, 0x14, adov5v_r14.as_int);
         }
         else{                   //OFF
