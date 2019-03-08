@@ -350,10 +350,11 @@ static void XO_div(uint32_t divVal) {
     *REG_XO_CONF1 = prev18_r19.as_int;
 }
 
-static void XO_init(void) {
+//static void XO_init(void) {
+static void XO_init(uint32_t xo_cap_drv, uint32_t xo_cap_in) {
     // Parasitic Capacitance Tuning (6-bit for each; Each 1 adds 1.8pF)
-    uint32_t xo_cap_drv = 0x3F; // Additional Cap on OSC_DRV
-    uint32_t xo_cap_in  = 0x3F; // Additional Cap on OSC_IN
+    //uint32_t xo_cap_drv = 0x3F; // Additional Cap on OSC_DRV
+    //uint32_t xo_cap_in  = 0x3F; // Additional Cap on OSC_IN
     prev18_r1A.XO_CAP_TUNE = (
             (xo_cap_drv <<6) | 
             (xo_cap_in <<0));   // XO_CLK Output Pad 
@@ -382,17 +383,17 @@ static void XO_init(void) {
     prev18_r19.XO_DRV_START_UP  = 0x1;// 1: enables start-up circuit
     *REG_XO_CONF1 = prev18_r19.as_int;
     delay(1000);
-    prev18_r19.XO_SCN_CLK_SEL   = 0x1;// scn clock 1: normal. 0.3V level up to 0.6V, 0:init
-    *REG_XO_CONF1 = prev18_r19.as_int;
-    delay(1000);
-    prev18_r19.XO_SCN_CLK_SEL   = 0x0;
-    prev18_r19.XO_SCN_ENB       = 0x0;// enable_bar of scn
-    *REG_XO_CONF1 = prev18_r19.as_int;
-    delay(1000);
-    prev18_r19.XO_DRV_START_UP  = 0x0;
-    prev18_r19.XO_DRV_CORE      = 0x1;// 1: enables core circuit
-    prev18_r19.XO_SCN_CLK_SEL   = 0x1;
-    *REG_XO_CONF1 = prev18_r19.as_int;
+    //prev18_r19.XO_SCN_CLK_SEL   = 0x1;// scn clock 1: normal. 0.3V level up to 0.6V, 0:init
+    //*REG_XO_CONF1 = prev18_r19.as_int;
+    //delay(1000);
+    //prev18_r19.XO_SCN_CLK_SEL   = 0x0;
+    //prev18_r19.XO_SCN_ENB       = 0x0;// enable_bar of scn
+    //*REG_XO_CONF1 = prev18_r19.as_int;
+    //delay(1000);
+    //prev18_r19.XO_DRV_START_UP  = 0x0;
+    //prev18_r19.XO_DRV_CORE      = 0x1;// 1: enables core circuit
+    //prev18_r19.XO_SCN_CLK_SEL   = 0x1;
+    //*REG_XO_CONF1 = prev18_r19.as_int;
 
     enable_xo_timer();
     start_xo_cout();
@@ -1147,7 +1148,8 @@ static void operation_init(void){
     mbus_write_message32(0xAF,0x0FAF);
     delay(MBUS_DELAY);
 
-    XO_init();
+    XO_init(0x3F,0x3F);
+    //XO_init();
     scan2ADC_RESET=0x0;
     program_scan();
     program_scan_cp(1);
@@ -1286,6 +1288,9 @@ void handler_ext_int_gocep(void) { // GOCEP
         //else pmu_set_sleep_clk(data_val,data_val,0x7,data_val);
         if(data_val != 0xF) pmu_set_sleep_clk(data_val+1,data_val,data_val2,data_val);
         else pmu_set_sleep_clk(data_val,data_val,data_val2,data_val);
+    }
+    else if (data_cmd == 0xF0){  //XO cap tune
+        XO_init(data_val2,data_val);
     }
     else if(data_cmd == 0xFF){
         program_scan_sram();
