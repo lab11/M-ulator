@@ -150,6 +150,8 @@ static void XO_init(void) {
 
     enable_xo_timer();
     start_xo_cout();
+    
+    mbus_write_message32(0xE9,0x40D02E); 
 }
 
 
@@ -873,11 +875,12 @@ inline static void afe_set_mode(uint8_t mode){
         //adov5v_r17.REC_REFMONBUF_EN = 0;
         mbus_remote_register_write(ADO_ADDR, 0x17, adov5v_r17.as_int);
 
-        adov5v_r10.DO_LP_HP_SEL = 0;
+        adov5v_r10.DO_LP_HP_SEL = 0;    //0: LP, 1: HP
         adov5v_r10.DIO_OUT_EN = 1;
+        adov5v_r10.VAD_ADC_DOUT_ISOL = 0;
         mbus_remote_register_write(ADO_ADDR, 0x10, adov5v_r10.as_int);
 
-        adov5v_r04.DSP_CLK_MON_SEL = 4;
+        adov5v_r04.DSP_CLK_MON_SEL = 4; //LP CLK mon
         mbus_remote_register_write(ADO_ADDR, 0x04, adov5v_r04.as_int);
     }
     else if(mode == 2){ // HP AFE
@@ -917,7 +920,7 @@ inline static void afe_set_mode(uint8_t mode){
         adov5v_r10.DIO_OUT_EN = 1;
         mbus_remote_register_write(ADO_ADDR, 0x10, adov5v_r10.as_int);
 
-        adov5v_r04.DSP_CLK_MON_SEL = 2;
+        adov5v_r04.DSP_CLK_MON_SEL = 2; //HP clock mon
         mbus_remote_register_write(ADO_ADDR, 0x04, adov5v_r04.as_int);
         delay(MBUS_DELAY*1000); //~10sec
     }
@@ -1334,7 +1337,7 @@ int main() {
         while (1) config_timerwd(TIMERWD_VAL);
     }
     else {
-        delay(10000);
+        //delay(10000);
         mbus_write_message32(0xE4, 0xBEEF02);
         operation_sleep_notimer();
     }
