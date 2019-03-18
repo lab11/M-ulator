@@ -4,7 +4,7 @@
 //*******************************************************************
 #include "PRCv17.h"
 #include "PRCv17_RF.h"
-#include "SNTv1_RF.h"
+#include "SNTv3_RF.h"
 #include "mbus.h"
 
 // uncomment this for debug mbus message
@@ -56,16 +56,17 @@ volatile uint32_t WAKEUP_PERIOD_CONT_INIT;
 volatile prcv17_r0B_t prcv17_r0B = PRCv17_R0B_DEFAULT;
 
 // Temperature Sensor
-volatile sntv1_r00_t sntv1_r00 = SNTv1_R00_DEFAULT;
-volatile sntv1_r01_t sntv1_r01 = SNTv1_R01_DEFAULT;
-volatile sntv1_r03_t sntv1_r03 = SNTv1_R03_DEFAULT;
+volatile sntv3_r00_t sntv3_r00 = SNTv3_R00_DEFAULT;
+volatile sntv3_r01_t sntv3_r01 = SNTv3_R01_DEFAULT;
+volatile sntv3_r03_t sntv3_r03 = SNTv3_R03_DEFAULT;
 
 // WakeUp Timer
-volatile sntv1_r08_t sntv1_r08 = SNTv1_R08_DEFAULT;
-volatile sntv1_r09_t sntv1_r09 = SNTv1_R09_DEFAULT;
-volatile sntv1_r0A_t sntv1_r0A = SNTv1_R0A_DEFAULT;
+volatile sntv3_r08_t sntv3_r08 = SNTv3_R08_DEFAULT;
+volatile sntv3_r09_t sntv3_r09 = SNTv3_R09_DEFAULT;
+volatile sntv3_r0A_t sntv3_r0A = SNTv3_R0A_DEFAULT;
+volatile sntv3_r0B_t sntv3_r0B = SNTv3_R0B_DEFAULT;
 
-volatile sntv1_r17_t sntv1_r17 = SNTv1_R17_DEFAULT;
+volatile sntv3_r17_t sntv3_r17 = SNTv3_R17_DEFAULT;
 
 
 //*******************************************************************
@@ -173,28 +174,31 @@ static void operation_init(void){
     // Wakeup Timer Settings --------------------------------------
 
     // Config Register A
-	sntv1_r0A.TMR_S = 0x1; // Default: 0x4
-	//sntv1_r0A.TMR_S = 0x4; // Default: 0x4
-    //sntv1_r0A.TMR_DIFF_CON = 0x1FFF; // Default: 0x3FFB
-    //sntv1_r0A.TMR_POLY_CON = 0x1; // Default: 0x1
-    sntv1_r0A.TMR_DIFF_CON = 0x3FFD; // Default: 0x3FFB
-    sntv1_r0A.TMR_POLY_CON = 0x1; // Default: 0x1
+	sntv3_r0A.TMR_S = 0x1; // Default: 0x4
+	//sntv3_r0A.TMR_S = 0x4; // Default: 0x4
+    //sntv3_r0A.TMR_DIFF_CON = 0x1FFF; // Default: 0x3FFB
+    sntv3_r0A.TMR_DIFF_CON = 0x3FFF; // Default: 0x3FFB
 
-    mbus_remote_register_write(SNT_ADDR,0x0A,sntv1_r0A.as_int);
+    mbus_remote_register_write(SNT_ADDR,0x0A,sntv3_r0A.as_int);
 
 	// TIMER CAP_TUNE  
-	sntv1_r09.TMR_SEL_CAP = 0x80; // Default : 8'h8
-	sntv1_r09.TMR_SEL_DCAP = 0x3F; // Default : 6'h4
+    sntv3_r0B.TMR_TFR_CON = 0xF; // Default: 0xF
+    mbus_remote_register_write(SNT_ADDR,0x0B,sntv3_r0B.as_int);
 
-	//sntv1_r09.TMR_SEL_CAP = 0x8; // Default : 8'h8
-	//sntv1_r09.TMR_SEL_DCAP = 0x4; // Default : 6'h4
-	sntv1_r09.TMR_EN_TUNE1 = 0x1; // Default : 1'h1
-	sntv1_r09.TMR_EN_TUNE2 = 0x1; // Default : 1'h1
-	mbus_remote_register_write(SNT_ADDR,0x09,sntv1_r09.as_int);
+	// TIMER CAP_TUNE  
+	sntv3_r09.TMR_SEL_CLK_DIV = 0x0; // Default : 1'h1
+	sntv3_r09.TMR_SEL_CAP = 0x80; // Default : 8'h8
+	sntv3_r09.TMR_SEL_DCAP = 0x3F; // Default : 6'h4
+
+	//sntv3_r09.TMR_SEL_CAP = 0x8; // Default : 8'h8
+	//sntv3_r09.TMR_SEL_DCAP = 0x4; // Default : 6'h4
+	sntv3_r09.TMR_EN_TUNE1 = 0x1; // Default : 1'h1
+	sntv3_r09.TMR_EN_TUNE2 = 0x1; // Default : 1'h1
+	mbus_remote_register_write(SNT_ADDR,0x09,sntv3_r09.as_int);
 
 	// Enalbe Frequency Monitoring 
-	sntv1_r17.WUP_ENABLE_CLK_SLP_OUT = 0x1; 
-	mbus_remote_register_write(SNT_ADDR,0x17,sntv1_r17.as_int);
+	sntv3_r17.WUP_ENABLE_CLK_SLP_OUT = 0x1; 
+	mbus_remote_register_write(SNT_ADDR,0x17,sntv3_r17.as_int);
 
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 100;   // 10: 2-4 sec with PRCv17
@@ -229,38 +233,44 @@ int main() {
         operation_init();
 
     }
+	// EN_OSC 
+	sntv3_r08.TMR_SLEEP = 0x0; // Default : 0x1
+	sntv3_r08.TMR_ISOLATE = 0x0; // Default : 0x1
+	mbus_remote_register_write(SNT_ADDR,0x08,sntv3_r08.as_int);
+    delay(2000); 
 
 	// TIMER SELF_EN Disable 
-	sntv1_r09.TMR_SELF_EN = 0x0; // Default : 0x1
-	mbus_remote_register_write(SNT_ADDR,0x09,sntv1_r09.as_int);
+	sntv3_r09.TMR_SELF_EN = 0x0; // Default : 0x1
+	mbus_remote_register_write(SNT_ADDR,0x09,sntv3_r09.as_int);
 
 	// EN_OSC 
-	sntv1_r08.TMR_EN_OSC = 0x1; // Default : 0x0
-	mbus_remote_register_write(SNT_ADDR,0x08,sntv1_r08.as_int);
+	sntv3_r08.TMR_EN_OSC = 0x1; // Default : 0x0
+	mbus_remote_register_write(SNT_ADDR,0x08,sntv3_r08.as_int);
 
 	// Release Reset 
-	sntv1_r08.TMR_RESETB = 0x1; // Default : 0x0
-	sntv1_r08.TMR_RESETB_DIV = 0x1; // Default : 0x0
-	sntv1_r08.TMR_RESETB_DCDC = 0x1; // Default : 0x0
-	mbus_remote_register_write(SNT_ADDR,0x08,sntv1_r08.as_int);
+	sntv3_r08.TMR_RESETB = 0x1; // Default : 0x0
+	sntv3_r08.TMR_RESETB_DIV = 0x1; // Default : 0x0
+	sntv3_r08.TMR_RESETB_DCDC = 0x1; // Default : 0x0
+	mbus_remote_register_write(SNT_ADDR,0x08,sntv3_r08.as_int);
     delay(2000); 
 
 	// TIMER EN_SEL_CLK Reset 
-	sntv1_r08.TMR_EN_SELF_CLK = 0x1; // Default : 0x0
-	mbus_remote_register_write(SNT_ADDR,0x08,sntv1_r08.as_int);
+	sntv3_r08.TMR_EN_SELF_CLK = 0x1; // Default : 0x0
+	mbus_remote_register_write(SNT_ADDR,0x08,sntv3_r08.as_int);
     delay(10); 
 
 	// TIMER SELF_EN 
-	sntv1_r09.TMR_SELF_EN = 0x1; // Default : 0x0
-	mbus_remote_register_write(SNT_ADDR,0x09,sntv1_r09.as_int);
+	sntv3_r09.TMR_SELF_EN = 0x1; // Default : 0x0
+	mbus_remote_register_write(SNT_ADDR,0x09,sntv3_r09.as_int);
     delay(100000); 
 
 	// TIMER EN_SEL_CLK Reset 
-	//sntv1_r08.TMR_EN_OSC = 0x0; // Default : 0x0
-	//mbus_remote_register_write(SNT_ADDR,0x08,sntv1_r08.as_int);
-    //delay(100); 
+	sntv3_r08.TMR_EN_OSC = 0x0; // Default : 0x0
+	mbus_remote_register_write(SNT_ADDR,0x08,sntv3_r08.as_int);
+    delay(100); 
 
 
+//    mbus_sleep_all();
 //    operation_sleep_notimer();
 
  while (1){
