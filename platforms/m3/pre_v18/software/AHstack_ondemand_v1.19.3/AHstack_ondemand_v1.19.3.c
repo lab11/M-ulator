@@ -748,6 +748,14 @@ inline static void pmu_set_sleep_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t
 
 }
 
+inline static void pmu_set_sleep_radio(){
+    pmu_set_sleep_clk(0xF,0xA,0x5,0xF/*V1P2*/);
+}
+
+inline static void pmu_set_sleep_low(){
+    pmu_set_sleep_clk(0xF,0x0,0x1,0x1/*V1P2*/);
+}
+
 inline static void pmu_setting_temp_based(){
 	// FIXME: pmu values
     
@@ -772,14 +780,6 @@ inline static void pmu_setting_temp_based(){
     }
 }
 
-
-inline static void pmu_set_sleep_radio(){
-    pmu_set_sleep_clk(0xF,0xA,0x5,0xF/*V1P2*/);
-}
-
-inline static void pmu_set_sleep_low(){
-    pmu_set_sleep_clk(0xF,0x0,0x1,0x1/*V1P2*/);
-}
 
 inline static void pmu_set_clk_init(){
     pmu_setting_state = PMU_25C;
