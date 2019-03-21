@@ -28,6 +28,7 @@
 //					Implemented reading out PUF Chip ID
 //			v1.19.1: Debugging; adding pmu adjustment based on temp; adding wakeup counter 
 //			v1.19.3: Debugging; changing high temp threshold to 45C, only set pmu when not set correctly
+//			v1.19.4: Debugging motion detection issue
 //*******************************************************************
 #include "PREv18.h"
 #include "PREv18_RF.h"

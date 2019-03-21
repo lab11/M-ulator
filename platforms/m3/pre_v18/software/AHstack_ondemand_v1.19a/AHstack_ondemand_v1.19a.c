@@ -26,7 +26,7 @@
 //					MRR CFO default changed to 0x0/0x0
 //			v1.19: Changing radio packet definitions to increase packet count bits, and include motion count
 //					Implemented reading out PUF Chip ID
-//			v1.19a: Extending decap charging time
+//			v1.19a: Extending decap charging time for 22uF cap	
 //*******************************************************************
 #include "PREv18.h"
 #include "PREv18_RF.h"
@@ -1519,9 +1519,11 @@ static void operation_init(void){
     // Turn on Current Limter
     mrrv7_r00.MRR_CL_EN = 1;  //Enable CL
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+	
+	// Wait for charging decap
    	config_timerwd(TIMERWD_VAL);
 	*REG_MBUS_WD = 1500000*3; // default: 1500000
-	delay(MBUS_DELAY*800); // Wait for decap to charge
+	delay(MBUS_DELAY*400); // Wait for decap to charge
 
 	mrrv7_r1F.LC_CLK_RING = 0x3;  // ~ 150 kHz
 	mrrv7_r1F.LC_CLK_DIV = 0x3;  // ~ 150 kHz
@@ -1601,6 +1603,12 @@ static void operation_init(void){
 
 	// Mbus return address
 	mbus_remote_register_write(MRR_ADDR,0x1E,0x1002);
+
+	// Continue charging decap
+   	config_timerwd(TIMERWD_VAL);
+	*REG_MBUS_WD = 1500000*3; // default: 1500000
+	delay(MBUS_DELAY*400); // Wait for decap to charge
+	*REG_MBUS_WD = 1500000; // default: 1500000
 
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 33750;   // 1: 2-4 sec with PRCv9
