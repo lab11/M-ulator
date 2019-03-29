@@ -1612,18 +1612,16 @@ static void operation_sns_run(void){
 
 		stack_state = STK_HUM;
 
-		if (adxl_motion_detected || (astack_detection_mode & 0x2) || (astack_detection_mode == 0)){
-			// Prepare for radio tx
-			// Transmit if: Either motion change detected OR humidity sensing is on OR radio test mode
-			if (!radio_on)
-				radio_power_on();
-			if (adxl_motion_detected){
-				adxl_motion_count++;
-				send_radio_data_mrr(0,0x2,adxl_motion_count);	
-				// Need to grab SNT timer value
-				snt_read_wup_counter();
-				
-			}
+		// Prepare for radio tx
+		// Woke up either because of check-in or motion detected
+		if (!radio_on){
+			radio_power_on();
+		}
+		if (adxl_motion_detected){
+			adxl_motion_count++;
+			send_radio_data_mrr(0,0x2,adxl_motion_count);	
+			// Need to grab SNT timer value
+			snt_read_wup_counter();
 		}
 
     }else if (stack_state == STK_HUM){
