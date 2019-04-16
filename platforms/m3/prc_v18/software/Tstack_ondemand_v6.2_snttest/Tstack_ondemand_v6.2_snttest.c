@@ -1667,18 +1667,14 @@ int main() {
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period 
 
-        if (pmu_setting_state != PMU_25C){
-            // Set PMU to room temp setting
-            pmu_setting_state = PMU_25C;
-            pmu_setting_temp_based();
-        }
         operation_sns_sleep_check();
         snt_stop_timer();
 
         Tstack_state = TSTK_IDLE;
 
-        operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xC1, exec_count_irq, temp_storage_count);
 
+                // Go to sleep without timer
+                operation_sleep_notimer();
 
     }else if(wakeup_data_header == 0x04){
         // Transmit the stored temp sensor data
