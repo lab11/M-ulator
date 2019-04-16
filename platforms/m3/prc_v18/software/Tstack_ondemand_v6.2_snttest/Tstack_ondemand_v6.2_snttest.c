@@ -306,9 +306,6 @@ static void operation_sleep_snt_timer(void);
 //************************************
 
 static void pmu_reg_write (uint32_t reg_addr, uint32_t reg_data) {
-    set_halt_until_mbus_trx();
-    mbus_remote_register_write(PMU_ADDR,reg_addr,reg_data);
-    set_halt_until_mbus_tx();
 }
 
 inline static void pmu_set_adc_period(uint32_t val){
@@ -334,7 +331,7 @@ inline static void pmu_set_adc_period(uint32_t val){
         | (1 << 16) //state_vdd_3p6_turned_on
         | (1 << 17) //state_vdd_1p2_turned_on
         | (1 << 18) //state_vdd_0P6_turned_on
-        | (1 << 19) //state_vbat_read
+        | (0 << 19) //state_vbat_read
         | (1 << 20) //state_state_horizon
     ));
 
@@ -369,7 +366,7 @@ inline static void pmu_set_adc_period(uint32_t val){
         | (1 << 16) //state_vdd_3p6_turned_on
         | (1 << 17) //state_vdd_1p2_turned_on
         | (1 << 18) //state_vdd_0P6_turned_on
-        | (1 << 19) //state_vbat_read
+        | (0 << 19) //state_vbat_read
         | (1 << 20) //state_state_horizon
     ));
 }
@@ -456,7 +453,7 @@ inline static void pmu_set_sleep_radio(){
 }
 
 inline static void pmu_set_sleep_low(){
-    pmu_set_sleep_clk(0x5,0x1,0x10,0x2/*V1P2*/);
+    pmu_set_sleep_clk(0x2,0x1,0x1,0x1/*V1P2*/);
 }
 
 
@@ -548,7 +545,7 @@ inline static void pmu_adc_reset_setting(){
         | (1 << 16) //state_vdd_3p6_turned_on
         | (1 << 17) //state_vdd_1p2_turned_on
         | (1 << 18) //state_vdd_0P6_turned_on
-        | (1 << 19) //state_vbat_read
+        | (0 << 19) //state_vbat_read
         | (1 << 20) //state_state_horizon
     ));
 }
@@ -577,7 +574,7 @@ inline static void pmu_adc_disable(){
         | (1 << 16) //state_vdd_3p6_turned_on
         | (1 << 17) //state_vdd_1p2_turned_on
         | (1 << 18) //state_vdd_0P6_turned_on
-        | (1 << 19) //state_vbat_read // Turn off for old adc
+        | (0 << 19) //state_vbat_read // Turn off for old adc
         | (1 << 20) //state_state_horizon
     ));
 }
@@ -606,7 +603,7 @@ inline static void pmu_adc_enable(){
         | (1 << 16) //state_vdd_3p6_turned_on
         | (1 << 17) //state_vdd_1p2_turned_on
         | (1 << 18) //state_vdd_0P6_turned_on
-        | (1 << 19) //state_vbat_read // Turn off for old adc
+        | (0 << 19) //state_vbat_read // Turn off for old adc
         | (1 << 20) //state_state_horizon
     ));
 }
@@ -619,9 +616,6 @@ inline static void pmu_adc_read_latest(){
     pmu_reg_write(0x00,0x03);
     // Updated for PMUv9
     read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
-	
-	// Debug
-    mbus_write_message32(0xBB, read_data_batadc);
     
     if (read_data_batadc<PMU_ADC_4P2_VAL){
         read_data_batadc_diff = 0;
@@ -1144,15 +1138,7 @@ static void operation_init(void){
     //set_halt_until_mbus_rx();
 
     //Enumeration
-    //mbus_enumerate(SRR_ADDR);
-	delay(MBUS_DELAY);
-    //mbus_enumerate(SNT_ADDR);
-	delay(MBUS_DELAY);
-    //mbus_enumerate(HRV_ADDR);
-	delay(MBUS_DELAY);
- 	mbus_enumerate(PMU_ADDR);
-	delay(MBUS_DELAY);
- 	//mbus_enumerate(MEM_ADDR);
+    mbus_enumerate(SNT_ADDR);
 	delay(MBUS_DELAY);
 /*
     set_halt_until_mbus_trx();
@@ -1174,7 +1160,7 @@ static void operation_init(void){
     // VBAT_READ_TRIM Register
     pmu_reg_write(0x45,
         ( (0x0 << 9) // 0x0: no mon; 0x1: sar conv mon; 0x2: up conv mon; 0x3: down conv mon
-        | (0x1 << 8) // 1: vbat_read_mode enable; 0: vbat_read_mode disable
+        | (0x0 << 8) // 1: vbat_read_mode enable; 0: vbat_read_mode disable
         | (0x48 << 0) //sampling multiplication factor N; vbat_read out = vbat/1p2*N
     ));
     
@@ -1183,7 +1169,7 @@ static void operation_init(void){
     // Updated for PMUv9
     pmu_reg_write(0x3A, 
         ( (1 << 20) // ignore state_horizon; default 1
-        | (1 << 19) // state_vbat_read
+        | (0 << 19) // state_vbat_read
         | (1 << 13) // ignore adc_output_ready; default 0
         | (1 << 12) // ignore adc_output_ready; default 0
         | (1 << 11) // ignore adc_output_ready; default 0
@@ -1365,13 +1351,6 @@ static void operation_temp_run(void){
         // Turn on SNS LDO VREF; requires settling
         sns_ldo_vref_on();
 
-        // Power on radio
-        if (radio_tx_option || (exec_count < TEMP_CYCLE_INIT)){
-            radio_power_on();
-            // Put system to sleep
-            //set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
-            //operation_sleep();
-        }
 
     }else if (Tstack_state == TSTK_LDO){
         Tstack_state = TSTK_TEMP_START;
@@ -1426,19 +1405,6 @@ static void operation_temp_run(void){
             }else{
                 temp_storage_latest = read_data_temp;
 
-                if (wakeup_timer_option){ // Only if PRC wakeup timer is used
-                    // Record temp difference from last wakeup adjustment
-                    if (temp_storage_latest > temp_storage_last_wakeup_adjust){
-                        temp_storage_diff = temp_storage_latest - temp_storage_last_wakeup_adjust;
-                    }else{
-                        temp_storage_diff = temp_storage_last_wakeup_adjust - temp_storage_latest;
-                    }
-                    
-                    if ((temp_storage_diff > 10) || (exec_count < (TEMP_CYCLE_INIT+5))){ // FIXME: value of 20 correct?
-                        measure_wakeup_period();
-                        temp_storage_last_wakeup_adjust = temp_storage_latest;
-                    }
-                }
             }
         }
 
@@ -1452,46 +1418,7 @@ static void operation_temp_run(void){
             meas_count = 0;
 
             // Read latest PMU ADC measurement
-            pmu_adc_read_latest();
         
-            // Change PMU based on temp
-            if (temp_storage_latest > PMU_95C_threshold_sns){
-                if (pmu_setting_state != PMU_95C){
-                    pmu_setting_state = PMU_95C;
-                    pmu_setting_temp_based();
-                }
-            }else if (temp_storage_latest > PMU_75C_threshold_sns){
-                if (pmu_setting_state != PMU_75C){
-                    pmu_setting_state = PMU_75C;
-                    pmu_setting_temp_based();
-                }
-            }else if (temp_storage_latest > PMU_55C_threshold_sns){
-                if (pmu_setting_state != PMU_55C){
-                    pmu_setting_state = PMU_55C;
-                    pmu_setting_temp_based();
-                }
-            }else if (temp_storage_latest > PMU_35C_threshold_sns){
-                if (pmu_setting_state != PMU_35C){
-                    pmu_setting_state = PMU_35C;
-                    pmu_setting_temp_based();
-                }
-            }else if (temp_storage_latest < PMU_10C_threshold_sns){
-                if (pmu_setting_state != PMU_10C){
-                    pmu_setting_state = PMU_10C;
-                    pmu_setting_temp_based();
-                }
-            }else if (temp_storage_latest < PMU_20C_threshold_sns){
-                if (pmu_setting_state != PMU_20C){
-                    pmu_setting_state = PMU_20C;
-                    pmu_setting_temp_based();
-                }
-            }else{
-                if (pmu_setting_state != PMU_25C){
-                    pmu_setting_state = PMU_25C;
-                    pmu_setting_temp_based();
-                }
-            }
-
             // Assert temp sensor isolation & turn off temp sensor power
             temp_sensor_power_off();
             sns_ldo_power_off();
@@ -1507,50 +1434,8 @@ static void operation_temp_run(void){
                 temp_storage_latest = exec_count;
             }
 
-            // Store results in MEMv1; unless memory is full
-            if (temp_storage_count < TEMP_STORAGE_SIZE){
-                // Read destination address
-                // Memory address is per byte
-                // Memory is word-addressable; first word: 0x0, second word: 0x4, third word: 0x8 ...
-            
-                uint32_t mem_read_data;
-                set_halt_until_mbus_rx();
-                mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*)((temp_storage_count>>1)<<2), 0x01, (uint32_t*)&mem_read_data, 0);
-                set_halt_until_mbus_tx();
-                if (temp_storage_count & 0x1){
-                    // Second half word
-                    mem_read_data = (mem_read_data&0xFFFF) | (temp_storage_latest<<16);
-
-                }else{
-                    // First half word
-                    mem_read_data = temp_storage_latest;
-                }
-                mbus_copy_mem_from_local_to_remote_bulk(MEM_ADDR, (uint32_t*)((temp_storage_count>>1)<<2), (uint32_t*)&mem_read_data, 0);
-                temp_storage_count++;
-
-            }
-
-            // Optionally transmit the data
-            if (radio_tx_option || (exec_count < TEMP_CYCLE_INIT)){
-                send_radio_data_srr(1,0xC0,*REG_CHIP_ID,((0xBB00|read_data_batadc_diff)<<8)|exec_count,temp_storage_latest,0);
-            }
-
             exec_count++;
 
-            // Make sure Radio is off
-            if (radio_on){
-                radio_ready = 0;
-                radio_power_off();
-            }
-
-            // If NUM_MEAS_USER == 0, meas infinitely
-            //if ((pmu_setting_state == PMU_25C) && (NUM_MEAS_USER && (exec_count >= NUM_MEAS_USER))){
-                // Trig 2 stop condition; Need to run until PMU setting is back at RT
-                // No more measurement required
-                // Make sure temp sensor is off
-        //        temp_running = 0;
-        //        operation_sleep_notimer();
-        //    }else{
             if (wakeup_timer_option){
                 // Use PRC Timer
                 set_wakeup_timer(WAKEUP_PERIOD_CONT, 0x1, 0x1);
@@ -1585,7 +1470,6 @@ static void operation_goc_trigger_init(void){
     mbus_write_message32(0xBA,wakeup_data);
 
     // Read latest PMU ADC measurement
-    pmu_adc_read_latest();
 
     // Initialize variables & registers
     temp_running = 0;
@@ -1599,13 +1483,24 @@ static void operation_goc_trigger_init(void){
 
 static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_timer_val, uint8_t radio_tx_prefix, uint8_t radio_tx_data1, uint32_t radio_tx_data0){
 
-		
-        pmu_adc_read_latest();
+    // Prepare radio TX
+    radio_power_on();
+
+    if (exec_count_irq < radio_tx_num){
+        exec_count_irq++;
+        // radio
+        send_radio_data_srr(1,radio_tx_prefix,*REG_CHIP_ID,((0xBB00|read_data_batadc_diff)<<8)|radio_tx_data1,radio_tx_data0,1);    
         // set timer
         set_wakeup_timer (wakeup_timer_val, 0x1, 0x1);
         // go to sleep and wake up with same condition
         operation_sleep_noirqreset();
 
+    }else{
+        // radio
+        send_radio_data_srr(1,radio_tx_prefix,*REG_CHIP_ID,((0xBB00|read_data_batadc_diff)<<8)|radio_tx_data1,radio_tx_data0,1);    
+        // Go to sleep without timer
+        operation_sleep_notimer();
+    }
 }
 
 static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t settle_time){
@@ -1710,10 +1605,6 @@ int main() {
         // wakeup_data[23:16] is the MSB of # of transmissions
         operation_goc_trigger_radio(wakeup_data_field_0 + (wakeup_data_field_2<<8), wakeup_data_field_1, 0xA0, read_data_batadc, exec_count_irq);
 
-    }else if(wakeup_data_header == 0xA1){
-
-        // Go to sleep without timer
-        operation_sleep_notimer();
 
     }else if(wakeup_data_header == 0x02){
         // Slow down PMU sleep osc and run temp sensor code with desired wakeup period
