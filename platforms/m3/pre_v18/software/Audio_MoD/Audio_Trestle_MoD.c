@@ -647,6 +647,9 @@ inline static void ado_initialization(void){
 
     adov5v_r19.REC_PGA_P1_CON = 3;
     mbus_remote_register_write(ADO_ADDR, 0x19, adov5v_r19.as_int);//007064
+    
+    adov5v_r1A.VAD_MONSEL = 1;
+    mbus_remote_register_write(ADO_ADDR, 0x1A, adov5v_r1A.as_int);//0A6062
 
     adov5v_r1B.VAD_LNA_N1_LCON = 5;
     adov5v_r1B.VAD_LNA_N2_LCON = 6;
