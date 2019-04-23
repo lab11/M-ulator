@@ -1334,7 +1334,7 @@ static void operation_init(void){
     delay(MBUS_DELAY);
 
     // Go to sleep without timer
-    operation_sleep_notimer();
+    //operation_sleep_notimer();
 }
 
 
@@ -1582,12 +1582,15 @@ int main() {
     // Initialization sequence
     if (enumerated != 0x54436020){
         operation_init();
-    }
+		wakeup_data = 0x020a0004;
+    }else{
+		wakeup_data = 0;
+	}
 
     // Check if wakeup is due to GOC interrupt  
     // 0x8C is reserved for GOC-triggered wakeup (Named GOC_DATA_IRQ)
     // 8 MSB bits of the wakeup data are used for function ID
-    wakeup_data = *GOC_DATA_IRQ;
+ //   wakeup_data = *GOC_DATA_IRQ;
     uint32_t wakeup_data_header = (wakeup_data>>24) & 0xFF;
     uint32_t wakeup_data_field_0 = wakeup_data & 0xFF;
     uint32_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;
@@ -1616,19 +1619,7 @@ int main() {
         wakeup_timer_option = wakeup_data_field_2 & 0x20;
         temp_storage_debug = wakeup_data_field_2 & 0x80;
         
-        if (wakeup_timer_option){
-            // Use PRC timer
-            WAKEUP_PERIOD_CONT_USER = wakeup_data & 0xFFFF; // Unit is 1s
-        }else{
-            // Use SNT timer
-            WAKEUP_PERIOD_CONT_USER = (wakeup_data & 0xFFFF)*SNT_0P5S_VAL; // Unit is 0.5s
-        }
-
         exec_count_irq++;
-
-        // Skip SNT timer settings if PRC timer is to be used
-        if ((exec_count_irq == 1) && wakeup_timer_option)
-            exec_count_irq = 3;
 
         if (exec_count_irq == 1){
             // SNT pulls higher current in the beginning

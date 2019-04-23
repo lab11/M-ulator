@@ -342,10 +342,10 @@ inline static void pmu_set_adc_period(uint32_t val){
     pmu_reg_write(0x36,val); 
 
     // Register 0x33: TICK_ADC_RESET
-    pmu_reg_write(0x33,2);
+    pmu_reg_write(0x33,8);
 
     // Register 0x34: TICK_ADC_CLK
-    pmu_reg_write(0x34,2);
+    pmu_reg_write(0x34,8);
 
     // PMU_CONTROLLER_DESIRED_STATE Active
     // Updated for PMUv9

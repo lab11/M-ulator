@@ -1333,7 +1333,7 @@ static void operation_init(void){
     PMU_95C_threshold_sns = 12000; // Around 95C
 
     SNT_0P5S_VAL = 1000;
-    TEMP_CALIB_A = 24000;
+    TEMP_CALIB_A = 240000;
     TEMP_CALIB_B = 3750000;
 
     NUM_MEAS_USER = TEMP_STORAGE_SIZE;
