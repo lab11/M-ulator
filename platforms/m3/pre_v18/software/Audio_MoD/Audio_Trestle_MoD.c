@@ -3,13 +3,12 @@
 //Description: Leidos Trestle Gen1 
 //          Modified from 'Leidos_dorado_Gen3'
 //          v1.0: created   12/14/2018
-//          v1a02: GPIO functions 03/19/2019
 //*******************************************************************
 #include "PREv18.h"
 #include "ADOv5V_RF.h"
 #include "PMUv7_RF.h"
 #include "mbus.h"
-  
+ 
 #define ENUMID 0xDEADBEEF
 
 #include "DFT_LUT.txt"
@@ -25,11 +24,11 @@
 #define WAKEUP_PERIOD_PARKING 30000 // About 2 hours (PRCv17)
 
 // System parameters
-#define MBUS_DELAY 100 // Amount of delay between successive messages; 100: ~9ms
+#define MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
 #define WAKEUP_PERIOD_LDO 5 // About 1 sec (PRCv17)
 
 // CP parameter
-#define CP_DELAY 50000 // Amount of delay between successive messages; 100: ~9ms
+#define CP_DELAY 50000 // Amount of delay between successive messages; 100: 6-7ms
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y5 run default clock (PRCv17)
 #define TIMER32_VAL 0x50000 // 0x20000 about 1 sec with Y5 run default clock (PRCv17)
@@ -95,7 +94,6 @@ volatile adov5v_r1B_t adov5v_r1B = ADOv5V_R1B_DEFAULT;
 volatile adov5v_r1C_t adov5v_r1C = ADOv5V_R1C_DEFAULT;
         
 uint32_t read_data[100];
-volatile uint8_t direction_gpio;
 
 
 static void operation_sleep_notimer(void);
@@ -153,7 +151,7 @@ static void XO_init(void) {
     enable_xo_timer();
     start_xo_cout();
     
-    mbus_write_message32(0xE3,0x00000E2D); 
+    mbus_write_message32(0xE9,0x40D02E); 
 }
 
 
@@ -161,10 +159,17 @@ static void XO_init(void) {
 // GPIO Functions
 // ***********************************
 static void init_gpio(void){
-    gpio_set_dir (direction_gpio);  // input:0, output:1
-    gpio_write_current_data();
-    set_gpio_pad (0xFF); // 0xFF activate all 8 GPIO bits
-    unfreeze_gpio_out();
+// GPIO in/out direction, input:0, output:1
+//    gpio_init( (0 << GPIO0_IRQ) | 
+//               (1 << GPIO_NNET_IDX0) |
+//               (1 << GPIO_NNET_IDX1) |
+//               (1 << GPIO_NNET_IDX2) |
+//               (1 << GPIO_NNET_IDX3));      //GPIO initialization, all using pins should be here
+//    gpio_set_irq_mask (0x00000000);
+    gpio_set_dir (0<<0);
+//    gpio_set_data (0x00000000);
+    set_gpio_pad (1<<0);
+//    unfreeze_gpio_out();
 }
 
 
@@ -353,8 +358,11 @@ inline static void pmu_set_sleep_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t
 }
 
 inline static void pmu_set_clk_init(){
-    pmu_set_active_clk(0xA,0x4,0x10,0x4);
-    pmu_set_sleep_clk(0xA,0x4,0x10,0x4); //with TEST1P2
+    pmu_set_active_clk(0xA,0x1,0x10,0x2);
+    //  pmu_set_active_clk(0xA,0xA,0x1F,0x2);
+    pmu_set_sleep_clk(0xA,0x1,0x10,0x2); //with TEST1P2
+    //  pmu_set_sleep_clk(0x1,0x0,0x4,0x2); // without TEST1P2
+    //  pmu_set_sleep_clk(0xF,0x0,0x1,0x1);
     // SAR_RATIO_OVERRIDE
     // Use the new reset scheme in PMUv3
     mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
@@ -537,8 +545,8 @@ void FLASH_turn_off()
 }
 
 void FLASH_pp_ready (void) {
-
-        // Erase Flash
+        
+	// Erase Flash
         uint32_t page_start_addr = 0;
         uint32_t idx;
 
@@ -553,6 +561,7 @@ void FLASH_pp_ready (void) {
 
             if (*REG1 != 0x00004F) flp_fail((0xFFFF << 16) | idx);
         }
+
     
     // Ping Pong Setting
         mbus_remote_register_write (FLP_ADDR, 0x13 , 0x000001); // Enable Ping Pong w/ No length limit
@@ -616,11 +625,12 @@ inline static void ado_initialization(void){
     mbus_remote_register_write(ADO_ADDR, 0x10, adov5v_r10.as_int);
  
     // AFE Initialization
+    adov5v_r15.VAD_LNA_AMPMOD_EN = 1;
     adov5v_r15.IB_GEN_CLK_EN = 1;
     adov5v_r15.LS_CLK_EN_1P2 = 1;
-    adov5v_r15.REC_PGA_BWCON = 32;//24;
+    adov5v_r15.REC_PGA_BWCON = 24;//24;
     adov5v_r15.REC_PGA_CFBADD = 1;//0;
-    adov5v_r15.REC_PGA_GCON = 2;//2;
+    adov5v_r15.REC_PGA_GCON = 8;//2;
     mbus_remote_register_write(ADO_ADDR, 0x15, adov5v_r15.as_int); //1F8622
 
     adov5v_r16.IBC_REC_LNA = 6;
@@ -637,6 +647,9 @@ inline static void ado_initialization(void){
 
     adov5v_r19.REC_PGA_P1_CON = 3;
     mbus_remote_register_write(ADO_ADDR, 0x19, adov5v_r19.as_int);//007064
+    
+    adov5v_r1A.VAD_MONSEL = 1;
+    mbus_remote_register_write(ADO_ADDR, 0x1A, adov5v_r1A.as_int);//0A6062
 
     adov5v_r1B.VAD_LNA_N1_LCON = 5;
     adov5v_r1B.VAD_LNA_N2_LCON = 6;
@@ -686,7 +699,7 @@ inline static void ado_initialization(void){
     }
     
     //N_DCT: 128 points DCT 
-    adov5v_r00.DSP_N_DCT = 2;
+    adov5v_r00.DSP_N_DCT = 1;
     mbus_remote_register_write(ADO_ADDR, 0x00, adov5v_r00.as_int);
     
     //WAKEUP REQ EN
@@ -813,6 +826,8 @@ inline static void afe_set_mode(uint8_t mode){
             prev18_r19.XO_EN_OUT    = 1;
             *REG_XO_CONF1 = prev18_r19.as_int;
         }
+        //enable_xo_timer();
+        //start_xo_cout();
         
         adov5v_r0D.REC_ADC_RESETN = 0;
         adov5v_r0D.REC_ADCDRI_EN = 0;
@@ -840,16 +855,16 @@ inline static void afe_set_mode(uint8_t mode){
         adov5v_r13.LDO_PG_LDOCORE_0P9HP = 1;
         mbus_remote_register_write(ADO_ADDR, 0x13, adov5v_r13.as_int);
 
-        adov5v_r0F.VAD_ADC_SDLY_SEL = 0;
-        adov5v_r0F.VAD_ADC_DLY_SEL = 4;
+        adov5v_r0F.VAD_ADC_SDLY_SEL = 3;
+        adov5v_r0F.VAD_ADC_DLY_SEL = 0;
         adov5v_r0F.VAD_ADC_RESET = 0;
         mbus_remote_register_write(ADO_ADDR, 0x0F, adov5v_r0F.as_int);
 
         adov5v_r14.VAD_ADCDRI_EN = 1;
         adov5v_r14.VAD_LNA_AMPEN = 1;
         adov5v_r14.VAD_PGA_AMPEN = 1;
-        adov5v_r14.VAD_PGA_BWCON = 19;//13;
-        adov5v_r14.VAD_PGA_GCON = 4;//8;
+        adov5v_r14.VAD_PGA_BWCON = 13;//13;
+        adov5v_r14.VAD_PGA_GCON = 8;//8;
         mbus_remote_register_write(ADO_ADDR, 0x14, adov5v_r14.as_int);
 
         ////VAD MON setting can come here
@@ -878,6 +893,8 @@ inline static void afe_set_mode(uint8_t mode){
             prev18_r19.XO_EN_OUT    = 1;
             *REG_XO_CONF1 = prev18_r19.as_int;
         }
+        //enable_xo_timer();
+        //start_xo_cout();
 
         adov5v_r13.LDO_PG_IREF = 0;
         adov5v_r13.LDO_PG_VREF_0P6LP = 0;
@@ -910,12 +927,16 @@ inline static void afe_set_mode(uint8_t mode){
 
         adov5v_r04.DSP_CLK_MON_SEL = 2; //HP clock mon
         mbus_remote_register_write(ADO_ADDR, 0x04, adov5v_r04.as_int);
+        delay(MBUS_DELAY*1000); //~10sec
     }
     else{       // AFE off
         if(prev18_r19.XO_EN_OUT !=0){// XO ouput enable
             prev18_r19.XO_EN_OUT    = 0;// XO ouput disable
             *REG_XO_CONF1 = prev18_r19.as_int;
         }
+        //disable_xo_timer();
+        //prev18_r19.XO_S         = mode-3;// division ratio for 16kHz out
+        //*REG_XO_CONF1 = prev18_r19.as_int;
 
         adov5v_r0D.REC_ADC_RESETN = 0;
         adov5v_r0D.REC_ADCDRI_EN = 0;
@@ -1029,10 +1050,8 @@ static void operation_sleep_notimer(void){
 // Initialization
 //***************************************************
 static void operation_init(void){
-    pmu_sar_conv_ratio_val_test_on = 0x34;//0x2D;
-    pmu_sar_conv_ratio_val_test_off = 0x30;//0x2A;
-    direction_gpio = 0;
-    init_gpio();
+    pmu_sar_conv_ratio_val_test_on = 0x2E;//0x2D;
+    pmu_sar_conv_ratio_val_test_off = 0x2C;//0x2A;
 
     // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
     config_timerwd(TIMERWD_VAL);
@@ -1101,8 +1120,9 @@ static void operation_init(void){
     WAKEUP_PERIOD_CONT_INIT = 3;   // 0x1E (30): ~1 min with PRCv9
     wakeup_data = 0;
 
-    *REG_CPS = 0x5; //PG control [2]=1: Test 1.2V on,  [0]=1: Test 0.6V on
+    *REG_CPS = 0x7; //PG control [2]=1: Test 1.2V on,  [0]=1: Test 0.6V on
     delay(MBUS_DELAY*10);
+    init_gpio();
 
     FLASH_initialization(); //FLPv3L initialization
     ado_initialization(); //ADOv5V initialization
@@ -1125,7 +1145,7 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
     *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
     delay(MBUS_DELAY);
     // Report who woke up
-    mbus_write_message32(0xE4,*SREG_WAKEUP_SOURCE); 
+    mbus_write_message32(0xAA,*SREG_WAKEUP_SOURCE); 
     //[ 0] = GOC/EP
     //[ 1] = Wakeuptimer
     //[ 2] = XO timer
@@ -1137,21 +1157,9 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
     //[11] = gpio[3]
     if(((*SREG_WAKEUP_SOURCE >> 8) & 1) == 1){ //waked up by gpio[0]
         //Do something
-        delay(MBUS_DELAY*100); //~1sec
+        mbus_write_message32(0xAA,0xBBCCDD); 
+        delay(MBUS_DELAY*1000); //~10sec
     }
-    else if(((*SREG_WAKEUP_SOURCE >> 9) & 1) == 1){ //waked up by gpio[1]
-        //Do something
-        delay(MBUS_DELAY*200); //~2sec
-    }
-    else if(((*SREG_WAKEUP_SOURCE >> 10) & 1) == 1){ //waked up by gpio[2]
-        //Do something
-        delay(MBUS_DELAY*400); //~4sec
-    }
-    else if(((*SREG_WAKEUP_SOURCE >> 11) & 1) == 1){ //waked up by gpio[3]
-        //Do something
-        delay(MBUS_DELAY*800); //~8sec
-    }   
-
 }
 void handler_ext_int_timer32(void) { // TIMER32
     *NVIC_ICPR = (0x1 << IRQ_TIMER32);
@@ -1169,21 +1177,15 @@ void handler_ext_int_reg0(void) { // REG0
         adov5v_r0D.DSP_LP_RESETN = 0;
         mbus_remote_register_write(ADO_ADDR, 0x0D, adov5v_r0D.as_int);//03B80A
        
-        afe_set_mode(2);
-        digital_set_mode(2);
-    }
-    else if(*REG0 == 0) { // HP -> ULP mode change
-        *EP_MODE = 0;
-        adov5v_r0D.DSP_HP_ADO_GO = 0;
-        adov5v_r0D.DSP_HP_DNN_GO = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov5v_r0D.as_int);//03BCB5
+        comp_stream();
         
-        afe_set_mode(1);
-        digital_set_mode(1);
-        
-        operation_sleep_notimer();
+	*EP_MODE = 0;
+
+        //mbus_write_message32(0xEE, 0xABCDEF);
     }
-    mbus_write_message32(0xE1, *EP_MODE);
+    
+    //mbus_write_message32(0xE1, *EP_MODE);
+
 }
 void handler_ext_int_reg1(void) { // REG1
     *NVIC_ICPR = (0x1 << IRQ_REG1);
@@ -1196,11 +1198,16 @@ void handler_ext_int_reg3(void) { // REG3
 }
 void handler_ext_int_gocep(void) { // GOCEP
     *NVIC_ICPR = (0x1 << IRQ_GOCEP);
-    mbus_write_message32(0xEE,  *GOC_DATA_IRQ);
     wakeup_data = *GOC_DATA_IRQ;
     uint32_t data_cmd = (wakeup_data>>24) & 0xFF;
     uint32_t data_val = wakeup_data & 0xFF;
     uint32_t data_val2 = (wakeup_data>>8) & 0xFF;
+    //uint32_t data_cmd = *REG1;
+    //uint32_t data_val = *REG0;
+
+    //mbus_write_message32(0xEE, data_cmd);
+    //mbus_write_message32(0xEE, data_val);
+
     if(data_cmd == 0x01){       // Charge pump control
         if(data_val==1){        //ON
             adov5v_r14.CP_CLK_EN_1P2 = 1;
@@ -1252,7 +1259,7 @@ void handler_ext_int_gocep(void) { // GOCEP
         //mbus_remote_register_write(ADO_ADDR, 0x0E, adov5v_r0E.as_int);//000150
         //adov5v_r00.DSP_FE_SEL_EXT = 1;
         //mbus_remote_register_write(ADO_ADDR, 0x00, adov5v_r00.as_int);//9F1B28
-        adov5v_r04.DSP_P2S_MON_EN = 1;
+        //adov5v_r04.DSP_P2S_MON_EN = 1;
         adov5v_r04.DSP_CLK_MON_SEL = 4;
         mbus_remote_register_write(ADO_ADDR, 0x04, adov5v_r04.as_int);//A00040
         adov5v_r04.DSP_P2S_RESETN = 1;
@@ -1264,17 +1271,18 @@ void handler_ext_int_gocep(void) { // GOCEP
     }
     else if(data_cmd == 0x04){  // DSP LP Control
         if(data_val==1){    //Go
-            adov5v_r0D.DSP_LP_RESETN = 1;
-            mbus_remote_register_write(ADO_ADDR, 0x0D, adov5v_r0D.as_int);//03BC4A
-        }
+        adov5v_r04.DSP_P2S_MON_EN = 1;
+        adov5v_r04.DSP_CLK_MON_SEL = 4;
+        mbus_remote_register_write(ADO_ADDR, 0x04, adov5v_r04.as_int);//A00040
+        	
+	digital_set_mode(1);
+	}
         else{               //Stop
-            adov5v_r0D.DSP_LP_RESETN = 0;
-            mbus_remote_register_write(ADO_ADDR, 0x0D, adov5v_r0D.as_int);//03BC0A
-        }
+        digital_set_mode(0);
+	}
     }
     else if(data_cmd == 0x05){  // AFE Control
         afe_set_mode(data_val);
-        if(data_val == 2) delay(MBUS_DELAY*1000); //~10sec, AFE HP test purpose
     }
     else if(data_cmd == 0x06){  // Compression + Flash Test
         if(data_val==1){    //Go
@@ -1284,43 +1292,32 @@ void handler_ext_int_gocep(void) { // GOCEP
             FLASH_read();
         }
     }
-    else if(data_cmd == 0x07){ //Power gate control
-        if(data_val == 0) { //both TEST VDD off
-            *REG_CPS = 0;
-            pmu_set_sar_override(pmu_sar_conv_ratio_val_test_off);
-            pmu_set_sleep_clk(0xA,0xA,0xF,0xA);
-            pmu_set_active_clk(0xA,0x4,0x10,0x4);
+    else if(data_cmd == 0x07){  //wake up by GPIO[0] 
+        if(data_val==1){    //ON
+            mbus_write_message32(0xE7, 0xBEEF01);
+            config_gpio_posedge_wirq(1<<GPIO0_IRQ);
         }
-        else if(data_val == 2){ //both TEST VDD on
-            pmu_set_sar_override(pmu_sar_conv_ratio_val_test_on);
-            pmu_set_sleep_clk(0xA,0x1,0x10,0x2);
-            pmu_set_active_clk(0xA,0x1,0x10,0x2);
-            *REG_CPS = 0x5; 
+        else{    //OFF
+            mbus_write_message32(0xE7, 0xBEEF00);
+            config_gpio_posedge_wirq(0);
         }
-        else if(data_val == 3){ //both TEST VDD on, active mode
-            pmu_set_sar_override(pmu_sar_conv_ratio_val_test_on);
-            pmu_set_sleep_clk(0xA,0x4,0x10,0x4);
-            pmu_set_active_clk(0xA,0x4,0x10,0x4);
-            *REG_CPS = 0x5; 
-        }
-        //*REG_CPS = 0x7 & data_val;
     }
-    else if(data_cmd == 0x10){  //GPIO direction, trigger
-        direction_gpio = data_val; // input:0, output:1,  eg. 0xF0 set GPIO[7:4] as output, GPIO[3:0] as input 
-        init_gpio();
-        config_gpio_posedge_wirq((data_val2>>4)&0xF);
-        config_gpio_negedge_wirq(data_val2&0xF);
-    }
-    else if(data_cmd == 0x11){ //GPIO set (only for pins set as output)
-        gpio_set_data(data_val);
-        gpio_write_current_data();
-        delay(MBUS_DELAY*100);      //~1sec delay
-        gpio_set_data(0xF0);        // <- this does not affect GPIO value
-        gpio_set_data(data_val2);   // since data is overwritten here
-        gpio_write_current_data();  // and GPIO out values change here
+    else if(data_cmd == 0x08){  //MoD Demo Mode 
+        if(data_val==1){    //ON
+        adov5v_r04.DSP_P2S_MON_EN = 1;
+        adov5v_r04.DSP_CLK_MON_SEL = 4;
+        mbus_remote_register_write(ADO_ADDR, 0x04, adov5v_r04.as_int);//A00040
+
+	afe_set_mode(1);
+        delay(MBUS_DELAY*1000); //~10sec
+	digital_set_mode(1);
+
+        }
     }
 
-    mbus_write_message32(0xEE, 0x00000E2D);
+    //unfreeze_gpio_out();
+    //freeze_gpio_out();
+    //operation_sleep_notimer();
 }
 
 
@@ -1329,17 +1326,28 @@ void handler_ext_int_gocep(void) { // GOCEP
 //********************************************************************
 
 int main() {
-    if(*EP_MODE != 1) init_gpio();      //when not in memory program mode
-    
+
+    //init_gpio();
+    unfreeze_gpio_out();
+
+
     // Only enable relevant interrupts (PRCv17)
     *NVIC_ISER = (1 << IRQ_WAKEUP | 1 << IRQ_GOCEP | 1 << IRQ_REG0);
-    
+
     // Initialization sequence
-    if (enumerated != ENUMID) operation_init();
+    if (enumerated != ENUMID){
+        operation_init();
+    }
+    
+    mbus_write_message32(0xE2, *EP_MODE);
+    //if (0 == 1) {
     if (*EP_MODE == 1) {
+        //mbus_write_message32(0xE3, 0xBEEF01);
         while (1) config_timerwd(TIMERWD_VAL);
     }
     else {
+        //delay(10000);
+        mbus_write_message32(0xE4, 0xBEEF02);
         operation_sleep_notimer();
     }
     return 0;
