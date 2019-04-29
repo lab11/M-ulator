@@ -511,7 +511,7 @@ static void operation_i2c_cmd(uint8_t cmd){
   while((*GPIO_DATA>>GPIO_SDA)&0x1){
     //mbus_write_message32(0xCF, *GPIO_DATA);
   }
-	stop_timer32_timeout_check();
+	stop_timer32_timeout_check(0x5);
   gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
   gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
   gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
@@ -613,7 +613,7 @@ static void pmu_reg_write (uint32_t reg_addr, uint32_t reg_data) {
     set_halt_until_mbus_trx();
     mbus_remote_register_write(PMU_ADDR,reg_addr,reg_data);
     set_halt_until_mbus_tx();
-	stop_timer32_timeout_check();
+	stop_timer32_timeout_check(0x7);
 }
 
 
@@ -1176,7 +1176,7 @@ static void send_radio_data_mrr_sub1(){
 
 	// Wait for radio response
 	WFI();
-	stop_timer32_timeout_check();
+	stop_timer32_timeout_check(0x3);
 	
     // Turn off Current Limter
     mrrv7_r00.MRR_CL_EN = 0;
@@ -1273,7 +1273,7 @@ static void snt_read_wup_counter(){
     mbus_remote_register_read(SNT_ADDR,0x1C,1); // CNT_VALUE
     snt_wup_counter_cur = snt_wup_counter_cur | (*REG1 & 0xFFFFFF);
     set_halt_until_mbus_tx();
-	stop_timer32_timeout_check();
+	stop_timer32_timeout_check(0x4);
 
 }
     
