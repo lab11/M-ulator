@@ -63,6 +63,7 @@ volatile uint32_t exec_count_irq;
 volatile uint32_t wakeup_period_count;
 volatile uint32_t wakeup_timer_multiplier;
 volatile uint32_t PMU_ADC_2P2_VAL;
+volatile uint32_t PMU_ADC_STOP_HARVESTING;
 volatile uint32_t pmu_setting_state;
 volatile uint32_t PMU_10C_threshold_snt;
 volatile uint32_t PMU_20C_threshold_snt;
@@ -551,7 +552,7 @@ inline static void pmu_battery_overcharge_protection(){
 	
 
 	// Battery > 2.4V
-	if (read_data_batadc > PMU_ADC_2P2_VAL + 14){
+	if (read_data_batadc < PMU_ADC_STOP_HARVESTING){
     		mbus_remote_register_write(PMU_ADDR,0x0E, 
 		( (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
 		| (1 << 9)  // Enables override setting [8]
@@ -559,15 +560,6 @@ inline static void pmu_battery_overcharge_protection(){
 		| (1 << 4)  // clamp_tune_bottom (increases clamp thresh)
 		| (0) 		// clamp_tune_top (decreases clamp thresh)
 		));
-		delay(MBUS_DELAY);
-    		mbus_remote_register_write(PMU_ADDR,0x0E, 
-		( (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
-		| (0 << 9)  // Enables override setting [8]
-		| (1 << 8)  // Turn on the harvester-inhibiting switch
-		| (1 << 4)  // clamp_tune_bottom (increases clamp thresh)
-		| (0) 		// clamp_tune_top (decreases clamp thresh)
-		));
-		delay(MBUS_DELAY);
 	}else{
     		mbus_remote_register_write(PMU_ADDR,0x0E, 
 		( (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
@@ -576,15 +568,6 @@ inline static void pmu_battery_overcharge_protection(){
 		| (1 << 4)  // clamp_tune_bottom (increases clamp thresh)
 		| (0) 		// clamp_tune_top (decreases clamp thresh)
 		));
-		delay(MBUS_DELAY);
-    		mbus_remote_register_write(PMU_ADDR,0x0E, 
-		( (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
-		| (0 << 9)  // Enables override setting [8]
-		| (0 << 8)  // Turn on the harvester-inhibiting switch
-		| (1 << 4)  // clamp_tune_bottom (increases clamp thresh)
-		| (0) 		// clamp_tune_top (decreases clamp thresh)
-		));
-		delay(MBUS_DELAY);
 	}
 }
 
@@ -1086,6 +1069,7 @@ static void operation_init(void){
     exec_count = 0;
     exec_count_irq = 0;
     PMU_ADC_2P2_VAL = 144;
+    PMU_ADC_STOP_HARVESTING = 134;
   
     // Set CPU Halt Option as RX --> Use for register read e.g.
     //set_halt_until_mbus_rx();
@@ -1283,7 +1267,7 @@ static void operation_init(void){
     NUM_MEAS_USER = TEMP_STORAGE_SIZE;
 
     // Harvester Settings --------------------------------------
-    hrvv5_r0.HRV_TOP_CONV_RATIO = 0x9;
+    hrvv5_r0.HRV_TOP_CONV_RATIO = 0x0;
     mbus_remote_register_write(HRV_ADDR,0,hrvv5_r0.as_int);
 
     delay(MBUS_DELAY);
@@ -1837,8 +1821,25 @@ int main() {
 
         // Go to sleep without timer
         operation_sleep_notimer();
+    
+    }else if(wakeup_data_header == 0x15){
+    	// Update Harvester Conv. Ratio
+		hrvv5_r0.HRV_TOP_CONV_RATIO = wakeup_data_field_0;
+    	mbus_remote_register_write(HRV_ADDR,0,hrvv5_r0.as_int);
 
-    }else if(wakeup_data_header == 0x17){
+    }else if(wakeup_data_header == 0x16){
+		// Update Harvester-Inhibiting Switch    
+		
+		mbus_remote_register_write(PMU_ADDR,0x0E, 
+		( (1 << 10) // When to turn on harvester-inhibiting switch (0: PoR, 1: VBAT high)
+		| (1 << 9)  // Enables override setting [8]
+		| (wakeup_data_field_0 << 8)  // Turn on the harvester-inhibiting switch
+		| (1 << 4)  // clamp_tune_bottom (increases clamp thresh)
+		| (0) 		// clamp_tune_top (decreases clamp thresh)
+		));
+		
+
+	}else if(wakeup_data_header == 0x17){
         // Change the 2.2V battery reference
         if (wakeup_data_field_0 == 0){
             // Update with the current value
@@ -1850,7 +1851,10 @@ int main() {
         // Go to sleep without timer
         operation_sleep_notimer();
 
-    }else if(wakeup_data_header == 0x1A){
+	}else if(wakeup_data_header == 0x18){
+		PMU_ADC_STOP_HARVESTING = wakeup_data_field_0;
+    
+	}else if(wakeup_data_header == 0x1A){
         PMU_10C_threshold_snt = wakeup_data & 0xFFFF; // Around 10C
         // Go to sleep without timer
         operation_sleep_notimer();
