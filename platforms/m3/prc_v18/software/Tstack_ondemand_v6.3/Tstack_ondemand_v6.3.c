@@ -66,7 +66,9 @@
 //            v6.0: PRCv18
 //            v6.1: PMU clk default setting bug, SNT settling time reduced
 //            v6.2: SNTv3
-//            v6.3: SNTv3 counter reading when clk running should be avoided
+//            v6.3: Going to sleep during temp measurement
+//					SNTv3 counter reading when clk running should be avoided
+//					Adding GOC clk configurations
 //*******************************************************************
 #include "PRCv18.h"
 #include "PRCv18_RF.h"
@@ -461,35 +463,53 @@ inline static void pmu_set_sleep_low(){
 }
 
 
-inline static void pmu_setting_temp_based(){
+inline static void pmu_active_setting_temp_based(){
     
     mbus_write_message32(0xB7, pmu_setting_state);
     if (pmu_setting_state == PMU_95C){
         pmu_set_active_clk(0x7,0x2,0x7,0x4/*V1P2*/);
-        pmu_set_sleep_clk(0x1,0x0,0x1,0x0/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_75C){
         pmu_set_active_clk(0xA,0x4,0x7,0x8/*V1P2*/);
-        pmu_set_sleep_clk(0x1,0x1,0x1,0x1/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_55C){
         pmu_set_active_clk(0x1,0x0,0x10,0x2/*V1P2*/);
-        pmu_set_sleep_clk(0x1,0x1,0x1,0x1/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_35C){
         pmu_set_active_clk(0x2,0x1,0x10,0x2/*V1P2*/);
-        pmu_set_sleep_clk(0x2,0x0,0x1,0x1/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_20C){
         pmu_set_active_clk(0x7,0x2,0x10,0x4/*V1P2*/);
-        pmu_set_sleep_clk(0xF,0x2,0x1,0x4/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_10C){
         pmu_set_active_clk(0xD,0x2,0x10,0x4/*V1P2*/);
-        pmu_set_sleep_clk(0xF,0x1,0x1,0x2/*V1P2*/);
 
     }else{ // 25C, default
         pmu_set_active_clk(0x5,0x1,0x10,0x2/*V1P2*/);
+    }
+}
+
+inline static void pmu_sleep_setting_temp_based(){
+    
+    if (pmu_setting_state == PMU_95C){
+        pmu_set_sleep_clk(0x1,0x0,0x1,0x0/*V1P2*/);
+
+    }else if (pmu_setting_state == PMU_75C){
+        pmu_set_sleep_clk(0x1,0x1,0x1,0x1/*V1P2*/);
+
+    }else if (pmu_setting_state == PMU_55C){
+        pmu_set_sleep_clk(0x1,0x1,0x1,0x1/*V1P2*/);
+
+    }else if (pmu_setting_state == PMU_35C){
+        pmu_set_sleep_clk(0x2,0x0,0x1,0x1/*V1P2*/);
+
+    }else if (pmu_setting_state == PMU_20C){
+        pmu_set_sleep_clk(0xF,0x2,0x1,0x4/*V1P2*/);
+
+    }else if (pmu_setting_state == PMU_10C){
+        pmu_set_sleep_clk(0xF,0x1,0x1,0x2/*V1P2*/);
+
+    }else{ // 25C, default
 		pmu_set_sleep_low();
     }
 }
@@ -497,7 +517,8 @@ inline static void pmu_setting_temp_based(){
 
 inline static void pmu_set_clk_init(){
     pmu_setting_state = PMU_25C;
-    pmu_setting_temp_based();
+    pmu_active_setting_temp_based();
+    pmu_sleep_setting_temp_based();
     // SAR_RATIO_OVERRIDE
     // Use the new reset scheme in PMUv3
     pmu_reg_write(0x05, //default 12'h000
@@ -1390,7 +1411,7 @@ static void operation_temp_run(void){
 
     }else if (Tstack_state == TSTK_TEMP_START){
         // Start temp measurement
-
+/*
         wfi_timeout_flag = 0;
 
         // Use Timer32 as timeout counter
@@ -1405,9 +1426,16 @@ static void operation_temp_run(void){
         // Turn off Timer32
         *TIMER32_GO = 0;
         Tstack_state = TSTK_TEMP_READ;
+*/
+        // Start Temp Sensor
+        pmu_set_sleep_radio();
+        temp_sensor_start();
+		operation_sleep();
+        Tstack_state = TSTK_TEMP_READ;
 
     }else if (Tstack_state == TSTK_TEMP_READ){
 
+		pmu_sleep_setting_temp_based();
         // Grab Temp Sensor Data
         if (wfi_timeout_flag){
             mbus_write_message32(0xFA, 0xFAFAFAFA);
@@ -1459,43 +1487,44 @@ static void operation_temp_run(void){
             // Read latest PMU ADC measurement
             pmu_adc_read_latest();
         
+			uint32_t pmu_setting_prev = pmu_setting_state;
             // Change PMU based on temp
             if (temp_storage_latest > PMU_95C_threshold_sns){
                 if (pmu_setting_state != PMU_95C){
                     pmu_setting_state = PMU_95C;
-                    pmu_setting_temp_based();
                 }
             }else if (temp_storage_latest > PMU_75C_threshold_sns){
                 if (pmu_setting_state != PMU_75C){
                     pmu_setting_state = PMU_75C;
-                    pmu_setting_temp_based();
                 }
             }else if (temp_storage_latest > PMU_55C_threshold_sns){
                 if (pmu_setting_state != PMU_55C){
                     pmu_setting_state = PMU_55C;
-                    pmu_setting_temp_based();
                 }
             }else if (temp_storage_latest > PMU_35C_threshold_sns){
                 if (pmu_setting_state != PMU_35C){
                     pmu_setting_state = PMU_35C;
-                    pmu_setting_temp_based();
                 }
             }else if (temp_storage_latest < PMU_10C_threshold_sns){
                 if (pmu_setting_state != PMU_10C){
                     pmu_setting_state = PMU_10C;
-                    pmu_setting_temp_based();
                 }
             }else if (temp_storage_latest < PMU_20C_threshold_sns){
                 if (pmu_setting_state != PMU_20C){
                     pmu_setting_state = PMU_20C;
-                    pmu_setting_temp_based();
                 }
             }else{
                 if (pmu_setting_state != PMU_25C){
                     pmu_setting_state = PMU_25C;
-                    pmu_setting_temp_based();
                 }
             }
+
+			// Always restore sleep setting from higher pmu meas setting
+   	        pmu_sleep_setting_temp_based();
+
+			if (pmu_setting_prev != pmu_setting_state){
+	            pmu_active_setting_temp_based();
+			}
 
             // Assert temp sensor isolation & turn off temp sensor power
             temp_sensor_power_off();
@@ -1791,7 +1820,8 @@ int main() {
         if (pmu_setting_state != PMU_25C){
             // Set PMU to room temp setting
             pmu_setting_state = PMU_25C;
-            pmu_setting_temp_based();
+            pmu_active_setting_temp_based();
+            pmu_sleep_setting_temp_based();
         }
         operation_sns_sleep_check();
         snt_stop_timer();
@@ -1893,6 +1923,14 @@ int main() {
             PMU_ADC_4P2_VAL = wakeup_data_field_0;
         }
 
+        // Go to sleep without timer
+        operation_sleep_notimer();
+
+    }else if(wakeup_data_header == 0x19){
+		// Change GOC CLK
+		prcv18_r0B.GOC_CLK_GEN_SEL_FREQ = wakeup_data_field_1; // Default 0x6
+		prcv18_r0B.GOC_CLK_GEN_SEL_DIV = wakeup_data_field_0; // Default 0x0
+		*REG_CLKGEN_TUNE = prcv18_r0B.as_int;
         // Go to sleep without timer
         operation_sleep_notimer();
 
