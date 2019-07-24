@@ -110,7 +110,7 @@
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 192 // 96 bit header, 96 bit data
-#define WAKEUP_PERIOD_RADIO_INIT 0x10 // About 2 sec (PRCv18)
+#define WAKEUP_PERIOD_RADIO_INIT 0x8 // About 2 sec (PRCv18)
 
 #define TEMP_STORAGE_SIZE 8192 // MEMv1: 16kB, 8k 2-byte data
 
@@ -1419,7 +1419,6 @@ static void operation_temp_run(void){
 
     }else if (Tstack_state == TSTK_TEMP_READ){
 
-		pmu_sleep_setting_temp_based();
         // Grab Temp Sensor Data
         if (wfi_timeout_flag){
             mbus_write_message32(0xFA, 0xFAFAFAFA);
@@ -1590,6 +1589,9 @@ static void operation_goc_trigger_init(void){
 
     // Read latest PMU ADC measurement
     pmu_adc_read_latest();
+
+	// In case GOC was triggered during temp measurement
+   	pmu_sleep_setting_temp_based();
 
     // Initialize variables & registers
     temp_running = 0;
