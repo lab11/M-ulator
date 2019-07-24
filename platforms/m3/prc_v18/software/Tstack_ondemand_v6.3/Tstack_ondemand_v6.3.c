@@ -462,10 +462,24 @@ inline static void pmu_set_sleep_low(){
     pmu_set_sleep_clk(0x2,0x1,0x1,0x1/*V1P2*/);
 }
 
+inline static void pmu_set_sleep_tsns(){
+    if (pmu_setting_state >= PMU_75C){
+        pmu_set_active_clk(0x5,0xA,0x5,0xF/*V1P2*/);
+
+    }else if (pmu_setting_state >= PMU_35C){
+        pmu_set_active_clk(0xA,0xA,0x5,0xF/*V1P2*/);
+
+    }else if (pmu_setting_state < PMU_20C){
+        pmu_set_active_clk(0xF,0xA,0x7,0xF/*V1P2*/);
+
+    }else{ // 25C, default
+    	pmu_set_sleep_clk(0xF,0xA,0x5,0xF/*V1P2*/);
+    }
+}
+
 
 inline static void pmu_active_setting_temp_based(){
     
-    mbus_write_message32(0xB7, pmu_setting_state);
     if (pmu_setting_state == PMU_95C){
         pmu_set_active_clk(0x7,0x2,0x7,0x4/*V1P2*/);
 
@@ -1412,7 +1426,7 @@ static void operation_temp_run(void){
     }else if (Tstack_state == TSTK_TEMP_START){
         // Start temp measurement
         Tstack_state = TSTK_TEMP_READ;
-        pmu_set_sleep_radio();
+        pmu_set_sleep_tsns();
         temp_sensor_start();
 		// Go to sleep during measurement
 		operation_sleep();
