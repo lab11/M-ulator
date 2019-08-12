@@ -611,13 +611,11 @@ static void sht35_meas_data(){
 //************************************
 
 static void pmu_reg_write (uint32_t reg_addr, uint32_t reg_data) {
-/*	
 	set_timer32_timeout(TIMER32_VAL);
     set_halt_until_mbus_trx();
     mbus_remote_register_write(PMU_ADDR,reg_addr,reg_data);
     set_halt_until_mbus_tx();
 	stop_timer32_timeout_check(0x7);
-*/
 }
 
 
@@ -1081,8 +1079,8 @@ static void radio_power_on(){
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv10_r00.as_int);
 
     // Release timer power-gate
-    //mrrv10_r04.RO_EN_RO_V1P2 = 1;  //Use V1P2 for TIMER
-    mrrv10_r04.RO_EN_RO_LDO = 1;  //Use LDO for TIMER
+    mrrv10_r04.RO_EN_RO_V1P2 = 1;  //Use V1P2 for TIMER
+    //mrrv10_r04.RO_EN_RO_LDO = 1;  //Use LDO for TIMER
     mbus_remote_register_write(MRR_ADDR,0x04,mrrv10_r04.as_int);
     delay(MBUS_DELAY);
 
@@ -1140,8 +1138,8 @@ static void radio_power_off(){
 	mrr_ldo_power_off();
 
     // Enable timer power-gate
-    //mrrv10_r04.RO_EN_RO_V1P2 = 0;  //Use V1P2 for TIMER
-    mrrv10_r04.RO_EN_RO_LDO = 0;  //Use LDO for TIMER
+    mrrv10_r04.RO_EN_RO_V1P2 = 0;  //Use V1P2 for TIMER
+    //mrrv10_r04.RO_EN_RO_LDO = 0;  //Use LDO for TIMER
     mbus_remote_register_write(MRR_ADDR,0x04,mrrv10_r04.as_int);
 
     radio_on = 0;
@@ -1507,11 +1505,11 @@ static void operation_init(void){
 //    set_halt_until_mbus_rx();
 
     //Enumeration
-    //mbus_enumerate(SNT_ADDR);
+    mbus_enumerate(SNT_ADDR);
 	delay(MBUS_DELAY);
     mbus_enumerate(MRR_ADDR);
 	delay(MBUS_DELAY);
- 	//mbus_enumerate(PMU_ADDR);
+ 	mbus_enumerate(PMU_ADDR);
 	delay(MBUS_DELAY);
 
     // Set CPU Halt Option as TX --> Use for register write e.g.
@@ -1900,16 +1898,6 @@ int main(){
 
 		disable_timerwd();
 		*MBCWD_RESET = 1;
-
-		uint32_t set = 0;
-		while (1){
-			set=set+1;
-			mrrv10_r04.LDO_SEL_VOUT    = set;
-			mbus_remote_register_write(MRR_ADDR,0x4,mrrv10_r04.as_int);
-			delay(1000);
-
-
-		}
 
 		mrrv10_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x0;  //ANT CAP 14b unary 805.5 MHz
 		mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0x0;  //ANT CAP 14b unary 805.5 MHz

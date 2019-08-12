@@ -1080,8 +1080,8 @@ static void radio_power_on(){
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv10_r00.as_int);
 
     // Release timer power-gate
-    //mrrv10_r04.RO_EN_RO_V1P2 = 1;  //Use V1P2 for TIMER
-    mrrv10_r04.RO_EN_RO_LDO = 1;  //Use LDO for TIMER
+    mrrv10_r04.RO_EN_RO_V1P2 = 1;  //Use V1P2 for TIMER
+    //mrrv10_r04.RO_EN_RO_LDO = 1;  //Use LDO for TIMER
     mbus_remote_register_write(MRR_ADDR,0x04,mrrv10_r04.as_int);
     delay(MBUS_DELAY);
 
@@ -1139,8 +1139,8 @@ static void radio_power_off(){
 	mrr_ldo_power_off();
 
     // Enable timer power-gate
-    //mrrv10_r04.RO_EN_RO_V1P2 = 0;  //Use V1P2 for TIMER
-    mrrv10_r04.RO_EN_RO_LDO = 0;  //Use LDO for TIMER
+    mrrv10_r04.RO_EN_RO_V1P2 = 0;  //Use V1P2 for TIMER
+    //mrrv10_r04.RO_EN_RO_LDO = 0;  //Use LDO for TIMER
     mbus_remote_register_write(MRR_ADDR,0x04,mrrv10_r04.as_int);
 
     radio_on = 0;
@@ -1496,7 +1496,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     stack_state = STK_IDLE; 	//0x0;
-    enumerated = 0x4148121; // 0x4148 is AH in ascii
+    enumerated = 0x41481210; // 0x4148 is AH in ascii
     exec_count = 0;
     wakeup_count = 0;
     exec_count_irq = 0;
@@ -1566,6 +1566,7 @@ static void operation_init(void){
 
     // MRR Settings --------------------------------------
 
+	// Reqruied in MRRv10 to run like MRRv7
 	mrrv10_r21.MRR_TRX_ENb_CONT_RC = 0;  //RX_Decap P 
 	mbus_remote_register_write(MRR_ADDR,0x21,mrrv10_r21.as_int);
 
@@ -1864,7 +1865,7 @@ int main(){
 	#endif
 
     // Initialization sequence
-    if (enumerated != 0x4148121){
+    if (enumerated != 0x41481210){
         operation_init();
     }
 
