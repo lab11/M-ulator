@@ -69,6 +69,10 @@
 //            v6.3: Going to sleep during temp measurement
 //					SNTv3 counter reading when clk running should be avoided
 //					Adding GOC clk configurations
+//					Changing CPU core clock frequency to be 2x faster
+//					25C, 35C sleep setting increased
+//					Radio packet sleep interval shortened
+//					FIXME: pmu setting for SNT should be adjusted based on temp
 //*******************************************************************
 #include "PRCv18.h"
 #include "PRCv18_RF.h"
@@ -89,7 +93,7 @@
 #define MEM_ADDR 0x7
 
 // Temp Sensor parameters
-#define    MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
+#define    MBUS_DELAY 200 // Amount of delay between successive messages; 200: 6-7ms
 #define TEMP_CYCLE_INIT 1 
 
 // Tstack states
@@ -110,7 +114,8 @@
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 192 // 96 bit header, 96 bit data
-#define WAKEUP_PERIOD_RADIO_INIT 0x8 // About 2 sec (PRCv18)
+#define WAKEUP_PERIOD_RADIO_INIT 0xA // About 1.5 sec (PRCv18)
+#define WAKEUP_PERIOD_SNT 0x20 // About 3 sec (PRCv18)
 
 #define TEMP_STORAGE_SIZE 8192 // MEMv1: 16kB, 8k 2-byte data
 
@@ -154,7 +159,7 @@ volatile uint32_t temp_storage_latest = 150; // SNSv10
 volatile uint32_t temp_storage_last_wakeup_adjust = 150; // SNSv10
 volatile uint32_t temp_storage_diff = 0;
 volatile uint32_t temp_storage_count;
-//volatile uint32_t temp_storage_debug;
+volatile uint32_t temp_storage_debug;
 volatile uint32_t temp_running;
 volatile uint32_t read_data_temp; // [23:0] Temp Sensor D Out
 volatile uint32_t TEMP_CALIB_A;
@@ -379,19 +384,7 @@ inline static void pmu_set_adc_period(uint32_t val){
 
 inline static void pmu_set_active_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1p2){
 
-    // The first register write to PMU needs to be repeated
     // Register 0x16: V1P2 Active
-    pmu_reg_write(0x16, 
-        ( (0 << 19) // Enable PFM even during periodic reset
-        | (0 << 18) // Enable PFM even when Vref is not used as ref
-        | (0 << 17) // Enable PFM
-        | (3 << 14) // Comparator clock division ratio
-        | (0 << 13) // Enable main feedback loop
-        | (r << 9)  // Frequency multiplier R
-        | (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
-        | (base)        // Floor frequency base (0-63)
-    ));
-
     pmu_reg_write(0x16, 
         ( (0 << 19) // Enable PFM even during periodic reset
         | (0 << 18) // Enable PFM even when Vref is not used as ref
@@ -454,29 +447,6 @@ inline static void pmu_set_sleep_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t
 
 }
 
-inline static void pmu_set_sleep_radio(){
-    pmu_set_sleep_clk(0xF,0xA,0x5,0xF/*V1P2*/);
-}
-
-inline static void pmu_set_sleep_low(){
-    pmu_set_sleep_clk(0x2,0x1,0x1,0x1/*V1P2*/);
-}
-
-inline static void pmu_set_sleep_tsns(){
-    if (pmu_setting_state >= PMU_75C){
-        pmu_set_active_clk(0x5,0xA,0x5,0xF/*V1P2*/);
-
-    }else if (pmu_setting_state >= PMU_35C){
-        pmu_set_active_clk(0xA,0xA,0x5,0xF/*V1P2*/);
-
-    }else if (pmu_setting_state < PMU_20C){
-        pmu_set_active_clk(0xF,0xA,0x7,0xF/*V1P2*/);
-
-    }else{ // 25C, default
-    	pmu_set_sleep_clk(0xF,0xA,0x5,0xF/*V1P2*/);
-    }
-}
-
 
 inline static void pmu_active_setting_temp_based(){
     
@@ -503,6 +473,29 @@ inline static void pmu_active_setting_temp_based(){
     }
 }
 
+inline static void pmu_set_sleep_radio(){
+    pmu_set_sleep_clk(0xF,0xA,0x5,0xF/*V1P2*/);
+}
+
+inline static void pmu_set_sleep_low(){
+    pmu_set_sleep_clk(0x3,0x1,0x1,0x2/*V1P2*/);
+}
+
+inline static void pmu_set_sleep_tsns(){
+    if (pmu_setting_state >= PMU_75C){
+        pmu_set_active_clk(0x5,0xA,0x5,0xF/*V1P2*/);
+
+    }else if (pmu_setting_state >= PMU_35C){
+        pmu_set_active_clk(0xA,0xA,0x5,0xF/*V1P2*/);
+
+    }else if (pmu_setting_state < PMU_20C){
+        pmu_set_active_clk(0xF,0xA,0x7,0xF/*V1P2*/);
+
+    }else{ // 25C, default
+    	pmu_set_sleep_clk(0xF,0xA,0x5,0xF/*V1P2*/);
+    }
+}
+
 inline static void pmu_sleep_setting_temp_based(){
     
     if (pmu_setting_state == PMU_95C){
@@ -512,10 +505,10 @@ inline static void pmu_sleep_setting_temp_based(){
         pmu_set_sleep_clk(0x1,0x1,0x1,0x1/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_55C){
-        pmu_set_sleep_clk(0x1,0x1,0x1,0x1/*V1P2*/);
+        pmu_set_sleep_clk(0x1,0x1,0x1,0x2/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_35C){
-        pmu_set_sleep_clk(0x2,0x0,0x1,0x1/*V1P2*/);
+        pmu_set_sleep_clk(0x2,0x1,0x1,0x2/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_20C){
         pmu_set_sleep_clk(0xF,0x2,0x1,0x4/*V1P2*/);
@@ -527,6 +520,7 @@ inline static void pmu_sleep_setting_temp_based(){
 		pmu_set_sleep_low();
     }
 }
+
 
 
 inline static void pmu_set_clk_init(){
@@ -815,13 +809,6 @@ static void snt_stop_timer(){
 
 }
 
-static void snt_reset_timer(){
-	
-    sntv3_r17.WUP_ENABLE = 0x0;
-    mbus_remote_register_write(SNT_ADDR,0x17,sntv3_r17.as_int);
-	snt_wup_counter_cur = 0;
-}
-
 static void snt_set_wup_timer(uint32_t sleep_count){
     
     snt_wup_counter_cur = sleep_count + snt_wup_counter_cur; // should handle rollover
@@ -988,8 +975,6 @@ static void send_radio_data_srr(uint32_t last_packet, uint8_t radio_packet_prefi
     }
 }
 
-
-
 //***************************************************
 // End of Program Sleep Operation
 //***************************************************
@@ -1000,6 +985,12 @@ static void operation_sns_sleep_check(void){
         temp_sensor_power_off();
         sns_ldo_power_off();
     }
+	if (pmu_setting_state != PMU_25C){
+		// Set PMU to room temp setting
+		pmu_setting_state = PMU_25C;
+		pmu_active_setting_temp_based();
+		pmu_sleep_setting_temp_based();
+	}
 }
 
 static void operation_sleep(void){
@@ -1161,7 +1152,7 @@ static void operation_init(void){
     // Set CPU & Mbus Clock Speeds
     prcv18_r0B.CLK_GEN_RING = 0x1; // Default 0x1
     prcv18_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
-    prcv18_r0B.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
+    prcv18_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
     prcv18_r0B.GOC_CLK_GEN_SEL_DIV = 0x0; // Default 0x0
     prcv18_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
     *REG_CLKGEN_TUNE = prcv18_r0B.as_int;
@@ -1451,8 +1442,8 @@ static void operation_temp_run(void){
             if (wfi_timeout_flag){
                 temp_storage_latest = 0x666;
                 wfi_timeout_flag = 0;
-                // In case of timeout, reset wakeup counter 
-                snt_reset_timer();
+                // In case of timeout, wakeup counter needs to be adjusted 
+                snt_read_wup_counter();
             }else{
                 temp_storage_latest = read_data_temp;
 
@@ -1509,6 +1500,7 @@ static void operation_temp_run(void){
 	            pmu_active_setting_temp_based();
 			}
 
+
             // Assert temp sensor isolation & turn off temp sensor power
             temp_sensor_power_off();
             sns_ldo_power_off();
@@ -1520,9 +1512,9 @@ static void operation_temp_run(void){
             mbus_write_message32(0xC0, (exec_count << 16) | temp_storage_latest);
 
 
-            //if (temp_storage_debug){
-            //    temp_storage_latest = exec_count;
-            //}
+            if (temp_storage_debug){
+                temp_storage_latest = exec_count;
+            }
 
             // Store results in MEMv1; unless memory is full
             if (temp_storage_count < TEMP_STORAGE_SIZE){
@@ -1672,7 +1664,7 @@ static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t 
 
             snt_start_timer_presleep();
             // Go to sleep for >3s for timer stabilization
-            set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT*3, 0x1, 0x1);
+            set_wakeup_timer(WAKEUP_PERIOD_SNT, 0x1, 0x1);
             operation_sleep_noirqreset();
         }else if (exec_count_irq == 2){
             // Restore PMU settings
@@ -1734,19 +1726,8 @@ int main() {
         operation_goc_trigger_init();
     }
 
-	if (wakeup_data == 0x0){ // Not woken up from GOC
-		if (temp_running){
-			// Proceed to continuous mode
-			while(1){
-				operation_temp_run();
-			}
-		}else{
-			// Go to sleep without timer
-			operation_sleep_notimer();
-
-		}
-    
-    }else if(wakeup_data_header == 0x01){
+    if(wakeup_data_header == 0x01){
+        // Debug mode: Transmit something via radio and go to sleep w/o timer
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period
         // wakeup_data[23:16] is the MSB of # of transmissions
@@ -1761,7 +1742,7 @@ int main() {
         // wakeup_data[23] is debug mode: logs the execution count as opposed to temp data
         radio_tx_option = wakeup_data_field_2 & 0x10;
         wakeup_timer_option = wakeup_data_field_2 & 0x20;
-        //temp_storage_debug = wakeup_data_field_2 & 0x80;
+        temp_storage_debug = wakeup_data_field_2 & 0x80;
         
         if (wakeup_timer_option){
             // Use PRC timer
@@ -1782,7 +1763,7 @@ int main() {
             pmu_set_sleep_radio();
             snt_start_timer_presleep();
             // Go to sleep for >3s for timer stabilization
-            set_wakeup_timer (WAKEUP_PERIOD_RADIO_INIT*2, 0x1, 0x1);
+            set_wakeup_timer (WAKEUP_PERIOD_SNT, 0x1, 0x1);
             operation_sleep_noirqreset();
         }else if (exec_count_irq == 2){
             snt_start_timer_postsleep();
@@ -1807,21 +1788,13 @@ int main() {
 
         // Run Temp Sensor Program
     Tstack_state = TSTK_IDLE;
-		while(1){
-	        operation_temp_run();
-		}
+        operation_temp_run();
 
     }else if(wakeup_data_header == 0x03){
         // Stop temp sensor program and transmit the battery reading and execution count (alternating n times)
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period 
 
-        if (pmu_setting_state != PMU_25C){
-            // Set PMU to room temp setting
-            pmu_setting_state = PMU_25C;
-            pmu_active_setting_temp_based();
-            pmu_sleep_setting_temp_based();
-        }
         operation_sns_sleep_check();
         snt_stop_timer();
 
@@ -1900,6 +1873,7 @@ int main() {
     // Tune SNT Timer R for TC
         sntv3_r0A.TMR_DIFF_CON = wakeup_data & 0x3FFF; // Default: 0x3FFB
         mbus_remote_register_write(SNT_ADDR,0x0A,sntv3_r0A.as_int);
+        operation_sleep_notimer();
 
     }else if(wakeup_data_header == 0x14){
         // Update SNT wakeup counter value for 0.5s
@@ -1916,12 +1890,6 @@ int main() {
         }else{
             PMU_ADC_4P2_VAL = wakeup_data_field_0;
         }
-
-    }else if(wakeup_data_header == 0x19){
-		// Change GOC CLK
-		prcv18_r0B.GOC_CLK_GEN_SEL_FREQ = wakeup_data_field_1; // Default 0x6
-		prcv18_r0B.GOC_CLK_GEN_SEL_DIV = wakeup_data_field_0; // Default 0x0
-		*REG_CLKGEN_TUNE = prcv18_r0B.as_int;
 
     }else if(wakeup_data_header == 0x1A){
         PMU_10C_threshold_sns = wakeup_data & 0xFFFF; // Around 10C
@@ -2047,31 +2015,9 @@ int main() {
         // Calibration routine for SNT wakeup timer
         operation_snt_calibration_radio_binary(wakeup_data & 0xFFFF, wakeup_data_field_2);
 
-
-/*
-    }else if(wakeup_data_header == 0xA0){
-    // FIXME: Test for SNTv3 wakeup timer
-        
-        exec_count_irq++;
-        if (exec_count_irq == 1){
-            snt_start_timer_presleep();
-            // Go to sleep for >3s for timer stabilization
-            // FIXME: needs higher pmu setting; snt consumes more power in the beginning
-            pmu_set_sleep_radio();
-            set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT*3, 0x1, 0x1);
-            operation_sleep_noirqreset();
-        }else if (exec_count_irq == 2){
-            snt_start_timer_postsleep();
-            // Read existing counter value; in case not reset to zero
-            snt_read_wup_counter();
-        }
-        snt_set_wup_timer(wakeup_data & 0xFFFFFF);
-
-        operation_sleep_noirqreset();
-*/        
     }else if(wakeup_data_header == 0xF0){
 
-        operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xA2, 0, enumerated);
+        operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xA2, enumerated>>24, enumerated);
 
     }else if(wakeup_data_header == 0xFA){
     // Soft reset routine
@@ -2083,16 +2029,24 @@ int main() {
                 mbus_write_message32(0xE0, 0x0);
                 delay(MBUS_DELAY);
             }
-        }else{
-            operation_sleep_notimer();
         }
 
     }else{
-		// Invalid GOC trigger
-		// Do nothing
+        if (wakeup_data_header != 0){
+            // Invalid GOC trigger
+            // Go to sleep without timer
+            operation_sleep_notimer();
+        }
     }
 
-	// Go to sleep without timer
+    if (temp_running){
+        // Proceed to continuous mode
+        while(1){
+            operation_temp_run();
+        }
+    }
+
+    
     operation_sleep_notimer();
 
     while(1);

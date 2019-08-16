@@ -105,7 +105,6 @@ volatile uint32_t PMU_ADC_3P0_VAL;
 volatile uint32_t pmu_setting_state;
 volatile uint32_t pmu_sar_conv_ratio_val;
 volatile uint32_t read_data_batadc;
-volatile uint32_t wakeup_period_calc_factor;
 
 volatile uint32_t WAKEUP_PERIOD_CONT_USER; 
 volatile uint32_t WAKEUP_PERIOD_CONT; 
@@ -1497,7 +1496,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     stack_state = STK_IDLE; 	//0x0;
-    enumerated = 0x41481210; // 0x4148 is AH in ascii
+    enumerated = 0x4148121A; // 0x4148 is AH in ascii
     exec_count = 0;
     wakeup_count = 0;
     exec_count_irq = 0;
@@ -1621,7 +1620,7 @@ static void operation_init(void){
 	mrrv10_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min;  //ANT CAP 14b unary 830.5 MHz
 	mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min; //ANT CAP 14b unary 830.5 MHz
 	mbus_remote_register_write(MRR_ADDR,0x01,mrrv10_r01.as_int);
-	mrrv10_r02.MRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
+	mrrv10_r02.MRR_TX_BIAS_TUNE = 0x7FF;  //Set TX BIAS TUNE 13b // Set to max
 	mbus_remote_register_write(MRR_ADDR,0x02,mrrv10_r02.as_int);
 
 	// Turn off RX mode
@@ -1648,7 +1647,7 @@ static void operation_init(void){
 	mrrv10_r13.MRR_RAD_FSM_TX_MODE = 3; //code rate 0:4 1:3 2:2 3:1(baseline) 4:1/2 5:1/3 6:1/4
 	mbus_remote_register_write(MRR_ADDR,0x13,mrrv10_r13.as_int);
 
-    mrrv10_r04.LDO_SEL_VOUT = 6; // New for MRRv10
+    mrrv10_r04.LDO_SEL_VOUT = 0; // New for MRRv10
     mbus_remote_register_write(MRR_ADDR,0x04,mrrv10_r04.as_int);
 	// Mbus return address
 	mbus_remote_register_write(MRR_ADDR,0x1E,0x1002);
@@ -1675,8 +1674,6 @@ static void operation_init(void){
 	adxl_user_threshold = 0x060; // rec. 0x60, max 0x7FF
 	sht35_user_repeatability = 0x0B; // default 0x0B
 	sht35_cur_temp = 26214; // 25C
-
-	wakeup_period_calc_factor = 18;
 
     SNT_0P5S_VAL = 1000;
 
@@ -1868,7 +1865,7 @@ int main(){
 	#endif
 
     // Initialization sequence
-    if (enumerated != 0x41481210){
+    if (enumerated != 0x4148121A){
         operation_init();
     }
 
@@ -1925,19 +1922,9 @@ int main(){
             SNT_0P5S_VAL = 1000;
         }        
 
-        // Go to sleep without timer
-        operation_sleep_notimer();
-
-	}else if(wakeup_data_header == 0x16){
-		wakeup_period_calc_factor = wakeup_data & 0xFFFFFF;
-		// Go to sleep without timer
-		operation_sleep_notimer();
-
 	}else if(wakeup_data_header == 0x18){
 		// Manually override the SAR ratio
 		pmu_set_sar_override(wakeup_data_field_0);
-		// Go to sleep without timer
-		operation_sleep_notimer();
 
 	}else if(wakeup_data_header == 0x20){
         // wakeup_data[7:0] is the # of transmissions
@@ -1964,8 +1951,6 @@ int main(){
 		}else{
 			RADIO_PACKET_DELAY = user_val;
 		}
-		// Go to sleep without timer
-		operation_sleep_notimer();
 
 	}else if(wakeup_data_header == 0x22){
 		// Change the carrier frequency of MRR (CFO)
@@ -1983,18 +1968,12 @@ int main(){
 		mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = wakeup_data & 0x3FF; // 10 bit coarse setting
 		mbus_remote_register_write(MRR_ADDR,0x01,mrrv10_r01.as_int);
 
-		// Go to sleep without timer
-		operation_sleep_notimer();
-
 	}else if(wakeup_data_header == 0x23){
 		// Change the baseband frequency of MRR (SFO)
 		mrrv10_r07.RO_MOM = wakeup_data & 0x3F;
 		mrrv10_r07.RO_MIM = wakeup_data & 0x3F;
 		mbus_remote_register_write(MRR_ADDR,0x07,mrrv10_r07.as_int);
 		
-		// Go to sleep without timer
-		operation_sleep_notimer();
-
 /*
 	}else if(wakeup_data_header == 0x24){
 		// Switch between short / long pulse
@@ -2019,8 +1998,10 @@ int main(){
 		mrrv10_r04.LDO_SEL_VOUT = wakeup_data & 0x7;
 		mbus_remote_register_write(MRR_ADDR,0x04,mrrv10_r04.as_int);
 
-		// Go to sleep without timer
-		operation_sleep_notimer();
+	}else if(wakeup_data_header == 0x26){
+
+		mrrv10_r02.MRR_TX_BIAS_TUNE = wakeup_data & 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
+		mbus_remote_register_write(MRR_ADDR,0x02,mrrv10_r02.as_int);
 
     }else if(wakeup_data_header == 0x32){
 		// Run temp measurement routine with desired wakeup period and ADXL running in the background
@@ -2148,8 +2129,6 @@ int main(){
 				mbus_write_message32(0xE0, 0x0);
 				delay(MBUS_DELAY);
 			}
-		}else{
-			operation_sleep_notimer();
 		}
 
     }else{
