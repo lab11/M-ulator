@@ -36,7 +36,8 @@
 //					Radio error packet when timeout
 //			v1.20b: Reset SNT timer every time motion is detected
 //			v1.21: PREv20, MRRv10, SNTv4
-//			v1.21: MRR Chirp fix: Use V1P2 for SFO, tune LDO voltage
+//			v1.21a: MRR Chirp fix: Use V1P2 for SFO, tune LDO voltage
+//			       Make LDO output, MRR bias tunable
 //*******************************************************************
 #include "PREv20.h"
 #include "PREv20_RF.h"
