@@ -1376,11 +1376,11 @@ static void operation_temp_run(void){
 		config_timerwd(TIMERWD_VAL*2);
 		*REG_MBUS_WD = 1500000*3; // default: 1500000
 		// Setting 1
-        pmu_set_active_clk(0xF,0x7,0x10,0xE/*V1P2*/);
+      pmu_set_active_clk(0xF,0x1,0x10,0x2/*V1P2*/);
 		mbus_write_message32(0xB7, 0x1);
 		delay(MBUS_DELAY*100); //~1s
 		// Setting 2
-        pmu_set_active_clk(0xF,0x3,0x10,0x7/*V1P2*/);
+       pmu_set_active_clk(0xA,0x1,0x10,0x2/*V1P2*/);
 		mbus_write_message32(0xB7, 0x2);
 		delay(MBUS_DELAY*100); //~1s
 	}

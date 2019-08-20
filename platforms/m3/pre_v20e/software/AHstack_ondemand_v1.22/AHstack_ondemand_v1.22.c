@@ -1312,9 +1312,11 @@ static void snt_read_wup_counter(){
     
 static void snt_start_timer_presleep(){
 
-    sntv4_r09.TMR_IBIAS_REF = 0x4; // Default : 4'h4
-    mbus_remote_register_write(SNT_ADDR,0x09,sntv4_r09.as_int);
-
+	// New for SNTv3
+sntv4_r08.TMR_SLEEP = 0x0; // Default : 0x1
+mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
+sntv4_r08.TMR_ISOLATE = 0x0; // Default : 0x1
+mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
     // TIMER SELF_EN Disable 
     sntv4_r09.TMR_SELF_EN = 0x0; // Default : 0x1
     mbus_remote_register_write(SNT_ADDR,0x09,sntv4_r09.as_int);
@@ -1360,11 +1362,13 @@ static void snt_stop_timer(){
     mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
     snt_timer_enabled = 0;
 
-    sntv4_r09.TMR_IBIAS_REF = 0x0; // Default : 4'h4
-    mbus_remote_register_write(SNT_ADDR,0x09,sntv4_r09.as_int);
-
     sntv4_r17.WUP_ENABLE = 0x0; // Default : 0x
     mbus_remote_register_write(SNT_ADDR,0x17,sntv4_r17.as_int);
+
+	// New for SNTv3
+sntv4_r08.TMR_SLEEP = 0x1; // Default : 0x1
+sntv4_r08.TMR_ISOLATE = 0x1; // Default : 0x1
+mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
 
 }
 
@@ -1555,9 +1559,6 @@ static void operation_init(void){
     // Tune C for freq
     sntv4_r09.TMR_SEL_CAP = 0x80; // Default : 8'h8
     sntv4_r09.TMR_SEL_DCAP = 0x3F; // Default : 6'h4
-
-    // to reduce standby current
-    sntv4_r09.TMR_IBIAS_REF = 0x0; // Default : 4'h4
 
     mbus_remote_register_write(SNT_ADDR,0x09,sntv4_r09.as_int);
 
