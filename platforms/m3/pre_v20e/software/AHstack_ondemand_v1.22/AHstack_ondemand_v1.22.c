@@ -57,7 +57,7 @@
 #define PMU_ADDR 0x6
 
 // System parameters
-#define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
+#define	MBUS_DELAY 200 // Amount of delay between successive messages; 100: 6-7ms
 #define SNS_CYCLE_INIT 3 
 
 // Pstack states
@@ -315,7 +315,7 @@ static void ADXL362_init(){
   ADXL362_reg_wr(ADXL362_POWER_CTL,0x0A);
 
   // Check Status (Clears first false positive)
-  delay(5000);
+  delay(10000);
   ADXL362_reg_rd(ADXL362_STATUS);
 }
 
@@ -1313,10 +1313,11 @@ static void snt_read_wup_counter(){
 static void snt_start_timer_presleep(){
 
 	// New for SNTv3
-sntv4_r08.TMR_SLEEP = 0x0; // Default : 0x1
-mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
-sntv4_r08.TMR_ISOLATE = 0x0; // Default : 0x1
-mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
+	sntv4_r08.TMR_SLEEP = 0x0; // Default : 0x1
+	mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
+	sntv4_r08.TMR_ISOLATE = 0x0; // Default : 0x1
+	mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
+
     // TIMER SELF_EN Disable 
     sntv4_r09.TMR_SELF_EN = 0x0; // Default : 0x1
     mbus_remote_register_write(SNT_ADDR,0x09,sntv4_r09.as_int);
@@ -1366,9 +1367,9 @@ static void snt_stop_timer(){
     mbus_remote_register_write(SNT_ADDR,0x17,sntv4_r17.as_int);
 
 	// New for SNTv3
-sntv4_r08.TMR_SLEEP = 0x1; // Default : 0x1
-sntv4_r08.TMR_ISOLATE = 0x1; // Default : 0x1
-mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
+	sntv4_r08.TMR_SLEEP = 0x1; // Default : 0x1
+	sntv4_r08.TMR_ISOLATE = 0x1; // Default : 0x1
+	mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
 
 }
 
@@ -1491,7 +1492,7 @@ static void operation_init(void){
     prev20_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
     prev20_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
     prev20_r0B.GOC_CLK_GEN_SEL_DIV = 0x0; // Default 0x0
-    prev20_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
+    prev20_r0B.GOC_CLK_GEN_SEL_FREQ = 0x5; // Default 0x6
 	*REG_CLKGEN_TUNE = prev20_r0B.as_int;
 
     prev20_r1C.SRAM0_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
@@ -1706,7 +1707,8 @@ static void operation_sns_run(void){
     }else if (stack_state == STK_HUM){
 		sht35_temp_data = 0;
 		sht35_hum_data = 0;
-		sht35_meas_data();
+		// FIXME
+		//sht35_meas_data();
 
 		stack_state = STK_TEMP_READ;
 
@@ -2118,7 +2120,7 @@ int main(){
 		// Power Up PUF
 		*REG_SYS_CONF = (0x0/*PUF_SLEEP*/ << 6) | (0x1/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
 		// Wait (~20ms)
-		delay(1000);
+		delay(MBUS_DELAY*4);
 		// Release Isolation
 		*REG_SYS_CONF = (0x0/*PUF_SLEEP*/ << 6) | (0x0/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
 		// Store the Chip ID
