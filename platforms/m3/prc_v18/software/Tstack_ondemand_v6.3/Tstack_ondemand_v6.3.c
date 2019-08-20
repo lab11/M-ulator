@@ -68,7 +68,7 @@
 //            v6.2: SNTv3
 //            v6.3: Going to sleep during temp measurement
 //					SNTv3 counter reading when clk running should be avoided
-//					Adding GOC clk configurations
+//					Adding GOC clk tuning 
 //					Changing CPU core clock frequency to be 2x faster
 //					25C, 35C sleep setting increased
 //					Radio packet sleep interval shortened
@@ -1881,6 +1881,12 @@ int main() {
         if (SNT_0P5S_VAL == 0){
             SNT_0P5S_VAL = 1000;
         }        
+
+    }else if(wakeup_data_header == 0x15){
+        // Update GOC clock
+		prev20_r0B.GOC_CLK_GEN_SEL_DIV = (wakeup_data >> 2)&0x3; // Default 0x0
+		prev20_r0B.GOC_CLK_GEN_SEL_FREQ = wakeup_data & 0x7; // Default 0x6
+		*REG_CLKGEN_TUNE = prev20_r0B.as_int;
 
     }else if(wakeup_data_header == 0x17){
         // Change the 4.2V battery reference

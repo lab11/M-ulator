@@ -38,6 +38,7 @@
 //			v1.21: PREv20, MRRv10, SNTv4
 //			v1.21a: MRR Chirp fix: Use V1P2 for SFO, tune LDO voltage
 //			       Make LDO output, MRR bias tunable
+//			v1.22: PREv20E, Core clock 2x, Adding GOC clk tuning
 //*******************************************************************
 #include "PREv20.h"
 #include "PREv20_RF.h"
@@ -1484,7 +1485,7 @@ static void operation_init(void){
 	// Set CPU & Mbus Clock Speeds
     prev20_r0B.CLK_GEN_RING = 0x1; // Default 0x1
     prev20_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
-    prev20_r0B.CLK_GEN_DIV_CORE = 0x3; // Default 0x3
+    prev20_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
     prev20_r0B.GOC_CLK_GEN_SEL_DIV = 0x0; // Default 0x0
     prev20_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
 	*REG_CLKGEN_TUNE = prev20_r0B.as_int;
@@ -1497,7 +1498,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     stack_state = STK_IDLE; 	//0x0;
-    enumerated = 0x4148121A; // 0x4148 is AH in ascii
+    enumerated = 0x41481220; // 0x4148 is AH in ascii
     exec_count = 0;
     wakeup_count = 0;
     exec_count_irq = 0;
@@ -1866,7 +1867,7 @@ int main(){
 	#endif
 
     // Initialization sequence
-    if (enumerated != 0x4148121A){
+    if (enumerated != 0x41481220){
         operation_init();
     }
 
@@ -1922,6 +1923,12 @@ int main(){
         if (SNT_0P5S_VAL == 0){
             SNT_0P5S_VAL = 1000;
         }        
+
+    }else if(wakeup_data_header == 0x15){
+        // Update GOC clock
+		prev20_r0B.GOC_CLK_GEN_SEL_DIV = (wakeup_data >> 2)&0x3; // Default 0x0
+		prev20_r0B.GOC_CLK_GEN_SEL_FREQ = wakeup_data & 0x7; // Default 0x6
+		*REG_CLKGEN_TUNE = prev20_r0B.as_int;
 
 	}else if(wakeup_data_header == 0x18){
 		// Manually override the SAR ratio
@@ -1993,7 +2000,6 @@ int main(){
 		// Go to sleep without timer
 		operation_sleep_notimer();
 */
-
 	}else if(wakeup_data_header == 0x26){
 
 		mrrv10_r02.MRR_TX_BIAS_TUNE = wakeup_data & 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
