@@ -39,6 +39,7 @@
 //			v1.21a: MRR Chirp fix: Use V1P2 for SFO, tune LDO voltage
 //			       Make LDO output, MRR bias tunable
 //			v1.22: PREv20E, Core clock 2x, Adding GOC clk tuning
+//				   Using Macro for GPIO masking
 //*******************************************************************
 #include "PREv20.h"
 #include "PREv20_RF.h"
@@ -73,9 +74,6 @@
 #define    PMU_45C 0x3
 #define    PMU_55C 0x4
 
-// ADXL362 Defines
-#define SPI_TIME 250
-
 // Radio configurations
 #define RADIO_DATA_LENGTH 192
 #define WAKEUP_PERIOD_RADIO_INIT 10 // About 2 sec (PRCv17)
@@ -85,10 +83,13 @@
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y5 run default clock (PRCv17)
 #define TIMER32_VAL 0x50000 // 0x20000 about 1 sec with Y5 run default clock (PRCv17)
 
-#define GPIO_ADXL_INT 2
-#define GPIO_ADXL_EN 4
-#define GPIO_SDA 1
-#define GPIO_SCL 0
+#define GPIO_ADXL_INT 0
+#define GPIO_ADXL_EN 2
+#define GPIO_SDA 7
+#define GPIO_SCL 6
+
+#define ADXL_MASK (1<<GPIO_ADXL_INT) | (1<<GPIO_ADXL_EN)
+#define SHT35_MASK (1<<GPIO_SDA) | (1<<GPIO_SCL)
 
 //********************************************************************
 // Global Variables
@@ -124,12 +125,9 @@ volatile uint32_t adxl_motion_detected;
 volatile uint32_t adxl_user_threshold;
 volatile uint32_t adxl_motion_count;
 volatile uint32_t adxl_trigger_mute_count;
-volatile uint32_t adxl_mask = (1<<GPIO_ADXL_INT) | (1<<GPIO_ADXL_EN);
 
 volatile uint32_t sht35_temp_data, sht35_hum_data, sht35_cur_temp;
-volatile uint32_t sht35_mask = (1<<GPIO_SDA) | (1<<GPIO_SCL);
 volatile uint32_t sht35_user_repeatability; // Default 0x0B
-
 
 volatile uint32_t radio_ready;
 volatile uint32_t radio_on;
@@ -268,24 +266,24 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
 // ADXL362 Functions
 //***************************************************
 static void ADXL362_reg_wr (uint8_t reg_id, uint8_t reg_data){
-  gpio_write_data_with_mask(adxl_mask,(0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+  gpio_write_data_with_mask(ADXL_MASK,(0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
   *SPI_SSPDR = 0x0A;
   *SPI_SSPDR = reg_id;
   *SPI_SSPDR = reg_data;
   *SPI_SSPCR1 = 0x2;
   while((*SPI_SSPSR>>4)&0x1){}//Spin
-  gpio_write_data_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+  gpio_write_data_with_mask(ADXL_MASK,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
   *SPI_SSPCR1 = 0x0;
 }
 
 static void ADXL362_reg_rd (uint8_t reg_id){
-  gpio_write_data_with_mask(adxl_mask,(0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+  gpio_write_data_with_mask(ADXL_MASK,(0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
   *SPI_SSPDR = 0x0B;
   *SPI_SSPDR = reg_id;
   *SPI_SSPDR = 0x00;
   *SPI_SSPCR1 = 0x2;
   while((*SPI_SSPSR>>4)&0x1){}//Spin
-  gpio_write_data_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+  gpio_write_data_with_mask(ADXL_MASK,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
   *SPI_SSPCR1 = 0x0;
   mbus_write_message32(0xB1,*SPI_SSPDR);
 }
@@ -328,7 +326,7 @@ static void ADXL362_enable(){
 	delay(MBUS_DELAY);
 
 	// Turn PRE power switch on
-	*REG_CPS = *REG_CPS | 0x2;
+	*REG_CPS = *REG_CPS | 0x1;
 	delay(MBUS_DELAY*2);
 
 	// Initialize ADXL
@@ -356,9 +354,9 @@ static void ADXL362_stop(){
 	config_gpio_posedge_wirq(0x0);
 	*NVIC_ISER = 0<<IRQ_WAKEUP;
 	unfreeze_gpio_out();
-	set_gpio_pad_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
-	gpio_set_dir_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
-	gpio_write_data_with_mask(adxl_mask,0);
+	set_gpio_pad_with_mask(ADXL_MASK,(1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
+	gpio_set_dir_with_mask(ADXL_MASK,(1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
+	gpio_write_data_with_mask(ADXL_MASK,0);
 	freeze_gpio_out();
 	adxl_enabled = 0;
 }
@@ -366,7 +364,7 @@ static void ADXL362_stop(){
 static void ADXL362_power_off(){
 	ADXL362_stop();
 	delay(MBUS_DELAY*10);
-	*REG_CPS = *REG_CPS & 0xFFFFFFFD;
+	*REG_CPS = *REG_CPS & (~0x1);
 	delay(MBUS_DELAY*50);
 }
 
@@ -376,9 +374,9 @@ static void operation_spi_init(){
 
 	// Enable SPI Input/Output
   set_spi_pad(1);
-  set_gpio_pad_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
-  gpio_set_dir_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
-  gpio_write_data_with_mask(adxl_mask,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT)); // << Crashes here
+  set_gpio_pad_with_mask(ADXL_MASK,(1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
+  gpio_set_dir_with_mask(ADXL_MASK,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
+  gpio_write_data_with_mask(ADXL_MASK,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT)); // << Crashes here
   unfreeze_gpio_out();
   unfreeze_spi_out();
 }
@@ -394,122 +392,122 @@ static void operation_spi_stop(){
 
 static void operation_i2c_start(){
   // Enable GPIO OUTPUT
-  gpio_write_data_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-  set_gpio_pad_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_set_dir_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  set_gpio_pad_with_mask(SHT35_MASK,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_set_dir_with_mask(SHT35_MASK,(1<<GPIO_SDA) | (1<<GPIO_SCL));
   unfreeze_gpio_out();
   //Start
-  gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (0<<GPIO_SCL));
 }
 
 static void operation_i2c_stop(){
   // Stop
-  gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(1<<GPIO_SDA) | (1<<GPIO_SCL));
 }
 
 static void operation_i2c_addr(uint8_t addr, uint8_t RWn){
   //Assume started
   //[6]
-  gpio_set_dir_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>6)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>6)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>6)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_set_dir_with_mask(SHT35_MASK,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>6)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>6)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>6)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
   //[5]
-  gpio_write_data_with_mask(sht35_mask,(((addr>>5)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>5)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>5)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>5)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>5)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>5)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
   //[4]
-  gpio_write_data_with_mask(sht35_mask,(((addr>>4)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>4)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>4)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>4)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>4)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>4)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
   //[3]
-  gpio_write_data_with_mask(sht35_mask,(((addr>>3)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>3)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>3)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>3)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>3)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>3)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
   //[2]
-  gpio_write_data_with_mask(sht35_mask,(((addr>>2)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>2)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>2)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>2)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>2)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>2)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
   //[1]
-  gpio_write_data_with_mask(sht35_mask,(((addr>>1)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>1)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>1)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>1)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>1)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>1)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
   //[0]
-  gpio_write_data_with_mask(sht35_mask,(((addr>>0)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>0)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>0)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>0)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>0)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((addr>>0)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
   
   //WRITEn/READ
   //Need Hack
   if((RWn&0x1) == 1){ //Need hack
-    gpio_set_dir_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-    gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-    gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
-    gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
+    gpio_set_dir_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+    gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
+    gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
+    gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
   }
   else{
-    gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
-    gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-    gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+    gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+    gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+    gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (0<<GPIO_SCL));
   }
 
   //Wait for ACK
-  gpio_set_dir_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_set_dir_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
   while((*GPIO_DATA>>GPIO_SDA)&0x1){
     //mbus_write_message32(0xCE, *GPIO_DATA);
   }
-  gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-  gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
-  gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
+  gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
+  gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
+  gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
 }
 
 static void operation_i2c_cmd(uint8_t cmd){
-  gpio_set_dir_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_set_dir_with_mask(SHT35_MASK,(1<<GPIO_SDA) | (1<<GPIO_SCL));
   //[7]
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>7)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>7)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>7)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>7)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>7)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>7)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
   //[6]
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>6)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>6)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>6)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>6)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>6)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>6)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
   //[5]
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>5)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>5)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>5)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>5)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>5)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>5)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
   //[4]
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>4)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>4)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>4)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>4)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>4)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>4)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
   //[3]
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>3)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>3)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>3)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>3)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>3)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>3)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
   //[2]
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>2)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>2)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>2)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>2)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>2)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>2)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
   //[1]
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>1)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>1)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>1)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>1)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>1)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>1)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
   //[0]
   if((cmd&0x1) == 1){ //Need hack
-    gpio_set_dir_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-    gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-    gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
-    gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
+    gpio_set_dir_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+    gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
+    gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
+    gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
   }
   else{
-    gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
-    gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-    gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+    gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+    gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+    gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (0<<GPIO_SCL));
   }
   
   //Wait for ACK
-  gpio_set_dir_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_set_dir_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
 	// Use timer32 as timeout counter
 	set_timer32_timeout(TIMER32_VAL);
 
@@ -517,59 +515,59 @@ static void operation_i2c_cmd(uint8_t cmd){
     //mbus_write_message32(0xCF, *GPIO_DATA);
   }
 	stop_timer32_timeout_check(0x5);
-  gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-  gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
-  gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
+  gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
+  gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
+  gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
 }
 
 static uint8_t operation_i2c_rd(uint8_t ACK){
 
 	uint8_t data;
 	data = 0;
-	gpio_set_dir_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+	gpio_set_dir_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
 	//[7]
-	gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-	gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
+	gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
+	gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
 	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<7);
 	//[6]
-	gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-	gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
+	gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
+	gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
 	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<6);
 	//[5]
-	gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-	gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
+	gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
+	gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
 	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<5);
 	//[4]
-	gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-	gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
+	gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
+	gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
 	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<4);
 	//[3]
-	gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-	gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
+	gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
+	gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
 	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<3);
 	//[2]
-	gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-	gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
+	gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
+	gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
 	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<2);
 	//[1]
-	gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-	gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
+	gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
+	gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
 	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<1);
 	//[0]
-	gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-	gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
+	gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
+	gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
 	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<0);
-	gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
+	gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
 	if (ACK&0x1){
-		gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
-		gpio_set_dir_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-		gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-		gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+		gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+		gpio_set_dir_with_mask(SHT35_MASK,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+		gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+		gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (0<<GPIO_SCL));
 	}
 	else{
-		gpio_set_dir_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-		gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
-		gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
+		gpio_set_dir_with_mask(SHT35_MASK,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+		gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
+		gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
 	}
 	// Debug
 	//mbus_write_message32(0xCF, data);
@@ -580,7 +578,7 @@ static uint8_t operation_i2c_rd(uint8_t ACK){
 static void sht35_meas_data(){
 	uint8_t i2c_data_rx;
 	// Power on
-	*REG_CPS = *REG_CPS | 0x1;
+	*REG_CPS = *REG_CPS | 0x2;
 	delay(MBUS_DELAY*2);
 	// Start measurement
 	operation_i2c_start();
@@ -605,7 +603,7 @@ static void sht35_meas_data(){
 	sht35_hum_data = sht35_hum_data | i2c_data_rx;
 	i2c_data_rx = operation_i2c_rd(0x0); // CRC
 	operation_i2c_stop();
-	*REG_CPS = *REG_CPS & 0xFFFFFFFE;
+	*REG_CPS = *REG_CPS & (~0x2);
 }
 
 //************************************
@@ -1491,8 +1489,8 @@ static void operation_init(void){
     prev20_r0B.CLK_GEN_RING = 0x1; // Default 0x1
     prev20_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
     prev20_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
-    prev20_r0B.GOC_CLK_GEN_SEL_DIV = 0x0; // Default 0x0
-    prev20_r0B.GOC_CLK_GEN_SEL_FREQ = 0x5; // Default 0x6
+    prev20_r0B.GOC_CLK_GEN_SEL_DIV = 0x1; // Default 0x0
+    prev20_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
 	*REG_CLKGEN_TUNE = prev20_r0B.as_int;
 
     prev20_r1C.SRAM0_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
@@ -1708,7 +1706,7 @@ static void operation_sns_run(void){
 		sht35_temp_data = 0;
 		sht35_hum_data = 0;
 		// FIXME
-		//sht35_meas_data();
+		sht35_meas_data();
 
 		stack_state = STK_TEMP_READ;
 
@@ -1732,7 +1730,7 @@ static void operation_sns_run(void){
 		// Radio Packet TX
 		if (error_code != 0x0){
 			delay(RADIO_PACKET_DELAY);
-			send_radio_data_mrr(0,0xB,error_code);	// FIXME: hijacking firmware version packet code
+			send_radio_data_mrr(0,0xF,error_code);
 			delay(RADIO_PACKET_DELAY);
 			error_code = 0;
 		}
@@ -1761,7 +1759,7 @@ static void operation_sns_run(void){
 		}
 		
 		// Make sure SDA and SCL are high
-		gpio_write_data_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+		gpio_write_data_with_mask(SHT35_MASK,(1<<GPIO_SDA) | (1<<GPIO_SCL));
 
 		// Get ready for sleep
 		if (astack_detection_mode & 0x1){
