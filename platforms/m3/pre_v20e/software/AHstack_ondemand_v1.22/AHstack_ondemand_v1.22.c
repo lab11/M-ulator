@@ -58,8 +58,7 @@
 #define PMU_ADDR 0x6
 
 // System parameters
-#define	MBUS_DELAY 200 // Amount of delay between successive messages; 100: 6-7ms
-#define SNS_CYCLE_INIT 3 
+#define	MBUS_DELAY 200 // Amount of delay between successive messages; 200: 6-7ms
 
 // Pstack states
 #define	STK_IDLE		0x0
@@ -76,7 +75,7 @@
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 192
-#define WAKEUP_PERIOD_RADIO_INIT 10 // About 2 sec (PRCv17)
+#define WAKEUP_PERIOD_RADIO_INIT 0xA // About 2 sec (PRCv17)
 
 #define TEMP_NUM_MEAS 1
 
@@ -1489,8 +1488,9 @@ static void operation_init(void){
     prev20_r0B.CLK_GEN_RING = 0x1; // Default 0x1
     prev20_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
     prev20_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
-    prev20_r0B.GOC_CLK_GEN_SEL_DIV = 0x1; // Default 0x0
     prev20_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
+    prev20_r0B.GOC_CLK_GEN_SEL_DIV = 0x1; // Default 0x0
+    prev20_r0B.GOC_SEL = 0xF; // Default 0x8
 	*REG_CLKGEN_TUNE = prev20_r0B.as_int;
 
     prev20_r1C.SRAM0_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
@@ -1705,7 +1705,6 @@ static void operation_sns_run(void){
     }else if (stack_state == STK_HUM){
 		sht35_temp_data = 0;
 		sht35_hum_data = 0;
-		// FIXME
 		sht35_meas_data();
 
 		stack_state = STK_TEMP_READ;
@@ -1927,8 +1926,8 @@ int main(){
 
     }else if(wakeup_data_header == 0x15){
         // Update GOC clock
-		prev20_r0B.GOC_CLK_GEN_SEL_DIV = (wakeup_data >> 2)&0x3; // Default 0x0
-		prev20_r0B.GOC_CLK_GEN_SEL_FREQ = wakeup_data & 0x7; // Default 0x6
+		prev20_r0B.GOC_CLK_GEN_SEL_FREQ = (wakeup_data >> 4)&0x7; // Default 0x0
+		prev20_r0B.GOC_CLK_GEN_SEL_DIV = wakeup_data & 0x3; // Default 0x6
 		*REG_CLKGEN_TUNE = prev20_r0B.as_int;
 
 	}else if(wakeup_data_header == 0x18){

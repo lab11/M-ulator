@@ -1884,8 +1884,8 @@ int main() {
 
     }else if(wakeup_data_header == 0x15){
         // Update GOC clock
-		prev20_r0B.GOC_CLK_GEN_SEL_DIV = (wakeup_data >> 2)&0x3; // Default 0x0
-		prev20_r0B.GOC_CLK_GEN_SEL_FREQ = wakeup_data & 0x7; // Default 0x6
+		prev20_r0B.GOC_CLK_GEN_SEL_FREQ = (wakeup_data >> 4)&0x7; // Default 0x0
+		prev20_r0B.GOC_CLK_GEN_SEL_DIV = wakeup_data & 0x3; // Default 0x6
 		*REG_CLKGEN_TUNE = prev20_r0B.as_int;
 
     }else if(wakeup_data_header == 0x17){
