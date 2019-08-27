@@ -1,32 +1,6 @@
 //*******************************************************************
-//Author: Gyouho Kim
-//Description: AH stack with MRRv7 and SNSv10, ADXL362, SHT35
-//			Modified from 'AMstack_ondemand_v1.14.c'
-//			AH Stack uses 3V battery
-//			v1.14: MRRv7 - larger tuning range, stronger drive
-//				   New packet definitions with CRC16
-//				   SHT35 uses power switch [0]
-//				   ADXL uses power switch [1]
-//			v1.14b: fixes a bug in humidty/temp reading
-//					fixes a bug in REG_CPS control
-//					fixes CRC bug
-//			v1.15: fixes ADXL / SHT35 conflict
-//			v1.15b: improve latency of radio tx for motion detection
-//					adding configurability for SHT35
-//			v1.16: improve latency of radio tx further
-//					changing MRR decap configuration and shorter SFO settling time
-//			v1.17: PMUv9, replacing delays for PMU reg write with set halt
-//					adding a burst mode for mrr radio scan (0x52)
-//			v1.18: PREv18, SNTv1, no HRVv6
-//					Getting rid of motion muting in case of SNT timer
-//					Getting rid of temp sensing using SNT
-//			v1.18a: Increasing loop count of mrr radio burst mode
-//			v1.18c: Don't reset radio packet count every goc; radio packet delay changed to 2000
-//				    SNT stabilization time reduced, MRR initial decap charge time increased
-//					MRR CFO default changed to 0x0/0x0
-//			v1.19: Changing radio packet definitions to increase packet count bits, and include motion count
-//					Implemented reading out PUF Chip ID
-//			v1.19a: Extending decap charging time for 22uF cap	
+//Author: ZhiYoong Foo
+//Description: Si7210 Initial Testing
 //*******************************************************************
 #include "PREv18.h"
 #include "PREv18_RF.h"
@@ -37,23 +11,6 @@
 
 // System parameters
 #define	MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
-#define SNS_CYCLE_INIT 3 
-
-// Pstack states
-#define	STK_IDLE		0x0
-#define	STK_LDO		0x1
-#define	STK_TEMP_START 0x2
-#define	STK_TEMP_READ  0x3
-#define	STK_HUM     0x4
-
-// ADXL362 Defines
-#define SPI_TIME 250
-
-// Radio configurations
-#define RADIO_DATA_LENGTH 192
-#define WAKEUP_PERIOD_RADIO_INIT 10 // About 2 sec (PRCv17)
-
-#define TEMP_NUM_MEAS 1
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y5 run default clock (PRCv17)
 #define TIMER32_VAL 0x50000 // 0x20000 about 1 sec with Y5 run default clock (PRCv17)
@@ -108,7 +65,7 @@ volatile uint32_t adxl_trigger_mute_count;
 volatile uint32_t adxl_mask = (1<<GPIO_ADXL_INT) | (1<<GPIO_ADXL_EN);
 
 volatile uint32_t sht35_temp_data, sht35_hum_data;
-volatile uint32_t sht35_mask = (1<<GPIO_SDA) | (1<<GPIO_SCL);
+volatile uint32_t si7210_mask = (1<<GPIO_SDA) | (1<<GPIO_SCL);
 volatile uint32_t sht35_user_repeatability; // Default 0x0B
 
 
@@ -129,11 +86,11 @@ volatile prev18_r1C_t prev18_r1C = PREv18_R1C_DEFAULT;
 //***************************************************
 // Si7210 Functions
 //***************************************************
-static void operation_i2c_start(void);
+static void operation_i2c_strt(void);
 static void operation_i2c_stop(void);
-static void operation_i2c_addr(uint8_t addr, uint8_t RWn);
+static void operation_i2c_addr(uint8_t RWn);
 static void operation_i2c_cmd(uint8_t cmd);
-static uint8_t operation_i2c_rd(uint8_t ACK);
+static uint8_t operation_i2c_read(uint8_t ACK);
 
 //*******************************************************************
 // INTERRUPT HANDLERS (Updated for PRCv17)
@@ -191,189 +148,219 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
 // Si7210 Functions (I2C Bit-Bang)
 //***************************************************
 
-static void operation_i2c_start(){
+//Write Register
+//START --> ADDR --> !W --> !ACK --> REGISTER --> !ACK --> DATA --> !ACK --> STOP
+//
+//Read Register
+//START --> ADDR --> R  --> !ACK --> REGISTER --> !ACK --> SR --> ADDR --> R --> DATA --> NACK --> STOP
+
+static void operation_i2c_strt(){
+  // Assume SCL: X
+  // Assume SDA: X
+  //
+  //     X+---+---+
+  // SCL X        |
+  //     X        +-
+  //
+  //     X+---+
+  // SDA X    |
+  //     X    +---+-
+  //
+  
   // Enable GPIO OUTPUT
-  gpio_write_data_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-  set_gpio_pad_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_set_dir_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  set_gpio_pad_with_mask   (si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_set_dir_with_mask   (si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
   unfreeze_gpio_out();
   //Start
-  gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
 }
 
 static void operation_i2c_stop(){
+  // Assume SCL: 0
+  // Assume SDA: X
+  //
+  //          +---+---+-
+  // SCL      |   
+  //     -+---+   
+  //
+  //     X        +---+-   
+  // SDA X        |
+  //     X+---+---+  
+  //
+  
   // Stop
-  gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
 }
 
-static void operation_i2c_addr(uint8_t addr, uint8_t RWn){
-  //Assume started
-  //[6]
-  gpio_set_dir_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>6)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>6)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>6)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[5]
-  gpio_write_data_with_mask(sht35_mask,(((addr>>5)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>5)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>5)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[4]
-  gpio_write_data_with_mask(sht35_mask,(((addr>>4)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>4)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>4)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[3]
-  gpio_write_data_with_mask(sht35_mask,(((addr>>3)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>3)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>3)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[2]
-  gpio_write_data_with_mask(sht35_mask,(((addr>>2)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>2)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>2)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[1]
-  gpio_write_data_with_mask(sht35_mask,(((addr>>1)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>1)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>1)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[0]
-  gpio_write_data_with_mask(sht35_mask,(((addr>>0)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>0)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((addr>>0)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  
-  //WRITEn/READ
-  //Need Hack
-  if((RWn&0x1) == 1){ //Need hack
-    gpio_set_dir_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-    gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-    gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
-    gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-  }
-  else{
-    gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
-    gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-    gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
-  }
+static void operation_i2c_addr(uint8_t RWn){
+  // Assume ADDR: 0x30 for Si7210
+  // Assume operation_i2c_strt was ran before this
+  // Assume SCL: 0
+  // Assume SDA: 0
+  //
+  //          +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+
+  // SCL      |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |
+  //     -+---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +-
+  //
+  //      +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+  // SDA  |ADDR[6]|ADDR[5]|ADDR[4]|ADDR[3]|ADDR[2]|ADDR[1]|ADDR[0]| !W/R  | !ACK  |
+  //     -+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+-
+  //
+  // SDA: 0x30
+  //              +---+---+---+---+                               +---+---+---+---+
+  // SDA          |               |                               | !W/R  | !ACK  |
+  //     -+---+---+               +---+---+---+---+---+---+---+---+---+---+---+---+-
+  //
 
-  //Wait for ACK
-  gpio_set_dir_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+  
+  // ADDR[6]
+  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+  // ADDR[5]
+  gpio_write_data_with_mask(si7210_mask,(1<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  // ADDR[4]
+  gpio_write_data_with_mask(si7210_mask,(1<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  // ADDR[3]
+  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  // ADDR[2]
+  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  // ADDR[1]
+  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  // ADDR[0]
+  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  
+  // !W/R
+  gpio_write_data_with_mask(si7210_mask,((RWn&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,((RWn&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,((RWn&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+
+  // Wait for !ACK
+  // Change SDA Direction to input (PCB Pull-up Resistor will pull high)
+  // Si7210 should pull to 0 if !ACK
+  gpio_set_dir_with_mask(si7210_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
   while((*GPIO_DATA>>GPIO_SDA)&0x1){
     //mbus_write_message32(0xCE, *GPIO_DATA);
   }
-  gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-  gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
-  gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
+  gpio_write_data_with_mask(si7210_mask, 1<<GPIO_SCL);
+  gpio_set_dir_with_mask   (si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
 }
 
 static void operation_i2c_cmd(uint8_t cmd){
-  gpio_set_dir_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-  //[7]
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>7)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>7)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>7)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[6]
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>6)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>6)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>6)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[5]
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>5)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>5)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>5)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[4]
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>4)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>4)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>4)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[3]
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>3)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>3)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>3)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[2]
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>2)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>2)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>2)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[1]
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>1)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>1)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(sht35_mask,(((cmd>>1)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[0]
-  if((cmd&0x1) == 1){ //Need hack
-    gpio_set_dir_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-    gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-    gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
-    gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-  }
-  else{
-    gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
-    gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-    gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
-  }
+  // Assume SCL: 0
+  // Assume SDA: 0
+  //
+  //          +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+
+  // SCL      |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |
+  //     -+---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +-
+  //
+  //      +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+  // SDA  | CMD[7]| CMD[6]| CMD[5]| CMD[4]| CMD[3]| CMD[2]| CMD[1]| CMD[0]| !ACK  |
+  //     -+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+-
+  //
+
+  // CMD[7]
+  gpio_write_data_with_mask(si7210_mask,(((cmd>>7)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(((cmd>>7)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  // CMD[6]
+  gpio_write_data_with_mask(si7210_mask,(((cmd>>6)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(((cmd>>6)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  // CMD[5]
+  gpio_write_data_with_mask(si7210_mask,(((cmd>>5)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(((cmd>>5)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  // CMD[4]
+  gpio_write_data_with_mask(si7210_mask,(((cmd>>4)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(((cmd>>4)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  // CMD[3]
+  gpio_write_data_with_mask(si7210_mask,(((cmd>>3)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(((cmd>>3)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  // CMD[2]
+  gpio_write_data_with_mask(si7210_mask,(((cmd>>2)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(((cmd>>2)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  // CMD[1]
+  gpio_write_data_with_mask(si7210_mask,(((cmd>>1)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(((cmd>>1)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  // CMD[0]
+  gpio_write_data_with_mask(si7210_mask,(((cmd>>0)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(((cmd>>0)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(((cmd>>0)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
   
-  //Wait for ACK
-  gpio_set_dir_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+  // Wait for !ACK
+  // Change SDA Direction to input (PCB Pull-up Resistor will pull high)
+  // Si7210 should pull to 0 if !ACK
+  gpio_set_dir_with_mask(si7210_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
   while((*GPIO_DATA>>GPIO_SDA)&0x1){
-    mbus_write_message32(0xCF, *GPIO_DATA);
+    //mbus_write_message32(0xCE, *GPIO_DATA);
   }
-  gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-  gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
-  gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
+  gpio_write_data_with_mask(si7210_mask, 1<<GPIO_SCL);
+  gpio_set_dir_with_mask   (si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
 }
 
-static uint8_t operation_i2c_rd(uint8_t ACK){
+static uint8_t operation_i2c_read(){
+  // Assume SCL: 0
+  // Assume SDA: 0
+  //
+  //          +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+
+  // SCL      |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |
+  //     -+---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +-
+  //
+  //      +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+  // SDA  |DATA[7]|DATA[6]|DATA[5]|DATA[4]|DATA[3]|DATA[2]|DATA[1]|DATA[0]| NACK  |
+  //     -+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+-
+  //
 
-	uint8_t data;
-	data = 0;
-	gpio_set_dir_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-	//[7]
-	gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-	gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
-	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<7);
-	//[6]
-	gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-	gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
-	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<6);
-	//[5]
-	gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-	gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
-	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<5);
-	//[4]
-	gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-	gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
-	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<4);
-	//[3]
-	gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-	gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
-	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<3);
-	//[2]
-	gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-	gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
-	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<2);
-	//[1]
-	gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-	gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
-	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<1);
-	//[0]
-	gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-	gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
-	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<0);
-	gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-	if (ACK&0x1){
-		gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
-		gpio_set_dir_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-		gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-		gpio_write_data_with_mask(sht35_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
-	}
-	else{
-		gpio_write_data_with_mask(sht35_mask,(1<<GPIO_SDA) | (0<<GPIO_SCL));
-		gpio_set_dir_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-		gpio_write_data_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-		gpio_write_data_with_mask(sht35_mask,(1<<GPIO_SDA) | (0<<GPIO_SCL));
+  uint8_t data;
+  data = 0;
+  
+  // DATA[7]
+  gpio_write_data_with_mask(si7210_mask,0<<GPIO_SCL);
+  gpio_write_data_with_mask(si7210_mask,1<<GPIO_SCL);
+  data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<7);
+  // DATA[6]
+  gpio_write_data_with_mask(si7210_mask,0<<GPIO_SCL);
+  gpio_write_data_with_mask(si7210_mask,1<<GPIO_SCL);
+  data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<6);
+  // DATA[5]
+  gpio_write_data_with_mask(si7210_mask,0<<GPIO_SCL);
+  gpio_write_data_with_mask(si7210_mask,1<<GPIO_SCL);
+  data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<5);
+  // DATA[4]
+  gpio_write_data_with_mask(si7210_mask,0<<GPIO_SCL);
+  gpio_write_data_with_mask(si7210_mask,1<<GPIO_SCL);
+  data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<4);
+  // DATA[3]
+  gpio_write_data_with_mask(si7210_mask,0<<GPIO_SCL);
+  gpio_write_data_with_mask(si7210_mask,1<<GPIO_SCL);
+  data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<3);
+  // DATA[2]
+  gpio_write_data_with_mask(si7210_mask,0<<GPIO_SCL);
+  gpio_write_data_with_mask(si7210_mask,1<<GPIO_SCL);
+  data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<2);
+  // DATA[1]
+  gpio_write_data_with_mask(si7210_mask,0<<GPIO_SCL);
+  gpio_write_data_with_mask(si7210_mask,1<<GPIO_SCL);
+  data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<1);
+  // DATA[0]
+  gpio_write_data_with_mask(si7210_mask,0<<GPIO_SCL);
+  gpio_write_data_with_mask(si7210_mask,1<<GPIO_SCL);
+  data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<0);
 
-		//gpio_set_dir_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-		//gpio_write_data_with_mask(sht35_mask,1<<GPIO_SCL);
-		//gpio_write_data_with_mask(sht35_mask,0<<GPIO_SCL);
-	}
-	// Debug
-	//mbus_write_message32(0xCF, data);
-	return data;
+  // NACK
+  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_set_dir_with_mask(si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+  
+  return data;
 }
 
 
@@ -395,7 +382,6 @@ static void operation_init(void){
   
   
   //Enumerate & Initialize Registers
-  stack_state = STK_IDLE; 	//0x0;
   enumerated = 0x41481190; // 0x4148 is AH in ascii
   exec_count = 0;
   exec_count_irq = 0;
@@ -414,134 +400,126 @@ static void operation_init(void){
 //********************************************************************
 
 int main(){
-  uint8_t test_rx;
-  // Only enable relevant interrupts (PRCv17)
-  //enable_reg_irq();
-  //enable_all_irq();
-  //*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3);
+  uint8_t test_rx; //Received I2C Read Data
   
   // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
   config_timerwd(TIMERWD_VAL);
 
-  mbus_write_message32(0x11, 0xFF);
+  //DBG
+  mbus_write_message32(0xCF, 0x00);
 
-  
   // Initialization sequence
   if (enumerated != 0x41481190){
-    mbus_write_message32(0x22, 0xFF);
     operation_init();
   }
 
-  mbus_write_message32(0xCF, 0x00);
-
+  // Turn on CPS
   *REG_CPS = *REG_CPS | 0x1;
   delay(1000);
 
+  //DBG
   mbus_write_message32(0xCF, 0x01);
 
-  //Wake device
-  //I2C address factiry programmed as 0x30
-  //operation_i2c_start();
-  //operation_i2c_addr(0x30,0);
-  //operation_i2c_stop();
-  //delay(100);
-  //mbus_write_message32(0xCF, 0x02);
+  //Wake device from Power Up
+  operation_i2c_strt();
+  operation_i2c_addr(0x0);
+  operation_i2c_stop();
+  mbus_write_message32(0xCF, 0x02);
   
   //Check chipid
   //ChipID on Register 0xC0
   //Should return 0x14
-  operation_i2c_start();
-  operation_i2c_addr(0x30,0);
-  operation_i2c_cmd(0xC0);
-  operation_i2c_start();
-  operation_i2c_addr(0x30,1);
-  operation_i2c_rd(0x0);
+  operation_i2c_strt();
+  operation_i2c_addr(0x0);
+  operation_i2c_cmd (0xC0);
+  operation_i2c_strt();
+  operation_i2c_addr(0x1);
+  test_rx = operation_i2c_read();
   operation_i2c_stop();
-  delay(100);
-  mbus_write_message32(0xCF, 0x03);
+  mbus_write_message32(0xCF, text_rx);
 
   //Read sleep time
-  operation_i2c_start();
-  operation_i2c_addr(0x30,0);
-  operation_i2c_cmd(0xC8);
-  operation_i2c_start();
-  operation_i2c_addr(0x30,1);
-  operation_i2c_rd(0x0);
-  operation_i2c_stop();
-  delay(100);
-  mbus_write_message32(0xCF, 0x03);
-
-  //Change sleep time
-  operation_i2c_start();
-  operation_i2c_addr(0x30,0);
-  operation_i2c_cmd(0xC8);
-  operation_i2c_cmd(0xFF);
-  operation_i2c_stop();
-  delay(100);
-  mbus_write_message32(0xCF, 0x04);
-
-  //Check sleep time
-  operation_i2c_start();
-  operation_i2c_addr(0x30,0);
-  operation_i2c_cmd(0xC8);
-  operation_i2c_start();
-  operation_i2c_addr(0x30,1);
-  operation_i2c_rd(0x0);
-  operation_i2c_stop();
-  delay(100);
-  mbus_write_message32(0xCF, 0x03);
-
-  //Check sleep time
-  operation_i2c_start();
-  operation_i2c_addr(0x30,0);
-  operation_i2c_cmd(0xC9);
-  operation_i2c_start();
-  operation_i2c_addr(0x30,1);
-  operation_i2c_rd(0x0);
-  operation_i2c_stop();
-  delay(100);
-  mbus_write_message32(0xCF, 0x03);
-
-
-  //while(1){
-    
-  //operation_i2c_start();
+  //operation_i2c_strt();
   //operation_i2c_addr(0x30,0);
-  //operation_i2c_cmd(0xC4); // Temp MSB
-  //operation_i2c_cmd(0x04); // Temp MSB
+  //operation_i2c_cmd(0xC8);
+  //operation_i2c_strt();
+  //operation_i2c_addr(0x30,1);
+  //operation_i2c_rd(0x0);
+  //operation_i2c_stop();
+  //delay(100);
+  //mbus_write_message32(0xCF, 0x03);
+  //
+  ////Change sleep time
+  //operation_i2c_strt();
+  //operation_i2c_addr(0x30,0);
+  //operation_i2c_cmd(0xC8);
+  //operation_i2c_cmd(0xFF);
   //operation_i2c_stop();
   //delay(100);
   //mbus_write_message32(0xCF, 0x04);
-
-  operation_i2c_start();
-  operation_i2c_addr(0x30,0);
-  operation_i2c_cmd(0xC1); // Temp MSB
-  operation_i2c_start();
-  operation_i2c_addr(0x30,1);
-  test_rx = operation_i2c_rd(0x0);
-  operation_i2c_stop();
-  delay(100);
-  mbus_write_message32(0xC1, test_rx);
-
-  operation_i2c_start();
-  operation_i2c_addr(0x30,0);
-  operation_i2c_cmd(0xC2); // Temp MSB
-  operation_i2c_start();
-  operation_i2c_addr(0x30,1);
-  test_rx = operation_i2c_rd(0x0);
-  operation_i2c_stop();
-  delay(100);
-  mbus_write_message32(0xC2, test_rx);
-
-  operation_i2c_start();
-  operation_i2c_addr(0x30,0);
-  operation_i2c_cmd(0xC4); // Temp MSB
-  operation_i2c_cmd(0x00); // Temp MSB
-  operation_i2c_stop();
-  delay(100);
-  mbus_write_message32(0xCF, 0x04);
-
-  freeze_gpio_out();
+  //
+  ////Check sleep time
+  //operation_i2c_strt();
+  //operation_i2c_addr(0x30,0);
+  //operation_i2c_cmd(0xC8);
+  //operation_i2c_strt();
+  //operation_i2c_addr(0x30,1);
+  //operation_i2c_rd(0x0);
+  //operation_i2c_stop();
+  //delay(100);
+  //mbus_write_message32(0xCF, 0x03);
+  //
+  ////Check sleep time
+  //operation_i2c_strt();
+  //operation_i2c_addr(0x30,0);
+  //operation_i2c_cmd(0xC9);
+  //operation_i2c_strt();
+  //operation_i2c_addr(0x30,1);
+  //operation_i2c_rd(0x0);
+  //operation_i2c_stop();
+  //delay(100);
+  //mbus_write_message32(0xCF, 0x03);
+  //
+  //
+  ////while(1){
+  //  
+  ////operation_i2c_strt();
+  ////operation_i2c_addr(0x30,0);
+  ////operation_i2c_cmd(0xC4); // Temp MSB
+  ////operation_i2c_cmd(0x04); // Temp MSB
+  ////operation_i2c_stop();
+  ////delay(100);
+  ////mbus_write_message32(0xCF, 0x04);
+  //
+  //operation_i2c_strt();
+  //operation_i2c_addr(0x30,0);
+  //operation_i2c_cmd(0xC1); // Temp MSB
+  //operation_i2c_strt();
+  //operation_i2c_addr(0x30,1);
+  //test_rx = operation_i2c_rd(0x0);
+  //operation_i2c_stop();
+  //delay(100);
+  //mbus_write_message32(0xC1, test_rx);
+  //
+  //operation_i2c_strt();
+  //operation_i2c_addr(0x30,0);
+  //operation_i2c_cmd(0xC2); // Temp MSB
+  //operation_i2c_strt();
+  //operation_i2c_addr(0x30,1);
+  //test_rx = operation_i2c_rd(0x0);
+  //operation_i2c_stop();
+  //delay(100);
+  //mbus_write_message32(0xC2, test_rx);
+  //
+  //operation_i2c_strt();
+  //operation_i2c_addr(0x30,0);
+  //operation_i2c_cmd(0xC4); // Temp MSB
+  //operation_i2c_cmd(0x00); // Temp MSB
+  //operation_i2c_stop();
+  //delay(100);
+  //mbus_write_message32(0xCF, 0x04);
+  //
+  //freeze_gpio_out();
 
   //}
     
