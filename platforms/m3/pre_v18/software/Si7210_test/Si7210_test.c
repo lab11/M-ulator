@@ -90,7 +90,7 @@ static void operation_i2c_strt(void);
 static void operation_i2c_stop(void);
 static void operation_i2c_addr(uint8_t RWn);
 static void operation_i2c_cmd(uint8_t cmd);
-static uint8_t operation_i2c_read(uint8_t ACK);
+static uint8_t operation_i2c_read();
 
 //*******************************************************************
 // INTERRUPT HANDLERS (Updated for PRCv17)
@@ -152,7 +152,7 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
 //START --> ADDR --> !W --> !ACK --> REGISTER --> !ACK --> DATA --> !ACK --> STOP
 //
 //Read Register
-//START --> ADDR --> R  --> !ACK --> REGISTER --> !ACK --> SR --> ADDR --> R --> DATA --> NACK --> STOP
+//START --> ADDR --> !W --> !ACK --> REGISTER --> !ACK --> SR --> ADDR --> R --> DATA --> NACK --> STOP
 
 static void operation_i2c_strt(){
   // Assume SCL: X
@@ -168,22 +168,22 @@ static void operation_i2c_strt(){
   //
   
   // Enable GPIO OUTPUT
-  gpio_write_data_with_mask(si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  *GPIO_DATA = 3;
   set_gpio_pad_with_mask   (si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
   gpio_set_dir_with_mask   (si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
   unfreeze_gpio_out();
   //Start
-  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+  *GPIO_DATA = 1;
+  *GPIO_DATA = 0;
 }
 
 static void operation_i2c_stop(){
   // Assume SCL: 0
   // Assume SDA: X
   //
-  //          +---+---+-
-  // SCL      |   
-  //     -+---+   
+  //     X    +---+---+-
+  // SCL X    |   
+  //     X+---+   
   //
   //     X        +---+-   
   // SDA X        |
@@ -191,8 +191,10 @@ static void operation_i2c_stop(){
   //
   
   // Stop
-  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_set_dir_with_mask   (si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  *GPIO_DATA = 0;
+  *GPIO_DATA = 1;
+  *GPIO_DATA = 3;
 }
 
 static void operation_i2c_addr(uint8_t RWn){
@@ -205,42 +207,49 @@ static void operation_i2c_addr(uint8_t RWn){
   // SCL      |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |
   //     -+---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +-
   //
-  //      +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+  //      +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+-
   // SDA  |ADDR[6]|ADDR[5]|ADDR[4]|ADDR[3]|ADDR[2]|ADDR[1]|ADDR[0]| !W/R  | !ACK  |
-  //     -+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+-
+  //     -+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
   //
   // SDA: 0x30
-  //              +---+---+---+---+                               +---+---+---+---+
+  //              +---+---+---+---+                               +---+---+---+---+-
   // SDA          |               |                               | !W/R  | !ACK  |
-  //     -+---+---+               +---+---+---+---+---+---+---+---+---+---+---+---+-
+  //     -+---+---+               +---+---+---+---+---+---+---+---+---+---+---+---+
   //
 
-  
   // ADDR[6]
-  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+  *GPIO_DATA = 1;
   // ADDR[5]
-  gpio_write_data_with_mask(si7210_mask,(1<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  *GPIO_DATA = 2;
+  *GPIO_DATA = 3;
   // ADDR[4]
-  gpio_write_data_with_mask(si7210_mask,(1<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  *GPIO_DATA = 2;
+  *GPIO_DATA = 3;
   // ADDR[3]
-  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  *GPIO_DATA = 0;
+  *GPIO_DATA = 1;
   // ADDR[2]
-  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  *GPIO_DATA = 0;
+  *GPIO_DATA = 1;
   // ADDR[1]
-  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+  *GPIO_DATA = 0;
+  *GPIO_DATA = 1;
   // ADDR[0]
-  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-  
+  *GPIO_DATA = 0;
+  *GPIO_DATA = 1;
+
   // !W/R
-  gpio_write_data_with_mask(si7210_mask,((RWn&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(si7210_mask,((RWn&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(si7210_mask,((RWn&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
+  if((RWn&0x1) == 1){ //Need hack
+    gpio_write_data_with_mask(si7210_mask,0<<GPIO_SCL);
+    gpio_set_dir_with_mask(si7210_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+    gpio_write_data_with_mask(si7210_mask,1<<GPIO_SCL);
+    gpio_write_data_with_mask(si7210_mask,0<<GPIO_SCL);
+  }
+  else{
+    gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+    gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+    gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+  }
 
   // Wait for !ACK
   // Change SDA Direction to input (PCB Pull-up Resistor will pull high)
@@ -249,23 +258,25 @@ static void operation_i2c_addr(uint8_t RWn){
   while((*GPIO_DATA>>GPIO_SDA)&0x1){
     //mbus_write_message32(0xCE, *GPIO_DATA);
   }
+  gpio_write_data_with_mask(si7210_mask, 0<<GPIO_SCL);
   gpio_write_data_with_mask(si7210_mask, 1<<GPIO_SCL);
-  gpio_set_dir_with_mask   (si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask, 0<<GPIO_SCL);
 }
 
 static void operation_i2c_cmd(uint8_t cmd){
-  // Assume SCL: 0
-  // Assume SDA: 0
+  // Assume SCL: X
+  // Assume SDA: X
   //
-  //          +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+
-  // SCL      |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |
-  //     -+---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +-
+  //     X    +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+
+  // SCL X    |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |
+  //     X+---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +-
   //
-  //      +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
-  // SDA  | CMD[7]| CMD[6]| CMD[5]| CMD[4]| CMD[3]| CMD[2]| CMD[1]| CMD[0]| !ACK  |
-  //     -+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+-
+  //     X+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+  // SDA X| CMD[7]| CMD[6]| CMD[5]| CMD[4]| CMD[3]| CMD[2]| CMD[1]| CMD[0]| !ACK  |
+  //     X+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+-
   //
+
+  gpio_set_dir_with_mask(si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
 
   // CMD[7]
   gpio_write_data_with_mask(si7210_mask,(((cmd>>7)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
@@ -288,11 +299,19 @@ static void operation_i2c_cmd(uint8_t cmd){
   // CMD[1]
   gpio_write_data_with_mask(si7210_mask,(((cmd>>1)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
   gpio_write_data_with_mask(si7210_mask,(((cmd>>1)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask,(((cmd>>1)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
   // CMD[0]
-  gpio_write_data_with_mask(si7210_mask,(((cmd>>0)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(si7210_mask,(((cmd>>0)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(si7210_mask,(((cmd>>0)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  
+  if((cmd&0x1) == 1){ //Need hack
+    gpio_set_dir_with_mask(si7210_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+    gpio_write_data_with_mask(si7210_mask,0<<GPIO_SCL);
+    gpio_write_data_with_mask(si7210_mask,1<<GPIO_SCL);
+    gpio_write_data_with_mask(si7210_mask,0<<GPIO_SCL);
+  }
+  else{
+    gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+    gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (1<<GPIO_SCL));
+    gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+  }
   // Wait for !ACK
   // Change SDA Direction to input (PCB Pull-up Resistor will pull high)
   // Si7210 should pull to 0 if !ACK
@@ -300,9 +319,9 @@ static void operation_i2c_cmd(uint8_t cmd){
   while((*GPIO_DATA>>GPIO_SDA)&0x1){
     //mbus_write_message32(0xCE, *GPIO_DATA);
   }
+  gpio_write_data_with_mask(si7210_mask, 0<<GPIO_SCL);
   gpio_write_data_with_mask(si7210_mask, 1<<GPIO_SCL);
-  gpio_set_dir_with_mask   (si7210_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(si7210_mask,(0<<GPIO_SDA) | (0<<GPIO_SCL));
+  gpio_write_data_with_mask(si7210_mask, 0<<GPIO_SCL);
 }
 
 static uint8_t operation_i2c_read(){
@@ -436,7 +455,7 @@ int main(){
   operation_i2c_addr(0x1);
   test_rx = operation_i2c_read();
   operation_i2c_stop();
-  mbus_write_message32(0xCF, text_rx);
+  mbus_write_message32(0xCF, test_rx);
 
   //Read sleep time
   //operation_i2c_strt();
@@ -557,5 +576,3 @@ int main(){
   mbus_sleep_all();
   while(1);
 }
-
-
