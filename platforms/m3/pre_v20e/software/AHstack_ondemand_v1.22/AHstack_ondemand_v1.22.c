@@ -1488,8 +1488,8 @@ static void operation_init(void){
     prev20_r0B.CLK_GEN_RING = 0x1; // Default 0x1
     prev20_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
     prev20_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
-    prev20_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
-    prev20_r0B.GOC_CLK_GEN_SEL_DIV = 0x1; // Default 0x0
+    prev20_r0B.GOC_CLK_GEN_SEL_FREQ = 0x5; // Default 0x6
+    prev20_r0B.GOC_CLK_GEN_SEL_DIV = 0x0; // Default 0x0
     prev20_r0B.GOC_SEL = 0xF; // Default 0x8
 	*REG_CLKGEN_TUNE = prev20_r0B.as_int;
 
@@ -1622,7 +1622,7 @@ static void operation_init(void){
 	mrrv10_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min;  //ANT CAP 14b unary 830.5 MHz
 	mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min; //ANT CAP 14b unary 830.5 MHz
 	mbus_remote_register_write(MRR_ADDR,0x01,mrrv10_r01.as_int);
-	mrrv10_r02.MRR_TX_BIAS_TUNE = 0x7FF;  //Set TX BIAS TUNE 13b // Set to max
+	mrrv10_r02.MRR_TX_BIAS_TUNE = 0x7FF;  //Set TX BIAS TUNE 13b // Max 0x1FFF
 	mbus_remote_register_write(MRR_ADDR,0x02,mrrv10_r02.as_int);
 
 	// Turn off RX mode
