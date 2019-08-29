@@ -1665,7 +1665,7 @@ static void operation_init(void){
     radio_ready = 0;
     radio_on = 0;
 	wakeup_data = 0;
-	RADIO_PACKET_DELAY = 2000;
+	RADIO_PACKET_DELAY = 4000;
 	radio_packet_count = 0;
 	error_code = 0;
 	
