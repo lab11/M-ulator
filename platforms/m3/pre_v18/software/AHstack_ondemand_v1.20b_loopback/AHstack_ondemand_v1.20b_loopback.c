@@ -1201,7 +1201,13 @@ static void send_radio_data_mrr_sub1(){
 	// Set decap to series
 	mrrv7_r03.MRR_DCP_S_OW = 1;  //TX_Decap S (forced charge decaps)
 	mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
-    delay(MBUS_DELAY);
+    
+    set_halt_until_mbus_rx();
+    mbus_remote_register_read(MRR_ADDR,0x1B,1); // MSB 8 bits
+    mbus_remote_register_read(MRR_ADDR,0x1A,1); // LSB 24 bits
+    mbus_remote_register_read(MRR_ADDR,0x1C,1); // LSB 24 bits
+    mbus_remote_register_read(MRR_ADDR,0x1D,1); // LSB 24 bits
+    set_halt_until_mbus_tx();
 
 
 }
@@ -1601,9 +1607,9 @@ static void operation_init(void){
 	mbus_remote_register_write(MRR_ADDR,0x07,mrrv7_r07.as_int);
 
 	// TX Setup Carrier Freq
-	mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x0;  //ANT CAP 10b unary 830.5 MHz
+	mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0xF;  //ANT CAP 10b unary 830.5 MHz
 	mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
-	mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0x0; //ANT CAP 10b unary 830.5 MHz
+	mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0xF; //ANT CAP 10b unary 830.5 MHz
 	mrrv7_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min;  //ANT CAP 14b unary 830.5 MHz
 	mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min; //ANT CAP 14b unary 830.5 MHz
 	mbus_remote_register_write(MRR_ADDR,0x01,mrrv7_r01.as_int);
@@ -1645,22 +1651,21 @@ static void operation_init(void){
 	//////////////////////////////////////////////////////////
 	// FOR LOOPBACK
 	// RX Setup
-    mrrv7_r03.MRR_RX_BIAS_TUNE    = 0x02AF;//  turn on Q_enhancement
+    mrrv7_r03.MRR_RX_BIAS_TUNE    = 0x1FFF;//  turn on Q_enhancement
 	//mrrv7_r03.MRR_RX_BIAS_TUNE    = 0x0001;//  turn off Q_enhancement
 	mrrv7_r03.MRR_RX_SAMPLE_CAP    = 0x1;  // RX_SAMPLE_CAP
 	mbus_remote_register_write(MRR_ADDR,3,mrrv7_r03.as_int);
 
-	mrrv7_r14.MRR_RAD_FSM_RX_POWERON_LEN = 0x0;  //Set RX Power on length
-	mrrv7_r14.MRR_RAD_FSM_GUARD_LEN = 0x000C; //Set TX_RX Guard length, TX_RX guard 32 cycle (28+5)
+	mrrv7_r14.MRR_RAD_FSM_GUARD_LEN = 0x0054; //Set TX_RX Guard length, TX_RX guard 32 cycle (28+5)
     mrrv7_r14.MRR_RAD_FSM_TX_POWERON_LEN = 2; //3bits
     mrrv7_r14.MRR_RAD_FSM_RX_POWERON_LEN = 0x0;  //Set RX Power on length
-    mrrv7_r14.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x0;  //Set RX Sample length  4us
+    mrrv7_r14.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x7;  //Set RX Sample length  4us
 
 	mbus_remote_register_write(MRR_ADDR,0x14,mrrv7_r14.as_int);
 
 	mrrv7_r15.MRR_RAD_FSM_RX_HDR_BITS = 0x00;  //Set RX header
 	mrrv7_r15.MRR_RAD_FSM_RX_HDR_TH = 0x00;    //Set RX header threshold
-	mrrv7_r15.MRR_RAD_FSM_RX_DATA_BITS = 0x1F; //Set RX data 1b
+	mrrv7_r15.MRR_RAD_FSM_RX_DATA_BITS = 0x0F; //Set RX data 1b
 	mbus_remote_register_write(MRR_ADDR,0x15,mrrv7_r15.as_int);
 
 	// Loopback debugging

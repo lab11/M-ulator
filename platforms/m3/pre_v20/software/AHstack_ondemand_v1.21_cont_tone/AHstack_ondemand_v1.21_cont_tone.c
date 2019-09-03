@@ -611,11 +611,13 @@ static void sht35_meas_data(){
 //************************************
 
 static void pmu_reg_write (uint32_t reg_addr, uint32_t reg_data) {
+/*
 	set_timer32_timeout(TIMER32_VAL);
     set_halt_until_mbus_trx();
     mbus_remote_register_write(PMU_ADDR,reg_addr,reg_data);
     set_halt_until_mbus_tx();
 	stop_timer32_timeout_check(0x7);
+    */
 }
 
 
@@ -1505,11 +1507,11 @@ static void operation_init(void){
 //    set_halt_until_mbus_rx();
 
     //Enumeration
-    mbus_enumerate(SNT_ADDR);
+    //mbus_enumerate(SNT_ADDR);
 	delay(MBUS_DELAY);
     mbus_enumerate(MRR_ADDR);
 	delay(MBUS_DELAY);
- 	mbus_enumerate(PMU_ADDR);
+ 	//mbus_enumerate(PMU_ADDR);
 	delay(MBUS_DELAY);
 
     // Set CPU Halt Option as TX --> Use for register write e.g.
@@ -1683,110 +1685,6 @@ static void operation_init(void){
 // Temperature measurement operation
 //***************************************************
 
-static void operation_sns_run(void){
-	if (stack_state == STK_IDLE){
-
-		stack_state = STK_HUM;
-
-		// Prepare for radio tx
-		// Woke up either because of check-in or motion detected
-		if (!radio_on){
-			radio_power_on();
-		}
-		if (adxl_motion_detected){
-			adxl_motion_count++;
-			send_radio_data_mrr(0,0x2,adxl_motion_count);	
-		}
-
-    }else if (stack_state == STK_HUM){
-		sht35_temp_data = 0;
-		sht35_hum_data = 0;
-		sht35_meas_data();
-
-		stack_state = STK_TEMP_READ;
-
-
-	}else if (stack_state == STK_TEMP_READ){
-
-		if ((sht35_temp_data > 5617) && (sht35_temp_data < 54300)){ // Between -30 and 100C
-			sht35_cur_temp = sht35_temp_data;
-		}
-		pmu_setting_temp_based();
-
-		
-		#ifdef DEBUG_MBUS_MSG
-		mbus_write_message32(0xCC, exec_count);
-		#endif
-			
-		exec_count++;
-		stack_state = STK_IDLE;
-
-
-		// Radio Packet TX
-		if (error_code != 0x0){
-			delay(RADIO_PACKET_DELAY);
-			send_radio_data_mrr(0,0xB,error_code);	// FIXME: hijacking firmware version packet code
-			delay(RADIO_PACKET_DELAY);
-			error_code = 0;
-		}
-			
-		uint32_t packet_code;
-
-		if (adxl_motion_detected){
-			// Motion Alert message
-			if (adxl_enabled){ 
-				packet_code = 0x0; // already transmitted
-			}else{
-				packet_code = 0x3; // Motion muted
-			}
-		}else{
-			if (astack_detection_mode == 0x0){
-				// Radio Test mode
-				packet_code = 0x4;
-			}else{
-				// Check-in message
-				packet_code = 0x1;
-			}
-		}
-
-		if (packet_code != 0x0){
-			send_radio_data_mrr(1,packet_code,(sht35_hum_data<<16) | (sht35_temp_data&0xFFFF));	
-		}
-		
-		// Make sure SDA and SCL are high
-		gpio_write_data_with_mask(sht35_mask,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-
-		// Get ready for sleep
-		if (astack_detection_mode & 0x1){
-			if (adxl_enabled){
-				// Reset ADXL flag
-				adxl_motion_detected = 0;
-	
-				operation_spi_init();
-				ADXL362_reg_rd(ADXL362_STATUS);
-				//ADXL362_reg_rd(ADXL362_XDATA);
-				//ADXL362_reg_rd(ADXL362_YDATA);
-				//ADXL362_reg_rd(ADXL362_ZDATA);
-				operation_spi_stop();
-			}
-		}
-
-		// Make sure Radio is off
-		if (radio_on){
-			radio_power_off();
-		}
-
-		// Restart SNT timer & go to sleep
-		snt_reset_and_restart_timer();
-		operation_sleep_snt_timer();
-
-    }else{
-        //default:  // THIS SHOULD NOT HAPPEN
-		operation_sleep_notimer();
-    }
-
-}
-
 
 static void operation_goc_trigger_init(void){
 
@@ -1887,7 +1785,6 @@ int main(){
     if(wakeup_data_header == 1){
 
 		mrrv10_r04.LDO_EN_VREF    = 1;
-		mrrv10_r04.LDO_SEL_VOUT    = 0;
 		mbus_remote_register_write(MRR_ADDR,0x4,mrrv10_r04.as_int);
 
 		mrrv10_r04.LDO_EN_IREF    = 1;
@@ -1898,17 +1795,6 @@ int main(){
 
 		disable_timerwd();
 		*MBCWD_RESET = 1;
-
-		mrrv10_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x0;  //ANT CAP 14b unary 805.5 MHz
-		mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0x0;  //ANT CAP 14b unary 805.5 MHz
-		mbus_remote_register_write(MRR_ADDR,0x00,mrrv10_r00.as_int);
-		mbus_remote_register_write(MRR_ADDR,0x01,mrrv10_r01.as_int);
-		mrrv10_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = 0;  //ANT CAP 14b unary 830.5 MHz
-		mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = 0; //ANT CAP 14b unary 830.5 MHz
-	mbus_remote_register_write(MRR_ADDR,0x01,mrrv10_r01.as_int);
-
-		mrrv10_r02.MRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
-		mbus_remote_register_write(MRR_ADDR,0x02,mrrv10_r02.as_int);
 
 		mrrv10_r00.MRR_CL_CTRL = 1;
 		mbus_remote_register_write(MRR_ADDR,0x00,mrrv10_r00.as_int);
@@ -1935,18 +1821,50 @@ int main(){
     mrrv10_r04.LDO_EN_LDO    = 0;
     mbus_remote_register_write(MRR_ADDR,0x4,mrrv10_r04.as_int);
 
+	}else if(wakeup_data_header == 0x22){
+		// Change the carrier frequency of MRR (CFO)
+		// Updated for MRRv6
+		// wakeup_data[15:0]: Fine+Coarse setting
+		// wakeup_data[23:16]: Turn on/off freq hopping 
+
+		mrr_freq_hopping = wakeup_data_field_2 & 0xF;
+		mrr_freq_hopping_step = wakeup_data_field_2 >> 4;
+
+		mrr_cfo_val_fine_min = (wakeup_data >> 10) & 0x3F; // 6 bit
+	
+		mrrv10_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = wakeup_data & 0x3FF; // 10 bit coarse setting 
+		mbus_remote_register_write(MRR_ADDR,0x00,mrrv10_r00.as_int);
+		mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = wakeup_data & 0x3FF; // 10 bit coarse setting
+		mbus_remote_register_write(MRR_ADDR,0x01,mrrv10_r01.as_int);
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x23){
+		// Change the baseband frequency of MRR (SFO)
+		mrrv10_r07.RO_MOM = wakeup_data & 0x3F;
+		mrrv10_r07.RO_MIM = wakeup_data & 0x3F;
+		mbus_remote_register_write(MRR_ADDR,0x07,mrrv10_r07.as_int);
+		
+		// Go to sleep without timer
+		operation_sleep_notimer();
+	}else if(wakeup_data_header == 0x25){
+
+		mrrv10_r04.LDO_SEL_VOUT = wakeup_data & 0x7;
+		mbus_remote_register_write(MRR_ADDR,0x04,mrrv10_r04.as_int);
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x26){
+		mrrv10_r02.MRR_TX_BIAS_TUNE = wakeup_data & 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
+		mbus_remote_register_write(MRR_ADDR,0x02,mrrv10_r02.as_int);
+
     }else{
 		if (wakeup_data_header != 0){
 			// Invalid GOC trigger
             // Go to sleep without timer
             operation_sleep_notimer();
-		}
-	}
-
-	if (sns_running){
-		// Proceed to continuous mode
-		while(1){
-			operation_sns_run();
 		}
 	}
 

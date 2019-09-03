@@ -157,6 +157,7 @@ volatile mrrv10_r12_t mrrv10_r12 = MRRv10_R12_DEFAULT;
 volatile mrrv10_r13_t mrrv10_r13 = MRRv10_R13_DEFAULT;
 volatile mrrv10_r14_t mrrv10_r14 = MRRv10_R14_DEFAULT;
 volatile mrrv10_r15_t mrrv10_r15 = MRRv10_R15_DEFAULT;
+volatile mrrv10_r16_t mrrv10_r16 = MRRv10_R16_DEFAULT;
 volatile mrrv10_r1F_t mrrv10_r1F = MRRv10_R1F_DEFAULT;
 volatile mrrv10_r21_t mrrv10_r21 = MRRv10_R21_DEFAULT;
 
@@ -611,12 +612,13 @@ static void sht35_meas_data(){
 //************************************
 
 static void pmu_reg_write (uint32_t reg_addr, uint32_t reg_data) {
-	
+/*	
 	set_timer32_timeout(TIMER32_VAL);
     set_halt_until_mbus_trx();
     mbus_remote_register_write(PMU_ADDR,reg_addr,reg_data);
     set_halt_until_mbus_tx();
 	stop_timer32_timeout_check(0x7);
+    */
 }
 
 
@@ -1193,6 +1195,12 @@ static void mrr_configure_pulse_width_short(){
 
 static void send_radio_data_mrr_sub1(){
 
+	///////////////////////
+	// FOR LOOPBACK
+	// Set S/P DCP override to 0 so that FSM takes control
+	mrrv10_r03.MRR_DCP_S_OW = 0;  //TX_Decap S (forced charge decaps)
+	mbus_remote_register_write(MRR_ADDR,3,mrrv10_r03.as_int);
+
 	// Use timer32 as timeout counter
 	set_timer32_timeout(TIMER32_VAL);
 
@@ -1214,6 +1222,16 @@ static void send_radio_data_mrr_sub1(){
 
 	mrrv10_r11.MRR_RAD_FSM_EN = 0;
 	mbus_remote_register_write(MRR_ADDR,0x11,mrrv10_r11.as_int);
+
+	////////////////
+	// FOR LOOPBACK
+	// Set decap to series
+	mrrv10_r03.MRR_DCP_S_OW = 1;  //TX_Decap S (forced charge decaps)
+	mbus_remote_register_write(MRR_ADDR,3,mrrv10_r03.as_int);
+
+    mbus_write_message32(0xA0, *REG3);
+    mbus_write_message32(0xA1, *REG4);
+
 }
 
 static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefix, uint32_t radio_data){
@@ -1496,7 +1514,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     stack_state = STK_IDLE; 	//0x0;
-    enumerated = 0x41481210; // 0x4148 is AH in ascii
+    enumerated = 0x4148121; // 0x4148 is AH in ascii
     exec_count = 0;
     wakeup_count = 0;
     exec_count_irq = 0;
@@ -1510,7 +1528,7 @@ static void operation_init(void){
 	delay(MBUS_DELAY);
     mbus_enumerate(MRR_ADDR);
 	delay(MBUS_DELAY);
- 	mbus_enumerate(PMU_ADDR);
+ 	//mbus_enumerate(PMU_ADDR);
 	delay(MBUS_DELAY);
 
     // Set CPU Halt Option as TX --> Use for register write e.g.
@@ -1566,7 +1584,6 @@ static void operation_init(void){
 
     // MRR Settings --------------------------------------
 
-	// Reqruied in MRRv10 to run like MRRv7
 	mrrv10_r21.MRR_TRX_ENb_CONT_RC = 0;  //RX_Decap P 
 	mbus_remote_register_write(MRR_ADDR,0x21,mrrv10_r21.as_int);
 
@@ -1614,17 +1631,17 @@ static void operation_init(void){
 	mbus_remote_register_write(MRR_ADDR,0x07,mrrv10_r07.as_int);
 
 	// TX Setup Carrier Freq
-	mrrv10_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x0;  //ANT CAP 10b unary 830.5 MHz
+	mrrv10_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0xFF;  //ANT CAP 10b unary 830.5 MHz
 	mbus_remote_register_write(MRR_ADDR,0x00,mrrv10_r00.as_int);
-	mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0x0; //ANT CAP 10b unary 830.5 MHz
+	mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0xFF; //ANT CAP 10b unary 830.5 MHz
 	mrrv10_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min;  //ANT CAP 14b unary 830.5 MHz
 	mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min; //ANT CAP 14b unary 830.5 MHz
 	mbus_remote_register_write(MRR_ADDR,0x01,mrrv10_r01.as_int);
-	mrrv10_r02.MRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
+	mrrv10_r02.MRR_TX_BIAS_TUNE = 0x7FF;  //Set TX BIAS TUNE 13b // Set to max
 	mbus_remote_register_write(MRR_ADDR,0x02,mrrv10_r02.as_int);
 
 	// Turn off RX mode
-    mrrv10_r03.MRR_TRX_MODE_EN = 0; //Set TRX mode
+    mrrv10_r03.MRR_TRX_MODE_EN = 1; //Set TRX mode: 0 for TX only, 1 for Loopback
 	mbus_remote_register_write(MRR_ADDR,3,mrrv10_r03.as_int);
 
     mrrv10_r14.MRR_RAD_FSM_TX_POWERON_LEN = 0; //3bits
@@ -1648,12 +1665,41 @@ static void operation_init(void){
 	mbus_remote_register_write(MRR_ADDR,0x13,mrrv10_r13.as_int);
 
 	// Mbus return address
-	mbus_remote_register_write(MRR_ADDR,0x1E,0x1002);
+	mbus_remote_register_write(MRR_ADDR,0x1E,0x41000); // Send 5 registers from 0x17 onward
 
 	// Additional delay for charging decap
    	config_timerwd(TIMERWD_VAL);
 	*REG_MBUS_WD = 1500000; // default: 1500000
 	delay(MBUS_DELAY*200); // Wait for decap to charge
+
+	//////////////////////////////////////////////////////////
+	// FOR LOOPBACK
+	// RX Setup
+    mrrv10_r03.MRR_RX_BIAS_TUNE    = 0x1FFF;//  turn on Q_enhancement
+	//mrrv10_r03.MRR_RX_BIAS_TUNE    = 0x0001;//  turn off Q_enhancement
+	mrrv10_r03.MRR_RX_SAMPLE_CAP    = 0x1;  // RX_SAMPLE_CAP
+	mbus_remote_register_write(MRR_ADDR,3,mrrv10_r03.as_int);
+
+	mrrv10_r14.MRR_RAD_FSM_GUARD_LEN = 74; //Set TX_RX Guard length, TX_RX guard 32 cycle (28+5)
+    mrrv10_r14.MRR_RAD_FSM_TX_POWERON_LEN = 2; //3bits
+    mrrv10_r14.MRR_RAD_FSM_RX_POWERON_LEN = 0;  //Set RX Power on length
+    mrrv10_r14.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x7;  //Set RX Sample length  4us
+
+	mbus_remote_register_write(MRR_ADDR,0x14,mrrv10_r14.as_int);
+
+	mrrv10_r15.MRR_RAD_FSM_RX_HDR_BITS = 0x00;  //Set RX header
+	mrrv10_r15.MRR_RAD_FSM_RX_HDR_TH = 0x00;    //Set RX header threshold
+	mrrv10_r15.MRR_RAD_FSM_RX_DATA_BITS = 0x1F; //Set RX data 1b
+	mbus_remote_register_write(MRR_ADDR,0x15,mrrv10_r15.as_int);
+
+	// Loopback debugging
+	mrrv10_r15.MRR_EN_DIG_MONITOR = 1; //1
+
+	mrrv10_r16.MRR_DIG_MONITOR_SEL2 = 0xC; //C: ED_RST
+	mbus_remote_register_write(MRR_ADDR,0x15,mrrv10_r15.as_int);
+	mbus_remote_register_write(MRR_ADDR,0x16,mrrv10_r16.as_int);
+
+	//////////////////////////////////////////////////////////
 
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 33750;   // 1: 2-4 sec with PRCv9
@@ -1865,7 +1911,7 @@ int main(){
 	#endif
 
     // Initialization sequence
-    if (enumerated != 0x41481210){
+    if (enumerated != 0x4148121){
         operation_init();
     }
 
@@ -2010,6 +2056,18 @@ int main(){
 		// Go to sleep without timer
 		operation_sleep_notimer();
 */
+
+	}else if(wakeup_data_header == 0x25){
+
+		mrrv10_r04.LDO_SEL_VOUT = wakeup_data & 0x7;
+		mbus_remote_register_write(MRR_ADDR,0x04,mrrv10_r04.as_int);
+
+		// Go to sleep without timer
+		operation_sleep_notimer();
+
+	}else if(wakeup_data_header == 0x26){
+		mrrv10_r02.MRR_TX_BIAS_TUNE = wakeup_data & 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
+		mbus_remote_register_write(MRR_ADDR,0x02,mrrv10_r02.as_int);
 
     }else if(wakeup_data_header == 0x32){
 		// Run temp measurement routine with desired wakeup period and ADXL running in the background
