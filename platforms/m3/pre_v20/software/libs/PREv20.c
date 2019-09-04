@@ -161,6 +161,14 @@ void freeze_gpio_out (void) {
 }
 void unfreeze_gpio_out (void) {
     uint32_t reg_ = *REG_PERIPHERAL & 0xFFFEFFFF;
+    *REG_PERIPHERAL = reg_;
+}
+void freeze_ngpio_out (void) {
+    uint32_t reg_ = *REG_PERIPHERAL | 0x00010000;
+    *REG_PERIPHERAL = reg_;
+}
+void unfreeze_ngpio_out (void) {
+    uint32_t reg_ = *REG_PERIPHERAL & 0xFFFEFFFF;
     *GPIO_IRQ_MASK = *R_GPIO_IRQ_MASK;
     *GPIO_DIR = *R_GPIO_DIR;
     *GPIO_DATA = *R_GPIO_DATA;
@@ -178,6 +186,18 @@ void config_gpio_negedge_wirq (uint32_t config) {
     reg_ = reg_ | (config << 8);
     *REG_PERIPHERAL = reg_;
 }
+void config_ngpio_posedge_wirq (uint32_t config) {
+    config = config & 0xF;
+    uint32_t reg_ = *REG_PERIPHERAL & 0xFFFF0FFF;
+    reg_ = reg_ | (config << 12);
+    *REG_PERIPHERAL = reg_;
+}
+void config_ngpio_negedge_wirq (uint32_t config) {
+    config = config & 0xF;
+    uint32_t reg_ = *REG_PERIPHERAL & 0xFFFFF0FF;
+    reg_ = reg_ | (config << 8);
+    *REG_PERIPHERAL = reg_;
+}
 void set_cps (uint32_t cps_config) {
     *REG_CPS = 0x00000007 & cps_config;
 }
@@ -185,7 +205,17 @@ void set_cps (uint32_t cps_config) {
 //***************************************************
 // GPIO
 //**************************************************
+volatile uint32_t gpio_data_;
+
 void gpio_init (uint32_t dir) {
+    // Direction: 1=Output, 0=Input
+    gpio_set_irq_mask (0x00000000);
+    gpio_set_dir (dir);
+    gpio_set_data (0x00000000);
+    set_gpio_pad(0xFF);
+    unfreeze_gpio_out();
+}
+void ngpio_init (uint32_t dir) {
     // Direction: 1=Output, 0=Input
     gpio_set_irq_mask (0x00000000);
     gpio_set_dir (dir);
@@ -195,47 +225,96 @@ void gpio_init (uint32_t dir) {
 }
 void gpio_set_dir (uint32_t dir) {
     // Direction: 1=Output, 0=Input
+    *GPIO_DIR = dir;
+}
+void ngpio_set_dir (uint32_t dir) {
+    // Direction: 1=Output, 0=Input
     *R_GPIO_DIR = dir;
     *GPIO_DIR = *R_GPIO_DIR;
 }
 void gpio_set_dir_with_mask (uint32_t mask, uint32_t dir) {
     // Direction: 1=Output, 0=Input
+    *GPIO_DIR = (*GPIO_DIR & ~mask) | (mask & dir);
+}
+void ngpio_set_dir_with_mask (uint32_t mask, uint32_t dir) {
+    // Direction: 1=Output, 0=Input
     *R_GPIO_DIR = (*R_GPIO_DIR & ~mask) | (mask & dir);
     *GPIO_DIR = *R_GPIO_DIR;
 }
 uint32_t gpio_get_dir (void) {
+    return *GPIO_DIR;
+}
+uint32_t ngpio_get_dir (void) {
     return *R_GPIO_DIR;
 }
 uint32_t gpio_get_data (void) {
+    return *GPIO_DATA;
+}
+uint32_t ngpio_get_data (void) {
     // Read from R_GPIO_DATA if the direction is output.
     // Read from GPIO_DATA if the direction is input.
     return (*R_GPIO_DATA & *R_GPIO_DIR) | *GPIO_DATA;
 }
+void gpio_set_data (uint32_t data) {
+    gpio_data_ = data;
+}
+void gpio_write_current_data (void) {
+    *GPIO_DATA = gpio_data_;
+}
 void gpio_write_data (uint32_t data) {
+    gpio_data_ = data;
+    *GPIO_DATA = gpio_data_;
+}
+void ngpio_write_data (uint32_t data) {
     *R_GPIO_DATA = data;
     *GPIO_DATA = *R_GPIO_DATA;
 }
+void gpio_write_raw (uint32_t data) {
+    *GPIO_DATA = data;
+}
 void gpio_write_data_with_mask (uint32_t mask, uint32_t data) {
+    gpio_data_ = (*GPIO_DATA & ~mask) | (mask & data);
+    *GPIO_DATA = gpio_data_;
+}
+void ngpio_write_data_with_mask (uint32_t mask, uint32_t data) {
     *R_GPIO_DATA = (*R_GPIO_DATA & ~mask) | (mask & data);
     *GPIO_DATA = *R_GPIO_DATA;
 }
 void gpio_set_bit (uint32_t loc) {
+    gpio_data_ = (gpio_data_ | (1 << loc));
+    gpio_write_current_data();
+}
+void ngpio_set_bit (uint32_t loc) {
     *R_GPIO_DATA = (*R_GPIO_DATA | (1 << loc));
     *GPIO_DATA = *R_GPIO_DATA;
 }
 void gpio_kill_bit (uint32_t loc) {
+    gpio_data_ = ~((~gpio_data_) | (1 << loc));
+    gpio_write_current_data();
+}
+void ngpio_kill_bit (uint32_t loc) {
     *R_GPIO_DATA = ~((~*R_GPIO_DATA) | (1 << loc));
     *GPIO_DATA = *R_GPIO_DATA;
 }
 void gpio_set_2bits (uint32_t loc0, uint32_t loc1) {
+    gpio_data_ = (gpio_data_ | (1 << loc0) | (1 << loc1));
+    gpio_write_current_data();
+}
+void ngpio_set_2bits (uint32_t loc0, uint32_t loc1) {
     *R_GPIO_DATA = (*R_GPIO_DATA | (1 << loc0) | (1 << loc1));
     *GPIO_DATA = *R_GPIO_DATA;
 }
 void gpio_set_irq_mask (uint32_t mask) {
+    *GPIO_IRQ_MASK = mask;
+}
+void ngpio_set_irq_mask (uint32_t mask) {
     *R_GPIO_IRQ_MASK = mask;
     *GPIO_IRQ_MASK = *R_GPIO_IRQ_MASK;
 }
 void gpio_close (void) {
+    set_gpio_pad(0x00);
+}
+void ngpio_close (void) {
     set_gpio_pad(0x00);
 }
 

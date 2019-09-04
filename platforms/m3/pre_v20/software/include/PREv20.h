@@ -578,8 +578,10 @@ void unfreeze_spi_out (void);
  *
  * @param   N/A
  */
-void freeze_gpio_out (void);
-void unfreeze_gpio_out (void);
+void freeze_gpio_out (void); // [DEPRECATED]
+void unfreeze_gpio_out (void); // [DEPRECATED]
+void freeze_ngpio_out (void);
+void unfreeze_ngpio_out (void);
 
 
 /**
@@ -589,8 +591,10 @@ void unfreeze_gpio_out (void);
  *                      '1' enables the wake-up IRQ at the specified edge.
  *                      '0' disables the wake-up IRQ at the specified edge.
  */
-void config_gpio_posedge_wirq (uint32_t config);
-void config_gpio_negedge_wirq (uint32_t config);
+void config_gpio_posedge_wirq (uint32_t config); // [DEPRECATED]
+void config_gpio_negedge_wirq (uint32_t config); // [DEPRECATED]
+void config_ngpio_posedge_wirq (uint32_t config);
+void config_ngpio_negedge_wirq (uint32_t config);
 
 /**
  * @brief   Enable/Disable COTS switches
@@ -613,8 +617,8 @@ void set_cps (uint32_t cps_config);
  *                  '1' sets the corresponding GPIO bit as output
  *                  '0' sets the corresponding GPIO bit as input
  */
-void gpio_init (uint32_t dir);
-
+void gpio_init (uint32_t dir); // [DEPRECATED]
+void ngpio_init (uint32_t dir);
 
 /**
  * @brief   Set GPIO directions
@@ -623,7 +627,8 @@ void gpio_init (uint32_t dir);
  *                  '1' sets the corresponding GPIO bit as output
  *                  '0' sets the corresponding GPIO bit as input
  */
-void gpio_set_dir (uint32_t dir);
+void gpio_set_dir (uint32_t dir); // [DEPRECATED]
+void ngpio_set_dir (uint32_t dir);
 
 
 /**
@@ -637,7 +642,8 @@ void gpio_set_dir (uint32_t dir);
  *                  '1' changes the corresponding bit direction using 'dir'
  *                  '0' does not change the corresponding bit direction.
  */
-void gpio_set_dir_with_mask (uint32_t mask, uint32_t dir);
+void gpio_set_dir_with_mask (uint32_t mask, uint32_t dir); // [DEPRECATED]
+void ngpio_set_dir_with_mask (uint32_t mask, uint32_t dir);
 
 
 /**
@@ -646,14 +652,39 @@ void gpio_set_dir_with_mask (uint32_t mask, uint32_t dir);
  *              '1' means the corresponding GPIO bit is output.
  *              '0' means the corresponding GPIO bit is input.
  */
-uint32_t gpio_get_dir (void);
+uint32_t gpio_get_dir (void); // [DEPRECATED]
+uint32_t ngpio_get_dir (void);
 
 
 /**
  * @brief   Return the current GPIO data
  *          The return value is a 8-bit GPIO data
  */
-uint32_t gpio_get_data (void);
+uint32_t gpio_get_data (void); // [DEPRECATED]
+uint32_t ngpio_get_data (void);
+
+
+/**
+ * [DEPRECATED] DO NOT USE THIS FUNCTION IN NEW CODES
+ *
+ * @brief   Set GPIO data
+ *          It does NOT change GPIO output. It just sets the internal variable 'gpio_data_'.
+ *          In order to change the GPIO output, use this function, and then use gpio_write_current_data()
+ *          If you want to change gpio_data_ as well as the actual GPIO output, then use gpio_write_data()
+ *
+ * @param   data    8-bit data
+ */
+void gpio_set_data (uint32_t data);
+
+
+/**
+ * [DEPRECATED] DO NOT USE THIS FUNCTION IN NEW CODES
+ *
+ * @brief   Change GPIO output using gpio_data_
+ *          Make sure gpio_data_ has the correct value. You may need to use gpio_set_data().
+ */
+void gpio_write_current_data (void);
+
 
 
 /**
@@ -664,7 +695,19 @@ uint32_t gpio_get_data (void);
  *
  * @param   data    8-bit data
  */
-void gpio_write_data (uint32_t data);
+void gpio_write_data (uint32_t data); // [DEPRECATED]
+void ngpio_write_data (uint32_t data);
+
+
+/**
+ * [DEPRECATED] DO NOT USE THIS FUNCTION IN NEW CODES
+ *
+ * @brief   Change GPIO output
+ *          This function changes the GPIO output, but does NOT update gpio_data_.
+ *
+ * @param   data    8-bit data
+ */
+void gpio_write_raw (uint32_t data);
 
 
 /**
@@ -679,7 +722,8 @@ void gpio_write_data (uint32_t data);
  *
  * @note    It does not overwrite bits if their directions are set to input.
  */
-void gpio_write_data_with_mask (uint32_t mask, uint32_t data);
+void gpio_write_data_with_mask (uint32_t mask, uint32_t data); // [DEPRECATED]
+void ngpio_write_data_with_mask (uint32_t mask, uint32_t data);
 
 
 /**
@@ -687,7 +731,8 @@ void gpio_write_data_with_mask (uint32_t mask, uint32_t data);
  *
  * @param   loc     GPIO pin location.
  */
-void gpio_set_bit (uint32_t loc);
+void gpio_set_bit (uint32_t loc); // [DEPRECATED]
+void ngpio_set_bit (uint32_t loc);
 
 
 /**
@@ -695,7 +740,8 @@ void gpio_set_bit (uint32_t loc);
  *
  * @param   loc     GPIO pin location.
  */
-void gpio_kill_bit (uint32_t loc);
+void gpio_kill_bit (uint32_t loc); // [DEPRECATED]
+void ngpio_kill_bit (uint32_t loc);
 
 
 /**
@@ -704,7 +750,8 @@ void gpio_kill_bit (uint32_t loc);
  * @param   loc0    GPIO pin location.
  * @param   loc1    GPIO pin location.
  */
-void gpio_set_2bits (uint32_t loc0, uint32_t loc1);
+void gpio_set_2bits (uint32_t loc0, uint32_t loc1); // [DEPRECATED]
+void ngpio_set_2bits (uint32_t loc0, uint32_t loc1);
 
 
 /**
@@ -714,13 +761,15 @@ void gpio_set_2bits (uint32_t loc0, uint32_t loc1);
  *
  * @param   mask    8-bit mask pattern
  */
-void gpio_set_irq_mask (uint32_t mask);
+void gpio_set_irq_mask (uint32_t mask); // [DEPRECATED]
+void ngpio_set_irq_mask (uint32_t mask);
 
 
 /**
  * @brief   Terminate GPIO operations.
  *          Internally, it is same as disable_io_pad()
  */
-void gpio_close (void);
+void gpio_close (void); // [DEPRECATED]
+void ngpio_close (void);
 
 #endif // PREV20_H
