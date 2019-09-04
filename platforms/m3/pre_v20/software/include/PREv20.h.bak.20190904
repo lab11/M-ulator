@@ -203,13 +203,6 @@
 #define GPIO_IRQ_MASK   ((volatile uint32_t *) 0xA0005410) // (Active High) Controls which GPIO lines to monitor for interrupt
 
 //*********************************************************
-// GPIO Retentive Storage
-//*********************************************************
-#define R_GPIO_DATA     ((volatile uint32_t *) 0x00000010)
-#define R_GPIO_DIR      ((volatile uint32_t *) 0x00000014)
-#define R_GPIO_IRQ_MASK ((volatile uint32_t *) 0x00000018)
-
-//*********************************************************
 // PRC/PREv20 System Registers
 //*********************************************************
 #define SREG_CONF_HALT      ((volatile uint32_t *) 0xA000A000)
@@ -625,19 +618,8 @@ void gpio_init (uint32_t dir);
  */
 void gpio_set_dir (uint32_t dir);
 
-
-/**
- * @brief   Set GPIO directions with Mask
- *
- * @param   dir     8-bit pattern setting GPIO directions.
- *                  '1' sets the corresponding GPIO bit as output
- *                  '0' sets the corresponding GPIO bit as input
- *
- *          mask    8-bit mask pattern.
- *                  '1' changes the corresponding bit direction using 'dir'
- *                  '0' does not change the corresponding bit direction.
- */
 void gpio_set_dir_with_mask (uint32_t mask, uint32_t dir);
+void gpio_write_data_with_mask (uint32_t mask, uint32_t data);
 
 
 /**
@@ -657,10 +639,27 @@ uint32_t gpio_get_data (void);
 
 
 /**
- * @brief   Change GPIO output
- *          This function changes the GPIO output.
+ * @brief   Set GPIO data
+ *          It does NOT change GPIO output. It just sets the internal variable 'gpio_data_'.
+ *          In order to change the GPIO output, use this function, and then use gpio_write_current_data()
+ *          If you want to change gpio_data_ as well as the actual GPIO output, then use gpio_write_data()
  *
- * @note    It does not overwrite bits if their directions are set to input.
+ * @param   data    8-bit data
+ */
+void gpio_set_data (uint32_t data);
+
+
+/**
+ * @brief   Change GPIO output using gpio_data_
+ *          Make sure gpio_data_ has the correct value. You may need to use gpio_set_data().
+ */
+void gpio_write_current_data (void);
+
+
+
+/**
+ * @brief   Change GPIO output
+ *          This function changes the GPIO output as well as gpio_data_.
  *
  * @param   data    8-bit data
  */
@@ -669,17 +668,11 @@ void gpio_write_data (uint32_t data);
 
 /**
  * @brief   Change GPIO output
- *          This function changes the GPIO output with masking.
+ *          This function changes the GPIO output, but does NOT update gpio_data_.
  *
  * @param   data    8-bit data
- *
- *          mask    8-bit mask pattern.
- *                  '1' changes the corresponding bit value using 'data'
- *                  '0' does not change the corresponding bit data.
- *
- * @note    It does not overwrite bits if their directions are set to input.
  */
-void gpio_write_data_with_mask (uint32_t mask, uint32_t data);
+void gpio_write_raw (uint32_t data);
 
 
 /**
