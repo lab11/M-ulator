@@ -1,6 +1,7 @@
 //*******************************************************************
-//Author: Seokhyeon 
-//Description: SNTv1's CLK Testing
+//Author: Gordy Carichner
+//Description: transmits and receives data on UCSB's SiLab 4464 radio boards using single PREv20 SPI bus.
+// Currently uses PREv20 and SNT layers, though SNT is a dummy layer.
 //*******************************************************************
 #include "PREv20.h"
 #include "PREv20_RF.h"
