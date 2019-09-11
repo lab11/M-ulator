@@ -1493,9 +1493,8 @@ static void operation_init(void){
     prev20_r0B.GOC_SEL = 0xF; // Default 0x8
 	*REG_CLKGEN_TUNE = prev20_r0B.as_int;
 
-    prev20_r1C.SRAM0_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
-    prev20_r1C.SRAM0_TUNE_DECODER_DLY = 15; // Default 0x2, 4 bits
-    prev20_r1C.SRAM0_USE_INVERTER_SA= 0; 
+    prev20_r1C.SRAM0_TUNE_DECODER_DLY = 0x10; // Default 0x10, 5 bits
+    prev20_r1C.SRAM0_USE_INVERTER_SA = 0;  // Default 0
 	*REG_SRAM0_TUNE = prev20_r1C.as_int;
   
   
