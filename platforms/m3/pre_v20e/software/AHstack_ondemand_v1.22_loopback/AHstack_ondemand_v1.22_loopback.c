@@ -40,6 +40,7 @@
 //			       Make LDO output, MRR bias tunable
 //			v1.22: PREv20E, Core clock 2x, Adding GOC clk tuning
 //				   Using Macro for GPIO masking
+//				   GPIO remapped for CISv1
 //*******************************************************************
 #include "PREv20.h"
 #include "PREv20_RF.h"
@@ -156,6 +157,7 @@ volatile mrrv10_r12_t mrrv10_r12 = MRRv10_R12_DEFAULT;
 volatile mrrv10_r13_t mrrv10_r13 = MRRv10_R13_DEFAULT;
 volatile mrrv10_r14_t mrrv10_r14 = MRRv10_R14_DEFAULT;
 volatile mrrv10_r15_t mrrv10_r15 = MRRv10_R15_DEFAULT;
+volatile mrrv10_r16_t mrrv10_r16 = MRRv10_R16_DEFAULT;
 volatile mrrv10_r1F_t mrrv10_r1F = MRRv10_R1F_DEFAULT;
 volatile mrrv10_r21_t mrrv10_r21 = MRRv10_R21_DEFAULT;
 
@@ -1191,10 +1193,42 @@ static void mrr_configure_pulse_width_short(){
 */
 
 
+static void send_radio_data_mrr_sub1(){
+
+    // Don't enable LOOPBACK
+    mrrv10_r03.MRR_TRX_MODE_EN = 0; //Set TRX mode: 0 for TX only, 1 for Loopback
+	mbus_remote_register_write(MRR_ADDR,3,mrrv10_r03.as_int);
+
+	// Use timer32 as timeout counter
+	set_timer32_timeout(TIMER32_VAL);
+
+    // Turn on Current Limter
+    mrrv10_r00.MRR_CL_EN = 1;
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv10_r00.as_int);
+
+    // Fire off data
+	mrrv10_r11.MRR_RAD_FSM_EN = 1;  //Start BB
+	mbus_remote_register_write(MRR_ADDR,0x11,mrrv10_r11.as_int);
+
+	// Wait for radio response
+	WFI();
+	stop_timer32_timeout_check(0x3);
+	
+    // Turn off Current Limter
+    mrrv10_r00.MRR_CL_EN = 0;
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv10_r00.as_int);
+
+	mrrv10_r11.MRR_RAD_FSM_EN = 0;
+	mbus_remote_register_write(MRR_ADDR,0x11,mrrv10_r11.as_int);
+}
+
 static void send_radio_data_mrr_sub_loopback(){
 
 	///////////////////////
 	// FOR LOOPBACK
+    // Enable LOOPBACK
+    mrrv10_r03.MRR_TRX_MODE_EN = 1; //Set TRX mode: 0 for TX only, 1 for Loopback
+	mbus_remote_register_write(MRR_ADDR,3,mrrv10_r03.as_int);
 	// Set S/P DCP override to 0 so that FSM takes control
 	mrrv10_r03.MRR_DCP_S_OW = 0;  //TX_Decap S (forced charge decaps)
 	mbus_remote_register_write(MRR_ADDR,3,mrrv10_r03.as_int);
@@ -1221,7 +1255,7 @@ static void send_radio_data_mrr_sub_loopback(){
 	mrrv10_r11.MRR_RAD_FSM_EN = 0;
 	mbus_remote_register_write(MRR_ADDR,0x11,mrrv10_r11.as_int);
 
-	////////////////
+    ////////////////////////////////////
 	// FOR LOOPBACK
 	// Set decap to series
 	mrrv10_r03.MRR_DCP_S_OW = 1;  //TX_Decap S (forced charge decaps)
@@ -1229,34 +1263,26 @@ static void send_radio_data_mrr_sub_loopback(){
 
     mbus_write_message32(0xA0, *REG3);
     mbus_write_message32(0xA1, *REG4);
+    uint32_t loopback_data = (*REG3&0xFFFFFF)|((*REG4&0xFF)<<24);
+    mbus_write_message32(0xA2, loopback_data);
 
+/*
+	radio_packet_count++;
+
+    // Send Loopback RX data
+	// CRC16 Encoding 
+    uint32_t* output_data;
+    output_data = crcEnc16(((read_data_batadc & 0xFF)<<8) | ((0x4)<<4) | ((radio_packet_count>>16)&0xF), ((radio_packet_count & 0xFFFF)<<16) | (*REG_CHIP_ID & 0xFFFF), loopback_data);
+
+    mbus_remote_register_write(MRR_ADDR,0xD,loopback_data & 0xFFFFFF);
+    mbus_remote_register_write(MRR_ADDR,0xE,(*REG_CHIP_ID<<8)|(loopback_data>>24));
+    mbus_remote_register_write(MRR_ADDR,0xF,(0x4<<20)|(radio_packet_count&0xFFFFF));
+    mbus_remote_register_write(MRR_ADDR,0x10,((output_data[2] & 0xFFFF)<<8)|(read_data_batadc&0xFF));
+
+    send_radio_data_mrr_sub1();
+    */
+    ////////////////////////////////////
 }
-
-static void send_radio_data_mrr_sub1(){
-
-	// Use timer32 as timeout counter
-	set_timer32_timeout(TIMER32_VAL);
-
-    // Turn on Current Limter
-    mrrv10_r00.MRR_CL_EN = 1;
-    mbus_remote_register_write(MRR_ADDR,0x00,mrrv10_r00.as_int);
-
-    // Fire off data
-	mrrv10_r11.MRR_RAD_FSM_EN = 1;  //Start BB
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv10_r11.as_int);
-
-	// Wait for radio response
-	WFI();
-	stop_timer32_timeout_check(0x3);
-	
-    // Turn off Current Limter
-    mrrv10_r00.MRR_CL_EN = 0;
-    mbus_remote_register_write(MRR_ADDR,0x00,mrrv10_r00.as_int);
-
-	mrrv10_r11.MRR_RAD_FSM_EN = 0;
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv10_r11.as_int);
-}
-
 static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefix, uint32_t radio_data){
 	// Sends 192 bit packet, of which 96b is actual data
 	// MRR REG_9: reserved for header
@@ -1312,7 +1338,7 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
 		mrrv10_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine; 
 		mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine;
 		mbus_remote_register_write(MRR_ADDR,0x01,mrrv10_r01.as_int);
-		send_radio_data_mrr_sub1();
+		send_radio_data_mrr_sub_loopback();
 		count++;
 		if (count < num_packets){
 			delay(RADIO_PACKET_DELAY);
@@ -1640,7 +1666,7 @@ static void operation_init(void){
 	mrr_configure_pulse_width_long();
 
 	mrr_freq_hopping = 5;
-	mrr_freq_hopping_step = 4;
+	mrr_freq_hopping_step = 2;
 
 	mrr_cfo_val_fine_min = 0x0000;
 
@@ -1657,9 +1683,9 @@ static void operation_init(void){
 	mbus_remote_register_write(MRR_ADDR,0x07,mrrv10_r07.as_int);
 
 	// TX Setup Carrier Freq
-	mrrv10_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x0;  //ANT CAP 10b unary 830.5 MHz
+	mrrv10_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0xFF;  //ANT CAP 10b unary 830.5 MHz
 	mbus_remote_register_write(MRR_ADDR,0x00,mrrv10_r00.as_int);
-	mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0x0; //ANT CAP 10b unary 830.5 MHz
+	mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0xFF; //ANT CAP 10b unary 830.5 MHz
 	mrrv10_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min;  //ANT CAP 14b unary 830.5 MHz
 	mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min; //ANT CAP 14b unary 830.5 MHz
 	mbus_remote_register_write(MRR_ADDR,0x01,mrrv10_r01.as_int);
@@ -1667,7 +1693,7 @@ static void operation_init(void){
 	mbus_remote_register_write(MRR_ADDR,0x02,mrrv10_r02.as_int);
 
 	// Turn off RX mode
-    mrrv10_r03.MRR_TRX_MODE_EN = 0; //Set TRX mode
+    mrrv10_r03.MRR_TRX_MODE_EN = 1; //Set TRX mode: 0 for TX only, 1 for Loopback
 	mbus_remote_register_write(MRR_ADDR,3,mrrv10_r03.as_int);
 
     mrrv10_r14.MRR_RAD_FSM_TX_POWERON_LEN = 0; //3bits
@@ -1693,7 +1719,7 @@ static void operation_init(void){
     mrrv10_r04.LDO_SEL_VOUT = 0; // New for MRRv10
     mbus_remote_register_write(MRR_ADDR,0x04,mrrv10_r04.as_int);
 	// Mbus return address
-	mbus_remote_register_write(MRR_ADDR,0x1E,0x1002);
+	mbus_remote_register_write(MRR_ADDR,0x1E,0x41000); // Send 5 registers from 0x17 onward
 
 	// Additional delay for charging decap
    	config_timerwd(TIMERWD_VAL);
