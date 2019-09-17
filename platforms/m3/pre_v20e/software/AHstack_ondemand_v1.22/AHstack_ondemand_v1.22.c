@@ -40,6 +40,7 @@
 //			       Make LDO output, MRR bias tunable
 //			v1.22: PREv20E, Core clock 2x, Adding GOC clk tuning
 //				   Using Macro for GPIO masking
+//				   GPIO remapped for CISv1
 //*******************************************************************
 #include "PREv20.h"
 #include "PREv20_RF.h"

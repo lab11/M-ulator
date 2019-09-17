@@ -1193,7 +1193,7 @@ static void mrr_configure_pulse_width_short(){
 */
 
 
-static void send_radio_data_mrr_sub1(){
+static void send_radio_data_mrr_sub_loopback(){
 
 	///////////////////////
 	// FOR LOOPBACK
@@ -1231,6 +1231,8 @@ static void send_radio_data_mrr_sub1(){
 
     mbus_write_message32(0xA0, *REG3);
     mbus_write_message32(0xA1, *REG4);
+    uint32_t loopback_data = (*REG3&0xFFFFFF)|((*REG4&0xFF)<<24);
+    mbus_write_message32(0xA2, loopback_data);
 
 }
 
@@ -1289,7 +1291,7 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
 		mrrv10_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine; 
 		mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine;
 		mbus_remote_register_write(MRR_ADDR,0x01,mrrv10_r01.as_int);
-		send_radio_data_mrr_sub1();
+		send_radio_data_mrr_sub_loopback();
 		count++;
 		if (count < num_packets){
 			delay(RADIO_PACKET_DELAY);
@@ -1614,7 +1616,7 @@ static void operation_init(void){
 	mrr_configure_pulse_width_long();
 
 	mrr_freq_hopping = 5;
-	mrr_freq_hopping_step = 4;
+	mrr_freq_hopping_step = 2;
 
 	mrr_cfo_val_fine_min = 0x0000;
 
@@ -1680,7 +1682,7 @@ static void operation_init(void){
 	mrrv10_r03.MRR_RX_SAMPLE_CAP    = 0x1;  // RX_SAMPLE_CAP
 	mbus_remote_register_write(MRR_ADDR,3,mrrv10_r03.as_int);
 
-	mrrv10_r14.MRR_RAD_FSM_GUARD_LEN = 74; //Set TX_RX Guard length, TX_RX guard 32 cycle (28+5)
+	mrrv10_r14.MRR_RAD_FSM_GUARD_LEN = 72; //Set TX_RX Guard length, TX_RX guard 32 cycle (28+5)
     mrrv10_r14.MRR_RAD_FSM_TX_POWERON_LEN = 2; //3bits
     mrrv10_r14.MRR_RAD_FSM_RX_POWERON_LEN = 0;  //Set RX Power on length
     mrrv10_r14.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x7;  //Set RX Sample length  4us
