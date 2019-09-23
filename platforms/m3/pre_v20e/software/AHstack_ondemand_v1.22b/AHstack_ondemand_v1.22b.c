@@ -1773,9 +1773,6 @@ static void operation_sns_run(void){
 				// Reset ADXL flag
 				adxl_motion_detected = 0;
 
-				// Need to reset wakeup source register since pending wakeup is used	
-				*SREG_WAKEUP_SOURCE = 0;
-
 				operation_spi_init();
 				ADXL362_reg_rd(ADXL362_STATUS);
 				//ADXL362_reg_rd(ADXL362_XDATA);
@@ -1789,6 +1786,9 @@ static void operation_sns_run(void){
 		if (radio_on){
 			radio_power_off();
 		}
+
+		// Need to reset SREG_WAKEUP_SOURCE since pending wakeup is used	
+		*SCTR_REG_CLR_WUP_SOURCE = 0;
 
 		// Restart SNT timer & go to sleep
 		snt_reset_and_restart_timer();
