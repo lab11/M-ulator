@@ -182,7 +182,7 @@ void set_cps (uint32_t cps_config) {
 //***************************************************
 // GPIO
 //**************************************************
-volatile uint32_t gpio_data_;
+//volatile uint32_t gpio_data_;
 
 void gpio_init (uint32_t dir) {
     // Direction: 1=Output, 0=Input

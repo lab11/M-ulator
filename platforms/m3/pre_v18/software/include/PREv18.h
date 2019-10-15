@@ -244,6 +244,7 @@
 #include <stdbool.h>
 #include "PREv18_RF.h"
 
+volatile uint32_t gpio_data_;
 
 //*********************************************************
 // FUNCTIONS
