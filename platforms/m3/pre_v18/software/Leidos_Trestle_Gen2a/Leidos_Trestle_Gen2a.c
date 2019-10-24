@@ -12,7 +12,7 @@
 #include "PMUv7_RF.h"
 #include "mbus.h"
   
-#define ENUMID 0xDEADBEEF
+#define ENUMID 0xBEEF
 
 #include "DFT_LUT.txt"
 #include "DCT_PHS.txt"
@@ -74,82 +74,82 @@
 //********************************************************************
 // "static" limits the variables to this file, giving compiler more freedom
 // "volatile" should only be used for MMIO --> ensures memory storage
-volatile uint32_t irq_history;
-volatile uint32_t enumerated;
+//volatile uint32_t irq_history;
+volatile uint16_t enumerated;
 volatile uint32_t wakeup_data;
-volatile uint32_t Tstack_state;
-volatile uint32_t wfi_timeout_flag;
+volatile uint8_t Tstack_state;
+volatile uint8_t wfi_timeout_flag;
 volatile uint32_t exec_count;
-volatile uint32_t meas_count;
-volatile uint32_t exec_count_irq;
-volatile uint32_t wakeup_period_count;
-volatile uint32_t wakeup_timer_multiplier;
+volatile uint8_t meas_count;
+volatile uint8_t exec_count_irq;
+//volatile uint32_t wakeup_period_count;
+//volatile uint32_t wakeup_timer_multiplier;
 //volatile uint32_t PMU_ADC_3P0_VAL;
 //volatile uint32_t pmu_parkinglot_mode;
-volatile uint32_t pmu_setting_state;
-volatile uint32_t PMU_M10C_threshold_sns;
-volatile uint32_t PMU_00C_threshold_sns;
-volatile uint32_t PMU_10C_threshold_sns;
-volatile uint32_t PMU_20C_threshold_sns;
-volatile uint32_t PMU_35C_threshold_sns;
-volatile uint32_t PMU_55C_threshold_sns;
-volatile uint32_t PMU_75C_threshold_sns;
-volatile uint32_t NUM_MEAS_USER;
+volatile uint8_t pmu_setting_state;
+volatile uint16_t PMU_M10C_threshold_sns;
+volatile uint16_t PMU_00C_threshold_sns;
+volatile uint16_t PMU_10C_threshold_sns;
+volatile uint16_t PMU_20C_threshold_sns;
+volatile uint16_t PMU_35C_threshold_sns;
+volatile uint16_t PMU_55C_threshold_sns;
+volatile uint16_t PMU_75C_threshold_sns;
+//volatile uint32_t NUM_MEAS_USER;
 
 volatile uint32_t temp_storage_latest;
 volatile uint32_t read_data_temp; // [23:0] Temp Sensor D Out
 volatile uint32_t TEMP_CALIB_A;
 volatile uint32_t TEMP_CALIB_B;
 
-volatile uint32_t pmu_sar_conv_ratio_val_test_on;
-volatile uint32_t pmu_sar_conv_ratio_val_test_off;
-volatile uint32_t read_data_batadc;
+volatile uint8_t pmu_sar_conv_ratio_val_test_on;
+volatile uint8_t pmu_sar_conv_ratio_val_test_off;
+volatile uint8_t read_data_batadc;
 
 volatile uint32_t WAKEUP_PERIOD_CONT_USER; 
 volatile uint32_t WAKEUP_PERIOD_CONT; 
-volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
+//volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
 
 volatile uint32_t temp_storage_debug;
 volatile uint32_t temp_running;
 volatile uint32_t wakeup_timer_option;
 volatile uint32_t snt_wup_counter_cur;
-volatile uint32_t snt_timer_enabled;
-volatile uint32_t SNT_0P5S_VAL;
-
+volatile uint8_t snt_timer_enabled;
+volatile uint16_t SNT_0P5S_VAL;
+   
 volatile sntv3_r00_t sntv3_r00 = SNTv3_R00_DEFAULT;
 volatile sntv3_r01_t sntv3_r01 = SNTv3_R01_DEFAULT;
-volatile sntv3_r03_t sntv3_r03 = SNTv3_R03_DEFAULT;
+//volatile sntv3_r03_t sntv3_r03 = SNTv3_R03_DEFAULT;
 volatile sntv3_r08_t sntv3_r08 = SNTv3_R08_DEFAULT;
 volatile sntv3_r09_t sntv3_r09 = SNTv3_R09_DEFAULT;
-volatile sntv3_r0A_t sntv3_r0A = SNTv3_R0A_DEFAULT;
-volatile sntv3_r0B_t sntv3_r0B = SNTv3_R0B_DEFAULT;
+//volatile sntv3_r0A_t sntv3_r0A = SNTv3_R0A_DEFAULT;
+//volatile sntv3_r0B_t sntv3_r0B = SNTv3_R0B_DEFAULT;
 volatile sntv3_r17_t sntv3_r17 = SNTv3_R17_DEFAULT;
 
-volatile prev18_r0B_t prev18_r0B = PREv18_R0B_DEFAULT;
+//volatile prev18_r0B_t prev18_r0B = PREv18_R0B_DEFAULT;
 volatile prev18_r19_t prev18_r19 = PREv18_R19_DEFAULT;
-volatile prev18_r1A_t prev18_r1A = PREv18_R1A_DEFAULT;
-volatile prev18_r1C_t prev18_r1C = PREv18_R1C_DEFAULT;
+//volatile prev18_r1A_t prev18_r1A = PREv18_R1A_DEFAULT;
+//volatile prev18_r1C_t prev18_r1C = PREv18_R1C_DEFAULT;
 
-volatile adov6vc_r00_t adov6vc_r00 = ADOv6VC_R00_DEFAULT;
+//volatile adov6vc_r00_t adov6vc_r00 = ADOv6VC_R00_DEFAULT;
 volatile adov6vc_r04_t adov6vc_r04 = ADOv6VC_R04_DEFAULT;
-volatile adov6vc_r07_t adov6vc_r07 = ADOv6VC_R07_DEFAULT;
-volatile adov6vc_r0B_t adov6vc_r0B = ADOv6VC_R0B_DEFAULT;
+//volatile adov6vc_r07_t adov6vc_r07 = ADOv6VC_R07_DEFAULT;
+//volatile adov6vc_r0B_t adov6vc_r0B = ADOv6VC_R0B_DEFAULT;
 volatile adov6vc_r0D_t adov6vc_r0D = ADOv6VC_R0D_DEFAULT;
 volatile adov6vc_r0E_t adov6vc_r0E = ADOv6VC_R0E_DEFAULT;
 volatile adov6vc_r0F_t adov6vc_r0F = ADOv6VC_R0F_DEFAULT;
 volatile adov6vc_r10_t adov6vc_r10 = ADOv6VC_R10_DEFAULT;
-volatile adov6vc_r11_t adov6vc_r11 = ADOv6VC_R11_DEFAULT;
-volatile adov6vc_r12_t adov6vc_r12 = ADOv6VC_R12_DEFAULT;
+//volatile adov6vc_r11_t adov6vc_r11 = ADOv6VC_R11_DEFAULT;
+//volatile adov6vc_r12_t adov6vc_r12 = ADOv6VC_R12_DEFAULT;
 volatile adov6vc_r13_t adov6vc_r13 = ADOv6VC_R13_DEFAULT;
 volatile adov6vc_r14_t adov6vc_r14 = ADOv6VC_R14_DEFAULT;
-volatile adov6vc_r15_t adov6vc_r15 = ADOv6VC_R15_DEFAULT;
-volatile adov6vc_r16_t adov6vc_r16 = ADOv6VC_R16_DEFAULT;
-volatile adov6vc_r17_t adov6vc_r17 = ADOv6VC_R17_DEFAULT;
-volatile adov6vc_r18_t adov6vc_r18 = ADOv6VC_R18_DEFAULT;
-volatile adov6vc_r19_t adov6vc_r19 = ADOv6VC_R19_DEFAULT;
-volatile adov6vc_r1A_t adov6vc_r1A = ADOv6VC_R1A_DEFAULT;
-volatile adov6vc_r1B_t adov6vc_r1B = ADOv6VC_R1B_DEFAULT;
-volatile adov6vc_r1C_t adov6vc_r1C = ADOv6VC_R1C_DEFAULT;
+//volatile adov6vc_r15_t adov6vc_r15 = ADOv6VC_R15_DEFAULT;
+//volatile adov6vc_r16_t adov6vc_r16 = ADOv6VC_R16_DEFAULT;
+//volatile adov6vc_r17_t adov6vc_r17 = ADOv6VC_R17_DEFAULT;
+//volatile adov6vc_r18_t adov6vc_r18 = ADOv6VC_R18_DEFAULT;
+//volatile adov6vc_r19_t adov6vc_r19 = ADOv6VC_R19_DEFAULT;
+//volatile adov6vc_r1A_t adov6vc_r1A = ADOv6VC_R1A_DEFAULT;
+//volatile adov6vc_r1B_t adov6vc_r1B = ADOv6VC_R1B_DEFAULT;
+//volatile adov6vc_r1C_t adov6vc_r1C = ADOv6VC_R1C_DEFAULT;
         
 uint32_t read_data[100];
 volatile uint8_t direction_gpio;
@@ -169,12 +169,15 @@ static void operation_sleep_notimer(void);
 
 static void XO_init(void) {
     // Parasitic Capacitance Tuning (6-bit for each; Each 1 adds 1.8pF)
-    uint32_t xo_cap_drv = 0x3F;//0x3F; // Additional Cap on OSC_DRV
-    uint32_t xo_cap_in  = 0x3F;//0x3F; // Additional Cap on OSC_IN
-    prev18_r1A.XO_CAP_TUNE = (
-            (xo_cap_drv <<6) | 
-            (xo_cap_in <<0));   // XO_CLK Output Pad 
-    *REG_XO_CONF2 = prev18_r1A.as_int;
+    //uint32_t xo_cap_drv = 0x3F;//0x3F; // Additional Cap on OSC_DRV
+    //uint32_t xo_cap_in  = 0x3F;//0x3F; // Additional Cap on OSC_IN
+    //prev18_r1A.XO_CAP_TUNE = (
+    //        (xo_cap_drv <<6) | 
+    //        (xo_cap_in <<0));   // XO_CLK Output Pad 
+    //*REG_XO_CONF2 = prev18_r1A.as_int;
+    *REG_XO_CONF2 = ( (0x3F << 6)   // xo_cap_drv
+                    | (0x3F)        // xo_cap_in
+                    );
 
     // XO configuration
     prev18_r19.XO_EN_DIV    = 0x1;// divider enable
@@ -235,7 +238,7 @@ static void init_gpio(void){
 //************************************
 // PMU Related Functions
 //************************************
-static void pmu_set_sar_override(uint32_t val){
+static void pmu_set_sar_override(uint8_t val){
     // SAR_RATIO_OVERRIDE
     mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
             ( (0 << 13) // Enables override setting [12] (1'b1)
@@ -621,20 +624,37 @@ static void snt_initialization (void) {
     mbus_remote_register_write(SNT_ADDR,1,sntv3_r01.as_int);
 
     // Set temp sensor conversion time
-    sntv3_r03.TSNS_SEL_STB_TIME = 0x1; 
-    sntv3_r03.TSNS_SEL_CONV_TIME = 0x6; // Default: 0x6
-    mbus_remote_register_write(SNT_ADDR,0x03,sntv3_r03.as_int);
+    //sntv3_r03.TSNS_SEL_STB_TIME = 0x1; 
+    //sntv3_r03.TSNS_SEL_CONV_TIME = 0x6; // Default: 0x6
+    //mbus_remote_register_write(SNT_ADDR,0x03,sntv3_r03.as_int);
+    mbus_remote_register_write(SNT_ADDR,0x03,
+            ( (4 << 16)     //TSNS_MIM dflt
+            | (4 << 13)     //TSNS_MOM dflt
+            | (0xE <<9)     //TSNS_SEL_VVDD dflt
+            | (1 << 6)      //TSNS_SEL_STB_TIME
+            | (2 << 4)      //TSNS_SEL_REF_STB_TIME dflt
+            | (6)           //TSNS_SEL_CONV_TIME dflt
+            ));
 
     // SNT Wakeup Timer Settings --------------------------------------
     // Config Register A
-    sntv3_r0A.TMR_S = 0x1; // Default: 0x4, use 1 for good TC
+    //sntv3_r0A.TMR_S = 0x1; // Default: 0x4, use 1 for good TC
     // Tune R for TC
-    sntv3_r0A.TMR_DIFF_CON = 0x3FFF; // Default: 0x3FFB
-    mbus_remote_register_write(SNT_ADDR,0x0A,sntv3_r0A.as_int);
+    //sntv3_r0A.TMR_DIFF_CON = 0x3FFF; // Default: 0x3FFB
+    //mbus_remote_register_write(SNT_ADDR,0x0A,sntv3_r0A.as_int);
+    mbus_remote_register_write(SNT_ADDR,0x0A,
+            ( (1 << 21)     //TMR_S
+            | (0x3FFF << 7) //TMR_DIFF_CON
+            | (1 << 6)      //TMR_POLY_CON dlft
+            | (1 << 5)      //TMR_EN_TUNE1_RES dlft
+            | (1 << 4)      //TMR_EN_TUNE2_RES dlft
+            | (1 << 3)      //TMR_SAMPLE_EN dlft
+            | (4)           //TMR_AFC dlft
+            ));
 
 	// TIMER CAP_TUNE  
-    sntv3_r0B.TMR_TFR_CON = 0xF; // Default: 0xF
-    mbus_remote_register_write(SNT_ADDR,0x0B,sntv3_r0B.as_int);
+    //sntv3_r0B.TMR_TFR_CON = 0xF; // Default: 0xF
+    //mbus_remote_register_write(SNT_ADDR,0x0B,sntv3_r0B.as_int);
 
     // TIMER CAP_TUNE  
     // Tune C for freq
@@ -656,14 +676,14 @@ static void snt_initialization (void) {
     mbus_remote_register_write(SNT_ADDR,0x17,sntv3_r17.as_int);
 }
 
-static void temp_sensor_start(){
-    sntv3_r01.TSNS_RESETn = 1;
-    mbus_remote_register_write(SNT_ADDR,1,sntv3_r01.as_int);
-}
-static void temp_sensor_reset(){
-    sntv3_r01.TSNS_RESETn = 0;
-    mbus_remote_register_write(SNT_ADDR,1,sntv3_r01.as_int);
-}
+//static void temp_sensor_start(){
+//    sntv3_r01.TSNS_RESETn = 1;
+//    mbus_remote_register_write(SNT_ADDR,1,sntv3_r01.as_int);
+//}
+//static void temp_sensor_reset(){
+//    sntv3_r01.TSNS_RESETn = 0;
+//    mbus_remote_register_write(SNT_ADDR,1,sntv3_r01.as_int);
+//}
 static void temp_sensor_power_on(){
     // Turn on digital block
     sntv3_r01.TSNS_SEL_LDO = 1;
@@ -798,32 +818,25 @@ static void snt_set_wup_timer(uint32_t sleep_count){
 // Temperature measurement operation (SNTv3)
 //***************************************************
 static void operation_temp_run(void){
-
     if (Tstack_state == TSTK_IDLE){
         Tstack_state = TSTK_LDO;
-
         wfi_timeout_flag = 0;
-
         // Turn on SNS LDO VREF; requires settling
         sns_ldo_vref_on();
-
-
-
     }else if (Tstack_state == TSTK_LDO){
         Tstack_state = TSTK_TEMP_START;
-
         // Power on SNS LDO
         sns_ldo_power_on();
-
         // Power on temp sensor
         temp_sensor_power_on();
         delay(MBUS_DELAY);
-
     }else if (Tstack_state == TSTK_TEMP_START){
         // Start temp measurement
         Tstack_state = TSTK_TEMP_READ;
         pmu_set_sleep_tsns();
-        temp_sensor_start();
+        //temp_sensor_start();
+        sntv3_r01.TSNS_RESETn = 1;
+        mbus_remote_register_write(SNT_ADDR,1,sntv3_r01.as_int);
 		// Go to sleep during measurement
 		operation_sleep();
 
@@ -857,7 +870,9 @@ static void operation_temp_run(void){
         // Option to take multiple measurements per wakeup
         if (meas_count < NUM_TEMP_MEAS){    
             // Repeat measurement while awake
-            temp_sensor_reset();
+            //temp_sensor_reset();
+            sntv3_r01.TSNS_RESETn = 0;
+            mbus_remote_register_write(SNT_ADDR,1,sntv3_r01.as_int);
             Tstack_state = TSTK_TEMP_START;
                 
         }else{
@@ -866,7 +881,7 @@ static void operation_temp_run(void){
             // Read latest PMU ADC measurement
             pmu_adc_read_latest();
         
-			uint32_t pmu_setting_prev = pmu_setting_state;
+			uint8_t pmu_setting_prev = pmu_setting_state;
             // Change PMU based on temp
             if (temp_storage_latest > PMU_55C_threshold_sns){
                 pmu_setting_state = PMU_55C;
@@ -893,7 +908,7 @@ static void operation_temp_run(void){
             sns_ldo_power_off();
             Tstack_state = TSTK_IDLE;
 
-            #ifdef DEBUG_MBUS_MSG_1
+            #ifdef DEBUG_MBUS_MSG
             mbus_write_message32(0xCC, exec_count);
             #endif
             mbus_write_message32(0xC0, (exec_count << 16) | temp_storage_latest);
@@ -940,7 +955,7 @@ static void operation_temp_run(void){
 //***************************************************
 //  FLP functions
 //***************************************************
-static void flp_fail(uint32_t id)
+static void flp_fail(uint16_t id)
 {
         delay(10000);
         mbus_write_message32(0xE2, 0xDEADBEEF);
@@ -987,7 +1002,7 @@ static void FLASH_pp_ready (void) {
 
         // Erase Flash
         uint32_t page_start_addr = 0;
-        uint32_t idx;
+        uint16_t idx;
 
         for (idx=0; idx<512; idx++){ // All Pages (8Mb) are erased.
             page_start_addr = (idx << 8);
@@ -998,7 +1013,8 @@ static void FLASH_pp_ready (void) {
             mbus_remote_register_write (FLP_ADDR, 0x09, 0x000029); // Page Erase
             set_halt_until_mbus_tx();
 
-            if (*REG1 != 0x00004F) flp_fail((0xFFFF << 16) | idx);
+            //if (*REG1 != 0x00004F) flp_fail((0xFFFF << 16) | idx);
+            if (*REG1 != 0x00004F) flp_fail((0xF << 12) | idx);
         }
     
     // Ping Pong Setting
@@ -1019,7 +1035,7 @@ static void FLASH_pp_off (void) {
 }
 
 static void FLASH_read (void) {
-    uint32_t i,j;
+    uint16_t i,j;
     uint32_t flp_sram_addr;
     flp_sram_addr = 0;
     FLASH_turn_on();
@@ -1056,54 +1072,62 @@ static void FLASH_read (void) {
 //***************************************************
 static void ado_initialization(void){
     // as_int of all zero regs initalization
-    adov6vc_r07.as_int = 0;
-    adov6vc_r0B.as_int = 0;
+    //adov6vc_r07.as_int = 0;
+    //adov6vc_r0B.as_int = 0;
     adov6vc_r10.as_int = 0;
 
     adov6vc_r10.VAD_ADC_DOUT_ISOL = 1;
     mbus_remote_register_write(ADO_ADDR, 0x10, adov6vc_r10.as_int);
  
     // AFE Initialization
-    adov6vc_r15.IB_GEN_CLK_EN = 1;
-    adov6vc_r15.LS_CLK_EN_1P2 = 1;
-    adov6vc_r15.REC_PGA_BWCON = 32;//24;
-    adov6vc_r15.REC_PGA_CFBADD = 1;//0;
-    adov6vc_r15.REC_PGA_GCON = 2;//2;
-    mbus_remote_register_write(ADO_ADDR, 0x15, adov6vc_r15.as_int); //1F8622
+    //adov6vc_r15.IB_GEN_CLK_EN = 1;
+    //adov6vc_r15.LS_CLK_EN_1P2 = 1;
+    //adov6vc_r15.REC_PGA_BWCON = 32;//24;
+    //adov6vc_r15.REC_PGA_CFBADD = 1;//0;
+    //adov6vc_r15.REC_PGA_GCON = 2;//2;
+    //mbus_remote_register_write(ADO_ADDR, 0x15, adov6vc_r15.as_int); //1F8822//1F8602
+    mbus_remote_register_write(ADO_ADDR, 0x15, 0x1F8822); 
 
-    adov6vc_r16.IBC_MONAMP = 0;
-    adov6vc_r16.IBC_REC_LNA = 6;
-    adov6vc_r16.IBC_REC_PGA = 11;
-    adov6vc_r16.IBC_VAD_LNA = 7;
-    adov6vc_r16.IBC_VAD_PGA = 5;
-    mbus_remote_register_write(ADO_ADDR, 0x16, adov6vc_r16.as_int);//0535BD
+    //adov6vc_r16.IBC_MONAMP = 0;
+    //adov6vc_r16.IBC_REC_LNA = 6;
+    //adov6vc_r16.IBC_REC_PGA = 11;
+    //adov6vc_r16.IBC_VAD_LNA = 7;
+    //adov6vc_r16.IBC_VAD_PGA = 5;
+    //mbus_remote_register_write(ADO_ADDR, 0x16, adov6vc_r16.as_int);//0535BD
+    mbus_remote_register_write(ADO_ADDR, 0x16, 0x0535BD);//0535BD
  
-    adov6vc_r18.REC_LNA_N1_CON = 2;
-    adov6vc_r18.REC_LNA_N2_CON = 2;
-    adov6vc_r18.REC_LNA_P1_CON = 3;
-    adov6vc_r18.REC_LNA_P2_CON = 3;
-    mbus_remote_register_write(ADO_ADDR, 0x18, adov6vc_r18.as_int);//0820C3
+    //adov6vc_r18.REC_LNA_N1_CON = 2;
+    //adov6vc_r18.REC_LNA_N2_CON = 2;
+    //adov6vc_r18.REC_LNA_P1_CON = 3;
+    //adov6vc_r18.REC_LNA_P2_CON = 3;
+    //mbus_remote_register_write(ADO_ADDR, 0x18, adov6vc_r18.as_int);//0820C3
+    mbus_remote_register_write(ADO_ADDR, 0x18, 0x0820C3);//0820C3
 
-    adov6vc_r19.REC_PGA_P1_CON = 3;
-    mbus_remote_register_write(ADO_ADDR, 0x19, adov6vc_r19.as_int);//007064
+    //adov6vc_r19.REC_PGA_P1_CON = 3;
+    //mbus_remote_register_write(ADO_ADDR, 0x19, adov6vc_r19.as_int);//007064
+    mbus_remote_register_write(ADO_ADDR, 0x19, 0x007064);//007064
 
-    adov6vc_r1B.VAD_LNA_N1_LCON = 5;
-    adov6vc_r1B.VAD_LNA_N2_LCON = 6;
-    adov6vc_r1B.VAD_LNA_P1_CON = 3;
-    adov6vc_r1B.VAD_LNA_P2_CON = 2;
-    mbus_remote_register_write(ADO_ADDR, 0x1B, adov6vc_r1B.as_int);//0A6062
+    //adov6vc_r1B.VAD_LNA_N1_LCON = 5;
+    //adov6vc_r1B.VAD_LNA_N2_LCON = 6;
+    //adov6vc_r1B.VAD_LNA_P1_CON = 3;
+    //adov6vc_r1B.VAD_LNA_P2_CON = 2;
+    //mbus_remote_register_write(ADO_ADDR, 0x1B, adov6vc_r1B.as_int);//0A6062
+    mbus_remote_register_write(ADO_ADDR, 0x1B, 0x0A6062);//0A6062
 
-    adov6vc_r1C.VAD_PGA_N1_LCON = 0;
-    adov6vc_r1C.VAD_PGA_N1_MCON = 1;
-    mbus_remote_register_write(ADO_ADDR, 0x1C, adov6vc_r1C.as_int);//00079C
+    //adov6vc_r1C.VAD_PGA_N1_LCON = 0;
+    //adov6vc_r1C.VAD_PGA_N1_MCON = 1;
+    //mbus_remote_register_write(ADO_ADDR, 0x1C, adov6vc_r1C.as_int);//00079C
+    mbus_remote_register_write(ADO_ADDR, 0x1C, 0x00079C);//00079C
 
-    adov6vc_r11.LDO_CTRL_VREFLDO_VOUT_1P4HP = 4;
-    mbus_remote_register_write(ADO_ADDR, 0x11, adov6vc_r11.as_int);//84CAC9
+    //adov6vc_r11.LDO_CTRL_VREFLDO_VOUT_1P4HP = 4;
+    //mbus_remote_register_write(ADO_ADDR, 0x11, adov6vc_r11.as_int);//84CAC9
+    mbus_remote_register_write(ADO_ADDR, 0x11, 0x84CAC9);//84CAC9
 
-    adov6vc_r12.LDO_CTRL_VREFLDO_VOUT_0P6LP = 3;
-    adov6vc_r12.LDO_CTRL_VREFLDO_VOUT_0P9HP = 3;
-    adov6vc_r12.LDO_CTRL_VREFLDO_VOUT_1P4LP = 4;
-    mbus_remote_register_write(ADO_ADDR, 0x12, adov6vc_r12.as_int);//828283
+    //adov6vc_r12.LDO_CTRL_VREFLDO_VOUT_0P6LP = 3;
+    //adov6vc_r12.LDO_CTRL_VREFLDO_VOUT_0P9HP = 3;
+    //adov6vc_r12.LDO_CTRL_VREFLDO_VOUT_1P4LP = 4;
+    //mbus_remote_register_write(ADO_ADDR, 0x12, adov6vc_r12.as_int);//838384
+    mbus_remote_register_write(ADO_ADDR, 0x12, 0x838384);
     
     /////////////////
     //DSP LP_TOP
@@ -1119,25 +1143,34 @@ static void ado_initialization(void){
     //LUT Programming
     uint8_t i;
     for(i= 0; i<LUT_DATA_LENGTH; i++){
-        adov6vc_r07.DSP_LUT_WR_ADDR = i;
-        adov6vc_r07.DSP_LUT_DATA_IN = LUT_DATA[i];
-        mbus_remote_register_write(ADO_ADDR, 0x07, adov6vc_r07.as_int);
+        //adov6vc_r07.DSP_LUT_WR_ADDR = i;
+        //adov6vc_r07.DSP_LUT_DATA_IN = LUT_DATA[i];
+        //mbus_remote_register_write(ADO_ADDR, 0x07, adov6vc_r07.as_int);
+        mbus_remote_register_write(ADO_ADDR, 0x07, 
+                (  (i << 4)         //DSP_LUT_WR_ADDR
+                 | (LUT_DATA[i])    //DSP_LUT_DATA_IN
+                ));
         mbus_remote_register_write(ADO_ADDR, 0x08, 0x000001);
         mbus_remote_register_write(ADO_ADDR, 0x08, 0x000000);
     }
     //PHS Programming 
     for(i= 0; i<PHS_DATA_LENGTH; i++){
-        adov6vc_r0B.DSP_PHS_WR_ADDR_FS = i;
-        adov6vc_r0B.DSP_PHS_DATA_IN_FS = PHS_DATA[i];
-        mbus_remote_register_write(ADO_ADDR, 0x0B, adov6vc_r0B.as_int);
+        //adov6vc_r0B.DSP_PHS_WR_ADDR_FS = i;
+        //adov6vc_r0B.DSP_PHS_DATA_IN_FS = PHS_DATA[i];
+        //mbus_remote_register_write(ADO_ADDR, 0x0B, adov6vc_r0B.as_int);
+        mbus_remote_register_write(ADO_ADDR, 0x0B,
+               (  (i << 12)     //DSP_PHS_WR_ADDR_FS
+                | (PHS_DATA[i]) //DSP_PHS_DATA_IN_FS
+               ));
         mbus_remote_register_write(ADO_ADDR, 0x0C, 0x000001);
         mbus_remote_register_write(ADO_ADDR, 0x0C, 0x000000);
     }
     
     //N_DCT: 128 points DCT 
-    adov6vc_r00.DSP_N_DCT = 2; //128-pt DCT
-    adov6vc_r00.DSP_N_FFT = 4; //256-pt FFT
-    mbus_remote_register_write(ADO_ADDR, 0x00, adov6vc_r00.as_int);
+    //adov6vc_r00.DSP_N_DCT = 2; //128-pt DCT
+    //adov6vc_r00.DSP_N_FFT = 4; //256-pt FFT
+    //mbus_remote_register_write(ADO_ADDR, 0x00, adov6vc_r00.as_int);
+    mbus_remote_register_write(ADO_ADDR, 0x00, 0x9E1C48);
     
     //WAKEUP REQ EN
     adov6vc_r0E.DSP_WAKEUP_REQ_EN = 1;
@@ -1315,10 +1348,10 @@ static void afe_set_mode(uint8_t mode){
         //mbus_remote_register_write(ADO_ADDR, 0x1A, adov6vc_r1A.as_int);
         
         ////REC MON setting (debug)
-        adov6vc_r17.REC_MONSEL = 0;
-        adov6vc_r17.REC_MONBUF_EN = 0;
+        //adov6vc_r17.REC_MONSEL = 0;
+        //adov6vc_r17.REC_MONBUF_EN = 0;
         //adov6vc_r17.REC_REFMONBUF_EN = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x17, adov6vc_r17.as_int);
+        //mbus_remote_register_write(ADO_ADDR, 0x17, adov6vc_r17.as_int);
 
         adov6vc_r10.DO_LP_HP_SEL = 0;    //0: LP, 1: HP
         adov6vc_r10.DIO_OUT_EN = 1;
@@ -1530,10 +1563,15 @@ static void operation_init(void){
     //prev18_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x7, 3bits
     //*REG_CLKGEN_TUNE = prev18_r0B.as_int;
 
-    prev18_r1C.SRAM0_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
-    prev18_r1C.SRAM0_TUNE_DECODER_DLY = 15; // Default 0x2, 4 bits
-    //prev18_r1C.SRAM0_USE_INVERTER_SA= 1; // Default 0x0, 1bit
-    *REG_SRAM0_TUNE = prev18_r1C.as_int;
+    //prev18_r1C.SRAM0_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
+    //prev18_r1C.SRAM0_TUNE_DECODER_DLY = 15; // Default 0x2, 4 bits
+    ////prev18_r1C.SRAM0_USE_INVERTER_SA= 1; // Default 0x0, 1bit
+    //*REG_SRAM0_TUNE = prev18_r1C.as_int;
+    *REG_SRAM0_TUNE = ((31 << 9)    //SRAM0_TUNE_ASO_DLY
+                      |(2 << 5)     //SRAM0_TUNE_WL_WIDTH
+                      |(15 << 1)    //SRAM0_TUNE_DECODER_DLY
+                      | 0           //SRAM0_USE_INVERTER_SA
+                      );
 
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE;    //0x0;
@@ -1580,7 +1618,7 @@ static void operation_init(void){
 
     // Initialize other global variables
     WAKEUP_PERIOD_CONT = 33750;   // 1: 2-4 sec with PRCv9
-    WAKEUP_PERIOD_CONT_INIT = 3;   // 0x1E (30): ~1 min with PRCv9
+    //WAKEUP_PERIOD_CONT_INIT = 3;   // 0x1E (30): ~1 min with PRCv9
     wakeup_data = 0;
     temp_running = 0;
 
