@@ -126,16 +126,16 @@ volatile sntv3_r09_t sntv3_r09 = SNTv3_R09_DEFAULT;
 volatile sntv3_r17_t sntv3_r17 = SNTv3_R17_DEFAULT;
 
 //volatile prev18_r0B_t prev18_r0B = PREv18_R0B_DEFAULT;
-volatile prev18_r19_t prev18_r19 = PREv18_R19_DEFAULT;
+//volatile prev18_r19_t prev18_r19 = PREv18_R19_DEFAULT;
 //volatile prev18_r1A_t prev18_r1A = PREv18_R1A_DEFAULT;
 //volatile prev18_r1C_t prev18_r1C = PREv18_R1C_DEFAULT;
-
+  
 //volatile adov6vc_r00_t adov6vc_r00 = ADOv6VC_R00_DEFAULT;
 volatile adov6vc_r04_t adov6vc_r04 = ADOv6VC_R04_DEFAULT;
 //volatile adov6vc_r07_t adov6vc_r07 = ADOv6VC_R07_DEFAULT;
 //volatile adov6vc_r0B_t adov6vc_r0B = ADOv6VC_R0B_DEFAULT;
 volatile adov6vc_r0D_t adov6vc_r0D = ADOv6VC_R0D_DEFAULT;
-volatile adov6vc_r0E_t adov6vc_r0E = ADOv6VC_R0E_DEFAULT;
+//volatile adov6vc_r0E_t adov6vc_r0E = ADOv6VC_R0E_DEFAULT;
 volatile adov6vc_r0F_t adov6vc_r0F = ADOv6VC_R0F_DEFAULT;
 volatile adov6vc_r10_t adov6vc_r10 = ADOv6VC_R10_DEFAULT;
 //volatile adov6vc_r11_t adov6vc_r11 = ADOv6VC_R11_DEFAULT;
@@ -179,40 +179,126 @@ static void XO_init(void) {
                     | (0x3F)        // xo_cap_in
                     );
 
-    // XO configuration
-    prev18_r19.XO_EN_DIV    = 0x1;// divider enable
-    prev18_r19.XO_S         = 0x1;// division ratio for 16kHz out
-    prev18_r19.XO_SEL_CP_DIV= 0x0;// 1: 0.3V-generation charge-pump uses divided clock
-    prev18_r19.XO_EN_OUT    = 0x1;// XO ouput enable
-    prev18_r19.XO_PULSE_SEL = 0x8;//4;// pulse width sel, 1-hot code
-    prev18_r19.XO_DELAY_EN  = 0x7;//3;// pair usage together with xo_pulse_sel
-    prev18_r19.XO_SLEEP = 0x0;
-    // Pseudo-Resistor Selection
-    prev18_r19.XO_RP_LOW    = 0x0;//0  1
-    prev18_r19.XO_RP_MEDIA  = 0x1;//1  0
-    prev18_r19.XO_RP_MVT    = 0x0;//0
-    prev18_r19.XO_RP_SVT    = 0x0;//0
-    *REG_XO_CONF1 = prev18_r19.as_int;
+    *REG_XO_CONF1 = ( (0 << 22)     // XO_SLEEP (1->0)
+                    | (1 << 21)     // XO_ISOLATE
+                    | (1 << 20)     // XO_EN_DIV
+                    | (1 << 17)     // XO_S 1:16kHz
+                    | (0 << 16)     // XO_SEL_CP_DIV
+                    | (1 << 15)     // XO_EN_OUT 1:enable
+                    | (8 << 11)     // XO_PULSE_SEL 1-hot
+                    | (7 << 8)      // XO_DELAY_EN pair usage with pulse_sel
+                    | (0 << 7)      // XO_DRV_START_UP
+                    | (0 << 6)      // XO_DRV_CORE
+                    | (0 << 5)      // XO_RP_LOW
+                    | (1 << 4)      // XO_RP_MEDIA
+                    | (0 << 3)      // XO_RP_MVT
+                    | (0 << 2)      // XO_RP_SVT
+                    | (0 << 1)      // XO_SCN_CLK_SEL
+                    | (1 << 0)      // XO_SCN_ENB
+                    );
     delay(1000);
-    prev18_r19.XO_ISOLATE = 0x0;
-    *REG_XO_CONF1 = prev18_r19.as_int;
+
+    //XO_ISOLATE 1->0
+    *REG_XO_CONF1 = ( (0 << 22)     // XO_SLEEP 
+                    | (0 << 21)     // XO_ISOLATE 1->0
+                    | (1 << 20)     // XO_EN_DIV
+                    | (1 << 17)     // XO_S 1:16kHz
+                    | (0 << 16)     // XO_SEL_CP_DIV
+                    | (1 << 15)     // XO_EN_OUT 1:enable
+                    | (8 << 11)     // XO_PULSE_SEL 1-hot
+                    | (7 << 8)      // XO_DELAY_EN pair usage with pulse_sel
+                    | (0 << 7)      // XO_DRV_START_UP
+                    | (0 << 6)      // XO_DRV_CORE
+                    | (0 << 5)      // XO_RP_LOW
+                    | (1 << 4)      // XO_RP_MEDIA
+                    | (0 << 3)      // XO_RP_MVT
+                    | (0 << 2)      // XO_RP_SVT
+                    | (0 << 1)      // XO_SCN_CLK_SEL
+                    | (1 << 0)      // XO_SCN_ENB
+                    );
     delay(1000);
-    prev18_r19.XO_DRV_START_UP  = 0x1;// 1: enables start-up circuit
-    *REG_XO_CONF1 = prev18_r19.as_int;
+
+    //XO_DRV_START_UP 0->1
+    *REG_XO_CONF1 = ( (0 << 22)     // XO_SLEEP 
+                    | (0 << 21)     // XO_ISOLATE 1->0
+                    | (1 << 20)     // XO_EN_DIV
+                    | (1 << 17)     // XO_S 1:16kHz
+                    | (0 << 16)     // XO_SEL_CP_DIV
+                    | (1 << 15)     // XO_EN_OUT 1:enable
+                    | (8 << 11)     // XO_PULSE_SEL 1-hot
+                    | (7 << 8)      // XO_DELAY_EN pair usage with pulse_sel
+                    | (1 << 7)      // XO_DRV_START_UP
+                    | (0 << 6)      // XO_DRV_CORE
+                    | (0 << 5)      // XO_RP_LOW
+                    | (1 << 4)      // XO_RP_MEDIA
+                    | (0 << 3)      // XO_RP_MVT
+                    | (0 << 2)      // XO_RP_SVT
+                    | (0 << 1)      // XO_SCN_CLK_SEL
+                    | (1 << 0)      // XO_SCN_ENB
+                    );
     delay(2000);
-    ////
-    prev18_r19.XO_SCN_CLK_SEL   = 0x1;// scn clock 1: normal. 0.3V level up to 0.6V, 0:init
-    *REG_XO_CONF1 = prev18_r19.as_int;
+    
+    //XO_SCN_CLK_SEL 0->1
+    *REG_XO_CONF1 = ( (0 << 22)     // XO_SLEEP 
+                    | (0 << 21)     // XO_ISOLATE 1->0
+                    | (1 << 20)     // XO_EN_DIV
+                    | (1 << 17)     // XO_S 1:16kHz
+                    | (0 << 16)     // XO_SEL_CP_DIV
+                    | (1 << 15)     // XO_EN_OUT 1:enable
+                    | (8 << 11)     // XO_PULSE_SEL 1-hot
+                    | (7 << 8)      // XO_DELAY_EN pair usage with pulse_sel
+                    | (1 << 7)      // XO_DRV_START_UP
+                    | (0 << 6)      // XO_DRV_CORE
+                    | (0 << 5)      // XO_RP_LOW
+                    | (1 << 4)      // XO_RP_MEDIA
+                    | (0 << 3)      // XO_RP_MVT
+                    | (0 << 2)      // XO_RP_SVT
+                    | (1 << 1)      // XO_SCN_CLK_SEL
+                    | (1 << 0)      // XO_SCN_ENB
+                    );
     delay(2000);
-    prev18_r19.XO_SCN_CLK_SEL   = 0x0;
-    prev18_r19.XO_SCN_ENB       = 0x0;// enable_bar of scn
-    *REG_XO_CONF1 = prev18_r19.as_int;
+
+    //XO_SCN_CLK_SEL 1 -> 0
+    //XO_SCN_ENB 1->0
+    *REG_XO_CONF1 = ( (0 << 22)     // XO_SLEEP 
+                    | (0 << 21)     // XO_ISOLATE 1->0
+                    | (1 << 20)     // XO_EN_DIV
+                    | (1 << 17)     // XO_S 1:16kHz
+                    | (0 << 16)     // XO_SEL_CP_DIV
+                    | (1 << 15)     // XO_EN_OUT 1:enable
+                    | (8 << 11)     // XO_PULSE_SEL 1-hot
+                    | (7 << 8)      // XO_DELAY_EN pair usage with pulse_sel
+                    | (1 << 7)      // XO_DRV_START_UP
+                    | (0 << 6)      // XO_DRV_CORE
+                    | (0 << 5)      // XO_RP_LOW
+                    | (1 << 4)      // XO_RP_MEDIA
+                    | (0 << 3)      // XO_RP_MVT
+                    | (0 << 2)      // XO_RP_SVT
+                    | (0 << 1)      // XO_SCN_CLK_SEL
+                    | (0 << 0)      // XO_SCN_ENB
+                    );
     delay(2000);
-    prev18_r19.XO_DRV_START_UP  = 0x0;
-    prev18_r19.XO_DRV_CORE      = 0x1;// 1: enables core circuit
-    prev18_r19.XO_SCN_CLK_SEL   = 0x1;
-    *REG_XO_CONF1 = prev18_r19.as_int;
-    delay(2000);
+
+    //XO_DRV_START_UP  = 0x0;
+    //XO_DRV_CORE      = 0x1;// 1: enables core circuit
+    //XO_SCN_CLK_SEL   = 0x1;
+    *REG_XO_CONF1 = ( (0 << 22)     // XO_SLEEP 
+                    | (0 << 21)     // XO_ISOLATE 1->0
+                    | (1 << 20)     // XO_EN_DIV
+                    | (1 << 17)     // XO_S 1:16kHz
+                    | (0 << 16)     // XO_SEL_CP_DIV
+                    | (1 << 15)     // XO_EN_OUT 1:enable
+                    | (8 << 11)     // XO_PULSE_SEL 1-hot
+                    | (7 << 8)      // XO_DELAY_EN pair usage with pulse_sel
+                    | (0 << 7)      // XO_DRV_START_UP
+                    | (1 << 6)      // XO_DRV_CORE
+                    | (0 << 5)      // XO_RP_LOW
+                    | (1 << 4)      // XO_RP_MEDIA
+                    | (0 << 3)      // XO_RP_MVT
+                    | (0 << 2)      // XO_RP_SVT
+                    | (1 << 1)      // XO_SCN_CLK_SEL
+                    | (0 << 0)      // XO_SCN_ENB
+                    );
 
     enable_xo_timer();
     start_xo_cout();
@@ -1173,8 +1259,11 @@ static void ado_initialization(void){
     mbus_remote_register_write(ADO_ADDR, 0x00, 0x9E1C48);
     
     //WAKEUP REQ EN
-    adov6vc_r0E.DSP_WAKEUP_REQ_EN = 1;
-    mbus_remote_register_write(ADO_ADDR, 0x0E, adov6vc_r0E.as_int);
+    mbus_remote_register_write(ADO_ADDR, 0x0E, 
+                ((1<<7)     //DSP_WAKEUP_REQ_EN ->1
+                |(2<<5)     //LC_CLK_DIV
+                |(2<<3)     //LC_CLK_RING
+                ));
 }
 
 
@@ -1303,10 +1392,8 @@ static void digital_set_mode(uint8_t mode){
 
 static void afe_set_mode(uint8_t mode){
     if(mode == 1){      //LP AFE
-        if(prev18_r19.XO_EN_OUT !=1){// XO ouput enable
-            prev18_r19.XO_EN_OUT    = 1;
-            *REG_XO_CONF1 = prev18_r19.as_int;
-        }
+        *REG_XO_CONF1 = *REG_XO_CONF1 | (1 << 15);
+        
         adov6vc_r0D.REC_ADC_RESETN = 0;
         adov6vc_r0D.REC_ADCDRI_EN = 0;
         adov6vc_r0D.REC_LNA_AMPEN = 0;
@@ -1362,10 +1449,8 @@ static void afe_set_mode(uint8_t mode){
         mbus_remote_register_write(ADO_ADDR, 0x04, adov6vc_r04.as_int);
     }
     else if(mode == 2){ // HP AFE
-        if(prev18_r19.XO_EN_OUT !=1){// XO ouput enable
-            prev18_r19.XO_EN_OUT    = 1;
-            *REG_XO_CONF1 = prev18_r19.as_int;
-        }
+        *REG_XO_CONF1 = *REG_XO_CONF1 | (1 << 15);
+        
         adov6vc_r13.LDO_PG_IREF = 0;
         adov6vc_r13.LDO_PG_VREF_0P6LP = 0;
         adov6vc_r13.LDO_PG_LDOCORE_0P6LP = 0;
@@ -1398,10 +1483,7 @@ static void afe_set_mode(uint8_t mode){
         mbus_remote_register_write(ADO_ADDR, 0x04, adov6vc_r04.as_int);
     }
     else{       // AFE off
-        if(prev18_r19.XO_EN_OUT !=0){// XO ouput enable
-            prev18_r19.XO_EN_OUT    = 0;// XO ouput disable
-            *REG_XO_CONF1 = prev18_r19.as_int;
-        }
+        *REG_XO_CONF1 = *REG_XO_CONF1 & ~(1<<15);
 
         adov6vc_r0D.REC_ADC_RESETN = 0;
         adov6vc_r0D.REC_ADCDRI_EN = 0;
@@ -1793,8 +1875,14 @@ void handler_ext_int_gocep(void) { // GOCEP
     }
     else if(data_cmd == 0x02){  // SRAM Programming mode
         if(data_val0==1){    //Enter
-            adov6vc_r0E.DSP_DNN_DBG_MODE_EN = 1;
-            mbus_remote_register_write(ADO_ADDR, 0x0E, adov6vc_r0E.as_int);//000054
+            //adov6vc_r0E.DSP_DNN_DBG_MODE_EN = 1;
+            //mbus_remote_register_write(ADO_ADDR, 0x0E, adov6vc_r0E.as_int);//000054
+            mbus_remote_register_write(ADO_ADDR, 0x0E, 
+                    ((1<<7)     //DSP_WAKEUP_REQ_EN
+                    |(2<<5)     //LC_CLK_DIV
+                    |(2<<3)     //LC_CLK_RING
+                    |(1<<2)     //DSP_DNN_DBG_MODE_EN ->1
+                    ));
             adov6vc_r0D.DSP_DNN_CTRL_RF_SEL = 1;
             mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80B
             adov6vc_r0D.DSP_DNN_CLKENB_RF_SEL = 1;
@@ -1821,8 +1909,15 @@ void handler_ext_int_gocep(void) { // GOCEP
             mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80B
             adov6vc_r0D.DSP_DNN_CTRL_RF_SEL = 0;
             mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80A
-            adov6vc_r0E.DSP_DNN_DBG_MODE_EN = 0;
-            mbus_remote_register_write(ADO_ADDR, 0x0E, adov6vc_r0E.as_int);//000050
+            //adov6vc_r0E.DSP_DNN_DBG_MODE_EN = 0;
+            //mbus_remote_register_write(ADO_ADDR, 0x0E, adov6vc_r0E.as_int);//000050
+            mbus_remote_register_write(ADO_ADDR, 0x0E, 
+                    ((1<<7)     //DSP_WAKEUP_REQ_EN
+                    |(2<<5)     //LC_CLK_DIV
+                    |(2<<3)     //LC_CLK_RING
+                    |(0<<2)     //DSP_DNN_DBG_MODE_EN ->0
+                    ));
+
         }
     }
     else if(data_cmd == 0x03){  // DSP Monitoring Configure
