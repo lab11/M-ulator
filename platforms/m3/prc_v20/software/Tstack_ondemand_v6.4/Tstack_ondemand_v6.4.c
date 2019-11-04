@@ -732,6 +732,7 @@ static void sns_ldo_power_off(){
 }
 
 static void snt_read_wup_counter(){
+// WARNING: The read value might be corrupted due to asynchronous reading
 
     set_halt_until_mbus_rx();
     mbus_remote_register_read(SNT_ADDR,0x1B,1); // CNT_VALUE_EXT
