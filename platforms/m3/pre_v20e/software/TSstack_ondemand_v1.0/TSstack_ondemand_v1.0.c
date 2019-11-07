@@ -1,55 +1,15 @@
 //*******************************************************************
 //Author: Gyouho Kim
-//Description: AH stack with MRRv7 and SNSv10, ADXL362, SHT35
-//			Modified from 'AMstack_ondemand_v1.14.c'
-//			AH Stack uses 3V battery
-//			v1.14: MRRv7 - larger tuning range, stronger drive
-//				   New packet definitions with CRC16
-//				   SHT35 uses power switch [0]
-//				   ADXL uses power switch [1]
-//			v1.14b: fixes a bug in humidty/temp reading
-//					fixes a bug in REG_CPS control
-//					fixes CRC bug
-//			v1.15: fixes ADXL / SHT35 conflict
-//			v1.15b: improve latency of radio tx for motion detection
-//					adding configurability for SHT35
-//			v1.16: improve latency of radio tx further
-//					changing MRR decap configuration and shorter SFO settling time
-//			v1.17: PMUv9, replacing delays for PMU reg write with set halt
-//					adding a burst mode for mrr radio scan (0x52)
-//			v1.18: PREv18, SNTv1, no HRVv6
-//					Getting rid of motion muting in case of SNT timer
-//					Getting rid of temp sensing using SNT
-//			v1.18a: Increasing loop count of mrr radio burst mode
-//			v1.18c: Don't reset radio packet count every goc; radio packet delay changed to 2000
-//				    SNT stabilization time reduced, MRR initial decap charge time increased
-//					MRR CFO default changed to 0x0/0x0
-//			v1.19: Changing radio packet definitions to increase packet count bits, and include motion count
-//					Implemented reading out PUF Chip ID
-//			v1.20: Adding pmu adjustment based on temp; adding wakeup counter, CL_CTRL=1 during TX
-//					Increasing initial decap charging time for 22uF support
-//					Run SHT35 temp sensor even in radio test mode
-//					Shortened delay after ADXL power off
-//					Removing PRC timer option
-//			v1.20a: debugging why checkin period becomes indefinite
-//					Read SNT counter val each wakeup, adding timeouts for SHT wait, mbus rx waits
-//					Radio error packet when timeout
-//			v1.20b: Reset SNT timer every time motion is detected
-//			v1.21: PREv20, MRRv10, SNTv4
-//			v1.21a: MRR Chirp fix: Use V1P2 for SFO, tune LDO voltage
-//			       Make LDO output, MRR bias tunable
-//			v1.22: PREv20E, Core clock 2x, Adding GOC clk tuning
-//				   Using Macro for GPIO masking
-//			v1.22a: Adding PMU_ADC_3P0_VAL configurability
-//				   Implement pending GPIO wakeup request
-//			v1.22b: Fixing bug where pending wakeup request was not reset
+//Description: TS stack with MRRv10 and SNTv4
+//			Modified from 'AHstack_ondemand_v1.22.c'
+//			Modified from 'Tstack_ondemand_v6.4.c'
+//			v1.0: PMU needs to reconfigure based on VBAT
 //*******************************************************************
 #include "PREv20.h"
 #include "PREv20_RF.h"
 #include "mbus.h"
 #include "SNTv4_RF.h"
 #include "PMUv7_RF.h"
-#include "ADXL362.h"
 #include "MRRv10_RF.h"
 
 // uncomment this for debug mbus message
@@ -63,35 +23,28 @@
 // System parameters
 #define	MBUS_DELAY 200 // Amount of delay between successive messages; 200: 6-7ms
 
-// Pstack states
-#define	STK_IDLE		0x0
-#define	STK_LDO		0x1
-#define	STK_TEMP_START 0x2
-#define	STK_TEMP_READ  0x3
-#define	STK_HUM     0x4
-
-#define    PMU_15C 0x0
-#define    PMU_25C 0x1
-#define    PMU_35C 0x2
-#define    PMU_45C 0x3
-#define    PMU_55C 0x4
+// Tstack states
+#define    STK_IDLE       0x0
+#define    STK_LDO        0x1
+#define    STK_TEMP_START 0x2
+#define    STK_TEMP_READ  0x6
 
 // Radio configurations
 #define RADIO_DATA_LENGTH 192
 #define WAKEUP_PERIOD_RADIO_INIT 0xA // About 2 sec (PRCv17)
 
-#define TEMP_NUM_MEAS 1
+#define    PMU_10C 0x0
+#define    PMU_20C 0x1
+#define    PMU_25C 0x2
+#define    PMU_35C 0x3
+#define    PMU_55C 0x4
+#define    PMU_75C 0x5
+#define    PMU_95C 0x6
+
+#define NUM_TEMP_MEAS 1
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y5 run default clock (PRCv17)
 #define TIMER32_VAL 0x50000 // 0x20000 about 1 sec with Y5 run default clock (PRCv17)
-
-#define GPIO_ADXL_INT 0
-#define GPIO_ADXL_EN 2
-#define GPIO_SDA 7
-#define GPIO_SCL 6
-
-#define ADXL_MASK (1<<GPIO_ADXL_INT) | (1<<GPIO_ADXL_EN)
-#define SHT35_MASK (1<<GPIO_SDA) | (1<<GPIO_SCL)
 
 //********************************************************************
 // Global Variables
@@ -104,32 +57,41 @@ volatile uint32_t stack_state;
 volatile uint32_t wfi_timeout_flag;
 volatile uint32_t error_code;
 volatile uint32_t exec_count;
+volatile uint32_t meas_count;
 volatile uint32_t wakeup_count;
 volatile uint32_t exec_count_irq;
 volatile uint32_t PMU_ADC_3P0_VAL;
 volatile uint32_t pmu_setting_state;
-volatile uint32_t pmu_sar_conv_ratio_val;
+volatile uint32_t pmu_parking_mode;
 volatile uint32_t read_data_batadc;
+volatile uint32_t read_data_batadc_diff;
 
 volatile uint32_t WAKEUP_PERIOD_CONT_USER; 
 volatile uint32_t WAKEUP_PERIOD_CONT; 
 volatile uint32_t WAKEUP_PERIOD_SNT; 
+
+volatile uint32_t PMU_10C_threshold_sns;
+volatile uint32_t PMU_20C_threshold_sns;
+volatile uint32_t PMU_35C_threshold_sns;
+volatile uint32_t PMU_55C_threshold_sns;
+volatile uint32_t PMU_75C_threshold_sns;
+volatile uint32_t PMU_95C_threshold_sns;
+
+volatile uint32_t temp_storage_latest = 150; // SNSv10
+volatile uint32_t temp_storage_last_wakeup_adjust = 150; // SNSv10
+volatile uint32_t temp_storage_diff = 0;
+volatile uint32_t temp_storage_count;
+volatile uint32_t temp_storage_debug;
+volatile uint32_t sns_running;
+volatile uint32_t read_data_temp; // [23:0] Temp Sensor D Out
+volatile uint32_t TEMP_CALIB_A;
+volatile uint32_t TEMP_CALIB_B;
 
 volatile uint32_t snt_wup_counter_cur;
 volatile uint32_t snt_timer_enabled = 0;
 volatile uint32_t SNT_0P5S_VAL;
 
 volatile uint32_t sns_running;
-
-volatile uint32_t astack_detection_mode;
-volatile uint32_t adxl_enabled;
-volatile uint32_t adxl_motion_detected;
-volatile uint32_t adxl_user_threshold;
-volatile uint32_t adxl_motion_count;
-volatile uint32_t adxl_trigger_mute_count;
-
-volatile uint32_t sht35_temp_data, sht35_hum_data, sht35_cur_temp;
-volatile uint32_t sht35_user_repeatability; // Default 0x0B
 
 volatile uint32_t radio_ready;
 volatile uint32_t radio_on;
@@ -139,14 +101,16 @@ volatile uint32_t mrr_cfo_val_fine_min;
 volatile uint32_t RADIO_PACKET_DELAY;
 volatile uint32_t radio_packet_count;
 
+volatile sntv4_r00_t sntv4_r00 = SNTv4_R00_DEFAULT;
+volatile sntv4_r01_t sntv4_r01 = SNTv4_R01_DEFAULT;
 volatile sntv4_r03_t sntv4_r03 = SNTv4_R03_DEFAULT;
 volatile sntv4_r08_t sntv4_r08 = SNTv4_R08_DEFAULT;
 volatile sntv4_r09_t sntv4_r09 = SNTv4_R09_DEFAULT;
 volatile sntv4_r0A_t sntv4_r0A = SNTv4_R0A_DEFAULT;
+volatile sntv4_r0B_t sntv4_r0B = SNTv4_R0B_DEFAULT;
 volatile sntv4_r17_t sntv4_r17 = SNTv4_R17_DEFAULT;
 
 volatile prev20_r0B_t prev20_r0B = PREv20_R0B_DEFAULT;
-volatile prev20_r1B_t prev20_r1B = PREv20_R1B_DEFAULT;
 volatile prev20_r1C_t prev20_r1C = PREv20_R1C_DEFAULT;
 
 volatile mrrv10_r00_t mrrv10_r00 = MRRv10_R00_DEFAULT;
@@ -163,26 +127,6 @@ volatile mrrv10_r15_t mrrv10_r15 = MRRv10_R15_DEFAULT;
 volatile mrrv10_r1F_t mrrv10_r1F = MRRv10_R1F_DEFAULT;
 volatile mrrv10_r21_t mrrv10_r21 = MRRv10_R21_DEFAULT;
 
-static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefix, uint32_t radio_data);
-
-//***************************************************
-// ADXL362 Functions
-//***************************************************
-static void ADXL362_reg_wr (uint8_t reg_id, uint8_t);
-static void ADXL362_reg_rd (uint8_t reg_id);
-static void ADXL362_init(void);
-static void ADXL362_stop(void);
-static void operation_spi_init(void);
-static void operation_spi_stop(void);
-
-//***************************************************
-// SHT35 Functions
-//***************************************************
-static void operation_i2c_start(void);
-static void operation_i2c_stop(void);
-static void operation_i2c_addr(uint8_t addr, uint8_t RWn);
-static void operation_i2c_cmd(uint8_t cmd);
-static uint8_t operation_i2c_rd(uint8_t ACK);
 
 //***************************************************
 // Sleep Functions
@@ -265,424 +209,6 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
 	mbus_write_message32(0xAA,*SREG_WAKEUP_SOURCE); // 0x1: GOC; 0x2: PRC Timer; 0x10: SNT
 }
 
-
-//***************************************************
-// ADXL362 Functions
-//***************************************************
-static void ADXL362_reg_wr (uint8_t reg_id, uint8_t reg_data){
-  gpio_write_data_with_mask(ADXL_MASK,(0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
-  *SPI_SSPDR = 0x0A;
-  *SPI_SSPDR = reg_id;
-  *SPI_SSPDR = reg_data;
-  *SPI_SSPCR1 = 0x2;
-  while((*SPI_SSPSR>>4)&0x1){}//Spin
-  gpio_write_data_with_mask(ADXL_MASK,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
-  *SPI_SSPCR1 = 0x0;
-}
-
-static void ADXL362_reg_rd (uint8_t reg_id){
-  gpio_write_data_with_mask(ADXL_MASK,(0<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
-  *SPI_SSPDR = 0x0B;
-  *SPI_SSPDR = reg_id;
-  *SPI_SSPDR = 0x00;
-  *SPI_SSPCR1 = 0x2;
-  while((*SPI_SSPSR>>4)&0x1){}//Spin
-  gpio_write_data_with_mask(ADXL_MASK,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
-  *SPI_SSPCR1 = 0x0;
-  mbus_write_message32(0xB1,*SPI_SSPDR);
-}
-
-static void ADXL362_init(){
-  // Soft Reset
-  ADXL362_reg_wr(ADXL362_SOFT_RESET,0x52);
-  
-  // Check if Aliveo
-	/*
-  ADXL362_reg_rd(ADXL362_DEVID_AD);
-  ADXL362_reg_rd(ADXL362_DEVID_MST);
-  ADXL362_reg_rd(ADXL362_PARTID);
-  ADXL362_reg_rd(ADXL362_REVID);
-	*/
-  // Set Interrupt1 Awake Bit [4]
-  ADXL362_reg_wr(ADXL362_INTMAP1,0x10);
-
-  // Set Activity Threshold
-  ADXL362_reg_wr(ADXL362_THRESH_ACT_L,adxl_user_threshold & 0xFF);
-  ADXL362_reg_wr(ADXL362_THRESH_ACT_H,(adxl_user_threshold>>8) & 0xFF);
-
-  // Set Actvity/Inactivity Control
-  ADXL362_reg_wr(ADXL362_ACT_INACT_CTL,0x03);
-
-  // Enter Measurement Mode
-  ADXL362_reg_wr(ADXL362_POWER_CTL,0x0A);
-
-  // Check Status (Clears first false positive)
-  delay(10000);
-  ADXL362_reg_rd(ADXL362_STATUS);
-}
-
-static void ADXL362_enable_ldodebug(){
-	uint32_t i;
-	for (i=0;i<7;i++){
-		mrrv10_r04.LDO_SEL_VOUT = i;
-		mbus_remote_register_write(MRR_ADDR,0x04,mrrv10_r04.as_int);
-		send_radio_data_mrr(0,0xC,i);	
-		delay(RADIO_PACKET_DELAY);
-	}
-	// Initialize Interrupts
-	*NVIC_ISER = 1<<IRQ_WAKEUP;
-
-	operation_spi_init();
-	delay(MBUS_DELAY);
-
-	// Turn PRE power switch on
-	*REG_CPS = *REG_CPS | 0x1;
-	delay(MBUS_DELAY*2);
-
-	send_radio_data_mrr(0,0xC,0xF);	
-	delay(RADIO_PACKET_DELAY);
-
-   	config_timerwd(TIMERWD_VAL);
-
-	for (i=0;i<7;i++){
-		mrrv10_r04.LDO_SEL_VOUT = i;
-		mbus_remote_register_write(MRR_ADDR,0x04,mrrv10_r04.as_int);
-		send_radio_data_mrr(0,0xC,i);	
-		delay(RADIO_PACKET_DELAY);
-	}
-	// Initialize ADXL
-	ADXL362_init();
-	delay(MBUS_DELAY*2);
-	config_gpio_posedge_wirq((0<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
-	prev20_r1B.WAKEUP_ON_PEND_REQ = 0x8; // Default 0x0
-	*REG_SYS_CONF = prev20_r1B.as_int;
-	operation_spi_stop();
-
-	adxl_enabled = 1;
-	adxl_motion_detected = 0;
-}
-static void ADXL362_enable(){
-
-	send_radio_data_mrr(0,0xC,0x0);	
-	delay(RADIO_PACKET_DELAY);
-	// Initialize Interrupts
-	*NVIC_ISER = 1<<IRQ_WAKEUP;
-
-	send_radio_data_mrr(0,0xC,0x1);	
-	delay(RADIO_PACKET_DELAY);
-	operation_spi_init();
-	delay(MBUS_DELAY);
-
-	send_radio_data_mrr(0,0xC,0x2);	
-	delay(RADIO_PACKET_DELAY);
-	// Turn PRE power switch on
-	*REG_CPS = *REG_CPS | 0x1;
-	delay(MBUS_DELAY*2);
-
-	send_radio_data_mrr(0,0xC,0x3);	
-	delay(RADIO_PACKET_DELAY);
-	// Initialize ADXL
-	ADXL362_init();
-	send_radio_data_mrr(0,0xC,0x4);	
-	delay(RADIO_PACKET_DELAY);
-	delay(MBUS_DELAY*2);
-	config_gpio_posedge_wirq((0<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
-	send_radio_data_mrr(0,0xC,0x5);	
-	delay(RADIO_PACKET_DELAY);
-	prev20_r1B.WAKEUP_ON_PEND_REQ = 0x8; // Default 0x0
-	*REG_SYS_CONF = prev20_r1B.as_int;
-	send_radio_data_mrr(0,0xC,0x6);	
-	delay(RADIO_PACKET_DELAY);
-	operation_spi_stop();
-
-	send_radio_data_mrr(0,0xC,0x7);	
-	delay(RADIO_PACKET_DELAY);
-	adxl_enabled = 1;
-	adxl_motion_detected = 0;
-}
-
-static void ADXL362_stop(){
-	operation_spi_init();
-	delay(MBUS_DELAY);
-
-	// Put in Standby Mode
-	ADXL362_reg_wr(ADXL362_POWER_CTL,0x0);
-
-	// Soft Reset
-	ADXL362_reg_wr(ADXL362_SOFT_RESET,0x52);
-  
-	operation_spi_stop();
-
-	config_gpio_posedge_wirq(0x0);
-	prev20_r1B.WAKEUP_ON_PEND_REQ = 0x0; // Default 0x0
-	*REG_SYS_CONF = prev20_r1B.as_int;
-	*NVIC_ISER = 0<<IRQ_WAKEUP;
-	unfreeze_gpio_out();
-	set_gpio_pad_with_mask(ADXL_MASK,(1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
-	gpio_set_dir_with_mask(ADXL_MASK,(1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
-	gpio_write_data_with_mask(ADXL_MASK,0);
-	freeze_gpio_out();
-	adxl_enabled = 0;
-}
-
-static void ADXL362_power_off(){
-	send_radio_data_mrr(0,0xC,0x8);	
-	delay(RADIO_PACKET_DELAY);
-	ADXL362_stop();
-	delay(MBUS_DELAY*10);
-	send_radio_data_mrr(0,0xC,0x9);	
-	delay(RADIO_PACKET_DELAY);
-	*REG_CPS = *REG_CPS & (~0x1);
-	delay(MBUS_DELAY*50);
-	send_radio_data_mrr(0,0xC,0xA);	
-	delay(RADIO_PACKET_DELAY);
-}
-
-static void operation_spi_init(){
-  *SPI_SSPCR0 =  0x0207; // Motorola Mode
-  *SPI_SSPCPSR = 0x02;   // Clock Prescale Register
-
-	// Enable SPI Input/Output
-  set_spi_pad(1);
-  set_gpio_pad_with_mask(ADXL_MASK,(1<<GPIO_ADXL_EN) | (1<<GPIO_ADXL_INT));
-  gpio_set_dir_with_mask(ADXL_MASK,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT));
-  gpio_write_data_with_mask(ADXL_MASK,(1<<GPIO_ADXL_EN) | (0<<GPIO_ADXL_INT)); // << Crashes here
-  unfreeze_gpio_out();
-  unfreeze_spi_out();
-}
-
-static void operation_spi_stop(){
-  freeze_spi_out();
-  freeze_gpio_out();
-}
-
-//***************************************************
-// SHT35 Functions (I2C Bit-Bang)
-//***************************************************
-
-static void operation_i2c_start(){
-  // Enable GPIO OUTPUT
-  gpio_write_data_with_mask(SHT35_MASK,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-  set_gpio_pad_with_mask(SHT35_MASK,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_set_dir_with_mask(SHT35_MASK,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-  unfreeze_gpio_out();
-  //Start
-  gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (0<<GPIO_SCL));
-}
-
-static void operation_i2c_stop(){
-  // Stop
-  gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-}
-
-static void operation_i2c_addr(uint8_t addr, uint8_t RWn){
-  //Assume started
-  //[6]
-  gpio_set_dir_with_mask(SHT35_MASK,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>6)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>6)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>6)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[5]
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>5)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>5)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>5)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[4]
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>4)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>4)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>4)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[3]
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>3)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>3)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>3)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[2]
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>2)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>2)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>2)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[1]
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>1)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>1)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>1)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[0]
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>0)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>0)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((addr>>0)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  
-  //WRITEn/READ
-  //Need Hack
-  if((RWn&0x1) == 1){ //Need hack
-    gpio_set_dir_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-    gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
-    gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
-    gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
-  }
-  else{
-    gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (0<<GPIO_SCL));
-    gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-    gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (0<<GPIO_SCL));
-  }
-
-  //Wait for ACK
-  gpio_set_dir_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-  while((*GPIO_DATA>>GPIO_SDA)&0x1){
-    //mbus_write_message32(0xCE, *GPIO_DATA);
-  }
-  gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
-  gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
-  gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
-}
-
-static void operation_i2c_cmd(uint8_t cmd){
-  gpio_set_dir_with_mask(SHT35_MASK,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-  //[7]
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>7)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>7)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>7)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[6]
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>6)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>6)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>6)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[5]
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>5)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>5)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>5)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[4]
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>4)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>4)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>4)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[3]
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>3)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>3)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>3)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[2]
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>2)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>2)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>2)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[1]
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>1)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>1)&0x1)<<GPIO_SDA) | (1<<GPIO_SCL));
-  gpio_write_data_with_mask(SHT35_MASK,(((cmd>>1)&0x1)<<GPIO_SDA) | (0<<GPIO_SCL));
-  //[0]
-  if((cmd&0x1) == 1){ //Need hack
-    gpio_set_dir_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-    gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
-    gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
-    gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
-  }
-  else{
-    gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (0<<GPIO_SCL));
-    gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-    gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (0<<GPIO_SCL));
-  }
-  
-  //Wait for ACK
-  gpio_set_dir_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-	// Use timer32 as timeout counter
-	set_timer32_timeout(TIMER32_VAL);
-
-  while((*GPIO_DATA>>GPIO_SDA)&0x1){
-    //mbus_write_message32(0xCF, *GPIO_DATA);
-  }
-	stop_timer32_timeout_check(0x5);
-  gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
-  gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
-  gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
-}
-
-static uint8_t operation_i2c_rd(uint8_t ACK){
-
-	uint8_t data;
-	data = 0;
-	gpio_set_dir_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-	//[7]
-	gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
-	gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
-	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<7);
-	//[6]
-	gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
-	gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
-	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<6);
-	//[5]
-	gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
-	gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
-	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<5);
-	//[4]
-	gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
-	gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
-	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<4);
-	//[3]
-	gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
-	gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
-	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<3);
-	//[2]
-	gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
-	gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
-	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<2);
-	//[1]
-	gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
-	gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
-	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<1);
-	//[0]
-	gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
-	gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
-	data = data | ((*GPIO_DATA>>GPIO_SDA&0x1)<<0);
-	gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
-	if (ACK&0x1){
-		gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (0<<GPIO_SCL));
-		gpio_set_dir_with_mask(SHT35_MASK,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-		gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
-		gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (0<<GPIO_SCL));
-	}
-	else{
-		gpio_set_dir_with_mask(SHT35_MASK,(1<<GPIO_SDA) | (1<<GPIO_SCL));
-		gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
-		gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
-	}
-	// Debug
-	//mbus_write_message32(0xCF, data);
-	return data;
-}
-
-
-static void sht35_meas_data(){
-	uint8_t i2c_data_rx;
-	send_radio_data_mrr(0,0xC,0xB);	
-	delay(RADIO_PACKET_DELAY);
-	// Power on
-	*REG_CPS = *REG_CPS | 0x2;
-	delay(MBUS_DELAY*2);
-	send_radio_data_mrr(0,0xC,0xC);	
-	delay(RADIO_PACKET_DELAY);
-	// Start measurement
-	operation_i2c_start();
-	operation_i2c_addr(0x44,0);
-	operation_i2c_cmd(0x24);
-	operation_i2c_cmd(sht35_user_repeatability); // Default 0x0B
-	operation_i2c_stop();
-
-	delay(MBUS_DELAY*2); // about 10ms delay
-
-	send_radio_data_mrr(0,0xC,0xD);	
-	delay(RADIO_PACKET_DELAY);
-	// Read
-	operation_i2c_start();
-	operation_i2c_addr(0x44,0x1);
-	i2c_data_rx = operation_i2c_rd(0x1); // Temp MSB
-	sht35_temp_data = i2c_data_rx<<8;
-	i2c_data_rx = operation_i2c_rd(0x1); // Temp LSB
-	sht35_temp_data = sht35_temp_data | i2c_data_rx;
-	i2c_data_rx = operation_i2c_rd(0x1); // CRC
-	i2c_data_rx = operation_i2c_rd(0x1); // Hum MSB
-	sht35_hum_data = i2c_data_rx<<8;
-	i2c_data_rx = operation_i2c_rd(0x1); // Hum LSB
-	sht35_hum_data = sht35_hum_data | i2c_data_rx;
-	i2c_data_rx = operation_i2c_rd(0x0); // CRC
-	operation_i2c_stop();
-	*REG_CPS = *REG_CPS & (~0x2);
-	send_radio_data_mrr(0,0xC,0xE);	
-	delay(RADIO_PACKET_DELAY);
-}
 
 //************************************
 // PMU Related Functions
@@ -866,46 +392,75 @@ inline static void pmu_set_sleep_low(){
     pmu_set_sleep_clk(0xF,0x0,0x1,0x1/*V1P2*/);
 }
 
-inline static void pmu_setting_temp_based(){
+inline static void pmu_set_sleep_tsns(){
+    if (pmu_setting_state >= PMU_75C){
+        pmu_set_active_clk(0x5,0xA,0x5,0xF/*V1P2*/);
+
+    }else if (pmu_setting_state >= PMU_35C){
+        pmu_set_active_clk(0xA,0xA,0x5,0xF/*V1P2*/);
+
+    }else if (pmu_setting_state < PMU_20C){
+        pmu_set_active_clk(0xF,0xA,0x7,0xF/*V1P2*/);
+
+    }else{ // 25C, default
+    	pmu_set_sleep_clk(0xF,0xA,0x5,0xF/*V1P2*/);
+    }
+}
+
+inline static void pmu_sleep_setting_temp_based(){
     
-    if (sht35_cur_temp > 35576){ // >50C
-		if (pmu_setting_state != PMU_55C){
-			pmu_setting_state = PMU_55C;
-	        pmu_set_active_clk(0x6,0x1,0x10,0x2/*V1P2*/);
-	        pmu_set_sleep_clk(0x6,0x0,0x1,0x1/*V1P2*/);
-		}
-    }else if (sht35_cur_temp > 31831){ // 40-50C
-		if (pmu_setting_state != PMU_45C){
-			pmu_setting_state = PMU_45C;
-	        pmu_set_active_clk(0xA,0x1,0x10,0x2/*V1P2*/);
-	        pmu_set_sleep_clk(0xA,0x0,0x1,0x1/*V1P2*/);
-		}
-    }else if (sht35_cur_temp > 28086){ // 30-40C
-		if (pmu_setting_state != PMU_35C){
-			pmu_setting_state = PMU_35C;
-	        pmu_set_active_clk(0xF,0x1,0x10,0x2/*V1P2*/);
-			pmu_set_sleep_low();
-		}
-    }else if (sht35_cur_temp < 24342){ // 10-20C
-		if (pmu_setting_state != PMU_15C){
-			pmu_setting_state = PMU_15C;
-	        pmu_set_active_clk(0xF,0x7,0x10,0xE/*V1P2*/);
-    		pmu_set_sleep_clk(0xF,0x1,0x1,0x2/*V1P2*/);
-		}
-    }else{ // 20-30C, default
-		if (pmu_setting_state != PMU_25C){
-			pmu_setting_state = PMU_25C;
-	        pmu_set_active_clk(0xF,0x3,0x10,0x7/*V1P2*/);
-			pmu_set_sleep_low();
-		}
+    if (pmu_setting_state == PMU_95C){
+		pmu_set_sleep_clk(0x6,0x0,0x1,0x1/*V1P2*/);
+
+    }else if (pmu_setting_state == PMU_75C){
+		pmu_set_sleep_clk(0x6,0x0,0x1,0x1/*V1P2*/);
+
+    }else if (pmu_setting_state == PMU_55C){
+		pmu_set_sleep_clk(0x6,0x0,0x1,0x1/*V1P2*/);
+
+    }else if (pmu_setting_state == PMU_35C){
+		pmu_set_sleep_low();
+
+    }else if (pmu_setting_state == PMU_20C){
+		pmu_set_sleep_clk(0xF,0x1,0x1,0x2/*V1P2*/);
+
+    }else if (pmu_setting_state == PMU_10C){
+		pmu_set_sleep_clk(0xF,0x1,0x1,0x2/*V1P2*/);
+
+    }else{ // 25C, default
+		pmu_set_sleep_low();
+    }
+}
+inline static void pmu_active_setting_temp_based(){
+    
+    if (pmu_setting_state == PMU_95C){
+		pmu_set_active_clk(0x6,0x1,0x10,0x2/*V1P2*/);
+
+    }else if (pmu_setting_state == PMU_75C){
+		pmu_set_active_clk(0x6,0x1,0x10,0x2/*V1P2*/);
+
+    }else if (pmu_setting_state == PMU_55C){
+		pmu_set_active_clk(0x6,0x1,0x10,0x2/*V1P2*/);
+
+    }else if (pmu_setting_state == PMU_35C){
+	    pmu_set_active_clk(0xF,0x1,0x10,0x2/*V1P2*/);
+
+    }else if (pmu_setting_state == PMU_20C){
+		pmu_set_active_clk(0xF,0x7,0x10,0xE/*V1P2*/);
+
+    }else if (pmu_setting_state == PMU_10C){
+		pmu_set_active_clk(0xF,0x7,0x10,0xE/*V1P2*/);
+
+    }else{ // 25C, default
+		pmu_set_active_clk(0xF,0x3,0x10,0x7/*V1P2*/);
     }
 }
 
 
 inline static void pmu_set_clk_init(){
-    pmu_setting_state = 10;
-	sht35_cur_temp = 26214; //25C
-	pmu_setting_temp_based();
+    pmu_setting_state = PMU_25C;
+    pmu_active_setting_temp_based();
+    pmu_sleep_setting_temp_based();
 
 	// SAR_RATIO_OVERRIDE
 	// Use the new reset scheme in PMUv3
@@ -919,7 +474,7 @@ inline static void pmu_set_clk_init(){
 		| (0 << 7) // Enable override setting [6:0] (1'h0)
 		| (0x3C) 		// Binary converter's conversion ratio (7'h00)
 	));
-	pmu_set_sar_override(0x3C);
+	pmu_set_sar_override(0x43);
 
 	pmu_set_adc_period(1); // 0x100 about 1 min for 1/2/1 1P2 setting
 }
@@ -1012,6 +567,58 @@ inline static void pmu_adc_enable(){
 	));
 }
 
+inline static void pmu_parking_decision_3v_battery(){
+	
+	// Battery > 3.0V
+	if (read_data_batadc < (PMU_ADC_3P0_VAL)){
+		pmu_set_sar_override(0x3C);
+
+	// Battery 2.9V - 3.0V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 4){
+		pmu_set_sar_override(0x3F);
+
+	// Battery 2.8V - 2.9V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 8){
+		pmu_set_sar_override(0x41);
+
+	// Battery 2.7V - 2.8V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 12){
+		pmu_set_sar_override(0x43);
+
+	// Battery 2.6V - 2.7V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 17){
+		pmu_set_sar_override(0x45);
+
+	// Battery 2.5V - 2.6V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 21){
+		pmu_set_sar_override(0x48);
+
+	// Battery 2.4V - 2.5V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 27){
+		pmu_set_sar_override(0x4B);
+
+	// Battery 2.3V - 2.4V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 32){
+		pmu_set_sar_override(0x4E);
+
+	// Battery 2.2V - 2.3V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 39){
+		pmu_set_sar_override(0x51);
+
+	// Battery 2.1V - 2.2V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 46){
+		pmu_set_sar_override(0x56);
+
+	// Battery 2.0V - 2.1V
+	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 53){
+		pmu_set_sar_override(0x5A);
+
+	// Battery <= 2.0V
+	}else{
+		pmu_set_sar_override(0x5F);
+	}
+	
+}
 
 inline static void pmu_adc_read_latest(){
 	// Grab latest PMU ADC readings
@@ -1019,6 +626,16 @@ inline static void pmu_adc_read_latest(){
 	pmu_reg_write(0x00,0x03);
 	// Updated for PMUv9
 	read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
+
+	if (read_data_batadc<PMU_ADC_3P0_VAL){
+		read_data_batadc_diff = 0;
+	}else{
+		read_data_batadc_diff = read_data_batadc - PMU_ADC_3P0_VAL;
+	}
+
+	if ((pmu_parking_mode > 0) && (exec_count_irq == 0)){
+		pmu_parking_decision_3v_battery();
+	}
 
 }
 
@@ -1346,9 +963,9 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
 		mbus_write_message32(0xCE, mrr_cfo_val);
 		#endif
 
-		//mrrv10_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine; 
-		//mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine;
-		//mbus_remote_register_write(MRR_ADDR,0x01,mrrv10_r01.as_int);
+		mrrv10_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine; 
+		mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine;
+		mbus_remote_register_write(MRR_ADDR,0x01,mrrv10_r01.as_int);
 		send_radio_data_mrr_sub1();
 		count++;
 		if (count < num_packets){
@@ -1372,6 +989,51 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
 // Temp Sensor Functions (SNTv4)
 //***************************************************
 
+static void temp_sensor_start(){
+    sntv4_r01.TSNS_RESETn = 1;
+    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
+}
+static void temp_sensor_reset(){
+    sntv4_r01.TSNS_RESETn = 0;
+    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
+}
+static void temp_sensor_power_on(){
+    // Turn on digital block
+    sntv4_r01.TSNS_SEL_LDO = 1;
+    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
+    // Turn on analog block
+    sntv4_r01.TSNS_EN_SENSOR_LDO = 1;
+    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
+
+    delay(MBUS_DELAY);
+
+    // Release isolation
+    sntv4_r01.TSNS_ISOLATE = 0;
+    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
+}
+static void temp_sensor_power_off(){
+    sntv4_r01.TSNS_RESETn = 0;
+    sntv4_r01.TSNS_SEL_LDO = 0;
+    sntv4_r01.TSNS_EN_SENSOR_LDO = 0;
+    sntv4_r01.TSNS_ISOLATE = 1;
+    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
+}
+static void sns_ldo_vref_on(){
+    sntv4_r00.LDO_EN_VREF    = 1;
+    mbus_remote_register_write(SNT_ADDR,0,sntv4_r00.as_int);
+}
+
+static void sns_ldo_power_on(){
+    sntv4_r00.LDO_EN_IREF    = 1;
+    sntv4_r00.LDO_EN_LDO    = 1;
+    mbus_remote_register_write(SNT_ADDR,0,sntv4_r00.as_int);
+}
+static void sns_ldo_power_off(){
+    sntv4_r00.LDO_EN_VREF    = 0;
+    sntv4_r00.LDO_EN_IREF    = 0;
+    sntv4_r00.LDO_EN_LDO    = 0;
+    mbus_remote_register_write(SNT_ADDR,0,sntv4_r00.as_int);
+}
 static void snt_read_wup_counter(){
 // WARNING: The read value might be corrupted due to asynchronous reading
 
@@ -1481,6 +1143,21 @@ static void snt_set_timer_threshold(uint32_t sleep_count){
 //***************************************************
 // End of Program Sleep Operation
 //***************************************************
+static void operation_sns_sleep_check(void){
+    // Make sure LDO is off
+    if (sns_running){
+        sns_running = 0;
+        temp_sensor_power_off();
+        sns_ldo_power_off();
+    }
+	if (pmu_setting_state != PMU_25C){
+		// Set PMU to room temp setting
+		pmu_setting_state = PMU_25C;
+		pmu_active_setting_temp_based();
+		pmu_sleep_setting_temp_based();
+	}
+}
+
 static void operation_sleep(void){
 
 	// Reset GOC_DATA_IRQ
@@ -1518,10 +1195,6 @@ static void operation_sleep_notimer(void){
 
 	// Make sure the irq counter is reset    
     exec_count_irq = 0;
-
-	if (adxl_enabled){
-		ADXL362_power_off();
-	}
 
     // Make sure Radio is off
     if (radio_on){radio_power_off();}
@@ -1579,11 +1252,12 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     stack_state = STK_IDLE; 	//0x0;
-    enumerated = 0x414812dd; // 0x4148 is AH in ascii
+    enumerated = 0x54530100; // 0x5453 is TS in ascii
     exec_count = 0;
     wakeup_count = 0;
     exec_count_irq = 0;
 	PMU_ADC_3P0_VAL = 0x62;
+	pmu_parking_mode = 3;
   
     // Set CPU Halt Option as RX --> Use for register read e.g.
 //    set_halt_until_mbus_rx();
@@ -1625,6 +1299,18 @@ static void operation_init(void){
 	pmu_adc_reset_setting();
 	pmu_adc_enable();
 
+    // Temp Sensor Settings --------------------------------------
+    sntv4_r01.TSNS_RESETn = 0;
+    sntv4_r01.TSNS_EN_IRQ = 1;
+    sntv4_r01.TSNS_BURST_MODE = 0;
+    sntv4_r01.TSNS_CONT_MODE = 0;
+    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
+
+    // Set temp sensor conversion time
+    sntv4_r03.TSNS_SEL_STB_TIME = 0x1; 
+    sntv4_r03.TSNS_SEL_CONV_TIME = 0x6; // Default: 0x6
+    mbus_remote_register_write(SNT_ADDR,0x03,sntv4_r03.as_int);
+
     // SNT Wakeup Timer Settings --------------------------------------
     // Config Register A
     sntv4_r0A.TMR_S = 0x1; // Default: 0x4, use 1 for good TC
@@ -1636,7 +1322,6 @@ static void operation_init(void){
     // Tune C for freq
     sntv4_r09.TMR_SEL_CAP = 0x80; // Default : 8'h8
     sntv4_r09.TMR_SEL_DCAP = 0x3F; // Default : 6'h4
-
     mbus_remote_register_write(SNT_ADDR,0x09,sntv4_r09.as_int);
 
     // Wakeup Counter
@@ -1645,7 +1330,6 @@ static void operation_init(void){
     mbus_remote_register_write(SNT_ADDR,0x17,sntv4_r17.as_int);
 
     // MRR Settings --------------------------------------
-
 	// Reqruied in MRRv10 to run like MRRv7
 	mrrv10_r21.MRR_TRX_ENb_CONT_RC = 0;  //RX_Decap P 
 	mbus_remote_register_write(MRR_ADDR,0x21,mrrv10_r21.as_int);
@@ -1676,7 +1360,7 @@ static void operation_init(void){
 	//mrr_configure_pulse_width_short();
 	mrr_configure_pulse_width_long();
 
-	mrr_freq_hopping = 3;
+	mrr_freq_hopping = 5;
 	mrr_freq_hopping_step = 4;
 
 	mrr_cfo_val_fine_min = 0x0000;
@@ -1689,9 +1373,9 @@ static void operation_init(void){
 	mbus_remote_register_write(MRR_ADDR,0x08,0x400000); // RO_POLY
 
 	// Adjust C
-	//mrrv10_r07.RO_MOM = 0x10;
-	//mrrv10_r07.RO_MIM = 0x10;
-	//mbus_remote_register_write(MRR_ADDR,0x07,mrrv10_r07.as_int);
+	mrrv10_r07.RO_MOM = 0x10;
+	mrrv10_r07.RO_MIM = 0x10;
+	mbus_remote_register_write(MRR_ADDR,0x07,mrrv10_r07.as_int);
 
 	// TX Setup Carrier Freq
 	mrrv10_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x0;  //ANT CAP 10b unary 830.5 MHz
@@ -1747,15 +1431,17 @@ static void operation_init(void){
 	radio_packet_count = 0;
 	error_code = 0;
 	
-	astack_detection_mode = 0;
-	adxl_enabled = 0;
-	adxl_motion_detected = 0;
-
-	adxl_user_threshold = 0x060; // rec. 0x60, max 0x7FF
-	sht35_user_repeatability = 0x0B; // default 0x0B
-	sht35_cur_temp = 26214; // 25C
+    PMU_10C_threshold_sns = 600; // Around 10C
+    PMU_20C_threshold_sns = 1000; // Around 20C
+    PMU_35C_threshold_sns = 2000; // Around 35C
+    PMU_55C_threshold_sns = 3200; // Around 55C
+    PMU_75C_threshold_sns = 7000; // Around 75C
+    PMU_95C_threshold_sns = 12000; // Around 95C
 
     SNT_0P5S_VAL = 1000;
+    TEMP_CALIB_A = 240000;
+    TEMP_CALIB_B = 3750000;
+
 
     // Go to sleep without timer
     operation_sleep_notimer();
@@ -1764,6 +1450,140 @@ static void operation_init(void){
 //***************************************************
 // Temperature measurement operation
 //***************************************************
+static void operation_sns_run(void){
+
+    if (stack_state == STK_IDLE){
+        stack_state = STK_LDO;
+
+        wfi_timeout_flag = 0;
+
+        // Turn on SNS LDO VREF; requires settling
+        sns_ldo_vref_on();
+
+        // Power on radio
+		radio_power_on();
+
+    }else if (stack_state == STK_LDO){
+        stack_state = STK_TEMP_START;
+
+        // Power on SNS LDO
+        sns_ldo_power_on();
+
+        // Power on temp sensor
+        temp_sensor_power_on();
+        delay(MBUS_DELAY);
+
+    }else if (stack_state == STK_TEMP_START){
+        // Start temp measurement
+        stack_state = STK_TEMP_READ;
+        pmu_set_sleep_tsns();
+        temp_sensor_start();
+		// Go to sleep during measurement
+		operation_sleep();
+
+    }else if (stack_state == STK_TEMP_READ){
+
+        // Grab Temp Sensor Data
+        if (wfi_timeout_flag){
+            mbus_write_message32(0xFA, 0xFAFAFAFA);
+        }else{
+            // Read register
+            set_halt_until_mbus_rx();
+            mbus_remote_register_read(SNT_ADDR,0x6,1);
+            read_data_temp = *REG1;
+            set_halt_until_mbus_tx();
+        }
+        meas_count++;
+
+        // Last measurement from this wakeup
+        if (meas_count == NUM_TEMP_MEAS){
+            // No error; see if there was a timeout
+            if (wfi_timeout_flag){
+                temp_storage_latest = 0x666;
+                wfi_timeout_flag = 0;
+                // In case of timeout, wakeup counter needs to be adjusted 
+                snt_read_wup_counter();
+            }else{
+                temp_storage_latest = read_data_temp;
+
+            }
+        }
+
+        // Option to take multiple measurements per wakeup
+        if (meas_count < NUM_TEMP_MEAS){    
+            // Repeat measurement while awake
+            temp_sensor_reset();
+            stack_state = STK_TEMP_START;
+                
+        }else{
+            meas_count = 0;
+
+            // Read latest PMU ADC measurement
+            pmu_adc_read_latest();
+        
+			uint32_t pmu_setting_prev = pmu_setting_state;
+            // Change PMU based on temp
+            if (temp_storage_latest > PMU_95C_threshold_sns){
+                pmu_setting_state = PMU_95C;
+            }else if (temp_storage_latest > PMU_75C_threshold_sns){
+                pmu_setting_state = PMU_75C;
+            }else if (temp_storage_latest > PMU_55C_threshold_sns){
+                pmu_setting_state = PMU_55C;
+            }else if (temp_storage_latest > PMU_35C_threshold_sns){
+                pmu_setting_state = PMU_35C;
+            }else if (temp_storage_latest < PMU_10C_threshold_sns){
+                pmu_setting_state = PMU_10C;
+            }else if (temp_storage_latest < PMU_20C_threshold_sns){
+                pmu_setting_state = PMU_20C;
+            }else{
+                pmu_setting_state = PMU_25C;
+            }
+
+			// Always restore sleep setting from higher pmu meas setting
+   	        pmu_sleep_setting_temp_based();
+
+			if (pmu_setting_prev != pmu_setting_state){
+	            pmu_active_setting_temp_based();
+			}
+
+
+            // Assert temp sensor isolation & turn off temp sensor power
+            temp_sensor_power_off();
+            sns_ldo_power_off();
+            stack_state = STK_IDLE;
+
+            #ifdef DEBUG_MBUS_MSG_1
+            mbus_write_message32(0xCC, exec_count);
+            #endif
+            mbus_write_message32(0xC0, (exec_count << 16) | temp_storage_latest);
+
+
+            // transmit the data
+            send_radio_data_mrr(1,0x1,temp_storage_latest);
+
+            exec_count++;
+
+            // Make sure Radio is off
+            if (radio_on){
+                radio_ready = 0;
+                radio_power_off();
+            }
+
+			// Use SNT Timer    
+			snt_set_wup_timer(WAKEUP_PERIOD_CONT_USER);
+			operation_sleep_snt_timer();
+
+        }
+
+    }else{
+        //default:  // THIS SHOULD NOT HAPPEN
+        // Reset Temp Sensor 
+        temp_sensor_power_off();
+        sns_ldo_power_off();
+        operation_sleep_notimer();
+    }
+
+}
 
 
 static void operation_goc_trigger_init(void){
@@ -1779,10 +1599,6 @@ static void operation_goc_trigger_init(void){
 	sns_running = 0;
 	stack_state = STK_IDLE;
 	
-	if (adxl_enabled) {
-		ADXL362_power_off();
-	}
-
 	radio_power_off();
 	//radio_packet_count = 0;
 }
@@ -1830,7 +1646,6 @@ int main(){
 		#ifdef DEBUG_MBUS_MSG
 		mbus_write_message32(0xAA,0x11331133);
 		#endif
-		adxl_motion_detected = 1;
 	}
 
 	// Record previous sleep time
@@ -1841,7 +1656,7 @@ int main(){
 	#endif
 
     // Initialization sequence
-    if (enumerated != 0x414812dd){
+    if (enumerated != 0x54530100){
         operation_init();
     }
 
@@ -1869,6 +1684,99 @@ int main(){
         // wakeup_data[23:16] is the MSB of # of transmissions
 		operation_goc_trigger_radio(wakeup_data_field_0 + (wakeup_data_field_2<<8), wakeup_data_field_1, 0x4, exec_count_irq);
 
+    }else if(wakeup_data_header == 0x02){
+        // wakeup_data[15:0] is the desired wakeup period in 0.5s (min 0.5s: 0x1, max 32767.5s: 0xFFFF)
+        // wakeup_data[20] enables radio tx for each measurement
+        // wakeup_data[21] specifies which wakeup timer to use 0: SNT timer, 1: PRC timer
+        // wakeup_data[23] is debug mode: logs the execution count as opposed to temp data
+        
+		// Use SNT timer
+    	WAKEUP_PERIOD_CONT_USER = wakeup_data & 0xFFFF;
+
+		// Use SNT timer
+		WAKEUP_PERIOD_SNT = (WAKEUP_PERIOD_CONT_USER<<1)*SNT_0P5S_VAL; // Unit is 0.5s
+
+        exec_count_irq++;
+
+        if (exec_count_irq == 1){
+            // SNT pulls higher current in the beginning
+            pmu_set_sleep_radio();
+            snt_start_timer_presleep();
+            // Go to sleep for >3s for timer stabilization
+            set_wakeup_timer (WAKEUP_PERIOD_SNT, 0x1, 0x1);
+            operation_sleep_noirqreset();
+        }else if (exec_count_irq == 2){
+            snt_start_timer_postsleep();
+            // Read existing counter value; in case not reset to zero
+            snt_read_wup_counter();
+            // Restore sleep setting to low
+            pmu_set_sleep_low();
+
+			// Set SNT Timer Threshold
+			snt_set_timer_threshold(WAKEUP_PERIOD_SNT);
+        }
+
+        sns_running = 1;
+
+		// Prepare for Radio TX
+		radio_power_on();
+
+		// Starting Operation
+		send_radio_data_mrr(0,0x5,0x0);	
+
+        exec_count = 0;
+        meas_count = 0;
+        temp_storage_count = 0;
+
+        // Reset GOC_DATA_IRQ
+        *GOC_DATA_IRQ = 0;
+        exec_count_irq = 0;
+
+        // Run Temp Sensor Program
+    	stack_state = STK_IDLE;
+        operation_sns_run();
+
+    }else if(wakeup_data_header == 0x03){
+        // Stop temp sensor program and transmit the battery reading and execution count (alternating n times)
+        // wakeup_data[7:0] is the # of transmissions
+        // wakeup_data[15:8] is the user-specified period 
+
+        operation_sns_sleep_check();
+        snt_stop_timer();
+
+        stack_state = STK_IDLE;
+
+        operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0x2, temp_storage_count);
+
+    }else if(wakeup_data_header == 0x51){
+		// Debug trigger for MRR testing; repeat trigger 1 for 0xFFFFFFFF times
+		operation_goc_trigger_radio(0xFFFFFFFF, wakeup_data_field_1, 0x4, exec_count_irq);
+
+    }else if(wakeup_data_header == 0x14){
+        // Update SNT wakeup counter value for 0.5s
+        SNT_0P5S_VAL = wakeup_data & 0xFFFF;
+        if (SNT_0P5S_VAL == 0){
+            SNT_0P5S_VAL = 1000;
+        }        
+
+    }else if(wakeup_data_header == 0x15){
+        // Update GOC clock
+		prev20_r0B.GOC_CLK_GEN_SEL_FREQ = (wakeup_data >> 4)&0x7; // Default 0x0
+		prev20_r0B.GOC_CLK_GEN_SEL_DIV = wakeup_data & 0x3; // Default 0x6
+		*REG_CLKGEN_TUNE = prev20_r0B.as_int;
+
+    }else if(wakeup_data_header == 0x17){
+		// Change the 3.0V battery reference
+		if (wakeup_data_field_0 == 0){
+			// Update with the current value
+			PMU_ADC_3P0_VAL = read_data_batadc;
+		}else{
+			PMU_ADC_3P0_VAL = wakeup_data_field_0;
+		}
+
+	}else if(wakeup_data_header == 0x18){
+		// Manually override the SAR ratio
+		pmu_set_sar_override(wakeup_data_field_0);
 
 	}else if(wakeup_data_header == 0x20){
         // wakeup_data[7:0] is the # of transmissions
@@ -1946,109 +1854,70 @@ int main(){
 		mrrv10_r04.LDO_SEL_VOUT = wakeup_data & 0x7;
 		mbus_remote_register_write(MRR_ADDR,0x04,mrrv10_r04.as_int);
 
+    }else if(wakeup_data_header == 0x32){
+		// Run temp measurement routine with desired wakeup period
+    	WAKEUP_PERIOD_CONT_USER = wakeup_data & 0xFFFF;
 
-	// DEBUG
-    }else if(wakeup_data_header == 0xF5){
+		// Use SNT timer
+		WAKEUP_PERIOD_SNT = (WAKEUP_PERIOD_CONT_USER<<1)*SNT_0P5S_VAL; // Unit is 0.5s
+        exec_count_irq++;
+
+        if (exec_count_irq == 1){
+            // SNT pulls higher current in the beginning
+            pmu_set_sleep_radio();
+            snt_start_timer_presleep();
+            // Go to sleep for >3s for timer stabilization
+            set_wakeup_timer (WAKEUP_PERIOD_RADIO_INIT*2, 0x1, 0x1);
+            operation_sleep_noirqreset();
+        }else if (exec_count_irq == 2){
+            snt_start_timer_postsleep();
+            // Read existing counter value; in case not reset to zero
+            snt_read_wup_counter();
+            // Restore sleep setting to low
+            pmu_set_sleep_low();
+
+			// Set SNT Timer Threshold
+			snt_set_timer_threshold(WAKEUP_PERIOD_SNT);
+        }
 
 		// Prepare for Radio TX
 		radio_power_on();
-
-		ADXL362_enable();
-   		config_timerwd(TIMERWD_VAL);
-		ADXL362_power_off();
-
-   		config_timerwd(TIMERWD_VAL);
 
 		// Starting Operation
 		send_radio_data_mrr(0,0x5,0x0);	
-	delay(RADIO_PACKET_DELAY);
 
-		sht35_meas_data();
+		sns_running = 1;
+		exec_count = 0;
+		wakeup_count = 0;
 
+		// Reset GOC_DATA_IRQ
+		*GOC_DATA_IRQ = 0;
+        exec_count_irq = 0;
 
-		// Send Check-in message
-		send_radio_data_mrr(1,0x1,(sht35_hum_data<<16) | (sht35_temp_data&0xFFFF));	
+		// Run Temp Sensor Program
+    	stack_state = STK_IDLE;
+		operation_sns_run();
 
-    }else if(wakeup_data_header == 0xF6){
-
-		// Prepare for Radio TX
-		radio_power_on();
-
-		ADXL362_enable();
-   		config_timerwd(TIMERWD_VAL);
-
-		// Starting Operation
-		send_radio_data_mrr(0,0x5,0x0);	
-	delay(RADIO_PACKET_DELAY);
-
-		sht35_meas_data();
-
-
-		// Send Check-in message
-		send_radio_data_mrr(1,0x1,(sht35_hum_data<<16) | (sht35_temp_data&0xFFFF));	
-
-
-   		config_timerwd(TIMERWD_VAL);
-		ADXL362_power_off();
-
-    }else if(wakeup_data_header == 0xF7){
-
-		// Prepare for Radio TX
-		radio_power_on();
-
-		ADXL362_enable_ldodebug();
-   		config_timerwd(TIMERWD_VAL);
-		ADXL362_power_off();
-
-   		config_timerwd(TIMERWD_VAL);
-
-		// Starting Operation
-		send_radio_data_mrr(0,0x5,0x0);	
-	delay(RADIO_PACKET_DELAY);
-
-		sht35_meas_data();
-
-
-		// Send Check-in message
-		send_radio_data_mrr(1,0x1,(sht35_hum_data<<16) | (sht35_temp_data&0xFFFF));	
-
-    }else if(wakeup_data_header == 0xF8){
-
-		// Prepare for Radio TX
-		radio_power_on();
-
-		sht35_meas_data();
-
-    }else if(wakeup_data_header == 0x33){
-		// Stop temp & ADXL program and transmit the battery reading and execution count (alternating n times)
-        // wakeup_data[7:0] is the # of transmissions
-        // wakeup_data[15:8] is the user-specified period 
-
-		stack_state = STK_IDLE;
-		astack_detection_mode = 0;
-
-		// Stop ADXL
-		if (adxl_enabled){
-			ADXL362_power_off();
-		}
-
-		// Prepare radio TX
-		radio_power_on();
-
-		operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0x6, exec_count); 
-
-/*	}else if(wakeup_data_header == 0x3D){
-		// Change ADXL mute settings
-		adxl_trigger_mute_count = wakeup_data_field_0;
-		sleep_time_threshold_factor = wakeup_data_field_1;
-
-		// Go to sleep without timer
-		operation_sleep_notimer();
-*/
 	}else if(wakeup_data_header == 0xF0){
 		// Report firmware version
 
 		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xB, enumerated);
+
+	}else if(wakeup_data_header == 0xF1){
+		// Report PRC's Chip ID (Serial Number)
+		uint32_t puf_chip_id = 0;
+		// Power Up PUF
+		*REG_SYS_CONF = (0x0/*PUF_SLEEP*/ << 6) | (0x1/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
+		// Wait (~20ms)
+		delay(MBUS_DELAY*4);
+		// Release Isolation
+		*REG_SYS_CONF = (0x0/*PUF_SLEEP*/ << 6) | (0x0/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
+		// Store the Chip ID
+		puf_chip_id = *REG_PUF_CHIP_ID;
+		// Power-Off PUF
+		*REG_SYS_CONF = (0x1/*PUF_SLEEP*/ << 6) | (0x1/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
+
+		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xC, puf_chip_id);
 
 	}else if(wakeup_data_header == 0xFA){
 
@@ -2069,6 +1938,12 @@ int main(){
 		}
 	}
 
+	if (sns_running){
+		// Proceed to continuous mode
+		while(1){
+			operation_sns_run();
+		}
+	}
 
 	operation_sleep_notimer();
 
