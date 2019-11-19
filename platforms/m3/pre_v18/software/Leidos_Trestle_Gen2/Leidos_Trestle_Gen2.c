@@ -1086,8 +1086,11 @@ static void operation_init(void){
 
     //Enumeration
     mbus_enumerate(SNT_ADDR);
+    delay(MBUS_DELAY);
     mbus_enumerate(ADO_ADDR);
+    delay(MBUS_DELAY);
     mbus_enumerate(FLP_ADDR);
+    delay(MBUS_DELAY);
     mbus_enumerate(PMU_ADDR);
     delay(MBUS_DELAY);
 
