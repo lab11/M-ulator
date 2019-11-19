@@ -1124,11 +1124,11 @@ static void operation_init(void){
     WAKEUP_PERIOD_CONT_INIT = 3;   // 0x1E (30): ~1 min with PRCv9
     wakeup_data = 0;
 
-#ifdef DEBUG_MODE
+//#ifdef DEBUG_MODE
     *REG_CPS = 0x5;   //both TEST VDD on [2]=1: Test 1.2V on,  [0]=1: Test 0.6V on
-#else
-    *REG_CPS = 0x0;   //both TEST VDD off
-#endif
+//#else
+//    *REG_CPS = 0x0;   //both TEST VDD off
+//#endif
     delay(MBUS_DELAY*10);
 
     FLASH_initialization(); //FLPv3L initialization
