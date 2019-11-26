@@ -41,6 +41,8 @@
 //			v1.22: PREv20E, Core clock 2x, Adding GOC clk tuning
 //				   Using Macro for GPIO masking
 //				   GPIO remapped for CISv1
+//				   FIXME: somehow in this version ED output is incorrect
+//                  v1.21 loopback code is working
 //*******************************************************************
 #include "PREv20.h"
 #include "PREv20_RF.h"

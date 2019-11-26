@@ -1682,7 +1682,7 @@ static void operation_init(void){
 	mrrv10_r03.MRR_RX_SAMPLE_CAP    = 0x1;  // RX_SAMPLE_CAP
 	mbus_remote_register_write(MRR_ADDR,3,mrrv10_r03.as_int);
 
-	mrrv10_r14.MRR_RAD_FSM_GUARD_LEN = 72; //Set TX_RX Guard length, TX_RX guard 32 cycle (28+5)
+	mrrv10_r14.MRR_RAD_FSM_GUARD_LEN = 74; //Set TX_RX Guard length, TX_RX guard 32 cycle (28+5)
     mrrv10_r14.MRR_RAD_FSM_TX_POWERON_LEN = 2; //3bits
     mrrv10_r14.MRR_RAD_FSM_RX_POWERON_LEN = 0;  //Set RX Power on length
     mrrv10_r14.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x7;  //Set RX Sample length  4us
@@ -1691,7 +1691,7 @@ static void operation_init(void){
 
 	mrrv10_r15.MRR_RAD_FSM_RX_HDR_BITS = 0x00;  //Set RX header
 	mrrv10_r15.MRR_RAD_FSM_RX_HDR_TH = 0x00;    //Set RX header threshold
-	mrrv10_r15.MRR_RAD_FSM_RX_DATA_BITS = 0x1F; //Set RX data 1b
+	mrrv10_r15.MRR_RAD_FSM_RX_DATA_BITS = 0x20; //Set RX data 1b
 	mbus_remote_register_write(MRR_ADDR,0x15,mrrv10_r15.as_int);
 
 	// Loopback debugging
