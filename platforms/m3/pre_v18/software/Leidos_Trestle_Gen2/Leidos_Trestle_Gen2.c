@@ -141,18 +141,18 @@ static void XO_init(void) {
     *REG_XO_CONF1 = prev18_r19.as_int;
     delay(2000);
     //// after start-up, turn on core circuit and turn off start-up circuit
-    prev18_r19.XO_SCN_CLK_SEL   = 0x1;// scn clock 1: normal. 0.3V level up to 0.6V, 0:init
-    *REG_XO_CONF1 = prev18_r19.as_int;
-    delay(2000);
-    prev18_r19.XO_SCN_CLK_SEL   = 0x0;
-    prev18_r19.XO_SCN_ENB       = 0x0;// enable_bar of scn
-    *REG_XO_CONF1 = prev18_r19.as_int;
-    delay(2000);
-    prev18_r19.XO_DRV_START_UP  = 0x0;
-    prev18_r19.XO_DRV_CORE      = 0x1;// 1: enables core circuit
-    prev18_r19.XO_SCN_CLK_SEL   = 0x1;
-    *REG_XO_CONF1 = prev18_r19.as_int;
-    delay(2000);
+//    prev18_r19.XO_SCN_CLK_SEL   = 0x1;// scn clock 1: normal. 0.3V level up to 0.6V, 0:init
+//    *REG_XO_CONF1 = prev18_r19.as_int;
+//    delay(2000);
+//    prev18_r19.XO_SCN_CLK_SEL   = 0x0;
+//    prev18_r19.XO_SCN_ENB       = 0x0;// enable_bar of scn
+//    *REG_XO_CONF1 = prev18_r19.as_int;
+//    delay(2000);
+//    prev18_r19.XO_DRV_START_UP  = 0x0;
+//    prev18_r19.XO_DRV_CORE      = 0x1;// 1: enables core circuit
+//    prev18_r19.XO_SCN_CLK_SEL   = 0x1;
+//    *REG_XO_CONF1 = prev18_r19.as_int;
+//    delay(2000);
 
     enable_xo_timer();
     start_xo_cout();

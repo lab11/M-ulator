@@ -233,20 +233,20 @@ int main() {
 	mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
     delay(2000); 
 
-	// TIMER EN_SEL_CLK Reset 
-	sntv4_r08.TMR_EN_SELF_CLK = 0x1; // Default : 0x0
-	mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
-    delay(10); 
-
-	// TIMER SELF_EN 
-	sntv4_r09.TMR_SELF_EN = 0x1; // Default : 0x0
-	mbus_remote_register_write(SNT_ADDR,0x09,sntv4_r09.as_int);
-    delay(100000); 
-
-	// TIMER EN_SEL_CLK Reset 
-	sntv4_r08.TMR_EN_OSC = 0x0; // Default : 0x0
-	mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
-    delay(100); 
+//	// TIMER EN_SELF_CLK Reset 
+//	sntv4_r08.TMR_EN_SELF_CLK = 0x1; // Default : 0x0
+//	mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
+//	delay(10); 
+//	
+//	// TIMER SELF_EN 
+//	sntv4_r09.TMR_SELF_EN = 0x1; // Default : 0x0
+//	mbus_remote_register_write(SNT_ADDR,0x09,sntv4_r09.as_int);
+//	delay(100000); 
+//	
+//	// TIMER EN_SEL_CLK Reset 
+//	sntv4_r08.TMR_EN_OSC = 0x0; // Default : 0x0
+//	mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
+//	delay(100); 
 
 
 //    mbus_sleep_all();
