@@ -368,8 +368,9 @@ inline static void pmu_set_clk_init(){
               | (0)      // Binary converter's conversion ratio (7'h00)
             ));
     delay(MBUS_DELAY);
-    //  pmu_set_sar_override(pmu_sar_conv_ratio_val_test_on);
-    pmu_set_sar_override(0x4A);
+    pmu_set_sar_override(pmu_sar_conv_ratio_val_test_on);
+    // pmu_set_sar_override(0x4A);
+    
     //  pmu_set_sar_override(0x4D);
     //  pmu_set_sar_override(0x2D);
     //  pmu_set_sar_override(0x29);
@@ -1041,8 +1042,8 @@ static void operation_sleep_notimer(void){
 //***************************************************
 static void operation_init(void){
     //pmu_sar_conv_ratio_val_test_on = 0x4A;
-    pmu_sar_conv_ratio_val_test_on = 0x34;//0x2D;
-    pmu_sar_conv_ratio_val_test_off = 0x30;//0x2A;
+    pmu_sar_conv_ratio_val_test_on = 0x2E;//0x2D;
+    pmu_sar_conv_ratio_val_test_off = 0x2C;//0x2A;
     direction_gpio = 0;
     init_gpio();
 
