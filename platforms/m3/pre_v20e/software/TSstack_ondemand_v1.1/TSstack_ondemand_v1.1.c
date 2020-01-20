@@ -1709,7 +1709,7 @@ int main(){
             pmu_set_sleep_radio();
             snt_start_timer_presleep();
             // Go to sleep for >3s for timer stabilization
-            set_wakeup_timer (WAKEUP_PERIOD_SNT, 0x1, 0x1);
+            set_wakeup_timer (WAKEUP_PERIOD_RADIO_INIT*2, 0x1, 0x1);
             operation_sleep_noirqreset();
         }else if (exec_count_irq == 2){
             snt_start_timer_postsleep();
