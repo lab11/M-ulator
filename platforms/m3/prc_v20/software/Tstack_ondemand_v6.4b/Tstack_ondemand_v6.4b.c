@@ -1863,8 +1863,8 @@ int main() {
 
     }else if(wakeup_data_header == 0x15){
         // Update GOC clock
-		prcv20_r0B.GOC_CLK_GEN_SEL_FREQ = (wakeup_data >> 4)&0x7; // Default 0x0
-		prcv20_r0B.GOC_CLK_GEN_SEL_DIV = wakeup_data & 0x3; // Default 0x6
+		prcv20_r0B.GOC_CLK_GEN_SEL_FREQ = (wakeup_data >> 4)&0x7; // Default 0x6
+		prcv20_r0B.GOC_CLK_GEN_SEL_DIV = wakeup_data & 0x3; // Default 0x0
 		*REG_CLKGEN_TUNE = prcv20_r0B.as_int;
 
     }else if(wakeup_data_header == 0x17){
