@@ -1843,7 +1843,7 @@ int main() {
         // Transmit missing data requested by GUI
 		// wakeup_data[15:0] is the missing data address
 		// FIXME: need to figure out / confirm the addressing
-		uint32_t missing_data_addr = wakeup_data;
+		uint32_t missing_packet_index = wakeup_data;
 
         // Prepare radio TX
         radio_power_on();
@@ -1852,7 +1852,7 @@ int main() {
         uint32_t mem_read_data[2];
         set_halt_until_mbus_rx();
         // Read 2 words (4 data points) at a time
-        mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*)((missing_data_addr>>1)<<2), 0x01, (uint32_t*)&mem_read_data, 1);
+        mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*)(missing_packet_index<<3), 0x01, (uint32_t*)&mem_read_data, 1);
         set_halt_until_mbus_tx();
     
         send_radio_data_srr(1,0xDD,mem_read_data[1]>>16,((mem_read_data[1]&0xFFFF)<<8) | (mem_read_data[0]>>24),mem_read_data[0]&0xFFFFFF,1);
