@@ -67,8 +67,6 @@ volatile uint32_t pmu_parking_mode;
 volatile uint32_t read_data_batadc;
 volatile uint32_t read_data_batadc_diff;
 
-volatile uint32_t WAKEUP_PERIOD_CONT_USER; 
-volatile uint32_t WAKEUP_PERIOD_CONT; 
 volatile uint32_t WAKEUP_PERIOD_SNT; 
 
 volatile uint32_t PMU_10C_threshold_sns;
@@ -1425,7 +1423,6 @@ static void operation_init(void){
 	delay(MBUS_DELAY*200); // Wait for decap to charge
 
     // Initialize other global variables
-    WAKEUP_PERIOD_CONT = 33750;   // 1: 2-4 sec with PRCv9
     sns_running = 0;
     radio_ready = 0;
     radio_on = 0;
@@ -1575,7 +1572,7 @@ static void operation_sns_run(void){
             }
 
 			// Use SNT Timer    
-			snt_set_wup_timer(WAKEUP_PERIOD_CONT_USER);
+			snt_set_wup_timer(WAKEUP_PERIOD_SNT);
 			operation_sleep_snt_timer();
 
         }
@@ -1697,10 +1694,7 @@ int main(){
         temp_storage_debug = wakeup_data_field_2 & 0x80;
         
 		// Use SNT timer
-    	WAKEUP_PERIOD_CONT_USER = wakeup_data & 0xFFFF;
-
-		// Use SNT timer
-		WAKEUP_PERIOD_SNT = (WAKEUP_PERIOD_CONT_USER<<1)*SNT_0P5S_VAL; // Unit is 0.5s
+		WAKEUP_PERIOD_SNT = ((wakeup_data & 0xFFFF)<<1)*SNT_0P5S_VAL; // Unit is 0.5s
 
         exec_count_irq++;
 
@@ -1717,9 +1711,6 @@ int main(){
             snt_read_wup_counter();
             // Restore sleep setting to low
             pmu_set_sleep_low();
-
-			// Set SNT Timer Threshold
-			snt_set_timer_threshold(WAKEUP_PERIOD_SNT);
         }
 
 		// Prepare for Radio TX
@@ -1858,50 +1849,6 @@ int main(){
 
 		mrrv10_r04.LDO_SEL_VOUT = wakeup_data & 0x7;
 		mbus_remote_register_write(MRR_ADDR,0x04,mrrv10_r04.as_int);
-
-    }else if(wakeup_data_header == 0x32){
-		// Run temp measurement routine with desired wakeup period
-    	WAKEUP_PERIOD_CONT_USER = wakeup_data & 0xFFFF;
-
-		// Use SNT timer
-		WAKEUP_PERIOD_SNT = (WAKEUP_PERIOD_CONT_USER<<1)*SNT_0P5S_VAL; // Unit is 0.5s
-        exec_count_irq++;
-
-        if (exec_count_irq == 1){
-            // SNT pulls higher current in the beginning
-            pmu_set_sleep_radio();
-            snt_start_timer_presleep();
-            // Go to sleep for >3s for timer stabilization
-            set_wakeup_timer (WAKEUP_PERIOD_RADIO_INIT*2, 0x1, 0x1);
-            operation_sleep_noirqreset();
-        }else if (exec_count_irq == 2){
-            snt_start_timer_postsleep();
-            // Read existing counter value; in case not reset to zero
-            snt_read_wup_counter();
-            // Restore sleep setting to low
-            pmu_set_sleep_low();
-
-			// Set SNT Timer Threshold
-			snt_set_timer_threshold(WAKEUP_PERIOD_SNT);
-        }
-
-		// Prepare for Radio TX
-		radio_power_on();
-
-		// Starting Operation
-		send_radio_data_mrr(0,0x5,0x0);	
-
-		sns_running = 1;
-		exec_count = 0;
-		wakeup_count = 0;
-
-		// Reset GOC_DATA_IRQ
-		*GOC_DATA_IRQ = 0;
-        exec_count_irq = 0;
-
-		// Run Temp Sensor Program
-    	stack_state = STK_IDLE;
-		operation_sns_run();
 
 	}else if(wakeup_data_header == 0xF0){
 		// Report firmware version
