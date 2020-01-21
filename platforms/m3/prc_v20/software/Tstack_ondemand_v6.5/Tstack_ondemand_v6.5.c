@@ -1160,8 +1160,8 @@ static void operation_init(void){
     prcv20_r0B.CLK_GEN_RING = 0x1; // Default 0x1
     prcv20_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
     prcv20_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
+    prcv20_r0B.GOC_CLK_GEN_SEL_FREQ = 0x5; // Default 0x6
     prcv20_r0B.GOC_CLK_GEN_SEL_DIV = 0x0; // Default 0x0
-    prcv20_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
     *REG_CLKGEN_TUNE = prcv20_r0B.as_int;
 
     prcv20_r1C.SRAM0_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
