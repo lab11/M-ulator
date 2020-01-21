@@ -79,6 +79,7 @@
 //					 Getting rid of PRC wakeup timer option
 //			  v6.5: Re-enabling going to sleep during temp sensing
 //					Adding support for missing data retrieval
+//					Changing timeout temp data from 0x666 to 0
 //*******************************************************************
 #include "PRCv20.h"
 #include "PRCv20_RF.h"
@@ -1446,7 +1447,7 @@ static void operation_temp_run(void){
         if (meas_count == NUM_TEMP_MEAS){
             // No error; see if there was a timeout
             if (wfi_timeout_flag){
-                temp_storage_latest = 0x666;
+                temp_storage_latest = 0;
                 wfi_timeout_flag = 0;
                 // In case of timeout, wakeup counter needs to be adjusted 
                 snt_read_wup_counter();
