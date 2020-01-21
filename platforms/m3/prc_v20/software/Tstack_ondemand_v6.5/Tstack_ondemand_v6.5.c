@@ -77,6 +77,9 @@
 //            v6.4a: Fixing pmu snt sleep setting typo
 //			  v6.4b: No separate pmu sleep setting required for temp meas
 //					 Getting rid of PRC wakeup timer option
+//			  v6.5: Re-enabling going to sleep during temp sensing
+//					Adding support for missing data retrieval
+//					Changing timeout temp data from 0x666 to 0
 //*******************************************************************
 #include "PRCv20.h"
 #include "PRCv20_RF.h"
@@ -1157,8 +1160,8 @@ static void operation_init(void){
     prcv20_r0B.CLK_GEN_RING = 0x1; // Default 0x1
     prcv20_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
     prcv20_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
+    prcv20_r0B.GOC_CLK_GEN_SEL_FREQ = 0x5; // Default 0x6
     prcv20_r0B.GOC_CLK_GEN_SEL_DIV = 0x0; // Default 0x0
-    prcv20_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x6
     *REG_CLKGEN_TUNE = prcv20_r0B.as_int;
 
     prcv20_r1C.SRAM0_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
@@ -1170,7 +1173,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     Tstack_state = TSTK_IDLE;    //0x0;
-    enumerated = 0x5443604b;
+    enumerated = 0x54436050;
     exec_count = 0;
     exec_count_irq = 0;
     PMU_ADC_4P2_VAL = 0x4B;
@@ -1420,17 +1423,11 @@ static void operation_temp_run(void){
 
     }else if (Tstack_state == TSTK_TEMP_START){
         // Start temp measurement
-        wfi_timeout_flag = 0;
-        // Use Timer32 as timeout counter
-        config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
-        temp_sensor_start();
-
-        // Wait for temp sensor output
-        WFI();
-
-        // Turn off Timer32
-        *TIMER32_GO = 0;
         Tstack_state = TSTK_TEMP_READ;
+        //pmu_set_sleep_tsns();
+        temp_sensor_start();
+		// Go to sleep during measurement
+		operation_sleep();
 
     }else if (Tstack_state == TSTK_TEMP_READ){
 
@@ -1450,12 +1447,13 @@ static void operation_temp_run(void){
         if (meas_count == NUM_TEMP_MEAS){
             // No error; see if there was a timeout
             if (wfi_timeout_flag){
-                temp_storage_latest = 0x666;
+                temp_storage_latest = 0;
                 wfi_timeout_flag = 0;
                 // In case of timeout, wakeup counter needs to be adjusted 
                 snt_read_wup_counter();
             }else{
                 temp_storage_latest = read_data_temp;
+
             }
         }
 
@@ -1697,7 +1695,7 @@ int main() {
     config_timerwd(TIMERWD_VAL);
 
     // Initialization sequence
-    if (enumerated != 0x5443604b){
+    if (enumerated != 0x54436050){
         operation_init();
     }
 
@@ -1766,7 +1764,7 @@ int main() {
         exec_count_irq = 0;
 
         // Run Temp Sensor Program
-    Tstack_state = TSTK_IDLE;
+	    Tstack_state = TSTK_IDLE;
         operation_temp_run();
 
     }else if(wakeup_data_header == 0x03){
@@ -1830,7 +1828,7 @@ int main() {
             exec_count_irq++;
 
             if (exec_count_irq == 1){
-                send_radio_data_srr(1,0xD0,*REG_CHIP_ID,(0xBB00|read_data_batadc_diff)<<8,temp_storage_count,1);    
+                send_radio_data_srr(1,0xD0,*REG_CHIP_ID,(0xBB00|read_data_batadc_diff)<<8,temp_storage_count,1); 
             }else{
                 send_radio_data_srr(1,0xD1,*REG_CHIP_ID,TEMP_CALIB_A,TEMP_CALIB_B,1);    
             }
@@ -1841,6 +1839,25 @@ int main() {
             operation_tx_stored(wakeup_data_field_0);
         }
         
+    }else if(wakeup_data_header == 0x05){
+        // Transmit missing data requested by GUI
+		// wakeup_data[15:0] is the missing data address
+		// FIXME: need to figure out / confirm the addressing
+		uint32_t missing_packet_index = wakeup_data;
+
+        // Prepare radio TX
+        radio_power_on();
+
+        // Radio out data
+        uint32_t mem_read_data[2];
+        set_halt_until_mbus_rx();
+        // Read 2 words (4 data points) at a time
+        mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*)(missing_packet_index<<3), 0x01, (uint32_t*)&mem_read_data, 1);
+        set_halt_until_mbus_tx();
+    
+        send_radio_data_srr(1,0xDD,mem_read_data[1]>>16,((mem_read_data[1]&0xFFFF)<<8) | (mem_read_data[0]>>24),mem_read_data[0]&0xFFFFFF,1);
+
+
     }else if(wakeup_data_header == 0x12){
     // Configure # of measurement
         NUM_MEAS_USER = wakeup_data & 0x3FFF;
@@ -1863,8 +1880,8 @@ int main() {
 
     }else if(wakeup_data_header == 0x15){
         // Update GOC clock
-		prcv20_r0B.GOC_CLK_GEN_SEL_FREQ = (wakeup_data >> 4)&0x7; // Default 0x6
-		prcv20_r0B.GOC_CLK_GEN_SEL_DIV = wakeup_data & 0x3; // Default 0x0
+		prcv20_r0B.GOC_CLK_GEN_SEL_FREQ = (wakeup_data >> 4)&0x7; // Default 0x0
+		prcv20_r0B.GOC_CLK_GEN_SEL_DIV = wakeup_data & 0x3; // Default 0x6
 		*REG_CLKGEN_TUNE = prcv20_r0B.as_int;
 
     }else if(wakeup_data_header == 0x17){
