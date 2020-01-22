@@ -1424,7 +1424,7 @@ static void operation_temp_run(void){
     }else if (Tstack_state == TSTK_TEMP_START){
         // Start temp measurement
         Tstack_state = TSTK_TEMP_READ;
-        //pmu_set_sleep_tsns();
+        pmu_set_sleep_tsns();
         temp_sensor_start();
 		// Go to sleep during measurement
 		operation_sleep();
@@ -1487,9 +1487,11 @@ static void operation_temp_run(void){
                 pmu_setting_state = PMU_25C;
             }
 
+			// Always restore sleep setting from higher pmu meas setting
+   	        pmu_sleep_setting_temp_based();
+
 			if (pmu_setting_prev != pmu_setting_state){
 	            pmu_active_setting_temp_based();
-   	        	pmu_sleep_setting_temp_based();
 			}
 
 
