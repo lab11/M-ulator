@@ -1403,14 +1403,6 @@ static void operation_temp_run(void){
         // Turn on SNS LDO VREF; requires settling
         sns_ldo_vref_on();
 
-        // Power on radio
-        if (radio_tx_option || (exec_count < TEMP_CYCLE_INIT)){
-            radio_power_on();
-            // Put system to sleep
-            //set_wakeup_timer(WAKEUP_PERIOD_RADIO_INIT, 0x1, 0x1);
-            //operation_sleep();
-        }
-
     }else if (Tstack_state == TSTK_LDO){
         Tstack_state = TSTK_TEMP_START;
 
