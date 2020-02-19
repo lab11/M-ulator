@@ -76,7 +76,8 @@ void disable_xo_timer () {
 
 void set_xo_timer (uint8_t mode, uint32_t timestamp, uint8_t wreq_en, uint8_t irq_en) {
     uint32_t regval0 = timestamp & 0x0000FFFF;
-    uint32_t regval1 = timestamp & 0xFFFF0000;
+    uint32_t regval1 = (timestamp >> 16) & 0xFFFF;
+    //uint32_t regval1 = timestamp & 0xFFFF0000; // This is wrong (Reported by Roger Hsiao, Jan 10, 2020)
 
     regval0 |= 0x00800000; // XOT_ENABLE = 1;
     if (mode)    regval0 |= 0x00400000; // XOT_MODE = 1
