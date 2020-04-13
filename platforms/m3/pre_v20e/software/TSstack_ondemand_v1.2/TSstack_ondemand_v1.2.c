@@ -8,6 +8,7 @@
 //			v1.1a: Increasing PMU setting at 35C
 //			v1.1b: Fixing a bug that incorrectly sets PMU active setting during SNT
 //			v1.1c: Operation sleep was missing SNT safeguards
+//			v1.2: Transmit SNT temp coefficient B as part of check-in message
 //			FIXME: Need to verify PMU settings across temp & voltage
 //*******************************************************************
 #include "PREv20.h"
@@ -1453,7 +1454,7 @@ static void operation_init(void){
 
     SNT_0P5S_VAL = 1000;
     TEMP_CALIB_A = 240000;
-    TEMP_CALIB_B = 35000; // (B-3400)*100
+    TEMP_CALIB_B = 20000; // (B-3400)*100
 
 
     // Go to sleep without timer
