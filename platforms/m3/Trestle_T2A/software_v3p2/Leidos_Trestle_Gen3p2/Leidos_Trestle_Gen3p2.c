@@ -1,15 +1,26 @@
 //*******************************************************************
-//Author: Sechang Oh
-//Description: Leidos Trestle Gen2 
+//Author: Seok Hyeon Jeong / Minchang Cho
+//Originally written by Sehcang Oh
+//Description: Leidos Trestle Gen3p2 
 //    v1.0: created. Modified from 'Leidos_dorado_Gen3' 12/14/2018
 //    v1a02: GPIO functions                             03/19/2019
 //    v2a03: 2.5V VBAT, self-booting support            08/14/2019
+//    v3.0: Updated GOC trigger                         12/19/2019
+//              -PMU individual sleep clk setting
+//              -XO control
+//              -DSP monitoring configurability
+//          Updated PRE, PMU and ADO to latest versions (PREv20,PMUv9,ADOv6VB)
+//    v3.1: Modified FLASH_read() function              04/07/2019
+//		- Change has been made for flash readout inspection
+//    v3.2: Modified afe_set_mode() function            04/25/2019
+//		- Added delay between LDO un-power gating and ADC reset relase to provide enough stbilization time
 //*******************************************************************
-#include "PREv18.h"
-#include "ADOv6VC_RF.h"
-#include "PMUv7_RF.h"
+#include "PREv20.h"
+#include "ADOv6VB_RF.h"
+#include "PMUv9_RF.h"
 #include "mbus.h"
   
+
 #define ENUMID 0xDEADBEEF
 
 #include "DFT_LUT.txt"
@@ -71,39 +82,38 @@ volatile uint32_t WAKEUP_PERIOD_CONT_USER;
 volatile uint32_t WAKEUP_PERIOD_CONT; 
 volatile uint32_t WAKEUP_PERIOD_CONT_INIT; 
 
-volatile prev18_r0B_t prev18_r0B = PREv18_R0B_DEFAULT;
-volatile prev18_r19_t prev18_r19 = PREv18_R19_DEFAULT;
-volatile prev18_r1A_t prev18_r1A = PREv18_R1A_DEFAULT;
-volatile prev18_r1C_t prev18_r1C = PREv18_R1C_DEFAULT;
+volatile prev20_r0B_t prev20_r0B = PREv20_R0B_DEFAULT;
+volatile prev20_r19_t prev20_r19 = PREv20_R19_DEFAULT;
+volatile prev20_r1A_t prev20_r1A = PREv20_R1A_DEFAULT;
+volatile prev20_r1C_t prev20_r1C = PREv20_R1C_DEFAULT;
 
-volatile adov6vc_r00_t adov6vc_r00 = ADOv6VC_R00_DEFAULT;
-volatile adov6vc_r04_t adov6vc_r04 = ADOv6VC_R04_DEFAULT;
-volatile adov6vc_r07_t adov6vc_r07 = ADOv6VC_R07_DEFAULT;
-volatile adov6vc_r0B_t adov6vc_r0B = ADOv6VC_R0B_DEFAULT;
-volatile adov6vc_r0D_t adov6vc_r0D = ADOv6VC_R0D_DEFAULT;
-volatile adov6vc_r0E_t adov6vc_r0E = ADOv6VC_R0E_DEFAULT;
-volatile adov6vc_r0F_t adov6vc_r0F = ADOv6VC_R0F_DEFAULT;
-volatile adov6vc_r10_t adov6vc_r10 = ADOv6VC_R10_DEFAULT;
-volatile adov6vc_r11_t adov6vc_r11 = ADOv6VC_R11_DEFAULT;
-volatile adov6vc_r12_t adov6vc_r12 = ADOv6VC_R12_DEFAULT;
-volatile adov6vc_r13_t adov6vc_r13 = ADOv6VC_R13_DEFAULT;
-volatile adov6vc_r14_t adov6vc_r14 = ADOv6VC_R14_DEFAULT;
-volatile adov6vc_r15_t adov6vc_r15 = ADOv6VC_R15_DEFAULT;
-volatile adov6vc_r16_t adov6vc_r16 = ADOv6VC_R16_DEFAULT;
-volatile adov6vc_r17_t adov6vc_r17 = ADOv6VC_R17_DEFAULT;
-volatile adov6vc_r18_t adov6vc_r18 = ADOv6VC_R18_DEFAULT;
-volatile adov6vc_r19_t adov6vc_r19 = ADOv6VC_R19_DEFAULT;
-volatile adov6vc_r1A_t adov6vc_r1A = ADOv6VC_R1A_DEFAULT;
-volatile adov6vc_r1B_t adov6vc_r1B = ADOv6VC_R1B_DEFAULT;
-volatile adov6vc_r1C_t adov6vc_r1C = ADOv6VC_R1C_DEFAULT;
+volatile adov6vb_r00_t adov6vb_r00 = ADOv6VB_R00_DEFAULT;
+volatile adov6vb_r04_t adov6vb_r04 = ADOv6VB_R04_DEFAULT;
+volatile adov6vb_r07_t adov6vb_r07 = ADOv6VB_R07_DEFAULT;
+volatile adov6vb_r0B_t adov6vb_r0B = ADOv6VB_R0B_DEFAULT;
+volatile adov6vb_r0D_t adov6vb_r0D = ADOv6VB_R0D_DEFAULT;
+volatile adov6vb_r0E_t adov6vb_r0E = ADOv6VB_R0E_DEFAULT;
+volatile adov6vb_r0F_t adov6vb_r0F = ADOv6VB_R0F_DEFAULT;
+volatile adov6vb_r10_t adov6vb_r10 = ADOv6VB_R10_DEFAULT;
+volatile adov6vb_r11_t adov6vb_r11 = ADOv6VB_R11_DEFAULT;
+volatile adov6vb_r12_t adov6vb_r12 = ADOv6VB_R12_DEFAULT;
+volatile adov6vb_r13_t adov6vb_r13 = ADOv6VB_R13_DEFAULT;
+volatile adov6vb_r14_t adov6vb_r14 = ADOv6VB_R14_DEFAULT;
+volatile adov6vb_r15_t adov6vb_r15 = ADOv6VB_R15_DEFAULT;
+volatile adov6vb_r16_t adov6vb_r16 = ADOv6VB_R16_DEFAULT;
+volatile adov6vb_r17_t adov6vb_r17 = ADOv6VB_R17_DEFAULT;
+volatile adov6vb_r18_t adov6vb_r18 = ADOv6VB_R18_DEFAULT;
+volatile adov6vb_r19_t adov6vb_r19 = ADOv6VB_R19_DEFAULT;
+volatile adov6vb_r1A_t adov6vb_r1A = ADOv6VB_R1A_DEFAULT;
+volatile adov6vb_r1B_t adov6vb_r1B = ADOv6VB_R1B_DEFAULT;
+volatile adov6vb_r1C_t adov6vb_r1C = ADOv6VB_R1C_DEFAULT;
         
 uint32_t read_data[100];
 volatile uint8_t direction_gpio;
 
 
-static void operation_sleep_notimer(void);
-static void pmu_set_sar_override(uint32_t val);
-static void pmu_set_sleep_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1p2);
+static void operation_sleep_notimer(void); static void pmu_set_sar_override(uint32_t val);
+static void pmu_set_sleep_clks(uint8_t r, uint8_t l, uint8_t base, uint8_t select);
 static void pmu_set_active_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1p2);
 
 //*******************************************************************
@@ -114,45 +124,45 @@ static void XO_init(void) {
     // Parasitic Capacitance Tuning (6-bit for each; Each 1 adds 1.8pF)
     uint32_t xo_cap_drv = 0x3F;//0x3F; // Additional Cap on OSC_DRV
     uint32_t xo_cap_in  = 0x3F;//0x3F; // Additional Cap on OSC_IN
-    prev18_r1A.XO_CAP_TUNE = (
+    prev20_r1A.XO_CAP_TUNE = (
             (xo_cap_drv <<6) | 
             (xo_cap_in <<0));   // XO_CLK Output Pad 
-    *REG_XO_CONF2 = prev18_r1A.as_int;
+    *REG_XO_CONF2 = prev20_r1A.as_int;
 
     // XO configuration
-    prev18_r19.XO_EN_DIV    = 0x1;// divider enable
-    prev18_r19.XO_S         = 0x1;// division ratio for 16kHz out
-    prev18_r19.XO_SEL_CP_DIV= 0x0;// 1: 0.3V-generation charge-pump uses divided clock
-    prev18_r19.XO_EN_OUT    = 0x1;// XO ouput enable
-    prev18_r19.XO_PULSE_SEL = 0x8;//4;// pulse width sel, 1-hot code
-    prev18_r19.XO_DELAY_EN  = 0x7;//3;// pair usage together with xo_pulse_sel
-    prev18_r19.XO_SLEEP = 0x0;
+    prev20_r19.XO_EN_DIV    = 0x1;// divider enable
+    prev20_r19.XO_S         = 0x1;// division ratio for 16kHz out
+    prev20_r19.XO_SEL_CP_DIV= 0x0;// 1: 0.3V-generation charge-pump uses divided clock
+    prev20_r19.XO_EN_OUT    = 0x1;// XO ouput enable
+    prev20_r19.XO_PULSE_SEL = 0x8;//4;// pulse width sel, 1-hot code
+    prev20_r19.XO_DELAY_EN  = 0x7;//3;// pair usage together with xo_pulse_sel
+    prev20_r19.XO_SLEEP = 0x0;
     // Pseudo-Resistor Selection
-    prev18_r19.XO_RP_LOW    = 0x0;//0  1
-    prev18_r19.XO_RP_MEDIA  = 0x1;//1  0
-    prev18_r19.XO_RP_MVT    = 0x0;//0
-    prev18_r19.XO_RP_SVT    = 0x0;//0
-    *REG_XO_CONF1 = prev18_r19.as_int;
+    prev20_r19.XO_RP_LOW    = 0x0;//0  1
+    prev20_r19.XO_RP_MEDIA  = 0x1;//1  0
+    prev20_r19.XO_RP_MVT    = 0x0;//0
+    prev20_r19.XO_RP_SVT    = 0x0;//0
+    *REG_XO_CONF1 = prev20_r19.as_int;
     delay(1000);
-    prev18_r19.XO_ISOLATE = 0x0;
-    *REG_XO_CONF1 = prev18_r19.as_int;
+    prev20_r19.XO_ISOLATE = 0x0;
+    *REG_XO_CONF1 = prev20_r19.as_int;
     delay(1000);
-    prev18_r19.XO_DRV_START_UP  = 0x1;// 1: enables start-up circuit
-    *REG_XO_CONF1 = prev18_r19.as_int;
+    prev20_r19.XO_DRV_START_UP  = 0x1;// 1: enables start-up circuit
+    *REG_XO_CONF1 = prev20_r19.as_int;
     delay(2000);
     //// after start-up, turn on core circuit and turn off start-up circuit
-//    prev18_r19.XO_SCN_CLK_SEL   = 0x1;// scn clock 1: normal. 0.3V level up to 0.6V, 0:init
-//    *REG_XO_CONF1 = prev18_r19.as_int;
-//    delay(2000);
-//    prev18_r19.XO_SCN_CLK_SEL   = 0x0;
-//    prev18_r19.XO_SCN_ENB       = 0x0;// enable_bar of scn
-//    *REG_XO_CONF1 = prev18_r19.as_int;
-//    delay(2000);
-//    prev18_r19.XO_DRV_START_UP  = 0x0;
-//    prev18_r19.XO_DRV_CORE      = 0x1;// 1: enables core circuit
-//    prev18_r19.XO_SCN_CLK_SEL   = 0x1;
-//    *REG_XO_CONF1 = prev18_r19.as_int;
-//    delay(2000);
+   //prev20_r19.XO_SCN_CLK_SEL   = 0x1;// scn clock 1: normal. 0.3V level up to 0.6V, 0:init
+   //*REG_XO_CONF1 = prev20_r19.as_int;
+   //delay(2000);
+   //prev20_r19.XO_SCN_CLK_SEL   = 0x0;
+   //prev20_r19.XO_SCN_ENB       = 0x0;// enable_bar of scn
+   //*REG_XO_CONF1 = prev20_r19.as_int;
+   //delay(2000);
+   //prev20_r19.XO_DRV_START_UP  = 0x0;
+   //prev20_r19.XO_DRV_CORE      = 0x1;// 1: enables core circuit
+   //prev20_r19.XO_SCN_CLK_SEL   = 0x1;
+   //*REG_XO_CONF1 = prev20_r19.as_int;
+   //delay(2000);
 
     enable_xo_timer();
     start_xo_cout();
@@ -316,53 +326,87 @@ inline static void pmu_set_active_clk(uint8_t r, uint8_t l, uint8_t base, uint8_
 
 }
 
-inline static void pmu_set_sleep_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1p2){
+inline static void pmu_set_sleep_clks(uint8_t r, uint8_t l, uint8_t base, uint8_t select){
+
+   //mbus_write_message32(0xE1, r);
+   //mbus_write_message32(0xE2, l);
+   //mbus_write_message32(0xE3, base);
+   //mbus_write_message32(0xE4, select);
 
     // Register 0x17: V3P6 Sleep
-    mbus_remote_register_write(PMU_ADDR,0x17, 
-            ( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
-              | (0 << 13) // Enable main feedback loop
-              | (r << 9)  // Frequency multiplier R
-              | (l << 5)  // Frequency multiplier L (actually L+1)
-              | (base)      // Floor frequency base (0-63)
-            ));
-    
-//    mbus_remote_register_write(PMU_ADDR,0x17, 
-//            ( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
-//              | (0 << 13) // Enable main feedback loop
-//              | (0xA << 9)  // Frequency multiplier R
-//              | (0xA << 5)  // Frequency multiplier L (actually L+1)
-//              | (3)         // Floor frequency base (0-63)
-//            ));
-    delay(MBUS_DELAY);
+    if(select == 0x1){
+        mbus_remote_register_write(PMU_ADDR,0x17, 
+                ( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+                  | (0 << 13) // Enable main feedback loop
+                  | (r << 9)  // Frequency multiplier R
+                  | (l << 5)  // Frequency multiplier L (actually L+1)
+                  | (base)      // Floor frequency base (0-63)
+                ));
+        delay(MBUS_DELAY);
+
     // Register 0x15: V1P2 Sleep
-    mbus_remote_register_write(PMU_ADDR,0x15, 
-            ( (0 << 19) // Enable PFM even during periodic reset
-              | (0 << 18) // Enable PFM even when Vref is not used as ref
-              | (0 << 17) // Enable PFM
-              | (3 << 14) // Comparator clock division ratio
-              | (0 << 13) // Enable main feedback loop
-              | (r << 9)  // Frequency multiplier R
-              | (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
-              | (base)      // Floor frequency base (0-63)
-            ));
-    delay(MBUS_DELAY);
+    }else if (select == 0x2){
+        mbus_remote_register_write(PMU_ADDR,0x15, 
+                ( (0 << 19) // Enable PFM even during periodic reset
+                  | (0 << 18) // Enable PFM even when Vref is not used as ref
+                  | (0 << 17) // Enable PFM
+                  | (3 << 14) // Comparator clock division ratio
+                  | (0 << 13) // Enable main feedback loop
+                  | (r << 9)  // Frequency multiplier R
+                  | (l << 5)  // Frequency multiplier L (actually L+1)
+                  | (base)      // Floor frequency base (0-63)
+                ));
+        delay(MBUS_DELAY);
+
     // Register 0x19: V0P6 Sleep
-    mbus_remote_register_write(PMU_ADDR,0x19,
-            ( (0 << 13) // Enable main feedback loop
-              | (r << 9)  // Frequency multiplier R
-              | (l << 5)  // Frequency multiplier L (actually L+1)
-              | (base)      // Floor frequency base (0-63)
-            ));
-    delay(MBUS_DELAY);
+    }else if(select == 0x3){
+        mbus_remote_register_write(PMU_ADDR,0x19,
+                ( (0 << 13) // Enable main feedback loop
+                  | (r << 9)  // Frequency multiplier R
+                  | (l << 5)  // Frequency multiplier L (actually L+1)
+                  | (base)      // Floor frequency base (0-63)
+                ));
+        delay(MBUS_DELAY);
+    }
+    else{
+        // Register 0x17: V3P6 Sleep
+        mbus_remote_register_write(PMU_ADDR,0x17, 
+                ( (3 << 14) // Desired Vout/Vin ratio; defualt: 0
+                  | (0 << 13) // Enable main feedback loop
+                  | (r << 9)  // Frequency multiplier R
+                  | (l << 5)  // Frequency multiplier L (actually L+1)
+                  | (base)      // Floor frequency base (0-63)
+                ));
+        
+        // Register 0x15: V1P2 Sleep
+        mbus_remote_register_write(PMU_ADDR,0x15, 
+                ( (0 << 19) // Enable PFM even during periodic reset
+                  | (0 << 18) // Enable PFM even when Vref is not used as ref
+                  | (0 << 17) // Enable PFM
+                  | (3 << 14) // Comparator clock division ratio
+                  | (0 << 13) // Enable main feedback loop
+                  | (r << 9)  // Frequency multiplier R
+                  | (l << 5)  // Frequency multiplier L (actually L+1)
+                  | (base)      // Floor frequency base (0-63)
+                ));
+        delay(MBUS_DELAY);
+        // Register 0x19: V0P6 Sleep
+        mbus_remote_register_write(PMU_ADDR,0x19,
+                ( (0 << 13) // Enable main feedback loop
+                  | (r << 9)  // Frequency multiplier R
+                  | (l << 5)  // Frequency multiplier L (actually L+1)
+                  | (base)      // Floor frequency base (0-63)
+                ));
+        delay(MBUS_DELAY);
+    }
 }
 
 inline static void pmu_set_clk_init(){
     pmu_set_sar_override(0x4A);
     pmu_set_active_clk(0xA,0x4,0x10,0x4);
-    pmu_set_sleep_clk(0xA,0x4,0x10,0x4); //with TEST1P2
+    pmu_set_sleep_clks(0xA,0x4,0x10,0x0); //with TEST1P2
     //pmu_set_active_clk(0xA,0x4,0x20,0x4); //-10C test
-    //pmu_set_sleep_clk(0xA,0x4,0x20,0x4); //with TEST1P2
+    //pmu_set_sleep_clks(0xA,0x4,0x20,0x0); //with TEST1P2
     // SAR_RATIO_OVERRIDE
     // Use the new reset scheme in PMUv3
     mbus_remote_register_write(PMU_ADDR,0x05, //default 12'h000
@@ -600,14 +644,14 @@ static void FLASH_read (void) {
     if (*REG1 != 0x00002B) flp_fail(4);
 
     //for(j=0; j<81; j++){
-    for(j=0; j<281; j++){
+    for(j=0; j<3; j++){
         set_halt_until_mbus_rx();
         mbus_copy_mem_from_remote_to_any_bulk (FLP_ADDR, (uint32_t *) flp_sram_addr, 0x1, read_data, 99);
         set_halt_until_mbus_tx();
         for (i=0; i<100; i++) {
-            //delay(100);
-            //mbus_write_message32(0xC0, read_data[i]);
-            //delay(100);
+            delay(100);
+            mbus_write_message32(0xC0, read_data[i]);
+            delay(100);
         }
         flp_sram_addr = flp_sram_addr + 400;
     }
@@ -621,54 +665,54 @@ static void FLASH_read (void) {
 //***************************************************
 static void ado_initialization(void){
     // as_int of all zero regs initalization
-    adov6vc_r07.as_int = 0;
-    adov6vc_r0B.as_int = 0;
-    adov6vc_r10.as_int = 0;
+    adov6vb_r07.as_int = 0;
+    adov6vb_r0B.as_int = 0;
+    adov6vb_r10.as_int = 0;
 
-    adov6vc_r10.VAD_ADC_DOUT_ISOL = 1;
-    mbus_remote_register_write(ADO_ADDR, 0x10, adov6vc_r10.as_int);
+    adov6vb_r10.VAD_ADC_DOUT_ISOL = 1;
+    mbus_remote_register_write(ADO_ADDR, 0x10, adov6vb_r10.as_int);
  
     // AFE Initialization
-    adov6vc_r15.IB_GEN_CLK_EN = 1;
-    adov6vc_r15.LS_CLK_EN_1P2 = 1;
-    adov6vc_r15.REC_PGA_BWCON = 32;//24;
-    adov6vc_r15.REC_PGA_CFBADD = 1;//0;
-    adov6vc_r15.REC_PGA_GCON = 2;//2;
-    mbus_remote_register_write(ADO_ADDR, 0x15, adov6vc_r15.as_int); //1F8622
+    adov6vb_r15.IB_GEN_CLK_EN = 1;
+    adov6vb_r15.LS_CLK_EN_1P2 = 1;
+    adov6vb_r15.REC_PGA_BWCON = 32;//24;
+    adov6vb_r15.REC_PGA_CFBADD = 1;//0;
+    adov6vb_r15.REC_PGA_GCON = 2;//2;
+    mbus_remote_register_write(ADO_ADDR, 0x15, adov6vb_r15.as_int); //1F8622
 
-    adov6vc_r16.IBC_MONAMP = 0;
-    adov6vc_r16.IBC_REC_LNA = 6;
-    adov6vc_r16.IBC_REC_PGA = 11;
-    adov6vc_r16.IBC_VAD_LNA = 7;
-    adov6vc_r16.IBC_VAD_PGA = 5;
-    mbus_remote_register_write(ADO_ADDR, 0x16, adov6vc_r16.as_int);//0535BD
+    adov6vb_r16.IBC_MONAMP = 0;
+    adov6vb_r16.IBC_REC_LNA = 6;
+    adov6vb_r16.IBC_REC_PGA = 11;
+    adov6vb_r16.IBC_VAD_LNA = 7;
+    adov6vb_r16.IBC_VAD_PGA = 5;
+    mbus_remote_register_write(ADO_ADDR, 0x16, adov6vb_r16.as_int);//0535BD
  
-    adov6vc_r18.REC_LNA_N1_CON = 2;
-    adov6vc_r18.REC_LNA_N2_CON = 2;
-    adov6vc_r18.REC_LNA_P1_CON = 3;
-    adov6vc_r18.REC_LNA_P2_CON = 3;
-    mbus_remote_register_write(ADO_ADDR, 0x18, adov6vc_r18.as_int);//0820C3
+    adov6vb_r18.REC_LNA_N1_CON = 2;
+    adov6vb_r18.REC_LNA_N2_CON = 2;
+    adov6vb_r18.REC_LNA_P1_CON = 3;
+    adov6vb_r18.REC_LNA_P2_CON = 3;
+    mbus_remote_register_write(ADO_ADDR, 0x18, adov6vb_r18.as_int);//0820C3
 
-    adov6vc_r19.REC_PGA_P1_CON = 3;
-    mbus_remote_register_write(ADO_ADDR, 0x19, adov6vc_r19.as_int);//007064
+    adov6vb_r19.REC_PGA_P1_CON = 3;
+    mbus_remote_register_write(ADO_ADDR, 0x19, adov6vb_r19.as_int);//007064
 
-    adov6vc_r1B.VAD_LNA_N1_LCON = 5;
-    adov6vc_r1B.VAD_LNA_N2_LCON = 6;
-    adov6vc_r1B.VAD_LNA_P1_CON = 3;
-    adov6vc_r1B.VAD_LNA_P2_CON = 2;
-    mbus_remote_register_write(ADO_ADDR, 0x1B, adov6vc_r1B.as_int);//0A6062
+    adov6vb_r1B.VAD_LNA_N1_LCON = 5;
+    adov6vb_r1B.VAD_LNA_N2_LCON = 6;
+    adov6vb_r1B.VAD_LNA_P1_CON = 3;
+    adov6vb_r1B.VAD_LNA_P2_CON = 2;
+    mbus_remote_register_write(ADO_ADDR, 0x1B, adov6vb_r1B.as_int);//0A6062
 
-    adov6vc_r1C.VAD_PGA_N1_LCON = 0;
-    adov6vc_r1C.VAD_PGA_N1_MCON = 1;
-    mbus_remote_register_write(ADO_ADDR, 0x1C, adov6vc_r1C.as_int);//00079C
+    adov6vb_r1C.VAD_PGA_N1_LCON = 0;
+    adov6vb_r1C.VAD_PGA_N1_MCON = 1;
+    mbus_remote_register_write(ADO_ADDR, 0x1C, adov6vb_r1C.as_int);//00079C
 
-    adov6vc_r11.LDO_CTRL_VREFLDO_VOUT_1P4HP = 4;
-    mbus_remote_register_write(ADO_ADDR, 0x11, adov6vc_r11.as_int);//84CAC9
+    adov6vb_r11.LDO_CTRL_VREFLDO_VOUT_1P4HP = 4;
+    mbus_remote_register_write(ADO_ADDR, 0x11, adov6vb_r11.as_int);//84CAC9
 
-    adov6vc_r12.LDO_CTRL_VREFLDO_VOUT_0P6LP = 3;
-    adov6vc_r12.LDO_CTRL_VREFLDO_VOUT_0P9HP = 3;
-    adov6vc_r12.LDO_CTRL_VREFLDO_VOUT_1P4LP = 4;
-    mbus_remote_register_write(ADO_ADDR, 0x12, adov6vc_r12.as_int);//828283
+    adov6vb_r12.LDO_CTRL_VREFLDO_VOUT_0P6LP = 3;
+    adov6vb_r12.LDO_CTRL_VREFLDO_VOUT_0P9HP = 3;
+    adov6vb_r12.LDO_CTRL_VREFLDO_VOUT_1P4LP = 4;
+    mbus_remote_register_write(ADO_ADDR, 0x12, adov6vb_r12.as_int);//828283
     
     /////////////////
     //DSP LP_TOP
@@ -684,302 +728,304 @@ static void ado_initialization(void){
     //LUT Programming
     uint8_t i;
     for(i= 0; i<LUT_DATA_LENGTH; i++){
-        adov6vc_r07.DSP_LUT_WR_ADDR = i;
-        adov6vc_r07.DSP_LUT_DATA_IN = LUT_DATA[i];
-        mbus_remote_register_write(ADO_ADDR, 0x07, adov6vc_r07.as_int);
+        adov6vb_r07.DSP_LUT_WR_ADDR = i;
+        adov6vb_r07.DSP_LUT_DATA_IN = LUT_DATA[i];
+        mbus_remote_register_write(ADO_ADDR, 0x07, adov6vb_r07.as_int);
         mbus_remote_register_write(ADO_ADDR, 0x08, 0x000001);
         mbus_remote_register_write(ADO_ADDR, 0x08, 0x000000);
     }
     //PHS Programming 
     for(i= 0; i<PHS_DATA_LENGTH; i++){
-        adov6vc_r0B.DSP_PHS_WR_ADDR_FS = i;
-        adov6vc_r0B.DSP_PHS_DATA_IN_FS = PHS_DATA[i];
-        mbus_remote_register_write(ADO_ADDR, 0x0B, adov6vc_r0B.as_int);
+        adov6vb_r0B.DSP_PHS_WR_ADDR_FS = i;
+        adov6vb_r0B.DSP_PHS_DATA_IN_FS = PHS_DATA[i];
+        mbus_remote_register_write(ADO_ADDR, 0x0B, adov6vb_r0B.as_int);
         mbus_remote_register_write(ADO_ADDR, 0x0C, 0x000001);
         mbus_remote_register_write(ADO_ADDR, 0x0C, 0x000000);
     }
     
     //N_DCT: 128 points DCT 
-    adov6vc_r00.DSP_N_DCT = 2; //128-pt DCT
-    adov6vc_r00.DSP_N_FFT = 4; //256-pt FFT
-    mbus_remote_register_write(ADO_ADDR, 0x00, adov6vc_r00.as_int);
+    adov6vb_r00.DSP_N_DCT = 2; //128-pt DCT
+    adov6vb_r00.DSP_N_FFT = 4; //256-pt FFT
+    mbus_remote_register_write(ADO_ADDR, 0x00, adov6vb_r00.as_int);
     
     //WAKEUP REQ EN
-    adov6vc_r0E.DSP_WAKEUP_REQ_EN = 1;
-    mbus_remote_register_write(ADO_ADDR, 0x0E, adov6vc_r0E.as_int);
+    adov6vb_r0E.DSP_WAKEUP_REQ_EN = 1;
+    mbus_remote_register_write(ADO_ADDR, 0x0E, adov6vb_r0E.as_int);
 }
 
 
 static void digital_set_mode(uint8_t mode){
     if(mode == 1){      //LP DSP
-        adov6vc_r0D.DSP_HP_ADO_GO = 0;
-        adov6vc_r0D.DSP_HP_DNN_GO = 0;
-        adov6vc_r0D.DSP_HP_FIFO_GO = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03BCB5
-        adov6vc_r0D.DSP_HP_RESETN = 0;
-        adov6vc_r0D.DSP_DNN_HP_MODE_EN = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03BC15
+        adov6vb_r0D.DSP_HP_ADO_GO = 0;
+        adov6vb_r0D.DSP_HP_DNN_GO = 0;
+        adov6vb_r0D.DSP_HP_FIFO_GO = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03BCB5
+        adov6vb_r0D.DSP_HP_RESETN = 0;
+        adov6vb_r0D.DSP_DNN_HP_MODE_EN = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03BC15
         
-        adov6vc_r0D.DSP_DNN_RESETN_RF = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03BC05
-        adov6vc_r0D.DSP_DNN_ISOLATEN_RF = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03BC09
-        adov6vc_r0D.DSP_DNN_PG_SLEEP_RF = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03BC0B
-        adov6vc_r0D.DSP_DNN_CTRL_RF_SEL = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03BC0A
+        adov6vb_r0D.DSP_DNN_RESETN_RF = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03BC05
+        adov6vb_r0D.DSP_DNN_ISOLATEN_RF = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03BC09
+        adov6vb_r0D.DSP_DNN_PG_SLEEP_RF = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03BC0B
+        adov6vb_r0D.DSP_DNN_CTRL_RF_SEL = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03BC0A
         
-        adov6vc_r04.DSP_P2S_RESETN = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x04, adov6vc_r04.as_int);//E00040
-        adov6vc_r04.DSP_P2S_RESETN = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x04, adov6vc_r04.as_int);//E00040
+        adov6vb_r04.DSP_P2S_RESETN = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x04, adov6vb_r04.as_int);//E00040
+        adov6vb_r04.DSP_P2S_RESETN = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x04, adov6vb_r04.as_int);//E00040
         
-        adov6vc_r0D.DSP_LP_RESETN = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03BC4A
+        adov6vb_r0D.DSP_LP_RESETN = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03BC4A
         }
     else if(mode == 2){ // HP DSP
-        adov6vc_r0D.DSP_LP_RESETN = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80A
+        adov6vb_r0D.DSP_LP_RESETN = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B80A
 
-        adov6vc_r0D.DSP_DNN_CTRL_RF_SEL = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80B
-        adov6vc_r0D.DSP_DNN_CLKENB_RF_SEL = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80B
-        adov6vc_r0D.DSP_DNN_PG_SLEEP_RF = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B809
-        adov6vc_r0D.DSP_DNN_ISOLATEN_RF = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80D
-        adov6vc_r0D.DSP_DNN_CLKENB_RF = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B805
-        adov6vc_r0D.DSP_DNN_RESETN_RF = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B815
+        adov6vb_r0D.DSP_DNN_CTRL_RF_SEL = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B80B
+        adov6vb_r0D.DSP_DNN_CLKENB_RF_SEL = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B80B
+        adov6vb_r0D.DSP_DNN_PG_SLEEP_RF = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B809
+        adov6vb_r0D.DSP_DNN_ISOLATEN_RF = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B80D
+        adov6vb_r0D.DSP_DNN_CLKENB_RF = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B805
+        adov6vb_r0D.DSP_DNN_RESETN_RF = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B815
         
-        adov6vc_r0D.DSP_DNN_HP_MODE_EN = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B835
+        adov6vb_r0D.DSP_DNN_HP_MODE_EN = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B835
         
-        adov6vc_r0D.DSP_DNN_CLKENB_RF_SEL = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80B
+        adov6vb_r0D.DSP_DNN_CLKENB_RF_SEL = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B80B
         
-        adov6vc_r04.DSP_P2S_RESETN = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x04, adov6vc_r04.as_int);//E00040
-        adov6vc_r04.DSP_P2S_RESETN = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x04, adov6vc_r04.as_int);//E00040
+        adov6vb_r04.DSP_P2S_RESETN = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x04, adov6vb_r04.as_int);//E00040
+        adov6vb_r04.DSP_P2S_RESETN = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x04, adov6vb_r04.as_int);//E00040
 
-        adov6vc_r0D.DSP_HP_RESETN = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B8B5
-        adov6vc_r0D.DSP_HP_FIFO_GO = 1;
-        adov6vc_r0D.DSP_HP_ADO_GO = 1;
-        adov6vc_r0D.DSP_HP_DNN_GO = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03BBB5
+        adov6vb_r0D.DSP_HP_RESETN = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B8B5
+        adov6vb_r0D.DSP_HP_FIFO_GO = 1;
+        adov6vb_r0D.DSP_HP_ADO_GO = 1;
+        adov6vb_r0D.DSP_HP_DNN_GO = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03BBB5
         }
     else if(mode == 3){ // HP Compression only
-        adov6vc_r0D.DSP_LP_RESETN = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80A
-        adov6vc_r04.DSP_P2S_RESETN = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x04, adov6vc_r04.as_int);//E00040
+        adov6vb_r0D.DSP_LP_RESETN = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B80A
+        adov6vb_r04.DSP_P2S_RESETN = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x04, adov6vb_r04.as_int);//E00040
 
-        adov6vc_r0D.DSP_DNN_CTRL_RF_SEL = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80B
-        adov6vc_r0D.DSP_DNN_CLKENB_RF_SEL = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80B
-        //adov6vc_r0D.DSP_DNN_PG_SLEEP_RF = 0;
-        //mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B809
-        //adov6vc_r0D.DSP_DNN_ISOLATEN_RF = 1;
-        //mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80D
-        //adov6vc_r0D.DSP_DNN_RESETN_RF = 1;
-        //mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B815
+        adov6vb_r0D.DSP_DNN_CTRL_RF_SEL = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B80B
+        adov6vb_r0D.DSP_DNN_CLKENB_RF_SEL = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B80B
+        //adov6vb_r0D.DSP_DNN_PG_SLEEP_RF = 0;
+        //mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B809
+        //adov6vb_r0D.DSP_DNN_ISOLATEN_RF = 1;
+        //mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B80D
+        //adov6vb_r0D.DSP_DNN_RESETN_RF = 1;
+        //mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B815
         
-        adov6vc_r0D.DSP_DNN_HP_MODE_EN = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B835
+        adov6vb_r0D.DSP_DNN_HP_MODE_EN = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B835
 
-        adov6vc_r0D.DSP_HP_RESETN = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B8B5
-        adov6vc_r0D.DSP_HP_FIFO_GO = 1;
-        adov6vc_r0D.DSP_HP_ADO_GO = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03BBB5
+        adov6vb_r0D.DSP_HP_RESETN = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B8B5
+        adov6vb_r0D.DSP_HP_FIFO_GO = 1;
+        adov6vb_r0D.DSP_HP_ADO_GO = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03BBB5
         }
     else if(mode == 0){      //DSP All Off
-        adov6vc_r0D.DSP_HP_FIFO_GO = 0;
-        adov6vc_r0D.DSP_HP_ADO_GO = 0;
-        adov6vc_r0D.DSP_HP_DNN_GO = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03BCB5
-        adov6vc_r0D.DSP_HP_RESETN = 0;
-        adov6vc_r0D.DSP_DNN_HP_MODE_EN = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03BC15
+        adov6vb_r0D.DSP_HP_FIFO_GO = 0;
+        adov6vb_r0D.DSP_HP_ADO_GO = 0;
+        adov6vb_r0D.DSP_HP_DNN_GO = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03BCB5
+        adov6vb_r0D.DSP_HP_RESETN = 0;
+        adov6vb_r0D.DSP_DNN_HP_MODE_EN = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03BC15
         
-        adov6vc_r0D.DSP_DNN_CLKENB_RF_SEL = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80B
-        adov6vc_r0D.DSP_DNN_RESETN_RF = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03BC05
-        adov6vc_r0D.DSP_DNN_CLKENB_RF = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03BC0D
-        adov6vc_r0D.DSP_DNN_ISOLATEN_RF = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03BC09
-        adov6vc_r0D.DSP_DNN_PG_SLEEP_RF = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03BC0B
-        adov6vc_r0D.DSP_DNN_CLKENB_RF_SEL = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80B
-        adov6vc_r0D.DSP_DNN_CTRL_RF_SEL = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03BC0A
+        adov6vb_r0D.DSP_DNN_CLKENB_RF_SEL = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B80B
+        adov6vb_r0D.DSP_DNN_RESETN_RF = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03BC05
+        adov6vb_r0D.DSP_DNN_CLKENB_RF = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03BC0D
+        adov6vb_r0D.DSP_DNN_ISOLATEN_RF = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03BC09
+        adov6vb_r0D.DSP_DNN_PG_SLEEP_RF = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03BC0B
+        adov6vb_r0D.DSP_DNN_CLKENB_RF_SEL = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B80B
+        adov6vb_r0D.DSP_DNN_CTRL_RF_SEL = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03BC0A
         
-        adov6vc_r04.DSP_P2S_MON_EN = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x04, adov6vc_r04.as_int);//A00040
+        adov6vb_r04.DSP_P2S_MON_EN = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x04, adov6vb_r04.as_int);//A00040
         
-        adov6vc_r04.DSP_P2S_RESETN = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x04, adov6vc_r04.as_int);//E00040
+        adov6vb_r04.DSP_P2S_RESETN = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x04, adov6vb_r04.as_int);//E00040
         
-        adov6vc_r0D.DSP_LP_RESETN = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03BC4A
+        adov6vb_r0D.DSP_LP_RESETN = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03BC4A
         }
 }
 
 static void afe_set_mode(uint8_t mode){
     if(mode == 1){      //LP AFE
-        if(prev18_r19.XO_EN_OUT !=1){// XO ouput enable
-            prev18_r19.XO_EN_OUT    = 1;
-            *REG_XO_CONF1 = prev18_r19.as_int;
+        if(prev20_r19.XO_EN_OUT !=1){// XO ouput enable
+            prev20_r19.XO_EN_OUT    = 1;
+            *REG_XO_CONF1 = prev20_r19.as_int;
         }
-        adov6vc_r0D.REC_ADC_RESETN = 0;
-        adov6vc_r0D.REC_ADCDRI_EN = 0;
-        adov6vc_r0D.REC_LNA_AMPEN = 0;
-        adov6vc_r0D.REC_LNA_AMPSW_EN = 0;
-        adov6vc_r0D.REC_LNA_OUTSHORT_EN = 0;
-        adov6vc_r0D.REC_PGA_AMPEN = 0;
-        adov6vc_r0D.REC_PGA_OUTSHORT_EN = 0;
-        adov6vc_r0D.VAD_LNA_AMPSW_EN = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);
+        adov6vb_r0D.REC_ADC_RESETN = 0;
+        adov6vb_r0D.REC_ADCDRI_EN = 0;
+        adov6vb_r0D.REC_LNA_AMPEN = 0;
+        adov6vb_r0D.REC_LNA_AMPSW_EN = 0;
+        adov6vb_r0D.REC_LNA_OUTSHORT_EN = 0;
+        adov6vb_r0D.REC_PGA_AMPEN = 0;
+        adov6vb_r0D.REC_PGA_OUTSHORT_EN = 0;
+        adov6vb_r0D.VAD_LNA_AMPSW_EN = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);
         
-        adov6vc_r13.VAD_PGA_OUTSHORT_EN = 0;
-        adov6vc_r13.VAD_LNA_OUTSHORT_EN = 0;
-        adov6vc_r13.LDO_PG_IREF = 0;
-        adov6vc_r13.LDO_PG_VREF_0P6LP = 0;
-        adov6vc_r13.LDO_PG_LDOCORE_0P6LP = 0;
-        adov6vc_r13.LDO_PG_VREF_1P4LP = 0;
-        adov6vc_r13.LDO_PG_LDOCORE_1P4LP = 0;
-        adov6vc_r13.LDO_PG_VREF_1P4HP = 1;
-        adov6vc_r13.LDO_PG_LDOCORE_1P4HP = 1;
-        adov6vc_r13.LDO_PG_VREF_0P9HP = 1;
-        adov6vc_r13.LDO_PG_LDOCORE_0P9HP = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x13, adov6vc_r13.as_int);
+        adov6vb_r13.VAD_PGA_OUTSHORT_EN = 0;
+        adov6vb_r13.VAD_LNA_OUTSHORT_EN = 0;
+        adov6vb_r13.LDO_PG_IREF = 0;
+        adov6vb_r13.LDO_PG_VREF_0P6LP = 0;
+        adov6vb_r13.LDO_PG_LDOCORE_0P6LP = 0;
+        adov6vb_r13.LDO_PG_VREF_1P4LP = 0;
+        adov6vb_r13.LDO_PG_LDOCORE_1P4LP = 0;
+        adov6vb_r13.LDO_PG_VREF_1P4HP = 1;
+        adov6vb_r13.LDO_PG_LDOCORE_1P4HP = 1;
+        adov6vb_r13.LDO_PG_VREF_0P9HP = 1;
+        adov6vb_r13.LDO_PG_LDOCORE_0P9HP = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x13, adov6vb_r13.as_int);
+        delay(MBUS_DELAY*9);
 
-        adov6vc_r0F.VAD_ADC_RESET = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0F, adov6vc_r0F.as_int);
+        adov6vb_r0F.VAD_ADC_RESET = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0F, adov6vb_r0F.as_int);
 
-        adov6vc_r14.VAD_ADCDRI_EN = 1;
-        adov6vc_r14.VAD_LNA_AMPEN = 1;
-        adov6vc_r14.VAD_PGA_AMPEN = 1;
-        adov6vc_r14.VAD_PGA_BWCON = 19;//13;
-        adov6vc_r14.VAD_PGA_GCON = 4;//8;
-        mbus_remote_register_write(ADO_ADDR, 0x14, adov6vc_r14.as_int);
+        adov6vb_r14.VAD_ADCDRI_EN = 1;
+        adov6vb_r14.VAD_LNA_AMPEN = 1;
+        adov6vb_r14.VAD_PGA_AMPEN = 1;
+        adov6vb_r14.VAD_PGA_BWCON = 19;//13;
+        adov6vb_r14.VAD_PGA_GCON = 4;//8;
+        mbus_remote_register_write(ADO_ADDR, 0x14, adov6vb_r14.as_int);
 
         ////VAD MON setting can come here
-        //adov6vc_r1A.VAD_MONSEL = 1;
-        //adov6vc_r1A.VAD_MONBUF_EN = 1;
-        //adov6vc_r1A.VAD_REFMONBUF_EN = 0;
-        //adov6vc_r1A.VAD_ADCDRI_OUT_OV_EN = 1;
-        //mbus_remote_register_write(ADO_ADDR, 0x1A, adov6vc_r1A.as_int);
+        //adov6vb_r1A.VAD_MONSEL = 1;
+        //adov6vb_r1A.VAD_MONBUF_EN = 1;
+        //adov6vb_r1A.VAD_REFMONBUF_EN = 0;
+        //adov6vb_r1A.VAD_ADCDRI_OUT_OV_EN = 1;
+        //mbus_remote_register_write(ADO_ADDR, 0x1A, adov6vb_r1A.as_int);
         
         ////REC MON setting (debug)
-        adov6vc_r17.REC_MONSEL = 0;
-        adov6vc_r17.REC_MONBUF_EN = 0;
-        //adov6vc_r17.REC_REFMONBUF_EN = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x17, adov6vc_r17.as_int);
+        adov6vb_r17.REC_MONSEL = 0;
+        adov6vb_r17.REC_MONBUF_EN = 0;
+        //adov6vb_r17.REC_REFMONBUF_EN = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x17, adov6vb_r17.as_int);
 
-        adov6vc_r10.DO_LP_HP_SEL = 0;    //0: LP, 1: HP
-        adov6vc_r10.DIO_OUT_EN = 1;
-        adov6vc_r10.VAD_ADC_DOUT_ISOL = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x10, adov6vc_r10.as_int);
+        adov6vb_r10.DO_LP_HP_SEL = 0;    //0: LP, 1: HP
+        adov6vb_r10.DIO_OUT_EN = 1;
+        adov6vb_r10.VAD_ADC_DOUT_ISOL = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x10, adov6vb_r10.as_int);
 
-        adov6vc_r04.DSP_CLK_MON_SEL = 4; //LP CLK mon
-        mbus_remote_register_write(ADO_ADDR, 0x04, adov6vc_r04.as_int);
+        adov6vb_r04.DSP_CLK_MON_SEL = 4; //LP CLK mon
+        mbus_remote_register_write(ADO_ADDR, 0x04, adov6vb_r04.as_int);
     }
     else if(mode == 2){ // HP AFE
-        if(prev18_r19.XO_EN_OUT !=1){// XO ouput enable
-            prev18_r19.XO_EN_OUT    = 1;
-            *REG_XO_CONF1 = prev18_r19.as_int;
+        if(prev20_r19.XO_EN_OUT !=1){// XO ouput enable
+            prev20_r19.XO_EN_OUT    = 1;
+            *REG_XO_CONF1 = prev20_r19.as_int;
         }
-        adov6vc_r13.LDO_PG_IREF = 0;
-        adov6vc_r13.LDO_PG_VREF_0P6LP = 0;
-        adov6vc_r13.LDO_PG_LDOCORE_0P6LP = 0;
-        adov6vc_r13.LDO_PG_VREF_1P4LP = 0;
-        adov6vc_r13.LDO_PG_LDOCORE_1P4LP = 0;
-        adov6vc_r13.LDO_PG_VREF_1P4HP = 0;
-        adov6vc_r13.LDO_PG_LDOCORE_1P4HP = 0;
-        adov6vc_r13.LDO_PG_VREF_0P9HP = 0;
-        adov6vc_r13.LDO_PG_LDOCORE_0P9HP = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x13, adov6vc_r13.as_int);
-
-        adov6vc_r0D.REC_ADC_RESETN = 1;
-        adov6vc_r0D.REC_ADCDRI_EN = 1;
-        adov6vc_r0D.REC_LNA_AMPEN = 1;
-        adov6vc_r0D.REC_LNA_AMPSW_EN = 1;
-        adov6vc_r0D.REC_LNA_OUTSHORT_EN = 0;
-        adov6vc_r0D.REC_PGA_AMPEN = 1;
-        adov6vc_r0D.REC_PGA_OUTSHORT_EN = 0;
-        adov6vc_r0D.VAD_LNA_AMPSW_EN = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);
+        adov6vb_r13.LDO_PG_IREF = 0;
+        adov6vb_r13.LDO_PG_VREF_0P6LP = 0;
+        adov6vb_r13.LDO_PG_LDOCORE_0P6LP = 0;
+        adov6vb_r13.LDO_PG_VREF_1P4LP = 0;
+        adov6vb_r13.LDO_PG_LDOCORE_1P4LP = 0;
+        adov6vb_r13.LDO_PG_VREF_1P4HP = 0;
+        adov6vb_r13.LDO_PG_LDOCORE_1P4HP = 0;
+        adov6vb_r13.LDO_PG_VREF_0P9HP = 0;
+        adov6vb_r13.LDO_PG_LDOCORE_0P9HP = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x13, adov6vb_r13.as_int);
         delay(MBUS_DELAY*9);
-        //adov6vc_r0D.REC_LNA_FSETTLE = 0;
-        //mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);
 
-        adov6vc_r10.DO_LP_HP_SEL = 1;    //HP
-        adov6vc_r10.DIO_OUT_EN = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x10, adov6vc_r10.as_int);
+        adov6vb_r0D.REC_ADC_RESETN = 1;
+        adov6vb_r0D.REC_ADCDRI_EN = 1;
+        adov6vb_r0D.REC_LNA_AMPEN = 1;
+        adov6vb_r0D.REC_LNA_AMPSW_EN = 1;
+        adov6vb_r0D.REC_LNA_OUTSHORT_EN = 0;
+        adov6vb_r0D.REC_PGA_AMPEN = 1;
+        adov6vb_r0D.REC_PGA_OUTSHORT_EN = 0;
+        adov6vb_r0D.VAD_LNA_AMPSW_EN = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);
+        delay(MBUS_DELAY*9);
+        //adov6vb_r0D.REC_LNA_FSETTLE = 0;
+        //mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);
 
-        adov6vc_r04.DSP_CLK_MON_SEL = 2; //HP clock mon
-        mbus_remote_register_write(ADO_ADDR, 0x04, adov6vc_r04.as_int);
+        adov6vb_r10.DO_LP_HP_SEL = 1;    //HP
+        adov6vb_r10.DIO_OUT_EN = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x10, adov6vb_r10.as_int);
+
+        adov6vb_r04.DSP_CLK_MON_SEL = 2; //HP clock mon
+        mbus_remote_register_write(ADO_ADDR, 0x04, adov6vb_r04.as_int);
     }
     else{       // AFE off
-        if(prev18_r19.XO_EN_OUT !=0){// XO ouput enable
-            prev18_r19.XO_EN_OUT    = 0;// XO ouput disable
-            *REG_XO_CONF1 = prev18_r19.as_int;
+        if(prev20_r19.XO_EN_OUT !=0){// XO ouput enable
+            prev20_r19.XO_EN_OUT    = 0;// XO ouput disable
+            *REG_XO_CONF1 = prev20_r19.as_int;
         }
 
-        adov6vc_r0D.REC_ADC_RESETN = 0;
-        adov6vc_r0D.REC_ADCDRI_EN = 0;
-        adov6vc_r0D.REC_LNA_AMPEN = 0;
-        adov6vc_r0D.REC_LNA_AMPSW_EN = 0;
-        adov6vc_r0D.REC_LNA_OUTSHORT_EN = 0;
-        adov6vc_r0D.REC_PGA_AMPEN = 0;
-        adov6vc_r0D.REC_PGA_OUTSHORT_EN = 0;
-        adov6vc_r0D.VAD_LNA_AMPSW_EN = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);
+        adov6vb_r0D.REC_ADC_RESETN = 0;
+        adov6vb_r0D.REC_ADCDRI_EN = 0;
+        adov6vb_r0D.REC_LNA_AMPEN = 0;
+        adov6vb_r0D.REC_LNA_AMPSW_EN = 0;
+        adov6vb_r0D.REC_LNA_OUTSHORT_EN = 0;
+        adov6vb_r0D.REC_PGA_AMPEN = 0;
+        adov6vb_r0D.REC_PGA_OUTSHORT_EN = 0;
+        adov6vb_r0D.VAD_LNA_AMPSW_EN = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);
         
-        adov6vc_r13.LDO_PG_IREF = 0;
-        adov6vc_r13.LDO_PG_VREF_0P6LP = 1;
-        adov6vc_r13.LDO_PG_LDOCORE_0P6LP = 1;
-        adov6vc_r13.LDO_PG_VREF_1P4LP = 1;
-        adov6vc_r13.LDO_PG_LDOCORE_1P4LP = 1;
-        adov6vc_r13.LDO_PG_VREF_1P4HP = 1;
-        adov6vc_r13.LDO_PG_LDOCORE_1P4HP = 1;
-        adov6vc_r13.LDO_PG_VREF_0P9HP = 1;
-        adov6vc_r13.LDO_PG_LDOCORE_0P9HP = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x13, adov6vc_r13.as_int);
+        adov6vb_r13.LDO_PG_IREF = 0;
+        adov6vb_r13.LDO_PG_VREF_0P6LP = 1;
+        adov6vb_r13.LDO_PG_LDOCORE_0P6LP = 1;
+        adov6vb_r13.LDO_PG_VREF_1P4LP = 1;
+        adov6vb_r13.LDO_PG_LDOCORE_1P4LP = 1;
+        adov6vb_r13.LDO_PG_VREF_1P4HP = 1;
+        adov6vb_r13.LDO_PG_LDOCORE_1P4HP = 1;
+        adov6vb_r13.LDO_PG_VREF_0P9HP = 1;
+        adov6vb_r13.LDO_PG_LDOCORE_0P9HP = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x13, adov6vb_r13.as_int);
 
-        adov6vc_r0F.VAD_ADC_RESET = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x0F, adov6vc_r0F.as_int);
+        adov6vb_r0F.VAD_ADC_RESET = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x0F, adov6vb_r0F.as_int);
 
-        adov6vc_r14.VAD_ADCDRI_EN = 0;
-        adov6vc_r14.VAD_LNA_AMPEN = 0;
-        adov6vc_r14.VAD_PGA_AMPEN = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x14, adov6vc_r14.as_int);
+        adov6vb_r14.VAD_ADCDRI_EN = 0;
+        adov6vb_r14.VAD_LNA_AMPEN = 0;
+        adov6vb_r14.VAD_PGA_AMPEN = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x14, adov6vb_r14.as_int);
 
-        adov6vc_r10.DIO_OUT_EN = 0;
-        //adov6vc_r10.DIO_DIR_IN1OUT0 = 1;
-        adov6vc_r10.VAD_ADC_DOUT_ISOL = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x10, adov6vc_r10.as_int);
+        adov6vb_r10.DIO_OUT_EN = 0;
+        //adov6vb_r10.DIO_DIR_IN1OUT0 = 1;
+        adov6vb_r10.VAD_ADC_DOUT_ISOL = 1;
+        mbus_remote_register_write(ADO_ADDR, 0x10, adov6vb_r10.as_int);
         ////VAD MON setting can come here
-        //adov6vc_r1A.VAD_MONSEL = 1;
-        //adov6vc_r1A.VAD_MONBUF_EN = 1;
-        //adov6vc_r1A.VAD_REFMONBUF_EN = 0;
-        //adov6vc_r1A.VAD_ADCDRI_OUT_OV_EN = 1;
-        //mbus_remote_register_write(ADO_ADDR, 0x1A, adov6vc_r1A.as_int);
+        //adov6vb_r1A.VAD_MONSEL = 1;
+        //adov6vb_r1A.VAD_MONBUF_EN = 1;
+        //adov6vb_r1A.VAD_REFMONBUF_EN = 0;
+        //adov6vb_r1A.VAD_ADCDRI_OUT_OV_EN = 1;
+        //mbus_remote_register_write(ADO_ADDR, 0x1A, adov6vb_r1A.as_int);
         
         ////REC MON setting (debug)
-        //adov6vc_r17.REC_MONSEL = 1;
-        //adov6vc_r17.REC_MONBUF_EN = 1;
-        //adov6vc_r17.REC_REFMONBUF_EN = 0;
-        //mbus_remote_register_write(ADO_ADDR, 0x17, adov6vc_r17.as_int);
+        //adov6vb_r17.REC_MONSEL = 1;
+        //adov6vb_r17.REC_MONBUF_EN = 1;
+        //adov6vb_r17.REC_REFMONBUF_EN = 0;
+        //mbus_remote_register_write(ADO_ADDR, 0x17, adov6vb_r17.as_int);
 
     }
 }
@@ -1065,17 +1111,17 @@ static void operation_init(void){
     *EP_MODE = 0;
 
     // Set CPU & Mbus Clock Speeds
-    //prev18_r0B.CLK_GEN_RING = 0x1; // Default 0x1, 2bits
-    //prev18_r0B.CLK_GEN_DIV_MBC = 0x2; // Default 0x2, 3bits
-    //prev18_r0B.CLK_GEN_DIV_CORE = 0x3; // Default 0x3, 3bits
-    //prev18_r0B.GOC_CLK_GEN_SEL_DIV = 0x0; // Default 0x1, 2bits
-    //prev18_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x7, 3bits
-    //*REG_CLKGEN_TUNE = prev18_r0B.as_int;
+    prev20_r0B.CLK_GEN_RING = 0x1; // Default 0x1, 2bits
+    prev20_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x2, 3bits
+    prev20_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3, 3bits
+    prev20_r0B.GOC_CLK_GEN_SEL_DIV = 0x5; // Default 0x1, 2bits
+    prev20_r0B.GOC_CLK_GEN_SEL_FREQ = 0x0; // Default 0x7, 3bits
+    *REG_CLKGEN_TUNE = prev20_r0B.as_int;
 
-    prev18_r1C.SRAM0_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
-    prev18_r1C.SRAM0_TUNE_DECODER_DLY = 15; // Default 0x2, 4 bits
-    //prev18_r1C.SRAM0_USE_INVERTER_SA= 1; // Default 0x0, 1bit
-    *REG_SRAM0_TUNE = prev18_r1C.as_int;
+    prev20_r1C.SRAM0_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
+    prev20_r1C.SRAM0_TUNE_DECODER_DLY = 15; // Default 0x2, 4 bits
+    prev20_r1C.SRAM0_USE_INVERTER_SA= 0; // Default 0x2, 1bit
+    *REG_SRAM0_TUNE = prev20_r1C.as_int;
 
     //Enumerate & Initialize Registers
     enumerated = ENUMID;
@@ -1110,8 +1156,10 @@ static void operation_init(void){
 
     // Disable PMU ADC measurement in active mode
     // PMU_CONTROLLER_STALL_ACTIVE
+    // Updated for PMUv9
     mbus_remote_register_write(PMU_ADDR,0x3A, 
             ( (1 << 20) // ignore state_horizon; default 1
+              | (0 << 19) // state_vbat_read 
               | (1 << 13) // ignore adc_output_ready; default 0
               | (1 << 12) // ignore adc_output_ready; default 0
               | (1 << 11) // ignore adc_output_ready; default 0
@@ -1135,7 +1183,7 @@ static void operation_init(void){
     delay(MBUS_DELAY*10);
 
     FLASH_initialization(); //FLPv3L initialization
-    ado_initialization(); //ADOv6VC initialization
+    ado_initialization(); //ADOv6VB initialization
     XO_init(); //XO initialization
 
     // Self boot. Offchip NMOS gate control via gpio[7]
@@ -1188,7 +1236,7 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
         //Do something
         delay(MBUS_DELAY*800); //~8sec
     }   
-
+    *SREG_WAKEUP_SOURCE=0;
 }
 void handler_ext_int_timer32(void) { // TIMER32
     *NVIC_ICPR = (0x1 << IRQ_TIMER32);
@@ -1205,18 +1253,18 @@ void handler_ext_int_reg0(void) { // REG0
     if(*REG0 == 1){ // LP -> HP mode change
         *EP_MODE = 1;
                 
-        adov6vc_r0D.DSP_LP_RESETN = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80A
+        adov6vb_r0D.DSP_LP_RESETN = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B80A
        
         afe_set_mode(2);
         digital_set_mode(2);
     }
     else if(*REG0 == 0) { // HP -> ULP mode change
         *EP_MODE = 0;
-        adov6vc_r0D.DSP_HP_FIFO_GO = 0;
-        adov6vc_r0D.DSP_HP_ADO_GO = 0;
-        adov6vc_r0D.DSP_HP_DNN_GO = 0;
-        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03BCB5
+        adov6vb_r0D.DSP_HP_FIFO_GO = 0;
+        adov6vb_r0D.DSP_HP_ADO_GO = 0;
+        adov6vb_r0D.DSP_HP_DNN_GO = 0;
+        mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03BCB5
         
         afe_set_mode(1);
         digital_set_mode(1);
@@ -1245,101 +1293,115 @@ void handler_ext_int_gocep(void) { // GOCEP
     uint32_t data_cmd = (wakeup_data>>24) & 0xFF;
     uint32_t data_val = wakeup_data & 0xFF;
     uint32_t data_val2 = (wakeup_data>>8) & 0xFF;
+    uint32_t data_val3 = (wakeup_data>>16) & 0xFF;
+    //mbus_write_message32(0xE5, data_cmd);
+    //mbus_write_message32(0xE6, data_val);
+    //mbus_write_message32(0xE7, data_val2);
+    //mbus_write_message32(0xE8, data_val3);
     if(data_cmd == 0x01){       // Charge pump control
         if(data_val==1){        //ON
-            adov6vc_r14.CP_CLK_EN_1P2 = 1;
-            adov6vc_r14.CP_CLK_DIV_1P2 = 2;//0;
-            adov6vc_r14.CP_VDOWN_1P2 = 0; //vin = V3P6
-            mbus_remote_register_write(ADO_ADDR, 0x14, adov6vc_r14.as_int);
+            adov6vb_r14.CP_CLK_EN_1P2 = 1;
+            adov6vb_r14.CP_CLK_DIV_1P2 = 2;//0;
+            adov6vb_r14.CP_VDOWN_1P2 = 0; //vin = V3P6
+            mbus_remote_register_write(ADO_ADDR, 0x14, adov6vb_r14.as_int);
             delay(CP_DELAY); 
-            adov6vc_r14.CP_VDOWN_1P2 = 1; //vin = gnd
-            mbus_remote_register_write(ADO_ADDR, 0x14, adov6vc_r14.as_int);
+            adov6vb_r14.CP_VDOWN_1P2 = 1; //vin = gnd
+            mbus_remote_register_write(ADO_ADDR, 0x14, adov6vb_r14.as_int);
         }
         else if(data_val==2){        //ON
-            adov6vc_r14.CP_CLK_EN_1P2 = 1;
-            adov6vc_r14.CP_CLK_DIV_1P2 = 0;
-            adov6vc_r14.CP_VDOWN_1P2 = 0; //vin = V3P6
-            mbus_remote_register_write(ADO_ADDR, 0x14, adov6vc_r14.as_int);
+            adov6vb_r14.CP_CLK_EN_1P2 = 1;
+            adov6vb_r14.CP_CLK_DIV_1P2 = 0;
+            adov6vb_r14.CP_VDOWN_1P2 = 0; //vin = V3P6
+            mbus_remote_register_write(ADO_ADDR, 0x14, adov6vb_r14.as_int);
             delay(CP_DELAY*0.2); 
-            adov6vc_r14.CP_VDOWN_1P2 = 1; //vin = gnd
-            mbus_remote_register_write(ADO_ADDR, 0x14, adov6vc_r14.as_int);
+            adov6vb_r14.CP_VDOWN_1P2 = 1; //vin = gnd
+            mbus_remote_register_write(ADO_ADDR, 0x14, adov6vb_r14.as_int);
         }
         else if(data_val == 3){
-            adov6vc_r14.CP_CLK_EN_1P2 = 1;
-            adov6vc_r14.CP_CLK_DIV_1P2 = 0; //clk 8kHz
-            adov6vc_r14.CP_VDOWN_1P2 = 0; //vin = V3P6
-            mbus_remote_register_write(ADO_ADDR, 0x14, adov6vc_r14.as_int);
+            adov6vb_r14.CP_CLK_EN_1P2 = 1;
+            adov6vb_r14.CP_CLK_DIV_1P2 = 0; //clk 8kHz
+            adov6vb_r14.CP_VDOWN_1P2 = 0; //vin = V3P6
+            mbus_remote_register_write(ADO_ADDR, 0x14, adov6vb_r14.as_int);
         }
         else if(data_val == 4){
-            adov6vc_r14.CP_CLK_EN_1P2 = 1;
-            adov6vc_r14.CP_CLK_DIV_1P2 = 0; //clk 8kHz
-            adov6vc_r14.CP_VDOWN_1P2 = 1; //vin = gnd
-            mbus_remote_register_write(ADO_ADDR, 0x14, adov6vc_r14.as_int);
+            adov6vb_r14.CP_CLK_EN_1P2 = 1;
+            adov6vb_r14.CP_CLK_DIV_1P2 = 0; //clk 8kHz
+            adov6vb_r14.CP_VDOWN_1P2 = 1; //vin = gnd
+            mbus_remote_register_write(ADO_ADDR, 0x14, adov6vb_r14.as_int);
         }
         else{                   //OFF
-            adov6vc_r14.CP_CLK_EN_1P2 = 0;
-            adov6vc_r14.CP_CLK_DIV_1P2 = 3;
-            mbus_remote_register_write(ADO_ADDR, 0x14, adov6vc_r14.as_int);
+            adov6vb_r14.CP_CLK_EN_1P2 = 0;
+            adov6vb_r14.CP_CLK_DIV_1P2 = 3;
+            mbus_remote_register_write(ADO_ADDR, 0x14, adov6vb_r14.as_int);
             //flash_erasedata();
         }
     }
     else if(data_cmd == 0x02){  // SRAM Programming mode
         if(data_val==1){    //Enter
-            adov6vc_r0E.DSP_DNN_DBG_MODE_EN = 1;
-            mbus_remote_register_write(ADO_ADDR, 0x0E, adov6vc_r0E.as_int);//000054
-            adov6vc_r0D.DSP_DNN_CTRL_RF_SEL = 1;
-            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80B
-            adov6vc_r0D.DSP_DNN_CLKENB_RF_SEL = 1;
-            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80B
-            adov6vc_r0D.DSP_DNN_PG_SLEEP_RF = 0;
-            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B809
-            adov6vc_r0D.DSP_DNN_ISOLATEN_RF = 1;
-            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80D
-            adov6vc_r0D.DSP_DNN_CLKENB_RF = 0;
-            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B805
-            adov6vc_r0D.DSP_DNN_RESETN_RF = 1;04000000
-            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B815
+            adov6vb_r0E.DSP_DNN_DBG_MODE_EN = 1;
+            mbus_remote_register_write(ADO_ADDR, 0x0E, adov6vb_r0E.as_int);//000054
+            adov6vb_r0D.DSP_DNN_CTRL_RF_SEL = 1;
+            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B80B
+            adov6vb_r0D.DSP_DNN_CLKENB_RF_SEL = 1;
+            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B80B
+            adov6vb_r0D.DSP_DNN_PG_SLEEP_RF = 0;
+            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B809
+            adov6vb_r0D.DSP_DNN_ISOLATEN_RF = 1;
+            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B80D
+            adov6vb_r0D.DSP_DNN_CLKENB_RF = 0;
+            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B805
+            adov6vb_r0D.DSP_DNN_RESETN_RF = 1;
+            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B815
         }
         else{               //Exit
-            adov6vc_r0D.DSP_DNN_RESETN_RF = 0;
-            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B805
-            adov6vc_r0D.DSP_DNN_CLKENB_RF = 1;
-            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80D
-            adov6vc_r0D.DSP_DNN_ISOLATEN_RF = 0;
-            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B809
-            adov6vc_r0D.DSP_DNN_PG_SLEEP_RF = 1;
-            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80B
-            adov6vc_r0D.DSP_DNN_CLKENB_RF_SEL = 0;
-            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80B
-            adov6vc_r0D.DSP_DNN_CTRL_RF_SEL = 0;
-            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03B80A
-            adov6vc_r0E.DSP_DNN_DBG_MODE_EN = 0;
-            mbus_remote_register_write(ADO_ADDR, 0x0E, adov6vc_r0E.as_int);//000050
+            adov6vb_r0D.DSP_DNN_RESETN_RF = 0;
+            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B805
+            adov6vb_r0D.DSP_DNN_CLKENB_RF = 1;
+            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B80D
+            adov6vb_r0D.DSP_DNN_ISOLATEN_RF = 0;
+            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B809
+            adov6vb_r0D.DSP_DNN_PG_SLEEP_RF = 1;
+            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B80B
+            adov6vb_r0D.DSP_DNN_CLKENB_RF_SEL = 0;
+            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B80B
+            adov6vb_r0D.DSP_DNN_CTRL_RF_SEL = 0;
+            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03B80A
+            adov6vb_r0E.DSP_DNN_DBG_MODE_EN = 0;
+            mbus_remote_register_write(ADO_ADDR, 0x0E, adov6vb_r0E.as_int);//000050
         }
     }
     else if(data_cmd == 0x03){  // DSP Monitoring Configure
-        //adov6vc_r0E.DSP_MIX_MON_EN = 1;
-        //mbus_remote_register_write(ADO_ADDR, 0x0E, adov6vc_r0E.as_int);//000150
-        //adov6vc_r00.DSP_FE_SEL_EXT = 1;
-        //mbus_remote_register_write(ADO_ADDR, 0x00, adov6vc_r00.as_int);//9F1B28
-        adov6vc_r04.DSP_P2S_MON_EN = 1;
-        adov6vc_r04.DSP_CLK_MON_SEL = 4;
-        mbus_remote_register_write(ADO_ADDR, 0x04, adov6vc_r04.as_int);//A00040
-        adov6vc_r04.DSP_P2S_RESETN = 1;
-        mbus_remote_register_write(ADO_ADDR, 0x04, adov6vc_r04.as_int);//E00040
-        //adov6vc_r10.DIO_OUT_EN = 1;
-        //adov6vc_r10.DIO_IN_EN = 0;
-        //adov6vc_r10.DIO_DIR_IN1OUT0 = 0;
-        //mbus_remote_register_write(ADO_ADDR, 0x10, adov6vc_r10.as_int);//000008
+        if(data_val==1){    //Go
+            //adov6vb_r0E.DSP_MIX_MON_EN = 1;
+            //mbus_remote_register_write(ADO_ADDR, 0x0E, adov6vb_r0E.as_int);//000150
+            //adov6vb_r00.DSP_FE_SEL_EXT = 1;
+            //mbus_remote_register_write(ADO_ADDR, 0x00, adov6vb_r00.as_int);//9F1B28
+            adov6vb_r04.DSP_P2S_MON_EN = 1;
+            adov6vb_r04.DSP_CLK_MON_SEL = 4;
+            mbus_remote_register_write(ADO_ADDR, 0x04, adov6vb_r04.as_int);//A00040
+            adov6vb_r04.DSP_P2S_RESETN = 1;
+            mbus_remote_register_write(ADO_ADDR, 0x04, adov6vb_r04.as_int);//E00040
+            //adov6vb_r10.DIO_OUT_EN = 1;
+            //adov6vb_r10.DIO_IN_EN = 0;
+            //adov6vb_r10.DIO_DIR_IN1OUT0 = 0;
+            //mbus_remote_register_write(ADO_ADDR, 0x10, adov6vb_r10.as_int);//000008
+        }
+        else{               //Stop
+            adov6vb_r04.DSP_P2S_MON_EN = 0;
+            mbus_remote_register_write(ADO_ADDR, 0x04, adov6vb_r04.as_int);//A00040
+            adov6vb_r04.DSP_P2S_RESETN = 0;
+            mbus_remote_register_write(ADO_ADDR, 0x04, adov6vb_r04.as_int);//E00040
+        }
     }
     else if(data_cmd == 0x04){  // DSP LP Control
         if(data_val==1){    //Go
-            adov6vc_r0D.DSP_LP_RESETN = 1;
-            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03BC4A
+            adov6vb_r0D.DSP_LP_RESETN = 1;
+            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03BC4A
         }
         else{               //Stop
-            adov6vc_r0D.DSP_LP_RESETN = 0;
-            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vc_r0D.as_int);//03BC0A
+            adov6vb_r0D.DSP_LP_RESETN = 0;
+            mbus_remote_register_write(ADO_ADDR, 0x0D, adov6vb_r0D.as_int);//03BC0A
+            *EP_MODE=0;
         }
     }
     else if(data_cmd == 0x05){  // AFE Control
@@ -1358,18 +1420,18 @@ void handler_ext_int_gocep(void) { // GOCEP
         if(data_val == 0) { //both TEST VDD off
             *REG_CPS = 0;
             pmu_set_sar_override(pmu_sar_conv_ratio_val_test_off);
-            pmu_set_sleep_clk(0xA,0xA,0xF,0xA);
-            pmu_set_active_clk(0xA,0x4,0x10,0x4);
+            pmu_set_sleep_clks(0xA,0xA,0xF,0x0);
+            pmu_set_active_clk(0xA,0x4,0x10,0x0);
         }
         else if(data_val == 2){ //both TEST VDD on
             pmu_set_sar_override(pmu_sar_conv_ratio_val_test_on);
-            pmu_set_sleep_clk(0xA,0x1,0x10,0x2);
-            pmu_set_active_clk(0xA,0x104000000,0x10,0x2);
+            pmu_set_sleep_clks(0xA,0x1,0x10,0x0);
+            pmu_set_active_clk(0xA,0x1,0x10,0x2);
             *REG_CPS = 0x5; 
         }
         else if(data_val == 3){ //both TEST VDD on, active mode
             pmu_set_sar_override(pmu_sar_conv_ratio_val_test_on);
-            pmu_set_sleep_clk(0xA,0x4,0x10,0x4);
+            pmu_set_sleep_clks(0xA,0x4,0x10,0x0);
             pmu_set_active_clk(0xA,0x4,0x10,0x4);
             *REG_CPS = 0x5; 
         }
@@ -1379,16 +1441,133 @@ void handler_ext_int_gocep(void) { // GOCEP
         *REG_CPS = 0x7 & data_val;
     }
     else if(data_cmd == 0x09){
-        if(data_val != 0xF) pmu_set_sleep_clk(data_val+1,data_val,data_val2,data_val);
-        else pmu_set_sleep_clk(data_val,data_val,data_val2,data_val);
+        pmu_set_sleep_clks((data_val & 0xF), ((data_val>>4) & 0xF), data_val2 & 0x1F, data_val3 & 0xF);
     }
-    else if(data_c04000000md == 0x0A){
+    else if(data_cmd == 0x0A){
         if(data_val != 0xF) pmu_set_active_clk(data_val+1,data_val,data_val2,data_val);
         else pmu_set_active_clk(data_val,data_val,data_val2,data_val);
         delay(MBUS_DELAY*300); //~3sec
     }
     else if(data_cmd == 0x0B){
         pmu_set_sar_override(data_val);
+    }
+    else if(data_cmd == 0x0C){
+        if(data_val==1){   
+            prev20_r19.XO_SLEEP = 0x0;
+            prev20_r19.XO_EN_DIV    = 0x1;// XO division enable
+            *REG_XO_CONF1 = prev20_r19.as_int;
+            delay(1000);
+
+            prev20_r19.XO_ISOLATE = 0x0;
+            prev20_r19.XO_EN_OUT    = 0x1;// XO ouput enable
+            *REG_XO_CONF1 = prev20_r19.as_int;
+            delay(1000);
+
+            prev20_r19.XO_DRV_START_UP  = 0x1;// 1: enables start-up circuit
+            *REG_XO_CONF1 = prev20_r19.as_int;
+            delay(2000);
+
+            //// after start-up, turn on core circuit and turn off start-up circuit
+            prev20_r19.XO_SCN_CLK_SEL   = 0x1;// scn clock 1: normal. 0.3V level up to 0.6V, 0:init
+            *REG_XO_CONF1 = prev20_r19.as_int;
+            delay(2000);
+            prev20_r19.XO_SCN_CLK_SEL   = 0x0;
+            prev20_r19.XO_SCN_ENB       = 0x0;// enable_bar of scn
+            *REG_XO_CONF1 = prev20_r19.as_int;
+            delay(2000);
+            prev20_r19.XO_DRV_START_UP  = 0x0;
+            prev20_r19.XO_DRV_CORE      = 0x1;// 1: enables core circuit
+            prev20_r19.XO_SCN_CLK_SEL   = 0x1;
+            *REG_XO_CONF1 = prev20_r19.as_int;
+            delay(2000);
+
+        }
+        else if(data_val==2){   
+            prev20_r19.XO_SLEEP = 0x0;
+            prev20_r19.XO_EN_DIV    = 0x1;// XO division enable
+            *REG_XO_CONF1 = prev20_r19.as_int;
+            delay(1000);
+
+            prev20_r19.XO_ISOLATE = 0x0;
+            prev20_r19.XO_EN_OUT    = 0x1;// XO ouput enable
+            *REG_XO_CONF1 = prev20_r19.as_int;
+            delay(1000);
+
+            prev20_r19.XO_DRV_START_UP  = 0x1;// 1: enables start-up circuit
+            *REG_XO_CONF1 = prev20_r19.as_int;
+        }
+        else if(data_val==4){   
+            if(data_val2==1){
+                prev20_r19.XO_EN_OUT    = 0x1;// XO ouput enable
+                *REG_XO_CONF1 = prev20_r19.as_int;
+                delay(10000);
+            }
+            else{
+                prev20_r19.XO_EN_OUT    = 0x0;// XO ouput disable
+                *REG_XO_CONF1 = prev20_r19.as_int;
+                delay(10000);
+
+            }
+
+        }
+        else if(data_val==0){
+            prev20_r19.XO_EN_DIV    = 0x0;// XO ouput enable
+            prev20_r19.XO_EN_OUT    = 0x0;// XO ouput enable
+            *REG_XO_CONF1 = prev20_r19.as_int;
+            delay(100);
+
+            prev20_r19.XO_DRV_CORE      = 0x0;
+            prev20_r19.XO_SCN_ENB       = 0x1;
+            *REG_XO_CONF1 = prev20_r19.as_int;
+            delay(100);
+            
+            prev20_r19.XO_ISOLATE = 0x1;
+            *REG_XO_CONF1 = prev20_r19.as_int;
+            delay(1000);
+            
+            prev20_r19.XO_SLEEP = 0x1;
+            *REG_XO_CONF1 = prev20_r19.as_int;
+            delay(1000);
+            
+            prev20_r19.XO_DRV_START_UP  = 0x0;// 0: disables start-up circuit
+            *REG_XO_CONF1 = prev20_r19.as_int;
+	}
+	else if(data_val==3){	
+		if(data_val2==1){
+		       	prev20_r19.XO_RP_LOW    = 0x1;
+			prev20_r19.XO_RP_MEDIA  = 0x0;
+			prev20_r19.XO_RP_MVT    = 0x0;
+			prev20_r19.XO_RP_SVT    = 0x0;
+		}
+		else if(data_val2==2){
+		       	prev20_r19.XO_RP_LOW    = 0x0;
+			prev20_r19.XO_RP_MEDIA  = 0x1;
+			prev20_r19.XO_RP_MVT    = 0x0;
+			prev20_r19.XO_RP_SVT    = 0x0;
+		}
+		else if(data_val2==3){
+		       	prev20_r19.XO_RP_LOW    = 0x0;
+			prev20_r19.XO_RP_MEDIA  = 0x0;
+			prev20_r19.XO_RP_MVT    = 0x1;
+			prev20_r19.XO_RP_SVT    = 0x0;
+		}
+		else if(data_val2==4){
+		       	prev20_r19.XO_RP_LOW    = 0x0;
+			prev20_r19.XO_RP_MEDIA  = 0x0;
+			prev20_r19.XO_RP_MVT    = 0x0;
+			prev20_r19.XO_RP_SVT    = 0x1;
+		}
+ 		*REG_XO_CONF1 = prev20_r19.as_int;
+ 		delay(100);
+
+		uint32_t xo_cap_drv = data_val3 & 0x3F; // Additional Cap on OSC_DRV
+		uint32_t xo_cap_in  = data_val3 & 0x3F; // Additional Cap on OSC_IN
+		prev20_r1A.XO_CAP_TUNE = (
+		        (xo_cap_drv <<6) | 
+		        (xo_cap_in <<0));   // XO_CLK Output Pad 
+		*REG_XO_CONF2 = prev20_r1A.as_int;
+
+        }
     }
     else if(data_cmd == 0x10){  //GPIO direction, trigger
         direction_gpio = data_val | 0x80; // input:0, output:1,  eg. 0xF0 set GPIO[7:4] as output, GPIO[3:0] as input 

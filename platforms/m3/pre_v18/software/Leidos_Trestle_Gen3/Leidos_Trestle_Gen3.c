@@ -112,8 +112,8 @@ static void pmu_set_active_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1p2
 
 static void XO_init(void) {
     // Parasitic Capacitance Tuning (6-bit for each; Each 1 adds 1.8pF)
-    uint32_t xo_cap_drv = 0x3F;//0x3F; // Additional Cap on OSC_DRV
-    uint32_t xo_cap_in  = 0x3F;//0x3F; // Additional Cap on OSC_IN
+    uint32_t xo_cap_drv = 0x00;//0x3F; // Additional Cap on OSC_DRV
+    uint32_t xo_cap_in  = 0x00;//0x3F; // Additional Cap on OSC_IN
     prev18_r1A.XO_CAP_TUNE = (
             (xo_cap_drv <<6) | 
             (xo_cap_in <<0));   // XO_CLK Output Pad 
@@ -141,18 +141,18 @@ static void XO_init(void) {
     *REG_XO_CONF1 = prev18_r19.as_int;
     delay(2000);
     //// after start-up, turn on core circuit and turn off start-up circuit
-//    prev18_r19.XO_SCN_CLK_SEL   = 0x1;// scn clock 1: normal. 0.3V level up to 0.6V, 0:init
-//    *REG_XO_CONF1 = prev18_r19.as_int;
-//    delay(2000);
-//    prev18_r19.XO_SCN_CLK_SEL   = 0x0;
-//    prev18_r19.XO_SCN_ENB       = 0x0;// enable_bar of scn
-//    *REG_XO_CONF1 = prev18_r19.as_int;
-//    delay(2000);
-//    prev18_r19.XO_DRV_START_UP  = 0x0;
-//    prev18_r19.XO_DRV_CORE      = 0x1;// 1: enables core circuit
-//    prev18_r19.XO_SCN_CLK_SEL   = 0x1;
-//    *REG_XO_CONF1 = prev18_r19.as_int;
-//    delay(2000);
+   //prev18_r19.XO_SCN_CLK_SEL   = 0x1;// scn clock 1: normal. 0.3V level up to 0.6V, 0:init
+   //*REG_XO_CONF1 = prev18_r19.as_int;
+   //delay(2000);
+   //prev18_r19.XO_SCN_CLK_SEL   = 0x0;
+   //prev18_r19.XO_SCN_ENB       = 0x0;// enable_bar of scn
+   //*REG_XO_CONF1 = prev18_r19.as_int;
+   //delay(2000);
+   //prev18_r19.XO_DRV_START_UP  = 0x0;
+   //prev18_r19.XO_DRV_CORE      = 0x1;// 1: enables core circuit
+   //prev18_r19.XO_SCN_CLK_SEL   = 0x1;
+   //*REG_XO_CONF1 = prev18_r19.as_int;
+   //delay(2000);
 
     enable_xo_timer();
     start_xo_cout();
@@ -1094,16 +1094,16 @@ static void operation_init(void){
     *EP_MODE = 0;
 
     // Set CPU & Mbus Clock Speeds
-    //prev18_r0B.CLK_GEN_RING = 0x1; // Default 0x1, 2bits
-    //prev18_r0B.CLK_GEN_DIV_MBC = 0x2; // Default 0x2, 3bits
-    //prev18_r0B.CLK_GEN_DIV_CORE = 0x3; // Default 0x3, 3bits
-    //prev18_r0B.GOC_CLK_GEN_SEL_DIV = 0x0; // Default 0x1, 2bits
-    //prev18_r0B.GOC_CLK_GEN_SEL_FREQ = 0x6; // Default 0x7, 3bits
-    //*REG_CLKGEN_TUNE = prev18_r0B.as_int;
+    prev18_r0B.CLK_GEN_RING = 0x1; // Default 0x1, 2bits
+    prev18_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x2, 3bits
+    prev18_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3, 3bits
+    prev18_r0B.GOC_CLK_GEN_SEL_DIV = 0x5; // Default 0x1, 2bits
+    prev18_r0B.GOC_CLK_GEN_SEL_FREQ = 0x0; // Default 0x7, 3bits
+    *REG_CLKGEN_TUNE = prev18_r0B.as_int;
 
     prev18_r1C.SRAM0_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
     prev18_r1C.SRAM0_TUNE_DECODER_DLY = 15; // Default 0x2, 4 bits
-    //prev18_r1C.SRAM0_USE_INVERTER_SA= 1; // Default 0x0, 1bit
+    prev18_r1C.SRAM0_USE_INVERTER_SA= 0; // Default 0x2, 1bit
     *REG_SRAM0_TUNE = prev18_r1C.as_int;
 
     //Enumerate & Initialize Registers
@@ -1139,8 +1139,10 @@ static void operation_init(void){
 
     // Disable PMU ADC measurement in active mode
     // PMU_CONTROLLER_STALL_ACTIVE
+    // Updated for PMUv9
     mbus_remote_register_write(PMU_ADDR,0x3A, 
             ( (1 << 20) // ignore state_horizon; default 1
+              | (0 << 19) // state_vbat_read 
               | (1 << 13) // ignore adc_output_ready; default 0
               | (1 << 12) // ignore adc_output_ready; default 0
               | (1 << 11) // ignore adc_output_ready; default 0
@@ -1418,8 +1420,7 @@ void handler_ext_int_gocep(void) { // GOCEP
         *REG_CPS = 0x7 & data_val;
     }
     else if(data_cmd == 0x09){
-        if(data_val != 0xF) pmu_set_sleep_clks(((data_val>>4) & 0xF)+1,(data_val & 0xF),data_val2,data_val3);
-        else pmu_set_sleep_clks(((data_val>>4) & 0xF),(data_val & 0xF),data_val2,data_val3);
+        pmu_set_sleep_clks((data_val & 0xF), ((data_val>>4) & 0xF), data_val2 & 0x1F, data_val3 & 0x1);
     }
     else if(data_cmd == 0x0A){
         if(data_val != 0xF) pmu_set_active_clk(data_val+1,data_val,data_val2,data_val);
@@ -1428,6 +1429,126 @@ void handler_ext_int_gocep(void) { // GOCEP
     }
     else if(data_cmd == 0x0B){
         pmu_set_sar_override(data_val);
+    }
+    else if(data_cmd == 0x0C){
+        if(data_val==1){   
+            prev18_r19.XO_SLEEP = 0x0;
+            prev18_r19.XO_EN_DIV    = 0x1;// XO division enable
+            *REG_XO_CONF1 = prev18_r19.as_int;
+            delay(10000);
+
+            prev18_r19.XO_ISOLATE = 0x0;
+            prev18_r19.XO_EN_OUT    = 0x1;// XO ouput enable
+            *REG_XO_CONF1 = prev18_r19.as_int;
+            delay(10000);
+
+            prev18_r19.XO_DRV_START_UP  = 0x1;// 1: enables start-up circuit
+            *REG_XO_CONF1 = prev18_r19.as_int;
+            delay(2000);
+
+            //// after start-up, turn on core circuit and turn off start-up circuit
+            prev18_r19.XO_SCN_CLK_SEL   = 0x1;// scn clock 1: normal. 0.3V level up to 0.6V, 0:init
+            *REG_XO_CONF1 = prev18_r19.as_int;
+            delay(2000);
+            prev18_r19.XO_SCN_CLK_SEL   = 0x0;
+            prev18_r19.XO_SCN_ENB       = 0x0;// enable_bar of scn
+            *REG_XO_CONF1 = prev18_r19.as_int;
+            delay(2000);
+            prev18_r19.XO_DRV_START_UP  = 0x0;
+            prev18_r19.XO_DRV_CORE      = 0x1;// 1: enables core circuit
+            prev18_r19.XO_SCN_CLK_SEL   = 0x1;
+            *REG_XO_CONF1 = prev18_r19.as_int;
+            delay(2000);
+
+        }
+        else if(data_val==2){   
+            prev18_r19.XO_SLEEP = 0x0;
+            prev18_r19.XO_EN_DIV    = 0x1;// XO division enable
+            *REG_XO_CONF1 = prev18_r19.as_int;
+            delay(10000);
+
+            prev18_r19.XO_ISOLATE = 0x0;
+            prev18_r19.XO_EN_OUT    = 0x1;// XO ouput enable
+            *REG_XO_CONF1 = prev18_r19.as_int;
+            delay(10000);
+
+            prev18_r19.XO_DRV_START_UP  = 0x1;// 1: enables start-up circuit
+            *REG_XO_CONF1 = prev18_r19.as_int;
+            delay(2000);
+        }
+        else if(data_val==4){   
+            if(data_val2==1){
+                prev18_r19.XO_EN_OUT    = 0x1;// XO ouput enable
+                *REG_XO_CONF1 = prev18_r19.as_int;
+                delay(10000);
+            }
+            else{
+                prev18_r19.XO_EN_OUT    = 0x0;// XO ouput disable
+                *REG_XO_CONF1 = prev18_r19.as_int;
+                delay(10000);
+
+            }
+
+        }
+        else if(data_val==0){
+            prev18_r19.XO_EN_DIV    = 0x0;// XO ouput enable
+            prev18_r19.XO_EN_OUT    = 0x0;// XO ouput enable
+            *REG_XO_CONF1 = prev18_r19.as_int;
+            delay(100);
+
+            prev18_r19.XO_DRV_CORE      = 0x0;
+            prev18_r19.XO_SCN_ENB       = 0x1;
+            *REG_XO_CONF1 = prev18_r19.as_int;
+            delay(100);
+            
+            prev18_r19.XO_ISOLATE = 0x1;
+            *REG_XO_CONF1 = prev18_r19.as_int;
+            delay(100);
+            
+            prev18_r19.XO_SLEEP = 0x1;
+            *REG_XO_CONF1 = prev18_r19.as_int;
+            delay(100);
+            
+            prev18_r19.XO_DRV_START_UP  = 0x0;// 0: disables start-up circuit
+            *REG_XO_CONF1 = prev18_r19.as_int;
+            delay(100);
+	}
+	else if(data_val==3){	
+		if(data_val2==1){
+		       	prev18_r19.XO_RP_LOW    = 0x1;
+			prev18_r19.XO_RP_MEDIA  = 0x0;
+			prev18_r19.XO_RP_MVT    = 0x0;
+			prev18_r19.XO_RP_SVT    = 0x0;
+		}
+		else if(data_val2==2){
+		       	prev18_r19.XO_RP_LOW    = 0x0;
+			prev18_r19.XO_RP_MEDIA  = 0x1;
+			prev18_r19.XO_RP_MVT    = 0x0;
+			prev18_r19.XO_RP_SVT    = 0x0;
+		}
+		else if(data_val2==3){
+		       	prev18_r19.XO_RP_LOW    = 0x0;
+			prev18_r19.XO_RP_MEDIA  = 0x0;
+			prev18_r19.XO_RP_MVT    = 0x1;
+			prev18_r19.XO_RP_SVT    = 0x0;
+		}
+		else if(data_val2==4){
+		       	prev18_r19.XO_RP_LOW    = 0x0;
+			prev18_r19.XO_RP_MEDIA  = 0x0;
+			prev18_r19.XO_RP_MVT    = 0x0;
+			prev18_r19.XO_RP_SVT    = 0x1;
+		}
+ 		*REG_XO_CONF1 = prev18_r19.as_int;
+ 		delay(100);
+
+		uint32_t xo_cap_drv = data_val3 && 0x3F; // Additional Cap on OSC_DRV
+		uint32_t xo_cap_in  = data_val3 && 0x3F; // Additional Cap on OSC_IN
+		prev18_r1A.XO_CAP_TUNE = (
+		        (xo_cap_drv <<6) | 
+		        (xo_cap_in <<0));   // XO_CLK Output Pad 
+		*REG_XO_CONF2 = prev18_r1A.as_int;
+
+        }
     }
     else if(data_cmd == 0x10){  //GPIO direction, trigger
         direction_gpio = data_val | 0x80; // input:0, output:1,  eg. 0xF0 set GPIO[7:4] as output, GPIO[3:0] as input 
