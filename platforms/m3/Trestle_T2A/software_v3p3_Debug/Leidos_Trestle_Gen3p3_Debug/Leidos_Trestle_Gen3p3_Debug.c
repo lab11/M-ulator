@@ -14,6 +14,8 @@
 //		- Change has been made for flash readout inspection
 //    v3.2: Modified afe_set_mode() function            04/25/2019
 //		- Added delay between LDO un-power gating and ADC reset relase to provide enough stbilization time
+//    v3.3: Modified FLASH_read() function            04/29/2019
+//		- Increased FLASH>SRAM data copy and data being read
 //*******************************************************************
 #include "PREv20.h"
 #include "ADOv6VB_RF.h"
@@ -1045,7 +1047,7 @@ inline static void comp_stream(void){
     FLASH_pp_on();
     /////////////////////////////
 
-    digital_set_mode(3); // HP Compression only start
+    //digital_set_mode(3); // HP Compression only start
     
     delay(100000); // Compression-length control: ~10s
     
