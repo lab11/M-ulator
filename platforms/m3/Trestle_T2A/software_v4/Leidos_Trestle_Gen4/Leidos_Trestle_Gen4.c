@@ -14,11 +14,11 @@
 //		- Change has been made for flash readout inspection
 //    v3.2: Modified afe_set_mode() function            04/25/2019
 //		- Added delay between LDO un-power gating and ADC reset relase to provide enough stbilization time
-//    v3.3: Modified FLASH_read() function            04/29/2019
+//    v3.3: Modified FLASH_read() function              04/29/2019
 //		- Increased FLASH>SRAM data copy and data being read
-//    v4.0: Include SNT for temperature monitoring (Not compelete)
+//    v4.0: Include SNT for temperature monitoring      05/12/2019
 //      - Based on PREv20E
-//      - Removed XO debug commands (cmd=0x0C) to save code space
+//      - Periodic PMU adustment based on temperature reading
 //      - Removed Powergate PMU control debug commands (cmd=0x07) to save code space
 //*******************************************************************
 #include "PREv20E.h"
@@ -173,7 +173,7 @@ volatile uint8_t direction_gpio;
 static void operation_sns_sleep_check(void);
 static void operation_sleep(void);
 static void operation_sleep_notimer(void); 
-static void operation_sleep_xotimer(void); 
+//static void operation_sleep_xotimer(void); 
 static void pmu_set_sar_override(uint32_t val);
 static void pmu_set_sleep_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1P2);
 static void pmu_set_sleep_clks(uint8_t r, uint8_t l, uint8_t base, uint8_t select);
@@ -1344,6 +1344,28 @@ static void snt_start_timer_postsleep(){
     mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
 }
 
+static void snt_stop_timer(){
+
+    // EN_OSC
+    sntv4_r08.TMR_EN_OSC = 0x0; // Default : 0x0
+    // RESET
+    sntv4_r08.TMR_EN_SELF_CLK = 0x0; // Default : 0x0
+    sntv4_r08.TMR_RESETB = 0x0;// Default : 0x0
+    sntv4_r08.TMR_RESETB_DIV = 0x0; // Default : 0x0
+    sntv4_r08.TMR_RESETB_DCDC = 0x0; // Default : 0x0
+    mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
+    snt_timer_enabled = 0;
+
+    sntv4_r17.WUP_ENABLE = 0x0; // Default : 0x
+    mbus_remote_register_write(SNT_ADDR,0x17,sntv4_r17.as_int);
+
+	// New for SNTv3
+	sntv4_r08.TMR_SLEEP = 0x1; // Default : 0x1
+	sntv4_r08.TMR_ISOLATE = 0x1; // Default : 0x1
+	mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
+
+}
+
 static void snt_set_timer_threshold(uint32_t sleep_count){
     
     mbus_remote_register_write(SNT_ADDR,0x19,sleep_count>>24);
@@ -1416,20 +1438,20 @@ static void operation_sleep_notimer(void){
     operation_sleep();
 }
 
-static void operation_sleep_xotimer(void){
-    // Make sure the irq counter is reset    
-    exec_count_irq = 0;
-    
-    // Disable timer
-    set_wakeup_timer(0,0,0);    
-    
-    // Use XO Timer to set wake-up period    
-    set_xo_timer (0, xo_count, 1, 0);  // 100 count is the threshold
-    start_xo_cnt();
-
-    // Go to sleep
-    operation_sleep();
-}
+//static void operation_sleep_xotimer(void){
+//    // Make sure the irq counter is reset    
+//    exec_count_irq = 0;
+//    
+//    // Disable timer
+//    set_wakeup_timer(0,0,0);    
+//    
+//    // Use XO Timer to set wake-up period    
+//    set_xo_timer (0, xo_count, 1, 0);  // 100 count is the threshold
+//    start_xo_cnt();
+//
+//    // Go to sleep
+//    operation_sleep();
+//}
 
 //***************************************************
 // Initialization
@@ -1550,6 +1572,7 @@ static void operation_init(void){
     direction_gpio = 0x80; //set gpio[7] direction as output for selfboot support, the others are input
     gpio_set_data(0x80);  // gpio[7]=1 
     init_gpio();
+    pmu_set_sar_override(0x4D);
 }
 
 //***************************************************
@@ -1698,7 +1721,7 @@ void handler_ext_int_reg1(void) { // REG1
 
 void handler_ext_int_reg2(void) { // REG2
     *NVIC_ICPR = (0x1 << IRQ_REG2);
-    mbus_write_message32(0xE2, 0x00000222);
+    //mbus_write_message32(0xE2, 0x00000222);
 
     // Read register
     set_halt_until_mbus_rx();
@@ -1935,7 +1958,7 @@ void handler_ext_int_gocep(void) { // GOCEP
 
             prev20e_r19.XO_ISOLATE = 0x0;
             prev20e_r19.XO_EN_OUT    = 0x1;// XO ouput enable
-            *REG_XO_CONF1 = prev20e_r19.as_int;https://www.tradingview.com/x/TNdRZKZg/
+            *REG_XO_CONF1 = prev20e_r19.as_int;
             delay(1000);
 
             prev20e_r19.XO_DRV_START_UP  = 0x1;// 1: enables start-up circuit
@@ -2067,19 +2090,6 @@ void handler_ext_int_gocep(void) { // GOCEP
         *GOC_DATA_IRQ = 0;
         exec_count_irq = 0;
 
-        // Configure Parameters
-        //xo_count = wakeup_data & 0xFFFFF; //28000: ~2s
-        WAKEUP_PERIOD_CONT_USER= wakeup_data & 0xFFFF; 
-
-		// Use SNT timer
-		WAKEUP_PERIOD_SNT = (WAKEUP_PERIOD_CONT_USER<<1)*SNT_0P5S_VAL; // Unit is 0.5s
-        *TIMERWD_GO = 0x0;
-        snt_start_timer_presleep();
-        delay(MBUS_DELAY*900);
-        snt_start_timer_postsleep();
-	    snt_set_timer_threshold(WAKEUP_PERIOD_SNT);
-        //delay(MBUS_DELAY*900);
-
         // Mode Select
         //  0: Turn OFF
         //  1: Single SNT measurement wo PMU adjustment  
@@ -2087,6 +2097,24 @@ void handler_ext_int_gocep(void) { // GOCEP
         //  3: Repeating SNT measurement wo PMU adjustment
         //  4: Repeating SNT measurement w/ PMU adustment
         mode_select= (data_val3>>4 & 0xF); 
+
+        if(mode_select == 0x3 || mode_select == 0x4){
+            // Configure Parameters
+            //xo_count = wakeup_data & 0xFFFFF; //28000: ~2s
+            WAKEUP_PERIOD_CONT_USER= wakeup_data & 0xFFFF; 
+
+	        // Use SNT timer
+	        WAKEUP_PERIOD_SNT = (WAKEUP_PERIOD_CONT_USER<<1)*SNT_0P5S_VAL; // Unit is 1.0s
+            *TIMERWD_GO = 0x0;
+            snt_start_timer_presleep();
+            delay(MBUS_DELAY*900);
+            snt_start_timer_postsleep();
+	        snt_set_timer_threshold(WAKEUP_PERIOD_SNT);
+            //delay(MBUS_DELAY*900);
+        }
+        else if(mode_select == 0x0){
+            snt_stop_timer();
+        }
     }
     else if(data_cmd == 0x22){ // Stop Temperature Sensor for PMU Adjustment
         operation_sns_sleep_check();
