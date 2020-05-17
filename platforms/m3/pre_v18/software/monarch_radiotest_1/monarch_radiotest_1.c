@@ -453,7 +453,7 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
     }
 
 	uint32_t count = 0;
-	uint32_t mrr_cfo_val_fine = 0;
+	uint32_t mrr_cfo_val_fine = 0x0;
 	uint32_t num_packets = 1;
 	//if (mrr_freq_hopping) num_packets = mrr_freq_hopping;
 	
@@ -616,7 +616,7 @@ int main() {
 	//mrr_freq_hopping = 5;
 	//mrr_freq_hopping_step = 4;
 
-	mrr_cfo_val_fine_min = 0x0000;
+	mrr_cfo_val_fine_min = 0x0; //0x0000;
 
 	// RO setup (SFO)
 	// Adjust Diffusion R
@@ -707,10 +707,10 @@ int main() {
     // 0x8C is reserved for GOC-triggered wakeup (Named GOC_DATA_IRQ)
     // 8 MSB bits of the wakeup data are used for function ID
     wakeup_data = *GOC_DATA_IRQ;
-    uint32_t wakeup_data_header = (wakeup_data>>24) & 0xFF;
-    uint32_t wakeup_data_field_0 = wakeup_data & 0xFF;
-    uint32_t wakeup_data_field_1 = wakeup_data>>8 & 0xFF;
-    uint32_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
+    uint32_t wakeup_data_header = (wakeup_data >> 24) & 0xFF;
+    uint32_t wakeup_data_field_0 = (wakeup_data) & 0xFF;
+    uint32_t wakeup_data_field_1 = (wakeup_data >> 8) & 0xFF;
+    uint32_t wakeup_data_field_2 = (wakeup_data >> 16) & 0xFF;
 
     if(wakeup_data_header == 0x1){
         // Transmit something via radio and go to sleep w/o timer
@@ -752,12 +752,12 @@ int main() {
 		mrrv7_r02.MRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
 		mbus_remote_register_write(MRR_ADDR,0x02,mrrv7_r02.as_int);
 
-		mrrv7_r00.MRR_CL_CTRL = 0x10;
+		mrrv7_r00.MRR_CL_CTRL = 16;
 		mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 		mrrv7_r00.MRR_CL_EN = 1;
 		mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
     	delay(MBUS_DELAY*50); //800ms pulses
-		mrrv7_r00.MRR_CL_CTRL = 0x01;
+		mrrv7_r00.MRR_CL_CTRL = 2;
 		mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
 
 		mrrv7_r02.MRR_TX_EN_OW = 0x1;
@@ -773,12 +773,12 @@ int main() {
 		mrrv7_r03.MRR_DCP_S_OW = 1;
 		mbus_remote_register_write(MRR_ADDR,0x03,mrrv7_r03.as_int);
 
-		mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x0;  
+		mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = (wakeup_data_field_1 << 8) + wakeup_data_field_0;  
 		mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
-		mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0x0;   
+		mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = (wakeup_data_field_1 << 8) + wakeup_data_field_0;   
 		mbus_remote_register_write(MRR_ADDR,0x01,mrrv7_r01.as_int);
 
-		mrrv7_r02.MRR_TX_BIAS_TUNE = (wakeup_data_field_1<<8) + wakeup_data_field_0; //0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
+		mrrv7_r02.MRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
 		mbus_remote_register_write(MRR_ADDR,0x02,mrrv7_r02.as_int);
 
 		mrrv7_r00.MRR_CL_CTRL = 16;
@@ -791,11 +791,18 @@ int main() {
 
 		mrrv7_r02.MRR_TX_EN_OW = 0x1;
 		mbus_remote_register_write(MRR_ADDR,0x02,mrrv7_r02.as_int);
+    
 
-    }else if(wakeup_data_header == 0x6){
-		mrrv7_r02.MRR_TX_BIAS_TUNE = (wakeup_data_field_2<<8) + wakeup_data_field_0; //0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
+	}else if(wakeup_data_header == 0x6){
+		mrrv7_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = (wakeup_data_field_1 << 8) + wakeup_data_field_0;  
+		mbus_remote_register_write(MRR_ADDR,0x00,mrrv7_r00.as_int);
+		mrrv7_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = (wakeup_data_field_1 << 8) + wakeup_data_field_0;   
+		mbus_remote_register_write(MRR_ADDR,0x01,mrrv7_r01.as_int);
+
+		mrrv7_r02.MRR_TX_BIAS_TUNE = 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
 		mbus_remote_register_write(MRR_ADDR,0x02,mrrv7_r02.as_int);
-		operation_goc_trigger_radio(0xFFFFFFFF, wakeup_data_field_1, 0xA0, 0xCD, 0xEF1234);
+
+		operation_goc_trigger_radio(0xFFFFFFFF, wakeup_data_field_2,0xA0, 0xCD, 0xEF1234);
 
     }else{
 		if (wakeup_data_header != 0){

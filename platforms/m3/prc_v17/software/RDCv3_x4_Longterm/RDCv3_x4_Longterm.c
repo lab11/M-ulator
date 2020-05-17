@@ -29,7 +29,7 @@ volatile uint32_t RDC_WRITE_ADDR;
 // Pstack states
 #define	PSTK_IDLE 0x0
 
-#define TIMER32_VAL 0x50000 // 0x20000 about 1 sec with Y5 run default clock (PRCv17)
+#define TIMER32_VAL 0x20000 // 0x20000 about 1 sec with Y5 run default clock (PRCv17)
 
 
 
@@ -56,7 +56,9 @@ volatile prcv17_r0B_t prcv17_r0B = PRCv17_R0B_DEFAULT;
 
 volatile uint32_t rdc_output;
 volatile uint32_t n_iter;
+volatile uint32_t init_fail_cnt;
 
+volatile rdcv3_r00_t rdcv3_r00 = RDCv3_R00_DEFAULT;
 volatile rdcv3_r20_t rdcv3_r20 = RDCv3_R20_DEFAULT;
 volatile rdcv3_r21_t rdcv3_r21 = RDCv3_R21_DEFAULT;
 volatile rdcv3_r22_t rdcv3_r22 = RDCv3_R22_DEFAULT;
@@ -104,6 +106,9 @@ void handler_ext_int_reg2(void) { // REG2
 void handler_ext_int_reg3(void) { // REG3
     *NVIC_ICPR = (0x1 << IRQ_REG3);
 }
+void handler_ext_int_reg7(void) { // REG7
+    *NVIC_ICPR = (0x1 << IRQ_REG7);
+}
 void handler_ext_int_gocep(void) { // GOCEP
     *NVIC_ICPR = (0x1 << IRQ_GOCEP);
 }
@@ -118,11 +123,11 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
 
 static void rdc_enable_vref(){
 	rdcv3_r2C.RDC_ENb_PG_VREF = 1;
-	mbus_remote_register_write(RDC_ADDR,1,rdcv3_r2C.as_int);
+	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv3_r2C.as_int);
 }
 static void rdc_disable_vref(){
 	rdcv3_r2C.RDC_ENb_PG_VREF = 0;
-	mbus_remote_register_write(RDC_ADDR,1,rdcv3_r2C.as_int);
+	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv3_r2C.as_int);
 }
 
 static void rdc_disable_pg_v1p2(){
@@ -131,7 +136,7 @@ static void rdc_disable_pg_v1p2(){
 	rdcv3_r2C.RDC_EN_PG_AMP_V1P2 = 0;
 	rdcv3_r2C.RDC_EN_PG_ADC_V1P2 = 0;
 	rdcv3_r2C.RDC_EN_PG_BUF_VH_V1P2 = 0;
-	mbus_remote_register_write(RDC_ADDR,1,rdcv3_r2C.as_int);
+	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv3_r2C.as_int);
 }
 static void rdc_enable_pg_v1p2(){
 	rdcv3_r2C.RDC_EN_PG_FSM = 1;
@@ -139,7 +144,7 @@ static void rdc_enable_pg_v1p2(){
 	rdcv3_r2C.RDC_EN_PG_AMP_V1P2 = 1;
 	rdcv3_r2C.RDC_EN_PG_ADC_V1P2 = 1;
 	rdcv3_r2C.RDC_EN_PG_BUF_VH_V1P2 = 1;
-	mbus_remote_register_write(RDC_ADDR,1,rdcv3_r2C.as_int);
+	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv3_r2C.as_int);
 }
 
 static void rdc_disable_pg_vbat(){
@@ -148,7 +153,7 @@ static void rdc_disable_pg_vbat(){
 	rdcv3_r2C.RDC_ENb_PG_BUF_VCM = 1;
 	rdcv3_r2C.RDC_ENb_PG_BUF_VH_VBAT = 1;
 	rdcv3_r2C.RDC_ENb_MIRROR_LDO = 0;
-	mbus_remote_register_write(RDC_ADDR,1,rdcv3_r2C.as_int);
+	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv3_r2C.as_int);
 }
 static void rdc_enable_pg_vbat(){
 	rdcv3_r2C.RDC_ENb_PG_AMP_VBAT = 0;
@@ -156,31 +161,31 @@ static void rdc_enable_pg_vbat(){
 	rdcv3_r2C.RDC_ENb_PG_BUF_VCM = 0;
 	rdcv3_r2C.RDC_ENb_PG_BUF_VH_VBAT = 0;
 	rdcv3_r2C.RDC_ENb_MIRROR_LDO = 1;
-	mbus_remote_register_write(RDC_ADDR,1,rdcv3_r2C.as_int);
+	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv3_r2C.as_int);
 }
 
 static void rdc_disable_clock(){
 	rdcv3_r28.RDC_RESET_RC_OSC = 1;
 	rdcv3_r2B.RDC_CLK_ISOLATE = 1;
-	mbus_remote_register_write(RDC_ADDR,1,rdcv3_r28.as_int);
-	mbus_remote_register_write(RDC_ADDR,1,rdcv3_r2B.as_int);
+	mbus_remote_register_write(RDC_ADDR,0x28,rdcv3_r28.as_int);
+	mbus_remote_register_write(RDC_ADDR,0x2B,rdcv3_r2B.as_int);
 }
 static void rdc_enable_clock(){
 	rdcv3_r28.RDC_RESET_RC_OSC = 0;
 	rdcv3_r2B.RDC_CLK_ISOLATE = 0;
-	mbus_remote_register_write(RDC_ADDR,1,rdcv3_r28.as_int);
-	mbus_remote_register_write(RDC_ADDR,1,rdcv3_r2B.as_int);
+	mbus_remote_register_write(RDC_ADDR,0x28,rdcv3_r28.as_int);
+	mbus_remote_register_write(RDC_ADDR,0x2B,rdcv3_r2B.as_int);
 }
 
 static void rdc_start_meas(){
 	rdcv3_r20.RDC_RESETn_FSM = 1;
 	rdcv3_r20.RDC_ISOLATE = 0;
-	mbus_remote_register_write(RDC_ADDR,1,rdcv3_r20.as_int);
+	mbus_remote_register_write(RDC_ADDR,0x20,rdcv3_r20.as_int);
 }
 static void rdc_reset(){
 	rdcv3_r20.RDC_RESETn_FSM = 0;
 	rdcv3_r20.RDC_ISOLATE = 1;
-	mbus_remote_register_write(RDC_ADDR,1,rdcv3_r20.as_int);
+	mbus_remote_register_write(RDC_ADDR,0x20,rdcv3_r20.as_int);
 }
 
 //***************************************************
@@ -260,6 +265,10 @@ static void operation_init(void){
     ////////////////////////////////////////////////////////
     // RDCv3 Settings --------------------------------------
     // Common settings
+        // rdcv3_r00
+        //rdcv3_r00.WAKEUP_UPON_RDC_IRQ = 0x0;
+        //rdcv3_r00.MBC_WAKEUP_ON_PEND_REQ = 0x1;
+
         // rdcv3_r20
         rdcv3_r20.RDC_CNT_AMP1 = 0xC;
         
@@ -268,7 +277,7 @@ static void operation_init(void){
         
         // rdcv3_r22
         rdcv3_r22.RDC_CNT_SKIP = 0x3;
-        rdcv3_r22.RDC_OSR = 0x4;
+        rdcv3_r22.RDC_OSR = 0xB;
         
         // rdcv3_r24 & r25
         rdcv3_r24.RDC_SEL_DLY = 0xA;
@@ -276,47 +285,47 @@ static void operation_init(void){
     // Individual settings
         // 1st chip
         RDC_ADDR = 4;
-        rdcv3_r24.RDC_SEL_GAIN_LC = 0x7;
-        rdcv3_r25.RDC_OFFSET_P_LC = 0xA;
-        rdcv3_r25.RDC_OFFSET_PB_LC = 0xA;
-        mbus_remote_register_write(RDC_ADDR,1,rdcv3_r20.as_int);
-        mbus_remote_register_write(RDC_ADDR,1,rdcv3_r21.as_int);
-        mbus_remote_register_write(RDC_ADDR,1,rdcv3_r22.as_int);
-        mbus_remote_register_write(RDC_ADDR,1,rdcv3_r24.as_int);
-        mbus_remote_register_write(RDC_ADDR,1,rdcv3_r25.as_int);
+        rdcv3_r24.RDC_SEL_GAIN_LC = 0xA;
+        rdcv3_r25.RDC_OFFSET_P_LC = 0x13;
+        rdcv3_r25.RDC_OFFSET_PB_LC = 0xC;
+        mbus_remote_register_write(RDC_ADDR,0x20,rdcv3_r20.as_int);
+        mbus_remote_register_write(RDC_ADDR,0x21,rdcv3_r21.as_int);
+        mbus_remote_register_write(RDC_ADDR,0x22,rdcv3_r22.as_int);
+        mbus_remote_register_write(RDC_ADDR,0x24,rdcv3_r24.as_int);
+        mbus_remote_register_write(RDC_ADDR,0x25,rdcv3_r25.as_int);
         
         // 2nd chip
         RDC_ADDR = 5;
-        rdcv3_r24.RDC_SEL_GAIN_LC = 0x7;
-        rdcv3_r25.RDC_OFFSET_P_LC = 0xA;
-        rdcv3_r25.RDC_OFFSET_PB_LC = 0xA;
-        mbus_remote_register_write(RDC_ADDR,1,rdcv3_r20.as_int);
-        mbus_remote_register_write(RDC_ADDR,1,rdcv3_r21.as_int);
-        mbus_remote_register_write(RDC_ADDR,1,rdcv3_r22.as_int);
-        mbus_remote_register_write(RDC_ADDR,1,rdcv3_r24.as_int);
-        mbus_remote_register_write(RDC_ADDR,1,rdcv3_r25.as_int);
+        rdcv3_r24.RDC_SEL_GAIN_LC = 0xB;
+        rdcv3_r25.RDC_OFFSET_P_LC = 0x18;
+        rdcv3_r25.RDC_OFFSET_PB_LC = 0x7;
+        mbus_remote_register_write(RDC_ADDR,0x20,rdcv3_r20.as_int);
+        mbus_remote_register_write(RDC_ADDR,0x21,rdcv3_r21.as_int);
+        mbus_remote_register_write(RDC_ADDR,0x22,rdcv3_r22.as_int);
+        mbus_remote_register_write(RDC_ADDR,0x24,rdcv3_r24.as_int);
+        mbus_remote_register_write(RDC_ADDR,0x25,rdcv3_r25.as_int);
         
         // 3rd chip
         RDC_ADDR = 6;
-        rdcv3_r24.RDC_SEL_GAIN_LC = 0x7;
-        rdcv3_r25.RDC_OFFSET_P_LC = 0xA;
-        rdcv3_r25.RDC_OFFSET_PB_LC = 0xA;
-        mbus_remote_register_write(RDC_ADDR,1,rdcv3_r20.as_int);
-        mbus_remote_register_write(RDC_ADDR,1,rdcv3_r21.as_int);
-        mbus_remote_register_write(RDC_ADDR,1,rdcv3_r22.as_int);
-        mbus_remote_register_write(RDC_ADDR,1,rdcv3_r24.as_int);
-        mbus_remote_register_write(RDC_ADDR,1,rdcv3_r25.as_int);
+        rdcv3_r24.RDC_SEL_GAIN_LC = 0x8;
+        rdcv3_r25.RDC_OFFSET_P_LC = 0x13;
+        rdcv3_r25.RDC_OFFSET_PB_LC = 0xC;
+        mbus_remote_register_write(RDC_ADDR,0x20,rdcv3_r20.as_int);
+        mbus_remote_register_write(RDC_ADDR,0x21,rdcv3_r21.as_int);
+        mbus_remote_register_write(RDC_ADDR,0x22,rdcv3_r22.as_int);
+        mbus_remote_register_write(RDC_ADDR,0x24,rdcv3_r24.as_int);
+        mbus_remote_register_write(RDC_ADDR,0x25,rdcv3_r25.as_int);
         
         // 4th chip
         RDC_ADDR = 7;
         rdcv3_r24.RDC_SEL_GAIN_LC = 0x7;
-        rdcv3_r25.RDC_OFFSET_P_LC = 0xA;
-        rdcv3_r25.RDC_OFFSET_PB_LC = 0xA;
-        mbus_remote_register_write(RDC_ADDR,1,rdcv3_r20.as_int);
-        mbus_remote_register_write(RDC_ADDR,1,rdcv3_r21.as_int);
-        mbus_remote_register_write(RDC_ADDR,1,rdcv3_r22.as_int);
-        mbus_remote_register_write(RDC_ADDR,1,rdcv3_r24.as_int);
-        mbus_remote_register_write(RDC_ADDR,1,rdcv3_r25.as_int);
+        rdcv3_r25.RDC_OFFSET_P_LC = 0x14;
+        rdcv3_r25.RDC_OFFSET_PB_LC = 0xB;
+        mbus_remote_register_write(RDC_ADDR,0x20,rdcv3_r20.as_int);
+        mbus_remote_register_write(RDC_ADDR,0x21,rdcv3_r21.as_int);
+        mbus_remote_register_write(RDC_ADDR,0x22,rdcv3_r22.as_int);
+        mbus_remote_register_write(RDC_ADDR,0x24,rdcv3_r24.as_int);
+        mbus_remote_register_write(RDC_ADDR,0x25,rdcv3_r25.as_int);
 
     ////////////////////////////////////////////////////////
     // Initialize other global variables
@@ -339,11 +348,11 @@ int main() {
     // Initialize Interrupts
     // Only enable register-related interrupts
 	//enable_reg_irq();
-	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3);
+	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3| (1 << IRQ_REG7));
   
     // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
-    //config_timerwd(0xFFFFF); // 0xFFFFF about 13 sec with Y2 run default clock
-	disable_timerwd();
+    config_timerwd(0xFFFFF); // 0xFFFFF about 13 sec with Y2 run default clock
+    //disable_timerwd();
 
     // Initialization sequence
     if (enumerated != 0xDEADBEEF){
@@ -355,6 +364,8 @@ int main() {
 
 	uint32_t ii;
 
+    n_iter = 0;
+    init_fail_cnt=0;
     // Proceed to continuous mode
     while(1){
         for(ii=0; ii<4; ii++){
@@ -365,8 +376,10 @@ int main() {
             rdc_enable_vref();  
             delay(MBUS_DELAY*10);
 
-            rdc_enable_pg_v1p2();
-            rdc_enable_pg_vbat();
+            rdc_disable_pg_v1p2();
+            delay(MBUS_DELAY);
+
+            rdc_disable_pg_vbat();
             delay(MBUS_DELAY);
 
             rdc_enable_clock();
@@ -387,30 +400,39 @@ int main() {
 
             // Grab data
             if(wfi_timeout_flag){
-			    mbus_write_message32(0xAA, 0);
-                mbus_write_message32(0xBB, n_iter);
+                // Reset everything
+                rdc_reset();
+                rdc_disable_clock();
+                rdc_enable_pg_vbat();
+                rdc_enable_pg_v1p2();
+                rdc_disable_vref();  
                 operation_init();
+                init_fail_cnt++;
+                if(init_fail_cnt==4){
+                    mbus_write_message32(0xAA, 0);
+                    delay(500000);
+                }
                 ii--;
             }
             else{
+                n_iter++;
 			    set_halt_until_mbus_rx();
 			    mbus_remote_register_read(RDC_ADDR,0x11,0);
                 rdc_output = *REG0;
 			    set_halt_until_mbus_tx();
-			    mbus_write_message32(0xAA, 1);
                 mbus_write_message32(0xBB, n_iter);
                 RDC_WRITE_ADDR = 0xC0 + ii;
         	    mbus_write_message32(RDC_WRITE_ADDR, rdc_output);
-                n_iter++;
                 // Reset everything
                 rdc_reset();
                 rdc_disable_clock();
-                rdc_disable_pg_vbat();
-                rdc_disable_pg_v1p2();
+                rdc_enable_pg_vbat();
+                rdc_enable_pg_v1p2();
                 rdc_disable_vref();  
             }
+        delay(20000);
         }
-        delay(1000);
+        delay(50000);
     }
 
     // Should not reach here
