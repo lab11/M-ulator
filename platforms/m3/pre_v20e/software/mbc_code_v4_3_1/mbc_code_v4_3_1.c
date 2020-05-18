@@ -2112,6 +2112,7 @@ int main() {
     //     mrr_send_enable = 0;
     // }
     mrr_send_enable = set_send_enable();
+    mrr_send_enable = true; // FIXME: remove this for non override
 
     // if(goc_component == 0x01) {
     //     op_counter++;
