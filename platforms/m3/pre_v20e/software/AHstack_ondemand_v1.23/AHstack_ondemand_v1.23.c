@@ -1621,9 +1621,9 @@ static void operation_init(void){
 	mrr_configure_pulse_width_long();
 
 	mrr_freq_hopping = 5;
-	mrr_freq_hopping_step = 4;
+	mrr_freq_hopping_step = 2;
 
-	mrr_cfo_val_fine_min = 0x0000;
+	mrr_cfo_val_fine_min = 0x0;
 
 	// RO setup (SFO)
 	// Adjust Diffusion R
@@ -1633,17 +1633,17 @@ static void operation_init(void){
 	mbus_remote_register_write(MRR_ADDR,0x08,0x400000); // RO_POLY
 
 	// Adjust C
-	//mrrv10_r07.RO_MOM = 0x10;
-	//mrrv10_r07.RO_MIM = 0x10;
-	//mbus_remote_register_write(MRR_ADDR,0x07,mrrv10_r07.as_int);
+	mrrv10_r07.RO_MOM = 0x10;
+	mrrv10_r07.RO_MIM = 0x10;
+	mbus_remote_register_write(MRR_ADDR,0x07,mrrv10_r07.as_int);
 
 	// TX Setup Carrier Freq
-	//mrrv10_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x0;  //ANT CAP 10b unary 830.5 MHz
-	//mbus_remote_register_write(MRR_ADDR,0x00,mrrv10_r00.as_int);
-	//mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0x0; //ANT CAP 10b unary 830.5 MHz
-	//mrrv10_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min;  //ANT CAP 14b unary 830.5 MHz
-	//mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min; //ANT CAP 14b unary 830.5 MHz
-	//mbus_remote_register_write(MRR_ADDR,0x01,mrrv10_r01.as_int);
+	mrrv10_r00.MRR_TRX_CAP_ANTP_TUNE_COARSE = 0x0;  //ANT CAP 10b unary 830.5 MHz
+	mbus_remote_register_write(MRR_ADDR,0x00,mrrv10_r00.as_int);
+	mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_COARSE = 0x0; //ANT CAP 10b unary 830.5 MHz
+	mrrv10_r01.MRR_TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min;  //ANT CAP 14b unary 830.5 MHz
+	mrrv10_r01.MRR_TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min; //ANT CAP 14b unary 830.5 MHz
+	mbus_remote_register_write(MRR_ADDR,0x01,mrrv10_r01.as_int);
 	mrrv10_r02.MRR_TX_BIAS_TUNE = 0x7FF;  //Set TX BIAS TUNE 13b // Max 0x1FFF
 	mbus_remote_register_write(MRR_ADDR,0x02,mrrv10_r02.as_int);
 
