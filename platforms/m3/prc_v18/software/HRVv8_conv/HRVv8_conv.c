@@ -1,22 +1,16 @@
 //*******************************************************************
 //Author: Inhee Lee
 //Description: Change the conversion ratio of HRVv8
-// PRCv18 -> HRVv8 -> PMUv9 (Optional) 
+// PRCv18 -> HRVv8
 //*******************************************************************
 #include "PRCv18.h"
 #include "HRVv5.h"
-#include "PMUv9_RF.h"
 #include "mbus.h"
 
 #define PRC_ADDR    0x1
 #define HRV_ADDR    0x3
-#define PMU_ADDR    0x4
-
-// Define if you use PMU
-//#define USE_PMU
 
 #define MBUS_DELAY 100 // Amount of delay between successive messages; 100: 6-7ms
-#define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y5 run default clock (PRCv18)
 
 //********************************************************************
 // Global Variables
@@ -78,12 +72,12 @@ void initialization (void) {
 
     // Enumeration
     mbus_enumerate(HRV_ADDR);
-   #ifdef USE_PMU
-    mbus_enumerate(PMU_ADDR);
-   #endif
 
     //Set Halt
     set_halt_until_mbus_tx();
+
+    mbus_write_message32(0xDD,0xAB0101);
+    delay(MBUS_DELAY*10);
 
     // Go to sleep
     set_wakeup_timer(0, 0, 0);
@@ -97,17 +91,14 @@ void initialization (void) {
 //********************************************************************
 
 int main() {
-
-    // Only enable relevant interrupts (PRCv18)
-    *NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3);
   
-    // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
-    config_timerwd(TIMERWD_VAL);
-
     // Initialization sequence
     if (enumerated != 0x54436020){
         initialization();
     }
+
+    mbus_write_message32(0xDD,0xAB0202);
+    delay(MBUS_DELAY*10);
 
     // Check if wakeup is due to GOC interrupt  
     // 0x8C is reserved for GOC-triggered wakeup (Named GOC_DATA_IRQ)
