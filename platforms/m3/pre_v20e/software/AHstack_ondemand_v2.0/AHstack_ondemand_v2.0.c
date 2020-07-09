@@ -46,7 +46,7 @@
 //			v1.22c: Moved resetting location of SREG_WAKEUP_SOURCE register
 //			v1.23: Adding new MRR FSM burst mode for radio scanning
 //				   Adding SNT Timer R tuning
-//			v1.24: Loopback integration from AHv1.21_loopback
+//			v2.0: Loopback integration from AHv1.21_loopback
 //*******************************************************************
 #include "PREv20.h"
 #include "PREv20_RF.h"
@@ -1307,6 +1307,8 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
 	// TX/RX Mode Setup
     mrrv10_r03.MRR_TRX_MODE_EN = 0; //Set TRX mode: 0 for TX only, 1 for Loopback
 	mbus_remote_register_write(MRR_ADDR,3,mrrv10_r03.as_int);
+	mrrv10_r15.MRR_RAD_FSM_RX_DATA_BITS = 0x00; //Set RX data 1b
+	mbus_remote_register_write(MRR_ADDR,0x15,mrrv10_r15.as_int);
 
     if (!radio_ready){
 		radio_ready = 1;
@@ -1385,6 +1387,8 @@ static void send_radio_data_mrr_loopback(uint32_t last_packet, uint8_t radio_pac
 	// TX/RX Mode Setup
     mrrv10_r03.MRR_TRX_MODE_EN = 1; //Set TRX mode: 0 for TX only, 1 for Loopback
 	mbus_remote_register_write(MRR_ADDR,3,mrrv10_r03.as_int);
+	mrrv10_r15.MRR_RAD_FSM_RX_DATA_BITS = 0x20; //Set RX data 1b
+	mbus_remote_register_write(MRR_ADDR,0x15,mrrv10_r15.as_int);
 
     if (!radio_ready){
 		radio_ready = 1;
@@ -1650,7 +1654,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     stack_state = STK_IDLE; 	//0x0;
-    enumerated = 0x41481240; // 0x4148 is AH in ascii
+    enumerated = 0x41482000; // 0x4148 is AH in ascii
     exec_count = 0;
     wakeup_count = 0;
     exec_count_irq = 0;
@@ -1774,10 +1778,6 @@ static void operation_init(void){
 	mrrv10_r02.MRR_TX_BIAS_TUNE = 0x7FF;  //Set TX BIAS TUNE 13b // Max 0x1FFF
 	mbus_remote_register_write(MRR_ADDR,0x02,mrrv10_r02.as_int);
 
-	// TX/RX Mode Setup
-    mrrv10_r03.MRR_TRX_MODE_EN = 0; //Set TRX mode: 0 for TX only, 1 for Loopback
-	mbus_remote_register_write(MRR_ADDR,3,mrrv10_r03.as_int);
-
     mrrv10_r14.MRR_RAD_FSM_TX_POWERON_LEN = 0; //3bits
 	mrrv10_r15.MRR_RAD_FSM_RX_HDR_BITS = 0x00;  //Set RX header
 	mrrv10_r15.MRR_RAD_FSM_RX_HDR_TH = 0x00;    //Set RX header threshold
@@ -1814,16 +1814,10 @@ static void operation_init(void){
 	//mrrv10_r14.MRR_RAD_FSM_GUARD_LEN = 74; //Set TX_RX Guard length, TX_RX guard 32 cycle (28+5)
 	mrrv10_r14.MRR_RAD_FSM_GUARD_LEN = 85; //Set TX_RX Guard length, TX_RX guard 32 cycle (28+5)
 	//mrrv10_r14.MRR_RAD_FSM_GUARD_LEN = 90; //Set TX_RX Guard length, TX_RX guard 32 cycle (28+5)
-    mrrv10_r14.MRR_RAD_FSM_TX_POWERON_LEN = 2; //3bits
     mrrv10_r14.MRR_RAD_FSM_RX_POWERON_LEN = 0;  //Set RX Power on length
     mrrv10_r14.MRR_RAD_FSM_RX_SAMPLE_LEN = 0x7;  //Set RX Sample length  4us
 
 	mbus_remote_register_write(MRR_ADDR,0x14,mrrv10_r14.as_int);
-
-	mrrv10_r15.MRR_RAD_FSM_RX_HDR_BITS = 0x00;  //Set RX header
-	mrrv10_r15.MRR_RAD_FSM_RX_HDR_TH = 0x00;    //Set RX header threshold
-	mrrv10_r15.MRR_RAD_FSM_RX_DATA_BITS = 0x20; //Set RX data 1b
-	mbus_remote_register_write(MRR_ADDR,0x15,mrrv10_r15.as_int);
 
 	// Loopback debugging
 /*
@@ -1834,6 +1828,8 @@ static void operation_init(void){
 	mbus_remote_register_write(MRR_ADDR,0x16,mrrv10_r16.as_int);
 */
 	//////////////////////////////////////////////////////////
+
+
 	// Additional delay for charging decap
    	config_timerwd(TIMERWD_VAL);
 	*REG_MBUS_WD = 1500000; // default: 1500000
@@ -2068,7 +2064,7 @@ int main(){
 	#endif
 
     // Initialization sequence
-    if (enumerated != 0x41481240){
+    if (enumerated != 0x41482000){
         operation_init();
     }
 
@@ -2328,6 +2324,7 @@ int main(){
     }else if(wakeup_data_header == 0x53){
 		// New FSM burst mode for MRR radio scanning
         // wakeup_data[15:0] = Test duration in minutes
+		// Turn off watchdog timers
 		disable_timerwd();
 		*MBCWD_RESET = 1;
 		radio_power_on();
@@ -2374,7 +2371,7 @@ int main(){
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[15:8] is the user-specified period
         // wakeup_data[23:16] is the MSB of # of transmissions
-		operation_goc_trigger_radio(wakeup_data_field_0 + (wakeup_data_field_2<<8), wakeup_data_field_1, 0x4, mrr_loopback_data);
+		operation_goc_trigger_radio_loopback(wakeup_data_field_0 + (wakeup_data_field_2<<8), wakeup_data_field_1, 0x4, mrr_loopback_data);
 
 
 	}else if(wakeup_data_header == 0xF0){
