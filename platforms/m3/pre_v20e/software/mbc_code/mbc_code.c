@@ -69,6 +69,8 @@
  *    Fixed blaster bug
  *    Saved as baseline code for all future revisions
  *
+ *    Fixed an xo timer bug in update_system_time() where xo_sys_time_in_sec would overflow
+ *
  ******************************************************************************************/
 
 #include "../include/PREv20E.h"
@@ -391,7 +393,16 @@ void update_system_time() {
 
     uint32_t temp = xo_sys_time;
     xo_sys_time = get_timer_cnt_xo();
-    temp = (xo_sys_time >> XO_TO_SEC_SHIFT) - (temp >> XO_TO_SEC_SHIFT); // Have to shift individually to account for underflow
+
+    // calculate the difference in seconds
+    if(xo_sys_time < temp) {
+    	// xo timer overflowed, want to make sure that 0x00000 - 0x1FFFF = 1
+    	temp = (xo_sys_time >> XO_TO_SEC_SHIFT) - (temp >> XO_TO_SEC_SHIFT) + 0x20000; // Have to shift individually to account for underflow
+    }
+    else {
+    	temp = (xo_sys_time >> XO_TO_SEC_SHIFT) - (temp >> XO_TO_SEC_SHIFT); // Have to shift individually to account for underflow
+    }
+
     xo_sys_time_in_sec += temp;
     xo_day_time_in_sec += temp;
 
