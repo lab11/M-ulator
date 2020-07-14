@@ -1,0 +1,10 @@
+//
+// Created by m3 on 7/30/2019.
+//
+
+#ifndef TSTACK_PMU_COUNTER_WENTAO_C_COUNTER_H
+#define TSTACK_PMU_COUNTER_WENTAO_C_COUNTER_H
+
+
+void set_counter();
+#endif //TSTACK_PMU_COUNTER_WENTAO_C_COUNTER_H
