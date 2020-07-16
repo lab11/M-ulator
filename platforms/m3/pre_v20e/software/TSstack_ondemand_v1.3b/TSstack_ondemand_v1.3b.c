@@ -1435,7 +1435,7 @@ static void operation_init(void){
 	mrrv10_r13.MRR_RAD_FSM_TX_MODE = 3; //code rate 0:4 1:3 2:2 3:1(baseline) 4:1/2 5:1/3 6:1/4
 	mbus_remote_register_write(MRR_ADDR,0x13,mrrv10_r13.as_int);
 
-    mrrv10_r04.LDO_SEL_VOUT = 0; // New for MRRv10
+    mrrv10_r04.LDO_SEL_VOUT = 4; // New for MRRv10
     mbus_remote_register_write(MRR_ADDR,0x04,mrrv10_r04.as_int);
 	// Mbus return address
 	mbus_remote_register_write(MRR_ADDR,0x1E,0x1002);
