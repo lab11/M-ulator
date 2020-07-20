@@ -77,10 +77,15 @@ static void register_opcodes_arm_thumb_mov(void) {
 	// mov1: 0010 0xxx <x's>
 	register_opcode_mask_16(0x2000, 0xd800, mov_imm_t1);
 
-	// This is a weird corner case
+	// This is a weird corner case, explained here:
+	// https://community.arm.com/developer/ip-products/processors/f/cortex-m-forum/45501/regarding-the-documentation-on-the-t1-encoding-of-the-mov-instruction-on-armv6-m-architecture
+	//
+	// For the forseeable future, we don't care about arch <v6,
+	// so we just take in all of the encodings as valid.
+	//
 	// mov_reg_t1: 0100 0110 xx<x's> <-- arm-v6-m, arm-v7-m
 	// mov_reg_t1: 0100 0110 00<x's> <-- arm-thumb
-	register_opcode_mask_16(0x4600, 0xb9c0, mov_reg_t1);
+	register_opcode_mask_16(0x4600, 0xb900, mov_reg_t1);
 
 	// mov_reg_t2: 0000 0000 00xx xxxx
 	register_opcode_mask_16(0x0, 0xffc0, mov_reg_t2);
