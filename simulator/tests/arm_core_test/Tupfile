@@ -1,0 +1,11 @@
+include ../Tuprules-arm.tup
+
+: ../arm-vectors.s |> !arm_as |> %B.o {objs}
+: foreach *.s |> !arm_as |> %B.o {objs}
+#: foreach *.c |> !arm_cc |> %B.o <objs>
+: main.c |> !arm_cc |> %B.o {objs}
+#: <objs> |> ^ ARM_LD %o^ $(ARM_LD) %f $(ARM_LDFLAGS) |> core_test
+#: <objs> |> $(ARM_LD) %<objs> $(ARM_LDFLAGS) |> core_test
+: {objs} |> !arm_ld |> core_test.elf
+: core_test.elf |> !arm_bin |>
+: core_test.elf |> !arm_lst |>
