@@ -43,18 +43,20 @@
 #define RADIO_DATA_LENGTH 192
 #define WAKEUP_PERIOD_RADIO_INIT 0xA // About 2 sec (PRCv17)
 
-#define    PMU_10C 0x0
-#define    PMU_15C 0x1
-#define    PMU_20C 0x2
-#define    PMU_25C 0x3
-#define    PMU_30C 0x4
-#define    PMU_35C 0x5
-#define    PMU_40C 0x6
-#define    PMU_45C 0x7
-#define    PMU_55C 0x8
-#define    PMU_65C 0x9
-#define    PMU_75C 0xA
-#define    PMU_95C 0xB
+#define    PMU_0C 0x0
+#define    PMU_10C 0x1
+#define    PMU_15C 0x2
+#define    PMU_20C 0x3
+#define    PMU_25C 0x4
+#define    PMU_30C 0x5
+#define    PMU_35C 0x6
+#define    PMU_40C 0x7
+#define    PMU_45C 0x8
+#define    PMU_55C 0x9
+#define    PMU_65C 0xA
+#define    PMU_75C 0xB
+#define    PMU_85C 0xC
+#define    PMU_95C 0xD
 
 #define NUM_TEMP_MEAS 1
 
@@ -86,6 +88,7 @@ volatile uint32_t WAKEUP_PERIOD_SNT;
 volatile uint32_t PMU_10C_threshold_sns;
 volatile uint32_t PMU_15C_threshold_sns;
 volatile uint32_t PMU_20C_threshold_sns;
+volatile uint32_t PMU_25C_threshold_sns;
 volatile uint32_t PMU_30C_threshold_sns;
 volatile uint32_t PMU_35C_threshold_sns;
 volatile uint32_t PMU_40C_threshold_sns;
@@ -93,6 +96,7 @@ volatile uint32_t PMU_45C_threshold_sns;
 volatile uint32_t PMU_55C_threshold_sns;
 volatile uint32_t PMU_65C_threshold_sns;
 volatile uint32_t PMU_75C_threshold_sns;
+volatile uint32_t PMU_85C_threshold_sns;
 volatile uint32_t PMU_95C_threshold_sns;
 
 volatile uint32_t temp_storage_latest = 150; // SNSv10
@@ -455,40 +459,46 @@ inline static void pmu_active_setting_temp_based(){
 	// FIXME: needs to be retested
     
     if (pmu_setting_state == PMU_95C){
+		pmu_set_active_clk(0x1,0x1,0x10,0x2/*V1P2*/);
+
+    }else if (pmu_setting_state == PMU_85C){
 		pmu_set_active_clk(0x2,0x1,0x10,0x2/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_75C){
-		pmu_set_active_clk(0x3,0x1,0x10,0x2/*V1P2*/);
+		pmu_set_active_clk(0x2,0x2,0x10,0x4/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_65C){
-		pmu_set_active_clk(0x4,0x1,0x10,0x2/*V1P2*/);
+		pmu_set_active_clk(0x4,0x2,0x10,0x4/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_55C){
-		pmu_set_active_clk(0x6,0x1,0x10,0x2/*V1P2*/);
+		pmu_set_active_clk(0x6,0x2,0x10,0x4/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_45C){
-	    pmu_set_active_clk(0x8,0x2,0x10,0x4/*V1P2*/);
+	    pmu_set_active_clk(0x9,0x2,0x10,0x4/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_40C){
-	    pmu_set_active_clk(0xA,0x2,0x10,0x4/*V1P2*/);
+	    pmu_set_active_clk(0xB,0x2,0x10,0x4/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_35C){
-	    pmu_set_active_clk(0xC,0x2,0x10,0x4/*V1P2*/);
+	    pmu_set_active_clk(0xD,0x2,0x10,0x4/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_30C){
-	    pmu_set_active_clk(0xF,0x2,0x10,0x4/*V1P2*/);
+	    pmu_set_active_clk(0xF,0x3,0x10,0x5/*V1P2*/);
+
+    }else if (pmu_setting_state == PMU_25C){
+		pmu_set_active_clk(0xF,0x5,0x10,0xA/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_20C){
-		pmu_set_active_clk(0xE,0xA,0x10,0xE/*V1P2*/);
+		pmu_set_active_clk(0xD,0xA,0x10,0xE/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_15C){
-		pmu_set_active_clk(0xF,0xA,0x10,0xE/*V1P2*/);
+		pmu_set_active_clk(0xE,0xA,0x10,0xE/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_10C){
-		pmu_set_active_clk(0xF,0xA,0x1F,0xE/*V1P2*/);
+		pmu_set_active_clk(0xF,0xA,0x10,0xE/*V1P2*/);
 
-    }else{ // 25C, default
-		pmu_set_active_clk(0xF,0x5,0x10,0xA/*V1P2*/);
+    }else{ 
+		pmu_set_active_clk(0xF,0xA,0x1F,0xE/*V1P2*/);
     }
 }
 
@@ -1482,6 +1492,7 @@ static void operation_init(void){
     PMU_10C_threshold_sns = 600; // Around 10C
     PMU_15C_threshold_sns = 800; 
     PMU_20C_threshold_sns = 1000; // Around 20C
+    PMU_25C_threshold_sns = 1300; // Around 20C
     PMU_30C_threshold_sns = 1600; 
     PMU_35C_threshold_sns = 1900; // Around 35C
     PMU_40C_threshold_sns = 2200;
@@ -1489,6 +1500,7 @@ static void operation_init(void){
     PMU_55C_threshold_sns = 3200; // Around 55C
     PMU_65C_threshold_sns = 4500; 
     PMU_75C_threshold_sns = 7000; // Around 75C
+    PMU_85C_threshold_sns = 9400; 
     PMU_95C_threshold_sns = 12000; // Around 95C
 
     SNT_0P5S_VAL = 1000;
@@ -1575,6 +1587,8 @@ static void operation_sns_run(void){
             // Change PMU based on temp
             if (temp_storage_latest > PMU_95C_threshold_sns){
                 pmu_setting_state = PMU_95C;
+            }else if (temp_storage_latest > PMU_85C_threshold_sns){
+                pmu_setting_state = PMU_85C;
             }else if (temp_storage_latest > PMU_75C_threshold_sns){
                 pmu_setting_state = PMU_75C;
             }else if (temp_storage_latest > PMU_65C_threshold_sns){
@@ -1589,14 +1603,16 @@ static void operation_sns_run(void){
                 pmu_setting_state = PMU_35C;
             }else if (temp_storage_latest > PMU_30C_threshold_sns){
                 pmu_setting_state = PMU_30C;
-            }else if (temp_storage_latest < PMU_10C_threshold_sns){
-                pmu_setting_state = PMU_10C;
-            }else if (temp_storage_latest < PMU_15C_threshold_sns){
-                pmu_setting_state = PMU_15C;
-            }else if (temp_storage_latest < PMU_20C_threshold_sns){
-                pmu_setting_state = PMU_20C;
-            }else{
+            }else if (temp_storage_latest > PMU_25C_threshold_sns){
                 pmu_setting_state = PMU_25C;
+            }else if (temp_storage_latest > PMU_20C_threshold_sns){
+                pmu_setting_state = PMU_20C;
+            }else if (temp_storage_latest > PMU_15C_threshold_sns){
+                pmu_setting_state = PMU_15C;
+            }else if (temp_storage_latest > PMU_10C_threshold_sns){
+                pmu_setting_state = PMU_10C;
+            }else{
+                pmu_setting_state = PMU_0C;
             }
 
 			// Always restore sleep setting from higher pmu meas setting
