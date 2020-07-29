@@ -855,25 +855,25 @@ inline static void pmu_active_setting_temp_based(){
 		pmu_set_active_clk(0x3,0x1,0x10,0x2/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_65C){
-		pmu_set_active_clk(0x5,0x1,0x10,0x2/*V1P2*/);
+		pmu_set_active_clk(0x4,0x1,0x10,0x2/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_55C){
-		pmu_set_active_clk(0x8,0x1,0x10,0x2/*V1P2*/);
+		pmu_set_active_clk(0x7,0x1,0x10,0x2/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_45C){
-	    pmu_set_active_clk(0x8,0x2,0x10,0x4/*V1P2*/);
+	    pmu_set_active_clk(0x7,0x2,0x10,0x4/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_40C){
-	    pmu_set_active_clk(0x9,0x3,0x10,0x6/*V1P2*/);
+	    pmu_set_active_clk(0x8,0x3,0x10,0x6/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_35C){
-	    pmu_set_active_clk(0xC,0x3,0x10,0x6/*V1P2*/);
+	    pmu_set_active_clk(0xA,0x3,0x10,0x7/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_30C){
-	    pmu_set_active_clk(0xF,0x3,0x10,0x6/*V1P2*/);
+	    pmu_set_active_clk(0xC,0x3,0x10,0x7/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_25C){
-		pmu_set_active_clk(0xF,0x4,0x10,0x9/*V1P2*/);
+		pmu_set_active_clk(0xF,0x3,0x10,0x7/*V1P2*/);
 
     }else if (pmu_setting_state == PMU_20C){
 		pmu_set_active_clk(0xF,0x5,0x10,0xB/*V1P2*/);
@@ -1613,7 +1613,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     stack_state = STK_IDLE; 	//0x0;
-    enumerated = 0x41481240; // 0x4148 is AH in ascii
+    enumerated = 0x4148124A; // 0x4148 is AH in ascii
     exec_count = 0;
     wakeup_count = 0;
     exec_count_irq = 0;
@@ -1979,7 +1979,7 @@ int main(){
 	#endif
 
     // Initialization sequence
-    if (enumerated != 0x41481240){
+    if (enumerated != 0x4148124A){
         operation_init();
     }
 
