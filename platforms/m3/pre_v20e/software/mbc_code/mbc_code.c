@@ -4,7 +4,7 @@
  * 		This is the base code that all will share after version 5.1
  *                                          - PREv20E / PMUv11 / SNTv4 / FLPv3S / MRRv10 / MEMv1
  ******************************************************************************************
- * Current version: 5.1
+ * Current version: 5.2
  *
  * v1: draft version; not tested on chip
  *
@@ -71,8 +71,18 @@
  *
  *    Fixed an xo timer bug in update_system_time() where xo_sys_time_in_sec would overflow
  *
+ *  v5.2: Using new compression and sampling algorithm
+ *    Temp storage doesn't have a separate space anymore but interweaves with light storage
+ *    Starting timestamp uses 4 fewers bits of resolution but 4 more bits of MSB
+ *    Fixed variable initialization corruption by adding var_init()
+ *    2020/7/29 Survived 1 day test but need to implement radio out
+ *
+ *
  ******************************************************************************************/
 
+#define VERSION_NUM 0x521
+
+#include "huffman_encodings.h"
 #include "../include/PREv20E.h"
 #include "../include/PREv20E_RF.h"
 #include "../include/SNTv4_RF.h"
@@ -121,7 +131,7 @@
 #define SNT_TEMP_READ   0x3
 #define SNT_SET_PMU	0x4
 
-#define RADIO_PACKET_DELAY 20000  // Amount of delay between radio packets
+#define RADIO_PACKET_DELAY 20000 // Amount of delay between radio packets
 #define RADIO_DATA_LENGTH 192
 
 // operation list
@@ -179,33 +189,18 @@ volatile uint8_t goc_state;
 // volatile uint16_t goc_data;
 volatile uint32_t goc_data_full;
 
-#define XO_DAY_START 25200  // 7 am
-#define XO_DAY_END  68400   // 7 pm
 volatile uint32_t xo_sys_time = 0;
 volatile uint32_t xo_sys_time_in_sec = 0;
 volatile uint32_t xo_day_time_in_sec = 0;
-volatile uint32_t start_hour_in_sec = 0;
-volatile uint32_t store_temp_timestamp_in_sec = 0;
-volatile uint16_t snt_op_max_count = 176;
+volatile uint32_t store_temp_timestamp = 0;
 
 // #define SNT_TEMP_UPDATE_TIME 680   // 450 seconds
 volatile uint32_t snt_sys_temp_code = 0x3E9;	// default 20C
 volatile uint8_t snt_state = SNT_IDLE;
 
-volatile uint8_t store_lnt_counter = 0;
 volatile uint8_t lnt_counter_base = 0;	// lnt measure time is LNT_MEAS_TIME << lnt_counter_base
-volatile uint8_t lnt_meas_time_mode;
+// volatile uint8_t lnt_meas_time_mode;
 
-#define LNT_MANUAL_PERIOD
-#ifndef LNT_MANUAL_PERIOD
-volatile uint8_t lnt_cur_level = 0;
-const uint16_t LNT_UPPER_THRESH[3] = {500, 1500, 5000};
-const uint16_t LNT_LOWER_THRESH[3] = {300, 1200, 4000};
-#endif
-const uint8_t LNT_INTERVAL_IDX[11] = {2, 1, 0, 1, 2, 3, 2, 1, 0, 1, 2};
-const uint16_t LNT_INTERVAL[4] = {60, 120, 480, 1920}; // possible time intervals. Not aligned to the hour
-const uint32_t LNT_TIME_THRESH[12] = {18000, 19800, 21600, 28800, 30600, 32400, 
-				      59400, 61200, 63000, 70200, 72000, 73800};
 volatile uint64_t lnt_sys_light = 0;
 
 #define MRR_SIGNAL_PERIOD   600     // 10 minutes
@@ -254,33 +249,81 @@ volatile uint16_t mrr_cfo_val_fine_min;
 volatile uint32_t radio_data_arr[3];
 volatile uint32_t radio_packet_count;
 
- #define TEMP_MAX_REMAINDER 96-16-1-3-4-4-11 // 96-(CRC+TEMP_OR_LIGHT+PACKET_NUM+PACKET_HEADER+TIMESTAMP) = 57
- #define LIGHT_MAX_REMAINDER 192-16*2-1*2-3*2-4*2-11-11+1 // 96-(CRC*2+TEMP_OR_LIGHT*2+PACKET_NUM*2+PACKET_HEADER*2+ref+TIMESTAMP)+signal_bit = 123
+// sampling variables
+#define DAWN 0
+#define NOON 1
+#define DUSK 2
+#define NIGHT 3
 
-// volatile uint16_t mem_temp_addr = 7000;
-#define MEM_TEMP_ADDR 0x36B0	// 7000 * 2 in hex
-volatile uint16_t mem_temp_len = 0;
-// volatile uint16_t mem_light_addr = 0;
-#define MEM_LIGHT_ADDR 0
-volatile uint16_t mem_light_len = 0;
-volatile uint8_t temp_packet_num = 0;
-volatile uint8_t temp_storage_remainder = TEMP_MAX_REMAINDER;
-volatile uint8_t light_packet_num = 0;
-volatile uint8_t cur_len_mode = 0xFF;
-volatile uint8_t l1_header_stored = 0, l2_header_stored = 0;
-volatile uint8_t l1_cur_meas_time_mode = 0;
-volatile uint8_t lnt_l1_len = 0, lnt_l2_len = 0;
-volatile uint8_t reduce_len_counter = 0;
-volatile uint8_t light_storage_remainder = LIGHT_MAX_REMAINDER;
-volatile uint16_t last_log_light = 0;
-volatile uint32_t light_code_storage[6];
-volatile uint32_t temp_code_storage[3];
+#define MAX_EDGE_SHIFT 600
+#define MAX_DAY_TIME 86400
+#define MID_DAY_TIME 43200
+#define IDX_MAX 239         // x = 179, y = 59, x + y + 1
+#define EDGE_MARGIN1 10770 // x * 60 + 30 = 10770
+#define EDGE_MARGIN2 3570 // y * 60 + 30 = 3570
+
+#define EDGE_THRESHOLD 200 // = log2(2 lux * 1577) * 32
+#define THRESHOLD_IDX_SHIFT 8 // = 4 + 4
+
+#define XO_1_MIN 60
+#define XO_2_MIN 120
+#define XO_8_MIN 480
+#define XO_10_MIN 600
+#define XO_16_MIN 960
+#define XO_20_MIN 1200
+#define XO_30_MIN 1800
+#define XO_32_MIN 1920
+#define XO_240_MIN 14400
+#define XO_270_MIN 19600 // 4 hours and 30 minutes
+
+volatile uint32_t next_light_meas_time = 0;
+volatile uint32_t next_radio_debug_time = 0;
+
+volatile uint8_t day_state = NIGHT;
+volatile uint8_t max_day_count = 0;
+volatile uint8_t day_count = 0;
+volatile uint8_t store_temp_index = 0;    // resets every day
+volatile bool radio_debug = false;
+volatile uint8_t rot_idx = 0;
+volatile uint16_t running_avg[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+volatile uint32_t running_avg_time[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+
+#define MAX_UINT16 0xFFFF
+uint16_t sum = MAX_UINT16;
+uint16_t avg_light = 0;
+
+volatile uint32_t cur_sunrise = 0, cur_sunset = 0;
+volatile uint32_t next_sunrise = 0, next_sunset = 0, cur_edge = 0;
+volatile uint32_t threshold_idx_time = 0;
+volatile uint32_t min_light_time = 0;
+volatile uint32_t day_state_start_time, day_state_end_time;
+
+#define IDX_INIT 0xFF
+volatile uint8_t max_idx = 0;
+const uint8_t intervals[4] = {1, 2, 8, 32};
+const uint16_t resample_indices[4] = {32, 40, 44, 1000};
+volatile uint16_t min_light = MAX_UINT16;
+volatile uint16_t min_light_idx = IDX_INIT;
+volatile uint16_t threshold_idx = IDX_INIT;
+
+// We can store 29 data points per 10 words
+// => we need 9 * 10 words
+// (4096 - 90) << 2 = 16024
+#define CACHE_START_ADDR 16024
+volatile uint16_t cache_addr = CACHE_START_ADDR;
+
+#define PROC_CACHE_LEN 10
+#define PROC_CACHE_MAX_REMAINDER 320
+volatile uint32_t proc_cache[PROC_CACHE_LEN];
+volatile uint16_t proc_cache_remainder = PROC_CACHE_MAX_REMAINDER;
 
 /**********************************************
  * Forward Declarations
  **********************************************/
 
 static void sys_err(uint32_t);
+
+void send_beacon();
 
 /**********************************************
  * Timeout Functions
@@ -371,17 +414,9 @@ void xo_init( void ) {
 }
 
 uint32_t get_timer_cnt_xo() {
+    // FIXME: multiply by some constant
     return ((*REG_XOT_VAL_U & 0xFFFF) << 16) | (*REG_XOT_VAL_L & 0xFFFF);
 }
-
-// static uint32_t get_timer_cnt() {
-//     if(enumerated != ENUMID) { return 0; }
-//     set_halt_until_mbus_trx();
-//     mbus_copy_registers_from_remote_to_local(SNT_ADDR, 0x1B, 0x0, 1);
-//     set_halt_until_mbus_tx();
-// 
-//     return (*REG0 << 24) | (*REG1 & 0xFFFFFF);
-// }
 
 #define XO_MAX_DAY_TIME_IN_SEC 86400
 #define XO_TO_SEC_SHIFT 15
@@ -395,12 +430,11 @@ void update_system_time() {
     xo_sys_time = get_timer_cnt_xo();
 
     // calculate the difference in seconds
+    temp = (xo_sys_time >> XO_TO_SEC_SHIFT) - (temp >> XO_TO_SEC_SHIFT); // Have to shift individually to account for underflow
+
     if(xo_sys_time < temp) {
     	// xo timer overflowed, want to make sure that 0x00000 - 0x1FFFF = 1
-    	temp = (xo_sys_time >> XO_TO_SEC_SHIFT) - (temp >> XO_TO_SEC_SHIFT) + 0x20000; // Have to shift individually to account for underflow
-    }
-    else {
-    	temp = (xo_sys_time >> XO_TO_SEC_SHIFT) - (temp >> XO_TO_SEC_SHIFT); // Have to shift individually to account for underflow
+    	temp += 0x20000;
     }
 
     xo_sys_time_in_sec += temp;
@@ -408,17 +442,19 @@ void update_system_time() {
 
     if(xo_day_time_in_sec >= XO_MAX_DAY_TIME_IN_SEC) {
         xo_day_time_in_sec -= XO_MAX_DAY_TIME_IN_SEC;
+        day_count++;
     }
+
 
     // mbus_write_message32(0xC2, xo_sys_time);
     // mbus_write_message32(0xC1, xo_sys_time_in_sec);
     // mbus_write_message32(0xC0, xo_day_time_in_sec);
 }
 
+// FIXME: determine we still need to check day time when radioing out
 bool xo_check_is_day() {
     update_system_time();
     return true;
-    return xo_day_time_in_sec >= XO_DAY_START && xo_day_time_in_sec < XO_DAY_END;
 }
 
 /**********************************************
@@ -441,6 +477,69 @@ uint64_t right_shift(uint64_t input, int8_t shift) {
 	}
     }
     return input;
+}
+
+// right shift an array
+// + is right shift, - is left shift
+// if shift_len is greater than or equal to 32, data must be 0
+// if right_shift, data must be 0
+// if left shift, then shift data into the array
+void right_shift_arr(uint32_t* arr, uint32_t data, uint8_t arr_len, int16_t shift_len) {
+    if(shift_len == 0) {
+        return;
+    }
+    else if(shift_len >= 32) {
+        data = 0;
+    }
+
+    int8_t sign = shift_len > 0? 1 : -1;
+
+    // get abs(shift_len)
+    if(sign == -1) {
+        shift_len = -shift_len;
+    }
+
+    // filter data
+    data &= (right_shift(1, -shift_len) - 1);
+
+    uint8_t start, back;
+
+    if(sign == 1) {
+        start = arr_len - 1;
+        back = 0;
+    }
+    else {
+        start = 0;
+        back = arr_len - 1;
+    }
+
+    uint8_t i;
+
+    // shift word be word
+    while(shift_len >= 32) {
+        for(i = start; i != back; i -= sign) {
+            arr[i] = arr[i - sign];
+        }
+        arr[back] = 0;
+        shift_len -= 32;
+    }
+
+    int8_t shift_len_complement = shift_len - 32;
+
+    if(sign == -1) {
+        shift_len = -shift_len;
+        shift_len_complement = -shift_len_complement;
+    }
+
+    for(i = start; i != back; i -= sign) {
+        arr[i] = right_shift(arr[i], shift_len);
+        arr[i] |= right_shift(arr[i - sign], shift_len_complement);
+    }
+
+    arr[back] = right_shift(arr[back], shift_len);
+    if(sign == -1) {
+        arr[back] |= data;
+    }
 }
 
 uint64_t mult(uint32_t lhs, uint16_t rhs) {
@@ -483,12 +582,6 @@ static bool long_int_lte(const long_int lhs, const long_int rhs) {
 	if(lhs[i] != rhs[i]) {
 	    return lhs[i] < rhs[i];
 	}
-        // if(lhs[i] < rhs[i]) {
-        //     return true;
-        // }
-        // else if(lhs[i] > rhs[i]) {
-        //     return false;
-        // }
     }
     return false;
 }
@@ -538,227 +631,384 @@ uint16_t log2(uint64_t input) {
     return out & 0x7FF;
 }
 
-// void print_temp_compress() {
-//     uint8_t i = 0;
-//     for(i = 0; i < 3; i++) {
-// 	mbus_write_message32(0xB0 + i, temp_code_storage[i]);
-//     }
-// }
+// code_cache is what is actually stored in memory without packet headers, 
+// which will be calculated when sending
+// packet header = 1 bit light_or_temp, 5 bit chip ID, 6 bit packet number
+#define CODE_CACHE_LEN 9
+#define CODE_CACHE_MAX_REMAINDER 272 // 320 - 12 * 4 = 272
+#define LIGHT_HEADER_SIZE 12    // 1 bit light or temp, 5 bit chip ID, 6 bit packet number
+#define LIGHT_CONTENT_SIZE 68 // 80 - 12 = 68
+uint32_t code_cache[CODE_CACHE_LEN];
+uint16_t code_cache_remainder = CODE_CACHE_MAX_REMAINDER;
+uint16_t code_addr = 0; // address to start storing the final data from
 
-static void temp_shift_left_store(uint32_t data, uint8_t len) {
-    // mbus_write_message32(0xB6, data);
-    // mbus_write_message32(0xB7, len);
-    // data &= ((1 << len) - 1);
-    data &= right_shift(1, -len) - 1;
+#define UNIT_HEADER_SIZE 26 // 17 starting timestamp, 2 bit day_state, 7 bit starting idx
+bool has_header = false;
 
-    // temp_code_storage[1] = temp_code_storage[1] << len;
-    // temp_code_storage[1] |= (temp_code_storage[0] >> (32 - len));
-    // temp_code_storage[0] = temp_code_storage[0] << len;
-    temp_code_storage[1] = right_shift(temp_code_storage[1], -len);
-    temp_code_storage[1] |= right_shift(temp_code_storage[0], (32 - len));
-    temp_code_storage[0] = right_shift(temp_code_storage[0], -len);
-    temp_code_storage[0] |= data;
-    temp_storage_remainder -= len;
-
-    // print_temp_compress();
+// requires code_cache to have enough space
+void store_code(int32_t code, uint8_t len) {
+    right_shift_arr(code_cache, code, CODE_CACHE_LEN, -len);
+    code_cache_remainder -= len;
 }
 
-uint16_t light_last_ref_time = 0;
-uint16_t temp_last_ref_time = 0;
-
-static void store_temp() {
-    if(temp_storage_remainder < TEMP_MAX_REMAINDER) {
-	// print_temp_compress();
-        temp_code_storage[2] = /*(0 << 15) |*/ (temp_packet_num << 12) | (CHIP_ID << 8) | ((temp_last_ref_time >> 3) & 0xFF);
-        temp_code_storage[1] |= (temp_last_ref_time & 0x7) << 29;
-        mbus_copy_mem_from_local_to_remote_bulk(MEM_ADDR, (uint32_t*) (MEM_TEMP_ADDR + mem_temp_len), (uint32_t*) temp_code_storage, 2);
-        temp_packet_num = (temp_packet_num + 1) & 7;
-        mem_temp_len += 12; // 3 * 4 B
-
-	// print_temp_compress();
+void flush_code_cache() {
+    if(code_cache_remainder < CODE_CACHE_MAX_REMAINDER) {
+        // this leaves exactly 16 bits of blank space at the front of the code cache
+        right_shift_arr(code_cache, 0, CODE_CACHE_LEN, -code_cache_remainder);
+        // The beginning of code cache should always be 1
+        // Mark as light
+        code_cache[0] |= 0x80000000;
+        mbus_copy_mem_from_local_to_remote_bulk(MEM_ADDR, (uint32_t*) code_addr, code_cache, CODE_CACHE_LEN - 1);
+        code_addr += CODE_CACHE_LEN << 2;
+        code_cache_remainder = CODE_CACHE_MAX_REMAINDER;
     }
 }
 
-#define TEMP_RES 7
-
-static void compress_temp() {
-    
-    if(temp_storage_remainder == TEMP_MAX_REMAINDER) {
-        temp_code_storage[1] = 0;
-        temp_code_storage[0] = 0;
+void store_diff_to_code_cache(int16_t diff, uint8_t start_idx, uint32_t starting_time) {
+    uint8_t code_idx = 0;
+    uint8_t len_needed = 0;
+    uint16_t code = 0;
+    if(diff < 32 && diff >= -32) {
+        code_idx = diff + 32;
+        len_needed = code_lengths[code_idx];
+        code = diff_codes[code_idx];
     }
-
-    // Take 3 bits above decimal point and 4 bits under
-    uint8_t log_temp = log2(snt_sys_temp_code) >> (8 - TEMP_RES); 
-    // mbus_write_message32(0xB5, log_temp);
-
-    temp_shift_left_store(log_temp, TEMP_RES);
-    temp_last_ref_time = (xo_day_time_in_sec >> 6) & 0x7FF;
-    if(temp_storage_remainder < TEMP_RES) {
-        store_temp();
-        temp_storage_remainder = TEMP_MAX_REMAINDER;
-    }
-}
-
-// void print_light_compress() {
-//     uint8_t i = 0;
-//     for(i = 0; i < 6; i++) {
-// 	mbus_write_message32(0xD0 + i, light_code_storage[i]);
-//     }
-// }
-
-static void light_left_shift_store(uint32_t data, uint8_t len) {
-    // data &= ((1 << len) - 1);
-    // mbus_write_message32(0xA6, data);
-    // mbus_write_message32(0xA7, len);
-    data &= (right_shift(1, -len) - 1);
-
-    int8_t i;
-    for(i = 5; i >= 1; i--) {
-        // light_code_storage[i] = light_code_storage[i] << len;
-        // light_code_storage[i] |= (light_code_storage[i - 1] >> (32 - len));
-        light_code_storage[i] = right_shift(light_code_storage[i], -len);
-        light_code_storage[i] |= right_shift(light_code_storage[i - 1], (32 - len));
-    }
-    light_code_storage[0] = right_shift(light_code_storage[i], -len);
-    light_code_storage[0] |= data;
-
-    light_storage_remainder -= len;
-    // print_light_compress();
-}
-
-static void store_l1_header() {
-    if(lnt_l1_len == 0) {
-        return;
-    }
-    light_left_shift_store(lnt_l1_len, 3);
-    light_left_shift_store(l1_cur_meas_time_mode, 2);
-    lnt_l1_len = 0;
-    lnt_l2_len = 0;
-}
-
-static void store_l2_header() {
-    if(lnt_l2_len == 0) {
-        return;
-    }
-    light_left_shift_store(lnt_l2_len, 6 - cur_len_mode);
-    light_left_shift_store(cur_len_mode, 2);
-    lnt_l1_len++;
-    lnt_l2_len = 0;
-}
-
-
-static void store_light() {
-    if(light_storage_remainder < LIGHT_MAX_REMAINDER) {
-        store_l2_header();
-        store_l1_header();
-
-        light_left_shift_store(last_log_light, 11); // final ref data
-	// TODO: check if need 12 bits
-        light_left_shift_store(light_last_ref_time, 11); // final timestamp
-
-        // shift upper half
-        int8_t i;
-        for(i = 5; i >= 3; i--) {
-            light_code_storage[i] = light_code_storage[i] << 24;
-            light_code_storage[i] |= (light_code_storage[i - 1] >> (32 - 24));
-        }
-        light_code_storage[2] &= 0xFF;
-	// print_light_compress();
-
-        light_code_storage[5] |= ((1 << 15) | (light_packet_num << 12) | (CHIP_ID << 8));
-        light_packet_num = (light_packet_num + 1) & 7;
-        light_code_storage[2] |= ((1 << 15) | (light_packet_num << 12) | (CHIP_ID << 8));
-        light_packet_num = (light_packet_num + 1) & 7;
-
-	// print_light_compress();
-
-        mbus_copy_mem_from_local_to_remote_bulk(MEM_ADDR, (uint32_t*) (MEM_LIGHT_ADDR + mem_light_len), light_code_storage + 3, 2);
-        mbus_copy_mem_from_local_to_remote_bulk(MEM_ADDR, (uint32_t*) (MEM_LIGHT_ADDR + 12 + mem_light_len), light_code_storage, 2);
-        mem_light_len += 24; // 6 * 4 B
-    }
-}
-
-uint8_t compress_light() {
-    uint16_t log_light = log2(lnt_sys_light + 1) & 0x3FF;   // remember to subtract 1 when parsing
-    // mbus_write_message32(0xA5, log_light);
-    if(light_storage_remainder == LIGHT_MAX_REMAINDER) {
-        uint8_t i;
-        for(i = 0; i < 6; i++) {
-            light_code_storage[i] = 0;
-        }
-        lnt_l1_len = 0;
-        lnt_l2_len = 0;
-        l1_cur_meas_time_mode = lnt_meas_time_mode;
-        cur_len_mode = 0xFF;
-	// subtract signal bit
-	light_storage_remainder--;
-	reduce_len_counter = 0;
+    else if(diff < 256 && diff >= -256) {
+        code_idx = 64;
+        len_needed = code_lengths[code_idx] + 9;
+        code = diff_codes[code_idx];
     }
     else {
-	static const uint8_t len[4] = {4, 6, 9, 11};
-        int16_t diff = last_log_light - log_light;
-        uint8_t len_mode = 0;
-	// mbus_write_message32(0xA4, diff);
-        if(diff <= 7 && diff >= -8) { // 4 bit storage
-            len_mode = 0;
-        }
-        else if(diff <= 31 && diff >= -32) {  // 6 bit storage
-            len_mode = 1;
-        }
-        else if(diff <= 255 && diff >= -256) {    // 9 bit storage
-            len_mode = 2;
-        }
-        else {  // just store raw data
-            diff = log_light;
-            len_mode = 3;
-        }
-
-	// Maybe not needed
-        // diff = diff & (right_shift(1, -len) - 1);
-
-        if(cur_len_mode != 0xFF) {
-            if(len_mode < cur_len_mode) {
-                reduce_len_counter++;
-            }
-	    else {
-                reduce_len_counter = 0;
-	    }
-
-            // check if need to commit L2 header
-            if(len_mode > cur_len_mode 
-		|| reduce_len_counter >= 3 
-		// || lnt_l2_len >= ((1 << (6 - cur_len_mode)) - 1)) {
-		|| lnt_l2_len >= (right_shift(1, -6 + cur_len_mode) - 1)) {
-                store_l2_header();
-		cur_len_mode = len_mode;
-            }
-        }
-	else {
-            cur_len_mode = len_mode;
-	}
-
-        // check if need to commit L1 header
-        if(lnt_meas_time_mode != l1_cur_meas_time_mode || lnt_l1_len >= ((1 << 3) - 1)) {
-	    store_l2_header();
-            store_l1_header();
-        }
-        l1_cur_meas_time_mode = lnt_meas_time_mode;
-
-        uint8_t needed_len = 2 + 3 + 2 + 6 - cur_len_mode + len[cur_len_mode];
-
-        if(light_storage_remainder < needed_len) {
-            store_light();
-            light_storage_remainder = LIGHT_MAX_REMAINDER;
-            return 1;
-        }
-
-	light_last_ref_time = (xo_day_time_in_sec >> 6) & 0x7FF;
-        light_left_shift_store(diff, len[cur_len_mode]);
-        lnt_l2_len++;
+        code_idx = 65;
+        len_needed = code_lengths[code_idx] + 11;
+        code = diff_codes[code_idx];
     }
-    last_log_light = log_light;
-    return 0;
+
+    if(!has_header) {
+        len_needed += UNIT_HEADER_SIZE;
+    }
+
+    if(code_cache_remainder < len_needed) {
+        flush_code_cache();
+        has_header = false;
+    }
+
+    // 17 starting timestamp, 2 bit day_state, 7 bit starting idx
+    if(!has_header) {
+        // use 4 bits less of resolution and add that to msb
+        store_code((starting_time >> 4) & 0x1FFFF, 17);
+        store_code(day_state, 2);
+        store_code(start_idx, 7);
+        has_header = true;
+    }
+
+    store_code(code, code_lengths[code_idx]);
+
+    if(code_idx == 64) {
+        store_code(diff, 9);
+    }
+    else if(code_idx == 65) {
+        store_code(diff, 11);
+    }
+}
+
+void store_day_state_stop() {
+    uint8_t len_needed = code_lengths[66];
+    if(code_cache_remainder < len_needed) {
+        flush_code_cache();
+    }
+    else {
+        store_code(diff_codes[66], len_needed);
+    }
+}
+
+/**********************************************
+ * Sampling functions
+ **********************************************/
+
+void write_to_proc_cache(uint16_t data) {
+    const uint8_t len = 11;
+    data &= (right_shift(1, -len) - 1);
+
+    if(len >= proc_cache_remainder) {
+        // if no more cache space, store and switch to new cache
+        mbus_copy_mem_from_local_to_remote_bulk(MEM_ADDR, (uint32_t*) cache_addr, proc_cache, PROC_CACHE_LEN - 1);
+        cache_addr += (PROC_CACHE_LEN << 2);
+        proc_cache_remainder = PROC_CACHE_MAX_REMAINDER;
+    }
+
+    right_shift_arr(proc_cache, data, PROC_CACHE_LEN, -len);
+    proc_cache_remainder -= len;
+}
+
+uint16_t read_next_from_proc_cache() {
+    uint16_t res = 0;
+
+    if(day_state == DUSK) {
+        // start reading from the bottom
+        if(proc_cache_remainder < 11) {
+            // decrement address before reading because we start on an incorrect address
+            cache_addr -= PROC_CACHE_LEN << 2;
+            mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*) cache_addr, PRE_ADDR, proc_cache, PROC_CACHE_LEN - 1);
+            proc_cache_remainder = PROC_CACHE_MAX_REMAINDER;
+        }
+        res = proc_cache[PROC_CACHE_LEN - 1] & 0x7FF;
+        proc_cache_remainder -= 11;
+        right_shift_arr(proc_cache, 0, PROC_CACHE_LEN, 11);
+    }
+    else {
+        if(proc_cache_remainder < 11) {
+            mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*) cache_addr, PRE_ADDR, proc_cache, PROC_CACHE_LEN - 1);
+            // increment address after we read from memory because we start on the correct addr
+            cache_addr += PROC_CACHE_LEN << 2;
+            proc_cache_remainder = PROC_CACHE_MAX_REMAINDER;
+        }
+
+        res = right_shift(proc_cache[0], 20) & 0x7FF;
+        proc_cache_remainder -= 11;
+
+        right_shift_arr(proc_cache, 0, PROC_CACHE_LEN, -11);
+    }
+    return res;
+}
+
+// These invariants are used to prevent pathological corner cases from crashing the system
+bool check_new_edge(uint32_t target) {
+    if(day_state == DAWN) {
+        return target > 0 && target < MID_DAY_TIME && (cur_sunset - target > XO_270_MIN);
+    }
+    else {
+        return target > MID_DAY_TIME && target < MAX_DAY_TIME && (target - cur_sunset > XO_270_MIN);
+    }
+}
+
+void set_new_state() {
+    // reset new state variables
+    cache_addr = CACHE_START_ADDR;
+    proc_cache_remainder = PROC_CACHE_MAX_REMAINDER;
+    max_idx = 0;
+    threshold_idx = IDX_INIT;
+    min_light_idx = IDX_INIT;
+    sum = MAX_UINT16;
+
+    // set day_state specific variables
+    if(day_state == DAWN) {
+        cur_sunrise = next_sunrise == 0? cur_sunrise : next_sunrise;
+        cur_edge = cur_sunrise;
+        day_state_start_time = cur_sunrise - EDGE_MARGIN2;
+        day_state_end_time = cur_sunrise + EDGE_MARGIN1;
+    }
+    else if(day_state == DUSK) {
+        cur_sunset = next_sunset == 0? cur_sunset : next_sunset;
+        cur_edge = cur_sunset;
+        day_state_start_time = cur_sunset - EDGE_MARGIN1;
+        day_state_end_time = cur_sunset + EDGE_MARGIN2;
+    }
+    else if(day_state == NOON) {
+        // FIXME: Using xo_day_time_in_sec will make everything not align to the minute
+        cur_edge = xo_day_time_in_sec + XO_32_MIN;
+        day_state_start_time = cur_edge;
+        day_state_end_time = cur_sunset - EDGE_MARGIN1 - XO_10_MIN;
+    }
+    else {
+        cur_edge = xo_day_time_in_sec + XO_32_MIN;
+        day_state_start_time = cur_edge;
+        day_state_end_time = cur_sunrise - EDGE_MARGIN2 - XO_10_MIN;
+    }
+
+    // set new light measure time
+    next_light_meas_time = day_state_start_time + xo_sys_time_in_sec - xo_day_time_in_sec;
+}
+
+void sample_light() {
+    uint16_t log_light = log2(lnt_sys_light);
+    uint16_t last_avg_light = avg_light;
+    write_to_proc_cache(log_light);
+
+    // store to running sum
+    if(sum == MAX_UINT16) {
+        // if uninitialized, initialize running avg
+        uint8_t i;
+        for(i = 0; i < 8; i++) {
+            running_avg[i] = log_light;
+            running_avg_time[i] = xo_day_time_in_sec;
+        }
+        sum = log_light << 3;
+    } 
+    else {
+        sum -= running_avg[rot_idx];
+        sum += log_light;
+
+        running_avg[rot_idx] = log_light;
+        running_avg_time[rot_idx] = xo_day_time_in_sec;
+        rot_idx = (rot_idx + 1) & 7;
+    }
+
+    avg_light = sum >> 3;
+
+    uint32_t target = 0;
+
+    // record min_light in day_state
+    if(min_light_idx == IDX_INIT || avg_light < min_light
+            || (day_state == DAWN && avg_light == min_light)) { // find last min_light at dawn
+        min_light = avg_light;
+        min_light_idx = max_idx;
+        min_light_time = next_light_meas_time;
+    }
+
+    // test if crosses threshold
+    if(day_state == DAWN && threshold_idx == IDX_INIT
+            && avg_light >= EDGE_THRESHOLD && last_avg_light < EDGE_THRESHOLD) {
+        if(max_idx >= THRESHOLD_IDX_SHIFT) {
+            threshold_idx = max_idx - THRESHOLD_IDX_SHIFT;
+            threshold_idx_time = next_light_meas_time - THRESHOLD_IDX_SHIFT * 60;
+        }
+        else {
+            threshold_idx = 0;
+            threshold_idx_time = next_light_meas_time - max_idx * 60;
+        }
+
+        target = running_avg_time[(rot_idx + 3) & 7];
+    }
+    else if(day_state == DUSK && threshold_idx == IDX_INIT
+            && avg_light <= EDGE_THRESHOLD && last_avg_light > EDGE_THRESHOLD) {
+        if(max_idx + THRESHOLD_IDX_SHIFT <= IDX_MAX) {
+            threshold_idx = max_idx + THRESHOLD_IDX_SHIFT;
+            threshold_idx_time = next_light_meas_time + THRESHOLD_IDX_SHIFT * 60;
+        }
+        else {
+            threshold_idx = IDX_MAX;
+            threshold_idx_time = next_light_meas_time + (IDX_MAX - max_idx) * 60;
+        }
+
+        target = running_avg_time[(rot_idx + 3) & 7];
+    }
+
+    // set new edge time
+    if(target) {
+        if(target > cur_edge + MAX_EDGE_SHIFT) {
+            target = cur_edge + MAX_EDGE_SHIFT;
+        }
+        else if(target < cur_edge - MAX_EDGE_SHIFT) {
+            target = cur_edge - MAX_EDGE_SHIFT;
+        }
+
+        // check edge invariants before setting new edge
+        if(day_state == DAWN && target > 0 && target < MID_DAY_TIME 
+                && (cur_sunset - target > XO_270_MIN)) {
+            next_sunrise = target;
+        }
+        else if(day_state == DUSK && target > MID_DAY_TIME && target < MAX_DAY_TIME 
+                && (target - cur_sunrise > XO_270_MIN)) {
+            next_sunset = target;
+        }
+    }
+
+    // set next light measure time
+    if(day_state == DAWN || day_state == DUSK) {
+        next_light_meas_time += XO_1_MIN;
+    }
+    else {
+        next_light_meas_time += XO_32_MIN;
+    }
+
+    bool new_state = false;
+    uint32_t temp = xo_day_time_in_sec + next_light_meas_time - xo_sys_time_in_sec;
+    if(day_state != NIGHT) {
+        new_state = (temp >= day_state_end_time);
+    }
+    else {
+        new_state = (temp >= day_state_end_time && temp < MID_DAY_TIME);
+    }
+
+    if(new_state) {
+        if(day_state != NIGHT) {
+            // resample and store
+            uint16_t starting_idx = 0;
+            int16_t start, end, sign;
+            uint32_t sample_time;
+
+            if(day_state == DUSK) {
+                // from last to first
+                // manual set remainder to current data in proc_cache to start reading
+                proc_cache_remainder = PROC_CACHE_MAX_REMAINDER - proc_cache_remainder;
+                // if crossed threshold
+                if(threshold_idx != IDX_INIT) {
+                    starting_idx = threshold_idx;
+                    sample_time = threshold_idx_time;
+                }
+                else {
+                    starting_idx = min_light_idx;
+                    sample_time = min_light_time;
+                }
+                // last to first
+                start = max_idx;
+                end = -1;
+                sign = -1;
+            }
+            else {
+                // going from first to last, left shift 0s into proc_cache
+                right_shift_arr(proc_cache, 0, PROC_CACHE_LEN, 1 - proc_cache_remainder);
+                mbus_copy_mem_from_local_to_remote_bulk(MEM_ADDR, (uint32_t*) cache_addr, proc_cache, PROC_CACHE_LEN - 1);
+
+                proc_cache_remainder = 0; // manually set to 0 to start reading
+                cache_addr = CACHE_START_ADDR;
+
+                if(day_state == NOON) {
+                    starting_idx = 0;
+                    sample_time = cur_edge + xo_sys_time_in_sec - xo_day_time_in_sec;
+                }
+                else if(threshold_idx != IDX_INIT) {
+                    starting_idx = threshold_idx;
+                    sample_time = threshold_idx_time;
+                }
+                else {
+                    starting_idx = min_light_idx;
+                    sample_time = min_light_time;
+                }
+                // first to last
+                start = 0;
+                end = max_idx + 1;
+                sign = 1;
+            }
+
+            int16_t i;
+            uint16_t last_log_light = 0;
+            uint8_t next_sample_idx = starting_idx;
+            uint8_t sample_idx = 0;
+            uint8_t interval_idx = 0;
+            for(i = start; i != end; i += sign) {
+                uint16_t log_light = read_next_from_proc_cache();
+                if(i == next_sample_idx) {
+                    // store diff
+                    uint16_t diff = log_light - last_log_light;
+                    store_diff_to_code_cache(diff, sample_idx, sample_time);
+
+                    sample_idx++;
+                    last_log_light = log_light;
+                    if(day_state == NOON) {
+                        next_sample_idx++;
+                        sample_time += XO_32_MIN;
+                    }
+                    else {
+                        if(sample_idx >= resample_indices[interval_idx]) {
+                            interval_idx++;
+                        }
+
+                        next_sample_idx += (intervals[interval_idx] * sign);
+                        sample_time += (intervals[interval_idx] * sign * 60);
+                    }
+                }
+            }
+        }
+    
+        // reset new state variables
+        day_state = (day_state + 1) & 0b11;
+        set_new_state();
+    }
+    else {
+        max_idx++;
+    }
 }
 
 /**********************************************
@@ -871,57 +1121,49 @@ static void operation_temp_run() {
     }
 }
 
-static inline void snt_clk_init() { 
-    
-    sntv4_r08_t sntv4_r08 = SNTv4_R08_DEFAULT;
-    sntv4_r09_t sntv4_r09 = SNTv4_R09_DEFAULT;
-    sntv4_r17_t sntv4_r17 = SNTv4_R17_DEFAULT;
-    // sntv4_r19_t sntv4_r19 = SNTv4_R19_DEFAULT;
-    // sntv4_r1A_t sntv4_r1A = SNTv4_R1A_DEFAULT;
+// temp storage
+#define TEMP_CACHE_LEN 3
+#define TEMP_CACHE_MAX_REMAINDER 64 // 96 - 16 crc - 1 bit light or temp - 5 bit chip id - 4 bit day count - 6 bit timestamp in half hour 
+#define TEMP_RES 7
 
-    // start SNT clock
-    sntv4_r08.TMR_SLEEP = 0;
-    sntv4_r08.TMR_ISOLATE = 0;
-    mbus_remote_register_write(SNT_ADDR, 0x8, sntv4_r08.as_int);
+volatile uint32_t temp_cache[TEMP_CACHE_LEN];
+volatile uint8_t temp_cache_remainder = TEMP_CACHE_MAX_REMAINDER;
 
-    delay(10000);
+void flush_temp_cache() {
+    if(temp_cache_remainder < TEMP_CACHE_MAX_REMAINDER) {
+        // left shift 0s into unused space
+        right_shift_arr(temp_cache, 0, TEMP_CACHE_LEN, -temp_cache_remainder);
+        // add header
+        // Use the space for CRC to mark temp packet
+        temp_cache[0] = 0;
+        temp_cache[0] = (CHIP_ID << 10) 
+                        | ((day_count & 0xF) << 5) 
+                        | store_temp_index;
 
-    sntv4_r09.TMR_SELF_EN = 0;
-    mbus_remote_register_write(SNT_ADDR, 0x9, sntv4_r09.as_int);
+        mbus_copy_mem_from_local_to_remote_bulk(MEM_ADDR, (uint32_t*) code_addr, temp_cache, TEMP_CACHE_LEN - 1);
 
-    sntv4_r08.TMR_EN_OSC = 1;
-    mbus_remote_register_write(SNT_ADDR, 0x8, sntv4_r08.as_int);
-    delay(10000);
+        code_addr += TEMP_CACHE_LEN << 2;
+        temp_cache_remainder = TEMP_CACHE_MAX_REMAINDER;
+    }
+}
 
-    sntv4_r08.TMR_RESETB = 1;
-    sntv4_r08.TMR_RESETB_DIV = 1;
-    sntv4_r08.TMR_RESETB_DCDC = 1;
-    mbus_remote_register_write(SNT_ADDR, 0x8, sntv4_r08.as_int);
-    delay(10000);	// need to wait for clock to stabilize
+void sample_temp() {
+    if(temp_cache_remainder < TEMP_RES) {
+        flush_temp_cache();
+    }
 
-    sntv4_r08.TMR_EN_SELF_CLK = 1;
-    sntv4_r09.TMR_SELF_EN = 1;
-    mbus_remote_register_write(SNT_ADDR, 0x8, sntv4_r08.as_int);
-    mbus_remote_register_write(SNT_ADDR, 0x9, sntv4_r09.as_int);
-    delay(100000);
+    // Take 3 bits above decimal point and 4 bits under
+    uint8_t log_temp = log2(snt_sys_temp_code) >> (8 - TEMP_RES); 
 
-    sntv4_r08.TMR_EN_OSC = 0;
-    mbus_remote_register_write(SNT_ADDR, 0x8, sntv4_r08.as_int);
-    delay(10000);
+    // store to temp cache
+    right_shift_arr(temp_cache, log_temp, TEMP_CACHE_LEN, TEMP_RES);
 
-    // sntv4_r19.WUP_THRESHOLD_EXT = 0;
-    // sntv4_r1A.WUP_THRESHOLD = 0;
-    mbus_remote_register_write(SNT_ADDR, 0x19, 0);
-    mbus_remote_register_write(SNT_ADDR, 0x1A, 0);
+    // increment temp index here to make sure we store the correct index
+    store_temp_index++;
 
-    sntv4_r17.WUP_ENABLE = 0;
-    mbus_remote_register_write(SNT_ADDR, 0x17, sntv4_r17.as_int);
-
-    sntv4_r17.WUP_ENABLE = 1;
-    sntv4_r17.WUP_CLK_SEL = 0;
-    sntv4_r17.WUP_LC_IRQ_EN = 0;
-    sntv4_r17.WUP_AUTO_RESET = 0;
-    mbus_remote_register_write(SNT_ADDR, 0x17, sntv4_r17.as_int);
+    if(store_temp_index > 47) {
+        store_temp_index = 0;   // resets when taking the midnight data
+    }
 }
 
 /**********************************************
@@ -1114,14 +1356,14 @@ static void update_lnt_timer() {
 static void set_lnt_timer() {
     // wake up at projected_end_time_in_sec
     // our wake up mechanism will be aligned to the second
-    mbus_write_message32(0xCE, xo_sys_time_in_sec);
-    mbus_write_message32(0xCE, projected_end_time_in_sec);
+    
+    // mbus_write_message32(0xCE, xo_sys_time_in_sec);
+    // mbus_write_message32(0xCE, projected_end_time_in_sec);
+
     uint32_t projected_end_time = projected_end_time_in_sec << XO_TO_SEC_SHIFT;
 
     update_system_time();
-    // FIXME: this actually overflows. Investigate if this crashes the system
-    // uint64_t temp = (projected_end_time - xo_sys_time) * xo_lnt_mplier; 
-    uint64_t temp = mult(projected_end_time -xo_sys_time, xo_lnt_mplier);
+    uint64_t temp = mult(projected_end_time - xo_sys_time, xo_lnt_mplier);
 
     lnt_meas_time = temp >> (MPLIER_SHIFT + XO_TO_SEC_SHIFT - 2); // the -2 is empirical
     // uint32_t val = (end_time - xo_sys_time_in_sec) * 4;
@@ -1129,48 +1371,38 @@ static void set_lnt_timer() {
     mbus_remote_register_write(LNT_ADDR, 0x03, lntv1a_r03.as_int);
     lnt_start();
 
-    mbus_write_message32(0xCF, temp & 0xFFFFFFFF);
-    mbus_write_message32(0xCF, temp >> 32);
+    // radio_data_arr[0] = projected_end_time_in_sec;
+    // radio_data_arr[1] = xo_sys_time_in_sec;
+    // radio_data_arr[2] = lnt_meas_time;
+    // send_beacon();
+
+    // mbus_write_message32(0xCF, temp & 0xFFFFFFFF);
+    // mbus_write_message32(0xCF, temp >> 32);
 }
 
-static uint16_t update_light_interval() {
-#ifdef LNT_MANUAL_PERIOD
-    uint8_t i;
-    for(i = 0; i < 11; i++) {
-    	if(xo_day_time_in_sec >= LNT_TIME_THRESH[i]
-		&& xo_day_time_in_sec < LNT_TIME_THRESH[i + 1]) {
-	    lnt_meas_time_mode = LNT_INTERVAL_IDX[i];
-	    return LNT_INTERVAL[lnt_meas_time_mode];
-	}
-    }
-    lnt_meas_time_mode = 3;
-    return LNT_INTERVAL[lnt_meas_time_mode];
-
-#endif
-#ifndef LNT_MANUAL_PERIOD
-    uint8_t i;
-    if(lnt_last_light > lnt_sys_light) {
-        for(i = 2; i >= lnt_cur_level; i--) {
-            if(lnt_sys_light > LNT_UPPER_THRESH[i]) {
-                lnt_cur_level = i + 1;
-                break;
-            }
+// set next wake up time, projected_end_time_in_sec == next_light_meas_time, then sample light
+void set_projected_end_time() {
+    uint32_t temp = next_light_meas_time - projected_end_time_in_sec;
+    if(temp <= XO_8_MIN) {
+        projected_end_time_in_sec = next_light_meas_time;
+        if(temp <= XO_1_MIN) {
+            lnt_counter_base = 0;
         }
+        else if(temp <= XO_2_MIN) {
+            lnt_counter_base = 1;
+        }
+        else {
+            lnt_counter_base = 3;
+        }
+    }
+    else if(temp <= XO_10_MIN) {
+        // set 8 minute buffer time to make sure wake up time is power of 2
+        projected_end_time_in_sec = next_light_meas_time - XO_8_MIN;
     }
     else {
-        for(i = 0; i < lnt_cur_level; i++) {
-            if(lnt_sys_light < LNT_LOWER_THRESH[i]) {
-                lnt_cur_level = i;
-                break;
-            }
-        }
+        // 32 minute interval case
+        projected_end_time_in_sec += XO_8_MIN;
     }
-    lnt_last_light = lnt_sys_light;
-    /// mbus_write_message32(0xDF, LNT_INTERVAL[lnt_cur_level]);
-    lnt_meas_time_mode = lnt_cur_level;
-    return LNT_INTERVAL[lnt_cur_level];
-#endif
-
 }
 
 /**********************************************
@@ -1947,11 +2179,28 @@ static inline void mrr_init() {
  * Initialization functions
  **********************************************/
 
+static void var_init() {
+    // initialize variables that could be corrupted at program time
+    lnt_counter_base = 0;
+
+    rot_idx = 0;
+    avg_light = 0;
+    next_sunrise = 0;
+    next_sunset = 0;
+
+    code_cache_remainder = CODE_CACHE_MAX_REMAINDER;
+    code_addr = 0;
+    has_header = false;
+
+    temp_cache_remainder = TEMP_CACHE_MAX_REMAINDER;
+
+    projected_end_time_in_sec = 0;
+}
+
 static void operation_init( void ) {
     // BREAKPOINT 0x01
     // mbus_write_message32(0xBA, 0x01);
 
-    // FIXME: turn WD back on?
     *TIMERWD_GO = 0x0; // Turn off CPU watchdog timer
     *REG_MBUS_WD = 0; // Disables Mbus watchdog timer
     config_timer32(0, 0, 0, 0);
@@ -1959,11 +2208,12 @@ static void operation_init( void ) {
     // Enumeration
     enumerated = ENUMID;
 
+    // timing variables don't belong to var_init
     xo_sys_time = 0;
     xo_sys_time_in_sec = 0;
     xo_day_time_in_sec = 0;
-    lnt_counter_base = 0;
-    lnt_meas_time_mode = 0;
+
+    var_init();
 
 #ifdef USE_MEM
     mbus_enumerate(MEM_ADDR);
@@ -2005,7 +2255,6 @@ static void operation_init( void ) {
     sntv4_r07.TSNS_INT_RPLY_REG_ADDR   = 0x00;
     mbus_remote_register_write(SNT_ADDR, 7, sntv4_r07.as_int);
 
-    // snt_clk_init();
     snt_state = SNT_IDLE;
     operation_temp_run();
 #endif
@@ -2032,12 +2281,6 @@ static void operation_init( void ) {
     mbus_write_message32(0xA7, get_timer_cnt_xo());
     update_system_time();
 #endif
-
-    mbus_write_message32(0xB5, start_hour_in_sec);
-    mbus_write_message32(0xB5, LNT_TIME_THRESH[2]);
-    mbus_write_message32(0xB5, PMU_ACTIVE_SETTINGS[0]);
-    mbus_write_message32(0xB5, LNT_INTERVAL[0]);
-    mbus_write_message32(0xB5, snt_op_max_count);
 }
 
 /**********************************************
@@ -2070,8 +2313,17 @@ static void operation_sleep( void ) {
 
 static void sys_err(uint32_t code)
 {
+
+    if(radio_debug) {
+        radio_data_arr[0] = code;
+        radio_data_arr[1] = 0xFFFF0000;
+        radio_data_arr[2] = 0xFFFFFFFF;
+        send_beacon();
+    }
+
     // mbus_write_message32(0xAF, code);
     operation_sleep();
+
     // operation_sleep_notimer();
 }
 
@@ -2086,6 +2338,7 @@ void set_goc_cmd() {
     // goc_component = (*GOC_DATA_IRQ >> 24) & 0xFF;
     // goc_func_id = (*GOC_DATA_IRQ >> 16) & 0xFF;
     // goc_data = *GOC_DATA_IRQ & 0xFFFF;
+    projected_end_time_in_sec = 0;
     goc_data_full = *GOC_DATA_IRQ;
     goc_state = 0;
     update_system_time();
@@ -2140,27 +2393,50 @@ void handler_ext_int_reg3( void ) { // REG3
  **********************************************/
 
 void radio_full_data() {
-    uint16_t i;
-    // mbus_write_message32(0xB0, mem_light_len);
-    for(i = 0; i < mem_light_len; i += 12) {
-	reset_radio_data_arr();
-	set_halt_until_mbus_trx();
-	mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*) (MEM_LIGHT_ADDR + i), PRE_ADDR, radio_data_arr, 2);
-	set_halt_until_mbus_tx();
-	// radio_data_arr[2] &= 0x0000FFFF;
+    uint16_t addr;
+    pmu_setting_temp_based(1);
+    uint8_t packet_num = 0;
+    while(addr < code_addr) {
+        // read out data and check if it's temp or light
+        mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*) addr, PRE_ADDR, code_cache, CODE_CACHE_LEN - 1);
 
-	mrr_send_radio_data(0);
-    }
+        if(code_cache[0] & 0x80000000) {
+            // is light, radio out four times
+            uint8_t i;
+            for(i = 0; i < 4; i++) {
+                // first 96 bits are read out
+                radio_data_arr[2] = code_cache[0];
+                radio_data_arr[1] = code_cache[1];
+                radio_data_arr[0] = code_cache[2];
 
-    // mbus_write_message32(0xB1, mem_temp_len);
-    for(i = 0; i < mem_temp_len; i += 12) {
-	reset_radio_data_arr();
-	set_halt_until_mbus_trx();
-	mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*) (MEM_TEMP_ADDR + i), PRE_ADDR, radio_data_arr, 2);
-	set_halt_until_mbus_tx();
-	// radio_data_arr[2] &= 0x0000FFFF;
+                // clear out top 16 bits 
+                radio_data_arr[2] &= 0x0000FFFF;
 
-	mrr_send_radio_data((i + 12 >= mem_temp_len));
+                // right shift to make space for packet header
+                right_shift_arr(radio_data_arr, 0, 3, LIGHT_HEADER_SIZE);
+
+                // insert header
+                radio_data_arr[2] |= (1 << 15) | (CHIP_ID << 10) | (packet_num << 4);
+                packet_num = (packet_num + 1) & 0x3F;
+
+                mrr_send_radio_data(0);
+
+                // left shift a new packet over
+                right_shift_arr(code_cache, 0, 3, -LIGHT_CONTENT_SIZE);
+            }
+            addr += CODE_CACHE_LEN << 2;
+        }
+        else {
+            // is temp, radio out temp packet
+            // no need to insert header because it is already set
+            radio_data_arr[2] = code_cache[0];
+            radio_data_arr[1] = code_cache[1];
+            radio_data_arr[0] = code_cache[2];
+
+            mrr_send_radio_data(0);
+
+            addr += TEMP_CACHE_LEN << 2;
+        }
     }
 }
 
@@ -2192,7 +2468,8 @@ uint8_t set_send_enable() {
 
 void send_beacon() {
     pmu_setting_temp_based(1);
-    mrr_send_radio_data(1);
+    // mrr_send_radio_data(1);
+    mrr_send_radio_data(0); // FIXME: change this line in real code
     pmu_setting_temp_based(0);
 }
 
@@ -2229,37 +2506,12 @@ int main() {
     operation_temp_run();
     pmu_adc_read_latest();
 
-    // mrr_send_enable = 1;
-    // if(snt_sys_temp_code < PMU_TEMP_THRESH[1] 
-    //     || (read_data_batadc & 0xFF) > MRR_VOLT_THRESH) {
-    //     mrr_send_enable = 0;
-    // }
     mrr_send_enable = set_send_enable();
 
-    // if(goc_component == 0x01) {
-    //     op_counter++;
-    //     goc_state = 0;
-
-    //     if(mrr_send_enable) {
-    //         pmu_setting_temp_based(1);
-    //         reset_radio_data_arr();
-    //         radio_data_arr[0] = lnt_sys_light & 0xFFFFFFFF;
-    //         radio_data_arr[1] = lnt_sys_light >> 32;
-    //         radio_data_arr[2] = (op_counter & 0xF) << 8 | (0x40);
-    //         mrr_send_radio_data(0);
-    //         reset_radio_data_arr();
-    //         radio_data_arr[0] = log2(lnt_sys_light);
-    //         radio_data_arr[2] = (op_counter & 0xF) << 8 | (0x40);
-    //         mrr_send_radio_data(1);
-    //         pmu_setting_temp_based(0);
-    //     }
-
-    //     set_next_time(STORE_LNT, 706); // 56.25*2 sec
-
-    // }
-    // else if(goc_component == 0x04) {
-    
     if(!(goc_data_full & 0x80000000)) {
+
+        var_init();
+
         // characterization code
 	uint8_t cmd = (goc_data_full >> 28) & 0x7;
         reset_radio_data_arr();
@@ -2267,7 +2519,7 @@ int main() {
             // send alive beacon
 	    pmu_setting_temp_based(1);
 	    radio_data_arr[2] = CHIP_ID << 8;
-	    radio_data_arr[1] = (mem_light_len << 24) | (mem_temp_len << 16) | xo_sys_time_in_sec;
+	    radio_data_arr[1] = 0;
 	    radio_data_arr[0] = (snt_sys_temp_code << 12) | read_data_batadc;
 	    mrr_send_radio_data(1);
         }
@@ -2326,7 +2578,7 @@ int main() {
             // send radio and sleep
             pmu_setting_temp_based(1);
 	    radio_data_arr[2] = CHIP_ID << 8;
-	    radio_data_arr[1] = (mem_light_len << 24) | (mem_temp_len << 16) | xo_sys_time_in_sec;
+	    radio_data_arr[1] = 0;
 	    radio_data_arr[0] = (snt_sys_temp_code << 12) | read_data_batadc;
 	    mrr_send_radio_data(1);
 	    pmu_setting_temp_based(0);
@@ -2355,24 +2607,86 @@ int main() {
             // set 8 minute timers
 	    if(!goc_state) {
 	    	goc_state = 1;
-		projected_end_time_in_sec = xo_sys_time_in_sec + LNT_INTERVAL[2];
+		projected_end_time_in_sec = xo_sys_time_in_sec + XO_8_MIN;
 	    }
 	    else {
-		projected_end_time_in_sec += LNT_INTERVAL[2];
+		projected_end_time_in_sec += XO_8_MIN;
 	    }
         }
         else if(cmd == 6) {
             while(1);
         }
         else if(cmd == 7) {
-	    // used to refine xo_lnt_mplier
-	    if(!goc_state) {
-	    	goc_state = 1;
-		projected_end_time_in_sec = xo_sys_time_in_sec + 0x20;
-	    }
-	    else {
-		projected_end_time_in_sec += 0x20;
-	    }
+            // extended set of functions
+            cmd = (goc_data_full >> 24) & 0xF;
+            if(cmd == 0) {
+                // set xo_day_time_in_sec in minutes
+                xo_day_time_in_sec = (goc_data_full & 0x7FF) * 60;
+            }
+            else if(cmd == 1) {
+                // set current sunrise and sunset times in minutes
+                cur_sunset = (goc_data_full & 0x7FF) * 60;
+                cur_sunrise = ((goc_data_full >> 11) & 0x7FF) * 60;
+            }
+            else if(cmd == 2) {
+                // Testing initialization
+                if(xo_day_time_in_sec < cur_sunrise - EDGE_MARGIN2 - XO_32_MIN) {
+                    day_state = NIGHT;
+                }
+                else if(xo_day_time_in_sec < cur_sunset - EDGE_MARGIN1 - XO_32_MIN){
+                    day_state = NOON;
+                }
+                else {
+                    day_state = NIGHT;
+                }
+
+                // set new state variables based on day_state
+                set_new_state();
+
+                radio_data_arr[0] = cur_sunset;
+                radio_data_arr[1] = cur_sunrise;
+                radio_data_arr[2] = day_state;
+                send_beacon();
+
+                radio_data_arr[0] = next_sunrise;
+                radio_data_arr[1] = next_sunset;
+                radio_data_arr[2] = 0x100;
+                send_beacon();
+
+                radio_data_arr[0] = cur_edge;
+                radio_data_arr[1] = next_sunset;
+                radio_data_arr[2] = 0x101;
+                send_beacon();
+
+                radio_data_arr[0] = day_state_end_time;
+                radio_data_arr[1] = day_state_start_time;
+                radio_data_arr[2] = xo_day_time_in_sec;
+                send_beacon();
+
+                uint32_t store_temp_day_time = 0;
+                store_temp_index = 0xFF; 
+                while(store_temp_day_time < day_state_start_time) {
+                    store_temp_day_time += XO_30_MIN;
+                    store_temp_index++;
+                    if(store_temp_index > 47) {
+                        // Error state
+                        break;
+                    }
+                }
+                
+                radio_data_arr[0] = store_temp_day_time;
+                radio_data_arr[1] = store_temp_index;
+                radio_data_arr[2] = 0;
+                send_beacon();
+
+            }
+            else if(cmd == 3) {
+                // send version number
+                radio_data_arr[0] = xo_day_time_in_sec;
+                radio_data_arr[1] = VERSION_NUM;
+                radio_data_arr[2] = CHIP_ID << 8;
+                send_beacon();
+            }
         }
 	pmu_setting_temp_based(0);
     }
@@ -2384,116 +2698,119 @@ int main() {
 #define STATE_WAIT 4
 #define STATE_VERIFY 5
         if(goc_state == STATE_INIT) {
+            // Need current day time in minutes 11 bits
+            // duration in days 7 bits
+            // cur_sunrise in minutes 11 bits
+            // cur_sunset in minutes 11 bits
+            // option to radio out every time
+
+            // reset all variables so that the system has a clean start
+            var_init();
+
             goc_state = STATE_VERIFY;
+
+            radio_debug = (goc_data_full >> 7) & 0x1;  // 1 bit radio out option
+            max_day_count = goc_data_full & 0x7F;    // 7 bits duration in days
+            day_count = 0;
+
+            // initialize day_state
+            if(xo_day_time_in_sec < cur_sunrise - EDGE_MARGIN2 - XO_32_MIN) {
+                day_state = NIGHT;
+            }
+            else if(xo_day_time_in_sec < cur_sunset - EDGE_MARGIN1 - XO_32_MIN){
+                day_state = NOON;
+            }
+            else {
+                day_state = NIGHT;
+            }
+
+            // set new state variables based on day_state
+            set_new_state();
+
+            // find suitable temp storage time based on day_state_start_time
+            uint32_t store_temp_day_time = 0;
+
+            // this variable should always reflect the last temp data stored
+            store_temp_index = 0xFF; 
+            while(store_temp_day_time < day_state_start_time) {
+                store_temp_day_time += XO_30_MIN;
+                store_temp_index++;
+                // if(store_temp_index > 47) {
+                //     // Error state
+                //     break;
+                // }
+            }
+            store_temp_timestamp = store_temp_day_time + xo_sys_time_in_sec - xo_day_time_in_sec;
+
+            projected_end_time_in_sec = xo_sys_time_in_sec + XO_2_MIN;
             op_counter = 0;
-
-            uint16_t cur_day_time_in_min = (goc_data_full >> 20) & 0x7FF;
-            xo_day_time_in_sec = cur_day_time_in_min * 60;
-	    start_hour_in_sec = ((goc_data_full >> 15) & 0x1F) * 3600;
-            // snt_op_max_count = (goc_data_full >> 8) & 0x7F;
-            snt_op_max_count = 192;
-	    radio_beacon_counter = (goc_data_full >> 5) & 0x7;
-	    radio_after_done = (goc_data_full >> 4) & 1;
-
-            // set start time to be used after the 4 beacons
-	    mbus_write_message32(0xD4, xo_day_time_in_sec);
-	    mbus_write_message32(0xD4, start_hour_in_sec);
-            start_hour_in_sec = xo_sys_time_in_sec + start_hour_in_sec - xo_day_time_in_sec;
-	    mbus_write_message32(0xD4, start_hour_in_sec);
-
-            // start beacons
-            projected_end_time_in_sec = xo_sys_time_in_sec + 120;
-
-	    mem_temp_len = 0;
-	    mem_light_len = 0;
-	    light_packet_num = 0;
-	    temp_packet_num = 0;
-            radio_counter = 0;
-            store_lnt_counter = 0;
         }
 	else if(goc_state == STATE_VERIFY) {
 	    if(++op_counter < 4) {
-		projected_end_time_in_sec = xo_sys_time_in_sec + 120;
+		projected_end_time_in_sec += XO_2_MIN;
 	    }
 	    else {
-		goc_state = STATE_START;
-	    	op_counter = 0;
-		projected_end_time_in_sec = start_hour_in_sec;
+		goc_state = STATE_COLLECT;
+                set_projected_end_time();
 	    }
 
-            radio_data_arr[0] = projected_end_time_in_sec;
-	    radio_data_arr[1] = xo_sys_time_in_sec;
-	    radio_data_arr[2] = CHIP_ID << 8;
+            if(op_counter == 1) {
+                radio_data_arr[0] = xo_day_time_in_sec;
+                radio_data_arr[1] = xo_sys_time_in_sec;
+                radio_data_arr[2] = (CHIP_ID << 10) | op_counter;
+            }
+            else if(op_counter == 2) {
+                radio_data_arr[0] = cur_sunset;
+                radio_data_arr[1] = cur_sunrise;
+                radio_data_arr[2] = (CHIP_ID << 10) | op_counter;
+            }
+            else if(op_counter == 3) {
+                radio_data_arr[0] = max_day_count;
+                radio_data_arr[1] = radio_debug;
+                radio_data_arr[2] = (CHIP_ID << 10) | op_counter;
+            }
+            else if(op_counter == 4) {
+                radio_data_arr[0] = next_light_meas_time;
+                radio_data_arr[1] = xo_sys_time_in_sec;
+                radio_data_arr[2] = (CHIP_ID << 10) | op_counter;
+            }
 	    // radio_data_arr[2] = xo_lnt_mplier;
 	    send_beacon();
 	}
-	else if(goc_state == STATE_START) {
-	    goc_state = STATE_COLLECT;
-            store_temp_timestamp_in_sec = start_hour_in_sec + 1800; // first temp storage occurs after 30 minutes
-            // store_temp_timestamp_in_sec = start_hour_in_sec + 240; // first temp storage occurs after 4 minutes
-
-            uint16_t interval = update_light_interval();
-            if(interval <= LNT_INTERVAL[2]) {
-                projected_end_time_in_sec = start_hour_in_sec + interval;
-                store_lnt_counter = 1;  // store light the next time we wake up
-            }
-            else {
-                projected_end_time_in_sec = start_hour_in_sec + LNT_INTERVAL[2];
-                store_lnt_counter = 4; // store light after we wake up for 4 times, each time is 8 minutes
-            }
-	}
         else if(goc_state == STATE_COLLECT) {
 
-	    radio_data_arr[0] = CHIP_ID << 20 | snt_sys_temp_code << 8 | (read_data_batadc & 0xFF);
-	    radio_data_arr[1] = xo_sys_time_in_sec;
-	    // radio_data_arr[2] = lnt_meas_time;
-	    radio_data_arr[2] = xo_lnt_mplier;
-	    mrr_send_radio_data(1);
+            if(radio_debug && xo_sys_time_in_sec >= next_radio_debug_time) {
+                next_radio_debug_time += XO_240_MIN;
 
-            if(op_counter >= snt_op_max_count) {
-                store_temp();       // store everything in temp_code_storage
-                store_light();
+                radio_data_arr[0] = snt_sys_temp_code;
+                radio_data_arr[1] = xo_sys_time_in_sec;
+                radio_data_arr[2] = CHIP_ID << 8;
+                send_beacon();
+            }
+
+            if(day_count >= max_day_count && xo_day_time_in_sec >= MID_DAY_TIME) {
+                flush_temp_cache();       // store everything in temp_code_storage
+                flush_code_cache();
                 update_system_time();
-		if(radio_after_done) {
-                    goc_state = STATE_RADIO;
-		}
-		else {
-		    pmu_set_sleep_low();
-	            operation_sleep();
-		}
+
+                goc_state = STATE_RADIO;
                 projected_end_time_in_sec += MRR_SIGNAL_PERIOD;
+                radio_beacon_counter = 0;
+                radio_counter = 0;
             }
 	    else {
-                if(xo_sys_time_in_sec >= store_temp_timestamp_in_sec) {
-                    store_temp_timestamp_in_sec += 1800;    // increment by 30 minutes
-                    op_counter++;
-                    compress_temp();
-		    mbus_write_message32(0xD8, op_counter);
-                }
-		mbus_write_message32(0xD9, store_temp_timestamp_in_sec);
+                if(xo_sys_time_in_sec >= store_temp_timestamp) {
+                    store_temp_timestamp += XO_30_MIN;    // increment by 30 minutes
 
-                store_lnt_counter--;
-                if(!store_lnt_counter) {
-                    // store lnt
-		    mbus_write_message32(0xDA, lnt_sys_light & 0xFFFFFFFF);
-                    if(compress_light() != 0) {
-                        compress_light();
-                    }
+                    sample_temp();
 
-                    uint16_t interval = update_light_interval();
-                    if(interval <= LNT_INTERVAL[2]) {
-                        projected_end_time_in_sec += interval;
-                        store_lnt_counter = 1;  // store light the next time we wake up
-                    }
-                    else {
-                        projected_end_time_in_sec += LNT_INTERVAL[2];
-                        store_lnt_counter = 4; // store light after we wake up for 4 times, each time is 8 minutes
-                    }
                 }
-                else {
-                    // interval must be 32 minutes, wait for another 8 minutes
-                    projected_end_time_in_sec += LNT_INTERVAL[2];
+                
+                if(projected_end_time_in_sec == next_light_meas_time) {
+                    sample_light();
                 }
+
+                set_projected_end_time();
 	    }
 
         }
@@ -2501,7 +2818,7 @@ int main() {
             if(xo_check_is_day() && mrr_send_enable) { // fix this for testing
                 pmu_setting_temp_based(1);
                 // send data
-                if(++radio_beacon_counter >= 6) { // FIXME: change to 6
+                if(++radio_beacon_counter >= 6) {
                     radio_beacon_counter = 0;
 
                     radio_full_data();
@@ -2530,18 +2847,11 @@ int main() {
 
     if(projected_end_time_in_sec > xo_sys_time_in_sec) {
         set_lnt_timer();
-
-	// set shift amount
-	if(lnt_meas_time_mode < 2) {
-	    lnt_counter_base = lnt_meas_time_mode;
-	}
-	else {
-	    lnt_counter_base = 3;
-	}
     }
     else {
 	// set this as a sentry to avoid updating multiplier
-    	projected_end_time_in_sec = 0;
+        
+        projected_end_time_in_sec = 0;
     }
 
     pmu_setting_temp_based(2);
