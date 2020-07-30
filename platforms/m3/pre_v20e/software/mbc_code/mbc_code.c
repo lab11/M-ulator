@@ -2195,6 +2195,7 @@ static void var_init() {
     temp_cache_remainder = TEMP_CACHE_MAX_REMAINDER;
 
     projected_end_time_in_sec = 0;
+    next_radio_debug_time = 0;
 }
 
 static void operation_init( void ) {
@@ -2780,7 +2781,8 @@ int main() {
         else if(goc_state == STATE_COLLECT) {
 
             if(radio_debug && xo_sys_time_in_sec >= next_radio_debug_time) {
-                next_radio_debug_time += XO_240_MIN;
+                // next_radio_debug_time += XO_240_MIN;
+                next_radio_debug_time += 0; // FIXME: for 1 day test
 
                 radio_data_arr[0] = snt_sys_temp_code;
                 radio_data_arr[1] = xo_sys_time_in_sec;
