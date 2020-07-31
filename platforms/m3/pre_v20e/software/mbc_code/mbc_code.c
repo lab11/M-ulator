@@ -2782,7 +2782,8 @@ int main() {
         else if(goc_state == STATE_COLLECT) {
 
             if(radio_debug && xo_sys_time_in_sec >= next_radio_debug_time) {
-                next_radio_debug_time += XO_240_MIN;
+                // next_radio_debug_time += XO_240_MIN;
+                next_radio_debug_time += 0;
 
                 radio_data_arr[0] = snt_sys_temp_code;
                 radio_data_arr[1] = xo_sys_time_in_sec;
@@ -2852,7 +2853,6 @@ int main() {
     }
     else {
 	// set this as a sentry to avoid updating multiplier
-        
         projected_end_time_in_sec = 0;
     }
 
