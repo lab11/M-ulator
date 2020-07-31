@@ -76,6 +76,7 @@
  *    Starting timestamp uses 4 fewers bits of resolution but 4 more bits of MSB
  *    Fixed variable initialization corruption by adding var_init()
  *    2020/7/29 Survived 1 day test but need to implement radio out
+ *    Fixed not initializing starting address when radioing out
  *
  *
  ******************************************************************************************/
@@ -2394,7 +2395,7 @@ void handler_ext_int_reg3( void ) { // REG3
  **********************************************/
 
 void radio_full_data() {
-    uint16_t addr;
+    uint16_t addr = 0;
     pmu_setting_temp_based(1);
     uint8_t packet_num = 0;
     while(addr < code_addr) {
@@ -2781,8 +2782,7 @@ int main() {
         else if(goc_state == STATE_COLLECT) {
 
             if(radio_debug && xo_sys_time_in_sec >= next_radio_debug_time) {
-                // next_radio_debug_time += XO_240_MIN;
-                next_radio_debug_time += 0; // FIXME: for 1 day test
+                next_radio_debug_time += XO_240_MIN;
 
                 radio_data_arr[0] = snt_sys_temp_code;
                 radio_data_arr[1] = xo_sys_time_in_sec;
