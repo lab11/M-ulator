@@ -4,7 +4,7 @@
  * 		This is the base code that all will share after version 5.1
  *                                          - PREv20E / PMUv11 / SNTv4 / FLPv3S / MRRv10 / MEMv1
  ******************************************************************************************
- * Current version: 5.2
+ * Current version: 5.2.1
  *
  * v1: draft version; not tested on chip
  *
@@ -77,6 +77,11 @@
  *    Fixed variable initialization corruption by adding var_init()
  *    2020/7/29 Survived 1 day test but need to implement radio out
  *    Fixed not initializing starting address when radioing out
+ *
+ *  v5.2.1:
+ *    Fixed cleaning up radio_data_arr[2]
+ *    Correctly set halt to trx when reading MEM data
+ *    Fixed light radio out shifting by adding temp arr
  *
  *
  ******************************************************************************************/
@@ -268,6 +273,7 @@ volatile uint32_t radio_packet_count;
 
 #define XO_1_MIN 60
 #define XO_2_MIN 120
+#define XO_6_MIN 360
 #define XO_8_MIN 480
 #define XO_10_MIN 600
 #define XO_16_MIN 960
@@ -658,10 +664,13 @@ void flush_code_cache() {
         right_shift_arr(code_cache, 0, CODE_CACHE_LEN, -code_cache_remainder);
         // The beginning of code cache should always be 1
         // Mark as light
+        code_cache[0] &= 0x0000FFFF;    // FIXME: this line is not needed
         code_cache[0] |= 0x80000000;
+
         mbus_copy_mem_from_local_to_remote_bulk(MEM_ADDR, (uint32_t*) code_addr, code_cache, CODE_CACHE_LEN - 1);
         code_addr += CODE_CACHE_LEN << 2;
         code_cache_remainder = CODE_CACHE_MAX_REMAINDER;
+
     }
 }
 
@@ -750,7 +759,9 @@ uint16_t read_next_from_proc_cache() {
         if(proc_cache_remainder < 11) {
             // decrement address before reading because we start on an incorrect address
             cache_addr -= PROC_CACHE_LEN << 2;
+            set_halt_until_mbus_trx();
             mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*) cache_addr, PRE_ADDR, proc_cache, PROC_CACHE_LEN - 1);
+            set_halt_until_mbus_tx();
             proc_cache_remainder = PROC_CACHE_MAX_REMAINDER;
         }
         res = proc_cache[PROC_CACHE_LEN - 1] & 0x7FF;
@@ -759,7 +770,9 @@ uint16_t read_next_from_proc_cache() {
     }
     else {
         if(proc_cache_remainder < 11) {
+            set_halt_until_mbus_trx();
             mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*) cache_addr, PRE_ADDR, proc_cache, PROC_CACHE_LEN - 1);
+            set_halt_until_mbus_tx();
             // increment address after we read from memory because we start on the correct addr
             cache_addr += PROC_CACHE_LEN << 2;
             proc_cache_remainder = PROC_CACHE_MAX_REMAINDER;
@@ -808,6 +821,7 @@ void set_new_state() {
     else if(day_state == NOON) {
         // FIXME: Using xo_day_time_in_sec will make everything not align to the minute
         cur_edge = xo_day_time_in_sec + XO_32_MIN;
+        // cur_edge = xo_day_time_in_sec + XO_16_MIN;  // FIXME: debug
         day_state_start_time = cur_edge;
         day_state_end_time = cur_sunset - EDGE_MARGIN1 - XO_10_MIN;
     }
@@ -924,7 +938,7 @@ void sample_light() {
 
     if(new_state) {
         if(day_state != NIGHT) {
-            // resample and store
+            // resample and stoie
             uint16_t starting_idx = 0;
             int16_t start, end, sign;
             uint32_t sample_time;
@@ -1136,7 +1150,6 @@ void flush_temp_cache() {
         right_shift_arr(temp_cache, 0, TEMP_CACHE_LEN, -temp_cache_remainder);
         // add header
         // Use the space for CRC to mark temp packet
-        temp_cache[0] = 0;
         temp_cache[0] = (CHIP_ID << 10) 
                         | ((day_count & 0xF) << 5) 
                         | store_temp_index;
@@ -1156,8 +1169,9 @@ void sample_temp() {
     // Take 3 bits above decimal point and 4 bits under
     uint8_t log_temp = log2(snt_sys_temp_code) >> (8 - TEMP_RES); 
 
-    // store to temp cache
-    right_shift_arr(temp_cache, log_temp, TEMP_CACHE_LEN, TEMP_RES);
+    // left shift into temp cache
+    right_shift_arr(temp_cache, log_temp, TEMP_CACHE_LEN, -TEMP_RES);
+    temp_cache_remainder -= TEMP_RES;
 
     // increment temp index here to make sure we store the correct index
     store_temp_index++;
@@ -1976,6 +1990,10 @@ static void mrr_send_radio_data(uint8_t last_packet) {
     // if(!mrr_send_enable) {
     //     return;
     // }
+
+
+    // clean up radio_data_arr[2]
+    radio_data_arr[2] = radio_data_arr[2] & 0x0000FFFF;
 	    
 #ifndef USE_RAD
     mbus_write_message32(0xAA, 0xAAAAAAAA);
@@ -2116,6 +2134,7 @@ static inline void mrr_init() {
     //mrr_freq_hopping = 5;
     //mrr_freq_hopping_step = 4;
     mrr_freq_hopping = 2;
+    // mrr_freq_hopping = 3; // FIXME: debug
     mrr_freq_hopping_step = 4; // determining center freq
 
     mrr_cfo_val_fine_min = 0x0000;
@@ -2398,33 +2417,43 @@ void radio_full_data() {
     uint16_t addr = 0;
     pmu_setting_temp_based(1);
     uint8_t packet_num = 0;
+
     while(addr < code_addr) {
         // read out data and check if it's temp or light
+        set_halt_until_mbus_trx();
         mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*) addr, PRE_ADDR, code_cache, CODE_CACHE_LEN - 1);
+        set_halt_until_mbus_tx();
 
         if(code_cache[0] & 0x80000000) {
             // is light, radio out four times
             uint8_t i;
             for(i = 0; i < 4; i++) {
-                // first 96 bits are read out
-                radio_data_arr[2] = code_cache[0];
-                radio_data_arr[1] = code_cache[1];
-                radio_data_arr[0] = code_cache[2];
-
+                // first 96 bits are read out using temporary arr
+                // This is needed because radio_data_arr is big endian
+                uint32_t temp_arr[3];
+                temp_arr[0] = code_cache[0];
+                temp_arr[1] = code_cache[1];
+                temp_arr[2] = code_cache[2];
+                
                 // clear out top 16 bits 
-                radio_data_arr[2] &= 0x0000FFFF;
+                temp_arr[0] &= 0x0000FFFF;
 
                 // right shift to make space for packet header
-                right_shift_arr(radio_data_arr, 0, 3, LIGHT_HEADER_SIZE);
-
+                right_shift_arr(temp_arr, 0, 3, LIGHT_HEADER_SIZE);
+                
                 // insert header
-                radio_data_arr[2] |= (1 << 15) | (CHIP_ID << 10) | (packet_num << 4);
+                temp_arr[0] |= (1 << 15) | (CHIP_ID << 10) | (packet_num << 4);
                 packet_num = (packet_num + 1) & 0x3F;
+
+                // assign to radio arr
+                radio_data_arr[2] = temp_arr[0];
+                radio_data_arr[1] = temp_arr[1];
+                radio_data_arr[0] = temp_arr[2];
 
                 mrr_send_radio_data(0);
 
                 // left shift a new packet over
-                right_shift_arr(code_cache, 0, 3, -LIGHT_CONTENT_SIZE);
+                right_shift_arr(code_cache, 0, CODE_CACHE_LEN, -LIGHT_CONTENT_SIZE);
             }
             addr += CODE_CACHE_LEN << 2;
         }
@@ -2472,7 +2501,7 @@ void send_beacon() {
     pmu_setting_temp_based(1);
     // mrr_send_radio_data(1);
     mrr_send_radio_data(0); // FIXME: change this line in real code
-    pmu_setting_temp_based(0);
+    // pmu_setting_temp_based(0);   // FIXME: set this line back
 }
 
 int main() {
@@ -2689,6 +2718,13 @@ int main() {
                 radio_data_arr[2] = CHIP_ID << 8;
                 send_beacon();
             }
+            else if(cmd == 4) {
+                // debug, remove later
+                radio_data_arr[0] = code_addr;
+                radio_data_arr[1] = 0;
+                radio_data_arr[2] = CHIP_ID << 8;
+                send_beacon();
+            }
         }
 	pmu_setting_temp_based(0);
     }
@@ -2746,6 +2782,7 @@ int main() {
 
             projected_end_time_in_sec = xo_sys_time_in_sec + XO_2_MIN;
             op_counter = 0;
+            // op_counter = 2; // FIXME: delete this
         }
 	else if(goc_state == STATE_VERIFY) {
 	    if(++op_counter < 4) {
@@ -2772,7 +2809,7 @@ int main() {
                 radio_data_arr[2] = (CHIP_ID << 10) | op_counter;
             }
             else if(op_counter == 4) {
-                radio_data_arr[0] = next_light_meas_time;
+                radio_data_arr[0] = store_temp_timestamp;
                 radio_data_arr[1] = xo_sys_time_in_sec;
                 radio_data_arr[2] = (CHIP_ID << 10) | op_counter;
             }
@@ -2780,17 +2817,7 @@ int main() {
 	    send_beacon();
 	}
         else if(goc_state == STATE_COLLECT) {
-
-            if(radio_debug && xo_sys_time_in_sec >= next_radio_debug_time) {
-                // next_radio_debug_time += XO_240_MIN;
-                next_radio_debug_time += 0;
-
-                radio_data_arr[0] = snt_sys_temp_code;
-                radio_data_arr[1] = xo_sys_time_in_sec;
-                radio_data_arr[2] = CHIP_ID << 8;
-                send_beacon();
-            }
-
+            
             if(day_count >= max_day_count && xo_day_time_in_sec >= MID_DAY_TIME) {
                 flush_temp_cache();       // store everything in temp_code_storage
                 flush_code_cache();
@@ -2798,8 +2825,19 @@ int main() {
 
                 goc_state = STATE_RADIO;
                 projected_end_time_in_sec += MRR_SIGNAL_PERIOD;
+                // projected_end_time_in_sec += XO_2_MIN;  // FIXME: debug
                 radio_beacon_counter = 0;
                 radio_counter = 0;
+
+                radio_data_arr[0] = temp_cache_remainder;
+                radio_data_arr[1] = code_addr;
+                radio_data_arr[2] = 0x1234;
+	        send_beacon();
+
+                radio_data_arr[0] = projected_end_time_in_sec;
+                radio_data_arr[1] = xo_sys_time_in_sec;
+                radio_data_arr[2] = 0xAAAA;
+	        send_beacon();
             }
 	    else {
                 if(xo_sys_time_in_sec >= store_temp_timestamp) {
@@ -2816,12 +2854,28 @@ int main() {
                 set_projected_end_time();
 	    }
 
+            if(radio_debug && xo_sys_time_in_sec >= next_radio_debug_time) {
+                // next_radio_debug_time += XO_240_MIN;
+                next_radio_debug_time += 0; // FIXME: debug
+
+                // radio_data_arr[0] = snt_sys_temp_code;
+                // radio_data_arr[1] = xo_sys_time_in_sec;
+                // radio_data_arr[2] = CHIP_ID << 8;
+                // send_beacon();
+                
+                radio_data_arr[0] = projected_end_time_in_sec;
+                radio_data_arr[1] = xo_sys_time_in_sec;
+                radio_data_arr[2] = CHIP_ID << 8;
+                send_beacon();
+            }
+
         }
         else if(goc_state == STATE_RADIO) {
             if(xo_check_is_day() && mrr_send_enable) { // fix this for testing
                 pmu_setting_temp_based(1);
                 // send data
                 if(++radio_beacon_counter >= 6) {
+                // if(++radio_beacon_counter >= 0) {   // FIXME: debug
                     radio_beacon_counter = 0;
 
                     radio_full_data();
@@ -2829,10 +2883,14 @@ int main() {
                 else {
                     // send beacon
                     // If bottom bits are all 1s, then it must be beacon
-                    radio_data_arr[2] = CHIP_ID << 8;
-                    radio_data_arr[1] = (read_data_batadc << 24) | snt_sys_temp_code;
-                    radio_data_arr[0] = (radio_beacon_counter << 28) | (radio_counter << 20) | (xo_day_time_in_sec << 11) | 0x7FF;
+                    // radio_data_arr[2] = CHIP_ID << 8;
+                    // radio_data_arr[1] = (read_data_batadc << 24) | snt_sys_temp_code;
+                    // radio_data_arr[0] = (radio_beacon_counter << 28) | (radio_counter << 20) | (xo_day_time_in_sec << 11) | 0x7FF;
 
+                    // FIXME: debug
+                    radio_data_arr[2] = CHIP_ID << 8;
+                    radio_data_arr[1] = 0xFFFFFFFF;
+                    radio_data_arr[0] = code_addr;
                     mrr_send_radio_data(1);
                 }
                 pmu_setting_temp_based(0);
@@ -2842,6 +2900,7 @@ int main() {
             }
 
             projected_end_time_in_sec += MRR_SIGNAL_PERIOD;
+            // projected_end_time_in_sec += XO_2_MIN;  // FIXME: debug
         }
     }
     // }
