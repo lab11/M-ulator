@@ -28,35 +28,30 @@ understand internal core design and higher-level MCU usage.
     Core selection is achieved using tup variants. By default, a pipelined
     version of every supported core is created, see the simulator/configs/
     directory for other options.
-    * _The simulator is licensed under the GPLv3_
 
   * The platforms directory contains additional support for the various cores.
     In particular, it contains software desgined to run on each of the unique
     cores supported by the simulator. In addition, the M3 platform contains some
     tools for programming M3 chips and in-circuit emulation.
-    * _The platforms are licensed under the MIT/XWin license_
 
   * The docs/ directories hold the course materials and some amount of dated
     information on the simulator design. It is not particularly useful currently
-    * _Documentation, course materials licensed under the MIT/Xwin license_
 
 ********************************************************************************
 
-## Known Issues
 
-  * There is little documentation currently available. Hopefully things are
-    mostly intuitive / have good error messages. Github issues are appreciated
-    if there are any particular pain points that need addressing.
-  * Interrupts may be unreliable -- the code path is not heavily tested, though
-    no known bugs currently exist.
-  * Course documentation is out of date, does not reflect current projects
-      - Or even all of the original projects for that matter
+License
+-------
 
-## Future Features / Goals
+Licensed under either of
 
-  * General clean-up of configuration options
-  * Larger / more interesting peripheral library
-  * Better gdb / recovery semantics
-      - This likely correlates with BusFault-style work
-      - This is why there is a temporary imbalance in memory semantics,
-        supporting the try_read_byte function for gdb
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or
+  http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or
+  http://opensource.org/licenses/MIT)
+
+at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall
+be dual licensed as above, without any additional terms or conditions.
