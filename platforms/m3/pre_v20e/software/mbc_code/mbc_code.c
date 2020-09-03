@@ -83,12 +83,17 @@
  *    Correctly set halt to trx when reading MEM data
  *    Fixed light radio out shifting by adding temp arr
  *
+ *  v5.2.2
+ *    Fixed SAR radio changes to only toggle bit 13 to prevent current spikes
+ *    Disabled watchdog timers while resampling to prevent timeout
+ *    Added temperature restrictions back into radio out enabling   (temporary solution, using parameters from part 24 in first Mexico run)
+ *
  *
  ******************************************************************************************/
 
-#define VERSION_NUM 0x521
+#define VERSION_NUM 0x522
 
-#include "huffman_encodings.h"
+#include "huffman_encodings_v5_2_1.h"
 #include "../include/PREv20E.h"
 #include "../include/PREv20E_RF.h"
 #include "../include/SNTv4_RF.h"
@@ -96,7 +101,7 @@
 #include "../include/LNTv1A_RF.h"
 #include "../include/MRRv7_RF.h"
 #include "../include/mbus.h"
-#include "../include/MBC_params_0.h"
+// #include "../include/MBC_params_0.h"
 // #include "../include/MBC_params_5.h"
 // #include "../include/MBC_params_7.h"
 // #include "../include/MBC_params_12.h"
@@ -105,7 +110,7 @@
 // #include "../include/MBC_params_16.h"
 // #include "../include/MBC_params_19.h"
 // #include "../include/MBC_params_22.h"
-// #include "../include/MBC_params_24.h"
+ #include "../include/MBC_params_24.h"
 // #include "../include/MBC_params_28.h"
 // #include "../include/MBC_params_31.h"
 
@@ -937,8 +942,12 @@ void sample_light() {
     }
 
     if(new_state) {
+
+        *TIMERWD_GO = 0x0; // Turn off CPU watchdog timer
+        *REG_MBUS_WD = 0; // Disables Mbus watchdog timer
+            
         if(day_state != NIGHT) {
-            // resample and stoie
+            // resample and store
             uint16_t starting_idx = 0;
             int16_t start, end, sign;
             uint32_t sample_time;
@@ -1635,15 +1644,16 @@ static void pmu_set_sleep_clk(uint32_t setting) {
 static void pmu_set_sar_conversion_ratio(uint8_t ratio) {
 #ifdef USE_PMU
     uint8_t i;
+    // only toggling bit 13 to prevent current spikes
     for(i = 0; i < 2; i++) {
 	    pmu_reg_write(0x05,         // PMU_EN_SAR_RATIO_OVERRIDE; default: 12'h000
 		    ((i << 13) |    // enable override setting [12] (1'b1)
 		     (0 << 12) |    // let vdd_clk always connect to vbat
-		     (i << 11) |    // enable override setting [10] (1'h0)
+		     (1 << 11) |    // enable override setting [10] (1'h0)
 		     (0 << 10) |    // have the converter have the periodic reset (1'h0)
-		     (i <<  9) |    // enable override setting [8:0] (1'h0)
+		     (1 <<  9) |    // enable override setting [8:0] (1'h0)
 		     (0 <<  8) |    // switch input / output power rails for upconversion (1'h0)
-		     (i <<  7) |    // enable override setting [6:0] (1'h0)
+		     (1 <<  7) |    // enable override setting [6:0] (1'h0)
 		     (ratio)));  // binary converter's conversion ratio (7'h00)
     }
 #endif
