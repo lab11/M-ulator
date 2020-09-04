@@ -4,7 +4,7 @@
  * 		This is the base code that all will share after version 5.1
  *                                          - PREv20E / PMUv11 / SNTv4 / FLPv3S / MRRv10 / MEMv1
  ******************************************************************************************
- * Current version: 5.2.1
+ * Current version: 5.2.2
  *
  * v1: draft version; not tested on chip
  *
