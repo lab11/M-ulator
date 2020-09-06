@@ -33,6 +33,7 @@
 @ r2 is on / off
 @ r3 is scratch and available
 
+.align	4
 .global	LED_set
 .type	LED_set, %function
 LED_set:

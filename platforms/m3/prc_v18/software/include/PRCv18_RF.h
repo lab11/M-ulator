@@ -145,6 +145,20 @@ _Static_assert(sizeof(prcv18_r0B_t) == 4, "Punned Structure Size");
 // Register 0x0D [AMBA:0xA0000034]
 // -- READ-ONLY --
 
+///////////////////copied from PRCv17_RF.h//////////////////////////////////////
+typedef union prcv18_r0D{
+    struct{
+        unsigned SRAM_USE_INVERTER_SA		: 1;
+        unsigned SRAM_TUNE_DECODER_DLY		: 4;
+        unsigned SRAM_TUNE_WL_WIDTH		: 4;
+        unsigned SRAM_TUNE_ASO_DLY		: 5;
+        unsigned SRAM_USE_VREF_0P6		: 1;
+    };
+    uint32_t as_int;
+} prcv18_r0D_t;
+#define PRCv18_R0D_DEFAULT {{0x0, 0x2, 0x2, 0x00, 0x0}}
+_Static_assert(sizeof(prcv18_r0D_t) == 4, "Punned Structure Size");
+////////////////////////////copy end///////////////////////////////////////////
 // Register 0x0E [AMBA:0xA0000038]
 typedef union prcv18_r0E{
   struct{

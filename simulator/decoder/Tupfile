@@ -1,0 +1,19 @@
+include_rules
+
+ifeq (@(DECOMPILE),y)
+
+ifeq (@(TUP_PLATFORM),macosx)
+LDFLAGS += `python-config --ldflags`
+endif
+
+ifeq (@(TUP_PLATFORM),linux)
+LDFLAGS += `python2-config --ldflags`
+LDFLAGS += -lrt -lm
+endif
+
+LDFLAGS += -lelf
+
+#: foreach *.c |> !cc |> %B.o <decompiler_objs>
+#: <decompiler_objs> ../<objs> |> ^ LINK %o^ $(CC) %<decompiler_objs> %<objs> $(LDFLAGS) -o %o |> decompiler
+
+endif

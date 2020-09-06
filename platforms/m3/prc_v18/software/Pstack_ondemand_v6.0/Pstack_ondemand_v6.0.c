@@ -16,7 +16,7 @@
 #include "RDCv3_RF.h"
 
 // uncomment this for debug mbus message
-//#define DEBUG_MBUS_MSG_1
+#define DEBUG_MBUS_MSG_1
 
 // TStack order  PRC->SRR->SNT->RDC->PMU->MEM
 #define SRR_ADDR 0x4
@@ -1038,7 +1038,7 @@ static void operation_tx_stored(uint8_t num_duplicate_packets){
     while(radio_tx_count < radio_tx_limit){
 		#ifdef DEBUG_MBUS_MSG_1
 			mbus_write_message32(0xDD, radio_tx_count);
-			mbus_write_message32(0xDD, temp_storage[radio_tx_count]);
+			//mbus_write_message32(0xDD, temp_storage[radio_tx_count]);
 		#endif
 
 		// Reset watchdog timer

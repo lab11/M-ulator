@@ -1,0 +1,27 @@
+CROSS_ARM_PREFIX=arm-none-eabi
+ARM_CC=$(CROSS_ARM_PREFIX)-gcc
+ARM_LD=$(CROSS_ARM_PREFIX)-ld
+ARM_AS=$(CROSS_ARM_PREFIX)-as
+ARM_OBJCOPY=$(CROSS_ARM_PREFIX)-objcopy
+ARM_OBJDUMP=$(CROSS_ARM_PREFIX)-objdump
+
+ARM_CFLAGS  += -g -Wall -Wextra -Werror -mthumb -mcpu=cortex-m3 -ffreestanding
+ARM_LDFLAGS += -g -nostartfiles -nodefaultlibs -nostdlib
+ARM_ASFLAGS += -g -mthumb --warn -mcpu=cortex-m3
+
+&MEMMAP = memmap
+
+ifeq (@(DEBUG_SYMBOLS),y)
+!arm_as = |> ^c ARM_AS %f^ $(ARM_AS) $(ARM_ASFLAGS) %f -o %o |> %B.o
+!arm_cc = |> ^c ARM_CC %f^ $(ARM_CC) $(ARM_CFLAGS) -c %f -o %o |> %B.o
+!arm_ld = |> ^c ARM_LD %o^ $(ARM_LD) $(ARM_LDFLAGS) -T &(MEMMAP) %f -o %o |>
+!arm_bin = |> ^c ARM_BIN %o^ $(ARM_OBJCOPY) -O binary %f %o |> %B.bin
+!arm_lst = |> ^c ARM_LST %o^ $(ARM_OBJDUMP) --disassemble-all --source --disassembler-options=force-thumb %f > %o |> %B.lst
+else
+!arm_as = |> ^ ARM_AS %f^ $(ARM_AS) $(ARM_ASFLAGS) %f -o %o |> %B.o
+!arm_cc = |> ^ ARM_CC %f^ $(ARM_CC) $(ARM_CFLAGS) -c %f -o %o |> %B.o
+!arm_ld = |> ^ ARM_LD %o^ $(ARM_LD) $(ARM_LDFLAGS) -T &(MEMMAP) %f -o %o |>
+!arm_bin = |> ^ ARM_BIN %o^ $(ARM_OBJCOPY) -O binary %f %o |> %B.bin
+!arm_lst = |> ^ ARM_LST %o^ $(ARM_OBJDUMP) --disassemble-all --source --disassembler-options=force-thumb %f > %o |> %B.lst
+endif
+

@@ -1,0 +1,25 @@
+{
+  "name": "m-ulator",
+  "version": "0.1.0",
+  "description": "An extensible {e,si}mulator",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lab11/M-ulator.git"
+  },
+  "author": "Pat Pannuto",
+  "license": "Apache-2.0 OR MIT",
+  "bugs": {
+    "url": "https://github.com/lab11/M-ulator/issues"
+  },
+  "homepage": "https://github.com/lab11/M-ulator#readme",
+  "dependencies": {
+    "tslog": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^14.0.27"
+  }
+}

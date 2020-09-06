@@ -1,0 +1,21 @@
+MEMORY
+{
+	rom : org = 0x00000000, l = 0x00008000
+	ram : org = 0x20000000, l = 0x00004000
+}
+
+SECTIONS
+{
+	.text :
+	{
+		. = ALIGN(4);
+		*(.text*)
+		. = ALIGN(4);
+	} > rom
+	.data :
+	{
+	. = ALIGN(4);
+	*(.data*)
+	. = ALIGN(4);
+	} > ram
+}
