@@ -371,7 +371,8 @@ void xo_init( void ) {
 }
 
 uint32_t get_timer_cnt_xo() {
-    return ((*REG_XOT_VAL_U & 0xFFFF) << 16) | (*REG_XOT_VAL_L & 0xFFFF);
+    // FIXME: This is to test the overflow function. remove after done
+    return (((*REG_XOT_VAL_U & 0xFFFF) << 16) | (*REG_XOT_VAL_L & 0xFFFF)) + 0xFFFC0000;
 }
 
 // static uint32_t get_timer_cnt() {
@@ -387,9 +388,9 @@ uint32_t get_timer_cnt_xo() {
 #define XO_TO_SEC_SHIFT 15
 
 void update_system_time() {
-    // mbus_write_message32(0xC2, xo_sys_time);
-    // mbus_write_message32(0xC1, xo_sys_time_in_sec);
-    // mbus_write_message32(0xC0, xo_day_time_in_sec);
+    mbus_write_message32(0xC2, xo_sys_time);
+    mbus_write_message32(0xC1, xo_sys_time_in_sec);
+    mbus_write_message32(0xC0, xo_day_time_in_sec);
 
     uint32_t temp = xo_sys_time;
     xo_sys_time = get_timer_cnt_xo();
@@ -410,9 +411,9 @@ void update_system_time() {
         xo_day_time_in_sec -= XO_MAX_DAY_TIME_IN_SEC;
     }
 
-    // mbus_write_message32(0xC2, xo_sys_time);
-    // mbus_write_message32(0xC1, xo_sys_time_in_sec);
-    // mbus_write_message32(0xC0, xo_day_time_in_sec);
+    mbus_write_message32(0xC2, xo_sys_time);
+    mbus_write_message32(0xC1, xo_sys_time_in_sec);
+    mbus_write_message32(0xC0, xo_day_time_in_sec);
 }
 
 bool xo_check_is_day() {
@@ -2390,8 +2391,8 @@ int main() {
             uint16_t cur_day_time_in_min = (goc_data_full >> 20) & 0x7FF;
             xo_day_time_in_sec = cur_day_time_in_min * 60;
 	    start_hour_in_sec = ((goc_data_full >> 15) & 0x1F) * 3600;
-            // snt_op_max_count = (goc_data_full >> 8) & 0x7F;
-            snt_op_max_count = 192;
+            snt_op_max_count = (goc_data_full >> 8) & 0x7F;
+            // snt_op_max_count = 192;
 	    radio_beacon_counter = (goc_data_full >> 5) & 0x7;
 	    radio_after_done = (goc_data_full >> 4) & 1;
 
