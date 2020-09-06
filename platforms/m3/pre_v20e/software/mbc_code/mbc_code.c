@@ -87,6 +87,7 @@
  *    Fixed SAR radio changes to only toggle bit 13 to prevent current spikes
  *    Disabled watchdog timers while resampling to prevent timeout
  *    Added temperature restrictions back into radio out enabling   (temporary solution, using parameters from part 24 in first Mexico run)
+ *    removed var_init from non operation goc triggers
  *
  *
  ******************************************************************************************/
@@ -191,12 +192,12 @@ volatile mrrv7_r13_t mrrv7_r13 = MRRv7_R13_DEFAULT;
  */
 volatile uint32_t enumerated;
 volatile uint16_t op_counter;
-volatile uint8_t wfi_timeout_flag = 0;
+volatile uint16_t wfi_timeout_flag = 0;
 
-volatile uint8_t radio_after_done;
-// volatile uint8_t goc_component;
-// volatile uint8_t goc_func_id;
-volatile uint8_t goc_state;
+volatile uint16_t radio_after_done;
+// volatile uint16_t goc_component;
+// volatile uint16_t goc_func_id;
+volatile uint16_t goc_state;
 // volatile uint16_t goc_data;
 volatile uint32_t goc_data_full;
 
@@ -207,16 +208,16 @@ volatile uint32_t store_temp_timestamp = 0;
 
 // #define SNT_TEMP_UPDATE_TIME 680   // 450 seconds
 volatile uint32_t snt_sys_temp_code = 0x3E9;	// default 20C
-volatile uint8_t snt_state = SNT_IDLE;
+volatile uint16_t snt_state = SNT_IDLE;
 
-volatile uint8_t lnt_counter_base = 0;	// lnt measure time is LNT_MEAS_TIME << lnt_counter_base
-// volatile uint8_t lnt_meas_time_mode;
+volatile uint16_t lnt_counter_base = 0;	// lnt measure time is LNT_MEAS_TIME << lnt_counter_base
+// volatile uint16_t lnt_meas_time_mode;
 
 volatile uint64_t lnt_sys_light = 0;
 
 #define MRR_SIGNAL_PERIOD   600     // 10 minutes
 #define MRR_TEMP_THRESH     0x258	
-uint8_t mrr_send_enable = 1;
+uint16_t mrr_send_enable = 1;
 
 #define PMU_SETTINGS_LEN 6
 const uint32_t PMU_ACTIVE_SETTINGS[7] = {0x0D0A0F0F, 
@@ -244,18 +245,18 @@ const uint32_t PMU_SLEEP_SETTINGS[7] = {0x0F040306,
 					0x02010104,
 					0x01010103};
 
-const uint8_t PMU_ACTIVE_SAR_SETTINGS[7] = {58, 55, 52, 50, 51, 51, 51};
-const uint8_t PMU_RADIO_SAR_SETTINGS[7] = {58, 55, 57, 52, 52, 53, 53};
-const uint8_t PMU_SLEEP_SAR_SETTINGS[7] = {50, 50, 50, 50, 50, 50, 51};
+const uint16_t PMU_ACTIVE_SAR_SETTINGS[7] = {58, 55, 52, 50, 51, 51, 51};
+const uint16_t PMU_RADIO_SAR_SETTINGS[7] = {58, 55, 57, 52, 52, 53, 53};
+const uint16_t PMU_SLEEP_SAR_SETTINGS[7] = {50, 50, 50, 50, 50, 50, 51};
 
 volatile uint16_t read_data_batadc;
 
-volatile uint8_t radio_ready;
-volatile uint8_t radio_on;
-volatile uint8_t radio_counter;
-volatile uint8_t radio_beacon_counter;
-volatile uint8_t mrr_freq_hopping;
-volatile uint8_t mrr_freq_hopping_step;
+volatile uint16_t radio_ready;
+volatile uint16_t radio_on;
+volatile uint16_t radio_counter;
+volatile uint16_t radio_beacon_counter;
+volatile uint16_t mrr_freq_hopping;
+volatile uint16_t mrr_freq_hopping_step;
 volatile uint16_t mrr_cfo_val_fine_min;
 volatile uint32_t radio_data_arr[3];
 volatile uint32_t radio_packet_count;
@@ -291,12 +292,12 @@ volatile uint32_t radio_packet_count;
 volatile uint32_t next_light_meas_time = 0;
 volatile uint32_t next_radio_debug_time = 0;
 
-volatile uint8_t day_state = NIGHT;
-volatile uint8_t max_day_count = 0;
-volatile uint8_t day_count = 0;
-volatile uint8_t store_temp_index = 0;    // resets every day
+volatile uint16_t day_state = NIGHT;
+volatile uint16_t max_day_count = 0;
+volatile uint16_t day_count = 0;
+volatile uint16_t store_temp_index = 0;    // resets every day
 volatile bool radio_debug = false;
-volatile uint8_t rot_idx = 0;
+volatile uint16_t rot_idx = 0;
 volatile uint16_t running_avg[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 volatile uint32_t running_avg_time[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
@@ -311,8 +312,8 @@ volatile uint32_t min_light_time = 0;
 volatile uint32_t day_state_start_time, day_state_end_time;
 
 #define IDX_INIT 0xFF
-volatile uint8_t max_idx = 0;
-const uint8_t intervals[4] = {1, 2, 8, 32};
+volatile uint16_t max_idx = 0;
+const uint16_t intervals[4] = {1, 2, 8, 32};
 const uint16_t resample_indices[4] = {32, 40, 44, 1000};
 volatile uint16_t min_light = MAX_UINT16;
 volatile uint16_t min_light_idx = IDX_INIT;
@@ -495,7 +496,7 @@ uint64_t right_shift(uint64_t input, int8_t shift) {
 // if shift_len is greater than or equal to 32, data must be 0
 // if right_shift, data must be 0
 // if left shift, then shift data into the array
-void right_shift_arr(uint32_t* arr, uint32_t data, uint8_t arr_len, int16_t shift_len) {
+void right_shift_arr(uint32_t* arr, uint32_t data, uint16_t arr_len, int16_t shift_len) {
     if(shift_len == 0) {
         return;
     }
@@ -513,7 +514,7 @@ void right_shift_arr(uint32_t* arr, uint32_t data, uint8_t arr_len, int16_t shif
     // filter data
     data &= (right_shift(1, -shift_len) - 1);
 
-    uint8_t start, back;
+    uint16_t start, back;
 
     if(sign == 1) {
         start = arr_len - 1;
@@ -524,7 +525,7 @@ void right_shift_arr(uint32_t* arr, uint32_t data, uint8_t arr_len, int16_t shif
         back = arr_len - 1;
     }
 
-    uint8_t i;
+    uint16_t i;
 
     // shift word be word
     while(shift_len >= 32) {
@@ -569,7 +570,7 @@ const uint16_t LOG_CONST_ARR[5] = {0b1011010100000100,
 typedef uint32_t* long_int;
 
 static void long_int_assign(long_int dest, const long_int src) {
-    uint8_t i;
+    uint16_t i;
     for(i = 0; i < LONG_INT_LEN; i++) {
         dest[i] = src[i];
     }
@@ -578,7 +579,7 @@ static void long_int_assign(long_int dest, const long_int src) {
 static void long_int_mult(const long_int lhs, const uint16_t rhs, long_int res) {
     uint32_t carry_in = 0;
     uint32_t temp_res[LONG_INT_LEN];
-    uint8_t i;
+    uint16_t i;
     for(i = 0; i < LONG_INT_LEN; i++) {
         uint64_t temp = mult(lhs[i], rhs) + carry_in;
         carry_in = temp >> 32;
@@ -657,7 +658,7 @@ uint16_t code_addr = 0; // address to start storing the final data from
 bool has_header = false;
 
 // requires code_cache to have enough space
-void store_code(int32_t code, uint8_t len) {
+void store_code(int32_t code, uint16_t len) {
     right_shift_arr(code_cache, code, CODE_CACHE_LEN, -len);
     code_cache_remainder -= len;
 }
@@ -678,9 +679,9 @@ void flush_code_cache() {
     }
 }
 
-void store_diff_to_code_cache(int16_t diff, uint8_t start_idx, uint32_t starting_time) {
-    uint8_t code_idx = 0;
-    uint8_t len_needed = 0;
+void store_diff_to_code_cache(int16_t diff, uint16_t start_idx, uint32_t starting_time) {
+    uint16_t code_idx = 0;
+    uint16_t len_needed = 0;
     uint16_t code = 0;
     if(diff < 32 && diff >= -32) {
         code_idx = diff + 32;
@@ -727,7 +728,7 @@ void store_diff_to_code_cache(int16_t diff, uint8_t start_idx, uint32_t starting
 }
 
 void store_day_state_stop() {
-    uint8_t len_needed = code_lengths[66];
+    uint16_t len_needed = code_lengths[66];
     if(code_cache_remainder < len_needed) {
         flush_code_cache();
     }
@@ -741,7 +742,7 @@ void store_day_state_stop() {
  **********************************************/
 
 void write_to_proc_cache(uint16_t data) {
-    const uint8_t len = 11;
+    const uint16_t len = 11;
     data &= (right_shift(1, -len) - 1);
 
     if(len >= proc_cache_remainder) {
@@ -847,7 +848,7 @@ void sample_light() {
     // store to running sum
     if(sum == MAX_UINT16) {
         // if uninitialized, initialize running avg
-        uint8_t i;
+        uint16_t i;
         for(i = 0; i < 8; i++) {
             running_avg[i] = log_light;
             running_avg_time[i] = xo_day_time_in_sec;
@@ -997,9 +998,9 @@ void sample_light() {
 
             int16_t i;
             uint16_t last_log_light = 0;
-            uint8_t next_sample_idx = starting_idx;
-            uint8_t sample_idx = 0;
-            uint8_t interval_idx = 0;
+            uint16_t next_sample_idx = starting_idx;
+            uint16_t sample_idx = 0;
+            uint16_t interval_idx = 0;
             for(i = start; i != end; i += sign) {
                 uint16_t log_light = read_next_from_proc_cache();
                 if(i == next_sample_idx) {
@@ -1150,7 +1151,7 @@ static void operation_temp_run() {
 #define TEMP_RES 7
 
 volatile uint32_t temp_cache[TEMP_CACHE_LEN];
-volatile uint8_t temp_cache_remainder = TEMP_CACHE_MAX_REMAINDER;
+volatile uint16_t temp_cache_remainder = TEMP_CACHE_MAX_REMAINDER;
 
 void flush_temp_cache() {
     if(temp_cache_remainder < TEMP_CACHE_MAX_REMAINDER) {
@@ -1175,7 +1176,7 @@ void sample_temp() {
     }
 
     // Take 3 bits above decimal point and 4 bits under
-    uint8_t log_temp = log2(snt_sys_temp_code) >> (8 - TEMP_RES); 
+    uint16_t log_temp = log2(snt_sys_temp_code) >> (8 - TEMP_RES); 
 
     // left shift into temp cache
     right_shift_arr(temp_cache, log_temp, TEMP_CACHE_LEN, -TEMP_RES);
@@ -1349,7 +1350,7 @@ static void lnt_stop() {
 
 #define TIMER_MARGIN 1024 // margin of error is about 1/32 of a second // limited by the frequency of the LNT timer
 #define MPLIER_SHIFT 6
-uint8_t xo_lnt_mplier = 0x73;
+uint16_t xo_lnt_mplier = 0x73;
 uint32_t projected_end_time_in_sec = 0;
 uint32_t lnt_meas_time = 0;
 
@@ -1443,7 +1444,7 @@ void set_projected_end_time() {
 uint32_t* crcEnc16()
 {
     // intialization
-    uint8_t i;
+    uint16_t i;
 
     uint16_t poly = 0xc002;
     uint16_t poly_not = ~poly;
@@ -1559,10 +1560,10 @@ static void pmu_set_adc_period(uint32_t val) {
 
 static void pmu_set_active_clk(uint32_t setting) {
 #ifdef USE_PMU
-    uint8_t r = (setting >> 24) & 0xFF;
-    uint8_t l = (setting >> 16) & 0xFF;
-    uint8_t base = (setting >> 8) & 0xFF;
-    uint8_t l_1p2 = setting & 0xFF;
+    uint16_t r = (setting >> 24) & 0xFF;
+    uint16_t l = (setting >> 16) & 0xFF;
+    uint16_t base = (setting >> 8) & 0xFF;
+    uint16_t l_1p2 = setting & 0xFF;
 
     // mbus_write_message32(0xDE, setting);
 
@@ -1607,10 +1608,10 @@ static void pmu_set_active_clk(uint32_t setting) {
 
 static void pmu_set_sleep_clk(uint32_t setting) {
 #ifdef USE_PMU
-    uint8_t r = (setting >> 24) & 0xFF;
-    uint8_t l = (setting >> 16) & 0xFF;
-    uint8_t base = (setting >> 8) & 0xFF;
-    uint8_t l_1p2 = setting & 0xFF;
+    uint16_t r = (setting >> 24) & 0xFF;
+    uint16_t l = (setting >> 16) & 0xFF;
+    uint16_t base = (setting >> 8) & 0xFF;
+    uint16_t l_1p2 = setting & 0xFF;
 
     // Register 0x17: V3P6 SLEEP
     pmu_reg_write(0x17,         // PMU_EN_UPCONVERTER_TRIM_V3_SLEEP
@@ -1640,9 +1641,9 @@ static void pmu_set_sleep_clk(uint32_t setting) {
 #endif
 }
 
-static void pmu_set_sar_conversion_ratio(uint8_t ratio) {
+static void pmu_set_sar_conversion_ratio(uint16_t ratio) {
 #ifdef USE_PMU
-    uint8_t i;
+    uint16_t i;
     // only toggling bit 13 to prevent current spikes
     for(i = 0; i < 2; i++) {
 	    pmu_reg_write(0x05,         // PMU_EN_SAR_RATIO_OVERRIDE; default: 12'h000
@@ -1661,7 +1662,7 @@ static void pmu_set_sar_conversion_ratio(uint8_t ratio) {
 // 0 : normal active
 // 1 : radio active
 // 2 : sleep
-static void pmu_setting_temp_based(uint8_t mode) {
+static void pmu_setting_temp_based(uint16_t mode) {
 #ifdef USE_PMU
     int8_t i;
     for(i = PMU_SETTINGS_LEN; i >= 0; i--) {
@@ -1844,7 +1845,7 @@ static void pmu_init() {
  **********************************************/
 
 static void reset_radio_data_arr() {
-    uint8_t i;
+    uint16_t i;
     for(i = 0; i < 3; i++) { radio_data_arr[i] = 0; }
 }
 
@@ -1983,9 +1984,9 @@ static void send_radio_data_mrr_sub1() {
     mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int);
 }
 
-uint8_t mrr_cfo_val_fine = 0;
+uint16_t mrr_cfo_val_fine = 0;
 
-static void mrr_send_radio_data(uint8_t last_packet) {
+static void mrr_send_radio_data(uint16_t last_packet) {
     // Sends 192 bit packet, of which 96b is actual data
     // MRR REG_9: reserved for header
     // MRR REG_A: reserved for header
@@ -2068,8 +2069,8 @@ static void mrr_send_radio_data(uint8_t last_packet) {
 
 #ifdef USE_RAD
     // uint16_t mrr_cfo_val_fine = 0;
-    uint8_t count = 0;
-    uint8_t num_packets = 1;
+    uint16_t count = 0;
+    uint16_t num_packets = 1;
     if (mrr_freq_hopping) num_packets = mrr_freq_hopping;
 
     // mrr_cfo_val_fine = 0x0000;
@@ -2368,7 +2369,6 @@ void set_goc_cmd() {
     // goc_component = (*GOC_DATA_IRQ >> 24) & 0xFF;
     // goc_func_id = (*GOC_DATA_IRQ >> 16) & 0xFF;
     // goc_data = *GOC_DATA_IRQ & 0xFFFF;
-    projected_end_time_in_sec = 0;
     goc_data_full = *GOC_DATA_IRQ;
     goc_state = 0;
     update_system_time();
@@ -2425,7 +2425,7 @@ void handler_ext_int_reg3( void ) { // REG3
 void radio_full_data() {
     uint16_t addr = 0;
     pmu_setting_temp_based(1);
-    uint8_t packet_num = 0;
+    uint16_t packet_num = 0;
 
     while(addr < code_addr) {
         // read out data and check if it's temp or light
@@ -2435,7 +2435,7 @@ void radio_full_data() {
 
         if(code_cache[0] & 0x80000000) {
             // is light, radio out four times
-            uint8_t i;
+            uint16_t i;
             for(i = 0; i < 4; i++) {
                 // first 96 bits are read out using temporary arr
                 // This is needed because radio_data_arr is big endian
@@ -2480,7 +2480,7 @@ void radio_full_data() {
     }
 }
 
-uint8_t set_send_enable() {
+uint16_t set_send_enable() {
 #ifdef OVERRIDE_RAD
     return 1;
 #endif
@@ -2491,7 +2491,7 @@ uint8_t set_send_enable() {
     if(snt_sys_temp_code < PMU_TEMP_THRESH[1] || snt_sys_temp_code >= PMU_55C) {
     	return 0;
     }
-    uint8_t i;
+    uint16_t i;
     for(i = 2; i < 6; i++) {
     	if(snt_sys_temp_code < PMU_TEMP_THRESH[i]) {
 	    if(read_data_batadc <= PMU_ADC_THRESH[i - 2]) {
@@ -2550,10 +2550,10 @@ int main() {
 
     if(!(goc_data_full & 0x80000000)) {
 
-        var_init();
+        // var_init();
 
         // characterization code
-	uint8_t cmd = (goc_data_full >> 28) & 0x7;
+	uint16_t cmd = (goc_data_full >> 28) & 0x7;
         reset_radio_data_arr();
         if(cmd == 0) {
             // send alive beacon
@@ -2583,15 +2583,16 @@ int main() {
 
         }
         else if(cmd == 2) {
-            uint8_t use_pmu = (goc_data_full >> 27) & 0x1;
+            uint16_t use_pmu = (goc_data_full >> 27) & 0x1;
             uint16_t goc_radio_time = goc_data_full & 0xFFFF;
 
             // if !use_pmu, always radio out
             if(!goc_state) {
                 goc_state = 1;
+		projected_end_time_in_sec = xo_sys_time_in_sec + goc_radio_time;
             }
             else if(goc_state == 1) {
-		goc_state = 0;
+		projected_end_time_in_sec = projected_end_time_in_sec + goc_radio_time;
                 if(!use_pmu || mrr_send_enable) {
 		    op_counter++;
                     pmu_setting_temp_based(1);
@@ -2610,7 +2611,6 @@ int main() {
                     radio_data_arr[2] = (op_counter & 0xF) << 8 | (0x42);
                     mrr_send_radio_data(1);
 
-		    projected_end_time_in_sec = xo_sys_time_in_sec + goc_radio_time;
                 }
             }
         }
@@ -2632,7 +2632,7 @@ int main() {
             // blast 10 packets, then sleep for a minute
             uint16_t goc_radio_time = goc_data_full & 0xFFFF;
 
-            uint8_t i = 0;
+            uint16_t i = 0;
             for(i = 0; i < 10; i++) {
 	        radio_data_arr[2] = CHIP_ID << 8;
 	        radio_data_arr[1] = 0;
