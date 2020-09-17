@@ -30,7 +30,7 @@ You then need to select the "variants" you would like to build. A list of
 predefined variants is found in the `configs/` directory. For example, to build
 a simulator for the Michigan Micro Mote CTLv3 CPU chip:
 
-    $ /M-ulator/simulator > tup variant configs/m3_ctl_v3-release
+    $ /M-ulator/simulator > tup variant configs/373-release
 
 This will create the directory `build-m3_ctl_v3-release/` where the built files
 will be placed. To build the simulator, simply run:
@@ -42,4 +42,4 @@ update command (`tup upd`) to rebuild the simulator.
 
 Once you have the simulator built, you can run your programs on it, e.g.:
 
-    $ /M-ulator/simulator > build-m3_ctl_v3-release/simulator -f ../platforms/m3_ctl_v3/software/blink/blink.bin
+    $ /M-ulator/simulator > build-373-release/simulator -f ../platforms/373/software/echo_str.bin
