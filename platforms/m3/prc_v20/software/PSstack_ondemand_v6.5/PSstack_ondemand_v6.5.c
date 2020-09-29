@@ -11,7 +11,7 @@
 #include "HRVv5.h"
 #include "PMUv7_RF.h"
 #include "SRRv4_RF.h"
-#include "RDCv3_RF.h"
+#include "RDCv4_RF.h"
 
 // uncomment this for debug mbus message
 //#define DEBUG_MBUS_MSG_1
@@ -129,14 +129,14 @@ volatile uint32_t read_data_batadc;
 
 volatile uint32_t read_data_rdc;
 
-volatile rdcv3_r20_t rdcv3_r20 = RDCv3_R20_DEFAULT;
-volatile rdcv3_r21_t rdcv3_r21 = RDCv3_R21_DEFAULT;
-volatile rdcv3_r22_t rdcv3_r22 = RDCv3_R22_DEFAULT;
-volatile rdcv3_r24_t rdcv3_r24 = RDCv3_R24_DEFAULT;
-volatile rdcv3_r25_t rdcv3_r25 = RDCv3_R25_DEFAULT;
-volatile rdcv3_r28_t rdcv3_r28 = RDCv3_R28_DEFAULT;
-volatile rdcv3_r2B_t rdcv3_r2B = RDCv3_R2B_DEFAULT;
-volatile rdcv3_r2C_t rdcv3_r2C = RDCv3_R2C_DEFAULT;
+volatile rdcv4_r20_t rdcv4_r20 = RDCv4_R20_DEFAULT;
+volatile rdcv4_r21_t rdcv4_r21 = RDCv4_R21_DEFAULT;
+volatile rdcv4_r22_t rdcv4_r22 = RDCv4_R22_DEFAULT;
+volatile rdcv4_r24_t rdcv4_r24 = RDCv4_R24_DEFAULT;
+volatile rdcv4_r25_t rdcv4_r25 = RDCv4_R25_DEFAULT;
+volatile rdcv4_r28_t rdcv4_r28 = RDCv4_R28_DEFAULT;
+volatile rdcv4_r2B_t rdcv4_r2B = RDCv4_R2B_DEFAULT;
+volatile rdcv4_r2C_t rdcv4_r2C = RDCv4_R2C_DEFAULT;
 
 volatile sntv4_r00_t sntv4_r00 = SNTv4_R00_DEFAULT;
 volatile sntv4_r01_t sntv4_r01 = SNTv4_R01_DEFAULT;
@@ -855,79 +855,85 @@ static void snt_set_wup_timer(uint32_t sleep_count){
 //***************************************************
 
 static void rdc_enable_vref(){
-	rdcv3_r2C.RDC_ENb_PG_VREF = 1;
-	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv3_r2C.as_int);
+	rdcv4_r2C.RDC_ENb_PG_VREF = 1;
+	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv4_r2C.as_int);
 }
 static void rdc_disable_vref(){
-	rdcv3_r2C.RDC_ENb_PG_VREF = 0;
-	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv3_r2C.as_int);
+	rdcv4_r2C.RDC_ENb_PG_VREF = 0;
+	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv4_r2C.as_int);
 }
 
 static void rdc_disable_pg_v1p2(){
-	rdcv3_r2C.RDC_EN_PG_FSM = 0;
-	rdcv3_r2C.RDC_EN_PG_RC_OSC = 0;
-	rdcv3_r2C.RDC_EN_PG_AMP_V1P2 = 0;
-	rdcv3_r2C.RDC_EN_PG_ADC_V1P2 = 0;
-	rdcv3_r2C.RDC_EN_PG_BUF_VH_V1P2 = 0;
-	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv3_r2C.as_int);
+	rdcv4_r2C.RDC_EN_PG_FSM = 0;
+	rdcv4_r2C.RDC_EN_PG_RC_OSC = 0;
+	rdcv4_r2C.RDC_EN_PG_AMP_V1P2 = 0;
+	rdcv4_r2C.RDC_EN_PG_ADC_V1P2 = 0;
+	rdcv4_r2C.RDC_EN_PG_BUF_VH_V1P2 = 0;
+	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv4_r2C.as_int);
 }
 static void rdc_enable_pg_v1p2(){
-	rdcv3_r2C.RDC_EN_PG_FSM = 1;
-	rdcv3_r2C.RDC_EN_PG_RC_OSC = 1;
-	rdcv3_r2C.RDC_EN_PG_AMP_V1P2 = 1;
-	rdcv3_r2C.RDC_EN_PG_ADC_V1P2 = 1;
-	rdcv3_r2C.RDC_EN_PG_BUF_VH_V1P2 = 1;
-	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv3_r2C.as_int);
+	rdcv4_r2C.RDC_EN_PG_FSM = 1;
+	rdcv4_r2C.RDC_EN_PG_RC_OSC = 1;
+	rdcv4_r2C.RDC_EN_PG_AMP_V1P2 = 1;
+	rdcv4_r2C.RDC_EN_PG_ADC_V1P2 = 1;
+	rdcv4_r2C.RDC_EN_PG_BUF_VH_V1P2 = 1;
+	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv4_r2C.as_int);
 }
 
 static void rdc_disable_pg_vbat(){
-	rdcv3_r2C.RDC_ENb_PG_AMP_VBAT = 1;
-	rdcv3_r2C.RDC_ENb_PG_ADC_VBAT = 1;
-	rdcv3_r2C.RDC_ENb_PG_BUF_VCM = 1;
-	rdcv3_r2C.RDC_ENb_PG_BUF_VH_VBAT = 1;
-	rdcv3_r2C.RDC_ENb_MIRROR_LDO = 0;
-	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv3_r2C.as_int);
+	rdcv4_r2C.RDC_ENb_PG_AMP_VBAT = 1;
+	rdcv4_r2C.RDC_ENb_PG_ADC_VBAT = 1;
+	rdcv4_r2C.RDC_ENb_PG_BUF_VCM = 1;
+	rdcv4_r2C.RDC_ENb_PG_BUF_VH_VBAT = 1;
+	rdcv4_r2C.RDC_ENb_MIRROR_LDO = 0;
+	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv4_r2C.as_int);
 }
 static void rdc_enable_pg_vbat(){
-	rdcv3_r2C.RDC_ENb_PG_AMP_VBAT = 0;
-	rdcv3_r2C.RDC_ENb_PG_ADC_VBAT = 0;
-	rdcv3_r2C.RDC_ENb_PG_BUF_VCM = 0;
-	rdcv3_r2C.RDC_ENb_PG_BUF_VH_VBAT = 0;
-	rdcv3_r2C.RDC_ENb_MIRROR_LDO = 1;
-	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv3_r2C.as_int);
+	rdcv4_r2C.RDC_ENb_PG_AMP_VBAT = 0;
+	rdcv4_r2C.RDC_ENb_PG_ADC_VBAT = 0;
+	rdcv4_r2C.RDC_ENb_PG_BUF_VCM = 0;
+	rdcv4_r2C.RDC_ENb_PG_BUF_VH_VBAT = 0;
+	rdcv4_r2C.RDC_ENb_MIRROR_LDO = 1;
+	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv4_r2C.as_int);
 }
 
 static void rdc_disable_clock(){
-	rdcv3_r28.RDC_RESET_RC_OSC = 1;
-	rdcv3_r2B.RDC_CLK_ISOLATE = 1;
-	mbus_remote_register_write(RDC_ADDR,0x28,rdcv3_r28.as_int);
-	mbus_remote_register_write(RDC_ADDR,0x2B,rdcv3_r2B.as_int);
+	rdcv4_r28.RDC_RESET_RC_OSC = 1;
+	rdcv4_r2B.RDC_CLK_ISOLATE = 1;
+	mbus_remote_register_write(RDC_ADDR,0x28,rdcv4_r28.as_int);
+	mbus_remote_register_write(RDC_ADDR,0x2B,rdcv4_r2B.as_int);
 }
 static void rdc_enable_clock(){
-	rdcv3_r28.RDC_RESET_RC_OSC = 0;
-	rdcv3_r2B.RDC_CLK_ISOLATE = 0;
-	mbus_remote_register_write(RDC_ADDR,0x28,rdcv3_r28.as_int);
-	mbus_remote_register_write(RDC_ADDR,0x2B,rdcv3_r2B.as_int);
+	rdcv4_r28.RDC_RESET_RC_OSC = 0;
+	rdcv4_r2B.RDC_CLK_ISOLATE = 0;
+	mbus_remote_register_write(RDC_ADDR,0x28,rdcv4_r28.as_int);
+	mbus_remote_register_write(RDC_ADDR,0x2B,rdcv4_r2B.as_int);
 }
 
 static void rdc_start_meas(){
-	rdcv3_r20.RDC_RESETn_FSM = 1;
-	rdcv3_r20.RDC_ISOLATE = 0;
-	mbus_remote_register_write(RDC_ADDR,0x20,rdcv3_r20.as_int);
+	rdcv4_r20.RDC_RESETn_FSM = 1;
+	rdcv4_r20.RDC_ISOLATE = 0;
+	mbus_remote_register_write(RDC_ADDR,0x20,rdcv4_r20.as_int);
 }
 static void rdc_reset(){
-	rdcv3_r20.RDC_RESETn_FSM = 0;
-	rdcv3_r20.RDC_ISOLATE = 1;
-	mbus_remote_register_write(RDC_ADDR,0x20,rdcv3_r20.as_int);
+	rdcv4_r20.RDC_RESETn_FSM = 0;
+	rdcv4_r20.RDC_ISOLATE = 1;
+	mbus_remote_register_write(RDC_ADDR,0x20,rdcv4_r20.as_int);
+}
+static void rdc_reset2(){
+	rdcv4_r20.RDC_ISOLATE = 1;
+	mbus_remote_register_write(RDC_ADDR,0x20,rdcv4_r20.as_int);
 }
 
 static void rdc_power_on(){
 
+	rdc_reset();
 	rdc_disable_pg_v1p2();
 	delay(MBUS_DELAY);
 
 	rdc_disable_pg_vbat();
 	delay(MBUS_DELAY);
+
 
 	rdc_enable_clock();
 
@@ -935,7 +941,7 @@ static void rdc_power_on(){
 
 static void rdc_power_off(){
 
-	rdc_reset();
+	rdc_reset2();
 	rdc_disable_clock();
 	rdc_enable_pg_vbat();
 	rdc_enable_pg_v1p2();
@@ -996,13 +1002,13 @@ static void radio_power_off(){
     srrv4_r11.SRR_RAD_FSM_SLEEP = 1;
     mbus_remote_register_write(SRR_ADDR,0x11,srrv4_r11.as_int);
 
+    srrv4_r04.RO_ISOLATE_CLK = 1; //Set Isolate CLK to 0 TIMER
     // Turn off Current Limter
     srrv4_r00.SRR_CL_EN = 0;  //Enable CL
     mbus_remote_register_write(SRR_ADDR,0x00,srrv4_r00.as_int);
 
     srrv4_r04.RO_RESET = 1;  //Release Reset TIMER
     srrv4_r04.RO_EN_CLK = 0; //Enable CLK TIMER
-    srrv4_r04.RO_ISOLATE_CLK = 1; //Set Isolate CLK to 0 TIMER
     mbus_remote_register_write(SRR_ADDR,0x04,srrv4_r04.as_int);
 
     // Enable timer power-gate
@@ -1289,17 +1295,18 @@ static void operation_init(void){
     //set_halt_until_mbus_rx();
 
     //Enumeration
+	// FIXME
     mbus_enumerate(SRR_ADDR);
 	delay(MBUS_DELAY);
     mbus_enumerate(SNT_ADDR);
 	delay(MBUS_DELAY);
     mbus_enumerate(RDC_ADDR);
 	delay(MBUS_DELAY);
-    mbus_enumerate(HRV_ADDR);
+    //mbus_enumerate(HRV_ADDR);
 	delay(MBUS_DELAY);
  	mbus_enumerate(PMU_ADDR);
 	delay(MBUS_DELAY);
- 	mbus_enumerate(MEM_ADDR);
+ 	//mbus_enumerate(MEM_ADDR);
 	delay(MBUS_DELAY);
 /*
     set_halt_until_mbus_trx();
@@ -1384,34 +1391,34 @@ static void operation_init(void){
 
     // RDCv3 Settings --------------------------------------
     // Common settings
-	// rdcv3_r00
-	//rdcv3_r00.WAKEUP_UPON_RDC_IRQ = 0x0;
-	//rdcv3_r00.MBC_WAKEUP_ON_PEND_REQ = 0x1;
+	// rdcv4_r00
+	//rdcv4_r00.WAKEUP_UPON_RDC_IRQ = 0x0;
+	//rdcv4_r00.MBC_WAKEUP_ON_PEND_REQ = 0x1;
 
-	// rdcv3_r20
-	rdcv3_r20.RDC_CNT_AMP1 = 0xC;
+	// rdcv4_r20
+	rdcv4_r20.RDC_CNT_AMP1 = 0xC;
 	
-	// rdcv3_r21
-	rdcv3_r21.RDC_CNT_AMP2 = 0x8;
+	// rdcv4_r21
+	rdcv4_r21.RDC_CNT_AMP2 = 0x8;
 	
-	// rdcv3_r22
-	rdcv3_r22.RDC_CNT_SKIP = 0x3;
-	rdcv3_r22.RDC_OSR = 0xB;
+	// rdcv4_r22
+	rdcv4_r22.RDC_CNT_SKIP = 0x3;
+	rdcv4_r22.RDC_OSR = 0xB;
 	
-	// rdcv3_r24 & r25
-	rdcv3_r24.RDC_SEL_DLY = 0xA;
+	// rdcv4_r24 & r25
+	rdcv4_r24.RDC_SEL_DLY = 0xA;
 
     // Individual settings
-	rdcv3_r24.RDC_SEL_GAIN_LC = 0xA;
-	rdcv3_r25.RDC_OFFSET_P_LC = 0x19;
-	rdcv3_r25.RDC_OFFSET_PB_LC = 0x6;
+	rdcv4_r24.RDC_SEL_GAIN_LC = 0xA;
+	rdcv4_r25.RDC_OFFSET_P_LC = 0x19;
+	rdcv4_r25.RDC_OFFSET_PB_LC = 0x6;
 
 	mbus_remote_register_write(RDC_ADDR,0x1,0x1001);
-	mbus_remote_register_write(RDC_ADDR,0x20,rdcv3_r20.as_int);
-	mbus_remote_register_write(RDC_ADDR,0x21,rdcv3_r21.as_int);
-	mbus_remote_register_write(RDC_ADDR,0x22,rdcv3_r22.as_int);
-	mbus_remote_register_write(RDC_ADDR,0x24,rdcv3_r24.as_int);
-	mbus_remote_register_write(RDC_ADDR,0x25,rdcv3_r25.as_int);
+	mbus_remote_register_write(RDC_ADDR,0x20,rdcv4_r20.as_int);
+	mbus_remote_register_write(RDC_ADDR,0x21,rdcv4_r21.as_int);
+	mbus_remote_register_write(RDC_ADDR,0x22,rdcv4_r22.as_int);
+	mbus_remote_register_write(RDC_ADDR,0x24,rdcv4_r24.as_int);
+	mbus_remote_register_write(RDC_ADDR,0x25,rdcv4_r25.as_int);
 	
     // Radio Settings (SRRv4) -------------------------------------------
     srrv4_r1F.LC_CLK_RING = 0x3;  // ~ 150 kHz
