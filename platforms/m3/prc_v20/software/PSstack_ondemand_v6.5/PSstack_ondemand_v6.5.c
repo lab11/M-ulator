@@ -2084,11 +2084,12 @@ int main() {
         srrv4_r02.SRR_TX_PULSE_FINE_TUNE = wakeup_data_field_0 & 0xF;
         mbus_remote_register_write(SRR_ADDR,0x02,srrv4_r02.as_int);
 
+/*
     }else if(wakeup_data_header == 0x25){
         // Change the conversion time of the temp sensor
         sntv4_r03.TSNS_SEL_CONV_TIME = wakeup_data & 0xF; // Default: 0x6
         mbus_remote_register_write(SNT_ADDR,0x03,sntv4_r03.as_int);
-
+*/
     }else if(wakeup_data_header == 0x2A){
         // Update calibration coefficient A
         // A is the slope, typical value is around 24.000, stored as A*1000
@@ -2145,6 +2146,7 @@ int main() {
 
         operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xA2, enumerated>>24, enumerated);
 
+/*
     }else if(wakeup_data_header == 0xFA){
     // Soft reset routine
 
@@ -2156,7 +2158,7 @@ int main() {
                 delay(MBUS_DELAY);
             }
         }
-
+*/
     }else{
     }
 
