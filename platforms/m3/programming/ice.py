@@ -16,7 +16,7 @@ logger.debug('Got ice.py logger')
 
 try:
     import threading
-    import Queue
+    import queue
 except ImportError:
     logger.warn("Your python installation does not support threads.")
     logger.warn("")
@@ -100,10 +100,10 @@ class ICE(object):
             @functools.wraps(fn_being_decorated)
             def wrapped_fn(self, *args, **kwargs):
                 if not hasattr(self, "minor"):
-                    raise self.ICE_Error, "ICE must be connected first ({})".format(fn_being_decorated)
-                major, minor = map(int, version.split('.'))
+                    raise self.ICE_Error("ICE must be connected first ({})".format(fn_being_decorated))
+                major, minor = list(map(int, version.split('.')))
                 if major != 0:
-                    raise self.ICE_Error, "Major version bump?"
+                    raise self.ICE_Error("Major version bump?")
                 if self.minor < minor:
                     raise self.VersionError(minor, self.minor)
                 return fn_being_decorated(self, *args, **kwargs)
@@ -119,10 +119,10 @@ class ICE(object):
             @functools.wraps(fn_being_decorated)
             def wrapped_fn(self, *args, **kwargs):
                 if not hasattr(self, "minor"):
-                    raise self.ICE_Error, "ICE must be connected first"
-                major, minor = map(int, version.split('.'))
+                    raise self.ICE_Error("ICE must be connected first")
+                major, minor = list(map(int, version.split('.')))
                 if major != 0:
-                    raise self.ICE_Error, "Major version bump?"
+                    raise self.ICE_Error("Major version bump?")
                 if self.minor > minor:
                     raise self.VersionError(minor, self.minor)
                 return fn_being_decorated(self, *args, **kwargs)
@@ -158,7 +158,7 @@ class ICE(object):
 
         self.event_id = 0
         self.last_event_id = -1
-        self.sync_queue = Queue.Queue(1)
+        self.sync_queue = queue.Queue(1)
 
         self.msg_handler = {}
         self.d_lock = threading.Lock()
@@ -187,7 +187,7 @@ class ICE(object):
         if self.dev.isOpen():
             logger.info("Connected to serial device at " + self.dev.portstr)
         else:
-            raise self.ICE_Error, "Failed to connect to serial device"
+            raise self.ICE_Error("Failed to connect to serial device")
 
         self.communicator_stop_request = threading.Event()
         self.communicator_stop_response = threading.Event()
@@ -224,7 +224,7 @@ class ICE(object):
                 logger.warn("WARNING: No handler registered for message type: " +
                         str(msg_type))
                 logger.warn("Known Types:")
-                for t,f in self.msg_handler.iteritems():
+                for t,f in self.msg_handler.items():
                     logger.warn("%s\t%s" % (t, str(f)))
                 logger.warn("         Dropping packet:")
                 logger.warn("")
@@ -283,7 +283,7 @@ class ICE(object):
                     else:
                         logger.info("Got a NAK packet. Event:" + str(event_id))
                     self.sync_queue.put((msg_type, msg))
-                except Queue.Full:
+                except queue.Full:
                     logger.warn("WARNING: Synchronization lost. Unsolicited ACK/NAK.")
                     logger.warn("         Dropping packet:")
                     logger.warn("")
@@ -313,16 +313,16 @@ class ICE(object):
             elif c in ('x', 'X'):
                 continue
             else:
-                raise self.FormatError, "Illegal character: >>>" + c + "<<<"
+                raise self.FormatError("Illegal character: >>>" + c + "<<<")
         return ones,zeros
 
     def masks_to_strings(self, ones, zeros, length):
         s = ''
-        for l in xrange(length):
+        for l in range(length):
             o = bool(ones & (1 << l))
             z = bool(zeros & (1 << l))
             if o and z:
-                raise self.FormatError, "masks_to_strings has req 1 and req 0?"
+                raise self.FormatError("masks_to_strings has req 1 and req 0?")
             if o:
                 s = '1' + s
             elif z:
@@ -468,10 +468,10 @@ class ICE(object):
 
     def send_message(self, msg_type, msg='', length=None):
         if len(msg_type) != 1:
-            raise self.FormatError, "msg_type must be exactly 1 character"
+            raise self.FormatError("msg_type must be exactly 1 character")
 
         if len(msg) > 255:
-            raise self.FormatError, "msg too long. Maximum msg is 255 bytes"
+            raise self.FormatError("msg too long. Maximum msg is 255 bytes")
 
         if length is None:
             length = len(msg)
@@ -508,7 +508,7 @@ class ICE(object):
         logger.debug("Sending version probe")
         resp = self.send_message_until_acked('V')
         if (len(resp) is 0) or (len(resp) % 2):
-            raise self.FormatError, "Version response: " + resp
+            raise self.FormatError("Version response: " + resp)
 
         logger.info("This ICE board supports versions...")
         self.major = None
@@ -618,7 +618,7 @@ class ICE(object):
         elif div == 0x0007:
             return 3000000
         else:
-            raise self.FormatError, "Unknown baud divider?"
+            raise self.FormatError("Unknown baud divider?")
 
     @min_proto_version("0.2")
     @capability('_')
@@ -676,13 +676,13 @@ class ICE(object):
     ## GOC VS EIN HANDLING ##
     def set_goc_ein(self, goc=0, ein=0, restore_clock_freq=True):
         if goc == ein:
-            raise self.ICE_Error, "Internal consistency goc vs ein failure"
+            raise self.ICE_Error("Internal consistency goc vs ein failure")
 
         if self.minor == 1:
             if goc == 1:
                 return
             else:
-                raise self.ICE_Error, "Attempt to call set_goc_ein for ein with protocol version 1"
+                raise self.ICE_Error("Attempt to call set_goc_ein for ein with protocol version 1")
 
         if ein:
             # Set to EIN mode
@@ -723,7 +723,7 @@ class ICE(object):
     def goc_ein_get_freq_divisor_max_0_2(self):
         resp = self.send_message_until_acked('O', struct.pack("B", ord('c')))
         if len(resp) != 3:
-            raise self.FormatError, "Wrong response length from `Oc': " + str(resp)
+            raise self.FormatError("Wrong response length from `Oc': " + str(resp))
         setting = struct.unpack("!I", "\x00"+resp)[0]
         return setting
 
@@ -731,7 +731,7 @@ class ICE(object):
     def goc_ein_get_freq_divisor_min_0_3(self):
         resp = self.send_message_until_acked('O', struct.pack("B", ord('c')))
         if len(resp) != 4:
-            raise self.FormatError, "Wrong response length from `Oc': " + str(resp)
+            raise self.FormatError("Wrong response length from `Oc': " + str(resp))
         setting = struct.unpack("!I", resp)[0]
         logger.debug('got divisor value {}'.format(setting))
         return setting
@@ -746,7 +746,7 @@ class ICE(object):
     def goc_ein_set_freq_divisor_max_0_2(self, divisor):
         packed = struct.pack("!I", divisor)
         if packed[0] != '\x00':
-            raise self.ParameterError, "Out of range."
+            raise self.ParameterError("Out of range.")
         msg = struct.pack("B", ord('c')) + packed[1:]
         self.send_message_until_acked('o', msg)
 
@@ -869,7 +869,7 @@ class ICE(object):
         self.min_version(0.2)
         resp = self.send_message_until_acked('O', struct.pack("B", ord('o')))
         if len(resp) != 1:
-            raise self.FormatError, "Wrong response length from `Oo': " + str(resp)
+            raise self.FormatError("Wrong response length from `Oo': " + str(resp))
         onoff = struct.unpack("B", resp)[0]
         return bool(onoff)
 
@@ -929,7 +929,7 @@ class ICE(object):
             # XXX Generalize me w.r.t. version?
             return 100
         else:
-            raise self.ICE_Error, "Unknown Error"
+            raise self.ICE_Error("Unknown Error")
 
     @min_proto_version("0.1")
     @capability('i')
@@ -960,9 +960,9 @@ class ICE(object):
         ret = ord(msg[0])
         msg = msg[1:]
         if ret == errno.EINVAL:
-            raise self.ICE_Error, "ICE reports: Invalid argument."
+            raise self.ICE_Error("ICE reports: Invalid argument.")
         elif ret == errno.ENODEV:
-            raise self.ICE_Error, "Changing I2C speed not supported."
+            raise self.ICE_Error("Changing I2C speed not supported.")
 
     @min_proto_version("0.1")
     @capability('I')
@@ -972,7 +972,7 @@ class ICE(object):
         '''
         resp = self.send_message_until_acked('I', struct.pack("B", ord('a')))
         if len(resp) != 2:
-            raise self.FormatError, "i2c address response should be 2 bytes"
+            raise self.FormatError("i2c address response should be 2 bytes")
         ones, zeros = struct.unpack("BB", resp)
         if ones == 0xff and zeros == 0xff:
             return None
@@ -1000,7 +1000,7 @@ class ICE(object):
             ones, zeros = (0xff, 0xff)
         else:
             if len(address) != 8:
-                raise self.FormatError, "Address must be exactly 8 bits"
+                raise self.FormatError("Address must be exactly 8 bits")
             ones, zeros = self.string_to_masks(address)
         self.send_message_until_acked('i', struct.pack("BBB", ord('a'), ones, zeros))
 
@@ -1027,7 +1027,7 @@ class ICE(object):
         '''
         self.min_version(0.2)
         if len(addr) > 4:
-            raise self.FormatError, "Address too long"
+            raise self.FormatError("Address too long")
         while len(addr) < 4:
             addr = '\x00' + addr
         msg = addr + data
@@ -1068,7 +1068,7 @@ class ICE(object):
             ones, zeros = (0xfffff, 0xfffff)
         else:
             if len(prefix) != 20:
-                raise self.FormatError, "Prefix must be exactly 20 bits"
+                raise self.FormatError("Prefix must be exactly 20 bits")
             ones, zeros = self.string_to_masks(prefix)
         ones <<= 4
         zeros <<= 4
@@ -1091,7 +1091,7 @@ class ICE(object):
         self.min_version(0.2)
         resp = self.send_message_until_acked('M', struct.pack("B", ord('l')))
         if len(resp) != 6:
-            raise self.FormatError, "Full prefix response should be 6 bytes"
+            raise self.FormatError("Full prefix response should be 6 bytes")
         o_hig, o_mid, o_low, z_hig, z_mid, z_low = struct.unpack("BBBBBB", resp)
         ones = o_low | o_mid << 8 | o_hig << 16
         zeros = z_low | z_mid << 8 | z_hig << 16
@@ -1115,7 +1115,7 @@ class ICE(object):
             ones, zeros = (0xf, 0xf)
         else:
             if len(prefix) != 4:
-                raise self.FormatError, "Prefix must be exactly 4 bits"
+                raise self.FormatError("Prefix must be exactly 4 bits")
             ones, zeros = self.string_to_masks(prefix)
 
         self.send_message_until_acked('m', struct.pack("B"*(1+1),
@@ -1132,7 +1132,7 @@ class ICE(object):
         self.min_version(0.2)
         resp = self.send_message_until_acked('M', struct.pack("B", ord('s')))
         if len(resp) != 2:
-            raise self.FormatError, "Full prefix response should be 2 bytes"
+            raise self.FormatError("Full prefix response should be 2 bytes")
         ones, zeros = struct.unpack("BB", resp)
         ones >>= 4
         zeros >>= 4
@@ -1167,7 +1167,7 @@ class ICE(object):
         self.min_version(0.3)
         resp = self.send_message_until_acked('M', struct.pack("B", ord('S')))
         if len(resp) != 1:
-            raise self.FormatError, "Snoop enabled response should be 1 byte"
+            raise self.FormatError("Snoop enabled response should be 1 byte")
         enabled = bool(struct.unpack("B", resp))
 
         if return_filter:
@@ -1194,7 +1194,7 @@ class ICE(object):
             ones, zeros = (0xf, 0xf)
         else:
             if len(mask) != 4:
-                raise self.FormatError, "Prefix must be exactly 4 bits"
+                raise self.FormatError("Prefix must be exactly 4 bits")
             ones, zeros = self.string_to_masks(mask)
         self.send_message_until_acked('m', struct.pack("B"*(1+2),
             ord('b'),
@@ -1211,7 +1211,7 @@ class ICE(object):
         self.min_version(0.2)
         resp = self.send_message_until_acked('M', struct.pack("B", ord('b')))
         if len(resp) != 2:
-            raise self.FormatError, "Broadcast mask response should be 2 bytes"
+            raise self.FormatError("Broadcast mask response should be 2 bytes")
         ones, zeros = struct.unpack("BB", resp)
         if ones == 0xf and zeros == 0xf:
             return None
@@ -1238,7 +1238,7 @@ class ICE(object):
             ones, zeros = (0xf, 0xf)
         else:
             if len(mask) != 4:
-                raise self.FormatError, "Prefix must be exactly 4 bits"
+                raise self.FormatError("Prefix must be exactly 4 bits")
             ones, zeros = self.string_to_masks(mask)
         self.send_message_until_acked('m', struct.pack("B"*(1+2),
             ord('B'),
@@ -1255,7 +1255,7 @@ class ICE(object):
         self.min_version(0.2)
         resp = self.send_message_until_acked('M', struct.pack("B", ord('B')))
         if len(resp) != 2:
-            raise self.FormatError, "Broadcast mask response should be 2 bytes"
+            raise self.FormatError("Broadcast mask response should be 2 bytes")
         ones, zeros = struct.unpack("BB", resp)
         if ones == 0xf and zeros == 0xf:
             return None
@@ -1271,7 +1271,7 @@ class ICE(object):
         self.min_version(0.2)
         resp = self.send_message_until_acked('M', struct.pack("B", ord('m')))
         if len(resp) != 1:
-            raise self.FormatError, "Wrong response length from `Mm': " + str(resp)
+            raise self.FormatError("Wrong response length from `Mm': " + str(resp))
         onoff = struct.unpack("B", resp)[0]
         return bool(onoff)
 
@@ -1438,7 +1438,7 @@ class ICE(object):
         Setup a GPIO pin.
         '''
         if direction not in (ICE.GPIO_INPUT, ICE.GPIO_OUTPUT, ICE.GPIO_TRISTATE):
-            raise self.ParameterError, "Unknown direction: " + str(direction)
+            raise self.ParameterError("Unknown direction: " + str(direction))
         if self.minor == 1:
             return self.gpio_set_direction_0_1(gpio_idx, direction)
         else:
@@ -1451,7 +1451,7 @@ class ICE(object):
         resp = self.send_message_until_acked('G',
                 struct.pack('BB', ord('l'), gpio_idx))
         if len(resp) != 1:
-            raise self.FormatError, "Too long of a response from `Gl#':" + str(resp)
+            raise self.FormatError("Too long of a response from `Gl#':" + str(resp))
 
         return bool(struct.unpack("B", resp)[0])
 
@@ -1462,11 +1462,11 @@ class ICE(object):
         resp = self.send_message_until_acked('G',
                 struct.pack('BB', ord('d'), gpio_idx))
         if len(resp) != 1:
-            raise self.FormatError, "Too long of a response from `Gd#':" + str(resp)
+            raise self.FormatError("Too long of a response from `Gd#':" + str(resp))
 
         direction = struct.unpack("B", resp)[0]
         if direction not in (ICE.GPIO_INPUT, ICE.GPIO_OUTPUT, ICE.GPIO_TRISTATE):
-            raise self.FormatError, "Unknown direction: " + str(direction)
+            raise self.FormatError("Unknown direction: " + str(direction))
 
         return direction
 
@@ -1487,29 +1487,29 @@ class ICE(object):
     def _gpio_get_level_0_2(self):
         resp = self.send_message_until_acked('G', struct.pack('B', ord('l')))
         if len(resp) != 3:
-            raise self.FormatError, "Bad response from `Gl':" + str(resp)
-        high,mid,low = map(ord, resp)
+            raise self.FormatError("Bad response from `Gl':" + str(resp))
+        high,mid,low = list(map(ord, resp))
         return low | (mid << 8) | (high << 16)
 
     @min_proto_version("0.2")
     @capability('G')
     def gpio_get_level_0_2(self, gpio_idx):
         if gpio_idx >= 24:
-            raise self.ParameterError, "Request for illegal gpio idx"
+            raise self.ParameterError("Request for illegal gpio idx")
         return (self._gpio_get_level_0_2() >> gpio_idx) & 0x1
 
     def _gpio_get_direction_0_2(self):
         resp = self.send_message_until_acked('G', struct.pack('B', ord('d')))
         if len(resp) != 3:
-            raise self.FormatError, "Bad response from `Gd#':" + str(resp)
-        high,mid,low = map(ord, resp)
+            raise self.FormatError("Bad response from `Gd#':" + str(resp))
+        high,mid,low = list(map(ord, resp))
         return low | (mid << 8) | (high << 16)
 
     @min_proto_version("0.2")
     @capability('G')
     def gpio_get_direction_0_2(self, gpio_idx):
         if gpio_idx >= 24:
-            raise self.ParameterError, "Request for illegal gpio idx"
+            raise self.ParameterError("Request for illegal gpio idx")
 
         if ((self._gpio_get_direction_0_2() >> gpio_idx) & 0x1) == 0:
             return ICE.GPIO_INPUT
@@ -1539,7 +1539,7 @@ class ICE(object):
         elif direction in (ICE.GPIO_INPUT, ICE.GPIO_TRISTATE):
             mask &= ~(1 << gpio_idx)
         else:
-            raise self.ParameterError, "Illegal GPIO direction"
+            raise self.ParameterError("Illegal GPIO direction")
         self.send_message_until_acked('g',
                 struct.pack('BBBB', ord('d'),
                     (mask >> 16) & 0xff,
@@ -1551,8 +1551,8 @@ class ICE(object):
     def gpio_get_interrupt_enable_mask(self):
         resp = self.send_message_until_acked('G', struct.pack('B', ord('i')))
         if len(resp) != 3:
-            raise self.FormatError, "Bad response from `Gi':" + str(resp)
-        high,mid,low = map(ord, resp)
+            raise self.FormatError("Bad response from `Gi':" + str(resp))
+        high,mid,low = list(map(ord, resp))
         return low | (mid << 8) | (high << 16)
 
     @min_proto_version("0.2")
@@ -1586,7 +1586,7 @@ class ICE(object):
             ICE.POWER_VBATT
         '''
         if rail not in (ICE.POWER_0P6, ICE.POWER_1P2, ICE.POWER_VBATT):
-            raise self.ParameterError, "Invalid rail: " + str(rail)
+            raise self.ParameterError("Invalid rail: " + str(rail))
 
         logger.warn("ICE Firmware <= 0.3 cannot query voltage. Returning cached value.")
         try:
@@ -1615,11 +1615,11 @@ class ICE(object):
         Returns a boolean, on=True.
         '''
         if rail not in (ICE.POWER_0P6, ICE.POWER_1P2, ICE.POWER_VBATT, ICE.POWER_GOC):
-            raise self.ParameterError, "Invalid rail: " + str(rail)
+            raise self.ParameterError("Invalid rail: " + str(rail))
 
         resp = self.send_message_until_acked('P', struct.pack("BB", ord('o'), rail))
         if len(resp) != 1:
-            raise self.FormatError, "Too long of a response from `Po#':" + str(resp)
+            raise self.FormatError("Too long of a response from `Po#':" + str(resp))
         onoff = struct.unpack("B", resp)[0]
         return bool(onoff)
 
@@ -1630,7 +1630,7 @@ class ICE(object):
         Set the voltage setting of a power rail. Units are V.
         '''
         if rail not in (ICE.POWER_0P6, ICE.POWER_1P2, ICE.POWER_VBATT):
-            raise self.ParameterError, "Invalid rail: " + str(rail)
+            raise self.ParameterError("Invalid rail: " + str(rail))
 
         # Vout = (0.537 + 0.0185 * v_set) * Vdefault
         output_voltage = float(output_voltage)
@@ -1639,7 +1639,7 @@ class ICE(object):
         vset = ((output_voltage / default_voltage) - 0.537) / 0.0185
         vset = int(vset)
         if (vset < 0) or (vset > 255):
-            raise self.ParameterError, "Voltage exceeds range. vset: " + str(vset)
+            raise self.ParameterError("Voltage exceeds range. vset: " + str(vset))
 
         self.send_message_until_acked('p', struct.pack("BBB", ord('v'), rail, vset))
         setattr(self, 'power_{}'.format(rail), vset)
@@ -1651,7 +1651,7 @@ class ICE(object):
         Turn a power rail on or off (on=True).
         '''
         if rail not in (ICE.POWER_0P6, ICE.POWER_1P2, ICE.POWER_VBATT, ICE.POWER_GOC):
-            raise self.ParameterError, "Invalid rail: " + str(rail)
+            raise self.ParameterError("Invalid rail: " + str(rail))
 
         self.send_message_until_acked('p', struct.pack("BBB", ord('o'), rail, onoff))
 

@@ -35,9 +35,9 @@ class mbus_message_generator(m3_common):
     def Bpp_callback(self, address, data, cb0, cb1):
         print("")
         print("Received MBus message:")
-        print("  address: 0x" + address.encode('hex'))
-        print("     data: 0x" + data.encode('hex'))
-        print("was_acked: " + str(not cb1))
+        print(("  address: 0x" + address.encode('hex')))
+        print(("     data: 0x" + data.encode('hex')))
+        print(("was_acked: " + str(not cb1)))
         if (str(int(address.encode('hex'),16))=="118"):
             #o_file.write(str(int(address.encode('hex'),16))+"\t"+str(int(data.encode('hex'),16))+"\r\n")
             o_file_cref.write(str(int(data.encode('hex'),16))+"\n")
@@ -46,7 +46,7 @@ class mbus_message_generator(m3_common):
             o_file_outp.write(str(int(data.encode('hex'),16))+"\n")
             o_file_outp.flush()
             self.count += 1
-        print(self.count)
+        print((self.count))
         if self.count>self.args.killcount:
             self.exit()
 

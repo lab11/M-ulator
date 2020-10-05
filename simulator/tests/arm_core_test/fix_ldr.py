@@ -19,36 +19,36 @@ for line in g:
     if -1 != line.find("# Test Complete"):
         o.write(line)
 
-        line = g.next() # B ..._rtn_lbl
-        line = g.next() # '\n'
-        line = g.next() # # Failure
-        fail_lbl = g.next() # ..._led_lbl:
-        line = g.next() # ldr r0, clk_freq / 5
+        line = next(g) # B ..._rtn_lbl
+        line = next(g) # '\n'
+        line = next(g) # # Failure
+        fail_lbl = next(g) # ..._led_lbl:
+        line = next(g) # ldr r0, clk_freq / 5
         if line.find('CLK_FREQ') == -1:
-            print "ERR corrected branch logic. Expected clk line, got:"
-            print ">>>" + line + "<<<"
+            print("ERR corrected branch logic. Expected clk line, got:")
+            print(">>>" + line + "<<<")
             sys.exit(1)
-        line = g.next() # ldr r1, ledLoop
+        line = next(g) # ldr r1, ledLoop
         if line.find('LDR R1, ') == -1:
-            print "ERR corrected branch logic. Expected ldr ledLoop line, got:"
-            print ">>>" + line + "<<<"
+            print("ERR corrected branch logic. Expected ldr ledLoop line, got:")
+            print(">>>" + line + "<<<")
             sys.exit(1)
-        line = g.next() # bx r1
+        line = next(g) # bx r1
         if line.strip() != 'BX  R1':
-            print "ERR corrected branch logic. Expected bx r1, got:"
-            print ">>>" + line.strip() + "<<<"
+            print("ERR corrected branch logic. Expected bx r1, got:")
+            print(">>>" + line.strip() + "<<<")
             sys.exit(1)
-        line = g.next() # '\n'
+        line = next(g) # '\n'
         if line.strip() != '':
-            print "ERR corrected branch logic. Expected blank line, got:"
-            print ">>>" + line.strip() + "<<<"
+            print("ERR corrected branch logic. Expected blank line, got:")
+            print(">>>" + line.strip() + "<<<")
             sys.exit(1)
-        line = g.next() # # Return from function
-        line = g.next() # ...rtn_lbl:
-        line = g.next() # bx lr
+        line = next(g) # # Return from function
+        line = next(g) # ...rtn_lbl:
+        line = next(g) # bx lr
         if line.strip() != 'BX LR':
-            print "ERR corrected branch logic. Expected bx lr, got:"
-            print ">>>" + line.strip() + "<<<"
+            print("ERR corrected branch logic. Expected bx lr, got:")
+            print(">>>" + line.strip() + "<<<")
             sys.exit(1)
 
         o.write('    MOVW R0, 0\n')
@@ -62,8 +62,8 @@ for line in g:
         continue
 
     if -1 != line.find('_led_lbl:'):
-        print "ERR, missed branch correction, line:"
-        print ">>>" + line + "<<<"
+        print("ERR, missed branch correction, line:")
+        print(">>>" + line + "<<<")
         sys.exit(1)
 
     # Re-write the end test sequences
@@ -94,7 +94,7 @@ for line in g:
         o.write(line)
         continue
 
-    print line.rstrip()
+    print(line.rstrip())
     l = line.split()
     try:
         val = int(l[-1], 16)

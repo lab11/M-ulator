@@ -8,12 +8,12 @@ import logging
 import inspect
 from datetime import datetime
 import glob
-import ConfigParser
-import Queue
+import configparser
+import queue
 import argparse
-import Tkinter as Tk
-import ttk
-import tkFileDialog, tkMessageBox
+import tkinter as Tk
+import tkinter.ttk
+import tkinter.filedialog, tkinter.messagebox
 from idlelib.WidgetRedirector import WidgetRedirector
 
 import m3_logging
@@ -74,12 +74,12 @@ def report_event(event):
 			"2": "KeyPress",
 			"4": "ButtonPress",
 			}
-	print("EventTime={}".format(event.time),
+	print(("EventTime={}".format(event.time),
 			"EventType={}".format(event.type),
 			event_name[str(event.type)],
 			"EventWidgetId={}".format(event.widget),
 			"EventKeySymbol={}".format(event.keysym)
-			)
+			))
 
 def add_returns(widget, callback):
 	widget.bind("<Return>", event_lambda(callback))
@@ -124,11 +124,11 @@ def make_modal(window, parent):
 	window.grab_set()
 	parent.wait_window(window)
 
-class ButtonWithReturns(ttk.Button):
+class ButtonWithReturns(tkinter.ttk.Button):
 	# n.b.: ttk.Button is an old-style class
 	def __init__(self, *args, **kwargs):
 		#logger.trace('ButtonWithReturns self {}'.format(repr(self)))
-		ttk.Button.__init__(self, *args, **kwargs)
+		tkinter.ttk.Button.__init__(self, *args, **kwargs)
 		try:
 			add_returns(self, kwargs['command'])
 		except KeyError:
@@ -156,7 +156,7 @@ def async_call(parent, fn, timeout_in_ms=500, cancellable=False):
 			ret = fn()
 			comp_queue.put(True)
 			comp_queue.put(ret)
-		except Exception, e:
+		except Exception as e:
 			comp_queue.put(False)
 			comp_queue.put(e)
 		comp_event.set()
@@ -174,7 +174,7 @@ def async_call(parent, fn, timeout_in_ms=500, cancellable=False):
 	comp_var = Tk.IntVar()
 	comp_var.set(0)
 	comp_event = threading.Event()
-	comp_queue = Queue.Queue()
+	comp_queue = queue.Queue()
 
 	t = threading.Thread(target=async_fn_wrapper,
 			args=(fn, comp_event, comp_queue))
@@ -188,10 +188,10 @@ def async_call(parent, fn, timeout_in_ms=500, cancellable=False):
 	if comp_var.get() == -1:
 		win = ModalWindow(parent)
 		win.title = "Long Running Task..."
-		ttk.Label(win, text="A requested command is taking too long to run",
+		tkinter.ttk.Label(win, text="A requested command is taking too long to run",
 				).pack()
-		ttk.Label(win, text="The long-running command is:").pack()
-		ttk.Label(win, text=str(m3_logging.fn_to_source(fn))).pack()
+		tkinter.ttk.Label(win, text="The long-running command is:").pack()
+		tkinter.ttk.Label(win, text=str(m3_logging.fn_to_source(fn))).pack()
 
 		if cancellable:
 			def cancel_async_call(win):
@@ -287,7 +287,7 @@ class Configuration(M3Gui):
 
 		self.status_label_text = Tk.StringVar(self.top)
 		self.status_label_text.set("< Uninitialized Text >")
-		self.status_label = ttk.Label(self.top, textvariable=self.status_label_text)
+		self.status_label = tkinter.ttk.Label(self.top, textvariable=self.status_label_text)
 		self.status_label.pack()
 
 		self.config_dir = os.path.join(os.getcwd(), 'configs')
@@ -378,7 +378,7 @@ class Configuration(M3Gui):
 			self.use_selected()
 
 	def change_directory(self):
-		new_dir = tkFileDialog.askdirectory(
+		new_dir = tkinter.filedialog.askdirectory(
 				initialdir=self.config_dir,
 				mustexist=True,
 				parent=self.top,
@@ -392,7 +392,7 @@ class Configuration(M3Gui):
 			return
 		else:
 			logger.error('Illegar dir: ' + str(new_dir))
-			tkMessageBox.showerror("Illegal Directory", "Please select a "\
+			tkinter.messagebox.showerror("Illegal Directory", "Please select a "\
 			"directory that actually exists. (As an aside: How did you "\
 			"manage to select one that doesn't exist?)")
 			return self.change_directory()
@@ -401,33 +401,33 @@ class Configuration(M3Gui):
 		def create_new_user():
 			uniq = entry.get()
 			if uniq in self.users:
-				tkMessageBox.showerror("Duplicate User",
+				tkinter.messagebox.showerror("Duplicate User",
 						"A user with that uniqname already exists.")
 			elif len(uniq):
 				new.destroy()
 				self.uniqname_var.set(uniq)
 				self.config_file = os.path.join(self.config_dir, uniq + '.ini')
-				self.config = ConfigParser.SafeConfigParser()
+				self.config = configparser.SafeConfigParser()
 				self.edit_configuration(cancellable=True)
 			else:
-				tkMessageBox.showerror("Blank uniqname",
+				tkinter.messagebox.showerror("Blank uniqname",
 						"Please enter a uniqname.")
 
 		new = ModalWindow(self.top, cancellable=True)
 		new.title('Create New User')
 
-		row0 = ttk.Frame(new)
+		row0 = tkinter.ttk.Frame(new)
 		row0.pack()
 
-		label = ttk.Label(row0, text="uniqname")
+		label = tkinter.ttk.Label(row0, text="uniqname")
 		label.pack(side=Tk.LEFT)
 
-		entry = ttk.Entry(row0)
+		entry = tkinter.ttk.Entry(row0)
 		entry.pack(fill=Tk.X)
 		add_returns(entry, create_new_user)
 		entry.focus_set()
 
-		row1 = ttk.Frame(new)
+		row1 = tkinter.ttk.Frame(new)
 		row1.pack(fill=Tk.X)
 
 		create = ButtonWithReturns(row1, text="Create", command=create_new_user)
@@ -447,7 +447,7 @@ class Configuration(M3Gui):
 
 	def parse_config(self, force_edit=False):
 		logger.debug('parse_config(force_eidt={})'.format(force_edit))
-		self.config = ConfigParser.SafeConfigParser()
+		self.config = configparser.SafeConfigParser()
 		self.config.read(self.config_file)
 		if force_edit:
 			self.edit_configuration(cancellable=False)
@@ -456,7 +456,7 @@ class Configuration(M3Gui):
 				self.last_updated = self.config.getint('DEFAULT', 'last-updated')
 				cur_time = int(time.time())
 				if cur_time - self.last_updated > M3Gui.ONE_DAY:
-					tkMessageBox.showinfo("Stale config file",
+					tkinter.messagebox.showinfo("Stale config file",
 							"Configuration file has not been"\
 							" updated in over 24 hours. Please verify that"\
 							" all information is still correct.")
@@ -464,8 +464,8 @@ class Configuration(M3Gui):
 				self.ws_var.set(self.config.get('DEFAULT', 'workstation'))
 				self.cs_var.set(self.config.get('DEFAULT', 'chips'))
 				self.notes_var.set(self.config.get('DEFAULT', 'notes'))
-			except ConfigParser.NoOptionError:
-				tkMessageBox.showwarning("Bad config file",
+			except configparser.NoOptionError:
+				tkinter.messagebox.showwarning("Bad config file",
 						"Configuration file corrupt."\
 						" Please update your configuration.")
 				self.edit_configuration(cancellable=False)
@@ -490,16 +490,16 @@ class Configuration(M3Gui):
 			cs = cs_var_new.get()
 			notes = notes_text.get(1.0, Tk.END).strip()
 			if ws[0] == '<':
-				tkMessageBox.showerror("No Workstation Selected",
+				tkinter.messagebox.showerror("No Workstation Selected",
 						"Please select a workstation")
 				return
 			if cs[0] == '<':
-				tkMessageBox.showerror("No Chips / Stack Selected",
+				tkinter.messagebox.showerror("No Chips / Stack Selected",
 						"Please select the chips / stacks you are currently"\
 						" using for testing.")
 				return
 			if len(notes) < 10 or notes.strip() == default_notes:
-				tkMessageBox.showerror("No testing notes added",
+				tkinter.messagebox.showerror("No testing notes added",
 						"Please add some notes on what you are currently"\
 						" working on. Add some detail -- it may be important"\
 						" for you to be able to look this up in the future")
@@ -547,11 +547,11 @@ class Configuration(M3Gui):
 		edit.protocol("WM_DELETE_WINDOW", exit_handler)
 		edit.bind("<Escape>", lambda event : exit_handler())
 
-		label = ttk.Label(edit,
+		label = tkinter.ttk.Label(edit,
 				text="Editing configuration for " + self.uniqname_var.get())
 		label.grid(row=0, columnspan=2)
 
-		ws_label = ttk.Label(edit, text="Workstation")
+		ws_label = tkinter.ttk.Label(edit, text="Workstation")
 		ws_label.grid(row=1, column=0, sticky='e')
 
 		ws_var_new = Tk.StringVar(edit)
@@ -565,13 +565,13 @@ class Configuration(M3Gui):
 					continue
 				ws_list.append(line)
 		except IOError:
-			tkMessageBox.showerror('Missing Workstation List',
+			tkinter.messagebox.showerror('Missing Workstation List',
 					'Configs directory is missing required file:'\
 					' "workstations.txt".')
 			self.parent.destroy()
 			sys.exit()
 		if len(ws_list) == 0:
-			tkMessageBox.showerror('Empty Workstation List',
+			tkinter.messagebox.showerror('Empty Workstation List',
 					'There must be at least one entry in workstations.txt')
 			self.parent.destroy()
 			sys.exit()
@@ -580,7 +580,7 @@ class Configuration(M3Gui):
 
 		try:
 			ws_var_new.set(self.config.get('DEFAULT', 'workstation'))
-		except ConfigParser.NoOptionError:
+		except configparser.NoOptionError:
 			ws_var_new.set('< Select Workstation >')
 			if not focused:
 				ws_option.focus_set()
@@ -594,7 +594,7 @@ class Configuration(M3Gui):
 					return r
 				l = '\n'.join(s(chips_tree) + s(stacks_tree))
 				if len(l) == 0:
-					tkMessageBox.showerror('No Chips Selected', 'You must'\
+					tkinter.messagebox.showerror('No Chips Selected', 'You must'\
 							' select at least on chip or stack.')
 					return
 				selected_label.set(l)
@@ -623,13 +623,13 @@ class Configuration(M3Gui):
 									except ValueError:
 										start = s
 										end = s
-									for i in xrange(int(start), int(end)+1):
+									for i in range(int(start), int(end)+1):
 										ll.append("{}".format(i))
 								l.append((txt, ll))
 							except:
 								logger.warn("Ignoring bad chip/stack entry: " + line)
 				except IOError:
-					tkMessageBox.showerror('Missing Chip / Stack List',
+					tkinter.messagebox.showerror('Missing Chip / Stack List',
 							'Configs directory is missing required file: ' + f)
 					self.parent.destroy()
 					sys.exit()
@@ -642,18 +642,18 @@ class Configuration(M3Gui):
 			stacks = parse_cs_file(stacksf)
 
 			if (len(chips) is 0) and (len(stacks) is 0):
-				tkMessageBox.showerror("Empty Chips and Stacks",
+				tkinter.messagebox.showerror("Empty Chips and Stacks",
 						'At least one chip or stack must be defined.'\
 								' Both chips.txt and stacks.txt are empty.')
 				self.parent.destroy()
 				sys.exit()
 
-			title = ttk.Label(selector, text="Select the chips and / or"\
+			title = tkinter.ttk.Label(selector, text="Select the chips and / or"\
 					" stacks you are currently testing. Hold the Shift or"\
 					" Control keys to select multiple.")
 			title.grid(row=0, columnspan=2, stick='we')
 
-			chips_tree = ttk.Treeview(selector, height=40)
+			chips_tree = tkinter.ttk.Treeview(selector, height=40)
 			for model, numbers in chips:
 				chips_tree.insert('', 'end', model, text=model, open=True)
 				for n in numbers:
@@ -661,7 +661,7 @@ class Configuration(M3Gui):
 					chips_tree.insert(model, 'end', name, text=name)
 			chips_tree.grid(row=1, column=0, sticky='ns')
 
-			stacks_tree = ttk.Treeview(selector, height=40)
+			stacks_tree = tkinter.ttk.Treeview(selector, height=40)
 			for model, numbers in stacks:
 				stacks_tree.insert('', 'end', model, text=model, open=True)
 				for n in numbers:
@@ -686,12 +686,12 @@ class Configuration(M3Gui):
 			cancel.grid(row=3, column=0, sticky='e')
 
 
-		cs_label = ttk.Label(edit, text="Chips / Stacks")
+		cs_label = tkinter.ttk.Label(edit, text="Chips / Stacks")
 		cs_label.grid(row=2, column=0, sticky='ne')
 
 		cs_var_new = Tk.StringVar(edit)
 
-		cs_active_label = ttk.Label(edit, textvariable=cs_var_new)
+		cs_active_label = tkinter.ttk.Label(edit, textvariable=cs_var_new)
 		cs_active_label.grid(row=2, column=1)
 
 		cs_btn = ButtonWithReturns(edit, text="Select Chips / Stacks",
@@ -700,13 +700,13 @@ class Configuration(M3Gui):
 
 		try:
 			cs_var_new.set(self.config.get('DEFAULT', 'chips'))
-		except ConfigParser.NoOptionError:
+		except configparser.NoOptionError:
 			cs_var_new.set('< No Chips / Stacks Selected >')
 			if not focused:
 				cs_btn.focus_set()
 				focused = True
 
-		notes_label = ttk.Label(edit, text="Notes:")
+		notes_label = tkinter.ttk.Label(edit, text="Notes:")
 		notes_label.grid(row=4, columnspan=2, sticky='w')
 
 		notes_text = Tk.Text(edit)
@@ -715,7 +715,7 @@ class Configuration(M3Gui):
 
 		try:
 			notes_text.insert(Tk.INSERT, self.config.get('DEFAULT', 'notes'))
-		except ConfigParser.NoOptionError:
+		except configparser.NoOptionError:
 			notes_text.insert(Tk.INSERT, default_notes)
 			if not focused:
 				notes_text.focus_set()
@@ -746,7 +746,7 @@ class ConfigPane(M3Gui):
 		if hasattr(self.configuration, 'quit'):
 			sys.exit()
 
-		self.config_container = ttk.Frame(parent,
+		self.config_container = tkinter.ttk.Frame(parent,
 				height=800,
 				width=200,
 				borderwidth=5,
@@ -767,23 +767,23 @@ class ConfigPane(M3Gui):
 				self.configuration.edit_configuration(cancellable=True),
 				).pack(fill=Tk.X)
 
-		ttk.Label(self.config_container, text="User:").pack(anchor='w')
-		self.user_label = ttk.Label(self.config_container,
+		tkinter.ttk.Label(self.config_container, text="User:").pack(anchor='w')
+		self.user_label = tkinter.ttk.Label(self.config_container,
 			textvariable=self.configuration.uniqname_var)
 		self.user_label.pack(padx='5m', anchor='w')
 
-		ttk.Label(self.config_container, text="Workstation:").pack(anchor='w')
+		tkinter.ttk.Label(self.config_container, text="Workstation:").pack(anchor='w')
 		self.ws_label = Tk.Label(self.config_container,
 				textvariable=self.configuration.ws_var)
 		self.ws_label.pack(padx='5m', anchor='w')
 
-		ttk.Label(self.config_container, text="Chips / Stacks:").pack(anchor='w')
-		self.chips_label = ttk.Label(self.config_container,
+		tkinter.ttk.Label(self.config_container, text="Chips / Stacks:").pack(anchor='w')
+		self.chips_label = tkinter.ttk.Label(self.config_container,
 			textvariable=self.configuration.cs_var)
 		self.chips_label.pack(padx='5m', anchor='w')
 
-		ttk.Label(self.config_container, text="Notes:").pack(anchor='w')
-		self.notes_label = ttk.Label(self.config_container,
+		tkinter.ttk.Label(self.config_container, text="Notes:").pack(anchor='w')
+		self.notes_label = tkinter.ttk.Label(self.config_container,
 			textvariable=self.configuration.notes_var, wraplength=150)
 		self.notes_label.pack(padx='5m', anchor='w')
 
@@ -792,9 +792,9 @@ class ConfigPane(M3Gui):
 			self.lastup_var.set(pretty_time(self.configuration.last_updated))
 		else:
 			self.lastup_var.set('Error! Corrupt configuration file')
-		self.lastup_label = ttk.Label(self.config_container, textvariable=self.lastup_var)
+		self.lastup_label = tkinter.ttk.Label(self.config_container, textvariable=self.lastup_var)
 		self.lastup_label.pack(side=Tk.BOTTOM, padx='5m', anchor='sw')
-		ttk.Label(self.config_container, text="Config Last Updated:").pack(side=Tk.BOTTOM, anchor='sw')
+		tkinter.ttk.Label(self.config_container, text="Config Last Updated:").pack(side=Tk.BOTTOM, anchor='sw')
 
 class MainPane(M3Gui):
 	def __init__(self, parent, args, config):
@@ -802,7 +802,7 @@ class MainPane(M3Gui):
 		self.args = args
 		self.config = config
 
-		self.mainpane = ttk.Frame(parent,
+		self.mainpane = tkinter.ttk.Frame(parent,
 				borderwidth=5,
 				relief=Tk.RIDGE,
 				height=800,
@@ -821,18 +821,18 @@ class MainPane(M3Gui):
 		self.on_ice_connect = []
 		self.on_ice_disconnect = []
 
-		self.async_event_queue = Queue.Queue()
+		self.async_event_queue = queue.Queue()
 		def async_event_handler():
 			try:
 				while True:
 					self.async_event_queue.get_nowait()()
-			except Queue.Empty:
+			except queue.Empty:
 				pass
 			self.parent.after(50, async_event_handler)
 		self.parent.after_idle(async_event_handler)
 
 		# Bar holding ICE status / info / etc
-		self.icepane = ttk.LabelFrame(self.mainpane, text="ICE")
+		self.icepane = tkinter.ttk.LabelFrame(self.mainpane, text="ICE")
 		self.icepane.pack(fill='x', expand=1,
 				padx=self.FRAME_PADX, pady=self.FRAME_PADY,
 				ipadx=self.FRAME_IPADX, ipady=self.FRAME_IPADY)
@@ -915,7 +915,7 @@ class MainPane(M3Gui):
 				if last_serial not in port_list:
 					port_list.insert(0, last_serial)
 				self.port_selector_var.set(last_serial)
-			except (ConfigParser.NoOptionError, ValueError):
+			except (configparser.NoOptionError, ValueError):
 				if hasattr(self, 'ice') and self.ice.is_connected():
 					self.port_selector_var.set(self.ice.dev.portstr)
 				else:
@@ -932,17 +932,17 @@ class MainPane(M3Gui):
 
 		self.port_selector_var = Tk.StringVar()
 		self.port_selector_var.trace('w', serial_port_changed)
-		self.port_selector = ttk.OptionMenu(self.icepane, self.port_selector_var)
+		self.port_selector = tkinter.ttk.OptionMenu(self.icepane, self.port_selector_var)
 		populate_serial_port_list()
 		self.port_selector.pack(side=Tk.LEFT)
 
 		self.ice_status_var = Tk.StringVar()
 		self.ice_status_var.set('Not connected to ICE')
-		ttk.Label(self.icepane, textvariable=self.ice_status_var
+		tkinter.ttk.Label(self.icepane, textvariable=self.ice_status_var
 				).pack(fill='y', expand=1, anchor='e')
 
 		# Bar with Power control information
-		self.powerpane = ttk.LabelFrame(self.mainpane, text="Power Control")
+		self.powerpane = tkinter.ttk.LabelFrame(self.mainpane, text="Power Control")
 		self.powerpane.pack(fill='x', expand=1,
 				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
 
@@ -964,8 +964,8 @@ class MainPane(M3Gui):
 			if onoff or force_settle:
 				win = ModalWindow(self.parent)
 				win.title = "Applying power setting"
-				ttk.Label(win, text="Waiting for power rail to settle...").pack()
-				pb = ttk.Progressbar(win, length=300, maximum=settle_time/ .050)
+				tkinter.ttk.Label(win, text="Waiting for power rail to settle...").pack()
+				pb = tkinter.ttk.Progressbar(win, length=300, maximum=settle_time/ .050)
 				pb.pack()
 				pb.start()
 				win.after(settle_time * 1000, lambda : win.destroy())
@@ -984,7 +984,7 @@ class MainPane(M3Gui):
 			def apply_cfg(rail, key, dfl, var):
 				try:
 					voltage = self.config.getfloat('DEFAULT', key)
-				except ConfigParser.NoOptionError:
+				except configparser.NoOptionError:
 					voltage = dfl
 				apply_voltage(rail, voltage, False, var)
 
@@ -1002,9 +1002,9 @@ class MainPane(M3Gui):
 			for v in (self.power0P6_var, self.power1P2_var, self.powervbatt_var):
 				v.set('ICE disconnected')
 
-		self.powerframe1 = ttk.Frame(self.powerpane)
+		self.powerframe1 = tkinter.ttk.Frame(self.powerpane)
 		self.powerframe1.pack(fill='x', expand=1)
-		ttk.Label(self.powerframe1, text="0.6 V Rail:").pack(side='left')
+		tkinter.ttk.Label(self.powerframe1, text="0.6 V Rail:").pack(side='left')
 		self.power0P6_onoff = Tk.IntVar()
 		self.power0P6_onoff.set(0)
 		self.power0P6_off = Tk.Radiobutton(self.powerframe1, text="Off",
@@ -1017,7 +1017,7 @@ class MainPane(M3Gui):
 						apply_power_onoff(self.ice.POWER_0P6, True,
 							self.power0P6_on, self.power0P6_var))
 		self.power0P6_on.pack(side='left')
-		self.power0P6_entry = ttk.Entry(self.powerframe1)
+		self.power0P6_entry = tkinter.ttk.Entry(self.powerframe1)
 		add_returns(self.power0P6_entry,
 				lambda : apply_voltage(self.ice.POWER_0P6, self.power0P6_entry.get(),
 					self.power0P6_onoff.get(), self.power0P6_var))
@@ -1029,11 +1029,11 @@ class MainPane(M3Gui):
 		self.power0P6_btn.pack(side='left')
 		self.power0P6_var = Tk.StringVar()
 		self.power0P6_var.set('ICE disconnected')
-		ttk.Label(self.powerframe1, textvariable=self.power0P6_var).pack(anchor='e')
+		tkinter.ttk.Label(self.powerframe1, textvariable=self.power0P6_var).pack(anchor='e')
 
-		self.powerframe2 = ttk.Frame(self.powerpane)
+		self.powerframe2 = tkinter.ttk.Frame(self.powerpane)
 		self.powerframe2.pack(fill='x', expand=1)
-		ttk.Label(self.powerframe2, text="1.2 V Rail:").pack(side='left')
+		tkinter.ttk.Label(self.powerframe2, text="1.2 V Rail:").pack(side='left')
 		self.power1P2_onoff = Tk.IntVar()
 		self.power1P2_onoff.set(0)
 		self.power1P2_off = Tk.Radiobutton(self.powerframe2, text="Off",
@@ -1046,7 +1046,7 @@ class MainPane(M3Gui):
 						apply_power_onoff(self.ice.POWER_1P2, True,
 							self.power1P2_on, self.power1P2_var))
 		self.power1P2_on.pack(side='left')
-		self.power1P2_entry = ttk.Entry(self.powerframe2)
+		self.power1P2_entry = tkinter.ttk.Entry(self.powerframe2)
 		add_returns(self.power1P2_entry,
 				lambda : apply_voltage(self.ice.POWER_1P2, self.power1P2_entry.get(),
 					self.power1P2_onoff.get(), self.power1P2_var))
@@ -1058,11 +1058,11 @@ class MainPane(M3Gui):
 		self.power1P2_btn.pack(side='left')
 		self.power1P2_var = Tk.StringVar()
 		self.power1P2_var.set('ICE disconnected')
-		ttk.Label(self.powerframe2, textvariable=self.power1P2_var).pack(anchor='e')
+		tkinter.ttk.Label(self.powerframe2, textvariable=self.power1P2_var).pack(anchor='e')
 
-		self.powerframe3 = ttk.Frame(self.powerpane)
+		self.powerframe3 = tkinter.ttk.Frame(self.powerpane)
 		self.powerframe3.pack(fill='x', expand=1)
-		ttk.Label(self.powerframe3, text="VBatt Rail:").pack(side='left')
+		tkinter.ttk.Label(self.powerframe3, text="VBatt Rail:").pack(side='left')
 		self.powervbatt_onoff = Tk.IntVar()
 		self.powervbatt_onoff.set(0)
 		self.powervbatt_off = Tk.Radiobutton(self.powerframe3, text="Off",
@@ -1075,7 +1075,7 @@ class MainPane(M3Gui):
 						apply_power_onoff(self.ice.POWER_VBATT, True,
 							self.powervbatt_on, self.powervbatt_var))
 		self.powervbatt_on.pack(side='left')
-		self.powervbatt_entry = ttk.Entry(self.powerframe3)
+		self.powervbatt_entry = tkinter.ttk.Entry(self.powerframe3)
 		add_returns(self.powervbatt_entry,
 				lambda : apply_voltage(self.ice.POWER_VBATT, self.powervbatt_entry.get(),
 					self.powervbatt_onoff.get(), self.powervbatt_var))
@@ -1087,7 +1087,7 @@ class MainPane(M3Gui):
 		self.powervbatt_btn.pack(side='left')
 		self.powervbatt_var = Tk.StringVar()
 		self.powervbatt_var.set('ICE disconnected')
-		ttk.Label(self.powerframe3, textvariable=self.powervbatt_var).pack(anchor='e')
+		tkinter.ttk.Label(self.powerframe3, textvariable=self.powervbatt_var).pack(anchor='e')
 
 		self.on_ice_connect.append(on_ice_connect_power)
 		self.on_ice_disconnect.append(on_ice_disconnect_power)
@@ -1114,7 +1114,7 @@ class MainPane(M3Gui):
 			apply_power_onoff(self.ice.POWER_0P6, True, self.power0P6_on,
 					self.power0P6_var, force_settle=True)
 
-		self.powerframe4 = ttk.Frame(self.powerpane)
+		self.powerframe4 = tkinter.ttk.Frame(self.powerpane)
 		self.powerframe4.pack(fill='x', expand=1)
 		ButtonWithReturns(self.powerframe4, text="Run M3 Reset Sequence",
 				command = reset_sequence).pack(side='right')
@@ -1124,7 +1124,7 @@ class MainPane(M3Gui):
 				command = power_all_off).pack(side='right')
 
 		# Bar with GOC configuration
-		self.gocpane = ttk.LabelFrame(self.mainpane, text="GOC Configuration")
+		self.gocpane = tkinter.ttk.LabelFrame(self.mainpane, text="GOC Configuration")
 		self.gocpane.pack(fill='x', expand=1,
 				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
 
@@ -1145,17 +1145,17 @@ class MainPane(M3Gui):
 			logger.debug('on_ice_connect_goc_freq')
 			try:
 				apply_goc_freq(self.config.getfloat('DEFAULT', 'goc_freq'))
-			except ConfigParser.NoOptionError:
+			except configparser.NoOptionError:
 				apply_goc_freq(None)
 
-		self.gocframe1 = ttk.Frame(self.gocpane)
+		self.gocframe1 = tkinter.ttk.Frame(self.gocpane)
 		self.gocframe1.pack(fill='x', expand=1)
-		ttk.Label(self.gocframe1, text="Slow Frequency: ").pack(side='left')
-		self.goc_freq_entry = ttk.Entry(self.gocframe1)
+		tkinter.ttk.Label(self.gocframe1, text="Slow Frequency: ").pack(side='left')
+		self.goc_freq_entry = tkinter.ttk.Entry(self.gocframe1)
 		add_returns(self.goc_freq_entry,
 				lambda : apply_goc_freq(self.goc_freq_entry.get()))
 		self.goc_freq_entry.pack(side='left')
-		ttk.Label(self.gocframe1, text="Hz").pack(side='left')
+		tkinter.ttk.Label(self.gocframe1, text="Hz").pack(side='left')
 		self.goc_freq_btn = ButtonWithReturns(self.gocframe1, text="Apply",
 				command=lambda : apply_goc_freq(self.goc_freq_entry.get()))
 		self.goc_freq_btn.pack(side='left')
@@ -1164,7 +1164,7 @@ class MainPane(M3Gui):
 		self.on_ice_connect.append(on_ice_connect_goc_freq)
 		self.on_ice_disconnect.append(lambda :\
 				self.goc_freq_var.set('ICE disconnected'))
-		ttk.Label(self.gocframe1, textvariable=self.goc_freq_var).pack(anchor='e')
+		tkinter.ttk.Label(self.gocframe1, textvariable=self.goc_freq_var).pack(anchor='e')
 
 		def apply_goc_pol(is_normal):
 			if is_normal:
@@ -1190,12 +1190,12 @@ class MainPane(M3Gui):
 					apply_goc_pol(True)
 				else:
 					apply_goc_pol(False)
-			except ConfigParser.NoOptionError:
+			except configparser.NoOptionError:
 				apply_goc_pol(not self.ice.goc_get_onoff())
 
-		self.gocframe2 = ttk.Frame(self.gocpane)
+		self.gocframe2 = tkinter.ttk.Frame(self.gocpane)
 		self.gocframe2.pack(fill='x', expand=1)
-		ttk.Label(self.gocframe2, text="Polarity: ").pack(side='left')
+		tkinter.ttk.Label(self.gocframe2, text="Polarity: ").pack(side='left')
 		self.goc_pol_var = Tk.IntVar()
 		self.goc_pol_var.set(0)
 		self.goc_pol_normal = Tk.Radiobutton(self.gocframe2, text="Normal",
@@ -1211,19 +1211,19 @@ class MainPane(M3Gui):
 		self.on_ice_connect.append(on_ice_connect_goc_pol)
 		self.on_ice_disconnect.append(lambda :\
 				self.goc_pol_lbl.set('ICE disconnected'))
-		ttk.Label(self.gocframe2, textvariable=self.goc_pol_lbl).pack(anchor='e')
+		tkinter.ttk.Label(self.gocframe2, textvariable=self.goc_pol_lbl).pack(anchor='e')
 
 		# Bar holding program image / etc
-		self.progpane = ttk.LabelFrame(self.mainpane, text="Program")
+		self.progpane = tkinter.ttk.LabelFrame(self.mainpane, text="Program")
 		self.progpane.pack(fill=Tk.X, expand=1,
 				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
 
-		self.progframe = ttk.Frame(self.progpane)
+		self.progframe = tkinter.ttk.Frame(self.progpane)
 		self.progframe.pack(fill='x', expand=1,
 				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
 
 		def prog_changed():
-			new_file = tkFileDialog.askopenfilename(
+			new_file = tkinter.filedialog.askopenfilename(
 					filetypes=(
 						('program', '*.bin'),
 						('program', '*.hex'),
@@ -1271,19 +1271,19 @@ class MainPane(M3Gui):
 				change_file(None, True)
 
 		self.prog_button_var = Tk.StringVar()
-		self.prog_button = ttk.Button(self.progframe,
+		self.prog_button = tkinter.ttk.Button(self.progframe,
 				textvariable=self.prog_button_var, command=prog_changed)
 		self.prog_button.pack(side=Tk.LEFT)
 
 		self.prog_info_var = Tk.StringVar()
-		ttk.Label(self.progframe, textvariable=self.prog_info_var,
+		tkinter.ttk.Label(self.progframe, textvariable=self.prog_info_var,
 				justify=Tk.RIGHT).pack(fill='y', expand=1, anchor='e')
 
-		self.progactionframe = ttk.Frame(self.progpane)
+		self.progactionframe = tkinter.ttk.Frame(self.progpane)
 		self.progactionframe.pack(fill='x', expand=1,
 				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
 
-		ttk.Label(self.progactionframe, text='Run After Programming:'
+		tkinter.ttk.Label(self.progactionframe, text='Run After Programming:'
 				).pack(side='left')
 		self.prog_run_after_var = Tk.IntVar()
 		self.prog_run_after_yes = Tk.Radiobutton(self.progactionframe,
@@ -1299,7 +1299,7 @@ class MainPane(M3Gui):
 
 		try:
 			runafter = self.config.getboolean('DEFAULT', 'prog_run_after')
-		except ConfigParser.NoOptionError:
+		except configparser.NoOptionError:
 			runafter = True
 		if runafter:
 			self.prog_run_after_yes.select()
@@ -1373,7 +1373,7 @@ class MainPane(M3Gui):
 				c2 = Tk.Checkbutton(goc_win, #state=Tk.DISABLED,
 						text="Wake chip via GOC")
 				c2.pack(fill='x', expand=1, anchor='w')
-				p2 = ttk.Progressbar(goc_win, length=300,
+				p2 = tkinter.ttk.Progressbar(goc_win, length=300,
 						maximum=((2*8)/slow_freq)/.050)
 				p2.pack()
 				fns.append((c2, p2, lambda :\
@@ -1382,7 +1382,7 @@ class MainPane(M3Gui):
 				c6 = Tk.Checkbutton(goc_win, #state=Tk.DISABLED,
 						text="Delay for ~2 sec")
 				c6.pack(fill='x', expand=1, anchor='w')
-				p6 = ttk.Progressbar(goc_win, length=300, maximum=(2/.050))
+				p6 = tkinter.ttk.Progressbar(goc_win, length=300, maximum=(2/.050))
 				p6.pack()
 				fns.append((c6, p6, lambda : time.sleep(2)))
 
@@ -1396,7 +1396,7 @@ class MainPane(M3Gui):
 			c4 = Tk.Checkbutton(goc_win, #state=Tk.DISABLED,
 					text="Send GOC message (~{} seconds)".format(est_time))
 			c4.pack(fill='x', expand=1, anchor='w')
-			p4 = ttk.Progressbar(goc_win, length=300, maximum=(est_time/.050))
+			p4 = tkinter.ttk.Progressbar(goc_win, length=300, maximum=(est_time/.050))
 			p4.pack()
 			fns.append((c4, p4, lambda m=message:\
 					self.ice.goc_send(m, False)))
@@ -1404,7 +1404,7 @@ class MainPane(M3Gui):
 			c5 = Tk.Checkbutton(goc_win, #state=Tk.DISABLED,
 					text="Send extra blink to end transaction")
 			c5.pack(fill='x', expand=1, anchor='w')
-			p5 = ttk.Progressbar(goc_win, length=300,
+			p5 = tkinter.ttk.Progressbar(goc_win, length=300,
 					maximum=((2*8)/(8*slow_freq))/.050)
 			p5.pack()
 			fns.append((c5, p5, lambda :\
@@ -1453,7 +1453,7 @@ class MainPane(M3Gui):
 					logger.debug("Running: " + ' '.join(cmd))
 					try:
 						output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-					except subprocess.CalledProcessError, e:
+					except subprocess.CalledProcessError as e:
 						logger.warn('Build failure. Command was: ' + ' '.join(cmd))
 						logger.warn('Build output:\n' + e.output[:-1])
 						raise
@@ -1476,7 +1476,7 @@ class MainPane(M3Gui):
 								pass
 					new_bd, new_pd = os.path.split(base_dir)
 					if new_bd == base_dir:
-						tkMessageBox.showerror('Build Error',
+						tkinter.messagebox.showerror('Build Error',
 								'Compilation failed. Check output window for details.')
 						break
 					else:
@@ -1490,7 +1490,7 @@ class MainPane(M3Gui):
 				if os.path.getmtime(prog) < os.path.getmtime(source):
 					win = ModalWindow(self.parent)
 					win.title('Program out of date')
-					ttk.Label(win, text='Program source is older than program.'\
+					tkinter.ttk.Label(win, text='Program source is older than program.'\
 							' Would you like to re-compile before loading?').pack()
 					ButtonWithReturnsAndEscape(win, text="No", command = lambda :\
 							win.destroy()).pack(side='right')
@@ -1514,7 +1514,7 @@ class MainPane(M3Gui):
 							cwd = os.path.dirname(source),
 							)
 					logger.info(name + ' revision: ' + output)
-				except subprocess.CalledProcessError, e:
+				except subprocess.CalledProcessError as e:
 					logger.warn('Failed to get current revision. Command was: '+\
 							' '.join(cmd))
 					logger.warn('Command output:\n' + e.output[:-1])
@@ -1530,7 +1530,7 @@ class MainPane(M3Gui):
 						logger.info(name + ' has uncommitted changes:\n' + output)
 					else:
 						logger.debug(name + ' has no uncommitted changes.')
-				except subprocess.CalledProcessError, e:
+				except subprocess.CalledProcessError as e:
 					logger.warn('Failed to get diff. Command was: '+ ' '.join(cmd))
 					logger.warn('Command output:\n' + e.output[:-1])
 			else:
@@ -1552,11 +1552,11 @@ class MainPane(M3Gui):
 
 		try:
 			change_file(self.config.get('DEFAULT', 'program'))
-		except ConfigParser.NoOptionError:
+		except configparser.NoOptionError:
 			change_file('', force_select=True)
 
 		# Bar with commands
-		self.messagepane = ttk.LabelFrame(self.mainpane, text="Custom Messages")
+		self.messagepane = tkinter.ttk.LabelFrame(self.mainpane, text="Custom Messages")
 		self.messagepane.pack(fill='x', expand=1,
 				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
 
@@ -1601,33 +1601,33 @@ class MainPane(M3Gui):
 				self.message_send_goc.configure(state=Tk.NORMAL)
 				self.message_send_goc_no_wakeup.configure(state=Tk.NORMAL)
 
-		self.messageframe = ttk.Frame(self.messagepane)
+		self.messageframe = tkinter.ttk.Frame(self.messagepane)
 		self.messageframe.pack(fill='x', expand=1)
-		ttk.Label(self.messageframe, text='Address').pack(side='left')
-		self.message_addr = ttk.Entry(self.messageframe)
+		tkinter.ttk.Label(self.messageframe, text='Address').pack(side='left')
+		self.message_addr = tkinter.ttk.Entry(self.messageframe)
 		self.message_addr.pack(side='left')
 		self.message_addr.bind('<Key>', lambda e :\
 				self.message_addr.after_idle(validate_command))
-		ttk.Label(self.messageframe, text='Data').pack(side='left')
-		self.message_data = ttk.Entry(self.messageframe)
+		tkinter.ttk.Label(self.messageframe, text='Data').pack(side='left')
+		self.message_data = tkinter.ttk.Entry(self.messageframe)
 		self.message_data.pack(side='left')
 		self.message_data.bind('<Key>', lambda e :\
 				self.message_data.after_idle(validate_command))
-		ttk.Label(self.messageframe, text='(All values hex)').pack(side='left')
+		tkinter.ttk.Label(self.messageframe, text='(All values hex)').pack(side='left')
 
 		self.message_contents_var = Tk.StringVar()
 		self.message_contents_var.set("Empty Address")
-		ttk.Label(self.messageframe, textvariable=self.message_contents_var
+		tkinter.ttk.Label(self.messageframe, textvariable=self.message_contents_var
 				).pack(side='right')
 
-		self.messageactionframe = ttk.Frame(self.messagepane)
+		self.messageactionframe = tkinter.ttk.Frame(self.messagepane)
 		self.messageactionframe.pack(fill='x', expand=1,
 				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
 
 		def select_preprogrammed_command(cmd):
 			if cmd == 'Select Common Message...':
 				return
-			addr, data = map(str.strip, cmd.split('(')[1][:-1].split(','))
+			addr, data = list(map(str.strip, cmd.split('(')[1][:-1].split(',')))
 			self.message_addr.delete(0, Tk.END)
 			self.message_addr.insert(0, addr[2:])
 			self.message_data.delete(0, Tk.END)
@@ -1641,7 +1641,7 @@ class MainPane(M3Gui):
 				"SNS Sample Setup   (0x40, 0x030bf0f0)",
 				"SNS Sample Start   (0x40, 0x030af0f0)",
 				)
-		self.message_defaults = ttk.OptionMenu(self.messageactionframe,
+		self.message_defaults = tkinter.ttk.OptionMenu(self.messageactionframe,
 				self.message_defaults_var, *default_messages,
 				command = select_preprogrammed_command)
 		self.message_defaults.pack(side='left')
@@ -1682,7 +1682,7 @@ class MainPane(M3Gui):
 		self.message_send_goc_no_wakeup.pack(side='right')
 
 		# Interface for live session
-		self.actionpane = ttk.LabelFrame(self.mainpane, text='Action Pane')
+		self.actionpane = tkinter.ttk.LabelFrame(self.mainpane, text='Action Pane')
 		self.actionpane.pack(fill='both', expand=1,
 				padx=self.FRAME_PADX, pady=self.FRAME_PADY)
 
@@ -1706,14 +1706,14 @@ class MainPane(M3Gui):
 				self.window.tag_config( 'err', foreground='red')
 				self.window.tag_config( 'dbg', foreground='cyan')
 
-				self.queue = Queue.Queue()
+				self.queue = queue.Queue()
 				self.process_events()
 
 			def process_events(self):
 				try:
 					while True:
 						self.queue.get_nowait()()
-				except Queue.Empty:
+				except queue.Empty:
 					pass
 				self.window.after(100, self.process_events)
 
@@ -1775,7 +1775,7 @@ class MainPane(M3Gui):
 		# modify the logging configuration to add our handler as another
 		# handler that is installed by default. But I don't know how to do that
 		# and it doesn't matter yet, so... tomorrow Pat's problem.
-		for l in logging.Logger.manager.loggerDict.values():
+		for l in list(logging.Logger.manager.loggerDict.values()):
 			l.addHandler(self.terminal_logger_handler)
 
 		# Monitor window for MBus messages
@@ -1804,7 +1804,7 @@ def setup_file_logger(config_file, uniq):
 	file_handler = SyncingFileHandler(logfile, delay=True)
 	file_handler.level = logging.DEBUG
 	file_handler.formatter = file_formatter
-	for l in logging.Logger.manager.loggerDict.values():
+	for l in list(logging.Logger.manager.loggerDict.values()):
 		l.addHandler(file_handler)
 	setup_file_logger.logfile = logfile
 
@@ -1816,8 +1816,8 @@ if __name__ == '__main__':
 
 	root = Tk.Tk()
 
-	style = ttk.Style()
-	ttk.Style().theme_use('alt')
+	style = tkinter.ttk.Style()
+	tkinter.ttk.Style().theme_use('alt')
 
 	#print(style.layout('TLabel'))
 	#print(style.element_options('Label.border'))

@@ -101,7 +101,7 @@ except:
     raise
 if not s.isOpen():
     logger.error('Could not open serial port at: ' + serial_port)
-    raise IOError, "Failed to open serial port"
+    raise IOError("Failed to open serial port")
 
 class Gpio(object):
     GPIO_INPUT    = 0
@@ -122,7 +122,7 @@ class Gpio(object):
         elif self.direction == Gpio.GPIO_TRISTATE:
             s += 'TRI'
         else:
-            raise RuntimeError, "wtf"
+            raise RuntimeError("wtf")
 
         s += ' - '
 
@@ -142,17 +142,17 @@ class Gpio(object):
     def __setattr__(self, name, value):
         if name is 'direction':
             if value not in (Gpio.GPIO_INPUT, Gpio.GPIO_OUTPUT, Gpio.GPIO_TRISTATE):
-                raise ValueError, "Attempt to set illegal direction", value
+                raise ValueError("Attempt to set illegal direction {}".format(value))
         if name is 'level':
             if value not in (True, False):
-                raise ValueError, "GPIO level must be true or false. Got", value
+                raise ValueError("GPIO level must be true or false. Got {}".format(value))
         if name is 'interrupt':
             if value not in (True, False):
-                raise ValueError, "GPIO interrupt must be true or false. Got", value
+                raise ValueError("GPIO interrupt must be true or false. Got {}".format(value))
         object.__setattr__(self, name, value)
 
 event = 0
-gpios = [Gpio() for x in xrange(MAX_GPIO)]
+gpios = [Gpio() for x in range(MAX_GPIO)]
 
 def respond(msg, ack=True):
     global s
@@ -331,19 +331,19 @@ while True:
             else:
                 if msg[0] == 'l':
                     mask = 0
-                    for i in xrange(len(gpios)):
+                    for i in range(len(gpios)):
                         mask |= (gpios[i].level << i)
                     logger.info("Responded to request for GPIO level mask (%06x)", mask)
                     respond(chr((mask >> 16) & 0xff) + chr((mask >> 8) & 0xff) + chr(mask >> 8))
                 elif msg[0] == 'd':
                     mask = 0
-                    for i in xrange(len(gpios)):
+                    for i in range(len(gpios)):
                         mask |= (gpios[i].direction << i)
                     logger.info("Responded to request for GPIO direction mask (%06x)", mask)
                     respond(chr((mask >> 16) & 0xff) + chr((mask >> 8) & 0xff) + chr(mask >> 8))
                 elif msg[0] == 'i':
                     mask = 0
-                    for i in xrange(len(gpios)):
+                    for i in range(len(gpios)):
                         mask |= (gpios[i].interrupt << i)
                     logger.info("Responded to request for GPIO interrupt mask (%06x)", mask)
                     respond(chr((mask >> 16) & 0xff) + chr((mask >> 8) & 0xff) + chr(mask >> 8))
@@ -366,23 +366,23 @@ while True:
                     raise Exception
             else:
                 if msg[0] == 'l':
-                    high,mid,low = map(ord, msg[1:])
+                    high,mid,low = list(map(ord, msg[1:]))
                     mask = low | mid << 8 | high << 16
-                    for i in xrange(24):
+                    for i in range(24):
                         gpios[i].level = (mask >> i) & 0x1
                     logger.info("Set GPIO level mask to: %06x", mask)
                     ack()
                 elif msg[0] == 'd':
-                    high,mid,low = map(ord, msg[1:])
+                    high,mid,low = list(map(ord, msg[1:]))
                     mask = low | mid << 8 | high << 16
-                    for i in xrange(24):
+                    for i in range(24):
                         gpios[i].direction = (mask >> i) & 0x1
                     logger.info("Set GPIO direction mask to: %06x", mask)
                     ack()
                 elif msg[0] == 'i':
-                    high,mid,low = map(ord, msg[1:])
+                    high,mid,low = list(map(ord, msg[1:]))
                     mask = low | mid << 8 | high << 16
-                    for i in xrange(24):
+                    for i in range(24):
                         gpios[i].interrupt = (mask >> i) & 0x1
                     logger.info("Set GPIO interrupt mask to: %06x", mask)
                     ack()
@@ -457,7 +457,7 @@ while True:
                         ("off", "on")[mbus_ismaster])
                 respond(chr(mbus_ismaster))
             elif msg[0] == 'c':
-                raise NotImplementedError, "MBus clock not defined"
+                raise NotImplementedError("MBus clock not defined")
             elif msg[0] == 'i':
                 logger.info("Responded to query for MBus should interrupt (%d)",
                         mbus_should_interrupt)
@@ -519,7 +519,7 @@ while True:
                 logger.info("MBus master mode set " + ("off", "on")[mbus_ismaster])
                 ack()
             elif msg[0] == 'c':
-                raise NotImplementedError, "MBus clock not defined"
+                raise NotImplementedError("MBus clock not defined")
             elif msg[0] == 'i':
                 mbus_should_interrupt = ord(msg[1])
                 logger.info("MBus should interrupt set to %d", mbus_should_interrupt)

@@ -29,7 +29,7 @@ class mbus_message_generator(m3_common):
         reset_event.set()
 
         #print("  ADDR: 0x" + address.encode('hex') + "  DATA: 0x" + data.encode('hex') + "  (ACK: " + str(not cb1) + ")")
-        print("@ Time: " + time.strftime("%Y-%m-%d %H:%M:%S") + "  ADDR: 0x" + address.encode('hex') + "  DATA: 0x" + data.encode('hex') + "  (ACK: " + str(not cb1) + ")")
+        print(("@ Time: " + time.strftime("%Y-%m-%d %H:%M:%S") + "  ADDR: 0x" + address.encode('hex') + "  DATA: 0x" + data.encode('hex') + "  (ACK: " + str(not cb1) + ")"))
 
     def read_binfile(self):
         pass

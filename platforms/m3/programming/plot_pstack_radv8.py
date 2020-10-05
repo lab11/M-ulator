@@ -53,25 +53,25 @@ for line in lines:
 for i in range(0,min(len(cmeas_int),len(cref_int))):
 	cmeas_cal.append(float(cmeas_int[i])/float(cref_int[i])*100000)
 
-print "C_MEASURE:\n"
-print cmeas
-print "\nC_REF:\n"
-print cref
+print("C_MEASURE:\n")
+print(cmeas)
+print("\nC_REF:\n")
+print(cref)
 
-print "\nC_MEASURE:\n"
-print cmeas_int
-print len(cmeas_int)
-print "\nC_REF:\n"
-print cref_int
-print len(cref_int)
+print("\nC_MEASURE:\n")
+print(cmeas_int)
+print(len(cmeas_int))
+print("\nC_REF:\n")
+print(cref_int)
+print(len(cref_int))
 
-print "\nC_MEAS_CALIBRATED:\n"
-print cmeas_cal
-print len(cref_int)
+print("\nC_MEAS_CALIBRATED:\n")
+print(cmeas_cal)
+print(len(cref_int))
 
 
 # Export to CSV
-rows = zip(date,time,cmeas_int,cref_int,cmeas_cal)
+rows = list(zip(date,time,cmeas_int,cref_int,cmeas_cal))
 
 wr = csv.writer(open(output_file,'w'), delimiter=',', lineterminator='\n')
 wr.writerow(['DATE','TIME','C_MEAS','C_REF','C_MEAS_CAL'])
@@ -80,7 +80,7 @@ for row in rows:
 
 fig1 = plt.figure()
 
-plt.plot(range(1,len(cmeas_cal)+1),list(reversed(cmeas_cal)))
+plt.plot(list(range(1,len(cmeas_cal)+1)),list(reversed(cmeas_cal)))
 plt.ylabel('CMEAS/CREF*1E5')
 plt.xlabel('Time (pts)')
 

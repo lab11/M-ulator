@@ -17,17 +17,17 @@ class ParseError(Error):
 		self.f, self.lineno, self.line = e.cur()
 		self.msg = msg
 	def __str__(self):
-		print ": " + self.msg
-		print
-		print self.f + " line " + str(self.lineno) + ":"
-		print ">>>" + self.line[:-1] + "<<<"
+		print(": " + self.msg)
+		print()
+		print(self.f + " line " + str(self.lineno) + ":")
+		print(">>>" + self.line[:-1] + "<<<")
 
 class EnumerableFile(enumerate):
 	def __new__(self, filename):
 		self.filename = filename
-		return super(EnumerableFile, self).__new__(self, open(self.filename))
-	def next(self):
-		self.c = super(EnumerableFile, self).next()
+		return super().__new__(self, open(self.filename))
+	def __next__(self):
+		self.c = super().__next__()
 		return self.c[1]
 	def cur(self):
 		return self.filename, self.c[0], self.c[1]
@@ -38,21 +38,21 @@ e = EnumerableFile("exceptions")
 try:
 	while True:
 		# Once we've read one line, we know there's a block to parse
-		idx = int(e.next().strip())
+		idx = int(next(e).strip())
 		clean = False
-		module = e.next().strip()
-		register = e.next().strip()
-		description = e.next().strip()
+		module = next(e).strip()
+		register = next(e).strip()
+		description = next(e).strip()
 		while description.count('"""') != 2:
-			description += e.next()
+			description += next(e)
 		description = description.strip()
-		func = e.next()
+		func = next(e)
 		if func.count('{') < 1:
 			raise ParseError(e, "Expected { to begin function. Got: >>>" + func + "<<<")
 		while func.count('{') != func.count('}'):
-			func += e.next()
+			func += next(e)
 		func = func[func.find('{'):]
-		empty = e.next()
+		empty = next(e)
 		if '\n' != empty:
 			raise ParseError(e, "Expected empty line. Got: >>>" + empty + "<<<")
 		clean = True
@@ -105,7 +105,7 @@ for f in sys.argv[1:]:
 	e = EnumerableFile(f)
 	while True:
 		try:
-			line = e.next()
+			line = next(e)
 		except StopIteration:
 			break
 
