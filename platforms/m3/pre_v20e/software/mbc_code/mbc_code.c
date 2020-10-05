@@ -151,7 +151,7 @@
 #define USE_MEM
 #define USE_RAD
 #define USE_XO
-// #define OVERRIDE_RAD
+#define OVERRIDE_RAD
 
 #define STATE_INIT 0
 #define STATE_COLLECT 1
@@ -3041,9 +3041,6 @@ uint16_t set_send_enable() {
     if(snt_sys_temp_code < MRR_TEMP_THRESH_LOW || snt_sys_temp_code > MRR_TEMP_THRESH_HIGH) {
         return 0;
     }
-    // if(snt_sys_temp_code < PMU_TEMP_THRESH[1] || snt_sys_temp_code >= PMU_55C) {
-    //     return 0;
-    // }
     uint16_t i;
     for(i = 2; i < 6; i++) {
         if(snt_sys_temp_code < PMU_TEMP_THRESH[i]) {
@@ -3141,7 +3138,7 @@ int main() {
     lnt_stop();
 
     operation_temp_run();
-    pmu_adc_read_latest();
+    pmu_setting_temp_based(0);
 
     mrr_send_enable = set_send_enable();
 
