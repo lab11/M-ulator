@@ -260,6 +260,7 @@ static void _shell(void) {
 		case 'q':
 		case 't':
 			sim_terminate(true);
+			return;
 
 		case 'r':
 		{
@@ -294,9 +295,11 @@ static void _shell(void) {
 				return _shell();
 			}
 		}
+		break;
 
 		case '\n':
 			sprintf(buf, "cycle %d\n", cycle+1);
+			// fall through
 		case 'c':
 			if (buf[1] == 'y') {
 				int requested_cycle;
@@ -317,7 +320,8 @@ static void _shell(void) {
 				dumpatpc = 0;
 				return;
 			}
-			// not 'cy' or 'co', fall thru
+			// not 'cy' or 'co'
+			// fall thru
 
 		case 'h':
 		default:

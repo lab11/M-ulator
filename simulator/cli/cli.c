@@ -134,7 +134,7 @@ int main(int argc, char **argv) {
 		int option_index = 0;
 		int c;
 
-		char optstring[64] = "g::c:y:aps:erl:Tf:?";
+		char optstring[65] = "g::c:y:aps:erl:Tf:?";
 #ifdef HAVE_DECOMPILE
 		strncat(optstring, "d", 64);
 #endif

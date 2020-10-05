@@ -17,7 +17,7 @@ CFLAGS += -Wno-type-limits
 CFLAGS += -fno-strict-overflow
 CFLAGS += -Wformat=2 -Winit-self -Wmissing-include-dirs -Wunused-parameter
 CFLAGS += -Wundef -Wpointer-arith -Wbad-function-cast -Wcast-qual -Wfloat-equal
-CFLAGS += -Wwrite-strings -Waggregate-return -Wstrict-prototypes
+CFLAGS += -Wwrite-strings -Wstrict-prototypes
 CFLAGS += -Wmissing-field-initializers -Wmissing-format-attribute
 CFLAGS += -Winline -Wvolatile-register-var -Wdisabled-optimization
 CFLAGS += -Wshadow -Wpacked
