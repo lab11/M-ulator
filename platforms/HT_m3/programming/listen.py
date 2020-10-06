@@ -4,7 +4,7 @@ from time import sleep
 import socket
 import sys
 import os
-import Queue
+import queue
 import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger('program')
@@ -35,7 +35,7 @@ ice.msg_handler['d+'] = async_helper
 ice.connect(sys.argv[1])
 ice.i2c_set_address("1001100x") # 0x98
 
-resp = raw_input("Would you like to send the DMA start interrupt? [Y/n] ")
+resp = input("Would you like to send the DMA start interrupt? [Y/n] ")
 if len(resp) != 0 and resp[0] in ('n', 'N'):
     sys.exit()
 
@@ -43,4 +43,4 @@ logger.info("Sending 0x88 0x00000000")
 ice.i2c_send(0x88, "00000000".decode('hex'))
 
 logger.info("Listening...")
-resp = raw_input("Press enter at any time to quit\n")
+resp = input("Press enter at any time to quit\n")

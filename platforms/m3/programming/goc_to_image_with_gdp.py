@@ -9,7 +9,7 @@ import sys
 import time
 
 import threading
-import Queue
+import queue
 
 import numpy as np
 
@@ -94,7 +94,7 @@ try:
 except ImportError:
 	from PIL import Image
 
-gdp_image_queue = Queue.Queue()
+gdp_image_queue = queue.Queue()
 def gdp_thread():
 	gdp.gdp_init()
 	print("GDP: connected.")
@@ -106,7 +106,7 @@ def gdp_thread():
 		im = Image.open(im_fname)
 		data = {"data": im.tostring()}
 		gcl_handle.append(data)
-		print("GDP: posted " + im_fname)
+		print(("GDP: posted " + im_fname))
 
 gdp_thread = threading.Thread(target=gdp_thread)
 gdp_thread.daemon = True
@@ -132,7 +132,7 @@ BLUE  = pygame.Color(  0,   0, 255)
 WHITE = pygame.Color(255, 255, 255)
 BLACK = pygame.Color(  0,   0,   0)
 
-colors = [pygame.Color(x,x,x) for x in xrange(256)]
+colors = [pygame.Color(x,x,x) for x in range(256)]
 colors.insert(0, RED)
 
 # http://stackoverflow.com/questions/17202232/even-with-pygame-initialized-video-system-not-initialized-gets-thrown
@@ -196,7 +196,7 @@ def get_addr17_msg_file():
     for line in open(args.file):
         line = line.strip()
         if searching:
-            if line in map(lambda a: 'Address {:x}'.format(a), args.address):
+            if line in ['Address {:x}'.format(a) for a in args.address]:
                 searching = False
             continue
         if line.split()[0] == 'Data':
@@ -204,10 +204,10 @@ def get_addr17_msg_file():
             continue
         yield data
         data = []
-        if line not in map(lambda a: 'Address {:x}'.format(a), args.address):
+        if line not in ['Address {:x}'.format(a) for a in args.address]:
             searching = True
 
-serial_queue = Queue.Queue()
+serial_queue = queue.Queue()
 def get_addr17_msg_serial():
     while True:
         addr, data = serial_queue.get()
@@ -258,45 +258,45 @@ def get_image_g(data_generator):
         end_of_image = False
 
         # Grab an image
-        for row in xrange(args.pixels):
-            r = data_generator.next()
+        for row in range(args.pixels):
+            r = next(data_generator)
             while is_motion_detect_msg(r):
-                print "Skipping motion detect message"
-                r = data_generator.next()
+                print("Skipping motion detect message")
+                r = next(data_generator)
             if is_end_of_image_msg(r):
-                print "Unexpected end-of-image. Expecting row", row + 1
-                print "Returning partial image"
+                print("Unexpected end-of-image. Expecting row", row + 1)
+                print("Returning partial image")
                 end_of_image = True
                 break
             if len(r) != args.pixels:
-                print "Row %d message incorrect length: %d" % (row, len(r))
-                print "Using first %d pixel(s)" % (min(len(r), args.pixels))
-            for p in xrange(min(len(r), args.pixels)):
+                print("Row %d message incorrect length: %d" % (row, len(r)))
+                print("Using first %d pixel(s)" % (min(len(r), args.pixels)))
+            for p in range(min(len(r), args.pixels)):
                 data[row][p] = r[p] + 1
 
         while not end_of_image:
-            m = data_generator.next()
+            m = next(data_generator)
             if is_end_of_image_msg(m):
                 break
-            print "Expected end-of-image. Got message of length:", len(m)
+            print("Expected end-of-image. Got message of length:", len(m))
 
             # If imager sends more rows than expected, discard this earliest
             # received rows. Works around wakeup bug.
             data = np.roll(data, -1, axis=0)
-            for p in xrange(min(len(m), args.pixels)):
+            for p in range(min(len(m), args.pixels)):
                 data[-1][p] = m[p] + 1
             if len(m) != args.pixels:
-                print "Extra row message incorrect length: %d" % (len(m))
-                print "Zeroing remaining pixels"
-                for p in xrange(len(m), args.pixels):
+                print("Extra row message incorrect length: %d" % (len(m)))
+                print("Zeroing remaining pixels")
+                for p in range(len(m), args.pixels):
                     data[-1][p] = 0
 
         yield data
 
 def correct_endianish_thing_old(data, array):
-    for row in xrange(args.pixels):
-        for colset in xrange(0, args.pixels, 4):
-            for i in xrange(4):
+    for row in range(args.pixels):
+        for colset in range(0, args.pixels, 4):
+            for i in range(4):
                 if rotate_90:
                     val = data[colset+3-i][row]
                 else:
@@ -311,9 +311,9 @@ def correct_endianish_thing_old(data, array):
                 array[row][colset+i] = rgb
 
 def correct_endianish_thing(data, array):
-    for rowbase in xrange(0, args.pixels, 4):
-        for rowi in xrange(4):
-            for col in xrange(0, args.pixels):
+    for rowbase in range(0, args.pixels, 4):
+        for rowi in range(4):
+            for col in range(0, args.pixels):
                 if rotate_90:
                     val = data[col][rowbase + 3-rowi]
                 else:
@@ -332,7 +332,7 @@ def correct_endianish_thing(data, array):
                 array[rowbase+rowi][col] = rgb
 
 
-images_q = Queue.Queue()
+images_q = queue.Queue()
 
 
 def process_hot_pixels(img):
@@ -387,7 +387,7 @@ def get_image_idx(idx):
 			raw,hot = images_q.get_nowait()
 			images_raw.append(raw)
 			images.append(hot)
-		except Queue.Empty:
+		except queue.Empty:
 			break
 	return images[idx]
 
@@ -399,24 +399,24 @@ pygame.event.set_allowed((QUIT, KEYUP, MOUSEBUTTONUP, MOUSEMOTION))
 goc_raw_Surface = pygame.Surface((args.pixels, args.pixels))
 
 def render_raw_goc_data(data):
-    print "Request to render raw goc data"
-    print "Correcting pixel order bug"
+    print("Request to render raw goc data")
+    print("Correcting pixel order bug")
     surface_array = pygame.surfarray.pixels2d(goc_raw_Surface)
     correct_endianish_thing(data, surface_array)
     del surface_array
-    print "Scaling %d pixel --> %d pixel%s" % (1, args.scale, ('s','')[args.scale == 1])
+    print("Scaling %d pixel --> %d pixel%s" % (1, args.scale, ('s','')[args.scale == 1]))
     pygame.transform.scale(goc_raw_Surface, (args.pixels*args.scale, args.pixels*args.scale), gocSurfaceObj)
-    print "Rendering Image"
+    print("Rendering Image")
     pygame.display.update()
-    print
+    print()
 
 def render_image_idx(idx):
-    print "Request to render image", idx
+    print("Request to render image", idx)
     render_raw_goc_data(get_image_idx(idx))
 
 def save_image(filename):
     pygame.image.save(gocSurfaceObj, filename)
-    print 'Image saved to', filename
+    print('Image saved to', filename)
     gdp_image_queue.put(filename)
 
 def save_image_hack():
@@ -434,7 +434,7 @@ def save_image_hack():
 		raw_csvname = os.path.join(args.output_directory, raw_csvname)
 		raw_ofile = csv.writer(open(raw_csvname, 'w'), dialect='excel')
 		raw_ofile.writerows(images_raw[current_idx])
-	print 'CSV of image saved to', csvname
+	print('CSV of image saved to', csvname)
 options['save'].on_click = save_image_hack
 
 def advance_image():
@@ -445,8 +445,8 @@ def advance_image():
         save_image_hack()
     except IndexError:
         current_idx -= 1
-        print "At last image. Display left at image", current_idx
-        print
+        print("At last image. Display left at image", current_idx)
+        print()
 options['next'].on_click = advance_image
 
 def rewind_image():
@@ -469,12 +469,12 @@ while True:
         quit()
 
     if event.type == MOUSEBUTTONUP:
-        for option in options.values():
+        for option in list(options.values()):
             if option.rect.collidepoint(pygame.mouse.get_pos()):
                 option.onClick()
 
     if event.type == MOUSEMOTION:
-        for option in options.values():
+        for option in list(options.values()):
             if option.rect.collidepoint(pygame.mouse.get_pos()):
                 option.hovered = True
             else:

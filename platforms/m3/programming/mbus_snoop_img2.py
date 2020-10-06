@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 
 
 def Bpp_callback(address, data, cb0, cb1):
-	print(" Time: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "  ADDR: 0x" + address.encode('hex') + "  DATA: 0x" + data.encode('hex') + "  (ACK: " + str(not cb1) + ")")
+	print((" Time: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "  ADDR: 0x" + address.encode('hex') + "  DATA: 0x" + data.encode('hex') + "  (ACK: " + str(not cb1) + ")"))
 
 m = m3_common.mbus_snooper(Bpp_callback)
 m.hang_for_messages()
