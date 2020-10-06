@@ -295,7 +295,7 @@ static void _shell(void) {
 				return _shell();
 			}
 		}
-		break;
+		// fall thru
 
 		case '\n':
 			sprintf(buf, "cycle %d\n", cycle+1);
