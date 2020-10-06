@@ -141,10 +141,10 @@ for f in sys.argv[1:]:
 		addr = addr.lower()
 
 		# normalize addr to "0x%8"
-		if len(addr) is 10:
+		if len(addr) == 10:
 			if addr[:2] != "0x":
 				raise ParseError(e, "Illegal register address: " + addr)
-		if len(addr) is 8:
+		if len(addr) == 8:
 			a = int(addr, 16)
 			addr = "0x" + str(a)
 
@@ -197,11 +197,11 @@ for f in sys.argv[1:]:
 			if base in ('b', 'B'):
 				for i in range(len(bitstring)):
 					bit = bitstring[i]
-					if bit is '1':
+					if bit == '1':
 						reset += '|(1U<<'+str(i)+')'
-					elif bit is '0':
+					elif bit == '0':
 						reset += '&~(1U<<'+str(i)+')'
-					elif bit is 'x':
+					elif bit == 'x':
 						pass
 					else:
 						raise ParseError(e, 'Bad token ' + bit + ' in binary bitstring')
