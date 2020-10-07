@@ -86,9 +86,9 @@ timer_constants:
     write: true
     val:
         xo_to_sec_mplier: 32768 # 2^15
-        XO_TO_SEC_MPLIER_SHIFT: 15  # 1 times accel # 15 is the default value. To do N times acceleration, use 15 - N
+        XO_TO_SEC_MPLIER_SHIFT: 15  # 1 times accel # 15 is the default value. To do 2^N times acceleration, use 15 - N
         xo_to_lnt_mplier: 0x73 
-        LNT_MPLIER_SHIFT: 6 # 1 times accel # 6 is the default value. To do N times acceleration, use 6 + N
+        LNT_MPLIER_SHIFT: 6 # 1 times accel # 6 is the default value. To do 2^N times acceleration, use 6 + N
     generate_read_trigger: true
 
 #################### 0x0D ####################
