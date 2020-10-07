@@ -136,10 +136,10 @@ int main(int argc, char **argv) {
 
 		char optstring[64] = "g::c:y:aps:erl:Tf:?";
 #ifdef HAVE_DECOMPILE
-		strncat(optstring, "d", 64);
+		strncat(optstring, "d", 63);
 #endif
 #ifdef HAVE_MEMTRACE
-		strncat(optstring, "m", 64);
+		strncat(optstring, "m", 63);
 #endif
 
 		c = getopt_long(argc, argv, optstring, long_options, &option_index);

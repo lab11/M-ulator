@@ -3,7 +3,7 @@
 import os
 import sys
 import socket
-from Queue import Queue
+from queue import Queue
 import argparse
 import time
 
@@ -35,11 +35,11 @@ class m3_common(object):
     @staticmethod
     def default_value(prompt, default, extra=None, invert=False):
         if invert and (extra is None):
-            raise RuntimeError, "invert & !extra ?"
+            raise RuntimeError("invert & !extra ?")
         if extra:
-            r = raw_input(prompt + ' [' + default + extra + ']: ')
+            r = input(prompt + ' [' + default + extra + ']: ')
         else:
-            r = raw_input(prompt + ' [' + default + ']: ')
+            r = input(prompt + ' [' + default + ']: ')
         if len(r) == 0:
             if invert:
                 return extra
@@ -100,7 +100,7 @@ class m3_common(object):
 
         # Byte 8: bit-wise XOR parity of data
         data_parity = 0
-        for byte in [hexencoded[x:x+2] for x in xrange(0, len(hexencoded), 2)]:
+        for byte in [hexencoded[x:x+2] for x in range(0, len(hexencoded), 2)]:
             b = int(byte, 16)
             data_parity ^= b
 
@@ -192,10 +192,10 @@ class m3_common(object):
         else:
             def pick_serial():
                 logger.info("Multiple possible serial ports found:")
-                for i in xrange(len(candidates)):
+                for i in range(len(candidates)):
                     logger.info("\t[{}] {}".format(i, candidates[i]))
                 try:
-                    resp = raw_input("Choose a serial port (Ctrl-C to quit): ").strip()
+                    resp = input("Choose a serial port (Ctrl-C to quit): ").strip()
                 except KeyboardInterrupt:
                     sys.exit(1)
                 try:

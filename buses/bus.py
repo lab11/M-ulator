@@ -22,7 +22,7 @@ class Bus(object):
             self.conn = conn
 
     def __init__(self):
-        raise NotImplementedError, "Abstract Base Class"
+        raise NotImplementedError("Abstract Base Class")
 
     def join(self):
         '''
@@ -31,7 +31,7 @@ class Bus(object):
         The join() function will join one of the Bus object's main threads, not
         returning unless the Bus object is destroyed.
         '''
-        raise NotImplementedError, "Abstract Base Class"
+        raise NotImplementedError("Abstract Base Class")
 
     def create(self, port):
         self.s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -136,8 +136,8 @@ I2C BUS {i}
                 elif c in ('x', 'X', ' '):
                     continue
                 else:
-                    raise self.I2CBusError,\
-                        "Illegal character in address mask: >>>" + c + "<<<"
+                    raise self.I2CBusError(
+                        "Illegal character in address mask: >>>" + c + "<<<")
 
     def join(self, timeout=None):
         self.accept_thread.join(timeout)
@@ -175,7 +175,7 @@ I2C BUS {i}
             acked = bool(self.recv_all(conn, 1))
             return (t, acked)
         else:
-            raise TypeError, "Unknown packet type: " + str(t) + " " + str(ord(t))
+            raise TypeError("Unknown packet type: " + str(t) + " " + str(ord(t)))
 
     def send_packet(self, conn, p):
         if p[0] == 0:
@@ -183,14 +183,14 @@ I2C BUS {i}
         elif p[0] == 1:
             msg = struct.pack("!BB", *p)
         else:
-            raise TypeError, "Unknown packet type: " + str(t) + " " + str(ord(t))
+            raise TypeError("Unknown packet type: " + str(t) + " " + str(ord(t)))
         conn.send(msg)
 
     def handle_message(self, conn):
         p = self.recv_packet(conn)
         if p[0] != 0:
             logging.debug("Got packet: " + str(p))
-            raise RuntimeError, "Unexpected ACK-type packet?"
+            raise RuntimeError("Unexpected ACK-type packet?")
         logging.debug("Got packet: MSG 0x%x %d: %s" % (p[1], p[2],
             " ".join(p[3].encode('hex')[i:i+2] for i in range(0,
                 len(p[3].encode('hex')), 2))))
@@ -222,7 +222,7 @@ I2C BUS {i}
                                 str(p))
                         continue
                     else:
-                        raise TypeError, "Unknown packet type: " + str(t)
+                        raise TypeError("Unknown packet type: " + str(t))
                 acked |= p[1]
 
             logging.debug("Got all ACK/NAKs, sending " + str(acked))
@@ -271,7 +271,7 @@ if args.BUS == "I2C":
     bus = I2CBus(int(args.PORT), args.address)
 else:
     logging.error("Unknown BUS type: " + args.BUS)
-    print parser.description
+    print(parser.description)
     sys.exit(1)
 
 while True:

@@ -2,7 +2,7 @@
 
 import sys, socket
 import time
-import Queue
+#import queue
 import logging
 
 from m3_common import m3_common
@@ -23,7 +23,7 @@ class ein_programmer(m3_common):
 
 # Callback for async MBus message
 #ice.msg_handler['b+'] = validate_bin_helper
-#validate_q = Queue.Queue()
+#validate_q = queue.queue()
 def validate_bin_helper(msg_type, event_id, length, msg):
     logger.debug("Bin Helper got msg len" + str(len(msg)))
     if len(msg) == 0:

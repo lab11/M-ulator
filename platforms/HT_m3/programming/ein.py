@@ -2,7 +2,7 @@
 
 import sys, socket
 import time
-import Queue
+import queue
 import logging
 
 from m3_common import m3_common
@@ -39,7 +39,7 @@ logger.info("Would you like to run after programming? If you do not")
 logger.info("have EIN Debug start the program, you will be prompted")
 logger.info("to send the start message via MBus at the end instead")
 logger.info("")
-resp = raw_input("Run program when programming finishes? [Y/n] ")
+resp = input("Run program when programming finishes? [Y/n] ")
 if len(resp) != 0 and resp[0] in ('n', 'N'):
     run_after = 0
 else:

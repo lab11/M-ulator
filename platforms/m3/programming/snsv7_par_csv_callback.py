@@ -23,7 +23,7 @@ def callback(time, address, data, cb0=-1, cb1=-1):
 
     # m3_ice snoop prints this for you now [though needs to add count - can do]
     #print("@" + str(count) + " Time: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "  ADDR: 0x" + address.encode('hex') + "  DATA: 0x" + data.encode('hex') + "  (ACK: " + str(not cb1) + ")")
-    print >> logfile, "@" + str(count) + " Time: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "  ADDR: 0x" + address.encode('hex') + "  DATA: 0x" + data.encode('hex') + "  (ACK: " + str(not cb1) + ")"
+    print("@" + str(count) + " Time: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "  ADDR: 0x" + address.encode('hex') + "  DATA: 0x" + data.encode('hex') + "  (ACK: " + str(not cb1) + ")", file=logfile)
     if (str(int(address.encode('hex'),16))=="116"):
         cdc_group = True
         cdc_cmeas = int(data.encode('hex'),16)

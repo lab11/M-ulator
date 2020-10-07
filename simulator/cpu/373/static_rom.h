@@ -11,7 +11,7 @@
 // bintoarray.sh; "echo.bin"
 #include <stdint.h>
 #define STATIC_ROM_NUM_BYTES (107 * 4)
-uint32_t static_rom[107];
+extern uint32_t static_rom[107];
 
 #define STATIC_ROM_BLURB "\
 \t\t\techo.bin: Listens for a character on the polling UART\n\
