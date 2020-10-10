@@ -52,7 +52,7 @@ logger.info("Would you like to run after programming? If you do not")
 logger.info("have GOC start the program, you will be prompted to send")
 logger.info("the start message via DMA at the end instead")
 logger.info("")
-resp = raw_input("Run program when GOC finishes? [Y/n] ")
+resp = input("Run program when GOC finishes? [Y/n] ")
 if len(resp) != 0 and resp[0] in ('n', 'N'):
     run_after = 0
 else:

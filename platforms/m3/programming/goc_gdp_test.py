@@ -19,7 +19,7 @@ gcl_handle = gdp.GDP_GCL(gcl_name, gdp.GDP_MODE_RA)
 
 while True:
 	try:
-		idx = int(raw_input("Image index: "))
+		idx = int(input("Image index: "))
 
 		record = gcl_handle.read(idx)
 		raw = record['data']

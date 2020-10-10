@@ -8,7 +8,7 @@ import socket
 import sys
 import os
 import mimetypes
-import Queue
+import queue
 import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger('program')
@@ -77,7 +77,7 @@ def validate_bin_helper(msg_type, event_id, length, msg):
         return
     validate_q.put(msg)
 
-validate_q = Queue.Queue()
+validate_q = queue.Queue()
 ice.msg_handler['d+'] = validate_bin_helper
 
 ice.connect(sys.argv[2])
@@ -106,7 +106,7 @@ logger.info("M3 0.6V => ON")
 ice.power_set_onoff(0,True)
 sleep(4.0)
 
-resp = raw_input("About to send I2C message to wake controller. Continue? [Y/n] ")
+resp = input("About to send I2C message to wake controller. Continue? [Y/n] ")
 if len(resp) != 0 and resp[0] in ('n', 'N'):
     sys.exit()
 
@@ -183,7 +183,7 @@ def validate_bin(ice, hexencoded, offset=0):
     logger.info("Programming validated successfully")
     return True
 
-resp = raw_input("About to send program data to I2C. Continue? [Y/n] ")
+resp = input("About to send program data to I2C. Continue? [Y/n] ")
 if len(resp) != 0 and resp[0] in ('n', 'N'):
     sys.exit()
 
@@ -214,7 +214,7 @@ logger.info('=' * 80)
 logger.info("Programming complete.")
 logger.info("")
 
-resp = raw_input("Would you like to send the DMA start interrupt? [Y/n] ")
+resp = input("Would you like to send the DMA start interrupt? [Y/n] ")
 if len(resp) != 0 and resp[0] in ('n', 'N'):
     sys.exit()
 

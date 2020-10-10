@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
-from __future__ import print_function
+
 
 import atexit
 import os
 import sys
 import socket
-from Queue import Queue
+from queue import Queue
 import argparse
 import time
 import threading
@@ -42,7 +42,7 @@ class m3_common(object):
 
     def default_value(self, prompt, default, extra=None, invert=False):
         if invert and (extra is None):
-            raise RuntimeError, "invert & !extra ?"
+            raise RuntimeError("invert & !extra ?")
         if self.args.yes:
             fn = print
         else:
@@ -140,7 +140,7 @@ class m3_common(object):
 
         # Bit-wise XOR parity of header
         header_parity = 0
-        for byte in [HEADER[x:x+2] for x in xrange(0, len(HEADER), 2)]:
+        for byte in [HEADER[x:x+2] for x in range(0, len(HEADER), 2)]:
             byte = int(byte, 16)
             header_parity ^= byte
         HEADER += "%02X" % (header_parity)
@@ -154,7 +154,7 @@ class m3_common(object):
 
             # Bit-wise XOR parity of data
             data_parity = 0
-            for byte in [DATA[x:x+2] for x in xrange(0, len(DATA), 2)]:
+            for byte in [DATA[x:x+2] for x in range(0, len(DATA), 2)]:
                 b = int(byte, 16)
                 data_parity ^= b
 
@@ -383,10 +383,10 @@ class m3_common(object):
         else:
             def pick_serial():
                 logger.info("Multiple possible serial ports found:")
-                for i in xrange(len(candidates)):
+                for i in range(len(candidates)):
                     logger.info("\t[{}] {}".format(i, candidates[i]))
                 try:
-                    resp = raw_input("Choose a serial port (Ctrl-C to quit): ").strip()
+                    resp = input("Choose a serial port (Ctrl-C to quit): ").strip()
                 except KeyboardInterrupt:
                     sys.exit(1)
                 try:

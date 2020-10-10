@@ -48,8 +48,8 @@ class mbus_message_generator(m3_common):
         self.ice.msg_handler['b++'] = self.Bpp_callback
 
     def Bpp_callback(self, address, data, cb0=-1, cb1=-1):
-        print("@" + str(self.count) + " Time: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "  ADDR: 0x" + address.encode('hex') + "  DATA: 0x" + data.encode('hex') + "  (ACK: " + str(not cb1) + ")")
-        print >> logfile, "@" + str(self.count) + " Time: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "  ADDR: 0x" + address.encode('hex') + "  DATA: 0x" + data.encode('hex') + "  (ACK: " + str(not cb1) + ")"
+        print(("@" + str(self.count) + " Time: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "  ADDR: 0x" + address.encode('hex') + "  DATA: 0x" + data.encode('hex') + "  (ACK: " + str(not cb1) + ")"))
+        print("@" + str(self.count) + " Time: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "  ADDR: 0x" + address.encode('hex') + "  DATA: 0x" + data.encode('hex') + "  (ACK: " + str(not cb1) + ")", file=logfile)
         if (str(int(address.encode('hex'),16))=="118"):
             #o_file.write(str(int(address.encode('hex'),16))+"\t"+str(int(data.encode('hex'),16))+"\r\n")
 			cdc_cref.append(int(data.encode('hex'),16))
@@ -63,7 +63,7 @@ class mbus_message_generator(m3_common):
             cdc_cmeas.append(int(data.encode('hex'),16))
             self.count += 1
         if self.count>self.args.killcount:
-			rows = zip(cdc_date,cdc_time,cdc_cmeas,cdc_cref,cdc_crev,cdc_cpar)
+			rows = list(zip(cdc_date,cdc_time,cdc_cmeas,cdc_cref,cdc_crev,cdc_cpar))
 			wr = csv.writer(open('snsv6_snoop.txt','w'), delimiter=',', lineterminator='\n')
 			wr.writerow(['DATE','TIME','C_MEAS','C_REF','C_REV','C_PAR'])
 			for row in rows:
