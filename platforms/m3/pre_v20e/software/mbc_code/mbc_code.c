@@ -109,9 +109,13 @@
  *    Fixed light packets to store 17 bit timestamp at the start of day state storage
  *    Fixed radio rest and check pmu reset mechanism
  *
+ *  v5.2.4:
+ *    Added error state that will trigger when XO timer stops
+ *    Updated PMU sar ratio setting to reg 0x05 bit 13
+ *
  ******************************************************************************************/
 
-#define VERSION_NUM 0x523
+#define VERSION_NUM 0x524
 
 #include "huffman_encodings.h" 
 // #include "huffman_encodings_v5_2_1.h"   // FIXME: debug
@@ -151,7 +155,7 @@
 #define USE_MEM
 #define USE_RAD
 #define USE_XO
-// #define OVERRIDE_RAD
+#define OVERRIDE_RAD
 
 #define STATE_INIT 0
 #define STATE_COLLECT 1
@@ -162,6 +166,7 @@
 #define STATE_RADIO_DATA 8
 #define STATE_RADIO_REST 9
 #define STATE_LOW_PWR 10
+#define STATE_ERROR 11
 
 #define MBUS_DELAY 100  // Amount of delay between seccessive messages; 100: 6-7ms
 #define TIMER32_VAL 0xA0000  // 0x20000 about 1 sec with Y5 run default clock (PRCv17)
@@ -395,10 +400,14 @@ volatile uint16_t cache_addr = CACHE_START_ADDR;
 volatile uint32_t proc_cache[PROC_CACHE_LEN];
 volatile uint16_t proc_cache_remainder = PROC_CACHE_MAX_REMAINDER;
 
+volatile uint32_t error_code = 0;
+volatile uint32_t error_time = 0;
+
 /**********************************************
  * Forward Declarations
  **********************************************/
 
+void set_system_error(uint32_t);
 static void sys_err(uint32_t);
 
 void send_beacon();
@@ -434,8 +443,8 @@ void xo_init( void ) {
     *REG_XO_CONF2 = ((xo_cap_drv << 6) | (xo_cap_in << 0));
 
     // XO xonfiguration
-    prev20e_r19.XO_PULSE_SEL     = 0x4; // pulse with sel, 1-hot encoded
-    prev20e_r19.XO_DELAY_EN      = 0x3; // pair usage together with xo_pulse_sel
+    prev20e_r19.XO_PULSE_SEL     = 0x8; // pulse with sel, 1-hot encoded
+    prev20e_r19.XO_DELAY_EN      = 0x7; // pair usage together with xo_pulse_sel
     prev20e_r19.XO_DRV_START_UP  = 0x0;
     prev20e_r19.XO_DRV_CORE      = 0x0;
     prev20e_r19.XO_SCN_CLK_SEL   = 0x0;
@@ -514,6 +523,11 @@ void update_system_time() {
     uint32_t temp = xo_sys_time;
     xo_sys_time = get_timer_cnt_xo();
 
+    // check if XO clock has stopped
+    if(temp == xo_sys_time) {
+    	set_system_error(0x3);
+    }
+
     // calculate the difference in seconds
     temp = (xo_sys_time >> XO_TO_SEC_SHIFT) - (temp >> XO_TO_SEC_SHIFT); // Have to shift individually to account for underflow
 
@@ -591,7 +605,6 @@ uint32_t divide_by_60(uint32_t source) {
 //     return res;
 // }
 
-// FIXME: determine we still need to check day time when radioing out
 bool xo_check_is_day() {
     update_system_time();
     return (DAY_START_TIME <= xo_day_time_in_sec) && (xo_day_time_in_sec < DAY_END_TIME);
@@ -1935,7 +1948,7 @@ static void pmu_set_sleep_clk(uint32_t setting) {
 #endif
 }*/
 
-static void pmu_set_sar_ratio(uint32_t sar_ratio) {
+void pmu_set_sar_ratio (uint32_t sar_ratio) {
 
     // Debug
     #ifdef DEBUG_SET_SAR_RATIO
@@ -1996,7 +2009,7 @@ static void pmu_set_sar_ratio(uint32_t sar_ratio) {
 
     // Set the desired SAR Ratio
     pmu_reg_write (10, // 0x0A (SAR_RATIO_MINIMUM)
-       ((sar_ratio << 0)    // SAR_RATIO_MINIMUM (7-bits)
+       ( (sar_ratio << 0)    // SAR_RATIO_MINIMUM (7-bits)
     ));
 
     // Debug
@@ -2006,7 +2019,7 @@ static void pmu_set_sar_ratio(uint32_t sar_ratio) {
 
     // Disable SAR_RESET override
     pmu_reg_write (5, // 0x05 (SAR_RATIO_OVERRIDE)
-       ( (0 << 13)  // Enable [12]
+       ( (1 << 13)  // Enable [12]
        | (0 << 12)  // Let VDD_CLK always connected to VBAT
        | (0 << 11)  // Enable [10] (Default: 1)
        | (0 << 10)  // SAR_RESET
@@ -2051,13 +2064,13 @@ static void pmu_set_sar_ratio(uint32_t sar_ratio) {
         mbus_write_message32(0xD8, ((0x05 << 24) | *REG0));
     #endif
 
-    uint32_t pmu_sar_ratio;
+uint32_t pmu_sar_ratio;
     // Now we don't know how long it would take to set the sar ratio.
     // so let's keep checking the actual sar ratio until it becomes as same as SAR_RATIO_MINIMUM
     do {
         // Read the current SAR RATIO
         pmu_reg_write(0x00,0x04);
-        pmu_sar_ratio   = *REG0 & 0x3F;
+        pmu_sar_ratio   = *REG0 & 0x7F;
 
         // Debug
         #ifdef DEBUG_SET_SAR_RATIO
@@ -2098,7 +2111,7 @@ static void pmu_set_sar_ratio(uint32_t sar_ratio) {
 
     // Override SAR_RESET again
     pmu_reg_write (5, // 0x05 (SAR_RATIO_OVERRIDE)
-       ( (0 << 13)  // Enable [12]
+       ( (1 << 13)  // Enable [12]
        | (0 << 12)  // Let VDD_CLK always connected to VBAT
        | (1 << 11)  // Enable [10] (Default: 1)
        | (0 << 10)  // SAR_RESET
@@ -2677,7 +2690,6 @@ static inline void mrr_init() {
     //mrr_freq_hopping = 5;
     //mrr_freq_hopping_step = 4;
     mrr_freq_hopping = 2;
-    // mrr_freq_hopping = 3; // FIXME: debug
     mrr_freq_hopping_step = 4; // determining center freq
 
     mrr_cfo_val_fine_min = 0x0000;
@@ -2765,6 +2777,9 @@ static void var_init() {
     next_radio_debug_time = 0;
     next_light_meas_time = 0;
     last_log_temp = 0;
+
+    error_code = 0;
+    error_time = 0;
 }
 
 static void operation_init( void ) {
@@ -2853,9 +2868,8 @@ static void operation_init( void ) {
 #ifdef USE_XO
     xo_init();
 
-    mbus_write_message32(0xA7, get_timer_cnt_xo());
-    mbus_write_message32(0xA7, get_timer_cnt_xo());
-    mbus_write_message32(0xA7, get_timer_cnt_xo());
+    update_system_time();
+    update_system_time();
     update_system_time();
 #endif
 }
@@ -2877,9 +2891,6 @@ static void operation_sleep( void ) {
     mbus_sleep_all();
     while(1);
 }
-
-volatile uint32_t error_code = 0;
-volatile uint32_t error_time = 0;
 
 
 void set_system_error(uint32_t code) {
@@ -2972,12 +2983,6 @@ void radio_unit(uint16_t unit_count) {
     mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*) addr, PRE_ADDR, code_cache, CODE_CACHE_LEN - 1);
     set_halt_until_mbus_tx();
 
-    // // FIXME: debug
-    // radio_data_arr[2] = addr;
-    // radio_data_arr[1] = code_cache[0];
-    // radio_data_arr[0] = code_cache[1];
-    // send_beacon();
-    
     uint32_t temp_arr[3];
     uint16_t i;
     bool is_light = ((code_cache[0] & 0x80000000) != 0);
@@ -3041,9 +3046,6 @@ uint16_t set_send_enable() {
     if(snt_sys_temp_code < MRR_TEMP_THRESH_LOW || snt_sys_temp_code > MRR_TEMP_THRESH_HIGH) {
         return 0;
     }
-    // if(snt_sys_temp_code < PMU_TEMP_THRESH[1] || snt_sys_temp_code >= PMU_55C) {
-    //     return 0;
-    // }
     uint16_t i;
     for(i = 2; i < 6; i++) {
         if(snt_sys_temp_code < PMU_TEMP_THRESH[i]) {
@@ -3141,7 +3143,7 @@ int main() {
     lnt_stop();
 
     operation_temp_run();
-    pmu_adc_read_latest();
+    pmu_setting_temp_based(0);
 
     mrr_send_enable = set_send_enable();
 
@@ -3288,11 +3290,11 @@ int main() {
             if(day_count + epoch_days_offset >= start_day_count) {
                 initialize_state_collect();
                 
-                // FIXME: debug
-                radio_data_arr[0] = projected_end_time_in_sec;
-                radio_data_arr[1] = xo_sys_time_in_sec;
-                radio_data_arr[2] = 0x4455;
-                send_beacon();
+                // // FIXME: debug
+                // radio_data_arr[0] = projected_end_time_in_sec;
+                // radio_data_arr[1] = xo_sys_time_in_sec;
+                // radio_data_arr[2] = 0x4455;
+                // send_beacon();
             }
             else {
                 projected_end_time_in_sec += PMU_WAKEUP_INTERVAL;
@@ -3313,16 +3315,16 @@ int main() {
                 next_beacon_time = 0;
                 next_data_time = 0;
 
-                // FIXME: debug
-                radio_data_arr[0] = temp_cache_remainder;
-                radio_data_arr[1] = code_addr;
-                radio_data_arr[2] = 0x1234;
-            send_beacon();
+                // // FIXME: debug
+                // radio_data_arr[0] = temp_cache_remainder;
+                // radio_data_arr[1] = code_addr;
+                // radio_data_arr[2] = 0x1234;
+		// send_beacon();
 
-                radio_data_arr[0] = projected_end_time_in_sec;
-                radio_data_arr[1] = xo_sys_time_in_sec;
-                radio_data_arr[2] = 0xAAAA;
-            send_beacon();
+                // radio_data_arr[0] = projected_end_time_in_sec;
+                // radio_data_arr[1] = xo_sys_time_in_sec;
+                // radio_data_arr[2] = 0xAAAA;
+		// send_beacon();
             }
             else if(read_data_batadc > LOW_PWR_VOLTAGE_THRESH_LOW || snt_sys_temp_code < LOW_PWR_TEMP_THRESH) {
                 // goto LOW_PWR_MODE
@@ -3402,15 +3404,14 @@ int main() {
                 next_data_time = next_data_day_time + xo_sys_time_in_sec - xo_day_time_in_sec;
             }
         
-            // FIXME: debug
-            radio_data_arr[2] = 0x7221;
-            radio_data_arr[1] = next_beacon_time;
-            radio_data_arr[0] = next_data_time;
-            send_beacon();
+            // // FIXME: debug
+            // radio_data_arr[2] = 0x7221;
+            // radio_data_arr[1] = next_beacon_time;
+            // radio_data_arr[0] = next_data_time;
+            // send_beacon();
 
             // set projected end time
             // don't check mrr_send_enable here
-            // FIXME: buggy, not radioing out beacon or data
             bool common_flag = (epoch_day_count < radio_duty_cycle_end_day
                                 && xo_check_is_day());
             uint32_t default_projected_end_time = projected_end_time_in_sec + PMU_WAKEUP_INTERVAL + XO_2_MIN;
@@ -3444,18 +3445,18 @@ int main() {
                 projected_end_time_in_sec += PMU_WAKEUP_INTERVAL;
             }
             
-            // FIXME: debug
-            radio_data_arr[2] = (0xBC << 8) | goc_state;
-            radio_data_arr[1] = xo_sys_time_in_sec;
-            radio_data_arr[0] = projected_end_time_in_sec;
-            send_beacon();
+            // // FIXME: debug
+            // radio_data_arr[2] = (0xBC << 8) | goc_state;
+            // radio_data_arr[1] = xo_sys_time_in_sec;
+            // radio_data_arr[0] = projected_end_time_in_sec;
+            // send_beacon();
         }
         else if(goc_state == STATE_RADIO_DATA) {
-            // FIXME: debug
-            radio_data_arr[2] = 0xDEFA;
-            radio_data_arr[1] = radio_unit_counter;
-            radio_data_arr[0] = mrr_send_enable;
-            send_beacon();
+            // // FIXME: debug
+            // radio_data_arr[2] = 0xDEFA;
+            // radio_data_arr[1] = radio_unit_counter;
+            // radio_data_arr[0] = mrr_send_enable;
+            // send_beacon();
 
             if(mrr_send_enable) {
                 while(1) {
@@ -3498,11 +3499,11 @@ int main() {
             }
         }
         else if(goc_state == STATE_RADIO_REST) {
-            // FIXME: debug
-            radio_data_arr[2] = 0x3DFB;
-            radio_data_arr[1] = xo_sys_time_in_sec;
-            radio_data_arr[0] = radio_rest_end_time;
-            send_beacon();
+            // // FIXME: debug
+            // radio_data_arr[2] = 0x3DFB;
+            // radio_data_arr[1] = xo_sys_time_in_sec;
+            // radio_data_arr[0] = radio_rest_end_time;
+            // send_beacon();
 
             if(projected_end_time_in_sec + PMU_WAKEUP_INTERVAL + XO_2_MIN >= radio_rest_end_time) {
                 projected_end_time_in_sec = radio_rest_end_time;
@@ -3513,7 +3514,6 @@ int main() {
             }
         }
         else if(goc_state == STATE_LOW_PWR) {
-            // TODO: test this
             // must pass at least 1 day and be around noon to resume operation
             if(day_count >= low_pwr_state_end_day 
                 && xo_day_time_in_sec >= (MID_DAY_TIME - PMU_WAKEUP_INTERVAL)
@@ -3531,6 +3531,25 @@ int main() {
             }
 
         }
+
+	// all error checking here
+	if(projected_end_time_in_sec <= xo_sys_time_in_sec) {
+	    set_system_error(0x02);
+	}
+
+	if(error_code != 0) {
+	    goc_state = STATE_ERROR;
+	}
+
+	if(goc_state == STATE_ERROR) {
+	    // keep in mind that the xo clock could no longer be running
+	    radio_data_arr[2] = 0xFF00 | CHIP_ID;
+	    radio_data_arr[1] = error_code;
+	    radio_data_arr[0] = error_time;
+	    send_beacon();
+	    update_system_time();
+	    projected_end_time_in_sec = xo_sys_time_in_sec + PMU_WAKEUP_INTERVAL;
+	}
     }
     else if(goc_data_header == 0x08) {
         // light huffman code
