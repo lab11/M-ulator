@@ -3,6 +3,9 @@ import sys
 import os
 import glob
 import re
+from check_template import check_template
+
+check_template(sys.argv[1])
 
 TIMEOUT_AFTER_PROGRAM = 20
 TIMEOUT_TIME = 5
@@ -806,6 +809,25 @@ with open(config_file, 'r') as file:
         check_bounds(N, 22)
         filename1 = filename + '-write-LOW_PWR_TEMP_THRESH=0x{}'.format(format(N, 'x'))
         val1 = val | (3 << 22)
+        val1 |= N
+        set_trigger(filename1, val1)
+
+    if(l[op_name]['generate_read_trigger']):
+        filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read'
+        val2 = val
+        set_trigger(filename2, val2)
+
+    ###################### 0x1A ##########################
+    op_name = 'mrr_coarse_cap_tune'
+    num = 0x1A
+    filename = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name)
+    val = (num << 24)
+
+    if(l[op_name]['write']):
+        N = l[op_name]['val']['MRR_CAP_TRX_ANTX_TUNE_COARSE']
+        check_bounds(N, 10)
+        filename1 = filename + '-write-MRR_CAP_TRX_ANTX_TUNE_COARSE={}'.format(N)
+        val1 = val | (1 << 23)
         val1 |= N
         set_trigger(filename1, val1)
 

@@ -86,9 +86,9 @@ timer_constants:
     write: true
     val:
         xo_to_sec_mplier: 32768 # 2^15
-        XO_TO_SEC_MPLIER_SHIFT: 15  # 1 times accel # 15 is the default value. To do 2^N times acceleration, use 15 - N
+        XO_TO_SEC_MPLIER_SHIFT: 15  # 1 times accel # 15 is the default value. To do N times acceleration, use 15 - N
         xo_to_lnt_mplier: 0x73 
-        LNT_MPLIER_SHIFT: 6 # 1 times accel # 6 is the default value. To do 2^N times acceleration, use 6 + N
+        LNT_MPLIER_SHIFT: 6 # 1 times accel # 6 is the default value. To do N times acceleration, use 6 + N
     generate_read_trigger: true
 
 #################### 0x0D ####################
@@ -323,6 +323,13 @@ low_power_config:
         LOW_PWR_VOLTAGE_THRESH_LOW: 0x55 #  0x56 -> 3.8V
         LOW_PWR_VOLTAGE_THRESH_HIGH: 0x51 # 4.0V    # VOLTAGE_THRESH_LOW is greater than VOLTAGE_THRESH_HIGH because ADC output is inverted
         LOW_PWR_TEMP_THRESH: 0x10
+    generate_read_trigger: false
+
+#################### 0x1A ####################
+mrr_coarse_cap_tune:
+    write: true
+    val:
+        MRR_CAP_TRX_ANTX_TUNE_COARSE: 0 # ANTP and ANTN are set to the same value
     generate_read_trigger: false
 
 #################### 0x1B ####################
