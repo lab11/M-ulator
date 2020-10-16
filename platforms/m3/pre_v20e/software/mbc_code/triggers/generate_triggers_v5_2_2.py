@@ -5,7 +5,10 @@ import glob
 import re
 from check_template import check_template
 
-check_template(sys.argv[1])
+if(check_template(sys.argv[1]) != 0):
+    print('Template check failed')
+    exit()
+
 
 TIMEOUT_AFTER_PROGRAM = 20
 TIMEOUT_TIME = 5

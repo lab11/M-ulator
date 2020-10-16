@@ -324,6 +324,13 @@ low_power_config:
         LOW_PWR_VOLTAGE_THRESH_HIGH: 0x51 # 4.0V    # VOLTAGE_THRESH_LOW is greater than VOLTAGE_THRESH_HIGH because ADC output is inverted
         LOW_PWR_TEMP_THRESH: 0x10
     generate_read_trigger: false
+    
+#################### 0x1A ####################
+mrr_coarse_cap_tune:
+    write: true
+    val:
+        MRR_CAP_TRX_ANTX_TUNE_COARSE: 0 # ANTP and ANTN are set to the same value
+    generate_read_trigger: false
 
 #################### 0x1B ####################
 operation_config:
