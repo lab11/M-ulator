@@ -68,7 +68,10 @@ temp_huffman_code:
 epoch_days: 
     auto: false
     write: true
-    val: 1000
+    val:
+        YYYY: 2020
+        MM: 10
+        DD: 16
     generate_read_trigger: true
 
 #################### 0x0B ####################
@@ -337,9 +340,18 @@ operation_config:
     # TODO: implement an auto version for this
     write: true
     val:
-        start_day_count: 1000
-        end_day_count: 1006
-        radio_day_count: 1006
+        start_day_count:
+            YYYY: 2020
+            MM: 10
+            DD: 16
+        end_day_count:
+            YYYY: 2020
+            MM: 10
+            DD: 16
+        radio_day_count:
+            YYYY: 2020
+            MM: 10
+            DD: 16
     generate_read_trigger: true
 
 #################### 0x1C ####################

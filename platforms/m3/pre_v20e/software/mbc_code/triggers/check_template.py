@@ -7,7 +7,7 @@ def check_elements(template, config, err_list, name):
         if k in config.keys():
             if(type(template[k]) != type(config[k])):
                 err_list.append(['{}:{}'.format(name, k), 'type mismatch: {} != {}'.format(type(template[k]), type(config[k]))])
-            if isinstance(template[k], dict):
+            elif isinstance(template[k], dict):
                 check_elements(template[k], config[k], err_list, '{}:{}'.format(name, k))
         else:
             err_list.append(['{}:{}'.format(name, k), 'template element not found'])

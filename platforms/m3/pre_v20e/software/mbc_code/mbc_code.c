@@ -116,13 +116,17 @@
  *  v5.2.5:
  *    Changed XO error trigger to compare current xo value to last wakeup xo value
  *
+ *  v5.2.6:
+ *    In radio_data while loop, check conditions first to avoid an infinite loop when max_unit_count == 0
+ *    Changed verification beacons to contain, temp, light and pmu info
+ *    Changed debug beacons to contain temp, pmu and xo timer info
+ *    Removed OVERRIDE_RAD and UNE_GMB
+ *
  ******************************************************************************************/
 
 #define VERSION_NUM 0x525
 
 #include "huffman_encodings.h" 
-// #include "huffman_encodings_v5_2_1.h"   // FIXME: debug
-// #include "huffman_encodings_v5_2_2.h"   // FIXME: debug
 #include "../include/PREv20E.h"
 #include "../include/PREv20E_RF.h"
 #include "../include/SNTv4_RF.h"
@@ -158,7 +162,6 @@
 #define USE_MEM
 #define USE_RAD
 #define USE_XO
-#define OVERRIDE_RAD
 
 #define STATE_INIT 0
 #define STATE_COLLECT 1
@@ -352,7 +355,6 @@ uint16_t MAX_EDGE_SHIFT = 600;
 #define MAX_DAY_TIME 86400
 #define MID_DAY_TIME 43200
 // this is now aligned to the minute
-// FIXME: validate this
 uint16_t IDX_MAX = 239;         // x = 180, y = 60, IDX_MAX = x + y - 1
 uint16_t EDGE_MARGIN1 = 10740; // (x - 1) * 60
 uint16_t EDGE_MARGIN2 = 3600; // y * 60
@@ -576,38 +578,6 @@ uint32_t divide_by_60(uint32_t source) {
     }
     return res;
 }
-
-// FIXME: replace this with divide by 60
-// divide sys time in seconds by 60
-// uint32_t get_sys_time_in_min() {
-//     update_system_time();
-// 
-//     uint32_t upper = xo_sys_time_in_sec >> 5;   // divide by 32
-//     uint32_t lower = xo_sys_time_in_sec >> 6;   // divide by 64
-//     uint32_t res;
-//     uint32_t source = xo_sys_time_in_sec - sys_sec_to_min_offset;
-// 
-//     while(1) {
-//         res = (upper + lower) >> 1;  // average of upper and lower
-//         if(source < res * 60) {
-//             upper = res;
-//         }
-//         else if(source - (res * 60) < 60) {
-//             break;
-//         }
-//         else {
-//             lower = res;
-//         }
-//     }
-// 
-//     // FIXME: debug
-//     radio_data_arr[2] = 0x4321;
-//     radio_data_arr[1] = source;
-//     radio_data_arr[0] = res;
-//     send_beacon();
-// 
-//     return res;
-// }
 
 bool xo_check_is_day() {
     update_system_time();
@@ -2782,6 +2752,8 @@ static void var_init() {
     next_light_meas_time = 0;
     last_log_temp = 0;
 
+    mrr_cfo_val_fine = 0;
+
     error_code = 0;
     error_time = 0;
 }
@@ -2795,9 +2767,9 @@ static void operation_init( void ) {
     config_timer32(0, 0, 0, 0);
 
     // Enumeration
-    // FIXME: bake version num into the code
+    // bake version num into the code
     // so it will go through operation_init
-    enumerated = ENUMID;
+    enumerated = ENUMID + VERSION_NUM;
 
     // timing variables don't belong to var_init
     xo_sys_time = 0;
@@ -3038,15 +3010,7 @@ void radio_partial_data(uint16_t start_unit_count, uint16_t len) {
     }
 }
 
-// FIXME: update this
 uint16_t set_send_enable() {
-#ifdef OVERRIDE_RAD
-    return 1;
-#endif
-#ifdef USE_GMB
-    return 1;
-#endif
-#ifndef USE_GMB
     if(snt_sys_temp_code < MRR_TEMP_THRESH_LOW || snt_sys_temp_code > MRR_TEMP_THRESH_HIGH) {
         return 0;
     }
@@ -3062,7 +3026,6 @@ uint16_t set_send_enable() {
     }
     }
     return 1;
-#endif
 }
 
 void send_beacon() {
@@ -3118,11 +3081,11 @@ int main() {
     *NVIC_ISER = (1 << IRQ_WAKEUP | 1 << IRQ_GOCEP | 1 << IRQ_TIMER32 | 
           1 << IRQ_REG0 | 1 << IRQ_REG1 | 1 << IRQ_REG2 | 1 << IRQ_REG3);
 
-    if(enumerated != ENUMID) {
+    if(enumerated != ENUMID + VERSION_NUM) {
         operation_init();
-    // set pmu sleep setting
-    pmu_setting_temp_based(2);
-    operation_sleep();
+        // set pmu sleep setting
+        pmu_setting_temp_based(2);
+        operation_sleep();
         // operation_sleep_notimer();
     }
 
@@ -3266,24 +3229,36 @@ int main() {
         op_counter++;
 
         if(op_counter == 1) {
-            radio_data_arr[0] = xo_day_time_in_sec;
-            radio_data_arr[1] = xo_sys_time_in_sec;
-            radio_data_arr[2] = (CHIP_ID << 10) | op_counter;
+            // radio_data_arr[0] = xo_day_time_in_sec;
+            // radio_data_arr[1] = xo_sys_time_in_sec;
+            // radio_data_arr[2] = (CHIP_ID << 10) | op_counter;
+            radio_data_arr[0] = lnt_sys_light;
+            radio_data_arr[1] = snt_sys_temp_code;
+            radio_data_arr[2] = (CHIP_ID << 10) | read_data_batadc;
         }
         else if(op_counter == 2) {
-            radio_data_arr[0] = cur_sunset;
-            radio_data_arr[1] = cur_sunrise;
-            radio_data_arr[2] = (CHIP_ID << 10) | op_counter;
+            // radio_data_arr[0] = cur_sunset;
+            // radio_data_arr[1] = cur_sunrise;
+            // radio_data_arr[2] = (CHIP_ID << 10) | op_counter;
+            radio_data_arr[0] = lnt_sys_light;
+            radio_data_arr[1] = snt_sys_temp_code;
+            radio_data_arr[2] = (CHIP_ID << 10) | read_data_batadc;
         }
         else if(op_counter == 3) {
-            radio_data_arr[0] = 0;
-            radio_data_arr[1] = radio_debug;
-            radio_data_arr[2] = (CHIP_ID << 10) | op_counter;
+            // radio_data_arr[0] = 0;
+            // radio_data_arr[1] = radio_debug;
+            // radio_data_arr[2] = (CHIP_ID << 10) | op_counter;
+            radio_data_arr[0] = lnt_sys_light;
+            radio_data_arr[1] = snt_sys_temp_code;
+            radio_data_arr[2] = (CHIP_ID << 10) | read_data_batadc;
         }
         else if(op_counter >= 4) {
-            radio_data_arr[0] = projected_end_time_in_sec;
-            radio_data_arr[1] = xo_sys_time_in_sec;
-            radio_data_arr[2] = (CHIP_ID << 10) | op_counter;
+            // radio_data_arr[0] = projected_end_time_in_sec;
+            // radio_data_arr[1] = xo_sys_time_in_sec;
+            // radio_data_arr[2] = (CHIP_ID << 10) | op_counter;
+            radio_data_arr[0] = lnt_sys_light;
+            radio_data_arr[1] = snt_sys_temp_code;
+            radio_data_arr[2] = (CHIP_ID << 10) | read_data_batadc;
 
             // go to STATE_WAIT1
             goc_state = STATE_WAIT1;
@@ -3293,12 +3268,6 @@ int main() {
         else if(goc_state == STATE_WAIT1) {
             if(day_count + epoch_days_offset >= start_day_count) {
                 initialize_state_collect();
-                
-                // // FIXME: debug
-                // radio_data_arr[0] = projected_end_time_in_sec;
-                // radio_data_arr[1] = xo_sys_time_in_sec;
-                // radio_data_arr[2] = 0x4455;
-                // send_beacon();
             }
             else {
                 projected_end_time_in_sec += PMU_WAKEUP_INTERVAL;
@@ -3318,17 +3287,6 @@ int main() {
                 // initialize radio variables
                 next_beacon_time = 0;
                 next_data_time = 0;
-
-                // // FIXME: debug
-                // radio_data_arr[0] = temp_cache_remainder;
-                // radio_data_arr[1] = code_addr;
-                // radio_data_arr[2] = 0x1234;
-		// send_beacon();
-
-                // radio_data_arr[0] = projected_end_time_in_sec;
-                // radio_data_arr[1] = xo_sys_time_in_sec;
-                // radio_data_arr[2] = 0xAAAA;
-		// send_beacon();
             }
             else if(read_data_batadc > LOW_PWR_VOLTAGE_THRESH_LOW || snt_sys_temp_code < LOW_PWR_TEMP_THRESH) {
                 // goto LOW_PWR_MODE
@@ -3350,25 +3308,24 @@ int main() {
                 set_projected_end_time();
 
                 if(radio_debug && projected_end_time_in_sec >= next_radio_debug_time) {
-                    next_radio_debug_time += RADIO_DEBUG_PERIOD;
+                    next_radio_debug_time = xo_sys_time_in_sec + RADIO_DEBUG_PERIOD;
 
                     if(mrr_send_enable) {
-                        // FIXME: set this to be useful info
                         // FIXME: consider removing this after a while
-                        radio_data_arr[0] = projected_end_time_in_sec;
-                        radio_data_arr[1] = xo_sys_time_in_sec;
-                        radio_data_arr[2] = CHIP_ID << 8;
+                        radio_data_arr[0] = xo_sys_time_in_sec;
+                        radio_data_arr[1] = snt_sys_temp_code;
+                        radio_data_arr[2] = CHIP_ID << 8 | read_data_batadc;
                         send_beacon();
                     }
                 }
             }
         }
         else if(goc_state == STATE_WAIT2) {
-            // FIXME: debug
-            radio_data_arr[2] = 0x5436;
-            radio_data_arr[1] = xo_sys_time_in_sec;
-            radio_data_arr[0] = projected_end_time_in_sec;
-            send_beacon();
+            // // FIXME: debug
+            // radio_data_arr[2] = 0x5436
+            // radio_data_arr[1] = xo_sys_time_in_sec;
+            // radio_data_arr[0] = projected_end_time_in_sec;
+            // send_beacon();
 
             if(projected_end_time_in_sec == next_beacon_time && mrr_send_enable) {
                 // send beacon
@@ -3408,18 +3365,13 @@ int main() {
                 next_data_time = next_data_day_time + xo_sys_time_in_sec - xo_day_time_in_sec;
             }
         
-            // // FIXME: debug
-            // radio_data_arr[2] = 0x7221;
-            // radio_data_arr[1] = next_beacon_time;
-            // radio_data_arr[0] = next_data_time;
-            // send_beacon();
-
             // set projected end time
             // don't check mrr_send_enable here
             bool common_flag = (epoch_day_count < radio_duty_cycle_end_day
                                 && xo_check_is_day());
             uint32_t default_projected_end_time = projected_end_time_in_sec + PMU_WAKEUP_INTERVAL + XO_2_MIN;
 
+            // FIXME: debug
             mbus_write_message32(0xA2, epoch_day_count);
             mbus_write_message32(0xA3, radio_duty_cycle_end_day);
             mbus_write_message32(0xA4, xo_day_time_in_sec);
@@ -3464,18 +3416,13 @@ int main() {
 
             if(mrr_send_enable) {
                 while(1) {
-                    radio_unit(radio_unit_counter);
-                    radio_unit_counter++;
-                    check_pmu_counter++;
-                    radio_rest_counter++;
-
-                    if(radio_unit_counter == max_unit_count) {
+                    if(radio_unit_counter >= max_unit_count) {
                         update_system_time();
                         projected_end_time_in_sec = xo_sys_time_in_sec + XO_2_MIN;
                         goc_state = STATE_WAIT2;
                         break;
                     }
-                    else if(radio_unit_counter == RADIO_REST_NUM_UNITS) {
+                    else if(radio_unit_counter >= RADIO_REST_NUM_UNITS) {
                         radio_rest_counter = 0;
                         update_system_time();
                         radio_rest_end_time = xo_sys_time_in_sec + RADIO_REST_TIME;
@@ -3485,12 +3432,17 @@ int main() {
                         goc_state = STATE_RADIO_REST;
                         break;
                     }
-                    else if(radio_unit_counter == CHECK_PMU_NUM_UNITS) {
+                    else if(radio_unit_counter >= CHECK_PMU_NUM_UNITS) {
                         check_pmu_counter = 0;
                         update_system_time();
                         projected_end_time_in_sec = xo_sys_time_in_sec + XO_2_MIN;
                         break;
                     }
+
+                    radio_unit(radio_unit_counter);
+                    radio_unit_counter++;
+                    check_pmu_counter++;
+                    radio_rest_counter++;
                 }
             }
             else {

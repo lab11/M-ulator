@@ -3,12 +3,14 @@ import sys
 import os
 import glob
 import re
+from datetime import datetime
 from check_template import check_template
+from file_gen import set_trigger
+from file_gen import parse_date
 
 if(check_template(sys.argv[1]) != 0):
     print('Template check failed')
     exit()
-
 
 TIMEOUT_AFTER_PROGRAM = 20
 TIMEOUT_TIME = 5
@@ -26,9 +28,9 @@ for f in glob.glob('{}*.bat'.format(out_dir)):
     else:
         os.remove(f)
 
-def set_trigger(filename, val):
-    with open(out_dir + filename + '.bat', 'w') as f:
-        f.write('call SET_GOC_SPEED.bat\ncall SET_COM.bat\nm3_ice -y -s %COM% goc -d %GOC_DELAY% -V3 -g %GOC_SPEED_PR% message 0000008C {}\n'.format(format(val, 'x').zfill(8)))
+# def set_trigger(filename, val):
+#     with open(out_dir + filename + '.bat', 'w') as f:
+#         f.write('call SET_GOC_SPEED.bat\ncall SET_COM.bat\nm3_ice -y -s %COM% goc -d %GOC_DELAY% -V3 -g %GOC_SPEED_PR% message 0000008C {}\n'.format(format(val, 'x').zfill(8)))
 
 def check_bounds(val, num_bits):
     if(val < 0 or val >= (1 << num_bits)):
@@ -61,8 +63,7 @@ with open(config_file, 'r') as file:
     val |= (1 << 22)
     val |= (N << 17)
     val |= M
-    set_trigger(filename, val)
-
+    set_trigger(trigger_dir, filename, val)
 
     ###################### 0x00 ##########################
     op_name = 'stop_operation'
@@ -70,7 +71,7 @@ with open(config_file, 'r') as file:
     if(l[op_name]['generate_read_trigger']):
         filename = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name)
         val = 0x00000000
-        set_trigger(filename, val)
+        set_trigger(trigger_dir, filename, val)
     
     ###################### 0x01 ##########################
     op_name = 'alive_beacon'
@@ -81,7 +82,7 @@ with open(config_file, 'r') as file:
         val = (0x01 << 24)
         if(option):
             val |= (1 << 23)
-        set_trigger(filename, val)
+        set_trigger(trigger_dir, filename, val)
 
     ###################### 0x02 ##########################
     op_name = 'packet_blaster'
@@ -100,7 +101,7 @@ with open(config_file, 'r') as file:
         val |= (N << 16)
         val |= (M << 8)
         val |= signal
-        set_trigger(filename, val)
+        set_trigger(trigger_dir, filename, val)
 
     ###################### 0x03 ##########################
     op_name = 'characterization'
@@ -116,7 +117,7 @@ with open(config_file, 'r') as file:
         if(option):
             val |= (1 << 23)
         val |= N
-        set_trigger(filename, val)
+        set_trigger(trigger_dir, filename, val)
 
     ###################### 0x05 ##########################
     op_name = 'battery_drain_test'
@@ -129,7 +130,7 @@ with open(config_file, 'r') as file:
 
         val = (num << 24)
         val |= N
-        set_trigger(filename, val)
+        set_trigger(trigger_dir, filename, val)
 
     ###################### 0x06 ##########################
     op_name = 'timeout'
@@ -137,7 +138,7 @@ with open(config_file, 'r') as file:
     if(l[op_name]['generate_read_trigger']):
         filename = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name)
         val = (num << 24)
-        set_trigger(filename, val)
+        set_trigger(trigger_dir, filename, val)
 
     ###################### 0x07 ##########################
     op_name = 'start_operation'
@@ -145,7 +146,7 @@ with open(config_file, 'r') as file:
     if(l[op_name]['generate_read_trigger']):
         filename = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name)
         val = (num << 24)
-        set_trigger(filename, val)
+        set_trigger(trigger_dir, filename, val)
 
     ###################### 0x01 ##########################
     op_name = 'CHIP_ID'
@@ -158,12 +159,12 @@ with open(config_file, 'r') as file:
         filename1 = filename + '-write-chip_id=0x{}'.format(format(N, 'x'))
         val1 = val | (1 << 22)
         val1 |= N
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read'
         val2 = val
-        set_trigger(filename2, val2)
+        set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x08 ##########################
     op_name = 'light_huffman_code'
@@ -177,7 +178,7 @@ with open(config_file, 'r') as file:
             filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read_index={}'.format(format(idx).zfill(2))
             val2 = val
             val2 |= (idx << 16)
-            set_trigger(filename2, val2)
+            set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x09 ##########################
     op_name = 'temp_huffman_code'
@@ -191,7 +192,7 @@ with open(config_file, 'r') as file:
             filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read_index={}'.format(format(idx).zfill(2))
             val2 = val
             val2 |= (idx << 16)
-            set_trigger(filename2, val2)
+            set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x0A ##########################
     op_name = 'epoch_days'
@@ -205,17 +206,18 @@ with open(config_file, 'r') as file:
             with open(out_dir + filename1 + '.bat', 'w') as f:
                 f.write('python ../auto_date_gen.py {}\ncall write-auto-date.bat\n'.format(trigger_dir))
         else:
-            N = l[op_name]['val']
+            d = l[op_name]['val']
+            N = parse_date(d)
             check_bounds(N, 16)
             filename1 = filename + '-write-epoch_days_offset={}'.format(N)
             val1 = val | (1 << 23)
             val1 |= N
-            set_trigger(filename1, val1)
+            set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read'
         val2 = val
-        set_trigger(filename2, val2)
+        set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x0B ##########################
     op_name = 'xo_day_time_in_sec'
@@ -237,12 +239,12 @@ with open(config_file, 'r') as file:
             val1 = val | (1 << 23)
             val1 |= (H << 6)
             val1 |= M
-            set_trigger(filename1, val1)
+            set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read'
         val2 = val
-        set_trigger(filename2, val2)
+        set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x0C ##########################
     op_name = 'timer_constants'
@@ -256,33 +258,33 @@ with open(config_file, 'r') as file:
         filename1 = filename + '-write-xo_to_sec_mplier={}'.format(N)
         val1 = val | (1 << 21)
         val1 |= N
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
         N = l[op_name]['val']['xo_to_lnt_mplier']
         check_bounds(N, 16)
         filename1 = filename + '-write-xo_to_lnt_mplier=0x{}'.format(format(N, 'x'))
         val1 = val | (2 << 21)
         val1 |= N
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
         N = l[op_name]['val']['XO_TO_SEC_MPLIER_SHIFT']
         check_bounds(N, 16)
         filename1 = filename + '-write-XO_TO_SEC_MPLIER_SHIFT={}'.format(N)
         val1 = val | (3 << 21)
         val1 |= N
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
         N = l[op_name]['val']['LNT_MPLIER_SHIFT']
         check_bounds(N, 16)
         filename1 = filename + '-write-LNT_MPLIER_SHIFT={}'.format(N)
         val1 = val | (4 << 21)
         val1 |= N
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read'
         val2 = val
-        set_trigger(filename2, val2)
+        set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x0D ##########################
     op_name = 'sample_indices'
@@ -299,7 +301,7 @@ with open(config_file, 'r') as file:
                 val1 = val | (1 << 23)
                 val1 |= (counter << 21)
                 val1 |= value
-                set_trigger(filename1, val1)
+                set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         for idx in l[op_name]['read_indices']:
@@ -307,7 +309,7 @@ with open(config_file, 'r') as file:
             filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read_index={}'.format(idx)
             val2 = val
             val2 |= (idx << 21)
-            set_trigger(filename2, val2)
+            set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x0E ##########################
     op_name = 'sunrise_sunset'
@@ -324,12 +326,12 @@ with open(config_file, 'r') as file:
         val1 = val | (1 << 23)
         val1 |= (N << 11)
         val1 |= M
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read'
         val2 = val
-        set_trigger(filename2, val2)
+        set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x0F ##########################
     op_name = 'sliding_window'
@@ -346,19 +348,19 @@ with open(config_file, 'r') as file:
         val1 = val | (1 << 22)
         val1 |= (N << 8)
         val1 |= M
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
         M = l[op_name]['val']['MAX_EDGE_SHIFT_IN_MIN']
         check_bounds(M, 8)
         filename1 = filename + '-write-MAX_EDGE_SHIFT_IN_MIN={}'.format(M)
         val1 = val | (2 << 22)
         val1 |= M
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read'
         val2 = val
-        set_trigger(filename2, val2)
+        set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x0F ##########################
     op_name = 'PMU_ACTIVE_SETTINGS'
@@ -378,7 +380,7 @@ with open(config_file, 'r') as file:
             val1 |= (counter << 17)
             val1 |= (1 << 16)
             val1 |= upper
-            set_trigger(filename1, val1)
+            set_trigger(trigger_dir, filename1, val1)
 
             lower = value & 0xFFFF
             filename1 = filename + '-write_index={}-U={}-value=0x{}'.format(counter, 0, format(lower, 'x').zfill(4))
@@ -387,7 +389,7 @@ with open(config_file, 'r') as file:
             val1 |= (counter << 17)
             val1 |= (0 << 16)
             val1 |= lower
-            set_trigger(filename1, val1)
+            set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         for idx in l[op_name]['read_indices']:
@@ -396,7 +398,7 @@ with open(config_file, 'r') as file:
             val2 = val
             val2 |= (setting << 20)
             val2 |= (idx << 17)
-            set_trigger(filename2, val2)
+            set_trigger(trigger_dir, filename2, val2)
 
     op_name = 'PMU_RADIO_SETTINGS'
     num = 0x10
@@ -415,7 +417,7 @@ with open(config_file, 'r') as file:
             val1 |= (counter << 17)
             val1 |= (1 << 16)
             val1 |= upper
-            set_trigger(filename1, val1)
+            set_trigger(trigger_dir, filename1, val1)
 
             lower = value & 0xFFFF
             filename1 = filename + '-write_index={}-U={}-value=0x{}'.format(counter, 0, format(lower, 'x').zfill(4))
@@ -424,7 +426,7 @@ with open(config_file, 'r') as file:
             val1 |= (counter << 17)
             val1 |= (0 << 16)
             val1 |= lower
-            set_trigger(filename1, val1)
+            set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         for idx in l[op_name]['read_indices']:
@@ -433,7 +435,7 @@ with open(config_file, 'r') as file:
             val2 = val
             val2 |= (setting << 20)
             val2 |= (idx << 17)
-            set_trigger(filename2, val2)
+            set_trigger(trigger_dir, filename2, val2)
 
     op_name = 'PMU_SLEEP_SETTINGS'
     num = 0x10
@@ -452,7 +454,7 @@ with open(config_file, 'r') as file:
             val1 |= (counter << 17)
             val1 |= (1 << 16)
             val1 |= upper
-            set_trigger(filename1, val1)
+            set_trigger(trigger_dir, filename1, val1)
 
             lower = value & 0xFFFF
             filename1 = filename + '-write_index={}-U={}-value=0x{}'.format(counter, 0, format(lower, 'x').zfill(4))
@@ -461,7 +463,7 @@ with open(config_file, 'r') as file:
             val1 |= (counter << 17)
             val1 |= (0 << 16)
             val1 |= lower
-            set_trigger(filename1, val1)
+            set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         for idx in l[op_name]['read_indices']:
@@ -470,7 +472,7 @@ with open(config_file, 'r') as file:
             val2 = val
             val2 |= (setting << 20)
             val2 |= (idx << 17)
-            set_trigger(filename2, val2)
+            set_trigger(trigger_dir, filename2, val2)
 
     op_name = 'PMU_ACTIVE_SAR_SETTINGS'
     num = 0x10
@@ -490,7 +492,7 @@ with open(config_file, 'r') as file:
             val1 |= (counter << 17)
             val1 |= (0 << 16)
             val1 |= lower
-            set_trigger(filename1, val1)
+            set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         for idx in l[op_name]['read_indices']:
@@ -499,7 +501,7 @@ with open(config_file, 'r') as file:
             val2 = val
             val2 |= (setting << 20)
             val2 |= (idx << 17)
-            set_trigger(filename2, val2)
+            set_trigger(trigger_dir, filename2, val2)
 
     op_name = 'PMU_RADIO_SAR_SETTINGS'
     num = 0x10
@@ -519,7 +521,7 @@ with open(config_file, 'r') as file:
             val1 |= (counter << 17)
             val1 |= (0 << 16)
             val1 |= lower
-            set_trigger(filename1, val1)
+            set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         for idx in l[op_name]['read_indices']:
@@ -528,7 +530,7 @@ with open(config_file, 'r') as file:
             val2 = val
             val2 |= (setting << 20)
             val2 |= (idx << 17)
-            set_trigger(filename2, val2)
+            set_trigger(trigger_dir, filename2, val2)
 
     op_name = 'PMU_SLEEP_SAR_SETTINGS'
     num = 0x10
@@ -548,7 +550,7 @@ with open(config_file, 'r') as file:
             val1 |= (counter << 17)
             val1 |= (0 << 16)
             val1 |= lower
-            set_trigger(filename1, val1)
+            set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         for idx in l[op_name]['read_indices']:
@@ -557,7 +559,7 @@ with open(config_file, 'r') as file:
             val2 = val
             val2 |= (setting << 20)
             val2 |= (idx << 17)
-            set_trigger(filename2, val2)
+            set_trigger(trigger_dir, filename2, val2)
 
     op_name = 'PMU_TEMP_THRESH'
     num = 0x10
@@ -577,7 +579,7 @@ with open(config_file, 'r') as file:
             val1 |= (counter << 17)
             val1 |= (0 << 16)
             val1 |= lower
-            set_trigger(filename1, val1)
+            set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         for idx in l[op_name]['read_indices']:
@@ -586,7 +588,7 @@ with open(config_file, 'r') as file:
             val2 = val
             val2 |= (setting << 20)
             val2 |= (idx << 17)
-            set_trigger(filename2, val2)
+            set_trigger(trigger_dir, filename2, val2)
 
     op_name = 'PMU_ADC_THRESH'
     num = 0x10
@@ -606,7 +608,7 @@ with open(config_file, 'r') as file:
             val1 |= (counter << 17)
             val1 |= (0 << 16)
             val1 |= lower
-            set_trigger(filename1, val1)
+            set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         for idx in l[op_name]['read_indices']:
@@ -615,7 +617,7 @@ with open(config_file, 'r') as file:
             val2 = val
             val2 |= (setting << 20)
             val2 |= (idx << 17)
-            set_trigger(filename2, val2)
+            set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x11 ##########################
     op_name = 'day_time_config'
@@ -632,12 +634,12 @@ with open(config_file, 'r') as file:
         val1 = val | (1 << 23)
         val1 |= (N << 11)
         val1 |= M
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read'
         val2 = val
-        set_trigger(filename2, val2)
+        set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x12 ##########################
     op_name = 'radio_config'
@@ -655,12 +657,12 @@ with open(config_file, 'r') as file:
         val1 |= (1 << 22)
         val1 |= (N << 17)
         val1 |= M
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read'
         val2 = val
-        set_trigger(filename2, val2)
+        set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x13 ##########################
     op_name = 'light_threshold'
@@ -678,12 +680,12 @@ with open(config_file, 'r') as file:
         val1 |= (1 << 22)
         val1 |= (N << 17)
         val1 |= M
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read'
         val2 = val
-        set_trigger(filename2, val2)
+        set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x14 ##########################
     op_name = 'radio_config2'
@@ -699,12 +701,12 @@ with open(config_file, 'r') as file:
             filename1 = filename + '-write-{}={}'.format(key, N)
             val1 = val | ((count + 1) << 20)
             val1 |= N
-            set_trigger(filename1, val1)
+            set_trigger(trigger_dir, filename1, val1)
 
         if(l[op_name]['generate_read_trigger']):
             filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read'
             val2 = val
-            set_trigger(filename2, val2)
+            set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x15 ##########################
     op_name = 'debug_config'
@@ -721,17 +723,17 @@ with open(config_file, 'r') as file:
             val1 = val | (1 << 23)
             val1 |= (1 << 22)
             val1 |= N
-            set_trigger(filename1, val1)
+            set_trigger(trigger_dir, filename1, val1)
         else:
             filename1 = filename + '-write-radio_debug={}'.format(False)
             val1 = val | (1 << 23)
             val1 |= (0 << 22)
-            set_trigger(filename1, val1)
+            set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read'
         val2 = val
-        set_trigger(filename2, val2)
+        set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x16 ##########################
     op_name = 'radio_config3'
@@ -745,19 +747,19 @@ with open(config_file, 'r') as file:
         filename1 = filename + '-write-MRR_TEMP_THRESH_LOW=0x{}'.format(format(N, 'x'))
         val1 = val | (1 << 22)
         val1 |= N
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
         N = l[op_name]['val']['MRR_TEMP_THRESH_HIGH']
         check_bounds(N, 22)
         filename1 = filename + '-write-MRR_TEMP_THRESH_HIGH=0x{}'.format(format(N, 'x'))
         val1 = val | (2 << 22)
         val1 |= N
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read'
         val2 = val
-        set_trigger(filename2, val2)
+        set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x17 ##########################
     op_name = 'error_code'
@@ -768,7 +770,7 @@ with open(config_file, 'r') as file:
     if(l[op_name]['generate_read_trigger']):
         filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read'
         val2 = val
-        set_trigger(filename2, val2)
+        set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x18 ##########################
     op_name = 'addr_read'
@@ -785,7 +787,7 @@ with open(config_file, 'r') as file:
         val2 = val
         val2 |= (length << 16)
         val2 |= N
-        set_trigger(filename2, val2)
+        set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x19 ##########################
     op_name = 'low_power_config'
@@ -799,26 +801,26 @@ with open(config_file, 'r') as file:
         filename1 = filename + '-write-LOW_PWR_VOLTAGE_THRESH_LOW=0x{}'.format(format(N, 'x'))
         val1 = val | (1 << 22)
         val1 |= N
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
         N = l[op_name]['val']['LOW_PWR_VOLTAGE_THRESH_HIGH']
         check_bounds(N, 22)
         filename1 = filename + '-write-LOW_PWR_VOLTAGE_THRESH_HIGH=0x{}'.format(format(N, 'x'))
         val1 = val | (2 << 22)
         val1 |= N
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
         N = l[op_name]['val']['LOW_PWR_TEMP_THRESH']
         check_bounds(N, 22)
         filename1 = filename + '-write-LOW_PWR_TEMP_THRESH=0x{}'.format(format(N, 'x'))
         val1 = val | (3 << 22)
         val1 |= N
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read'
         val2 = val
-        set_trigger(filename2, val2)
+        set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x1A ##########################
     op_name = 'mrr_coarse_cap_tune'
@@ -832,12 +834,12 @@ with open(config_file, 'r') as file:
         filename1 = filename + '-write-MRR_CAP_TRX_ANTX_TUNE_COARSE={}'.format(N)
         val1 = val | (1 << 23)
         val1 |= N
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read'
         val2 = val
-        set_trigger(filename2, val2)
+        set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x1B ##########################
     op_name = 'operation_config'
@@ -846,31 +848,34 @@ with open(config_file, 'r') as file:
     val = (num << 24)
 
     if(l[op_name]['write']):
-        N = l[op_name]['val']['start_day_count']
+        d = l[op_name]['val']['start_day_count']
+        N = parse_date(d)
         check_bounds(N, 16)
         filename1 = filename + '-write-start_day_count={}'.format(N)
         val1 = val | (1 << 22)
         val1 |= N
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
-        N = l[op_name]['val']['end_day_count']
+        d = l[op_name]['val']['end_day_count']
+        N = parse_date(d)
         check_bounds(N, 16)
         filename1 = filename + '-write-end_day_count={}'.format(N)
         val1 = val | (2 << 22)
         val1 |= N
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
-        N = l[op_name]['val']['radio_day_count']
+        d = l[op_name]['val']['radio_day_count']
+        N = parse_date(d)
         check_bounds(N, 16)
         filename1 = filename + '-write-radio_day_count={}'.format(N)
         val1 = val | (3 << 22)
         val1 |= N
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read'
         val2 = val
-        set_trigger(filename2, val2)
+        set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x1C ##########################
     op_name = 'radio_out_data'
@@ -881,7 +886,7 @@ with open(config_file, 'r') as file:
     if(l[op_name]['read_code_addr']):
         filename1 = filename + '-read-code_addr'
         val1 = val
-        set_trigger(filename1, val1)
+        set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
         N1 = l[op_name]['val']['start_unit_count']
@@ -892,7 +897,7 @@ with open(config_file, 'r') as file:
         val2 = val
         val2 |= (N1 << 12)
         val2 |= N2
-        set_trigger(filename2, val2)
+        set_trigger(trigger_dir, filename2, val2)
 
 # Generate master trigger
 bat_names = glob.glob('{}*write*.bat'.format(out_dir))
