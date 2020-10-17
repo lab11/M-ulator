@@ -12,16 +12,6 @@
 # if __has_include(<stdatomic.h>)
 #  include <stdatomic.h>
 #  define HAVE_STDATOMIC
-# elif 0 // as of 3.4 clang BUG's at -O1+ with atomics
-#  define CLANG_ATOMIC
-   typedef enum memory_order {
-   	  memory_order_relaxed, memory_order_consume, memory_order_acquire,
-   	    memory_order_release, memory_order_acq_rel, memory_order_seq_cst
-   } memory_order;
-#  define atomic_store(_p, _i)         __c11_atomic_store(_p, _i, memory_order_release)
-#  define atomic_load(_p)              __c11_atomic_load(_p, memory_order_acquire)
-#  define atomic_flag_test_and_set(_p) __sync_lock_test_and_set(_p, 1)
-#  define atomic_flag_clear(_p)        __sync_lock_release(_p)
 # else
 #  define NO_ATOMIC
    pthread_mutex_t no_atomic_mutex = PTHREAD_MUTEX_INITIALIZER;
