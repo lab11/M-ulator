@@ -67,40 +67,12 @@ static thread_local struct state_change writes[STATE_MAX_WRITES];
 #endif // HAVE_REPLAY
 ////
 
-#ifdef HAVE_STDATOMIC
- #ifndef NO_PIPELINE
-  static atomic_flag pipeline_flush_flag = ATOMIC_FLAG_INIT; // false
- #endif
-
- static atomic_bool debugging_bool = ATOMIC_VAR_INIT(false);
- static atomic_bool wfi_bool = ATOMIC_VAR_INIT(false);
-#elif defined(CLANG_ATOMIC)
- #ifndef NO_PIPELINE
-  static bool pipeline_flush_flag = false;
- #endif
-
- static _Atomic(bool) debugging_bool;
- static _Atomic(bool) wfi_bool;
- __attribute__ ((constructor))
- static void clang_pipeline_atomic_bools_init(void) {
-	 __c11_atomic_init(&debugging_bool, false);
-	 __c11_atomic_init(&wfi_bool, false);
- }
-#elif defined(GCC_ATOMIC)
- #ifndef NO_PIPELINE
-  static bool pipeline_flush_flag = false;
- #endif
-
-  static bool debugging_bool = false;
-  static bool wfi_bool = false;
-#elif defined(NO_ATOMIC)
- #ifndef NO_PIPELINE
-  static bool pipeline_flush_flag = false;
- #endif
- static bool debugging_bool;
- static bool wfi_bool = false;
+#ifndef NO_PIPELINE
+ static atomic_flag pipeline_flush_flag = ATOMIC_FLAG_INIT; // false
 #endif
 
+static atomic_bool debugging_bool = ATOMIC_VAR_INIT(false);
+static atomic_bool wfi_bool = ATOMIC_VAR_INIT(false);
 
 static unsigned pending_async_exception;
 static sem_t *set_pending_async_exception_sem;
