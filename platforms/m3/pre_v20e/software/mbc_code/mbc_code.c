@@ -3359,8 +3359,8 @@ int main() {
                     if(mrr_send_enable) {
                         // FIXME: consider removing this after a while
                         radio_data_arr[2] = (0xDE << 8) | CHIP_ID;
-                        radio_data_arr[1] = (read_data_batadc << 24) | snt_sys_temp_code;
-                        radio_data_arr[0] = xo_sys_time_in_sec;
+                        radio_data_arr[1] = xo_sys_time_in_sec;
+                        radio_data_arr[0] = (read_data_batadc << 24) | snt_sys_temp_code;
                         send_beacon();
                     }
                 }
