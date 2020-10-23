@@ -129,7 +129,7 @@
  *  v5.2.8
  *    Updated LOW_PWR mode to consider temp
  *    LOW_PWR mode has to sense low power 3 times to enter LOW_PWR mode
- *    Changes initial beacon format and WAIT2 beacon format
+ *    Changes initial beacon format and WAIT2 beacon format and debug beacon format
  *    Made OVERRIDE_RAD into a trigger
  *    Fixed check_pmu and radio_rest bug
  *
@@ -3358,9 +3358,9 @@ int main() {
 
                     if(mrr_send_enable) {
                         // FIXME: consider removing this after a while
+                        radio_data_arr[2] = (0xDE << 8) | CHIP_ID;
+                        radio_data_arr[1] = (read_data_batadc << 24) | snt_sys_temp_code;
                         radio_data_arr[0] = xo_sys_time_in_sec;
-                        radio_data_arr[1] = snt_sys_temp_code;
-                        radio_data_arr[2] = CHIP_ID << 8 | read_data_batadc;
                         send_beacon();
                     }
                 }
