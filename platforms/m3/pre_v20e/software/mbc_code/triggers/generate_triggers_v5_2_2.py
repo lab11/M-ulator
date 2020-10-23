@@ -756,6 +756,15 @@ with open(config_file, 'r') as file:
         val1 |= N
         set_trigger(trigger_dir, filename1, val1)
 
+        N = l[op_name]['val']['OVERRIDE_RAD']
+        filename1 = filename + '-write-OVERRIDE_RAD={}'.format(N)
+        val1 = val | (3 << 22)
+        if N:
+            val1 |= 1
+        else:
+            val1 |= 0
+        set_trigger(trigger_dir, filename1, val1)
+
     if(l[op_name]['generate_read_trigger']):
         filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read'
         val2 = val
@@ -796,31 +805,30 @@ with open(config_file, 'r') as file:
     val = (num << 24)
 
     if(l[op_name]['write']):
-        N = l[op_name]['val']['LOW_PWR_VOLTAGE_THRESH_LOW']
-        check_bounds(N, 22)
-        filename1 = filename + '-write-LOW_PWR_VOLTAGE_THRESH_LOW=0x{}'.format(format(N, 'x'))
-        val1 = val | (1 << 22)
-        val1 |= N
-        set_trigger(trigger_dir, filename1, val1)
+        for i in range(0, 7):
+            N = l[op_name]['val']['LOW_PWR_LOW_ADC_THRESH'][i]
+            check_bounds(N, 8)
+            filename1 = filename + '-write-LOW_PWR_LOW_ADC_THRESH-index={}-value=0x{}'.format(i, format(N, 'x'))
+            val1 = val | (1 << 22)
+            val1 |= (i << 19)
+            val1 |= N
+            set_trigger(trigger_dir, filename1, val1)
 
-        N = l[op_name]['val']['LOW_PWR_VOLTAGE_THRESH_HIGH']
-        check_bounds(N, 22)
-        filename1 = filename + '-write-LOW_PWR_VOLTAGE_THRESH_HIGH=0x{}'.format(format(N, 'x'))
-        val1 = val | (2 << 22)
-        val1 |= N
-        set_trigger(trigger_dir, filename1, val1)
-
-        N = l[op_name]['val']['LOW_PWR_TEMP_THRESH']
-        check_bounds(N, 22)
-        filename1 = filename + '-write-LOW_PWR_TEMP_THRESH=0x{}'.format(format(N, 'x'))
-        val1 = val | (3 << 22)
-        val1 |= N
-        set_trigger(trigger_dir, filename1, val1)
+            N = l[op_name]['val']['LOW_PWR_HIGH_ADC_THRESH'][i]
+            check_bounds(N, 8)
+            filename1 = filename + '-write-LOW_PWR_HIGH_ADC_THRESH-index={}-value=0x{}'.format(i, format(N, 'x'))
+            val1 = val | (2 << 22)
+            val1 |= (i << 19)
+            val1 |= N
+            set_trigger(trigger_dir, filename1, val1)
 
     if(l[op_name]['generate_read_trigger']):
-        filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read'
-        val2 = val
-        set_trigger(trigger_dir, filename2, val2)
+        for idx in l[op_name]['read_indices']:
+            check_bounds(idx, 3);
+            filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read_index={}'.format(format(idx).zfill(2))
+            val2 = val
+            val2 |= (idx << 19)
+            set_trigger(trigger_dir, filename2, val2)
 
     ###################### 0x1A ##########################
     op_name = 'mrr_coarse_cap_tune'

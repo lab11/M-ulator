@@ -4,7 +4,7 @@
  *         This is the base code that all will share after version 5.1
  *                                          - PREv20E / PMUv11 / SNTv4 / FLPv3S / MRRv10 / MEMv1
  ******************************************************************************************
- * Current version: 5.2.5
+ * Current version: 5.2.8
  *
  * v1: draft version; not tested on chip
  *
@@ -122,9 +122,20 @@
  *    Changed debug beacons to contain temp, pmu and xo timer info
  *    Removed OVERRIDE_RAD and UNE_GMB
  *
+ *  v5.2.7
+ *    Changed update_system_time to clearer variable names
+ *    Changed ENUMID to contain version info
+ *
+ *  v5.2.8
+ *    Updated LOW_PWR mode to consider temp
+ *    LOW_PWR mode has to sense low power 3 times to enter LOW_PWR mode
+ *    Changes initial beacon format and WAIT2 beacon format
+ *    Made OVERRIDE_RAD into a trigger
+ *    Fixed check_pmu and radio_rest bug
+ *
  ******************************************************************************************/
 
-#define VERSION_NUM 0x525
+#define VERSION_NUM 0x528
 
 #include "huffman_encodings.h" 
 #include "../include/PREv20E.h"
@@ -294,11 +305,15 @@ volatile uint32_t next_beacon_time = 0;
 volatile uint32_t next_data_time = 0;
 volatile uint32_t radio_rest_end_time = 0;
 volatile uint16_t mrr_send_enable = 1;
+volatile uint16_t OVERRIDE_RAD = 0;
+volatile uint16_t low_pwr_count = 0;
 volatile uint32_t RADIO_DEBUG_PERIOD = XO_240_MIN;
 volatile uint32_t LOW_PWR_TEMP_THRESH = 0;
 volatile uint32_t low_pwr_state_end_day = 0;
-volatile uint16_t LOW_PWR_VOLTAGE_THRESH_LOW = 0xFFFF;
-volatile uint16_t LOW_PWR_VOLTAGE_THRESH_HIGH = 0xFFFF;
+volatile uint16_t LOW_PWR_HIGH_ADC_THRESH[7] = {90, 90, 90, 90, 90, 90, 90};
+volatile uint16_t LOW_PWR_LOW_ADC_THRESH[7] = {90, 90, 90, 90, 90, 90, 90};
+// volatile uint16_t LOW_PWR_VOLTAGE_THRESH_LOW = 0xFFFF;
+// volatile uint16_t LOW_PWR_VOLTAGE_THRESH_HIGH = 0xFFFF;
 volatile uint32_t DAY_START_TIME = 25200;   // 7 am
 volatile uint32_t DAY_END_TIME = 68400;     // 7 pm
 
@@ -509,8 +524,8 @@ void xo_init( void ) {
 
 }
 
-uint16_t XO_TO_SEC_MPLIER_SHIFT = 15;
-uint16_t xo_to_sec_mplier = 32768;  // 2^15
+volatile uint16_t XO_TO_SEC_MPLIER_SHIFT = 15;
+volatile uint16_t xo_to_sec_mplier = 32768;  // 2^15
 uint32_t get_timer_cnt_xo() {
     uint32_t raw_cnt = ((*REG_XOT_VAL_U & 0xFFFF) << 16) | (*REG_XOT_VAL_L & 0xFFFF);
     uint64_t temp = mult(raw_cnt, xo_to_sec_mplier);
@@ -526,7 +541,7 @@ void update_system_time() {
     // mbus_write_message32(0xC0, xo_day_time_in_sec);
 
     // FIXME: global time doesn't reset bug
-    uint32_t temp = xo_sys_time;
+    uint32_t last_update_val = xo_sys_time;
     xo_sys_time = get_timer_cnt_xo();
 
     // check if XO clock has stopped
@@ -535,15 +550,15 @@ void update_system_time() {
     }
 
     // calculate the difference in seconds
-    temp = (xo_sys_time >> XO_TO_SEC_SHIFT) - (temp >> XO_TO_SEC_SHIFT); // Have to shift individually to account for underflow
+    uint32_t diff = (xo_sys_time >> XO_TO_SEC_SHIFT) - (last_update_val >> XO_TO_SEC_SHIFT); // Have to shift individually to account for underflow
 
-    if(xo_sys_time < temp) {
+    if(xo_sys_time < last_update_val) {
         // xo timer overflowed, want to make sure that 0x00000 - 0x1FFFF = 1
-        temp += 0x20000;
+        diff += 0x20000;
     }
 
-    xo_sys_time_in_sec += temp;
-    xo_day_time_in_sec += temp;
+    xo_sys_time_in_sec += diff;
+    xo_day_time_in_sec += diff;
 
     if(xo_day_time_in_sec >= XO_MAX_DAY_TIME_IN_SEC) {
         xo_day_time_in_sec -= XO_MAX_DAY_TIME_IN_SEC;
@@ -770,6 +785,7 @@ uint16_t code_cache_remainder = CODE_CACHE_MAX_REMAINDER;
 uint16_t code_addr = 0; // address to start storing the final data from
 uint16_t max_unit_count = 0;    // (code_addr >> 2) / 9, increment everytime code_addr is incremented
 uint16_t radio_unit_counter = 0;
+uint16_t radio_beacon_counter = 0;
 uint16_t check_pmu_counter = 0;
 uint16_t radio_rest_counter = 0;
 uint16_t light_packet_num = 0;  // light and temp packet number are to disambiguate between units, the same unit doesn't have to have the same packet number between two radio out cycles
@@ -841,9 +857,9 @@ void store_to_code_cache(uint16_t log_light, uint16_t start_idx, uint32_t starti
     }
 
     // 17 starting timestamp is separate for each day state
-    // FIXME: low power signal
     if(!has_time) {
         store_code(starting_time_in_min & 0x1FFFF, 17);
+        // FIXME: subtract offset
         mbus_write_message32(0xC4, starting_time_in_min);
         has_time = true;
     }
@@ -2740,6 +2756,8 @@ static void var_init() {
     code_cache_remainder = CODE_CACHE_MAX_REMAINDER;
     code_addr = 0;
     max_unit_count = 0;
+    radio_beacon_counter = 0;
+    low_pwr_count = 0;
     temp_packet_num = 0;
     light_packet_num = 0;
     has_header = false;
@@ -3011,21 +3029,63 @@ void radio_partial_data(uint16_t start_unit_count, uint16_t len) {
 }
 
 uint16_t set_send_enable() {
+    if(OVERRIDE_RAD) {
+        return 1;
+    }
     if(snt_sys_temp_code < MRR_TEMP_THRESH_LOW || snt_sys_temp_code > MRR_TEMP_THRESH_HIGH) {
         return 0;
     }
     uint16_t i;
     for(i = 2; i < 6; i++) {
         if(snt_sys_temp_code < PMU_TEMP_THRESH[i]) {
-        if(read_data_batadc <= PMU_ADC_THRESH[i - 2]) {
-            return 1;
-        }
-        else {
+            if(read_data_batadc <= PMU_ADC_THRESH[i - 2]) {
+                return 1;
+            }
+            else {
+                return 0;
+            }
+        }   
+    }
+    return 1;
+}
+
+// return true if PMU ADC output is higher than LOW_THRESH
+// that means system should go into LOW_PWR
+uint16_t set_low_pwr_low_trigger() {
+    uint16_t i;
+    for(i = 0; i < 6; i++) {
+        if(snt_sys_temp_code < PMU_TEMP_THRESH[i]) {
+            if(read_data_batadc > LOW_PWR_LOW_ADC_THRESH[i]) {
+                return 1;
+            }
             return 0;
         }
     }
+    // > 60C
+    if(read_data_batadc > LOW_PWR_LOW_ADC_THRESH[6]) {
+        return 1;
     }
-    return 1;
+    return 0;
+}
+
+// return true if PMU ADC output is higher than HIGH_THRESH
+// return false if PMU ADC output is lower than HIGH_THRESH
+// that means system should get out of LOW_PWR
+uint16_t set_low_pwr_high_trigger() {
+    uint16_t i;
+    for(i = 0; i < 6; i++) {
+        if(snt_sys_temp_code < PMU_TEMP_THRESH[i]) {
+            if(read_data_batadc > LOW_PWR_HIGH_ADC_THRESH[i]) {
+                return 1;
+            }
+            return 0;
+        }
+    }
+    // > 60C
+    if(read_data_batadc > LOW_PWR_HIGH_ADC_THRESH[6]) {
+        return 1;
+    }
+    return 0;
 }
 
 void send_beacon() {
@@ -3223,48 +3283,26 @@ int main() {
             projected_end_time_in_sec = xo_sys_time_in_sec + XO_2_MIN;
             op_counter = 0;
         }
-    else if(goc_state == STATE_VERIFY) {
-        // TODO: make this send sensor info
-        projected_end_time_in_sec += XO_2_MIN;
-        op_counter++;
+        else if(goc_state == STATE_VERIFY) {
+            projected_end_time_in_sec += XO_2_MIN;
+            op_counter++;
 
-        if(op_counter == 1) {
-            // radio_data_arr[0] = xo_day_time_in_sec;
-            // radio_data_arr[1] = xo_sys_time_in_sec;
-            // radio_data_arr[2] = (CHIP_ID << 10) | op_counter;
-            radio_data_arr[0] = lnt_sys_light;
-            radio_data_arr[1] = snt_sys_temp_code;
-            radio_data_arr[2] = (CHIP_ID << 10) | read_data_batadc;
+            if(op_counter <= 2) {
+                radio_data_arr[2] = (0xAB << 8) | CHIP_ID;
+                radio_data_arr[1] = (op_counter << 28) | (lnt_sys_light & 0xFFFFFFF);
+                radio_data_arr[0] = (read_data_batadc << 24) | snt_sys_temp_code;
+            }
+            else {
+                radio_data_arr[2] = (0xCD << 8) | CHIP_ID;
+                radio_data_arr[1] = (op_counter << 28) | (xo_sys_time_in_sec & 0xFFFFFFF);
+                radio_data_arr[0] = projected_end_time_in_sec;
+            }
+            if(op_counter >= 4) {
+                // go to STATE_WAIT1
+                goc_state = STATE_WAIT1;
+            }
+            send_beacon();
         }
-        else if(op_counter == 2) {
-            // radio_data_arr[0] = cur_sunset;
-            // radio_data_arr[1] = cur_sunrise;
-            // radio_data_arr[2] = (CHIP_ID << 10) | op_counter;
-            radio_data_arr[0] = lnt_sys_light;
-            radio_data_arr[1] = snt_sys_temp_code;
-            radio_data_arr[2] = (CHIP_ID << 10) | read_data_batadc;
-        }
-        else if(op_counter == 3) {
-            // radio_data_arr[0] = 0;
-            // radio_data_arr[1] = radio_debug;
-            // radio_data_arr[2] = (CHIP_ID << 10) | op_counter;
-            radio_data_arr[0] = lnt_sys_light;
-            radio_data_arr[1] = snt_sys_temp_code;
-            radio_data_arr[2] = (CHIP_ID << 10) | read_data_batadc;
-        }
-        else if(op_counter >= 4) {
-            // radio_data_arr[0] = projected_end_time_in_sec;
-            // radio_data_arr[1] = xo_sys_time_in_sec;
-            // radio_data_arr[2] = (CHIP_ID << 10) | op_counter;
-            radio_data_arr[0] = lnt_sys_light;
-            radio_data_arr[1] = snt_sys_temp_code;
-            radio_data_arr[2] = (CHIP_ID << 10) | read_data_batadc;
-
-            // go to STATE_WAIT1
-            goc_state = STATE_WAIT1;
-        }
-        send_beacon();
-    }
         else if(goc_state == STATE_WAIT1) {
             if(day_count + epoch_days_offset >= start_day_count) {
                 initialize_state_collect();
@@ -3274,6 +3312,13 @@ int main() {
             }
         }
         else if(goc_state == STATE_COLLECT) {
+            // check LOW_PWR
+            if(set_low_pwr_low_trigger()) {
+                low_pwr_count++;
+            }
+            else {
+                low_pwr_count = 0;
+            }
             
             // FIXME: using MID_DAY_TIME for debug here, see if it needs to be removed
             if(day_count + epoch_days_offset >= end_day_count && xo_day_time_in_sec >= MID_DAY_TIME) {
@@ -3288,13 +3333,14 @@ int main() {
                 next_beacon_time = 0;
                 next_data_time = 0;
             }
-            else if(read_data_batadc > LOW_PWR_VOLTAGE_THRESH_LOW || snt_sys_temp_code < LOW_PWR_TEMP_THRESH) {
+            else if(low_pwr_count >= 3) {
                 // goto LOW_PWR_MODE
+                low_pwr_count = 0;
                 projected_end_time_in_sec += PMU_WAKEUP_INTERVAL;
                 low_pwr_state_end_day = day_count + 1;
                 goc_state = STATE_LOW_PWR;
             }
-        else {
+            else {
                 if(projected_end_time_in_sec >= store_temp_timestamp) {
                     store_temp_timestamp += XO_30_MIN;    // increment by 30 minutes
 
@@ -3329,10 +3375,9 @@ int main() {
 
             if(projected_end_time_in_sec == next_beacon_time && mrr_send_enable) {
                 // send beacon
-                // TODO: change the format later
-                radio_data_arr[2] = CHIP_ID << 8;
-                radio_data_arr[1] = 0xABCD;
-                radio_data_arr[0] = 0x5678;
+                radio_data_arr[2] = (0xEF << 8) | CHIP_ID;
+                radio_data_arr[1] = (radio_beacon_counter << 20) | xo_day_time_in_sec;
+                radio_data_arr[0] = (read_data_batadc << 24) | snt_sys_temp_code;
                 send_beacon();
             }
 
@@ -3422,7 +3467,7 @@ int main() {
                         goc_state = STATE_WAIT2;
                         break;
                     }
-                    else if(radio_unit_counter >= RADIO_REST_NUM_UNITS) {
+                    else if(radio_rest_counter >= RADIO_REST_NUM_UNITS) {
                         radio_rest_counter = 0;
                         update_system_time();
                         radio_rest_end_time = xo_sys_time_in_sec + RADIO_REST_TIME;
@@ -3432,7 +3477,7 @@ int main() {
                         goc_state = STATE_RADIO_REST;
                         break;
                     }
-                    else if(radio_unit_counter >= CHECK_PMU_NUM_UNITS) {
+                    else if(check_pmu_counter >= CHECK_PMU_NUM_UNITS) {
                         check_pmu_counter = 0;
                         update_system_time();
                         projected_end_time_in_sec = xo_sys_time_in_sec + XO_2_MIN;
@@ -3448,7 +3493,7 @@ int main() {
             else {
                 projected_end_time_in_sec += PMU_WAKEUP_INTERVAL;
                 
-                // transition back to WATI2 if too late
+                // transition back to WAIT2 if too late
                 if(xo_day_time_in_sec >= DAY_END_TIME) {
                     goc_state = STATE_WAIT2;
                 }
@@ -3474,8 +3519,7 @@ int main() {
             if(day_count >= low_pwr_state_end_day 
                 && xo_day_time_in_sec >= (MID_DAY_TIME - PMU_WAKEUP_INTERVAL)
                 && xo_day_time_in_sec <= (MID_DAY_TIME + PMU_WAKEUP_INTERVAL)
-                && read_data_batadc <= LOW_PWR_VOLTAGE_THRESH_HIGH 
-                && snt_sys_temp_code >= LOW_PWR_TEMP_THRESH) {
+                && !set_low_pwr_high_trigger()) {
                 // reset go back to state collect
                 // flushing temp cache is necessary because there's no day state header for temp cache
                 flush_temp_cache();
@@ -3488,24 +3532,25 @@ int main() {
 
         }
 
-	// all error checking here
-	if(projected_end_time_in_sec <= xo_sys_time_in_sec) {
-	    set_system_error(0x02);
-	}
+        // all error checking here
+        if(projected_end_time_in_sec <= xo_sys_time_in_sec) {
+            set_system_error(0x02);
+        }
 
-	if(error_code != 0) {
-	    goc_state = STATE_ERROR;
-	}
-
-	if(goc_state == STATE_ERROR) {
-	    // keep in mind that the xo clock could no longer be running
-	    radio_data_arr[2] = 0xFF00 | CHIP_ID;
-	    radio_data_arr[1] = error_code;
-	    radio_data_arr[0] = error_time;
-	    send_beacon();
-	    update_system_time();
-	    projected_end_time_in_sec = xo_sys_time_in_sec + PMU_WAKEUP_INTERVAL;
-	}
+        if(error_code != 0) {
+            goc_state = STATE_ERROR;
+        }
+        
+        if(goc_state == STATE_ERROR) {
+            // FIXME: freeze xo_lnt_mplier
+            // keep in mind that the xo clock could no longer be running
+            radio_data_arr[2] = 0xFF00 | CHIP_ID;
+            radio_data_arr[1] = error_code;
+            radio_data_arr[0] = error_time;
+            send_beacon();
+            update_system_time();
+            projected_end_time_in_sec = xo_sys_time_in_sec + PMU_WAKEUP_INTERVAL;
+        }
     }
     else if(goc_data_header == 0x08) {
         // light huffman code
@@ -3800,9 +3845,12 @@ int main() {
         else if(option2 == 2) {
             MRR_TEMP_THRESH_HIGH = N;
         }
+        else if(option2 == 3) {
+            OVERRIDE_RAD = N;
+        }
 
         radio_data_arr[2] = (0x16 << 8) | CHIP_ID;
-        radio_data_arr[1] = MRR_TEMP_THRESH_LOW;
+        radio_data_arr[1] = (OVERRIDE_RAD << 16) | MRR_TEMP_THRESH_LOW;
         radio_data_arr[0] = MRR_TEMP_THRESH_HIGH;
         send_beacon();
     }
@@ -3828,21 +3876,19 @@ int main() {
     }
     else if(goc_data_header == 0x19) {
         uint8_t option = (goc_data_full >> 22) & 0x3;
-        uint32_t N = goc_data_full & 0x3FFFF;
+        uint8_t index = (goc_data_full >> 19) & 0x7;
+        uint32_t N = goc_data_full & 0xFF;
 
         if(option == 1) {
-            LOW_PWR_VOLTAGE_THRESH_LOW = N;
+            LOW_PWR_LOW_ADC_THRESH[index] = N;
         }
         else if(option == 2) {
-            LOW_PWR_VOLTAGE_THRESH_HIGH = N;
-        }
-        else if(option == 3) {
-            LOW_PWR_TEMP_THRESH = N;
+            LOW_PWR_HIGH_ADC_THRESH[index] = N;
         }
 
         radio_data_arr[2] = (0x19 << 8) | CHIP_ID;
-        radio_data_arr[1] = (LOW_PWR_VOLTAGE_THRESH_LOW << 16) | LOW_PWR_VOLTAGE_THRESH_HIGH;
-        radio_data_arr[0] = LOW_PWR_TEMP_THRESH;
+        radio_data_arr[1] = index;
+        radio_data_arr[0] = (LOW_PWR_LOW_ADC_THRESH[index] << 8) | LOW_PWR_HIGH_ADC_THRESH[index];
         send_beacon();
     }
     else if(goc_data_header == 0x1A) {

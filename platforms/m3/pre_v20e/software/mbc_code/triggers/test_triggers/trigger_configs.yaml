@@ -307,6 +307,7 @@ radio_config3:
     val: 
         MRR_TEMP_THRESH_LOW: 0x258
         MRR_TEMP_THRESH_HIGH: 0x15F1
+        OVERRIDE_RAD: false
     generate_read_trigger: false
     
 #################### 0x17 ####################
@@ -318,16 +319,33 @@ addr_read:
     addr: 0x1234
     len: 1
     generate_read_trigger: false
-
+    
 #################### 0x19 ####################
 low_power_config:
     write: true
     val:
-        LOW_PWR_VOLTAGE_THRESH_LOW: 0x55 #  0x56 -> 3.8V
-        LOW_PWR_VOLTAGE_THRESH_HIGH: 0x51 # 4.0V    # VOLTAGE_THRESH_LOW is greater than VOLTAGE_THRESH_HIGH because ADC output is inverted
-        LOW_PWR_TEMP_THRESH: 0x10
+        LOW_PWR_LOW_ADC_THRESH:
+            - 0x55  # < 0C
+            - 0x55  # < 10C
+            - 0x55  # < 20C # 0x56 -> 3.8V
+            - 0x55  # < 30C
+            - 0x55  # < 45C
+            - 0x55  # < 60C
+            - 0x55  # > 60C
+        LOW_PWR_HIGH_ADC_THRESH:    # VOLTAGE_THRESH_LOW is greater than VOLTAGE_THRESH_HIGH because ADC output is inverted
+            - 0x51  # < 0C
+            - 0x51  # < 10C
+            - 0x51  # < 20C # 0x51 -> 4.0V
+            - 0x51  # < 30C
+            - 0x51  # < 45C
+            - 0x51  # < 60C
+            - 0x51  # > 60C
     generate_read_trigger: false
-    
+    read_indices:
+        - 0
+        - 6
+        # add more indices here
+
 #################### 0x1A ####################
 mrr_coarse_cap_tune:
     write: true
