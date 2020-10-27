@@ -36,6 +36,8 @@ def check_bounds(val, num_bits):
     if(val < 0 or val >= (1 << num_bits)):
         raise Exception('Value out of bounds')
 
+os.system('cp \'{}\' \'{}\''.format(ppath + 'goc_res.bat', out_dir + 'goc_res.bat'))
+
 with open(config_file, 'r') as file:
     l = yaml.load(file, Loader=yaml.FullLoader)
 

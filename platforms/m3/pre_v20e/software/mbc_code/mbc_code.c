@@ -4,7 +4,7 @@
  *         This is the base code that all will share after version 5.1
  *                                          - PREv20E / PMUv11 / SNTv4 / FLPv3S / MRRv10 / MEMv1
  ******************************************************************************************
- * Current version: 5.2.8
+ * Current version: 5.2.9
  *
  * v1: draft version; not tested on chip
  *
@@ -133,9 +133,13 @@
  *    Made OVERRIDE_RAD into a trigger
  *    Fixed check_pmu and radio_rest bug
  *
+ *  v5.2.9
+ *    Do a majority vote when reading the XO timer
+ *    Added upper bound on the difference between updates
+ *
  ******************************************************************************************/
 
-#define VERSION_NUM 0x528
+#define VERSION_NUM 0x529
 
 #include "huffman_encodings.h" 
 #include "../include/PREv20E.h"
@@ -526,14 +530,31 @@ void xo_init( void ) {
 
 volatile uint16_t XO_TO_SEC_MPLIER_SHIFT = 15;
 volatile uint16_t xo_to_sec_mplier = 32768;  // 2^15
+#define XO_SYNC_THRESH 4096 // 3 consecutive reads should be less than 1/8 seconds apart
+
 uint32_t get_timer_cnt_xo() {
-    uint32_t raw_cnt = ((*REG_XOT_VAL_U & 0xFFFF) << 16) | (*REG_XOT_VAL_L & 0xFFFF);
+    // v5.2.9: doing a majority vote to deal with sync problems
+    uint32_t t1 = ((*REG_XOT_VAL_U & 0xFFFF) << 16) | (*REG_XOT_VAL_L & 0xFFFF);
+    uint32_t t2 = ((*REG_XOT_VAL_U & 0xFFFF) << 16) | (*REG_XOT_VAL_L & 0xFFFF);
+    uint32_t t3 = ((*REG_XOT_VAL_U & 0xFFFF) << 16) | (*REG_XOT_VAL_L & 0xFFFF);
+    uint32_t raw_cnt;
+
+    if(t2 - t1 < XO_SYNC_THRESH) {
+        // if t1 and t2 are close, pick t2
+        raw_cnt = t2;
+    }
+    else {
+        // else, the only two cases are t1, t3 are close and t2, t3 are close => pick t3
+        raw_cnt = t3;
+    }
+
     uint64_t temp = mult(raw_cnt, xo_to_sec_mplier);
     return right_shift(temp, XO_TO_SEC_MPLIER_SHIFT);
 }
 
 #define XO_MAX_DAY_TIME_IN_SEC 86400
 #define XO_TO_SEC_SHIFT 15
+#define MAX_UPDATE_TIME 3600    // v5.2.9: Upper bounds on time difference between two updates
 
 void update_system_time() {
     // mbus_write_message32(0xC2, xo_sys_time);
@@ -557,6 +578,11 @@ void update_system_time() {
         diff += 0x20000;
     }
 
+    // v5.2.9
+    if(diff > MAX_UPDATE_TIME) {
+    	set_system_error(0x4);
+    }
+
     xo_sys_time_in_sec += diff;
     xo_day_time_in_sec += diff;
 
@@ -564,7 +590,6 @@ void update_system_time() {
         xo_day_time_in_sec -= XO_MAX_DAY_TIME_IN_SEC;
         day_count++;
     }
-
 
     // mbus_write_message32(0xC2, xo_sys_time);
     // mbus_write_message32(0xC1, xo_sys_time_in_sec);
@@ -859,7 +884,6 @@ void store_to_code_cache(uint16_t log_light, uint16_t start_idx, uint32_t starti
     // 17 starting timestamp is separate for each day state
     if(!has_time) {
         store_code(starting_time_in_min & 0x1FFFF, 17);
-        // FIXME: subtract offset
         mbus_write_message32(0xC4, starting_time_in_min);
         has_time = true;
     }
@@ -957,7 +981,6 @@ uint16_t read_next_from_proc_cache() {
 
 // These invariants are used to prevent pathological corner cases from crashing the system
 bool check_new_edge(uint32_t target) {
-    // FIXME: compare to mid day time
     if(day_state == DAWN) {
         return (target > EDGE_MARGIN2 + XO_32_MIN) && (target < MID_DAY_TIME - EDGE_MARGIN1 - XO_32_MIN);
     }
@@ -3936,6 +3959,7 @@ else if(goc_data_header == 0x1B) {
             send_beacon();
         }
         else {
+            // FIXME: restart packet number
             uint16_t i;
             for(i = 0; i < N2; i++) {
                 if(N1 + i >= max_unit_count) {
