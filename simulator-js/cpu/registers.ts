@@ -71,9 +71,14 @@ async function reset_registers() {
 
     CORE_reg_write(PC_REG, initial_pc & 0xFFFF_FFFE);
     let tbit = initial_pc & 0x1;
+    /*
     if (tbit != 1) {
-        throw cpu.Exception;
+        throw new cpu.AsynchronousException("No T bit in reset instruction");
     }
+    *
+    * The old sim did this, but actually I think this shouldn't trigger until
+    * decode runs for this
+    */
 
     //TODO
     //CORE_CurrentMode_write(Mode_Thread);
@@ -101,6 +106,8 @@ async function reset_registers() {
     //SW(&physical_faultmask, 0);
     //SW(&physical_basepri, 0);
     //SW(&physical_control.storage, 0);
+
+    log.silly("reset reg end");
 }
 
 cpu.reset_hooks.push(reset_registers);
@@ -134,8 +141,8 @@ export function CORE_reg_write(r: number, val: number) {
         log.silly("Writing %08x to PC\n", val & 0xfffffffe);
 
         if (false /*state_is_debugging()*/) {
-            //DBG1("PC write + debugging --> flush\n");
-            //state_pipeline_flush(val & 0xfffffffe);
+            log.silly("PC write + debugging --> flush\n");
+            cpu.pipeline_flush(val & 0xfffffffe);
         } else {
             // Only flush if the new PC differs from predicted in pipeline:
             let if_id_PC = cpu.pipeline_registers.if_id_PC.read();
@@ -144,8 +151,7 @@ export function CORE_reg_write(r: number, val: number) {
             } else {
                 log.silly("Predicted PC incorrectly\n");
                 log.silly("Pred: %08x, val: %08x\n", if_id_PC, val);
-                throw cpu.Exception; // not impl
-                //state_pipeline_flush(val & 0xfffffffe);
+                cpu.pipeline_flush(val & 0xfffffffe);
             }
         }
     }

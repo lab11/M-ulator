@@ -13,7 +13,7 @@ let peripheral: cpu.MemmapEntry = {
     start_address: 0xe000_ed08,
     end_address: 0xe000_ed08 + 4,
     read32: () => Promise.resolve(0x0),
-    write32: () => Promise.reject(),
+    write32: () => Promise.reject(new cpu.SynchronousException("PPB write")),
 }
 
 cpu.memmap.push(peripheral);
