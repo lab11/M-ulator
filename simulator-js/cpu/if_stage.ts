@@ -84,10 +84,12 @@ function branch_target_forward16(target: number, inst: number, pc: number): numb
 
 
 
-export let if_stage = {
+let if_stage = {
+    name: "Fetch",
+
     last_pc: new State(0xffff_ffff),
 
-    tick: async function (core: simulator.Core) {
+    tick: async function (core: simulator.Core): Promise<void> {
         let pc = cpu.pipeline_registers.pre_if_PC.read();
 
         // Poor man's pipeline hazard
@@ -143,3 +145,5 @@ export let if_stage = {
     },
     tock: function (_core: simulator.Core) { return Promise.resolve() }
 }
+
+cpu.pipeline.push(if_stage);

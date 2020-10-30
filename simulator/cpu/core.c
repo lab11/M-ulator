@@ -37,7 +37,7 @@ EXPORT void register_reset(void (*fn)(void)) {
 	reset_head = n;
 }
 
-EXPORT _Atomic _Bool _CORE_in_reset = false;
+EXPORT atomic_bool _CORE_in_reset = false;
 EXPORT void reset(void) {
 	atomic_store(&_CORE_in_reset, true);
 #ifdef DEBUG1

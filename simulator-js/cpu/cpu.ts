@@ -6,10 +6,8 @@ log.silly("cpu::cpu");
 
 import assert = require("assert");
 
-import { Core } from "../scaffold/simulator";
-import { State } from "../scaffold/state";
-import { if_stage } from "./module";
-
+import { Core, Pipeline } from "../scaffold/simulator";
+import { State, StateNonNumeric } from "../scaffold/state";
 
 // Hardware exceptions
 export class Exception extends Error { }
@@ -17,7 +15,6 @@ export class Exception extends Error { }
 // How the exception happened
 export class SynchronousException extends Exception { }
 export class AsynchronousException extends Exception { }
-
 
 export interface MemmapEntry {
     name: string,
@@ -58,6 +55,9 @@ function memory_write(address: number, width: number, value: number) {
     return periph.write32(address, value);
 }
 
+export const STALL_PC = 0;
+export const INST_NOP = 0;
+
 export const HAZARD_PC = 0;
 export const INST_HAZARD = 0;
 
@@ -71,13 +71,27 @@ export let pipeline_registers = {
 
     // Outputs of ID, inputs to EX stage
     id_ex_PC: new State(HAZARD_PC),
+    id_ex_inst: new State(INST_HAZARD),
+    id_ex_op: new StateNonNumeric(null),
+}
+
+// TODO: Think about this arch in JS
+let pending_pipeline_flush: number | null = null;
+export function pipeline_flush(new_pc: number) {
+    pending_pipeline_flush = new_pc;
+}
+
+export function pending_exception(): Boolean {
+    return (pending_pipeline_flush == null);
 }
 
 let id_stage = {
+    name: "Decode",
     tick: function (_core: Core) { return Promise.resolve() },
 }
 
 let ex_stage = {
+    name: "Execute",
     tick: function (_core: Core) { return Promise.resolve() },
 }
 
@@ -86,21 +100,32 @@ let ex_stage = {
 export let reset_hooks: Array<Function> = [];
 export let memmap: Memmap = [];
 
+// Hook point for pipeline stages to attach themselves
+// TODO: Can this export export to just this folder?
+export let pipeline: Pipeline = [];
+pipeline.push(id_stage);
+pipeline.push(ex_stage);
+
 export let core = {
     reset: async function () {
         let todo = [];
         for (const hook of reset_hooks) {
+            log.debug(hook);
             todo.push(hook());
         }
 
         for (const periph of memmap) {
-            periph.reset && todo.push(periph.reset());
+            if (periph.reset) {
+                log.debug(periph.reset);
+                todo.push(periph.reset());
+            }
         }
         return Promise.all(todo);
     },
     init: init,
 
-    pipeline: [if_stage, id_stage, ex_stage],
+    pipeline: pipeline,
+    // exception function?
 
     memory_read: memory_read,
     memory_write: memory_write,

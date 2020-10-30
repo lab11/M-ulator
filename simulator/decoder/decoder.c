@@ -161,7 +161,7 @@ EXPORT void CORE_ufsr_write(union ufsr_t u) {
 
 
 // core
-EXPORT _Atomic _Bool _CORE_in_reset = false;
+EXPORT atomic_bool _CORE_in_reset = false;
 EXPORT uint32_t read_word_quiet(uint32_t addr __attribute__((unused))) {
 	return 0;
 }
