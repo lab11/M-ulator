@@ -1,9 +1,26 @@
+/*******************************
+ *  
+ *  Monarch decoder v1.0.0
+ *  Author: Roger Hsiao
+ *  
+ *  Works with mbc_code.c v5.2.3 and above
+ *  Usage: ./decoder.exe [packets] [date.log | 0] [time.log | 0] [light out file] [temp out file]
+ *
+ *  v1.0.0: 
+ *    Added automatic time translation
+ *
+ *
+ *******************************/
+
+
 #include <iostream>
 #include <fstream>
 #include <bitset>
 #include <string>
 #include <map>
+#include <cmath>
 #include "../pre_v20e/software/mbc_code/huffman_encodings.h"
+// #include "/home/rogerhh/M-ulator/platforms/m3/pre_v20e/software/mbc_code/huffman_encodings.h"
 
 #define DAWN 0
 #define NOON 1
@@ -84,23 +101,25 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    double abs_time = 0, programmed_time = 0, tz = 0, trigger_fire_date = 0;
+
     if(!no_time_translation) {
         // Read UTC offset
         int programmed_date = 0;
         string trash;
-        getline(date_fin, trash);
+        getline(date_fin, trash, ':');
+        date_fin >> trigger_fire_date;
         getline(date_fin, trash, ':');
         date_fin >> programmed_date;
-        cout << programmed_date << endl;
+        cout << trigger_fire_date << " " << programmed_date << endl;
 
-        double abs_time = 0, programmed_time = 0, tz = 0;
         char c;
         getline(time_fin, trash, ':');
         time_fin >> abs_time;
         getline(time_fin, trash, ':');
         time_fin >> programmed_time >> c >> c >> tz;
 
-        cout << trash << " " << programmed_date << " " << (int) abs_time << " " << programmed_time << " " << tz << endl;
+        cout << programmed_date << " " << (int) abs_time << " " << programmed_time << " " << tz << endl;
     }
     else {
         cout << "No auto time translation" << endl;
@@ -123,10 +142,10 @@ int main(int argc, char** argv) {
     }
 
     for(auto p : lp.data) {
-        light_fout << p.first << " " << p.second << endl;
+        light_fout << fixed << p.first + abs_time - tz << " " << p.second << " " << pow(2, (p.second / 32.0)) << endl;
     }
     for(auto p : tp.data) {
-        temp_fout << p.first << " " << p.second << endl;
+        temp_fout << fixed << p.first + trigger_fire_date * 86400 << " " << pow(2, ((p.second + 128) / 16.0)) << endl;
     }
 }
 
@@ -138,7 +157,7 @@ Unit create_unit(const string packets[]) {
             u |= Unit(stoi(packets[i].substr(j, 1), 0, 16));
         }
     }
-    // cout << u << endl;
+    cout << u << endl;
     return u;
 }
 
@@ -183,19 +202,8 @@ uint32_t sign_extend(uint32_t src, int len) {
 
 void LightParser::read_timestamp(Unit& u) {
     auto t = get_data(u, 17); 
-    cout << "old time = " << sys_time_in_min << "; min: " << t << endl;
-    if((sys_time_in_min & 0x1FFFF) > t) {
-        // overflow
-        sys_time_in_min += (1 << 18);       // add overflow bit
-        sys_time_in_min &= (0xFFFE0000);    // clear bottom 17 bits
-        sys_time_in_min |= t;               // put t back in
-        cout << "overflow" << endl; 
-    }
-    else {
-        sys_time_in_min &= (0xFFFE0000);    // clear bottom 17 bits
-        sys_time_in_min |= t;               // put t back in
-        cout << "normal" << endl; 
-    }
+    // Not worried about overflow for now
+    sys_time_in_min = t;
 }
 
 void LightParser::read_header(Unit& u) {
@@ -215,7 +223,10 @@ void LightParser::parse_unit(Unit& u) {
     bool has_cur = false;
     int cur = 0;
 
+    cout << "light_unit" << endl;
+
     while(u.any()) {
+        cout << "u any = " << u.any() << " " << u << endl;
         if(!has_timestamp) {
             read_timestamp(u);
             has_timestamp = true;
@@ -282,7 +293,11 @@ void LightParser::parse_unit(Unit& u) {
                 break;
             }
             if(!flag) {
+                cout << u << endl;
+                cout << "Unrecognized code" << endl;
+                continue;
                 throw runtime_error("Unrecognized code: " + to_string(tmp));
+
             }
             if(!has_timestamp) {
                 continue;
@@ -293,24 +308,26 @@ void LightParser::parse_unit(Unit& u) {
         index++;
 
         // update sys_time_in_min
-        if(day_state == DAWN) {
-            for(int i = 0; i < 4; i++) {
-                if(index < resample_indices[i]) {
-                    sys_time_in_min += intervals[i];
-                    break;
+        if(u.any()) {
+            if(day_state == DAWN) {
+                for(int i = 0; i < 4; i++) {
+                    if(index < resample_indices[i]) {
+                        sys_time_in_min += intervals[i];
+                        break;
+                    }
                 }
             }
-        }
-        else if(day_state == DUSK) {
-            for(int i = 0; i < 4; i++) {
-                if(index < resample_indices[i]) {
-                    sys_time_in_min -= intervals[i];
-                    break;
+            else if(day_state == DUSK) {
+                for(int i = 0; i < 4; i++) {
+                    if(index < resample_indices[i]) {
+                        sys_time_in_min -= intervals[i];
+                        break;
+                    }
                 }
             }
-        }
-        else {
-            sys_time_in_min += 32;
+            else {
+                sys_time_in_min += 32;
+            }
         }
     }
     cout << "End unit. sys_time_in_min = " << sys_time_in_min << endl << endl;
@@ -326,6 +343,7 @@ void TempParser::parse_unit(Unit& u) {
     data[day_count * 86400 + timestamp_in_half_hour * 1800] = cur_value;
 
     while(u.any()) {
+        cout << u << endl;
         int len = 0;
         int tmp = 0;
         bool flag = false;

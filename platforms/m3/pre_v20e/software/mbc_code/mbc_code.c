@@ -4,7 +4,7 @@
  *         This is the base code that all will share after version 5.1
  *                                          - PREv20E / PMUv11 / SNTv4 / FLPv3S / MRRv10 / MEMv1
  ******************************************************************************************
- * Current version: 5.2.9
+ * Current version: 5.2.10
  *
  * v1: draft version; not tested on chip
  *
@@ -137,9 +137,12 @@
  *    Do a majority vote when reading the XO timer
  *    Added upper bound on the difference between updates
  *
+ *  v5.2.10
+ *    Incrementing radio_beacon_counter correctly now
+ *
  ******************************************************************************************/
 
-#define VERSION_NUM 0x529
+#define VERSION_NUM 0x52A
 
 #include "huffman_encodings.h" 
 #include "../include/PREv20E.h"
@@ -682,7 +685,7 @@ void right_shift_arr(uint32_t* arr, uint32_t data, uint16_t arr_len, int16_t shi
 
     uint16_t i;
 
-    // shift word be word
+    // shift word by word
     while(shift_len >= 32) {
         for(i = start; i != back; i -= sign) {
             arr[i] = arr[i - sign];
@@ -3402,6 +3405,8 @@ int main() {
                 radio_data_arr[1] = (radio_beacon_counter << 20) | xo_day_time_in_sec;
                 radio_data_arr[0] = (read_data_batadc << 24) | snt_sys_temp_code;
                 send_beacon();
+
+                radio_beacon_counter++;
             }
 
             // wait for radio_day_count
