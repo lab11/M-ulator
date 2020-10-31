@@ -19,7 +19,7 @@
 #include <string>
 #include <map>
 #include <cmath>
-#include "../pre_v20e/software/mbc_code/huffman_encodings.h"
+#include "../huffman_encodings.h"
 // #include "/home/rogerhh/M-ulator/platforms/m3/pre_v20e/software/mbc_code/huffman_encodings.h"
 
 #define DAWN 0

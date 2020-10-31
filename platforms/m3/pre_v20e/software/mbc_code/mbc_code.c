@@ -4,7 +4,7 @@
  *         This is the base code that all will share after version 5.1
  *                                          - PREv20E / PMUv11 / SNTv4 / FLPv3S / MRRv10 / MEMv1
  ******************************************************************************************
- * Current version: 5.2.10
+ * Current version: 5.2.11
  *
  * v1: draft version; not tested on chip
  *
@@ -140,9 +140,12 @@
  *  v5.2.10
  *    Incrementing radio_beacon_counter correctly now
  *
+ *  v5.2.11
+ *    Correctly storage temp data to temp_cache when difference is over 3 bits
+ *
  ******************************************************************************************/
 
-#define VERSION_NUM 0x52A
+#define VERSION_NUM 0x52B
 
 #include "huffman_encodings.h" 
 #include "../include/PREv20E.h"
@@ -1428,7 +1431,7 @@ void sample_temp() {
 
         if(code_idx == 4) {
             // if storing 7 bits, just store full data
-            store_code(log_temp, TEMP_RES);
+            store_code_to_temp_cache(log_temp, TEMP_RES);
         }
     }
 }
