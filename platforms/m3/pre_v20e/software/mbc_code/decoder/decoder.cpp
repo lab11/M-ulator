@@ -9,6 +9,9 @@
  *  v1.0.0: 
  *    Added automatic time translation
  *
+ *  v1.0.1:
+ *    Decoding doesn't halt when encountering an Unrecognized code anymore
+ *
  *
  *******************************/
 
@@ -19,8 +22,8 @@
 #include <string>
 #include <map>
 #include <cmath>
-#include "../huffman_encodings.h"
-// #include "/home/rogerhh/M-ulator/platforms/m3/pre_v20e/software/mbc_code/huffman_encodings.h"
+// #include "../pre_v20e/software/mbc_code/huffman_encodings.h"
+#include "/home/rogerhh/M-ulator/platforms/m3/pre_v20e/software/mbc_code/huffman_encodings.h"
 
 #define DAWN 0
 #define NOON 1
@@ -378,6 +381,8 @@ void TempParser::parse_unit(Unit& u) {
         }
 
         if(!flag) {
+            cout << "Unrecognized code" << endl;
+            continue;
             throw runtime_error("Unrecognized code: " + to_string(tmp));
         }
 
