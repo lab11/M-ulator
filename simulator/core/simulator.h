@@ -69,7 +69,7 @@ void simulator(const char* flash_file);
  * average frequency of the simulator (number of cycles / time elapsed).
  *
  * If the emulator is being asked to exit, this function exits the program
- * either with SUCESS or with the value in r0 (if it's configured to do so).
+ * either with SUCCESS or with the value in r0 (if it's configured to do so).
  *
  * @param[in] should_exit Whether the simulator should cause the program to
  *  exit or not.
@@ -78,15 +78,6 @@ void simulator(const char* flash_file);
  *  stopped/finished and the function returns.
  */
 void sim_terminate(bool should_exit);
-
-// FIXME This one is in state.c. Does this matter?
-/** Handle a state exception, if there is any.
- *
- * Handles exceptions like if the pipeline needs to be flushed.
- *
- * @returns True if an exception was handled, false otherwise.
- */
-bool state_handle_exceptions(void);
 
 // Simulator config
 extern int gdb_port;
@@ -126,24 +117,24 @@ extern int cycle;
 bool simulator_state_seek(int target);
 #endif
 
-// FIXME misnomer
-/** Record the time when the simulator is no longer running (this doesn't
- * actually check that it's not running, nor does it force the simulator to
- * stop!).
+/** Record the time when the simulator is no longer running.
  *
- * The value recorded is used to calculate the effective frequency of the
- * simulator. This function is not meant to be called when the simulator is
+ * As a side effect, this also updates the amount of time the simulator has
+ * been running (calculated against the timestamp established by the previous
+ * sim_timestamp_execution_start invocation). This elapsed time information is
+ * used to calculate the effective frequency of the simulator.
+ *
+ * This function is not meant to be called when the simulator is
  * already "sleeping".
  */
-void sim_sleep(void);
+void sim_timestamp_execution_pause(void);
 
-//FIXME misnomer
-/** Reset the recorded start time of the simulator.
+/** Record the start (or restart) time of the simulator.
  *
  * The value recorded is used to calculate the effective frequency of the
  * simulator.
  */
-void sim_wakeup(void);
+void sim_timestamp_execution_start(void);
 
 // XXX: Oh.. so hacky. Thrown in as stopgap while removing unnecessary
 // references to simulator.h

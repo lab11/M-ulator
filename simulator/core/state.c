@@ -155,11 +155,11 @@ EXPORT void state_assert_interrupt_async(unsigned interrupt) {
 	int ret;
 
 	if (unlikely(atomic_load(&wfi_bool))) {
-		sim_sleep();
+		sim_timestamp_execution_pause();
 		ret = sem_wait(pending_exception_sem);
 		if (ret == 0) {
 			atomic_store(&wfi_bool, false);
-			sim_wakeup();
+			sim_timestamp_execution_start();
 		}
 	} else {
 		ret = sem_trywait(pending_exception_sem);

@@ -472,9 +472,9 @@ EXPORT bool simulator_state_seek(int target) {
 static struct timeval sim_execute_time_start = {0, 0};
 static bool sim_awake = true;
 static double sim_elapsed;
-EXPORT void sim_sleep(void) {
+EXPORT void sim_timestamp_execution_pause(void) {
 	if (!sim_awake) {
-		WARN("Multiple calls to sim_sleep; freq likely broken\n");
+		WARN("Multiple calls to sim_timestamp_execution_pause; freq likely broken\n");
 		return;
 	}
 	sim_awake = false;
@@ -487,7 +487,7 @@ EXPORT void sim_sleep(void) {
 	sim_elapsed += elapsed;
 }
 
-EXPORT void sim_wakeup(void) {
+EXPORT void sim_timestamp_execution_start(void) {
 	sim_awake = true;
 	gettimeofday(&sim_execute_time_start, NULL);
 }
@@ -682,7 +682,7 @@ EXPORT void sim_terminate(bool should_exit) {
 	terminating = true;
 
 	if ((sim_execute_time_start.tv_sec != 0) && (sim_execute_time_start.tv_usec != 0)) {
-		sim_sleep();
+		sim_timestamp_execution_pause();
 		double freq = cycle / sim_elapsed;
 		INFO("Approximate average frequency: %f hz\n", freq);
 	}
