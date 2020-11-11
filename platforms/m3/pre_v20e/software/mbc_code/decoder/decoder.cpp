@@ -12,6 +12,9 @@
  *  v1.0.1:
  *    Decoding doesn't halt when encountering an Unrecognized code anymore
  *
+ *  v1.0.2:
+ *    Updated decoder to use local date instead of epoch date
+ *
  *
  *******************************/
 
@@ -22,8 +25,8 @@
 #include <string>
 #include <map>
 #include <cmath>
-// #include "../pre_v20e/software/mbc_code/huffman_encodings.h"
-#include "/home/rogerhh/M-ulator/platforms/m3/pre_v20e/software/mbc_code/huffman_encodings.h"
+#include "../pre_v20e/software/mbc_code/huffman_encodings.h"
+// #include "/home/rogerhh/M-ulator/platforms/m3/pre_v20e/software/mbc_code/huffman_encodings.h"
 
 #define DAWN 0
 #define NOON 1
@@ -104,7 +107,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    double abs_time = 0, programmed_time = 0, tz = 0, trigger_fire_date = 0;
+    double abs_time = 0, programmed_time = 0, tz = 0, trigger_fire_date = 0, date_tz = 0;
 
     if(!no_time_translation) {
         // Read UTC offset
@@ -112,6 +115,8 @@ int main(int argc, char** argv) {
         string trash;
         getline(date_fin, trash, ':');
         date_fin >> trigger_fire_date;
+        getline(date_fin, trash, ':');
+        date_fin >> date_tz;
         getline(date_fin, trash, ':');
         date_fin >> programmed_date;
         cout << trigger_fire_date << " " << programmed_date << endl;
@@ -148,7 +153,7 @@ int main(int argc, char** argv) {
         light_fout << fixed << p.first + abs_time - tz << " " << p.second << " " << pow(2, (p.second / 32.0)) << endl;
     }
     for(auto p : tp.data) {
-        temp_fout << fixed << p.first + trigger_fire_date * 86400 << " " << pow(2, ((p.second + 128) / 16.0)) << endl;
+        temp_fout << fixed << p.first + trigger_fire_date * 86400 - date_tz << " " << pow(2, ((p.second + 128) / 16.0)) << endl;
     }
 }
 
@@ -393,6 +398,7 @@ void TempParser::parse_unit(Unit& u) {
         }
 
         data[day_count * 86400 + timestamp_in_half_hour * 1800] = cur_value;
+        cout << day_count << " " << timestamp_in_half_hour << endl;
         cout << day_count * 86400 + timestamp_in_half_hour * 1800 << " " << cur_value << endl;
     
     }

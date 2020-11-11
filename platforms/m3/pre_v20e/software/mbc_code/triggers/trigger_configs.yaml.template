@@ -1,4 +1,5 @@
 ﻿---
+
 COM_PORT: 4
 hex_path: C:\Users\m3\Dropbox\m3_monarch\pre_v20e\software\mbc_code\mbc_code.hex # lab PC
 # Maybe add in COM_SPEED options here in the future
@@ -68,6 +69,7 @@ temp_huffman_code:
 epoch_days: 
     auto: false
     write: true
+    # Note: this uses the system timezone and not the epoch time
     val:
         YYYY: 2020
         MM: 10
@@ -79,6 +81,7 @@ epoch_days:
 xo_day_time_in_sec:
     auto: false
     write: true
+    # Note: this uses the system timezone and not the epoch time
     val:
         H: 12
         M: 00
@@ -356,6 +359,7 @@ mrr_coarse_cap_tune:
 #################### 0x1B ####################
 operation_config:
     write: true
+    # Note: this uses the system timezone and not the epoch time
     val:
         start_day_count:
             YYYY: 2020

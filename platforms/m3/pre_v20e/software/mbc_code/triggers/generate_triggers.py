@@ -1,11 +1,12 @@
 #############################################################
-#  Trigger generator: v1.0.0
+#  Trigger generator: v1.0.1
 #  Author: Roger Hsiao
 #  
 #  Usage: python generate_triggers.py [out_dir]
 #  Takes in a directory name, parses [path to out_dir]/trigger_configs.yaml and generates the triggers in [path to out_dir]
 #  
 #  v1.0.0: Starts version number
+#  v1.0.1: When python takes the system epoch time, it doesn't account for the timezone, so we must fix the timezone in date.log and time.log
 #  
 #############################################################
 
@@ -36,6 +37,8 @@ config_file = out_dir + 'trigger_configs.yaml'
 print('Removing old triggers')
 for f in glob.glob('{}*.bat'.format(out_dir)):
     if(re.match('.*GOCx15_mbc_code.*', f)):
+        pass
+    elif(re.match('goc_res', f)):
         pass
     else:
         os.remove(f)

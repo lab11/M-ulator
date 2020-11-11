@@ -4,7 +4,7 @@
  *         This is the base code that all will share after version 5.1
  *                                          - PREv20E / PMUv11 / SNTv4 / FLPv3S / MRRv10 / MEMv1
  ******************************************************************************************
- * Current version: 5.2.11
+ * Current version: 5.2.12
  *
  * v1: draft version; not tested on chip
  *
@@ -141,11 +141,14 @@
  *    Incrementing radio_beacon_counter correctly now
  *
  *  v5.2.11
- *    Correctly storage temp data to temp_cache when difference is over 3 bits
+ *    Correctly storing temp data to temp_cache when difference is over 3 bits
+ *
+ *  v5.2.12
+ *    Using mrr_send_enable when sending characterization and packet blaster
  *
  ******************************************************************************************/
 
-#define VERSION_NUM 0x52B
+#define VERSION_NUM 0x52C
 
 #include "huffman_encodings.h" 
 #include "../include/PREv20E.h"
@@ -376,16 +379,16 @@ volatile uint32_t radio_packet_count;
 #define DUSK 2
 #define NIGHT 3
 
-uint16_t MAX_EDGE_SHIFT = 600;
+volatile uint16_t MAX_EDGE_SHIFT = 600;
 #define MAX_DAY_TIME 86400
 #define MID_DAY_TIME 43200
 // this is now aligned to the minute
-uint16_t IDX_MAX = 239;         // x = 180, y = 60, IDX_MAX = x + y - 1
-uint16_t EDGE_MARGIN1 = 10740; // (x - 1) * 60
-uint16_t EDGE_MARGIN2 = 3600; // y * 60
+volatile uint16_t IDX_MAX = 239;         // x = 180, y = 60, IDX_MAX = x + y - 1
+volatile uint16_t EDGE_MARGIN1 = 10740; // (x - 1) * 60
+volatile uint16_t EDGE_MARGIN2 = 3600; // y * 60
 
-uint16_t EDGE_THRESHOLD = 200; // = log2(2 lux * 1577) * 32
-uint16_t THRESHOLD_IDX_SHIFT = 8; // = 4 + 4
+volatile uint16_t EDGE_THRESHOLD = 200; // = log2(2 lux * 1577) * 32
+volatile uint16_t THRESHOLD_IDX_SHIFT = 8; // = 4 + 4
 
 volatile uint32_t next_light_meas_time = 0;
 volatile uint32_t next_radio_debug_time = 0;
@@ -404,8 +407,8 @@ volatile uint16_t running_avg[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 volatile uint32_t running_avg_time[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
 #define MAX_UINT16 0xFFFF
-uint16_t sum = MAX_UINT16;
-uint16_t avg_light = 0;
+volatile uint16_t sum = MAX_UINT16;
+volatile uint16_t avg_light = 0;
 
 volatile uint32_t cur_sunrise = 0, cur_sunset = 0;
 volatile uint32_t next_sunrise = 0, next_sunset = 0, cur_edge = 0;
@@ -3243,14 +3246,16 @@ int main() {
 
         pmu_setting_temp_based(1);
         uint32_t start_time_in_sec = xo_sys_time_in_sec;
-        do {
-            // radio out for N seconds
-            radio_data_arr[2] = (0x2 << 8) | CHIP_ID;
-            radio_data_arr[1] = goc_data_full & 0xFF;
-            radio_data_arr[0] = op_counter++;
-            mrr_send_radio_data(0);
-            update_system_time();
-        } while(xo_sys_time_in_sec - start_time_in_sec < N);
+        if(mrr_send_enable) {
+            do {
+                // radio out for N seconds
+                radio_data_arr[2] = (0x2 << 8) | CHIP_ID;
+                radio_data_arr[1] = goc_data_full & 0xFF;
+                radio_data_arr[0] = op_counter++;
+                mrr_send_radio_data(0);
+                update_system_time();
+            } while(xo_sys_time_in_sec - start_time_in_sec < N);
+        }
 
         // set M second timer
         projected_end_time_in_sec = xo_sys_time_in_sec + M;
@@ -3267,19 +3272,21 @@ int main() {
             projected_end_time_in_sec += N;
         }
 
-        pmu_setting_temp_based(1);
-        update_system_time();
-        radio_data_arr[2] = (0x3 << 8) | CHIP_ID;
-        radio_data_arr[1] = xo_sys_time_in_sec;
-        radio_data_arr[0] = (read_data_batadc << 24) | snt_sys_temp_code;
-        mrr_send_radio_data(!option);
+        if(mrr_send_enable) {
+            pmu_setting_temp_based(1);
+            update_system_time();
+            radio_data_arr[2] = (0x3 << 8) | CHIP_ID;
+            radio_data_arr[1] = xo_sys_time_in_sec;
+            radio_data_arr[0] = (read_data_batadc << 24) | snt_sys_temp_code;
+            mrr_send_radio_data(!option);
 
-        // if option is set, send 2 packets
-        if(option) {
-            radio_data_arr[2] = (0x3 << 8) | (0x1 << 7) | CHIP_ID;
-            radio_data_arr[1] = (lnt_meas_time << 16) | lnt_sys_light >> 32;
-            radio_data_arr[0] = (uint32_t) lnt_sys_light;
-            mrr_send_radio_data(1);
+            // if option is set, send 2 packets
+            if(option) {
+                radio_data_arr[2] = (0x3 << 8) | (0x1 << 7) | CHIP_ID;
+                radio_data_arr[1] = (lnt_meas_time << 16) | lnt_sys_light >> 32;
+                radio_data_arr[0] = (uint32_t) lnt_sys_light;
+                mrr_send_radio_data(1);
+            }
         }
 
     }
@@ -3404,6 +3411,7 @@ int main() {
 
             if(projected_end_time_in_sec == next_beacon_time && mrr_send_enable) {
                 // send beacon
+                // FIXME: radio out max counter
                 radio_data_arr[2] = (0xEF << 8) | CHIP_ID;
                 radio_data_arr[1] = (radio_beacon_counter << 20) | xo_day_time_in_sec;
                 radio_data_arr[0] = (read_data_batadc << 24) | snt_sys_temp_code;
@@ -3492,6 +3500,7 @@ int main() {
 
             if(mrr_send_enable) {
                 while(1) {
+                    // FIXME: don't let short break concatenate with long break
                     if(radio_unit_counter >= max_unit_count) {
                         update_system_time();
                         projected_end_time_in_sec = xo_sys_time_in_sec + XO_2_MIN;
@@ -3499,6 +3508,7 @@ int main() {
                         break;
                     }
                     else if(radio_rest_counter >= RADIO_REST_NUM_UNITS) {
+                        // FIXME: reset check_pmu_counter here
                         radio_rest_counter = 0;
                         update_system_time();
                         radio_rest_end_time = xo_sys_time_in_sec + RADIO_REST_TIME;

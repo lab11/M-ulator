@@ -9,7 +9,7 @@ out_dir = os.path.dirname(os.path.abspath(__file__)) + '/' + trigger_dir + '/'
 
 d1 = datetime.now()
 d2 = datetime.now().replace(tzinfo=pytz.utc)
-utcoffset = d1.timestamp() - d2.timestamp()
+utcoffset = round(d1.timestamp() - d2.timestamp())
 
 t = time.time()
 
