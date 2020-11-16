@@ -34,9 +34,50 @@
 //////////////////////
 
 // The simulator core
+
+/** Run simulator.
+ *
+ * Only one instance of the emulator is supported.
+ *
+ * This function sets up the simulator Sets up thread name, tries reading in
+ * the flash ROM for the simulation (fails if this is not possible or can't be
+ * loaded through GDB), sets up signal handling (spins off a thread to deal
+ * with SIGINT, and ignores SIGPIPE), then launches a thread per peripheral
+ * (which are configured prior to calling this function). If pipelining is
+ * enabled, the pipeline is also initialized, and then the simulation is
+ * finally started.
+ *
+ * @param[in] flash_file Path to the file to use as flash memory. If NULL, if
+ *  GDB is attached the program will warn that it is still possible to run the
+ *  simulator if one is loaded through GDB, else it will exit the program with
+ *  an error.
+ *
+ * @post The simulator is running. This function will not return unless the
+ *  simulator crashes or errors out.
+ */
 void simulator(const char* flash_file);
+
+/** Terminates the simulator.
+ *
+ * This can only be called by one thread. If any other thread calls it at the
+ * same time, the function will trigger the program to exit with a failure
+ * condition.
+ *
+ * Under normal operation, this function logs the number of cycles the
+ * simulator executed, the number of cycles spent accessing unaligned memory,
+ * and if the emulator had been started previously, a rough guess of the
+ * average frequency of the simulator (number of cycles / time elapsed).
+ *
+ * If the emulator is being asked to exit, this function exits the program
+ * either with SUCCESS or with the value in r0 (if it's configured to do so).
+ *
+ * @param[in] should_exit Whether the simulator should cause the program to
+ *  exit or not.
+ *
+ * @post If should_exit is true, the program will end. Else, the simulator is
+ *  stopped/finished and the function returns.
+ */
 void sim_terminate(bool should_exit);
-bool state_handle_exceptions(void);
 
 // Simulator config
 extern int gdb_port;
@@ -58,10 +99,42 @@ extern int usetestflash;
 // Simulator state
 extern int cycle;
 #ifdef HAVE_REPLAY
+/** Seek to the specified simulated cycle, if possible.
+ *
+ * This function allows to set the simulator state to a cycle in the past or,
+ * if the cycle state has already been rewound, in the future. It updates the
+ * simulator (and the pipeline if enabled) cycle to the value specified. This
+ * operation can fail if the simulator and pipeline states fall out of sync. If
+ * the target cycle is too far foward, it sets the cycle to the latest possible
+ * cycle the simulator knows.
+ *
+ * @param[in] target Target cycle to seek to.
+ *
+ * @returns True on success, false if it was not able to.
+ * @post On success, the simulator was set to the specified target cycle. On
+ * failure, most likely the pipeline and simulator are no longer in sync.
+ */
 bool simulator_state_seek(int target);
 #endif
-void sim_sleep(void);
-void sim_wakeup(void);
+
+/** Record the time when the simulator is no longer running.
+ *
+ * As a side effect, this also updates the amount of time the simulator has
+ * been running (calculated against the timestamp established by the previous
+ * sim_timestamp_execution_start invocation). This elapsed time information is
+ * used to calculate the effective frequency of the simulator.
+ *
+ * This function is not meant to be called when the simulator is
+ * already "sleeping".
+ */
+void sim_timestamp_execution_pause(void);
+
+/** Record the start (or restart) time of the simulator.
+ *
+ * The value recorded is used to calculate the effective frequency of the
+ * simulator.
+ */
+void sim_timestamp_execution_start(void);
 
 // XXX: Oh.. so hacky. Thrown in as stopgap while removing unnecessary
 // references to simulator.h
