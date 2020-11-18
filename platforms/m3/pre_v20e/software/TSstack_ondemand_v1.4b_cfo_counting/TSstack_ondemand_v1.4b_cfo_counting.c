@@ -19,7 +19,6 @@
 //				  send exec_count when stopping measurement
 //			v1.4b: SNT temp sensor reset & sleep setting restored whenever GOC triggered
 //				  Adding a dedicated setting for # of hops
-//			v1.5: adding logging last n samples
 //*******************************************************************
 #include "PREv20.h"
 #include "PREv20_RF.h"
@@ -68,8 +67,6 @@
 
 #define TIMERWD_VAL 0xFFFFF // 0xFFFFF about 13 sec with Y5 run default clock (PRCv17)
 #define TIMER32_VAL 0x50000 // 0x20000 about 1 sec with Y5 run default clock (PRCv17)
-
-#define TEMP_STORAGE_SIZE 800 // 16 bits per data: 1.6kB
 
 //********************************************************************
 // Global Variables
@@ -158,7 +155,6 @@ volatile mrrv10_r16_t mrrv10_r16 = MRRv10_R16_DEFAULT;
 volatile mrrv10_r1F_t mrrv10_r1F = MRRv10_R1F_DEFAULT;
 volatile mrrv10_r21_t mrrv10_r21 = MRRv10_R21_DEFAULT;
 
-volatile uint16_t temp_storage [TEMP_STORAGE_SIZE] = {};
 
 //***************************************************
 // Sleep Functions
@@ -951,6 +947,16 @@ static void send_radio_data_mrr_sub1(){
     mrrv10_r00.MRR_CL_EN = 1;
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv10_r00.as_int);
 
+	// FIXME: Read Current CFO counter value
+    set_halt_until_mbus_rx();
+    mbus_remote_register_read(MRR_ADDR,0x20,3); // CNT_VALUE_EXT
+    set_halt_until_mbus_tx();
+	
+	// FIXME: Start CFO counter
+	mrrv10_r00.MRR_TRX_DIV_EN = 1;
+	mrrv10_r00.MRR_TRX_DIV_RESETN = 0;
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv10_r00.as_int);
+	
     // Fire off data
 	mrrv10_r11.MRR_RAD_FSM_EN = 1;  //Start BB
 	mbus_remote_register_write(MRR_ADDR,0x11,mrrv10_r11.as_int);
@@ -965,6 +971,17 @@ static void send_radio_data_mrr_sub1(){
 
 	mrrv10_r11.MRR_RAD_FSM_EN = 0;
 	mbus_remote_register_write(MRR_ADDR,0x11,mrrv10_r11.as_int);
+
+	// FIXME: Read Current CFO counter value
+    set_halt_until_mbus_rx();
+    mbus_remote_register_read(MRR_ADDR,0x20,3); // CNT_VALUE_EXT
+    set_halt_until_mbus_tx();
+	
+	// FIXME: Reset CFO counter
+	mrrv10_r00.MRR_TRX_DIV_EN = 1;
+	mrrv10_r00.MRR_TRX_DIV_RESETN = 1;
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv10_r00.as_int);
+	
 }
 
 static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefix, uint32_t radio_data){
