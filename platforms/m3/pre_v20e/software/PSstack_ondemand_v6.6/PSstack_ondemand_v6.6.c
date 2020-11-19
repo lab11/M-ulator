@@ -279,6 +279,227 @@ static void pmu_reg_write (uint32_t reg_addr, uint32_t reg_data) {
     set_halt_until_mbus_tx();
 }
 
+void pmu_prep_sar_ratio (void) {
+
+    // Minimize the SAR_RESET pulse width
+    pmu_reg_write (33, // 0x21 (TICK_SAR_RESET)
+        ( (1 << 0)     // TICK_SAR_RESET
+    ));
+
+    // Set SAR_RATIO_OFFSET_DOWN=0 to enable the ratio override.
+    pmu_reg_write (7, // 0x7 (SAR_RATIO_OFFSET_DOWN_ACTIVE)
+        ( (0 << 0)    // SAR_RATIO_OFFSET_DOWN_ACTIVE
+    ));
+
+    // Set SAR_RATIO_OFFSET_DOWN=0 to enable the ratio override.
+    pmu_reg_write (6, // 0x6 (SAR_RATIO_OFFSET_DOWN_SLEEP)
+        ( (0 << 0)    // SAR_RATIO_OFFSET_DOWN_SLEEP
+    ));
+
+    // Just to make sure you do not 'stall' adc operation in Active
+    pmu_reg_write (58, // 0x3A (CTRL_STALL_STATE_ACTIVE)
+        (( 0 << 0)
+    ));
+
+}
+
+void pmu_set_sar_ratio (uint32_t sar_ratio) {
+
+    // Debug
+    #ifdef DEBUG_SET_SAR_RATIO
+        mbus_write_message32(0xD8, 0x00000000);
+    #endif
+
+    // Just to confirm that ADC has been disabled in Active
+    // Also disable 'horizon' in Active so that this sar ratio change takes place only once.
+    pmu_reg_write (60, // 0x3C (CTRL_DESIRED_STATE_ACTIVE)
+        (( 1 << 0)  // sar_on
+        | (1 << 1)  // wait_for_clock_cycles
+        | (1 << 2)  // not used
+        | (1 << 3)  // sar_reset
+        | (1 << 4)  // sar_stabilized
+        | (1 << 5)  // sar_ratio_roughly_adjusted
+        | (1 << 6)  // clock_supply_switched
+        | (1 << 7)  // control_supply_switched
+        | (1 << 8)  // upc_on
+        | (1 << 9)  // upc_stabilized
+        | (1 << 10) // refgen_on
+        | (0 << 11) // adc_output_ready
+        | (0 << 12) // adc_adjusted
+        | (0 << 13) // sar_ratio_adjusted
+        | (1 << 14) // dnc_on
+        | (1 << 15) // dnc_stabilized
+        | (1 << 16) // vdd_3p6_turned_on
+        | (1 << 17) // vdd_1p2_turned_on
+        | (1 << 18) // vdd_0P6_turned_on
+        | (0 << 19) // vbat_read_only
+        | (0 << 20) // horizon
+    ));
+
+    // Read the current ADC offset
+    pmu_reg_write(0x00,0x03);
+    uint32_t adc_vbat   = (*REG0 & 0xFF0000) >> 16;
+    uint32_t adc_offset = (*REG0 & 0x007F00) >> 8;
+    uint32_t adc_dout   = (*REG0 & 0x0000FF) >> 0;
+
+    // Debug
+    #ifdef DEBUG_SET_SAR_RATIO
+        mbus_write_message32(0xD8, ((0x01 << 24) | *REG0));
+    #endif
+
+    // Override ADC Output so that the ADC always outputs near 0
+    pmu_reg_write (2, // 0x02 (ADC_CONFIG_OVERRIDE)
+        ( (1 << 23)          // Enable ADC config override
+        | (0 << 17)          // ADC_SAMPLE_VOLTAGE
+        | (1 << 16)          // ADC_REF_VOLTAGE
+        | (0 << 8)           // ADC_SAMPLINB_BIT (8 bits)
+        | (0 << 7)           // ADC_SAMPLINB_LSB
+        | (adc_offset << 0)  // ADC_OFFSET_CANCEL (7 bits)
+    ));
+
+    // Debug
+    #ifdef DEBUG_SET_SAR_RATIO
+        mbus_write_message32(0xD8, ((0x02 << 24) | *REG0));
+    #endif
+
+    // Set the desired SAR Ratio
+    pmu_reg_write (10, // 0x0A (SAR_RATIO_MINIMUM)
+       ( (sar_ratio << 0)    // SAR_RATIO_MINIMUM (7-bits)
+    ));
+
+    // Debug
+    #ifdef DEBUG_SET_SAR_RATIO
+        mbus_write_message32(0xD8, ((0x03 << 24) | *REG0));
+    #endif
+
+    // Disable SAR_RESET override
+    pmu_reg_write (5, // 0x05 (SAR_RATIO_OVERRIDE)
+       ( (1 << 13)  // Enable [12]
+       | (0 << 12)  // Let VDD_CLK always connected to VBAT
+       | (0 << 11)  // Enable [10] (Default: 1)
+       | (0 << 10)  // SAR_RESET 
+       | (0 << 9)   // Enable [8]
+       | (0 << 8)   // Switch input/output power rails for upconversion
+       | (0 << 7)   // Enable [6:0]
+       | (0 << 0)   // SAR_RATIO (7 bits)
+    ));
+
+    // Debug
+    #ifdef DEBUG_SET_SAR_RATIO
+        mbus_write_message32(0xD8, ((0x04 << 24) | *REG0));
+    #endif
+
+    // Run 'sar_ratio_adjusted'
+    pmu_reg_write (60, // 0x3C (CTRL_DESIRED_STATE_ACTIVE)
+        ((  1 << 0) // sar_on
+        | (1 << 1)  // wait_for_clock_cycles
+        | (1 << 2)  // not used
+        | (1 << 3)  // sar_reset
+        | (1 << 4)  // sar_stabilized
+        | (1 << 5)  // sar_ratio_roughly_adjusted
+        | (1 << 6)  // clock_supply_switched
+        | (1 << 7)  // control_supply_switched
+        | (1 << 8)  // upc_on
+        | (1 << 9)  // upc_stabilized
+        | (1 << 10) // refgen_on
+        | (1 << 11) // adc_output_ready
+        | (0 << 12) // adc_adjusted
+        | (1 << 13) // sar_ratio_adjusted
+        | (1 << 14) // dnc_on
+        | (1 << 15) // dnc_stabilized
+        | (1 << 16) // vdd_3p6_turned_on
+        | (1 << 17) // vdd_1p2_turned_on
+        | (1 << 18) // vdd_0P6_turned_on
+        | (0 << 19) // vbat_read_only
+        | (0 << 20) // horizon
+    ));
+
+    // Debug
+    #ifdef DEBUG_SET_SAR_RATIO
+        mbus_write_message32(0xD8, ((0x05 << 24) | *REG0));
+    #endif
+
+    uint32_t pmu_sar_ratio;
+
+    // Now we don't know how long it would take to set the sar ratio.
+    // so let's keep checking the actual sar ratio until it becomes as same as SAR_RATIO_MINIMUM
+    do {
+        // Read the current SAR RATIO
+        pmu_reg_write(0x00,0x04);
+        pmu_sar_ratio   = *REG0 & 0x7F;
+
+        // Debug
+        #ifdef DEBUG_SET_SAR_RATIO
+            mbus_write_message32(0xD8, ((0x06 << 24) | *REG0));
+        #endif
+
+    } while (pmu_sar_ratio != sar_ratio);
+
+    // Disable ADC & Auto Ratio Adjust
+    pmu_reg_write (60, // 0x3C (CTRL_DESIRED_STATE_ACTIVE)
+        ((  1 << 0) // sar_on
+        | (1 << 1)  // wait_for_clock_cycles
+        | (1 << 2)  // not used
+        | (1 << 3)  // sar_reset
+        | (1 << 4)  // sar_stabilized
+        | (1 << 5)  // sar_ratio_roughly_adjusted
+        | (1 << 6)  // clock_supply_switched
+        | (1 << 7)  // control_supply_switched
+        | (1 << 8)  // upc_on
+        | (1 << 9)  // upc_stabilized
+        | (1 << 10) // refgen_on
+        | (0 << 11) // adc_output_ready
+        | (0 << 12) // adc_adjusted
+        | (0 << 13) // sar_ratio_adjusted
+        | (1 << 14) // dnc_on
+        | (1 << 15) // dnc_stabilized
+        | (1 << 16) // vdd_3p6_turned_on
+        | (1 << 17) // vdd_1p2_turned_on
+        | (1 << 18) // vdd_0P6_turned_on
+        | (0 << 19) // vbat_read_only
+        | (0 << 20) // horizon
+    ));
+
+    // Debug
+    #ifdef DEBUG_SET_SAR_RATIO
+        mbus_write_message32(0xD8, ((0x07 << 24) | *REG0));
+    #endif
+
+    // Override SAR_RESET again
+    pmu_reg_write (5, // 0x05 (SAR_RATIO_OVERRIDE)
+       ( (1 << 13)  // Enable [12]
+       | (0 << 12)  // Let VDD_CLK always connected to VBAT
+       | (1 << 11)  // Enable [10] (Default: 1)
+       | (0 << 10)  // SAR_RESET 
+       | (0 << 9)   // Enable [8]
+       | (0 << 8)   // Switch input/output power rails for upconversion
+       | (0 << 7)   // Enable [6:0]
+       | (0 << 0)   // SAR_RATIO (7 bits)
+    ));
+
+    // Debug
+    #ifdef DEBUG_SET_SAR_RATIO
+        mbus_write_message32(0xD8, ((0x08 << 24) | *REG0));
+    #endif
+
+    // Disable ADC override
+    pmu_reg_write (2, // 0x02 (ADC_CONFIG_OVERRIDE)
+        ( (0 << 23) // Enable ADC config override
+        | (0 << 17) // ADC_SAMPLE_VOLTAGE
+        | (0 << 16) // ADC_REF_VOLTAGE
+        | (0 << 8)  // ADC_SAMPLINB_BIT (8 bits)
+        | (0 << 7)  // ADC_SAMPLINB_LSB
+        | (0 << 0)  // ADC_OFFSET_CANCEL (7 bits)
+    ));
+
+    // Debug
+    #ifdef DEBUG_SET_SAR_RATIO
+        mbus_write_message32(0xD8, ((0x09 << 24) | *REG0));
+    #endif
+
+}
+
+/*
 static void pmu_set_sar_override(uint32_t val){
 	// SAR_RATIO_OVERRIDE
     pmu_reg_write(0x05, //default 12'h000
@@ -303,6 +524,7 @@ static void pmu_set_sar_override(uint32_t val){
 	));
 }
 
+*/
 
 inline static void pmu_set_adc_period(uint32_t val){
 	// PMU_CONTROLLER_DESIRED_STATE Active
@@ -525,7 +747,7 @@ inline static void pmu_set_clk_init(){
 		| (0 << 7) // Enable override setting [6:0] (1'h0)
 		| (0x45) 		// Binary converter's conversion ratio (7'h00)
 	));
-	pmu_set_sar_override(0x45);
+	pmu_set_sar_ratio(0x45);
     pmu_set_adc_period(1); // 0x100 about 1 min for 1/2/1 1P2 setting
 }
 
@@ -644,51 +866,51 @@ inline static void pmu_parking_decision_3v_battery(){
 	
 	// Battery > 3.0V
 	if (read_data_batadc < (PMU_ADC_3P0_VAL)){
-		pmu_set_sar_override(0x3C);
+		pmu_set_sar_ratio(0x3C);
 
 	// Battery 2.9V - 3.0V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 4){
-		pmu_set_sar_override(0x3F);
+		pmu_set_sar_ratio(0x3F);
 
 	// Battery 2.8V - 2.9V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 8){
-		pmu_set_sar_override(0x41);
+		pmu_set_sar_ratio(0x41);
 
 	// Battery 2.7V - 2.8V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 12){
-		pmu_set_sar_override(0x43);
+		pmu_set_sar_ratio(0x43);
 
 	// Battery 2.6V - 2.7V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 17){
-		pmu_set_sar_override(0x45);
+		pmu_set_sar_ratio(0x45);
 
 	// Battery 2.5V - 2.6V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 21){
-		pmu_set_sar_override(0x48);
+		pmu_set_sar_ratio(0x48);
 
 	// Battery 2.4V - 2.5V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 27){
-		pmu_set_sar_override(0x4B);
+		pmu_set_sar_ratio(0x4B);
 
 	// Battery 2.3V - 2.4V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 32){
-		pmu_set_sar_override(0x4E);
+		pmu_set_sar_ratio(0x4E);
 
 	// Battery 2.2V - 2.3V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 39){
-		pmu_set_sar_override(0x51);
+		pmu_set_sar_ratio(0x51);
 
 	// Battery 2.1V - 2.2V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 46){
-		pmu_set_sar_override(0x56);
+		pmu_set_sar_ratio(0x56);
 
 	// Battery 2.0V - 2.1V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 53){
-		pmu_set_sar_override(0x5A);
+		pmu_set_sar_ratio(0x5A);
 
 	// Battery <= 2.0V
 	}else{
-		pmu_set_sar_override(0x5F);
+		pmu_set_sar_ratio(0x5F);
 	}
 	
 }
@@ -707,7 +929,6 @@ inline static void pmu_adc_read_latest(){
         read_data_batadc_diff = read_data_batadc - PMU_ADC_3P0_VAL;
     }
 
-	pmu_parking_decision_3v_battery();
 }
 
 //***************************************************
@@ -1585,7 +1806,22 @@ static void operation_sns_run(void){
 		set_halt_until_mbus_tx();
 		read_data_temp = *REG1;
 
+		// Change SAR Ratio if temp is within RT range
+		if (read_data_temp < PMU_40C_threshold_sns){
+			pmu_parking_decision_3v_battery();
+		}else{
+			// Detect when temp becomes higher than 40C
+			if (temp_storage_latest < PMU_40C_threshold_sns){
+				
+				// Read the current SAR RATIO
+				pmu_reg_write(0x00,0x04);
+				uint32_t cur_sar_ratio   = *REG0 & 0x7F;
+				pmu_set_sar_ratio(cur_sar_ratio + 4);
+			}
+		}
 		temp_storage_latest = read_data_temp;
+
+
 
 		uint32_t pmu_setting_prev = pmu_setting_state;
 		// Change PMU based on temp
@@ -1853,6 +2089,11 @@ int main() {
 		pmu_adc_read_latest();
 	}
 
+	if (!sns_running){
+		// If measurement is running, wait until temp measurement
+		pmu_parking_decision_3v_battery();
+	}
+
     // Check if wakeup is due to GOC interrupt  
     // 0x8C is reserved for GOC-triggered wakeup (Named GOC_DATA_IRQ)
     // 8 MSB bits of the wakeup data are used for function ID
@@ -2067,12 +2308,11 @@ int main() {
         srrv4_r02.SRR_TX_PULSE_FINE_TUNE = wakeup_data_field_0 & 0xF;
         mbus_remote_register_write(SRR_ADDR,0x02,srrv4_r02.as_int);
 
-/*
     }else if(wakeup_data_header == 0x25){
         // Change the conversion time of the temp sensor
         sntv4_r03.TSNS_SEL_CONV_TIME = wakeup_data & 0xF; // Default: 0x6
         mbus_remote_register_write(SNT_ADDR,0x03,sntv4_r03.as_int);
-*/
+
     }else if(wakeup_data_header == 0x2A){
         // Update calibration coefficient A
         // A is the slope, typical value is around 24.000, stored as A*1000
@@ -2083,7 +2323,6 @@ int main() {
         // B is the offset, typical value is around -3750.000, stored as -B*1000
         TEMP_CALIB_B = wakeup_data & 0xFFFFFF; 
 
-/*
     }else if(wakeup_data_header == 0x2C){
         // Change SRR C_LEN
         srrv4_r13.SRR_RAD_FSM_TX_C_LEN = wakeup_data & 0xFFFF; // (PW_LEN+1):C_LEN=1:32
@@ -2116,7 +2355,6 @@ int main() {
             | (wakeup_data & 0xF)        // clamp_tune_top (decreases clamp thresh)
         ));
 
-*/
     }else if(wakeup_data_header == 0x42){
 	    // RDC Gain & Offset settings
 		rdcv4_r24.RDC_SEL_GAIN_LC = wakeup_data & 0x1F; // 5 bits
@@ -2130,16 +2368,14 @@ int main() {
     // Set SNT wakeup period
         WAKEUP_PERIOD_CONT_USER = wakeup_data & 0xFFFFFF;
 
-/*
 	}else if(wakeup_data_header == 0x72){
        // Calibration routine for SNT wakeup timer
        operation_snt_calibration_radio_binary(wakeup_data & 0xFFFF, wakeup_data_field_2);
-*/
+
     }else if(wakeup_data_header == 0xF0){
 
         operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xA2, enumerated>>24, enumerated);
 
-/*
     }else if(wakeup_data_header == 0xFA){
     // Soft reset routine
 
@@ -2151,7 +2387,6 @@ int main() {
                 delay(MBUS_DELAY);
             }
         }
-*/
     }else{
     }
 
