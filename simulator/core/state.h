@@ -70,21 +70,36 @@ void state_pipeline_flush(uint32_t new_pc);
  */
 bool state_handle_exceptions(void);
 
-/** FIXME This isn't implemented anywhere?
+/** (TODO) Mark the beginning of an async device atomic block.
  *
+ * Not implemented yet.
+ * In a pathological case, async devices could, in theory, commit what should
+ * be an atomic operation for them across two CPU cycles, thus the simulator
+ * state tracking will see these as two operations instead of one. By defining
+ * async atomic blocks, all operations between the start and stop of these are
+ * kept within the same state slice/window, to allow for safe rollbacks and
+ * fastforwarding.
  */
 void state_async_block_start(void);
 
-/** FIXME This isn't implemented anywhere?
+/** (TODO) Mark the end of an async device atomic block.
  *
+ * See state_async_block_start() for a description.
  */
 void state_async_block_end(void);
 
 /** Set the emulator's debug flag to true.
+ *
+ * When this is set, other components monitoring this flag should enable their
+ * state debugging paths, by, for example, flushing state changes immediately
+ * instead of caching them.
  */
 void state_enter_debugging(void);
 
 /** Set the emulator's debug flag to false.
+ *
+ * See state_enter_debugging(). This does the opposite, signaling to other
+ * components to disable their state debugging paths.
  */
 void state_exit_debugging(void);
 
