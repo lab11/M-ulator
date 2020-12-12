@@ -26,6 +26,14 @@ void state_tock(void);
 void state_pipeline_flush(uint32_t new_pc);
 #endif
 
+/** Handle a state exception, if there is any.
+ *
+ * Handles exceptions like if the pipeline needs to be flushed.
+ *
+ * @returns True if an exception was handled, false otherwise.
+ */
+bool state_handle_exceptions(void);
+
 void state_async_block_start(void);
 void state_async_block_end(void);
 
