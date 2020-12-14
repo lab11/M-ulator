@@ -4,7 +4,7 @@
  *         This is the base code that all will share after version 5.1
  *                                          - PREv20E / PMUv11 / SNTv4 / FLPv3S / MRRv10 / MEMv1
  ******************************************************************************************
- * Current version: 5.2.12
+ * Current version: 5.2.13
  *
  * v1: draft version; not tested on chip
  *
@@ -122,33 +122,41 @@
  *    Changed debug beacons to contain temp, pmu and xo timer info
  *    Removed OVERRIDE_RAD and UNE_GMB
  *
- *  v5.2.7
+ *  v5.2.7:
  *    Changed update_system_time to clearer variable names
  *    Changed ENUMID to contain version info
  *
- *  v5.2.8
+ *  v5.2.8:
  *    Updated LOW_PWR mode to consider temp
  *    LOW_PWR mode has to sense low power 3 times to enter LOW_PWR mode
  *    Changes initial beacon format and WAIT2 beacon format and debug beacon format
  *    Made OVERRIDE_RAD into a trigger
  *    Fixed check_pmu and radio_rest bug
  *
- *  v5.2.9
+ *  v5.2.9:
  *    Do a majority vote when reading the XO timer
  *    Added upper bound on the difference between updates
  *
- *  v5.2.10
+ *  v5.2.10:
  *    Incrementing radio_beacon_counter correctly now
  *
- *  v5.2.11
+ *  v5.2.11:
  *    Correctly storing temp data to temp_cache when difference is over 3 bits
  *
- *  v5.2.12
+ *  v5.2.12:
  *    Using mrr_send_enable when sending characterization and packet blaster
+ *
+ *  v5.2.13:
+ *    Radioing out on first wakeup in collection phase regardless of radio_debug_setting. Note that this does not radio out if end_day_count is set in the past
+ *    Changed WAIT2 beacons to include number of units in the storage
+ *    Resetting check_pmu_counter when doing radio rest to avoid concatenating the sleep periods
+ *    Added XO restart trigger
+ *    Disabled mbus_wd_timer when running the timeout trigger to hard reset the system
+ *    Moving the timeout trigger to the interrupt handler to ensure that it's run
  *
  ******************************************************************************************/
 
-#define VERSION_NUM 0x52C
+#define VERSION_NUM 0x52D
 
 #include "huffman_encodings.h" 
 #include "../include/PREv20E.h"
@@ -2950,6 +2958,14 @@ void set_goc_cmd() {
     goc_data_full = *GOC_DATA_IRQ;
     goc_state = 0;
     update_system_time();
+
+    if((*GOC_DATA_IRQ >> 24) == 0x06) {
+        // Timeout trigger implemented here to ensure that it's run
+        *TIMERWD_GO = 0x1; // Turn on CPU watchdog timer
+        *REG_MBUS_WD = 0; // Disable Mbus watchdog timer
+
+        while(1);
+    }
 }
 
 void handler_ext_int_wakeup     (void) __attribute__ ((interrupt ("IRQ")));
@@ -3291,7 +3307,20 @@ int main() {
 
     }
     else if(goc_data_header == 0x04) {
-        // undecided
+        // restart xo clock
+        xo_init();
+
+        update_system_time();
+        radio_data_arr[2] = (0x4 << 8) | CHIP_ID;
+        radio_data_arr[1] = 0;
+        radio_data_arr[0] = xo_sys_time;
+        send_beacon();
+
+        update_system_time();
+        radio_data_arr[2] = (0x4 << 8) | CHIP_ID;
+        radio_data_arr[1] = 1;
+        radio_data_arr[0] = xo_sys_time;
+        send_beacon();
     }
     else if(goc_data_header == 0x05) {
         // battery drain test: wake up every N seconds and take measurements
@@ -3300,12 +3329,7 @@ int main() {
         projected_end_time_in_sec = xo_sys_time_in_sec + N;
     }
     else if(goc_data_header == 0x06) {
-        // FIXME: add this back in later
-        // reset_radio_data_arr();
-        // radio_data_arr[2] = (0x6 << 8) | CHIP_ID;
-        // send_beacon();
-
-        while(1);
+        // Implemented in interrupt servvice handler
     }
     else if(goc_data_header == 0x07) {
         // start operation
@@ -3342,6 +3366,7 @@ int main() {
         else if(goc_state == STATE_WAIT1) {
             if(day_count + epoch_days_offset >= start_day_count) {
                 initialize_state_collect();
+                op_counter = 0;
             }
             else {
                 projected_end_time_in_sec += PMU_WAKEUP_INTERVAL;
@@ -3389,7 +3414,9 @@ int main() {
 
                 set_projected_end_time();
 
-                if(radio_debug && projected_end_time_in_sec >= next_radio_debug_time) {
+                if((op_counter == 0) || (radio_debug && projected_end_time_in_sec >= next_radio_debug_time)) {
+                    // radioing out on first collect regardless of radio_debug setting
+                    op_counter = 1;
                     next_radio_debug_time = xo_sys_time_in_sec + RADIO_DEBUG_PERIOD;
 
                     if(mrr_send_enable) {
@@ -3403,17 +3430,10 @@ int main() {
             }
         }
         else if(goc_state == STATE_WAIT2) {
-            // // FIXME: debug
-            // radio_data_arr[2] = 0x5436
-            // radio_data_arr[1] = xo_sys_time_in_sec;
-            // radio_data_arr[0] = projected_end_time_in_sec;
-            // send_beacon();
-
             if(projected_end_time_in_sec == next_beacon_time && mrr_send_enable) {
                 // send beacon
-                // FIXME: radio out max counter
                 radio_data_arr[2] = (0xEF << 8) | CHIP_ID;
-                radio_data_arr[1] = (radio_beacon_counter << 20) | xo_day_time_in_sec;
+                radio_data_arr[1] = (radio_beacon_counter << 28) | (max_unit_count << 20) | xo_day_time_in_sec;
                 radio_data_arr[0] = (read_data_batadc << 24) | snt_sys_temp_code;
                 send_beacon();
 
@@ -3455,13 +3475,6 @@ int main() {
                                 && xo_check_is_day());
             uint32_t default_projected_end_time = projected_end_time_in_sec + PMU_WAKEUP_INTERVAL + XO_2_MIN;
 
-            // FIXME: debug
-            mbus_write_message32(0xA2, epoch_day_count);
-            mbus_write_message32(0xA3, radio_duty_cycle_end_day);
-            mbus_write_message32(0xA4, xo_day_time_in_sec);
-            mbus_write_message32(0xA5, xo_check_is_day());
-            mbus_write_message32(0xA6, common_flag);
-
             // check if can send data first
             if(epoch_day_count >= radio_initial_data_start_day
                     && common_flag
@@ -3484,23 +3497,10 @@ int main() {
             else {
                 projected_end_time_in_sec += PMU_WAKEUP_INTERVAL;
             }
-            
-            // // FIXME: debug
-            // radio_data_arr[2] = (0xBC << 8) | goc_state;
-            // radio_data_arr[1] = xo_sys_time_in_sec;
-            // radio_data_arr[0] = projected_end_time_in_sec;
-            // send_beacon();
         }
         else if(goc_state == STATE_RADIO_DATA) {
-            // // FIXME: debug
-            // radio_data_arr[2] = 0xDEFA;
-            // radio_data_arr[1] = radio_unit_counter;
-            // radio_data_arr[0] = mrr_send_enable;
-            // send_beacon();
-
             if(mrr_send_enable) {
                 while(1) {
-                    // FIXME: don't let short break concatenate with long break
                     if(radio_unit_counter >= max_unit_count) {
                         update_system_time();
                         projected_end_time_in_sec = xo_sys_time_in_sec + XO_2_MIN;
@@ -3508,8 +3508,8 @@ int main() {
                         break;
                     }
                     else if(radio_rest_counter >= RADIO_REST_NUM_UNITS) {
-                        // FIXME: reset check_pmu_counter here
                         radio_rest_counter = 0;
+                        check_pmu_counter = 0;  // Resetting check_pmu counter as well to avoid concatenating the sleep periods
                         update_system_time();
                         radio_rest_end_time = xo_sys_time_in_sec + RADIO_REST_TIME;
                         // NOTE: the system will sleep for 2 minutes before waking up
