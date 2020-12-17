@@ -1,0 +1,419 @@
+
+TSstack_ondemand_v1.4b_CISv2/TSstack_ondemand_v1.4b_CISv2.elf:     file format elf32-littlearm
+
+
+Disassembly of section .text:
+
+00000000 <hang-0xa0>:
+   0:	00004000 	andeq	r4, r0, r0
+   4:	000000a3 	andeq	r0, r0, r3, lsr #1
+	...
+  10:	000000a0 	andeq	r0, r0, r0, lsr #1
+  14:	000000a0 	andeq	r0, r0, r0, lsr #1
+  18:	000000a0 	andeq	r0, r0, r0, lsr #1
+  1c:	000000a0 	andeq	r0, r0, r0, lsr #1
+  20:	000000a0 	andeq	r0, r0, r0, lsr #1
+  24:	000000a0 	andeq	r0, r0, r0, lsr #1
+  28:	000000a0 	andeq	r0, r0, r0, lsr #1
+  2c:	00000000 	andeq	r0, r0, r0
+  30:	000000a0 	andeq	r0, r0, r0, lsr #1
+  34:	000000a0 	andeq	r0, r0, r0, lsr #1
+	...
+  40:	000001ed 	andeq	r0, r0, sp, ror #3
+  44:	00000195 	muleq	r0, r5, r1
+  48:	00000189 	andeq	r0, r0, r9, lsl #3
+  4c:	000001e1 	andeq	r0, r0, r1, ror #3
+  50:	00000149 	andeq	r0, r0, r9, asr #2
+  54:	00000171 	andeq	r0, r0, r1, ror r1
+  58:	00000165 	andeq	r0, r0, r5, ror #2
+  5c:	0000017d 	andeq	r0, r0, sp, ror r1
+  60:	000000c9 	andeq	r0, r0, r9, asr #1
+  64:	000000d9 	ldrdeq	r0, [r0], -r9
+  68:	000000e9 	andeq	r0, r0, r9, ror #1
+  6c:	000000f9 	strdeq	r0, [r0], -r9
+  70:	00000109 	andeq	r0, r0, r9, lsl #2
+  74:	00000119 	andeq	r0, r0, r9, lsl r1
+  78:	00000129 	andeq	r0, r0, r9, lsr #2
+  7c:	00000139 	andeq	r0, r0, r9, lsr r1
+  80:	00000155 	andeq	r0, r0, r5, asr r1
+  84:	000001a1 	andeq	r0, r0, r1, lsr #3
+  88:	000001d1 	ldrdeq	r0, [r0], -r1
+  8c:	000001b1 			; <UNDEFINED> instruction: 0x000001b1
+  90:	000001c1 	andeq	r0, r0, r1, asr #3
+	...
+
+000000a0 <hang>:
+  a0:	e7fe      	b.n	a0 <hang>
+
+000000a2 <_start>:
+  a2:	f000 f8b9 	bl	218 <main>
+  a6:	e7fc      	b.n	a2 <_start>
+
+Disassembly of section .text.delay:
+
+000000a8 <delay>:
+// OTHER FUNCTIONS
+//*******************************************************************
+
+void delay(unsigned ticks){
+  unsigned i;
+  for (i=0; i < ticks; i++)
+  a8:	2300      	movs	r3, #0
+  aa:	4283      	cmp	r3, r0
+  ac:	d100      	bne.n	b0 <delay+0x8>
+    asm("nop;");
+}
+  ae:	4770      	bx	lr
+    asm("nop;");
+  b0:	46c0      	nop			; (mov r8, r8)
+  for (i=0; i < ticks; i++)
+  b2:	3301      	adds	r3, #1
+  b4:	e7f9      	b.n	aa <delay+0x2>
+
+Disassembly of section .text.mbus_write_message32:
+
+000000b8 <mbus_write_message32>:
+	// TODO: Read from LC
+	return 1;
+}
+
+uint32_t mbus_write_message32(uint8_t addr, uint32_t data) {
+    uint32_t mbus_addr = 0xA0003000 | (addr << 4);
+  b8:	0103      	lsls	r3, r0, #4
+  ba:	4802      	ldr	r0, [pc, #8]	; (c4 <mbus_write_message32+0xc>)
+  bc:	4318      	orrs	r0, r3
+    *((volatile uint32_t *) mbus_addr) = data;
+  be:	6001      	str	r1, [r0, #0]
+    return 1;
+}
+  c0:	2001      	movs	r0, #1
+  c2:	4770      	bx	lr
+  c4:	a0003000 	.word	0xa0003000
+
+Disassembly of section .text.handler_ext_int_reg0:
+
+000000c8 <handler_ext_int_reg0>:
+void handler_ext_int_aes      (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_gpio     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_spi      (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_xot      (void) __attribute__ ((interrupt ("IRQ")));
+
+void handler_ext_int_reg0(void) { *NVIC_ICPR = (0x1 << IRQ_REG0); }
+  c8:	2280      	movs	r2, #128	; 0x80
+  ca:	4b02      	ldr	r3, [pc, #8]	; (d4 <handler_ext_int_reg0+0xc>)
+  cc:	0052      	lsls	r2, r2, #1
+  ce:	601a      	str	r2, [r3, #0]
+  d0:	4770      	bx	lr
+  d2:	46c0      	nop			; (mov r8, r8)
+  d4:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_reg1:
+
+000000d8 <handler_ext_int_reg1>:
+void handler_ext_int_reg1(void) { *NVIC_ICPR = (0x1 << IRQ_REG1); }
+  d8:	2280      	movs	r2, #128	; 0x80
+  da:	4b02      	ldr	r3, [pc, #8]	; (e4 <handler_ext_int_reg1+0xc>)
+  dc:	0092      	lsls	r2, r2, #2
+  de:	601a      	str	r2, [r3, #0]
+  e0:	4770      	bx	lr
+  e2:	46c0      	nop			; (mov r8, r8)
+  e4:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_reg2:
+
+000000e8 <handler_ext_int_reg2>:
+void handler_ext_int_reg2(void) { *NVIC_ICPR = (0x1 << IRQ_REG2); }
+  e8:	2280      	movs	r2, #128	; 0x80
+  ea:	4b02      	ldr	r3, [pc, #8]	; (f4 <handler_ext_int_reg2+0xc>)
+  ec:	00d2      	lsls	r2, r2, #3
+  ee:	601a      	str	r2, [r3, #0]
+  f0:	4770      	bx	lr
+  f2:	46c0      	nop			; (mov r8, r8)
+  f4:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_reg3:
+
+000000f8 <handler_ext_int_reg3>:
+void handler_ext_int_reg3(void) { *NVIC_ICPR = (0x1 << IRQ_REG3); }
+  f8:	2280      	movs	r2, #128	; 0x80
+  fa:	4b02      	ldr	r3, [pc, #8]	; (104 <handler_ext_int_reg3+0xc>)
+  fc:	0112      	lsls	r2, r2, #4
+  fe:	601a      	str	r2, [r3, #0]
+ 100:	4770      	bx	lr
+ 102:	46c0      	nop			; (mov r8, r8)
+ 104:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_reg4:
+
+00000108 <handler_ext_int_reg4>:
+void handler_ext_int_reg4(void) { *NVIC_ICPR = (0x1 << IRQ_REG4); }
+ 108:	2280      	movs	r2, #128	; 0x80
+ 10a:	4b02      	ldr	r3, [pc, #8]	; (114 <handler_ext_int_reg4+0xc>)
+ 10c:	0152      	lsls	r2, r2, #5
+ 10e:	601a      	str	r2, [r3, #0]
+ 110:	4770      	bx	lr
+ 112:	46c0      	nop			; (mov r8, r8)
+ 114:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_reg5:
+
+00000118 <handler_ext_int_reg5>:
+void handler_ext_int_reg5(void) { *NVIC_ICPR = (0x1 << IRQ_REG5); }
+ 118:	2280      	movs	r2, #128	; 0x80
+ 11a:	4b02      	ldr	r3, [pc, #8]	; (124 <handler_ext_int_reg5+0xc>)
+ 11c:	0192      	lsls	r2, r2, #6
+ 11e:	601a      	str	r2, [r3, #0]
+ 120:	4770      	bx	lr
+ 122:	46c0      	nop			; (mov r8, r8)
+ 124:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_reg6:
+
+00000128 <handler_ext_int_reg6>:
+void handler_ext_int_reg6(void) { *NVIC_ICPR = (0x1 << IRQ_REG6); }
+ 128:	2280      	movs	r2, #128	; 0x80
+ 12a:	4b02      	ldr	r3, [pc, #8]	; (134 <handler_ext_int_reg6+0xc>)
+ 12c:	01d2      	lsls	r2, r2, #7
+ 12e:	601a      	str	r2, [r3, #0]
+ 130:	4770      	bx	lr
+ 132:	46c0      	nop			; (mov r8, r8)
+ 134:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_reg7:
+
+00000138 <handler_ext_int_reg7>:
+void handler_ext_int_reg7(void) { *NVIC_ICPR = (0x1 << IRQ_REG7); }
+ 138:	2280      	movs	r2, #128	; 0x80
+ 13a:	4b02      	ldr	r3, [pc, #8]	; (144 <handler_ext_int_reg7+0xc>)
+ 13c:	0212      	lsls	r2, r2, #8
+ 13e:	601a      	str	r2, [r3, #0]
+ 140:	4770      	bx	lr
+ 142:	46c0      	nop			; (mov r8, r8)
+ 144:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_timer16:
+
+00000148 <handler_ext_int_timer16>:
+void handler_ext_int_timer16(void) { *NVIC_ICPR = (0x1 << IRQ_TIMER16); }
+ 148:	2210      	movs	r2, #16
+ 14a:	4b01      	ldr	r3, [pc, #4]	; (150 <handler_ext_int_timer16+0x8>)
+ 14c:	601a      	str	r2, [r3, #0]
+ 14e:	4770      	bx	lr
+ 150:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_mbusmem:
+
+00000154 <handler_ext_int_mbusmem>:
+void handler_ext_int_mbusmem(void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_MEM); }
+ 154:	2280      	movs	r2, #128	; 0x80
+ 156:	4b02      	ldr	r3, [pc, #8]	; (160 <handler_ext_int_mbusmem+0xc>)
+ 158:	0252      	lsls	r2, r2, #9
+ 15a:	601a      	str	r2, [r3, #0]
+ 15c:	4770      	bx	lr
+ 15e:	46c0      	nop			; (mov r8, r8)
+ 160:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_mbusrx:
+
+00000164 <handler_ext_int_mbusrx>:
+void handler_ext_int_mbusrx(void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_RX); }
+ 164:	2240      	movs	r2, #64	; 0x40
+ 166:	4b01      	ldr	r3, [pc, #4]	; (16c <handler_ext_int_mbusrx+0x8>)
+ 168:	601a      	str	r2, [r3, #0]
+ 16a:	4770      	bx	lr
+ 16c:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_mbustx:
+
+00000170 <handler_ext_int_mbustx>:
+void handler_ext_int_mbustx(void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_TX); }
+ 170:	2220      	movs	r2, #32
+ 172:	4b01      	ldr	r3, [pc, #4]	; (178 <handler_ext_int_mbustx+0x8>)
+ 174:	601a      	str	r2, [r3, #0]
+ 176:	4770      	bx	lr
+ 178:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_mbusfwd:
+
+0000017c <handler_ext_int_mbusfwd>:
+void handler_ext_int_mbusfwd(void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_FWD); }
+ 17c:	2280      	movs	r2, #128	; 0x80
+ 17e:	4b01      	ldr	r3, [pc, #4]	; (184 <handler_ext_int_mbusfwd+0x8>)
+ 180:	601a      	str	r2, [r3, #0]
+ 182:	4770      	bx	lr
+ 184:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_gocep:
+
+00000188 <handler_ext_int_gocep>:
+void handler_ext_int_gocep(void) { *NVIC_ICPR = (0x1 << IRQ_GOCEP); }
+ 188:	2204      	movs	r2, #4
+ 18a:	4b01      	ldr	r3, [pc, #4]	; (190 <handler_ext_int_gocep+0x8>)
+ 18c:	601a      	str	r2, [r3, #0]
+ 18e:	4770      	bx	lr
+ 190:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_softreset:
+
+00000194 <handler_ext_int_softreset>:
+void handler_ext_int_softreset(void) { *NVIC_ICPR = (0x1 << IRQ_SOFT_RESET); }
+ 194:	2202      	movs	r2, #2
+ 196:	4b01      	ldr	r3, [pc, #4]	; (19c <handler_ext_int_softreset+0x8>)
+ 198:	601a      	str	r2, [r3, #0]
+ 19a:	4770      	bx	lr
+ 19c:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_aes:
+
+000001a0 <handler_ext_int_aes>:
+void handler_ext_int_aes(void) { *NVIC_ICPR = (0x1 << IRQ_AES); }
+ 1a0:	2280      	movs	r2, #128	; 0x80
+ 1a2:	4b02      	ldr	r3, [pc, #8]	; (1ac <handler_ext_int_aes+0xc>)
+ 1a4:	0292      	lsls	r2, r2, #10
+ 1a6:	601a      	str	r2, [r3, #0]
+ 1a8:	4770      	bx	lr
+ 1aa:	46c0      	nop			; (mov r8, r8)
+ 1ac:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_spi:
+
+000001b0 <handler_ext_int_spi>:
+void handler_ext_int_spi(void) { *NVIC_ICPR = (0x1 << IRQ_SPI); }
+ 1b0:	2280      	movs	r2, #128	; 0x80
+ 1b2:	4b02      	ldr	r3, [pc, #8]	; (1bc <handler_ext_int_spi+0xc>)
+ 1b4:	0312      	lsls	r2, r2, #12
+ 1b6:	601a      	str	r2, [r3, #0]
+ 1b8:	4770      	bx	lr
+ 1ba:	46c0      	nop			; (mov r8, r8)
+ 1bc:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_xot:
+
+000001c0 <handler_ext_int_xot>:
+void handler_ext_int_xot(void) { *NVIC_ICPR = (0x1 << IRQ_XOT); }
+ 1c0:	2280      	movs	r2, #128	; 0x80
+ 1c2:	4b02      	ldr	r3, [pc, #8]	; (1cc <handler_ext_int_xot+0xc>)
+ 1c4:	0352      	lsls	r2, r2, #13
+ 1c6:	601a      	str	r2, [r3, #0]
+ 1c8:	4770      	bx	lr
+ 1ca:	46c0      	nop			; (mov r8, r8)
+ 1cc:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_gpio:
+
+000001d0 <handler_ext_int_gpio>:
+void handler_ext_int_gpio(void) { *NVIC_ICPR = (0x1 << IRQ_GPIO); }
+ 1d0:	2280      	movs	r2, #128	; 0x80
+ 1d2:	4b02      	ldr	r3, [pc, #8]	; (1dc <handler_ext_int_gpio+0xc>)
+ 1d4:	02d2      	lsls	r2, r2, #11
+ 1d6:	601a      	str	r2, [r3, #0]
+ 1d8:	4770      	bx	lr
+ 1da:	46c0      	nop			; (mov r8, r8)
+ 1dc:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_timer32:
+
+000001e0 <handler_ext_int_timer32>:
+
+void handler_ext_int_timer32(void) { // TIMER32
+    *NVIC_ICPR = (0x1 << IRQ_TIMER32);
+ 1e0:	2208      	movs	r2, #8
+ 1e2:	4b01      	ldr	r3, [pc, #4]	; (1e8 <handler_ext_int_timer32+0x8>)
+ 1e4:	601a      	str	r2, [r3, #0]
+//    *REG1 = *TIMER32_CNT;
+//    *REG2 = *TIMER32_STAT;
+//    *TIMER32_STAT = 0x0;
+//	wfi_timeout_flag = 1;
+//    set_halt_until_mbus_tx();
+    }
+ 1e6:	4770      	bx	lr
+ 1e8:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_wakeup:
+
+000001ec <handler_ext_int_wakeup>:
+//[ 4] = mbus message
+//[ 8] = gpio[0]
+//[ 9] = gpio[1]
+//[10] = gpio[2]
+//[11] = gpio[3]
+    *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
+ 1ec:	2201      	movs	r2, #1
+ 1ee:	4b08      	ldr	r3, [pc, #32]	; (210 <handler_ext_int_wakeup+0x24>)
+void handler_ext_int_wakeup(void) { // WAKE-UP
+ 1f0:	b510      	push	{r4, lr}
+//    mbus_copy_mem_from_local_to_remote_stream (0x0, 0xA, (uint32_t *) (0xD00 << 2), 255);
+//    mbus_copy_mem_from_local_to_remote_stream (0x0, 0xA, (uint32_t *) (0xE00 << 2), 255);
+//    mbus_copy_mem_from_local_to_remote_stream (0x0, 0xA, (uint32_t *) (0xF00 << 2), 255);
+
+	// Report who woke up
+	delay(MBUS_DELAY);
+ 1f2:	20c8      	movs	r0, #200	; 0xc8
+    *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
+ 1f4:	601a      	str	r2, [r3, #0]
+	delay(MBUS_DELAY);
+ 1f6:	f7ff ff57 	bl	a8 <delay>
+	mbus_write_message32(0xAA,*SREG_WAKEUP_SOURCE); // 0x1: GOC; 0x2: PRC Timer; 0x10: SNT
+ 1fa:	4b06      	ldr	r3, [pc, #24]	; (214 <handler_ext_int_wakeup+0x28>)
+ 1fc:	20aa      	movs	r0, #170	; 0xaa
+ 1fe:	6819      	ldr	r1, [r3, #0]
+ 200:	f7ff ff5a 	bl	b8 <mbus_write_message32>
+	mbus_write_message32(0xAF, 0x00000110);
+ 204:	2188      	movs	r1, #136	; 0x88
+ 206:	20af      	movs	r0, #175	; 0xaf
+ 208:	0049      	lsls	r1, r1, #1
+ 20a:	f7ff ff55 	bl	b8 <mbus_write_message32>
+//	mbus_write_message32(0xAB, (0x3C << 24) | (*((volatile uint32_t *) 0xA00000F0) & 0x00FFFFFF));
+//	mbus_write_message32(0xAB, (0x3D << 24) | (*((volatile uint32_t *) 0xA00000F4) & 0x00FFFFFF));
+//	mbus_write_message32(0xAB, (0x3E << 24) | (*((volatile uint32_t *) 0xA00000F8) & 0x00FFFFFF));
+//	mbus_write_message32(0xAB, (0x3F << 24) | (*((volatile uint32_t *) 0xA00000FC) & 0x00FFFFFF));
+//	mbus_write_message32(0xAB, (0x40 << 24) | (*((volatile uint32_t *) 0xA0000100) & 0x00FFFFFF));
+}
+ 20e:	bd10      	pop	{r4, pc}
+ 210:	e000e280 	.word	0xe000e280
+ 214:	a000a008 	.word	0xa000a008
+
+Disassembly of section .text.startup.main:
+
+00000218 <main>:
+//********************************************************************
+// MAIN function starts here             
+//********************************************************************
+
+int main(){
+	mbus_write_message32(0xAF, 0x00000000);
+ 218:	2100      	movs	r1, #0
+int main(){
+ 21a:	b510      	push	{r4, lr}
+	mbus_write_message32(0xAF, 0x00000000);
+ 21c:	20af      	movs	r0, #175	; 0xaf
+ 21e:	f7ff ff4b 	bl	b8 <mbus_write_message32>
+
+    // Only enable relevant interrupts (PRCv17)
+	//enable_reg_irq();
+	//enable_all_irq();
+	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3);
+ 222:	4b06      	ldr	r3, [pc, #24]	; (23c <main+0x24>)
+ 224:	4a06      	ldr	r2, [pc, #24]	; (240 <main+0x28>)
+  
+	mbus_write_message32(0xAF, 0x00000001);
+ 226:	2101      	movs	r1, #1
+ 228:	20af      	movs	r0, #175	; 0xaf
+	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3);
+ 22a:	601a      	str	r2, [r3, #0]
+	mbus_write_message32(0xAF, 0x00000001);
+ 22c:	f7ff ff44 	bl	b8 <mbus_write_message32>
+	mbus_write_message32(0xAF, 0x00000002);
+ 230:	2102      	movs	r1, #2
+ 232:	20af      	movs	r0, #175	; 0xaf
+ 234:	f7ff ff40 	bl	b8 <mbus_write_message32>
+//		}
+//	}
+//
+//	operation_sleep_notimer();
+
+    while(1);
+ 238:	e7fe      	b.n	238 <main+0x20>
+ 23a:	46c0      	nop			; (mov r8, r8)
+ 23c:	e000e100 	.word	0xe000e100
+ 240:	00000f0d 	.word	0x00000f0d
