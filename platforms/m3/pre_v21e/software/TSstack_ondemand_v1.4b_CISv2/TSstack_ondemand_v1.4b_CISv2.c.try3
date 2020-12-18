@@ -425,26 +425,16 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
 //    mbus_copy_mem_from_local_to_remote_stream (0x0, 0xA, (uint32_t *) (0xF00 << 2), 255);
 
 	// Report who woke up
-	delay(MBUS_DELAY);
+//	delay(MBUS_DELAY);
 //	mbus_write_message32(0xAA,*SREG_WAKEUP_SOURCE); // 0x1: GOC; 0x2: PRC Timer; 0x10: SNT
 //	mbus_write_message32(0xAF, 0x00000110);
 //	mbus_write_message32(0xAF, 0x00000111);
 
 // [NOTE] Only the first iteration runs.. Something wrong with returning from function calls?
-    for (uint32_t i=0; i<65; i++) {
-	    //mbus_write_message32(0xAB, (i << 24) | (*((volatile uint32_t *) (0xA0000000 | i)) 0x00FFFFFF));
-	    //mbus_write_message32(0xAB, (i << 24) ); // working
-	    //mbus_write_message32(0xAB, i); // working
-	    //mbus_write_message32(0xAB, (i << 24) | *((volatile uint32_t *) (0xA0000000))); // working
-	    //mbus_write_message32(0xAB, (i << 24) | (*((volatile uint32_t *) (0xA0000000)) & 0x00FFFFFF)); // working
-	    //mbus_write_message32(0xAB, (i << 24) | (*((volatile uint32_t *) (0xA0000000 | i)) & 0x00FFFFFF)); // non-working
-        
-        //uint32_t temp = 0xA0000000 | i;
-	    //mbus_write_message32(0xAB, (i << 24) | (*((volatile uint32_t *) temp) & 0x00FFFFFF)); // not-working
-        
-        uint32_t temp = 0xA0000000 | (i<<2);
-	    mbus_write_message32(0xAB, (i << 24) | (*((volatile uint32_t *) temp) & 0x00FFFFFF)); // working
-    }
+//    for (uint32_t i=0; i<65; i++) {
+//	    mbus_write_message32(0xAB, (i << 24) | (*((volatile uint32_t *) (0xA0000000 | i)) & 0x00FFFFFF));
+//	    mbus_write_message32(0xAB, (i << 24) | (*((volatile uint32_t *) (0xA0000000 | i)) & 0x00FFFFFF));
+//    }
     
 //	mbus_write_message32(0xAB, (0x00 << 24) | (*((volatile uint32_t *) 0xA0000000) & 0x00FFFFFF));
 //	mbus_write_message32(0xAB, (0x01 << 24) | (*((volatile uint32_t *) 0xA0000004) & 0x00FFFFFF));

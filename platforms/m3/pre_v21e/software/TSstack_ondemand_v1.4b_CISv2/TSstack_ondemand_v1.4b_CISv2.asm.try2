@@ -46,7 +46,7 @@ Disassembly of section .text:
   a0:	e7fe      	b.n	a0 <hang>
 
 000000a2 <_start>:
-  a2:	f000 f8bf 	bl	224 <main>
+  a2:	f000 f8ad 	bl	200 <main>
   a6:	e7fc      	b.n	a2 <_start>
 
 Disassembly of section .text.delay:
@@ -339,9 +339,10 @@ Disassembly of section .text.handler_ext_int_wakeup:
 //[11] = gpio[3]
     *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
  1ec:	2201      	movs	r2, #1
- 1ee:	4b0c      	ldr	r3, [pc, #48]	; (220 <handler_ext_int_wakeup+0x34>)
 void handler_ext_int_wakeup(void) { // WAKE-UP
- 1f0:	b570      	push	{r4, r5, r6, lr}
+ 1ee:	b510      	push	{r4, lr}
+    *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
+ 1f0:	4b02      	ldr	r3, [pc, #8]	; (1fc <handler_ext_int_wakeup+0x10>)
 //    mbus_copy_mem_from_local_to_remote_stream (0x0, 0xA, (uint32_t *) (0xD00 << 2), 255);
 //    mbus_copy_mem_from_local_to_remote_stream (0x0, 0xA, (uint32_t *) (0xE00 << 2), 255);
 //    mbus_copy_mem_from_local_to_remote_stream (0x0, 0xA, (uint32_t *) (0xF00 << 2), 255);
@@ -349,89 +350,60 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
 	// Report who woke up
 	delay(MBUS_DELAY);
  1f2:	20c8      	movs	r0, #200	; 0xc8
-	    //mbus_write_message32(0xAB, (i << 24) | (*((volatile uint32_t *) (0xA0000000 | i)) & 0x00FFFFFF)); // non-working
-        
-        //uint32_t temp = 0xA0000000 | i;
-	    //mbus_write_message32(0xAB, (i << 24) | (*((volatile uint32_t *) temp) & 0x00FFFFFF)); // not-working
-        
-        uint32_t temp = 0xA0000000 | (i<<2);
- 1f4:	26a0      	movs	r6, #160	; 0xa0
-    for (uint32_t i=0; i<65; i++) {
- 1f6:	2582      	movs	r5, #130	; 0x82
     *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
- 1f8:	601a      	str	r2, [r3, #0]
+ 1f4:	601a      	str	r2, [r3, #0]
 	delay(MBUS_DELAY);
- 1fa:	f7ff ff55 	bl	a8 <delay>
- 1fe:	2400      	movs	r4, #0
-        uint32_t temp = 0xA0000000 | (i<<2);
- 200:	0636      	lsls	r6, r6, #24
-    for (uint32_t i=0; i<65; i++) {
- 202:	006d      	lsls	r5, r5, #1
-        uint32_t temp = 0xA0000000 | (i<<2);
- 204:	0033      	movs	r3, r6
- 206:	4323      	orrs	r3, r4
-	    mbus_write_message32(0xAB, (i << 24) | (*((volatile uint32_t *) temp) & 0x00FFFFFF)); // working
- 208:	6819      	ldr	r1, [r3, #0]
- 20a:	05a3      	lsls	r3, r4, #22
- 20c:	0209      	lsls	r1, r1, #8
- 20e:	0a09      	lsrs	r1, r1, #8
- 210:	20ab      	movs	r0, #171	; 0xab
- 212:	4319      	orrs	r1, r3
- 214:	3404      	adds	r4, #4
- 216:	f7ff ff4f 	bl	b8 <mbus_write_message32>
-    for (uint32_t i=0; i<65; i++) {
- 21a:	42ac      	cmp	r4, r5
- 21c:	d1f2      	bne.n	204 <handler_ext_int_wakeup+0x18>
+ 1f6:	f7ff ff57 	bl	a8 <delay>
 //	mbus_write_message32(0xAB, (0x3C << 24) | (*((volatile uint32_t *) 0xA00000F0) & 0x00FFFFFF));
 //	mbus_write_message32(0xAB, (0x3D << 24) | (*((volatile uint32_t *) 0xA00000F4) & 0x00FFFFFF));
 //	mbus_write_message32(0xAB, (0x3E << 24) | (*((volatile uint32_t *) 0xA00000F8) & 0x00FFFFFF));
 //	mbus_write_message32(0xAB, (0x3F << 24) | (*((volatile uint32_t *) 0xA00000FC) & 0x00FFFFFF));
 //	mbus_write_message32(0xAB, (0x40 << 24) | (*((volatile uint32_t *) 0xA0000100) & 0x00FFFFFF));
 }
- 21e:	bd70      	pop	{r4, r5, r6, pc}
- 220:	e000e280 	.word	0xe000e280
+ 1fa:	bd10      	pop	{r4, pc}
+ 1fc:	e000e280 	.word	0xe000e280
 
 Disassembly of section .text.startup.main:
 
-00000224 <main>:
+00000200 <main>:
 //********************************************************************
 // MAIN function starts here             
 //********************************************************************
 
 int main(){
 	mbus_write_message32(0xAF, 0x00000000);
- 224:	2100      	movs	r1, #0
+ 200:	2100      	movs	r1, #0
 int main(){
- 226:	b510      	push	{r4, lr}
+ 202:	b510      	push	{r4, lr}
 	mbus_write_message32(0xAF, 0x00000000);
- 228:	20af      	movs	r0, #175	; 0xaf
- 22a:	f7ff ff45 	bl	b8 <mbus_write_message32>
+ 204:	20af      	movs	r0, #175	; 0xaf
+ 206:	f7ff ff57 	bl	b8 <mbus_write_message32>
 
     // Only enable relevant interrupts (PRCv17)
 	//enable_reg_irq();
 	//enable_all_irq();
 	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3);
- 22e:	4b06      	ldr	r3, [pc, #24]	; (248 <main+0x24>)
- 230:	4a06      	ldr	r2, [pc, #24]	; (24c <main+0x28>)
+ 20a:	4b06      	ldr	r3, [pc, #24]	; (224 <main+0x24>)
+ 20c:	4a06      	ldr	r2, [pc, #24]	; (228 <main+0x28>)
   
 	mbus_write_message32(0xAF, 0x00000001);
- 232:	2101      	movs	r1, #1
- 234:	20af      	movs	r0, #175	; 0xaf
+ 20e:	2101      	movs	r1, #1
+ 210:	20af      	movs	r0, #175	; 0xaf
 	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3);
- 236:	601a      	str	r2, [r3, #0]
+ 212:	601a      	str	r2, [r3, #0]
 	mbus_write_message32(0xAF, 0x00000001);
- 238:	f7ff ff3e 	bl	b8 <mbus_write_message32>
+ 214:	f7ff ff50 	bl	b8 <mbus_write_message32>
 	mbus_write_message32(0xAF, 0x00000002);
- 23c:	2102      	movs	r1, #2
- 23e:	20af      	movs	r0, #175	; 0xaf
- 240:	f7ff ff3a 	bl	b8 <mbus_write_message32>
+ 218:	2102      	movs	r1, #2
+ 21a:	20af      	movs	r0, #175	; 0xaf
+ 21c:	f7ff ff4c 	bl	b8 <mbus_write_message32>
 //		}
 //	}
 //
 //	operation_sleep_notimer();
 
     while(1);
- 244:	e7fe      	b.n	244 <main+0x20>
- 246:	46c0      	nop			; (mov r8, r8)
- 248:	e000e100 	.word	0xe000e100
- 24c:	00000f0d 	.word	0x00000f0d
+ 220:	e7fe      	b.n	220 <main+0x20>
+ 222:	46c0      	nop			; (mov r8, r8)
+ 224:	e000e100 	.word	0xe000e100
+ 228:	00000f0d 	.word	0x00000f0d
