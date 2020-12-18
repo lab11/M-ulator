@@ -398,7 +398,7 @@ void handler_ext_int_timer32  (void) __attribute__ ((interrupt ("IRQ")));
 //void handler_ext_int_mbusfwd(void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_FWD); }
 void handler_ext_int_gocep(void) { 
     *NVIC_ICPR = (0x1 << IRQ_GOCEP); 
-//	mbus_write_message32(0xA5, 0x00000001);
+	mbus_write_message32(0xA5, 0x00000001);
 }
 //void handler_ext_int_softreset(void) { *NVIC_ICPR = (0x1 << IRQ_SOFT_RESET); }
 //void handler_ext_int_aes(void) { *NVIC_ICPR = (0x1 << IRQ_AES); }

@@ -363,7 +363,7 @@ void test3 (uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
 //void handler_ext_int_reg3     (void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_wakeup   (void) __attribute__ ((interrupt ("IRQ")));
 //void handler_ext_int_softreset(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_gocep    (void) __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_gocep    (void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_timer32  (void) __attribute__ ((interrupt ("IRQ")));
 //void handler_ext_int_timer16  (void) __attribute__ ((interrupt ("IRQ")));
 //void handler_ext_int_mbustx   (void) __attribute__ ((interrupt ("IRQ")));
@@ -396,10 +396,7 @@ void handler_ext_int_timer32  (void) __attribute__ ((interrupt ("IRQ")));
 //void handler_ext_int_mbusrx(void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_RX); }
 //void handler_ext_int_mbustx(void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_TX); }
 //void handler_ext_int_mbusfwd(void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_FWD); }
-void handler_ext_int_gocep(void) { 
-    *NVIC_ICPR = (0x1 << IRQ_GOCEP); 
-//	mbus_write_message32(0xA5, 0x00000001);
-}
+//void handler_ext_int_gocep(void) { *NVIC_ICPR = (0x1 << IRQ_GOCEP); }
 //void handler_ext_int_softreset(void) { *NVIC_ICPR = (0x1 << IRQ_SOFT_RESET); }
 //void handler_ext_int_aes(void) { *NVIC_ICPR = (0x1 << IRQ_AES); }
 //void handler_ext_int_spi(void) { *NVIC_ICPR = (0x1 << IRQ_SPI); }
@@ -1710,8 +1707,6 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
 void operation_init(void){
 	mbus_write_message32(0xAF, 0x00000003);
 
-    enumerated = 0x5453104b;
-
     set_halt_until_mbus_trx();
     mbus_enumerate(MEM_ADDR);
     set_halt_until_mbus_tx();
@@ -2199,15 +2194,12 @@ int main(){
 	//enable_reg_irq();
 	//enable_all_irq();
 	//*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3);
-	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP);
+	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_TIMER32);
   
-    if (enumerated != 0x5453104b){
-        test1 (1, 2, 3, 4);
+    test1 (1, 2, 3, 4);
 
-	    mbus_write_message32(0xAF, 0x00000001);
-	    mbus_write_message32(0xAF, 0x00000002);
-        operation_init();
-    }
+	mbus_write_message32(0xAF, 0x00000001);
+	mbus_write_message32(0xAF, 0x00000002);
 
 //    // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
 //    config_timerwd(TIMERWD_VAL);
@@ -2235,11 +2227,11 @@ int main(){
 //
 //	mbus_write_message32(0xAF, 0x00000004);
 //
-//    // Initialization sequence
-//    if (enumerated != 0x5453104b){
-//        operation_init();
-//    }
-//
+    // Initialization sequence
+    if (enumerated != 0x5453104b){
+        operation_init();
+    }
+
 //	mbus_write_message32(0xAF, 0x00000005);
 //
 //	// Read latest batt voltage
