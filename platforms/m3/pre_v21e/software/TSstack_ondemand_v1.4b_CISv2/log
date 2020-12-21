@@ -269,3 +269,12 @@ try8: try7 + remove the function call from gocep IRQ handler.
                     12/18/2020 17:22:06.033 0xAF, 0x00000000 [EOM, No ACK]
                     12/18/2020 17:22:04.315 0x, 0x [TRX Error (01)]
                 
+try9: 'for' loop in the wakeup IRQ handler to test branch/comparisons.
+        -> Eventually FAIL.
+        The branch/comparisons for the for loop works,
+        but it is eventually stuck at the end of the IRQ handler.
+        This is the same issue - the 'push' instruction at the beginning of the IRQ handler
+        does not seem to work.
+
+try10: a workaround to implement the IRQ handling
+

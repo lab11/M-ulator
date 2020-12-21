@@ -47,6 +47,37 @@
 #define IRQ_SPI        19
 #define IRQ_XOT        20
 
+// Union Type Definition to circumvent the 'push-in-IRQ-Handler' issue in PRCv21 Family
+typedef union cpu_irq_list {
+    struct{
+        unsigned wakeup     : 1;
+        unsigned soft_reset : 1;
+        unsigned gocep      : 1;
+        unsigned timer32    : 1;
+        unsigned timer16    : 1;
+        unsigned mbus_tx    : 1;
+        unsigned mbus_rx    : 1;
+        unsigned mbus_fwd   : 1;
+        unsigned reg0       : 1;
+        unsigned reg1       : 1;
+        unsigned reg2       : 1;
+        unsigned reg3       : 1;
+        unsigned reg4       : 1;
+        unsigned reg5       : 1;
+        unsigned reg6       : 1;
+        unsigned reg7       : 1;
+        unsigned mbus_mem   : 1;
+        unsigned aes        : 1;
+        unsigned gpio       : 1;
+        unsigned spi        : 1;
+        unsigned xot        : 1;
+        unsigned dummy      : 1;
+    };
+    uint32_t as_int;
+} cpu_irq_list_t;
+#define CPU_IRQ_LIST_DEFAULT {{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1}}
+_Static_assert(sizeof(cpu_irq_list_t) == 4, "Punned Structure Size");
+
 //*********************************************************
 // ARMv6 Architecture NVIC Registers
 //*********************************************************
