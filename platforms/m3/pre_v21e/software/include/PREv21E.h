@@ -8,6 +8,13 @@
 #define PREv21E
 
 //*********************************************************
+// INCLUDES...
+//*********************************************************
+#include <stdint.h>
+#include <stdbool.h>
+#include "PREv21E_RF.h"
+
+//*********************************************************
 // Boolean Constants
 //*********************************************************
 #define TRUE  1
@@ -292,14 +299,6 @@ _Static_assert(sizeof(cpu_irq_list_t) == 4, "Punned Structure Size");
 #define HALT_UNTIL_MBUS_FWD 0xB
 #define HALT_UNTIL_MBUS_TRX 0xC
 #define HALT_DISABLE        0xF
-
-//*********************************************************
-// INCLUDES...
-//*********************************************************
-#include <stdint.h>
-#include <stdbool.h>
-#include "PREv21E_RF.h"
-
 
 //*********************************************************
 // FUNCTIONS

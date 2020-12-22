@@ -1,0 +1,268 @@
+
+TSstack_ondemand_v1.4b_CISv2/TSstack_ondemand_v1.4b_CISv2.elf:     file format elf32-littlearm
+
+
+Disassembly of section .text:
+
+00000000 <hang-0xa0>:
+   0:	00004000 	andeq	r4, r0, r0
+   4:	000000a3 	andeq	r0, r0, r3, lsr #1
+	...
+  10:	000000a0 	andeq	r0, r0, r0, lsr #1
+  14:	000000a0 	andeq	r0, r0, r0, lsr #1
+  18:	000000a0 	andeq	r0, r0, r0, lsr #1
+  1c:	000000a0 	andeq	r0, r0, r0, lsr #1
+  20:	000000a0 	andeq	r0, r0, r0, lsr #1
+  24:	000000a0 	andeq	r0, r0, r0, lsr #1
+  28:	000000a0 	andeq	r0, r0, r0, lsr #1
+  2c:	00000000 	andeq	r0, r0, r0
+  30:	000000a0 	andeq	r0, r0, r0, lsr #1
+  34:	000000a0 	andeq	r0, r0, r0, lsr #1
+	...
+  40:	000000fd 	strdeq	r0, [r0], -sp
+  44:	00000000 	andeq	r0, r0, r0
+  48:	000000e5 	andeq	r0, r0, r5, ror #1
+  4c:	000000f1 	strdeq	r0, [r0], -r1
+	...
+
+000000a0 <hang>:
+  a0:	e7fe      	b.n	a0 <hang>
+
+000000a2 <_start>:
+  a2:	f000 f863 	bl	16c <main>
+  a6:	e7fc      	b.n	a2 <_start>
+
+Disassembly of section .text.set_halt_until_mbus_tx:
+
+000000a8 <set_halt_until_mbus_tx>:
+// MBUS IRQ SETTING
+//**************************************************
+void set_halt_until_reg(uint32_t reg_id) { *SREG_CONF_HALT = reg_id; }
+void set_halt_until_mem_wr(void) { *SREG_CONF_HALT = HALT_UNTIL_MEM_WR; }
+void set_halt_until_mbus_rx(void) { *SREG_CONF_HALT = HALT_UNTIL_MBUS_RX; }
+void set_halt_until_mbus_tx(void) { *SREG_CONF_HALT = HALT_UNTIL_MBUS_TX; }
+  a8:	2209      	movs	r2, #9
+  aa:	4b01      	ldr	r3, [pc, #4]	; (b0 <set_halt_until_mbus_tx+0x8>)
+  ac:	601a      	str	r2, [r3, #0]
+  ae:	4770      	bx	lr
+  b0:	a000a000 	.word	0xa000a000
+
+Disassembly of section .text.set_halt_until_mbus_trx:
+
+000000b4 <set_halt_until_mbus_trx>:
+void set_halt_until_mbus_trx(void) { *SREG_CONF_HALT = HALT_UNTIL_MBUS_TRX; }
+  b4:	220c      	movs	r2, #12
+  b6:	4b01      	ldr	r3, [pc, #4]	; (bc <set_halt_until_mbus_trx+0x8>)
+  b8:	601a      	str	r2, [r3, #0]
+  ba:	4770      	bx	lr
+  bc:	a000a000 	.word	0xa000a000
+
+Disassembly of section .text.mbus_write_message32:
+
+000000c0 <mbus_write_message32>:
+	// TODO: Read from LC
+	return 1;
+}
+
+uint32_t mbus_write_message32(uint8_t addr, uint32_t data) {
+    uint32_t mbus_addr = 0xA0003000 | (addr << 4);
+  c0:	0103      	lsls	r3, r0, #4
+  c2:	4802      	ldr	r0, [pc, #8]	; (cc <mbus_write_message32+0xc>)
+  c4:	4318      	orrs	r0, r3
+    *((volatile uint32_t *) mbus_addr) = data;
+  c6:	6001      	str	r1, [r0, #0]
+    return 1;
+}
+  c8:	2001      	movs	r0, #1
+  ca:	4770      	bx	lr
+  cc:	a0003000 	.word	0xa0003000
+
+Disassembly of section .text.mbus_enumerate:
+
+000000d0 <mbus_enumerate>:
+
+    return 1;
+}
+
+void mbus_enumerate(unsigned new_prefix) {
+    mbus_write_message32(MBUS_DISC_AND_ENUM, ((MBUS_ENUMERATE_CMD << 28) | (new_prefix << 24)));
+  d0:	0603      	lsls	r3, r0, #24
+  d2:	2080      	movs	r0, #128	; 0x80
+  d4:	0580      	lsls	r0, r0, #22
+  d6:	4318      	orrs	r0, r3
+    *((volatile uint32_t *) mbus_addr) = data;
+  d8:	4b01      	ldr	r3, [pc, #4]	; (e0 <mbus_enumerate+0x10>)
+  da:	6018      	str	r0, [r3, #0]
+}
+  dc:	4770      	bx	lr
+  de:	46c0      	nop			; (mov r8, r8)
+  e0:	a0003000 	.word	0xa0003000
+
+Disassembly of section .text.handler_ext_int_gocep:
+
+000000e4 <handler_ext_int_gocep>:
+void handler_ext_int_wakeup   (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_gocep    (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_timer32  (void) __attribute__ ((interrupt ("IRQ")));
+
+void handler_ext_int_gocep(void) { 
+    *NVIC_ICPR = (0x1 << IRQ_GOCEP); 
+  e4:	2204      	movs	r2, #4
+  e6:	4b01      	ldr	r3, [pc, #4]	; (ec <handler_ext_int_gocep+0x8>)
+  e8:	601a      	str	r2, [r3, #0]
+}
+  ea:	4770      	bx	lr
+  ec:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_timer32:
+
+000000f0 <handler_ext_int_timer32>:
+
+void handler_ext_int_timer32(void) { // TIMER32
+    *NVIC_ICPR = (0x1 << IRQ_TIMER32);
+  f0:	2208      	movs	r2, #8
+  f2:	4b01      	ldr	r3, [pc, #4]	; (f8 <handler_ext_int_timer32+0x8>)
+  f4:	601a      	str	r2, [r3, #0]
+//    *REG1 = *TIMER32_CNT;
+//    *REG2 = *TIMER32_STAT;
+//    *TIMER32_STAT = 0x0;
+//	wfi_timeout_flag = 1;
+//    set_halt_until_mbus_tx();
+    }
+  f6:	4770      	bx	lr
+  f8:	e000e280 	.word	0xe000e280
+
+Disassembly of section .text.handler_ext_int_wakeup:
+
+000000fc <handler_ext_int_wakeup>:
+//[ 4] = mbus message
+//[ 8] = gpio[0]
+//[ 9] = gpio[1]
+//[10] = gpio[2]
+//[11] = gpio[3]
+    *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
+  fc:	2201      	movs	r2, #1
+  fe:	4b0d      	ldr	r3, [pc, #52]	; (134 <handler_ext_int_wakeup+0x38>)
+void handler_ext_int_wakeup(void) { // WAKE-UP
+ 100:	b570      	push	{r4, r5, r6, lr}
+    *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
+ 102:	601a      	str	r2, [r3, #0]
+
+	mbus_write_message32(0xAA,*SREG_WAKEUP_SOURCE); // 0x1: GOC; 0x2: PRC Timer; 0x10: SNT
+ 104:	4b0c      	ldr	r3, [pc, #48]	; (138 <handler_ext_int_wakeup+0x3c>)
+ 106:	20aa      	movs	r0, #170	; 0xaa
+//	mbus_write_message32(0xAF, 0x00000110);
+
+    for (uint32_t i=0; i<65; i++) {
+        uint32_t temp = *(volatile uint32_t *) (0xA0000000 | (i<<2));
+ 108:	26a0      	movs	r6, #160	; 0xa0
+    for (uint32_t i=0; i<65; i++) {
+ 10a:	2582      	movs	r5, #130	; 0x82
+	mbus_write_message32(0xAA,*SREG_WAKEUP_SOURCE); // 0x1: GOC; 0x2: PRC Timer; 0x10: SNT
+ 10c:	6819      	ldr	r1, [r3, #0]
+ 10e:	f7ff ffd7 	bl	c0 <mbus_write_message32>
+ 112:	2400      	movs	r4, #0
+        uint32_t temp = *(volatile uint32_t *) (0xA0000000 | (i<<2));
+ 114:	0636      	lsls	r6, r6, #24
+    for (uint32_t i=0; i<65; i++) {
+ 116:	006d      	lsls	r5, r5, #1
+        uint32_t temp = *(volatile uint32_t *) (0xA0000000 | (i<<2));
+ 118:	0033      	movs	r3, r6
+ 11a:	4323      	orrs	r3, r4
+ 11c:	6819      	ldr	r1, [r3, #0]
+	    mbus_write_message32(0xAB, (i << 24) | (temp & 0x00FFFFFF));
+ 11e:	05a3      	lsls	r3, r4, #22
+ 120:	0209      	lsls	r1, r1, #8
+ 122:	0a09      	lsrs	r1, r1, #8
+ 124:	20ab      	movs	r0, #171	; 0xab
+ 126:	4319      	orrs	r1, r3
+ 128:	3404      	adds	r4, #4
+ 12a:	f7ff ffc9 	bl	c0 <mbus_write_message32>
+    for (uint32_t i=0; i<65; i++) {
+ 12e:	42ac      	cmp	r4, r5
+ 130:	d1f2      	bne.n	118 <handler_ext_int_wakeup+0x1c>
+    }
+
+}
+ 132:	bd70      	pop	{r4, r5, r6, pc}
+ 134:	e000e280 	.word	0xe000e280
+ 138:	a000a008 	.word	0xa000a008
+
+Disassembly of section .text.operation_init:
+
+0000013c <operation_init>:
+
+
+// Temporary operation_init
+void operation_init(void){
+ 13c:	b510      	push	{r4, lr}
+	mbus_write_message32(0xAF, 0x00000003);
+ 13e:	2103      	movs	r1, #3
+ 140:	20af      	movs	r0, #175	; 0xaf
+ 142:	f7ff ffbd 	bl	c0 <mbus_write_message32>
+
+    enumerated = 0x5453104b;
+ 146:	4b07      	ldr	r3, [pc, #28]	; (164 <operation_init+0x28>)
+ 148:	4a07      	ldr	r2, [pc, #28]	; (168 <operation_init+0x2c>)
+ 14a:	601a      	str	r2, [r3, #0]
+
+    set_halt_until_mbus_trx();
+ 14c:	f7ff ffb2 	bl	b4 <set_halt_until_mbus_trx>
+    mbus_enumerate(MEM_ADDR);
+ 150:	2007      	movs	r0, #7
+ 152:	f7ff ffbd 	bl	d0 <mbus_enumerate>
+    set_halt_until_mbus_tx();
+ 156:	f7ff ffa7 	bl	a8 <set_halt_until_mbus_tx>
+
+	mbus_write_message32(0xAF, 0x00000004);
+ 15a:	2104      	movs	r1, #4
+ 15c:	20af      	movs	r0, #175	; 0xaf
+ 15e:	f7ff ffaf 	bl	c0 <mbus_write_message32>
+}
+ 162:	bd10      	pop	{r4, pc}
+ 164:	000001a4 	.word	0x000001a4
+ 168:	5453104b 	.word	0x5453104b
+
+Disassembly of section .text.startup.main:
+
+0000016c <main>:
+//********************************************************************
+// MAIN function starts here             
+//********************************************************************
+
+int main(){
+	mbus_write_message32(0xAF, 0x00000000);
+ 16c:	2100      	movs	r1, #0
+ 16e:	20af      	movs	r0, #175	; 0xaf
+int main(){
+ 170:	b510      	push	{r4, lr}
+	mbus_write_message32(0xAF, 0x00000000);
+ 172:	f7ff ffa5 	bl	c0 <mbus_write_message32>
+
+	//*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3);
+	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP);
+ 176:	2205      	movs	r2, #5
+ 178:	4b07      	ldr	r3, [pc, #28]	; (198 <main+0x2c>)
+ 17a:	601a      	str	r2, [r3, #0]
+  
+    if (enumerated != 0x5453104b){
+ 17c:	4b07      	ldr	r3, [pc, #28]	; (19c <main+0x30>)
+ 17e:	681a      	ldr	r2, [r3, #0]
+ 180:	4b07      	ldr	r3, [pc, #28]	; (1a0 <main+0x34>)
+ 182:	429a      	cmp	r2, r3
+ 184:	d001      	beq.n	18a <main+0x1e>
+        operation_init();
+ 186:	f7ff ffd9 	bl	13c <operation_init>
+    }
+
+	mbus_write_message32(0xAF, 0xFFFFFFFF);
+ 18a:	2101      	movs	r1, #1
+ 18c:	20af      	movs	r0, #175	; 0xaf
+ 18e:	4249      	negs	r1, r1
+ 190:	f7ff ff96 	bl	c0 <mbus_write_message32>
+    while(1);
+ 194:	e7fe      	b.n	194 <main+0x28>
+ 196:	46c0      	nop			; (mov r8, r8)
+ 198:	e000e100 	.word	0xe000e100
+ 19c:	000001a4 	.word	0x000001a4
+ 1a0:	5453104b 	.word	0x5453104b
