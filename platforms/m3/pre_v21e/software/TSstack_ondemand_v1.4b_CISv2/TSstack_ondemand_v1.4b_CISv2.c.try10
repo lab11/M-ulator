@@ -1,0 +1,170 @@
+//*******************************************************************
+//Author: Gyouho Kim
+//Description: TS stack with MRRv10 and SNTv4
+//			Modified from 'AHstack_ondemand_v1.22.c'
+//			Modified from 'Tstack_ondemand_v6.4.c'
+//			v1.0: PMU needs to reconfigure based on VBAT
+//			v1.1: Code cleanup
+//			v1.1a: Increasing PMU setting at 35C
+//			v1.1b: Fixing a bug that incorrectly sets PMU active setting during SNT
+//			v1.1c: Operation sleep was missing SNT safeguards
+//			v1.2: Transmit SNT temp coefficient B as part of check-in message
+//			FIXME: Need to verify PMU settings across temp & voltage
+//			v1.3: Adding new MRR FSM burst mode for radio scanning
+//				   Adding SNT Timer R tuning
+//			v1.3b: Fixes a problem where running send_radio_data_mrr() more than once and 
+//				   running radio_power_on() between them causes CL to be in weak mode
+//			v1.4: PMU Optimizations
+//			v1.4a: Minor updates for debugging; change SAR ratio every time irq wakeup
+//				  send exec_count when stopping measurement
+//			v1.4b: SNT temp sensor reset & sleep setting restored whenever GOC triggered
+//				  Adding a dedicated setting for # of hops
+//			v1.4b_CISv2: Converted v1.4b to work with CISv2
+//*******************************************************************
+  
+#include "PREv21E.h"
+#include "PREv21E_RF.h"
+#include "PMUv12_RF.h"
+#include "SNTv5_RF.h"
+#include "MRRv11A_RF.h"
+#include "mbus.h"
+
+// Temporary ADDR
+#define MEM_ADDR 0x7
+
+// System parameters
+#define	MBUS_DELAY 200 // Amount of delay between successive messages; 200: 6-7ms
+
+//********************************************************************
+// Global Variables
+//********************************************************************
+// "static" limits the variables to this file, giving compiler more freedom
+// "volatile" should only be used for MMIO --> ensures memory storage
+volatile uint32_t enumerated;
+
+//*******************************************************************
+// INTERRUPT HANDLERS (Updated for PRCv17)
+//*******************************************************************
+
+typedef union cpu_irq_list {
+    struct{
+        unsigned wakeup     : 1;
+        unsigned soft_reset : 1;
+        unsigned gocep      : 1;
+        unsigned timer32    : 1;
+        unsigned timer16    : 1;
+        unsigned mbus_tx    : 1;
+        unsigned mbus_rx    : 1;
+        unsigned mbus_fwd   : 1;
+        unsigned reg0       : 1;
+        unsigned reg1       : 1;
+        unsigned reg2       : 1;
+        unsigned reg3       : 1;
+        unsigned reg4       : 1;
+        unsigned reg5       : 1;
+        unsigned reg6       : 1;
+        unsigned reg7       : 1;
+        unsigned mbus_mem   : 1;
+        unsigned aes        : 1;
+        unsigned gpio       : 1;
+        unsigned spi        : 1;
+        unsigned xot        : 1;
+        unsigned dummy      : 1;
+    };
+    uint32_t as_int;
+} cpu_irq_list_t;
+#define CPU_IRQ_LIST_DEFAULT {{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1}}
+_Static_assert(sizeof(cpu_irq_list_t) == 4, "Punned Structure Size");
+
+volatile cpu_irq_list_t irq_pending = CPU_IRQ_LIST_DEFAULT;
+
+void handler_ext_int_wakeup   (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_gocep    (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_timer32  (void) __attribute__ ((interrupt ("IRQ")));
+
+void handler_ext_int_gocep(void) { 
+    *NVIC_ICPR = (0x1 << IRQ_GOCEP); 
+    irq_pending.gocep = 1;
+}
+
+void handler_ext_int_timer32(void) { // TIMER32
+    *NVIC_ICPR = (0x1 << IRQ_TIMER32);
+//    *REG1 = *TIMER32_CNT;
+//    *REG2 = *TIMER32_STAT;
+//    *TIMER32_STAT = 0x0;
+//	wfi_timeout_flag = 1;
+//    set_halt_until_mbus_tx();
+    }
+
+void handler_ext_int_wakeup(void) { // WAKE-UP
+//[ 0] = GOC/EP
+//[ 1] = Wakeuptimer
+//[ 2] = XO timer
+//[ 3] = gpio_pad
+//[ 4] = mbus message
+//[ 8] = gpio[0]
+//[ 9] = gpio[1]
+//[10] = gpio[2]
+//[11] = gpio[3]
+    *NVIC_ICPR = (0x1 << IRQ_WAKEUP); 
+    irq_pending.wakeup = 1;
+
+//	mbus_write_message32(0xAA,*SREG_WAKEUP_SOURCE); // 0x1: GOC; 0x2: PRC Timer; 0x10: SNT
+//	mbus_write_message32(0xAF, 0x00000110);
+
+//    for (uint32_t i=0; i<65; i++) {
+//        uint32_t temp = *(volatile uint32_t *) (0xA0000000 | (i<<2));
+//	    mbus_write_message32(0xAB, (i << 24) | (temp & 0x00FFFFFF));
+//    }
+//
+}
+
+
+// Temporary operation_init
+void operation_init(void){
+	mbus_write_message32(0xAF, 0x00000003);
+
+    enumerated = 0x5453104b;
+
+    set_halt_until_mbus_trx();
+    mbus_enumerate(MEM_ADDR);
+    set_halt_until_mbus_tx();
+
+	mbus_write_message32(0xAF, 0x00000004);
+}
+
+
+//********************************************************************
+// MAIN function starts here             
+//********************************************************************
+
+int main(){
+	mbus_write_message32(0xAF, 0x00000000);
+	mbus_write_message32(0xAF, irq_pending.as_int);
+
+	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP);
+        
+    if (enumerated != 0x5453104b){
+        operation_init();
+    }
+
+	mbus_write_message32(0xAF, 0xFFFFFFFF);
+
+    while(1){
+
+        if (irq_pending.wakeup) {
+            irq_pending.wakeup = 0;
+	        mbus_write_message32(0xA5, 1);
+
+        }
+
+        if (irq_pending.gocep) {
+            irq_pending.gocep = 0;
+	        mbus_write_message32(0xA5, 2);
+
+        }
+
+    }
+}
+
+

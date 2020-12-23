@@ -1,0 +1,9 @@
+# This shell script was used for a tapeout (Y15 MLM, June 2020) to easily update *_RF.h files. 
+# This is supposed to be executed on a vlsipool machine.
+cp -u /afs/eecs.umich.edu/vlsida/projects/m3_hdk/layer/PRC/PRCv21/verilog/genRF/PRCv21_RF.h   .
+cp -u /afs/eecs.umich.edu/vlsida/projects/m3_hdk/layer/FLP/FLPv3S/verilog/genRF/FLPv3S_RF.h   .
+cp -u /afs/eecs.umich.edu/vlsida/projects/m3_hdk/layer/SNT/SNTv5/verilog/genRF/SNTv5_RF.h     .
+cp -u /afs/eecs.umich.edu/vlsida/projects/m3_hdk/layer/RDC/RDCv4/verilog/genRF/RDCv4_RF.h     .
+cp -u /afs/eecs.umich.edu/vlsida/projects/m3_hdk/layer/MRR/MRRv11A/verilog/genRF/MRRv11A_RF.h .
+cp -u /afs/eecs.umich.edu/vlsida/projects/m3_hdk/layer/SRR/SRRv8/verilog/genRF/SRRv8_RF.h     .
+cp -u /afs/eecs.umich.edu/vlsida/projects/m3_hdk/layer/PMU/PMUv12/verilog/genRF/PMUv12_RF.h   .

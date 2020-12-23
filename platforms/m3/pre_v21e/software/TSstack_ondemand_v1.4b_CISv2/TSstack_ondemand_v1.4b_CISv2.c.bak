@@ -950,7 +950,7 @@ static void send_radio_data_mrr_sub1(){
     // Fire off data
 	mrrv10_r11.MRR_RAD_FSM_EN = 1;  //Start BB
 	mbus_remote_register_write(MRR_ADDR,0x11,mrrv10_r11.as_int);
-	
+
 	// Wait for radio response
 	WFI();
 	stop_timer32_timeout_check(0x3);
@@ -961,17 +961,6 @@ static void send_radio_data_mrr_sub1(){
 
 	mrrv10_r11.MRR_RAD_FSM_EN = 0;
 	mbus_remote_register_write(MRR_ADDR,0x11,mrrv10_r11.as_int);
-
-	// FIXME: Read Current CFO counter value
-    set_halt_until_mbus_rx();
-    mbus_remote_register_read(MRR_ADDR,0x20,3); // CNT_VALUE_EXT
-    set_halt_until_mbus_tx();
-	
-	// FIXME: Reset CFO counter
-	mrrv10_r00.MRR_TRX_DIV_EN = 0;
-	mrrv10_r00.MRR_TRX_DIV_RESETN = 0;
-    mbus_remote_register_write(MRR_ADDR,0x00,mrrv10_r00.as_int);
-
 }
 
 static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefix, uint32_t radio_data){
@@ -1482,8 +1471,7 @@ static void operation_init(void){
 	mrrv10_r13.MRR_RAD_FSM_TX_MODE = 3; //code rate 0:4 1:3 2:2 3:1(baseline) 4:1/2 5:1/3 6:1/4
 	mbus_remote_register_write(MRR_ADDR,0x13,mrrv10_r13.as_int);
 
-    //mrrv10_r04.LDO_SEL_VOUT = 4; // New for MRRv10 (Gyouho's original code)
-    mrrv10_r04.LDO_SEL_VOUT = 0; // New for MRRv10 (Strongest LDO setting for CFO counter debugging)
+    mrrv10_r04.LDO_SEL_VOUT = 4; // New for MRRv10
     mbus_remote_register_write(MRR_ADDR,0x04,mrrv10_r04.as_int);
 	// Mbus return address
 	mbus_remote_register_write(MRR_ADDR,0x1E,0x1002);
