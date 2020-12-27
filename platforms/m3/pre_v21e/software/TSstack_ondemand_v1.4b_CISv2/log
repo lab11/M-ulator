@@ -1,0 +1,280 @@
+
+In order to read out from memory (16 words)
+
+MMIO Start Addr: 0xA0002000
+MMIO Num Words : 4
+MMIO Data Array: 0xA400000F
+                 0x00003FC0
+                 0x00000000
+                 0x00000023
+
+For 32 words: use 0xA400001F
+                  0x00003F80
+
+Cortex M0 Core Registers
+
+Low Registers: R0 - R7
+High Registers: R8 - R12
+Stack Pointer: SP (R13): PSP, MSP
+Link Register: LR (R14)
+Program Counter: PC (R15)
+Special Registers: PSR (Program Status Register)
+                   PRIMASK (Interrupt Mask Register)
+                   CONTROL (Control Register)
+
+
+
+try1: does not come out of handler_ext_int_wakeup
+try2: does not come out of handler_ext_int_wakeup
+try3: pass
+try4: nested fuction call in handler_ext_int_wakeup
+      -> does not come out from the last function (test3)
+
+              PREv21E
+        3FD4: init.val
+        3FD8: 000000AF
+        3FDC: 00000001
+        3FE0: 00000009
+        3FE4: E000E100
+        3FE8: FFFFFFFF
+        3FEC: 00000191
+        3FF0: 000000A8
+        3FF4: 01000000
+        3FF8: FFFFFFFF
+        3FFC: 000000A7
+
+      push seems not working (except the one in main)
+
+try5: nested function call in main
+      -> pass
+    
+              PREv21E
+        3F80: 13DDF7EA
+        3F84: F2B69F4E
+        3F88: 9E9A73DC
+        3F8C: 8E2BB15E
+        3F90: 74033FEE
+        3F94: F4B14F38
+        3F98: 93E6D8CB
+        3F9C: FBE2F33A
+        3FA0: 7DCCFECE
+        3FA4: 9E628724
+        3FA8: 2CFD0530
+        3FAC: B77ADAAE
+        3FB0: DFFB2B02
+        3FB4: E1B78FEA
+        3FB8: 00000003
+        3FBC: 00000005
+        3FC0: 00000007
+        3FC4: 00000109
+        3FC8: 00000005
+        3FCC: 00000001
+        3FD0: 00000004
+        3FD4: 00000003
+        3FD8: 00000002
+        3FDC: 00000141
+        3FE0: 00000004
+        3FE4: FFFFFFFF
+        3FE8: FFFFFFFF
+        3FEC: FFFFFFFF
+        3FF0: FFFFFFFF
+        3FF4: 00000189
+        3FF8: FFFFFFFF
+        3FFC: 000000A7
+
+        TIP: The last 2 words in memory are not really used or meaningful. 
+             So the initial stack pointer value could be (MEM last address + 0xC)
+             rather than (MEM last address + 0x4).
+
+try6: try5 + operation_init/enumerate
+        -> pass
+
+        It has several push/pop instructions, and it still works well.
+        It just does not have a function call in the interrupt handler.
+
+        
+try7: try6 + move some instruction into if (enumerate)  + added gocep IRQ handler w/ a function call
+        -> initial EP programming works fine.
+
+        CASE 1) init EP program 
+                   PASS
+                -> wait until mbus timeout
+                -> GOC trigger w/ Gen IRQ
+                   FAIL; it is stuck in handler_ext_int_gocep
+                -> wait until mbus timeout
+                -> GOC trigger for MEM read w/ Gen IRQ
+                   FAIL; After the successful MEM_READ, it is stuck in handler_ext_int_gocep
+                -> wait until mbus timeout
+
+                MBus Log:
+                    12/18/2020 17:08:11.532 0x01, 0x2FFFF0 [EOM, ACK]
+                    12/18/2020 17:08:03.671 0xA5, 0x00000001 [EOM, No ACK]
+                    12/18/2020 17:08:03.670 0xAF, 0x00000000 [EOM, No ACK]
+                    12/18/2020 17:08:03.670 0xA4, 0x13DDF7EA_F2B69F0E_9E9A73DC_8E2BB15E_74033FFF_F4BD4F18_13E6D9CB_FBE2F33A_6DCCFECE_9E628724_2CFD0130_B77ADAEE_DFFB2B02_E1B78FEA_00000003_00000005_00000007_00000135_00000005_00000001_00000004_00000003_00000001_00000000_00000005_00000228_FFFFFFFF_000001DF_000001E6_01000000_FFFFFFFF_000000A7 [EOM, No ACK]
+                    12/18/2020 17:08:03.017 0x, 0x [TRX Error (01)]
+                    12/18/2020 17:08:00.759 0x01, 0x2FFFF0 [EOM, ACK]
+                    12/18/2020 17:07:52.823 0xA5, 0x00000001 [EOM, No ACK]
+                    12/18/2020 17:07:52.822 0xAF, 0x00000000 [EOM, No ACK]
+                    12/18/2020 17:07:52.272 0x, 0x [TRX Error (01)]
+                    12/18/2020 17:07:49.293 0x01, 0x2FFFF0 [EOM, ACK]
+                    12/18/2020 17:07:41.363 0xAF, 0xFFFFFFFF [EOM, No ACK]
+                    12/18/2020 17:07:41.362 0xAF, 0x00000004 [EOM, No ACK]
+                    12/18/2020 17:07:41.361 0x00, 0x10130037 [EOM, ACK]
+                    12/18/2020 17:07:41.360 0x00, 0x27 [EOM, ACK]
+                    12/18/2020 17:07:41.360 0xAF, 0x00000003 [EOM, No ACK]
+                    12/18/2020 17:07:41.359 0xAF, 0x00000002 [EOM, No ACK]
+                    12/18/2020 17:07:41.358 0xAF, 0x00000001 [EOM, No ACK]
+                    12/18/2020 17:07:41.357 0xA0, 0x00000004 [EOM, No ACK]
+                    12/18/2020 17:07:41.356 0xA0, 0x00000003 [EOM, No ACK]
+                    12/18/2020 17:07:41.355 0xA1, 0x00000005 [EOM, No ACK]
+                    12/18/2020 17:07:41.353 0xA1, 0x00000007 [EOM, No ACK]
+                    12/18/2020 17:07:41.352 0xA2, 0x00000008 [EOM, No ACK]
+                    12/18/2020 17:07:41.351 0xA2, 0x0000000C [EOM, No ACK]
+                    12/18/2020 17:07:41.349 0xA2, 0x0000000C [EOM, No ACK]
+                    12/18/2020 17:07:41.348 0xA2, 0x00000008 [EOM, No ACK]
+                    12/18/2020 17:07:41.347 0xA1, 0x00000005 [EOM, No ACK]
+                    12/18/2020 17:07:41.345 0xA1, 0x00000003 [EOM, No ACK]
+                    12/18/2020 17:07:41.344 0xA0, 0x00000002 [EOM, No ACK]
+                    12/18/2020 17:07:41.343 0xA0, 0x00000001 [EOM, No ACK]
+                    12/18/2020 17:07:41.341 0xAF, 0x00000000 [EOM, No ACK]
+                    12/18/2020 17:07:39.624 0x, 0x [TRX Error (01)] 
+
+        CASE 2) init EP program 
+                   PASS
+                -> BEFORE mbus timeout
+                -> GOC trigger for MEM read w/ Gen IRQ
+                   FAIL; After the successful MEM_READ, it is stuck in handler_ext_int_gocep
+                -> wait until mbus timeout
+
+                MBus Log:
+                    12/18/2020 17:12:24.156 0x01, 0x2FFFF0 [EOM, ACK]
+                    12/18/2020 17:12:16.300 0xA5, 0x00000001 [EOM, No ACK]
+                    12/18/2020 17:12:16.300 0xA4, 0x13DDF7EA_F2B6BF4E_9E9A73DC_8A2BB15E_74033FEF_F4B54F18_1BE6D8CB_FBE2F33A_6DCDFECE_9E628724_2CFD05B0_B77ADAEE_DFFB2B02_E1B79FEA_00000003_00000005_00000007_00000135_00000005_00000001_00000004_00000003_00000002_0000016D_00000004_FFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF_0000020F_FFFFFFFF_000000A7 [EOM, No ACK]
+                    12/18/2020 17:12:14.856 0xAF, 0xFFFFFFFF [EOM, No ACK]
+                    12/18/2020 17:12:14.855 0xAF, 0x00000004 [EOM, No ACK]
+                    12/18/2020 17:12:14.853 0x00, 0x10130037 [EOM, ACK]
+                    12/18/2020 17:12:14.852 0x00, 0x27 [EOM, ACK]
+                    12/18/2020 17:12:14.851 0xAF, 0x00000003 [EOM, No ACK]
+                    12/18/2020 17:12:14.849 0xAF, 0x00000002 [EOM, No ACK]
+                    12/18/2020 17:12:14.848 0xAF, 0x00000001 [EOM, No ACK]
+                    12/18/2020 17:12:14.847 0xA0, 0x00000004 [EOM, No ACK]
+                    12/18/2020 17:12:14.845 0xA0, 0x00000003 [EOM, No ACK]
+                    12/18/2020 17:12:14.844 0xA1, 0x00000005 [EOM, No ACK]
+                    12/18/2020 17:12:14.843 0xA1, 0x00000007 [EOM, No ACK]
+                    12/18/2020 17:12:14.841 0xA2, 0x00000008 [EOM, No ACK]
+                    12/18/2020 17:12:14.840 0xA2, 0x0000000C [EOM, No ACK]
+                    12/18/2020 17:12:14.839 0xA2, 0x0000000C [EOM, No ACK]
+                    12/18/2020 17:12:14.837 0xA2, 0x00000008 [EOM, No ACK]
+                    12/18/2020 17:12:14.836 0xA1, 0x00000005 [EOM, No ACK]
+                    12/18/2020 17:12:14.835 0xA1, 0x00000003 [EOM, No ACK]
+                    12/18/2020 17:12:14.833 0xA0, 0x00000002 [EOM, No ACK]
+                    12/18/2020 17:12:14.832 0xA0, 0x00000001 [EOM, No ACK]
+                    12/18/2020 17:12:14.830 0xAF, 0x00000000 [EOM, No ACK]
+                    12/18/2020 17:12:13.113 0x, 0x [TRX Error (01)]
+
+        CASE 3) init EP program 
+                   PASS
+                -> wait until mbus timeout
+                -> GOC trigger w/ Gen IRQ
+                   FAIL; it is stuck in handler_ext_int_gocep
+                -> BEFORE until mbus timeout
+                -> GOC trigger for MEM read w/ Gen IRQ
+                   FAIL; After the successful MEM_READ, it is stuck in handler_ext_int_gocep; 
+                   seems like it was still in the previous 'stuck' situation, which makes sense.
+                -> wait until mbus timeout
+
+                MBus Log:
+                    12/18/2020 17:15:07.929 0x01, 0x2FFFF0 [EOM, ACK]
+                    12/18/2020 17:15:00.071 0xA4, 0x13DDF7EA_F2B69F4E_9E9A73DC_CA2BB15E_74033FEE_F4BD4F18_1BE6D8CB_FBE2F33A_7DCCFECE_9E628724_2CFC05B0_B77AFAAE_DFFB2B02_E1F79FEA_00000003_00000005_00000007_00000135_00000005_00000001_00000004_00000003_00000001_00000000_00000005_00000228_FFFFFFFF_000001DF_000001E6_01000000_FFFFFFFF_000000A7 [EOM, No ACK]
+                    12/18/2020 17:14:57.380 0xA5, 0x00000001 [EOM, No ACK]
+                    12/18/2020 17:14:57.378 0xAF, 0x00000000 [EOM, No ACK]
+                    12/18/2020 17:14:56.829 0x, 0x [TRX Error (01)]
+                    12/18/2020 17:14:52.405 0x01, 0x2FFFF0 [EOM, ACK]
+                    12/18/2020 17:14:44.477 0xAF, 0xFFFFFFFF [EOM, No ACK]
+                    12/18/2020 17:14:44.477 0xAF, 0x00000004 [EOM, No ACK]
+                    12/18/2020 17:14:44.475 0x00, 0x10130037 [EOM, ACK]
+                    12/18/2020 17:14:44.474 0x00, 0x27 [EOM, ACK]
+                    12/18/2020 17:14:44.473 0xAF, 0x00000003 [EOM, No ACK]
+                    12/18/2020 17:14:44.472 0xAF, 0x00000002 [EOM, No ACK]
+                    12/18/2020 17:14:44.470 0xAF, 0x00000001 [EOM, No ACK]
+                    12/18/2020 17:14:44.469 0xA0, 0x00000004 [EOM, No ACK]
+                    12/18/2020 17:14:44.468 0xA0, 0x00000003 [EOM, No ACK]
+                    12/18/2020 17:14:44.466 0xA1, 0x00000005 [EOM, No ACK]
+                    12/18/2020 17:14:44.465 0xA1, 0x00000007 [EOM, No ACK]
+                    12/18/2020 17:14:44.464 0xA2, 0x00000008 [EOM, No ACK]
+                    12/18/2020 17:14:44.462 0xA2, 0x0000000C [EOM, No ACK]
+                    12/18/2020 17:14:44.461 0xA2, 0x0000000C [EOM, No ACK]
+                    12/18/2020 17:14:44.460 0xA2, 0x00000008 [EOM, No ACK]
+                    12/18/2020 17:14:44.458 0xA1, 0x00000005 [EOM, No ACK]
+                    12/18/2020 17:14:44.457 0xA1, 0x00000003 [EOM, No ACK]
+                    12/18/2020 17:14:44.456 0xA0, 0x00000002 [EOM, No ACK]
+                    12/18/2020 17:14:44.454 0xA0, 0x00000001 [EOM, No ACK]
+                    12/18/2020 17:14:44.453 0xAF, 0x00000000 [EOM, No ACK]
+                    12/18/2020 17:14:42.734 0x, 0x [TRX Error (01)]
+
+        CASE 4) init EP program 
+                   PASS
+                -> wait until mbus timeout
+                -> GOC trigger w/ Run CPU
+                   PASS
+                -> wait until mbus timeout
+                -> GOC trigger for MEM read w/ Run CPU
+                   PASS
+                -> wait until mbus timeout
+
+        Conclusion: 'push' in any(?) interrupt handler do not work? See try8 below.
+
+try8: try7 + remove the function call from gocep IRQ handler.
+
+        CASE 1) init EP program 
+                   PASS
+                -> wait until mbus timeout
+                -> GOC trigger w/ Gen IRQ
+                   PASS
+                -> wait until mbus timeout
+                -> GOC trigger for MEM read w/ Gen IRQ
+                   PASS
+                -> wait until mbus timeout
+
+                MBus Log:
+                    12/18/2020 17:22:35.520 0x01, 0x2FFFF0 [EOM, ACK]
+                    12/18/2020 17:22:27.633 0xAF, 0xFFFFFFFF [EOM, No ACK]
+                    12/18/2020 17:22:27.632 0xAF, 0x00000000 [EOM, No ACK]
+                    12/18/2020 17:22:27.632 0xA4, 0x13DDF7EA_F2B69D4E_9E9A73DC_8A2BB1DE_74033FFE_F4B94F18_13E6D8CB_FBE3F33A_7FCCFECE_9E628724_2CFC0530_B77ADAAE_DFFB2B02_E1B79FEA_00000003_00000005_00000007_00000135_00000005_00000001_00000004_00000003_00000001_00000000_00000005_00000228_FFFFFFFF_000001DF_000001E6_01000000_FFFFFFFF_000000A7 [EOM, No ACK]
+                    12/18/2020 17:22:27.005 0x, 0x [TRX Error (01)]
+                    12/18/2020 17:22:25.181 0x01, 0x2FFFF0 [EOM, ACK]
+                    12/18/2020 17:22:17.243 0xAF, 0xFFFFFFFF [EOM, No ACK]
+                    12/18/2020 17:22:17.242 0xAF, 0x00000000 [EOM, No ACK]
+                    12/18/2020 17:22:16.694 0x, 0x [TRX Error (01)]
+                    12/18/2020 17:22:13.986 0x01, 0x2FFFF0 [EOM, ACK]
+                    12/18/2020 17:22:06.058 0xAF, 0xFFFFFFFF [EOM, No ACK]
+                    12/18/2020 17:22:06.056 0xAF, 0x00000004 [EOM, No ACK]
+                    12/18/2020 17:22:06.055 0x00, 0x10130037 [EOM, ACK]
+                    12/18/2020 17:22:06.053 0x00, 0x27 [EOM, ACK]
+                    12/18/2020 17:22:06.053 0xAF, 0x00000003 [EOM, No ACK]
+                    12/18/2020 17:22:06.051 0xAF, 0x00000002 [EOM, No ACK]
+                    12/18/2020 17:22:06.050 0xAF, 0x00000001 [EOM, No ACK]
+                    12/18/2020 17:22:06.049 0xA0, 0x00000004 [EOM, No ACK]
+                    12/18/2020 17:22:06.047 0xA0, 0x00000003 [EOM, No ACK]
+                    12/18/2020 17:22:06.046 0xA1, 0x00000005 [EOM, No ACK]
+                    12/18/2020 17:22:06.045 0xA1, 0x00000007 [EOM, No ACK]
+                    12/18/2020 17:22:06.043 0xA2, 0x00000008 [EOM, No ACK]
+                    12/18/2020 17:22:06.042 0xA2, 0x0000000C [EOM, No ACK]
+                    12/18/2020 17:22:06.041 0xA2, 0x0000000C [EOM, No ACK]
+                    12/18/2020 17:22:06.039 0xA2, 0x00000008 [EOM, No ACK]
+                    12/18/2020 17:22:06.038 0xA1, 0x00000005 [EOM, No ACK]
+                    12/18/2020 17:22:06.037 0xA1, 0x00000003 [EOM, No ACK]
+                    12/18/2020 17:22:06.035 0xA0, 0x00000002 [EOM, No ACK]
+                    12/18/2020 17:22:06.034 0xA0, 0x00000001 [EOM, No ACK]
+                    12/18/2020 17:22:06.033 0xAF, 0x00000000 [EOM, No ACK]
+                    12/18/2020 17:22:04.315 0x, 0x [TRX Error (01)]
+                
+try9: 'for' loop in the wakeup IRQ handler to test branch/comparisons.
+        -> Eventually FAIL.
+        The branch/comparisons for the for loop works,
+        but it is eventually stuck at the end of the IRQ handler.
+        This is the same issue - the 'push' instruction at the beginning of the IRQ handler
+        does not seem to work.
+
+try10: a workaround to implement the IRQ handling
+

@@ -3,14 +3,13 @@
 //Description: Pressure Sensing System with Seiko Battery
 //            Based on 'Tstack_Ondemand_v6.5', 'TSstack_ondemand_v1.4b'
 //			  v6.6: Using CISv1A (PREv20E)
-//					Incorporating Yejoong's new PMU SAR Ratio change function (FIXME)
 //					Fix SAR ratio if the temp is above ~40C (FIXME)
 //					No harvester
 //*******************************************************************
 #include "PREv20.h"
 #include "PREv20_RF.h"
 #include "mbus.h"
-#include "SNTv4_RF.h"
+#include "SNTv2_RF.h"
 #include "HRVv5.h"
 #include "PMUv7_RF.h"
 #include "SRRv4_RF.h"
@@ -142,14 +141,14 @@ volatile rdcv4_r28_t rdcv4_r28 = RDCv4_R28_DEFAULT;
 volatile rdcv4_r2B_t rdcv4_r2B = RDCv4_R2B_DEFAULT;
 volatile rdcv4_r2C_t rdcv4_r2C = RDCv4_R2C_DEFAULT;
 
-volatile sntv4_r00_t sntv4_r00 = SNTv4_R00_DEFAULT;
-volatile sntv4_r01_t sntv4_r01 = SNTv4_R01_DEFAULT;
-volatile sntv4_r03_t sntv4_r03 = SNTv4_R03_DEFAULT;
-volatile sntv4_r08_t sntv4_r08 = SNTv4_R08_DEFAULT;
-volatile sntv4_r09_t sntv4_r09 = SNTv4_R09_DEFAULT;
-volatile sntv4_r0A_t sntv4_r0A = SNTv4_R0A_DEFAULT;
-volatile sntv4_r0B_t sntv4_r0B = SNTv4_R0B_DEFAULT;
-volatile sntv4_r17_t sntv4_r17 = SNTv4_R17_DEFAULT;
+volatile sntv2_r00_t sntv2_r00 = SNTv2_R00_DEFAULT;
+volatile sntv2_r01_t sntv2_r01 = SNTv2_R01_DEFAULT;
+volatile sntv2_r03_t sntv2_r03 = SNTv2_R03_DEFAULT;
+volatile sntv2_r08_t sntv2_r08 = SNTv2_R08_DEFAULT;
+volatile sntv2_r09_t sntv2_r09 = SNTv2_R09_DEFAULT;
+volatile sntv2_r0A_t sntv2_r0A = SNTv2_R0A_DEFAULT;
+//volatile sntv2_r0B_t sntv2_r0B = SNTv2_R0B_DEFAULT;
+volatile sntv2_r17_t sntv2_r17 = SNTv2_R17_DEFAULT;
 
 volatile srrv4_r00_t srrv4_r00 = SRRv4_R00_DEFAULT;
 volatile srrv4_r01_t srrv4_r01 = SRRv4_R01_DEFAULT;
@@ -277,6 +276,30 @@ static void pmu_reg_write (uint32_t reg_addr, uint32_t reg_data) {
     set_halt_until_mbus_trx();
     mbus_remote_register_write(PMU_ADDR,reg_addr,reg_data);
     set_halt_until_mbus_tx();
+}
+
+static void pmu_set_sar_override(uint32_t val){
+	// SAR_RATIO_OVERRIDE
+    pmu_reg_write(0x05, //default 12'h000
+		( (0 << 13) // Enables override setting [12] (1'b1)
+		| (0 << 12) // Let VDD_CLK always connected to vbat
+		| (1 << 11) // Enable override setting [10] (1'h0)
+		| (0 << 10) // Have the converter have the periodic reset (1'h0)
+		| (1 << 9) // Enable override setting [8] (1'h0)
+		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+		| (1 << 7) // Enable override setting [6:0] (1'h0)
+		| (val) 		// Binary converter's conversion ratio (7'h00)
+	));
+    pmu_reg_write(0x05, //default 12'h000
+		( (1 << 13) // Enables override setting [12] (1'b1)
+		| (0 << 12) // Let VDD_CLK always connected to vbat
+		| (1 << 11) // Enable override setting [10] (1'h0)
+		| (0 << 10) // Have the converter have the periodic reset (1'h0)
+		| (1 << 9) // Enable override setting [8] (1'h0)
+		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+		| (1 << 7) // Enable override setting [6:0] (1'h0)
+		| (val) 		// Binary converter's conversion ratio (7'h00)
+	));
 }
 
 void pmu_prep_sar_ratio (void) {
@@ -747,7 +770,7 @@ inline static void pmu_set_clk_init(){
 		| (0 << 7) // Enable override setting [6:0] (1'h0)
 		| (0x45) 		// Binary converter's conversion ratio (7'h00)
 	));
-	pmu_set_sar_ratio(0x45);
+	pmu_set_sar_override(0x45);
     pmu_set_adc_period(1); // 0x100 about 1 min for 1/2/1 1P2 setting
 }
 
@@ -866,51 +889,51 @@ inline static void pmu_parking_decision_3v_battery(){
 	
 	// Battery > 3.0V
 	if (read_data_batadc < (PMU_ADC_3P0_VAL)){
-		pmu_set_sar_ratio(0x3C);
+		pmu_set_sar_override(0x3C);
 
 	// Battery 2.9V - 3.0V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 4){
-		pmu_set_sar_ratio(0x3F);
+		pmu_set_sar_override(0x3F);
 
 	// Battery 2.8V - 2.9V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 8){
-		pmu_set_sar_ratio(0x41);
+		pmu_set_sar_override(0x41);
 
 	// Battery 2.7V - 2.8V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 12){
-		pmu_set_sar_ratio(0x43);
+		pmu_set_sar_override(0x43);
 
 	// Battery 2.6V - 2.7V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 17){
-		pmu_set_sar_ratio(0x45);
+		pmu_set_sar_override(0x45);
 
 	// Battery 2.5V - 2.6V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 21){
-		pmu_set_sar_ratio(0x48);
+		pmu_set_sar_override(0x48);
 
 	// Battery 2.4V - 2.5V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 27){
-		pmu_set_sar_ratio(0x4B);
+		pmu_set_sar_override(0x4B);
 
 	// Battery 2.3V - 2.4V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 32){
-		pmu_set_sar_ratio(0x4E);
+		pmu_set_sar_override(0x4E);
 
 	// Battery 2.2V - 2.3V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 39){
-		pmu_set_sar_ratio(0x51);
+		pmu_set_sar_override(0x51);
 
 	// Battery 2.1V - 2.2V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 46){
-		pmu_set_sar_ratio(0x56);
+		pmu_set_sar_override(0x56);
 
 	// Battery 2.0V - 2.1V
 	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 53){
-		pmu_set_sar_ratio(0x5A);
+		pmu_set_sar_override(0x5A);
 
 	// Battery <= 2.0V
 	}else{
-		pmu_set_sar_ratio(0x5F);
+		pmu_set_sar_override(0x5F);
 	}
 	
 }
@@ -932,53 +955,53 @@ inline static void pmu_adc_read_latest(){
 }
 
 //***************************************************
-// Temp Sensor Functions (SNTv4)
+// Temp Sensor Functions (SNTv4 retrofit to SNTv2)
 //***************************************************
 
 static void temp_sensor_start(){
-    sntv4_r01.TSNS_RESETn = 1;
-    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
+    sntv2_r01.TSNS_RESETn = 1;
+    mbus_remote_register_write(SNT_ADDR,1,sntv2_r01.as_int);
 }
 static void temp_sensor_reset(){
-    sntv4_r01.TSNS_RESETn = 0;
-    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
+    sntv2_r01.TSNS_RESETn = 0;
+    mbus_remote_register_write(SNT_ADDR,1,sntv2_r01.as_int);
 }
 static void temp_sensor_power_on(){
     // Turn on digital block
-    sntv4_r01.TSNS_SEL_LDO = 1;
-    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
+    sntv2_r01.TSNS_SEL_LDO = 1;
+    mbus_remote_register_write(SNT_ADDR,1,sntv2_r01.as_int);
     // Turn on analog block
-    sntv4_r01.TSNS_EN_SENSOR_LDO = 1;
-    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
+    sntv2_r01.TSNS_EN_SENSOR_LDO = 1;
+    mbus_remote_register_write(SNT_ADDR,1,sntv2_r01.as_int);
 
     delay(MBUS_DELAY);
 
     // Release isolation
-    sntv4_r01.TSNS_ISOLATE = 0;
-    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
+    sntv2_r01.TSNS_ISOLATE = 0;
+    mbus_remote_register_write(SNT_ADDR,1,sntv2_r01.as_int);
 }
 static void temp_sensor_power_off(){
-    sntv4_r01.TSNS_RESETn = 0;
-    sntv4_r01.TSNS_SEL_LDO = 0;
-    sntv4_r01.TSNS_EN_SENSOR_LDO = 0;
-    sntv4_r01.TSNS_ISOLATE = 1;
-    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
+    sntv2_r01.TSNS_RESETn = 0;
+    sntv2_r01.TSNS_SEL_LDO = 0;
+    sntv2_r01.TSNS_EN_SENSOR_LDO = 0;
+    sntv2_r01.TSNS_ISOLATE = 1;
+    mbus_remote_register_write(SNT_ADDR,1,sntv2_r01.as_int);
 }
 static void sns_ldo_vref_on(){
-    sntv4_r00.LDO_EN_VREF    = 1;
-    mbus_remote_register_write(SNT_ADDR,0,sntv4_r00.as_int);
+    sntv2_r00.LDO_EN_VREF    = 1;
+    mbus_remote_register_write(SNT_ADDR,0,sntv2_r00.as_int);
 }
 
 static void sns_ldo_power_on(){
-    sntv4_r00.LDO_EN_IREF    = 1;
-    sntv4_r00.LDO_EN_LDO    = 1;
-    mbus_remote_register_write(SNT_ADDR,0,sntv4_r00.as_int);
+    sntv2_r00.LDO_EN_IREF    = 1;
+    sntv2_r00.LDO_EN_LDO    = 1;
+    mbus_remote_register_write(SNT_ADDR,0,sntv2_r00.as_int);
 }
 static void sns_ldo_power_off(){
-    sntv4_r00.LDO_EN_VREF    = 0;
-    sntv4_r00.LDO_EN_IREF    = 0;
-    sntv4_r00.LDO_EN_LDO    = 0;
-    mbus_remote_register_write(SNT_ADDR,0,sntv4_r00.as_int);
+    sntv2_r00.LDO_EN_VREF    = 0;
+    sntv2_r00.LDO_EN_IREF    = 0;
+    sntv2_r00.LDO_EN_LDO    = 0;
+    mbus_remote_register_write(SNT_ADDR,0,sntv2_r00.as_int);
 }
 
 static void snt_read_wup_counter(){
@@ -995,35 +1018,35 @@ static void snt_read_wup_counter(){
     
 static void snt_start_timer_presleep(){
 
-    sntv4_r09.TMR_IBIAS_REF = 0x4; // Default : 4'h4
-    mbus_remote_register_write(SNT_ADDR,0x09,sntv4_r09.as_int);
+    sntv2_r09.TMR_IBIAS_REF = 0x4; // Default : 4'h4
+    mbus_remote_register_write(SNT_ADDR,0x09,sntv2_r09.as_int);
 
 	// Release Power Gate
-	sntv4_r08.TMR_SLEEP = 0x0; // Default : 0x1
-	sntv4_r08.TMR_ISOLATE = 0x0; // Default : 0x1
-	mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
+	sntv2_r08.TMR_SLEEP = 0x0; // Default : 0x1
+	sntv2_r08.TMR_ISOLATE = 0x0; // Default : 0x1
+	mbus_remote_register_write(SNT_ADDR,0x08,sntv2_r08.as_int);
 
     // TIMER SELF_EN Disable 
-    sntv4_r09.TMR_SELF_EN = 0x0; // Default : 0x1
-    mbus_remote_register_write(SNT_ADDR,0x09,sntv4_r09.as_int);
+    sntv2_r09.TMR_SELF_EN = 0x0; // Default : 0x1
+    mbus_remote_register_write(SNT_ADDR,0x09,sntv2_r09.as_int);
 
     // EN_OSC 
-    sntv4_r08.TMR_EN_OSC = 0x1; // Default : 0x0
-    mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
+    sntv2_r08.TMR_EN_OSC = 0x1; // Default : 0x0
+    mbus_remote_register_write(SNT_ADDR,0x08,sntv2_r08.as_int);
 
     // Release Reset 
-    sntv4_r08.TMR_RESETB = 0x1; // Default : 0x0
-    sntv4_r08.TMR_RESETB_DIV = 0x1; // Default : 0x0
-    sntv4_r08.TMR_RESETB_DCDC = 0x1; // Default : 0x0
-    mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
+    sntv2_r08.TMR_RESETB = 0x1; // Default : 0x0
+    sntv2_r08.TMR_RESETB_DIV = 0x1; // Default : 0x0
+    sntv2_r08.TMR_RESETB_DCDC = 0x1; // Default : 0x0
+    mbus_remote_register_write(SNT_ADDR,0x08,sntv2_r08.as_int);
 
     // TIMER EN_SEL_CLK Reset 
-    sntv4_r08.TMR_EN_SELF_CLK = 0x1; // Default : 0x0
-    mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
+    sntv2_r08.TMR_EN_SELF_CLK = 0x1; // Default : 0x0
+    mbus_remote_register_write(SNT_ADDR,0x08,sntv2_r08.as_int);
 
     // TIMER SELF_EN 
-    sntv4_r09.TMR_SELF_EN = 0x1; // Default : 0x0
-    mbus_remote_register_write(SNT_ADDR,0x09,sntv4_r09.as_int);
+    sntv2_r09.TMR_SELF_EN = 0x1; // Default : 0x0
+    mbus_remote_register_write(SNT_ADDR,0x09,sntv2_r09.as_int);
     //delay(100000); 
 
     snt_timer_enabled = 1;
@@ -1031,33 +1054,33 @@ static void snt_start_timer_presleep(){
 
 static void snt_start_timer_postsleep(){
     // Turn off sloscillator
-    sntv4_r08.TMR_EN_OSC = 0x0; // Default : 0x0
-    mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
+    sntv2_r08.TMR_EN_OSC = 0x0; // Default : 0x0
+    mbus_remote_register_write(SNT_ADDR,0x08,sntv2_r08.as_int);
 }
 
 
 static void snt_stop_timer(){
 
     // EN_OSC
-    sntv4_r08.TMR_EN_OSC = 0x0; // Default : 0x0
+    sntv2_r08.TMR_EN_OSC = 0x0; // Default : 0x0
     // RESET
-    sntv4_r08.TMR_EN_SELF_CLK = 0x0; // Default : 0x0
-    sntv4_r08.TMR_RESETB = 0x0;// Default : 0x0
-    sntv4_r08.TMR_RESETB_DIV = 0x0; // Default : 0x0
-    sntv4_r08.TMR_RESETB_DCDC = 0x0; // Default : 0x0
-    mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
+    sntv2_r08.TMR_EN_SELF_CLK = 0x0; // Default : 0x0
+    sntv2_r08.TMR_RESETB = 0x0;// Default : 0x0
+    sntv2_r08.TMR_RESETB_DIV = 0x0; // Default : 0x0
+    sntv2_r08.TMR_RESETB_DCDC = 0x0; // Default : 0x0
+    mbus_remote_register_write(SNT_ADDR,0x08,sntv2_r08.as_int);
     snt_timer_enabled = 0;
 
 	// Enable Power Gate
-	sntv4_r08.TMR_SLEEP = 0x0; // Default : 0x1
-	sntv4_r08.TMR_ISOLATE = 0x0; // Default : 0x1
-	mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
+	sntv2_r08.TMR_SLEEP = 0x0; // Default : 0x1
+	sntv2_r08.TMR_ISOLATE = 0x0; // Default : 0x1
+	mbus_remote_register_write(SNT_ADDR,0x08,sntv2_r08.as_int);
 
-    sntv4_r09.TMR_IBIAS_REF = 0x0; // Default : 4'h4
-    mbus_remote_register_write(SNT_ADDR,0x09,sntv4_r09.as_int);
+    sntv2_r09.TMR_IBIAS_REF = 0x0; // Default : 4'h4
+    mbus_remote_register_write(SNT_ADDR,0x09,sntv2_r09.as_int);
 
-    sntv4_r17.WUP_ENABLE = 0x0; // Default : 0x
-    mbus_remote_register_write(SNT_ADDR,0x17,sntv4_r17.as_int);
+    sntv2_r17.WUP_ENABLE = 0x0; // Default : 0x
+    mbus_remote_register_write(SNT_ADDR,0x17,sntv2_r17.as_int);
 
 }
 
@@ -1068,8 +1091,8 @@ static void snt_set_wup_timer(uint32_t sleep_count){
     mbus_remote_register_write(SNT_ADDR,0x19,snt_wup_counter_cur>>24);
     mbus_remote_register_write(SNT_ADDR,0x1A,snt_wup_counter_cur & 0xFFFFFF);
     
-    sntv4_r17.WUP_ENABLE = 0x1; // Default : 0x
-    mbus_remote_register_write(SNT_ADDR,0x17,sntv4_r17.as_int);
+    sntv2_r17.WUP_ENABLE = 0x1; // Default : 0x
+    mbus_remote_register_write(SNT_ADDR,0x17,sntv2_r17.as_int);
 
 }
 
@@ -1565,11 +1588,11 @@ static void operation_init(void){
 
     // Temp Sensor Settings --------------------------------------
     // sntv4_r01
-    sntv4_r01.TSNS_RESETn = 0;
-    sntv4_r01.TSNS_EN_IRQ = 1;
-    sntv4_r01.TSNS_BURST_MODE = 0;
-    sntv4_r01.TSNS_CONT_MODE = 0;
-    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
+    sntv2_r01.TSNS_RESETn = 0;
+    sntv2_r01.TSNS_EN_IRQ = 1;
+    sntv2_r01.TSNS_BURST_MODE = 0;
+    sntv2_r01.TSNS_CONT_MODE = 0;
+    mbus_remote_register_write(SNT_ADDR,1,sntv2_r01.as_int);
 
 /*
     // Set temp sensor conversion time
@@ -1598,13 +1621,13 @@ static void operation_init(void){
 
 */
     // to reduce standby current
-    sntv4_r09.TMR_IBIAS_REF = 0x0; // Default : 4'h4
-    mbus_remote_register_write(SNT_ADDR,0x09,sntv4_r09.as_int);
+    sntv2_r09.TMR_IBIAS_REF = 0x0; // Default : 4'h4
+    mbus_remote_register_write(SNT_ADDR,0x09,sntv2_r09.as_int);
 
     // Wakeup Counter
-    sntv4_r17.WUP_CLK_SEL = 0x0; 
-    sntv4_r17.WUP_AUTO_RESET = 0x0; // Automatically reset counter to 0 upon sleep 
-    mbus_remote_register_write(SNT_ADDR,0x17,sntv4_r17.as_int);
+    sntv2_r17.WUP_CLK_SEL = 0x0; 
+    sntv2_r17.WUP_AUTO_RESET = 0x0; // Automatically reset counter to 0 upon sleep 
+    mbus_remote_register_write(SNT_ADDR,0x17,sntv2_r17.as_int);
 
     // RDCv3 Settings --------------------------------------
     // Common settings
@@ -1765,7 +1788,7 @@ static void operation_init(void){
 
 
 //***************************************************
-// Temperature measurement operation (SNTv4)
+// Temperature measurement operation (SNTv4 retrofit to SNTv2)
 //***************************************************
 static void operation_sns_run(void){
 
@@ -1810,13 +1833,13 @@ static void operation_sns_run(void){
 		if (read_data_temp < PMU_40C_threshold_sns){
 			pmu_parking_decision_3v_battery();
 		}else{
-			// Detect when temp becomes higher than 40C
+			// Detect when temp becomes higher than 40C & lock SAR Ratio
 			if (temp_storage_latest < PMU_40C_threshold_sns){
 				
 				// Read the current SAR RATIO
 				pmu_reg_write(0x00,0x04);
 				uint32_t cur_sar_ratio   = *REG0 & 0x7F;
-				pmu_set_sar_ratio(cur_sar_ratio + 4);
+				pmu_set_sar_override(cur_sar_ratio + 4);
 			}
 		}
 		temp_storage_latest = read_data_temp;
@@ -2003,19 +2026,19 @@ static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t 
         radio_power_on();
     }
 
-    if ((sntv4_r0A.TMR_DIFF_CON == 0x3FFF) && ((exec_count_irq & 0xF) == 0xF)){
+    if ((sntv2_r0A.TMR_DIFF_CON == 0x3FFF) && ((exec_count_irq & 0xF) == 0xF)){
         // Stop condition
         exec_count_irq = 0;
-        sntv4_r0A.TMR_DIFF_CON = 0x3FFF; // Default: 0x3FFF
+        sntv2_r0A.TMR_DIFF_CON = 0x3FFF; // Default: 0x3FFF
         // radio
-        send_radio_data_srr(1,0xB0,*REG_CHIP_ID,sntv4_r0A.TMR_DIFF_CON,exec_count_irq,0);    
+        send_radio_data_srr(1,0xB0,*REG_CHIP_ID,sntv2_r0A.TMR_DIFF_CON,exec_count_irq,0);    
         // Go to sleep without timer
         operation_sleep_notimer();
     }else{
         
         if ((exec_count_irq & 0xF) == 0xF){ // every 16 iterations
-            sntv4_r0A.TMR_DIFF_CON = sntv4_r0A.TMR_DIFF_CON<<1 | 0x1; // Default: 0x3FFB
-            mbus_remote_register_write(SNT_ADDR,0x0A,sntv4_r0A.as_int);
+            sntv2_r0A.TMR_DIFF_CON = sntv2_r0A.TMR_DIFF_CON<<1 | 0x1; // Default: 0x3FFB
+            mbus_remote_register_write(SNT_ADDR,0x0A,sntv2_r0A.as_int);
         }
 
         exec_count_irq++;
@@ -2024,8 +2047,8 @@ static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t 
         pmu_set_sleep_radio();
 
             // Tune R for TC
-            sntv4_r0A.TMR_DIFF_CON = start_val; // Default: 0x3FFB
-            mbus_remote_register_write(SNT_ADDR,0x0A,sntv4_r0A.as_int);
+            sntv2_r0A.TMR_DIFF_CON = start_val; // Default: 0x3FFB
+            mbus_remote_register_write(SNT_ADDR,0x0A,sntv2_r0A.as_int);
 
             snt_start_timer_presleep();
             // Go to sleep for >3s for timer stabilization
@@ -2050,7 +2073,7 @@ static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t 
             operation_sleep_noirqreset();
         }else{
             // radio
-            send_radio_data_srr(1,0xB0,*REG_CHIP_ID,sntv4_r0A.TMR_DIFF_CON, exec_count_irq,0);
+            send_radio_data_srr(1,0xB0,*REG_CHIP_ID,sntv2_r0A.TMR_DIFF_CON, exec_count_irq,0);
             snt_set_wup_timer(WAKEUP_PERIOD_CONT_USER);
             operation_sleep_noirqreset();
         }
@@ -2227,8 +2250,8 @@ int main() {
 
     }else if(wakeup_data_header == 0x13){
     // Tune SNT Timer R for TC
-        sntv4_r0A.TMR_DIFF_CON = wakeup_data & 0x3FFF; // Default: 0x3FFB
-        mbus_remote_register_write(SNT_ADDR,0x0A,sntv4_r0A.as_int);
+        sntv2_r0A.TMR_DIFF_CON = wakeup_data & 0x3FFF; // Default: 0x3FFB
+        mbus_remote_register_write(SNT_ADDR,0x0A,sntv2_r0A.as_int);
 
     }else if(wakeup_data_header == 0x14){
         // Update SNT wakeup counter value for 0.5s
@@ -2310,8 +2333,8 @@ int main() {
 
     }else if(wakeup_data_header == 0x25){
         // Change the conversion time of the temp sensor
-        sntv4_r03.TSNS_SEL_CONV_TIME = wakeup_data & 0xF; // Default: 0x6
-        mbus_remote_register_write(SNT_ADDR,0x03,sntv4_r03.as_int);
+        sntv2_r03.TSNS_SEL_CONV_TIME = wakeup_data & 0xF; // Default: 0x6
+        mbus_remote_register_write(SNT_ADDR,0x03,sntv2_r03.as_int);
 
     }else if(wakeup_data_header == 0x2A){
         // Update calibration coefficient A
@@ -2359,7 +2382,7 @@ int main() {
 	    // RDC Gain & Offset settings
 		rdcv4_r24.RDC_SEL_GAIN_LC = wakeup_data & 0x1F; // 5 bits
 		rdcv4_r25.RDC_OFFSET_P_LC = (wakeup_data >> 8) & 0x1F; // 5 bits
-		rdcv4_r25.RDC_OFFSET_PB_LC = 0x6; ~((wakeup_data >> 8) & 0x1F);
+		rdcv4_r25.RDC_OFFSET_PB_LC = ~((wakeup_data >> 8) & 0x1F);
 
 		mbus_remote_register_write(RDC_ADDR,0x24,rdcv4_r24.as_int);
 		mbus_remote_register_write(RDC_ADDR,0x25,rdcv4_r25.as_int);

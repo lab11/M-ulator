@@ -1,0 +1,4 @@
+cp TSstack_ondemand_v1.4b_CISv2/TSstack_ondemand_v1.4b_CISv2.c TSstack_ondemand_v1.4b_CISv2/TSstack_ondemand_v1.4b_CISv2.c.$1
+cp TSstack_ondemand_v1.4b_CISv2/TSstack_ondemand_v1.4b_CISv2.asm TSstack_ondemand_v1.4b_CISv2/TSstack_ondemand_v1.4b_CISv2.asm.$1
+cp TSstack_ondemand_v1.4b_CISv2/TSstack_ondemand_v1.4b_CISv2.hex TSstack_ondemand_v1.4b_CISv2/TSstack_ondemand_v1.4b_CISv2.hex.$1
+cp TSstack_ondemand_v1.4b_CISv2/TSstack_ondemand_v1.4b_CISv2.memmap TSstack_ondemand_v1.4b_CISv2/TSstack_ondemand_v1.4b_CISv2.memmap.$1
