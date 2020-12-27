@@ -20,6 +20,7 @@
  *
  *  v1.0.4:
  *    Fixed decoder index bug that doesn't update index properly, which causes a timeshift
+ *    Removed timezone shift in decoded data, so now the decoded data is strictly GMT
  *
  *
  *******************************/
