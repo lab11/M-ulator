@@ -15,6 +15,12 @@
  *  v1.0.2:
  *    Updated decoder to use local date instead of epoch date
  *
+ *  v1.0.3:
+ *    Not subtracting timezone difference in time.log to get GMT time
+ *
+ *  v1.0.4:
+ *    Fixed decoder index bug that doesn't update index properly, which causes a timeshift
+ *
  *
  *******************************/
 
@@ -70,7 +76,7 @@ public:
 
 int main(int argc, char** argv) {
     if(argc != 6) {
-        cerr << "Usage: ./decoder_v5_2_2.exe [packet file] [date.log] [time.log] [light output file] [temp output file]" << endl;
+        cerr << "Usage: ./decoder.exe [packet file] [date.log] [time.log] [light output file] [temp output file]" << endl;
         return 1;
     }
 
@@ -150,7 +156,8 @@ int main(int argc, char** argv) {
     }
 
     for(auto p : lp.data) {
-        light_fout << fixed << p.first + abs_time - tz << " " << p.second << " " << pow(2, (p.second / 32.0)) << endl;
+        // Not doing anything with timezone because it seems like it's already done by python
+        light_fout << fixed << p.first << " " << p.first + abs_time + 0 * tz << " " << p.second << " " << pow(2, (p.second / 32.0)) << endl;
     }
     for(auto p : tp.data) {
         temp_fout << fixed << p.first + trigger_fire_date * 86400 - date_tz << " " << pow(2, ((p.second + 128) / 16.0)) << endl;
@@ -212,17 +219,19 @@ void LightParser::read_timestamp(Unit& u) {
     auto t = get_data(u, 17); 
     // Not worried about overflow for now
     sys_time_in_min = t;
+    cout << "parsed time in min = " << sys_time_in_min << endl;
 }
 
 void LightParser::read_header(Unit& u) {
-    int day_state = get_data(u, 2);
+    day_state = get_data(u, 2);
     cout << "day state = " << day_state << endl;
     if(day_state == NIGHT) {
         throw runtime_error("Invalid day state!");
     }
 
-    int index = get_data(u, 7);
+    index = get_data(u, 7);
     cout << "index: " << index << endl;
+    cout << "day state = " << day_state << endl;
 }
 
 void LightParser::parse_unit(Unit& u) {
@@ -312,7 +321,7 @@ void LightParser::parse_unit(Unit& u) {
             }
         }
         data[sys_time_in_min * 60] = cur;
-        cout << sys_time_in_min * 60 << " " << cur << endl;
+        cout << sys_time_in_min << " " << sys_time_in_min * 60 << " " << cur << endl;
         index++;
 
         // update sys_time_in_min
@@ -321,6 +330,7 @@ void LightParser::parse_unit(Unit& u) {
                 for(int i = 0; i < 4; i++) {
                     if(index < resample_indices[i]) {
                         sys_time_in_min += intervals[i];
+                        cout << " test" << endl;
                         break;
                     }
                 }
