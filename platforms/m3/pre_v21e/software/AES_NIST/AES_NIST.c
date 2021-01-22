@@ -7,6 +7,8 @@
 #include "PREv21E_RF.h"
 #include "mbus.h"
 
+#define CONT_MODE
+
 // uncomment this for debug mbus message
 //#define DEBUG_MBUS_MSG
 
@@ -361,14 +363,14 @@ void handler_ext_int_aes(void)      { *NVIC_ICPR = (0x1 << IRQ_AES);    irq_pend
 
 static void operation_init(void){
 
-	// Set CPU & Mbus Clock Speeds             Default in PREv21E
-    prev21e_r0B.CLK_GEN_RING = 0x1;         // 0x1
-    prev21e_r0B.CLK_GEN_DIV_MBC = 0x1;      // 0x2
-    prev21e_r0B.CLK_GEN_DIV_CORE = 0x2;     // 0x3
-    prev21e_r0B.GOC_CLK_GEN_SEL_FREQ = 0x5; // 0x7
-    prev21e_r0B.GOC_CLK_GEN_SEL_DIV = 0x0;  // 0x1
-    prev21e_r0B.GOC_SEL = 0xF;              // 0x8
-	*REG_CLKGEN_TUNE = prev21e_r0B.as_int;
+//	// Set CPU & Mbus Clock Speeds             Default in PREv21E
+//    prev21e_r0B.CLK_GEN_RING = 0x1;         // 0x1
+//    prev21e_r0B.CLK_GEN_DIV_MBC = 0x1;      // 0x2
+//    prev21e_r0B.CLK_GEN_DIV_CORE = 0x2;     // 0x3
+//    prev21e_r0B.GOC_CLK_GEN_SEL_FREQ = 0x5; // 0x7
+//    prev21e_r0B.GOC_CLK_GEN_SEL_DIV = 0x0;  // 0x1
+//    prev21e_r0B.GOC_SEL = 0xF;              // 0x8
+//	*REG_CLKGEN_TUNE = prev21e_r0B.as_int;
   
     //Enumerate & Initialize Registers
     enumerated = 0x5453104b; // 0x5453 is TS in ascii
@@ -389,7 +391,7 @@ static void operation_init(void){
 int main(){
 
     // Only enable relevant interrupts
-	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_AES);
+	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_AES) | (1 << IRQ_TIMER32);
 
     // Wakeup IRQ handling
     if (irq_pending.wakeup) {
@@ -409,61 +411,87 @@ int main(){
   
     // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
     config_timerwd(TIMERWD_VAL);
+    *REG_MBUS_WD = 0;
 
     // Initialization sequence
     if (enumerated != 0x5453104b){
         operation_init();
     }
 
-    uint32_t* ptr = aes_tv;
+#ifdef CONT_MODE
+// To measure the offset power, give some delay here
+    mbus_write_message32(0xA0, 0x11111111);
+    //-------------------------------------
+    delay(1000000);   //-> 10.1uA @ 0.65V
+    //-------------------------------------
+    //WFI();            ->  5.6uA @ 0.65V (does not end...)
+    //-------------------------------------
+    //config_timer32(/*THRESHOLD*/1000000, /*ROI*/1, /*VALUE*/0, /*STATUS*/0);
+    //WFI();            ->  5.76uA @ 0.65V
+    //-------------------------------------
+    mbus_write_message32(0xA0, 0x22222222);
+#endif
 
-//    for (uint32_t i=0; i<2; i++) {
-    for (uint32_t i=0; i<284; i++) {
+#ifdef CONT_MODE
+    while(1) {
+#endif
 
-        mbus_write_message32(0xA0, i);
+        uint32_t* ptr = aes_tv;
 
-        aes_pt  = ptr;
-        aes_key = ptr + 4;
-        aes_ct  = ptr + 8;
+        for (uint32_t i=0; i<284; i++) {
 
-        // Increase pointer
-        ptr = ptr + 12;
+        #ifndef CONT_MODE
+            mbus_write_message32(0xA0, i);
+        #endif
 
-        // Set AES Key and PT
-        set_aes_key(aes_key);
-        set_aes_pt (aes_pt);
+            aes_pt  = ptr;
+            aes_key = ptr + 4;
+            aes_ct  = ptr + 8;
 
-        // Start AES
-        *AES_GO = 0x1;
+            // Increase pointer
+            ptr = ptr + 12;
 
-        // Wait until AES is done
-        WFI();
+            // Set AES Key and PT
+            set_aes_key(aes_key);
+            set_aes_pt (aes_pt);
 
-        if ((aes_ct[0] == *AES_TEXT_0) &&
-            (aes_ct[1] == *AES_TEXT_1) &&
-            (aes_ct[2] == *AES_TEXT_2) &&
-            (aes_ct[3] == *AES_TEXT_3)) {
-            mbus_write_message32(0xA1, 0x0EA7F00D);
+            // Start AES
+            *AES_GO = 0x1;
+
+            // Wait until AES is done
+            WFI();
+
+        #ifndef CONT_MODE
+            if ((aes_ct[0] == *AES_TEXT_0) &&
+                (aes_ct[1] == *AES_TEXT_1) &&
+                (aes_ct[2] == *AES_TEXT_2) &&
+                (aes_ct[3] == *AES_TEXT_3)) {
+                mbus_write_message32(0xA1, 0x0EA7F00D);
+            }
+            else {
+                mbus_write_message32(0xB0, aes_pt[0]);
+                mbus_write_message32(0xB1, aes_pt[1]);
+                mbus_write_message32(0xB2, aes_pt[2]);
+                mbus_write_message32(0xB3, aes_pt[3]);
+                mbus_write_message32(0xC0, aes_key[0]);
+                mbus_write_message32(0xC1, aes_key[1]);
+                mbus_write_message32(0xC2, aes_key[2]);
+                mbus_write_message32(0xC3, aes_key[3]);
+                mbus_write_message32(0xD0, aes_ct[0]);
+                mbus_write_message32(0xD1, aes_ct[1]);
+                mbus_write_message32(0xD2, aes_ct[2]);
+                mbus_write_message32(0xD3, aes_ct[3]);
+                mbus_write_message32(0xE0, *AES_TEXT_0);
+                mbus_write_message32(0xE1, *AES_TEXT_1);
+                mbus_write_message32(0xE2, *AES_TEXT_2);
+                mbus_write_message32(0xE3, *AES_TEXT_3);
+            }
+        #endif
         }
-        else {
-            mbus_write_message32(0xB0, aes_pt[0]);
-            mbus_write_message32(0xB1, aes_pt[1]);
-            mbus_write_message32(0xB2, aes_pt[2]);
-            mbus_write_message32(0xB3, aes_pt[3]);
-            mbus_write_message32(0xC0, aes_key[0]);
-            mbus_write_message32(0xC1, aes_key[1]);
-            mbus_write_message32(0xC2, aes_key[2]);
-            mbus_write_message32(0xC3, aes_key[3]);
-            mbus_write_message32(0xD0, aes_ct[0]);
-            mbus_write_message32(0xD1, aes_ct[1]);
-            mbus_write_message32(0xD2, aes_ct[2]);
-            mbus_write_message32(0xD3, aes_ct[3]);
-            mbus_write_message32(0xE0, *AES_TEXT_0);
-            mbus_write_message32(0xE1, *AES_TEXT_1);
-            mbus_write_message32(0xE2, *AES_TEXT_2);
-            mbus_write_message32(0xE3, *AES_TEXT_3);
-        }
+
+#ifdef CONT_MODE
     }
+#endif
 
     mbus_sleep_all();
 

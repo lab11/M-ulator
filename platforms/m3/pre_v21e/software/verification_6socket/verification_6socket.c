@@ -23,7 +23,9 @@
 // ----------------------------------------------
 // 13       -       -       Repeat Synchronous WUP_TIMER reading until it reads counter=0x10000
 // ----------------------------------------------
-// 14       -       -       Repeat Asynchronous XO_TIMER reading until it reads counter=0x10000, followed by Synchronous XO_TIMER Reading
+// 14       -       01      Repeat Asynchronous XO_TIMER reading until it reads counter=0xF0000, followed by Synchronous XO_TIMER Reading
+// 14       -       00      Disable XO_TIMER counter and clock output.
+// ----------------------------------------------
 //
 //*******************************************************************
   
@@ -104,7 +106,7 @@ static void operation_init(void){
 int main(){
 
     // Only enable relevant interrupts
-	*NVIC_ISER = (1 << IRQ_GOCEP);
+	*NVIC_ISER = (1 << IRQ_GOCEP) | (1 << IRQ_WAKEUP);
 
     // Disable watchdog timers
     config_timerwd(0);
@@ -242,20 +244,20 @@ int main(){
                     uint32_t curr_val;
                     uint32_t prev_val;
     
-//                    // Asynchronous
-//                    prev_val =  0;
-//                    while (1) {
-//                        curr_val = (*REG_XOT_VAL_U << 16) | (*REG_XOT_VAL_L & 0xFFFF);
-//                        if (curr_val < prev_val) {
-//                            mbus_write_message32(0xA1, curr_val);
-//                            mbus_write_message32(0xA2, prev_val);
-//                        }
-//                        prev_val = curr_val;
-//                        if (curr_val > 0xF0000) break;
-//                    }
-//    
-//                    mbus_write_message32(0xA0, 0x0EA70000);
-//                    reset_xo_cnt();
+                    // Asynchronous
+                    prev_val =  0;
+                    while (1) {
+                        curr_val = (*REG_XOT_VAL_U << 16) | (*REG_XOT_VAL_L & 0xFFFF);
+                        if (curr_val < prev_val) {
+                            mbus_write_message32(0xA1, curr_val);
+                            mbus_write_message32(0xA2, prev_val);
+                        }
+                        prev_val = curr_val;
+                        if (curr_val > 0xF0000) break;
+                    }
+    
+                    mbus_write_message32(0xA0, 0x0EA70000);
+                    reset_xo_cnt();
     
                     // Synchronous
                     prev_val = 0;
