@@ -154,6 +154,9 @@
  *    Disabled mbus_wd_timer when running the timeout trigger to hard reset the system
  *    Moving the timeout trigger to the interrupt handler to ensure that it's run
  *
+ *  v5.2.14:
+ *    Added LNT FSM Stuck fix
+ *
  ******************************************************************************************/
 
 #define VERSION_NUM 0x52D
@@ -1640,6 +1643,24 @@ static void set_lnt_timer() {
     
     // mbus_write_message32(0xCE, xo_sys_time_in_sec);
     // mbus_write_message32(0xCE, projected_end_time_in_sec);
+
+    // LNT FSM stuck fix
+    int count = 0;
+    while(count < 5) {
+        set_halt_until_mbus_trx();
+        mbus_copy_registers_from_remote_to_local(LNT_ADDR, 0x16, 0, 0);
+        set_halt_until_mbus_tx();
+        int lnt_counter_state = *REG0;
+        if(lnt_counter_state == 0x0) {
+            break;
+        }
+        lnt_stop();
+        count++;
+    }
+
+    if(count == 5) {
+        set_system_error(0x5);
+    }
 
     uint32_t projected_end_time = projected_end_time_in_sec << XO_TO_SEC_SHIFT;
 
