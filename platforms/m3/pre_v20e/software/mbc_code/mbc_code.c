@@ -4,7 +4,7 @@
  *         This is the base code that all will share after version 5.1
  *                                          - PREv20E / PMUv11 / SNTv4 / FLPv3S / MRRv10 / MEMv1
  ******************************************************************************************
- * Current version: 5.2.13
+ * Current version: 5.2.14
  *
  * v1: draft version; not tested on chip
  *
@@ -155,11 +155,11 @@
  *    Moving the timeout trigger to the interrupt handler to ensure that it's run
  *
  *  v5.2.14:
- *    Added LNT FSM Stuck fix
+ *    Added LNT FSM Stuck fix by checking COUNTER_STATE == COUNTING and check FSM after setting LNT timer
  *
  ******************************************************************************************/
 
-#define VERSION_NUM 0x52D
+#define VERSION_NUM 0x52E
 
 #include "huffman_encodings.h" 
 #include "../include/PREv20E.h"
@@ -1647,31 +1647,39 @@ static void set_lnt_timer() {
     // LNT FSM stuck fix
     int count = 0;
     while(count < 5) {
+        uint32_t projected_end_time = projected_end_time_in_sec << XO_TO_SEC_SHIFT;
+
+        update_system_time();
+        uint64_t temp = mult(projected_end_time - xo_sys_time, xo_lnt_mplier);
+
+        lnt_meas_time = right_shift(temp, LNT_MPLIER_SHIFT + XO_TO_SEC_SHIFT - 2); // the -2 is empirical
+        // uint32_t val = (end_time - xo_sys_time_in_sec) * 4;
+        lntv1a_r03.TIME_COUNTING = lnt_meas_time;
+        mbus_remote_register_write(LNT_ADDR, 0x03, lntv1a_r03.as_int);
+        lnt_start();
+
         set_halt_until_mbus_trx();
         mbus_copy_registers_from_remote_to_local(LNT_ADDR, 0x16, 0, 0);
         set_halt_until_mbus_tx();
-        int lnt_counter_state = *REG0;
-        if(lnt_counter_state == 0x0) {
+        if(*REG0 == 0x1) {      // If LNT_COUNTER_STATE == STATE_COUNTING
             break;
         }
         lnt_stop();
         count++;
+
+        if(count == 5) {
+            set_system_error(0x5);
+
+            // Not going to wake up again, send beacons to alert
+            radio_data_arr[2] = 0xFF00 | CHIP_ID;
+            radio_data_arr[1] = error_code;
+            radio_data_arr[0] = error_time;
+            int i;
+            for(i = 0; i < 10; i++) {
+                send_beacon();
+            }
+        }
     }
-
-    if(count == 5) {
-        set_system_error(0x5);
-    }
-
-    uint32_t projected_end_time = projected_end_time_in_sec << XO_TO_SEC_SHIFT;
-
-    update_system_time();
-    uint64_t temp = mult(projected_end_time - xo_sys_time, xo_lnt_mplier);
-
-    lnt_meas_time = right_shift(temp, LNT_MPLIER_SHIFT + XO_TO_SEC_SHIFT - 2); // the -2 is empirical
-    // uint32_t val = (end_time - xo_sys_time_in_sec) * 4;
-    lntv1a_r03.TIME_COUNTING = lnt_meas_time;
-    mbus_remote_register_write(LNT_ADDR, 0x03, lntv1a_r03.as_int);
-    lnt_start();
 
     // radio_data_arr[0] = projected_end_time_in_sec;
     // radio_data_arr[1] = xo_sys_time_in_sec;
