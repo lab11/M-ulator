@@ -1658,33 +1658,36 @@ static void set_lnt_timer() {
         lnt_stop();
         count++;
 
-        if(count == 5) {
-            set_system_error(0x5);
-        }
     }
-    count = 0;
-    while(count < 5) {
-        uint32_t projected_end_time = projected_end_time_in_sec << XO_TO_SEC_SHIFT;
 
-        update_system_time();
-        uint64_t temp = mult(projected_end_time - xo_sys_time, xo_lnt_mplier);
+    if(count == 5) {
+        set_system_error(0x5);
+    }
+    else {
+        count = 0;
+        while(count < 5) {
+            uint32_t projected_end_time = projected_end_time_in_sec << XO_TO_SEC_SHIFT;
 
-        lnt_meas_time = right_shift(temp, LNT_MPLIER_SHIFT + XO_TO_SEC_SHIFT - 2); // the -2 is empirical
-        // uint32_t val = (end_time - xo_sys_time_in_sec) * 4;
-        lntv1a_r03.TIME_COUNTING = lnt_meas_time;
-        mbus_remote_register_write(LNT_ADDR, 0x03, lntv1a_r03.as_int);
-        lnt_start();
+            update_system_time();
+            uint64_t temp = mult(projected_end_time - xo_sys_time, xo_lnt_mplier);
 
-        set_halt_until_mbus_trx();
-        mbus_copy_registers_from_remote_to_local(LNT_ADDR, 0x16, 0, 0);
-        set_halt_until_mbus_tx();
-        if(*REG0 == 0x1) {      // If LNT_COUNTER_STATE == STATE_COUNTING
-            break;
-        }
-        count++;
+            lnt_meas_time = right_shift(temp, LNT_MPLIER_SHIFT + XO_TO_SEC_SHIFT - 2); // the -2 is empirical
+            // uint32_t val = (end_time - xo_sys_time_in_sec) * 4;
+            lntv1a_r03.TIME_COUNTING = lnt_meas_time;
+            mbus_remote_register_write(LNT_ADDR, 0x03, lntv1a_r03.as_int);
+            lnt_start();
 
-        if(count == 5) {
-            set_system_error(0x6);
+            set_halt_until_mbus_trx();
+            mbus_copy_registers_from_remote_to_local(LNT_ADDR, 0x16, 0, 0);
+            set_halt_until_mbus_tx();
+            if(*REG0 == 0x1) {      // If LNT_COUNTER_STATE == STATE_COUNTING
+                break;
+            }
+            count++;
+
+            if(count == 5) {
+                set_system_error(0x6);
+            }
         }
     }
 
