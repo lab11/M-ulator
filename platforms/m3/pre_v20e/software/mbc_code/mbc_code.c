@@ -1647,6 +1647,23 @@ static void set_lnt_timer() {
     // LNT FSM stuck fix
     int count = 0;
     while(count < 5) {
+        set_halt_until_mbus_trx();
+        mbus_copy_registers_from_remote_to_local(LNT_ADDR, 0x16, 0, 0);
+        set_halt_until_mbus_tx();
+
+        if(*REG0 == 0x0) {      // if LNT_COUNTER_STATE == STATE_IDLE
+            break;
+        }
+
+        lnt_stop();
+        count++;
+
+        if(count == 5) {
+            set_system_error(0x5);
+        }
+    }
+    count = 0;
+    while(count < 5) {
         uint32_t projected_end_time = projected_end_time_in_sec << XO_TO_SEC_SHIFT;
 
         update_system_time();
@@ -1664,20 +1681,22 @@ static void set_lnt_timer() {
         if(*REG0 == 0x1) {      // If LNT_COUNTER_STATE == STATE_COUNTING
             break;
         }
-        lnt_stop();
         count++;
 
         if(count == 5) {
-            set_system_error(0x5);
+            set_system_error(0x6);
+        }
+    }
 
-            // Not going to wake up again, send beacons to alert
-            radio_data_arr[2] = 0xFF00 | CHIP_ID;
-            radio_data_arr[1] = error_code;
-            radio_data_arr[0] = error_time;
-            int i;
-            for(i = 0; i < 10; i++) {
-                send_beacon();
-            }
+    if(error_code == 5 || error_code == 6) {
+    
+        // Not going to wake up again, send beacons to alert
+        radio_data_arr[2] = 0xFF00 | CHIP_ID;
+        radio_data_arr[1] = error_code;
+        radio_data_arr[0] = error_time;
+        int i;
+        for(i = 0; i < 10; i++) {
+            send_beacon();
         }
     }
 
