@@ -5,7 +5,7 @@
 //			  v6.6: Using CISv1A (PREv20E)
 //					Fix SAR ratio if the temp is above ~40C (FIXME)
 //					No harvester
-//			  v6.7: Take 3 RDC readings with different offset
+//			  v6.7a: Take 4 RDC readings with different offset, store non-saturated one
 //*******************************************************************
 #include "PREv20.h"
 #include "PREv20_RF.h"
