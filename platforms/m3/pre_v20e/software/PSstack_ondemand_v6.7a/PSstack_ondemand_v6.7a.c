@@ -5,6 +5,7 @@
 //			  v6.6: Using CISv1A (PREv20E)
 //					Fix SAR ratio if the temp is above ~40C (FIXME)
 //					No harvester
+//			  v6.7a: Take 4 RDC readings with different offset, store non-saturated one
 //*******************************************************************
 #include "PREv20.h"
 #include "PREv20_RF.h"
@@ -36,6 +37,9 @@
 #define    STK_LDO        0x1
 #define STK_TEMP_START 0x2
 #define STK_RDC 0x3
+#define STK_RDC2 0x7
+#define STK_RDC3 0x8
+#define STK_RDC4 0x9
 #define STK_DATA 0x4
 #define STK_TEMP_READ  0x6
 
@@ -131,6 +135,9 @@ volatile uint32_t read_data_batadc_diff;
 volatile uint32_t read_data_batadc;
 
 volatile uint32_t read_data_rdc;
+volatile uint32_t read_data_rdc2;
+volatile uint32_t read_data_rdc3;
+volatile uint32_t read_data_rdc4;
 
 volatile rdcv4_r20_t rdcv4_r20 = RDCv4_R20_DEFAULT;
 volatile rdcv4_r21_t rdcv4_r21 = RDCv4_R21_DEFAULT;
@@ -1532,7 +1539,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     stack_state = STK_IDLE;    //0x0;
-    enumerated = 0x50436060;
+    enumerated = 0x5043607A;
     exec_count = 0;
     exec_count_irq = 0;
     PMU_ADC_3P0_VAL = 0x62;
@@ -1649,9 +1656,9 @@ static void operation_init(void){
 	rdcv4_r24.RDC_SEL_DLY = 0xA;
 
     // Individual settings
-	rdcv4_r24.RDC_SEL_GAIN_LC = 0xA;
-	rdcv4_r25.RDC_OFFSET_P_LC = 0x19;
-	rdcv4_r25.RDC_OFFSET_PB_LC = 0x6;
+	rdcv4_r24.RDC_SEL_GAIN_LC = 0x0;
+	rdcv4_r25.RDC_OFFSET_P_LC = 0x0;
+	rdcv4_r25.RDC_OFFSET_PB_LC = 0x1F;
 
 	mbus_remote_register_write(RDC_ADDR,0x1,0x1001);
 	mbus_remote_register_write(RDC_ADDR,0x20,rdcv4_r20.as_int);
@@ -1894,6 +1901,10 @@ static void operation_sns_run(void){
 
 		rdc_power_on();
 
+		rdcv4_r25.RDC_OFFSET_P_LC = 0x1;
+		rdcv4_r25.RDC_OFFSET_PB_LC = (~0x1)&0x1F;
+		mbus_remote_register_write(RDC_ADDR,0x25,rdcv4_r25.as_int);
+
 	    // Use Timer32 as timeout counter
 	    wfi_timeout_flag = 0;
 	    config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
@@ -1917,6 +1928,108 @@ static void operation_sns_run(void){
 			set_halt_until_mbus_tx();
 		}
 
+		rdc_reset();
+        stack_state = STK_RDC2;
+
+    }else if (stack_state == STK_RDC2){
+
+		rdcv4_r25.RDC_OFFSET_P_LC = 0xB;
+		rdcv4_r25.RDC_OFFSET_PB_LC = (~0xB)&0x1F;
+		mbus_remote_register_write(RDC_ADDR,0x25,rdcv4_r25.as_int);
+
+		//rdc_power_on();
+
+	    // Use Timer32 as timeout counter
+	    wfi_timeout_flag = 0;
+	    config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
+
+		// Start measure
+		rdc_start_meas();
+	
+		// Wait for output
+		WFI();
+   
+	    // Turn off Timer32
+	    *TIMER32_GO = 0;
+
+        if (wfi_timeout_flag) {
+			read_data_rdc2 = 0;
+			mbus_write_message32(0xFA, 0xFAFAFAFA);
+		}else{
+			set_halt_until_mbus_rx();
+			mbus_remote_register_read(RDC_ADDR,0x11,0);
+			read_data_rdc2 = *REG0;
+			set_halt_until_mbus_tx();
+		}
+
+		rdc_reset();
+        stack_state = STK_RDC3;
+
+    }else if (stack_state == STK_RDC3){
+
+		rdcv4_r25.RDC_OFFSET_P_LC = 0x15;
+		rdcv4_r25.RDC_OFFSET_PB_LC = (~0x15)&0x1F;
+		mbus_remote_register_write(RDC_ADDR,0x25,rdcv4_r25.as_int);
+
+		//rdc_power_on();
+
+	    // Use Timer32 as timeout counter
+	    wfi_timeout_flag = 0;
+	    config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
+
+		// Start measure
+		rdc_start_meas();
+	
+		// Wait for output
+		WFI();
+   
+	    // Turn off Timer32
+	    *TIMER32_GO = 0;
+
+        if (wfi_timeout_flag) {
+			read_data_rdc3 = 0;
+			mbus_write_message32(0xFA, 0xFAFAFAFA);
+		}else{
+			set_halt_until_mbus_rx();
+			mbus_remote_register_read(RDC_ADDR,0x11,0);
+			read_data_rdc3 = *REG0;
+			set_halt_until_mbus_tx();
+		}
+
+		rdc_reset();
+        stack_state = STK_RDC4;
+
+    }else if (stack_state == STK_RDC4){
+
+		rdcv4_r25.RDC_OFFSET_P_LC = 0x1F;
+		rdcv4_r25.RDC_OFFSET_PB_LC = 0x0;
+		mbus_remote_register_write(RDC_ADDR,0x25,rdcv4_r25.as_int);
+
+		//rdc_power_on();
+
+	    // Use Timer32 as timeout counter
+	    wfi_timeout_flag = 0;
+	    config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
+
+		// Start measure
+		rdc_start_meas();
+	
+		// Wait for output
+		WFI();
+   
+	    // Turn off Timer32
+	    *TIMER32_GO = 0;
+
+        if (wfi_timeout_flag) {
+			read_data_rdc4 = 0;
+			mbus_write_message32(0xFA, 0xFAFAFAFA);
+		}else{
+			set_halt_until_mbus_rx();
+			mbus_remote_register_read(RDC_ADDR,0x11,0);
+			read_data_rdc4 = *REG0;
+			set_halt_until_mbus_tx();
+		}
+
 		rdc_power_off();
         stack_state = STK_DATA;
 
@@ -1927,6 +2040,9 @@ static void operation_sns_run(void){
 		#endif
 		mbus_write_message32(0xC0, (exec_count << 16) | read_data_temp);
 		mbus_write_message32(0xC1, (exec_count << 16) | read_data_rdc);
+		mbus_write_message32(0xC2, (exec_count << 16) | read_data_rdc2);
+		mbus_write_message32(0xC3, (exec_count << 16) | read_data_rdc3);
+		mbus_write_message32(0xC3, (exec_count << 16) | read_data_rdc4);
 
 		// Store results in MEMv1; unless memory is full
 		if (temp_storage_count < TEMP_STORAGE_SIZE){
@@ -1934,13 +2050,30 @@ static void operation_sns_run(void){
 			// Memory address is per byte
 			// Memory is word-addressable; first word: 0x0, second word: 0x4, third word: 0x8 ...
 			uint32_t mem_read_data;
+
+			// Select which RDC reading to store
+			// read_data_rdc[14:15] indicates offset range
+			if (read_data_rdc > 7800){
+				// Store 1st offset
+				if (read_data_rdc2 > 7800){
+					if (read_data_rdc3 > 7800){
+						read_data_rdc = (read_data_rdc4&0x1FFF) | (0x3<<13);
+					}else{
+						read_data_rdc = (read_data_rdc3&0x1FFF) | (0x2<<13);
+					}
+
+				}else{
+					read_data_rdc = (read_data_rdc2&0x1FFF) | (0x1<<13);
+					
+				}
+			}
+
 			// Store temp & rdc data in pairs
 			mem_read_data = (read_data_temp&0xFFFF) | (read_data_rdc<<16);
 
 			mbus_copy_mem_from_local_to_remote_bulk(MEM_ADDR, (uint32_t*)((temp_storage_count>>1)<<2), (uint32_t*)&mem_read_data, 0);
 			temp_storage_count++;
 			temp_storage_count++;
-
 		}
 
 		// Optionally transmit the data
@@ -2103,7 +2236,7 @@ int main() {
 	}
 
     // Initialization sequence
-    if (enumerated != 0x50436060){
+    if (enumerated != 0x5043607A){
         operation_init();
     }
 
