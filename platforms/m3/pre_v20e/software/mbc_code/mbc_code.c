@@ -4,7 +4,7 @@
  *         This is the base code that all will share after version 5.1
  *                                          - PREv20E / PMUv11 / SNTv4 / FLPv3S / MRRv10 / MEMv1
  ******************************************************************************************
- * Current version: 6.0.0
+ * Current version: 5.3.0
  *
  * v1: draft version; not tested on chip
  *
@@ -161,7 +161,7 @@
  *    Fixed 0x1C beacon header
  *    Used new LNT FSM FIX by running a simple loop.
  *
- *  v6.0.0:
+ *  v5.3.0:
  *    Updating cur_sunrise and cur_sunset at NIGHT and NOON to prevent skipping a day when sunrise/sunset shifts forward too much
  *    Incrementing major revision number to prepare for new PMU
  *
@@ -1046,12 +1046,12 @@ void set_new_state() {
         cur_edge = day_time_in_min * 60 + XO_32_MIN;
         day_state_start_time = cur_edge;
         if(day_state == NOON) {
-            // v6.0.0: setting new sunset at the start of NOON
+            // v5.3.0: setting new sunset at the start of NOON
             cur_sunset = next_sunset == 0? cur_sunset : next_sunset;
             day_state_end_time = cur_sunset - EDGE_MARGIN1 - XO_10_MIN;
         }
         else {
-            // v6.0.0: setting new sunrise at the start of NIGHT
+            // v5.3.0: setting new sunrise at the start of NIGHT
             cur_sunrise = next_sunrise == 0? cur_sunrise : next_sunrise;
             day_state_end_time = cur_sunrise - EDGE_MARGIN2 - XO_10_MIN;
         }
