@@ -4,7 +4,7 @@
  *         This is the base code that all will share after version 5.1
  *                                          - PREv20E / PMUv11 / SNTv4 / FLPv3S / MRRv10 / MEMv1
  ******************************************************************************************
- * Current version: 5.2.15
+ * Current version: 6.0.0
  *
  * v1: draft version; not tested on chip
  *
@@ -158,7 +158,12 @@
  *    Added LNT FSM Stuck fix by checking COUNTER_STATE == COUNTING and check FSM after setting LNT timer
  *  
  *  v5.2.15:
+ *    Fixed 0x1C beacon header
  *    Used new LNT FSM FIX by running a simple loop.
+ *
+ *  v6.0.0:
+ *    Updating cur_sunrise and cur_sunset at NIGHT and NOON to prevent skipping a day when sunrise/sunset shifts forward too much
+ *    Incrementing major revision number to prepare for new PMU
  *
  ******************************************************************************************/
 
@@ -1024,13 +1029,11 @@ void set_new_state() {
 
     // set day_state specific variables
     if(day_state == DAWN) {
-        cur_sunrise = next_sunrise == 0? cur_sunrise : next_sunrise;
         cur_edge = cur_sunrise;
         day_state_start_time = cur_sunrise - EDGE_MARGIN2;
         day_state_end_time = cur_sunrise + EDGE_MARGIN1;
     }
     else if(day_state == DUSK) {
-        cur_sunset = next_sunset == 0? cur_sunset : next_sunset;
         cur_edge = cur_sunset;
         day_state_start_time = cur_sunset - EDGE_MARGIN1;
         day_state_end_time = cur_sunset + EDGE_MARGIN2;
@@ -1043,9 +1046,13 @@ void set_new_state() {
         cur_edge = day_time_in_min * 60 + XO_32_MIN;
         day_state_start_time = cur_edge;
         if(day_state == NOON) {
+            // v6.0.0: setting new sunset at the start of NOON
+            cur_sunset = next_sunset == 0? cur_sunset : next_sunset;
             day_state_end_time = cur_sunset - EDGE_MARGIN1 - XO_10_MIN;
         }
         else {
+            // v6.0.0: setting new sunrise at the start of NIGHT
+            cur_sunrise = next_sunrise == 0? cur_sunrise : next_sunrise;
             day_state_end_time = cur_sunrise - EDGE_MARGIN2 - XO_10_MIN;
         }
     }
@@ -1691,16 +1698,7 @@ static void set_lnt_timer() {
             send_beacon();
         }
     }
-
-    // radio_data_arr[0] = projected_end_time_in_sec;
-    // radio_data_arr[1] = xo_sys_time_in_sec;
-    // radio_data_arr[2] = lnt_meas_time;
-    // send_beacon();
-
-    // mbus_write_message32(0xCF, temp & 0xFFFFFFFF);
-    // mbus_write_message32(0xCF, temp >> 32);
 }
-
 
 // set next wake up time, projected_end_time_in_sec == next_light_meas_time, then sample light
 void set_projected_end_time() {
@@ -4012,7 +4010,7 @@ else if(goc_data_header == 0x1B) {
         uint16_t N1 = (goc_data_full >> 12) & 0xFFF;
         uint16_t N2 = goc_data_full & 0xFFF;
         if(!N2) {
-            radio_data_arr[2] = (0x1B << 8) | CHIP_ID;
+            radio_data_arr[2] = (0x1C << 8) | CHIP_ID;
             radio_data_arr[1] = 0;
             radio_data_arr[0] = max_unit_count;
             send_beacon();
