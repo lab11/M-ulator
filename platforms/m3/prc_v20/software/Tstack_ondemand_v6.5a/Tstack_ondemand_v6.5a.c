@@ -1,62 +1,122 @@
 //*******************************************************************
 //Author: Gyouho Kim
-//Description: Pressure Sensing System with Seiko Battery
-//            Based on 'Tstack_Ondemand_v6.5', 'TSstack_ondemand_v1.4b'
-//			  v6.6: Using CISv1A (PREv20E)
-//					Fix SAR ratio if the temp is above ~40C (FIXME)
-//					No harvester
-//			  v6.7a: Take 4 RDC readings with different offset, store non-saturated one
+//Description: Temperature Sensing System
+//            Modified from 'Pstack_Ondemand_v2.0'
+//            v1.1: Changing chip order
+//            v1.2: Increasing PMU floors for long term stability
+//            v1.3: PMU IRQ off for stability issues
+//                  RADv9 settings updated for shifted center freq and higher curr lim
+//            v1.4: Decrease PMU sleep floors for reduced sleep power
+//            v1.6: PMUv3; Use for Tstack batch 4 onward
+//            v1.7: Chaging RF tuning to 0x04, GOC-based triggers reinitializes reg
+//            v1.8: Adding battery measurement, PMU battery clamp reset, and battery discharge mode
+//            v1.9: Stays awake during data TX, changing temp sensor tuning 
+//            v1.10: Records 0x666 if temp sensor times out and moves on  
+//                   Incorporating trig2 wakeup time adjustment based on temp measurement 
+//                   LDO voltage set to be highest
+//                  -->Used for AEC France Test in Nov 2016
+//            v1.12: Dynamic adjustment of wakeup time based on CPU clock cycle
+//                   Changed temp sensor polling to wfi  
+//            v1.13: Optimizing PMU sleep/active settings
+//                   Lower sleep power, higher sleep power during radio sleep
+//                   PMU ADC disabled during radio sleep
+//            v1.14: Fixing how PMU ADC is reset
+//            v1.15: Turning off VDD_CLK->VBAT during PMU ADC routine
+//                   Getting rid of all non-32 bit declarations
+//            v2.00: Adding parking lot feature (automatic vbat mornitoring & charging)
+//            v2.1:  Usability improvements
+//            v2.2:  Increasing radio packet distance; adding header for data TX
+//            v2.3:  Add option to start charging when configuring parking
+//            v2.4:  During Trig 2, if radio option is on, transmit PMU ADC and count
+//                   Radio packet delay is configurable now
+//                   Initial trig2 delay removed
+//            v2.5:  Sleep power reduced
+//                   Chip ID configuration
+//                   Reducing LDO sleep time
+//                   Consolidated trigger radio routine
+//            v3.0:  PRCv18, SNSv10, PMUv7 update
+//            v3.1: Shallower parking range
+//                  Trig4 now reports battery and execution count in the beginning
+//            v3.2: Improving wakeup timer measurement; WUPT max value is 0x7FFF
+//                  Trig2 with cont TX has headers for data
+//            v3.3: Every PMU reg write should be followed by explicit delay to be safe
+//            v3.4: Removing parking; charging controlled by pmu solar short vclamp
+//            v3.5: Adding trigger to change solar short vclamp; battery logged with temp
+//            v3.6: Using SRAM inverter SA
+//            v3.7: Using SNTv1 instead of SNSv10; wakeup timer for Trig2 now using SNTv1
+//            FIXME: confirm rollover, in case of timeout, wakeup timer needs adjustment
+//            v4.0: MEMv1, SRRv4, PMU setting change based on temp
+//                  Up to 8192 temp data stored in MEMv1 (16-bit data)
+//            v4.1: Calibration routine pmu setting fix
+//            v4.1b: Adding Data TX Finish message
+//                  SNT wakeup timer disable before enabling
+//            v4.1c: Separate SFO tuning for MIM and MOM
+//                    Fixes CRC bug
+//            v4.1e: Two more PMU setting threshold
+//                    Double send data TX headers
+//                    Use pulse generator for SRR
+//                    Trig 2 now runs forever until Trig 3
+//            v4.2: Duplicate data TX option
+//            v5.0: PMUv9
+//            v5.0a: NUM_MEAS_USER needs to be 8192, not 8000
+//            v5.1: PRCv18 in Y8 has issues with SRAM inverter mode; disable it
+//            v5.2: Changing PMU mbus delays with set_halt
+//            v5.2a: More PMU margin for low temp operation
+//            v5.2b: Adding more PMU setting points
+//            v6.0: PRCv18
+//            v6.1: PMU clk default setting bug, SNT settling time reduced
+//            v6.2: SNTv3
+//            v6.3: Going to sleep during temp measurement
+//					SNTv3 counter reading when clk running should be avoided
+//					Adding GOC clk tuning 
+//					Changing CPU core clock frequency to be 2x faster
+//					25C, 35C sleep setting increased
+//					Radio packet sleep interval shortened
+//					FIXME: pmu setting for SNT should be adjusted based on temp
+//            v6.4: PRCv20, PMUv11, SNTv4, HRVv8, SRRv7
+//            v6.4a: Fixing pmu snt sleep setting typo
+//			  v6.4b: No separate pmu sleep setting required for temp meas
+//					 Getting rid of PRC wakeup timer option
+//			  v6.5: Re-enabling going to sleep during temp sensing
+//					Adding support for missing data retrieval
+//					Changing timeout temp data from 0x666 to 0
+//			  v6.5a: Send radio packet for configuration GOC messages
 //*******************************************************************
-#include "PREv20.h"
-#include "PREv20_RF.h"
+#include "PRCv20.h"
+#include "PRCv20_RF.h"
 #include "mbus.h"
-#include "SNTv2_RF.h"
+#include "SNTv4_RF.h"
 #include "HRVv5.h"
 #include "PMUv7_RF.h"
 #include "SRRv4_RF.h"
-#include "RDCv4_RF.h"
 
 // uncomment this for debug mbus message
 //#define DEBUG_MBUS_MSG_1
 
-// Stack order PREv20E -> SNTv2 -> MRRv10A -> External (RDC -> SRR -> MEM) -> PMUv11
+// TStack order  PRC->RAD->SNS->HRV->PMU
 #define HRV_ADDR 0x3
 #define SRR_ADDR 0x4
 #define SNT_ADDR 0x5
 #define PMU_ADDR 0x6
 #define MEM_ADDR 0x7
-#define RDC_ADDR 0x8
-#define MRR_ADDR 0x9
 
 // Temp Sensor parameters
 #define    MBUS_DELAY 200 // Amount of delay between successive messages; 200: 6-7ms
 #define TEMP_CYCLE_INIT 1 
 
 // Tstack states
-#define    STK_IDLE       0x0
-#define    STK_LDO        0x1
-#define STK_TEMP_START 0x2
-#define STK_RDC 0x3
-#define STK_RDC2 0x7
-#define STK_RDC3 0x8
-#define STK_RDC4 0x9
-#define STK_DATA 0x4
-#define STK_TEMP_READ  0x6
+#define    TSTK_IDLE       0x0
+#define    TSTK_LDO        0x1
+#define TSTK_TEMP_START 0x2
+#define TSTK_TEMP_READ  0x6
 
-#define    PMU_0C 0x0
-#define    PMU_10C 0x1
-#define    PMU_15C 0x2
-#define    PMU_20C 0x3
-#define    PMU_25C 0x4
-#define    PMU_30C 0x5
-#define    PMU_35C 0x6
-#define    PMU_40C 0x7
-#define    PMU_45C 0x8
-#define    PMU_55C 0x9
-#define    PMU_65C 0xA
-#define    PMU_75C 0xB
-#define    PMU_85C 0xC
-#define    PMU_95C 0xD
+#define    PMU_10C 0x0
+#define PMU_20C 0x1
+#define    PMU_25C 0x2
+#define    PMU_35C 0x3
+#define    PMU_55C 0x4
+#define    PMU_75C 0x5
+#define    PMU_95C 0x6
 
 #define NUM_TEMP_MEAS 1
 
@@ -79,27 +139,20 @@
 volatile uint32_t irq_history;
 volatile uint32_t enumerated;
 volatile uint32_t wakeup_data;
-volatile uint32_t stack_state;
+volatile uint32_t Tstack_state;
 volatile uint32_t wfi_timeout_flag;
 volatile uint32_t exec_count;
+volatile uint32_t meas_count;
 volatile uint32_t exec_count_irq;
 volatile uint32_t wakeup_period_count;
 volatile uint32_t wakeup_timer_multiplier;
-volatile uint32_t PMU_ADC_3P0_VAL;
+volatile uint32_t PMU_ADC_4P2_VAL;
 volatile uint32_t pmu_setting_state;
-
 volatile uint32_t PMU_10C_threshold_sns;
-volatile uint32_t PMU_15C_threshold_sns;
 volatile uint32_t PMU_20C_threshold_sns;
-volatile uint32_t PMU_25C_threshold_sns;
-volatile uint32_t PMU_30C_threshold_sns;
 volatile uint32_t PMU_35C_threshold_sns;
-volatile uint32_t PMU_40C_threshold_sns;
-volatile uint32_t PMU_45C_threshold_sns;
 volatile uint32_t PMU_55C_threshold_sns;
-volatile uint32_t PMU_65C_threshold_sns;
 volatile uint32_t PMU_75C_threshold_sns;
-volatile uint32_t PMU_85C_threshold_sns;
 volatile uint32_t PMU_95C_threshold_sns;
 
 volatile uint32_t NUM_MEAS_USER;
@@ -115,7 +168,7 @@ volatile uint32_t temp_storage_last_wakeup_adjust = 150; // SNSv10
 volatile uint32_t temp_storage_diff = 0;
 volatile uint32_t temp_storage_count;
 volatile uint32_t temp_storage_debug;
-volatile uint32_t sns_running;
+volatile uint32_t temp_running;
 volatile uint32_t read_data_temp; // [23:0] Temp Sensor D Out
 volatile uint32_t TEMP_CALIB_A;
 volatile uint32_t TEMP_CALIB_B;
@@ -134,28 +187,14 @@ volatile uint32_t radio_packet_count;
 volatile uint32_t read_data_batadc_diff;
 volatile uint32_t read_data_batadc;
 
-volatile uint32_t read_data_rdc;
-volatile uint32_t read_data_rdc2;
-volatile uint32_t read_data_rdc3;
-volatile uint32_t read_data_rdc4;
-
-volatile rdcv4_r20_t rdcv4_r20 = RDCv4_R20_DEFAULT;
-volatile rdcv4_r21_t rdcv4_r21 = RDCv4_R21_DEFAULT;
-volatile rdcv4_r22_t rdcv4_r22 = RDCv4_R22_DEFAULT;
-volatile rdcv4_r24_t rdcv4_r24 = RDCv4_R24_DEFAULT;
-volatile rdcv4_r25_t rdcv4_r25 = RDCv4_R25_DEFAULT;
-volatile rdcv4_r28_t rdcv4_r28 = RDCv4_R28_DEFAULT;
-volatile rdcv4_r2B_t rdcv4_r2B = RDCv4_R2B_DEFAULT;
-volatile rdcv4_r2C_t rdcv4_r2C = RDCv4_R2C_DEFAULT;
-
-volatile sntv2_r00_t sntv2_r00 = SNTv2_R00_DEFAULT;
-volatile sntv2_r01_t sntv2_r01 = SNTv2_R01_DEFAULT;
-volatile sntv2_r03_t sntv2_r03 = SNTv2_R03_DEFAULT;
-volatile sntv2_r08_t sntv2_r08 = SNTv2_R08_DEFAULT;
-volatile sntv2_r09_t sntv2_r09 = SNTv2_R09_DEFAULT;
-volatile sntv2_r0A_t sntv2_r0A = SNTv2_R0A_DEFAULT;
-//volatile sntv2_r0B_t sntv2_r0B = SNTv2_R0B_DEFAULT;
-volatile sntv2_r17_t sntv2_r17 = SNTv2_R17_DEFAULT;
+volatile sntv4_r00_t sntv4_r00 = SNTv4_R00_DEFAULT;
+volatile sntv4_r01_t sntv4_r01 = SNTv4_R01_DEFAULT;
+volatile sntv4_r03_t sntv4_r03 = SNTv4_R03_DEFAULT;
+volatile sntv4_r08_t sntv4_r08 = SNTv4_R08_DEFAULT;
+volatile sntv4_r09_t sntv4_r09 = SNTv4_R09_DEFAULT;
+volatile sntv4_r0A_t sntv4_r0A = SNTv4_R0A_DEFAULT;
+volatile sntv4_r0B_t sntv4_r0B = SNTv4_R0B_DEFAULT;
+volatile sntv4_r17_t sntv4_r17 = SNTv4_R17_DEFAULT;
 
 volatile srrv4_r00_t srrv4_r00 = SRRv4_R00_DEFAULT;
 volatile srrv4_r01_t srrv4_r01 = SRRv4_R01_DEFAULT;
@@ -171,8 +210,10 @@ volatile srrv4_r15_t srrv4_r15 = SRRv4_R15_DEFAULT;
 volatile srrv4_r1E_t srrv4_r1E = SRRv4_R1E_DEFAULT;
 volatile srrv4_r1F_t srrv4_r1F = SRRv4_R1F_DEFAULT;
 
-volatile prev20_r0B_t prev20_r0B = PREv20_R0B_DEFAULT;
-volatile prev20_r1C_t prev20_r1C = PREv20_R1C_DEFAULT;
+volatile hrvv5_r0_t hrvv5_r0 = HRVv5_R0_DEFAULT;
+
+volatile prcv20_r0B_t prcv20_r0B = PRCv20_R0B_DEFAULT;
+volatile prcv20_r1C_t prcv20_r1C = PRCv20_R1C_DEFAULT;
 
 //*******************************************************************
 // INTERRUPT HANDLERS (Updated for PRCv18)
@@ -285,338 +326,67 @@ static void pmu_reg_write (uint32_t reg_addr, uint32_t reg_data) {
     set_halt_until_mbus_tx();
 }
 
-static void pmu_set_sar_override(uint32_t val){
-	// SAR_RATIO_OVERRIDE
-    pmu_reg_write(0x05, //default 12'h000
-		( (0 << 13) // Enables override setting [12] (1'b1)
-		| (0 << 12) // Let VDD_CLK always connected to vbat
-		| (1 << 11) // Enable override setting [10] (1'h0)
-		| (0 << 10) // Have the converter have the periodic reset (1'h0)
-		| (1 << 9) // Enable override setting [8] (1'h0)
-		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
-		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (val) 		// Binary converter's conversion ratio (7'h00)
-	));
-    pmu_reg_write(0x05, //default 12'h000
-		( (1 << 13) // Enables override setting [12] (1'b1)
-		| (0 << 12) // Let VDD_CLK always connected to vbat
-		| (1 << 11) // Enable override setting [10] (1'h0)
-		| (0 << 10) // Have the converter have the periodic reset (1'h0)
-		| (1 << 9) // Enable override setting [8] (1'h0)
-		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
-		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (val) 		// Binary converter's conversion ratio (7'h00)
-	));
-}
-
-void pmu_prep_sar_ratio (void) {
-
-    // Minimize the SAR_RESET pulse width
-    pmu_reg_write (33, // 0x21 (TICK_SAR_RESET)
-        ( (1 << 0)     // TICK_SAR_RESET
-    ));
-
-    // Set SAR_RATIO_OFFSET_DOWN=0 to enable the ratio override.
-    pmu_reg_write (7, // 0x7 (SAR_RATIO_OFFSET_DOWN_ACTIVE)
-        ( (0 << 0)    // SAR_RATIO_OFFSET_DOWN_ACTIVE
-    ));
-
-    // Set SAR_RATIO_OFFSET_DOWN=0 to enable the ratio override.
-    pmu_reg_write (6, // 0x6 (SAR_RATIO_OFFSET_DOWN_SLEEP)
-        ( (0 << 0)    // SAR_RATIO_OFFSET_DOWN_SLEEP
-    ));
-
-    // Just to make sure you do not 'stall' adc operation in Active
-    pmu_reg_write (58, // 0x3A (CTRL_STALL_STATE_ACTIVE)
-        (( 0 << 0)
-    ));
-
-}
-
-void pmu_set_sar_ratio (uint32_t sar_ratio) {
-
-    // Debug
-    #ifdef DEBUG_SET_SAR_RATIO
-        mbus_write_message32(0xD8, 0x00000000);
-    #endif
-
-    // Just to confirm that ADC has been disabled in Active
-    // Also disable 'horizon' in Active so that this sar ratio change takes place only once.
-    pmu_reg_write (60, // 0x3C (CTRL_DESIRED_STATE_ACTIVE)
-        (( 1 << 0)  // sar_on
-        | (1 << 1)  // wait_for_clock_cycles
-        | (1 << 2)  // not used
-        | (1 << 3)  // sar_reset
-        | (1 << 4)  // sar_stabilized
-        | (1 << 5)  // sar_ratio_roughly_adjusted
-        | (1 << 6)  // clock_supply_switched
-        | (1 << 7)  // control_supply_switched
-        | (1 << 8)  // upc_on
-        | (1 << 9)  // upc_stabilized
-        | (1 << 10) // refgen_on
-        | (0 << 11) // adc_output_ready
-        | (0 << 12) // adc_adjusted
-        | (0 << 13) // sar_ratio_adjusted
-        | (1 << 14) // dnc_on
-        | (1 << 15) // dnc_stabilized
-        | (1 << 16) // vdd_3p6_turned_on
-        | (1 << 17) // vdd_1p2_turned_on
-        | (1 << 18) // vdd_0P6_turned_on
-        | (0 << 19) // vbat_read_only
-        | (0 << 20) // horizon
-    ));
-
-    // Read the current ADC offset
-    pmu_reg_write(0x00,0x03);
-    uint32_t adc_vbat   = (*REG0 & 0xFF0000) >> 16;
-    uint32_t adc_offset = (*REG0 & 0x007F00) >> 8;
-    uint32_t adc_dout   = (*REG0 & 0x0000FF) >> 0;
-
-    // Debug
-    #ifdef DEBUG_SET_SAR_RATIO
-        mbus_write_message32(0xD8, ((0x01 << 24) | *REG0));
-    #endif
-
-    // Override ADC Output so that the ADC always outputs near 0
-    pmu_reg_write (2, // 0x02 (ADC_CONFIG_OVERRIDE)
-        ( (1 << 23)          // Enable ADC config override
-        | (0 << 17)          // ADC_SAMPLE_VOLTAGE
-        | (1 << 16)          // ADC_REF_VOLTAGE
-        | (0 << 8)           // ADC_SAMPLINB_BIT (8 bits)
-        | (0 << 7)           // ADC_SAMPLINB_LSB
-        | (adc_offset << 0)  // ADC_OFFSET_CANCEL (7 bits)
-    ));
-
-    // Debug
-    #ifdef DEBUG_SET_SAR_RATIO
-        mbus_write_message32(0xD8, ((0x02 << 24) | *REG0));
-    #endif
-
-    // Set the desired SAR Ratio
-    pmu_reg_write (10, // 0x0A (SAR_RATIO_MINIMUM)
-       ( (sar_ratio << 0)    // SAR_RATIO_MINIMUM (7-bits)
-    ));
-
-    // Debug
-    #ifdef DEBUG_SET_SAR_RATIO
-        mbus_write_message32(0xD8, ((0x03 << 24) | *REG0));
-    #endif
-
-    // Disable SAR_RESET override
-    pmu_reg_write (5, // 0x05 (SAR_RATIO_OVERRIDE)
-       ( (1 << 13)  // Enable [12]
-       | (0 << 12)  // Let VDD_CLK always connected to VBAT
-       | (0 << 11)  // Enable [10] (Default: 1)
-       | (0 << 10)  // SAR_RESET 
-       | (0 << 9)   // Enable [8]
-       | (0 << 8)   // Switch input/output power rails for upconversion
-       | (0 << 7)   // Enable [6:0]
-       | (0 << 0)   // SAR_RATIO (7 bits)
-    ));
-
-    // Debug
-    #ifdef DEBUG_SET_SAR_RATIO
-        mbus_write_message32(0xD8, ((0x04 << 24) | *REG0));
-    #endif
-
-    // Run 'sar_ratio_adjusted'
-    pmu_reg_write (60, // 0x3C (CTRL_DESIRED_STATE_ACTIVE)
-        ((  1 << 0) // sar_on
-        | (1 << 1)  // wait_for_clock_cycles
-        | (1 << 2)  // not used
-        | (1 << 3)  // sar_reset
-        | (1 << 4)  // sar_stabilized
-        | (1 << 5)  // sar_ratio_roughly_adjusted
-        | (1 << 6)  // clock_supply_switched
-        | (1 << 7)  // control_supply_switched
-        | (1 << 8)  // upc_on
-        | (1 << 9)  // upc_stabilized
-        | (1 << 10) // refgen_on
-        | (1 << 11) // adc_output_ready
-        | (0 << 12) // adc_adjusted
-        | (1 << 13) // sar_ratio_adjusted
-        | (1 << 14) // dnc_on
-        | (1 << 15) // dnc_stabilized
-        | (1 << 16) // vdd_3p6_turned_on
-        | (1 << 17) // vdd_1p2_turned_on
-        | (1 << 18) // vdd_0P6_turned_on
-        | (0 << 19) // vbat_read_only
-        | (0 << 20) // horizon
-    ));
-
-    // Debug
-    #ifdef DEBUG_SET_SAR_RATIO
-        mbus_write_message32(0xD8, ((0x05 << 24) | *REG0));
-    #endif
-
-    uint32_t pmu_sar_ratio;
-
-    // Now we don't know how long it would take to set the sar ratio.
-    // so let's keep checking the actual sar ratio until it becomes as same as SAR_RATIO_MINIMUM
-    do {
-        // Read the current SAR RATIO
-        pmu_reg_write(0x00,0x04);
-        pmu_sar_ratio   = *REG0 & 0x7F;
-
-        // Debug
-        #ifdef DEBUG_SET_SAR_RATIO
-            mbus_write_message32(0xD8, ((0x06 << 24) | *REG0));
-        #endif
-
-    } while (pmu_sar_ratio != sar_ratio);
-
-    // Disable ADC & Auto Ratio Adjust
-    pmu_reg_write (60, // 0x3C (CTRL_DESIRED_STATE_ACTIVE)
-        ((  1 << 0) // sar_on
-        | (1 << 1)  // wait_for_clock_cycles
-        | (1 << 2)  // not used
-        | (1 << 3)  // sar_reset
-        | (1 << 4)  // sar_stabilized
-        | (1 << 5)  // sar_ratio_roughly_adjusted
-        | (1 << 6)  // clock_supply_switched
-        | (1 << 7)  // control_supply_switched
-        | (1 << 8)  // upc_on
-        | (1 << 9)  // upc_stabilized
-        | (1 << 10) // refgen_on
-        | (0 << 11) // adc_output_ready
-        | (0 << 12) // adc_adjusted
-        | (0 << 13) // sar_ratio_adjusted
-        | (1 << 14) // dnc_on
-        | (1 << 15) // dnc_stabilized
-        | (1 << 16) // vdd_3p6_turned_on
-        | (1 << 17) // vdd_1p2_turned_on
-        | (1 << 18) // vdd_0P6_turned_on
-        | (0 << 19) // vbat_read_only
-        | (0 << 20) // horizon
-    ));
-
-    // Debug
-    #ifdef DEBUG_SET_SAR_RATIO
-        mbus_write_message32(0xD8, ((0x07 << 24) | *REG0));
-    #endif
-
-    // Override SAR_RESET again
-    pmu_reg_write (5, // 0x05 (SAR_RATIO_OVERRIDE)
-       ( (1 << 13)  // Enable [12]
-       | (0 << 12)  // Let VDD_CLK always connected to VBAT
-       | (1 << 11)  // Enable [10] (Default: 1)
-       | (0 << 10)  // SAR_RESET 
-       | (0 << 9)   // Enable [8]
-       | (0 << 8)   // Switch input/output power rails for upconversion
-       | (0 << 7)   // Enable [6:0]
-       | (0 << 0)   // SAR_RATIO (7 bits)
-    ));
-
-    // Debug
-    #ifdef DEBUG_SET_SAR_RATIO
-        mbus_write_message32(0xD8, ((0x08 << 24) | *REG0));
-    #endif
-
-    // Disable ADC override
-    pmu_reg_write (2, // 0x02 (ADC_CONFIG_OVERRIDE)
-        ( (0 << 23) // Enable ADC config override
-        | (0 << 17) // ADC_SAMPLE_VOLTAGE
-        | (0 << 16) // ADC_REF_VOLTAGE
-        | (0 << 8)  // ADC_SAMPLINB_BIT (8 bits)
-        | (0 << 7)  // ADC_SAMPLINB_LSB
-        | (0 << 0)  // ADC_OFFSET_CANCEL (7 bits)
-    ));
-
-    // Debug
-    #ifdef DEBUG_SET_SAR_RATIO
-        mbus_write_message32(0xD8, ((0x09 << 24) | *REG0));
-    #endif
-
-}
-
-/*
-static void pmu_set_sar_override(uint32_t val){
-	// SAR_RATIO_OVERRIDE
-    pmu_reg_write(0x05, //default 12'h000
-		( (0 << 13) // Enables override setting [12] (1'b1)
-		| (0 << 12) // Let VDD_CLK always connected to vbat
-		| (1 << 11) // Enable override setting [10] (1'h0)
-		| (0 << 10) // Have the converter have the periodic reset (1'h0)
-		| (1 << 9) // Enable override setting [8] (1'h0)
-		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
-		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (val) 		// Binary converter's conversion ratio (7'h00)
-	));
-    pmu_reg_write(0x05, //default 12'h000
-		( (1 << 13) // Enables override setting [12] (1'b1)
-		| (0 << 12) // Let VDD_CLK always connected to vbat
-		| (1 << 11) // Enable override setting [10] (1'h0)
-		| (0 << 10) // Have the converter have the periodic reset (1'h0)
-		| (1 << 9) // Enable override setting [8] (1'h0)
-		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
-		| (1 << 7) // Enable override setting [6:0] (1'h0)
-		| (val) 		// Binary converter's conversion ratio (7'h00)
-	));
-}
-
-*/
-
 inline static void pmu_set_adc_period(uint32_t val){
-	// PMU_CONTROLLER_DESIRED_STATE Active
-	// Updated for PMUv9
-	pmu_reg_write(0x3C,
-		((  1 << 0) //state_sar_scn_on
-		| (0 << 1) //state_wait_for_clock_cycles
-		| (1 << 2) //state_wait_for_time
-		| (1 << 3) //state_sar_scn_reset
-		| (1 << 4) //state_sar_scn_stabilized
-		| (1 << 5) //state_sar_scn_ratio_roughly_adjusted
-		| (1 << 6) //state_clock_supply_switched
-		| (1 << 7) //state_control_supply_switched
-		| (1 << 8) //state_upconverter_on
-		| (1 << 9) //state_upconverter_stabilized
-		| (1 << 10) //state_refgen_on
-		| (0 << 11) //state_adc_output_ready
-		| (0 << 12) //state_adc_adjusted
-		| (0 << 13) //state_sar_scn_ratio_adjusted
-		| (1 << 14) //state_downconverter_on
-		| (1 << 15) //state_downconverter_stabilized
-		| (1 << 16) //state_vdd_3p6_turned_on
-		| (1 << 17) //state_vdd_1p2_turned_on
-		| (1 << 18) //state_vdd_0P6_turned_on
-		| (0 << 19) //state_vbat_read
-		| (1 << 20) //state_state_horizon
-	));
+    // PMU_CONTROLLER_DESIRED_STATE Active
+    // Updated for PMUv9
+    pmu_reg_write(0x3C,
+        ((  1 << 0) //state_sar_scn_on
+        | (0 << 1) //state_wait_for_clock_cycles
+        | (1 << 2) //state_wait_for_time
+        | (1 << 3) //state_sar_scn_reset
+        | (1 << 4) //state_sar_scn_stabilized
+        | (1 << 5) //state_sar_scn_ratio_roughly_adjusted
+        | (1 << 6) //state_clock_supply_switched
+        | (1 << 7) //state_control_supply_switched
+        | (1 << 8) //state_upconverter_on
+        | (1 << 9) //state_upconverter_stabilized
+        | (1 << 10) //state_refgen_on
+        | (0 << 11) //state_adc_output_ready
+        | (0 << 12) //state_adc_adjusted
+        | (0 << 13) //state_sar_scn_ratio_adjusted
+        | (1 << 14) //state_downconverter_on
+        | (1 << 15) //state_downconverter_stabilized
+        | (1 << 16) //state_vdd_3p6_turned_on
+        | (1 << 17) //state_vdd_1p2_turned_on
+        | (1 << 18) //state_vdd_0P6_turned_on
+        | (0 << 19) //state_vbat_read
+        | (1 << 20) //state_state_horizon
+    ));
 
-	// Register 0x36: TICK_REPEAT_VBAT_ADJUST
+    // Register 0x36: TICK_REPEAT_VBAT_ADJUST
     pmu_reg_write(0x36,val); 
-	delay(MBUS_DELAY*10);
 
-	// Register 0x33: TICK_ADC_RESET
-	pmu_reg_write(0x33,2);
+    // Register 0x33: TICK_ADC_RESET
+    pmu_reg_write(0x33,2);
 
-	// Register 0x34: TICK_ADC_CLK
-	pmu_reg_write(0x34,2);
+    // Register 0x34: TICK_ADC_CLK
+    pmu_reg_write(0x34,2);
 
-	// PMU_CONTROLLER_DESIRED_STATE Active
-	pmu_reg_write(0x3C,
-		((  1 << 0) //state_sar_scn_on
-		| (1 << 1) //state_wait_for_clock_cycles
-		| (1 << 2) //state_wait_for_time
-		| (1 << 3) //state_sar_scn_reset
-		| (1 << 4) //state_sar_scn_stabilized
-		| (1 << 5) //state_sar_scn_ratio_roughly_adjusted
-		| (1 << 6) //state_clock_supply_switched
-		| (1 << 7) //state_control_supply_switched
-		| (1 << 8) //state_upconverter_on
-		| (1 << 9) //state_upconverter_stabilized
-		| (1 << 10) //state_refgen_on
-		| (0 << 11) //state_adc_output_ready
-		| (0 << 12) //state_adc_adjusted
-		| (0 << 13) //state_sar_scn_ratio_adjusted
-		| (1 << 14) //state_downconverter_on
-		| (1 << 15) //state_downconverter_stabilized
-		| (1 << 16) //state_vdd_3p6_turned_on
-		| (1 << 17) //state_vdd_1p2_turned_on
-		| (1 << 18) //state_vdd_0P6_turned_on
-		| (0 << 19) //state_vbat_read
-		| (1 << 20) //state_state_horizon
-	));
+    // PMU_CONTROLLER_DESIRED_STATE Active
+    // Updated for PMUv9
+    pmu_reg_write(0x3C,
+        ((  1 << 0) //state_sar_scn_on
+        | (1 << 1) //state_wait_for_clock_cycles
+        | (1 << 2) //state_wait_for_time
+        | (1 << 3) //state_sar_scn_reset
+        | (1 << 4) //state_sar_scn_stabilized
+        | (1 << 5) //state_sar_scn_ratio_roughly_adjusted
+        | (1 << 6) //state_clock_supply_switched
+        | (1 << 7) //state_control_supply_switched
+        | (1 << 8) //state_upconverter_on
+        | (1 << 9) //state_upconverter_stabilized
+        | (1 << 10) //state_refgen_on
+        | (0 << 11) //state_adc_output_ready
+        | (0 << 12) //state_adc_adjusted
+        | (0 << 13) //state_sar_scn_ratio_adjusted
+        | (1 << 14) //state_downconverter_on
+        | (1 << 15) //state_downconverter_stabilized
+        | (1 << 16) //state_vdd_3p6_turned_on
+        | (1 << 17) //state_vdd_1p2_turned_on
+        | (1 << 18) //state_vdd_0P6_turned_on
+        | (0 << 19) //state_vbat_read
+        | (1 << 20) //state_state_horizon
+    ));
 }
 
 inline static void pmu_set_active_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1p2){
@@ -687,23 +457,23 @@ inline static void pmu_set_sleep_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t
 
 inline static void pmu_active_setting_temp_based(){
     
-    if (pmu_setting_state >= PMU_95C){
+    if (pmu_setting_state == PMU_95C){
         pmu_set_active_clk(0x7,0x2,0x7,0x4/*V1P2*/);
 
-    }else if (pmu_setting_state >= PMU_75C){
+    }else if (pmu_setting_state == PMU_75C){
         pmu_set_active_clk(0xA,0x4,0x7,0x8/*V1P2*/);
 
-    }else if (pmu_setting_state >= PMU_55C){
+    }else if (pmu_setting_state == PMU_55C){
         pmu_set_active_clk(0x1,0x0,0x10,0x2/*V1P2*/);
 
-    }else if (pmu_setting_state >= PMU_35C){
+    }else if (pmu_setting_state == PMU_35C){
         pmu_set_active_clk(0x2,0x1,0x10,0x2/*V1P2*/);
 
-    }else if (pmu_setting_state < PMU_15C){
-        pmu_set_active_clk(0xD,0x2,0x10,0x4/*V1P2*/);
-
-    }else if (pmu_setting_state < PMU_25C){
+    }else if (pmu_setting_state == PMU_20C){
         pmu_set_active_clk(0x7,0x2,0x10,0x4/*V1P2*/);
+
+    }else if (pmu_setting_state == PMU_10C){
+        pmu_set_active_clk(0xD,0x2,0x10,0x4/*V1P2*/);
 
     }else{ // 25C, default
         pmu_set_active_clk(0x5,0x1,0x10,0x2/*V1P2*/);
@@ -715,7 +485,7 @@ inline static void pmu_set_sleep_radio(){
 }
 
 inline static void pmu_set_sleep_low(){
-    pmu_set_sleep_clk(0x5,0x2,0x1,0x2/*V1P2*/);
+    pmu_set_sleep_clk(0x3,0x1,0x1,0x2/*V1P2*/);
 }
 
 inline static void pmu_set_sleep_tsns(){
@@ -735,23 +505,23 @@ inline static void pmu_set_sleep_tsns(){
 
 inline static void pmu_sleep_setting_temp_based(){
     
-    if (pmu_setting_state >= PMU_95C){
-        pmu_set_sleep_clk(0x1,0x1,0x1,0x0/*V1P2*/);
+    if (pmu_setting_state == PMU_95C){
+        pmu_set_sleep_clk(0x1,0x0,0x1,0x0/*V1P2*/);
 
-    }else if (pmu_setting_state >= PMU_75C){
-        pmu_set_sleep_clk(0x1,0x2,0x1,0x1/*V1P2*/);
+    }else if (pmu_setting_state == PMU_75C){
+        pmu_set_sleep_clk(0x1,0x1,0x1,0x1/*V1P2*/);
 
-    }else if (pmu_setting_state >= PMU_55C){
-        pmu_set_sleep_clk(0x1,0x2,0x1,0x2/*V1P2*/);
+    }else if (pmu_setting_state == PMU_55C){
+        pmu_set_sleep_clk(0x1,0x1,0x1,0x2/*V1P2*/);
 
-    }else if (pmu_setting_state >= PMU_35C){
-        pmu_set_sleep_clk(0x2,0x2,0x1,0x2/*V1P2*/);
+    }else if (pmu_setting_state == PMU_35C){
+        pmu_set_sleep_clk(0x2,0x1,0x1,0x2/*V1P2*/);
 
-    }else if (pmu_setting_state < PMU_10C){
-        pmu_set_sleep_clk(0xF,0x4,0x1,0x4/*V1P2*/);
+    }else if (pmu_setting_state == PMU_20C){
+        pmu_set_sleep_clk(0xF,0x2,0x1,0x4/*V1P2*/);
 
-    }else if (pmu_setting_state < PMU_20C){
-        pmu_set_sleep_clk(0xF,0x2,0x1,0x2/*V1P2*/);
+    }else if (pmu_setting_state == PMU_10C){
+        pmu_set_sleep_clk(0xF,0x1,0x1,0x2/*V1P2*/);
 
     }else{ // 25C, default
 		pmu_set_sleep_low();
@@ -764,20 +534,29 @@ inline static void pmu_set_clk_init(){
     pmu_setting_state = PMU_25C;
     pmu_active_setting_temp_based();
     pmu_sleep_setting_temp_based();
-
-	// SAR_RATIO_OVERRIDE
-	// Use the new reset scheme in PMUv3
+    // SAR_RATIO_OVERRIDE
+    // Use the new reset scheme in PMUv3
     pmu_reg_write(0x05, //default 12'h000
-		( (0 << 13) // Enables override setting [12] (1'b1)
-		| (0 << 12) // Let VDD_CLK always connected to vbat
-		| (1 << 11) // Enable override setting [10] (1'h0)
-		| (0 << 10) // Have the converter have the periodic reset (1'h0)
-		| (0 << 9) // Enable override setting [8] (1'h0)
-		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
-		| (0 << 7) // Enable override setting [6:0] (1'h0)
-		| (0x4B) 		// Binary converter's conversion ratio (7'h00)
-	));
-	pmu_set_sar_override(0x4B);
+        ( (0 << 13) // Enables override setting [12] (1'b1)
+        | (0 << 12) // Let VDD_CLK always connected to vbat
+        | (1 << 11) // Enable override setting [10] (1'h0)
+        | (0 << 10) // Have the converter have the periodic reset (1'h0)
+        | (0 << 9) // Enable override setting [8] (1'h0)
+        | (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+        | (0 << 7) // Enable override setting [6:0] (1'h0)
+        | (47)        // Binary converter's conversion ratio (7'h00)
+    ));
+    pmu_reg_write(0x05, //default 12'h000
+        ( (1 << 13) // Enables override setting [12] (1'b1)
+        | (0 << 12) // Let VDD_CLK always connected to vbat
+        | (1 << 11) // Enable override setting [10] (1'h0)
+        | (0 << 10) // Have the converter have the periodic reset (1'h0)
+        | (1 << 9) // Enable override setting [8] (1'h0)
+        | (0 << 8) // Switch input / output power rails for upconversion (1'h0)
+        | (1 << 7) // Enable override setting [6:0] (1'h0)
+        | (47)        // Binary converter's conversion ratio (7'h00)
+    ));
+
     pmu_set_adc_period(1); // 0x100 about 1 min for 1/2/1 1P2 setting
 }
 
@@ -870,6 +649,22 @@ inline static void pmu_adc_enable(){
 }
 
 
+inline static void pmu_adc_read_latest(){
+
+    // Grab latest PMU ADC readings
+    // PMU register read is handled differently
+    pmu_reg_write(0x00,0x03);
+    // Updated for PMUv9
+    read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
+    
+    if (read_data_batadc<PMU_ADC_4P2_VAL){
+        read_data_batadc_diff = 0;
+    }else{
+        read_data_batadc_diff = read_data_batadc - PMU_ADC_4P2_VAL;
+    }
+
+}
+
 inline static void pmu_reset_solar_short(){
     // Updated for PMUv9
     pmu_reg_write(0x0E, 
@@ -892,123 +687,54 @@ inline static void pmu_reset_solar_short(){
     ));
 }
 
-inline static void pmu_parking_decision_3v_battery(){
-	
-	// Battery > 3.0V
-	if (read_data_batadc < (PMU_ADC_3P0_VAL)){
-		pmu_set_sar_override(0x3C);
-
-	// Battery 2.9V - 3.0V
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 4){
-		pmu_set_sar_override(0x3F);
-
-	// Battery 2.8V - 2.9V
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 8){
-		pmu_set_sar_override(0x41);
-
-	// Battery 2.7V - 2.8V
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 12){
-		pmu_set_sar_override(0x43);
-
-	// Battery 2.6V - 2.7V
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 17){
-		pmu_set_sar_override(0x45);
-
-	// Battery 2.5V - 2.6V
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 21){
-		pmu_set_sar_override(0x48);
-
-	// Battery 2.4V - 2.5V
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 27){
-		pmu_set_sar_override(0x4B);
-
-	// Battery 2.3V - 2.4V
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 32){
-		pmu_set_sar_override(0x4E);
-
-	// Battery 2.2V - 2.3V
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 39){
-		pmu_set_sar_override(0x51);
-
-	// Battery 2.1V - 2.2V
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 46){
-		pmu_set_sar_override(0x56);
-
-	// Battery 2.0V - 2.1V
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 53){
-		pmu_set_sar_override(0x5A);
-
-	// Battery <= 2.0V
-	}else{
-		pmu_set_sar_override(0x5F);
-	}
-	
-}
-
-inline static void pmu_adc_read_latest(){
-
-    // Grab latest PMU ADC readings
-    // PMU register read is handled differently
-    pmu_reg_write(0x00,0x03);
-    // Updated for PMUv9
-    read_data_batadc = *((volatile uint32_t *) REG0) & 0xFF;
-    
-    if (read_data_batadc<PMU_ADC_3P0_VAL){
-        read_data_batadc_diff = 0;
-    }else{
-        read_data_batadc_diff = read_data_batadc - PMU_ADC_3P0_VAL;
-    }
-
-}
-
 //***************************************************
-// Temp Sensor Functions (SNTv4 retrofit to SNTv2)
+// Temp Sensor Functions (SNTv4)
 //***************************************************
 
 static void temp_sensor_start(){
-    sntv2_r01.TSNS_RESETn = 1;
-    mbus_remote_register_write(SNT_ADDR,1,sntv2_r01.as_int);
+    sntv4_r01.TSNS_RESETn = 1;
+    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
 }
 static void temp_sensor_reset(){
-    sntv2_r01.TSNS_RESETn = 0;
-    mbus_remote_register_write(SNT_ADDR,1,sntv2_r01.as_int);
+    sntv4_r01.TSNS_RESETn = 0;
+    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
 }
 static void temp_sensor_power_on(){
     // Turn on digital block
-    sntv2_r01.TSNS_SEL_LDO = 1;
-    mbus_remote_register_write(SNT_ADDR,1,sntv2_r01.as_int);
+    sntv4_r01.TSNS_SEL_LDO = 1;
+    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
     // Turn on analog block
-    sntv2_r01.TSNS_EN_SENSOR_LDO = 1;
-    mbus_remote_register_write(SNT_ADDR,1,sntv2_r01.as_int);
+    sntv4_r01.TSNS_EN_SENSOR_LDO = 1;
+    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
 
     delay(MBUS_DELAY);
 
     // Release isolation
-    sntv2_r01.TSNS_ISOLATE = 0;
-    mbus_remote_register_write(SNT_ADDR,1,sntv2_r01.as_int);
+    sntv4_r01.TSNS_ISOLATE = 0;
+    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
 }
 static void temp_sensor_power_off(){
-    sntv2_r01.TSNS_RESETn = 0;
-    sntv2_r01.TSNS_SEL_LDO = 0;
-    sntv2_r01.TSNS_EN_SENSOR_LDO = 0;
-    sntv2_r01.TSNS_ISOLATE = 1;
-    mbus_remote_register_write(SNT_ADDR,1,sntv2_r01.as_int);
+    sntv4_r01.TSNS_RESETn = 0;
+    sntv4_r01.TSNS_SEL_LDO = 0;
+    sntv4_r01.TSNS_EN_SENSOR_LDO = 0;
+    sntv4_r01.TSNS_ISOLATE = 1;
+    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
 }
 static void sns_ldo_vref_on(){
-    sntv2_r00.LDO_EN_VREF    = 1;
-    mbus_remote_register_write(SNT_ADDR,0,sntv2_r00.as_int);
+    sntv4_r00.LDO_EN_VREF    = 1;
+    mbus_remote_register_write(SNT_ADDR,0,sntv4_r00.as_int);
 }
 
 static void sns_ldo_power_on(){
-    sntv2_r00.LDO_EN_IREF    = 1;
-    sntv2_r00.LDO_EN_LDO    = 1;
-    mbus_remote_register_write(SNT_ADDR,0,sntv2_r00.as_int);
+    sntv4_r00.LDO_EN_IREF    = 1;
+    sntv4_r00.LDO_EN_LDO    = 1;
+    mbus_remote_register_write(SNT_ADDR,0,sntv4_r00.as_int);
 }
 static void sns_ldo_power_off(){
-    sntv2_r00.LDO_EN_VREF    = 0;
-    sntv2_r00.LDO_EN_IREF    = 0;
-    sntv2_r00.LDO_EN_LDO    = 0;
-    mbus_remote_register_write(SNT_ADDR,0,sntv2_r00.as_int);
+    sntv4_r00.LDO_EN_VREF    = 0;
+    sntv4_r00.LDO_EN_IREF    = 0;
+    sntv4_r00.LDO_EN_LDO    = 0;
+    mbus_remote_register_write(SNT_ADDR,0,sntv4_r00.as_int);
 }
 
 static void snt_read_wup_counter(){
@@ -1025,35 +751,35 @@ static void snt_read_wup_counter(){
     
 static void snt_start_timer_presleep(){
 
-    sntv2_r09.TMR_IBIAS_REF = 0x4; // Default : 4'h4
-    mbus_remote_register_write(SNT_ADDR,0x09,sntv2_r09.as_int);
+    sntv4_r09.TMR_IBIAS_REF = 0x4; // Default : 4'h4
+    mbus_remote_register_write(SNT_ADDR,0x09,sntv4_r09.as_int);
 
 	// Release Power Gate
-	sntv2_r08.TMR_SLEEP = 0x0; // Default : 0x1
-	sntv2_r08.TMR_ISOLATE = 0x0; // Default : 0x1
-	mbus_remote_register_write(SNT_ADDR,0x08,sntv2_r08.as_int);
+	sntv4_r08.TMR_SLEEP = 0x0; // Default : 0x1
+	sntv4_r08.TMR_ISOLATE = 0x0; // Default : 0x1
+	mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
 
     // TIMER SELF_EN Disable 
-    sntv2_r09.TMR_SELF_EN = 0x0; // Default : 0x1
-    mbus_remote_register_write(SNT_ADDR,0x09,sntv2_r09.as_int);
+    sntv4_r09.TMR_SELF_EN = 0x0; // Default : 0x1
+    mbus_remote_register_write(SNT_ADDR,0x09,sntv4_r09.as_int);
 
     // EN_OSC 
-    sntv2_r08.TMR_EN_OSC = 0x1; // Default : 0x0
-    mbus_remote_register_write(SNT_ADDR,0x08,sntv2_r08.as_int);
+    sntv4_r08.TMR_EN_OSC = 0x1; // Default : 0x0
+    mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
 
     // Release Reset 
-    sntv2_r08.TMR_RESETB = 0x1; // Default : 0x0
-    sntv2_r08.TMR_RESETB_DIV = 0x1; // Default : 0x0
-    sntv2_r08.TMR_RESETB_DCDC = 0x1; // Default : 0x0
-    mbus_remote_register_write(SNT_ADDR,0x08,sntv2_r08.as_int);
+    sntv4_r08.TMR_RESETB = 0x1; // Default : 0x0
+    sntv4_r08.TMR_RESETB_DIV = 0x1; // Default : 0x0
+    sntv4_r08.TMR_RESETB_DCDC = 0x1; // Default : 0x0
+    mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
 
     // TIMER EN_SEL_CLK Reset 
-    sntv2_r08.TMR_EN_SELF_CLK = 0x1; // Default : 0x0
-    mbus_remote_register_write(SNT_ADDR,0x08,sntv2_r08.as_int);
+    sntv4_r08.TMR_EN_SELF_CLK = 0x1; // Default : 0x0
+    mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
 
     // TIMER SELF_EN 
-    sntv2_r09.TMR_SELF_EN = 0x1; // Default : 0x0
-    mbus_remote_register_write(SNT_ADDR,0x09,sntv2_r09.as_int);
+    sntv4_r09.TMR_SELF_EN = 0x1; // Default : 0x0
+    mbus_remote_register_write(SNT_ADDR,0x09,sntv4_r09.as_int);
     //delay(100000); 
 
     snt_timer_enabled = 1;
@@ -1061,33 +787,33 @@ static void snt_start_timer_presleep(){
 
 static void snt_start_timer_postsleep(){
     // Turn off sloscillator
-    sntv2_r08.TMR_EN_OSC = 0x0; // Default : 0x0
-    mbus_remote_register_write(SNT_ADDR,0x08,sntv2_r08.as_int);
+    sntv4_r08.TMR_EN_OSC = 0x0; // Default : 0x0
+    mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
 }
 
 
 static void snt_stop_timer(){
 
     // EN_OSC
-    sntv2_r08.TMR_EN_OSC = 0x0; // Default : 0x0
+    sntv4_r08.TMR_EN_OSC = 0x0; // Default : 0x0
     // RESET
-    sntv2_r08.TMR_EN_SELF_CLK = 0x0; // Default : 0x0
-    sntv2_r08.TMR_RESETB = 0x0;// Default : 0x0
-    sntv2_r08.TMR_RESETB_DIV = 0x0; // Default : 0x0
-    sntv2_r08.TMR_RESETB_DCDC = 0x0; // Default : 0x0
-    mbus_remote_register_write(SNT_ADDR,0x08,sntv2_r08.as_int);
+    sntv4_r08.TMR_EN_SELF_CLK = 0x0; // Default : 0x0
+    sntv4_r08.TMR_RESETB = 0x0;// Default : 0x0
+    sntv4_r08.TMR_RESETB_DIV = 0x0; // Default : 0x0
+    sntv4_r08.TMR_RESETB_DCDC = 0x0; // Default : 0x0
+    mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
     snt_timer_enabled = 0;
 
 	// Enable Power Gate
-	sntv2_r08.TMR_SLEEP = 0x0; // Default : 0x1
-	sntv2_r08.TMR_ISOLATE = 0x0; // Default : 0x1
-	mbus_remote_register_write(SNT_ADDR,0x08,sntv2_r08.as_int);
+	sntv4_r08.TMR_SLEEP = 0x0; // Default : 0x1
+	sntv4_r08.TMR_ISOLATE = 0x0; // Default : 0x1
+	mbus_remote_register_write(SNT_ADDR,0x08,sntv4_r08.as_int);
 
-    sntv2_r09.TMR_IBIAS_REF = 0x0; // Default : 4'h4
-    mbus_remote_register_write(SNT_ADDR,0x09,sntv2_r09.as_int);
+    sntv4_r09.TMR_IBIAS_REF = 0x0; // Default : 4'h4
+    mbus_remote_register_write(SNT_ADDR,0x09,sntv4_r09.as_int);
 
-    sntv2_r17.WUP_ENABLE = 0x0; // Default : 0x
-    mbus_remote_register_write(SNT_ADDR,0x17,sntv2_r17.as_int);
+    sntv4_r17.WUP_ENABLE = 0x0; // Default : 0x
+    mbus_remote_register_write(SNT_ADDR,0x17,sntv4_r17.as_int);
 
 }
 
@@ -1098,107 +824,8 @@ static void snt_set_wup_timer(uint32_t sleep_count){
     mbus_remote_register_write(SNT_ADDR,0x19,snt_wup_counter_cur>>24);
     mbus_remote_register_write(SNT_ADDR,0x1A,snt_wup_counter_cur & 0xFFFFFF);
     
-    sntv2_r17.WUP_ENABLE = 0x1; // Default : 0x
-    mbus_remote_register_write(SNT_ADDR,0x17,sntv2_r17.as_int);
-
-}
-
-//***************************************************
-// RDCv3 Functions
-//***************************************************
-
-static void rdc_enable_vref(){
-	rdcv4_r2C.RDC_ENb_PG_VREF = 1;
-	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv4_r2C.as_int);
-}
-static void rdc_disable_vref(){
-	rdcv4_r2C.RDC_ENb_PG_VREF = 0;
-	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv4_r2C.as_int);
-}
-
-static void rdc_disable_pg_v1p2(){
-	rdcv4_r2C.RDC_EN_PG_FSM = 0;
-	rdcv4_r2C.RDC_EN_PG_RC_OSC = 0;
-	rdcv4_r2C.RDC_EN_PG_AMP_V1P2 = 0;
-	rdcv4_r2C.RDC_EN_PG_ADC_V1P2 = 0;
-	rdcv4_r2C.RDC_EN_PG_BUF_VH_V1P2 = 0;
-	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv4_r2C.as_int);
-}
-static void rdc_enable_pg_v1p2(){
-	rdcv4_r2C.RDC_EN_PG_FSM = 1;
-	rdcv4_r2C.RDC_EN_PG_RC_OSC = 1;
-	rdcv4_r2C.RDC_EN_PG_AMP_V1P2 = 1;
-	rdcv4_r2C.RDC_EN_PG_ADC_V1P2 = 1;
-	rdcv4_r2C.RDC_EN_PG_BUF_VH_V1P2 = 1;
-	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv4_r2C.as_int);
-}
-
-static void rdc_disable_pg_vbat(){
-	rdcv4_r2C.RDC_ENb_PG_AMP_VBAT = 1;
-	rdcv4_r2C.RDC_ENb_PG_ADC_VBAT = 1;
-	rdcv4_r2C.RDC_ENb_PG_BUF_VCM = 1;
-	rdcv4_r2C.RDC_ENb_PG_BUF_VH_VBAT = 1;
-	rdcv4_r2C.RDC_ENb_MIRROR_LDO = 0;
-	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv4_r2C.as_int);
-}
-static void rdc_enable_pg_vbat(){
-	rdcv4_r2C.RDC_ENb_PG_AMP_VBAT = 0;
-	rdcv4_r2C.RDC_ENb_PG_ADC_VBAT = 0;
-	rdcv4_r2C.RDC_ENb_PG_BUF_VCM = 0;
-	rdcv4_r2C.RDC_ENb_PG_BUF_VH_VBAT = 0;
-	rdcv4_r2C.RDC_ENb_MIRROR_LDO = 1;
-	mbus_remote_register_write(RDC_ADDR,0x2C,rdcv4_r2C.as_int);
-}
-
-static void rdc_disable_clock(){
-	rdcv4_r28.RDC_RESET_RC_OSC = 1;
-	rdcv4_r2B.RDC_CLK_ISOLATE = 1;
-	mbus_remote_register_write(RDC_ADDR,0x28,rdcv4_r28.as_int);
-	mbus_remote_register_write(RDC_ADDR,0x2B,rdcv4_r2B.as_int);
-}
-static void rdc_enable_clock(){
-	rdcv4_r28.RDC_RESET_RC_OSC = 0;
-	rdcv4_r2B.RDC_CLK_ISOLATE = 0;
-	mbus_remote_register_write(RDC_ADDR,0x28,rdcv4_r28.as_int);
-	mbus_remote_register_write(RDC_ADDR,0x2B,rdcv4_r2B.as_int);
-}
-
-static void rdc_start_meas(){
-	rdcv4_r20.RDC_RESETn_FSM = 1;
-	rdcv4_r20.RDC_ISOLATE = 0;
-	mbus_remote_register_write(RDC_ADDR,0x20,rdcv4_r20.as_int);
-}
-static void rdc_reset(){
-	rdcv4_r20.RDC_RESETn_FSM = 0;
-	rdcv4_r20.RDC_ISOLATE = 1;
-	mbus_remote_register_write(RDC_ADDR,0x20,rdcv4_r20.as_int);
-}
-static void rdc_reset2(){
-	rdcv4_r20.RDC_ISOLATE = 1;
-	mbus_remote_register_write(RDC_ADDR,0x20,rdcv4_r20.as_int);
-}
-
-static void rdc_power_on(){
-
-	rdc_reset();
-	rdc_disable_pg_v1p2();
-	delay(MBUS_DELAY);
-
-	rdc_disable_pg_vbat();
-	delay(MBUS_DELAY);
-
-
-	rdc_enable_clock();
-
-}
-
-static void rdc_power_off(){
-
-	rdc_reset2();
-	rdc_disable_clock();
-	rdc_enable_pg_vbat();
-	rdc_enable_pg_v1p2();
-	rdc_disable_vref();  
+    sntv4_r17.WUP_ENABLE = 0x1; // Default : 0x
+    mbus_remote_register_write(SNT_ADDR,0x17,sntv4_r17.as_int);
 
 }
 
@@ -1255,13 +882,13 @@ static void radio_power_off(){
     srrv4_r11.SRR_RAD_FSM_SLEEP = 1;
     mbus_remote_register_write(SRR_ADDR,0x11,srrv4_r11.as_int);
 
-    srrv4_r04.RO_ISOLATE_CLK = 1; //Set Isolate CLK to 0 TIMER
     // Turn off Current Limter
     srrv4_r00.SRR_CL_EN = 0;  //Enable CL
     mbus_remote_register_write(SRR_ADDR,0x00,srrv4_r00.as_int);
 
     srrv4_r04.RO_RESET = 1;  //Release Reset TIMER
     srrv4_r04.RO_EN_CLK = 0; //Enable CLK TIMER
+    srrv4_r04.RO_ISOLATE_CLK = 1; //Set Isolate CLK to 0 TIMER
     mbus_remote_register_write(SRR_ADDR,0x04,srrv4_r04.as_int);
 
     // Enable timer power-gate
@@ -1351,6 +978,7 @@ static void send_radio_data_srr(uint32_t last_packet, uint8_t radio_packet_prefi
     radio_packet_count++;
 
     if (last_packet){
+        radio_ready = 0;
         radio_power_off();
     }
 }
@@ -1360,8 +988,8 @@ static void send_radio_data_srr(uint32_t last_packet, uint8_t radio_packet_prefi
 //***************************************************
 static void operation_sns_sleep_check(void){
     // Make sure LDO is off
-    if (sns_running){
-        sns_running = 0;
+    if (temp_running){
+        temp_running = 0;
         temp_sensor_power_off();
         sns_ldo_power_off();
     }
@@ -1435,7 +1063,14 @@ static void operation_sleep_notimer(void){
 static void operation_tx_stored(uint8_t num_duplicate_packets){
 
     //Fire off stored data to radio
-    while(radio_tx_count < temp_storage_count){
+    uint32_t radio_tx_limit;
+    if (temp_storage_count < NUM_MEAS_USER){
+        radio_tx_limit = temp_storage_count;
+    }else{
+        radio_tx_limit = NUM_MEAS_USER;
+    }
+
+    while(radio_tx_count < radio_tx_limit){
         #ifdef DEBUG_MBUS_MSG_1
             mbus_write_message32(0xDD, radio_tx_count);
             mbus_write_message32(0xDD, temp_storage[radio_tx_count]);
@@ -1462,7 +1097,7 @@ static void operation_tx_stored(uint8_t num_duplicate_packets){
     // Go to sleep without timer
     operation_sleep_notimer();
 }
-/*
+
 uint32_t dumb_divide(uint32_t nu, uint32_t de) {
 // Returns quotient of nu/de
 
@@ -1518,50 +1153,53 @@ static void measure_wakeup_period(void){
     }
     mbus_write_message32(0xED, WAKEUP_PERIOD_CONT); 
 }
-*/
+
 
 static void operation_init(void){
   
     // Set CPU & Mbus Clock Speeds
-    prev20_r0B.CLK_GEN_RING = 0x1; // Default 0x1
-    prev20_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
-    prev20_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
-    prev20_r0B.GOC_CLK_GEN_SEL_FREQ = 0x5; // Default 0x6
-    prev20_r0B.GOC_CLK_GEN_SEL_DIV = 0x0; // Default 0x0
-    *REG_CLKGEN_TUNE = prev20_r0B.as_int;
+    prcv20_r0B.CLK_GEN_RING = 0x1; // Default 0x1
+    prcv20_r0B.CLK_GEN_DIV_MBC = 0x1; // Default 0x1
+    prcv20_r0B.CLK_GEN_DIV_CORE = 0x2; // Default 0x3
+    prcv20_r0B.GOC_CLK_GEN_SEL_FREQ = 0x5; // Default 0x6
+    prcv20_r0B.GOC_CLK_GEN_SEL_DIV = 0x0; // Default 0x0
+    *REG_CLKGEN_TUNE = prcv20_r0B.as_int;
 
-    prev20_r1C.SRAM0_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
-    prev20_r1C.SRAM0_TUNE_DECODER_DLY = 15; // Default 0x2, 4 bits
-    prev20_r1C.SRAM0_USE_INVERTER_SA = 0; // Default 0x2, 4 bits
-    *REG_SRAM0_TUNE = prev20_r1C.as_int;
+    prcv20_r1C.SRAM0_TUNE_ASO_DLY = 31; // Default 0x0, 5 bits
+    prcv20_r1C.SRAM0_TUNE_DECODER_DLY = 15; // Default 0x2, 4 bits
+    prcv20_r1C.SRAM0_USE_INVERTER_SA = 0; // Default 0x2, 4 bits
+    *REG_SRAM0_TUNE = prcv20_r1C.as_int;
     //*REG_SRAM_TUNE = 0x45; // use inverter SA
     //*REG_SRAM_TUNE = 0x44; // use default SA
   
     //Enumerate & Initialize Registers
-    stack_state = STK_IDLE;    //0x0;
-    enumerated = 0x5043607A;
+    Tstack_state = TSTK_IDLE;    //0x0;
+    enumerated = 0x5443605a;
     exec_count = 0;
     exec_count_irq = 0;
-    PMU_ADC_3P0_VAL = 0x62;
+    PMU_ADC_4P2_VAL = 0x4B;
   
     // Set CPU Halt Option as RX --> Use for register read e.g.
     //set_halt_until_mbus_rx();
 
     //Enumeration
-    mbus_enumerate(SNT_ADDR);
-	delay(MBUS_DELAY);
-    mbus_enumerate(MRR_ADDR);
-	delay(MBUS_DELAY);
-    mbus_enumerate(RDC_ADDR);
-	delay(MBUS_DELAY);
     mbus_enumerate(SRR_ADDR);
 	delay(MBUS_DELAY);
- 	mbus_enumerate(MEM_ADDR);
+    mbus_enumerate(SNT_ADDR);
+	delay(MBUS_DELAY);
+    mbus_enumerate(HRV_ADDR);
 	delay(MBUS_DELAY);
  	mbus_enumerate(PMU_ADDR);
 	delay(MBUS_DELAY);
+ 	mbus_enumerate(MEM_ADDR);
+	delay(MBUS_DELAY);
 /*
     set_halt_until_mbus_trx();
+    mbus_enumerate(SRR_ADDR);
+    mbus_enumerate(SNT_ADDR);
+    mbus_enumerate(HRV_ADDR);
+    mbus_enumerate(PMU_ADDR);
+    mbus_enumerate(MEM_ADDR);
     set_halt_until_mbus_tx();
 */
     // Set CPU Halt Option as TX --> Use for register write e.g.
@@ -1579,33 +1217,32 @@ static void operation_init(void){
         | (0x48 << 0) //sampling multiplication factor N; vbat_read out = vbat/1p2*N
     ));
     
-	// Disable PMU ADC measurement in active mode
-	// PMU_CONTROLLER_STALL_ACTIVE
-	// Updated for PMUv9
+    // Disable PMU ADC measurement in active mode
+    // PMU_CONTROLLER_STALL_ACTIVE
+    // Updated for PMUv9
     pmu_reg_write(0x3A, 
-		( (1 << 20) // ignore state_horizon; default 1
-		| (0 << 19) // state_vbat_read
-		| (1 << 13) // ignore adc_output_ready; default 0
-		| (1 << 12) // ignore adc_output_ready; default 0
-		| (1 << 11) // ignore adc_output_ready; default 0
-	));
-
-	pmu_adc_reset_setting();
-	pmu_adc_enable();
+        ( (1 << 20) // ignore state_horizon; default 1
+        | (0 << 19) // state_vbat_read
+        | (1 << 13) // ignore adc_output_ready; default 0
+        | (1 << 12) // ignore adc_output_ready; default 0
+        | (1 << 11) // ignore adc_output_ready; default 0
+    ));
+    pmu_adc_reset_setting();
+    pmu_adc_enable();
 
     // Temp Sensor Settings --------------------------------------
     // sntv4_r01
-    sntv2_r01.TSNS_RESETn = 0;
-    sntv2_r01.TSNS_EN_IRQ = 1;
-    sntv2_r01.TSNS_BURST_MODE = 0;
-    sntv2_r01.TSNS_CONT_MODE = 0;
-    mbus_remote_register_write(SNT_ADDR,1,sntv2_r01.as_int);
+    sntv4_r01.TSNS_RESETn = 0;
+    sntv4_r01.TSNS_EN_IRQ = 1;
+    sntv4_r01.TSNS_BURST_MODE = 0;
+    sntv4_r01.TSNS_CONT_MODE = 0;
+    mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
 
-/*
     // Set temp sensor conversion time
     sntv4_r03.TSNS_SEL_STB_TIME = 0x1; 
     sntv4_r03.TSNS_SEL_CONV_TIME = 0x6; // Default: 0x6
     mbus_remote_register_write(SNT_ADDR,0x03,sntv4_r03.as_int);
+
     // SNT Wakeup Timer Settings --------------------------------------
     // Config Register A
     sntv4_r0A.TMR_S = 0x1; // Default: 0x4, use 1 for good TC
@@ -1626,47 +1263,16 @@ static void operation_init(void){
     sntv4_r09.TMR_EN_TUNE1 = 0x1; // Default : 1'h1
     sntv4_r09.TMR_EN_TUNE2 = 0x1; // Default : 1'h1
 
-*/
     // to reduce standby current
-    sntv2_r09.TMR_IBIAS_REF = 0x0; // Default : 4'h4
-    mbus_remote_register_write(SNT_ADDR,0x09,sntv2_r09.as_int);
+    sntv4_r09.TMR_IBIAS_REF = 0x0; // Default : 4'h4
+
+    mbus_remote_register_write(SNT_ADDR,0x09,sntv4_r09.as_int);
 
     // Wakeup Counter
-    sntv2_r17.WUP_CLK_SEL = 0x0; 
-    sntv2_r17.WUP_AUTO_RESET = 0x0; // Automatically reset counter to 0 upon sleep 
-    mbus_remote_register_write(SNT_ADDR,0x17,sntv2_r17.as_int);
+    sntv4_r17.WUP_CLK_SEL = 0x0; 
+    sntv4_r17.WUP_AUTO_RESET = 0x0; // Automatically reset counter to 0 upon sleep 
+    mbus_remote_register_write(SNT_ADDR,0x17,sntv4_r17.as_int);
 
-    // RDCv3 Settings --------------------------------------
-    // Common settings
-	// rdcv4_r00
-	//rdcv4_r00.WAKEUP_UPON_RDC_IRQ = 0x0;
-	//rdcv4_r00.MBC_WAKEUP_ON_PEND_REQ = 0x1;
-
-	// rdcv4_r20
-	rdcv4_r20.RDC_CNT_AMP1 = 0xC;
-	
-	// rdcv4_r21
-	rdcv4_r21.RDC_CNT_AMP2 = 0x8;
-	
-	// rdcv4_r22
-	rdcv4_r22.RDC_CNT_SKIP = 0x3;
-	rdcv4_r22.RDC_OSR = 0xB;
-	
-	// rdcv4_r24 & r25
-	rdcv4_r24.RDC_SEL_DLY = 0xA;
-
-    // Individual settings
-	rdcv4_r24.RDC_SEL_GAIN_LC = 0x0;
-	rdcv4_r25.RDC_OFFSET_P_LC = 0x0;
-	rdcv4_r25.RDC_OFFSET_PB_LC = 0x1F;
-
-	mbus_remote_register_write(RDC_ADDR,0x1,0x1001);
-	mbus_remote_register_write(RDC_ADDR,0x20,rdcv4_r20.as_int);
-	mbus_remote_register_write(RDC_ADDR,0x21,rdcv4_r21.as_int);
-	mbus_remote_register_write(RDC_ADDR,0x22,rdcv4_r22.as_int);
-	mbus_remote_register_write(RDC_ADDR,0x24,rdcv4_r24.as_int);
-	mbus_remote_register_write(RDC_ADDR,0x25,rdcv4_r25.as_int);
-	
     // Radio Settings (SRRv4) -------------------------------------------
     srrv4_r1F.LC_CLK_RING = 0x3;  // ~ 150 kHz
     srrv4_r1F.LC_CLK_DIV = 0x3;  // ~ 150 kHz
@@ -1721,7 +1327,7 @@ static void operation_init(void){
     mbus_remote_register_write(SRR_ADDR,0x1E,srrv4_r1E.as_int);
 
     mbus_remote_register_write(SRR_ADDR,0x15,srrv4_r15.as_int);
-
+    
     // Use pulse generator
     srrv4_r02.SRR_TX_PULSE_FINE = 1;
     srrv4_r02.SRR_TX_PULSE_FINE_TUNE = 1;
@@ -1753,7 +1359,7 @@ static void operation_init(void){
     temp_storage_count = 0;
     radio_tx_count = 0;
     radio_tx_option = 0; //enables radio tx for each measurement 
-    sns_running = 0;
+    temp_running = 0;
     radio_ready = 0;
     radio_on = 0;
     wakeup_data = 0;
@@ -1761,20 +1367,12 @@ static void operation_init(void){
     radio_packet_count = 0;
     
     pmu_setting_state = PMU_25C;
-
     PMU_10C_threshold_sns = 600; // Around 10C
-    PMU_15C_threshold_sns = PMU_10C_threshold_sns + 200; 
-    PMU_20C_threshold_sns = PMU_10C_threshold_sns + 400; 
-    PMU_25C_threshold_sns = PMU_10C_threshold_sns + 700; 
-    PMU_30C_threshold_sns = PMU_10C_threshold_sns + 1000; 
-    PMU_35C_threshold_sns = PMU_10C_threshold_sns + 1300; 
-    PMU_40C_threshold_sns = PMU_10C_threshold_sns + 1600; 
-    PMU_45C_threshold_sns = PMU_10C_threshold_sns + 1900; 
-    PMU_55C_threshold_sns = PMU_10C_threshold_sns + 2600; 
-    PMU_65C_threshold_sns = PMU_10C_threshold_sns + 3900; 
-    PMU_75C_threshold_sns = PMU_10C_threshold_sns + 6400; 
-    PMU_85C_threshold_sns = PMU_10C_threshold_sns + 8800; 
-    PMU_95C_threshold_sns = PMU_10C_threshold_sns + 11400; 
+    PMU_20C_threshold_sns = 1000; // Around 20C
+    PMU_35C_threshold_sns = 2000; // Around 35C
+    PMU_55C_threshold_sns = 3200; // Around 55C
+    PMU_75C_threshold_sns = 7000; // Around 75C
+    PMU_95C_threshold_sns = 12000; // Around 95C
 
     SNT_0P5S_VAL = 1000;
     TEMP_CALIB_A = 240000;
@@ -1782,33 +1380,32 @@ static void operation_init(void){
 
     NUM_MEAS_USER = TEMP_STORAGE_SIZE;
 
-/*
     // Harvester Settings --------------------------------------
     hrvv5_r0.HRV_TOP_CONV_RATIO = 0x9;
     mbus_remote_register_write(HRV_ADDR,0,hrvv5_r0.as_int);
 
     delay(MBUS_DELAY);
-*/
+
     // Go to sleep without timer
     operation_sleep_notimer();
 }
 
 
 //***************************************************
-// Temperature measurement operation (SNTv4 retrofit to SNTv2)
+// Temperature measurement operation (SNTv4)
 //***************************************************
-static void operation_sns_run(void){
+static void operation_temp_run(void){
 
-    if (stack_state == STK_IDLE){
-        stack_state = STK_LDO;
+    if (Tstack_state == TSTK_IDLE){
+        Tstack_state = TSTK_LDO;
 
         wfi_timeout_flag = 0;
 
         // Turn on SNS LDO VREF; requires settling
         sns_ldo_vref_on();
 
-    }else if (stack_state == STK_LDO){
-        stack_state = STK_TEMP_START;
+    }else if (Tstack_state == TSTK_LDO){
+        Tstack_state = TSTK_TEMP_START;
 
         // Power on SNS LDO
         sns_ldo_power_on();
@@ -1817,285 +1414,148 @@ static void operation_sns_run(void){
         temp_sensor_power_on();
         delay(MBUS_DELAY);
 
-    }else if (stack_state == STK_TEMP_START){
+    }else if (Tstack_state == TSTK_TEMP_START){
         // Start temp measurement
-        stack_state = STK_TEMP_READ;
-        pmu_set_sleep_tsns();
+        Tstack_state = TSTK_TEMP_READ;
+        //pmu_set_sleep_tsns();
         temp_sensor_start();
 		// Go to sleep during measurement
 		operation_sleep();
 
-    }else if (stack_state == STK_TEMP_READ){
+    }else if (Tstack_state == TSTK_TEMP_READ){
 
-		// Get a head start on RDC stabilization
-		rdc_enable_vref();  
-		
-		// Read register
-		set_halt_until_mbus_rx();
-		mbus_remote_register_read(SNT_ADDR,0x6,1);
-		set_halt_until_mbus_tx();
-		read_data_temp = *REG1;
+        // Grab Temp Sensor Data
+        if (wfi_timeout_flag){
+            mbus_write_message32(0xFA, 0xFAFAFAFA);
+        }else{
+            // Read register
+            set_halt_until_mbus_rx();
+            mbus_remote_register_read(SNT_ADDR,0x6,1);
+            read_data_temp = *REG1;
+            set_halt_until_mbus_tx();
+        }
+        meas_count++;
 
-		// Change SAR Ratio if temp is within RT range
-		if (read_data_temp < PMU_40C_threshold_sns){
-			pmu_parking_decision_3v_battery();
-		}else{
-			// Detect when temp becomes higher than 40C & lock SAR Ratio
-			if (temp_storage_latest < PMU_40C_threshold_sns){
-				
-				// Read the current SAR RATIO
-				pmu_reg_write(0x00,0x04);
-				uint32_t cur_sar_ratio   = *REG0 & 0x7F;
-				pmu_set_sar_override(cur_sar_ratio + 4);
-			}
-		}
-		temp_storage_latest = read_data_temp;
+        // Last measurement from this wakeup
+        if (meas_count == NUM_TEMP_MEAS){
+            // No error; see if there was a timeout
+            if (wfi_timeout_flag){
+                temp_storage_latest = 0;
+                wfi_timeout_flag = 0;
+                // In case of timeout, wakeup counter needs to be adjusted 
+                snt_read_wup_counter();
+            }else{
+                temp_storage_latest = read_data_temp;
 
+            }
+        }
 
+        // Option to take multiple measurements per wakeup
+        if (meas_count < NUM_TEMP_MEAS){    
+            // Repeat measurement while awake
+            temp_sensor_reset();
+            Tstack_state = TSTK_TEMP_START;
+                
+        }else{
+            meas_count = 0;
 
-		uint32_t pmu_setting_prev = pmu_setting_state;
-		// Change PMU based on temp
-		if (temp_storage_latest > PMU_95C_threshold_sns){
-			pmu_setting_state = PMU_95C;
-		}else if (temp_storage_latest > PMU_85C_threshold_sns){
-			pmu_setting_state = PMU_85C;
-		}else if (temp_storage_latest > PMU_75C_threshold_sns){
-			pmu_setting_state = PMU_75C;
-		}else if (temp_storage_latest > PMU_65C_threshold_sns){
-			pmu_setting_state = PMU_65C;
-		}else if (temp_storage_latest > PMU_55C_threshold_sns){
-			pmu_setting_state = PMU_55C;
-		}else if (temp_storage_latest > PMU_45C_threshold_sns){
-			pmu_setting_state = PMU_45C;
-		}else if (temp_storage_latest > PMU_40C_threshold_sns){
-			pmu_setting_state = PMU_40C;
-		}else if (temp_storage_latest > PMU_35C_threshold_sns){
-			pmu_setting_state = PMU_35C;
-		}else if (temp_storage_latest > PMU_30C_threshold_sns){
-			pmu_setting_state = PMU_30C;
-		}else if (temp_storage_latest > PMU_25C_threshold_sns){
-			pmu_setting_state = PMU_25C;
-		}else if (temp_storage_latest > PMU_20C_threshold_sns){
-			pmu_setting_state = PMU_20C;
-		}else if (temp_storage_latest > PMU_15C_threshold_sns){
-			pmu_setting_state = PMU_15C;
-		}else if (temp_storage_latest > PMU_10C_threshold_sns){
-			pmu_setting_state = PMU_10C;
-		}else{
-			pmu_setting_state = PMU_0C;
-		}
+            // Read latest PMU ADC measurement
+            pmu_adc_read_latest();
+        
+			uint32_t pmu_setting_prev = pmu_setting_state;
+            // Change PMU based on temp
+            if (temp_storage_latest > PMU_95C_threshold_sns){
+                pmu_setting_state = PMU_95C;
+            }else if (temp_storage_latest > PMU_75C_threshold_sns){
+                pmu_setting_state = PMU_75C;
+            }else if (temp_storage_latest > PMU_55C_threshold_sns){
+                pmu_setting_state = PMU_55C;
+            }else if (temp_storage_latest > PMU_35C_threshold_sns){
+                pmu_setting_state = PMU_35C;
+            }else if (temp_storage_latest < PMU_10C_threshold_sns){
+                pmu_setting_state = PMU_10C;
+            }else if (temp_storage_latest < PMU_20C_threshold_sns){
+                pmu_setting_state = PMU_20C;
+            }else{
+                pmu_setting_state = PMU_25C;
+            }
 
-		// Always restore sleep setting from higher pmu meas setting
-		pmu_sleep_setting_temp_based();
-
-		if (pmu_setting_prev != pmu_setting_state){
-			pmu_active_setting_temp_based();
-		}
-
-		// Assert temp sensor isolation & turn off temp sensor power
-		temp_sensor_power_off();
-		sns_ldo_power_off();
-		stack_state = STK_RDC;
-
-    }else if (stack_state == STK_RDC){
-
-		rdc_power_on();
-
-		rdcv4_r25.RDC_OFFSET_P_LC = 0x1;
-		rdcv4_r25.RDC_OFFSET_PB_LC = (~0x1)&0x1F;
-		mbus_remote_register_write(RDC_ADDR,0x25,rdcv4_r25.as_int);
-
-	    // Use Timer32 as timeout counter
-	    wfi_timeout_flag = 0;
-	    config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
-
-		// Start measure
-		rdc_start_meas();
-	
-		// Wait for output
-		WFI();
-   
-	    // Turn off Timer32
-	    *TIMER32_GO = 0;
-
-        if (wfi_timeout_flag) {
-			read_data_rdc = 0;
-			mbus_write_message32(0xFA, 0xFAFAFAFA);
-		}else{
-			set_halt_until_mbus_rx();
-			mbus_remote_register_read(RDC_ADDR,0x11,0);
-			read_data_rdc = *REG0;
-			set_halt_until_mbus_tx();
-		}
-
-		rdc_reset();
-        stack_state = STK_RDC2;
-
-    }else if (stack_state == STK_RDC2){
-
-		rdcv4_r25.RDC_OFFSET_P_LC = 0xB;
-		rdcv4_r25.RDC_OFFSET_PB_LC = (~0xB)&0x1F;
-		mbus_remote_register_write(RDC_ADDR,0x25,rdcv4_r25.as_int);
-
-		//rdc_power_on();
-
-	    // Use Timer32 as timeout counter
-	    wfi_timeout_flag = 0;
-	    config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
-
-		// Start measure
-		rdc_start_meas();
-	
-		// Wait for output
-		WFI();
-   
-	    // Turn off Timer32
-	    *TIMER32_GO = 0;
-
-        if (wfi_timeout_flag) {
-			read_data_rdc2 = 0;
-			mbus_write_message32(0xFA, 0xFAFAFAFA);
-		}else{
-			set_halt_until_mbus_rx();
-			mbus_remote_register_read(RDC_ADDR,0x11,0);
-			read_data_rdc2 = *REG0;
-			set_halt_until_mbus_tx();
-		}
-
-		rdc_reset();
-        stack_state = STK_RDC3;
-
-    }else if (stack_state == STK_RDC3){
-
-		rdcv4_r25.RDC_OFFSET_P_LC = 0x15;
-		rdcv4_r25.RDC_OFFSET_PB_LC = (~0x15)&0x1F;
-		mbus_remote_register_write(RDC_ADDR,0x25,rdcv4_r25.as_int);
-
-		//rdc_power_on();
-
-	    // Use Timer32 as timeout counter
-	    wfi_timeout_flag = 0;
-	    config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
-
-		// Start measure
-		rdc_start_meas();
-	
-		// Wait for output
-		WFI();
-   
-	    // Turn off Timer32
-	    *TIMER32_GO = 0;
-
-        if (wfi_timeout_flag) {
-			read_data_rdc3 = 0;
-			mbus_write_message32(0xFA, 0xFAFAFAFA);
-		}else{
-			set_halt_until_mbus_rx();
-			mbus_remote_register_read(RDC_ADDR,0x11,0);
-			read_data_rdc3 = *REG0;
-			set_halt_until_mbus_tx();
-		}
-
-		rdc_reset();
-        stack_state = STK_RDC4;
-
-    }else if (stack_state == STK_RDC4){
-
-		rdcv4_r25.RDC_OFFSET_P_LC = 0x1F;
-		rdcv4_r25.RDC_OFFSET_PB_LC = 0x0;
-		mbus_remote_register_write(RDC_ADDR,0x25,rdcv4_r25.as_int);
-
-		//rdc_power_on();
-
-	    // Use Timer32 as timeout counter
-	    wfi_timeout_flag = 0;
-	    config_timer32(TIMER32_VAL, 1, 0, 0); // 1/10 of MBUS watchdog timer default
-
-		// Start measure
-		rdc_start_meas();
-	
-		// Wait for output
-		WFI();
-   
-	    // Turn off Timer32
-	    *TIMER32_GO = 0;
-
-        if (wfi_timeout_flag) {
-			read_data_rdc4 = 0;
-			mbus_write_message32(0xFA, 0xFAFAFAFA);
-		}else{
-			set_halt_until_mbus_rx();
-			mbus_remote_register_read(RDC_ADDR,0x11,0);
-			read_data_rdc4 = *REG0;
-			set_halt_until_mbus_tx();
-		}
-
-		rdc_power_off();
-        stack_state = STK_DATA;
-
-    }else if (stack_state == STK_DATA){
-
-		#ifdef DEBUG_MBUS_MSG_1
-		mbus_write_message32(0xCC, exec_count);
-		#endif
-		mbus_write_message32(0xC0, (exec_count << 16) | read_data_temp);
-		mbus_write_message32(0xC1, (exec_count << 16) | read_data_rdc);
-		mbus_write_message32(0xC2, (exec_count << 16) | read_data_rdc2);
-		mbus_write_message32(0xC3, (exec_count << 16) | read_data_rdc3);
-		mbus_write_message32(0xC3, (exec_count << 16) | read_data_rdc4);
-
-		// Store results in MEMv1; unless memory is full
-		if (temp_storage_count < TEMP_STORAGE_SIZE){
-			// Read destination address
-			// Memory address is per byte
-			// Memory is word-addressable; first word: 0x0, second word: 0x4, third word: 0x8 ...
-			uint32_t mem_read_data;
-
-			// Select which RDC reading to store
-			// read_data_rdc[14:15] indicates offset range
-			if (read_data_rdc > 7800){
-				// Store 1st offset
-				if (read_data_rdc2 > 7800){
-					if (read_data_rdc3 > 7800){
-						read_data_rdc = (read_data_rdc4&0x1FFF) | (0x3<<13);
-					}else{
-						read_data_rdc = (read_data_rdc3&0x1FFF) | (0x2<<13);
-					}
-
-				}else{
-					read_data_rdc = (read_data_rdc2&0x1FFF) | (0x1<<13);
-					
-				}
+			if (pmu_setting_prev != pmu_setting_state){
+	            pmu_active_setting_temp_based();
+   	        	pmu_sleep_setting_temp_based();
 			}
 
-			// Store temp & rdc data in pairs
-			mem_read_data = (read_data_temp&0xFFFF) | (read_data_rdc<<16);
 
-			mbus_copy_mem_from_local_to_remote_bulk(MEM_ADDR, (uint32_t*)((temp_storage_count>>1)<<2), (uint32_t*)&mem_read_data, 0);
-			temp_storage_count++;
-			temp_storage_count++;
-		}
+            // Assert temp sensor isolation & turn off temp sensor power
+            temp_sensor_power_off();
+            sns_ldo_power_off();
+            Tstack_state = TSTK_IDLE;
 
-		// Optionally transmit the data
-		if (radio_tx_option || (exec_count < TEMP_CYCLE_INIT)){
-			// Power on radio
-			radio_power_on();
+            #ifdef DEBUG_MBUS_MSG_1
+            mbus_write_message32(0xCC, exec_count);
+            #endif
+            mbus_write_message32(0xC0, (exec_count << 16) | temp_storage_latest);
 
-			send_radio_data_srr(1,0xC0,*REG_CHIP_ID,((0xBB00|read_data_batadc_diff)<<8)|exec_count,temp_storage_latest,0);
-		}
 
-		exec_count++;
+            if (temp_storage_debug){
+                temp_storage_latest = exec_count;
+            }
 
-		// Make sure Radio is off
-		if (radio_on){
-			radio_power_off();
-		}
+            // Store results in MEMv1; unless memory is full
+            if (temp_storage_count < TEMP_STORAGE_SIZE){
+                // Read destination address
+                // Memory address is per byte
+                // Memory is word-addressable; first word: 0x0, second word: 0x4, third word: 0x8 ...
+            
+                uint32_t mem_read_data;
+                set_halt_until_mbus_rx();
+                mbus_copy_mem_from_remote_to_any_bulk(MEM_ADDR, (uint32_t*)((temp_storage_count>>1)<<2), 0x01, (uint32_t*)&mem_read_data, 0);
+                set_halt_until_mbus_tx();
+                if (temp_storage_count & 0x1){
+                    // Second half word
+                    mem_read_data = (mem_read_data&0xFFFF) | (temp_storage_latest<<16);
 
-        stack_state = STK_IDLE;
+                }else{
+                    // First half word
+                    mem_read_data = temp_storage_latest;
+                }
+                mbus_copy_mem_from_local_to_remote_bulk(MEM_ADDR, (uint32_t*)((temp_storage_count>>1)<<2), (uint32_t*)&mem_read_data, 0);
+                temp_storage_count++;
 
-		// Use SNT Timer    
-		snt_set_wup_timer(WAKEUP_PERIOD_CONT_USER);
-		operation_sleep_snt_timer();
+            }
+
+            // Optionally transmit the data
+            if (radio_tx_option || (exec_count < TEMP_CYCLE_INIT)){
+				// Power on radio
+				radio_power_on();
+
+                send_radio_data_srr(1,0xC0,*REG_CHIP_ID,((0xBB00|read_data_batadc_diff)<<8)|exec_count,temp_storage_latest,0);
+            }
+
+            exec_count++;
+
+            // Make sure Radio is off
+            if (radio_on){
+                radio_ready = 0;
+                radio_power_off();
+            }
+
+            // If NUM_MEAS_USER == 0, meas infinitely
+            //if ((pmu_setting_state == PMU_25C) && (NUM_MEAS_USER && (exec_count >= NUM_MEAS_USER))){
+                // Trig 2 stop condition; Need to run until PMU setting is back at RT
+                // No more measurement required
+                // Make sure temp sensor is off
+        //        temp_running = 0;
+        //        operation_sleep_notimer();
+        //    }else{
+
+			// Use SNT Timer    
+			snt_set_wup_timer(WAKEUP_PERIOD_CONT_USER);
+			operation_sleep_snt_timer();
+
+        //    }
+
+        }
 
     }else{
         //default:  // THIS SHOULD NOT HAPPEN
@@ -2113,21 +1573,23 @@ static void operation_goc_trigger_init(void){
     // This is critical
     set_halt_until_mbus_tx();
 
+    // Debug
+    mbus_write_message32(0xBA,wakeup_data);
+
+    // Read latest PMU ADC measurement
+    pmu_adc_read_latest();
+
 	// In case GOC was triggered during temp measurement
-    if (sns_running){
-        sns_running = 0;
-        temp_sensor_power_off();
-        sns_ldo_power_off();
-		rdc_power_off();
-		// Restore sleep setting
-   	    pmu_sleep_setting_temp_based();
-    }
+   	pmu_sleep_setting_temp_based();
 
     // Initialize variables & registers
-    sns_running = 0;
-    stack_state = STK_IDLE;
+    temp_running = 0;
+    Tstack_state = TSTK_IDLE;
     
     radio_power_off();
+    temp_sensor_power_off();
+    sns_ldo_power_off();
+
 }
 
 static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_timer_val, uint8_t radio_tx_prefix, uint8_t radio_tx_data1, uint32_t radio_tx_data0){
@@ -2159,19 +1621,19 @@ static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t 
         radio_power_on();
     }
 
-    if ((sntv2_r0A.TMR_DIFF_CON == 0x3FFF) && ((exec_count_irq & 0xF) == 0xF)){
+    if ((sntv4_r0A.TMR_DIFF_CON == 0x3FFF) && ((exec_count_irq & 0xF) == 0xF)){
         // Stop condition
         exec_count_irq = 0;
-        sntv2_r0A.TMR_DIFF_CON = 0x3FFF; // Default: 0x3FFF
+        sntv4_r0A.TMR_DIFF_CON = 0x3FFF; // Default: 0x3FFF
         // radio
-        send_radio_data_srr(1,0xB0,*REG_CHIP_ID,sntv2_r0A.TMR_DIFF_CON,exec_count_irq,0);    
+        send_radio_data_srr(1,0xB0,*REG_CHIP_ID,sntv4_r0A.TMR_DIFF_CON,exec_count_irq,0);    
         // Go to sleep without timer
         operation_sleep_notimer();
     }else{
         
         if ((exec_count_irq & 0xF) == 0xF){ // every 16 iterations
-            sntv2_r0A.TMR_DIFF_CON = sntv2_r0A.TMR_DIFF_CON<<1 | 0x1; // Default: 0x3FFB
-            mbus_remote_register_write(SNT_ADDR,0x0A,sntv2_r0A.as_int);
+            sntv4_r0A.TMR_DIFF_CON = sntv4_r0A.TMR_DIFF_CON<<1 | 0x1; // Default: 0x3FFB
+            mbus_remote_register_write(SNT_ADDR,0x0A,sntv4_r0A.as_int);
         }
 
         exec_count_irq++;
@@ -2180,8 +1642,8 @@ static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t 
         pmu_set_sleep_radio();
 
             // Tune R for TC
-            sntv2_r0A.TMR_DIFF_CON = start_val; // Default: 0x3FFB
-            mbus_remote_register_write(SNT_ADDR,0x0A,sntv2_r0A.as_int);
+            sntv4_r0A.TMR_DIFF_CON = start_val; // Default: 0x3FFB
+            mbus_remote_register_write(SNT_ADDR,0x0A,sntv4_r0A.as_int);
 
             snt_start_timer_presleep();
             // Go to sleep for >3s for timer stabilization
@@ -2206,12 +1668,13 @@ static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t 
             operation_sleep_noirqreset();
         }else{
             // radio
-            send_radio_data_srr(1,0xB0,*REG_CHIP_ID,sntv2_r0A.TMR_DIFF_CON, exec_count_irq,0);
+            send_radio_data_srr(1,0xB0,*REG_CHIP_ID,sntv4_r0A.TMR_DIFF_CON, exec_count_irq,0);
             snt_set_wup_timer(WAKEUP_PERIOD_CONT_USER);
             operation_sleep_noirqreset();
         }
     }
 }
+
 
 //********************************************************************
 // MAIN function starts here             
@@ -2227,28 +1690,10 @@ int main() {
     // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
     config_timerwd(TIMERWD_VAL);
 
-	// Figure out who triggered wakeup
-	if(*SREG_WAKEUP_SOURCE & 0x00000008){
-		// Debug
-		#ifdef DEBUG_MBUS_MSG
-		mbus_write_message32(0xAA,0x11331133);
-		#endif
-	}
-
     // Initialization sequence
-    if (enumerated != 0x5043607A){
+    if (enumerated != 0x5443605a){
         operation_init();
     }
-
-	// Read latest batt voltage, unless woken up after temp measurement
-	if (stack_state != STK_TEMP_READ){
-		pmu_adc_read_latest();
-	}
-
-	if (!sns_running){
-		// If measurement is running, wait until temp measurement
-		pmu_parking_decision_3v_battery();
-	}
 
     // Check if wakeup is due to GOC interrupt  
     // 0x8C is reserved for GOC-triggered wakeup (Named GOC_DATA_IRQ)
@@ -2301,11 +1746,12 @@ int main() {
             pmu_set_sleep_low();
         }
 
-        if (!sns_running){
-            sns_running = 1;
+        if (!temp_running){
+            temp_running = 1;
         }
 
         exec_count = 0;
+        meas_count = 0;
         temp_storage_count = 0;
         radio_tx_count = 0;
 
@@ -2314,8 +1760,8 @@ int main() {
         exec_count_irq = 0;
 
         // Run Temp Sensor Program
-	    stack_state = STK_IDLE;
-        operation_sns_run();
+	    Tstack_state = TSTK_IDLE;
+        operation_temp_run();
 
     }else if(wakeup_data_header == 0x03){
         // Stop temp sensor program and transmit the battery reading and execution count (alternating n times)
@@ -2325,7 +1771,7 @@ int main() {
         operation_sns_sleep_check();
         snt_stop_timer();
 
-        stack_state = STK_IDLE;
+        Tstack_state = TSTK_IDLE;
 
         operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0xC1, exec_count_irq, temp_storage_count);
 
@@ -2337,15 +1783,41 @@ int main() {
         operation_sns_sleep_check();
         snt_stop_timer();
 
-        stack_state = STK_IDLE;
+        Tstack_state = TSTK_IDLE;
 
         radio_tx_count = 0;
 
+        uint32_t not_enough_batt = 0;
+    
         // Prepare radio TX
         radio_power_on();
 
         if (exec_count_irq == 0){
+
             radio_packet_count = 0;
+
+            // Make sure the battery capacity is enough for transmission
+            // FIXME
+            if (temp_storage_count > 4000){
+                if (read_data_batadc_diff > 3){ // 0x4D okay
+                    not_enough_batt = 1;
+                }
+            }else if (temp_storage_count > 2000){ // 0x4E okay
+                if (read_data_batadc_diff > 4){
+                    not_enough_batt = 1;
+                }
+            }else{
+                if (read_data_batadc_diff > 5){ // 0x4F okay
+                    not_enough_batt = 1;
+                }
+            }
+        
+            if (not_enough_batt){
+                // Send Error Message & Go to sleep
+                send_radio_data_srr(1,0xDF,*REG_CHIP_ID,(0xBB00|read_data_batadc_diff)<<8,0xFAFAFA,1);    
+                // Go to sleep without timer
+                operation_sleep_notimer();
+            }
         }
 
         if (exec_count_irq < 2){
@@ -2366,6 +1838,7 @@ int main() {
     }else if(wakeup_data_header == 0x05){
         // Transmit missing data requested by GUI
 		// wakeup_data[15:0] is the missing data address
+		// FIXME: need to figure out / confirm the addressing
 		uint32_t missing_packet_index = wakeup_data;
 
         // Prepare radio TX
@@ -2381,10 +1854,18 @@ int main() {
         send_radio_data_srr(1,0xDD,mem_read_data[1]>>16,((mem_read_data[1]&0xFFFF)<<8) | (mem_read_data[0]>>24),mem_read_data[0]&0xFFFFFF,1);
 
 
+    }else if(wakeup_data_header == 0x12){
+    // Configure # of measurement
+        NUM_MEAS_USER = wakeup_data & 0x3FFF;
+        if (NUM_MEAS_USER > 8192) NUM_MEAS_USER = 8192;
+        if (NUM_MEAS_USER < 5) NUM_MEAS_USER = 5;
+        if ((wakeup_data & 0x3FFF) == 0) NUM_MEAS_USER = 0;
+
     }else if(wakeup_data_header == 0x13){
     // Tune SNT Timer R for TC
-        sntv2_r0A.TMR_DIFF_CON = wakeup_data & 0x3FFF; // Default: 0x3FFB
-        mbus_remote_register_write(SNT_ADDR,0x0A,sntv2_r0A.as_int);
+        sntv4_r0A.TMR_DIFF_CON = wakeup_data & 0x3FFF; // Default: 0x3FFB
+        mbus_remote_register_write(SNT_ADDR,0x0A,sntv4_r0A.as_int);
+        operation_sleep_notimer();
 
     }else if(wakeup_data_header == 0x14){
         // Update SNT wakeup counter value for 0.5s
@@ -2395,28 +1876,38 @@ int main() {
 
     }else if(wakeup_data_header == 0x15){
         // Update GOC clock
-		prev20_r0B.GOC_CLK_GEN_SEL_FREQ = (wakeup_data >> 4)&0x7; // Default 0x0
-		prev20_r0B.GOC_CLK_GEN_SEL_DIV = wakeup_data & 0x3; // Default 0x6
-		*REG_CLKGEN_TUNE = prev20_r0B.as_int;
+		prcv20_r0B.GOC_CLK_GEN_SEL_FREQ = (wakeup_data >> 4)&0x7; // Default 0x0
+		prcv20_r0B.GOC_CLK_GEN_SEL_DIV = wakeup_data & 0x3; // Default 0x6
+		*REG_CLKGEN_TUNE = prcv20_r0B.as_int;
 
     }else if(wakeup_data_header == 0x17){
-        // Change the battery reference
+        // Change the 4.2V battery reference
         if (wakeup_data_field_0 == 0){
             // Update with the current value
-            PMU_ADC_3P0_VAL = read_data_batadc;
+            PMU_ADC_4P2_VAL = read_data_batadc;
         }else{
-            PMU_ADC_3P0_VAL = wakeup_data_field_0;
+            PMU_ADC_4P2_VAL = wakeup_data_field_0;
         }
 
 /*
-    }else if(wakeup_data_header == 0x18){
-		// Harvester Settings --------------------------------------
-		hrvv5_r0.HRV_TOP_CONV_RATIO = wakeup_data & 0xFFFF;
-		mbus_remote_register_write(HRV_ADDR,0,hrvv5_r0.as_int);
-*/
     }else if(wakeup_data_header == 0x1A){
         PMU_10C_threshold_sns = wakeup_data & 0xFFFF; // Around 10C
 
+    }else if(wakeup_data_header == 0x1B){
+        PMU_20C_threshold_sns = wakeup_data & 0xFFFF; // Around 20C
+
+    }else if(wakeup_data_header == 0x1C){
+        PMU_35C_threshold_sns = wakeup_data & 0xFFFFFF; // Around 55C
+
+    }else if(wakeup_data_header == 0x1D){
+        PMU_55C_threshold_sns = wakeup_data & 0xFFFFFF; // Around 55C
+
+    }else if(wakeup_data_header == 0x1E){
+        PMU_75C_threshold_sns = wakeup_data & 0xFFFFFF; // Around 75C
+
+    }else if(wakeup_data_header == 0x1F){
+        PMU_95C_threshold_sns = wakeup_data & 0xFFFFFF; // Around 95C
+*/
     }else if(wakeup_data_header == 0x20){
         // wakeup_data[7:0] is the # of transmissions
         // wakeup_data[23:8] is the desired chip id value
@@ -2466,8 +1957,8 @@ int main() {
 
     }else if(wakeup_data_header == 0x25){
         // Change the conversion time of the temp sensor
-        sntv2_r03.TSNS_SEL_CONV_TIME = wakeup_data & 0xF; // Default: 0x6
-        mbus_remote_register_write(SNT_ADDR,0x03,sntv2_r03.as_int);
+        sntv4_r03.TSNS_SEL_CONV_TIME = wakeup_data & 0xF; // Default: 0x6
+        mbus_remote_register_write(SNT_ADDR,0x03,sntv4_r03.as_int);
 
     }else if(wakeup_data_header == 0x2A){
         // Update calibration coefficient A
@@ -2511,22 +2002,13 @@ int main() {
             | (wakeup_data & 0xF)        // clamp_tune_top (decreases clamp thresh)
         ));
 
-    }else if(wakeup_data_header == 0x42){
-	    // RDC Gain & Offset settings
-		rdcv4_r24.RDC_SEL_GAIN_LC = wakeup_data & 0x1F; // 5 bits
-		rdcv4_r25.RDC_OFFSET_P_LC = (wakeup_data >> 8) & 0x1F; // 5 bits
-		rdcv4_r25.RDC_OFFSET_PB_LC = ~((wakeup_data >> 8) & 0x1F);
-
-		mbus_remote_register_write(RDC_ADDR,0x24,rdcv4_r24.as_int);
-		mbus_remote_register_write(RDC_ADDR,0x25,rdcv4_r25.as_int);
-		
     }else if(wakeup_data_header == 0x71){
     // Set SNT wakeup period
         WAKEUP_PERIOD_CONT_USER = wakeup_data & 0xFFFFFF;
 
-	}else if(wakeup_data_header == 0x72){
-       // Calibration routine for SNT wakeup timer
-       operation_snt_calibration_radio_binary(wakeup_data & 0xFFFF, wakeup_data_field_2);
+    }else if(wakeup_data_header == 0x72){
+        // Calibration routine for SNT wakeup timer
+        operation_snt_calibration_radio_binary(wakeup_data & 0xFFFF, wakeup_data_field_2);
 
     }else if(wakeup_data_header == 0xF0){
 
@@ -2543,16 +2025,22 @@ int main() {
                 delay(MBUS_DELAY);
             }
         }
-    }else{
-    }
 
-    if (sns_running){
-        // Proceed to continuous mode
-        while(1){
-            operation_sns_run();
+    }else{
+        if (wakeup_data_header != 0){
+            // Invalid GOC trigger
+            // Go to sleep without timer
+            operation_sleep_notimer();
         }
     }
 
+    if (temp_running){
+        // Proceed to continuous mode
+        while(1){
+            operation_temp_run();
+        }
+    }
+    
 	// Radio back the GOC data that triggered this wakeup
     operation_goc_trigger_radio(0, WAKEUP_PERIOD_RADIO_INIT, 0xAD, wakeup_data_header, wakeup_data);
     operation_sleep_notimer();
