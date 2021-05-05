@@ -1,6 +1,6 @@
 /*******************************
  *  
- *  Monarch decoder v1.0.0
+ *  Monarch decoder v1.0.5
  *  Author: Roger Hsiao
  *  
  *  Works with mbc_code.c v5.2.3 and above
@@ -20,7 +20,9 @@
  *
  *  v1.0.4:
  *    Fixed decoder index bug that doesn't update index properly, which causes a timeshift
- *    Removed timezone shift in decoded data, so now the decoded data is strictly GMT
+ *
+ *  v1.0.5:
+ *    Reading date_tz correctly now. And adding date_tz to the temp timestamps
  *
  *
  *******************************/
@@ -122,7 +124,7 @@ int main(int argc, char** argv) {
         string trash;
         getline(date_fin, trash, ':');
         date_fin >> trigger_fire_date;
-        getline(date_fin, trash, ':');
+        getline(date_fin, trash, '(');
         date_fin >> date_tz;
         getline(date_fin, trash, ':');
         date_fin >> programmed_date;
@@ -161,7 +163,7 @@ int main(int argc, char** argv) {
         light_fout << fixed << p.first << " " << p.first + abs_time + 0 * tz << " " << p.second << " " << pow(2, (p.second / 32.0)) << endl;
     }
     for(auto p : tp.data) {
-        temp_fout << fixed << p.first + trigger_fire_date * 86400 - date_tz << " " << pow(2, ((p.second + 128) / 16.0)) << endl;
+        temp_fout << fixed << p.first + trigger_fire_date * 86400 + date_tz << " " << pow(2, ((p.second + 128) / 16.0)) << endl;
     }
 }
 
@@ -360,6 +362,7 @@ void TempParser::parse_unit(Unit& u) {
     uint32_t cur_value = get_data(u, 7);
 
     data[day_count * 86400 + timestamp_in_half_hour * 1800] = cur_value;
+    cout << day_count * 86400 + timestamp_in_half_hour * 1800 << " " << cur_value;
 
     while(u.any()) {
         cout << u << endl;
