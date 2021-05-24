@@ -4,7 +4,7 @@
  *  Author: Roger Hsiao
  *  
  *  Works with mbc_code.c v5.2.3 and above
- *  Usage: ./decoder.exe [packets] [date.log | 0] [time.log | 0] [light out file] [temp out file]
+ *  Usage: ./decoder.exe [packets] [date.log | 0] [time.log | 0] [light out file] [temp out file] [delimeter]
  *
  *  v1.0.0: 
  *    Added automatic time translation
@@ -24,6 +24,10 @@
  *  v1.0.5:
  *    Reading date_tz correctly now. And adding date_tz to the temp timestamps
  *
+ *  v1.0.6:
+ *    Adding delimeter option
+ *    Adding support for missing packets XXX
+ *
  *
  *******************************/
 
@@ -34,6 +38,8 @@
 #include <string>
 #include <map>
 #include <cmath>
+#include <unistd.h>
+#include <stdexcept>
 #include "../pre_v20e/software/mbc_code/huffman_encodings.h"
 // #include "/home/rogerhh/M-ulator/platforms/m3/pre_v20e/software/mbc_code/huffman_encodings.h"
 
@@ -44,7 +50,15 @@
 
 using namespace std;
 
-using Unit = bitset<272>;
+// using Unit = bitset<272>;
+struct Unit {
+    int len = 0;
+    bitset<272> data;
+};
+
+struct NoMoreData {
+    string str = "No more data in unit\n";
+};
 
 Unit create_unit(const string packets[]);
 uint32_t get_data(Unit& u, int len);
@@ -78,9 +92,16 @@ public:
 };
 
 int main(int argc, char** argv) {
-    if(argc != 6) {
-        cerr << "Usage: ./decoder.exe [packet file] [date.log] [time.log] [light output file] [temp output file]" << endl;
+
+    if(argc != 6 && argc != 7) {
+        cerr << "Usage: ./decoder.exe packet_file date.log time.log light output file temp output file [delimeter]" << endl;
         return 1;
+    }
+
+    char delim = ' ';
+    if(argc >= 7) {
+        delim = argv[6][0];
+        cout << "delim = \'" << delim << "\'" << endl;
     }
 
     string packet_filename = string(argv[1]);
@@ -148,43 +169,63 @@ int main(int argc, char** argv) {
     string packets[4];
     while(fin >> packets[0] >> packets[1] >> packets[2] >> packets[3]) {
         auto u = create_unit(packets);
-        if(stoi(packets[0].substr(0, 1), 0, 16) & 0b1000) {
-            // is light
-            lp.parse_unit(u);
-        } 
-        else {
-            // is temp
-            tp.parse_unit(u);
+        if(u.len > 0) {
+            cout << u.len << endl;
+            cout << packets[0].substr(0, 1) << endl;
+            if(stoi(packets[0].substr(0, 1), 0, 16) & 0b1000) {
+                // is light
+                lp.parse_unit(u);
+            } 
+            else {
+                // is temp
+                tp.parse_unit(u);
+            }
         }
     }
 
     for(auto p : lp.data) {
         // Not doing anything with timezone because it seems like it's already done by python
-        light_fout << fixed << p.first << " " << p.first + abs_time + 0 * tz << " " << p.second << " " << pow(2, (p.second / 32.0)) << endl;
+        light_fout << fixed << p.first << delim << p.first + abs_time + 0 * tz << delim << p.second << delim << pow(2, (p.second / 32.0)) << endl;
     }
     for(auto p : tp.data) {
-        temp_fout << fixed << p.first + trigger_fire_date * 86400 + date_tz << " " << pow(2, ((p.second + 128) / 16.0)) << endl;
+        temp_fout << fixed << p.first + trigger_fire_date * 86400 + date_tz << delim << pow(2, ((p.second + 128) / 16.0)) << endl;
     }
 }
 
 Unit create_unit(const string packets[]) {
-    Unit u = Unit(0);
+    Unit u;
+    u.data = bitset<272>(0);
+    bool flag = false;
     for(int i = 0; i < 4; i++) {
         for(int j = 3; j < packets[i].size(); j++) {
-            u <<= 4;
-            u |= Unit(stoi(packets[i].substr(j, 1), 0, 16));
+            // If found an X, stop reading unit
+            if(packets[i].substr(j, 1) == "X") {
+                flag = true;
+                break;
+            }
+            u.len += 4;
+            u.data <<= 4;
+            u.data |= bitset<272>(stoi(packets[i].substr(j, 1), 0, 16));
         }
+        if(flag) { break; }
     }
-    cout << u << endl;
+    // Fill in 0s for the rest of the unit that was not read in due to a missing packet
+    u.data <<= (272 - u.len);
+    cout << u.data << endl;
     return u;
 }
 
 uint32_t get_data(Unit& u, int len) {
+    // if len > maximum valid data, throw an error
+    if(u.len < len) {
+        throw NoMoreData{};
+    }
+    u.len -= len;
     uint32_t mask = (1 << len) - 1;
-    auto temp = u;
+    auto temp = u.data;
     temp >>= (272 - len);
     temp &= mask;
-    u <<= len;
+    u.data <<= len;
     return temp.to_ulong();
 }
 
@@ -221,6 +262,7 @@ uint32_t sign_extend(uint32_t src, int len) {
 void LightParser::read_timestamp(Unit& u) {
     auto t = get_data(u, 17); 
     // Not worried about overflow for now
+    // TODO: add support for potential overflow of the 17bits of time
     sys_time_in_min = t;
     cout << "parsed time in min = " << sys_time_in_min << endl;
 }
@@ -245,111 +287,126 @@ void LightParser::parse_unit(Unit& u) {
 
     cout << "light_unit" << endl;
 
-    while(u.any()) {
-        cout << "u any = " << u.any() << " " << u << endl;
-        if(!has_timestamp) {
-            read_timestamp(u);
-            has_timestamp = true;
-        }
-        if(!has_header) {
-            read_header(u);
-            has_header = true;
-        }
-        if(!has_cur) {
-            // read initial val
-            cur = get_data(u, 11);
-            has_cur = true;
-        }
-        else {
-            // else read code
-            int len = 0;
-            int tmp = 0;
-            bool flag = false;
-            while(len < 12) {
-                int b = get_data(u, 1);
-                tmp <<= 1;
-                tmp |= b;
-                len++;
-                cout << "codes: " << len << " " << tmp << " " << bitset<12>(tmp) << endl;
-                auto it = codes.find(len);
-                if(it == codes.end()) {
-                    continue;
-                }
-                auto it2 = codes[len].find(tmp);
-                if(it2 == codes[len].end()) {
-                    continue;
-                }
-                auto code = it2->second;
+    if(u.len != 272) {
+        // missing packet in this unit
+        cout << "Warning: Missing packet in this unit" << endl;
+    }
 
-                cout << "code: " << code << endl;
-
-                if(code == 0x1000) {
-                    day_state = (day_state + 1) & 0b11;
-                    if(day_state == NIGHT) {
-                        day_state = DAWN;
-                    }
-                    index = 0;
-                    cout << "end day state" << endl;
-                    cout << "day state = " << day_state << "; index = " << 0 << endl;
-                    has_timestamp = false;
-                }
-                else if(code == 0x7FF) {
-                    // don't use diff
-                    code = get_data(u, 11);
-                    cout << "diff 11" << endl;
-                    cur = code;
-                }
-                else if(code == 0x1FF) {
-                    code = get_data(u, 9);
-                    cout << "diff 9: code: " << bitset<9>(code) << endl;
-                    code = sign_extend(code, 9);
-                    cout << "exteneded: " << code << endl;
-                    cur += code;
-                }
-                else {
-                    cur += code;
-                }
-                flag = true;
-                break;
-            }
-            if(!flag) {
-                cout << u << endl;
-                cout << "Unrecognized code" << endl;
-                continue;
-                throw runtime_error("Unrecognized code: " + to_string(tmp));
-
-            }
+    try {
+        // If an error is throw, it means that there is no more valid data in this unit
+        // it could be that there is a missing packet or there is no space in the last packet to put
+        // in the ending code of the unit. In both cases, just abort reading the unit
+        while(u.data.any()) {
+            cout << "u any = " << u.data.any() << " " << u.data << endl;
             if(!has_timestamp) {
-                continue;
+                read_timestamp(u);
+                has_timestamp = true;
             }
-        }
-        data[sys_time_in_min * 60] = cur;
-        cout << sys_time_in_min << " " << sys_time_in_min * 60 << " " << cur << endl;
-        index++;
-
-        // update sys_time_in_min
-        if(u.any()) {
-            if(day_state == DAWN) {
-                for(int i = 0; i < 4; i++) {
-                    if(index < resample_indices[i]) {
-                        sys_time_in_min += intervals[i];
-                        cout << " test" << endl;
-                        break;
-                    }
-                }
+            if(!has_header) {
+                read_header(u);
+                has_header = true;
             }
-            else if(day_state == DUSK) {
-                for(int i = 0; i < 4; i++) {
-                    if(index < resample_indices[i]) {
-                        sys_time_in_min -= intervals[i];
-                        break;
-                    }
-                }
+            if(!has_cur) {
+                // read initial val
+                cur = get_data(u, 11);
+                has_cur = true;
             }
             else {
-                sys_time_in_min += 32;
+                // else read code
+                int len = 0;
+                int tmp = 0;
+                bool flag = false;
+                // According to the Huffman encoding table, there cannot be a code longer than 12 bits
+                while(len < 12) {
+                    int b = get_data(u, 1);
+                    tmp <<= 1;
+                    tmp |= b;
+                    len++;
+                    cout << "codes: " << len << " " << tmp << " " << bitset<12>(tmp) << endl;
+                    auto it = codes.find(len);
+                    if(it == codes.end()) {
+                        continue;
+                    }
+                    auto it2 = codes[len].find(tmp);
+                    if(it2 == codes[len].end()) {
+                        continue;
+                    }
+                    auto code = it2->second;
+
+                    cout << "code: " << code << endl;
+
+                    if(code == 0x1000) {
+                        day_state = (day_state + 1) & 0b11;
+                        if(day_state == NIGHT) {
+                            day_state = DAWN;
+                        }
+                        index = 0;
+                        cout << "end day state" << endl;
+                        cout << "day state = " << day_state << "; index = " << 0 << endl;
+                        has_timestamp = false;
+                    }
+                    else if(code == 0x7FF) {
+                        // don't use diff
+                        code = get_data(u, 11);
+                        cout << "diff 11" << endl;
+                        cur = code;
+                    }
+                    else if(code == 0x1FF) {
+                        code = get_data(u, 9);
+                        cout << "diff 9: code: " << bitset<9>(code) << endl;
+                        code = sign_extend(code, 9);
+                        cout << "exteneded: " << code << endl;
+                        cur += code;
+                    }
+                    else {
+                        cur += code;
+                    }
+                    // set flag to true if found code
+                    flag = true;
+                    break;
+                }
+                if(!flag) {
+                    cout << u.data << endl;
+                    cout << "Unrecognized code" << endl;
+                    continue;
+                    throw runtime_error("Unrecognized code: " + to_string(tmp));
+
+                }
+                if(!has_timestamp) {
+                    continue;
+                }
+            }
+            data[sys_time_in_min * 60] = cur;
+            cout << sys_time_in_min << " " << sys_time_in_min * 60 << " " << cur << endl;
+            index++;
+
+            // update sys_time_in_min for next data point
+            if(u.data.any()) {
+                if(day_state == DAWN) {
+                    for(int i = 0; i < 4; i++) {
+                        if(index < resample_indices[i]) {
+                            sys_time_in_min += intervals[i];
+                            cout << " test" << endl;
+                            break;
+                        }
+                    }
+                }
+                else if(day_state == DUSK) {
+                    for(int i = 0; i < 4; i++) {
+                        if(index < resample_indices[i]) {
+                            sys_time_in_min -= intervals[i];
+                            break;
+                        }
+                    }
+                }
+                else {
+                    sys_time_in_min += 32;
+                }
             }
         }
+    }
+    catch(NoMoreData& e) {
+        cout << "No more valid data in this unit." << endl;
     }
     cout << "End unit. sys_time_in_min = " << sys_time_in_min << endl << endl;
 
@@ -362,59 +419,69 @@ void TempParser::parse_unit(Unit& u) {
     uint32_t cur_value = get_data(u, 7);
 
     data[day_count * 86400 + timestamp_in_half_hour * 1800] = cur_value;
-    cout << day_count * 86400 + timestamp_in_half_hour * 1800 << " " << cur_value;
+    cout << day_count * 86400 + timestamp_in_half_hour * 1800 << " " << cur_value << endl;
 
-    while(u.any()) {
-        cout << u << endl;
-        int len = 0;
-        int tmp = 0;
-        bool flag = false;
-        while(len < 4) {
-            int b = get_data(u, 1);
-            tmp <<= 1;
-            tmp |= b;
-            len++;
-            cout << "temp codes: " << len << " " << tmp << " " << bitset<4>(tmp) << endl;
-            auto it = codes.find(len);
-            if(it == codes.end()) {
+    if(u.len != 272) {
+        // missing packet in this unit
+        cout << "Warning: Missing packet in this unit" << endl;
+    }
+
+    try {
+        while(u.data.any()) {
+            cout << u.data << endl;
+            int len = 0;
+            int tmp = 0;
+            bool flag = false;
+            while(len < 4) {
+                int b = get_data(u, 1);
+                tmp <<= 1;
+                tmp |= b;
+                len++;
+                cout << "temp codes: " << len << " " << tmp << " " << bitset<4>(tmp) << endl;
+                auto it = codes.find(len);
+                if(it == codes.end()) {
+                    continue;
+                }
+                auto it2 = codes[len].find(tmp);
+                if(it2 == codes[len].end()) {
+                    continue;
+                }
+                auto code = it2->second;
+
+                cout << "temp code: " << code << endl;
+
+                if(code == 0x7F) {
+                    code = get_data(u, 7);
+                    cout << "diff 7" << endl;
+                    cur_value = code;
+                }
+                else {
+                    cur_value += code;
+                }
+                flag = true;
+                break;
+            }
+
+            if(!flag) {
+                cout << "Unrecognized code" << endl;
                 continue;
+                throw runtime_error("Unrecognized code: " + to_string(tmp));
             }
-            auto it2 = codes[len].find(tmp);
-            if(it2 == codes[len].end()) {
-                continue;
-            }
-            auto code = it2->second;
 
-            cout << "temp code: " << code << endl;
+            timestamp_in_half_hour++;
+            if(timestamp_in_half_hour >= 48) {
+                timestamp_in_half_hour = 0;
+                day_count++;
+            }
 
-            if(code == 0x7F) {
-                code = get_data(u, 7);
-                cout << "diff 7" << endl;
-                cur_value = code;
-            }
-            else {
-                cur_value += code;
-            }
-            flag = true;
-            break;
+            data[day_count * 86400 + timestamp_in_half_hour * 1800] = cur_value;
+            cout << day_count << " " << timestamp_in_half_hour << endl;
+            cout << day_count * 86400 + timestamp_in_half_hour * 1800 << " " << cur_value << endl;
+        
         }
-
-        if(!flag) {
-            cout << "Unrecognized code" << endl;
-            continue;
-            throw runtime_error("Unrecognized code: " + to_string(tmp));
-        }
-
-        timestamp_in_half_hour++;
-        if(timestamp_in_half_hour >= 48) {
-            timestamp_in_half_hour = 0;
-            day_count++;
-        }
-
-        data[day_count * 86400 + timestamp_in_half_hour * 1800] = cur_value;
-        cout << day_count << " " << timestamp_in_half_hour << endl;
-        cout << day_count * 86400 + timestamp_in_half_hour * 1800 << " " << cur_value << endl;
-    
+    }
+    catch(NoMoreData& e) {
+        cout << "No more valid data in this unit." << endl;
     }
 
     cout << "End temp unit" << endl;
