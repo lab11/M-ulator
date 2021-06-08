@@ -4,7 +4,7 @@
  *         This is the base code that all will share after version 5.1
  *                                          - PREv21E / PMUv11 / SNTv4 / FLPv3S / MRRv11a / MEMv1
  ******************************************************************************************
- * Current version: 6.2.0
+ * Current version: 6.2.1
  *
  * v1: draft version; not tested on chip
  *
@@ -191,6 +191,9 @@
  *    Branch for island hopping:
  *      Keeping all the changes up until the previous version EXCEPT for the passive window shift
  *    Rolled back data_collection_end_day_time for the island hoppping test beacuse it has not be tested in the 1-month run
+ *
+ *  v6.2.1:
+ *    Check for new day_state after setting the new next_light_meas_time
  *
  ******************************************************************************************/
 
@@ -1148,16 +1151,6 @@ void sample_light() {
         min_light_idx = max_idx;
     }
 
-    // check if advancing day_state to be used for shifting window
-    bool new_state = false;
-    uint32_t temp = xo_day_time_in_sec + next_light_meas_time - xo_sys_time_in_sec;
-    if(day_state != NIGHT) {
-        new_state = (temp >= day_state_end_time);
-    }
-    else {
-        new_state = (temp >= day_state_end_time && temp < MID_DAY_TIME);
-    }
-
     uint32_t target = 0;
     // test if crosses threshold
     if(day_state == DAWN && threshold_idx == IDX_INIT
@@ -1200,6 +1193,16 @@ void sample_light() {
     }
     else {
         next_light_meas_time += XO_32_MIN;
+    }
+    
+    // Rolling back this change for island hopping because it's causing a wake-up-in-the-past issue
+    bool new_state = false;
+    uint32_t temp = xo_day_time_in_sec + next_light_meas_time - xo_sys_time_in_sec;
+    if(day_state != NIGHT) {
+        new_state = (temp >= day_state_end_time);
+    }
+    else {
+        new_state = (temp >= day_state_end_time && temp < MID_DAY_TIME);
     }
 
     if(new_state) {
