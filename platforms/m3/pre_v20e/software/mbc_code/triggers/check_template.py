@@ -7,6 +7,9 @@ def check_elements(template, config, err_list, name):
         if k in config.keys():
             if(type(template[k]) != type(config[k])):
                 err_list.append(['{}:{}'.format(name, k), 'type mismatch: {} != {}'.format(type(template[k]), type(config[k]))])
+            elif isinstance(template[k], list):
+                if(len(template[k]) != len(config[k])):
+                    err_list.append(['{}:{}'.format(name, k), 'expected {} list elements but read {}'.format(len(template[k]), len(config[k]))])
             elif isinstance(template[k], dict):
                 check_elements(template[k], config[k], err_list, '{}:{}'.format(name, k))
         else:
