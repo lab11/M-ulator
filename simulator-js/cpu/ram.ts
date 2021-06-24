@@ -15,7 +15,7 @@ function create(start_address: number, length: number): cpu.MemmapEntry {
         if (index < length) {
             return Promise.resolve(mem32[index]);
         } else {
-            return Promise.reject();
+            return Promise.reject(new cpu.SynchronousException("RAM read"));
         }
     }
 
@@ -25,7 +25,7 @@ function create(start_address: number, length: number): cpu.MemmapEntry {
             let writer_fn = function () { mem32[index] = value };
             return Promise.resolve(writer_fn);
         } else {
-            return Promise.reject();
+            return Promise.reject(new cpu.SynchronousException("RAM write"));
         }
     }
 

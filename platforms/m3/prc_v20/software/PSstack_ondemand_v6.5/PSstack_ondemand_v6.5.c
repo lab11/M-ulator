@@ -1295,18 +1295,17 @@ static void operation_init(void){
     //set_halt_until_mbus_rx();
 
     //Enumeration
-	// FIXME
     mbus_enumerate(SRR_ADDR);
 	delay(MBUS_DELAY);
     mbus_enumerate(SNT_ADDR);
 	delay(MBUS_DELAY);
     mbus_enumerate(RDC_ADDR);
 	delay(MBUS_DELAY);
-    //mbus_enumerate(HRV_ADDR);
+    mbus_enumerate(HRV_ADDR);
 	delay(MBUS_DELAY);
  	mbus_enumerate(PMU_ADDR);
 	delay(MBUS_DELAY);
- 	//mbus_enumerate(MEM_ADDR);
+ 	mbus_enumerate(MEM_ADDR);
 	delay(MBUS_DELAY);
 /*
     set_halt_until_mbus_trx();
@@ -1354,11 +1353,11 @@ static void operation_init(void){
     sntv4_r01.TSNS_CONT_MODE = 0;
     mbus_remote_register_write(SNT_ADDR,1,sntv4_r01.as_int);
 
+/*
     // Set temp sensor conversion time
     sntv4_r03.TSNS_SEL_STB_TIME = 0x1; 
     sntv4_r03.TSNS_SEL_CONV_TIME = 0x6; // Default: 0x6
     mbus_remote_register_write(SNT_ADDR,0x03,sntv4_r03.as_int);
-
     // SNT Wakeup Timer Settings --------------------------------------
     // Config Register A
     sntv4_r0A.TMR_S = 0x1; // Default: 0x4, use 1 for good TC
@@ -1379,9 +1378,9 @@ static void operation_init(void){
     sntv4_r09.TMR_EN_TUNE1 = 0x1; // Default : 1'h1
     sntv4_r09.TMR_EN_TUNE2 = 0x1; // Default : 1'h1
 
+*/
     // to reduce standby current
     sntv4_r09.TMR_IBIAS_REF = 0x0; // Default : 4'h4
-
     mbus_remote_register_write(SNT_ADDR,0x09,sntv4_r09.as_int);
 
     // Wakeup Counter
@@ -1474,7 +1473,7 @@ static void operation_init(void){
     mbus_remote_register_write(SRR_ADDR,0x1E,srrv4_r1E.as_int);
 
     mbus_remote_register_write(SRR_ADDR,0x15,srrv4_r15.as_int);
-    
+
     // Use pulse generator
     srrv4_r02.SRR_TX_PULSE_FINE = 1;
     srrv4_r02.SRR_TX_PULSE_FINE_TUNE = 1;
@@ -1669,7 +1668,8 @@ static void operation_sns_run(void){
 		#ifdef DEBUG_MBUS_MSG_1
 		mbus_write_message32(0xCC, exec_count);
 		#endif
-		mbus_write_message32(0xC0, (exec_count << 16) | temp_storage_latest);
+		mbus_write_message32(0xC0, (exec_count << 16) | read_data_temp);
+		mbus_write_message32(0xC1, (exec_count << 16) | read_data_rdc);
 
 		// Store results in MEMv1; unless memory is full
 		if (temp_storage_count < TEMP_STORAGE_SIZE){
@@ -1762,7 +1762,6 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
     }
 }
 
-/*
 static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t settle_time){
 
     // Prepare radio TX
@@ -1823,7 +1822,6 @@ static void operation_snt_calibration_radio_binary(uint32_t start_val, uint32_t 
         }
     }
 }
-*/
 
 //********************************************************************
 // MAIN function starts here             
@@ -1852,8 +1850,10 @@ int main() {
         operation_init();
     }
 
-	// Read latest batt voltage
-	pmu_adc_read_latest();
+	// Read latest batt voltage, unless woken up after temp measurement
+	if (stack_state != STK_TEMP_READ){
+		pmu_adc_read_latest();
+	}
 
     // Check if wakeup is due to GOC interrupt  
     // 0x8C is reserved for GOC-triggered wakeup (Named GOC_DATA_IRQ)
@@ -2005,7 +2005,7 @@ int main() {
 		*REG_CLKGEN_TUNE = prcv20_r0B.as_int;
 
     }else if(wakeup_data_header == 0x17){
-        // Change the 4.2V battery reference
+        // Change the battery reference
         if (wakeup_data_field_0 == 0){
             // Update with the current value
             PMU_ADC_3P0_VAL = read_data_batadc;
@@ -2134,14 +2134,24 @@ int main() {
         ));
 
 */
+    }else if(wakeup_data_header == 0x42){
+	    // RDC Gain & Offset settings
+		rdcv4_r24.RDC_SEL_GAIN_LC = wakeup_data & 0x1F; // 5 bits
+		rdcv4_r25.RDC_OFFSET_P_LC = (wakeup_data >> 8) & 0x1F; // 5 bits
+		rdcv4_r25.RDC_OFFSET_PB_LC = 0x6; ~((wakeup_data >> 8) & 0x1F);
+
+		mbus_remote_register_write(RDC_ADDR,0x24,rdcv4_r24.as_int);
+		mbus_remote_register_write(RDC_ADDR,0x25,rdcv4_r25.as_int);
+		
     }else if(wakeup_data_header == 0x71){
     // Set SNT wakeup period
         WAKEUP_PERIOD_CONT_USER = wakeup_data & 0xFFFFFF;
 
- //   }else if(wakeup_data_header == 0x72){
- //       // Calibration routine for SNT wakeup timer
- //       operation_snt_calibration_radio_binary(wakeup_data & 0xFFFF, wakeup_data_field_2);
-
+/*
+	}else if(wakeup_data_header == 0x72){
+       // Calibration routine for SNT wakeup timer
+       operation_snt_calibration_radio_binary(wakeup_data & 0xFFFF, wakeup_data_field_2);
+*/
     }else if(wakeup_data_header == 0xF0){
 
         operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xA2, enumerated>>24, enumerated);

@@ -1,39 +1,54 @@
 ﻿---
+
 COM_PORT: 4
 hex_path: C:\Users\m3\Dropbox\m3_monarch\pre_v20e\software\mbc_code\mbc_code.hex # lab PC
-# Maybe add in COM_SPEED options here in the future
+GOC_VERSION: 5  # 3 or 5
+COM_SPEED: 
+    GOC_SPEED: 60
+    GOC_SPEED_PR: 80
+    GOC_SPEED_FAST: 80
+    GOC_DELAY: 0.5
+
+################## TIMEOUT OPTIONS #######################
+timeout_options:    #(in seconds)
+    TIMEOUT_AFTER_PROGRAM: 20   # After programming 
+    TIMEOUT_REG: 3             # Timeout after GOC trigger without radio
+    TIMEOUT_AFTER_RADIO: 10     # Timeout after GOC trigger with radio 
 
 ################## CHARACTERIZATION #######################
-stop_operation:
+stop_operation: # 0x00
     generate_read_trigger: true
 
-alive_beacon:
+alive_beacon:   # 0x01
     val:
         safe_sleep_mode: true
     generate_read_trigger: false
 
-packet_blaster:
+packet_blaster: # 0x02
     val:
         radio_duration: 10
         sleep_duration: 10
         signal: 0xAB
     generate_read_trigger: false
 
-characterization:
+characterization:   # 0x03
     val:
         light_char: false
         period: 20
     generate_read_trigger: false
 
-battery_drain_test:
+restart_xo_clock:   # 0x04
+    generate_read_trigger: true
+
+battery_drain_test: # 0x05
     val:
         sleep_duration: 40
     generate_read_trigger: true
 
-timeout:
+timeout:    # 0x06
     generate_read_trigger: true
 
-start_operation:
+start_operation: # 0x07
     generate_read_trigger: true
 
 
@@ -68,6 +83,7 @@ temp_huffman_code:
 epoch_days: 
     auto: false
     write: true
+    # Note: this uses the system timezone and not the epoch time
     val:
         YYYY: 2020
         MM: 10
@@ -79,6 +95,7 @@ epoch_days:
 xo_day_time_in_sec:
     auto: false
     write: true
+    # Note: this uses the system timezone and not the epoch time
     val:
         H: 12
         M: 00
@@ -121,9 +138,10 @@ sunrise_sunset:
 sliding_window:
     write: true
     val:
-        EDGE_MARGIN1: 120
-        EDGE_MARGIN2: 60
+        EDGE_MARGIN1: 120          # in minutes
+        EDGE_MARGIN2: 60           # in minutes
         MAX_EDGE_SHIFT_IN_MIN: 10  # in minutes
+        PASSIVE_WINDOW_SHIFT: 5    # in minutes
     generate_read_trigger: false
 
 #################### 0x10 ####################
@@ -245,6 +263,7 @@ PMU_ADC_THRESH:
         - 90
         - 90
         - 90
+        - 90
     generate_read_trigger: false
     read_indices:
         - 1
@@ -356,6 +375,7 @@ mrr_coarse_cap_tune:
 #################### 0x1B ####################
 operation_config:
     write: true
+    # Note: this uses the system timezone and not the epoch time
     val:
         start_day_count:
             YYYY: 2020
@@ -379,4 +399,17 @@ radio_out_data:
         len: 5
     generate_read_trigger: true
 
-    
+#################### 0x1D ####################
+data_collection_end_day_time:   # time of day the data collection will end on end_day_count in minutes
+    write: true
+    val: 720 # (in minutes) # end at noon
+    generate_read_trigger: true
+
+#################### 0x1E ####################
+SFO_trim:   # time of day the data collection will end on end_day_count
+    write: true
+    val:
+        RO_MOM: 0x10
+        RO_MIM: 0x10
+    generate_read_trigger: true
+

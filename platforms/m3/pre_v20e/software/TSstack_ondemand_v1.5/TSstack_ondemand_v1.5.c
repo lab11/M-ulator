@@ -15,7 +15,11 @@
 //			v1.3b: Fixes a problem where running send_radio_data_mrr() more than once and 
 //				   running radio_power_on() between them causes CL to be in weak mode
 //			v1.4: PMU Optimizations
-//			v1.5: Adding feature to save data and transmit them later
+//			v1.4a: Minor updates for debugging; change SAR ratio every time irq wakeup
+//				  send exec_count when stopping measurement
+//			v1.4b: SNT temp sensor reset & sleep setting restored whenever GOC triggered
+//				  Adding a dedicated setting for # of hops
+//			v1.5: adding logging last n samples
 //*******************************************************************
 #include "PREv20.h"
 #include "PREv20_RF.h"
@@ -521,9 +525,9 @@ inline static void pmu_set_clk_init(){
 		| (0 << 9) // Enable override setting [8] (1'h0)
 		| (0 << 8) // Switch input / output power rails for upconversion (1'h0)
 		| (0 << 7) // Enable override setting [6:0] (1'h0)
-		| (0x3C) 		// Binary converter's conversion ratio (7'h00)
+		| (0x45) 		// Binary converter's conversion ratio (7'h00)
 	));
-	pmu_set_sar_override(0x43);
+	pmu_set_sar_override(0x45);
 
 	pmu_set_adc_period(1); // 0x100 about 1 min for 1/2/1 1P2 setting
 }
@@ -682,9 +686,7 @@ inline static void pmu_adc_read_latest(){
 		read_data_batadc_diff = read_data_batadc - PMU_ADC_3P0_VAL;
 	}
 
-	if ((pmu_parking_mode > 0) && (exec_count_irq == 0)){
-		pmu_parking_decision_3v_battery();
-	}
+	pmu_parking_decision_3v_battery();
 
 }
 
@@ -1314,7 +1316,7 @@ static void operation_init(void){
   
     //Enumerate & Initialize Registers
     stack_state = STK_IDLE; 	//0x0;
-    enumerated = 0x54531040; // 0x5453 is TS in ascii
+    enumerated = 0x5453104b; // 0x5453 is TS in ascii
     exec_count = 0;
     wakeup_count = 0;
     exec_count_irq = 0;
@@ -1542,6 +1544,7 @@ static void operation_sns_run(void){
         // Start temp measurement
         stack_state = STK_TEMP_READ;
         pmu_set_sleep_tsns();
+        temp_sensor_reset();
         temp_sensor_start();
 		// Go to sleep during measurement
 		operation_sleep();
@@ -1577,7 +1580,6 @@ static void operation_sns_run(void){
         // Option to take multiple measurements per wakeup
         if (meas_count < NUM_TEMP_MEAS){    
             // Repeat measurement while awake
-            temp_sensor_reset();
             stack_state = STK_TEMP_START;
                 
         }else{
@@ -1680,11 +1682,16 @@ static void operation_goc_trigger_init(void){
 	//mbus_write_message32(0xAA,wakeup_data);
 
 	// Initialize variables & registers
-	sns_running = 0;
+    if (sns_running){
+        sns_running = 0;
+        temp_sensor_power_off();
+        sns_ldo_power_off();
+		// Restore sleep setting
+   	    pmu_sleep_setting_temp_based();
+    }
 	stack_state = STK_IDLE;
 	
 	radio_power_off();
-	//radio_packet_count = 0;
 }
 
 static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_timer_val, uint8_t radio_tx_prefix, uint32_t radio_tx_data){
@@ -1740,7 +1747,7 @@ int main(){
 	#endif
 
     // Initialization sequence
-    if (enumerated != 0x54531040){
+    if (enumerated != 0x5453104b){
         operation_init();
     }
 
@@ -1824,7 +1831,7 @@ int main(){
 
         stack_state = STK_IDLE;
 
-        operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0x6, temp_storage_count);
+        operation_goc_trigger_radio(wakeup_data_field_0, wakeup_data_field_1, 0x6, exec_count);
 
     }else if(wakeup_data_header == 0x13){
     	// Tune SNT Timer R for TC
@@ -1908,6 +1915,11 @@ int main(){
 		mrrv10_r07.RO_MIM = wakeup_data & 0x3F;
 		mbus_remote_register_write(MRR_ADDR,0x07,mrrv10_r07.as_int);
 		
+	}else if(wakeup_data_header == 0x25){
+		// Change the # of hops only
+		mrr_freq_hopping = wakeup_data_field_2 & 0xF;
+		mrr_freq_hopping_step = wakeup_data_field_2 >> 4;
+
 /*
 	}else if(wakeup_data_header == 0x24){
 		// Switch between short / long pulse

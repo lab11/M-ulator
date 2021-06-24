@@ -8,55 +8,46 @@
 #ifndef ATOMIC_SUPPORT_H
 #define ATOMIC_SUPPORT_H
 
-#if defined(__has_include)
-# if __has_include(<stdatomic.h>)
-#  include <stdatomic.h>
-#  define HAVE_STDATOMIC
-# else
-#  define NO_ATOMIC
-   pthread_mutex_t no_atomic_mutex = PTHREAD_MUTEX_INITIALIZER;
-#  define atomic_store(_p, _i) atomic_store_compat(_p, _i)
-   static void atomic_store_compat(bool *p, bool val) {
+#if !defined(__STDC_VERSION__)
+# error Compiler does not support C
+#endif
+#if (__STDC_VERSION__ >= 201112L) && !defined(__STDC_NO_ATOMICS__)
+# include <stdatomic.h>
+# define HAVE_STDATOMIC
+#elif defined(__has_include) && defined(__GNUC__) && __has_include(<pthread.h>)
+# define NO_ATOMIC
+# include <pthread.h>
+   extern pthread_mutex_t no_atomic_mutex;
+# define atomic_bool _Bool
+# define atomic_flag _Bool
+# define atomic_store(_p, _i) atomic_store_compat(_p, _i)
+   static inline void atomic_store_compat(atomic_bool *p, atomic_bool val) {
 	   pthread_mutex_lock(&no_atomic_mutex);
 	   *p = val;
 	   pthread_mutex_unlock(&no_atomic_mutex);
    }
-#  define atomic_load(_p) atomic_load_compat(_p)
-   static bool atomic_load_compat(bool *p) {
-	   bool temp;
+# define atomic_load(_p) atomic_load_compat(_p)
+   static inline _Bool atomic_load_compat(atomic_bool *p) {
+	   _Bool temp;
 	   pthread_mutex_lock(&no_atomic_mutex);
 	   temp = *p;
 	   pthread_mutex_unlock(&no_atomic_mutex);
 	   return temp;
    }
    // but these gcc extensions seem to work
-#  define atomic_flag_test_and_set(_p) __sync_lock_test_and_set(_p, 1)
-#  define atomic_flag_clear(_p)        __sync_lock_release(_p)
-# endif
-# if __has_include(<threads.h>)
-#  include <threads.h>
-# else
-#  define thread_local __thread
-# endif
-#elif defined __GNUC__
-# if __GNUC__ != 4
-#  error GCC 4.x required
-# endif
-# if __GNUC_MINOR__ < 9
-#  define thread_local __thread
-# else
-#  include <threads.h>
-# endif
-# if __GNUC_MINOR__ < 7
-#  error GCC 4.7+ required for __atomic support (though you could work around this if motivated)
-# endif
-# define GCC_ATOMIC
-# define atomic_store(_p, _i)         __atomic_store_n(_p, _i, __ATOMIC_RELEASE)
-# define atomic_load(_p)              __atomic_load_n(_p, __ATOMIC_ACQUIRE)
-# define atomic_flag_test_and_set(_p) __atomic_test_and_set(_p, __ATOMIC_SEQ_CST)
-# define atomic_flag_clear(_p)        __atomic_clear(_p, __ATOMIC_SEQ_CST)
+# define atomic_flag_test_and_set(_p) __sync_lock_test_and_set(_p, 1)
+# define atomic_flag_clear(_p)        __sync_lock_release(_p)
+# define ATOMIC_VAR_INIT(val) (val)
+# define ATOMIC_FLAG_INIT ((_Bool)!1)
 #else
-# error Unknown compiler. No C11 atomic / thread support?
+# error No C11 atomic or GCC compatible pthread support?
+#endif
+#if (__STDC_VERSION__ >= 201112L) && !defined(__STDC_NO_THREADS__)
+# include <threads.h>
+#elif defined(__GNUC__)
+# define thread_local __thread
+#else
+# error Unknown compiler does not support C11 threads?
 #endif
 
 #endif // ATOMIC_SUPPORT_H

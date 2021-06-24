@@ -1,0 +1,244 @@
+5c5
+<  *                                          - PREv21E / PMUv11 / SNTv4 / FLPv3S / MRRv11a / MEMv1
+---
+>  *                                          - PREv21E / PMUv12 / SNTv5 / FLPv3S / MRRv11a / MEMv1
+7c7
+<  * Current version: 6.2.0
+---
+>  * Current version: 6.
+158d157
+<  *    Added GOC trigger for data_collection_end_day_time
+160,161c159,160
+<  *
+<  *  v5.2.15
+---
+>  *  
+>  *  v5.2.15:
+169,174d167
+<  *  v5.3.1:
+<  *    Resetting both light and temp packet numbers when using the force radio out trigger
+<  *    Created a backup for passive shifting test
+<  *    Attempted passive shifting fix. Sliding window now shifts towards the either end to try to capture the threshold if not crossed
+<  *    Initialized last_avg_light in sample_light(). This fixes the issue of the system thinking that the threshold is crossed on the first light measurement
+<  *
+181,184d173
+<  *  v6.0.1:
+<  *    send_beacon() now checks mrr_send_enable before sending
+<  *    Added SFO trimming trigger
+<  *
+187,193d175
+<  *    Merge changes from slow loop
+<  *    Support 0-10C in the PMU_ADC_THRESH
+<  *
+<  *  v6.2.0:
+<  *    Branch for island hopping:
+<  *      Keeping all the changes up until the previous version EXCEPT for the passive window shift
+<  *    Rolled back data_collection_end_day_time for the island hoppping test beacuse it has not be tested in the 1-month run
+197c179
+< #define VERSION_NUM 0x620
+---
+> #define VERSION_NUM 0x604
+207,216d188
+< 
+< // #include "huffman_encodings.h" 
+< // #include "../include/PREv20E.h"
+< // #include "../include/PREv20E_RF.h"
+< // #include "../include/SNTv4_RF.h"
+< // #include "../include/PMUv9_RF.h"
+< // #include "../include/LNTv1A_RF.h"
+< // #include "../include/MRRv7_RF.h"
+< // #include "../include/mbus.h"
+< 
+317c289
+< volatile mrrv11a_r07_t mrrv11a_r07 = MRRv11A_R07_DEFAULT;
+---
+> // volatile mrrv11a_r07_t mrrv11a_r07 = MRRv11A_R07_DEFAULT;
+391d362
+< volatile uint16_t PASSIVE_WINDOW_SHIFT = 0;
+404,409c375,380
+<                                            0x01000100, 
+<                                            0x01000100, 
+<                                            0x01000100, 
+<                                            0x01000100, 
+<                                            0x01000100, 
+<                                            0x01000100};
+---
+>                                             0x01000100, 
+>                                             0x01000100, 
+>                                             0x01000100, 
+>                                             0x01000100, 
+>                                             0x01000100, 
+>                                             0x01000100};
+412,417c383,388
+<                                            0x01000100, 
+<                                            0x01000100, 
+<                                            0x01000100, 
+<                                            0x01000100, 
+<                                            0x01000100, 
+<                                            0x01000100};
+---
+>                                             0x01000100, 
+>                                             0x01000100, 
+>                                             0x01000100, 
+>                                             0x01000100, 
+>                                             0x01000100, 
+>                                             0x01000100};
+423d393
+< 
+425c395
+< volatile uint32_t PMU_ADC_THRESH[5] = {90, 90, 90, 90, 90};
+---
+> volatile uint32_t PMU_ADC_THRESH[4] = {90, 90, 90, 90};
+1092c1062
+<             // v5.3.1: setting new sunset at the start of NOON
+---
+>             // v5.3.0: setting new sunset at the start of NOON
+1097c1067
+<             // v5.3.1: setting new sunrise at the start of NIGHT
+---
+>             // v5.3.0: setting new sunrise at the start of NIGHT
+1130,1131d1099
+<         // initialize last_avg_light to avoid crossing the threshold on first light meas
+<         last_avg_light = log_light;
+1151,1160d1118
+<     // check if advancing day_state to be used for shifting window
+<     bool new_state = false;
+<     uint32_t temp = xo_day_time_in_sec + next_light_meas_time - xo_sys_time_in_sec;
+<     if(day_state != NIGHT) {
+<         new_state = (temp >= day_state_end_time);
+<     }
+<     else {
+<         new_state = (temp >= day_state_end_time && temp < MID_DAY_TIME);
+<     }
+< 
+1204a1163,1171
+>     bool new_state = false;
+>     uint32_t temp = xo_day_time_in_sec + next_light_meas_time - xo_sys_time_in_sec;
+>     if(day_state != NIGHT) {
+>         new_state = (temp >= day_state_end_time);
+>     }
+>     else {
+>         new_state = (temp >= day_state_end_time && temp < MID_DAY_TIME);
+>     }
+> 
+1211c1178
+<             // resample and store
+---
+>             // resample and stoie
+1833c1800
+<  * PMU functions (PMUv12)
+---
+>  * PMU functions (PMUv11)
+1881c1848
+<          ((1 << 0) //sar_on
+---
+>         ((  1 << 0) //sar_on
+2433,2434c2400,2401
+<                  (1 << 0)));   // bias current; default:4
+<                  //(0 << 0)));   // bias current; default:4; GC set to 0 to run UPC slow loop in active
+---
+>                 (1 << 0)));   // bias current; default:4
+>                 //(0 << 0)));   // bias current; default:4; GC set to 0 to run UPC slow loop in active
+2439c2406
+< 
+---
+>     
+2468a2436
+> 
+2758a2727
+>     mrrv11a_r07_t mrrv11a_r07 = MRRv11A_R07_DEFAULT;
+2857a2827
+> 
+3162c3132
+<     for(i = 1; i < 6; i++) {
+---
+>     for(i = 2; i < 6; i++) {
+3164c3134
+<             if(read_data_batadc <= PMU_ADC_THRESH[i - 1]) {
+---
+>             if(read_data_batadc <= PMU_ADC_THRESH[i - 2]) {
+3215,3221c3185,3188
+<     // v6.0.1 checking temp and voltage
+<     if(mrr_send_enable) {
+<         pmu_setting_temp_based(1);
+<         // mrr_send_radio_data(1);
+<         mrr_send_radio_data(0); // FIXME: change this line in real code
+<         // pmu_setting_temp_based(0);   // FIXME: set this line back
+<     }
+---
+>     pmu_setting_temp_based(1);
+>     // mrr_send_radio_data(1);
+>     mrr_send_radio_data(0); // FIXME: change this line in real code
+>     // pmu_setting_temp_based(0);   // FIXME: set this line back
+3278a3246
+>     
+3495d3462
+<                 // FIXME: this block needs to come before setting the next projected_end_time
+3790,3792d3756
+<         else if(option == 3) {
+<             PASSIVE_WINDOW_SHIFT = M * 60;
+<         }
+3795c3759
+<         radio_data_arr[1] = (MAX_EDGE_SHIFT << 20) | (PASSIVE_WINDOW_SHIFT << 8) | IDX_MAX;
+---
+>         radio_data_arr[1] = (MAX_EDGE_SHIFT << 16) | IDX_MAX;
+3992,3994c3956,3957
+<         // FIXME: debug
+<         // uint8_t i;
+<         // for(i = 0; i < len; i++) {
+---
+>         uint8_t i;
+>         for(i = 0; i < len; i++) {
+3996,3997c3959,3960
+<             radio_data_arr[1] = 0;
+<             radio_data_arr[0] = *N;
+---
+>             radio_data_arr[1] = (uint32_t) N + i;
+>             radio_data_arr[0] = N[i];
+3999c3962
+<         // }
+---
+>         }
+4035c3998
+<     else if(goc_data_header == 0x1B) {
+---
+> else if(goc_data_header == 0x1B) {
+4064,4065c4027
+<             light_packet_num = 0;
+<             temp_packet_num = 0;
+---
+>             // FIXME: restart packet number
+4075,4102c4037
+<     else if(goc_data_header == 0x1D) {
+<         // TODO: add this back in
+<         // // data collection end day time
+<         // uint16_t N = goc_data_full & 0x7FF;
+<         // if(option) {
+<         //     data_collection_end_day_time = N * 60;
+<         // }
+<         // radio_data_arr[2] = (0x1D << 8) | CHIP_ID;
+<         // radio_data_arr[1] = 0;
+<         // radio_data_arr[0] = data_collection_end_day_time;
+<         // send_beacon();
+<     }
+<     else if(goc_data_header == 0x1E) {
+<         // SFO trimming
+<         uint16_t N = (goc_data_full >> 8) & 0xFF;
+<         uint16_t M = goc_data_full & 0xFF;
+<         if(option) {
+<             mrrv11a_r07.RO_MOM = N;
+<             mrrv11a_r07.RO_MIM = M;
+<             mbus_remote_register_write(MRR_ADDR,0x07,mrrv11a_r07.as_int);
+<         }
+< 
+<         radio_data_arr[2] = (0x1E << 8) | CHIP_ID;
+<         radio_data_arr[1] = mrrv11a_r07.RO_MOM;
+<         radio_data_arr[0] = mrrv11a_r07.RO_MIM;
+<         send_beacon();
+<     }
+< 
+---
+>     
+4111,4112d4045
+<     
+< 

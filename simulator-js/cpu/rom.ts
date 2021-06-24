@@ -15,12 +15,12 @@ function create(start_address: number, length: number): cpu.MemmapEntry {
         if (index < length) {
             return Promise.resolve(mem32[index]);
         } else {
-            return Promise.reject();
+            return Promise.reject(new cpu.SynchronousException("ROM read"));
         }
     }
 
     function write32(_address: number, _value: number) {
-        return Promise.reject();
+        return Promise.reject(new cpu.SynchronousException("ROM write"));
     }
 
     let peripheral = {
