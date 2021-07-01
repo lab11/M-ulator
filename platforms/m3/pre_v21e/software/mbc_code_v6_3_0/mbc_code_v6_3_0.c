@@ -284,8 +284,8 @@
 #define XO_270_MIN 19600 // 4 hours and 30 minutes
 
 
-// v6.3.0: using timer32 instead of delay() using N = 3
-uint32_t RADIO_PACKET_DELAY = 60000; // Amount of delay between radio packets
+// v6.3.0: using timer32 instead of delay() using N = 5
+uint32_t RADIO_PACKET_DELAY = 100000; // Amount of delay between radio packets
 
 #define RADIO_DATA_NUM_WORDS 3 // number of 32-bit words to transmit
 
