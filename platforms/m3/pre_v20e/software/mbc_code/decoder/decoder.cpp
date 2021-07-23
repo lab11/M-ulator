@@ -1,6 +1,6 @@
 /*******************************
  *  
- *  Monarch decoder v1.0.5
+ *  Monarch decoder v1.0.7
  *  Author: Roger Hsiao
  *  
  *  Works with mbc_code.c v5.2.3 and above
@@ -28,6 +28,10 @@
  *    Adding delimeter option
  *    Adding support for missing packets XXX
  *
+ *  v1.0.7:
+ *    The program now takes in different options: -d for delimeter and -c for config files
+ *    The config files now set up the correct resampling indices
+ *
  *
  *******************************/
 
@@ -40,6 +44,9 @@
 #include <cmath>
 #include <unistd.h>
 #include <stdexcept>
+#include <getopt.h>
+#include <vector>
+#include <memory>
 #include "../pre_v20e/software/mbc_code/huffman_encodings.h"
 // #include "/home/rogerhh/M-ulator/platforms/m3/pre_v20e/software/mbc_code/huffman_encodings.h"
 
@@ -63,7 +70,7 @@ struct NoMoreData {
 Unit create_unit(const string packets[]);
 uint32_t get_data(Unit& u, int len);
 
-uint16_t resample_indices[4] = {32, 40, 44, 1000};
+vector<uint16_t> resample_indices = {32, 40, 44, 1000};
 uint16_t intervals[4] = {1, 2, 8, 32};
 
 class LightParser {
@@ -91,17 +98,32 @@ public:
     TempParser();
 };
 
+struct RAII_File {
+    string filename;
+    RAII_File(string filename_in) 
+        : filename(filename_in) {}
+    ~RAII_File() {
+        cout << "Removing temp file: " << filename << endl;
+        int rc = system(("rm " + filename).c_str());
+    }
+};
+
+vector<unique_ptr<RAII_File>> temp_files;
+
+static struct option long_options[] = {
+    {"delimeter", required_argument, NULL, 'd'},
+    {"config", required_argument, NULL, 'c'}
+};
+
+void make_python_yaml_parser(const string& filename);
+
 int main(int argc, char** argv) {
 
-    if(argc != 6 && argc != 7) {
-        cerr << "Usage: ./decoder.exe packet_file date.log time.log light output file temp output file [delimeter]" << endl;
-        return 1;
-    }
 
-    char delim = ' ';
-    if(argc >= 7) {
-        delim = argv[6][0];
-        cout << "delim = \'" << delim << "\'" << endl;
+
+    if(argc < 6) {
+        cerr << "Usage: ./decoder.exe packet_file date.log time.log <light_output_file> <temp_output_file> [-d <delimeter>] [-c <config_file>]" << endl;
+        return 1;
     }
 
     string packet_filename = string(argv[1]);
@@ -135,6 +157,72 @@ int main(int argc, char** argv) {
     if(!temp_fout.is_open()) {
         cerr << "Error opening: " << temp_filename << endl;
         return 1;
+    }
+
+    string config_filename = "";
+    bool using_config = false;
+
+    char delim = ',';
+    char ch;
+    while((ch = getopt_long(argc, argv, "c:d:", long_options, NULL)) != -1) {
+        switch(ch) {
+            case 'd':
+                delim = optarg[0];
+                break;
+            case 'c':
+                config_filename = string(optarg);
+                using_config = true;
+                break;
+            default:
+                cerr << "Unrecognized option: " << ch << endl;
+                return 1;
+        }
+    }
+
+    // We're running the python parser outside of the c++ code because I don't want
+    // everyone to have to download and install yaml-cpp
+    if(using_config) {
+        int rc = system(("ls " + config_filename + " 2> /dev/null").c_str());
+        if(rc != 0) {
+            cerr << "Unable to find file: " << config_filename << endl;
+            return 1;
+        }
+        
+        rc = system("ls read_yaml.py 2> /dev/null");
+        if(rc != 0) {
+            cerr << "Unable to find python parser: read_yaml.py in the decoder directory. Creating one temporarily." << endl;
+            make_python_yaml_parser("read_yaml.py");
+        }
+
+        string tmp_name = "decoder_yaml_parser.tmp";
+        rc = system(("ls " + tmp_name + " 2> /dev/null").c_str());
+        if(rc == 0) {
+            cerr << "Temporary file: " + tmp_name + " exists! Manually deleting it." << endl;
+            rc = system(("rm " + tmp_name + " 2> /dev/null").c_str());
+        }
+        unique_ptr<RAII_File> ptr(new RAII_File(tmp_name));
+        temp_files.push_back(move(ptr));
+
+        rc = system(("python read_yaml.py " + config_filename + " " + tmp_name + " > /dev/null").c_str());
+        if(rc != 0) {
+            cerr << "yaml parsing failed. Please contact maintainer" << endl;
+            return 1;
+        }
+
+        // all config related stuff should be parsed here
+        ifstream config_fin(tmp_name);
+        if(!config_fin.is_open()) {
+            cerr << " Error opening file: " << tmp_name << endl;
+            return 1;
+        }
+
+        int resample_indices_len;
+        config_fin >> resample_indices_len;
+        resample_indices.resize(resample_indices_len);
+        for(int i = 0; i < resample_indices_len; i++) {
+            config_fin >> resample_indices[i];
+        }
+
     }
 
     double abs_time = 0, programmed_time = 0, tz = 0, trigger_fire_date = 0, date_tz = 0;
@@ -501,5 +589,31 @@ TempParser::TempParser() {
             codes[len][code] = i - 2;
         }
     }
+}
+
+// convoluted workaround solution to getting a yaml parser working in c++
+// We are literally creating a python script to handle it
+void make_python_yaml_parser(const string& filename) {
+    ofstream fout(filename);
+    unique_ptr<RAII_File> ptr(new RAII_File(filename));
+    temp_files.push_back(std::move(ptr));
+
+    if(!fout.is_open()) {
+        cerr << "Error opening filename: " << filename << endl;
+    }
+    fout << "import yaml\n"
+         << "import sys\n"
+         << "config_file = sys.argv[1]\n"
+         << "with open(config_file, 'r') as file:\n"
+         << "   l = yaml.load(file, Loader=yaml.FullLoader)\n"
+         << "   samplings_indices = l['sample_indices']['val']\n"
+         << "   print(samplings_indices)\n"
+
+         << "output_file = sys.argv[2]\n"
+         << "with open(output_file, 'w') as file:\n"
+         << "   file.write('{}\\n'.format(len(samplings_indices)))\n"
+         << "   for i in samplings_indices:\n"
+         << "       file.write('{}\\n'.format(i))\n";
+    fout.close();
 }
 
