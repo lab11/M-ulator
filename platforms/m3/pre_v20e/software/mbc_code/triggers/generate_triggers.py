@@ -697,9 +697,9 @@ with open(config_file, 'r') as file:
 
     if(l[op_name]['write']):
         N = l[op_name]['val']['num_of_hops']
-        check_bounds(N, 5)
+        check_bounds(N, 4)
         M = l[op_name]['val']['RADIO_PACKET_DELAY']
-        check_bounds(M, 17)
+        check_bounds(M, 18)
         filename1 = filename + '-write-num_of_hops={}-RADIO_PACKET_DELAY={}'.format(N, M)
         val1 = val | (1 << 23)
         val1 |= (1 << 22)
@@ -998,6 +998,21 @@ with open(config_file, 'r') as file:
         filename2 = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-read'
         val2 = val
         set_trigger(trigger_dir, filename2, val2, l)
+    
+    ###################### 0x1F ##########################
+    op_name = 'XO_char'
+    num = 0x1F
+    if(l[op_name]['generate_read_trigger']):
+        N = l[op_name]['val']['sleep_duration']
+        check_bounds(N, 16)
+
+        filename = 'GOC-0x{}-{}'.format(format(num, 'x').zfill(2).upper(), op_name) + '-sleep_duration={}'.format(N)
+
+        val = (num << 24)
+        if(option):
+            val |= (1 << 23)
+        val |= N
+        set_trigger(trigger_dir, filename, val, l)
 
 # Generate master trigger
 bat_names = glob.glob('{}*write*.bat'.format(out_dir))

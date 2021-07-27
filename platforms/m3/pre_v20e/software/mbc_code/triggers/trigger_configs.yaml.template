@@ -51,6 +51,10 @@ timeout:    # 0x06
 start_operation: # 0x07
     generate_read_trigger: true
 
+XO_char:    # 0x1F
+    val:
+        sleep_duration: 15  # in seconds
+    generate_read_trigger: true
 
 ################## PARAMETERS #######################
 CHIP_ID:
