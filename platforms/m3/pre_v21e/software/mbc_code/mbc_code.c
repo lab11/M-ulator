@@ -4,7 +4,7 @@
  *         This is the base code that all will share after version 5.1
  *                                          - PREv21E / PMUv11 / SNTv4 / FLPv3S / MRRv11a / MEMv1
  ******************************************************************************************
- * Current version: 6.1.0
+ * Current version: 6.3.2
  *
  * v1: draft version; not tested on chip
  *
@@ -187,9 +187,23 @@
  *    Merge changes from slow loop
  *    Support 0-10C in the PMU_ADC_THRESH
  *
+ *  v6.3.0:
+ *    Adding changes for October run:
+ *      Added version numbers to the initial beacons
+ *      Updating next_light_meas_time before checking for new_state in sample_light to fix wake up in the past bug in the new passive window shift
+ *      Added XO calibration method
+ *      Record last threshold crossing for sunsets instead of first
+ *      Switch over delay to timer32 for the RADIO_PACKET_DELAY
+ *      Added passive window shift back
+ *      Using XO clock sync read
+ *
+ *  v6.3.1:
+ *    Using sleep for LNT delays
+ *    Changed default parameters for faster configuration
+ *
  ******************************************************************************************/
 
-#define VERSION_NUM 0x610
+#define VERSION_NUM 0x630
 
 #include "huffman_encodings.h" 
 #include "../include/PREv21E.h"
@@ -274,7 +288,9 @@
 #define XO_270_MIN 19600 // 4 hours and 30 minutes
 
 
-uint32_t RADIO_PACKET_DELAY = 20000; // Amount of delay between radio packets
+// v6.3.0: using timer32 instead of delay() using N = 5
+uint32_t RADIO_PACKET_DELAY = 100000; // Amount of delay between radio packets
+
 #define RADIO_DATA_NUM_WORDS 3 // number of 32-bit words to transmit
 
 // operation list
@@ -413,7 +429,7 @@ volatile uint32_t PMU_SLEEP_SETTINGS[7] = {0x01000100,
 
 volatile uint32_t PMU_ACTIVE_SAR_SETTINGS[7] = {62, 56, 52, 50, 49, 49, 49};
 volatile uint32_t PMU_RADIO_SAR_SETTINGS[7] = {62, 56, 53, 51, 49, 49, 49};
-volatile uint32_t PMU_SLEEP_SAR_SETTINGS[7] = {61, 56, 56, 56, 56, 56, 56};
+volatile uint32_t PMU_SLEEP_SAR_SETTINGS[7] = {61, 60, 60, 60, 60, 60, 60};
 
 
 volatile uint32_t PMU_TEMP_THRESH[6] = {0x1CC, 0x2F8, 0x4BC, 0x772, 0xC2C, 0x16A8}; // {0, 10, 20, 30, 45, 60}
@@ -435,12 +451,12 @@ volatile uint32_t radio_packet_count;
 #define DUSK 2
 #define NIGHT 3
 
-volatile uint16_t MAX_EDGE_SHIFT = 600;
+volatile uint16_t MAX_EDGE_SHIFT = 3000;
 #define MAX_DAY_TIME 86400
 #define MID_DAY_TIME 43200
 // this is now aligned to the minute
 volatile uint16_t IDX_MAX = 239;         // x = 180, y = 60, IDX_MAX = x + y - 1
-volatile uint16_t EDGE_MARGIN1 = 10740; // (x - 1) * 60
+volatile uint16_t EDGE_MARGIN1 = 7140; // (x - 1) * 60
 volatile uint16_t EDGE_MARGIN2 = 3600; // y * 60
 
 volatile uint16_t EDGE_THRESHOLD = 200; // = log2(2 lux * 1577) * 32
@@ -475,7 +491,7 @@ volatile uint32_t light_meas_start_time_in_min = 0;
 #define IDX_INIT 0xFF
 volatile uint16_t max_idx = 0;
 const uint16_t intervals[4] = {1, 2, 8, 32};
-volatile uint16_t resample_indices[4] = {32, 40, 44, 1000};
+volatile uint16_t resample_indices[4] = {4, 12, 16, 1000};
 volatile uint16_t min_light = MAX_UINT16;
 volatile uint16_t min_light_idx = IDX_INIT;
 volatile uint16_t threshold_idx = IDX_INIT;
@@ -522,7 +538,7 @@ static void stop_timer32_timeout_check(){
     *TIMER32_GO = 0;
     if (wfi_timeout_flag){
         wfi_timeout_flag = 0;
-    sys_err(0x04000000);
+        sys_err(0x04000000);
     }
 }
 
@@ -600,22 +616,27 @@ volatile uint16_t xo_to_sec_mplier = 32768;  // 2^15
 #define XO_SYNC_THRESH 4096 // 3 consecutive reads should be less than 1/8 seconds apart
 
 uint32_t get_timer_cnt_xo() {
-    // v5.2.9: doing a majority vote to deal with sync problems
-    uint32_t t1 = ((*REG_XOT_VAL_U & 0xFFFF) << 16) | (*REG_XOT_VAL_L & 0xFFFF);
-    uint32_t t2 = ((*REG_XOT_VAL_U & 0xFFFF) << 16) | (*REG_XOT_VAL_L & 0xFFFF);
-    uint32_t t3 = ((*REG_XOT_VAL_U & 0xFFFF) << 16) | (*REG_XOT_VAL_L & 0xFFFF);
-    uint32_t raw_cnt;
+    // // v5.2.9: doing a majority vote to deal with sync problems
+    // uint32_t t1 = ((*REG_XOT_VAL_U & 0xFFFF) << 16) | (*REG_XOT_VAL_L & 0xFFFF);
+    // uint32_t t2 = ((*REG_XOT_VAL_U & 0xFFFF) << 16) | (*REG_XOT_VAL_L & 0xFFFF);
+    // uint32_t t3 = ((*REG_XOT_VAL_U & 0xFFFF) << 16) | (*REG_XOT_VAL_L & 0xFFFF);
+    // uint32_t raw_cnt;
 
-    if(t2 - t1 < XO_SYNC_THRESH) {
-        // if t1 and t2 are close, pick t2
-        raw_cnt = t2;
-    }
-    else {
-        // else, the only two cases are t1, t3 are close and t2, t3 are close => pick t3
-        raw_cnt = t3;
-    }
+    // if(t2 - t1 < XO_SYNC_THRESH) {
+    //     // if t1 and t2 are close, pick t2
+    //     raw_cnt = t2;
+    // }
+    // else {
+    //     // else, the only two cases are t1, t3 are close and t2, t3 are close => pick t3
+    //     raw_cnt = t3;
+    // }
 
-    uint64_t temp = mult(raw_cnt, xo_to_sec_mplier);
+    // uint64_t temp = mult(raw_cnt, xo_to_sec_mplier);
+    // return right_shift(temp, XO_TO_SEC_MPLIER_SHIFT);
+    
+    // v6.3.0: sync xo timer read
+    uint32_t raw_count = *XOT_VAL;
+    uint64_t temp = mult(raw_count, xo_to_sec_mplier);
     return right_shift(temp, XO_TO_SEC_MPLIER_SHIFT);
 }
 
@@ -1143,6 +1164,17 @@ void sample_light() {
         min_light = avg_light;
         min_light_idx = max_idx;
     }
+    
+    // save the time before updating
+    uint32_t light_meas_end_time_in_min = divide_by_60(next_light_meas_time - sys_sec_to_min_offset);
+    
+    // set next light measure time
+    if(day_state == DAWN || day_state == DUSK) {
+        next_light_meas_time += XO_1_MIN;
+    }
+    else {
+        next_light_meas_time += XO_32_MIN;
+    }
 
     // check if advancing day_state to be used for shifting window
     bool new_state = false;
@@ -1153,6 +1185,7 @@ void sample_light() {
     else {
         new_state = (temp >= day_state_end_time && temp < MID_DAY_TIME);
     }
+
 
     uint32_t target = 0;
     // test if crosses threshold
@@ -1177,12 +1210,12 @@ void sample_light() {
         
         }
     }
-    else if(day_state == DUSK && threshold_idx == IDX_INIT) {
+    else if(day_state == DUSK) { // && threshold_idx == IDX_INIT) { // For dusk, we want the last time the threshold is crossed, no need to check if there is already a threshold crossing
         if(avg_light <= EDGE_THRESHOLD && last_avg_light > EDGE_THRESHOLD) {
             threshold_idx = max_idx;
             target = running_avg_time[(rot_idx + 3) & 7];
         }
-        else if(new_state) {
+        else if(new_state && threshold_idx == IDX_INIT) {
             // if advancing to NIGHT day_state but haven't set new window yet, shift towards later in the day
             if(min_light > EDGE_THRESHOLD) {
                 // minimum light seen in this window is greater than threshold
@@ -1214,17 +1247,6 @@ void sample_light() {
                 && (target - cur_sunrise > XO_270_MIN)) {
             next_sunset = target;
         }
-    }
-
-    // save the time before updating
-    uint32_t light_meas_end_time_in_min = divide_by_60(next_light_meas_time - sys_sec_to_min_offset);
-    
-    // set next light measure time
-    if(day_state == DAWN || day_state == DUSK) {
-        next_light_meas_time += XO_1_MIN;
-    }
-    else {
-        next_light_meas_time += XO_32_MIN;
     }
 
     if(new_state) {
@@ -1425,7 +1447,7 @@ static void operation_temp_run() {
         temp_sensor_start();
 
         // Wait for temp sensor output or TIMER32
-    WFI();
+        WFI();
 
         // Turn off timer32
         *TIMER32_GO = 0;
@@ -1670,7 +1692,11 @@ static void lnt_start() {
 
     lntv1a_r00.WAKEUP_WHEN_DONE = 0x1; // Default : 0x0
     mbus_remote_register_write(LNT_ADDR,0x00,lntv1a_r00.as_int);
-    delay(MBUS_DELAY*100);
+
+    // v6.3.1: switch this out for timer32
+    // delay(MBUS_DELAY*100);
+    config_timer32(MBUS_DELAY*500, 1, 0, 0);
+    WFI();
 }
 
 static void lnt_stop() {
@@ -1686,7 +1712,11 @@ static void lnt_stop() {
     lntv1a_r00.DBE_ENABLE = 0x0; // Default : 0x0
     lntv1a_r00.WAKEUP_WHEN_DONE = 0x0;
     mbus_remote_register_write(LNT_ADDR,0x00,lntv1a_r00.as_int);
-    delay(MBUS_DELAY*100);
+
+    // v6.3.1: switch this out for timer32
+    // delay(MBUS_DELAY*100);
+    config_timer32(MBUS_DELAY*500, 1, 0, 0);
+    WFI();
 }
 
 #define TIMER_MARGIN 1024 // margin of error is about 1/32 of a second // limited by the frequency of the LNT timer
@@ -2258,7 +2288,7 @@ static void pmu_setting_temp_based(uint16_t mode) {
         // mbus_write_message32(0xB3, 0xFFFFFFFF);
         if(i == 0 || snt_sys_temp_code >= PMU_TEMP_THRESH[i - 1]) {
             if(mode == 0) {
-            pmu_set_active_clk(PMU_ACTIVE_SETTINGS[i]);
+                pmu_set_active_clk(PMU_ACTIVE_SETTINGS[i]);
                 pmu_set_sar_ratio(PMU_ACTIVE_SAR_SETTINGS[i]);
             }
             else if(mode == 2) {
@@ -2266,10 +2296,28 @@ static void pmu_setting_temp_based(uint16_t mode) {
                 pmu_set_sar_ratio(PMU_SLEEP_SAR_SETTINGS[i]);
             }
             else {
-            pmu_set_active_clk(PMU_RADIO_SETTINGS[i]);
+                pmu_set_active_clk(PMU_RADIO_SETTINGS[i]);
                 pmu_set_sar_ratio(PMU_RADIO_SAR_SETTINGS[i]);
             }
             break;
+        }
+    }
+    return;
+#endif
+}
+
+// generate a high current
+static void pmu_current_marker() {
+#ifdef USE_PMU
+    int8_t i;
+    for(i = PMU_SETTINGS_LEN; i >= 0; i--) {
+        // mbus_write_message32(0xB3, 0xFFFFFFFF);
+        if(i == 0 || snt_sys_temp_code >= PMU_TEMP_THRESH[i - 1]) {
+            uint32_t temp_setting = PMU_ACTIVE_SETTINGS[i] & 0xFFFFFFFF;
+            // set base to a high value
+            temp_setting |= 0x0000FF00;
+            pmu_set_active_clk(temp_setting);
+            pmu_set_active_clk(PMU_ACTIVE_SETTINGS[i]);
         }
     }
     return;
@@ -2752,7 +2800,14 @@ static void mrr_send_radio_data(uint16_t last_packet) {
     mrrv11a_r01.TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine;
     mbus_remote_register_write(MRR_ADDR,0x01,mrrv11a_r01.as_int);
     send_radio_data_mrr_sub1();
-    delay(RADIO_PACKET_DELAY);
+
+    // v6.3.0: switch this out for timer32
+    config_timer32(RADIO_PACKET_DELAY, 1, 0, 0);
+    WFI();
+
+    // delay(RADIO_PACKET_DELAY);
+
+
     // mrr_cfo_val_fine = mrr_cfo_val_fine + mrr_freq_hopping_step; // 1: 0.8MHz, 2: 1.6MHz step
     // 5 hop pattern
     mrr_cfo_val_fine += 8;
@@ -3094,7 +3149,7 @@ void handler_ext_int_timer32( void ) { // TIMER32
     wfi_timeout_flag = 1;
 }
 
-void handler_ext_int_xot( void ) { // TIMER32
+void handler_ext_int_xot( void ) { // XOT
     *NVIC_ICPR = (0x1 << IRQ_XOT);
 }
 
@@ -3460,7 +3515,7 @@ int main() {
             else {
                 radio_data_arr[2] = (0xCD << 8) | CHIP_ID;
                 radio_data_arr[1] = (op_counter << 28) | (xo_sys_time_in_sec & 0xFFFFFFF);
-                radio_data_arr[0] = projected_end_time_in_sec;
+                radio_data_arr[0] = (VERSION_NUM << 20) | (projected_end_time_in_sec & 0xFFFFF);
             }
             if(op_counter >= 4) {
                 // go to STATE_WAIT1
@@ -3885,8 +3940,8 @@ int main() {
     else if(goc_data_header == 0x12) {
         // Radio config
         uint8_t option2 = (goc_data_full >> 22) & 0x1;
-        uint8_t N = (goc_data_full >> 17) & 0x1F;
-        uint32_t M = goc_data_full & 0x1FFFF;
+        uint8_t N = (goc_data_full >> 18) & 0xF;
+        uint32_t M = goc_data_full & 0x3FFFF;
         if(option) {
             mrr_freq_hopping = N;
         }
@@ -4124,6 +4179,43 @@ int main() {
         radio_data_arr[1] = mrrv11a_r07.RO_MOM;
         radio_data_arr[0] = mrrv11a_r07.RO_MIM;
         send_beacon();
+    }
+    else if(goc_data_header == 0x1F) {
+        // XO characterization
+        // Note: system time needs to be reset after using this trigger
+
+        uint32_t N = (goc_data_full & 0xFFFF) << XO_TO_SEC_SHIFT;
+
+        // enable XOT interrupt
+        *NVIC_ISER = (1 << IRQ_XOT);
+
+        *TIMERWD_GO = 0x0; // Turn off CPU watchdog timer
+        *REG_MBUS_WD = 0; // Disables Mbus watchdog timer
+
+        // delay an arbitrary amount
+
+        while(1) {
+            delay(10000);
+
+            // optional current event. Add back in if cannot detect current drop
+            // pmu_current_marker();
+
+            // This is for a sanity check on Saleae
+            update_system_time();
+            mbus_write_message32(0xD4, xo_sys_time_in_sec);
+
+            // set timer
+            stop_xo_cnt();
+            reset_xo_cnt();
+            set_xo_timer(0, N, 0, 1);
+            start_xo_cnt();
+
+            // immediately go into low power mode
+            asm("wfi;");
+            
+            // optional current event. Add back in if cannot detect current drop
+            // pmu_current_marker();
+        }
     }
 
     update_system_time();
