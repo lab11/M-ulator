@@ -4,7 +4,7 @@
  *         This is the base code that all will share after version 5.1
  *                                          - PREv21E / PMUv11 / SNTv4 / FLPv3S / MRRv11a / MEMv1
  ******************************************************************************************
- * Current version: 6.3.1
+ * Current version: 6.3.2
  *
  * v1: draft version; not tested on chip
  *
@@ -203,7 +203,7 @@
  *
  ******************************************************************************************/
 
-#define VERSION_NUM 0x631
+#define VERSION_NUM 0x630
 
 #include "huffman_encodings.h" 
 #include "../include/PREv21E.h"
@@ -3149,7 +3149,7 @@ void handler_ext_int_timer32( void ) { // TIMER32
     wfi_timeout_flag = 1;
 }
 
-void handler_ext_int_xot( void ) { // TIMER32
+void handler_ext_int_xot( void ) { // XOT
     *NVIC_ICPR = (0x1 << IRQ_XOT);
 }
 
@@ -3940,8 +3940,8 @@ int main() {
     else if(goc_data_header == 0x12) {
         // Radio config
         uint8_t option2 = (goc_data_full >> 22) & 0x1;
-        uint8_t N = (goc_data_full >> 17) & 0x1F;
-        uint32_t M = goc_data_full & 0x1FFFF;
+        uint8_t N = (goc_data_full >> 18) & 0xF;
+        uint32_t M = goc_data_full & 0x3FFFF;
         if(option) {
             mrr_freq_hopping = N;
         }
@@ -4182,43 +4182,40 @@ int main() {
     }
     else if(goc_data_header == 0x1F) {
         // XO characterization
+        // Note: system time needs to be reset after using this trigger
 
         uint32_t N = (goc_data_full & 0xFFFF) << XO_TO_SEC_SHIFT;
 
         // enable XOT interrupt
-        *NVIC_ISER = (1 << IRQ_WAKEUP | 1 << IRQ_GOCEP | 1 << IRQ_TIMER32 | 
-              1 << IRQ_REG0 | 1 << IRQ_REG1 | 1 << IRQ_REG2 | 1 << IRQ_REG3 | 1 << IRQ_XOT);
+        *NVIC_ISER = (1 << IRQ_XOT);
 
         *TIMERWD_GO = 0x0; // Turn off CPU watchdog timer
         *REG_MBUS_WD = 0; // Disables Mbus watchdog timer
 
         // delay an arbitrary amount
-        delay(10000);
 
-        // set timer
-        stop_xo_cnt();
-        reset_xo_cnt();
-        set_xo_timer(0, N, 0, 1);
+        while(1) {
+            delay(10000);
 
-        // immediately go into low power mode
-        asm("wfi;");
+            // optional current event. Add back in if cannot detect current drop
+            // pmu_current_marker();
 
+            // This is for a sanity check on Saleae
+            update_system_time();
+            mbus_write_message32(0xD4, xo_sys_time_in_sec);
 
+            // set timer
+            stop_xo_cnt();
+            reset_xo_cnt();
+            set_xo_timer(0, N, 0, 1);
+            start_xo_cnt();
 
-        // some current event
-        pmu_current_marker();
-
-        uint32_t diff = 0xFFFFFFFF;
-        uint32_t xot_val = *XOT_VAL;
-        uint32_t target = xot_val + N;
-
-        while(diff >= (1 << 13)) {
-            xot_val = *XOT_VAL;
-            diff = xot_val - target;    // this will be a large positive number if xot_val is less then target
+            // immediately go into low power mode
+            asm("wfi;");
+            
+            // optional current event. Add back in if cannot detect current drop
+            // pmu_current_marker();
         }
-
-        // some current event
-        pmu_current_marker();
     }
 
     update_system_time();
