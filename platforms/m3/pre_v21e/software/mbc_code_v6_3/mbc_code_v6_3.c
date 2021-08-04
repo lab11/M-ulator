@@ -4,7 +4,7 @@
  *         This is the base code that all will share after version 5.1
  *                                          - PREv21E / PMUv11 / SNTv4 / FLPv3S / MRRv11a / MEMv1
  ******************************************************************************************
- * Current version: 6.3.0
+ * Current version: 6.3.4
  *
  * v1: draft version; not tested on chip
  *
@@ -197,9 +197,23 @@
  *    Added passive window shift back
  *    Using XO clock sync read
  *
+ *  v6.3.1:
+ *    Using sleep for LNT delays
+ *    Changed default parameters for faster configuration
+ *
+ *  v6.3.2:
+ *    Put XO char in an active loop
+ *
+ *  v6.3.3:
+ *    Adding Inhee/Yuyang's LNT sleep and start function
+ *    Optimized LNT delays
+ *
+ *  v6.3.4:
+ *    Changed packet blaster to stop when error code is set
+ *
  ******************************************************************************************/
 
-#define VERSION_NUM 0x641
+#define VERSION_NUM 0x634
 
 #include "huffman_encodings.h" 
 #include "../include/PREv21E.h"

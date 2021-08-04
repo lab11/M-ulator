@@ -4,7 +4,7 @@
  *         This is the base code that all will share after version 5.1
  *                                          - PREv21E / PMUv11 / SNTv4 / FLPv3S / MRRv11a / MEMv1
  ******************************************************************************************
- * Current version: 6.2.1
+ * Current version: 6.2.2
  *
  * v1: draft version; not tested on chip
  *
@@ -194,6 +194,12 @@
  *
  *  v6.2.1:
  *    Check for new day_state after setting the new next_light_meas_time
+ *
+ *  v6.2.2:
+ *    Updated various defaults to reduce time required to set parameters
+ *
+ *  v6.2.3:
+ *    Changed packet blaster to stop when error code is set
  *
  ******************************************************************************************/
 
@@ -421,7 +427,7 @@ volatile uint32_t PMU_SLEEP_SETTINGS[7] = {0x01000100,
 
 volatile uint32_t PMU_ACTIVE_SAR_SETTINGS[7] = {62, 56, 52, 50, 49, 49, 49};
 volatile uint32_t PMU_RADIO_SAR_SETTINGS[7] = {62, 56, 53, 51, 49, 49, 49};
-volatile uint32_t PMU_SLEEP_SAR_SETTINGS[7] = {61, 56, 56, 56, 56, 56, 56};
+volatile uint32_t PMU_SLEEP_SAR_SETTINGS[7] = {61, 60, 60, 60, 60, 60, 60};
 
 
 volatile uint32_t PMU_TEMP_THRESH[6] = {0x1CC, 0x2F8, 0x4BC, 0x772, 0xC2C, 0x16A8}; // {0, 10, 20, 30, 45, 60}
@@ -443,12 +449,12 @@ volatile uint32_t radio_packet_count;
 #define DUSK 2
 #define NIGHT 3
 
-volatile uint16_t MAX_EDGE_SHIFT = 600;
+volatile uint16_t MAX_EDGE_SHIFT = 3000;
 #define MAX_DAY_TIME 86400
 #define MID_DAY_TIME 43200
 // this is now aligned to the minute
 volatile uint16_t IDX_MAX = 239;         // x = 180, y = 60, IDX_MAX = x + y - 1
-volatile uint16_t EDGE_MARGIN1 = 10740; // (x - 1) * 60
+volatile uint16_t EDGE_MARGIN1 = 7140; // (x - 1) * 60
 volatile uint16_t EDGE_MARGIN2 = 3600; // y * 60
 
 volatile uint16_t EDGE_THRESHOLD = 200; // = log2(2 lux * 1577) * 32
@@ -482,7 +488,7 @@ volatile uint32_t light_meas_start_time_in_min = 0;
 #define IDX_INIT 0xFF
 volatile uint16_t max_idx = 0;
 const uint16_t intervals[4] = {1, 2, 8, 32};
-volatile uint16_t resample_indices[4] = {32, 40, 44, 1000};
+volatile uint16_t resample_indices[4] = {4, 12, 16, 1000};
 volatile uint16_t min_light = MAX_UINT16;
 volatile uint16_t min_light_idx = IDX_INIT;
 volatile uint16_t threshold_idx = IDX_INIT;
@@ -3342,6 +3348,8 @@ int main() {
         }
 
         pmu_setting_temp_based(1);
+        // init error code to 0
+        error_code = 0;
         uint32_t start_time_in_sec = xo_sys_time_in_sec;
         if(mrr_send_enable) {
             do {
@@ -3351,7 +3359,7 @@ int main() {
                 radio_data_arr[0] = op_counter++;
                 mrr_send_radio_data(0);
                 update_system_time();
-            } while(xo_sys_time_in_sec - start_time_in_sec < N);
+            } while(xo_sys_time_in_sec - start_time_in_sec < N && error_code == 0); // v6.2.3 checking for XO error
         }
 
         // set M second timer
