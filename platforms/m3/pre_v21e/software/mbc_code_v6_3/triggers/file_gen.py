@@ -6,14 +6,15 @@ import re
 import pytz
 from datetime import datetime
 
-def set_trigger(trigger_dir, filename, val):
+def set_trigger(trigger_dir, filename, val, l):
     ppath = os.path.abspath(sys.path[0]) + '/'
     out_dir = ppath + trigger_dir + '/'
 
+    GOC_VERSION = l['GOC_VERSION']
+
     # print(trigger_dir + filename + '.bat')
     with open(out_dir + filename + '.bat', 'w') as f:
-        print(out_dir + filename + '.bat')
-        f.write('call SET_GOC_SPEED.bat\ncall SET_COM.bat\nm3_ice -y -s %COM% goc -d %GOC_DELAY% -V3 -g %GOC_SPEED_PR% message 0000008C {}\n'.format(format(val, 'x').zfill(8)))
+        f.write('call SET_GOC_SPEED.bat\ncall SET_COM.bat\nm3_ice -y -s %COM% goc -d %GOC_DELAY% -V{} -g %GOC_SPEED_PR% message 0000008C {}\n'.format(GOC_VERSION, format(val, 'x').zfill(8)))
 
         # special hooks
         if((val >> 24) == 0x0A and (val >> 23) & 1 == 1):
