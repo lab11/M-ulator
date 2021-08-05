@@ -1,0 +1,383 @@
+﻿---
+COM_PORT: 4
+hex_path: C:\Users\m3\Dropbox\m3_monarch\pre_v20e\software\mbc_code\mbc_code.hex # lab PC
+# Maybe add in COM_SPEED options here in the future
+
+################## CHARACTERIZATION #######################
+stop_operation:
+    generate_read_trigger: true
+
+alive_beacon:
+    val:
+        safe_sleep_mode: true
+    generate_read_trigger: false
+
+packet_blaster:
+    val:
+        radio_duration: 10
+        sleep_duration: 10
+        signal: 0xAB
+    generate_read_trigger: false
+
+characterization:
+    val:
+        light_char: false
+        period: 20
+    generate_read_trigger: false
+
+battery_drain_test:
+    val:
+        sleep_duration: 40
+    generate_read_trigger: true
+
+timeout:
+    generate_read_trigger: true
+
+start_operation:
+    generate_read_trigger: true
+
+
+################## PARAMETERS #######################
+CHIP_ID:
+    write: true
+    val: 0xA
+    generate_read_trigger: false
+
+#################### 0x08 ####################
+# Which index to access light huffman codes
+light_huffman_code: 
+    generate_read_trigger: false
+    read_indices:
+        - 5
+        - 12
+        - 65
+        - 66
+        # add more indices here
+
+#################### 0x09 ####################
+# Which index to access temp huffman codes
+temp_huffman_code: 
+    generate_read_trigger: false
+    read_indices:
+        - 0
+        - 4
+        # add more indices here
+
+#################### 0x0A ####################
+# Days after 1970-1-1
+epoch_days: 
+    auto: false
+    write: true
+    val:
+        YYYY: 2020
+        MM: 10
+        DD: 16
+    generate_read_trigger: true
+
+#################### 0x0B ####################
+# Wall clock time (H: hours, M: minutes)
+xo_day_time_in_sec:
+    auto: false
+    write: true
+    val:
+        H: 12
+        M: 00
+    generate_read_trigger: true
+
+#################### 0x0C ####################
+timer_constants:
+    write: true
+    val:
+        xo_to_sec_mplier: 32768 # 2^15
+        XO_TO_SEC_MPLIER_SHIFT: 15  # 1 times accel # 15 is the default value. To do N times acceleration, use 15 - N
+        xo_to_lnt_mplier: 0x73 
+        LNT_MPLIER_SHIFT: 6 # 1 times accel # 6 is the default value. To do N times acceleration, use 6 + N
+    generate_read_trigger: true
+
+#################### 0x0D ####################
+sample_indices:
+    write: true
+    val:
+        - 32
+        - 40
+        - 44
+        - 1000  # don't touch
+    generate_read_trigger: false
+    read_indices:
+        - 1
+        - 2
+        # add more indices here
+    
+#################### 0x0E ####################
+sunrise_sunset:
+    auto: false     # unused # TODO: implement this
+    write: true
+    val:
+        cur_sunrise: 420    # in minutes # 7:00
+        cur_sunset: 960     # in minutes # 16:00
+    generate_read_trigger: false
+
+#################### 0x0F ####################
+sliding_window:
+    write: true
+    val:
+        EDGE_MARGIN1: 120
+        EDGE_MARGIN2: 60
+        MAX_EDGE_SHIFT_IN_MIN: 10  # in minutes
+    generate_read_trigger: false
+
+#################### 0x10 ####################
+PMU_ACTIVE_SETTINGS:
+    write: false
+    val:
+        - 0x0D0A0F0F
+        - 0x0D050D08
+        - 0x0D050D08
+        - 0x08040F04
+        - 0x08040F04
+        - 0x04040805
+        - 0x01080F0A
+    generate_read_trigger: false
+    read_indices:
+        - 3
+        - 6
+        # add more indices here
+
+PMU_RADIO_SETTINGS:
+    write: false
+    val:
+        - 0x0D0A0F0F
+        - 0x0D050D08
+        - 0x0F080F0A
+        - 0x0D020F0F
+        - 0x0D030808
+        - 0x06060809
+        - 0x01011001
+    generate_read_trigger: false
+    read_indices:
+        - 1
+        - 2
+        # add more indices here
+
+PMU_SLEEP_SETTINGS:
+    write: false
+    val:
+        - 0x0F040306
+        - 0x0F020303
+        - 0x0F020104
+        - 0x0F010102
+        - 0x07010102
+        - 0x02010104
+        - 0x01010103
+    generate_read_trigger: false
+    read_indices:
+        - 1
+        - 6
+        # add more indices here
+
+PMU_ACTIVE_SAR_SETTINGS:
+    write: false
+    val:
+        - 58
+        - 55
+        - 52
+        - 50
+        - 51
+        - 51
+        - 51
+    generate_read_trigger: false
+    read_indices:
+        - 1
+        - 6
+        # add more indices here
+
+PMU_RADIO_SAR_SETTINGS:
+    write: false
+    val:
+        - 58
+        - 55
+        - 57
+        - 52
+        - 52
+        - 53
+        - 53
+    generate_read_trigger: false
+    read_indices:
+        - 1
+        - 4
+        # add more indices here
+
+PMU_SLEEP_SAR_SETTINGS:
+    write: false
+    val:
+        - 50
+        - 50
+        - 50
+        - 50
+        - 50
+        - 50
+        - 51
+    generate_read_trigger: false
+    read_indices:
+        - 1
+        - 3
+        # add more indices here
+        
+PMU_TEMP_THRESH:
+    write: false
+    val:
+        - 0x1DD
+        - 0x312
+        - 0x4DE
+        - 0x772
+        - 0xC2C
+        - 0x16A8
+    generate_read_trigger: false
+    read_indices:
+        - 0
+        - 1
+        # add more indices here
+    
+PMU_ADC_THRESH:
+    write: false
+    val:
+        - 90
+        - 90
+        - 90
+        - 90
+    generate_read_trigger: false
+    read_indices:
+        - 1
+        - 2
+        # add more indices here
+    
+#################### 0x11 ####################
+day_time_config:
+    write: true
+    val:
+        DAY_START_TIME: 420     # in minutes # 7am
+        DAY_END_TIME: 1140                   # 7pm
+    generate_read_trigger: true
+
+
+#################### 0x12 ####################
+radio_config:
+    write: true
+    val:
+        num_of_hops: 2
+        RADIO_PACKET_DELAY: 20000
+    generate_read_trigger: false
+
+#################### 0x13 ####################
+light_threshold:
+    write: true
+    val:
+        THRESHOLD_IDX_SHIFT: 8
+        EDGE_THRESHOLD: 200
+    generate_read_trigger: true
+
+#################### 0x14 ####################
+radio_config2:
+    write: true
+    val:
+        PMU_WAKEUP_INTERVAL: 600
+        RADIO_SEQUENCE_PERIOD: 2
+        RADIO_DUTY_DURATION: 1
+        RADIO_INITIAL_BEACON_TIME: 25200 # 7:00
+        RADIO_BEACON_PERIOD: 600
+        RADIO_INITIAL_DATA_DAY: 0
+        RADIO_INITIAL_DATA_TIME: 28800 # 8:00
+        CHECK_PMU_NUM_UNITS: 2
+        RADIO_REST_NUM_UNITS: 4
+        RADIO_REST_TIME: 300
+        RADIO_REPEAT_TIME: 3600
+    generate_read_trigger: false
+
+#################### 0x15 ####################
+debug_config:
+    write: true
+    val: 
+        radio_debug: true
+        RADIO_DEBUG_PERIOD: 240     # in minutes
+    generate_read_trigger: false
+
+#################### 0x16 ####################
+radio_config3:
+    write: true
+    val: 
+        MRR_TEMP_THRESH_LOW: 0x258
+        MRR_TEMP_THRESH_HIGH: 0x15F1
+        OVERRIDE_RAD: false
+    generate_read_trigger: false
+    
+#################### 0x17 ####################
+error_code:
+    generate_read_trigger: true
+
+#################### 0x18 ####################
+addr_read:
+    addr: 0x1234
+    len: 1
+    generate_read_trigger: false
+    
+#################### 0x19 ####################
+low_power_config:
+    write: true
+    val:
+        LOW_PWR_LOW_ADC_THRESH:
+            - 0x55  # < 0C
+            - 0x55  # < 10C
+            - 0x55  # < 20C # 0x56 -> 3.8V
+            - 0x55  # < 30C
+            - 0x55  # < 45C
+            - 0x55  # < 60C
+            - 0x55  # > 60C
+        LOW_PWR_HIGH_ADC_THRESH:    # VOLTAGE_THRESH_LOW is greater than VOLTAGE_THRESH_HIGH because ADC output is inverted
+            - 0x51  # < 0C
+            - 0x51  # < 10C
+            - 0x51  # < 20C # 0x51 -> 4.0V
+            - 0x51  # < 30C
+            - 0x51  # < 45C
+            - 0x51  # < 60C
+            - 0x51  # > 60C
+    generate_read_trigger: false
+    read_indices:
+        - 0
+        - 6
+        # add more indices here
+
+#################### 0x1A ####################
+mrr_coarse_cap_tune:
+    write: true
+    val:
+        MRR_CAP_TRX_ANTX_TUNE_COARSE: 0 # ANTP and ANTN are set to the same value
+    generate_read_trigger: false
+
+#################### 0x1B ####################
+operation_config:
+    # TODO: implement an auto version for this
+    write: true
+    val:
+        start_day_count:
+            YYYY: 2020
+            MM: 10
+            DD: 16
+        end_day_count:
+            YYYY: 2020
+            MM: 10
+            DD: 16
+        radio_day_count:
+            YYYY: 2020
+            MM: 10
+            DD: 16
+    generate_read_trigger: true
+
+#################### 0x1C ####################
+radio_out_data:
+    read_code_addr: true
+    val:
+        start_unit_count: 0
+        len: 5
+    generate_read_trigger: true
+
+    

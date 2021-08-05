@@ -1149,16 +1149,6 @@ void sample_light() {						void sample_light() {
         min_light_idx = max_idx;				        min_light_idx = max_idx;
     }								    }
 
-							      >	    // check if advancing day_state to be used for shifting w
-							      >	    bool new_state = false;
-							      >	    uint32_t temp = xo_day_time_in_sec + next_light_meas_time
-							      >	    if(day_state != NIGHT) {
-							      >	        new_state = (temp >= day_state_end_time);
-							      >	    }
-							      >	    else {
-							      >	        new_state = (temp >= day_state_end_time && temp < MID
-							      >	    }
-							      >
     uint32_t target = 0;					    uint32_t target = 0;
     // test if crosses threshold				    // test if crosses threshold
     if(day_state == DAWN && threshold_idx == IDX_INIT		    if(day_state == DAWN && threshold_idx == IDX_INIT
@@ -1203,16 +1193,17 @@ void sample_light() {						void sample_light() {
     else {							    else {
         next_light_meas_time += XO_32_MIN;			        next_light_meas_time += XO_32_MIN;
     }								    }
+							      |	    
+							      >	    // Rolling back this change for island hopping because it
+    bool new_state = false;					    bool new_state = false;
+    uint32_t temp = xo_day_time_in_sec + next_light_meas_time	    uint32_t temp = xo_day_time_in_sec + next_light_meas_time
+    if(day_state != NIGHT) {					    if(day_state != NIGHT) {
+        new_state = (temp >= day_state_end_time);		        new_state = (temp >= day_state_end_time);
+    }								    }
+    else {							    else {
+        new_state = (temp >= day_state_end_time && temp < MID	        new_state = (temp >= day_state_end_time && temp < MID
+    }								    }
 
-    bool new_state = false;				      <
-    uint32_t temp = xo_day_time_in_sec + next_light_meas_time <
-    if(day_state != NIGHT) {				      <
-        new_state = (temp >= day_state_end_time);	      <
-    }							      <
-    else {						      <
-        new_state = (temp >= day_state_end_time && temp < MID <
-    }							      <
-							      <
     if(new_state) {						    if(new_state) {
         // FIXME: turn it back on later				        // FIXME: turn it back on later
         *TIMERWD_GO = 0x0; // Turn off CPU watchdog timer	        *TIMERWD_GO = 0x0; // Turn off CPU watchdog timer
@@ -2795,12 +2786,12 @@ static void mrr_send_radio_data(uint16_t last_packet) {		static void mrr_send_ra
     // mbus_remote_register_write(MRR_ADDR,0xE, (radio_data_a <
     // mbus_remote_register_write(MRR_ADDR,0xF, (radio_data_a <
     // mbus_remote_register_write(MRR_ADDR,0x10, ((crc_data[0 <
-
-    if (!radio_ready){					      |	    radio_data_arr[2] = crc_data[0] << 16 | radio_data_arr[2]
-    radio_ready = 1;					      |	    mbus_copy_mem_from_local_to_remote_bulk(MRR_ADDR, (uint32
 							      <
-    // Release FSM Reset				      <
-    mrrv7_r11.MRR_RAD_FSM_RSTN = 1;  //UNRST BB		      <
+    if (!radio_ready){					      <
+    radio_ready = 1;					      <
+
+    // Release FSM Reset				      |	    radio_data_arr[2] = crc_data[0] << 16 | radio_data_arr[2]
+    mrrv7_r11.MRR_RAD_FSM_RSTN = 1;  //UNRST BB		      |	    mbus_copy_mem_from_local_to_remote_bulk(MRR_ADDR, (uint32
     mbus_remote_register_write(MRR_ADDR,0x11,mrrv7_r11.as_int <
     delay(MBUS_DELAY);					      <
 
