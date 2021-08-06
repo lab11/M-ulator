@@ -703,7 +703,7 @@ with open(config_file, 'r') as file:
         filename1 = filename + '-write-num_of_hops={}-RADIO_PACKET_DELAY={}'.format(N, M)
         val1 = val | (1 << 23)
         val1 |= (1 << 22)
-        val1 |= (N << 17)
+        val1 |= (N << 18)
         val1 |= M
         set_trigger(trigger_dir, filename1, val1, l)
 

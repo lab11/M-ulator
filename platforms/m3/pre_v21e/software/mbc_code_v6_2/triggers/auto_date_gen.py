@@ -1,5 +1,5 @@
 #############################################################
-#  Trigger generator: v1.0.1
+#  Trigger generator: v1.0.2
 #  Author: Roger Hsiao
 #  
 #  Usage: python generate_triggers.py [out_dir]
@@ -8,6 +8,8 @@
 #  v1.0.0: Starts version number
 #  v1.0.1: When python takes the system epoch time, it doesn't account for the timezone, so we must fix the timezone in date.log and time.log
 #  
+#  v1.0.2: Reading config file as well so determine the GOC VERSION
+#
 #############################################################
 
 import time
@@ -16,9 +18,15 @@ import os
 import sys
 import pytz
 from file_gen import set_trigger
+import yaml
 
 trigger_dir = sys.argv[1]
 out_dir = os.path.dirname(os.path.abspath(__file__)) + '/' + trigger_dir + '/'
+
+config_file = out_dir + 'trigger_configs.yaml'
+with open(config_file, 'r') as file:
+    l = yaml.load(file, Loader=yaml.FullLoader)
+
 
 while True:
     s = datetime.now().time()
@@ -53,4 +61,4 @@ print(d)
 N = (int) (t / 86400)
 val1 = val | (1 << 23)
 val1 |= N
-set_trigger(trigger_dir, filename1, val1)
+set_trigger(trigger_dir, filename1, val1, l)
