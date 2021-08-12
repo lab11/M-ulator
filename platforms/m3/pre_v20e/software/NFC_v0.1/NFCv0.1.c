@@ -442,7 +442,7 @@ static uint8_t operation_i2c_rd(uint8_t ACK){
 		gpio_write_data_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (0<<GPIO_SCL));
 	}
 	else{
-		gpio_set_dir_with_mask(SHT35_MASK,(1<<GPIO_SDA) | (1<<GPIO_SCL));
+		gpio_set_dir_with_mask(SHT35_MASK,(0<<GPIO_SDA) | (1<<GPIO_SCL));
 		gpio_write_data_with_mask(SHT35_MASK,1<<GPIO_SCL);
 		gpio_write_data_with_mask(SHT35_MASK,0<<GPIO_SCL);
 	}
@@ -1155,8 +1155,10 @@ int main(){
   *NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3) | (1 << IRQ_GPIO);
   
   // Config watchdog timer to about 10 sec; default: 0x02FFFFFF
-  config_timerwd(TIMERWD_VAL);
-  
+  //config_timerwd(TIMERWD_VAL);
+  disable_timerwd();
+  //Disable MBUS
+  *((volatile uint32_t*)0xA000007C) = 0;
   wakeup_count++;
   
   // Figure out who triggered wakeup
@@ -1199,6 +1201,7 @@ int main(){
 //  
   mbus_write_message32(0xDD, 0x2);
 //
+
   //Enable CPS for NFC
   *REG_CPS = *REG_CPS | 0x1;
   // Enable GPIO OUTPUT
@@ -1210,251 +1213,47 @@ int main(){
   gpio_set_dir_with_mask(GPO_MASK,(0<<GPIO_GPO));
   unfreeze_gpio_out();
 
-  //Get Token
-  operation_i2c_start();
-  operation_i2c_cmd(0xAC);
-  operation_i2c_cmd(0x26);
-  operation_i2c_stop();
-  //Check if got token
-  while( (*GPIO_DATA>>GPIO_GPO&0x1) == 1)
-    {
-      mbus_write_message32(0xDD, 0x0);
+  //Sequential Random Write
+  while(1){
+    operation_i2c_start();
+    operation_i2c_cmd(0xA6);
+    operation_i2c_cmd(0x00);
+    operation_i2c_cmd(0x00);
+    for (int i=0; i<32; i++){
+      operation_i2c_cmd(0xEF);
+      operation_i2c_cmd(0xBE);
+      operation_i2c_cmd(0xAD);
+      operation_i2c_cmd(0xDE);
     }
-
-  //NDEF Tag Application Select
-  operation_i2c_start();
-  operation_i2c_cmd(0xAC);
-  operation_i2c_cmd(0x02);
-  operation_i2c_cmd(0x00);
-  operation_i2c_cmd(0xA4);
-  operation_i2c_cmd(0x04);
-  operation_i2c_cmd(0x00);
-  operation_i2c_cmd(0x07);
-  operation_i2c_cmd(0xD2);
-  operation_i2c_cmd(0x76);
-  operation_i2c_cmd(0x00);
-  operation_i2c_cmd(0x00);
-  operation_i2c_cmd(0x85);
-  operation_i2c_cmd(0x01);
-  operation_i2c_cmd(0x01);
-  operation_i2c_cmd(0x00);
-  operation_i2c_cmd(0x35);
-  operation_i2c_cmd(0xC0);
-  operation_i2c_stop();
-
-  operation_i2c_start();
-  operation_i2c_cmd(0xAD);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_stop();
-
-  //NDEF Select
-  operation_i2c_start();
-  operation_i2c_cmd(0xAC);
-  operation_i2c_cmd(0x02);
-  operation_i2c_cmd(0x00);
-  operation_i2c_cmd(0xA4);
-  operation_i2c_cmd(0x00);
-  operation_i2c_cmd(0x0C);
-  operation_i2c_cmd(0x02);
-  operation_i2c_cmd(0x00);
-  operation_i2c_cmd(0x01);
-  operation_i2c_cmd(0x3E);
-  operation_i2c_cmd(0xFD);
-  operation_i2c_stop();
-
-  operation_i2c_start();
-  operation_i2c_cmd(0xAD);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_stop();
-
-  //Read Binary
-  operation_i2c_start();
-  operation_i2c_cmd(0xAC);
-  operation_i2c_cmd(0x02);
-  operation_i2c_cmd(0x00);
-  operation_i2c_cmd(0xB0);
-  operation_i2c_cmd(0x00);
-  operation_i2c_cmd(0x04);
-  operation_i2c_cmd(0x04);
-  operation_i2c_cmd(0x3D);
-  operation_i2c_cmd(0x7F);
-  operation_i2c_stop();
-
-  operation_i2c_start();
-  operation_i2c_cmd(0xAD);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_stop();
-
-  //Update Binary (DEADBEEF)
-  operation_i2c_start();
-  operation_i2c_cmd(0xAC);
-  operation_i2c_cmd(0x02);
-  operation_i2c_cmd(0x00);
-  operation_i2c_cmd(0xD6);
-  operation_i2c_cmd(0x00);
-  operation_i2c_cmd(0x04);
-  operation_i2c_cmd(0x04);
-  operation_i2c_cmd(0xDE);
-  operation_i2c_cmd(0xAD);
-  operation_i2c_cmd(0xBE);
-  operation_i2c_cmd(0xEF);
-  operation_i2c_cmd(0xC7);
-  operation_i2c_cmd(0xDA);
-  operation_i2c_stop();
-
+    operation_i2c_stop();
+    delay(10000);
+  }
 
   delay(1000);
-  
+  //Sequential Random Read
   operation_i2c_start();
-  operation_i2c_cmd(0xAD);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_stop();
-
-  //Read Binary
-  operation_i2c_start();
-  operation_i2c_cmd(0xAC);
-  operation_i2c_cmd(0x02);
+  operation_i2c_cmd(0xA6);
   operation_i2c_cmd(0x00);
-  operation_i2c_cmd(0xB0);
   operation_i2c_cmd(0x00);
-  operation_i2c_cmd(0x04);
-  operation_i2c_cmd(0x08);
-  operation_i2c_cmd(0x51);
-  operation_i2c_cmd(0xB5);
-  operation_i2c_stop();
-
   operation_i2c_start();
-  operation_i2c_cmd(0xAD);
+  operation_i2c_cmd(0xA7);
   operation_i2c_rd(0x1);
   operation_i2c_rd(0x1);
   operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
-  operation_i2c_rd(0x1);
+  operation_i2c_rd(0x0);
   operation_i2c_stop();
 
-  //  //CC File Select
-//  operation_i2c_start();
-//  operation_i2c_cmd(0xAC);
-//  operation_i2c_cmd(0x02);
-//  operation_i2c_cmd(0x00);
-//  operation_i2c_cmd(0xA4);
-//  operation_i2c_cmd(0x00);
-//  operation_i2c_cmd(0x0C);
-//  operation_i2c_cmd(0x02);
-//  operation_i2c_cmd(0xE1);
-//  operation_i2c_cmd(0x03);
-//  operation_i2c_cmd(0x6D);
-//  operation_i2c_cmd(0x2E);
-//  operation_i2c_stop();
-//
-//  
-//  operation_i2c_start();
-//  operation_i2c_cmd(0xAD);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_stop();
-
-//  //System File Select
-//  operation_i2c_start();
-//  operation_i2c_cmd(0xAC);
-//  operation_i2c_cmd(0x02);
-//  operation_i2c_cmd(0x00);
-//  operation_i2c_cmd(0xA4);
-//  operation_i2c_cmd(0x00);
-//  operation_i2c_cmd(0x0C);
-//  operation_i2c_cmd(0x02);
-//  operation_i2c_cmd(0xE1);
-//  operation_i2c_cmd(0x01);
-//  operation_i2c_cmd(0x7F);
-//  operation_i2c_cmd(0x0D);
-//  operation_i2c_stop();
-//
-//  operation_i2c_start();
-//  operation_i2c_cmd(0xAD);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_stop();
-//
-//  //Read Binary
-//  operation_i2c_start();
-//  operation_i2c_cmd(0xAC);
-//  operation_i2c_cmd(0x02);
-//  operation_i2c_cmd(0x00);
-//  operation_i2c_cmd(0xB0);
-//  operation_i2c_cmd(0x00);
-//  operation_i2c_cmd(0x00);
-//  operation_i2c_cmd(0x12);
-//  operation_i2c_cmd(0xEA);
-//  operation_i2c_cmd(0x6D);
-//  operation_i2c_stop();
-//
-//  operation_i2c_start();
-//  operation_i2c_cmd(0xAD);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_rd(0x1);
-//  operation_i2c_stop();
 
   //Token Release
-  operation_i2c_start();
-  operation_i2c_cmd(0xAC);
-  while( (*GPIO_DATA>>GPIO_GPO&0x1) == 0)
-  {
-      mbus_write_message32(0xDD, *GPIO_DATA);
-    }
+  //operation_i2c_start();
+  //operation_i2c_cmd(0xAC);
+  //while( (*GPIO_DATA>>GPIO_GPO&0x1) == 0)
+  // {
+  //   mbus_write_message32(0xDD, *GPIO_DATA);
+  // }
   //  delay(1200); //Min 20ms, Max 40ms
-  operation_i2c_stop();
-  *REG_CPS = *REG_CPS & 0x0;
+  //operation_i2c_stop();
+  //*REG_CPS = *REG_CPS & 0x0;
 //
 //  delay(1000);
 //  mbus_write_message32(0xDD, 0x1);
