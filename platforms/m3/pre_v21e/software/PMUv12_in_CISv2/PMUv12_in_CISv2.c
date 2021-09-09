@@ -189,6 +189,46 @@ static void operation_init(void){
 		| (1 << 20) //horizon
 	));
 
+    //-----------------------------------------
+    // Use PMU ADC Flip-Mode
+    
+//    // Get ADC Offset Measurement
+//    uint32_t adc_result = get_pmu_adc_result();
+//    uint32_t adc_offset = (adc_result >> 8) & 0xFF;
+//
+//	// PMU_REG#02 (0x02): ADC_CONFIG_OVERRIDE
+//	pmu_reg_write(2,
+//		(( 1    << 23) // Enable Override
+//		| (1    << 17) // ADC Sampling Voltage (0: VREF; 1: VBAT)
+//		| (0    << 16) // ADC Reference Voltage (0: VREF; 1: VBAT)
+//		| (0x10 <<  8) // ADC SAMPLING BIT (approx. use (ADC_SAMPLING_BIT+ADC_SAMPLING_LSB / 256) x SamplingVoltage)
+//		| (0    <<  7) // ADC SAMPLING BIT (approx. use (ADC_SAMPLING_BIT+ADC_SAMPLING_LSB / 256) x SamplingVoltage)
+//		| (adc_offset << 0) // ADC Offset
+//	));
+
+    // Fix SAR Ratio
+    // PMU_REG#15 (0x0F): SAR_TRIM_SLEEP
+    // Bit[16]: Disable reverse configuration for upconversion
+    pmu_reg_write(0x00, 0x0F);
+    uint32_t pmu_reg15_default = *REG0 & 0xFFFFFF;
+	pmu_reg_write(15, ( pmu_reg15_default | (0x1 << 16) ));
+    
+    // PMU_REG#05 (0x05): SAR_RATIO_OVERRIDE
+    pmu_reg_write(0x00, 0x04);
+    uint32_t sar_ratio = *REG0 & 0x7F;
+	pmu_reg_write(5,
+		(( 0 << 13) // Enable override setting [12] (Default: 1'b0)
+		| (0 << 12) // Let VDD_CLK always connected to VBAT (Default: 1'b0)
+		| (1 << 11) // Enable override setting [10] (Default: 1'b1)
+		| (0 << 10) // Have the converter have the periodic reset (Default: 1'b0)
+		| (0 <<  9) // Enable override setting [8] (Default: 1'b0)
+		| (0 <<  8) // Switch input/output power rails for upconversion (Default: 1'b0)
+		| (1 <<  7) // Enable override setting [6:0] (Default: 1'b0)
+		| (sar_ratio << 0) // SAR converter's conversion ratio (Default: 7'b0)
+	));
+
+    //-----------------------------------------
+
 }
 
 static void operation_sleep(void){
@@ -235,7 +275,7 @@ int main(){
     count++;
 
     // Go to Sleep
-    operation_sleep_with_timer(40);
+    operation_sleep_with_timer(30);
 
     while(1);
 }

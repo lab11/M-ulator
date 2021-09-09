@@ -2075,6 +2075,7 @@ void handler_ext_int_gpio     (void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_spi      (void) __attribute__ ((interrupt ("IRQ")));
 
 void handler_ext_int_timer32(void) { // TIMER32
+    mbus_write_message32(0x71, 0);
     *NVIC_ICPR = (0x1 << IRQ_TIMER32);
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_TIMER32, 0x00000000);
@@ -2086,96 +2087,112 @@ void handler_ext_int_timer32(void) { // TIMER32
     set_halt_until_mbus_tx();
     }
 void handler_ext_int_timer16(void) { // TIMER16
+    mbus_write_message32(0x71, 2);
     *NVIC_ICPR = (0x1 << IRQ_TIMER16);
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_TIMER16, 0x00000000);
     #endif
     }
 void handler_ext_int_reg0(void) { // REG0
+    mbus_write_message32(0x71, 3);
     *NVIC_ICPR = (0x1 << IRQ_REG0);
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_REG0, 0x00000000);
     #endif
 }
 void handler_ext_int_reg1(void) { // REG1
+    mbus_write_message32(0x71, 4);
     *NVIC_ICPR = (0x1 << IRQ_REG1);
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_REG1, 0x00000000);
     #endif
 }
 void handler_ext_int_reg2(void) { // REG2
+    mbus_write_message32(0x71, 5);
     *NVIC_ICPR = (0x1 << IRQ_REG2);
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_REG2, 0x00000000);
     #endif
 }
 void handler_ext_int_reg3(void) { // REG3
+    mbus_write_message32(0x71, 6);
     *NVIC_ICPR = (0x1 << IRQ_REG3);
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_REG3, 0x00000000);
     #endif
 }
 void handler_ext_int_reg4(void) { // REG4
+    mbus_write_message32(0x71, 7);
     *NVIC_ICPR = (0x1 << IRQ_REG4);
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_REG4, 0x00000000);
     #endif
 }
 void handler_ext_int_reg5(void) { // REG5
+    mbus_write_message32(0x71, 8);
     *NVIC_ICPR = (0x1 << IRQ_REG5);
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_REG5, 0x00000000);
     #endif
 }
 void handler_ext_int_reg6(void) { // REG6
+    mbus_write_message32(0x71, 9);
     *NVIC_ICPR = (0x1 << IRQ_REG6);
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_REG6, 0x00000000);
     #endif
 }
 void handler_ext_int_reg7(void) { // REG7
+    mbus_write_message32(0x71, 0xA);
     *NVIC_ICPR = (0x1 << IRQ_REG7);
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_REG7, 0x00000000);
     #endif
 }
 void handler_ext_int_mbusmem(void) { // MBUS_MEM_WR
+    mbus_write_message32(0x71, 0xB);
     *NVIC_ICPR = (0x1 << IRQ_MBUS_MEM);
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_MBUS_MEM, 0x00000000);
     #endif
 }
 void handler_ext_int_mbusrx(void) { // MBUS_RX
+    mbus_write_message32(0x71, 0xC);
     *NVIC_ICPR = (0x1 << IRQ_MBUS_RX);
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_MBUS_RX, 0x00000000);
     #endif
 }
 void handler_ext_int_mbustx(void) { // MBUS_TX
+    mbus_write_message32(0x71, 0xD);
     *NVIC_ICPR = (0x1 << IRQ_MBUS_TX);
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_MBUS_TX, 0x00000000);
     #endif
 }
 void handler_ext_int_mbusfwd(void) { // MBUS_FWD
+    mbus_write_message32(0x71, 0xE);
     *NVIC_ICPR = (0x1 << IRQ_MBUS_FWD);
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_MBUS_FWD, 0x00000000);
     #endif
 }
 void handler_ext_int_gocep(void) { // GOCEP
+    mbus_write_message32(0x71, 0xF);
     *NVIC_ICPR = (0x1 << IRQ_GOCEP);
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_GOCEP, 0x00000000);
     #endif
 }
 void handler_ext_int_softreset(void) { // SOFT_RESET
+    mbus_write_message32(0x71, 0x10);
     *NVIC_ICPR = (0x1 << IRQ_SOFT_RESET);
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_SOFT_RESET, 0x00000000);
     #endif
 }
 void handler_ext_int_wakeup(void) { // WAKE-UP
+    mbus_write_message32(0x71, 0x11);
     *NVIC_ICPR = (0x1 << IRQ_WAKEUP);
     uint32_t wakeup_source = *SREG_WAKEUP_SOURCE;
     *SCTR_REG_CLR_WUP_SOURCE = 1; // reset WAKEUP_SOURCE register
@@ -2183,14 +2200,28 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
     arb_debug_reg(IRQ_WAKEUP, (0x10 << 24) | wakeup_source);
     #endif
 
+    // If this is the very first wakeup, initialize the system and go back to sleep
+    if (!get_flag(FLAG_INITIALIZED)) { 
+        operation_init();
+        while(1) asm("nop");
+    }
+
+    mbus_write_message32(0x72, 0x0);
+
     // For safety, disable Wakeup Timer's WREQ.
     xot_disable_wreq();
+
+    mbus_write_message32(0x72, 0x1);
 
     // EID Watchdog Check-In
     if (get_flag(FLAG_WD_ENABLED)) eid_check_in();
 
+    mbus_write_message32(0x72, 0x2);
+
     // Unfreeze NFC GPIO
     nfc_unfreeze_gpio();
+
+    mbus_write_message32(0x72, 0x3);
 
     //--------------------------------------------------------------------------
     // WAKEUP_SOURCE (wakeup_source) definition
@@ -2214,6 +2245,7 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
     //       Instead, it waits until the system goes in sleep, and then, the (pending) GIT will wake up the system.
     //       Thus, you can safely assume that GIT is (effectively) triggered only while the system is in Sleep.
     if (get_bit(wakeup_source, 5)) {
+        mbus_write_message32(0x72, 0x4);
         set_flag(FLAG_GIT_TRIGGERED, 1);
         // Reset everything back to default.
         operation_back_to_default();
@@ -2225,6 +2257,7 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
     }
     // If woken up by a XO wakeup timer
     else if (get_bit(wakeup_source, 2)) {
+        mbus_write_message32(0x72, 0x5);
 
         if (wakeup_timestamp==0) wakeup_timestamp = *XOT_VAL;
 
@@ -2240,32 +2273,42 @@ void handler_ext_int_wakeup(void) { // WAKE-UP
     }
     // If woken up by NFC (GPIO[0])
     else if (get_bit(wakeup_source, 3) && get_bit(wakeup_source, 8)) {
+        mbus_write_message32(0x72, 0x6);
         // Handle the NFC event
         do_nfc();
     }
     // If woken up by an MBus Message
-    else if (get_bit(wakeup_source, 4)) { }
+    else if (get_bit(wakeup_source, 4)) { 
+        mbus_write_message32(0x72, 0x7);
+    }
+
+    mbus_write_message32(0x72, 0x8);
 
     // If SNT is running
     while (snt_running) snt_operation();
+
+    mbus_write_message32(0x72, 0x9);
 
     // NOTE: If the wakeup source is GOC/EP (i.e., wakeup_source[0] == 1)
     //       it will be handled by handler_ext_int_gocep()
 
 }
 void handler_ext_int_aes(void) { // AES
+    mbus_write_message32(0x71, 0x12);
     *NVIC_ICPR = (0x1 << IRQ_AES);
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_SPI, 0x00000000);
     #endif
 }
 void handler_ext_int_spi(void) { // SPI
+    mbus_write_message32(0x71, 0x13);
     *NVIC_ICPR = (0x1 << IRQ_SPI);
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_SPI, 0x00000000);
     #endif
 }
 void handler_ext_int_gpio(void) { // GPIO
+    mbus_write_message32(0x71, 0x14);
     *NVIC_ICPR = (0x1 << IRQ_GPIO);
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_GPIO, 0x00000000);
@@ -2277,15 +2320,14 @@ void handler_ext_int_gpio(void) { // GPIO
 //********************************************************************
 
 int main() {
+    mbus_write_message32(0x70, 1);
+
     // Enable IRQs
     *NVIC_ISER = (0x1 << IRQ_WAKEUP) | (0x1 << IRQ_GOCEP) | (0x1 << IRQ_TIMER32) 
                | (0x1 << IRQ_REG0  ) | (0x1 << IRQ_REG1 ) 
                | (0x1 << IRQ_REG2  ) | (0x1 << IRQ_REG3 );
 
-    // Initialization Sequence
-    if (!get_flag(FLAG_INITIALIZED)) { 
-        operation_init();
-    }
+    mbus_write_message32(0x70, 2);
 
     // Never Quit (should not stay here for an extended duration)
     while(1) asm("nop");

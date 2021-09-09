@@ -576,25 +576,25 @@ static void snt_stop_timer(){
  2e6:	2117      	movs	r1, #23
  2e8:	f7ff ff7b 	bl	1e2 <mbus_remote_register_write>
 
-	// New for SNTv3
-	sntv5_r08.TMR_SLEEP = 0x1; // Default : 0x1
+    // New for SNTv3
+    sntv5_r08.TMR_SLEEP = 0x1; // Default : 0x1
  2ec:	2340      	movs	r3, #64	; 0x40
  2ee:	7822      	ldrb	r2, [r4, #0]
-	sntv5_r08.TMR_ISOLATE = 0x1; // Default : 0x1
-	mbus_remote_register_write(SNT_ADDR,0x08,sntv5_r08.as_int);
+    sntv5_r08.TMR_ISOLATE = 0x1; // Default : 0x1
+    mbus_remote_register_write(SNT_ADDR,0x08,sntv5_r08.as_int);
  2f0:	0029      	movs	r1, r5
-	sntv5_r08.TMR_SLEEP = 0x1; // Default : 0x1
+    sntv5_r08.TMR_SLEEP = 0x1; // Default : 0x1
  2f2:	4313      	orrs	r3, r2
  2f4:	7023      	strb	r3, [r4, #0]
-	sntv5_r08.TMR_ISOLATE = 0x1; // Default : 0x1
+    sntv5_r08.TMR_ISOLATE = 0x1; // Default : 0x1
  2f6:	2320      	movs	r3, #32
  2f8:	7822      	ldrb	r2, [r4, #0]
-	mbus_remote_register_write(SNT_ADDR,0x08,sntv5_r08.as_int);
+    mbus_remote_register_write(SNT_ADDR,0x08,sntv5_r08.as_int);
  2fa:	2005      	movs	r0, #5
-	sntv5_r08.TMR_ISOLATE = 0x1; // Default : 0x1
+    sntv5_r08.TMR_ISOLATE = 0x1; // Default : 0x1
  2fc:	4313      	orrs	r3, r2
  2fe:	7023      	strb	r3, [r4, #0]
-	mbus_remote_register_write(SNT_ADDR,0x08,sntv5_r08.as_int);
+    mbus_remote_register_write(SNT_ADDR,0x08,sntv5_r08.as_int);
  300:	6822      	ldr	r2, [r4, #0]
  302:	f7ff ff6e 	bl	1e2 <mbus_remote_register_write>
 
@@ -642,39 +642,39 @@ static void radio_power_on(){
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
  33e:	6832      	ldr	r2, [r6, #0]
  340:	f7ff ff4f 	bl	1e2 <mbus_remote_register_write>
-	mrrv11a_r03.TRX_DCP_S_OW1 = 0;  //TX_Decap S (forced charge decaps)
+    mrrv11a_r03.TRX_DCP_S_OW1 = 0;  //TX_Decap S (forced charge decaps)
  344:	4d4f      	ldr	r5, [pc, #316]	; (484 <radio_power_on+0x16c>)
  346:	4a50      	ldr	r2, [pc, #320]	; (488 <radio_power_on+0x170>)
  348:	682b      	ldr	r3, [r5, #0]
-	mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
  34a:	2103      	movs	r1, #3
-	mrrv11a_r03.TRX_DCP_S_OW1 = 0;  //TX_Decap S (forced charge decaps)
+    mrrv11a_r03.TRX_DCP_S_OW1 = 0;  //TX_Decap S (forced charge decaps)
  34c:	4013      	ands	r3, r2
  34e:	602b      	str	r3, [r5, #0]
-	mrrv11a_r03.TRX_DCP_S_OW2 = 0;  //TX_Decap S (forced charge decaps)
+    mrrv11a_r03.TRX_DCP_S_OW2 = 0;  //TX_Decap S (forced charge decaps)
  350:	682b      	ldr	r3, [r5, #0]
  352:	4a4e      	ldr	r2, [pc, #312]	; (48c <radio_power_on+0x174>)
-	mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
  354:	2004      	movs	r0, #4
-	mrrv11a_r03.TRX_DCP_S_OW2 = 0;  //TX_Decap S (forced charge decaps)
+    mrrv11a_r03.TRX_DCP_S_OW2 = 0;  //TX_Decap S (forced charge decaps)
  356:	4013      	ands	r3, r2
  358:	602b      	str	r3, [r5, #0]
-	mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
  35a:	682a      	ldr	r2, [r5, #0]
  35c:	f7ff ff41 	bl	1e2 <mbus_remote_register_write>
-	mrrv11a_r03.TRX_DCP_P_OW1 = 1;  //RX_Decap P 
+    mrrv11a_r03.TRX_DCP_P_OW1 = 1;  //RX_Decap P 
  360:	2380      	movs	r3, #128	; 0x80
  362:	682a      	ldr	r2, [r5, #0]
  364:	039b      	lsls	r3, r3, #14
  366:	4313      	orrs	r3, r2
  368:	602b      	str	r3, [r5, #0]
-	mrrv11a_r03.TRX_DCP_P_OW2 = 1;  //RX_Decap P 
+    mrrv11a_r03.TRX_DCP_P_OW2 = 1;  //RX_Decap P 
  36a:	2380      	movs	r3, #128	; 0x80
  36c:	682a      	ldr	r2, [r5, #0]
  36e:	035b      	lsls	r3, r3, #13
  370:	4313      	orrs	r3, r2
  372:	602b      	str	r3, [r5, #0]
-	mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
  374:	682a      	ldr	r2, [r5, #0]
  376:	2103      	movs	r1, #3
  378:	2004      	movs	r0, #4
@@ -682,38 +682,38 @@ static void radio_power_on(){
     delay(MBUS_DELAY);
  37e:	20c8      	movs	r0, #200	; 0xc8
  380:	f7ff fe92 	bl	a8 <delay>
-	mrrv11a_r03.TRX_DCP_P_OW1 = 0;  //RX_Decap P 
+    mrrv11a_r03.TRX_DCP_P_OW1 = 0;  //RX_Decap P 
  384:	682b      	ldr	r3, [r5, #0]
  386:	4a42      	ldr	r2, [pc, #264]	; (490 <radio_power_on+0x178>)
-	mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
  388:	2103      	movs	r1, #3
-	mrrv11a_r03.TRX_DCP_P_OW1 = 0;  //RX_Decap P 
+    mrrv11a_r03.TRX_DCP_P_OW1 = 0;  //RX_Decap P 
  38a:	4013      	ands	r3, r2
  38c:	602b      	str	r3, [r5, #0]
-	mrrv11a_r03.TRX_DCP_P_OW2 = 0;  //RX_Decap P 
+    mrrv11a_r03.TRX_DCP_P_OW2 = 0;  //RX_Decap P 
  38e:	682b      	ldr	r3, [r5, #0]
  390:	4a40      	ldr	r2, [pc, #256]	; (494 <radio_power_on+0x17c>)
-	mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
  392:	2004      	movs	r0, #4
-	mrrv11a_r03.TRX_DCP_P_OW2 = 0;  //RX_Decap P 
+    mrrv11a_r03.TRX_DCP_P_OW2 = 0;  //RX_Decap P 
  394:	4013      	ands	r3, r2
  396:	602b      	str	r3, [r5, #0]
-	mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
  398:	682a      	ldr	r2, [r5, #0]
  39a:	f7ff ff22 	bl	1e2 <mbus_remote_register_write>
-	mrrv11a_r03.TRX_DCP_S_OW1 = 1;  //TX_Decap S (forced charge decaps)
+    mrrv11a_r03.TRX_DCP_S_OW1 = 1;  //TX_Decap S (forced charge decaps)
  39e:	2380      	movs	r3, #128	; 0x80
  3a0:	682a      	ldr	r2, [r5, #0]
  3a2:	031b      	lsls	r3, r3, #12
  3a4:	4313      	orrs	r3, r2
  3a6:	602b      	str	r3, [r5, #0]
-	mrrv11a_r03.TRX_DCP_S_OW2 = 1;  //TX_Decap S (forced charge decaps)
+    mrrv11a_r03.TRX_DCP_S_OW2 = 1;  //TX_Decap S (forced charge decaps)
  3a8:	2380      	movs	r3, #128	; 0x80
  3aa:	682a      	ldr	r2, [r5, #0]
  3ac:	02db      	lsls	r3, r3, #11
  3ae:	4313      	orrs	r3, r2
  3b0:	602b      	str	r3, [r5, #0]
-	mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
  3b2:	682a      	ldr	r2, [r5, #0]
  3b4:	2103      	movs	r1, #3
  3b6:	2004      	movs	r0, #4
@@ -721,17 +721,17 @@ static void radio_power_on(){
     delay(MBUS_DELAY);
  3bc:	20c8      	movs	r0, #200	; 0xc8
  3be:	f7ff fe73 	bl	a8 <delay>
-	mrrv11a_r00.TRX_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+    mrrv11a_r00.TRX_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
  3c2:	227e      	movs	r2, #126	; 0x7e
  3c4:	2520      	movs	r5, #32
  3c6:	6833      	ldr	r3, [r6, #0]
-	mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
  3c8:	2100      	movs	r1, #0
-	mrrv11a_r00.TRX_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+    mrrv11a_r00.TRX_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
  3ca:	4393      	bics	r3, r2
  3cc:	432b      	orrs	r3, r5
  3ce:	6033      	str	r3, [r6, #0]
-	mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
  3d0:	6832      	ldr	r2, [r6, #0]
  3d2:	2004      	movs	r0, #4
  3d4:	f7ff ff05 	bl	1e2 <mbus_remote_register_write>
@@ -843,7 +843,7 @@ static void radio_power_on(){
     mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
  46c:	681a      	ldr	r2, [r3, #0]
  46e:	f7ff feb8 	bl	1e2 <mbus_remote_register_write>
-	delay(MBUS_DELAY*5); // Freq stab
+    delay(MBUS_DELAY*5); // Freq stab
  472:	20fa      	movs	r0, #250	; 0xfa
  474:	0080      	lsls	r0, r0, #2
  476:	f7ff fe17 	bl	a8 <delay>
@@ -864,19 +864,19 @@ Disassembly of section .text.radio_power_off:
 000004a0 <radio_power_off>:
 static void radio_power_off(){
  4a0:	b5f8      	push	{r3, r4, r5, r6, r7, lr}
-	mrrv11a_r11.FSM_CONT_PULSE_MODE = 0;
+    mrrv11a_r11.FSM_CONT_PULSE_MODE = 0;
  4a2:	2708      	movs	r7, #8
  4a4:	4c37      	ldr	r4, [pc, #220]	; (584 <radio_power_off+0xe4>)
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
  4a6:	2111      	movs	r1, #17
-	mrrv11a_r11.FSM_CONT_PULSE_MODE = 0;
+    mrrv11a_r11.FSM_CONT_PULSE_MODE = 0;
  4a8:	6823      	ldr	r3, [r4, #0]
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
  4aa:	2004      	movs	r0, #4
-	mrrv11a_r11.FSM_CONT_PULSE_MODE = 0;
+    mrrv11a_r11.FSM_CONT_PULSE_MODE = 0;
  4ac:	43bb      	bics	r3, r7
  4ae:	6023      	str	r3, [r4, #0]
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
  4b0:	6822      	ldr	r2, [r4, #0]
  4b2:	f7ff fe96 	bl	1e2 <mbus_remote_register_write>
     mrrv11a_r03.TRX_ISOLATEN = 0;     //set ISOLATEN 0
@@ -932,17 +932,17 @@ static void radio_power_off(){
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
  4f8:	6822      	ldr	r2, [r4, #0]
  4fa:	f7ff fe72 	bl	1e2 <mbus_remote_register_write>
-	mrrv11a_r00.TRX_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+    mrrv11a_r00.TRX_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
  4fe:	227e      	movs	r2, #126	; 0x7e
  500:	6823      	ldr	r3, [r4, #0]
-	mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
  502:	0028      	movs	r0, r5
-	mrrv11a_r00.TRX_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+    mrrv11a_r00.TRX_CL_CTRL = 16; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
  504:	4393      	bics	r3, r2
  506:	3a5e      	subs	r2, #94	; 0x5e
  508:	4313      	orrs	r3, r2
  50a:	6023      	str	r3, [r4, #0]
-	mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
  50c:	6822      	ldr	r2, [r4, #0]
  50e:	2100      	movs	r1, #0
  510:	f7ff fe67 	bl	1e2 <mbus_remote_register_write>
@@ -1021,7 +1021,7 @@ static void radio_power_off(){
  578:	2300      	movs	r3, #0
  57a:	4a0a      	ldr	r2, [pc, #40]	; (5a4 <radio_power_off+0x104>)
  57c:	6013      	str	r3, [r2, #0]
-	radio_ready = 0;
+    radio_ready = 0;
  57e:	4a0a      	ldr	r2, [pc, #40]	; (5a8 <radio_power_off+0x108>)
  580:	6013      	str	r3, [r2, #0]
 }
@@ -1046,11 +1046,11 @@ static void set_timer32_timeout(uint32_t val){
  5ae:	b510      	push	{r4, lr}
     wfi_timeout_flag = 0;
  5b0:	4b03      	ldr	r3, [pc, #12]	; (5c0 <set_timer32_timeout+0x14>)
-	config_timer32(val, 1, 0, 0);
+    config_timer32(val, 1, 0, 0);
  5b2:	2101      	movs	r1, #1
     wfi_timeout_flag = 0;
  5b4:	601a      	str	r2, [r3, #0]
-	config_timer32(val, 1, 0, 0);
+    config_timer32(val, 1, 0, 0);
  5b6:	0013      	movs	r3, r2
  5b8:	f7ff fd7e 	bl	b8 <config_timer32>
 }
@@ -1091,20 +1091,20 @@ static void stop_timer32_timeout_check(uint32_t code){
         wfi_timeout_flag = 1;
  5ec:	2201      	movs	r2, #1
  5ee:	601a      	str	r2, [r3, #0]
-	*TIMER32_GO = 0;
+    *TIMER32_GO = 0;
  5f0:	2200      	movs	r2, #0
  5f2:	490c      	ldr	r1, [pc, #48]	; (624 <stop_timer32_timeout_check+0x60>)
  5f4:	600a      	str	r2, [r1, #0]
-	if (wfi_timeout_flag){
+    if (wfi_timeout_flag){
  5f6:	6819      	ldr	r1, [r3, #0]
  5f8:	4291      	cmp	r1, r2
  5fa:	d006      	beq.n	60a <stop_timer32_timeout_check+0x46>
-		wfi_timeout_flag = 0;
+        wfi_timeout_flag = 0;
  5fc:	601a      	str	r2, [r3, #0]
-		error_code = code;
+        error_code = code;
  5fe:	4b0a      	ldr	r3, [pc, #40]	; (628 <stop_timer32_timeout_check+0x64>)
  600:	6018      	str	r0, [r3, #0]
-		mbus_write_message32(0xFA, error_code);
+        mbus_write_message32(0xFA, error_code);
  602:	6819      	ldr	r1, [r3, #0]
  604:	20fa      	movs	r0, #250	; 0xfa
  606:	f7ff fdad 	bl	164 <mbus_write_message32>
@@ -1122,11 +1122,11 @@ static void stop_timer32_timeout_check(uint32_t code){
 Disassembly of section .text.snt_read_wup_counter:
 
 0000062c <snt_read_wup_counter>:
-	set_timer32_timeout(TIMER32_VAL);
+    set_timer32_timeout(TIMER32_VAL);
  62c:	20a0      	movs	r0, #160	; 0xa0
 static void snt_read_wup_counter(){
  62e:	b510      	push	{r4, lr}
-	set_timer32_timeout(TIMER32_VAL);
+    set_timer32_timeout(TIMER32_VAL);
  630:	02c0      	lsls	r0, r0, #11
  632:	f7ff ffbb 	bl	5ac <set_timer32_timeout>
     mbus_remote_register_write(SNT_ADDR,0x14,   // WUP_CNT_READ_REQ (Memory-Mapped)
@@ -1179,11 +1179,11 @@ Disassembly of section .text.pmu_reg_write:
 static void pmu_reg_write (uint32_t reg_addr, uint32_t reg_data) {
  688:	b570      	push	{r4, r5, r6, lr}
  68a:	0004      	movs	r4, r0
-	set_timer32_timeout(TIMER32_VAL);
+    set_timer32_timeout(TIMER32_VAL);
  68c:	20a0      	movs	r0, #160	; 0xa0
 static void pmu_reg_write (uint32_t reg_addr, uint32_t reg_data) {
  68e:	000d      	movs	r5, r1
-	set_timer32_timeout(TIMER32_VAL);
+    set_timer32_timeout(TIMER32_VAL);
  690:	02c0      	lsls	r0, r0, #11
  692:	f7ff ff8b 	bl	5ac <set_timer32_timeout>
     mbus_remote_register_write(PMU_ADDR,reg_addr,reg_data);
@@ -1220,41 +1220,41 @@ Disassembly of section .text.pmu_set_active_clk:
 000006c8 <pmu_set_active_clk>:
 inline static void pmu_set_active_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1p2){
  6c8:	b5f8      	push	{r3, r4, r5, r6, r7, lr}
-		| (r << 9)      // Frequency multiplier R
+        | (r << 9)      // Frequency multiplier R
  6ca:	26c0      	movs	r6, #192	; 0xc0
  6cc:	0245      	lsls	r5, r0, #9
 inline static void pmu_set_active_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1p2){
  6ce:	000c      	movs	r4, r1
-		| (r << 9)      // Frequency multiplier R
+        | (r << 9)      // Frequency multiplier R
  6d0:	0236      	lsls	r6, r6, #8
-		| (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
+        | (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
  6d2:	0159      	lsls	r1, r3, #5
-		| (r << 9)      // Frequency multiplier R
+        | (r << 9)      // Frequency multiplier R
  6d4:	432e      	orrs	r6, r5
-		| (base) 		// Floor frequency base (0-63)
+        | (base)        // Floor frequency base (0-63)
  6d6:	4311      	orrs	r1, r2
 inline static void pmu_set_active_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1p2){
  6d8:	0017      	movs	r7, r2
-		| (base) 		// Floor frequency base (0-63)
+        | (base)        // Floor frequency base (0-63)
  6da:	4331      	orrs	r1, r6
     pmu_reg_write(0x16, 
  6dc:	2016      	movs	r0, #22
  6de:	f7ff ffd3 	bl	688 <pmu_reg_write>
-		| (base)    // Floor frequency base (0-63)
+        | (base)    // Floor frequency base (0-63)
  6e2:	0031      	movs	r1, r6
-		| (l << 5)  // Frequency multiplier L (actually L+1)
+        | (l << 5)  // Frequency multiplier L (actually L+1)
  6e4:	0164      	lsls	r4, r4, #5
  6e6:	4327      	orrs	r7, r4
-		| (base)    // Floor frequency base (0-63)
+        | (base)    // Floor frequency base (0-63)
  6e8:	4339      	orrs	r1, r7
     pmu_reg_write(0x18, 
  6ea:	2018      	movs	r0, #24
  6ec:	f7ff ffcc 	bl	688 <pmu_reg_write>
-		| (base)    // Floor frequency base (0-63)
+        | (base)    // Floor frequency base (0-63)
  6f0:	0029      	movs	r1, r5
     pmu_reg_write(0x1A,
  6f2:	201a      	movs	r0, #26
-		| (base)    // Floor frequency base (0-63)
+        | (base)    // Floor frequency base (0-63)
  6f4:	4339      	orrs	r1, r7
     pmu_reg_write(0x1A,
  6f6:	f7ff ffc7 	bl	688 <pmu_reg_write>
@@ -1272,13 +1272,13 @@ inline static void pmu_active_setting_temp_based(){
  700:	6813      	ldr	r3, [r2, #0]
  702:	2b0c      	cmp	r3, #12
  704:	d906      	bls.n	714 <pmu_active_setting_temp_based+0x18>
-		pmu_set_active_clk(0x1,0x1,0x10,0x2/*V1P2*/);
+        pmu_set_active_clk(0x1,0x1,0x10,0x2/*V1P2*/);
  706:	2302      	movs	r3, #2
  708:	2210      	movs	r2, #16
  70a:	2101      	movs	r1, #1
-		pmu_set_active_clk(0x2,0x2,0x10,0x4/*V1P2*/);
+        pmu_set_active_clk(0x2,0x2,0x10,0x4/*V1P2*/);
  70c:	0008      	movs	r0, r1
-		pmu_set_active_clk(0xF,0xA,0x1F,0xE/*V1P2*/);
+        pmu_set_active_clk(0xF,0xA,0x1F,0xE/*V1P2*/);
  70e:	f7ff ffdb 	bl	6c8 <pmu_set_active_clk>
 }
  712:	bd10      	pop	{r4, pc}
@@ -1286,18 +1286,18 @@ inline static void pmu_active_setting_temp_based(){
  714:	6813      	ldr	r3, [r2, #0]
  716:	2b0c      	cmp	r3, #12
  718:	d104      	bne.n	724 <pmu_active_setting_temp_based+0x28>
-		pmu_set_active_clk(0x2,0x1,0x10,0x2/*V1P2*/);
+        pmu_set_active_clk(0x2,0x1,0x10,0x2/*V1P2*/);
  71a:	2210      	movs	r2, #16
  71c:	2101      	movs	r1, #1
  71e:	3b0a      	subs	r3, #10
-		pmu_set_active_clk(0xE,0xA,0x10,0xE/*V1P2*/);
+        pmu_set_active_clk(0xE,0xA,0x10,0xE/*V1P2*/);
  720:	0018      	movs	r0, r3
  722:	e7f4      	b.n	70e <pmu_active_setting_temp_based+0x12>
     }else if (pmu_setting_state == PMU_75C){
  724:	6813      	ldr	r3, [r2, #0]
  726:	2b0b      	cmp	r3, #11
  728:	d103      	bne.n	732 <pmu_active_setting_temp_based+0x36>
-		pmu_set_active_clk(0x2,0x2,0x10,0x4/*V1P2*/);
+        pmu_set_active_clk(0x2,0x2,0x10,0x4/*V1P2*/);
  72a:	2210      	movs	r2, #16
  72c:	2102      	movs	r1, #2
  72e:	3b07      	subs	r3, #7
@@ -1306,7 +1306,7 @@ inline static void pmu_active_setting_temp_based(){
  732:	6813      	ldr	r3, [r2, #0]
  734:	2b0a      	cmp	r3, #10
  736:	d103      	bne.n	740 <pmu_active_setting_temp_based+0x44>
-		pmu_set_active_clk(0x4,0x2,0x10,0x4/*V1P2*/);
+        pmu_set_active_clk(0x4,0x2,0x10,0x4/*V1P2*/);
  738:	2210      	movs	r2, #16
  73a:	2102      	movs	r1, #2
  73c:	3b06      	subs	r3, #6
@@ -1315,7 +1315,7 @@ inline static void pmu_active_setting_temp_based(){
  740:	6813      	ldr	r3, [r2, #0]
  742:	2b09      	cmp	r3, #9
  744:	d104      	bne.n	750 <pmu_active_setting_temp_based+0x54>
-		pmu_set_active_clk(0x6,0x2,0x10,0x4/*V1P2*/);
+        pmu_set_active_clk(0x6,0x2,0x10,0x4/*V1P2*/);
  746:	2210      	movs	r2, #16
  748:	2102      	movs	r1, #2
  74a:	2006      	movs	r0, #6
@@ -1325,7 +1325,7 @@ inline static void pmu_active_setting_temp_based(){
  750:	6813      	ldr	r3, [r2, #0]
  752:	2b08      	cmp	r3, #8
  754:	d104      	bne.n	760 <pmu_active_setting_temp_based+0x64>
-	    pmu_set_active_clk(0x9,0x2,0x10,0x4/*V1P2*/);
+        pmu_set_active_clk(0x9,0x2,0x10,0x4/*V1P2*/);
  756:	2210      	movs	r2, #16
  758:	2102      	movs	r1, #2
  75a:	2009      	movs	r0, #9
@@ -1335,7 +1335,7 @@ inline static void pmu_active_setting_temp_based(){
  760:	6813      	ldr	r3, [r2, #0]
  762:	2b07      	cmp	r3, #7
  764:	d104      	bne.n	770 <pmu_active_setting_temp_based+0x74>
-	    pmu_set_active_clk(0xB,0x2,0x10,0x4/*V1P2*/);
+        pmu_set_active_clk(0xB,0x2,0x10,0x4/*V1P2*/);
  766:	2210      	movs	r2, #16
  768:	2102      	movs	r1, #2
  76a:	200b      	movs	r0, #11
@@ -1345,28 +1345,28 @@ inline static void pmu_active_setting_temp_based(){
  770:	6813      	ldr	r3, [r2, #0]
  772:	2b06      	cmp	r3, #6
  774:	d104      	bne.n	780 <pmu_active_setting_temp_based+0x84>
-	    pmu_set_active_clk(0xD,0x2,0x10,0x4/*V1P2*/);
+        pmu_set_active_clk(0xD,0x2,0x10,0x4/*V1P2*/);
  776:	2210      	movs	r2, #16
  778:	2102      	movs	r1, #2
  77a:	3b02      	subs	r3, #2
-		pmu_set_active_clk(0xD,0xA,0x10,0xE/*V1P2*/);
+        pmu_set_active_clk(0xD,0xA,0x10,0xE/*V1P2*/);
  77c:	200d      	movs	r0, #13
  77e:	e7c6      	b.n	70e <pmu_active_setting_temp_based+0x12>
     }else if (pmu_setting_state == PMU_30C){
  780:	6813      	ldr	r3, [r2, #0]
  782:	2b05      	cmp	r3, #5
  784:	d103      	bne.n	78e <pmu_active_setting_temp_based+0x92>
-	    pmu_set_active_clk(0xF,0x3,0x10,0x5/*V1P2*/);
+        pmu_set_active_clk(0xF,0x3,0x10,0x5/*V1P2*/);
  786:	2210      	movs	r2, #16
  788:	2103      	movs	r1, #3
-		pmu_set_active_clk(0xF,0xA,0x1F,0xE/*V1P2*/);
+        pmu_set_active_clk(0xF,0xA,0x1F,0xE/*V1P2*/);
  78a:	200f      	movs	r0, #15
  78c:	e7bf      	b.n	70e <pmu_active_setting_temp_based+0x12>
     }else if (pmu_setting_state == PMU_25C){
  78e:	6813      	ldr	r3, [r2, #0]
  790:	2b04      	cmp	r3, #4
  792:	d103      	bne.n	79c <pmu_active_setting_temp_based+0xa0>
-		pmu_set_active_clk(0xF,0x5,0x10,0xA/*V1P2*/);
+        pmu_set_active_clk(0xF,0x5,0x10,0xA/*V1P2*/);
  794:	2210      	movs	r2, #16
  796:	2105      	movs	r1, #5
  798:	3306      	adds	r3, #6
@@ -1375,7 +1375,7 @@ inline static void pmu_active_setting_temp_based(){
  79c:	6813      	ldr	r3, [r2, #0]
  79e:	2b03      	cmp	r3, #3
  7a0:	d103      	bne.n	7aa <pmu_active_setting_temp_based+0xae>
-		pmu_set_active_clk(0xD,0xA,0x10,0xE/*V1P2*/);
+        pmu_set_active_clk(0xD,0xA,0x10,0xE/*V1P2*/);
  7a2:	2210      	movs	r2, #16
  7a4:	210a      	movs	r1, #10
  7a6:	330b      	adds	r3, #11
@@ -1384,7 +1384,7 @@ inline static void pmu_active_setting_temp_based(){
  7aa:	6813      	ldr	r3, [r2, #0]
  7ac:	2b02      	cmp	r3, #2
  7ae:	d103      	bne.n	7b8 <pmu_active_setting_temp_based+0xbc>
-		pmu_set_active_clk(0xE,0xA,0x10,0xE/*V1P2*/);
+        pmu_set_active_clk(0xE,0xA,0x10,0xE/*V1P2*/);
  7b0:	2210      	movs	r2, #16
  7b2:	210a      	movs	r1, #10
  7b4:	330c      	adds	r3, #12
@@ -1393,10 +1393,10 @@ inline static void pmu_active_setting_temp_based(){
  7b8:	6813      	ldr	r3, [r2, #0]
  7ba:	2b01      	cmp	r3, #1
  7bc:	d103      	bne.n	7c6 <pmu_active_setting_temp_based+0xca>
-		pmu_set_active_clk(0xF,0xA,0x10,0xE/*V1P2*/);
+        pmu_set_active_clk(0xF,0xA,0x10,0xE/*V1P2*/);
  7be:	2210      	movs	r2, #16
  7c0:	330d      	adds	r3, #13
-		pmu_set_active_clk(0xF,0xA,0x1F,0xE/*V1P2*/);
+        pmu_set_active_clk(0xF,0xA,0x1F,0xE/*V1P2*/);
  7c2:	210a      	movs	r1, #10
  7c4:	e7e1      	b.n	78a <pmu_active_setting_temp_based+0x8e>
  7c6:	230e      	movs	r3, #14
@@ -1409,21 +1409,21 @@ Disassembly of section .text.pmu_set_sleep_clk:
 000007d0 <pmu_set_sleep_clk>:
 inline static void pmu_set_sleep_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1p2){
  7d0:	b5f7      	push	{r0, r1, r2, r4, r5, r6, r7, lr}
-		| (r << 9)  // Frequency multiplier R
+        | (r << 9)  // Frequency multiplier R
  7d2:	26c0      	movs	r6, #192	; 0xc0
  7d4:	0244      	lsls	r4, r0, #9
  7d6:	0236      	lsls	r6, r6, #8
-		| (l << 5)  // Frequency multiplier L (actually L+1)
+        | (l << 5)  // Frequency multiplier L (actually L+1)
  7d8:	0149      	lsls	r1, r1, #5
  7da:	4311      	orrs	r1, r2
-		| (r << 9)  // Frequency multiplier R
+        | (r << 9)  // Frequency multiplier R
  7dc:	4326      	orrs	r6, r4
  7de:	000d      	movs	r5, r1
-		| (base)    // Floor frequency base (0-63)
+        | (base)    // Floor frequency base (0-63)
  7e0:	0031      	movs	r1, r6
 inline static void pmu_set_sleep_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t l_1p2){
  7e2:	0017      	movs	r7, r2
-		| (base)    // Floor frequency base (0-63)
+        | (base)    // Floor frequency base (0-63)
  7e4:	4329      	orrs	r1, r5
     pmu_reg_write(0x17, 
  7e6:	2017      	movs	r0, #23
@@ -1431,22 +1431,22 @@ inline static void pmu_set_sleep_clk(uint8_t r, uint8_t l, uint8_t base, uint8_t
  7e8:	9301      	str	r3, [sp, #4]
     pmu_reg_write(0x17, 
  7ea:	f7ff ff4d 	bl	688 <pmu_reg_write>
-		| (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
+        | (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
  7ee:	9b01      	ldr	r3, [sp, #4]
     pmu_reg_write(0x15, 
  7f0:	2015      	movs	r0, #21
-		| (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
+        | (l_1p2 << 5)  // Frequency multiplier L (actually L+1)
  7f2:	0159      	lsls	r1, r3, #5
-		| (base) 		// Floor frequency base (0-63)
+        | (base)        // Floor frequency base (0-63)
  7f4:	4339      	orrs	r1, r7
  7f6:	4331      	orrs	r1, r6
     pmu_reg_write(0x15, 
  7f8:	f7ff ff46 	bl	688 <pmu_reg_write>
-		| (base)    // Floor frequency base (0-63)
+        | (base)    // Floor frequency base (0-63)
  7fc:	0021      	movs	r1, r4
     pmu_reg_write(0x19,
  7fe:	2019      	movs	r0, #25
-		| (base)    // Floor frequency base (0-63)
+        | (base)    // Floor frequency base (0-63)
  800:	4329      	orrs	r1, r5
     pmu_reg_write(0x19,
  802:	f7ff ff41 	bl	688 <pmu_reg_write>
@@ -1479,12 +1479,12 @@ inline static void pmu_sleep_setting_temp_based(){
  81c:	681a      	ldr	r2, [r3, #0]
  81e:	2a0c      	cmp	r2, #12
  820:	d906      	bls.n	830 <pmu_sleep_setting_temp_based+0x18>
-		pmu_set_sleep_clk(0x2,0x0,0x1,0x1/*V1P2*/);
+        pmu_set_sleep_clk(0x2,0x0,0x1,0x1/*V1P2*/);
  822:	2301      	movs	r3, #1
  824:	2100      	movs	r1, #0
  826:	001a      	movs	r2, r3
  828:	2002      	movs	r0, #2
-		pmu_set_sleep_clk(0xF,0x1,0x1,0x2/*V1P2*/);
+        pmu_set_sleep_clk(0xF,0x1,0x1,0x2/*V1P2*/);
  82a:	f7ff ffd1 	bl	7d0 <pmu_set_sleep_clk>
 }
  82e:	e014      	b.n	85a <pmu_sleep_setting_temp_based+0x42>
@@ -1492,7 +1492,7 @@ inline static void pmu_sleep_setting_temp_based(){
  830:	681a      	ldr	r2, [r3, #0]
  832:	2a0a      	cmp	r2, #10
  834:	d904      	bls.n	840 <pmu_sleep_setting_temp_based+0x28>
-		pmu_set_sleep_clk(0x4,0x0,0x1,0x1/*V1P2*/);
+        pmu_set_sleep_clk(0x4,0x0,0x1,0x1/*V1P2*/);
  836:	2301      	movs	r3, #1
  838:	2100      	movs	r1, #0
  83a:	001a      	movs	r2, r3
@@ -1502,7 +1502,7 @@ inline static void pmu_sleep_setting_temp_based(){
  840:	681a      	ldr	r2, [r3, #0]
  842:	2a08      	cmp	r2, #8
  844:	d904      	bls.n	850 <pmu_sleep_setting_temp_based+0x38>
-		pmu_set_sleep_clk(0x6,0x0,0x1,0x1/*V1P2*/);
+        pmu_set_sleep_clk(0x6,0x0,0x1,0x1/*V1P2*/);
  846:	2301      	movs	r3, #1
  848:	2100      	movs	r1, #0
  84a:	001a      	movs	r2, r3
@@ -1512,7 +1512,7 @@ inline static void pmu_sleep_setting_temp_based(){
  850:	681a      	ldr	r2, [r3, #0]
  852:	2a05      	cmp	r2, #5
  854:	d902      	bls.n	85c <pmu_sleep_setting_temp_based+0x44>
-		pmu_set_sleep_low();
+        pmu_set_sleep_low();
  856:	f7ff ffd7 	bl	808 <pmu_set_sleep_low>
 }
  85a:	bd10      	pop	{r4, pc}
@@ -1520,18 +1520,18 @@ inline static void pmu_sleep_setting_temp_based(){
  85c:	681a      	ldr	r2, [r3, #0]
  85e:	2a00      	cmp	r2, #0
  860:	d104      	bne.n	86c <pmu_sleep_setting_temp_based+0x54>
-		pmu_set_sleep_clk(0xF,0x2,0x1,0x4/*V1P2*/);
+        pmu_set_sleep_clk(0xF,0x2,0x1,0x4/*V1P2*/);
  862:	2304      	movs	r3, #4
  864:	2102      	movs	r1, #2
  866:	3201      	adds	r2, #1
-		pmu_set_sleep_clk(0xF,0x1,0x1,0x2/*V1P2*/);
+        pmu_set_sleep_clk(0xF,0x1,0x1,0x2/*V1P2*/);
  868:	200f      	movs	r0, #15
  86a:	e7de      	b.n	82a <pmu_sleep_setting_temp_based+0x12>
     }else if (pmu_setting_state < PMU_20C){
  86c:	681b      	ldr	r3, [r3, #0]
  86e:	2b02      	cmp	r3, #2
  870:	d8f1      	bhi.n	856 <pmu_sleep_setting_temp_based+0x3e>
-		pmu_set_sleep_clk(0xF,0x1,0x1,0x2/*V1P2*/);
+        pmu_set_sleep_clk(0xF,0x1,0x1,0x2/*V1P2*/);
  872:	2201      	movs	r2, #1
  874:	2302      	movs	r3, #2
  876:	0011      	movs	r1, r2
@@ -1557,17 +1557,17 @@ static void operation_sns_sleep_check(void){
  88e:	f7ff fcd5 	bl	23c <temp_sensor_power_off>
         sns_ldo_power_off();
  892:	f7ff fced 	bl	270 <sns_ldo_power_off>
-	if (pmu_setting_state != PMU_25C){
+    if (pmu_setting_state != PMU_25C){
  896:	4b06      	ldr	r3, [pc, #24]	; (8b0 <operation_sns_sleep_check+0x30>)
  898:	681a      	ldr	r2, [r3, #0]
  89a:	2a04      	cmp	r2, #4
  89c:	d005      	beq.n	8aa <operation_sns_sleep_check+0x2a>
-		pmu_setting_state = PMU_25C;
+        pmu_setting_state = PMU_25C;
  89e:	2204      	movs	r2, #4
  8a0:	601a      	str	r2, [r3, #0]
-		pmu_active_setting_temp_based();
+        pmu_active_setting_temp_based();
  8a2:	f7ff ff2b 	bl	6fc <pmu_active_setting_temp_based>
-		pmu_sleep_setting_temp_based();
+        pmu_sleep_setting_temp_based();
  8a6:	f7ff ffb7 	bl	818 <pmu_sleep_setting_temp_based>
 }
  8aa:	bd10      	pop	{r4, pc}
@@ -1601,138 +1601,138 @@ static void pmu_set_sar_override(uint32_t val){
 Disassembly of section .text.pmu_adc_read_latest:
 
 000008d4 <pmu_adc_read_latest>:
-	pmu_reg_write(0x00,0x03);
+    pmu_reg_write(0x00,0x03);
  8d4:	2103      	movs	r1, #3
  8d6:	2000      	movs	r0, #0
 inline static void pmu_adc_read_latest(){
  8d8:	b510      	push	{r4, lr}
-	pmu_reg_write(0x00,0x03);
+    pmu_reg_write(0x00,0x03);
  8da:	f7ff fed5 	bl	688 <pmu_reg_write>
-	read_data_batadc = *REG0 & 0xFF; // [CISv2] *((volatile uint32_t *) REG0) -> *REG0
+    read_data_batadc = *REG0 & 0xFF; // [CISv2] *((volatile uint32_t *) REG0) -> *REG0
  8de:	23a0      	movs	r3, #160	; 0xa0
  8e0:	061b      	lsls	r3, r3, #24
  8e2:	681a      	ldr	r2, [r3, #0]
  8e4:	4b2e      	ldr	r3, [pc, #184]	; (9a0 <pmu_adc_read_latest+0xcc>)
  8e6:	b2d2      	uxtb	r2, r2
  8e8:	601a      	str	r2, [r3, #0]
-	if (read_data_batadc<PMU_ADC_3P0_VAL){
+    if (read_data_batadc<PMU_ADC_3P0_VAL){
  8ea:	4a2e      	ldr	r2, [pc, #184]	; (9a4 <pmu_adc_read_latest+0xd0>)
  8ec:	681c      	ldr	r4, [r3, #0]
  8ee:	6811      	ldr	r1, [r2, #0]
  8f0:	482d      	ldr	r0, [pc, #180]	; (9a8 <pmu_adc_read_latest+0xd4>)
  8f2:	428c      	cmp	r4, r1
  8f4:	d209      	bcs.n	90a <pmu_adc_read_latest+0x36>
-		read_data_batadc_diff = 0;
+        read_data_batadc_diff = 0;
  8f6:	2100      	movs	r1, #0
-		read_data_batadc_diff = read_data_batadc - PMU_ADC_3P0_VAL;
+        read_data_batadc_diff = read_data_batadc - PMU_ADC_3P0_VAL;
  8f8:	6001      	str	r1, [r0, #0]
-	if (read_data_batadc < (PMU_ADC_3P0_VAL)){
+    if (read_data_batadc < (PMU_ADC_3P0_VAL)){
  8fa:	6818      	ldr	r0, [r3, #0]
  8fc:	6811      	ldr	r1, [r2, #0]
  8fe:	4288      	cmp	r0, r1
  900:	d207      	bcs.n	912 <pmu_adc_read_latest+0x3e>
-		pmu_set_sar_override(0x3C);
+        pmu_set_sar_override(0x3C);
  902:	203c      	movs	r0, #60	; 0x3c
-		pmu_set_sar_override(0x5F);
+        pmu_set_sar_override(0x5F);
  904:	f7ff ffd6 	bl	8b4 <pmu_set_sar_override>
 }
  908:	bd10      	pop	{r4, pc}
-		read_data_batadc_diff = read_data_batadc - PMU_ADC_3P0_VAL;
+        read_data_batadc_diff = read_data_batadc - PMU_ADC_3P0_VAL;
  90a:	6819      	ldr	r1, [r3, #0]
  90c:	6814      	ldr	r4, [r2, #0]
  90e:	1b09      	subs	r1, r1, r4
  910:	e7f2      	b.n	8f8 <pmu_adc_read_latest+0x24>
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 4){
+    }else if (read_data_batadc < PMU_ADC_3P0_VAL + 4){
  912:	6811      	ldr	r1, [r2, #0]
  914:	6818      	ldr	r0, [r3, #0]
  916:	3104      	adds	r1, #4
  918:	4281      	cmp	r1, r0
  91a:	d901      	bls.n	920 <pmu_adc_read_latest+0x4c>
-		pmu_set_sar_override(0x3F);
+        pmu_set_sar_override(0x3F);
  91c:	203f      	movs	r0, #63	; 0x3f
  91e:	e7f1      	b.n	904 <pmu_adc_read_latest+0x30>
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 8){
+    }else if (read_data_batadc < PMU_ADC_3P0_VAL + 8){
  920:	6811      	ldr	r1, [r2, #0]
  922:	6818      	ldr	r0, [r3, #0]
  924:	3108      	adds	r1, #8
  926:	4281      	cmp	r1, r0
  928:	d901      	bls.n	92e <pmu_adc_read_latest+0x5a>
-		pmu_set_sar_override(0x41);
+        pmu_set_sar_override(0x41);
  92a:	2041      	movs	r0, #65	; 0x41
  92c:	e7ea      	b.n	904 <pmu_adc_read_latest+0x30>
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 12){
+    }else if (read_data_batadc < PMU_ADC_3P0_VAL + 12){
  92e:	6811      	ldr	r1, [r2, #0]
  930:	6818      	ldr	r0, [r3, #0]
  932:	310c      	adds	r1, #12
  934:	4281      	cmp	r1, r0
  936:	d901      	bls.n	93c <pmu_adc_read_latest+0x68>
-		pmu_set_sar_override(0x43);
+        pmu_set_sar_override(0x43);
  938:	2043      	movs	r0, #67	; 0x43
  93a:	e7e3      	b.n	904 <pmu_adc_read_latest+0x30>
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 17){
+    }else if (read_data_batadc < PMU_ADC_3P0_VAL + 17){
  93c:	6811      	ldr	r1, [r2, #0]
  93e:	6818      	ldr	r0, [r3, #0]
  940:	3111      	adds	r1, #17
  942:	4281      	cmp	r1, r0
  944:	d901      	bls.n	94a <pmu_adc_read_latest+0x76>
-		pmu_set_sar_override(0x45);
+        pmu_set_sar_override(0x45);
  946:	2045      	movs	r0, #69	; 0x45
  948:	e7dc      	b.n	904 <pmu_adc_read_latest+0x30>
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 21){
+    }else if (read_data_batadc < PMU_ADC_3P0_VAL + 21){
  94a:	6811      	ldr	r1, [r2, #0]
  94c:	6818      	ldr	r0, [r3, #0]
  94e:	3115      	adds	r1, #21
  950:	4281      	cmp	r1, r0
  952:	d901      	bls.n	958 <pmu_adc_read_latest+0x84>
-		pmu_set_sar_override(0x48);
+        pmu_set_sar_override(0x48);
  954:	2048      	movs	r0, #72	; 0x48
  956:	e7d5      	b.n	904 <pmu_adc_read_latest+0x30>
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 27){
+    }else if (read_data_batadc < PMU_ADC_3P0_VAL + 27){
  958:	6811      	ldr	r1, [r2, #0]
  95a:	6818      	ldr	r0, [r3, #0]
  95c:	311b      	adds	r1, #27
  95e:	4281      	cmp	r1, r0
  960:	d901      	bls.n	966 <pmu_adc_read_latest+0x92>
-		pmu_set_sar_override(0x4B);
+        pmu_set_sar_override(0x4B);
  962:	204b      	movs	r0, #75	; 0x4b
  964:	e7ce      	b.n	904 <pmu_adc_read_latest+0x30>
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 32){
+    }else if (read_data_batadc < PMU_ADC_3P0_VAL + 32){
  966:	6811      	ldr	r1, [r2, #0]
  968:	6818      	ldr	r0, [r3, #0]
  96a:	3120      	adds	r1, #32
  96c:	4281      	cmp	r1, r0
  96e:	d901      	bls.n	974 <pmu_adc_read_latest+0xa0>
-		pmu_set_sar_override(0x4E);
+        pmu_set_sar_override(0x4E);
  970:	204e      	movs	r0, #78	; 0x4e
  972:	e7c7      	b.n	904 <pmu_adc_read_latest+0x30>
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 39){
+    }else if (read_data_batadc < PMU_ADC_3P0_VAL + 39){
  974:	6811      	ldr	r1, [r2, #0]
  976:	6818      	ldr	r0, [r3, #0]
  978:	3127      	adds	r1, #39	; 0x27
  97a:	4281      	cmp	r1, r0
  97c:	d901      	bls.n	982 <pmu_adc_read_latest+0xae>
-		pmu_set_sar_override(0x51);
+        pmu_set_sar_override(0x51);
  97e:	2051      	movs	r0, #81	; 0x51
  980:	e7c0      	b.n	904 <pmu_adc_read_latest+0x30>
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 46){
+    }else if (read_data_batadc < PMU_ADC_3P0_VAL + 46){
  982:	6811      	ldr	r1, [r2, #0]
  984:	6818      	ldr	r0, [r3, #0]
  986:	312e      	adds	r1, #46	; 0x2e
  988:	4281      	cmp	r1, r0
  98a:	d901      	bls.n	990 <pmu_adc_read_latest+0xbc>
-		pmu_set_sar_override(0x56);
+        pmu_set_sar_override(0x56);
  98c:	2056      	movs	r0, #86	; 0x56
  98e:	e7b9      	b.n	904 <pmu_adc_read_latest+0x30>
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 53){
+    }else if (read_data_batadc < PMU_ADC_3P0_VAL + 53){
  990:	6812      	ldr	r2, [r2, #0]
  992:	6819      	ldr	r1, [r3, #0]
  994:	3235      	adds	r2, #53	; 0x35
-		pmu_set_sar_override(0x5A);
+        pmu_set_sar_override(0x5A);
  996:	205a      	movs	r0, #90	; 0x5a
-	}else if (read_data_batadc < PMU_ADC_3P0_VAL + 53){
+    }else if (read_data_batadc < PMU_ADC_3P0_VAL + 53){
  998:	428a      	cmp	r2, r1
  99a:	d8b3      	bhi.n	904 <pmu_adc_read_latest+0x30>
-		pmu_set_sar_override(0x5F);
+        pmu_set_sar_override(0x5F);
  99c:	205f      	movs	r0, #95	; 0x5f
  99e:	e7b1      	b.n	904 <pmu_adc_read_latest+0x30>
  9a0:	00001e20 	.word	0x00001e20
@@ -1768,7 +1768,7 @@ static void operation_sleep_notimer(void){
  9d2:	0011      	movs	r1, r2
  9d4:	0010      	movs	r0, r2
  9d6:	f7ff fb9b 	bl	110 <set_wakeup_timer>
-	*GOC_DATA_IRQ = 0;
+    *GOC_DATA_IRQ = 0;
  9da:	238c      	movs	r3, #140	; 0x8c
  9dc:	2200      	movs	r2, #0
  9de:	601a      	str	r2, [r3, #0]
@@ -2084,77 +2084,77 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
  b9e:	681a      	ldr	r2, [r3, #0]
  ba0:	2a00      	cmp	r2, #0
  ba2:	d10f      	bne.n	bc4 <send_radio_data_mrr+0xa0>
-		radio_ready = 1;
+        radio_ready = 1;
  ba4:	3201      	adds	r2, #1
  ba6:	601a      	str	r2, [r3, #0]
-    	mrrv11a_r03.TRX_ISOLATEN = 1;     //set ISOLATEN 1, let state machine control
+        mrrv11a_r03.TRX_ISOLATEN = 1;     //set ISOLATEN 1, let state machine control
  ba8:	2280      	movs	r2, #128	; 0x80
  baa:	4b53      	ldr	r3, [pc, #332]	; (cf8 <send_radio_data_mrr+0x1d4>)
  bac:	03d2      	lsls	r2, r2, #15
  bae:	6819      	ldr	r1, [r3, #0]
-    	mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
  bb0:	2004      	movs	r0, #4
-    	mrrv11a_r03.TRX_ISOLATEN = 1;     //set ISOLATEN 1, let state machine control
+        mrrv11a_r03.TRX_ISOLATEN = 1;     //set ISOLATEN 1, let state machine control
  bb2:	430a      	orrs	r2, r1
  bb4:	601a      	str	r2, [r3, #0]
-    	mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
  bb6:	2103      	movs	r1, #3
  bb8:	681a      	ldr	r2, [r3, #0]
  bba:	f7ff fb12 	bl	1e2 <mbus_remote_register_write>
-		delay(MBUS_DELAY);
+        delay(MBUS_DELAY);
  bbe:	20c8      	movs	r0, #200	; 0xc8
  bc0:	f7ff fa72 	bl	a8 <delay>
-	mrrv11a_r00.TRX_CL_CTRL = 1; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+    mrrv11a_r00.TRX_CL_CTRL = 1; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
  bc4:	217e      	movs	r1, #126	; 0x7e
  bc6:	4b4d      	ldr	r3, [pc, #308]	; (cfc <send_radio_data_mrr+0x1d8>)
-	mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
  bc8:	2004      	movs	r0, #4
-	mrrv11a_r00.TRX_CL_CTRL = 1; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+    mrrv11a_r00.TRX_CL_CTRL = 1; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
  bca:	681a      	ldr	r2, [r3, #0]
  bcc:	438a      	bics	r2, r1
  bce:	0011      	movs	r1, r2
  bd0:	2202      	movs	r2, #2
  bd2:	430a      	orrs	r2, r1
  bd4:	601a      	str	r2, [r3, #0]
-	mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
  bd6:	681a      	ldr	r2, [r3, #0]
  bd8:	2100      	movs	r1, #0
  bda:	f7ff fb02 	bl	1e2 <mbus_remote_register_write>
-	uint32_t num_packets = 1;
+    uint32_t num_packets = 1;
  bde:	2101      	movs	r1, #1
-	if (mrr_freq_hopping) num_packets = mrr_freq_hopping;
+    if (mrr_freq_hopping) num_packets = mrr_freq_hopping;
  be0:	4b47      	ldr	r3, [pc, #284]	; (d00 <send_radio_data_mrr+0x1dc>)
-	uint32_t num_packets = 1;
+    uint32_t num_packets = 1;
  be2:	9100      	str	r1, [sp, #0]
-	if (mrr_freq_hopping) num_packets = mrr_freq_hopping;
+    if (mrr_freq_hopping) num_packets = mrr_freq_hopping;
  be4:	681a      	ldr	r2, [r3, #0]
  be6:	2a00      	cmp	r2, #0
  be8:	d001      	beq.n	bee <send_radio_data_mrr+0xca>
  bea:	681b      	ldr	r3, [r3, #0]
  bec:	9300      	str	r3, [sp, #0]
-	uint32_t count = 0;
+    uint32_t count = 0;
  bee:	2500      	movs	r5, #0
-	mrr_cfo_val_fine = mrr_cfo_val_fine_min;
+    mrr_cfo_val_fine = mrr_cfo_val_fine_min;
  bf0:	4b44      	ldr	r3, [pc, #272]	; (d04 <send_radio_data_mrr+0x1e0>)
  bf2:	681e      	ldr	r6, [r3, #0]
-	while (count < num_packets){
+    while (count < num_packets){
  bf4:	9b00      	ldr	r3, [sp, #0]
  bf6:	429d      	cmp	r5, r3
  bf8:	d109      	bne.n	c0e <send_radio_data_mrr+0xea>
-	radio_packet_count++;
+    radio_packet_count++;
  bfa:	4a3a      	ldr	r2, [pc, #232]	; (ce4 <send_radio_data_mrr+0x1c0>)
  bfc:	6813      	ldr	r3, [r2, #0]
  bfe:	3301      	adds	r3, #1
  c00:	6013      	str	r3, [r2, #0]
-	if (last_packet){
+    if (last_packet){
  c02:	9b01      	ldr	r3, [sp, #4]
  c04:	2b00      	cmp	r3, #0
  c06:	d001      	beq.n	c0c <send_radio_data_mrr+0xe8>
-		radio_power_off();
+        radio_power_off();
  c08:	f7ff fc4a 	bl	4a0 <radio_power_off>
 }
  c0c:	bdf7      	pop	{r0, r1, r2, r4, r5, r6, r7, pc}
-		mrrv11a_r01.TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine; 
+        mrrv11a_r01.TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine; 
  c0e:	203f      	movs	r0, #63	; 0x3f
  c10:	4b3d      	ldr	r3, [pc, #244]	; (d08 <send_radio_data_mrr+0x1e4>)
  c12:	4c3e      	ldr	r4, [pc, #248]	; (d0c <send_radio_data_mrr+0x1e8>)
@@ -2164,19 +2164,19 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
  c1a:	4021      	ands	r1, r4
  c1c:	4311      	orrs	r1, r2
  c1e:	6019      	str	r1, [r3, #0]
-		mrrv11a_r01.TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine;
+        mrrv11a_r01.TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine;
  c20:	681a      	ldr	r2, [r3, #0]
  c22:	493b      	ldr	r1, [pc, #236]	; (d10 <send_radio_data_mrr+0x1ec>)
  c24:	0280      	lsls	r0, r0, #10
  c26:	400a      	ands	r2, r1
  c28:	4302      	orrs	r2, r0
  c2a:	601a      	str	r2, [r3, #0]
-		mbus_remote_register_write(MRR_ADDR,0x01,mrrv11a_r01.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x01,mrrv11a_r01.as_int);
  c2c:	681a      	ldr	r2, [r3, #0]
  c2e:	2101      	movs	r1, #1
  c30:	2004      	movs	r0, #4
  c32:	f7ff fad6 	bl	1e2 <mbus_remote_register_write>
-	set_timer32_timeout(TIMER32_VAL);
+    set_timer32_timeout(TIMER32_VAL);
  c36:	20a0      	movs	r0, #160	; 0xa0
  c38:	02c0      	lsls	r0, r0, #11
  c3a:	f7ff fcb7 	bl	5ac <set_timer32_timeout>
@@ -2195,30 +2195,30 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
     mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
  c4c:	6822      	ldr	r2, [r4, #0]
  c4e:	f7ff fac8 	bl	1e2 <mbus_remote_register_write>
-	mrrv11a_r11.FSM_RESET_B = 1;    
+    mrrv11a_r11.FSM_RESET_B = 1;    
  c52:	2302      	movs	r3, #2
  c54:	4f2f      	ldr	r7, [pc, #188]	; (d14 <send_radio_data_mrr+0x1f0>)
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
  c56:	2111      	movs	r1, #17
-	mrrv11a_r11.FSM_RESET_B = 1;    
+    mrrv11a_r11.FSM_RESET_B = 1;    
  c58:	683a      	ldr	r2, [r7, #0]
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
  c5a:	2004      	movs	r0, #4
-	mrrv11a_r11.FSM_RESET_B = 1;    
+    mrrv11a_r11.FSM_RESET_B = 1;    
  c5c:	4313      	orrs	r3, r2
  c5e:	603b      	str	r3, [r7, #0]
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
  c60:	683a      	ldr	r2, [r7, #0]
  c62:	f7ff fabe 	bl	1e2 <mbus_remote_register_write>
-	mrrv11a_r11.FSM_EN = 1;  //Start BB
+    mrrv11a_r11.FSM_EN = 1;  //Start BB
  c66:	2004      	movs	r0, #4
  c68:	683b      	ldr	r3, [r7, #0]
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
  c6a:	2111      	movs	r1, #17
-	mrrv11a_r11.FSM_EN = 1;  //Start BB
+    mrrv11a_r11.FSM_EN = 1;  //Start BB
  c6c:	4303      	orrs	r3, r0
  c6e:	603b      	str	r3, [r7, #0]
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
  c70:	683a      	ldr	r2, [r7, #0]
  c72:	f7ff fab6 	bl	1e2 <mbus_remote_register_write>
     while ((!irq_pending.reg2) & (!irq_pending.timer32));
@@ -2241,7 +2241,7 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
  c8e:	f7ff fc99 	bl	5c4 <stop_timer32_timeout_check>
     mrrv11a_r00.TRX_CL_EN = 0;
  c92:	2201      	movs	r2, #1
-	mrrv11a_r11.FSM_EN = 0;
+    mrrv11a_r11.FSM_EN = 0;
  c94:	2704      	movs	r7, #4
     mrrv11a_r00.TRX_CL_EN = 0;
  c96:	6823      	ldr	r3, [r4, #0]
@@ -2254,44 +2254,44 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
  c9e:	6822      	ldr	r2, [r4, #0]
  ca0:	2004      	movs	r0, #4
  ca2:	f7ff fa9e 	bl	1e2 <mbus_remote_register_write>
-	mrrv11a_r11.FSM_EN = 0;
+    mrrv11a_r11.FSM_EN = 0;
  ca6:	4c1b      	ldr	r4, [pc, #108]	; (d14 <send_radio_data_mrr+0x1f0>)
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
  ca8:	2111      	movs	r1, #17
-	mrrv11a_r11.FSM_EN = 0;
+    mrrv11a_r11.FSM_EN = 0;
  caa:	6823      	ldr	r3, [r4, #0]
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
  cac:	0038      	movs	r0, r7
-	mrrv11a_r11.FSM_EN = 0;
+    mrrv11a_r11.FSM_EN = 0;
  cae:	43bb      	bics	r3, r7
  cb0:	6023      	str	r3, [r4, #0]
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
  cb2:	6822      	ldr	r2, [r4, #0]
  cb4:	f7ff fa95 	bl	1e2 <mbus_remote_register_write>
-	mrrv11a_r11.FSM_RESET_B = 0;
+    mrrv11a_r11.FSM_RESET_B = 0;
  cb8:	2202      	movs	r2, #2
  cba:	6823      	ldr	r3, [r4, #0]
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
  cbc:	2111      	movs	r1, #17
-	mrrv11a_r11.FSM_RESET_B = 0;
+    mrrv11a_r11.FSM_RESET_B = 0;
  cbe:	4393      	bics	r3, r2
  cc0:	6023      	str	r3, [r4, #0]
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
  cc2:	0038      	movs	r0, r7
  cc4:	6822      	ldr	r2, [r4, #0]
  cc6:	f7ff fa8c 	bl	1e2 <mbus_remote_register_write>
-		if (count < num_packets){
+        if (count < num_packets){
  cca:	9b00      	ldr	r3, [sp, #0]
-		count++;
+        count++;
  ccc:	3501      	adds	r5, #1
-		if (count < num_packets){
+        if (count < num_packets){
  cce:	42ab      	cmp	r3, r5
  cd0:	d903      	bls.n	cda <send_radio_data_mrr+0x1b6>
-			delay(RADIO_PACKET_DELAY);
+            delay(RADIO_PACKET_DELAY);
  cd2:	4b13      	ldr	r3, [pc, #76]	; (d20 <send_radio_data_mrr+0x1fc>)
  cd4:	6818      	ldr	r0, [r3, #0]
  cd6:	f7ff f9e7 	bl	a8 <delay>
-		mrr_cfo_val_fine = mrr_cfo_val_fine + mrr_freq_hopping_step; // 1: 0.8MHz, 2: 1.6MHz step
+        mrr_cfo_val_fine = mrr_cfo_val_fine + mrr_freq_hopping_step; // 1: 0.8MHz, 2: 1.6MHz step
  cda:	4b12      	ldr	r3, [pc, #72]	; (d24 <send_radio_data_mrr+0x200>)
  cdc:	681b      	ldr	r3, [r3, #0]
  cde:	18f6      	adds	r6, r6, r3
@@ -2318,9 +2318,9 @@ static void send_radio_data_mrr(uint32_t last_packet, uint8_t radio_packet_prefi
 Disassembly of section .text.operation_goc_trigger_radio:
 
 00000d28 <operation_goc_trigger_radio>:
-	stack_state = STK_IDLE;
-	
-	radio_power_off();
+    stack_state = STK_IDLE;
+    
+    radio_power_off();
 }
 
 static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_timer_val, uint8_t radio_tx_prefix, uint32_t radio_tx_data){
@@ -2330,34 +2330,34 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
  d2e:	000d      	movs	r5, r1
  d30:	9001      	str	r0, [sp, #4]
 
-	// Prepare radio TX
-	radio_power_on();
+    // Prepare radio TX
+    radio_power_on();
  d32:	f7ff faf1 	bl	318 <radio_power_on>
-	exec_count_irq++;
+    exec_count_irq++;
  d36:	4c0c      	ldr	r4, [pc, #48]	; (d68 <operation_goc_trigger_radio+0x40>)
-	// radio
-	send_radio_data_mrr(1,radio_tx_prefix,radio_tx_data);	
+    // radio
+    send_radio_data_mrr(1,radio_tx_prefix,radio_tx_data);   
  d38:	003a      	movs	r2, r7
-	exec_count_irq++;
+    exec_count_irq++;
  d3a:	6823      	ldr	r3, [r4, #0]
-	send_radio_data_mrr(1,radio_tx_prefix,radio_tx_data);	
+    send_radio_data_mrr(1,radio_tx_prefix,radio_tx_data);   
  d3c:	0031      	movs	r1, r6
-	exec_count_irq++;
+    exec_count_irq++;
  d3e:	3301      	adds	r3, #1
-	send_radio_data_mrr(1,radio_tx_prefix,radio_tx_data);	
+    send_radio_data_mrr(1,radio_tx_prefix,radio_tx_data);   
  d40:	2001      	movs	r0, #1
-	exec_count_irq++;
+    exec_count_irq++;
  d42:	6023      	str	r3, [r4, #0]
-	send_radio_data_mrr(1,radio_tx_prefix,radio_tx_data);	
+    send_radio_data_mrr(1,radio_tx_prefix,radio_tx_data);   
  d44:	f7ff feee 	bl	b24 <send_radio_data_mrr>
 
-	if (exec_count_irq < radio_tx_num){
+    if (exec_count_irq < radio_tx_num){
  d48:	6823      	ldr	r3, [r4, #0]
  d4a:	9a01      	ldr	r2, [sp, #4]
  d4c:	4293      	cmp	r3, r2
  d4e:	d207      	bcs.n	d60 <operation_goc_trigger_radio+0x38>
-		// set timer
-		set_wakeup_timer (wakeup_timer_val, 0x1, 0x1);
+        // set timer
+        set_wakeup_timer (wakeup_timer_val, 0x1, 0x1);
  d50:	2201      	movs	r2, #1
  d52:	0028      	movs	r0, r5
  d54:	0011      	movs	r1, r2
@@ -2366,15 +2366,15 @@ static void operation_goc_trigger_radio(uint32_t radio_tx_num, uint32_t wakeup_t
  d5a:	f7ff fa2b 	bl	1b4 <mbus_sleep_all>
     while(1);
  d5e:	e7fe      	b.n	d5e <operation_goc_trigger_radio+0x36>
-		// go to sleep and wake up with same condition
-		operation_sleep_noirqreset();
-		
-	}else{
-		exec_count_irq = 0;
+        // go to sleep and wake up with same condition
+        operation_sleep_noirqreset();
+        
+    }else{
+        exec_count_irq = 0;
  d60:	2300      	movs	r3, #0
  d62:	6023      	str	r3, [r4, #0]
-		// Go to sleep without timer
-		operation_sleep_notimer();
+        // Go to sleep without timer
+        operation_sleep_notimer();
  d64:	f7ff fe22 	bl	9ac <operation_sleep_notimer>
  d68:	00001e3c 	.word	0x00001e3c
 
@@ -2499,7 +2499,7 @@ static void operation_sns_run(void){
      e10:	0010      	movs	r0, r2
     sntv5_r01.TSNS_RESETn = 0;
      e12:	2501      	movs	r5, #1
-    	pmu_set_sleep_clk(0xF,0xA,0x5,0xF/*V1P2*/);
+        pmu_set_sleep_clk(0xF,0xA,0x5,0xF/*V1P2*/);
      e14:	f7ff fcdc 	bl	7d0 <pmu_set_sleep_clk>
     sntv5_r01.TSNS_RESETn = 0;
      e18:	4c94      	ldr	r4, [pc, #592]	; (106c <operation_sns_run+0x300>)
@@ -2526,7 +2526,7 @@ static void operation_sns_run(void){
      e32:	6822      	ldr	r2, [r4, #0]
      e34:	2005      	movs	r0, #5
      e36:	f7ff f9d4 	bl	1e2 <mbus_remote_register_write>
-	*GOC_DATA_IRQ = 0;
+    *GOC_DATA_IRQ = 0;
      e3a:	238c      	movs	r3, #140	; 0x8c
      e3c:	2200      	movs	r2, #0
      e3e:	601a      	str	r2, [r3, #0]
@@ -2551,7 +2551,7 @@ static void operation_sns_run(void){
         pmu_set_sleep_clk(0xF,0xA,0x7,0xF/*V1P2*/);
      e5c:	230f      	movs	r3, #15
      e5e:	2207      	movs	r2, #7
-    	pmu_set_sleep_clk(0xF,0xA,0x5,0xF/*V1P2*/);
+        pmu_set_sleep_clk(0xF,0xA,0x5,0xF/*V1P2*/);
      e60:	210a      	movs	r1, #10
      e62:	0018      	movs	r0, r3
      e64:	e7d5      	b.n	e12 <operation_sns_run+0xa6>
@@ -2628,12 +2628,12 @@ static void operation_sns_run(void){
      ed8:	6023      	str	r3, [r4, #0]
             pmu_adc_read_latest();
      eda:	f7ff fcfb 	bl	8d4 <pmu_adc_read_latest>
-			uint32_t pmu_setting_prev = pmu_setting_state;
+            uint32_t pmu_setting_prev = pmu_setting_state;
      ede:	4d64      	ldr	r5, [pc, #400]	; (1070 <operation_sns_run+0x304>)
             if (temp_storage_latest > PMU_95C_threshold_sns){
      ee0:	4c66      	ldr	r4, [pc, #408]	; (107c <operation_sns_run+0x310>)
      ee2:	4b6a      	ldr	r3, [pc, #424]	; (108c <operation_sns_run+0x320>)
-			uint32_t pmu_setting_prev = pmu_setting_state;
+            uint32_t pmu_setting_prev = pmu_setting_state;
      ee4:	682f      	ldr	r7, [r5, #0]
             if (temp_storage_latest > PMU_95C_threshold_sns){
      ee6:	6822      	ldr	r2, [r4, #0]
@@ -2644,15 +2644,15 @@ static void operation_sns_run(void){
      eee:	230d      	movs	r3, #13
                 pmu_setting_state = PMU_0C;
      ef0:	602b      	str	r3, [r5, #0]
-   	        pmu_sleep_setting_temp_based();
+            pmu_sleep_setting_temp_based();
      ef2:	f7ff fc91 	bl	818 <pmu_sleep_setting_temp_based>
-			if (pmu_setting_prev != pmu_setting_state){
+            if (pmu_setting_prev != pmu_setting_state){
      ef6:	682b      	ldr	r3, [r5, #0]
      ef8:	429f      	cmp	r7, r3
      efa:	d001      	beq.n	f00 <operation_sns_run+0x194>
-	            pmu_active_setting_temp_based();
+                pmu_active_setting_temp_based();
      efc:	f7ff fbfe 	bl	6fc <pmu_active_setting_temp_based>
-			radio_power_on();
+            radio_power_on();
      f00:	f7ff fa0a 	bl	318 <radio_power_on>
             temp_sensor_power_off();
      f04:	f7ff f99a 	bl	23c <temp_sensor_power_off>
@@ -2706,11 +2706,11 @@ static void operation_sns_run(void){
      f54:	f7ff faa4 	bl	4a0 <radio_power_off>
     snt_wup_counter_cur = sleep_count + snt_wup_counter_cur; // should handle rollover
      f58:	4c52      	ldr	r4, [pc, #328]	; (10a4 <operation_sns_run+0x338>)
-			snt_set_wup_timer(WAKEUP_PERIOD_SNT);
+            snt_set_wup_timer(WAKEUP_PERIOD_SNT);
      f5a:	4b53      	ldr	r3, [pc, #332]	; (10a8 <operation_sns_run+0x33c>)
     mbus_remote_register_write(SNT_ADDR,0x19,snt_wup_counter_cur>>24);
      f5c:	2119      	movs	r1, #25
-			snt_set_wup_timer(WAKEUP_PERIOD_SNT);
+            snt_set_wup_timer(WAKEUP_PERIOD_SNT);
      f5e:	681b      	ldr	r3, [r3, #0]
     snt_wup_counter_cur = sleep_count + snt_wup_counter_cur; // should handle rollover
      f60:	6822      	ldr	r2, [r4, #0]
@@ -2920,7 +2920,7 @@ int main(){
     10e0:	b5f7      	push	{r0, r1, r2, r4, r5, r6, r7, lr}
 
     // Only enable relevant interrupts
-	*NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3);
+    *NVIC_ISER = (1 << IRQ_WAKEUP) | (1 << IRQ_GOCEP) | (1 << IRQ_TIMER32) | (1 << IRQ_REG0)| (1 << IRQ_REG1)| (1 << IRQ_REG2)| (1 << IRQ_REG3);
     10e2:	4bf8      	ldr	r3, [pc, #992]	; (14c4 <main+0x3e4>)
     10e4:	4af8      	ldr	r2, [pc, #992]	; (14c8 <main+0x3e8>)
     10e6:	4df9      	ldr	r5, [pc, #996]	; (14cc <main+0x3ec>)
@@ -2960,18 +2960,18 @@ int main(){
     110c:	48f1      	ldr	r0, [pc, #964]	; (14d4 <main+0x3f4>)
     110e:	f7fe ffed 	bl	ec <config_timerwd>
 
-	wakeup_count++;
+    wakeup_count++;
     1112:	4cf1      	ldr	r4, [pc, #964]	; (14d8 <main+0x3f8>)
     1114:	6823      	ldr	r3, [r4, #0]
     1116:	3301      	adds	r3, #1
     1118:	6023      	str	r3, [r4, #0]
 
-	// Figure out who triggered wakeup
-	if(*SREG_WAKEUP_SOURCE & 0x00000008){
+    // Figure out who triggered wakeup
+    if(*SREG_WAKEUP_SOURCE & 0x00000008){
     111a:	682b      	ldr	r3, [r5, #0]
-		mbus_write_message32(0xAA,0x11331133);
-		#endif
-	}
+        mbus_write_message32(0xAA,0x11331133);
+        #endif
+    }
 
     // Initialization sequence
     if (enumerated != 0x5453104b){
@@ -2981,7 +2981,7 @@ int main(){
     1122:	42ab      	cmp	r3, r5
     1124:	d100      	bne.n	1128 <main+0x48>
     1126:	e2d7      	b.n	16d8 <main+0x5f8>
-	mbus_write_message32(0xAF, 0x00001000);
+    mbus_write_message32(0xAF, 0x00001000);
     1128:	2180      	movs	r1, #128	; 0x80
     112a:	20af      	movs	r0, #175	; 0xaf
     112c:	0149      	lsls	r1, r1, #5
@@ -3021,7 +3021,7 @@ int main(){
     prev21e_r0B.GOC_CLK_GEN_SEL_FREQ = 0x5; // 0x7
     1160:	681a      	ldr	r2, [r3, #0]
     1162:	49e4      	ldr	r1, [pc, #912]	; (14f4 <main+0x414>)
-    stack_state = STK_IDLE; 	//0x0;
+    stack_state = STK_IDLE;     //0x0;
     1164:	2700      	movs	r7, #0
     prev21e_r0B.GOC_CLK_GEN_SEL_FREQ = 0x5; // 0x7
     1166:	4011      	ands	r1, r2
@@ -3032,45 +3032,45 @@ int main(){
     prev21e_r0B.GOC_CLK_GEN_SEL_DIV = 0x0;  // 0x1
     1170:	681a      	ldr	r2, [r3, #0]
     1172:	49e1      	ldr	r1, [pc, #900]	; (14f8 <main+0x418>)
-	mbus_write_message32(0xAF, 0x00001001);
+    mbus_write_message32(0xAF, 0x00001001);
     1174:	20af      	movs	r0, #175	; 0xaf
     prev21e_r0B.GOC_CLK_GEN_SEL_DIV = 0x0;  // 0x1
     1176:	400a      	ands	r2, r1
     1178:	601a      	str	r2, [r3, #0]
     prev21e_r0B.GOC_SEL = 0xF;              // 0x8
     117a:	681a      	ldr	r2, [r3, #0]
-	mbus_write_message32(0xAF, 0x00001001);
+    mbus_write_message32(0xAF, 0x00001001);
     117c:	49df      	ldr	r1, [pc, #892]	; (14fc <main+0x41c>)
     prev21e_r0B.GOC_SEL = 0xF;              // 0x8
     117e:	4332      	orrs	r2, r6
     1180:	601a      	str	r2, [r3, #0]
-	*REG_CLKGEN_TUNE = prev21e_r0B.as_int;
+    *REG_CLKGEN_TUNE = prev21e_r0B.as_int;
     1182:	681a      	ldr	r2, [r3, #0]
     1184:	4bde      	ldr	r3, [pc, #888]	; (1500 <main+0x420>)
     1186:	601a      	str	r2, [r3, #0]
-	mbus_write_message32(0xAF, 0x00001001);
+    mbus_write_message32(0xAF, 0x00001001);
     1188:	f7fe ffec 	bl	164 <mbus_write_message32>
-    stack_state = STK_IDLE; 	//0x0;
+    stack_state = STK_IDLE;     //0x0;
     118c:	4bdd      	ldr	r3, [pc, #884]	; (1504 <main+0x424>)
-	PMU_ADC_3P0_VAL = 0x62;
+    PMU_ADC_3P0_VAL = 0x62;
     118e:	2262      	movs	r2, #98	; 0x62
-    stack_state = STK_IDLE; 	//0x0;
+    stack_state = STK_IDLE;     //0x0;
     1190:	601f      	str	r7, [r3, #0]
     enumerated = 0x5453104b; // 0x5453 is TS in ascii
     1192:	4bd2      	ldr	r3, [pc, #840]	; (14dc <main+0x3fc>)
-	mbus_write_message32(0xAF, 0x00001002);
+    mbus_write_message32(0xAF, 0x00001002);
     1194:	49dc      	ldr	r1, [pc, #880]	; (1508 <main+0x428>)
     enumerated = 0x5453104b; // 0x5453 is TS in ascii
     1196:	601d      	str	r5, [r3, #0]
     exec_count = 0;
     1198:	4bdc      	ldr	r3, [pc, #880]	; (150c <main+0x42c>)
-	mbus_write_message32(0xAF, 0x00001002);
+    mbus_write_message32(0xAF, 0x00001002);
     119a:	20af      	movs	r0, #175	; 0xaf
     exec_count = 0;
     119c:	601f      	str	r7, [r3, #0]
     wakeup_count = 0;
     119e:	6027      	str	r7, [r4, #0]
-	pmu_parking_mode = 3;
+    pmu_parking_mode = 3;
     11a0:	2403      	movs	r4, #3
     exec_count_irq = 0;
     11a2:	4bdb      	ldr	r3, [pc, #876]	; (1510 <main+0x430>)
@@ -3078,13 +3078,13 @@ int main(){
     11a4:	2540      	movs	r5, #64	; 0x40
     exec_count_irq = 0;
     11a6:	601f      	str	r7, [r3, #0]
-	PMU_ADC_3P0_VAL = 0x62;
+    PMU_ADC_3P0_VAL = 0x62;
     11a8:	4bda      	ldr	r3, [pc, #872]	; (1514 <main+0x434>)
     11aa:	601a      	str	r2, [r3, #0]
-	pmu_parking_mode = 3;
+    pmu_parking_mode = 3;
     11ac:	4bda      	ldr	r3, [pc, #872]	; (1518 <main+0x438>)
     11ae:	601c      	str	r4, [r3, #0]
-	mbus_write_message32(0xAF, 0x00001002);
+    mbus_write_message32(0xAF, 0x00001002);
     11b0:	f7fe ffd8 	bl	164 <mbus_write_message32>
     set_halt_until_mbus_trx();  // [CISv2] Newly Added
     11b4:	f7fe ffd0 	bl	158 <set_halt_until_mbus_trx>
@@ -3094,7 +3094,7 @@ int main(){
     mbus_enumerate(MRR_ADDR);
     11be:	2004      	movs	r0, #4
     11c0:	f7fe ffee 	bl	1a0 <mbus_enumerate>
- 	mbus_enumerate(PMU_ADDR);
+    mbus_enumerate(PMU_ADDR);
     11c4:	2006      	movs	r0, #6
     11c6:	f7fe ffeb 	bl	1a0 <mbus_enumerate>
     set_halt_until_mbus_tx();   // [CISv2] Newly Added
@@ -3111,10 +3111,10 @@ int main(){
     11dc:	49d0      	ldr	r1, [pc, #832]	; (1520 <main+0x440>)
     11de:	2005      	movs	r0, #5
     11e0:	f7ff fa52 	bl	688 <pmu_reg_write>
-	pmu_set_sar_override(0x45);
+    pmu_set_sar_override(0x45);
     11e4:	2045      	movs	r0, #69	; 0x45
     11e6:	f7ff fb65 	bl	8b4 <pmu_set_sar_override>
-	pmu_reg_write(0x3C,
+    pmu_reg_write(0x3C,
     11ea:	203c      	movs	r0, #60	; 0x3c
     11ec:	49cd      	ldr	r1, [pc, #820]	; (1524 <main+0x444>)
     11ee:	f7ff fa4b 	bl	688 <pmu_reg_write>
@@ -3122,15 +3122,15 @@ int main(){
     11f2:	2101      	movs	r1, #1
     11f4:	2036      	movs	r0, #54	; 0x36
     11f6:	f7ff fa47 	bl	688 <pmu_reg_write>
-	delay(MBUS_DELAY*10);
+    delay(MBUS_DELAY*10);
     11fa:	20fa      	movs	r0, #250	; 0xfa
     11fc:	00c0      	lsls	r0, r0, #3
     11fe:	f7fe ff53 	bl	a8 <delay>
-	pmu_reg_write(0x33,2);
+    pmu_reg_write(0x33,2);
     1202:	2102      	movs	r1, #2
     1204:	2033      	movs	r0, #51	; 0x33
     1206:	f7ff fa3f 	bl	688 <pmu_reg_write>
-	pmu_reg_write(0x3C,
+    pmu_reg_write(0x3C,
     120a:	203c      	movs	r0, #60	; 0x3c
     120c:	49c5      	ldr	r1, [pc, #788]	; (1524 <main+0x444>)
     120e:	f7ff fa3b 	bl	688 <pmu_reg_write>
@@ -3138,11 +3138,11 @@ int main(){
     1212:	203a      	movs	r0, #58	; 0x3a
     1214:	49c4      	ldr	r1, [pc, #784]	; (1528 <main+0x448>)
     1216:	f7ff fa37 	bl	688 <pmu_reg_write>
-	pmu_reg_write(0x3C,
+    pmu_reg_write(0x3C,
     121a:	203c      	movs	r0, #60	; 0x3c
     121c:	49c1      	ldr	r1, [pc, #772]	; (1524 <main+0x444>)
     121e:	f7ff fa33 	bl	688 <pmu_reg_write>
-	pmu_reg_write(0x3B,
+    pmu_reg_write(0x3B,
     1222:	203b      	movs	r0, #59	; 0x3b
     1224:	49c1      	ldr	r1, [pc, #772]	; (152c <main+0x44c>)
     1226:	f7ff fa2f 	bl	688 <pmu_reg_write>
@@ -3270,70 +3270,70 @@ int main(){
     mbus_remote_register_write(SNT_ADDR,0x17,sntv5_r17.as_int);
     12da:	681a      	ldr	r2, [r3, #0]
     12dc:	f7fe ff81 	bl	1e2 <mbus_remote_register_write>
-	mrrv11a_r21.TRX_ENb_CONT_RC = 0;  //RX_Decap P 
+    mrrv11a_r21.TRX_ENb_CONT_RC = 0;  //RX_Decap P 
     12e0:	4ba0      	ldr	r3, [pc, #640]	; (1564 <main+0x484>)
     12e2:	49a1      	ldr	r1, [pc, #644]	; (1568 <main+0x488>)
     12e4:	881a      	ldrh	r2, [r3, #0]
-	mbus_remote_register_write(MRR_ADDR,0x21,mrrv11a_r21.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x21,mrrv11a_r21.as_int);
     12e6:	0020      	movs	r0, r4
-	mrrv11a_r21.TRX_ENb_CONT_RC = 0;  //RX_Decap P 
+    mrrv11a_r21.TRX_ENb_CONT_RC = 0;  //RX_Decap P 
     12e8:	400a      	ands	r2, r1
     12ea:	801a      	strh	r2, [r3, #0]
-	mbus_remote_register_write(MRR_ADDR,0x21,mrrv11a_r21.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x21,mrrv11a_r21.as_int);
     12ec:	681a      	ldr	r2, [r3, #0]
     12ee:	2121      	movs	r1, #33	; 0x21
     12f0:	f7fe ff77 	bl	1e2 <mbus_remote_register_write>
-	mrrv11a_r03.TRX_DCP_P_OW1 = 0;  //RX_Decap P 
+    mrrv11a_r03.TRX_DCP_P_OW1 = 0;  //RX_Decap P 
     12f4:	4d9d      	ldr	r5, [pc, #628]	; (156c <main+0x48c>)
     12f6:	4a96      	ldr	r2, [pc, #600]	; (1550 <main+0x470>)
     12f8:	682b      	ldr	r3, [r5, #0]
-	mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
     12fa:	2103      	movs	r1, #3
-	mrrv11a_r03.TRX_DCP_P_OW1 = 0;  //RX_Decap P 
+    mrrv11a_r03.TRX_DCP_P_OW1 = 0;  //RX_Decap P 
     12fc:	4013      	ands	r3, r2
     12fe:	602b      	str	r3, [r5, #0]
-	mrrv11a_r03.TRX_DCP_P_OW2 = 0;  //RX_Decap P 
+    mrrv11a_r03.TRX_DCP_P_OW2 = 0;  //RX_Decap P 
     1300:	682b      	ldr	r3, [r5, #0]
-	mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
     1302:	0020      	movs	r0, r4
-	mrrv11a_r03.TRX_DCP_P_OW2 = 0;  //RX_Decap P 
+    mrrv11a_r03.TRX_DCP_P_OW2 = 0;  //RX_Decap P 
     1304:	401e      	ands	r6, r3
     1306:	602e      	str	r6, [r5, #0]
-	mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
     1308:	682a      	ldr	r2, [r5, #0]
     130a:	f7fe ff6a 	bl	1e2 <mbus_remote_register_write>
-	mrrv11a_r03.TRX_DCP_S_OW1 = 1;  //TX_Decap S (forced charge decaps)
+    mrrv11a_r03.TRX_DCP_S_OW1 = 1;  //TX_Decap S (forced charge decaps)
     130e:	2280      	movs	r2, #128	; 0x80
     1310:	682b      	ldr	r3, [r5, #0]
     1312:	0312      	lsls	r2, r2, #12
     1314:	4313      	orrs	r3, r2
     1316:	602b      	str	r3, [r5, #0]
-	mrrv11a_r03.TRX_DCP_S_OW2 = 1;  //TX_Decap S (forced charge decaps)
+    mrrv11a_r03.TRX_DCP_S_OW2 = 1;  //TX_Decap S (forced charge decaps)
     1318:	2380      	movs	r3, #128	; 0x80
     131a:	682a      	ldr	r2, [r5, #0]
     131c:	02db      	lsls	r3, r3, #11
     131e:	4313      	orrs	r3, r2
     1320:	602b      	str	r3, [r5, #0]
-	mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
     1322:	682a      	ldr	r2, [r5, #0]
     1324:	2103      	movs	r1, #3
     1326:	0020      	movs	r0, r4
     1328:	f7fe ff5b 	bl	1e2 <mbus_remote_register_write>
-	mrrv11a_r00.TRX_CL_CTRL = 8; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+    mrrv11a_r00.TRX_CL_CTRL = 8; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
     132c:	227e      	movs	r2, #126	; 0x7e
     132e:	4e90      	ldr	r6, [pc, #576]	; (1570 <main+0x490>)
-	mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
     1330:	0039      	movs	r1, r7
-	mrrv11a_r00.TRX_CL_CTRL = 8; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+    mrrv11a_r00.TRX_CL_CTRL = 8; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
     1332:	6833      	ldr	r3, [r6, #0]
-	mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
     1334:	0020      	movs	r0, r4
-	mrrv11a_r00.TRX_CL_CTRL = 8; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+    mrrv11a_r00.TRX_CL_CTRL = 8; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
     1336:	4393      	bics	r3, r2
     1338:	3a6e      	subs	r2, #110	; 0x6e
     133a:	4313      	orrs	r3, r2
     133c:	6033      	str	r3, [r6, #0]
-	mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
     133e:	6832      	ldr	r2, [r6, #0]
     1340:	f7fe ff4f 	bl	1e2 <mbus_remote_register_write>
     mrrv11a_r00.TRX_CL_EN = 1;  //Enable CL
@@ -3348,33 +3348,33 @@ int main(){
     134e:	6832      	ldr	r2, [r6, #0]
     1350:	0020      	movs	r0, r4
     1352:	f7fe ff46 	bl	1e2 <mbus_remote_register_write>
-   	config_timerwd(TIMERWD_VAL);
+    config_timerwd(TIMERWD_VAL);
     1356:	485f      	ldr	r0, [pc, #380]	; (14d4 <main+0x3f4>)
     1358:	f7fe fec8 	bl	ec <config_timerwd>
-	*REG_MBUS_WD = 1500000*3; // default: 1500000
+    *REG_MBUS_WD = 1500000*3; // default: 1500000
     135c:	4b85      	ldr	r3, [pc, #532]	; (1574 <main+0x494>)
     135e:	4a86      	ldr	r2, [pc, #536]	; (1578 <main+0x498>)
-	delay(MBUS_DELAY*200); // Wait for decap to charge
+    delay(MBUS_DELAY*200); // Wait for decap to charge
     1360:	4886      	ldr	r0, [pc, #536]	; (157c <main+0x49c>)
-	*REG_MBUS_WD = 1500000*3; // default: 1500000
+    *REG_MBUS_WD = 1500000*3; // default: 1500000
     1362:	6013      	str	r3, [r2, #0]
-	delay(MBUS_DELAY*200); // Wait for decap to charge
+    delay(MBUS_DELAY*200); // Wait for decap to charge
     1364:	f7fe fea0 	bl	a8 <delay>
-	mrrv11a_r1F.LC_CLK_RING = 0x3;  // ~ 150 kHz
+    mrrv11a_r1F.LC_CLK_RING = 0x3;  // ~ 150 kHz
     1368:	2103      	movs	r1, #3
     136a:	4b85      	ldr	r3, [pc, #532]	; (1580 <main+0x4a0>)
-	mbus_remote_register_write(MRR_ADDR,0x1F,mrrv11a_r1F.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x1F,mrrv11a_r1F.as_int);
     136c:	0020      	movs	r0, r4
-	mrrv11a_r1F.LC_CLK_RING = 0x3;  // ~ 150 kHz
+    mrrv11a_r1F.LC_CLK_RING = 0x3;  // ~ 150 kHz
     136e:	781a      	ldrb	r2, [r3, #0]
     1370:	430a      	orrs	r2, r1
     1372:	701a      	strb	r2, [r3, #0]
-	mrrv11a_r1F.LC_CLK_DIV = 0x3;  // ~ 150 kHz
+    mrrv11a_r1F.LC_CLK_DIV = 0x3;  // ~ 150 kHz
     1374:	220c      	movs	r2, #12
     1376:	7819      	ldrb	r1, [r3, #0]
     1378:	430a      	orrs	r2, r1
     137a:	701a      	strb	r2, [r3, #0]
-	mbus_remote_register_write(MRR_ADDR,0x1F,mrrv11a_r1F.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x1F,mrrv11a_r1F.as_int);
     137c:	681a      	ldr	r2, [r3, #0]
     137e:	211f      	movs	r1, #31
     1380:	f7fe ff2f 	bl	1e2 <mbus_remote_register_write>
@@ -3417,47 +3417,47 @@ int main(){
     13bc:	681a      	ldr	r2, [r3, #0]
     13be:	0020      	movs	r0, r4
     13c0:	f7fe ff0f 	bl	1e2 <mbus_remote_register_write>
-	mrr_freq_hopping = 5;
+    mrr_freq_hopping = 5;
     13c4:	2205      	movs	r2, #5
     13c6:	4b72      	ldr	r3, [pc, #456]	; (1590 <main+0x4b0>)
-	mbus_remote_register_write(MRR_ADDR,0x06,0x1000); // RO_PDIFF
+    mbus_remote_register_write(MRR_ADDR,0x06,0x1000); // RO_PDIFF
     13c8:	2106      	movs	r1, #6
-	mrr_freq_hopping = 5;
+    mrr_freq_hopping = 5;
     13ca:	601a      	str	r2, [r3, #0]
-	mbus_remote_register_write(MRR_ADDR,0x06,0x1000); // RO_PDIFF
+    mbus_remote_register_write(MRR_ADDR,0x06,0x1000); // RO_PDIFF
     13cc:	2280      	movs	r2, #128	; 0x80
-	mrr_freq_hopping_step = 4;
+    mrr_freq_hopping_step = 4;
     13ce:	4b71      	ldr	r3, [pc, #452]	; (1594 <main+0x4b4>)
-	mbus_remote_register_write(MRR_ADDR,0x06,0x1000); // RO_PDIFF
+    mbus_remote_register_write(MRR_ADDR,0x06,0x1000); // RO_PDIFF
     13d0:	0020      	movs	r0, r4
-	mrr_freq_hopping_step = 4;
+    mrr_freq_hopping_step = 4;
     13d2:	601c      	str	r4, [r3, #0]
-	mrr_cfo_val_fine_min = 0x0000;
+    mrr_cfo_val_fine_min = 0x0000;
     13d4:	4b70      	ldr	r3, [pc, #448]	; (1598 <main+0x4b8>)
-	mbus_remote_register_write(MRR_ADDR,0x06,0x1000); // RO_PDIFF
+    mbus_remote_register_write(MRR_ADDR,0x06,0x1000); // RO_PDIFF
     13d6:	0152      	lsls	r2, r2, #5
-	mrr_cfo_val_fine_min = 0x0000;
+    mrr_cfo_val_fine_min = 0x0000;
     13d8:	601f      	str	r7, [r3, #0]
-	mbus_remote_register_write(MRR_ADDR,0x06,0x1000); // RO_PDIFF
+    mbus_remote_register_write(MRR_ADDR,0x06,0x1000); // RO_PDIFF
     13da:	f7fe ff02 	bl	1e2 <mbus_remote_register_write>
-	mbus_remote_register_write(MRR_ADDR,0x08,0x400000); // RO_POLY
+    mbus_remote_register_write(MRR_ADDR,0x08,0x400000); // RO_POLY
     13de:	2280      	movs	r2, #128	; 0x80
     13e0:	2108      	movs	r1, #8
     13e2:	0020      	movs	r0, r4
     13e4:	03d2      	lsls	r2, r2, #15
     13e6:	f7fe fefc 	bl	1e2 <mbus_remote_register_write>
-	mrrv11a_r07.RO_MOM = 0x10;
+    mrrv11a_r07.RO_MOM = 0x10;
     13ea:	217f      	movs	r1, #127	; 0x7f
     13ec:	4a6b      	ldr	r2, [pc, #428]	; (159c <main+0x4bc>)
-	mbus_remote_register_write(MRR_ADDR,0x07,mrrv11a_r07.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x07,mrrv11a_r07.as_int);
     13ee:	0020      	movs	r0, r4
-	mrrv11a_r07.RO_MOM = 0x10;
+    mrrv11a_r07.RO_MOM = 0x10;
     13f0:	8813      	ldrh	r3, [r2, #0]
     13f2:	438b      	bics	r3, r1
     13f4:	396f      	subs	r1, #111	; 0x6f
     13f6:	430b      	orrs	r3, r1
     13f8:	8013      	strh	r3, [r2, #0]
-	mrrv11a_r07.RO_MIM = 0x10;
+    mrrv11a_r07.RO_MIM = 0x10;
     13fa:	8813      	ldrh	r3, [r2, #0]
     13fc:	4968      	ldr	r1, [pc, #416]	; (15a0 <main+0x4c0>)
     13fe:	4019      	ands	r1, r3
@@ -3465,32 +3465,32 @@ int main(){
     1402:	011b      	lsls	r3, r3, #4
     1404:	430b      	orrs	r3, r1
     1406:	8013      	strh	r3, [r2, #0]
-	mbus_remote_register_write(MRR_ADDR,0x07,mrrv11a_r07.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x07,mrrv11a_r07.as_int);
     1408:	2107      	movs	r1, #7
     140a:	6812      	ldr	r2, [r2, #0]
     140c:	f7fe fee9 	bl	1e2 <mbus_remote_register_write>
-	mrrv11a_r00.TRX_CAP_ANTP_TUNE_COARSE = 0x0;  //ANT CAP 10b unary 830.5 MHz
+    mrrv11a_r00.TRX_CAP_ANTP_TUNE_COARSE = 0x0;  //ANT CAP 10b unary 830.5 MHz
     1410:	6833      	ldr	r3, [r6, #0]
     1412:	4a64      	ldr	r2, [pc, #400]	; (15a4 <main+0x4c4>)
-	mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
     1414:	0039      	movs	r1, r7
-	mrrv11a_r00.TRX_CAP_ANTP_TUNE_COARSE = 0x0;  //ANT CAP 10b unary 830.5 MHz
+    mrrv11a_r00.TRX_CAP_ANTP_TUNE_COARSE = 0x0;  //ANT CAP 10b unary 830.5 MHz
     1416:	4013      	ands	r3, r2
     1418:	6033      	str	r3, [r6, #0]
-	mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
     141a:	6832      	ldr	r2, [r6, #0]
     141c:	0020      	movs	r0, r4
     141e:	f7fe fee0 	bl	1e2 <mbus_remote_register_write>
-	mrrv11a_r01.TRX_CAP_ANTN_TUNE_COARSE = 0x0; //ANT CAP 10b unary 830.5 MHz
+    mrrv11a_r01.TRX_CAP_ANTN_TUNE_COARSE = 0x0; //ANT CAP 10b unary 830.5 MHz
     1422:	4b61      	ldr	r3, [pc, #388]	; (15a8 <main+0x4c8>)
-	mrrv11a_r01.TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min;  //ANT CAP 14b unary 830.5 MHz
+    mrrv11a_r01.TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min;  //ANT CAP 14b unary 830.5 MHz
     1424:	4e5c      	ldr	r6, [pc, #368]	; (1598 <main+0x4b8>)
-	mrrv11a_r01.TRX_CAP_ANTN_TUNE_COARSE = 0x0; //ANT CAP 10b unary 830.5 MHz
+    mrrv11a_r01.TRX_CAP_ANTN_TUNE_COARSE = 0x0; //ANT CAP 10b unary 830.5 MHz
     1426:	681a      	ldr	r2, [r3, #0]
     1428:	0a92      	lsrs	r2, r2, #10
     142a:	0292      	lsls	r2, r2, #10
     142c:	601a      	str	r2, [r3, #0]
-	mrrv11a_r01.TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min;  //ANT CAP 14b unary 830.5 MHz
+    mrrv11a_r01.TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min;  //ANT CAP 14b unary 830.5 MHz
     142e:	6830      	ldr	r0, [r6, #0]
     1430:	263f      	movs	r6, #63	; 0x3f
     1432:	4030      	ands	r0, r6
@@ -3499,11 +3499,11 @@ int main(){
     1438:	485c      	ldr	r0, [pc, #368]	; (15ac <main+0x4cc>)
     143a:	4008      	ands	r0, r1
     143c:	4310      	orrs	r0, r2
-	mrrv11a_r01.TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min; //ANT CAP 14b unary 830.5 MHz
+    mrrv11a_r01.TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min; //ANT CAP 14b unary 830.5 MHz
     143e:	4a56      	ldr	r2, [pc, #344]	; (1598 <main+0x4b8>)
-	mrrv11a_r01.TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min;  //ANT CAP 14b unary 830.5 MHz
+    mrrv11a_r01.TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min;  //ANT CAP 14b unary 830.5 MHz
     1440:	6018      	str	r0, [r3, #0]
-	mrrv11a_r01.TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min; //ANT CAP 14b unary 830.5 MHz
+    mrrv11a_r01.TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min; //ANT CAP 14b unary 830.5 MHz
     1442:	6811      	ldr	r1, [r2, #0]
     1444:	485a      	ldr	r0, [pc, #360]	; (15b0 <main+0x4d0>)
     1446:	681a      	ldr	r2, [r3, #0]
@@ -3512,40 +3512,40 @@ int main(){
     144c:	4002      	ands	r2, r0
     144e:	430a      	orrs	r2, r1
     1450:	601a      	str	r2, [r3, #0]
-	mbus_remote_register_write(MRR_ADDR,0x01,mrrv11a_r01.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x01,mrrv11a_r01.as_int);
     1452:	681a      	ldr	r2, [r3, #0]
     1454:	2101      	movs	r1, #1
     1456:	0020      	movs	r0, r4
     1458:	f7fe fec3 	bl	1e2 <mbus_remote_register_write>
-	mrrv11a_r02.TX_EN_OW = 0;  // [CISv2] Newly Added; Turn off TX_EN_OW
+    mrrv11a_r02.TX_EN_OW = 0;  // [CISv2] Newly Added; Turn off TX_EN_OW
     145c:	4a55      	ldr	r2, [pc, #340]	; (15b4 <main+0x4d4>)
     145e:	4956      	ldr	r1, [pc, #344]	; (15b8 <main+0x4d8>)
     1460:	6813      	ldr	r3, [r2, #0]
-	mbus_remote_register_write(MRR_ADDR,0x02,mrrv11a_r02.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x02,mrrv11a_r02.as_int);
     1462:	0020      	movs	r0, r4
-	mrrv11a_r02.TX_EN_OW = 0;  // [CISv2] Newly Added; Turn off TX_EN_OW
+    mrrv11a_r02.TX_EN_OW = 0;  // [CISv2] Newly Added; Turn off TX_EN_OW
     1464:	400b      	ands	r3, r1
     1466:	6013      	str	r3, [r2, #0]
-	mrrv11a_r02.TX_BIAS_TUNE = 0x7FF;  //Set TX BIAS TUNE 13b // Max 0x1FFF
+    mrrv11a_r02.TX_BIAS_TUNE = 0x7FF;  //Set TX BIAS TUNE 13b // Max 0x1FFF
     1468:	6813      	ldr	r3, [r2, #0]
     146a:	4954      	ldr	r1, [pc, #336]	; (15bc <main+0x4dc>)
     146c:	0b5b      	lsrs	r3, r3, #13
     146e:	035b      	lsls	r3, r3, #13
     1470:	430b      	orrs	r3, r1
     1472:	6013      	str	r3, [r2, #0]
-	mbus_remote_register_write(MRR_ADDR,0x02,mrrv11a_r02.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x02,mrrv11a_r02.as_int);
     1474:	2102      	movs	r1, #2
     1476:	6812      	ldr	r2, [r2, #0]
     1478:	f7fe feb3 	bl	1e2 <mbus_remote_register_write>
     mrrv11a_r03.TRX_MODE_EN = 0; //Set TRX mode
     147c:	682b      	ldr	r3, [r5, #0]
     147e:	4a50      	ldr	r2, [pc, #320]	; (15c0 <main+0x4e0>)
-	mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
     1480:	2103      	movs	r1, #3
     mrrv11a_r03.TRX_MODE_EN = 0; //Set TRX mode
     1482:	4013      	ands	r3, r2
     1484:	602b      	str	r3, [r5, #0]
-	mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
     1486:	682a      	ldr	r2, [r5, #0]
     1488:	0020      	movs	r0, r4
     148a:	f7fe feaa 	bl	1e2 <mbus_remote_register_write>
@@ -3553,20 +3553,20 @@ int main(){
     148e:	4b4d      	ldr	r3, [pc, #308]	; (15c4 <main+0x4e4>)
     1490:	494d      	ldr	r1, [pc, #308]	; (15c8 <main+0x4e8>)
     1492:	681a      	ldr	r2, [r3, #0]
-	mrrv11a_r15.FSM_RX_DATA_BITS = 0x00; //Set RX data 1b
+    mrrv11a_r15.FSM_RX_DATA_BITS = 0x00; //Set RX data 1b
     1494:	4d4d      	ldr	r5, [pc, #308]	; (15cc <main+0x4ec>)
     mrrv11a_r14.FSM_TX_POWERON_LEN = 0; //3bits
     1496:	400a      	ands	r2, r1
     1498:	601a      	str	r2, [r3, #0]
-	mrrv11a_r15.FSM_RX_DATA_BITS = 0x00; //Set RX data 1b
+    mrrv11a_r15.FSM_RX_DATA_BITS = 0x00; //Set RX data 1b
     149a:	782a      	ldrb	r2, [r5, #0]
     149c:	702f      	strb	r7, [r5, #0]
-	mbus_remote_register_write(MRR_ADDR,0x14,mrrv11a_r14.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x14,mrrv11a_r14.as_int);
     149e:	681a      	ldr	r2, [r3, #0]
     14a0:	2114      	movs	r1, #20
     14a2:	0020      	movs	r0, r4
     14a4:	f7fe fe9d 	bl	1e2 <mbus_remote_register_write>
-	mbus_remote_register_write(MRR_ADDR,0x15,mrrv11a_r15.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x15,mrrv11a_r15.as_int);
     14a8:	682a      	ldr	r2, [r5, #0]
     14aa:	2115      	movs	r1, #21
     14ac:	0020      	movs	r0, r4
@@ -3575,7 +3575,7 @@ int main(){
     14b2:	4b47      	ldr	r3, [pc, #284]	; (15d0 <main+0x4f0>)
     14b4:	21ff      	movs	r1, #255	; 0xff
     14b6:	681a      	ldr	r2, [r3, #0]
-	mbus_remote_register_write(MRR_ADDR,0x10,mrrv11a_r10.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x10,mrrv11a_r10.as_int);
     14b8:	0020      	movs	r0, r4
     mrrv11a_r10.FSM_TX_TP_LEN = 80;       // Num. Training Pulses (bit 0); Valid Range: 1 ~ 255 (Default: 80)
     14ba:	0015      	movs	r5, r2
@@ -3660,23 +3660,23 @@ int main(){
     15de:	4ae4      	ldr	r2, [pc, #912]	; (1970 <main+0x890>)
     15e0:	430a      	orrs	r2, r1
     15e2:	601a      	str	r2, [r3, #0]
-	mbus_remote_register_write(MRR_ADDR,0x10,mrrv11a_r10.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x10,mrrv11a_r10.as_int);
     15e4:	681a      	ldr	r2, [r3, #0]
     15e6:	2110      	movs	r1, #16
     15e8:	f7fe fdfb 	bl	1e2 <mbus_remote_register_write>
-	mrrv11a_r11.FSM_TX_DATA_BITS = RADIO_DATA_NUM_WORDS * 32;   // [CISv2] RADIO_DATA_LENGTH -> RADIO_DATA_NUM_WORDS * 32
+    mrrv11a_r11.FSM_TX_DATA_BITS = RADIO_DATA_NUM_WORDS * 32;   // [CISv2] RADIO_DATA_LENGTH -> RADIO_DATA_NUM_WORDS * 32
     15ec:	49e1      	ldr	r1, [pc, #900]	; (1974 <main+0x894>)
     15ee:	4ae2      	ldr	r2, [pc, #904]	; (1978 <main+0x898>)
     15f0:	680b      	ldr	r3, [r1, #0]
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
     15f2:	0020      	movs	r0, r4
-	mrrv11a_r11.FSM_TX_DATA_BITS = RADIO_DATA_NUM_WORDS * 32;   // [CISv2] RADIO_DATA_LENGTH -> RADIO_DATA_NUM_WORDS * 32
+    mrrv11a_r11.FSM_TX_DATA_BITS = RADIO_DATA_NUM_WORDS * 32;   // [CISv2] RADIO_DATA_LENGTH -> RADIO_DATA_NUM_WORDS * 32
     15f4:	401a      	ands	r2, r3
     15f6:	23c0      	movs	r3, #192	; 0xc0
     15f8:	01db      	lsls	r3, r3, #7
     15fa:	4313      	orrs	r3, r2
     15fc:	600b      	str	r3, [r1, #0]
-	mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+    mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
     15fe:	680a      	ldr	r2, [r1, #0]
     1600:	2111      	movs	r1, #17
     1602:	f7fe fdee 	bl	1e2 <mbus_remote_register_write>
@@ -3714,23 +3714,23 @@ int main(){
     1634:	0021      	movs	r1, r4
     1636:	6812      	ldr	r2, [r2, #0]
     1638:	f7fe fdd3 	bl	1e2 <mbus_remote_register_write>
-   	config_timerwd(TIMERWD_VAL);
+    config_timerwd(TIMERWD_VAL);
     163c:	48d2      	ldr	r0, [pc, #840]	; (1988 <main+0x8a8>)
     163e:	f7fe fd55 	bl	ec <config_timerwd>
-	*REG_MBUS_WD = 1500000; // default: 1500000
+    *REG_MBUS_WD = 1500000; // default: 1500000
     1642:	4bd2      	ldr	r3, [pc, #840]	; (198c <main+0x8ac>)
     1644:	4ad2      	ldr	r2, [pc, #840]	; (1990 <main+0x8b0>)
-	delay(MBUS_DELAY*200); // Wait for decap to charge
+    delay(MBUS_DELAY*200); // Wait for decap to charge
     1646:	48d3      	ldr	r0, [pc, #844]	; (1994 <main+0x8b4>)
-	*REG_MBUS_WD = 1500000; // default: 1500000
+    *REG_MBUS_WD = 1500000; // default: 1500000
     1648:	6013      	str	r3, [r2, #0]
-	delay(MBUS_DELAY*200); // Wait for decap to charge
+    delay(MBUS_DELAY*200); // Wait for decap to charge
     164a:	f7fe fd2d 	bl	a8 <delay>
-	RADIO_PACKET_DELAY = 4000;
+    RADIO_PACKET_DELAY = 4000;
     164e:	22fa      	movs	r2, #250	; 0xfa
     sns_running = 0;
     1650:	4bd1      	ldr	r3, [pc, #836]	; (1998 <main+0x8b8>)
-	RADIO_PACKET_DELAY = 4000;
+    RADIO_PACKET_DELAY = 4000;
     1652:	0112      	lsls	r2, r2, #4
     sns_running = 0;
     1654:	601f      	str	r7, [r3, #0]
@@ -3743,21 +3743,21 @@ int main(){
     radio_on = 0;
     165c:	4bd1      	ldr	r3, [pc, #836]	; (19a4 <main+0x8c4>)
     165e:	601f      	str	r7, [r3, #0]
-	wakeup_data = 0;
+    wakeup_data = 0;
     1660:	4bd1      	ldr	r3, [pc, #836]	; (19a8 <main+0x8c8>)
     1662:	601f      	str	r7, [r3, #0]
-	RADIO_PACKET_DELAY = 4000;
+    RADIO_PACKET_DELAY = 4000;
     1664:	4bd1      	ldr	r3, [pc, #836]	; (19ac <main+0x8cc>)
     1666:	601a      	str	r2, [r3, #0]
     PMU_10C_threshold_sns = 600; // Around 10C
     1668:	2296      	movs	r2, #150	; 0x96
-	radio_packet_count = 0;
+    radio_packet_count = 0;
     166a:	4bd1      	ldr	r3, [pc, #836]	; (19b0 <main+0x8d0>)
     PMU_10C_threshold_sns = 600; // Around 10C
     166c:	0092      	lsls	r2, r2, #2
-	radio_packet_count = 0;
+    radio_packet_count = 0;
     166e:	601f      	str	r7, [r3, #0]
-	error_code = 0;
+    error_code = 0;
     1670:	4bd0      	ldr	r3, [pc, #832]	; (19b4 <main+0x8d4>)
     1672:	601f      	str	r7, [r3, #0]
     PMU_10C_threshold_sns = 600; // Around 10C
@@ -3824,14 +3824,14 @@ int main(){
     16ce:	4bd1      	ldr	r3, [pc, #836]	; (1a14 <main+0x934>)
     16d0:	4ad1      	ldr	r2, [pc, #836]	; (1a18 <main+0x938>)
     16d2:	601a      	str	r2, [r3, #0]
-			ii++;
-		}
-			send_radio_data_mrr(1,0x4,ii);	
+            ii++;
+        }
+            send_radio_data_mrr(1,0x4,ii);  
 
-		mrr_freq_hopping = mrr_freq_hopping_saved;
-		operation_sleep_notimer();
+        mrr_freq_hopping = mrr_freq_hopping_saved;
+        operation_sleep_notimer();
     16d4:	f7ff f96a 	bl	9ac <operation_sleep_notimer>
-	pmu_adc_read_latest();
+    pmu_adc_read_latest();
     16d8:	f7ff f8fc 	bl	8d4 <pmu_adc_read_latest>
     wakeup_data = *GOC_DATA_IRQ;
     16dc:	238c      	movs	r3, #140	; 0x8c
@@ -3852,14 +3852,14 @@ int main(){
     16ee:	0e2d      	lsrs	r5, r5, #24
     uint32_t wakeup_data_field_2 = wakeup_data>>16 & 0xFF;
     16f0:	9301      	str	r3, [sp, #4]
-	if ((wakeup_data_header != 0) && (exec_count_irq == 0)){
+    if ((wakeup_data_header != 0) && (exec_count_irq == 0)){
     16f2:	d100      	bne.n	16f6 <main+0x616>
     16f4:	e0bf      	b.n	1876 <main+0x796>
     16f6:	4bc9      	ldr	r3, [pc, #804]	; (1a1c <main+0x93c>)
     16f8:	681e      	ldr	r6, [r3, #0]
     16fa:	2e00      	cmp	r6, #0
     16fc:	d111      	bne.n	1722 <main+0x642>
-	set_halt_until_mbus_tx();
+    set_halt_until_mbus_tx();
     16fe:	f7fe fd25 	bl	14c <set_halt_until_mbus_tx>
     if (sns_running){
     1702:	4ba5      	ldr	r3, [pc, #660]	; (1998 <main+0x8b8>)
@@ -3872,13 +3872,13 @@ int main(){
     170c:	f7fe fd96 	bl	23c <temp_sensor_power_off>
         sns_ldo_power_off();
     1710:	f7fe fdae 	bl	270 <sns_ldo_power_off>
-   	    pmu_sleep_setting_temp_based();
+        pmu_sleep_setting_temp_based();
     1714:	f7ff f880 	bl	818 <pmu_sleep_setting_temp_based>
-	stack_state = STK_IDLE;
+    stack_state = STK_IDLE;
     1718:	2200      	movs	r2, #0
     171a:	4bc1      	ldr	r3, [pc, #772]	; (1a20 <main+0x940>)
     171c:	601a      	str	r2, [r3, #0]
-	radio_power_off();
+    radio_power_off();
     171e:	f7fe febf 	bl	4a0 <radio_power_off>
     uint32_t wakeup_data_field_0 = wakeup_data & 0xFF;
     1722:	20ff      	movs	r0, #255	; 0xff
@@ -3899,19 +3899,19 @@ int main(){
     if(wakeup_data_header == 1){
     1732:	2d01      	cmp	r5, #1
     1734:	d107      	bne.n	1746 <main+0x666>
-		operation_goc_trigger_radio(wakeup_data_field_0 + (wakeup_data_field_2<<8), wakeup_data_field_1, 0x4, exec_count_irq);
+        operation_goc_trigger_radio(wakeup_data_field_0 + (wakeup_data_field_2<<8), wakeup_data_field_1, 0x4, exec_count_irq);
     1736:	2204      	movs	r2, #4
     1738:	0039      	movs	r1, r7
     173a:	4bb8      	ldr	r3, [pc, #736]	; (1a1c <main+0x93c>)
     173c:	0200      	lsls	r0, r0, #8
     173e:	681b      	ldr	r3, [r3, #0]
     1740:	1980      	adds	r0, r0, r6
-		// Store the Chip ID
-		puf_chip_id = *REG_PUF_CHIP_ID;
-		// Power-Off PUF
-		*REG_SYS_CONF = (0x1/*PUF_SLEEP*/ << 6) | (0x1/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
+        // Store the Chip ID
+        puf_chip_id = *REG_PUF_CHIP_ID;
+        // Power-Off PUF
+        *REG_SYS_CONF = (0x1/*PUF_SLEEP*/ << 6) | (0x1/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
 
-		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xC, puf_chip_id);
+        operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xC, puf_chip_id);
     1742:	f7ff faf1 	bl	d28 <operation_goc_trigger_radio>
     }else if(wakeup_data_header == 0x32){
     1746:	2d32      	cmp	r5, #50	; 0x32
@@ -3921,11 +3921,11 @@ int main(){
     174c:	2280      	movs	r2, #128	; 0x80
     174e:	4013      	ands	r3, r2
     1750:	4ab4      	ldr	r2, [pc, #720]	; (1a24 <main+0x944>)
-		WAKEUP_PERIOD_SNT = ((wakeup_data & 0xFFFF)<<1)*SNT_0P5S_VAL; // Unit is 0.5s
+        WAKEUP_PERIOD_SNT = ((wakeup_data & 0xFFFF)<<1)*SNT_0P5S_VAL; // Unit is 0.5s
     1752:	49b5      	ldr	r1, [pc, #724]	; (1a28 <main+0x948>)
         temp_storage_debug = wakeup_data_field_2 & 0x80;
     1754:	6013      	str	r3, [r2, #0]
-		WAKEUP_PERIOD_SNT = ((wakeup_data & 0xFFFF)<<1)*SNT_0P5S_VAL; // Unit is 0.5s
+        WAKEUP_PERIOD_SNT = ((wakeup_data & 0xFFFF)<<1)*SNT_0P5S_VAL; // Unit is 0.5s
     1756:	6823      	ldr	r3, [r4, #0]
     1758:	4aab      	ldr	r2, [pc, #684]	; (1a08 <main+0x928>)
     175a:	005b      	lsls	r3, r3, #1
@@ -3935,7 +3935,7 @@ int main(){
     1762:	4ab2      	ldr	r2, [pc, #712]	; (1a2c <main+0x94c>)
         exec_count_irq++;
     1764:	4cad      	ldr	r4, [pc, #692]	; (1a1c <main+0x93c>)
-		WAKEUP_PERIOD_SNT = ((wakeup_data & 0xFFFF)<<1)*SNT_0P5S_VAL; // Unit is 0.5s
+        WAKEUP_PERIOD_SNT = ((wakeup_data & 0xFFFF)<<1)*SNT_0P5S_VAL; // Unit is 0.5s
     1766:	6013      	str	r3, [r2, #0]
         exec_count_irq++;
     1768:	6823      	ldr	r3, [r4, #0]
@@ -3951,33 +3951,33 @@ int main(){
     1778:	0018      	movs	r0, r3
     177a:	210a      	movs	r1, #10
     177c:	f7ff f828 	bl	7d0 <pmu_set_sleep_clk>
-	sntv5_r08.TMR_SLEEP = 0x0; // Default : 0x1
+    sntv5_r08.TMR_SLEEP = 0x0; // Default : 0x1
     1780:	2240      	movs	r2, #64	; 0x40
     1782:	4cab      	ldr	r4, [pc, #684]	; (1a30 <main+0x950>)
-	mbus_remote_register_write(SNT_ADDR,0x08,sntv5_r08.as_int);
+    mbus_remote_register_write(SNT_ADDR,0x08,sntv5_r08.as_int);
     1784:	2108      	movs	r1, #8
-	sntv5_r08.TMR_SLEEP = 0x0; // Default : 0x1
+    sntv5_r08.TMR_SLEEP = 0x0; // Default : 0x1
     1786:	7823      	ldrb	r3, [r4, #0]
-	mbus_remote_register_write(SNT_ADDR,0x08,sntv5_r08.as_int);
+    mbus_remote_register_write(SNT_ADDR,0x08,sntv5_r08.as_int);
     1788:	2005      	movs	r0, #5
-	sntv5_r08.TMR_SLEEP = 0x0; // Default : 0x1
+    sntv5_r08.TMR_SLEEP = 0x0; // Default : 0x1
     178a:	4393      	bics	r3, r2
     178c:	7023      	strb	r3, [r4, #0]
-	mbus_remote_register_write(SNT_ADDR,0x08,sntv5_r08.as_int);
+    mbus_remote_register_write(SNT_ADDR,0x08,sntv5_r08.as_int);
     178e:	6822      	ldr	r2, [r4, #0]
     1790:	f7fe fd27 	bl	1e2 <mbus_remote_register_write>
-	sntv5_r08.TMR_ISOLATE = 0x0; // Default : 0x1
+    sntv5_r08.TMR_ISOLATE = 0x0; // Default : 0x1
     1794:	2220      	movs	r2, #32
     sntv5_r08.TMR_EN_OSC = 0x1; // Default : 0x0
     1796:	2708      	movs	r7, #8
-	sntv5_r08.TMR_ISOLATE = 0x0; // Default : 0x1
+    sntv5_r08.TMR_ISOLATE = 0x0; // Default : 0x1
     1798:	7823      	ldrb	r3, [r4, #0]
-	mbus_remote_register_write(SNT_ADDR,0x08,sntv5_r08.as_int);
+    mbus_remote_register_write(SNT_ADDR,0x08,sntv5_r08.as_int);
     179a:	2108      	movs	r1, #8
-	sntv5_r08.TMR_ISOLATE = 0x0; // Default : 0x1
+    sntv5_r08.TMR_ISOLATE = 0x0; // Default : 0x1
     179c:	4393      	bics	r3, r2
     179e:	7023      	strb	r3, [r4, #0]
-	mbus_remote_register_write(SNT_ADDR,0x08,sntv5_r08.as_int);
+    mbus_remote_register_write(SNT_ADDR,0x08,sntv5_r08.as_int);
     17a0:	2005      	movs	r0, #5
     17a2:	6822      	ldr	r2, [r4, #0]
     17a4:	f7fe fd1d 	bl	1e2 <mbus_remote_register_write>
@@ -4085,9 +4085,9 @@ int main(){
     183e:	f7fe fef5 	bl	62c <snt_read_wup_counter>
             pmu_set_sleep_low();
     1842:	f7fe ffe1 	bl	808 <pmu_set_sleep_low>
-		radio_power_on();
+        radio_power_on();
     1846:	f7fe fd67 	bl	318 <radio_power_on>
-		send_radio_data_mrr(1,0x5,0x0);	
+        send_radio_data_mrr(1,0x5,0x0); 
     184a:	2200      	movs	r2, #0
     184c:	2105      	movs	r1, #5
     184e:	2001      	movs	r0, #1
@@ -4109,30 +4109,30 @@ int main(){
         *GOC_DATA_IRQ = 0;
     1868:	228c      	movs	r2, #140	; 0x8c
     186a:	6013      	str	r3, [r2, #0]
-    	stack_state = STK_IDLE;
+        stack_state = STK_IDLE;
     186c:	4a6c      	ldr	r2, [pc, #432]	; (1a20 <main+0x940>)
         exec_count_irq = 0;
     186e:	6023      	str	r3, [r4, #0]
-    	stack_state = STK_IDLE;
+        stack_state = STK_IDLE;
     1870:	6013      	str	r3, [r2, #0]
         operation_sns_run();
     1872:	f7ff fa7b 	bl	d6c <operation_sns_run>
             // Go to sleep without timer
             operation_sleep_notimer();
-		}
-	}
+        }
+    }
 
-	if (sns_running){
+    if (sns_running){
     1876:	4b48      	ldr	r3, [pc, #288]	; (1998 <main+0x8b8>)
     1878:	681b      	ldr	r3, [r3, #0]
     187a:	2b00      	cmp	r3, #0
     187c:	d100      	bne.n	1880 <main+0x7a0>
     187e:	e729      	b.n	16d4 <main+0x5f4>
-		// Proceed to continuous mode
-		while(1){
-			operation_sns_run();
+        // Proceed to continuous mode
+        while(1){
+            operation_sns_run();
     1880:	f7ff fa74 	bl	d6c <operation_sns_run>
-		while(1){
+        while(1){
     1884:	e7fc      	b.n	1880 <main+0x7a0>
     }else if(wakeup_data_header == 0x33){
     1886:	2d33      	cmp	r5, #51	; 0x33
@@ -4152,7 +4152,7 @@ int main(){
     189a:	4b69      	ldr	r3, [pc, #420]	; (1a40 <main+0x960>)
     189c:	3206      	adds	r2, #6
     189e:	681b      	ldr	r3, [r3, #0]
-		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xC, puf_chip_id);
+        operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xC, puf_chip_id);
     18a0:	0030      	movs	r0, r6
     18a2:	e74e      	b.n	1742 <main+0x662>
     }else if(wakeup_data_header == 0x13){
@@ -4172,7 +4172,7 @@ int main(){
     18ba:	680a      	ldr	r2, [r1, #0]
     18bc:	2005      	movs	r0, #5
     18be:	210a      	movs	r1, #10
-		mbus_remote_register_write(MRR_ADDR,0x01,mrrv11a_r01.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x01,mrrv11a_r01.as_int);
     18c0:	f7fe fc8f 	bl	1e2 <mbus_remote_register_write>
     18c4:	e7d7      	b.n	1876 <main+0x796>
     }else if(wakeup_data_header == 0x14){
@@ -4190,27 +4190,27 @@ int main(){
             SNT_0P5S_VAL = 1000;
     18d8:	22fa      	movs	r2, #250	; 0xfa
     18da:	0092      	lsls	r2, r2, #2
-			PMU_ADC_3P0_VAL = read_data_batadc;
+            PMU_ADC_3P0_VAL = read_data_batadc;
     18dc:	601a      	str	r2, [r3, #0]
     18de:	e7ca      	b.n	1876 <main+0x796>
     }else if(wakeup_data_header == 0x15){
     18e0:	2d15      	cmp	r5, #21
     18e2:	d115      	bne.n	1910 <main+0x830>
-		prev21e_r0B.GOC_CLK_GEN_SEL_FREQ = (wakeup_data >> 4)&0x7; // Default 0x7
+        prev21e_r0B.GOC_CLK_GEN_SEL_FREQ = (wakeup_data >> 4)&0x7; // Default 0x7
     18e4:	4a5b      	ldr	r2, [pc, #364]	; (1a54 <main+0x974>)
     18e6:	6823      	ldr	r3, [r4, #0]
     18e8:	485b      	ldr	r0, [pc, #364]	; (1a58 <main+0x978>)
     18ea:	6811      	ldr	r1, [r2, #0]
     18ec:	065b      	lsls	r3, r3, #25
     18ee:	4001      	ands	r1, r0
-		prev21e_r0B.GOC_CLK_GEN_SEL_DIV = wakeup_data & 0x3; // Default 0x1
+        prev21e_r0B.GOC_CLK_GEN_SEL_DIV = wakeup_data & 0x3; // Default 0x1
     18f0:	2003      	movs	r0, #3
-		prev21e_r0B.GOC_CLK_GEN_SEL_FREQ = (wakeup_data >> 4)&0x7; // Default 0x7
+        prev21e_r0B.GOC_CLK_GEN_SEL_FREQ = (wakeup_data >> 4)&0x7; // Default 0x7
     18f2:	0f5b      	lsrs	r3, r3, #29
     18f4:	01db      	lsls	r3, r3, #7
     18f6:	430b      	orrs	r3, r1
     18f8:	6013      	str	r3, [r2, #0]
-		prev21e_r0B.GOC_CLK_GEN_SEL_DIV = wakeup_data & 0x3; // Default 0x1
+        prev21e_r0B.GOC_CLK_GEN_SEL_DIV = wakeup_data & 0x3; // Default 0x1
     18fa:	6821      	ldr	r1, [r4, #0]
     18fc:	6813      	ldr	r3, [r2, #0]
     18fe:	4001      	ands	r1, r0
@@ -4219,67 +4219,67 @@ int main(){
     1904:	4003      	ands	r3, r0
     1906:	430b      	orrs	r3, r1
     1908:	6013      	str	r3, [r2, #0]
-		*REG_CLKGEN_TUNE = prev21e_r0B.as_int;
+        *REG_CLKGEN_TUNE = prev21e_r0B.as_int;
     190a:	6812      	ldr	r2, [r2, #0]
     190c:	4b54      	ldr	r3, [pc, #336]	; (1a60 <main+0x980>)
     190e:	e7e5      	b.n	18dc <main+0x7fc>
     }else if(wakeup_data_header == 0x17){
     1910:	2d17      	cmp	r5, #23
     1912:	d107      	bne.n	1924 <main+0x844>
-		if (wakeup_data_field_0 == 0){
+        if (wakeup_data_field_0 == 0){
     1914:	4b53      	ldr	r3, [pc, #332]	; (1a64 <main+0x984>)
     1916:	2e00      	cmp	r6, #0
     1918:	d102      	bne.n	1920 <main+0x840>
-			PMU_ADC_3P0_VAL = read_data_batadc;
+            PMU_ADC_3P0_VAL = read_data_batadc;
     191a:	4a53      	ldr	r2, [pc, #332]	; (1a68 <main+0x988>)
     191c:	6812      	ldr	r2, [r2, #0]
     191e:	e7dd      	b.n	18dc <main+0x7fc>
-			PMU_ADC_3P0_VAL = wakeup_data_field_0;
+            PMU_ADC_3P0_VAL = wakeup_data_field_0;
     1920:	601e      	str	r6, [r3, #0]
     1922:	e7a8      	b.n	1876 <main+0x796>
-	}else if(wakeup_data_header == 0x18){
+    }else if(wakeup_data_header == 0x18){
     1924:	2d18      	cmp	r5, #24
     1926:	d103      	bne.n	1930 <main+0x850>
-		pmu_set_sar_override(wakeup_data_field_0);
+        pmu_set_sar_override(wakeup_data_field_0);
     1928:	0030      	movs	r0, r6
     192a:	f7fe ffc3 	bl	8b4 <pmu_set_sar_override>
     192e:	e7a2      	b.n	1876 <main+0x796>
-	}else if(wakeup_data_header == 0x20){
+    }else if(wakeup_data_header == 0x20){
     1930:	2d20      	cmp	r5, #32
     1932:	d10b      	bne.n	194c <main+0x86c>
-		chip_id_user = (wakeup_data>>8) & 0xFFFF;
+        chip_id_user = (wakeup_data>>8) & 0xFFFF;
     1934:	6823      	ldr	r3, [r4, #0]
     1936:	4a4d      	ldr	r2, [pc, #308]	; (1a6c <main+0x98c>)
     1938:	0a1b      	lsrs	r3, r3, #8
     193a:	b29b      	uxth	r3, r3
-		if (chip_id_user == 0){
+        if (chip_id_user == 0){
     193c:	2b00      	cmp	r3, #0
     193e:	d103      	bne.n	1948 <main+0x868>
-			chip_id_user = *REG_CHIP_ID;
+            chip_id_user = *REG_CHIP_ID;
     1940:	6813      	ldr	r3, [r2, #0]
-		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xA, chip_id_user);
+        operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xA, chip_id_user);
     1942:	220a      	movs	r2, #10
     1944:	0011      	movs	r1, r2
     1946:	e7ab      	b.n	18a0 <main+0x7c0>
-			*REG_CHIP_ID = chip_id_user;
+            *REG_CHIP_ID = chip_id_user;
     1948:	6013      	str	r3, [r2, #0]
     194a:	e7fa      	b.n	1942 <main+0x862>
-	}else if(wakeup_data_header == 0x21){
+    }else if(wakeup_data_header == 0x21){
     194c:	2d21      	cmp	r5, #33	; 0x21
     194e:	d000      	beq.n	1952 <main+0x872>
     1950:	e08e      	b.n	1a70 <main+0x990>
-		if (user_val < 500){
+        if (user_val < 500){
     1952:	21fa      	movs	r1, #250	; 0xfa
-		uint32_t user_val = wakeup_data & 0xFFFFFF;
+        uint32_t user_val = wakeup_data & 0xFFFFFF;
     1954:	6823      	ldr	r3, [r4, #0]
     1956:	4a15      	ldr	r2, [pc, #84]	; (19ac <main+0x8cc>)
     1958:	021b      	lsls	r3, r3, #8
     195a:	0a1b      	lsrs	r3, r3, #8
-		if (user_val < 500){
+        if (user_val < 500){
     195c:	0049      	lsls	r1, r1, #1
     195e:	428b      	cmp	r3, r1
     1960:	d201      	bcs.n	1966 <main+0x886>
-			RADIO_PACKET_DELAY = 4000;
+            RADIO_PACKET_DELAY = 4000;
     1962:	23fa      	movs	r3, #250	; 0xfa
     1964:	011b      	lsls	r3, r3, #4
         TEMP_CALIB_B = wakeup_data & 0xFFFF; 
@@ -4351,33 +4351,33 @@ int main(){
     1a64:	00001e4c 	.word	0x00001e4c
     1a68:	00001e20 	.word	0x00001e20
     1a6c:	a00000fc 	.word	0xa00000fc
-	}else if(wakeup_data_header == 0x22){
+    }else if(wakeup_data_header == 0x22){
     1a70:	2d22      	cmp	r5, #34	; 0x22
     1a72:	d137      	bne.n	1ae4 <main+0xa04>
-		mrr_freq_hopping = wakeup_data_field_2 & 0xF;
+        mrr_freq_hopping = wakeup_data_field_2 & 0xF;
     1a74:	220f      	movs	r2, #15
     1a76:	4013      	ands	r3, r2
     1a78:	4a9e      	ldr	r2, [pc, #632]	; (1cf4 <main+0xc14>)
-		mrr_freq_hopping_step = wakeup_data_field_2 >> 4;
+        mrr_freq_hopping_step = wakeup_data_field_2 >> 4;
     1a7a:	0900      	lsrs	r0, r0, #4
-		mrr_freq_hopping = wakeup_data_field_2 & 0xF;
+        mrr_freq_hopping = wakeup_data_field_2 & 0xF;
     1a7c:	6013      	str	r3, [r2, #0]
-		mrr_freq_hopping_step = wakeup_data_field_2 >> 4;
+        mrr_freq_hopping_step = wakeup_data_field_2 >> 4;
     1a7e:	4b9e      	ldr	r3, [pc, #632]	; (1cf8 <main+0xc18>)
-		mrr_cfo_val_fine_min = (wakeup_data >> 10) & 0x3F; // 6 bit
+        mrr_cfo_val_fine_min = (wakeup_data >> 10) & 0x3F; // 6 bit
     1a80:	4e9e      	ldr	r6, [pc, #632]	; (1cfc <main+0xc1c>)
-		mrr_freq_hopping_step = wakeup_data_field_2 >> 4;
+        mrr_freq_hopping_step = wakeup_data_field_2 >> 4;
     1a82:	6018      	str	r0, [r3, #0]
-		mrr_cfo_val_fine_min = (wakeup_data >> 10) & 0x3F; // 6 bit
+        mrr_cfo_val_fine_min = (wakeup_data >> 10) & 0x3F; // 6 bit
     1a84:	6823      	ldr	r3, [r4, #0]
     1a86:	351d      	adds	r5, #29
     1a88:	0a9b      	lsrs	r3, r3, #10
     1a8a:	402b      	ands	r3, r5
-		mrrv11a_r00.TRX_CAP_ANTP_TUNE_COARSE = wakeup_data & 0x3FF; // 10 bit coarse setting 
+        mrrv11a_r00.TRX_CAP_ANTP_TUNE_COARSE = wakeup_data & 0x3FF; // 10 bit coarse setting 
     1a8c:	499c      	ldr	r1, [pc, #624]	; (1d00 <main+0xc20>)
-		mrr_cfo_val_fine_min = (wakeup_data >> 10) & 0x3F; // 6 bit
+        mrr_cfo_val_fine_min = (wakeup_data >> 10) & 0x3F; // 6 bit
     1a8e:	6033      	str	r3, [r6, #0]
-		mrrv11a_r00.TRX_CAP_ANTP_TUNE_COARSE = wakeup_data & 0x3FF; // 10 bit coarse setting 
+        mrrv11a_r00.TRX_CAP_ANTP_TUNE_COARSE = wakeup_data & 0x3FF; // 10 bit coarse setting 
     1a90:	6822      	ldr	r2, [r4, #0]
     1a92:	489c      	ldr	r0, [pc, #624]	; (1d04 <main+0xc24>)
     1a94:	680b      	ldr	r3, [r1, #0]
@@ -4386,12 +4386,12 @@ int main(){
     1a9a:	4003      	ands	r3, r0
     1a9c:	4313      	orrs	r3, r2
     1a9e:	600b      	str	r3, [r1, #0]
-		mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
     1aa0:	680a      	ldr	r2, [r1, #0]
     1aa2:	2004      	movs	r0, #4
     1aa4:	2100      	movs	r1, #0
     1aa6:	f7fe fb9c 	bl	1e2 <mbus_remote_register_write>
-		mrrv11a_r01.TRX_CAP_ANTN_TUNE_COARSE = wakeup_data & 0x3FF; // 10 bit coarse setting
+        mrrv11a_r01.TRX_CAP_ANTN_TUNE_COARSE = wakeup_data & 0x3FF; // 10 bit coarse setting
     1aaa:	4a97      	ldr	r2, [pc, #604]	; (1d08 <main+0xc28>)
     1aac:	6821      	ldr	r1, [r4, #0]
     1aae:	6813      	ldr	r3, [r2, #0]
@@ -4401,7 +4401,7 @@ int main(){
     1ab6:	029b      	lsls	r3, r3, #10
     1ab8:	430b      	orrs	r3, r1
     1aba:	6013      	str	r3, [r2, #0]
-		mrrv11a_r01.TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min; 
+        mrrv11a_r01.TRX_CAP_ANTP_TUNE_FINE = mrr_cfo_val_fine_min; 
     1abc:	6831      	ldr	r1, [r6, #0]
     1abe:	4893      	ldr	r0, [pc, #588]	; (1d0c <main+0xc2c>)
     1ac0:	6813      	ldr	r3, [r2, #0]
@@ -4410,7 +4410,7 @@ int main(){
     1ac6:	4003      	ands	r3, r0
     1ac8:	430b      	orrs	r3, r1
     1aca:	6013      	str	r3, [r2, #0]
-		mrrv11a_r01.TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min;
+        mrrv11a_r01.TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min;
     1acc:	6831      	ldr	r1, [r6, #0]
     1ace:	6813      	ldr	r3, [r2, #0]
     1ad0:	4029      	ands	r1, r5
@@ -4418,18 +4418,18 @@ int main(){
     1ad4:	0289      	lsls	r1, r1, #10
     1ad6:	401d      	ands	r5, r3
     1ad8:	430d      	orrs	r5, r1
-		mbus_remote_register_write(MRR_ADDR,0x01,mrrv11a_r01.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x01,mrrv11a_r01.as_int);
     1ada:	2101      	movs	r1, #1
-		mrrv11a_r01.TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min;
+        mrrv11a_r01.TRX_CAP_ANTN_TUNE_FINE = mrr_cfo_val_fine_min;
     1adc:	6015      	str	r5, [r2, #0]
-		mbus_remote_register_write(MRR_ADDR,0x01,mrrv11a_r01.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x01,mrrv11a_r01.as_int);
     1ade:	6812      	ldr	r2, [r2, #0]
     1ae0:	2004      	movs	r0, #4
     1ae2:	e6ed      	b.n	18c0 <main+0x7e0>
-	}else if(wakeup_data_header == 0x23){
+    }else if(wakeup_data_header == 0x23){
     1ae4:	2d23      	cmp	r5, #35	; 0x23
     1ae6:	d113      	bne.n	1b10 <main+0xa30>
-		mrrv11a_r07.RO_MOM = wakeup_data & 0x3F;
+        mrrv11a_r07.RO_MOM = wakeup_data & 0x3F;
     1ae8:	213f      	movs	r1, #63	; 0x3f
     1aea:	227f      	movs	r2, #127	; 0x7f
     1aec:	4b89      	ldr	r3, [pc, #548]	; (1d14 <main+0xc34>)
@@ -4439,7 +4439,7 @@ int main(){
     1af4:	4390      	bics	r0, r2
     1af6:	4328      	orrs	r0, r5
     1af8:	8018      	strh	r0, [r3, #0]
-		mrrv11a_r07.RO_MIM = wakeup_data & 0x3F;
+        mrrv11a_r07.RO_MIM = wakeup_data & 0x3F;
     1afa:	6822      	ldr	r2, [r4, #0]
     1afc:	4886      	ldr	r0, [pc, #536]	; (1d18 <main+0xc38>)
     1afe:	4011      	ands	r1, r2
@@ -4448,29 +4448,29 @@ int main(){
     1b04:	4002      	ands	r2, r0
     1b06:	430a      	orrs	r2, r1
     1b08:	801a      	strh	r2, [r3, #0]
-		mbus_remote_register_write(MRR_ADDR,0x07,mrrv11a_r07.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x07,mrrv11a_r07.as_int);
     1b0a:	2107      	movs	r1, #7
     1b0c:	681a      	ldr	r2, [r3, #0]
     1b0e:	e7e7      	b.n	1ae0 <main+0xa00>
-	}else if(wakeup_data_header == 0x25){
+    }else if(wakeup_data_header == 0x25){
     1b10:	2d25      	cmp	r5, #37	; 0x25
     1b12:	d107      	bne.n	1b24 <main+0xa44>
-		mrr_freq_hopping = wakeup_data_field_2 & 0xF;
+        mrr_freq_hopping = wakeup_data_field_2 & 0xF;
     1b14:	220f      	movs	r2, #15
     1b16:	4013      	ands	r3, r2
     1b18:	4a76      	ldr	r2, [pc, #472]	; (1cf4 <main+0xc14>)
-		mrr_freq_hopping_step = wakeup_data_field_2 >> 4;
+        mrr_freq_hopping_step = wakeup_data_field_2 >> 4;
     1b1a:	0900      	lsrs	r0, r0, #4
-		mrr_freq_hopping = wakeup_data_field_2 & 0xF;
+        mrr_freq_hopping = wakeup_data_field_2 & 0xF;
     1b1c:	6013      	str	r3, [r2, #0]
-		mrr_freq_hopping_step = wakeup_data_field_2 >> 4;
+        mrr_freq_hopping_step = wakeup_data_field_2 >> 4;
     1b1e:	4b76      	ldr	r3, [pc, #472]	; (1cf8 <main+0xc18>)
     1b20:	6018      	str	r0, [r3, #0]
     1b22:	e6a8      	b.n	1876 <main+0x796>
-	}else if(wakeup_data_header == 0x26){
+    }else if(wakeup_data_header == 0x26){
     1b24:	2d26      	cmp	r5, #38	; 0x26
     1b26:	d10b      	bne.n	1b40 <main+0xa60>
-		mrrv11a_r02.TX_BIAS_TUNE = wakeup_data & 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
+        mrrv11a_r02.TX_BIAS_TUNE = wakeup_data & 0x1FFF;  //Set TX BIAS TUNE 13b // Set to max
     1b28:	497c      	ldr	r1, [pc, #496]	; (1d1c <main+0xc3c>)
     1b2a:	6822      	ldr	r2, [r4, #0]
     1b2c:	680b      	ldr	r3, [r1, #0]
@@ -4480,14 +4480,14 @@ int main(){
     1b34:	035b      	lsls	r3, r3, #13
     1b36:	4313      	orrs	r3, r2
     1b38:	600b      	str	r3, [r1, #0]
-		mbus_remote_register_write(MRR_ADDR,0x02,mrrv11a_r02.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x02,mrrv11a_r02.as_int);
     1b3a:	680a      	ldr	r2, [r1, #0]
     1b3c:	2102      	movs	r1, #2
     1b3e:	e7cf      	b.n	1ae0 <main+0xa00>
-	}else if(wakeup_data_header == 0x27){
+    }else if(wakeup_data_header == 0x27){
     1b40:	2d27      	cmp	r5, #39	; 0x27
     1b42:	d10d      	bne.n	1b60 <main+0xa80>
-		mrrv11a_r04.LDO_SEL_VOUT = wakeup_data & 0x7;
+        mrrv11a_r04.LDO_SEL_VOUT = wakeup_data & 0x7;
     1b44:	2007      	movs	r0, #7
     1b46:	6822      	ldr	r2, [r4, #0]
     1b48:	4975      	ldr	r1, [pc, #468]	; (1d20 <main+0xc40>)
@@ -4498,7 +4498,7 @@ int main(){
     1b52:	4003      	ands	r3, r0
     1b54:	4313      	orrs	r3, r2
     1b56:	600b      	str	r3, [r1, #0]
-		mbus_remote_register_write(MRR_ADDR,0x04,mrrv11a_r04.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x04,mrrv11a_r04.as_int);
     1b58:	680a      	ldr	r2, [r1, #0]
     1b5a:	2104      	movs	r1, #4
     1b5c:	0008      	movs	r0, r1
@@ -4523,7 +4523,7 @@ int main(){
     }else if(wakeup_data_header == 0x51){
     1b7a:	2d51      	cmp	r5, #81	; 0x51
     1b7c:	d106      	bne.n	1b8c <main+0xaac>
-		operation_goc_trigger_radio(0xFFFFFFFF, wakeup_data_field_1, 0x4, exec_count_irq);
+        operation_goc_trigger_radio(0xFFFFFFFF, wakeup_data_field_1, 0x4, exec_count_irq);
     1b7e:	2001      	movs	r0, #1
     1b80:	4b6b      	ldr	r3, [pc, #428]	; (1d30 <main+0xc50>)
     1b82:	2204      	movs	r2, #4
@@ -4534,103 +4534,103 @@ int main(){
     }else if(wakeup_data_header == 0x52){
     1b8c:	2d52      	cmp	r5, #82	; 0x52
     1b8e:	d118      	bne.n	1bc2 <main+0xae2>
-		mrr_freq_hopping = 0;
+        mrr_freq_hopping = 0;
     1b90:	2500      	movs	r5, #0
-		disable_timerwd();
+        disable_timerwd();
     1b92:	f7fe fab7 	bl	104 <disable_timerwd>
-		radio_power_on();
+        radio_power_on();
     1b96:	f7fe fbbf 	bl	318 <radio_power_on>
-		uint32_t mrr_freq_hopping_saved = mrr_freq_hopping;
+        uint32_t mrr_freq_hopping_saved = mrr_freq_hopping;
     1b9a:	4e56      	ldr	r6, [pc, #344]	; (1cf4 <main+0xc14>)
     1b9c:	6837      	ldr	r7, [r6, #0]
-		mrr_freq_hopping = 0;
+        mrr_freq_hopping = 0;
     1b9e:	6035      	str	r5, [r6, #0]
-		while (ii < (wakeup_data & 0xFFFFFF)){
+        while (ii < (wakeup_data & 0xFFFFFF)){
     1ba0:	6823      	ldr	r3, [r4, #0]
-			send_radio_data_mrr(0,0x4,ii);	
+            send_radio_data_mrr(0,0x4,ii);  
     1ba2:	002a      	movs	r2, r5
-		while (ii < (wakeup_data & 0xFFFFFF)){
+        while (ii < (wakeup_data & 0xFFFFFF)){
     1ba4:	021b      	lsls	r3, r3, #8
-			send_radio_data_mrr(0,0x4,ii);	
+            send_radio_data_mrr(0,0x4,ii);  
     1ba6:	2104      	movs	r1, #4
-		while (ii < (wakeup_data & 0xFFFFFF)){
+        while (ii < (wakeup_data & 0xFFFFFF)){
     1ba8:	0a1b      	lsrs	r3, r3, #8
     1baa:	42ab      	cmp	r3, r5
     1bac:	d804      	bhi.n	1bb8 <main+0xad8>
-			send_radio_data_mrr(1,0x4,ii);	
+            send_radio_data_mrr(1,0x4,ii);  
     1bae:	2001      	movs	r0, #1
     1bb0:	f7fe ffb8 	bl	b24 <send_radio_data_mrr>
-		mrr_freq_hopping = mrr_freq_hopping_saved;
+        mrr_freq_hopping = mrr_freq_hopping_saved;
     1bb4:	6037      	str	r7, [r6, #0]
     1bb6:	e58d      	b.n	16d4 <main+0x5f4>
-			send_radio_data_mrr(0,0x4,ii);	
+            send_radio_data_mrr(0,0x4,ii);  
     1bb8:	2000      	movs	r0, #0
     1bba:	f7fe ffb3 	bl	b24 <send_radio_data_mrr>
-			ii++;
+            ii++;
     1bbe:	3501      	adds	r5, #1
     1bc0:	e7ee      	b.n	1ba0 <main+0xac0>
     }else if(wakeup_data_header == 0x53){
     1bc2:	2d53      	cmp	r5, #83	; 0x53
     1bc4:	d168      	bne.n	1c98 <main+0xbb8>
-		disable_timerwd();
+        disable_timerwd();
     1bc6:	f7fe fa9d 	bl	104 <disable_timerwd>
-		*MBCWD_RESET = 1;
+        *MBCWD_RESET = 1;
     1bca:	2201      	movs	r2, #1
-		mrrv11a_r11.FSM_RESET_B = 1;  //UNRST BB
+        mrrv11a_r11.FSM_RESET_B = 1;  //UNRST BB
     1bcc:	2702      	movs	r7, #2
-		*MBCWD_RESET = 1;
+        *MBCWD_RESET = 1;
     1bce:	4b59      	ldr	r3, [pc, #356]	; (1d34 <main+0xc54>)
     1bd0:	601a      	str	r2, [r3, #0]
-		radio_power_on();
+        radio_power_on();
     1bd2:	f7fe fba1 	bl	318 <radio_power_on>
-		mrrv11a_r11.FSM_RESET_B = 1;  //UNRST BB
+        mrrv11a_r11.FSM_RESET_B = 1;  //UNRST BB
     1bd6:	4d58      	ldr	r5, [pc, #352]	; (1d38 <main+0xc58>)
-		mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
     1bd8:	2111      	movs	r1, #17
-		mrrv11a_r11.FSM_RESET_B = 1;  //UNRST BB
+        mrrv11a_r11.FSM_RESET_B = 1;  //UNRST BB
     1bda:	682b      	ldr	r3, [r5, #0]
-		mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
     1bdc:	2004      	movs	r0, #4
-		mrrv11a_r11.FSM_RESET_B = 1;  //UNRST BB
+        mrrv11a_r11.FSM_RESET_B = 1;  //UNRST BB
     1bde:	433b      	orrs	r3, r7
     1be0:	602b      	str	r3, [r5, #0]
-		mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
     1be2:	682a      	ldr	r2, [r5, #0]
     1be4:	f7fe fafd 	bl	1e2 <mbus_remote_register_write>
-		delay(MBUS_DELAY);
+        delay(MBUS_DELAY);
     1be8:	20c8      	movs	r0, #200	; 0xc8
     1bea:	f7fe fa5d 	bl	a8 <delay>
-    	mrrv11a_r03.TRX_ISOLATEN = 1;     //set ISOLATEN 1, let state machine control
+        mrrv11a_r03.TRX_ISOLATEN = 1;     //set ISOLATEN 1, let state machine control
     1bee:	2280      	movs	r2, #128	; 0x80
     1bf0:	4b52      	ldr	r3, [pc, #328]	; (1d3c <main+0xc5c>)
     1bf2:	03d2      	lsls	r2, r2, #15
     1bf4:	6819      	ldr	r1, [r3, #0]
-    	mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
     1bf6:	2004      	movs	r0, #4
-    	mrrv11a_r03.TRX_ISOLATEN = 1;     //set ISOLATEN 1, let state machine control
+        mrrv11a_r03.TRX_ISOLATEN = 1;     //set ISOLATEN 1, let state machine control
     1bf8:	430a      	orrs	r2, r1
     1bfa:	601a      	str	r2, [r3, #0]
-    	mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x03,mrrv11a_r03.as_int);
     1bfc:	681a      	ldr	r2, [r3, #0]
     1bfe:	2103      	movs	r1, #3
     1c00:	f7fe faef 	bl	1e2 <mbus_remote_register_write>
-		delay(MBUS_DELAY);
+        delay(MBUS_DELAY);
     1c04:	20c8      	movs	r0, #200	; 0xc8
     1c06:	f7fe fa4f 	bl	a8 <delay>
-		mrrv11a_r00.TRX_CL_CTRL = 1; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+        mrrv11a_r00.TRX_CL_CTRL = 1; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
     1c0a:	227e      	movs	r2, #126	; 0x7e
     1c0c:	4e3c      	ldr	r6, [pc, #240]	; (1d00 <main+0xc20>)
-		mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
     1c0e:	2100      	movs	r1, #0
-		mrrv11a_r00.TRX_CL_CTRL = 1; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+        mrrv11a_r00.TRX_CL_CTRL = 1; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
     1c10:	6833      	ldr	r3, [r6, #0]
-		mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
     1c12:	2004      	movs	r0, #4
-		mrrv11a_r00.TRX_CL_CTRL = 1; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
+        mrrv11a_r00.TRX_CL_CTRL = 1; //Set CL 1: unlimited, 8: 30uA, 16: 3uA
     1c14:	4393      	bics	r3, r2
     1c16:	431f      	orrs	r7, r3
     1c18:	6037      	str	r7, [r6, #0]
-		mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x00,mrrv11a_r00.as_int);
     1c1a:	6832      	ldr	r2, [r6, #0]
     1c1c:	f7fe fae1 	bl	1e2 <mbus_remote_register_write>
         mrrv11a_r00.TRX_CL_EN = 1;
@@ -4645,27 +4645,27 @@ int main(){
     1c2a:	2004      	movs	r0, #4
     1c2c:	6832      	ldr	r2, [r6, #0]
     1c2e:	f7fe fad8 	bl	1e2 <mbus_remote_register_write>
-		mrrv11a_r11.FSM_CONT_PULSE_MODE = 1;
+        mrrv11a_r11.FSM_CONT_PULSE_MODE = 1;
     1c32:	2308      	movs	r3, #8
     1c34:	682a      	ldr	r2, [r5, #0]
-		mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
     1c36:	2111      	movs	r1, #17
-		mrrv11a_r11.FSM_CONT_PULSE_MODE = 1;
+        mrrv11a_r11.FSM_CONT_PULSE_MODE = 1;
     1c38:	4313      	orrs	r3, r2
     1c3a:	602b      	str	r3, [r5, #0]
-		mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
     1c3c:	2004      	movs	r0, #4
     1c3e:	682a      	ldr	r2, [r5, #0]
     1c40:	f7fe facf 	bl	1e2 <mbus_remote_register_write>
-    	mrrv11a_r11.FSM_EN = 1;  //Start BB
+        mrrv11a_r11.FSM_EN = 1;  //Start BB
     1c44:	2004      	movs	r0, #4
     1c46:	682b      	ldr	r3, [r5, #0]
-    	mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
     1c48:	2111      	movs	r1, #17
-    	mrrv11a_r11.FSM_EN = 1;  //Start BB
+        mrrv11a_r11.FSM_EN = 1;  //Start BB
     1c4a:	4303      	orrs	r3, r0
     1c4c:	602b      	str	r3, [r5, #0]
-    	mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
+        mbus_remote_register_write(MRR_ADDR,0x11,mrrv11a_r11.as_int);
     1c4e:	682a      	ldr	r2, [r5, #0]
     1c50:	f7fe fac7 	bl	1e2 <mbus_remote_register_write>
         if ((wakeup_data & 0xFFFF) == 0){
@@ -4682,10 +4682,10 @@ int main(){
     1c64:	b29b      	uxth	r3, r3
     1c66:	4293      	cmp	r3, r2
     1c68:	d910      	bls.n	1c8c <main+0xbac>
-    	        set_timer32_timeout(0xFFFFFFFF);
+                set_timer32_timeout(0xFFFFFFFF);
     1c6a:	2001      	movs	r0, #1
     1c6c:	4240      	negs	r0, r0
-    	        set_timer32_timeout(0xC00000*(wakeup_data & 0xFFFF));
+                set_timer32_timeout(0xC00000*(wakeup_data & 0xFFFF));
     1c6e:	f7fe fc9d 	bl	5ac <set_timer32_timeout>
             while(!irq_pending.timer32);    // [CISv2] Newly Added
     1c72:	4b33      	ldr	r3, [pc, #204]	; (1d40 <main+0xc60>)
@@ -4702,57 +4702,57 @@ int main(){
             radio_power_off();
     1c86:	f7fe fc0b 	bl	4a0 <radio_power_off>
     1c8a:	e5f4      	b.n	1876 <main+0x796>
-    	        set_timer32_timeout(0xC00000*(wakeup_data & 0xFFFF));
+                set_timer32_timeout(0xC00000*(wakeup_data & 0xFFFF));
     1c8c:	20c0      	movs	r0, #192	; 0xc0
     1c8e:	6823      	ldr	r3, [r4, #0]
     1c90:	0400      	lsls	r0, r0, #16
     1c92:	b29b      	uxth	r3, r3
     1c94:	4358      	muls	r0, r3
     1c96:	e7ea      	b.n	1c6e <main+0xb8e>
-	}else if(wakeup_data_header == 0xF0){
+    }else if(wakeup_data_header == 0xF0){
     1c98:	2df0      	cmp	r5, #240	; 0xf0
     1c9a:	d104      	bne.n	1ca6 <main+0xbc6>
-		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xB, enumerated);
+        operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xB, enumerated);
     1c9c:	220b      	movs	r2, #11
     1c9e:	4b29      	ldr	r3, [pc, #164]	; (1d44 <main+0xc64>)
     1ca0:	681b      	ldr	r3, [r3, #0]
-		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xC, puf_chip_id);
+        operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xC, puf_chip_id);
     1ca2:	210a      	movs	r1, #10
     1ca4:	e5fc      	b.n	18a0 <main+0x7c0>
-	}else if(wakeup_data_header == 0xF1){
+    }else if(wakeup_data_header == 0xF1){
     1ca6:	2df1      	cmp	r5, #241	; 0xf1
     1ca8:	d10e      	bne.n	1cc8 <main+0xbe8>
-		*REG_SYS_CONF = (0x0/*PUF_SLEEP*/ << 6) | (0x1/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
+        *REG_SYS_CONF = (0x0/*PUF_SLEEP*/ << 6) | (0x1/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
     1caa:	2320      	movs	r3, #32
-		delay(MBUS_DELAY*4);
+        delay(MBUS_DELAY*4);
     1cac:	20c8      	movs	r0, #200	; 0xc8
-		*REG_SYS_CONF = (0x0/*PUF_SLEEP*/ << 6) | (0x1/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
+        *REG_SYS_CONF = (0x0/*PUF_SLEEP*/ << 6) | (0x1/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
     1cae:	4c26      	ldr	r4, [pc, #152]	; (1d48 <main+0xc68>)
-		delay(MBUS_DELAY*4);
+        delay(MBUS_DELAY*4);
     1cb0:	0080      	lsls	r0, r0, #2
-		*REG_SYS_CONF = (0x0/*PUF_SLEEP*/ << 6) | (0x1/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
+        *REG_SYS_CONF = (0x0/*PUF_SLEEP*/ << 6) | (0x1/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
     1cb2:	6023      	str	r3, [r4, #0]
-		delay(MBUS_DELAY*4);
+        delay(MBUS_DELAY*4);
     1cb4:	f7fe f9f8 	bl	a8 <delay>
-		*REG_SYS_CONF = (0x0/*PUF_SLEEP*/ << 6) | (0x0/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
+        *REG_SYS_CONF = (0x0/*PUF_SLEEP*/ << 6) | (0x0/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
     1cb8:	2300      	movs	r3, #0
-		*REG_SYS_CONF = (0x1/*PUF_SLEEP*/ << 6) | (0x1/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
+        *REG_SYS_CONF = (0x1/*PUF_SLEEP*/ << 6) | (0x1/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
     1cba:	2260      	movs	r2, #96	; 0x60
-		*REG_SYS_CONF = (0x0/*PUF_SLEEP*/ << 6) | (0x0/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
+        *REG_SYS_CONF = (0x0/*PUF_SLEEP*/ << 6) | (0x0/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
     1cbc:	6023      	str	r3, [r4, #0]
-		puf_chip_id = *REG_PUF_CHIP_ID;
+        puf_chip_id = *REG_PUF_CHIP_ID;
     1cbe:	4b23      	ldr	r3, [pc, #140]	; (1d4c <main+0xc6c>)
     1cc0:	681b      	ldr	r3, [r3, #0]
-		*REG_SYS_CONF = (0x1/*PUF_SLEEP*/ << 6) | (0x1/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
+        *REG_SYS_CONF = (0x1/*PUF_SLEEP*/ << 6) | (0x1/*PUF_ISOL*/ << 5) | (0x0/*SOFT_RESET*/ << 4) | (0x0/*PEND_WAKEUP*/ << 0);
     1cc2:	6022      	str	r2, [r4, #0]
-		operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xC, puf_chip_id);
+        operation_goc_trigger_radio(wakeup_data_field_0, WAKEUP_PERIOD_RADIO_INIT, 0xC, puf_chip_id);
     1cc4:	3a54      	subs	r2, #84	; 0x54
     1cc6:	e7ec      	b.n	1ca2 <main+0xbc2>
-	}else if(wakeup_data_header == 0xFA){
+    }else if(wakeup_data_header == 0xFA){
     1cc8:	2dfa      	cmp	r5, #250	; 0xfa
     1cca:	d000      	beq.n	1cce <main+0xbee>
     1ccc:	e502      	b.n	16d4 <main+0x5f4>
-		if ((wakeup_data&0xFFFFFF) == 0x89D7E2){
+        if ((wakeup_data&0xFFFFFF) == 0x89D7E2){
     1cce:	6823      	ldr	r3, [r4, #0]
     1cd0:	4a1f      	ldr	r2, [pc, #124]	; (1d50 <main+0xc70>)
     1cd2:	021b      	lsls	r3, r3, #8
@@ -4760,17 +4760,17 @@ int main(){
     1cd6:	4293      	cmp	r3, r2
     1cd8:	d000      	beq.n	1cdc <main+0xbfc>
     1cda:	e5cc      	b.n	1876 <main+0x796>
-			config_timerwd(0xFF);
+            config_timerwd(0xFF);
     1cdc:	20ff      	movs	r0, #255	; 0xff
     1cde:	f7fe fa05 	bl	ec <config_timerwd>
-				mbus_write_message32(0xE0, 0x0);
+                mbus_write_message32(0xE0, 0x0);
     1ce2:	2100      	movs	r1, #0
     1ce4:	20e0      	movs	r0, #224	; 0xe0
     1ce6:	f7fe fa3d 	bl	164 <mbus_write_message32>
-				delay(MBUS_DELAY);
+                delay(MBUS_DELAY);
     1cea:	20c8      	movs	r0, #200	; 0xc8
     1cec:	f7fe f9dc 	bl	a8 <delay>
-			while(1){
+            while(1){
     1cf0:	e7f7      	b.n	1ce2 <main+0xc02>
     1cf2:	46c0      	nop			; (mov r8, r8)
     1cf4:	00001ddc 	.word	0x00001ddc
