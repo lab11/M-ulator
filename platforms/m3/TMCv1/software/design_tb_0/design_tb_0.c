@@ -15,6 +15,8 @@
 //  VPG2_OUT    VCC
 //      
 //-------------------------------------------------------------------------------------------
+// NOTE: GIT can be triggered by either VGOC or EDI.
+//-------------------------------------------------------------------------------------------
 // Major portion of this code is based on TSstack_ondemand_v2.0 (pre_v20e)
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
@@ -126,7 +128,7 @@
 #define NFC_GPO 0
 #define NFC_SCL 1
 #define NFC_SDA 2
-#define I2C_MASK (1<<NFC_SDA) | (1<<NFC_SCL)
+#define I2C_MASK (1<<NFC_SDA)|(1<<NFC_SCL)
 #define I2C_SCL_MASK (1<<NFC_SCL)
 #define I2C_SDA_MASK (1<<NFC_SDA)
 #define GPO_MASK (1<<NFC_GPO)
@@ -1486,7 +1488,7 @@ static void nfc_i2c_start(void) {
 //              SDA  **|________|***********
 //-------------------------------------------------------------------
 
-static void nfc_i2c_stop(void);
+static void nfc_i2c_stop(void) {
     gpio_write_data_with_mask(I2C_MASK,(0<<NFC_SDA)|(0<<NFC_SCL));
     gpio_set_dir_with_mask(I2C_MASK,(1<<NFC_SDA)|(1<<NFC_SCL));
     gpio_write_data_with_mask(I2C_MASK,(0<<NFC_SDA)|(1<<NFC_SCL));
@@ -1505,11 +1507,13 @@ static void nfc_i2c_stop(void);
 //-------------------------------------------------------------------
 
 static void nfc_i2c_cmd(uint8_t byte){
+    uint32_t i;
+
     // Direction: SCL (output), SDA (output)
     gpio_set_dir_with_mask(I2C_MASK,(1<<NFC_SDA)|(1<<NFC_SCL));
 
     // Send byte[7:1]
-    for (uint32_t i=7; i>0; i--) {
+    for (i=7; i>0; i--) {
         gpio_write_data_with_mask(I2C_MASK,(((byte>>i)&0x1)<<NFC_SDA)|(0<<NFC_SCL));
         gpio_write_data_with_mask(I2C_MASK,(((byte>>i)&0x1)<<NFC_SDA)|(1<<NFC_SCL));
         gpio_write_data_with_mask(I2C_MASK,(((byte>>i)&0x1)<<NFC_SDA)|(0<<NFC_SCL));
@@ -1558,28 +1562,31 @@ static uint8_t nfc_i2c_rd(uint8_t ack){
     gpio_set_dir_with_mask(I2C_MASK,(0<<NFC_SDA)|(1<<NFC_SCL));
 
     // Read byte[7:0]
-    for (uint32_t i=7; i>=0; i--) {
+    uint32_t i = 7;
+    while (1) {
         gpio_write_data_with_mask(I2C_MASK,0<<NFC_SCL);
         gpio_write_data_with_mask(I2C_MASK,1<<NFC_SCL);
-	    data = data | (((*GPIO_DATA>>NFC_SDA)&0x1)<<i);
+        data = data | (((*GPIO_DATA>>NFC_SDA)&0x1)<<i);
+        if (i==0) break;
+        else i--;
     }
     gpio_write_data_with_mask(I2C_MASK,0<<NFC_SCL);
 
     // Acknowledge
     if (ack) {
-		gpio_write_data_with_mask(I2C_MASK,(0<<NFC_SDA) | (0<<NFC_SCL));
-		gpio_set_dir_with_mask(I2C_MASK,(1<<NFC_SDA) | (1<<NFC_SCL));
-		gpio_write_data_with_mask(I2C_MASK,(0<<NFC_SDA) | (1<<NFC_SCL));
-		gpio_write_data_with_mask(I2C_MASK,(0<<NFC_SDA) | (0<<NFC_SCL));
-		gpio_set_dir_with_mask(I2C_MASK,(0<<NFC_SDA) | (1<<NFC_SCL));
-	}
-	else{
-		gpio_set_dir_with_mask(I2C_MASK,(0<<NFC_SDA) | (1<<NFC_SCL));
-		gpio_write_data_with_mask(I2C_MASK,1<<NFC_SCL);
-		gpio_write_data_with_mask(I2C_MASK,0<<NFC_SCL);
-	}
+        gpio_write_data_with_mask(I2C_MASK,(0<<NFC_SDA) | (0<<NFC_SCL));
+        gpio_set_dir_with_mask(I2C_MASK,(1<<NFC_SDA) | (1<<NFC_SCL));
+        gpio_write_data_with_mask(I2C_MASK,(0<<NFC_SDA) | (1<<NFC_SCL));
+        gpio_write_data_with_mask(I2C_MASK,(0<<NFC_SDA) | (0<<NFC_SCL));
+        gpio_set_dir_with_mask(I2C_MASK,(0<<NFC_SDA) | (1<<NFC_SCL));
+    }
+    else{
+        gpio_set_dir_with_mask(I2C_MASK,(0<<NFC_SDA) | (1<<NFC_SCL));
+        gpio_write_data_with_mask(I2C_MASK,1<<NFC_SCL);
+        gpio_write_data_with_mask(I2C_MASK,0<<NFC_SCL);
+    }
 
-	return data;
+    return data;
 }
 
 //-------------------------------------------------------------------
@@ -1614,11 +1621,12 @@ static void nfc_i2c_byte_write(uint32_t addr, uint8_t data){
 //-------------------------------------------------------------------
 
 static void nfc_i2c_seq_write(uint32_t addr, uint32_t data[], uint32_t len){
+    uint32_t i;
     nfc_i2c_start();
     nfc_i2c_cmd(0xA6);
     nfc_i2c_cmd(addr>>8);
     nfc_i2c_cmd(addr);
-    for (uint32_t i=0; i<len; i++) {
+    for (i=0; i<len; i++) {
         nfc_i2c_cmd(data[i]);
     }
     nfc_i2c_stop();
@@ -1640,14 +1648,15 @@ static void nfc_i2c_seq_write(uint32_t addr, uint32_t data[], uint32_t len){
 // Return  : None
 //-------------------------------------------------------------------
 
-START FROM HERE!!!
+// FIXME: START FROM HERE
 
 static void nfc_i2c_seq_word_write(uint32_t addr, uint32_t data[], uint32_t len){
+    uint32_t i;
     nfc_i2c_start();
     nfc_i2c_cmd(0xA6);
     nfc_i2c_cmd(addr>>8);
     nfc_i2c_cmd(addr);
-    for (uint32_t i=0; i<len; i++) {
+    for (i=0; i<len; i++) {
         nfc_i2c_cmd(data[i]);
     }
     nfc_i2c_stop();
@@ -1736,7 +1745,7 @@ static void operation_back_to_default(void){
     set_halt_until_mbus_tx();
     if (snt_running) {
         snt_running = 0;
-	    snt_state = SNT_IDLE;
+        snt_state = SNT_IDLE;
         snt_temp_sensor_reset();
         snt_temp_sensor_power_off();
         snt_ldo_power_off();
@@ -1855,6 +1864,21 @@ static void operation_init (void) {
     //-------------------------------------------------
     // E-Ink Display
     //-------------------------------------------------
+    uint32_t i, s;
+    for(i=0; i<5; i++) {
+        for(s=0; s<7; s++) {
+            eid_update(1<<s);
+            delay(200000);
+        }
+    }
+
+    operation_sleep();
+    while(1);
+
+
+
+
+
     eid_update(DISP_INITIALIZED);
 
     //-------------------------------------------------
@@ -1905,8 +1929,8 @@ static void snt_operation (void) {
         // Release the reset for the Temp Sensor
         snt_temp_sensor_start();
 
-		// Go to sleep during measurement
-		operation_sleep();
+        // Go to sleep during measurement
+        operation_sleep();
     }
     else if (snt_state == SNT_TEMP_READ) {
 
@@ -1932,7 +1956,7 @@ static void snt_operation (void) {
             }
             
             // Change PMU based on temp
-			uint32_t pmu_setting_prev = pmu_setting_state;
+            uint32_t pmu_setting_prev = pmu_setting_state;
             if      (read_data_temp > PMU_95C_threshold_snt){ pmu_setting_state = PMU_95C; }
             else if (read_data_temp > PMU_75C_threshold_snt){ pmu_setting_state = PMU_75C; }
             else if (read_data_temp > PMU_55C_threshold_snt){ pmu_setting_state = PMU_55C; }
@@ -1941,12 +1965,12 @@ static void snt_operation (void) {
             else if (read_data_temp < PMU_20C_threshold_snt){ pmu_setting_state = PMU_20C; }
             else                                            { pmu_setting_state = PMU_25C; }
 
-			// Always restore sleep setting from higher pmu meas setting
-   	        pmu_set_sleep_temp_based();
+            // Always restore sleep setting from higher pmu meas setting
+            pmu_set_sleep_temp_based();
 
-			if (pmu_setting_prev != pmu_setting_state){
-	            pmu_set_active_temp_based();
-			}
+            if (pmu_setting_prev != pmu_setting_state){
+                pmu_set_active_temp_based();
+            }
 
             // Assert temp sensor isolation & turn off temp sensor power
             snt_temp_sensor_power_off();
@@ -1979,12 +2003,12 @@ static void snt_operation (void) {
             // Track execution count
             exec_count++;
 
-			// Before GIT
+            // Before GIT
             if (!get_flag(FLAG_GIT_TRIGGERED)) {
                 reset_xo_cnt();
                 operation_sleep_xo_timer(SLEEP_DURATION_PREGIT);
             }
-			// After GIT
+            // After GIT
             else {
                 if (!get_flag(FLAG_USE_REAL_TIME)) {
                     reset_xo_cnt();
