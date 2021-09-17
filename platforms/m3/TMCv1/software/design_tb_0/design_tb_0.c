@@ -15,6 +15,20 @@
 //  VPG2_OUT    VCC
 //      
 //-------------------------------------------------------------------------------------------
+// XO Configuration
+//
+//  *REG_XO_CONF2 = ( 0x0
+//      | (0x2 << 13)     // XO_INJ	            (2'h2) #Adjusts injection period
+//      | (0x1 << 10)     // XO_SEL_DLY	        (3'h1) #Adjusts pulse delay
+//      | (0x1 << 8 )     // XO_SEL_CLK_SCN	    (2'h1) #Selects division ratio for SCN CLK
+//      | (0x1 << 5 )     // XO_SEL_CLK_OUT_DIV (3'h1) #Selects division ratio for the XO CLK output
+//                        //    Frequency = 2 ^ (10 + XO_SEL_CLK_OUT_DIV) (Hz) for XO_SEL_CLK_OUT_DIV=1, 2, 3, 4, 5. 
+//      | (0x1 << 4 )     // XO_SEL_LDO	        (1'h1) #Selects LDO output as an input to SCN
+//      | (0x0 << 3 )     // XO_SEL_0P6	        (1'h0) #Selects V0P6 as an input to SCN
+//      | (0x0 << 0 )     // XO_I_AMP	        (3'h0) #Adjusts VREF body bias buffer current
+//      );
+//
+//-------------------------------------------------------------------------------------------
 // NOTE: GIT can be triggered by either VGOC or EDI.
 //-------------------------------------------------------------------------------------------
 // Major portion of this code is based on TSstack_ondemand_v2.0 (pre_v20e)
@@ -51,9 +65,16 @@
 // - In snt_operation(), add code to store the temp & VBAT data with timestamp
 // - The flag bit @ FLAG_USE_REAL_TIME must be set to 0. PREv22E (in TMCv1) automatically
 //      resets the XO counter to 0 upon wakeup. This needs to be changed in the next version.
+// - Currently, use of 'nfc_unfreeze_gpio()' makes VBAT > 100uA. Need to figure out why.
+// - We may not need the code to handle "If woken up by NFC". 
+//      The NFC chip is supposed to handle the phone communication by its own.
+//      TMCv1 only has to store measurement inside the NFC chip periodically.
+//      The 'GPO' event should 'reset' the 'pointer' only - for now.
 //******************************************************************************************* 
 
 #include "TMCv1.h"
+
+#define DLY_1S 20000    // 5 instructions @ 100kHz
 
 //*******************************************************************************************
 // SHORT ADDRESSES
@@ -70,7 +91,7 @@
 //*******************************************************************************************
 // Debug Switches
 #define ARB_DEBUG           // Send out ARB Debug Messages. Only for verilog simulations. You can ignore this in real silicon.
-#define USE_SHORT_DELAY     // Use short delays for quick simulations. Comment it out for real silicon testing.
+//#define USE_SHORT_DELAY     // Use short delays for quick simulations. Comment it out for real silicon testing.
 
 // Failure Codes
 #define FCODE_0     1   // Unexpected State value in Pre-GIT / Wakeup Timer / Wakeup IRQ
@@ -154,7 +175,7 @@
 #endif
 
 // XO Counter Value per Specific Time Durations
-#define XOT_1SEC    32765
+#define XOT_1SEC    2048
 #define XOT_1MIN    60*XOT_1SEC
 #define XOT_1HR     60*XOT_1MIN
 #define XOT_1DAY    24*XOT_1HR
@@ -325,7 +346,7 @@ volatile union pmu_state pmu_stall_state_active;    // Register 0x3A
 
 // Charge Pump Activation Duration (Normal Use)
 #ifndef USE_SHORT_DELAY
-    #define EID_PULSE_WIDTH 400     // (Default: 400; Max: 65535) Duration of Charge Pump Activation. LSB corresponds to ~5ms, assuming a 3kHz clock (i.e., LSB = clock_period * 16)
+    #define EID_PULSE_WIDTH 400   // (Default: 400; Max: 65535) Duration of Charge Pump Activation. LSB corresponds to ~5ms, assuming a 3kHz clock (i.e., LSB = clock_period * 16)
 #else
     #define EID_PULSE_WIDTH 40      // Short delay for simulation
 #endif
@@ -396,6 +417,7 @@ volatile union pmu_state pmu_stall_state_active;    // Register 0x3A
 //*******************************************************************************************
 // GLOBAL VARIABLES
 //*******************************************************************************************
+volatile uint32_t wakeup_source;
 volatile uint32_t state;
 volatile uint32_t snt_state;
 volatile uint32_t wfi_timeout_flag;
@@ -562,6 +584,7 @@ static void stop_timer32_timeout_check(uint32_t code){
 static void xot_enable (uint32_t timestamp) {
     *REG_XOT_CONFIGU = (timestamp >> 16) & 0xFFFF;
     *REG_XOT_CONFIG  = (timestamp & 0x0000FFFF) | 0x00A00000; // [23] XOT_ENABLE = 1; [21] XOT_WREQ_EN = 1;
+    start_xo_cnt();
 }
 
 //-------------------------------------------------------------------
@@ -1214,12 +1237,14 @@ static void eid_set_pulse_width(uint32_t pulse_width){
 // Return  : None
 //-------------------------------------------------------------------
 static void eid_enable_cp_ck(uint32_t vin, uint32_t te, uint32_t fd, uint32_t seg) {
-    uint32_t cp_ck = ((te << 10) | (fd << 9) | (seg << 0)) & 0x1FF;
-    uint32_t cp_pd = (~cp_ck) & 0x1FF;
+    uint32_t cp_ck = ((te << 10) | (fd << 9) | (seg << 0)) & 0x7FF;
+    uint32_t cp_pd = (~cp_ck) & 0x7FF;
 
     // Make PG_DIODE=0
     eid_r02.ECP_PG_DIODE = 0;
     mbus_remote_register_write(EID_ADDR,0x02,eid_r02.as_int);
+
+    delay(2*DLY_1S);
 
     // Enable charge pumps
     eid_r09.ECTR_RESETB_CP = 1;
@@ -1229,6 +1254,8 @@ static void eid_enable_cp_ck(uint32_t vin, uint32_t te, uint32_t fd, uint32_t se
     set_halt_until_mbus_trx();
     mbus_remote_register_write(EID_ADDR,0x09,eid_r09.as_int);
     set_halt_until_mbus_tx();
+
+    //delay(2*DLY_1S);
 
     // Make PG_DIODE=1
     eid_r02.ECP_PG_DIODE = 1;
@@ -1380,20 +1407,20 @@ static void eid_init(void){
 
     eid_r15.WCTR_RESETB_CP_A = 1;
     eid_r15.WCTR_VIN_CP_A    = CRSH_SEQA_VIN;
-    eid_r15.WCTR_EN_CP_CK_A  =   ((CRSH_SEQA_CK_TE << 10) | (CRSH_SEQA_CK_FD << 9) | (CRSH_SEQA_CK_SEG << 0)) & 0x1FF;
-    eid_r15.WCTR_EN_CP_PD_A  = ~(((CRSH_SEQA_CK_TE << 10) | (CRSH_SEQA_CK_FD << 9) | (CRSH_SEQA_CK_SEG << 0)) & 0x1FF) & 0x1FF;
+    eid_r15.WCTR_EN_CP_CK_A  =   ((CRSH_SEQA_CK_TE << 10) | (CRSH_SEQA_CK_FD << 9) | (CRSH_SEQA_CK_SEG << 0)) & 0x7FF;
+    eid_r15.WCTR_EN_CP_PD_A  = ~(((CRSH_SEQA_CK_TE << 10) | (CRSH_SEQA_CK_FD << 9) | (CRSH_SEQA_CK_SEG << 0)) & 0x7FF) & 0x7FF;
     mbus_remote_register_write(EID_ADDR,0x15,eid_r15.as_int);
 
     eid_r16.WCTR_RESETB_CP_B = 1;
     eid_r16.WCTR_VIN_CP_B    = CRSH_SEQB_VIN;
-    eid_r16.WCTR_EN_CP_CK_B  =   ((CRSH_SEQB_CK_TE << 10) | (CRSH_SEQB_CK_FD << 9) | (CRSH_SEQB_CK_SEG << 0)) & 0x1FF;
-    eid_r16.WCTR_EN_CP_PD_B  = ~(((CRSH_SEQB_CK_TE << 10) | (CRSH_SEQB_CK_FD << 9) | (CRSH_SEQB_CK_SEG << 0)) & 0x1FF) & 0x1FF;
+    eid_r16.WCTR_EN_CP_CK_B  =   ((CRSH_SEQB_CK_TE << 10) | (CRSH_SEQB_CK_FD << 9) | (CRSH_SEQB_CK_SEG << 0)) & 0x7FF;
+    eid_r16.WCTR_EN_CP_PD_B  = ~(((CRSH_SEQB_CK_TE << 10) | (CRSH_SEQB_CK_FD << 9) | (CRSH_SEQB_CK_SEG << 0)) & 0x7FF) & 0x7FF;
     mbus_remote_register_write(EID_ADDR,0x16,eid_r16.as_int);
 
     eid_r17.WCTR_RESETB_CP_C = 1;
     eid_r17.WCTR_VIN_CP_C    = CRSH_SEQC_VIN;
-    eid_r17.WCTR_EN_CP_CK_C  =   ((CRSH_SEQC_CK_TE << 10) | (CRSH_SEQC_CK_FD << 9) | (CRSH_SEQC_CK_SEG << 0)) & 0x1FF;
-    eid_r17.WCTR_EN_CP_PD_C  = ~(((CRSH_SEQC_CK_TE << 10) | (CRSH_SEQC_CK_FD << 9) | (CRSH_SEQC_CK_SEG << 0)) & 0x1FF) & 0x1FF;
+    eid_r17.WCTR_EN_CP_CK_C  =   ((CRSH_SEQC_CK_TE << 10) | (CRSH_SEQC_CK_FD << 9) | (CRSH_SEQC_CK_SEG << 0)) & 0x7FF;
+    eid_r17.WCTR_EN_CP_PD_C  = ~(((CRSH_SEQC_CK_TE << 10) | (CRSH_SEQC_CK_FD << 9) | (CRSH_SEQC_CK_SEG << 0)) & 0x7FF) & 0x7FF;
     mbus_remote_register_write(EID_ADDR,0x17,eid_r17.as_int);
 }
 
@@ -1677,6 +1704,7 @@ static void nfc_i2c_seq_word_write(uint32_t addr, uint32_t data[], uint32_t len)
 static void operation_sleep (void) {
     *GOC_DATA_IRQ = 0;
     freeze_gpio_out();
+    *NVIC_ICER = 0xFFFFFFFF;
     mbus_sleep_all();
     while(1);
 }
@@ -1827,7 +1855,7 @@ static void operation_init (void) {
     //-------------------------------------------------
     // PMU Settings
     //-------------------------------------------------
-    pmu_init();
+//    pmu_init();
 
     //-------------------------------------------------
     // SNT Settings
@@ -1860,31 +1888,21 @@ static void operation_init (void) {
     // XO Driver
     //-------------------------------------------------
     xo_start();
+    *XOT_START_COUT = 1;
+    operation_sleep();
+    while(1);
 
     //-------------------------------------------------
     // E-Ink Display
     //-------------------------------------------------
-    uint32_t i, s;
-    for(i=0; i<5; i++) {
-        for(s=0; s<7; s++) {
-            eid_update(1<<s);
-            delay(200000);
-        }
-    }
-
-    operation_sleep();
-    while(1);
-
-
-
-
-
-    eid_update(DISP_INITIALIZED);
+    //eid_enable_cp_ck(/*vin*/0, /*te*/0x1, /*fd*/0x0, /*seg*/0x000); 
+    //eid_all_white(0);
+    //eid_update(DISP_INITIALIZED);
 
     //-------------------------------------------------
     // NFC 
     //-------------------------------------------------
-    nfc_init();
+    //nfc_init();
 
     //-------------------------------------------------
     // Sleep
@@ -1892,7 +1910,8 @@ static void operation_init (void) {
     // It must go into sleep with a long 'sleep' duration
     // to give user enough time to put a "sticker" over the GOC solar cell.
     reset_xo_cnt(); // Make counter value = 0
-    operation_sleep_xo_timer(SLEEP_DURATION_LONG);
+    //operation_sleep_xo_timer(SLEEP_DURATION_LONG);
+    operation_sleep_xo_timer(3*XOT_1SEC);
 }
 
 //-------------------------------------------------------------------
@@ -2183,6 +2202,19 @@ void handler_ext_int_gocep(void) { // GOCEP
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_GOCEP, 0x00000000);
     #endif
+
+    if (*GOC_DATA_IRQ == 0x0) {
+        xo_start();
+        *XOT_START_COUT = 1;
+        operation_sleep();
+        while(1);
+    }
+    else if (*GOC_DATA_IRQ == 0x1) {
+        *XOT_STOP_COUT = 1;
+        xo_stop();
+        operation_sleep();
+        while(1);
+    }
 }
 void handler_ext_int_softreset(void) { // SOFT_RESET
     mbus_write_message32(0x71, 0x10);
@@ -2194,104 +2226,9 @@ void handler_ext_int_softreset(void) { // SOFT_RESET
 void handler_ext_int_wakeup(void) { // WAKE-UP
     mbus_write_message32(0x71, 0x11);
     *NVIC_ICPR = (0x1 << IRQ_WAKEUP);
-    uint32_t wakeup_source = *SREG_WAKEUP_SOURCE;
-    *SCTR_REG_CLR_WUP_SOURCE = 1; // reset WAKEUP_SOURCE register
     #ifdef ARB_DEBUG
     arb_debug_reg(IRQ_WAKEUP, (0x10 << 24) | wakeup_source);
     #endif
-
-    // If this is the very first wakeup, initialize the system and go back to sleep
-    if (!get_flag(FLAG_INITIALIZED)) { 
-        operation_init();
-        while(1) asm("nop");
-    }
-
-    mbus_write_message32(0x72, 0x0);
-
-    // For safety, disable Wakeup Timer's WREQ.
-    xot_disable_wreq();
-
-    mbus_write_message32(0x72, 0x1);
-
-    // EID Watchdog Check-In
-    if (get_flag(FLAG_WD_ENABLED)) eid_check_in();
-
-    mbus_write_message32(0x72, 0x2);
-
-    // Unfreeze NFC GPIO
-    nfc_unfreeze_gpio();
-
-    mbus_write_message32(0x72, 0x3);
-
-    //--------------------------------------------------------------------------
-    // WAKEUP_SOURCE (wakeup_source) definition
-    //--------------------------------------------------------------------------
-    //  [31:12] - Reserved
-    //     [11] - GPIO_PAD[3] has triggered wakeup (valid only when wakeup_source[3]=1)
-    //     [10] - GPIO_PAD[2] has triggered wakeup (valid only when wakeup_source[3]=1)
-    //     [ 9] - GPIO_PAD[1] has triggered wakeup (valid only when wakeup_source[3]=1)
-    //     [ 8] - GPIO_PAD[0] has triggered wakeup (valid only when wakeup_source[3]=1)
-    //  [ 7: 6] - Reserved
-    //      [5] - GIT (GOC Instant Trigger) has triggered wakeup
-    //      [4] - MBus message has triggered wakeup (e.g., Flash Auto Boot-up)
-    //      [3] - One of GPIO_PAD[3:0] has triggered wakeup
-    //      [2] - XO Timer has triggered wakeup
-    //      [1] - Wake-up Timer has triggered wakeup
-    //      [0] - GOC/EP has triggered wakeup
-    //--------------------------------------------------------------------------
-
-    // If woken up by GIT
-    // NOTE: If GIT is triggered while the system is in active, the GIT is NOT immediately handled.
-    //       Instead, it waits until the system goes in sleep, and then, the (pending) GIT will wake up the system.
-    //       Thus, you can safely assume that GIT is (effectively) triggered only while the system is in Sleep.
-    if (get_bit(wakeup_source, 5)) {
-        mbus_write_message32(0x72, 0x4);
-        set_flag(FLAG_GIT_TRIGGERED, 1);
-        // Reset everything back to default.
-        operation_back_to_default();
-        // Post-GIT Initialization
-        postgit_init();
-        // Start Temp/VBAT measurement
-        snt_running = 1;
-        meas_count = 0;
-    }
-    // If woken up by a XO wakeup timer
-    else if (get_bit(wakeup_source, 2)) {
-        mbus_write_message32(0x72, 0x5);
-
-        if (wakeup_timestamp==0) wakeup_timestamp = *XOT_VAL;
-
-        // If GIT is not yet enabled (i.e., the very first wakeup by the wakeup timer)
-        if (!get_flag(FLAG_GIT_ENABLED)) {
-            // Enable GIT (GOC Instant Trigger)
-            *REG_GOC_CONFIG = set_bits(*REG_GOC_CONFIG, 16, 16, 1);
-            set_flag(FLAG_GIT_ENABLED, 1);
-            // Start Temp/VBAT measurement
-            snt_running = 1;
-            meas_count = 0;
-        }
-    }
-    // If woken up by NFC (GPIO[0])
-    else if (get_bit(wakeup_source, 3) && get_bit(wakeup_source, 8)) {
-        mbus_write_message32(0x72, 0x6);
-        // Handle the NFC event
-        do_nfc();
-    }
-    // If woken up by an MBus Message
-    else if (get_bit(wakeup_source, 4)) { 
-        mbus_write_message32(0x72, 0x7);
-    }
-
-    mbus_write_message32(0x72, 0x8);
-
-    // If SNT is running
-    while (snt_running) snt_operation();
-
-    mbus_write_message32(0x72, 0x9);
-
-    // NOTE: If the wakeup source is GOC/EP (i.e., wakeup_source[0] == 1)
-    //       it will be handled by handler_ext_int_gocep()
-
 }
 void handler_ext_int_aes(void) { // AES
     mbus_write_message32(0x71, 0x12);
@@ -2321,29 +2258,125 @@ void handler_ext_int_gpio(void) { // GPIO
 
 int main() {
     mbus_write_message32(0x70, 1);
+    
+    // Get the info on who woke up the system
+    wakeup_source = *SREG_WAKEUP_SOURCE;
+    *SCTR_REG_CLR_WUP_SOURCE = 1; // reset WAKEUP_SOURCE register
 
     // Enable IRQs
-    *NVIC_ISER = (0x1 << IRQ_WAKEUP) | (0x1 << IRQ_GOCEP) | (0x1 << IRQ_TIMER32) 
-               | (0x1 << IRQ_REG0  ) | (0x1 << IRQ_REG1 ) 
-               | (0x1 << IRQ_REG2  ) | (0x1 << IRQ_REG3 );
+    *NVIC_ISER = (0x1 << IRQ_GOCEP) | (0x1 << IRQ_TIMER32) | (0x1 << IRQ_REG0  ) | (0x1 << IRQ_REG1 ) | (0x1 << IRQ_REG2  ) | (0x1 << IRQ_REG3 );
 
-    mbus_write_message32(0x70, 2);
+    // If this is the very first wakeup, initialize the system and go back to sleep
+    if (!get_flag(FLAG_INITIALIZED)) operation_init();
+
+    // EID Watchdog Check-In
+    if (get_flag(FLAG_WD_ENABLED)) eid_check_in();
+
+    // For safety, disable Wakeup Timer's WREQ.
+    xot_disable_wreq();
+
+    // Unfreeze NFC GPIO
+    //nfc_unfreeze_gpio();
+
+    //--------------------------------------------------------------------------
+    // WAKEUP_SOURCE (wakeup_source) definition
+    //--------------------------------------------------------------------------
+    //  [31:12] - Reserved
+    //     [11] - GPIO_PAD[3] has triggered wakeup (valid only when wakeup_source[3]=1)
+    //     [10] - GPIO_PAD[2] has triggered wakeup (valid only when wakeup_source[3]=1)
+    //     [ 9] - GPIO_PAD[1] has triggered wakeup (valid only when wakeup_source[3]=1)
+    //     [ 8] - GPIO_PAD[0] has triggered wakeup (valid only when wakeup_source[3]=1)
+    //  [ 7: 6] - Reserved
+    //      [5] - GIT (GOC Instant Trigger) has triggered wakeup
+    //              NOTE: If GIT is triggered while the system is in active, the GIT is NOT immediately handled.
+    //                    Instead, it waits until the system goes in sleep, and then, the (pending) GIT will wake up the system.
+    //                    Thus, you can safely assume that GIT is (effectively) triggered only while the system is in Sleep.
+    //      [4] - MBus message has triggered wakeup (e.g., Flash Auto Boot-up)
+    //      [3] - One of GPIO_PAD[3:0] has triggered wakeup
+    //      [2] - XO Timer has triggered wakeup
+    //      [1] - Wake-up Timer has triggered wakeup
+    //      [0] - GOC/EP has triggered wakeup
+    //--------------------------------------------------------------------------
+
+    //--------------------------------------------------------------------------
+    // If woken up by GIT
+    //--------------------------------------------------------------------------
+    if (get_bit(wakeup_source, 5)) {
+        mbus_write_message32(0x72, 0x4);
+        set_flag(FLAG_GIT_TRIGGERED, 1);
+        // Reset everything back to default.
+        operation_back_to_default();
+        // Post-GIT Initialization
+        postgit_init();
+        // Start Temp/VBAT measurement
+        snt_running = 1;
+        meas_count = 0;
+    }
+    //--------------------------------------------------------------------------
+    // If woken up by a XO wakeup timer
+    //--------------------------------------------------------------------------
+    else if (get_bit(wakeup_source, 2)) {
+        mbus_write_message32(0x72, 0x5);
+
+        if (wakeup_timestamp==0) wakeup_timestamp = *XOT_VAL;
+
+        //// If GIT is not yet enabled (i.e., the very first wakeup by the wakeup timer)
+        //if (!get_flag(FLAG_GIT_ENABLED)) {
+        //    // Enable GIT (GOC Instant Trigger)
+        //    *REG_GOC_CONFIG = set_bit(*REG_GOC_CONFIG, 16, 1);
+        //    set_flag(FLAG_GIT_ENABLED, 1);
+        //    // Start Temp/VBAT measurement
+        //    snt_running = 1;
+        //    meas_count = 0;
+        //}
+    }
+    //--------------------------------------------------------------------------
+    // If woken up by NFC (GPIO[0])
+    //--------------------------------------------------------------------------
+    // NOTE: See note in 'THINGS TO DO'
+    else if (get_bit(wakeup_source, 3)) {
+        if (get_bit(wakeup_source, 8)) {
+            mbus_write_message32(0x72, 0x6);
+            // Handle the NFC event
+            do_nfc();
+        }
+        // ERROR: other than GPIO[0] woke up the system
+        else {
+            mbus_write_message32(0x72, 0x7);
+        }
+    }
+    //--------------------------------------------------------------------------
+    // If woken up by a wakeup timer [ERROR]
+    //--------------------------------------------------------------------------
+    else if (get_bit(wakeup_source, 1)) {
+        mbus_write_message32(0x72, 0x8);
+    }
+    //--------------------------------------------------------------------------
+    // If woken up by an MBus Message
+    //--------------------------------------------------------------------------
+    else if (get_bit(wakeup_source, 4)) { 
+        mbus_write_message32(0x72, 0x9);
+    }
+    //--------------------------------------------------------------------------
+    // If woken up by GOC/EP
+    //--------------------------------------------------------------------------
+    else if (get_bit(wakeup_source, 0)) { 
+        mbus_write_message32(0x72, 0xA);
+        // GOC/EP shall be handled by the GOC/EP IRQ Handler.
+    }
+
+    //--------------------------------------------------------------------------
+    // OTHER OPERATIONS
+    //--------------------------------------------------------------------------
+    mbus_write_message32(0x72, 0xB);
+
+    //// If SNT is running
+    //while (snt_running) snt_operation();
+
+    reset_xo_cnt(); // Make counter value = 0
+    operation_sleep_xo_timer(3*XOT_1SEC);
 
     // Never Quit (should not stay here for an extended duration)
     while(1) asm("nop");
     return 1;
-
-//    // Sleep/Wakeup OR Terminate operation
-//    if (cyc_num == 999) *REG_CHIP_ID = 0xFFFFFF; // This will stop the verilog sim.
-//    else {
-//        cyc_num++;
-//        set_wakeup_timer(5, 1, 1);
-//        mbus_sleep_all();
-//    }
-
-//    *REG_CHIP_ID = 0xFFFFFF; // This will stop the verilog sim
-//
-//    // Never Quit (should not come here)
-//    while(1) asm("nop;"); 
-//    return 1;
 }

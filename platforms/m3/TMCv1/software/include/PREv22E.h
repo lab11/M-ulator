@@ -23,7 +23,7 @@
 //*********************************************************
 // GOC Data Address
 //*********************************************************
-#define GOC_DATA_IRQ    ((volatile uint32_t *) 0x8C)
+#define GOC_DATA_IRQ    ((volatile uint32_t *) 0x08)
 #define GOC_AES_PASS    ((volatile uint32_t *) 0x0C)   // Passcode
 #define GOC_AES_CT      ((volatile uint32_t *) 0x10)   // (Expected) CipherText
 #define GOC_AES_PT      ((volatile uint32_t *) 0x20)   // PlainText

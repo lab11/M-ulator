@@ -32,6 +32,11 @@ uint32_t set_bits (uint32_t original_var, uint32_t msb_idx, uint32_t lsb_idx, ui
     return (original_var & mask_pattern) | ((value << lsb_idx) & ~mask_pattern);
 }
 
+uint32_t set_bit (uint32_t original_var, uint32_t idx, uint32_t value) {
+    if (value & 0x1) return original_var |  (0x1 << idx);
+    else             return original_var & ~(0x1 << idx);
+}
+
 uint32_t get_bits (uint32_t variable, uint32_t msb_idx, uint32_t lsb_idx) {
     return ((variable << (31-msb_idx)) >> (31-msb_idx)) >> lsb_idx;
 }

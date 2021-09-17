@@ -119,6 +119,18 @@ union pmu_floor {
 uint32_t set_bits (uint32_t original_var, uint32_t msb_idx, uint32_t lsb_idx, uint32_t value);
 
 //-------------------------------------------------------------------
+// Function: set_bit
+// Args    : original_var - Original Value
+//           idx          - Bit Index
+//           value        - New bit value
+// Description:
+//          set_bit() replaces [idx] in original_var with value
+//          and returns the result
+// Return  : original_var with [idx] replaced with value
+//-------------------------------------------------------------------
+uint32_t set_bit (uint32_t original_var, uint32_t idx, uint32_t value);
+
+//-------------------------------------------------------------------
 // Function: get_bits
 // Args    : variable   - Original Value
 //           msb_idx    - Index of MSB
