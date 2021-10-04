@@ -29,6 +29,15 @@
 //      );
 //
 //-------------------------------------------------------------------------------------------
+// e-Ink Display
+// [0]  Triangle
+// [1]  Tick
+// [2]  Low Battery
+// [3]  Back Slash
+// [4]  Slash
+// [5]  Plus
+// [6]  Minus
+//-------------------------------------------------------------------------------------------
 // NOTE: GIT can be triggered by either VGOC or EDI.
 //-------------------------------------------------------------------------------------------
 // Major portion of this code is based on TSstack_ondemand_v2.0 (pre_v20e)
@@ -346,7 +355,7 @@ volatile union pmu_state pmu_stall_state_active;    // Register 0x3A
 
 // Charge Pump Activation Duration (Normal Use)
 #ifndef USE_SHORT_DELAY
-    #define EID_PULSE_WIDTH 400   // (Default: 400; Max: 65535) Duration of Charge Pump Activation. LSB corresponds to ~5ms, assuming a 3kHz clock (i.e., LSB = clock_period * 16)
+    #define EID_PULSE_WIDTH 200   // (Default: 400; Max: 65535) Duration of Charge Pump Activation. LSB corresponds to ~5ms, assuming a 3kHz clock (i.e., LSB = clock_period * 16)
 #else
     #define EID_PULSE_WIDTH 40      // Short delay for simulation
 #endif
@@ -1198,7 +1207,7 @@ static void eid_enable_timer(void){
     delay(EID_TIMER_WAIT); // Wait for >3s
     eid_r01.TMR_EN_OSC = 0;
     mbus_remote_register_write(EID_ADDR,0x01,eid_r01.as_int);
-    eid_r01.TMR_SEL_LDO = 1;
+    eid_r01.TMR_SEL_LDO = 1; // 1: use VBAT; 0: use V1P2
     mbus_remote_register_write(EID_ADDR,0x01,eid_r01.as_int);
     eid_r01.TMR_ISOL_CLK = 0;
     mbus_remote_register_write(EID_ADDR,0x01,eid_r01.as_int);
@@ -1237,14 +1246,16 @@ static void eid_set_pulse_width(uint32_t pulse_width){
 // Return  : None
 //-------------------------------------------------------------------
 static void eid_enable_cp_ck(uint32_t vin, uint32_t te, uint32_t fd, uint32_t seg) {
+    // Original Connection
     uint32_t cp_ck = ((te << 10) | (fd << 9) | (seg << 0)) & 0x7FF;
+    // Shifted Connection
+    //uint32_t cp_ck = ((te << 9) | ((seg & 0xFF) << 1) | fd) & 0x7FF;
+
     uint32_t cp_pd = (~cp_ck) & 0x7FF;
 
     // Make PG_DIODE=0
     eid_r02.ECP_PG_DIODE = 0;
     mbus_remote_register_write(EID_ADDR,0x02,eid_r02.as_int);
-
-    delay(2*DLY_1S);
 
     // Enable charge pumps
     eid_r09.ECTR_RESETB_CP = 1;
@@ -1255,7 +1266,15 @@ static void eid_enable_cp_ck(uint32_t vin, uint32_t te, uint32_t fd, uint32_t se
     mbus_remote_register_write(EID_ADDR,0x09,eid_r09.as_int);
     set_halt_until_mbus_tx();
 
-    //delay(2*DLY_1S);
+    cp_ck = ((0x1 << 10) | (0x0 << 9) | (seg << 0)) & 0x7FF;
+    cp_pd = (~cp_ck) & 0x7FF;
+    eid_r09.ECTR_EN_CP_PD  = cp_pd;
+    eid_r09.ECTR_EN_CP_CK  = cp_ck;
+    set_halt_until_mbus_trx();
+    mbus_remote_register_write(EID_ADDR,0x09,eid_r09.as_int);
+    set_halt_until_mbus_tx();
+
+    //delay(1*DLY_1S);
 
     // Make PG_DIODE=1
     eid_r02.ECP_PG_DIODE = 1;
@@ -1789,10 +1808,6 @@ static void operation_back_to_default(void){
 //-------------------------------------------------------------------
 static void operation_init (void) {
 
-    // Disable Watchdog Timers
-    *TIMERWD_GO  = 0;   // Disable the CPU watchdog
-    *REG_MBUS_WD = 0;   // Disable the MBus watchdog by setting Threshold=0.
-
     // Set the flag
     set_flag(FLAG_INITIALIZED, 1);
 
@@ -1883,14 +1898,17 @@ static void operation_init (void) {
     //-------------------------------------------------
     // NOTE: eid_init() does not start the EID. It just configures its register file.
     eid_init();
+    eid_r02.as_int = 0x1FF;
+    mbus_remote_register_write(EID_ADDR,0x02,eid_r02.as_int);
 
     //-------------------------------------------------
     // XO Driver
     //-------------------------------------------------
     xo_start();
-    *XOT_START_COUT = 1;
-    operation_sleep();
-    while(1);
+
+    //*XOT_START_COUT = 1;
+    //operation_sleep();
+    //while(1);
 
     //-------------------------------------------------
     // E-Ink Display
@@ -1909,9 +1927,12 @@ static void operation_init (void) {
     //-------------------------------------------------
     // It must go into sleep with a long 'sleep' duration
     // to give user enough time to put a "sticker" over the GOC solar cell.
-    reset_xo_cnt(); // Make counter value = 0
+    //reset_xo_cnt(); // Make counter value = 0
     //operation_sleep_xo_timer(SLEEP_DURATION_LONG);
-    operation_sleep_xo_timer(3*XOT_1SEC);
+    //operation_sleep_xo_timer(3*XOT_1SEC);
+
+//    operation_sleep();
+//    while(1);
 }
 
 //-------------------------------------------------------------------
@@ -2203,18 +2224,243 @@ void handler_ext_int_gocep(void) { // GOCEP
     arb_debug_reg(IRQ_GOCEP, 0x00000000);
     #endif
 
-    if (*GOC_DATA_IRQ == 0x0) {
-        xo_start();
-        *XOT_START_COUT = 1;
-        operation_sleep();
-        while(1);
+    //if (*GOC_DATA_IRQ == 0x0) {
+    //    xo_start();
+    //    *XOT_START_COUT = 1;
+    //    operation_sleep();
+    //    while(1);
+    //}
+    //else if (*GOC_DATA_IRQ == 0x1) {
+    //    *XOT_STOP_COUT = 1;
+    //    xo_stop();
+    //    operation_sleep();
+    //    while(1);
+    //}
+
+    uint32_t goc_raw    = *GOC_DATA_IRQ;
+    uint32_t goc_header = (goc_raw & 0xFF000000) >> 24;
+    uint32_t goc_data   = (goc_raw & 0x00FFFFFF);
+
+    //// TE Charge Pump Testing
+    //if (goc_header == 0x00) {
+    //    if (goc_data == 0x0) {
+    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x000); 
+    //    }
+    //    else if (goc_data == 0x1) {
+    //        eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
+    //    }
+    //    else if (goc_data == 0x2) {
+    //        eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/1, /*seg*/0x000); 
+    //    }
+    //    else if (goc_data == 0x3) {
+    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/1, /*seg*/0x000); 
+    //    }
+    //}
+
+    // Normal Connection
+    if (goc_header == 0x00) {
+        // [LLL]
+        if (goc_data == 0x0) {
+            eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x000); 
+        }
+        // [LLH]
+        else if (goc_data == 0x1) {
+            eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x1FF); 
+        }
+        // [LHL]
+        else if (goc_data == 0x2) {
+            eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/1, /*seg*/0x000); 
+        }
+        // [LHH]
+        else if (goc_data == 0x3) {
+            eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/1, /*seg*/0x1FF); 
+        }
+        // [HLL]
+        else if (goc_data == 0x4) {
+            eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
+        }
+        // [HLH]
+        else if (goc_data == 0x5) {
+            eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x1FF); 
+        }
+        // [HHL]
+        else if (goc_data == 0x6) {
+            eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/1, /*seg*/0x000); 
+        }
+        // [HHH]
+        else if (goc_data == 0x7) {
+            eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/1, /*seg*/0x1FF); 
+        }
+        /// Demo Mode
+        else if (goc_data == 0xF) {
+            while(1) {
+                // Triangle
+                eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
+                eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x001); 
+                // X-mark
+                eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
+                eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x01A); 
+                // Low Battery
+                eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
+                eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x004); 
+                // Plus Sign
+                eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
+                eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x020); 
+                // Minus Sign
+                eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
+                eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x040); 
+                // non-X
+                eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
+                eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x065); 
+                // only-X
+                eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
+                eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x01A); 
+            }
+        }
+        /// Individual Segment
+        else if (goc_data > 0x7) {
+            eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x1 << (goc_data - 8)); 
+        }
+        // Erase the field
+        //eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x1FF); 
     }
-    else if (*GOC_DATA_IRQ == 0x1) {
-        *XOT_STOP_COUT = 1;
-        xo_stop();
-        operation_sleep();
-        while(1);
+
+    //// Shift Connection (for XT1-S)
+    //if (goc_header == 0x00) {
+    //    // NOTE: FD_CP   drives TE
+    //    //       SEG0_CP drives FD
+    //    //       SEG1_CP drives SEG0
+    //    //       ...
+    //    //       SEG7_CP drives SEG6
+
+    //    // [LLL]
+    //    if (goc_data == 0x0) {
+    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x000); 
+    //    }
+    //    // [LLH]
+    //    else if (goc_data == 0x1) {
+    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x0FE); 
+    //    }
+    //    // [LHL]
+    //    else if (goc_data == 0x2) {
+    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x001); 
+    //    }
+    //    // [LHH]
+    //    else if (goc_data == 0x3) {
+    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x0FF); 
+    //    }
+    //    // [HLL]
+    //    else if (goc_data == 0x4) {
+    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/1, /*seg*/0x000); 
+    //    }
+    //    // [HLH]
+    //    else if (goc_data == 0x5) {
+    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/1, /*seg*/0x0FE); 
+    //    }
+    //    // [HHL]
+    //    else if (goc_data == 0x6) {
+    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/1, /*seg*/0x001); 
+    //    }
+    //    // [HHH]
+    //    else if (goc_data == 0x7) {
+    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/1, /*seg*/0x0FF); 
+    //    }
+    //    /// Individual Segment
+    //    else if (goc_data > 0x7) {
+    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x1 << (goc_data - 8 + 1)); 
+    //    }
+    //}
+
+    // Individual Debug
+    else if (goc_header == 0xFF) {
+        // NOTE: There are total 9 SEG CPs in EIDv1. (e-Ink display has 7 segments)
+
+        // goc_data[20]  = vin
+        // goc_data[16]  = TE
+        // goc_data[12]  = FD
+        // goc_data[8:0] = SEG[8:0] (max: 1FF)
+        uint32_t cp_vin = (goc_data >> 20) & 0x1;
+        uint32_t cp_te  = (goc_data >> 16) & 0x1;
+        uint32_t cp_fd  = (goc_data >> 12) & 0x1;
+        uint32_t cp_seg = (goc_data >>  0) & 0x1FF;
+        eid_enable_cp_ck(/*vin*/cp_vin, /*te*/cp_te, /*fd*/cp_fd, /*seg*/cp_seg); 
+
+        //// [LLL] TE=0, FD=0, All SEG=0
+        //if (goc_data == 0x0) {
+        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x0, /*seg*/0x1FF); 
+        //}
+        //// [LLH] TE=0, FD=0, All SEG=1
+        //else if (goc_data == 0x1) {
+        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x0, /*seg*/0x1FF); 
+        //}
+        //// [LHL] TE=0, FD=1, All SEG=0
+        //else if (goc_data == 0x2) {
+        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x1, /*seg*/0x000); 
+        //}
+        //// [LHH] TE=0, FD=1, All SEG=1
+        //else if (goc_data == 0x3) {
+        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x1, /*seg*/0x1FF); 
+        //}
+        //// [HLL] TE=1, FD=0, All SEG=0
+        //else if (goc_data == 0x4) {
+        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x1, /*fd*/0x0, /*seg*/0x000); 
+        //}
+        //// [HLH] TE=1, FD=0, All SEG=1
+        //else if (goc_data == 0x5) {
+        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x1, /*fd*/0x0, /*seg*/0x1FF); 
+        //}
+        //// [HHL] TE=1, FD=1, All SEG=0
+        //else if (goc_data == 0x6) {
+        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x1, /*fd*/0x1, /*seg*/0x000); 
+        //}
+        //// [HHH] TE=1, FD=1, All SEG=1
+        //else if (goc_data == 0x7) {
+        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x1, /*fd*/0x1, /*seg*/0x1FF); 
+        //}
+        ////// [LL1] TE=0, FD=0, SEG[n-8]=1
+        ////else if (goc_data > 0x7) {
+        ////    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x0, /*seg*/(0x1 << (goc_data-8))); 
+        ////}
+        //// 0 / 0 / 000
+        //else if (goc_data == 0x8) {
+        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x0, /*seg*/0x000); 
+        //}
+        //// 0 / 0 / 002
+        //else if (goc_data == 0x9) {
+        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x0, /*seg*/0x002); 
+        //}
+        //// 0 / 0 / 001
+        //else if (goc_data == 0xA) {
+        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x0, /*seg*/0x001); 
+        //}
+        //// 0 / 0 / 003
+        //else if (goc_data == 0xB) {
+        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x0, /*seg*/0x003); 
+        //}
+        //// 0 / 1 / 000
+        //else if (goc_data == 0xC) {
+        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x1, /*seg*/0x000); 
+        //}
+        //// 0 / 1 / 002
+        //else if (goc_data == 0xD) {
+        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x1, /*seg*/0x002); 
+        //}
+        //// 0 / 1 / 001
+        //else if (goc_data == 0xE) {
+        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x1, /*seg*/0x001); 
+        //}
+        //// 0 / 1 / 003
+        //else if (goc_data == 0xF) {
+        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x1, /*seg*/0x003); 
+        //}
+
     }
+    else {
+        mbus_remote_register_write(EID_ADDR,goc_header,goc_data);
+        delay(2*DLY_1S);
+    }
+//    operation_sleep();
+//    while(1);
 }
 void handler_ext_int_softreset(void) { // SOFT_RESET
     mbus_write_message32(0x71, 0x10);
@@ -2258,123 +2504,160 @@ void handler_ext_int_gpio(void) { // GPIO
 
 int main() {
     mbus_write_message32(0x70, 1);
+
+    // Disable Watchdog Timers
+    *TIMERWD_GO  = 0;   // Disable the CPU watchdog
+    *REG_MBUS_WD = 0;   // Disable the MBus watchdog by setting Threshold=0.
     
     // Get the info on who woke up the system
     wakeup_source = *SREG_WAKEUP_SOURCE;
     *SCTR_REG_CLR_WUP_SOURCE = 1; // reset WAKEUP_SOURCE register
 
     // Enable IRQs
-    *NVIC_ISER = (0x1 << IRQ_GOCEP) | (0x1 << IRQ_TIMER32) | (0x1 << IRQ_REG0  ) | (0x1 << IRQ_REG1 ) | (0x1 << IRQ_REG2  ) | (0x1 << IRQ_REG3 );
+    //*NVIC_ISER = (0x1 << IRQ_GOCEP) | (0x1 << IRQ_TIMER32) | (0x1 << IRQ_REG0  ) | (0x1 << IRQ_REG1 ) | (0x1 << IRQ_REG2  ) | (0x1 << IRQ_REG3 );
+    *NVIC_ISER = (0x1 << IRQ_GOCEP) | (0x1 << IRQ_TIMER32) | (0x1 << IRQ_REG0  ) | (0x1 << IRQ_REG1 ) | (0x1 << IRQ_REG3 );
 
     // If this is the very first wakeup, initialize the system and go back to sleep
     if (!get_flag(FLAG_INITIALIZED)) operation_init();
 
-    // EID Watchdog Check-In
-    if (get_flag(FLAG_WD_ENABLED)) eid_check_in();
+    // e-Ink Display Demo
+    // Use the slowest clock speed
+//    eid_r02.as_int = 0x1FF;
+//    mbus_remote_register_write(EID_ADDR,0x02,eid_r02.as_int);
+//    while(1) {
+//        // Triangle
+//        eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
+//        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x001); 
+//        // X-mark
+//        eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
+//        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x01A); 
+//        // Low Battery
+//        eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
+//        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x004); 
+//        // Plus Sign
+//        eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
+//        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x020); 
+//        // Minus Sign
+//        eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
+//        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x040); 
+//        // non-X
+//        eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
+//        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x065); 
+//        // only-X
+//        eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
+//        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x01A); 
+//    }
 
-    // For safety, disable Wakeup Timer's WREQ.
-    xot_disable_wreq();
+//
+//    // EID Watchdog Check-In
+//    if (get_flag(FLAG_WD_ENABLED)) eid_check_in();
+//
+//    // For safety, disable Wakeup Timer's WREQ.
+//    xot_disable_wreq();
+//
+//    // Unfreeze NFC GPIO
+//    //nfc_unfreeze_gpio();
+//
+//    //--------------------------------------------------------------------------
+//    // WAKEUP_SOURCE (wakeup_source) definition
+//    //--------------------------------------------------------------------------
+//    //  [31:12] - Reserved
+//    //     [11] - GPIO_PAD[3] has triggered wakeup (valid only when wakeup_source[3]=1)
+//    //     [10] - GPIO_PAD[2] has triggered wakeup (valid only when wakeup_source[3]=1)
+//    //     [ 9] - GPIO_PAD[1] has triggered wakeup (valid only when wakeup_source[3]=1)
+//    //     [ 8] - GPIO_PAD[0] has triggered wakeup (valid only when wakeup_source[3]=1)
+//    //  [ 7: 6] - Reserved
+//    //      [5] - GIT (GOC Instant Trigger) has triggered wakeup
+//    //              NOTE: If GIT is triggered while the system is in active, the GIT is NOT immediately handled.
+//    //                    Instead, it waits until the system goes in sleep, and then, the (pending) GIT will wake up the system.
+//    //                    Thus, you can safely assume that GIT is (effectively) triggered only while the system is in Sleep.
+//    //      [4] - MBus message has triggered wakeup (e.g., Flash Auto Boot-up)
+//    //      [3] - One of GPIO_PAD[3:0] has triggered wakeup
+//    //      [2] - XO Timer has triggered wakeup
+//    //      [1] - Wake-up Timer has triggered wakeup
+//    //      [0] - GOC/EP has triggered wakeup
+//    //--------------------------------------------------------------------------
+//
+//    //--------------------------------------------------------------------------
+//    // If woken up by GIT
+//    //--------------------------------------------------------------------------
+//    if (get_bit(wakeup_source, 5)) {
+//        mbus_write_message32(0x72, 0x4);
+//        set_flag(FLAG_GIT_TRIGGERED, 1);
+//        // Reset everything back to default.
+//        operation_back_to_default();
+//        // Post-GIT Initialization
+//        postgit_init();
+//        // Start Temp/VBAT measurement
+//        snt_running = 1;
+//        meas_count = 0;
+//    }
+//    //--------------------------------------------------------------------------
+//    // If woken up by a XO wakeup timer
+//    //--------------------------------------------------------------------------
+//    else if (get_bit(wakeup_source, 2)) {
+//        mbus_write_message32(0x72, 0x5);
+//
+//        if (wakeup_timestamp==0) wakeup_timestamp = *XOT_VAL;
+//
+//        //// If GIT is not yet enabled (i.e., the very first wakeup by the wakeup timer)
+//        //if (!get_flag(FLAG_GIT_ENABLED)) {
+//        //    // Enable GIT (GOC Instant Trigger)
+//        //    *REG_GOC_CONFIG = set_bit(*REG_GOC_CONFIG, 16, 1);
+//        //    set_flag(FLAG_GIT_ENABLED, 1);
+//        //    // Start Temp/VBAT measurement
+//        //    snt_running = 1;
+//        //    meas_count = 0;
+//        //}
+//    }
+//    //--------------------------------------------------------------------------
+//    // If woken up by NFC (GPIO[0])
+//    //--------------------------------------------------------------------------
+//    // NOTE: See note in 'THINGS TO DO'
+//    else if (get_bit(wakeup_source, 3)) {
+//        if (get_bit(wakeup_source, 8)) {
+//            mbus_write_message32(0x72, 0x6);
+//            // Handle the NFC event
+//            do_nfc();
+//        }
+//        // ERROR: other than GPIO[0] woke up the system
+//        else {
+//            mbus_write_message32(0x72, 0x7);
+//        }
+//    }
+//    //--------------------------------------------------------------------------
+//    // If woken up by a wakeup timer [ERROR]
+//    //--------------------------------------------------------------------------
+//    else if (get_bit(wakeup_source, 1)) {
+//        mbus_write_message32(0x72, 0x8);
+//    }
+//    //--------------------------------------------------------------------------
+//    // If woken up by an MBus Message
+//    //--------------------------------------------------------------------------
+//    else if (get_bit(wakeup_source, 4)) { 
+//        mbus_write_message32(0x72, 0x9);
+//    }
+//    //--------------------------------------------------------------------------
+//    // If woken up by GOC/EP
+//    //--------------------------------------------------------------------------
+//    else if (get_bit(wakeup_source, 0)) { 
+//        mbus_write_message32(0x72, 0xA);
+//        // GOC/EP shall be handled by the GOC/EP IRQ Handler.
+//    }
+//
+//    //--------------------------------------------------------------------------
+//    // OTHER OPERATIONS
+//    //--------------------------------------------------------------------------
+//    mbus_write_message32(0x72, 0xB);
+//
+//    //// If SNT is running
+//    //while (snt_running) snt_operation();
+//
+//    reset_xo_cnt(); // Make counter value = 0
+//    operation_sleep_xo_timer(3*XOT_1SEC);
 
-    // Unfreeze NFC GPIO
-    //nfc_unfreeze_gpio();
-
-    //--------------------------------------------------------------------------
-    // WAKEUP_SOURCE (wakeup_source) definition
-    //--------------------------------------------------------------------------
-    //  [31:12] - Reserved
-    //     [11] - GPIO_PAD[3] has triggered wakeup (valid only when wakeup_source[3]=1)
-    //     [10] - GPIO_PAD[2] has triggered wakeup (valid only when wakeup_source[3]=1)
-    //     [ 9] - GPIO_PAD[1] has triggered wakeup (valid only when wakeup_source[3]=1)
-    //     [ 8] - GPIO_PAD[0] has triggered wakeup (valid only when wakeup_source[3]=1)
-    //  [ 7: 6] - Reserved
-    //      [5] - GIT (GOC Instant Trigger) has triggered wakeup
-    //              NOTE: If GIT is triggered while the system is in active, the GIT is NOT immediately handled.
-    //                    Instead, it waits until the system goes in sleep, and then, the (pending) GIT will wake up the system.
-    //                    Thus, you can safely assume that GIT is (effectively) triggered only while the system is in Sleep.
-    //      [4] - MBus message has triggered wakeup (e.g., Flash Auto Boot-up)
-    //      [3] - One of GPIO_PAD[3:0] has triggered wakeup
-    //      [2] - XO Timer has triggered wakeup
-    //      [1] - Wake-up Timer has triggered wakeup
-    //      [0] - GOC/EP has triggered wakeup
-    //--------------------------------------------------------------------------
-
-    //--------------------------------------------------------------------------
-    // If woken up by GIT
-    //--------------------------------------------------------------------------
-    if (get_bit(wakeup_source, 5)) {
-        mbus_write_message32(0x72, 0x4);
-        set_flag(FLAG_GIT_TRIGGERED, 1);
-        // Reset everything back to default.
-        operation_back_to_default();
-        // Post-GIT Initialization
-        postgit_init();
-        // Start Temp/VBAT measurement
-        snt_running = 1;
-        meas_count = 0;
-    }
-    //--------------------------------------------------------------------------
-    // If woken up by a XO wakeup timer
-    //--------------------------------------------------------------------------
-    else if (get_bit(wakeup_source, 2)) {
-        mbus_write_message32(0x72, 0x5);
-
-        if (wakeup_timestamp==0) wakeup_timestamp = *XOT_VAL;
-
-        //// If GIT is not yet enabled (i.e., the very first wakeup by the wakeup timer)
-        //if (!get_flag(FLAG_GIT_ENABLED)) {
-        //    // Enable GIT (GOC Instant Trigger)
-        //    *REG_GOC_CONFIG = set_bit(*REG_GOC_CONFIG, 16, 1);
-        //    set_flag(FLAG_GIT_ENABLED, 1);
-        //    // Start Temp/VBAT measurement
-        //    snt_running = 1;
-        //    meas_count = 0;
-        //}
-    }
-    //--------------------------------------------------------------------------
-    // If woken up by NFC (GPIO[0])
-    //--------------------------------------------------------------------------
-    // NOTE: See note in 'THINGS TO DO'
-    else if (get_bit(wakeup_source, 3)) {
-        if (get_bit(wakeup_source, 8)) {
-            mbus_write_message32(0x72, 0x6);
-            // Handle the NFC event
-            do_nfc();
-        }
-        // ERROR: other than GPIO[0] woke up the system
-        else {
-            mbus_write_message32(0x72, 0x7);
-        }
-    }
-    //--------------------------------------------------------------------------
-    // If woken up by a wakeup timer [ERROR]
-    //--------------------------------------------------------------------------
-    else if (get_bit(wakeup_source, 1)) {
-        mbus_write_message32(0x72, 0x8);
-    }
-    //--------------------------------------------------------------------------
-    // If woken up by an MBus Message
-    //--------------------------------------------------------------------------
-    else if (get_bit(wakeup_source, 4)) { 
-        mbus_write_message32(0x72, 0x9);
-    }
-    //--------------------------------------------------------------------------
-    // If woken up by GOC/EP
-    //--------------------------------------------------------------------------
-    else if (get_bit(wakeup_source, 0)) { 
-        mbus_write_message32(0x72, 0xA);
-        // GOC/EP shall be handled by the GOC/EP IRQ Handler.
-    }
-
-    //--------------------------------------------------------------------------
-    // OTHER OPERATIONS
-    //--------------------------------------------------------------------------
-    mbus_write_message32(0x72, 0xB);
-
-    //// If SNT is running
-    //while (snt_running) snt_operation();
-
-    reset_xo_cnt(); // Make counter value = 0
-    operation_sleep_xo_timer(3*XOT_1SEC);
+    operation_sleep();
+    while(1);
 
     // Never Quit (should not stay here for an extended duration)
     while(1) asm("nop");
