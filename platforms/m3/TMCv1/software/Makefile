@@ -148,5 +148,8 @@ clean:
 clean-%:
 	rm -f $*/$*.bin $*/$*.hex
 
-.PHONY: clean clean-%
+cp: 
+	scp design_tb_0/design_tb_0.hex yejoong@thurston.cubeworks.io:~/Dropbox/Designs/202106_XT1_Firmware/.
+
+.PHONY: clean clean-% cp
 

@@ -1,46 +1,144 @@
 //*******************************************************************************************
+// ZHIYOONG: THINGS TO DO
+//-------------------------------------------------------------------------------------------
+// * operation_init() calls pmu_init() that initializes the PMU setting. 
+//      The PMU configuration used here is very similar to what was used in the previous TS code.
+//      Please change pmu_init() based on what you have found during your recent PMU testing.
+//      Currently, pmu_init() is commented out.
+// * Ideally, pmu_* functions should reside in TMCv1.h and TMCv1.c.
+//      However they are still included in this file with 'static' keyword.
+//      This is because I think the PMU settings may not be determined for the real use yet - 
+//      Once we figure out what to do, we may want to move the functions into TMCv1.h/TMCv1.c
+//      and remove the 'static' keyword.
+//*******************************************************************************************
+
+//*******************************************************************************************
 // XT1 (TMCv1) FIRMWARE
 // Version alpha-0.1
+// NOTE: Major portion of this code is based on TSstack_ondemand_v2.0 (pre_v20e)
 //-------------------------------------------------------------------------------------------
+//
 // TMCv1 SUB-LAYER CONNECTION:
 //      PREv22E -> SNTv5 -> EIDv1 -> MRRv11A -> MEMv3 -> PMUv13
-//-------------------------------------------------------------------------------------------
-// External Connections
-//
-//  XT1         NFC (ST25DVxxx)
-//  ---------------------------
-//  GPIO[0]     GPO
-//  GPIO[1]     SCL
-//  GPIO[2]     SDA
-//  VPG2_OUT    VCC
-//      
-//-------------------------------------------------------------------------------------------
-// XO Configuration
-//
-//  *REG_XO_CONF2 = ( 0x0
-//      | (0x2 << 13)     // XO_INJ	            (2'h2) #Adjusts injection period
-//      | (0x1 << 10)     // XO_SEL_DLY	        (3'h1) #Adjusts pulse delay
-//      | (0x1 << 8 )     // XO_SEL_CLK_SCN	    (2'h1) #Selects division ratio for SCN CLK
-//      | (0x1 << 5 )     // XO_SEL_CLK_OUT_DIV (3'h1) #Selects division ratio for the XO CLK output
-//                        //    Frequency = 2 ^ (10 + XO_SEL_CLK_OUT_DIV) (Hz) for XO_SEL_CLK_OUT_DIV=1, 2, 3, 4, 5. 
-//      | (0x1 << 4 )     // XO_SEL_LDO	        (1'h1) #Selects LDO output as an input to SCN
-//      | (0x0 << 3 )     // XO_SEL_0P6	        (1'h0) #Selects V0P6 as an input to SCN
-//      | (0x0 << 0 )     // XO_I_AMP	        (3'h0) #Adjusts VREF body bias buffer current
-//      );
 //
 //-------------------------------------------------------------------------------------------
-// e-Ink Display
-// [0]  Triangle
-// [1]  Tick
-// [2]  Low Battery
-// [3]  Back Slash
-// [4]  Slash
-// [5]  Plus
-// [6]  Minus
+// Short Address (Defined in TMCv1.h)
+//-------------------------------------------------------------------------------------------
+//      PRE: 0x1
+//      SNT: 0x2
+//      EID: 0x3
+//      MRR: 0x4
+//      MEM: 0x5
+//      PMU: 0x6
+//
 //-------------------------------------------------------------------------------------------
 // NOTE: GIT can be triggered by either VGOC or EDI.
 //-------------------------------------------------------------------------------------------
-// Major portion of this code is based on TSstack_ondemand_v2.0 (pre_v20e)
+//
+// External Connections
+//
+//  XT1         NFC (ST25DVxxx)     XT1     e-Ink Display           Display    
+//  ---------------------------     ------------------------                       
+//  GPIO[0]     GPO                 SEG[0]  Triangle                   [==]                 .
+//  GPIO[1]     SCL                 SEG[1]  Tick                                            .
+//  GPIO[2]     SDA                 SEG[2]  Low Battery               \\  //                .
+//  VPG2_OUT    VCC                 SEG[3]  Back Slash          |\     \\//    +            .
+//                                  SEG[4]  Slash               |/     //\\    -            .
+//                                  SEG[5]  Plus                    \\//  \\                .
+//                                  SEG[6]  Minus                                
+//
+//-------------------------------------------------------------------------------------------
+// General Operation 
+//-------------------------------------------------------------------------------------------
+//
+//  STATE 1) First Programming to load this binary onto TMC's SRAM
+//              TMC executes operation_init() and goes into sleep for a long duration (XOT_SLEEP_DURATION_LONG).
+//              FLAG_ENUMERATED set to 1 in operation_init().
+//
+//  STATE 2) User needs to put a sticker on the GOC diode.
+//
+//  STATE 3) After XOT_SLEEP_DURATION_LONG from Step 1, TMC wakes up and enables GIT (FLAG_GIT_ENABLED set to 1)
+//
+//  STATE 4) Then TMC periodically wakes up and goes into sleep (Sleep duration: XOT_SLEEP_DURATION)
+//              while measuring ambient temperature and adjusting PMU as needed.
+//              This continues until the user removes the sticker.
+//
+//  STATE 5) Once the user removes the sticker, TMC resets all operation. (FLAG_GIT_TRIGGERED set to 1)
+//              TMC enables the EID crash detector & handler (FLAG_WD_ENABLED set to 1)
+//
+//  STATE 6) Then it periodically wakes up and goes into sleep (Sleep duration: XOT_SLEEP_DURATION)
+//              while measuring ambient temperature and adjusting PMU as needed.
+//              TMC also stores the temperature measurement in the NFC's EEPROM.
+//
+//-------------------------------------------------------------------------------------------
+// FLAG Register
+//-------------------------------------------------------------------------------------------
+//
+//  FLAG_ENUMERATED
+//      Set to 1 when enumeration is done in operation_init() in STATE 1.
+//
+//  FLAG_GIT_ENABLED
+//      Set to 1 when the GIT becomes enabled in STATE 3.
+//
+//  FLAG_GIT_TRIGGERED
+//      Set to 1 when the GIT gets triggered (i.e., the user removes the sticker) in STATE 5.
+//
+//  FLAG_WD_ENABLED
+//      Set to 1 when TMC enables the EID crash detector & handler in STATE 5.
+//
+//-------------------------------------------------------------------------------------------
+// WAKEUP_SOURCE (wakeup_source) definition
+//-------------------------------------------------------------------------------------------
+//
+//  Use get_bit(wakeup_source, n) to get the current value, where n is 0-5, 8-11 as shown below.
+//
+//  [31:12] - Reserved
+//     [11] - GPIO_PAD[3] has triggered wakeup (valid only when wakeup_source[3]=1)
+//     [10] - GPIO_PAD[2] has triggered wakeup (valid only when wakeup_source[3]=1)
+//     [ 9] - GPIO_PAD[1] has triggered wakeup (valid only when wakeup_source[3]=1)
+//     [ 8] - GPIO_PAD[0] has triggered wakeup (valid only when wakeup_source[3]=1)
+//  [ 7: 6] - Reserved
+//      [5] - GIT (GOC Instant Trigger) has triggered wakeup
+//              NOTE: If GIT is triggered while the system is in active, the GIT is NOT immediately handled.
+//                    Instead, it waits until the system goes in sleep, and then, the (pending) GIT will wake up the system.
+//                    Thus, you can safely assume that GIT is (effectively) triggered only while the system is in Sleep.
+//      [4] - MBus message has triggered wakeup (e.g., Flash Auto Boot-up)
+//      [3] - One of GPIO_PAD[3:0] has triggered wakeup
+//      [2] - XO Timer has triggered wakeup
+//      [1] - Wake-up Timer has triggered wakeup
+//      [0] - GOC/EP has triggered wakeup
+//
+//-------------------------------------------------------------------------------------------
+// Use of Cortex-M0 Vector Table
+//  ----------------------------------------------------------
+//   MEM_ADDR  M0-Usage       PRE-Usage       PRE-Usage       
+//                            (GPIO)          (AES)           
+//  ----------------------------------------------------------
+//    0 (0x00) STACK_TOP      STACK_TOP       STACK_TOP       
+//    1 (0x04) RESET_VECTOR   RESET_VECTOR    RESET_VECTOR    
+//    2 (0x08) NMI            GOC_DATA_IRQ    GOC_DATA_IRQ    
+//    3 (0x0C) HardFault                      GOC_AES_PASS    
+//    4 (0x10) RESERVED                       GOC_AES_CT[0]   
+//    5 (0x14) RESERVED                       GOC_AES_CT[1]   
+//    6 (0x18) RESERVED                       GOC_AES_CT[2]   
+//    7 (0x1C) RESERVED                       GOC_AES_CT[3]   
+//    8 (0x20) RESERVED                       GOC_AES_PT[0]   
+//    9 (0x24) RESERVED                       GOC_AES_PT[1]   
+//   10 (0x28) RESERVED                       GOC_AES_PT[2]   
+//   11 (0x2C) SVCall                         GOC_AES_PT[3]   
+//   12 (0x30) RESERVED                       GOC_AES_KEY[0]  
+//   13 (0x34) RESERVED       R_GPIO_DATA     GOC_AES_KEY[1]  
+//   14 (0x38) PendSV         R_GPIO_DIR      GOC_AES_KEY[2]  
+//   15 (0x3C) SysTick        R_GPIO_IRQ_MASK GOC_AES_KEY[3]  
+//
+//-------------------------------------------------------------------------------------------
+// EEPROM in ST25DV64K using I2C interface
+//-------------------------------------------------------------------------------------------
+//  Memory Capacity: 64 kbits = 8kB = 2k words = 2k pages (1 page = 1 word)
+//  
+//  A Sequential Write can write up to 256 bytes (= 64 words = 64 pages)
+//  2k / 64 = 32 Sequential Writes are needed to overwrite the entire EEPROM.
+//
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
 //  Jun 24 2021 -   First commit 
@@ -70,136 +168,77 @@
 // - In handler_ext_int_wakeup, if the system is waken up by an MBus message,
 //      it may be good to add some signature check to tell whether the wakeup 
 //      is due to a glitch on the wire.
-// - Any code to handle general tasks in handler_ext_int_gocep?
 // - In snt_operation(), add code to store the temp & VBAT data with timestamp
-// - The flag bit @ FLAG_USE_REAL_TIME must be set to 0. PREv22E (in TMCv1) automatically
-//      resets the XO counter to 0 upon wakeup. This needs to be changed in the next version.
-// - Currently, use of 'nfc_unfreeze_gpio()' makes VBAT > 100uA. Need to figure out why.
-// - We may not need the code to handle "If woken up by NFC". 
-//      The NFC chip is supposed to handle the phone communication by its own.
-//      TMCv1 only has to store measurement inside the NFC chip periodically.
-//      The 'GPO' event should 'reset' the 'pointer' only - for now.
+// - Is it possible to get a GOC/EP to go into sleep while the system is doing the display update?
+//      If yes, how can we ensure that we stop the EID operataion before going into sleep?
+//******************************************************************************************* 
+
+//******************************************************************************************* 
+//
+//                               THINGS TO BE NOTED
+//
+//******************************************************************************************* 
+// set_halt and IRQ
+//-------------------------------------------------------------------------------------------
+//
+// NOTE: Do NOT enable IRQ_REGn if: 
+//                    REGn is a target register that a reply msg writes into 
+//              -AND- set_halt_until_mbus_trx() is used
+//              -AND- REGn IRQ handler generates an MBus message.
+//      Example)
+//              PMU Reply message writes into REG0.
+//              In main()
+//                  *NVIC_ISER = (0x1 << IRQ_REG0);
+//                  set_halt_until_mbus_trx();
+//                  mbus_remote_register_write(PMU_ADDR,reg_addr,reg_data);
+//                  set_halt_until_mbus_tx();
+//              In handler_ext_int_reg0
+//                  mbus_write_message32(0x71, 0x3);
+//
+//              -> The reply msg from PMU writes into REG0, triggering IRQ_REG0, which then sends out the msg 0x71, 0x3.
+//                 If this happens BEFORE the system releases the halt state, the system may still stay in 'set_halt_until_mbus_trx()'
+//
 //******************************************************************************************* 
 
 #include "TMCv1.h"
 
-#define DLY_1S 20000    // 5 instructions @ 100kHz
-
-//*******************************************************************************************
-// SHORT ADDRESSES
-//*******************************************************************************************
-#define PRE_ADDR    0x1
-#define SNT_ADDR    0x2
-#define EID_ADDR    0x3
-#define MRR_ADDR    0x4
-#define MEM_ADDR    0x5
-#define PMU_ADDR    0x6
+#define DLY_1S  40000    // 5 instructions @ 100kHz w/ 2x margin
+#define DLY_1MS 40    // 5 instructions @ 100kHz w/ 2x margin
 
 //*******************************************************************************************
 // DEBUGGING
 //*******************************************************************************************
-// Debug Switches
-#define ARB_DEBUG           // Send out ARB Debug Messages. Only for verilog simulations. You can ignore this in real silicon.
-//#define USE_SHORT_DELAY     // Use short delays for quick simulations. Comment it out for real silicon testing.
-
-// Failure Codes
-#define FCODE_0     1   // Unexpected State value in Pre-GIT / Wakeup Timer / Wakeup IRQ
-#define FCODE_1     2   // Unexpected State value in Post-GIT / Wakeup Timer / Wakeup IRQ
-#define FCODE_2     2   // Unexpected State value in Pre-GIT / MBus / Wakeup IRQ
-#define FCODE_3     3   // Unexpected State value in Post-GIT / MBus / Wakeup IRQ
-#define FCODE_4     4   // Timeout during PMU Register Write
-#define FCODE_5     5   // Timeout during PMU Register Read
-#define FCODE_6     6   // Timeout during I2C ACK
-#define FAIL_MBUS_ADDR  0xE0    // In case of failure, it sends an MBus message containing the failure code to this MBus Address.
+#define DEBUG       // Send debug MBus messages (Disable this for real use)
+#define DEVEL       // Used for development (Disable this for real use)
+#define FAIL_MBUS_ADDR  0xEF    // fail(): In case of failure, it sends an MBus message containing the failure code to this MBus Address.
 
 //*******************************************************************************************
-// FLAG INDEXES
+// FLAG BIT INDEXES
 //*******************************************************************************************
-#define FLAG_INITIALIZED    0
+#define FLAG_ENUMERATED     0
 #define FLAG_GIT_ENABLED    1
 #define FLAG_GIT_TRIGGERED  2
 #define FLAG_WD_ENABLED     3
-#define FLAG_USE_REAL_TIME  4
-
-//*******************************************************************************************
-// SYSTEM STATES/MODES
-//*******************************************************************************************
-
-// SNT states
-#define SNT_IDLE        0x0
-#define SNT_LDO         0x1
-#define SNT_TEMP_START  0x2
-#define SNT_TEMP_READ   0x6
-
-// System Operation Mode
-#define ACTIVE      0x1
-#define SLEEP       0x0
-
-//*******************************************************************************************
-// E-INK DISPLAY PATTERN
-//-------------------------------------------------------------------------------------------
-// The display will become all-white before displaying patterns specified.
-// For n=0,...,8, Bit[n]=1 makes SEG[n] black.
-//*******************************************************************************************
-#define DISP_INITIALIZED 0x001  // After intialization (At the end of operation_init())
-#define DISP_NORMAL      0x002  // Normal Operation (after GIT)
-#define DISP_LOW_VBAT    0x003  // Low VBAT Level (just a warning)
-#define DISP_LOW_TEMP    0x004  // Low Temperature Detected
-#define DISP_HIGH_TEMP   0x005  // High Temperature Detected
-
-//*******************************************************************************************
-// NFC CONFIGURATIONS
-//*******************************************************************************************
-
-// COTS Power Switch
-#define NFC_CPS 2
-
-// GPIO Interface
-#define NFC_GPO 0
-#define NFC_SCL 1
-#define NFC_SDA 2
-#define I2C_MASK (1<<NFC_SDA)|(1<<NFC_SCL)
-#define I2C_SCL_MASK (1<<NFC_SCL)
-#define I2C_SDA_MASK (1<<NFC_SDA)
-#define GPO_MASK (1<<NFC_GPO)
-
-// ACK Timeout
-#define I2C_ACK_TIMEOUT 50000   // Checked using TIMER32
-
-// GPO Edge Sensitivity (At least one of the below must be enabled; Both can be enabled.)
-#define USE_GPO_POSEDGE
-//#define USE_GPO_NEGEDGE
+#define FLAG_UPDATE_EEPROM  // If enabled, store the flag in the first page in EEPROM
 
 //*******************************************************************************************
 // XO AND SLEEP DURATIONS
 //*******************************************************************************************
 
 // XO Initialization Wait Duration
-#ifndef USE_SHORT_DELAY
-    #define XO_WAIT_A  20000    // Must be ~1 second delay. Delay for XO Start-Up. LSB corresponds to ~50us, assuming ~100kHz CPU clock and 5 cycles per delay(1).
-    #define XO_WAIT_B  20000    // Must be ~1 second delay. Delay for VLDO & IBIAS Generation. LSB corresponds to ~50us, assuming ~100kHz CPU clock and 5 cycles per delay(1).
-#else
-    #define XO_WAIT_A  100      // Short delay for simulation
-    #define XO_WAIT_B  100      // Short delay for simulation
-#endif
+#define XO_WAIT_A  20000    // Must be ~1 second delay. Delay for XO Start-Up. LSB corresponds to ~50us, assuming ~100kHz CPU clock and 5 cycles per delay(1).
+#define XO_WAIT_B  20000    // Must be ~1 second delay. Delay for VLDO & IBIAS Generation. LSB corresponds to ~50us, assuming ~100kHz CPU clock and 5 cycles per delay(1).
 
 // XO Counter Value per Specific Time Durations
-#define XOT_1SEC    2048
+#define XOT_1SEC    2048        // By default, the XO clock frequency is 2kHz. Frequency = 2 ^ XO_SEL_CLK_OUT_DIV (kHz).
 #define XOT_1MIN    60*XOT_1SEC
 #define XOT_1HR     60*XOT_1MIN
 #define XOT_1DAY    24*XOT_1HR
 
 // Sleep Duration 
-#ifndef USE_SHORT_DELAY
-    #define SLEEP_DURATION_LONG      1*XOT_1HR      // The long sleep duration during which the user must put on a GIT sticker
-    #define SLEEP_DURATION_PREGIT   10*XOT_1MIN     // The sleep duration before activating the system
-    #define SLEEP_DURATION          10*XOT_1MIN     // The sleep duration after the system activation
-#else
-    #define SLEEP_DURATION_LONG      1*XOT_1SEC     // The long sleep duration during which the user must put on a GIT sticker
-    #define SLEEP_DURATION_PREGIT    1*XOT_1SEC     // The sleep duration before activating the system
-    #define SLEEP_DURATION           1*XOT_1SEC     // The sleep duration after the system activation
-#endif
-
+#define XOT_SLEEP_DURATION_LONG      1*XOT_1HR      // The long sleep duration during which the user must put on a GIT sticker
+#define XOT_SLEEP_DURATION_PREGIT   10*XOT_1MIN     // The sleep duration before activating the system
+#define XOT_SLEEP_DURATION          10*XOT_1MIN     // The sleep duration after the system activation
 
 //*******************************************************************************************
 // TARGET REGISTER INDEX FOR LAYER COMMUNICATIONS
@@ -232,6 +271,16 @@
 // PMU Reg Write Timeout
 #define PMU_TIMEOUT 300000  // LSB corresponds to ~10us, assuming ~100kHz CPU clock.
 
+// System Operation Mode
+#define ACTIVE      0x1
+#define SLEEP       0x0
+
+// SNT states
+#define SNT_IDLE        0x0
+#define SNT_LDO         0x1
+#define SNT_TEMP_START  0x2
+#define SNT_TEMP_READ   0x6
+
 // PMU Temperatures
 #define PMU_10C 0x0
 #define PMU_20C 0x1
@@ -241,7 +290,7 @@
 #define PMU_75C 0x5
 #define PMU_95C 0x6
 
-// Number of SNT Temp Sensor Measurement
+// Number of SNT Temp Sensor Measurements during snt_operation()'s full cycle.
 #define SNT_NUM_TEMP_MEAS   1
 
 //-------------------------------------------------------------------
@@ -251,13 +300,13 @@
 // ACTIVE
 volatile union pmu_floor pmu_floor_active[] = {
     //  Temp       idx     R    L    BASE  L_SAR
-    /*PMU_10C */ /* 0*/  {{0xF, 0x7, 0x10, 0xE}},
-    /*PMU_20C */ /* 1*/  {{0xF, 0x7, 0x10, 0xE}},
-    /*PMU_25C */ /* 2*/  {{0xF, 0x3, 0x10, 0x7}},
-    /*PMU_35C */ /* 3*/  {{0xF, 0x2, 0x10, 0x4}},
-    /*PMU_55C */ /* 4*/  {{0x6, 0x1, 0x10, 0x2}},
-    /*PMU_75C */ /* 5*/  {{0x6, 0x1, 0x10, 0x2}},
-    /*PMU_95C */ /* 6*/  {{0x6, 0x1, 0x10, 0x2}},
+    /*PMU_10C */ /* 0*/  {{0xF, 0x7, 0x0F, 0xE}},
+    /*PMU_20C */ /* 1*/  {{0xF, 0x7, 0x0F, 0xE}},
+    /*PMU_25C */ /* 2*/  {{0xF, 0x3, 0x0F, 0x7}},
+    /*PMU_35C */ /* 3*/  {{0xF, 0x2, 0x0F, 0x4}},
+    /*PMU_55C */ /* 4*/  {{0x6, 0x1, 0x0F, 0x2}},
+    /*PMU_75C */ /* 5*/  {{0x6, 0x1, 0x0F, 0x2}},
+    /*PMU_95C */ /* 6*/  {{0x6, 0x1, 0x0F, 0x2}},
     };
 
 // SLEEP
@@ -296,12 +345,12 @@ volatile union pmu_floor pmu_floor_sleep_radio[] = {
 //-------------------------------------------------------------------
 // Temperature Sensor Threshold for PMU Floor Setting
 //-------------------------------------------------------------------
-volatile uint32_t PMU_10C_threshold_snt = 600; // Around 10C
-volatile uint32_t PMU_20C_threshold_snt = 1000; // Around 20C
-volatile uint32_t PMU_35C_threshold_snt = 2000; // Around 35C
-volatile uint32_t PMU_55C_threshold_snt = 3200; // Around 55C
-volatile uint32_t PMU_75C_threshold_snt = 7000; // Around 75C
-volatile uint32_t PMU_95C_threshold_snt = 12000; // Around 95C
+volatile uint32_t PMU_10C_threshold_snt = 600;      // Around 10C
+volatile uint32_t PMU_20C_threshold_snt = 1000;     // Around 20C
+volatile uint32_t PMU_35C_threshold_snt = 2000;     // Around 35C
+volatile uint32_t PMU_55C_threshold_snt = 3200;     // Around 55C
+volatile uint32_t PMU_75C_threshold_snt = 7000;     // Around 75C
+volatile uint32_t PMU_95C_threshold_snt = 12000;    // Around 95C
 
 //-------------------------------------------------------------------
 // Temperature Sensor Calibration Coefficients
@@ -340,148 +389,61 @@ volatile union pmu_state pmu_stall_state_active;    // Register 0x3A
 // EID LAYER CONFIGURATION
 //*******************************************************************************************
 
-// Timer Start-up Delay
-#ifndef USE_SHORT_DELAY
-    #define EID_TIMER_WAIT  60000   // Must be >3 seconds delay. Delay between TMR_SELF_EN=1 and TMR_EN_OSC=0. LSB corresponds to ~50us, assuming ~100kHz CPU clock and 5 cycles per delay(1).
-#else
-    #define EID_TIMER_WAIT  100     // Short delay for simulation
-#endif
+// Display Patterns: See 'External Connections' for details
+#define DISP_TRIANGLE   (0x1 << 0)
+#define DISP_TICK       (0x1 << 1)
+#define DISP_LOWBATT    (0x1 << 2)
+#define DISP_BACKSLASH  (0x1 << 3)
+#define DISP_SLASH      (0x1 << 4)
+#define DISP_PLUS       (0x1 << 5)
+#define DISP_MINUS      (0x1 << 6)
 
-// Charge Pumps Tuning
-#define EID_SEL_RING    0x0     // (Default: 0x0; Max: 0x3) Selects # of rings. 0x0: 11 stages; 0x3: 5 stages.
-#define EID_SEL_TE_DIV  0x0     // (Default: 0x0; Max: 0x3) Selects clock division ratio for Top Electrode (TE) charge pump.
-#define EID_SEL_FD_DIV  0x0     // (Default: 0x0; Max: 0x3) Selects clock division ratio for Field (FD) charge pump.
-#define EID_SEL_SEG_DIV 0x0     // (Default: 0x0; Max: 0x3) Selects clock division ratio for Segment (SEG) charge pumps.
-
-// Charge Pump Activation Duration (Normal Use)
-#ifndef USE_SHORT_DELAY
-    #define EID_PULSE_WIDTH 200   // (Default: 400; Max: 65535) Duration of Charge Pump Activation. LSB corresponds to ~5ms, assuming a 3kHz clock (i.e., LSB = clock_period * 16)
-#else
-    #define EID_PULSE_WIDTH 40      // Short delay for simulation
-#endif
-
-//--- Crash Handling
-//--------------------------------------------------------
-//
-// X: CRSH_IDLE_WIDTH
-// Y: CRSH_PULSE_WIDTH
-//
-//    crash detected
-//           v
-//                  <-Seq A->       <-Seq B->       <-Seq C->
-//  VOUT_*   _______|*******|_______|*******|_______|*******|_______________
-// Duration  <--X--> <--Y--> <--X--> <--Y--> <--X--> <--Y--> <--X-->
-// dead      _______________________________________________________|*******
-// PG_DIODE  <--A0-> <--A--> <--A1-> <--B--> <--B1-> <--C--> <--C1->|*******
-//
-// PG_DIODE  *******|_______________________________________________|*******
-// (intended)
-//
-//////////////////////////////////////////////////////////
-#define CRSH_WD_THRSHLD     360000  // (Default: 360,000, Max:16,777,215) Crash Watchdog Threshold. LSB corresponds to ~5ms, assuming a 3kHz clock (i.e., LSB = clock_period * 16)
-#define CRSH_SEL_RING       0x0     // (Default: 0x0; Max: 0x3) Selects # of rings. 0x0: 11 stages; 0x3: 5 stages.
-#define CRSH_SEL_TE_DIV     0x0     // (Default: 0x0; Max: 0x3) Selects clock division ratio for Top Electrode (TE) charge pump.
-#define CRSH_SEL_FD_DIV     0x0     // (Default: 0x0; Max: 0x3) Selects clock division ratio for Field (FD) charge pump.
-#define CRSH_SEL_SEG_DIV    0x0     // (Default: 0x0; Max: 0x3) Selects clock division ratio for Segment (SEG) charge pumps.
-
-#ifndef USE_SHORT_DELAY
-    #define CRSH_IDLE_WIDTH     400     // (Default: 400; Max: 65535) Duration of Charge Pump Activation. LSB corresponds to ~5ms, assuming a 3kHz clock (i.e., LSB = clock_period * 16)
-    #define CRSH_PULSE_WIDTH    400     // (Default: 400; Max: 65535) Duration of Charge Pump Activation. LSB corresponds to ~5ms, assuming a 3kHz clock (i.e., LSB = clock_period * 16)
-#else
-    #define CRSH_IDLE_WIDTH     40      // Short delay for simulation
-    #define CRSH_PULSE_WIDTH    40      // Short delay for simulation
-#endif
-#define CRSH_SEL_SEQ        0x1     // See above waveform. Each bit in [2:0] enables/disables Seq C, Seq B, Seq A, respectively. 
-                                    // If 1, the corresponding sequence is enabled. If 0, the corresponding sequence is skipped.
-
-//--- Sequence A (valid only if CRSH_SEL_SEQ[0]=1)
-#define CRSH_SEQA_VIN       0x0     // Use 0 if VBAT is high; Use 1 if VBAT is low.
-#define CRSH_SEQA_CK_TE     0x0     // CK Value for Top Electrode (TE)
-#define CRSH_SEQA_CK_FD     0x0     // CK Value for Field (FD)
-#define CRSH_SEQA_CK_SEG    0x000   // CK Value for Segments (SEG[8:0])
-
-//--- Sequence B (valid only if CRSH_SEL_SEQ[1]=1)
-#define CRSH_SEQB_VIN       0x0     // Use 0 if VBAT is high; Use 1 if VBAT is low.
-#define CRSH_SEQB_CK_TE     0x0     // CK Value for Top Electrode (TE)
-#define CRSH_SEQB_CK_FD     0x0     // CK Value for Field (FD)
-#define CRSH_SEQB_CK_SEG    0x000   // CK Value for Segments (SEG[8:0])
-
-//--- Sequence C (valid only if CRSH_SEL_SEQ[2]=1)
-#define CRSH_SEQC_VIN       0x0     // Use 0 if VBAT is high; Use 1 if VBAT is low.
-#define CRSH_SEQC_CK_TE     0x0     // CK Value for Top Electrode (TE)
-#define CRSH_SEQC_CK_FD     0x0     // CK Value for Field (FD)
-#define CRSH_SEQC_CK_SEG    0x000   // CK Value for Segments (SEG[8:0])
-
-//--------- <DO NOT CHANGE> ------------------------------------------------------------------
-#define CRSH_PG_DIODE_A0    0x1
-#define CRSH_PG_DIODE_A     0x0
-#define CRSH_PG_DIODE_A1    0x0
-#define CRSH_PG_DIODE_B     0x0
-#define CRSH_PG_DIODE_B1    0x0
-#define CRSH_PG_DIODE_C     0x0
-#define CRSH_PG_DIODE_C1    0x0
-//--------------------------------------------------------------------------------------------
-
+// Display Presets
+#define DISP_NONE           0
+#define DISP_CHECK          DISP_TICK  | DISP_SLASH
+#define DISP_XMARK          DISP_SLASH | DISP_BACKSLASH
+#define DISP_RUNNING        DISP_TRIANGLE
+#define DISP_NORMAL         DISP_CHECK
+#define DISP_HIGH_TEMP      DISP_PLUS
+#define DISP_LOW_TEMP       DISP_MINUS
+#define DISP_LOW_VBAT       DISP_LOWBATT
 
 //*******************************************************************************************
 // GLOBAL VARIABLES
 //*******************************************************************************************
-volatile uint32_t wakeup_source;
-volatile uint32_t state;
-volatile uint32_t snt_state;
-volatile uint32_t wfi_timeout_flag;
-volatile uint32_t exec_count;
-volatile uint32_t wakeup_count;
-volatile uint32_t exec_count_irq;
-volatile uint32_t pmu_setting_state;
-volatile uint32_t snt_running;
-volatile uint32_t meas_count;
-volatile uint32_t read_data_temp;
-volatile uint32_t snt_high_temp_threshold;
-volatile uint32_t snt_low_temp_threshold;
-volatile uint32_t read_data_batadc;
-volatile uint32_t read_data_batadc_diff;
-volatile uint32_t pmu_adc_3p0_val;
-volatile uint32_t pmu_adc_low_val;      // Low VBAT level which displays the warning
-volatile uint32_t pmu_adc_crit_val;     // Critical VBAT level which triggers the EID Watchdog
-volatile uint32_t eid_vin_threshold;    // EID's VIN threshold. PMU ADC values @ VBAT = 2.5V
-volatile uint32_t wakeup_timestamp;
-volatile uint32_t wakeup_timestamp_rollover;
-volatile uint32_t realtime_offset; // Difference btw the wall time and XO Timer counter value. Need to be updated by user. 
-
+//--- General 
+volatile uint32_t wakeup_source;            // Wakeup Source. Updated each time the system wakes up. See 'WAKEUP_SOURCE definition'.
+volatile uint32_t wakeup_count;             // Wakeup Count. Incrementing each time the system wakes up.
+volatile uint32_t wakeup_timestamp;         // XOT counter value upon wake-up. Updated only if the system is waken up by the XO Timer.
+volatile uint32_t wakeup_timestamp_rollover;// Not Used.
+//--- SNT & Temperature Measurement
+volatile uint32_t snt_state;                // SNT state: SNT_IDLE, SNT_LDO, SNT_TEMP_START, SNT_READ
+volatile uint32_t meas_count;               // Meas count. Number of temperature measurements performed during the snt_operation()'s full cycle.
+volatile uint32_t exec_count;               // Exec count. Incrementing each time snt_operation() completes the full cycle.
+volatile uint32_t snt_running;              // Indicates whether the SNT temp sensor is running.
+volatile uint32_t read_data_temp;           // SNT Temperature Measurement Value (24-bit)
+volatile uint32_t snt_high_temp_threshold;  // Threshold for High Temperature (used for display)
+volatile uint32_t snt_low_temp_threshold;   // Threshold for Low Temperature (used for display)
+volatile uint32_t nfc_temp_addr;            // EEPROM byte address for temperature data storage
+//--- PMU & ADC (VBAT) Measurement
+volatile uint32_t pmu_setting_state;        // Current PMU setting state. e.g., PMU_10C, PMU_20C, ...
+volatile uint32_t read_data_batadc;         // PMU ADC value for VBAT measurement (8-bit)
+volatile uint32_t read_data_batadc_diff;    // Not Used
+volatile uint32_t pmu_adc_3p0_val;          // PMU ADC value at VBAT = 3.0V
+volatile uint32_t pmu_adc_low_val;          // Threshold for Low VBAT (used for display)
+volatile uint32_t pmu_adc_crit_val;         // Threshold for Critical VBAT (used to trigger the EID crash detector & handler)
+//--- Register Files
 volatile pre_r0B_t pre_r0B = PRE_R0B_DEFAULT;
 volatile snt_r00_t snt_r00 = SNT_R00_DEFAULT;
 volatile snt_r01_t snt_r01 = SNT_R01_DEFAULT;
 volatile snt_r03_t snt_r03 = SNT_R03_DEFAULT;
-volatile eid_r00_t eid_r00 = EID_R00_DEFAULT;
-volatile eid_r01_t eid_r01 = EID_R01_DEFAULT;
-volatile eid_r02_t eid_r02 = EID_R02_DEFAULT;
-volatile eid_r07_t eid_r07 = EID_R07_DEFAULT;
-volatile eid_r08_t eid_r08 = EID_R08_DEFAULT;
-volatile eid_r09_t eid_r09 = EID_R09_DEFAULT;
-volatile eid_r10_t eid_r10 = EID_R10_DEFAULT;
-volatile eid_r11_t eid_r11 = EID_R11_DEFAULT;
-volatile eid_r12_t eid_r12 = EID_R12_DEFAULT;
-volatile eid_r13_t eid_r13 = EID_R13_DEFAULT;
-volatile eid_r14_t eid_r14 = EID_R14_DEFAULT;
-volatile eid_r15_t eid_r15 = EID_R15_DEFAULT;
-volatile eid_r16_t eid_r16 = EID_R16_DEFAULT;
-volatile eid_r17_t eid_r17 = EID_R17_DEFAULT;
 
 //*******************************************************************************************
 // FUNCTIONS DECLARATIONS
 //*******************************************************************************************
 
-//-- PRE Functions
-static void set_timer32_timeout(uint32_t val);
-static void stop_timer32_timeout_check(uint32_t code);
-static void xot_enable(uint32_t timestamp);
-static void xot_disable_wreq(void);
-static void xo_start(void);
-static void xo_stop(void);
-
 //-- PMU Functions
-static void pmu_reg_write_core (uint32_t reg_addr, uint32_t reg_data, uint32_t fail_code);
+static void pmu_reg_write_core (uint32_t reg_addr, uint32_t reg_data);
 static void pmu_reg_write (uint32_t reg_addr, uint32_t reg_data);
 static uint32_t pmu_reg_read (uint32_t reg_addr);
 static void pmu_config_rat(uint8_t rat);
@@ -504,30 +466,6 @@ static void snt_ldo_power_off(void);
 static void snt_ldo_vref_on(void);
 static void snt_ldo_power_on(void);
 
-//-- EID Functions
-static void eid_enable_timer(void);
-static void eid_set_pulse_width(uint32_t pulse_width);
-static void eid_enable_cp_ck(uint32_t vin, uint32_t te, uint32_t fd, uint32_t seg);
-static void eid_all_black(uint32_t vin);
-static void eid_all_white(uint32_t vin);
-static void eid_seg_black(uint32_t vin, uint32_t seg);
-static void eid_seg_white(uint32_t vin, uint32_t seg);
-static void eid_update(uint32_t seg);
-static void eid_check_in(void);
-static void eid_trigger_crash(void);
-static void eid_init(void);
-
-//-- NFC Functions
-static void nfc_unfreeze_gpio(void);
-static void nfc_init(void);
-static void nfc_i2c_start(void);
-static void nfc_i2c_stop(void);
-static void nfc_i2c_cmd(uint8_t byte);
-static uint8_t nfc_i2c_rd(uint8_t ack);
-static void nfc_i2c_byte_write(uint32_t addr, uint8_t data);
-static void nfc_i2c_seq_write(uint32_t addr, uint32_t data[], uint32_t len);
-static void nfc_i2c_seq_word_write(uint32_t addr, uint32_t data[], uint32_t len);
-
 //-- Initialization/Sleep Functions
 static void operation_sleep (void);
 static void operation_prepare_sleep_notimer(void);
@@ -539,159 +477,12 @@ static void operation_init (void);
 //-- Application Specific
 static void snt_operation (void);
 static void postgit_init(void);
-static void do_nfc(void);
 static void fail (uint32_t code);
 
 
 //*******************************************************************************************
 // FUNCTIONS IMPLEMENTATION
 //*******************************************************************************************
-
-//-------------------------------------------------------------------
-// PRE Functions
-//-------------------------------------------------------------------
-
-//-------------------------------------------------------------------
-// Function: set_timer32_timeout
-// Args    : var - Threshold
-// Description:
-//          set_timer32_timeout() initializes and starts the TIMER 32
-//          for a time-out check
-// Return  : None
-//-------------------------------------------------------------------
-static void set_timer32_timeout(uint32_t val){
-    wfi_timeout_flag = 0;
-    config_timer32(/*cmp*/val, /*roi*/1, /*cnt*/0, /*status*/0);
-}
-
-//-------------------------------------------------------------------
-// Function: stop_timer32_timeout_check
-// Args    : code - Error code
-// Description:
-//          stop_timer32_timeout_check() stops the TIMER32.
-//          If there is a timeout, it calls fail().
-// Return  : None
-//-------------------------------------------------------------------
-static void stop_timer32_timeout_check(uint32_t code){
-    *TIMER32_GO = 0;
-    if (wfi_timeout_flag){
-        wfi_timeout_flag = 0;
-        fail (code);
-    }
-}
-
-//-------------------------------------------------------------------
-// Function: xot_enable
-// Args    : timestamp - Timestamp value at which the XO timer generates 
-//                       a wakeup request
-// Description:
-//           Changes the XO Timer's threshold value using timestamp.
-//           This function assumes that XO Driver and XO Timer have 
-//           been already properly started.
-// Return  : None
-//-------------------------------------------------------------------
-static void xot_enable (uint32_t timestamp) {
-    *REG_XOT_CONFIGU = (timestamp >> 16) & 0xFFFF;
-    *REG_XOT_CONFIG  = (timestamp & 0x0000FFFF) | 0x00A00000; // [23] XOT_ENABLE = 1; [21] XOT_WREQ_EN = 1;
-    start_xo_cnt();
-}
-
-//-------------------------------------------------------------------
-// Function: xot_disable_wreq
-// Args    : None
-// Description:
-//           Make XOT_WREQ_EN = 0, which prevents XO Wakeup Timer
-//           from generating a wakeup request.
-//           The XO Wakeup Timer running status is NOT affected 
-//           by this function.
-// Return  : None
-//-------------------------------------------------------------------
-static void xot_disable_wreq (void) {
-    *REG_XOT_CONFIG  = *REG_XOT_CONFIG & 0xFFDFFFFF; // [21] XOT_WREQ_EN = 0;
-}
-
-//-------------------------------------------------------------------
-// Function: xo_start
-// Args    : None
-// Description:
-//           Start the XO Driver and the XO Wakeup Timer
-// Return  : None
-//-------------------------------------------------------------------
-static void xo_start( void ) {
-
-    //--------------------------------------------------------------------------
-    // XO Driver (XO_DRV_V3_TSMC180) Start-Up Sequence
-    //--------------------------------------------------------------------------
-    // RESETn       __|*********************************************************
-    // PGb_StartUp  __|***************************|_____________________________
-    // START_UP     **************************|_________________________________
-    // ISOL_CLK_HP  **********|_________________|*******************************
-    // ISOL_CLK_LP  ******************|_________________________________________
-    //                |<--A-->|<--B-->|<--C-->|.|.|<-- Low Power Operation -->
-    //--------------------------------------------------------------------------
-    // A: ~1s  (XO Start-Up): NOTE: You may need more time here due to the weak power-gate switch.
-    // B: ~1s  (VLDO & IBIAS generation)
-    // C: <1ms (SCN Output Generation)
-    // .(dot): minimum delay
-    //--------------------------------------------------------------------------
-
-    pre_r19_t xo_control = PRE_R19_DEFAULT; // REG_XO_CONF1
-
-    xo_control.XO_RESETn       = 1;
-    xo_control.XO_PGb_START_UP = 1;
-    *REG_XO_CONF1 = xo_control.as_int;
-
-    delay(XO_WAIT_A); // Delay A (~1s; XO Start-Up)
-
-    xo_control.XO_ISOL_CLK_HP = 0;
-    *REG_XO_CONF1 = xo_control.as_int;
-    
-    delay(XO_WAIT_B); // Delay B (~1s; VLDO & IBIAS generation)
-
-    xo_control.XO_ISOL_CLK_LP = 0;
-    *REG_XO_CONF1 = xo_control.as_int;
-    
-    delay(100); // Delay C (~1ms; SCN Output Generation)
-
-    xo_control.XO_START_UP = 0;
-    *REG_XO_CONF1 = xo_control.as_int;
-    
-    xo_control.XO_ISOL_CLK_HP = 1;
-    *REG_XO_CONF1 = xo_control.as_int;
-
-    xo_control.XO_PGb_START_UP = 0;
-    *REG_XO_CONF1 = xo_control.as_int;
-
-    delay(100); // Dummy Delay
-
-    // Start XO Wakeup Timer
-    enable_xo_timer();
-    start_xo_cnt();
-}
-
-//-------------------------------------------------------------------
-// Function: xo_stop
-// Args    : None
-// Description:
-//           Stop the XO Driver and the XO Wakeup Timer
-// Return  : None
-//-------------------------------------------------------------------
-static void xo_stop( void ) {
-    // Stop the XO Driver
-    pre_r19_t xo_control;
-    xo_control.as_int = *REG_XO_CONF1;
-
-    xo_control.XO_ISOL_CLK_LP = 1;
-    *REG_XO_CONF1 = xo_control.as_int;
-
-    xo_control.XO_RESETn   = 0;
-    xo_control.XO_START_UP = 1;
-    *REG_XO_CONF1 = xo_control.as_int;
-
-    // Stop the XO Wakeup Timer
-    disable_xo_timer();
-}
-
 
 //-------------------------------------------------------------------
 // PMU Functions
@@ -701,17 +492,14 @@ static void xo_stop( void ) {
 // Function: pmu_reg_write_core
 // Args    : reg_addr  - Register Address
 //           reg_data  - Register Data
-//           fail_code - Fail Code for Time-Out
 // Description:
 //          pmu_reg_write_core() writes reg_data in PMU's reg_addr
-//          It also performs a time-out check.
 // Return  : None
 //-------------------------------------------------------------------
-static void pmu_reg_write_core (uint32_t reg_addr, uint32_t reg_data, uint32_t fail_code) {
-    set_timer32_timeout(PMU_TIMEOUT);
+static void pmu_reg_write_core (uint32_t reg_addr, uint32_t reg_data) {
+    set_halt_until_mbus_trx();
     mbus_remote_register_write(PMU_ADDR,reg_addr,reg_data);
-    WFI();
-    stop_timer32_timeout_check(fail_code);
+    set_halt_until_mbus_tx();
 }
 
 //-------------------------------------------------------------------
@@ -724,7 +512,7 @@ static void pmu_reg_write_core (uint32_t reg_addr, uint32_t reg_data, uint32_t f
 // Return  : None
 //-------------------------------------------------------------------
 static void pmu_reg_write (uint32_t reg_addr, uint32_t reg_data) {
-    pmu_reg_write_core(reg_addr, reg_data, FCODE_4);
+    pmu_reg_write_core(reg_addr, reg_data);
 }
 
 //-------------------------------------------------------------------
@@ -736,7 +524,7 @@ static void pmu_reg_write (uint32_t reg_addr, uint32_t reg_data) {
 // Return  : Read Data
 //-------------------------------------------------------------------
 static uint32_t pmu_reg_read (uint32_t reg_addr) {
-    pmu_reg_write_core(0x00, reg_addr, FCODE_5);
+    pmu_reg_write_core(0x00, reg_addr);
     return *PMU_TARGET_REG_ADDR;
 }
 
@@ -764,11 +552,11 @@ static void pmu_config_rat(uint8_t rat) {
         | (rat << 15)   // 1'h0     // Enable SAR Slow-Loop in Sleep
         | (rat << 14)   // 1'h0     // Enable UPC Slow-Loop in Sleep
         | (rat << 13)   // 1'h0     // Enable DNC Slow-Loop in Sleep
-        | (0   << 11)   // 2'h0     // Clock Ring Tuning
-        | (0   << 8 )   // 3'h0     // Clock Divider Tuning for SAR Charge Pump Pull-Up
-        | (0   << 5 )   // 3'h0     // Clock Divider Tuning for UPC Charge Pump Pull-Up
-        | (0   << 2 )   // 3'h0     // Clock Divider Tuning for DNC Charge Pump Pull-Up
-        | (0   << 0 )   // 2'h0     // Clock Pre-Divider Tuning for UPC/DNC Charge Pump Pull-Up
+        | (1   << 11)   // 2'h0     // Clock Ring Tuning
+        | (3   << 8 )   // 3'h0     // Clock Divider Tuning for SAR Charge Pump Pull-Up
+        | (4   << 5 )   // 3'h0     // Clock Divider Tuning for UPC Charge Pump Pull-Up
+        | (3   << 2 )   // 3'h0     // Clock Divider Tuning for DNC Charge Pump Pull-Up
+        | (3   << 0 )   // 2'h0     // Clock Pre-Divider Tuning for UPC/DNC Charge Pump Pull-Up
     ));
 
 }
@@ -1018,6 +806,42 @@ static void pmu_init(){
     pmu_set_active_temp_based();
     pmu_set_sleep_temp_based();
 
+    pmu_reg_write(0x16,  // Default  // Description
+    //---------------------------------------------------------------------------------------
+        ( (0 << 19)     // 1'h0     // Enable PFM even during periodic reset
+        | (0 << 18)     // 1'h0     // Enable PFM even when VREF is not used as reference
+        | (0 << 17)     // 1'h0     // Enable PFM
+        | (3 << 14)     // 3'h3     // Comparator clock division ratio
+        | (0 << 13)     // 1'h0     // Makes the converter clock 2x slower
+        | (0x8 << 9)    // 4'h8     // Frequency multiplier R
+        | (0x8 << 5)    // 4'h8     // Frequency multiplier L (actually L+1)
+        | (0x0F)        // 5'h0F    // Floor frequency base (0-63)
+    ));
+
+    //---------------------------------------------------------------------------------------
+    // UPC_TRIM_V3_[ACTIVE|SLEEP]
+    //---------------------------------------------------------------------------------------
+    pmu_reg_write(0x18,  // Default  // Description
+    //---------------------------------------------------------------------------------------
+        ( (3 << 14)     // 2'h0     // Desired Vout/Vin ratio
+        | (0 << 13)     // 1'h0     // Makes the converter clock 2x slower
+        | (0x8 << 9)    // 4'h8     // Frequency multiplier R
+        | (0x4 << 5)    // 4'h4     // Frequency multiplier L (actually L+1)
+        | (0x08)        // 5'h08    // Floor frequency base (0-63)
+    ));
+
+
+    //---------------------------------------------------------------------------------------
+    // DNC_TRIM_V3_[ACTIVE|SLEEP]
+    //---------------------------------------------------------------------------------------
+    pmu_reg_write(0x1A,  // Default  // Description
+    //---------------------------------------------------------------------------------------
+        ( (0 << 13)     // 1'h0     // Makes the converter clock 2x slower
+        | (0x8 << 9)    // 4'h8     // Frequency multiplier R
+        | (0x4 << 5)    // 4'h4     // Frequency multiplier L (actually L+1)
+        | (0x08)        // 5'h08    // Floor frequency base (0-63)
+    ));
+
     // Initialize SAR Ratio
     pmu_set_sar_ratio(0x43);
 
@@ -1034,7 +858,7 @@ static void pmu_init(){
 
     // Turn off ADC offset measurement in Sleep
     //---------------------------------------------------
-    // CTRL_DESIRED_STATE_SLEEP
+    // CTRL_DESIRED_STATE_SLEEP / Turn off ADC
     //---------------------------------------------------
     pmu_desired_state_sleep.adc_adjusted       = 0;
     pmu_desired_state_sleep.vbat_read_only     = 0;
@@ -1066,6 +890,9 @@ static void pmu_init(){
 
     // VOLTAGE_CLAMP_TRIM (See PMU VSOLAR SHORT BEHAVIOR section at the top)
     pmu_reg_write(0x0E, (PMU_VSOLAR_SHORT << 8) | (PMU_VSOLAR_CLAMP_BOTTOM << 4) | (PMU_VSOLAR_CLAMP_TOP << 0));
+
+    // Turn on SAR_EN_ACC_VOUT
+    pmu_reg_write(0x0F, 0x00B204); 
 
     // Enables RAT (it won't take effect until the next sleep or wakeup-up transition)
     pmu_config_rat(1);
@@ -1181,535 +1008,6 @@ static void snt_ldo_power_on(void){
 
 
 //-------------------------------------------------------------------
-// EID Functions
-//-------------------------------------------------------------------
-
-//-------------------------------------------------------------------
-// Function: eid_enable_timer
-// Args    : None
-// Description:
-//           Enable the EID timer
-// Return  : None
-//-------------------------------------------------------------------
-static void eid_enable_timer(void){
-    eid_r01.TMR_SELF_EN = 0;
-    mbus_remote_register_write(EID_ADDR,0x01,eid_r01.as_int);
-    eid_r01.TMR_EN_OSC = 1;
-    mbus_remote_register_write(EID_ADDR,0x01,eid_r01.as_int);
-    eid_r01.TMR_RESETB = 1;
-    eid_r01.TMR_RESETB_DIV = 1;
-    eid_r01.TMR_RESETB_DCDC = 1;
-    mbus_remote_register_write(EID_ADDR,0x01,eid_r01.as_int);
-    eid_r01.TMR_EN_SELF_CLK = 1;
-    mbus_remote_register_write(EID_ADDR,0x01,eid_r01.as_int);
-    eid_r01.TMR_SELF_EN = 1;
-    mbus_remote_register_write(EID_ADDR,0x01,eid_r01.as_int);
-    delay(EID_TIMER_WAIT); // Wait for >3s
-    eid_r01.TMR_EN_OSC = 0;
-    mbus_remote_register_write(EID_ADDR,0x01,eid_r01.as_int);
-    eid_r01.TMR_SEL_LDO = 1; // 1: use VBAT; 0: use V1P2
-    mbus_remote_register_write(EID_ADDR,0x01,eid_r01.as_int);
-    eid_r01.TMR_ISOL_CLK = 0;
-    mbus_remote_register_write(EID_ADDR,0x01,eid_r01.as_int);
-    eid_r00.TMR_EN_CLK_DIV = 1;
-    mbus_remote_register_write(EID_ADDR,0x00,eid_r00.as_int);
-}
-
-//-------------------------------------------------------------------
-// Function: eid_set_pulse_width
-// Args    : pulse_width - Duration of Charge Pump Activation 
-//                          (Default: 400; Max: 65535)
-//                          LSB corresponds to ~5ms, assuming a 3kHz clock (i.e., LSB = clock_period * 16)
-// Description:
-//           Set the duration of the charge pump activation 
-// Return  : None
-//-------------------------------------------------------------------
-static void eid_set_pulse_width(uint32_t pulse_width){
-    eid_r07.ECTR_PULSE_WIDTH = pulse_width;
-    mbus_remote_register_write(EID_ADDR,0x07,eid_r07.as_int);
-}
-
-//-------------------------------------------------------------------
-// Function: eid_enable_cp_ck
-// Args    : vin - Use 0 if VBAT is high; 
-//                 Use 1 if VBAT is low
-//           te  - If 1, Top Electrode (TE) charge pump output goes high (~15V).
-//                 If 0, Top Electrode (TE) charge pump output remains low at 0V.
-//           fd  - If 1, Field (FD) charge pump output goes high (~15V).
-//                 If 0, Field (FD) charge pump output remains low at 0V.
-//           seg - For n=0,1,...,8:
-//                 If bit[n]=1, SEG[n] charge pump output goes high (~15V).
-//                 If bit[n]=0, SEG[n] charge pump output remains low at 0V.
-// Description:
-//           Enable the clock for the specified charge pumps
-//              to make the outputs go high (~15V)
-// Return  : None
-//-------------------------------------------------------------------
-static void eid_enable_cp_ck(uint32_t vin, uint32_t te, uint32_t fd, uint32_t seg) {
-    // Original Connection
-    uint32_t cp_ck = ((te << 10) | (fd << 9) | (seg << 0)) & 0x7FF;
-    // Shifted Connection
-    //uint32_t cp_ck = ((te << 9) | ((seg & 0xFF) << 1) | fd) & 0x7FF;
-
-    uint32_t cp_pd = (~cp_ck) & 0x7FF;
-
-    // Make PG_DIODE=0
-    eid_r02.ECP_PG_DIODE = 0;
-    mbus_remote_register_write(EID_ADDR,0x02,eid_r02.as_int);
-
-    // Enable charge pumps
-    eid_r09.ECTR_RESETB_CP = 1;
-    eid_r09.ECTR_VIN_CP    = vin;
-    eid_r09.ECTR_EN_CP_PD  = cp_pd;
-    eid_r09.ECTR_EN_CP_CK  = cp_ck;
-    set_halt_until_mbus_trx();
-    mbus_remote_register_write(EID_ADDR,0x09,eid_r09.as_int);
-    set_halt_until_mbus_tx();
-
-    cp_ck = ((0x1 << 10) | (0x0 << 9) | (seg << 0)) & 0x7FF;
-    cp_pd = (~cp_ck) & 0x7FF;
-    eid_r09.ECTR_EN_CP_PD  = cp_pd;
-    eid_r09.ECTR_EN_CP_CK  = cp_ck;
-    set_halt_until_mbus_trx();
-    mbus_remote_register_write(EID_ADDR,0x09,eid_r09.as_int);
-    set_halt_until_mbus_tx();
-
-    //delay(1*DLY_1S);
-
-    // Make PG_DIODE=1
-    eid_r02.ECP_PG_DIODE = 1;
-    mbus_remote_register_write(EID_ADDR,0x02,eid_r02.as_int);
-}
-
-//-------------------------------------------------------------------
-// Function: eid_all_black
-// Args    : vin - Use 0 if VBAT is high; 
-//                 Use 1 if VBAT is low
-// Description:
-//           Make the entire display black
-// Return  : None
-//-------------------------------------------------------------------
-static void eid_all_black(uint32_t vin) { 
-    eid_enable_cp_ck(vin, 0x0, 0x1, 0x1FF); 
-}
-
-//-------------------------------------------------------------------
-// Function: eid_all_white
-// Args    : vin - Use 0 if VBAT is high; 
-//                 Use 1 if VBAT is low
-// Description:
-//           Make the entire display white
-// Return  : None
-//-------------------------------------------------------------------
-static void eid_all_white(uint32_t vin) { 
-    eid_enable_cp_ck(vin, 0x1, 0x0, 0x000); 
-}
-
-//-------------------------------------------------------------------
-// Function: eid_seg_black
-// Args    : vin - Use 0 if VBAT is high; 
-//                 Use 1 if VBAT is low
-//           seg - For n=0,1,...,8:
-//                 If bit[n]=1, make SEG[n] black.
-//                 If bit[n]=0, leave SEG[n] unchanged.
-// Description:
-//           Make the selected segment(s) black.
-//           NOTE: Field (FD) must be white first.
-// Return  : None
-//-------------------------------------------------------------------
-static void eid_seg_black(uint32_t vin, uint32_t seg) { 
-    eid_enable_cp_ck(vin, 0x0, 0x0, seg);
-}
-
-//-------------------------------------------------------------------
-// Function: eid_seg_white
-// Args    : vin - Use 0 if VBAT is high; 
-//                 Use 1 if VBAT is low
-//           seg - For n=0,1,...,8:
-//                 If bit[n]=1, make SEG[n] white.
-//                 If bit[n]=0, leave SEG[n] unchanged.
-// Description:
-//           Make the selected segment(s) white.
-//           NOTE: Field (FD) must be black first.
-// Return  : None
-//-------------------------------------------------------------------
-static void eid_seg_white(uint32_t vin, uint32_t seg) { 
-    eid_enable_cp_ck(vin, 0x1, 0x1, (~seg & 0x1FF));
-}
-
-//-------------------------------------------------------------------
-// Function: eid_update
-// Args    : seg - For n=0,1,...,8:
-//                 If bit[n]=1, make SEG[n] black.
-//                 If bit[n]=0, leave SEG[n] unchanged.
-// Description:
-//           Make the entire display white,
-//           and then make the selected segment(s) black.
-// Return  : None
-//-------------------------------------------------------------------
-static void eid_update(uint32_t seg) { 
-    // vin = 0 if VBAT is high (> ~2.5V)
-    //       1 if VBAT is low  (< ~2.5V)
-    uint32_t vin = (read_data_batadc < eid_vin_threshold) ? 0x0 : 0x1;
-    eid_all_white(vin);
-    eid_seg_black(vin, seg);
-}
-
-//-------------------------------------------------------------------
-// Function: eid_check_in
-// Args    : None
-// Description:
-//           EID Watchdog Check-In.
-//           Must be done before the watchdog expires.
-// Return  : None
-//-------------------------------------------------------------------
-static void eid_check_in() {
-    mbus_remote_register_write(EID_ADDR,0x18,0x000000);
-}
-
-//-------------------------------------------------------------------
-// Function: eid_trigger_crash
-// Args    : None
-// Description:
-//           Trigger the crash behavior in EID
-// Return  : None
-//-------------------------------------------------------------------
-static void eid_trigger_crash() {
-    mbus_remote_register_write(EID_ADDR,0x19,0x00DEAD);
-}
-
-//-------------------------------------------------------------------
-// Function: eid_init
-// Args    : None
-// Description:
-//           Initializes the EID layer
-// Return  : None
-//-------------------------------------------------------------------
-static void eid_init(void){
-    // Start EID Timer 
-    eid_enable_timer();
-
-    // Charge Pump Tuning
-    eid_r02.ECP_PG_DIODE    = 1;
-    eid_r02.ECP_SEL_RING    = EID_SEL_RING;
-    eid_r02.ECP_SEL_TE_DIV  = EID_SEL_TE_DIV;
-    eid_r02.ECP_SEL_FD_DIV  = EID_SEL_FD_DIV;
-    eid_r02.ECP_SEL_SEG_DIV = EID_SEL_SEG_DIV;
-    mbus_remote_register_write(EID_ADDR,0x02,eid_r02.as_int);
-
-    // Charge Pump Pulse Width
-    eid_set_pulse_width(EID_PULSE_WIDTH);
-
-    // Configuration for Crash Behavior (See comment section in the top)
-    eid_r10.WCTR_THRESHOLD = CRSH_WD_THRSHLD;
-    mbus_remote_register_write(EID_ADDR,0x10,eid_r10.as_int);
-
-    eid_r11.WCTR_CR_ECP_SEL_SEG_DIV     = CRSH_SEL_SEG_DIV;
-    eid_r11.WCTR_CR_ECP_SEL_FD_DIV      = CRSH_SEL_FD_DIV;
-    eid_r11.WCTR_CR_ECP_SEL_TE_DIV      = CRSH_SEL_TE_DIV;
-    eid_r11.WCTR_CR_ECP_SEL_RING        = CRSH_SEL_RING;
-    eid_r11.WCTR_CR_ECP_PG_DIODE_C1     = CRSH_PG_DIODE_C1;
-    eid_r11.WCTR_CR_ECP_PG_DIODE_C      = CRSH_PG_DIODE_C;
-    eid_r11.WCTR_CR_ECP_PG_DIODE_B1     = CRSH_PG_DIODE_B1;
-    eid_r11.WCTR_CR_ECP_PG_DIODE_B      = CRSH_PG_DIODE_B;
-    eid_r11.WCTR_CR_ECP_PG_DIODE_A1     = CRSH_PG_DIODE_A1;
-    eid_r11.WCTR_CR_ECP_PG_DIODE_A      = CRSH_PG_DIODE_A;
-    eid_r11.WCTR_CR_ECP_PG_DIODE_A0     = CRSH_PG_DIODE_A0;
-    mbus_remote_register_write(EID_ADDR,0x11,eid_r11.as_int);
-
-    eid_r12.WCTR_IDLE_WIDTH = CRSH_IDLE_WIDTH;
-    eid_r12.WCTR_SEL_SEQ    = CRSH_SEL_SEQ;
-    mbus_remote_register_write(EID_ADDR,0x12,eid_r12.as_int);
-
-    eid_r13.WCTR_PULSE_WIDTH    = CRSH_PULSE_WIDTH;
-    mbus_remote_register_write(EID_ADDR,0x13,eid_r13.as_int);
-
-    eid_r15.WCTR_RESETB_CP_A = 1;
-    eid_r15.WCTR_VIN_CP_A    = CRSH_SEQA_VIN;
-    eid_r15.WCTR_EN_CP_CK_A  =   ((CRSH_SEQA_CK_TE << 10) | (CRSH_SEQA_CK_FD << 9) | (CRSH_SEQA_CK_SEG << 0)) & 0x7FF;
-    eid_r15.WCTR_EN_CP_PD_A  = ~(((CRSH_SEQA_CK_TE << 10) | (CRSH_SEQA_CK_FD << 9) | (CRSH_SEQA_CK_SEG << 0)) & 0x7FF) & 0x7FF;
-    mbus_remote_register_write(EID_ADDR,0x15,eid_r15.as_int);
-
-    eid_r16.WCTR_RESETB_CP_B = 1;
-    eid_r16.WCTR_VIN_CP_B    = CRSH_SEQB_VIN;
-    eid_r16.WCTR_EN_CP_CK_B  =   ((CRSH_SEQB_CK_TE << 10) | (CRSH_SEQB_CK_FD << 9) | (CRSH_SEQB_CK_SEG << 0)) & 0x7FF;
-    eid_r16.WCTR_EN_CP_PD_B  = ~(((CRSH_SEQB_CK_TE << 10) | (CRSH_SEQB_CK_FD << 9) | (CRSH_SEQB_CK_SEG << 0)) & 0x7FF) & 0x7FF;
-    mbus_remote_register_write(EID_ADDR,0x16,eid_r16.as_int);
-
-    eid_r17.WCTR_RESETB_CP_C = 1;
-    eid_r17.WCTR_VIN_CP_C    = CRSH_SEQC_VIN;
-    eid_r17.WCTR_EN_CP_CK_C  =   ((CRSH_SEQC_CK_TE << 10) | (CRSH_SEQC_CK_FD << 9) | (CRSH_SEQC_CK_SEG << 0)) & 0x7FF;
-    eid_r17.WCTR_EN_CP_PD_C  = ~(((CRSH_SEQC_CK_TE << 10) | (CRSH_SEQC_CK_FD << 9) | (CRSH_SEQC_CK_SEG << 0)) & 0x7FF) & 0x7FF;
-    mbus_remote_register_write(EID_ADDR,0x17,eid_r17.as_int);
-}
-
-
-//-------------------------------------------------------------------
-// NFC Functions
-//-------------------------------------------------------------------
-
-//-------------------------------------------------------------------
-// Function: nfc_unfreeze_gpio
-// Args    : None
-// Description:
-//           Initialize NFC GPIO pads and unfreeze.
-// Return  : None
-//-------------------------------------------------------------------
-static void nfc_unfreeze_gpio(void) {
-    // Write SCL=SDA=1
-    gpio_write_data_with_mask(I2C_MASK,(1<<NFC_SCL)|(1<<NFC_SDA));
-    // Set directions
-    gpio_set_dir_with_mask(I2C_MASK,(1<<NFC_SCL)|(1<<NFC_SDA));
-    gpio_set_dir_with_mask(GPO_MASK,(0<<NFC_GPO));
-    // Unfreeze the pads
-    unfreeze_gpio_out();
-}
-
-//-------------------------------------------------------------------
-// Function: nfc_init
-// Args    : None
-// Description:
-//           Initialization for the NFC chip communication
-// Return  : None
-//-------------------------------------------------------------------
-static void nfc_init(void){
-
-    // Config GPO wakeup
-    #ifdef USE_GPO_POSEDGE
-        config_gpio_posedge_wirq((1<<NFC_GPO));
-    #endif
-    #ifdef USE_GPO_NEGEDGE
-        config_gpio_negedge_wirq((1<<NFC_GPO));
-    #endif
-
-    // Enable the GPIO pads
-    set_gpio_pad_with_mask(I2C_MASK,(1<<NFC_SDA)|(1<<NFC_SCL));
-    set_gpio_pad_with_mask(GPO_MASK,(1<<NFC_GPO));
-
-    // Unfreeze GPIO
-    nfc_unfreeze_gpio();
-
-}
-
-//-------------------------------------------------------------------
-// Function: nfc_i2c_start
-// Args    : None
-// Description:
-//           I2C Start Sequence
-//           At the end of the execution:
-//              SCL(output) = 0
-//              SDA(output) = 0
-// Return  : None
-// Waveform:
-//          If starting from SCL=SDA=1
-//              SCL  ********|______________
-//              SDA  ****|__________________
-//          If starting from SCL(output)=0, SDA(input)=1
-//              SCL  __|**********|________   
-//              SDA  **********|___________   
-//-------------------------------------------------------------------
-
-static void nfc_i2c_start(void) {
-    gpio_write_data_with_mask(I2C_MASK,(1<<NFC_SDA)|(1<<NFC_SCL));
-    gpio_set_dir_with_mask(I2C_MASK,(1<<NFC_SDA)|(1<<NFC_SCL));
-    gpio_write_data_with_mask(I2C_MASK,(0<<NFC_SDA)|(1<<NFC_SCL));
-    gpio_write_data_with_mask(I2C_MASK,(0<<NFC_SDA)|(0<<NFC_SCL));
-}
-
-//-------------------------------------------------------------------
-// Function: nfc_i2c_stop
-// Args    : None
-// Description:
-//           I2C Stop Sequence
-//           At the end of the execution:
-//              SCL(output) = 1
-//              SDA(output) = 1
-// Return  : None
-// Waveform:
-//          If starting from SCL(output)=0, SDA(output)=0
-//              SCL  ____|******************
-//              SDA  ________|**************
-//          If starting from SCL(output)=0, SDA(input)=1
-//              SCL  _______|***************
-//              SDA  **|________|***********
-//-------------------------------------------------------------------
-
-static void nfc_i2c_stop(void) {
-    gpio_write_data_with_mask(I2C_MASK,(0<<NFC_SDA)|(0<<NFC_SCL));
-    gpio_set_dir_with_mask(I2C_MASK,(1<<NFC_SDA)|(1<<NFC_SCL));
-    gpio_write_data_with_mask(I2C_MASK,(0<<NFC_SDA)|(1<<NFC_SCL));
-    gpio_write_data_with_mask(I2C_MASK,(1<<NFC_SDA)|(1<<NFC_SCL));
-}
-
-//-------------------------------------------------------------------
-// Function: nfc_i2c_cmd
-// Args    : byte   - Byte to be sent (8 bits)
-// Description:
-//           Send 'byte' from MSB to LSB, then check ACK.
-//           At the end of the execution:
-//              SCL(output) = 0
-//              SDA(input)  = 1 (held by the pull-up resistor)
-// Return  : None
-//-------------------------------------------------------------------
-
-static void nfc_i2c_cmd(uint8_t byte){
-    uint32_t i;
-
-    // Direction: SCL (output), SDA (output)
-    gpio_set_dir_with_mask(I2C_MASK,(1<<NFC_SDA)|(1<<NFC_SCL));
-
-    // Send byte[7:1]
-    for (i=7; i>0; i--) {
-        gpio_write_data_with_mask(I2C_MASK,(((byte>>i)&0x1)<<NFC_SDA)|(0<<NFC_SCL));
-        gpio_write_data_with_mask(I2C_MASK,(((byte>>i)&0x1)<<NFC_SDA)|(1<<NFC_SCL));
-        gpio_write_data_with_mask(I2C_MASK,(((byte>>i)&0x1)<<NFC_SDA)|(0<<NFC_SCL));
-    }
-    // Send byte[0]
-    if (byte&0x1) {
-        // Direction: SCL (output), SDA (input)
-        gpio_set_dir_with_mask(I2C_MASK,(0<<NFC_SDA)|(1<<NFC_SCL));
-        gpio_write_data_with_mask(I2C_MASK,0<<NFC_SCL);
-        gpio_write_data_with_mask(I2C_MASK,1<<NFC_SCL);
-        gpio_write_data_with_mask(I2C_MASK,0<<NFC_SCL);
-    }
-    else {
-        gpio_write_data_with_mask(I2C_MASK,(0<<NFC_SDA)|(0<<NFC_SCL));
-        gpio_write_data_with_mask(I2C_MASK,(0<<NFC_SDA)|(1<<NFC_SCL));
-        gpio_write_data_with_mask(I2C_MASK,(0<<NFC_SDA)|(0<<NFC_SCL));
-        // Direction: SCL (output), SDA (input)
-        gpio_set_dir_with_mask(I2C_MASK,(0<<NFC_SDA)|(1<<NFC_SCL));
-    }
-    
-    //Wait for ACK
-    set_timer32_timeout(I2C_ACK_TIMEOUT);
-    while((*GPIO_DATA>>NFC_SDA)&0x1);
-    stop_timer32_timeout_check(FCODE_6);
-
-    gpio_write_data_with_mask(I2C_MASK,1<<NFC_SCL);
-    gpio_write_data_with_mask(I2C_MASK,0<<NFC_SCL);
-}
-
-//-------------------------------------------------------------------
-// Function: nfc_i2c_rd
-// Args    : ack    - 1: Ack
-//                    0: No Ack
-// Description:
-//           Provide 8 SCL cycles and read SDA at every posedge.
-//           At the end of the execution:
-//              SCL(output) = 0
-//              SDA(input)  = 1 (held by the pull-up resistor)
-// Return  : 8-bit read data (uint8_t)
-//-------------------------------------------------------------------
-
-static uint8_t nfc_i2c_rd(uint8_t ack){
-    uint8_t data = 0;
-
-    // Direction: SCL (output), SDA (input)
-    gpio_set_dir_with_mask(I2C_MASK,(0<<NFC_SDA)|(1<<NFC_SCL));
-
-    // Read byte[7:0]
-    uint32_t i = 7;
-    while (1) {
-        gpio_write_data_with_mask(I2C_MASK,0<<NFC_SCL);
-        gpio_write_data_with_mask(I2C_MASK,1<<NFC_SCL);
-        data = data | (((*GPIO_DATA>>NFC_SDA)&0x1)<<i);
-        if (i==0) break;
-        else i--;
-    }
-    gpio_write_data_with_mask(I2C_MASK,0<<NFC_SCL);
-
-    // Acknowledge
-    if (ack) {
-        gpio_write_data_with_mask(I2C_MASK,(0<<NFC_SDA) | (0<<NFC_SCL));
-        gpio_set_dir_with_mask(I2C_MASK,(1<<NFC_SDA) | (1<<NFC_SCL));
-        gpio_write_data_with_mask(I2C_MASK,(0<<NFC_SDA) | (1<<NFC_SCL));
-        gpio_write_data_with_mask(I2C_MASK,(0<<NFC_SDA) | (0<<NFC_SCL));
-        gpio_set_dir_with_mask(I2C_MASK,(0<<NFC_SDA) | (1<<NFC_SCL));
-    }
-    else{
-        gpio_set_dir_with_mask(I2C_MASK,(0<<NFC_SDA) | (1<<NFC_SCL));
-        gpio_write_data_with_mask(I2C_MASK,1<<NFC_SCL);
-        gpio_write_data_with_mask(I2C_MASK,0<<NFC_SCL);
-    }
-
-    return data;
-}
-
-//-------------------------------------------------------------------
-// Function: nfc_i2c_byte_write
-// Args    : addr   : 16-bit address
-//           data   : 8-bit data
-// Description:
-//           Write data at the address 'addr'
-// Return  : None
-//-------------------------------------------------------------------
-
-static void nfc_i2c_byte_write(uint32_t addr, uint8_t data){
-    nfc_i2c_start();
-    nfc_i2c_cmd(0xA6);
-    nfc_i2c_cmd(addr>>8);
-    nfc_i2c_cmd(addr);
-    nfc_i2c_cmd(data);
-    nfc_i2c_stop();
-}
-
-//-------------------------------------------------------------------
-// Function: nfc_i2c_seq_write
-// Args    : addr   : 16-bit address
-//           data   : Memory address of the data array,
-//                    where each element is a byte
-//                    Order of TX:
-//                      data[0] -> data[1] -> data[2] -> ... -> data[len-1]
-//           len    : Number of bytes to be sent
-// Description:
-//           Write data starting at the address 'addr'
-// Return  : None
-//-------------------------------------------------------------------
-
-static void nfc_i2c_seq_write(uint32_t addr, uint32_t data[], uint32_t len){
-    uint32_t i;
-    nfc_i2c_start();
-    nfc_i2c_cmd(0xA6);
-    nfc_i2c_cmd(addr>>8);
-    nfc_i2c_cmd(addr);
-    for (i=0; i<len; i++) {
-        nfc_i2c_cmd(data[i]);
-    }
-    nfc_i2c_stop();
-}
-
-//-------------------------------------------------------------------
-// Function: nfc_i2c_seq_word_write
-// Args    : addr   : 16-bit address
-//           data   : Memory address of the data array,
-//                    where each element is a word (4 bytes)
-//                    Order of TX:
-//                      data[0][31:24] -> data[0][23:16] -> data[0][15:8] -> data[0][7:0] ->
-//                      data[1][31:24] -> data[1][23:16] -> data[1][15:8] -> data[1][7:0] ->
-//                      ...
-//                      data[len-1][31:24] -> data[len-][23:16] -> data[len-1][15:8] -> data[len-1][7:0] ->
-//           len    : Number of words (4-bytes) to be sent
-// Description:
-//           Write data starting at the address 'addr'
-// Return  : None
-//-------------------------------------------------------------------
-
-// FIXME: START FROM HERE
-
-static void nfc_i2c_seq_word_write(uint32_t addr, uint32_t data[], uint32_t len){
-    uint32_t i;
-    nfc_i2c_start();
-    nfc_i2c_cmd(0xA6);
-    nfc_i2c_cmd(addr>>8);
-    nfc_i2c_cmd(addr);
-    for (i=0; i<len; i++) {
-        nfc_i2c_cmd(data[i]);
-    }
-    nfc_i2c_stop();
-}
-
-
-//-------------------------------------------------------------------
 // Initialization/Sleep Functions
 //-------------------------------------------------------------------
 
@@ -1721,9 +1019,18 @@ static void nfc_i2c_seq_word_write(uint32_t addr, uint32_t data[], uint32_t len)
 // Return  : None
 //-------------------------------------------------------------------
 static void operation_sleep (void) {
+    // Reset GOC_DATA_IRQ
     *GOC_DATA_IRQ = 0;
-    freeze_gpio_out();
+
+    // FIXME: Stop any ongoing EID operation (but how...?)
+
+    // Power off NFC
+    nfc_power_off();
+
+    // Clear all pending IRQs; otherwise, PREv22E replaces the sleep msg with a selective wakeup msg
     *NVIC_ICER = 0xFFFFFFFF;
+
+    // Send a sleep msg
     mbus_sleep_all();
     while(1);
 }
@@ -1761,7 +1068,6 @@ static void operation_prepare_sleep_notimer(void){
 // Return  : None
 //-------------------------------------------------------------------
 static void operation_sleep_notimer(void){
-    exec_count_irq = 0; // Make sure the irq counter is reset    
     operation_prepare_sleep_notimer();
     operation_sleep();
 }
@@ -1808,31 +1114,24 @@ static void operation_back_to_default(void){
 //-------------------------------------------------------------------
 static void operation_init (void) {
 
-    // Set the flag
-    set_flag(FLAG_INITIALIZED, 1);
-
     //-------------------------------------------------
     // Initialize Global Variables
     // NOTE: Need to explicitly initialize global variables if the reset value is 0
     //-------------------------------------------------
     exec_count = 0;
     wakeup_count = 0;
-    exec_count_irq = 0;
     pmu_adc_3p0_val = 0x62;
     read_data_batadc = pmu_adc_3p0_val + 8;   // Fresh VBAT = ~2.80V
-    pmu_adc_crit_val = pmu_adc_3p0_val + 60;  // VBAT = ~1.90V
     pmu_adc_low_val  = pmu_adc_3p0_val + 53;  // VBAT = ~2.00V
-    eid_vin_threshold = pmu_adc_3p0_val + 21; // VBAT = ~2.55V
+    pmu_adc_crit_val = pmu_adc_3p0_val + 60;  // VBAT = ~1.90V
     snt_running = 0;
     snt_state = SNT_IDLE;
-    read_data_temp = 150; // From SNSv10
+    read_data_temp = 150; // From SNSv10 (does this need an initial value?)
     snt_high_temp_threshold = 300;
     snt_low_temp_threshold = 100;
+    nfc_temp_addr = 0x4;    // First 4-bytes (1 word) is used for flag storage
     wakeup_timestamp = 0;
     wakeup_timestamp_rollover = 0;
-    realtime_offset = 0;    
-
-    eid_r00.as_int = EID_R00_DEFAULT_AS_INT;
 
 
     //-------------------------------------------------
@@ -1858,6 +1157,12 @@ static void operation_init (void) {
     mbus_enumerate(PMU_ADDR);
     set_halt_until_mbus_tx();
 
+    // Set the flag
+    set_flag(FLAG_ENUMERATED, 1);
+    #ifdef FLAG_UPDATE_EEPROM
+        nfc_i2c_set_flag(FLAG_ENUMERATED, 1);
+    #endif
+
     //-------------------------------------------------
     // Target Register Index
     //-------------------------------------------------
@@ -1870,7 +1175,7 @@ static void operation_init (void) {
     //-------------------------------------------------
     // PMU Settings
     //-------------------------------------------------
-//    pmu_init();
+    //pmu_init();
 
     //-------------------------------------------------
     // SNT Settings
@@ -1896,43 +1201,33 @@ static void operation_init (void) {
     //-------------------------------------------------
     // EID Settings
     //-------------------------------------------------
-    // NOTE: eid_init() does not start the EID. It just configures its register file.
     eid_init();
-    eid_r02.as_int = 0x1FF;
-    mbus_remote_register_write(EID_ADDR,0x02,eid_r02.as_int);
+    eid_update(DISP_RUNNING);
 
     //-------------------------------------------------
     // XO Driver
     //-------------------------------------------------
-    xo_start();
-
-    //*XOT_START_COUT = 1;
-    //operation_sleep();
-    //while(1);
-
-    //-------------------------------------------------
-    // E-Ink Display
-    //-------------------------------------------------
-    //eid_enable_cp_ck(/*vin*/0, /*te*/0x1, /*fd*/0x0, /*seg*/0x000); 
-    //eid_all_white(0);
-    //eid_update(DISP_INITIALIZED);
+    xo_start(XO_WAIT_A, XO_WAIT_B);
 
     //-------------------------------------------------
     // NFC 
     //-------------------------------------------------
-    //nfc_init();
+    nfc_init();
+
+    // Update EEPROM
+    nfc_i2c_byte_write(/*e2*/0, /*addr*/0x1, /*data*/0xFF);
 
     //-------------------------------------------------
     // Sleep
     //-------------------------------------------------
     // It must go into sleep with a long 'sleep' duration
     // to give user enough time to put a "sticker" over the GOC solar cell.
-    //reset_xo_cnt(); // Make counter value = 0
-    //operation_sleep_xo_timer(SLEEP_DURATION_LONG);
-    //operation_sleep_xo_timer(3*XOT_1SEC);
-
-//    operation_sleep();
-//    while(1);
+    reset_xo_cnt(); // Make counter value = 0
+    #ifdef DEVEL
+        operation_sleep_xo_timer(0xFFFFFFFF);
+    #else
+        operation_sleep_xo_timer(XOT_SLEEP_DURATION_LONG);
+    #endif
 }
 
 //-------------------------------------------------------------------
@@ -1944,6 +1239,9 @@ static void snt_operation (void) {
 
     if (snt_state == SNT_IDLE) {
         snt_state = SNT_LDO;
+
+        //--- Update the Display
+        eid_update(DISP_RUNNING | DISP_NORMAL | DISP_PLUS | DISP_MINUS);
 
         // Turn on SNT LDO VREF.
         snt_ldo_vref_on();
@@ -2017,28 +1315,39 @@ static void snt_operation (void) {
             snt_ldo_power_off();
             snt_state = SNT_IDLE;
 
-            // Store the Temp & VBAT Data with timestamp
-            // FIXME: TBD
+            /////////////////////////////////////////////////////////////////
+            // Store the Temperature / VBAT Data
+            //---------------------------------------------------------------
+            //--- TBD: Any data compression?
+            uint32_t nfc_data = (read_data_batadc<<24) | (read_data_temp&0xFFFFFF);
 
-            // Update e-Ink as necessary
+            //--- Store in EEPROM
+            nfc_i2c_word_write(/*e2*/0, /*addr*/nfc_temp_addr, /*data*/nfc_data);
+            nfc_temp_addr += 4;
+            /////////////////////////////////////////////////////////////////
+
+            /////////////////////////////////////////////////////////////////
+            // Update e-Ink
+            //---------------------------------------------------------------
             //--- Default Display
             uint32_t seg_display;
             if (!get_flag(FLAG_GIT_TRIGGERED)) 
-                seg_display = DISP_INITIALIZED;
+                seg_display = DISP_RUNNING;
             else
-                seg_display = DISP_NORMAL;
+                seg_display = DISP_RUNNING | DISP_NORMAL;
 
             //--- Check temperature
-            if (read_data_temp > snt_high_temp_threshold) 
-                seg_display |= DISP_HIGH_TEMP;
-            else if  (read_data_temp < snt_low_temp_threshold)  
-                seg_display |= DISP_LOW_TEMP;
+            if (read_data_temp > snt_high_temp_threshold)
+                seg_display = DISP_RUNNING | DISP_XMARK | DISP_HIGH_TEMP;
+            else if  (read_data_temp < snt_low_temp_threshold)
+                seg_display = DISP_RUNNING | DISP_XMARK | DISP_LOW_TEMP;
 
             //--- Check VBAT
             if (read_data_batadc > pmu_adc_low_val) seg_display |= DISP_LOW_VBAT;
 
             //--- Update the Display
             eid_update(seg_display);
+            /////////////////////////////////////////////////////////////////
 
             // Track execution count
             exec_count++;
@@ -2046,20 +1355,12 @@ static void snt_operation (void) {
             // Before GIT
             if (!get_flag(FLAG_GIT_TRIGGERED)) {
                 reset_xo_cnt();
-                operation_sleep_xo_timer(SLEEP_DURATION_PREGIT);
+                operation_sleep_xo_timer(XOT_SLEEP_DURATION_PREGIT);
             }
             // After GIT
             else {
-                if (!get_flag(FLAG_USE_REAL_TIME)) {
-                    reset_xo_cnt();
-                    operation_sleep_xo_timer(SLEEP_DURATION);
-                }
-                else {
-                    uint32_t prev_wakeup_timestamp = wakeup_timestamp;
-                    wakeup_timestamp += SLEEP_DURATION;
-                    if (wakeup_timestamp < prev_wakeup_timestamp) wakeup_timestamp_rollover++;
-                    operation_sleep_xo_timer(wakeup_timestamp);
-                }
+                reset_xo_cnt();
+                operation_sleep_xo_timer(XOT_SLEEP_DURATION);
             }
         }
     }
@@ -2067,20 +1368,33 @@ static void snt_operation (void) {
 
 // Post-GIT Initialization
 static void postgit_init(void) {
+    set_flag(FLAG_GIT_TRIGGERED, 1);
+    #ifdef FLAG_UPDATE_EEPROM
+        nfc_i2c_set_flag(FLAG_GIT_TRIGGERED, 1);
+    #endif
+
+    // Reset everything back to default.
+    operation_back_to_default();
+
     // Probably redundant, but for safety...
     wakeup_timestamp_rollover = 0;
 
     // Enable EID Watchdog
-    eid_r00.EN_WATCHDOG = 1;
-    mbus_remote_register_write(EID_ADDR,0x00,eid_r00.as_int);
+    eid_enable_crash_handler();
+    set_flag(FLAG_WD_ENABLED, 1);
+    #ifdef FLAG_UPDATE_EEPROM
+        nfc_i2c_set_flag(FLAG_WD_ENABLED, 1);
+    #endif
+
+    // Toggle the display
+    eid_update(DISP_NONE);
+    eid_update(DISP_RUNNING);
+
+    // Start Temp/VBAT measurement
+    snt_running = 1;
+    meas_count = 0;
 
     // Any more initialization?
-
-}
-
-// NFC Event handling
-static void do_nfc(void) {
-
 }
 
 // FAIL: Unexpected Behavior
@@ -2114,552 +1428,223 @@ void handler_ext_int_aes      (void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_gpio     (void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_spi      (void) __attribute__ ((interrupt ("IRQ")));
 
-void handler_ext_int_timer32(void) { // TIMER32
-    mbus_write_message32(0x71, 0);
+void handler_ext_int_timer32  (void) {
     *NVIC_ICPR = (0x1 << IRQ_TIMER32);
-    #ifdef ARB_DEBUG
-    arb_debug_reg(IRQ_TIMER32, 0x00000000);
-    #endif
     *REG1 = *TIMER32_CNT;
     *REG2 = *TIMER32_STAT;
     *TIMER32_STAT = 0x0;
-    wfi_timeout_flag = 1;
+    __wfi_timeout_flag__ = 1; // Declared in PREv22E.h
     set_halt_until_mbus_tx();
     }
-void handler_ext_int_timer16(void) { // TIMER16
-    mbus_write_message32(0x71, 2);
-    *NVIC_ICPR = (0x1 << IRQ_TIMER16);
-    #ifdef ARB_DEBUG
-    arb_debug_reg(IRQ_TIMER16, 0x00000000);
-    #endif
-    }
-void handler_ext_int_reg0(void) { // REG0
-    mbus_write_message32(0x71, 3);
-    *NVIC_ICPR = (0x1 << IRQ_REG0);
-    #ifdef ARB_DEBUG
-    arb_debug_reg(IRQ_REG0, 0x00000000);
-    #endif
-}
-void handler_ext_int_reg1(void) { // REG1
-    mbus_write_message32(0x71, 4);
-    *NVIC_ICPR = (0x1 << IRQ_REG1);
-    #ifdef ARB_DEBUG
-    arb_debug_reg(IRQ_REG1, 0x00000000);
-    #endif
-}
-void handler_ext_int_reg2(void) { // REG2
-    mbus_write_message32(0x71, 5);
-    *NVIC_ICPR = (0x1 << IRQ_REG2);
-    #ifdef ARB_DEBUG
-    arb_debug_reg(IRQ_REG2, 0x00000000);
-    #endif
-}
-void handler_ext_int_reg3(void) { // REG3
-    mbus_write_message32(0x71, 6);
-    *NVIC_ICPR = (0x1 << IRQ_REG3);
-    #ifdef ARB_DEBUG
-    arb_debug_reg(IRQ_REG3, 0x00000000);
-    #endif
-}
-void handler_ext_int_reg4(void) { // REG4
-    mbus_write_message32(0x71, 7);
-    *NVIC_ICPR = (0x1 << IRQ_REG4);
-    #ifdef ARB_DEBUG
-    arb_debug_reg(IRQ_REG4, 0x00000000);
-    #endif
-}
-void handler_ext_int_reg5(void) { // REG5
-    mbus_write_message32(0x71, 8);
-    *NVIC_ICPR = (0x1 << IRQ_REG5);
-    #ifdef ARB_DEBUG
-    arb_debug_reg(IRQ_REG5, 0x00000000);
-    #endif
-}
-void handler_ext_int_reg6(void) { // REG6
-    mbus_write_message32(0x71, 9);
-    *NVIC_ICPR = (0x1 << IRQ_REG6);
-    #ifdef ARB_DEBUG
-    arb_debug_reg(IRQ_REG6, 0x00000000);
-    #endif
-}
-void handler_ext_int_reg7(void) { // REG7
-    mbus_write_message32(0x71, 0xA);
-    *NVIC_ICPR = (0x1 << IRQ_REG7);
-    #ifdef ARB_DEBUG
-    arb_debug_reg(IRQ_REG7, 0x00000000);
-    #endif
-}
-void handler_ext_int_mbusmem(void) { // MBUS_MEM_WR
-    mbus_write_message32(0x71, 0xB);
-    *NVIC_ICPR = (0x1 << IRQ_MBUS_MEM);
-    #ifdef ARB_DEBUG
-    arb_debug_reg(IRQ_MBUS_MEM, 0x00000000);
-    #endif
-}
-void handler_ext_int_mbusrx(void) { // MBUS_RX
-    mbus_write_message32(0x71, 0xC);
-    *NVIC_ICPR = (0x1 << IRQ_MBUS_RX);
-    #ifdef ARB_DEBUG
-    arb_debug_reg(IRQ_MBUS_RX, 0x00000000);
-    #endif
-}
-void handler_ext_int_mbustx(void) { // MBUS_TX
-    mbus_write_message32(0x71, 0xD);
-    *NVIC_ICPR = (0x1 << IRQ_MBUS_TX);
-    #ifdef ARB_DEBUG
-    arb_debug_reg(IRQ_MBUS_TX, 0x00000000);
-    #endif
-}
-void handler_ext_int_mbusfwd(void) { // MBUS_FWD
-    mbus_write_message32(0x71, 0xE);
-    *NVIC_ICPR = (0x1 << IRQ_MBUS_FWD);
-    #ifdef ARB_DEBUG
-    arb_debug_reg(IRQ_MBUS_FWD, 0x00000000);
-    #endif
-}
-void handler_ext_int_gocep(void) { // GOCEP
-    mbus_write_message32(0x71, 0xF);
-    *NVIC_ICPR = (0x1 << IRQ_GOCEP);
-    #ifdef ARB_DEBUG
-    arb_debug_reg(IRQ_GOCEP, 0x00000000);
-    #endif
+void handler_ext_int_timer16  (void) { *NVIC_ICPR = (0x1 << IRQ_TIMER16);    }
+void handler_ext_int_reg0     (void) { *NVIC_ICPR = (0x1 << IRQ_REG0);       }
+void handler_ext_int_reg1     (void) { *NVIC_ICPR = (0x1 << IRQ_REG1);       }
+void handler_ext_int_reg2     (void) { *NVIC_ICPR = (0x1 << IRQ_REG2);       }
+void handler_ext_int_reg3     (void) { *NVIC_ICPR = (0x1 << IRQ_REG3);       }
+void handler_ext_int_reg4     (void) { *NVIC_ICPR = (0x1 << IRQ_REG4);       }
+void handler_ext_int_reg5     (void) { *NVIC_ICPR = (0x1 << IRQ_REG5);       }
+void handler_ext_int_reg6     (void) { *NVIC_ICPR = (0x1 << IRQ_REG6);       }
+void handler_ext_int_reg7     (void) { *NVIC_ICPR = (0x1 << IRQ_REG7);       }
+void handler_ext_int_mbusmem  (void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_MEM);   }
+void handler_ext_int_mbusrx   (void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_RX);    }
+void handler_ext_int_mbustx   (void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_TX);    }
+void handler_ext_int_mbusfwd  (void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_FWD);   }
 
-    //if (*GOC_DATA_IRQ == 0x0) {
-    //    xo_start();
-    //    *XOT_START_COUT = 1;
-    //    operation_sleep();
-    //    while(1);
-    //}
-    //else if (*GOC_DATA_IRQ == 0x1) {
-    //    *XOT_STOP_COUT = 1;
-    //    xo_stop();
-    //    operation_sleep();
-    //    while(1);
-    //}
+void handler_ext_int_gocep    (void) { 
+    *NVIC_ICPR = (0x1 << IRQ_GOCEP);      
 
     uint32_t goc_raw    = *GOC_DATA_IRQ;
     uint32_t goc_header = (goc_raw & 0xFF000000) >> 24;
     uint32_t goc_data   = (goc_raw & 0x00FFFFFF);
+    uint32_t i;
 
-    //// TE Charge Pump Testing
-    //if (goc_header == 0x00) {
-    //    if (goc_data == 0x0) {
-    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x000); 
-    //    }
-    //    else if (goc_data == 0x1) {
-    //        eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
-    //    }
-    //    else if (goc_data == 0x2) {
-    //        eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/1, /*seg*/0x000); 
-    //    }
-    //    else if (goc_data == 0x3) {
-    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/1, /*seg*/0x000); 
-    //    }
-    //}
+    //--------------------------------------------------
+    //
+    // *GOC_DATA_IRQ = 0x0000000n (n = 0x0 ~ 0xF)
+    //
+    // [Description] 
+    //      Various shortcuts
+    //
+    //      n = 0x0: Write all 0 to the entire EEPROM
+    //      n = 0x1: Write all 0 to the entire EEPROM (except the first 1 word)
+    //      n = 0x2: Write a word 'data @ GOC_DATA_IRQ+2' to 'addr @ GOC_DATA_IRQ+1'
+    //      n = 0x3: Read a word from 'addr @ GOC_DATA_IRQ+1'
+    //      n = 0x4: Reserved
+    //      n = 0x5: Reserved
+    //      n = 0x6: Reserved
+    //      n = 0x7: Reserved
+    //      n = 0x8: Reserved
+    //      n = 0x9: Reserved
+    //      n = 0xA: Reserved
+    //      n = 0xB: Reserved
+    //      n = 0xC: Reserved
+    //      n = 0xD: Reserved
+    //      n = 0xE: Write all 1 to the entire EEPROM (except the first 1 word)
+    //      n = 0xF: Write all 1 to the entire EEPROM
+    //--------------------------------------------------
 
-    // Normal Connection
     if (goc_header == 0x00) {
-        // [LLL]
+        // Write All0 to the entire EEPROM
         if (goc_data == 0x0) {
-            eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x000); 
-        }
-        // [LLH]
-        else if (goc_data == 0x1) {
-            eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x1FF); 
-        }
-        // [LHL]
-        else if (goc_data == 0x2) {
-            eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/1, /*seg*/0x000); 
-        }
-        // [LHH]
-        else if (goc_data == 0x3) {
-            eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/1, /*seg*/0x1FF); 
-        }
-        // [HLL]
-        else if (goc_data == 0x4) {
-            eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
-        }
-        // [HLH]
-        else if (goc_data == 0x5) {
-            eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x1FF); 
-        }
-        // [HHL]
-        else if (goc_data == 0x6) {
-            eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/1, /*seg*/0x000); 
-        }
-        // [HHH]
-        else if (goc_data == 0x7) {
-            eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/1, /*seg*/0x1FF); 
-        }
-        /// Demo Mode
-        else if (goc_data == 0xF) {
-            while(1) {
-                // Triangle
-                eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
-                eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x001); 
-                // X-mark
-                eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
-                eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x01A); 
-                // Low Battery
-                eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
-                eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x004); 
-                // Plus Sign
-                eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
-                eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x020); 
-                // Minus Sign
-                eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
-                eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x040); 
-                // non-X
-                eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
-                eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x065); 
-                // only-X
-                eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
-                eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x01A); 
+            for (i=0; i<8192; i=i+256) {
+                nfc_i2c_seq_word_pattern_write(/*e2*/0, /*addr*/i, /*data*/0x00000000, /*len*/64);
             }
         }
-        /// Individual Segment
-        else if (goc_data > 0x7) {
-            eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x1 << (goc_data - 8)); 
+        // Write All0 to the entire EEPROM (except the first 1 word)
+        else if (goc_data == 0x1) {
+            nfc_i2c_seq_word_pattern_write(/*e2*/0, /*addr*/4, /*data*/0x00000000, /*len*/63);
+            for (i=256; i<8192; i=i+256) {
+                nfc_i2c_seq_word_pattern_write(/*e2*/0, /*addr*/i, /*data*/0x00000000, /*len*/64);
+            }
         }
-        // Erase the field
-        //eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x1FF); 
+        // Write a word 'data @ GOC_DATA_IRQ+2' to 'addr @ GOC_DATA_IRQ+1'
+        else if (goc_data == 0x2) {
+            nfc_i2c_word_write(/*e2*/0, *(GOC_DATA_IRQ+1), *(GOC_DATA_IRQ+2));
+        }
+        // Read a word from 'addr @ GOC_DATA_IRQ+1'
+        else if (goc_data == 0x3) {
+            mbus_write_message32(0x80, nfc_i2c_word_read(/*e2*/0, *(GOC_DATA_IRQ+1)));
+        }
+        // Write All1 to the entire EEPROM (except the first 1 word)
+        else if (goc_data == 0xE) {
+            nfc_i2c_seq_word_pattern_write(/*e2*/0, /*addr*/4, /*data*/0xFFFFFFFF, /*len*/63);
+            for (i=256; i<8192; i=i+256) {
+                nfc_i2c_seq_word_pattern_write(/*e2*/0, /*addr*/i, /*data*/0xFFFFFFFF, /*len*/64);
+            }
+        }
+        // Write All1 to the entire EEPROM
+        else if (goc_data == 0xF) {
+            for (i=0; i<8192; i=i+256) {
+                nfc_i2c_seq_word_pattern_write(/*e2*/0, /*addr*/i, /*data*/0xFFFFFFFF, /*len*/64);
+            }
+        }
+        nfc_power_off();
     }
 
-    //// Shift Connection (for XT1-S)
-    //if (goc_header == 0x00) {
-    //    // NOTE: FD_CP   drives TE
-    //    //       SEG0_CP drives FD
-    //    //       SEG1_CP drives SEG0
-    //    //       ...
-    //    //       SEG7_CP drives SEG6
-
-    //    // [LLL]
-    //    if (goc_data == 0x0) {
-    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x000); 
-    //    }
-    //    // [LLH]
-    //    else if (goc_data == 0x1) {
-    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x0FE); 
-    //    }
-    //    // [LHL]
-    //    else if (goc_data == 0x2) {
-    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x001); 
-    //    }
-    //    // [LHH]
-    //    else if (goc_data == 0x3) {
-    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x0FF); 
-    //    }
-    //    // [HLL]
-    //    else if (goc_data == 0x4) {
-    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/1, /*seg*/0x000); 
-    //    }
-    //    // [HLH]
-    //    else if (goc_data == 0x5) {
-    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/1, /*seg*/0x0FE); 
-    //    }
-    //    // [HHL]
-    //    else if (goc_data == 0x6) {
-    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/1, /*seg*/0x001); 
-    //    }
-    //    // [HHH]
-    //    else if (goc_data == 0x7) {
-    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/1, /*seg*/0x0FF); 
-    //    }
-    //    /// Individual Segment
-    //    else if (goc_data > 0x7) {
-    //        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x1 << (goc_data - 8 + 1)); 
-    //    }
-    //}
-
-    // Individual Debug
-    else if (goc_header == 0xFF) {
-        // NOTE: There are total 9 SEG CPs in EIDv1. (e-Ink display has 7 segments)
-
-        // goc_data[20]  = vin
-        // goc_data[16]  = TE
-        // goc_data[12]  = FD
-        // goc_data[8:0] = SEG[8:0] (max: 1FF)
-        uint32_t cp_vin = (goc_data >> 20) & 0x1;
-        uint32_t cp_te  = (goc_data >> 16) & 0x1;
-        uint32_t cp_fd  = (goc_data >> 12) & 0x1;
-        uint32_t cp_seg = (goc_data >>  0) & 0x1FF;
-        eid_enable_cp_ck(/*vin*/cp_vin, /*te*/cp_te, /*fd*/cp_fd, /*seg*/cp_seg); 
-
-        //// [LLL] TE=0, FD=0, All SEG=0
-        //if (goc_data == 0x0) {
-        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x0, /*seg*/0x1FF); 
-        //}
-        //// [LLH] TE=0, FD=0, All SEG=1
-        //else if (goc_data == 0x1) {
-        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x0, /*seg*/0x1FF); 
-        //}
-        //// [LHL] TE=0, FD=1, All SEG=0
-        //else if (goc_data == 0x2) {
-        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x1, /*seg*/0x000); 
-        //}
-        //// [LHH] TE=0, FD=1, All SEG=1
-        //else if (goc_data == 0x3) {
-        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x1, /*seg*/0x1FF); 
-        //}
-        //// [HLL] TE=1, FD=0, All SEG=0
-        //else if (goc_data == 0x4) {
-        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x1, /*fd*/0x0, /*seg*/0x000); 
-        //}
-        //// [HLH] TE=1, FD=0, All SEG=1
-        //else if (goc_data == 0x5) {
-        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x1, /*fd*/0x0, /*seg*/0x1FF); 
-        //}
-        //// [HHL] TE=1, FD=1, All SEG=0
-        //else if (goc_data == 0x6) {
-        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x1, /*fd*/0x1, /*seg*/0x000); 
-        //}
-        //// [HHH] TE=1, FD=1, All SEG=1
-        //else if (goc_data == 0x7) {
-        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x1, /*fd*/0x1, /*seg*/0x1FF); 
-        //}
-        ////// [LL1] TE=0, FD=0, SEG[n-8]=1
-        ////else if (goc_data > 0x7) {
-        ////    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x0, /*seg*/(0x1 << (goc_data-8))); 
-        ////}
-        //// 0 / 0 / 000
-        //else if (goc_data == 0x8) {
-        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x0, /*seg*/0x000); 
-        //}
-        //// 0 / 0 / 002
-        //else if (goc_data == 0x9) {
-        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x0, /*seg*/0x002); 
-        //}
-        //// 0 / 0 / 001
-        //else if (goc_data == 0xA) {
-        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x0, /*seg*/0x001); 
-        //}
-        //// 0 / 0 / 003
-        //else if (goc_data == 0xB) {
-        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x0, /*seg*/0x003); 
-        //}
-        //// 0 / 1 / 000
-        //else if (goc_data == 0xC) {
-        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x1, /*seg*/0x000); 
-        //}
-        //// 0 / 1 / 002
-        //else if (goc_data == 0xD) {
-        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x1, /*seg*/0x002); 
-        //}
-        //// 0 / 1 / 001
-        //else if (goc_data == 0xE) {
-        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x1, /*seg*/0x001); 
-        //}
-        //// 0 / 1 / 003
-        //else if (goc_data == 0xF) {
-        //    eid_enable_cp_ck(/*vin*/0, /*te*/0x0, /*fd*/0x1, /*seg*/0x003); 
-        //}
-
-    }
-    else {
-        mbus_remote_register_write(EID_ADDR,goc_header,goc_data);
-        delay(2*DLY_1S);
-    }
-//    operation_sleep();
-//    while(1);
-}
-void handler_ext_int_softreset(void) { // SOFT_RESET
-    mbus_write_message32(0x71, 0x10);
-    *NVIC_ICPR = (0x1 << IRQ_SOFT_RESET);
-    #ifdef ARB_DEBUG
-    arb_debug_reg(IRQ_SOFT_RESET, 0x00000000);
+    #ifdef DEVEL
+        reset_xo_cnt(); // Make counter value = 0
+        operation_sleep_xo_timer(0xFFFFFFFF);
     #endif
 }
-void handler_ext_int_wakeup(void) { // WAKE-UP
-    mbus_write_message32(0x71, 0x11);
-    *NVIC_ICPR = (0x1 << IRQ_WAKEUP);
-    #ifdef ARB_DEBUG
-    arb_debug_reg(IRQ_WAKEUP, (0x10 << 24) | wakeup_source);
-    #endif
-}
-void handler_ext_int_aes(void) { // AES
-    mbus_write_message32(0x71, 0x12);
-    *NVIC_ICPR = (0x1 << IRQ_AES);
-    #ifdef ARB_DEBUG
-    arb_debug_reg(IRQ_SPI, 0x00000000);
-    #endif
-}
-void handler_ext_int_spi(void) { // SPI
-    mbus_write_message32(0x71, 0x13);
-    *NVIC_ICPR = (0x1 << IRQ_SPI);
-    #ifdef ARB_DEBUG
-    arb_debug_reg(IRQ_SPI, 0x00000000);
-    #endif
-}
-void handler_ext_int_gpio(void) { // GPIO
-    mbus_write_message32(0x71, 0x14);
-    *NVIC_ICPR = (0x1 << IRQ_GPIO);
-    #ifdef ARB_DEBUG
-    arb_debug_reg(IRQ_GPIO, 0x00000000);
-    #endif
-}
+
+void handler_ext_int_softreset(void) { *NVIC_ICPR = (0x1 << IRQ_SOFT_RESET); }
+void handler_ext_int_wakeup   (void) { *NVIC_ICPR = (0x1 << IRQ_WAKEUP);     }
+void handler_ext_int_aes      (void) { *NVIC_ICPR = (0x1 << IRQ_AES);        }
+void handler_ext_int_spi      (void) { *NVIC_ICPR = (0x1 << IRQ_SPI);        }
+void handler_ext_int_gpio     (void) { *NVIC_ICPR = (0x1 << IRQ_GPIO);       }
 
 //********************************************************************
 // MAIN function starts here             
 //********************************************************************
 
 int main() {
-    mbus_write_message32(0x70, 1);
 
-    // Disable Watchdog Timers
-    *TIMERWD_GO  = 0;   // Disable the CPU watchdog
-    *REG_MBUS_WD = 0;   // Disable the MBus watchdog by setting Threshold=0.
+    wakeup_count++;
+
+    #ifdef DEBUG
+        mbus_write_message32(0x70, wakeup_count);
+    #endif
+
+    // Disable PRE Watchdog Timers (CPU watchdog and MBus watchdog)
+    *TIMERWD_GO  = 0;
+    *REG_MBUS_WD = 0;
     
-    // Get the info on who woke up the system
+    // Get the info on who woke up the system, then reset WAKEUP_SOURCE register.
     wakeup_source = *SREG_WAKEUP_SOURCE;
-    *SCTR_REG_CLR_WUP_SOURCE = 1; // reset WAKEUP_SOURCE register
+    *SCTR_REG_CLR_WUP_SOURCE = 1;
+
+    // Check-in the EID Watchdog if it is enabled (STATE 6)
+    if (get_flag(FLAG_WD_ENABLED)) eid_check_in();
+
+    // For safety, disable Wakeup Timer's WREQ.
+    xot_disable_wreq();
 
     // Enable IRQs
-    //*NVIC_ISER = (0x1 << IRQ_GOCEP) | (0x1 << IRQ_TIMER32) | (0x1 << IRQ_REG0  ) | (0x1 << IRQ_REG1 ) | (0x1 << IRQ_REG2  ) | (0x1 << IRQ_REG3 );
-    *NVIC_ISER = (0x1 << IRQ_GOCEP) | (0x1 << IRQ_TIMER32) | (0x1 << IRQ_REG0  ) | (0x1 << IRQ_REG1 ) | (0x1 << IRQ_REG3 );
+    *NVIC_ISER = (0x1 << IRQ_GOCEP) | (0x1 << IRQ_TIMER32);
 
-    // If this is the very first wakeup, initialize the system and go back to sleep
-    if (!get_flag(FLAG_INITIALIZED)) operation_init();
+    // If this is the very first wakeup, initialize the system (STATE 1)
+    if (!get_flag(FLAG_ENUMERATED)) operation_init();
 
-    // e-Ink Display Demo
-    // Use the slowest clock speed
-//    eid_r02.as_int = 0x1FF;
-//    mbus_remote_register_write(EID_ADDR,0x02,eid_r02.as_int);
-//    while(1) {
-//        // Triangle
-//        eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
-//        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x001); 
-//        // X-mark
-//        eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
-//        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x01A); 
-//        // Low Battery
-//        eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
-//        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x004); 
-//        // Plus Sign
-//        eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
-//        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x020); 
-//        // Minus Sign
-//        eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
-//        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x040); 
-//        // non-X
-//        eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
-//        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x065); 
-//        // only-X
-//        eid_enable_cp_ck(/*vin*/0, /*te*/1, /*fd*/0, /*seg*/0x000); 
-//        eid_enable_cp_ck(/*vin*/0, /*te*/0, /*fd*/0, /*seg*/0x01A); 
-//    }
+    //--------------------------------------------------------------------------
+    // If woken up by GIT (i.e., User removes the sticker!), trigger STEP 5.
+    //--------------------------------------------------------------------------
+    if (get_bit(wakeup_source, 5)) {
+        #ifdef DEBUG
+            mbus_write_message32(0x72, 0x4);
+        #endif
+        // Post-GIT Initialization
+        postgit_init();
+    }
 
-//
-//    // EID Watchdog Check-In
-//    if (get_flag(FLAG_WD_ENABLED)) eid_check_in();
-//
-//    // For safety, disable Wakeup Timer's WREQ.
-//    xot_disable_wreq();
-//
-//    // Unfreeze NFC GPIO
-//    //nfc_unfreeze_gpio();
-//
-//    //--------------------------------------------------------------------------
-//    // WAKEUP_SOURCE (wakeup_source) definition
-//    //--------------------------------------------------------------------------
-//    //  [31:12] - Reserved
-//    //     [11] - GPIO_PAD[3] has triggered wakeup (valid only when wakeup_source[3]=1)
-//    //     [10] - GPIO_PAD[2] has triggered wakeup (valid only when wakeup_source[3]=1)
-//    //     [ 9] - GPIO_PAD[1] has triggered wakeup (valid only when wakeup_source[3]=1)
-//    //     [ 8] - GPIO_PAD[0] has triggered wakeup (valid only when wakeup_source[3]=1)
-//    //  [ 7: 6] - Reserved
-//    //      [5] - GIT (GOC Instant Trigger) has triggered wakeup
-//    //              NOTE: If GIT is triggered while the system is in active, the GIT is NOT immediately handled.
-//    //                    Instead, it waits until the system goes in sleep, and then, the (pending) GIT will wake up the system.
-//    //                    Thus, you can safely assume that GIT is (effectively) triggered only while the system is in Sleep.
-//    //      [4] - MBus message has triggered wakeup (e.g., Flash Auto Boot-up)
-//    //      [3] - One of GPIO_PAD[3:0] has triggered wakeup
-//    //      [2] - XO Timer has triggered wakeup
-//    //      [1] - Wake-up Timer has triggered wakeup
-//    //      [0] - GOC/EP has triggered wakeup
-//    //--------------------------------------------------------------------------
-//
-//    //--------------------------------------------------------------------------
-//    // If woken up by GIT
-//    //--------------------------------------------------------------------------
-//    if (get_bit(wakeup_source, 5)) {
-//        mbus_write_message32(0x72, 0x4);
-//        set_flag(FLAG_GIT_TRIGGERED, 1);
-//        // Reset everything back to default.
-//        operation_back_to_default();
-//        // Post-GIT Initialization
-//        postgit_init();
-//        // Start Temp/VBAT measurement
-//        snt_running = 1;
-//        meas_count = 0;
-//    }
-//    //--------------------------------------------------------------------------
-//    // If woken up by a XO wakeup timer
-//    //--------------------------------------------------------------------------
-//    else if (get_bit(wakeup_source, 2)) {
-//        mbus_write_message32(0x72, 0x5);
-//
-//        if (wakeup_timestamp==0) wakeup_timestamp = *XOT_VAL;
-//
-//        //// If GIT is not yet enabled (i.e., the very first wakeup by the wakeup timer)
-//        //if (!get_flag(FLAG_GIT_ENABLED)) {
-//        //    // Enable GIT (GOC Instant Trigger)
-//        //    *REG_GOC_CONFIG = set_bit(*REG_GOC_CONFIG, 16, 1);
-//        //    set_flag(FLAG_GIT_ENABLED, 1);
-//        //    // Start Temp/VBAT measurement
-//        //    snt_running = 1;
-//        //    meas_count = 0;
-//        //}
-//    }
-//    //--------------------------------------------------------------------------
-//    // If woken up by NFC (GPIO[0])
-//    //--------------------------------------------------------------------------
-//    // NOTE: See note in 'THINGS TO DO'
-//    else if (get_bit(wakeup_source, 3)) {
-//        if (get_bit(wakeup_source, 8)) {
-//            mbus_write_message32(0x72, 0x6);
-//            // Handle the NFC event
-//            do_nfc();
-//        }
-//        // ERROR: other than GPIO[0] woke up the system
-//        else {
-//            mbus_write_message32(0x72, 0x7);
-//        }
-//    }
-//    //--------------------------------------------------------------------------
-//    // If woken up by a wakeup timer [ERROR]
-//    //--------------------------------------------------------------------------
-//    else if (get_bit(wakeup_source, 1)) {
-//        mbus_write_message32(0x72, 0x8);
-//    }
-//    //--------------------------------------------------------------------------
-//    // If woken up by an MBus Message
-//    //--------------------------------------------------------------------------
-//    else if (get_bit(wakeup_source, 4)) { 
-//        mbus_write_message32(0x72, 0x9);
-//    }
-//    //--------------------------------------------------------------------------
-//    // If woken up by GOC/EP
-//    //--------------------------------------------------------------------------
-//    else if (get_bit(wakeup_source, 0)) { 
-//        mbus_write_message32(0x72, 0xA);
-//        // GOC/EP shall be handled by the GOC/EP IRQ Handler.
-//    }
-//
-//    //--------------------------------------------------------------------------
-//    // OTHER OPERATIONS
-//    //--------------------------------------------------------------------------
-//    mbus_write_message32(0x72, 0xB);
-//
-//    //// If SNT is running
-//    //while (snt_running) snt_operation();
-//
-//    reset_xo_cnt(); // Make counter value = 0
-//    operation_sleep_xo_timer(3*XOT_1SEC);
+    //--------------------------------------------------------------------------
+    // If woken up by a XO wakeup timer
+    //--------------------------------------------------------------------------
+    else if (get_bit(wakeup_source, 2)) {
+        #ifdef DEBUG
+            mbus_write_message32(0x72, 0x5);
+        #endif
 
-    operation_sleep();
-    while(1);
+        // Save the timestamp
+        if (wakeup_timestamp==0) wakeup_timestamp = *XOT_VAL;
 
+        // Enable GIT, if GIT is not yet enabled (STATE 3)
+        if (!get_flag(FLAG_GIT_ENABLED)) {
+            // Enable GIT (GOC Instant Trigger)
+            *REG_GOC_CONFIG = set_bit(*REG_GOC_CONFIG, 16, 1);
+            set_flag(FLAG_GIT_ENABLED, 1);
+            #ifdef FLAG_UPDATE_EEPROM
+                nfc_i2c_set_flag(FLAG_GIT_ENABLED, 1);
+            #endif
+            // Start Temp/VBAT measurement
+            snt_running = 1;
+            meas_count = 0;
+        }
+    }
+
+    //--------------------------------------------------------------------------
+    // If woken up by NFC (GPIO[0]) [NOTE] Currently the GPIO[0] wakeup is not supported
+    //--------------------------------------------------------------------------
+    else if (get_bit(wakeup_source, 3)) {
+
+        //if (get_bit(wakeup_source, 8)) {
+        //    #ifdef DEBUG
+        //        mbus_write_message32(0x72, 0x6);
+        //    #endif
+        //    // Handle the NFC event
+        //    //do_nfc();
+        //}
+
+    }
+
+    //--------------------------------------------------------------------------
+    // If woken up by an MBus Message (i.e., SNT Temp Sensor)
+    //--------------------------------------------------------------------------
+    else if (get_bit(wakeup_source, 4)) { 
+        #ifdef DEBUG
+            mbus_write_message32(0x72, 0x9);
+        #endif
+    }
+
+    //--------------------------------------------------------------------------
+    // If woken up by GOC/EP
+    //--------------------------------------------------------------------------
+    else if (get_bit(wakeup_source, 0)) { 
+        #ifdef DEBUG
+            mbus_write_message32(0x72, 0xA);
+        #endif
+        // GOC/EP shall be handled by the GOC/EP IRQ Handler, if needed.
+    }
+
+    //--------------------------------------------------------------------------
+    // OTHER OPERATIONS
+    //--------------------------------------------------------------------------
+
+    // If SNT is running
+    while (snt_running) snt_operation();
+
+    //---------------------------------------------
     // Never Quit (should not stay here for an extended duration)
+    //---------------------------------------------
     while(1) asm("nop");
     return 1;
 }
