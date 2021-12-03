@@ -208,8 +208,9 @@
 //*******************************************************************************************
 // DEBUGGING
 //*******************************************************************************************
-#define DEBUG       // Send debug MBus messages (Disable this for real use)
-#define DEVEL       // Used for development (Disable this for real use)
+#define DEBUG                   // Send debug MBus messages (Disable this for real use)
+#define DEVEL                   // Used for development (Disable this for real use)
+#define GOCEP_RUN_CPU_ONLY      // Enable if you can do only RUN_CPU in GOC/EP (i.e., you cannot do GEN_IRQ).
 #define FAIL_MBUS_ADDR  0xEF    // fail(): In case of failure, it sends an MBus message containing the failure code to this MBus Address.
 
 //*******************************************************************************************
@@ -1560,7 +1561,10 @@ int main() {
     xot_disable_wreq();
 
     // Enable IRQs
-    *NVIC_ISER = (0x1 << IRQ_GOCEP) | (0x1 << IRQ_TIMER32);
+    *NVIC_ISER = (0x1 << IRQ_TIMER32);
+    #ifndef GOCEP_RUN_CPU_ONLY
+        *NVIC_ISER |= (0x1 << IRQ_GOCEP);
+    #endif
 
     // If this is the very first wakeup, initialize the system (STATE 1)
     if (!get_flag(FLAG_ENUMERATED)) operation_init();
@@ -1628,14 +1632,14 @@ int main() {
     //--------------------------------------------------------------------------
     // If woken up by GOC/EP
     //--------------------------------------------------------------------------
+#ifdef GOCEP_RUN_CPU_ONLY
     else if (get_bit(wakeup_source, 0)) { 
         #ifdef DEBUG
             mbus_write_message32(0x72, 0xA);
         #endif
-        // GOC/EP shall be handled by the GOC/EP IRQ Handler, if needed.
-        handler_ext_int_gocep();    // just for zhiyoong
-
+        handler_ext_int_gocep();
     }
+#endif
 
     //--------------------------------------------------------------------------
     // OTHER OPERATIONS

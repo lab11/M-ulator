@@ -93,6 +93,9 @@ void nfc_power_on(void) {
 
         // Update the status flag
         __nfc_on__ = 0x1;
+
+        // Provide delay to meeting the boot-up time constraint.
+        delay(__NFC_TBOOTDC__);
     }
 }
 

@@ -180,7 +180,10 @@ uint32_t get_bit (uint32_t variable, uint32_t idx);
 #define __I2C_SDA_MASK__    (1<<__NFC_SDA__)
 #define __GPO_MASK__        (1<<__NFC_GPO__)
 
-// EEPROM Write Time (Tw): Must be >5ms; See datasheet
+// NFC Boot-Up Delay (t_bootDC); Must be >0.6ms; See datasheet
+#define __NFC_TBOOTDC__     100  // NOTE: Boot-Up Delay is approx. 0.3ms + (__NFC_TBOOTDC__ x 0.03ms)
+
+// EEPROM Write Time (Tw); Must be >5ms; See datasheet
 #define __NFC_TW__  400
 
 // Write Polling
@@ -192,7 +195,7 @@ uint32_t get_bit (uint32_t variable, uint32_t idx);
 //      If enabled, TMC executes the low-level implementation of the I2C, 
 //      which is much faster than the generic version.
 //      This ignores __NFC_SCL__, __NFC_SDA__, and __I2C_*MASK__ directives.
-//#define __USE_FAST_I2C__
+#define __USE_FAST_I2C__
 
 // ACK Timeout
 #define __I2C_ACK_TIMEOUT__         50000   // Checked using TIMER32
