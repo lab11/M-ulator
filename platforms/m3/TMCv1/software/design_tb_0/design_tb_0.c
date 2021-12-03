@@ -1633,6 +1633,8 @@ int main() {
             mbus_write_message32(0x72, 0xA);
         #endif
         // GOC/EP shall be handled by the GOC/EP IRQ Handler, if needed.
+        handler_ext_int_gocep();    // just for zhiyoong
+
     }
 
     //--------------------------------------------------------------------------
