@@ -209,9 +209,11 @@
 // DEBUGGING
 //*******************************************************************************************
 #define DEBUG                   // Send debug MBus messages (Disable this for real use)
-#define DEVEL                   // Used for development (Disable this for real use)
+//#define DEVEL                   // Used for development (Disable this for real use)
 #define GOCEP_RUN_CPU_ONLY      // Enable if you can do only RUN_CPU in GOC/EP (i.e., you cannot do GEN_IRQ).
 #define FAIL_MBUS_ADDR  0xEF    // fail(): In case of failure, it sends an MBus message containing the failure code to this MBus Address.
+
+#define NO_PMU
 
 //*******************************************************************************************
 // FLAG BIT INDEXES
@@ -237,9 +239,9 @@
 #define XOT_1DAY    24*XOT_1HR
 
 // Sleep Duration 
-#define XOT_SLEEP_DURATION_LONG      1*XOT_1HR      // The long sleep duration during which the user must put on a GIT sticker
-#define XOT_SLEEP_DURATION_PREGIT   10*XOT_1MIN     // The sleep duration before activating the system
-#define XOT_SLEEP_DURATION          10*XOT_1MIN     // The sleep duration after the system activation
+#define XOT_SLEEP_DURATION_LONG      5*XOT_1MIN      // The long sleep duration during which the user must put on a GIT sticker
+#define XOT_SLEEP_DURATION_PREGIT    30*XOT_1SEC     // The sleep duration before activating the system
+#define XOT_SLEEP_DURATION           30*XOT_1SEC     // The sleep duration after the system activation
 
 //*******************************************************************************************
 // TARGET REGISTER INDEX FOR LAYER COMMUNICATIONS
@@ -581,6 +583,7 @@ static void pmu_set_floor(uint8_t mode, uint8_t r, uint8_t l, uint8_t base, uint
     uint32_t upc = (mode == ACTIVE) ? 0x18 : 0x17;
     uint32_t dnc = (mode == ACTIVE) ? 0x1A : 0x19;
 
+#ifndef NO_PMU
     //---------------------------------------------------------------------------------------
     // SAR_TRIM_V3_[ACTIVE|SLEEP]
     //---------------------------------------------------------------------------------------
@@ -618,6 +621,7 @@ static void pmu_set_floor(uint8_t mode, uint8_t r, uint8_t l, uint8_t base, uint
         | (l << 5)      // 4'h4     // Frequency multiplier L (actually L+1)
         | (base)        // 5'h08    // Floor frequency base (0-63)
     ));
+#endif
 }
 
 //-------------------------------------------------------------------
@@ -762,6 +766,7 @@ static void pmu_adc_read_and_sar_ratio_adjustment() {
     // Read the ADC result
     read_data_batadc = pmu_reg_read(0x03) & 0xFF;
 
+#ifndef NO_PMU
     // Adjust SAR RATIO
     if      (read_data_batadc < pmu_adc_3p0_val + 0 ){ pmu_set_sar_ratio(0x3C);} // VBAT > 3.0V
     else if (read_data_batadc < pmu_adc_3p0_val + 4 ){ pmu_set_sar_ratio(0x3F);} // 2.9V < VBAT < 3.0V
@@ -775,6 +780,7 @@ static void pmu_adc_read_and_sar_ratio_adjustment() {
     else if (read_data_batadc < pmu_adc_3p0_val + 46){ pmu_set_sar_ratio(0x56);} // 2.1V < VBAT < 2.2V
     else if (read_data_batadc < pmu_adc_3p0_val + 53){ pmu_set_sar_ratio(0x5A);} // 2.0V < VBAT < 2.1V
     else                                             { pmu_set_sar_ratio(0x5F);} // VBAT < 2.0V
+#endif
 
 }
 
@@ -1160,9 +1166,6 @@ static void operation_init (void) {
 
     // Set the flag
     set_flag(FLAG_ENUMERATED, 1);
-    #ifdef FLAG_UPDATE_EEPROM
-        nfc_i2c_set_flag(FLAG_ENUMERATED, 1);
-    #endif
 
     //-------------------------------------------------
     // Target Register Index
@@ -1195,6 +1198,11 @@ static void operation_init (void) {
     mbus_remote_register_write(SNT_ADDR,0x03,snt_r03.as_int);
 
     //-------------------------------------------------
+    // XO Driver
+    //-------------------------------------------------
+    xo_start(XO_WAIT_A, XO_WAIT_B);
+
+    //-------------------------------------------------
     // MRR Settings
     //-------------------------------------------------
     // NOTE: XT1 does not use MRR
@@ -1203,20 +1211,18 @@ static void operation_init (void) {
     // EID Settings
     //-------------------------------------------------
     eid_init();
+    eid_update(0xFF);
+    eid_update(0x0);
     eid_update(DISP_RUNNING);
-
-    //-------------------------------------------------
-    // XO Driver
-    //-------------------------------------------------
-    xo_start(XO_WAIT_A, XO_WAIT_B);
 
     //-------------------------------------------------
     // NFC 
     //-------------------------------------------------
     nfc_init();
 
-    // Update EEPROM
-    nfc_i2c_byte_write(/*e2*/0, /*addr*/0x1, /*data*/0xFF);
+    #ifdef FLAG_UPDATE_EEPROM
+        nfc_i2c_set_flag(FLAG_ENUMERATED, 1);
+    #endif
 
     //-------------------------------------------------
     // Sleep
@@ -1227,6 +1233,8 @@ static void operation_init (void) {
     #ifdef DEVEL
         operation_sleep_xo_timer(0xFFFFFFFF);
     #else
+        eid_update(0x0);
+        eid_update(DISP_RUNNING);
         operation_sleep_xo_timer(XOT_SLEEP_DURATION_LONG);
     #endif
 }
@@ -1289,7 +1297,7 @@ static void snt_operation (void) {
             pmu_adc_read_and_sar_ratio_adjustment();
 
             // If VBAT is too low, trigger the EID Watchdog (System Crash)
-            if (read_data_batadc < pmu_adc_crit_val) {
+            if (read_data_batadc > pmu_adc_crit_val) {
                 eid_trigger_crash();
                 while(1);
             }
@@ -1525,6 +1533,9 @@ void handler_ext_int_gocep    (void) {
     #ifdef DEVEL
         reset_xo_cnt(); // Make counter value = 0
         operation_sleep_xo_timer(0xFFFFFFFF);
+    #else
+        reset_xo_cnt(); // Make counter value = 0
+        operation_sleep_xo_timer(XOT_SLEEP_DURATION_LONG);
     #endif
 }
 
