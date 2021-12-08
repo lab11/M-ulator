@@ -210,10 +210,11 @@
 //*******************************************************************************************
 #define DEBUG                   // Send debug MBus messages (Disable this for real use)
 //#define DEVEL                   // Used for development (Disable this for real use)
-#define GOCEP_RUN_CPU_ONLY      // Enable if you can do only RUN_CPU in GOC/EP (i.e., you cannot do GEN_IRQ).
+//#define GOCEP_RUN_CPU_ONLY      // Enable if you can do only RUN_CPU in GOC/EP (i.e., you cannot do GEN_IRQ).
 #define FAIL_MBUS_ADDR  0xEF    // fail(): In case of failure, it sends an MBus message containing the failure code to this MBus Address.
 
 #define NO_PMU
+#define XO_TEST
 
 //*******************************************************************************************
 // FLAG BIT INDEXES
@@ -229,8 +230,8 @@
 //*******************************************************************************************
 
 // XO Initialization Wait Duration
-#define XO_WAIT_A  20000    // Must be ~1 second delay. Delay for XO Start-Up. LSB corresponds to ~50us, assuming ~100kHz CPU clock and 5 cycles per delay(1).
-#define XO_WAIT_B  20000    // Must be ~1 second delay. Delay for VLDO & IBIAS Generation. LSB corresponds to ~50us, assuming ~100kHz CPU clock and 5 cycles per delay(1).
+#define XO_WAIT_A  30000    // Must be ~1 second delay. Delay for XO Start-Up. LSB corresponds to ~50us, assuming ~100kHz CPU clock and 5 cycles per delay(1).
+#define XO_WAIT_B  30000    // Must be ~1 second delay. Delay for VLDO & IBIAS Generation. LSB corresponds to ~50us, assuming ~100kHz CPU clock and 5 cycles per delay(1).
 
 // XO Counter Value per Specific Time Durations
 #define XOT_1SEC    2048        // By default, the XO clock frequency is 2kHz. Frequency = 2 ^ XO_SEL_CLK_OUT_DIV (kHz).
@@ -239,7 +240,7 @@
 #define XOT_1DAY    24*XOT_1HR
 
 // Sleep Duration 
-#define XOT_SLEEP_DURATION_LONG      5*XOT_1MIN      // The long sleep duration during which the user must put on a GIT sticker
+#define XOT_SLEEP_DURATION_LONG      30*XOT_1SEC     // The long sleep duration during which the user must put on a GIT sticker
 #define XOT_SLEEP_DURATION_PREGIT    30*XOT_1SEC     // The sleep duration before activating the system
 #define XOT_SLEEP_DURATION           30*XOT_1SEC     // The sleep duration after the system activation
 
@@ -1201,6 +1202,7 @@ static void operation_init (void) {
     // XO Driver
     //-------------------------------------------------
     xo_start(XO_WAIT_A, XO_WAIT_B);
+    *XOT_START_COUT = 1;
 
     //-------------------------------------------------
     // MRR Settings
@@ -1233,8 +1235,6 @@ static void operation_init (void) {
     #ifdef DEVEL
         operation_sleep_xo_timer(0xFFFFFFFF);
     #else
-        eid_update(0x0);
-        eid_update(DISP_RUNNING);
         operation_sleep_xo_timer(XOT_SLEEP_DURATION_LONG);
     #endif
 }
@@ -1492,6 +1492,16 @@ void handler_ext_int_gocep    (void) {
     //      n = 0xF: Write all 1 to the entire EEPROM
     //--------------------------------------------------
 
+#ifdef XO_TEST
+    if (goc_header == 0x00) {
+        if (goc_data == 0x0) {
+            xo_stop();
+            xo_start(XO_WAIT_A, XO_WAIT_B);
+            *XOT_START_COUT = 1;
+        }
+    }
+
+#else
     if (goc_header == 0x00) {
         // Write All0 to the entire EEPROM
         if (goc_data == 0x0) {
@@ -1529,6 +1539,7 @@ void handler_ext_int_gocep    (void) {
         }
         nfc_power_off();
     }
+#endif
 
     #ifdef DEVEL
         reset_xo_cnt(); // Make counter value = 0
@@ -1580,6 +1591,7 @@ int main() {
     // If this is the very first wakeup, initialize the system (STATE 1)
     if (!get_flag(FLAG_ENUMERATED)) operation_init();
 
+#ifndef XO_TEST
     //--------------------------------------------------------------------------
     // If woken up by GIT (i.e., User removes the sticker!), trigger STEP 5.
     //--------------------------------------------------------------------------
@@ -1658,6 +1670,10 @@ int main() {
 
     // If SNT is running
     while (snt_running) snt_operation();
+#else // if XO_TEST is defined
+    reset_xo_cnt(); // Make counter value = 0
+    operation_sleep_xo_timer(XOT_SLEEP_DURATION_LONG);
+#endif
 
     //---------------------------------------------
     // Never Quit (should not stay here for an extended duration)
