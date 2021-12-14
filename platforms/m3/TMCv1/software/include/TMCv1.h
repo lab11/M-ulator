@@ -195,7 +195,8 @@ uint32_t get_bit (uint32_t variable, uint32_t idx);
 //      If enabled, TMC executes the low-level implementation of the I2C, 
 //      which is much faster than the generic version.
 //      This ignores __NFC_SCL__, __NFC_SDA__, and __I2C_*MASK__ directives.
-#define __USE_FAST_I2C__
+// [WARNING] Fast I2C seems to cause more coupling with the XO wires (hence more frequent XO failure)
+//#define __USE_FAST_I2C__
 
 // ACK Timeout
 #define __I2C_ACK_TIMEOUT__         50000   // Checked using TIMER32
@@ -760,5 +761,205 @@ void eid_check_in(void);
 //-------------------------------------------------------------------
 void eid_trigger_crash(void);
 
+
+//*******************************************************************
+// SNT FUNCTIONS
+//*******************************************************************
+
+// ACK Timeout
+#define __SNT_WUP_READ_TIMEOUT__         50000   // Checked using TIMER32
+#define __FCODE_SNT_WUP_READ_TIMEOUT__   7       // Failure code to be displayed if timeout during SNT WUP Timer Read
+
+//-------------------------------------------------------------------
+// __snt_timer_status__
+//-------------------------------------------------------------------
+// 0: (default) SNT timer is not running
+// 1: SNT timer is fully running
+// 2: SNT timer has finishes the start-uhas finishes the start-up (i.e., snt_start_timer_presleep())
+//-------------------------------------------------------------------
+volatile uint32_t __snt_timer_status__;
+
+//-------------------------------------------------------------------
+// SNT Register File
+//-------------------------------------------------------------------
+volatile snt_r00_t snt_r00;
+volatile snt_r01_t snt_r01;
+volatile snt_r03_t snt_r03;
+volatile snt_r08_t snt_r08;
+volatile snt_r09_t snt_r09;
+volatile snt_r17_t snt_r17;
+
+//-------------------------------------------------------------------
+// Function: snt_init
+// Args    : None
+// Description:
+//           Initializes SNT variables
+// Return  : None
+//-------------------------------------------------------------------
+void snt_init(void);
+
+//-------------------------------------------------------------------
+// Function: snt_temp_sensor_power_on
+// Args    : None
+// Description:
+//           Power on SNT Temp Sensor
+// Return  : None
+//-------------------------------------------------------------------
+void snt_temp_sensor_power_on(void);
+
+//-------------------------------------------------------------------
+// Function: snt_temp_sensor_power_off
+// Args    : None
+// Description:
+//           Turns off SNT Temp Sensor
+// Return  : None
+//-------------------------------------------------------------------
+void snt_temp_sensor_power_off(void);
+
+//-------------------------------------------------------------------
+// Function: snt_temp_sensor_start
+// Args    : None
+// Description:
+//           Release the reset of SNT Temp Sensor
+// Return  : None
+//-------------------------------------------------------------------
+void snt_temp_sensor_start(void);
+
+//-------------------------------------------------------------------
+// Function: snt_temp_sensor_reset
+// Args    : None
+// Description:
+//           Assert the reset of SNT Temp Sensor
+// Return  : None
+//-------------------------------------------------------------------
+void snt_temp_sensor_reset(void);
+
+//-------------------------------------------------------------------
+// Function: snt_ldo_power_off
+// Args    : None
+// Description:
+//           Turns off SNT LDO
+// Return  : None
+//-------------------------------------------------------------------
+void snt_ldo_power_off(void);
+
+//-------------------------------------------------------------------
+// Function: snt_ldo_vref_on
+// Args    : None
+// Description:
+//           Turns on SNT VREF
+// Return  : None
+//-------------------------------------------------------------------
+void snt_ldo_vref_on(void);
+
+//-------------------------------------------------------------------
+// Function: snt_ldo_power_on
+// Args    : None
+// Description:
+//           Turns on SNT LDO
+// Return  : None
+//-------------------------------------------------------------------
+void snt_ldo_power_on(void);
+
+//-------------------------------------------------------------------
+// Function: set_snt_timer_status
+// Args    : status - the new status to be written to __snt_timer_status__
+// Description:
+//           Set the SNT timer status variable (__snt_timer_status__)
+// Return  : None
+//-------------------------------------------------------------------
+void set_snt_timer_status(uint32_t status);
+
+//-------------------------------------------------------------------
+// Function: get_snt_timer_status
+// Args    : None
+// Description:
+//           Return the value of the SNT timer status varible (__snt_timer_status__)
+// Return  : The value of the SNT timer status variable (__snt_timer_status__)
+//              0: (default) SNT timer is not running
+//              1: SNT timer is running
+//-------------------------------------------------------------------
+uint32_t get_snt_timer_status(void);
+
+//-------------------------------------------------------------------
+// Function: snt_start_timer
+// Args    : None
+// Description:
+//           Start the SNT timer.
+//           It includes a brief sleep duration (2~3 seconds)
+//           Thus, it must be placed before any other 'sleep' command,
+//           and needs to be reached after the wakeup following the brief sleep duration.
+// Return  : None
+//-------------------------------------------------------------------
+void snt_start_timer(void);
+
+//-------------------------------------------------------------------
+// Function: snt_stop_timer
+// Args    : None
+// Description:
+//           Stop the SNT timer
+// Return  : None
+//-------------------------------------------------------------------
+void snt_stop_timer(void);
+
+//-------------------------------------------------------------------
+// Function: snt_set_timer_threshold
+// Args    : threshold  - SNT Wakeup timer threshold (32-bit)
+// Description:
+//           Set the threshold for the SNT Wakeup timer
+// Return  : None
+//-------------------------------------------------------------------
+void snt_set_timer_threshold(uint32_t threshold);
+
+//-------------------------------------------------------------------
+// Function: snt_enable_wup_timer
+// Args    : auto_reset -   0: Auto Reset is disabled
+//                          1: Auto Reset is enabled
+// Description:
+//           Enable the SNT wakeup timer so that the wakeup counter starts running.
+//           If auto_reset=1, the Auto Reset feature is also enabled,
+//           where the SNT wakeup counter gets automatically reset upon the system
+//           going into sleep.
+// Return  : None
+//-------------------------------------------------------------------
+void snt_enable_wup_timer (uint32_t auto_reset);
+
+//-------------------------------------------------------------------
+// Function: snt_disable_wup_timer
+// Args    : None
+// Description:
+//           Disable the SNT wakeup timer. Once executed, the SNT
+//           wakeup counter stops running and becomes 0.
+// Return  : None
+//-------------------------------------------------------------------
+void snt_disable_wup_timer (void);
+
+//-------------------------------------------------------------------
+// Function: snt_set_wup_timer
+// Args    : threshold  -   SNT Wakeup timer threshold (32-bit)
+//           auto_reset -   0: Auto Reset is disabled
+//                          1: Auto Reset is enabled
+// Description:
+//           Set the threshold for the SNT wakeup timer,
+//           then enables the SNT wakeup timer so that the wakeup counter starts running.
+//           wakeup counter stops running.
+//           If auto_reset=1, the Auto Reset feature is also enabled,
+//           where the SNT wakeup counter gets automatically reset upon the system
+//           going into sleep.
+// Return  : None
+//-------------------------------------------------------------------
+void snt_set_wup_timer(uint32_t auto_reset, uint32_t threshold);
+
+//-------------------------------------------------------------------
+// Function: snt_read_wup_timer
+// Args    : None
+// Description:
+//           Synchronous read the SNT wakeup timer counter value.
+//           The upper 8-bit is written to REG6 (in PRE)
+//           and the lower 24-bit is written to REG7 (in PRE).
+//           Then it combines REG6 and REG7 and returns the 32-bit value.
+// Return  : The current 32-bit SNT Wakeup counter value read synchronously
+//-------------------------------------------------------------------
+uint32_t snt_read_wup_timer(void);
 
 #endif // TMCV1_H

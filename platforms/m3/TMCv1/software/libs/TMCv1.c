@@ -878,3 +878,210 @@ void eid_trigger_crash() {
     mbus_remote_register_write(EID_ADDR,0x19,0x00DEAD);
 }
 
+//*******************************************************************
+// SNT FUNCTIONS
+//*******************************************************************
+
+void snt_init(void) {
+
+    // global variables
+    __snt_timer_status__ = 0;
+
+    // Regiser File variables
+    snt_r00.as_int = SNT_R00_DEFAULT_AS_INT;
+    snt_r01.as_int = SNT_R01_DEFAULT_AS_INT;
+    snt_r03.as_int = SNT_R03_DEFAULT_AS_INT;
+    snt_r08.as_int = SNT_R08_DEFAULT_AS_INT;
+    snt_r09.as_int = SNT_R09_DEFAULT_AS_INT;
+    snt_r17.as_int = SNT_R17_DEFAULT_AS_INT;
+
+    // Temp Sensor Initialization
+    snt_r01.TSNS_RESETn     = 0;
+    snt_r01.TSNS_EN_IRQ     = 1;
+    snt_r01.TSNS_BURST_MODE = 0;
+    snt_r01.TSNS_CONT_MODE  = 0;
+    mbus_remote_register_write(SNT_ADDR,0x01,snt_r01.as_int);
+
+    // Set temp sensor conversion time
+    snt_r03.TSNS_SEL_STB_TIME  = 0x1; // Default: 0x1
+    snt_r03.TSNS_SEL_CONV_TIME = 0x6; // Default: 0x6
+    mbus_remote_register_write(SNT_ADDR,0x03,snt_r03.as_int);
+
+    // Wakeup Timer configuration
+    snt_r17.WUP_INT_RPLY_REG_ADDR = 0x07;
+    snt_r17.WUP_INT_RPLY_SHORT_ADDR = 0x10;
+    snt_r17.WUP_CLK_SEL = 0x0; // 0: Use CLK_TMR, 1: Use CLK_TSNS
+    snt_r17.WUP_AUTO_RESET = 0x0; // Automatically reset counter to 0 upon sleep 
+    mbus_remote_register_write(SNT_ADDR,0x17,snt_r17.as_int);
+}
+
+void snt_temp_sensor_power_on(void){
+    // Turn on digital block
+    snt_r01.TSNS_SEL_LDO = 1;
+    mbus_remote_register_write(SNT_ADDR,0x01,snt_r01.as_int);
+    // Turn on analog block
+    snt_r01.TSNS_EN_SENSOR_LDO = 1;
+    mbus_remote_register_write(SNT_ADDR,0x01,snt_r01.as_int);
+    // Delay (~2ms @ 100kHz clock speed)
+    delay(200);
+    // Release isolation
+    snt_r01.TSNS_ISOLATE = 0;
+    mbus_remote_register_write(SNT_ADDR,0x01,snt_r01.as_int);
+    // Delay (~2ms @ 100kHz clock speed)
+    delay(200);
+}
+
+void snt_temp_sensor_power_off(void){
+    snt_r01.TSNS_RESETn         = 0;
+    snt_r01.TSNS_SEL_LDO        = 0;
+    snt_r01.TSNS_EN_SENSOR_LDO  = 0;
+    snt_r01.TSNS_ISOLATE        = 1;
+    mbus_remote_register_write(SNT_ADDR,0x01,snt_r01.as_int);
+}
+
+void snt_temp_sensor_start(void){
+    snt_r01.TSNS_RESETn = 1;
+    mbus_remote_register_write(SNT_ADDR,0x01,snt_r01.as_int);
+}
+
+void snt_temp_sensor_reset(void){
+    snt_r01.TSNS_RESETn = 0;
+    mbus_remote_register_write(SNT_ADDR,0x01,snt_r01.as_int);
+}
+
+void snt_ldo_power_off(void){
+    snt_r00.LDO_EN_VREF   = 0;
+    snt_r00.LDO_EN_IREF   = 0;
+    snt_r00.LDO_EN_LDO    = 0;
+    mbus_remote_register_write(SNT_ADDR,0x00,snt_r00.as_int);
+}
+
+void snt_ldo_vref_on(void){
+    snt_r00.LDO_EN_VREF = 1;
+    mbus_remote_register_write(SNT_ADDR,0x00,snt_r00.as_int);
+    // Delay (~50ms @ 100kHz clock speed); NOTE: Start-Up Time of VREF @ TT, 1.1V, 27C is ~40ms.
+    delay(5000);
+}
+
+void snt_ldo_power_on(void){
+    snt_r00.LDO_EN_IREF = 1;
+    snt_r00.LDO_EN_LDO  = 1;
+    mbus_remote_register_write(SNT_ADDR,0x00,snt_r00.as_int);
+}
+
+void set_snt_timer_status(uint32_t status) {
+    __snt_timer_status__ = status;
+}
+
+uint32_t get_snt_timer_status(void) {
+    return __snt_timer_status__;
+}
+
+void snt_start_timer(void){
+
+    if (__snt_timer_status__ == 0x0) {
+	    // New for SNTv3
+	    snt_r08.TMR_SLEEP = 0x0; // Default : 0x1
+	    mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
+	    snt_r08.TMR_ISOLATE = 0x0; // Default : 0x1
+	    mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
+
+        // TIMER SELF_EN Disable 
+        snt_r09.TMR_SELF_EN = 0x0; // Default : 0x1
+        mbus_remote_register_write(SNT_ADDR,0x09,snt_r09.as_int);
+
+        // EN_OSC 
+        snt_r08.TMR_EN_OSC = 0x1; // Default : 0x0
+        mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
+
+        // Release Reset 
+        snt_r08.TMR_RESETB = 0x1; // Default : 0x0
+        snt_r08.TMR_RESETB_DIV = 0x1; // Default : 0x0
+        snt_r08.TMR_RESETB_DCDC = 0x1; // Default : 0x0
+        mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
+
+        // TIMER EN_SEL_CLK Reset 
+        snt_r08.TMR_EN_SELF_CLK = 0x1; // Default : 0x0
+        mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
+
+        // TIMER SELF_EN 
+        snt_r09.TMR_SELF_EN = 0x1; // Default : 0x0
+        mbus_remote_register_write(SNT_ADDR,0x09,snt_r09.as_int);
+
+        // Set the status
+        __snt_timer_status__ = 0x2;
+
+        // Go to sleep
+        set_wakeup_timer (10, 0x1, 0x1);    // About 2 seconds
+        mbus_sleep_all();
+        while(1);
+    }
+    else if (__snt_timer_status__ == 0x2) {
+        // Turn off sloscillator
+        snt_r08.TMR_EN_OSC = 0x0; // Default : 0x0
+        mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
+
+        // Set the status
+        __snt_timer_status__ = 0x1;
+    }
+
+}
+
+void snt_stop_timer(void){
+    // EN_OSC
+    snt_r08.TMR_EN_OSC = 0x0; // Default : 0x0
+
+    // RESET
+    snt_r08.TMR_EN_SELF_CLK = 0x0; // Default : 0x0
+    snt_r08.TMR_RESETB = 0x0;// Default : 0x0
+    snt_r08.TMR_RESETB_DIV = 0x0; // Default : 0x0
+    snt_r08.TMR_RESETB_DCDC = 0x0; // Default : 0x0
+    mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
+
+    snt_r17.WUP_ENABLE = 0x0; // Default : 0x
+    mbus_remote_register_write(SNT_ADDR,0x17,snt_r17.as_int);
+
+	// New for SNTv3
+	snt_r08.TMR_SLEEP = 0x1; // Default : 0x1
+	snt_r08.TMR_ISOLATE = 0x1; // Default : 0x1
+	mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
+
+    // Set the status
+    __snt_timer_status__ = 0x0;
+}
+
+void snt_set_timer_threshold(uint32_t threshold){
+    mbus_remote_register_write(SNT_ADDR,0x19,threshold>>24);
+    mbus_remote_register_write(SNT_ADDR,0x1A,threshold & 0xFFFFFF);
+    
+}
+
+void snt_enable_wup_timer (uint32_t auto_reset) {
+    snt_r17.WUP_AUTO_RESET = auto_reset;
+    snt_r17.WUP_ENABLE = 0x1;
+    mbus_remote_register_write(SNT_ADDR,0x17,snt_r17.as_int);
+}
+
+void snt_disable_wup_timer (void) {
+    snt_r17.WUP_ENABLE = 0x0;
+    mbus_remote_register_write(SNT_ADDR,0x17,snt_r17.as_int);
+}
+
+void snt_set_wup_timer(uint32_t auto_reset, uint32_t threshold){
+    snt_set_timer_threshold(threshold);
+    snt_enable_wup_timer(auto_reset);
+}
+
+uint32_t snt_read_wup_timer(void){
+    set_timeout32_check(__SNT_WUP_READ_TIMEOUT__);
+    set_halt_until_mbus_trx();
+    mbus_remote_register_write(SNT_ADDR,0x14,
+                             (0x0  << 16)   // 0: Synchronous 32-bit; 1: Synchronous lower 24-bit, 2: Synchronous Upper 8-bit, 3: Invalid
+                            |(0x10 <<  8)   // MBus Target Address
+                            |(0x06 <<  0)   // Destination Register ID
+                            );
+    set_halt_until_mbus_tx();
+    stop_timeout32_check(__FCODE_SNT_WUP_READ_TIMEOUT__);
+    return ((*REG6 << 24) | *REG7);
+}
+    
