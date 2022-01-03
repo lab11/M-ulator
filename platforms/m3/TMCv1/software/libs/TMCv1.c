@@ -354,7 +354,7 @@ void pmu_init(){
         ));
     
     // Initialize SAR Ratio
-    pmu_set_sar_ratio(0x43);
+    pmu_set_sar_ratio(0x48);
 
     // Disable ADC in Active
     // PMU ADC will be automatically reset when system wakes up
@@ -1514,7 +1514,7 @@ void snt_set_wup_timer(uint32_t auto_reset, uint32_t threshold){
 }
 
 uint32_t snt_read_wup_timer(void){
-    set_timeout32_check(__SNT_WUP_READ_TIMEOUT__);
+    //set_timeout32_check(__SNT_WUP_READ_TIMEOUT__);
     set_halt_until_mbus_trx();
     mbus_remote_register_write(SNT_ADDR,0x14,
                              (0x0  << 16)   // 0: Synchronous 32-bit; 1: Synchronous lower 24-bit, 2: Synchronous Upper 8-bit, 3: Invalid
@@ -1522,7 +1522,7 @@ uint32_t snt_read_wup_timer(void){
                             |(0x06 <<  0)   // Destination Register ID
                             );
     set_halt_until_mbus_tx();
-    stop_timeout32_check(__FCODE_SNT_WUP_READ_TIMEOUT__);
+    //stop_timeout32_check(__FCODE_SNT_WUP_READ_TIMEOUT__);
     return ((*REG6 << 24) | *REG7);
 }
     

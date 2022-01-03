@@ -39,6 +39,34 @@
 // General Operation 
 //-------------------------------------------------------------------------------------------
 //
+//  * INITIALIZED: 
+//      You have run the very first programming, and it has gone through enumeration and initializations. 
+//      The SNT timer runs at this point. The system is in indefinite sleep. 
+//      The display lit all the segments.
+//
+//  * ACTIVATED: 
+//      You do a GOC to *activate* the system. Now the system wakes up every 1 min, checks NFC, 
+//      as well as some housekeeping (display refresh and timer calibration when needed..) 
+//      The display becomes all white.
+//
+//          GOC_ACTIVATE_KEY    0x16002351  // Activate the system. Once executed, the system starts the 1-min wakeup/sleep operation.
+//
+//  * STARTED: 
+//      You do a GOC to "start" the temperature measurement. 
+//      The display immediately shows the 'triangle'. 
+//      Once actual temp measurement starts after the start_delay, 
+//      the display shows the 'triangle' as well as the 'check mark' or 'plus/minus' mark, depending on the measurement. 
+//      It also displays the 'low batt' if the VBAT ADC reading indicates so.
+//
+//          GOC_QUICK_START_KEY 0xDECAFBAD  // Start the temperature measurement without changing the existing settings.
+//          GOC_START_KEY       0xFEEDC0DE  // Start the temperature measurement after updating the settings.
+//
+//  * STOPPED: 
+//      You can stop the system by sending GOC_STOP_KEY.
+//      Once triggered, the system goes back to 'ACTIVATED' state.
+//
+//          GOC_STOP_KEY        0xDEADBEEF  // Stop the ongoing temperature measurement.
+//
 //-------------------------------------------------------------------------------------------
 // FLAG Register
 //-------------------------------------------------------------------------------------------
@@ -64,6 +92,60 @@
 //      [2] - XO Timer has triggered wakeup
 //      [1] - Wake-up Timer has triggered wakeup
 //      [0] - GOC/EP has triggered wakeup
+//
+//-------------------------------------------------------------------------------------------
+// DEBUG Messages
+//-------------------------------------------------------------------------------------------
+// Valid only when DEBUG is enabled
+//
+//  ADDR    DATA                                Description
+//  -----------------------------------------------------------------------------------------
+//  0x80    wakeup_source                       Wakeup Source (See above WAKEUP_SOURCE definition)
+//
+//  0x81    wakeup_count                        Wakeup Count (only when snt_state = SNT_IDLE)
+//
+//  0x82    {0x00, tmp_state}                   Temp Meas State (only when system is activated)
+//                                                      0x0 TMP_IDLE        
+//                                                      0x1 TMP_PENDING     
+//                                                      0x2 TMP_ACTIVE      
+//                                                      0x3 TMP_DONE        
+//
+//  0x82    {0x01, curr_start_delay}            Counter for Start Delay
+//  0x82    {0x02, curr_period_temp_meas}       Counter for Temp Meas Period
+//  0x82    {0x03, curr_period_refresh_disp}    Counter for Display Refresh
+//  0x82    {0x04, curr_period_timer_calib}     Counter for Timer Calibration
+//  0x82    {0x05, curr_num_temp_meas_iter}     Current Number of Temp Meas (Iteration)
+//  0x82    {0x06, curr_num_temp_meas}          Current Number of Temp Meas
+//
+//  0x82    {0x10, snt_state}                   SNT State (in snt_operation())
+//                                                      0x0 SNT_IDLE        
+//                                                      0x1 SNT_LDO         
+//                                                      0x2 SNT_TEMP_START  
+//                                                      0x3 SNT_TEMP_READ   
+//
+//  0x83    0x00000000                          NFC activity detected (GPO=1) (only when snt_state=SNT_IDLE)
+//  0x83    0x00000001                          Temp Meas forced to stop by user
+//  0x83    0x00000002                          Temp Meas started and now it becomes TMP_PENDING
+//
+//  0x83    {0x01, start_delay}                 Start Delay
+//  0x83    {0x02, period_temp_meas}            Temp Meas Period
+//  0x83    {0x03, period_refresh_disp}         Display Refresh
+//  0x83    {0x04, period_timer_calib}          Timer Calibration
+//  0x83    {0x05, num_temp_meas_iter}          Number of Temp Meas (Iteration)
+//  0x83    {0x06, num_temp_meas}               Number of Temp Meas
+//  0x83    {0x07, high_temp_threshold}         High Temp Threshold
+//  0x83    {0x08, low_temp_threshold}          Low Temp Threshold
+//
+//  0x83    0x00000003                          Temp Meas stays in IDLE (Has not started by user)
+//  0x83    0x00000004                          Temp Meas Start Delay has met. Now it becomes TMP_ACTIVE.
+//  0x83    0x00000005                          Temp Meas Start Delay has not met. It is still in TMP_PENDING.
+//  0x83    0x00000006                          Temp Meas performs the temp measurement in this active session (TMP_ACTIVE)
+//  0x83    0x00000007                          Temp Meas skips this active session (TMP_ACTIVE)
+//  0x83    0x00000008                          Temp Meas has performed the given number of temp measurements. Now it goes back to TMP_IDLE.
+//  0x83    0x00000009                          Refreshing Eink display
+//  0x83    0x0000000A                          Calibrating the SNT timer (using XO)
+//
+//  0x84    snt_timer_threshold                 New threshold value for the SNT timer
 //
 //-------------------------------------------------------------------------------------------
 // Use of Cortex-M0 Vector Table
@@ -145,6 +227,7 @@
 //*******************************************************************************************
 #define DEVEL                   // Enable this to shorten long delays/wait times. FLAG_STARTED also becomes 1 when FLAG_ACTIVATED becomes 1.
 #define GOCEP_RUN_CPU_ONLY      // Enable this when you cannot do 'GEN_IRQ' in GOC/EP Header (e.g., the current m3_ice script)
+#define DEBUG                   // Send debug messages
 
 //*******************************************************************************************
 // KEYS
@@ -374,18 +457,18 @@ static void operation_init (void) {
 
         // User Parameter Initialization
         #ifdef DEVEL
-            start_delay         = 30;
-            period_temp_meas    = 15;
-            period_refresh_disp = 1440;
+            start_delay         = 1;
+            period_temp_meas    = 5;
+            period_refresh_disp = 60;
             period_timer_calib  = 1;
             num_temp_meas_iter  = 1;
             num_temp_meas       = 0;
             high_temp_threshold = 300;
             low_temp_threshold  = 100;
         #else
-            start_delay         = 1;
-            period_temp_meas    = 5;
-            period_refresh_disp = 60;
+            start_delay         = 30;
+            period_temp_meas    = 15;
+            period_refresh_disp = 1440;
             period_timer_calib  = 1;
             num_temp_meas_iter  = 1;
             num_temp_meas       = 0;
@@ -485,6 +568,10 @@ static void operation_init (void) {
 //-------------------------------------------------------------------
 
 static uint32_t snt_operation (void) {
+
+    #ifdef DEBUG
+        mbus_write_message32(0x82, (0x10 << 24) | snt_state);
+    #endif
 
     if (snt_state == SNT_IDLE) {
         snt_state = SNT_LDO;
@@ -660,9 +747,6 @@ void handler_ext_int_gocep    (void) {
 
             // Clear the display
             eid_update(DISP_NONE);
-
-            // Get the current SNT timer counter value
-            snt_timer_threshold = snt_read_wup_timer();
         }
     }
     // Quick Start the temperature measurement
@@ -716,6 +800,10 @@ int main() {
     wakeup_source = *SREG_WAKEUP_SOURCE;
     *SCTR_REG_CLR_WUP_SOURCE = 1;
 
+    #ifdef DEBUG
+        mbus_write_message32(0x80, wakeup_source);
+    #endif
+
     // Check-in the EID Watchdog if it is enabled (STATE 6)
     if (get_flag(FLAG_WD_ENABLED) && (snt_state==SNT_IDLE)) eid_check_in();
 
@@ -735,17 +823,35 @@ int main() {
     #endif
 
     // Wakeup Count (increment only when SNT_IDLE)
-    if (snt_state==SNT_IDLE) wakeup_count++;
+    if (snt_state==SNT_IDLE) {
+        wakeup_count++;
+        #ifdef DEBUG
+            mbus_write_message32(0x81, wakeup_count);
+        #endif
+    }
 
     //--------------------------------------------------------------------------
     // System Activated
     //--------------------------------------------------------------------------
     if (get_flag(FLAG_ACTIVATED)) {
 
+        #ifdef DEBUG
+            mbus_write_message32(0x82, (0x00 << 24) | tmp_state);
+            mbus_write_message32(0x82, (0x01 << 24) | curr_start_delay);
+            mbus_write_message32(0x82, (0x02 << 24) | curr_period_temp_meas);
+            mbus_write_message32(0x82, (0x03 << 24) | curr_period_refresh_disp);
+            mbus_write_message32(0x82, (0x04 << 24) | curr_period_timer_calib);
+            mbus_write_message32(0x82, (0x05 << 24) | curr_num_temp_meas_iter);
+            mbus_write_message32(0x82, (0x06 << 24) | curr_num_temp_meas);
+        #endif
+
         //----------------------------------------------------------------------
         // NFC activity detected (GPO=1)
         //----------------------------------------------------------------------
         if ((*GPIO_DATA&0x1)&&(snt_state==SNT_IDLE)) {
+            #ifdef DEBUG
+                mbus_write_message32(0x83, 0x00000000);
+            #endif
             // Act as if the NFC has waken up the system, then call GOC/EP handler.
             wakeup_source = set_bit(wakeup_source, 31, 1);
             handler_ext_int_gocep();
@@ -756,6 +862,9 @@ int main() {
         //----------------------------------------------------------------------
         //-- If forced to stop
         if (!get_flag(FLAG_STARTED)) {
+            #ifdef DEBUG
+                mbus_write_message32(0x83, 0x00000001);
+            #endif
             tmp_state = TMP_IDLE;
             operation_back_to_default();
         }
@@ -763,6 +872,17 @@ int main() {
         //-- FSM implementation
         if (tmp_state==TMP_IDLE) {
             if (get_flag(FLAG_STARTED)) {
+                #ifdef DEBUG
+                    mbus_write_message32(0x83, 0x00000002);
+                    mbus_write_message32(0x83, (0x01 << 24) | start_delay);
+                    mbus_write_message32(0x83, (0x02 << 24) | period_temp_meas);
+                    mbus_write_message32(0x83, (0x03 << 24) | period_refresh_disp);
+                    mbus_write_message32(0x83, (0x04 << 24) | period_timer_calib);
+                    mbus_write_message32(0x83, (0x05 << 24) | num_temp_meas_iter);
+                    mbus_write_message32(0x83, (0x06 << 24) | num_temp_meas);
+                    mbus_write_message32(0x83, (0x07 << 24) | high_temp_threshold);
+                    mbus_write_message32(0x83, (0x08 << 24) | low_temp_threshold);
+                #endif
                 tmp_state = TMP_PENDING;
                 // Reset counters
                 curr_start_delay        = 0;
@@ -772,17 +892,31 @@ int main() {
                 // Display 
                 eid_update(DISP_RUNNING);
             }
+            #ifdef DEBUG
+            else {
+                mbus_write_message32(0x83, 0x00000003);
+            }
+            #endif
         }
         else if (tmp_state==TMP_PENDING) {
             if (curr_start_delay == start_delay) {
+                #ifdef DEBUG
+                    mbus_write_message32(0x83, 0x00000004);
+                #endif
                 tmp_state = TMP_ACTIVE;
             }
             else {
                 curr_start_delay++;
+                #ifdef DEBUG
+                    mbus_write_message32(0x83, 0x00000005);
+                #endif
             }
         }
         else if (tmp_state==TMP_ACTIVE) {
             if (curr_period_temp_meas == period_temp_meas) {
+                #ifdef DEBUG
+                    mbus_write_message32(0x83, 0x00000006);
+                #endif
                 while(!snt_operation());
                 curr_period_temp_meas = 0;
                 curr_num_temp_meas++;
@@ -790,10 +924,18 @@ int main() {
                     tmp_state = TMP_DONE;
                 }
             }
+            #ifdef DEBUG
+            else {
+                mbus_write_message32(0x83, 0x00000007);
+            }
+            #endif
             curr_period_temp_meas++;
 
         }
         else if (tmp_state==TMP_DONE) {
+            #ifdef DEBUG
+                mbus_write_message32(0x83, 0x00000008);
+            #endif
             set_pre_nfc_flag(FLAG_STARTED, 0);
             tmp_state = TMP_IDLE;
         }
@@ -802,6 +944,9 @@ int main() {
         // Refresh Display
         //----------------------------------------------------------------------
         if (curr_period_refresh_disp == period_refresh_disp) {
+            #ifdef DEBUG
+                mbus_write_message32(0x83, 0x00000009);
+            #endif
             eid_update(eid_get_current_display());
             curr_period_refresh_disp = 0;
         }
@@ -811,6 +956,9 @@ int main() {
         // SNT Timer Calibration
         //----------------------------------------------------------------------
         if (curr_period_timer_calib == period_timer_calib) {
+            #ifdef DEBUG
+                mbus_write_message32(0x83, 0x0000000A);
+            #endif
             curr_period_timer_calib = 0;
             // NOTE:
             // XO & SNT Calibration
@@ -824,6 +972,9 @@ int main() {
         //----------------------------------------------------------------------
         snt_timer_threshold = snt_timer_threshold + snt_timer_sleep_duration;
         if(snt_timer_threshold==0) snt_timer_threshold = 1; // SNT Timer does not expire at cnt=0.
+        #ifdef DEBUG
+            mbus_write_message32(0x84, snt_timer_threshold);
+        #endif
         operation_sleep_snt_timer(/*auto_reset*/0, /*threshold*/snt_timer_threshold);
     }
 
