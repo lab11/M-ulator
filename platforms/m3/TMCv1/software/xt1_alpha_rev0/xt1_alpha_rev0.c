@@ -291,9 +291,12 @@
 //*******************************************************************************************
 // NFC CONFIGURATION
 //*******************************************************************************************
+//[NOTE] All EEPROM_*_ADDR are 'word' addresses.
 
-#define EEPROM_START_ADDR   0x80    // Start address of EEPROM where the first temperature data is stored. 
-#define EEPROM_NUM_BYTES    8192    // Number of bytes in EEPROM
+#define EEPROM_FLAG_ADDR        0x00    // [DO NOT CHANGE] Flag Address in EEPROM. Must be the same as __NFC_FLAG_ADDR__
+#define EEPROM_SYS_START_ADDR   0x01    // Start address of EEPROM where the system info is stored.
+#define EEPROM_TMP_START_ADDR   0x80    // Start address of EEPROM where the first temperature data is stored. 
+#define EEPROM_NUM_BYTES        8192    // Number of bytes in EEPROM
 
 //*******************************************************************************************
 // EID LAYER CONFIGURATION
@@ -451,14 +454,14 @@ static void operation_init (void) {
         snt_running             = 0;
         snt_state               = SNT_IDLE;
         tmp_state               = TMP_IDLE;
-        eeprom_addr             = EEPROM_START_ADDR;
+        eeprom_addr             = EEPROM_TMP_START_ADDR;
         snt_timer_threshold      = 0;
         snt_timer_sleep_duration = SNT_1MIN;
 
         // User Parameter Initialization
         #ifdef DEVEL
             start_delay         = 1;
-            period_temp_meas    = 5;
+            period_temp_meas    = 1;
             period_refresh_disp = 60;
             period_timer_calib  = 1;
             num_temp_meas_iter  = 1;
@@ -616,6 +619,7 @@ static uint32_t snt_operation (void) {
         // All measurements are done
         else {
             curr_num_temp_meas_iter = 0;
+            curr_num_temp_meas++;
 
             // VBAT Measurement and SAR_RATIO Adjustment
             uint32_t pmu_adc_vbat_val = pmu_adc_read_and_sar_ratio_adjustment();
@@ -632,14 +636,18 @@ static uint32_t snt_operation (void) {
             snt_state = SNT_IDLE;
 
             /////////////////////////////////////////////////////////////////
-            // Store the Temperature / VBAT Data
+            // Store the Measured data
             //---------------------------------------------------------------
+            nfc_i2c_word_write(/*e2*/0, 
+                /*addr*/ EEPROM_SYS_START_ADDR, 
+                /*data*/ (0<<31) | (curr_num_temp_meas&0x7FFFFFFF)
+                );
             nfc_i2c_word_write(/*e2*/0, 
                 /*addr*/ eeprom_addr, 
                 /*data*/ (0<<31) | ((curr_num_temp_meas&0x7F)<<24) | (snt_temp_val&0xFFFFFF)
                 );
             eeprom_addr += 4;
-            if (eeprom_addr==EEPROM_NUM_BYTES) eeprom_addr = EEPROM_START_ADDR; // roll-over
+            if (eeprom_addr==EEPROM_NUM_BYTES) eeprom_addr = EEPROM_TMP_START_ADDR; // roll-over
             /////////////////////////////////////////////////////////////////
 
             /////////////////////////////////////////////////////////////////
@@ -919,7 +927,6 @@ int main() {
                 #endif
                 while(!snt_operation());
                 curr_period_temp_meas = 0;
-                curr_num_temp_meas++;
                 if ((num_temp_meas!=0) && (curr_num_temp_meas==num_temp_meas)) {
                     tmp_state = TMP_DONE;
                 }
