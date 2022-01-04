@@ -291,10 +291,10 @@
 //*******************************************************************************************
 // NFC CONFIGURATION
 //*******************************************************************************************
-//[NOTE] All EEPROM_*_ADDR are 'word' addresses.
+//[NOTE] All EEPROM_*_ADDR are 'byte' addresses.
 
 #define EEPROM_FLAG_ADDR        0x00    // [DO NOT CHANGE] Flag Address in EEPROM. Must be the same as __NFC_FLAG_ADDR__
-#define EEPROM_SYS_START_ADDR   0x01    // Start address of EEPROM where the system info is stored.
+#define EEPROM_SYS_START_ADDR   0x04    // Start address of EEPROM where the system info is stored.
 #define EEPROM_TMP_START_ADDR   0x80    // Start address of EEPROM where the first temperature data is stored. 
 #define EEPROM_NUM_BYTES        8192    // Number of bytes in EEPROM
 
