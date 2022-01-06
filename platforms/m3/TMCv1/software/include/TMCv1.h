@@ -708,6 +708,21 @@ void nfc_i2c_byte_write(uint32_t e2, uint32_t addr, uint8_t data);
 void nfc_i2c_seq_byte_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_t len);
 
 //-------------------------------------------------------------------
+// Function: nfc_i2c_seq_byte_read
+// Args    : e2     : Bit[3] in Device Select Code
+//           addr   : 16-bit byte address
+//           len    : Number of bytes to be read. Min: 1, Max: 4
+// Description:
+//           Read the specified number (len) of bytes starting at the address 'addr'
+// Return  : If len=1: {        24'h0, data@(addr)}
+//           If len=2: {        16'h0, data@(addr+1), data@(addr)}
+//           If len=3: {         8'h0, data@(addr+2), data@(addr+1), data@(addr)}
+//           If len=4: {data@(addr+3), data@(addr+2), data@(addr+1), data@(addr)}
+//           If len=0 or len>4: 32'h0
+//-------------------------------------------------------------------
+void nfc_i2c_seq_byte_read(uint32_t e2, uint32_t addr, uint32_t len);
+
+//-------------------------------------------------------------------
 // Function: nfc_i2c_seq_word_write
 // Args    : e2     : Bit[3] in Device Select Code
 //           addr   : 16-bit byte address ( 2 LSBs are internally forced to 0 to make it word-aligned)

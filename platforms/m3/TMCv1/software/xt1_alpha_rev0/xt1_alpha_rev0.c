@@ -232,6 +232,7 @@
 //*******************************************************************************************
 // KEYS
 //*******************************************************************************************
+//[NOTE] [31:24]=0xFF triggers the Demo Display
 
 #define GOC_ACTIVATE_KEY    0x16002351  // Activate the system. Once executed, the system starts the 1-min wakeup/sleep operation.
 #define GOC_QUICK_START_KEY 0xDECAFBAD  // Start the temperature measurement without changing the existing settings.

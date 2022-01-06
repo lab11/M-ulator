@@ -1028,22 +1028,24 @@ void nfc_i2c_seq_byte_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_
     }
 }
 
-//uint32_t nfc_i2c_seq_byte_read(uint32_t e2, uint32_t addr, uint32_t len){
-//    uint32_t data;
-//    nfc_i2c_start();
-//    nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
-//    nfc_i2c_byte(addr >> 8);
-//    nfc_i2c_byte(addr);
-//    nfc_i2c_start();
-//    nfc_i2c_byte(0xA7 | ((e2&0x1) << 3));
-//    data  =  nfc_i2c_rd(1);
-//    if (len>1) data |= (nfc_i2c_rd(1) << 8);
-//    if (len>2) data |= (nfc_i2c_rd(1) << 16);
-//    if (len>3) data |= (nfc_i2c_rd(0) << 24); // must not acknowledge
-//    nfc_i2c_stop();
-//    return data;
-//}
-
+uint32_t nfc_i2c_seq_byte_read(uint32_t e2, uint32_t addr, uint32_t len){
+    uint32_t data;
+    if ((len==0) || (len>4)) return 0;
+    nfc_i2c_start();
+    nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
+    nfc_i2c_byte(addr >> 8);
+    nfc_i2c_byte(addr);
+    nfc_i2c_start();
+    nfc_i2c_byte(0xA7 | ((e2&0x1) << 3));
+    //-------------------------------------------------
+                data  =  nfc_i2c_rd(!(len==1));
+    if (len>1)  data |= (nfc_i2c_rd(!(len==2)) << 8);
+    if (len>2)  data |= (nfc_i2c_rd(!(len==3)) << 16);
+    if (len>3)  data |= (nfc_i2c_rd(!(len==4)) << 24);
+    //-------------------------------------------------
+    nfc_i2c_stop();
+    return data;
+}
 
 void nfc_i2c_seq_word_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_t len){
     if (len<=64) {
