@@ -720,7 +720,7 @@ void nfc_i2c_seq_byte_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_
 //           If len=4: {data@(addr+3), data@(addr+2), data@(addr+1), data@(addr)}
 //           If len=0 or len>4: 32'h0
 //-------------------------------------------------------------------
-void nfc_i2c_seq_byte_read(uint32_t e2, uint32_t addr, uint32_t len);
+uint32_t nfc_i2c_seq_byte_read(uint32_t e2, uint32_t addr, uint32_t len);
 
 //-------------------------------------------------------------------
 // Function: nfc_i2c_seq_word_write
