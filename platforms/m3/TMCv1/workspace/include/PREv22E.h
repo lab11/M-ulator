@@ -328,16 +328,6 @@ void clear_all_pend_irq();
 
 
 /**
- * @brief   Reset flag
- *
- * @param   none
- *
- * @usage   reset_flag();
- */
-void reset_flag(void);
-
-
-/**
  * @brief   Set flag
  *
  * @param   bit_idx     bit index into which the value is written
@@ -509,28 +499,6 @@ void config_timer16(uint32_t cmp0, uint32_t cmp1, uint8_t irq_en, uint32_t cnt, 
  */
 void config_timer32(uint32_t cmp, uint8_t roi, uint32_t cnt, uint32_t status);
 
-
-//-------------------------------------------------------------------
-// Function: set_timeout32_check
-// Args    : var - Threshold
-// Description:
-//          set_timeout32_check() initializes and starts the TIMER 32
-//          for a time-out check
-// Return  : None
-//-------------------------------------------------------------------
-volatile uint32_t __wfi_timeout_flag__;
-void set_timeout32_check(uint32_t val);
-
-//-------------------------------------------------------------------
-// Function: stop_timeout32_check
-// Args    : code - Error code
-// Description:
-//          stop_timeout32_check() stops the TIMER32.
-//          If there is a timeout, it calls fail().
-// Return  : None
-//-------------------------------------------------------------------
-void stop_timeout32_check(uint32_t code);
-
 /**
  * @brief   Configure the Watch-Dog timer
  *
@@ -623,63 +591,6 @@ void reset_xo_cnt ();
  * @param   irq_en      M0 Interrupt Enable
  */
 void set_xo_timer (uint8_t mode, uint32_t timestamp, uint8_t wreq_en, uint8_t irq_en);
-
-//-------------------------------------------------------------------
-// Function: xot_enable
-// Args    : timestamp - Timestamp value at which the XO timer generates 
-//                       a wakeup request
-// Description:
-//           Changes the XO Timer's threshold value using timestamp.
-//           This function assumes that XO Driver and XO Timer have 
-//           been already properly started.
-// Return  : None
-//-------------------------------------------------------------------
-void xot_enable (uint32_t timestamp);
-
-//-------------------------------------------------------------------
-// Function: xot_disable_wreq
-// Args    : None
-// Description:
-//           Make XOT_WREQ_EN = 0, which prevents XO Wakeup Timer
-//           from generating a wakeup request.
-//           The XO Wakeup Timer running status is NOT affected 
-//           by this function.
-// Return  : None
-//-------------------------------------------------------------------
-void xot_disable_wreq (void);
-
-//-------------------------------------------------------------------
-// Function: xo_start
-// Args    : delay_a: (Recommended: 20000) Must be ~1 second delay. Delay for XO Start-Up. LSB corresponds to ~50us, assuming ~100kHz CPU clock and 5 cycles per delay(1).
-//           delay_b: (Recommended: 20000) Must be ~1 second delay. Delay for VLDO & IBIAS Generation. LSB corresponds to ~50us, assuming ~100kHz CPU clock and 5 cycles per delay(1).
-// Description:
-//           Start the XO Driver and the XO Wakeup Timer
-// Return  : None
-//-------------------------------------------------------------------
-//      XO Driver (XO_DRV_V3_TSMC180) Start-Up Sequence
-//      -------------------------------------------------------------------------
-//      RESETn       __|*********************************************************
-//      PGb_StartUp  __|***************************|_____________________________
-//      START_UP     **************************|_________________________________
-//      ISOL_CLK_HP  **********|_________________|*******************************
-//      ISOL_CLK_LP  ******************|_________________________________________
-//                     |<--A-->|<--B-->|<--C-->|.|.|<-- Low Power Operation -->
-//      -------------------------------------------------------------------------
-//      A: ~1s  (XO Start-Up): NOTE: You may need more time here due to the weak power-gate switch.
-//      B: ~1s  (VLDO & IBIAS generation)
-//      C: <1ms (SCN Output Generation)
-//      .(dot): minimum delay
-//-------------------------------------------------------------------
-void xo_start(uint32_t delay_a, uint32_t delay_b );
-
-//-------------------------------------------------------------------
-// Function: xo_stop
-// Args    : None
-// Description:
-//           Stop the XO Driver and the XO Wakeup Timer
-// Return  : None
-//-------------------------------------------------------------------
-void xo_stop( void );
 
 
 /**

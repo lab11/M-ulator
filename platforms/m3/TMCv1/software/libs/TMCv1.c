@@ -46,8 +46,8 @@ uint32_t get_bit (uint32_t variable, uint32_t idx) {
 }
 
 void set_pre_nfc_flag (uint32_t bit_idx, uint32_t value) {
-    set_flag(bit_idx, value);
-    nfc_i2c_set_flag(bit_idx, value);
+//    set_flag(bit_idx, value);
+//    nfc_i2c_set_flag(bit_idx, value);
 }
 
 //*******************************************************************
@@ -1003,12 +1003,19 @@ void nfc_i2c_byte_write(uint32_t e2, uint32_t addr, uint8_t data){
 void nfc_i2c_seq_byte_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_t len){
     if (len<=256) {
         uint32_t i;
+        uint32_t s;
         nfc_i2c_start();
         nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
         nfc_i2c_byte(addr>>8);
         nfc_i2c_byte(addr);
+        s=0;
         for (i=0; i<len; i++) {
-            nfc_i2c_byte(data[i]);
+            if(s==4) s=0;
+            if      (s==0) nfc_i2c_byte((data[i]>> 0)&0xFF);
+            else if (s==1) nfc_i2c_byte((data[i]>> 8)&0xFF);
+            else if (s==2) nfc_i2c_byte((data[i]>>16)&0xFF);
+            else if (s==3) nfc_i2c_byte((data[i]>>24)&0xFF);
+            s++;
         }
         nfc_i2c_stop();
         #ifdef __NFC_DO_POLLING__
@@ -1020,6 +1027,22 @@ void nfc_i2c_seq_byte_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_
         #endif
     }
 }
+
+//uint32_t nfc_i2c_seq_byte_read(uint32_t e2, uint32_t addr, uint32_t len){
+//    uint32_t data;
+//    nfc_i2c_start();
+//    nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
+//    nfc_i2c_byte(addr >> 8);
+//    nfc_i2c_byte(addr);
+//    nfc_i2c_start();
+//    nfc_i2c_byte(0xA7 | ((e2&0x1) << 3));
+//    data  =  nfc_i2c_rd(1);
+//    if (len>1) data |= (nfc_i2c_rd(1) << 8);
+//    if (len>2) data |= (nfc_i2c_rd(1) << 16);
+//    if (len>3) data |= (nfc_i2c_rd(0) << 24); // must not acknowledge
+//    nfc_i2c_stop();
+//    return data;
+//}
 
 
 void nfc_i2c_seq_word_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_t len){
@@ -1090,18 +1113,19 @@ void nfc_i2c_seq_word_pattern_write(uint32_t e2, uint32_t addr, uint32_t data, u
 }
 
 void nfc_i2c_reset_flag (void) {
-    nfc_i2c_word_write(/*e2*/0, /*addr*/__NFC_FLAG_ADDR__, /*data*/0);
+//    nfc_i2c_word_write(/*e2*/0, /*addr*/__NFC_FLAG_ADDR__, /*data*/0);
 }
 
 void nfc_i2c_set_flag (uint32_t bit_idx, uint32_t value) {
-    uint32_t word_val = nfc_i2c_word_read(/*e2*/0, /*addr*/__NFC_FLAG_ADDR__);
-    word_val = (word_val & (~(0x1 << bit_idx))) | (value << bit_idx);
-    nfc_i2c_word_write(/*e2*/0, /*addr*/__NFC_FLAG_ADDR__, /*data*/word_val);
+//    uint32_t word_val = nfc_i2c_word_read(/*e2*/0, /*addr*/__NFC_FLAG_ADDR__);
+//    word_val = (word_val & (~(0x1 << bit_idx))) | (value << bit_idx);
+//    nfc_i2c_word_write(/*e2*/0, /*addr*/__NFC_FLAG_ADDR__, /*data*/word_val);
 }
 
 uint8_t nfc_i2c_get_flag (uint32_t bit_idx) {
-    uint32_t word_val = nfc_i2c_word_read(/*e2*/0, /*addr*/__NFC_FLAG_ADDR__);
-    return (word_val & (0x1 << bit_idx)) >> bit_idx;
+//    uint32_t word_val = nfc_i2c_word_read(/*e2*/0, /*addr*/__NFC_FLAG_ADDR__);
+//    return (word_val & (0x1 << bit_idx)) >> bit_idx;
+    return 0;
 }
 
 

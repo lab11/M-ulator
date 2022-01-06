@@ -739,6 +739,11 @@ void handler_ext_int_gocep    (void) {
         *GOC_DATA_IRQ   = 0;
     }
 
+#ifdef DEVEL
+    // Demo Display
+    if ((goc_raw>>24)&0xFF==0xFF) { eid_update(goc_raw&0x1FF);}
+#endif
+
     // Activating System
     if (goc_raw==GOC_ACTIVATE_KEY) { 
         if (!get_flag(FLAG_ACTIVATED)) {

@@ -52,19 +52,6 @@ void config_timer32(uint32_t cmp, uint8_t roi, uint32_t cnt, uint32_t status){
 	*TIMER32_GO   = 0x1;
 }
 
-void set_timeout32_check(uint32_t val){
-    __wfi_timeout_flag__ = 0;
-    config_timer32(/*cmp*/val, /*roi*/1, /*cnt*/0, /*status*/0);
-}
-
-void stop_timeout32_check(uint32_t code){
-    *TIMER32_GO = 0;
-    if (__wfi_timeout_flag__){
-        __wfi_timeout_flag__ = 0;
-        mbus_write_message32(0xEF, code);
-    }
-}
-
 void config_timerwd(uint32_t cnt){
 	*TIMERWD_GO  = 0x0;
 	*TIMERWD_CNT = cnt;
@@ -116,84 +103,6 @@ void stop_xo_cnt   () { *XOT_STOP_CNT   = 0x1; }
 void start_xo_cout () { *XOT_START_COUT = 0x1; }
 void stop_xo_cout  () { *XOT_STOP_COUT  = 0x1; }
 
-void xot_enable (uint32_t timestamp) {
-    *REG_XOT_CONFIGU = (timestamp >> 16) & 0xFFFF;
-    *REG_XOT_CONFIG  = (timestamp & 0x0000FFFF) | 0x00A00000; // [23] XOT_ENABLE = 1; [21] XOT_WREQ_EN = 1;
-    start_xo_cnt();
-}
-
-void xot_disable_wreq (void) {
-    *REG_XOT_CONFIG  = *REG_XOT_CONFIG & 0xFFDFFFFF; // [21] XOT_WREQ_EN = 0;
-}
-
-void xo_start(uint32_t delay_a, uint32_t delay_b ) {
-
-    //--------------------------------------------------------------------------
-    // XO Driver (XO_DRV_V3_TSMC180) Start-Up Sequence
-    //--------------------------------------------------------------------------
-    // RESETn       __|*********************************************************
-    // PGb_StartUp  __|***************************|_____________________________
-    // START_UP     **************************|_________________________________
-    // ISOL_CLK_HP  **********|_________________|*******************************
-    // ISOL_CLK_LP  ******************|_________________________________________
-    //                |<--A-->|<--B-->|<--C-->|.|.|<-- Low Power Operation -->
-    //--------------------------------------------------------------------------
-    // A: ~1s  (XO Start-Up): NOTE: You may need more time here due to the weak power-gate switch.
-    // B: ~1s  (VLDO & IBIAS generation)
-    // C: <1ms (SCN Output Generation)
-    // .(dot): minimum delay
-    //--------------------------------------------------------------------------
-
-    pre_r19_t xo_control = PRE_R19_DEFAULT; // REG_XO_CONF1
-
-    xo_control.XO_RESETn       = 1;
-    xo_control.XO_PGb_START_UP = 1;
-    *REG_XO_CONF1 = xo_control.as_int;
-
-    delay(delay_a); // Delay A (~1s; XO Start-Up)
-
-    xo_control.XO_ISOL_CLK_HP = 0;
-    *REG_XO_CONF1 = xo_control.as_int;
-    
-    delay(delay_b); // Delay B (~1s; VLDO & IBIAS generation)
-
-    xo_control.XO_ISOL_CLK_LP = 0;
-    *REG_XO_CONF1 = xo_control.as_int;
-    
-    delay(100); // Delay C (~1ms; SCN Output Generation)
-
-    xo_control.XO_START_UP = 0;
-    *REG_XO_CONF1 = xo_control.as_int;
-    
-    xo_control.XO_ISOL_CLK_HP = 1;
-    *REG_XO_CONF1 = xo_control.as_int;
-
-    xo_control.XO_PGb_START_UP = 0;
-    *REG_XO_CONF1 = xo_control.as_int;
-
-    delay(100); // Dummy Delay
-
-    // Start XO Wakeup Timer
-    enable_xo_timer();
-    start_xo_cnt();
-}
-
-void xo_stop( void ) {
-    // Stop the XO Driver
-    pre_r19_t xo_control;
-    xo_control.as_int = *REG_XO_CONF1;
-
-    xo_control.XO_ISOL_CLK_LP = 1;
-    *REG_XO_CONF1 = xo_control.as_int;
-
-    xo_control.XO_RESETn   = 0;
-    xo_control.XO_START_UP = 1;
-    *REG_XO_CONF1 = xo_control.as_int;
-
-    // Stop the XO Wakeup Timer
-    disable_xo_timer();
-}
-
 //**************************************************
 // M0 IRQ SETTING
 //**************************************************
@@ -204,10 +113,6 @@ void clear_all_pend_irq() { *NVIC_ICPR = 0xFFFFFFFF; }
 //**************************************************
 // PRC/PRE FLAGS Register
 //**************************************************
-void reset_flag (void) {
-    *REG_FLAGS = 0;
-}
-    
 uint32_t set_flag ( uint32_t bit_idx, uint32_t value ) {
     uint32_t reg_val = (*REG_FLAGS & (~(0x1 << bit_idx))) | (value << bit_idx);
     *REG_FLAGS = reg_val;

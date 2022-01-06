@@ -123,7 +123,7 @@ uint32_t get_bits (uint32_t variable, uint32_t msb_idx, uint32_t lsb_idx);
 uint32_t get_bit (uint32_t variable, uint32_t idx);
 
 //-------------------------------------------------------------------
-// Function: set_pre_nfc_flag
+// Function: [DEPRECATED] set_pre_nfc_flag
 // Args    : bit_idx: bit index into which the value is written (valid range: 0 - 31).
 //           value  : flag value
 // Description:
@@ -505,8 +505,8 @@ void pmu_init();
 #define __I2C_ACK_TIMEOUT__         50000   // Checked using TIMER32
 #define __FCODE_I2C_ACK_TIMEOUT__   6       // Failure code to be displayed if timeout during I2C ACK
 
-// EEPROM Addresses
-#define __NFC_FLAG_ADDR__   0x0000      // The first byte address in EEPROM where the flags are stored
+//// EEPROM Addresses [DEPRECATED]
+//#define __NFC_FLAG_ADDR__   0x0000      // The first byte address in EEPROM where the flags are stored
 
 // Status Flag
 volatile uint32_t __nfc_on__;
@@ -689,16 +689,20 @@ void nfc_i2c_byte_write(uint32_t e2, uint32_t addr, uint8_t data);
 // Function: nfc_i2c_seq_byte_write
 // Args    : e2     : Bit[3] in Device Select Code
 //           addr   : 16-bit byte address
-//           data   : Memory address of the data array,
-//                    where each element is a byte
+//           data   : Memory address of the data array.
 //           len    : Number of bytes to be sent. Max: 256.
 // Description:
 //           Write data starting at the address 'addr'
-//              addr        =   data[0]
-//              addr+1      =   data[1]
-//              addr+2      =   data[2]
+//              addr        =   data[0][7:0]
+//              addr+1      =   data[0][15:8]
+//              addr+2      =   data[0][23:16]
+//              addr+3      =   data[0][31:24]
+//              addr+4      =   data[1][7:0]
+//              addr+5      =   data[1][15:8]
+//              addr+6      =   data[1][23:16]
+//              addr+7      =   data[1][31:24]
 //              ...
-//              addr+len-1  =   data[len-1]
+//              addr+len-1  =   data[int((len-1)/4)][((len-1)%4)*8+7:((len-1)%4)*8]
 // Return  : None
 //-------------------------------------------------------------------
 void nfc_i2c_seq_byte_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_t len);
@@ -758,7 +762,7 @@ void nfc_i2c_word_write(uint32_t e2, uint32_t addr, uint32_t data);
 void nfc_i2c_seq_word_pattern_write(uint32_t e2, uint32_t addr, uint32_t data, uint32_t len);
 
 //-------------------------------------------------------------------
-// Function: nfc_i2c_reset_flag
+// Function: [DEPRECATED] nfc_i2c_reset_flag
 // Args    : none
 // Description:
 //           Reset the flag in the EEPROM.
@@ -769,7 +773,7 @@ void nfc_i2c_seq_word_pattern_write(uint32_t e2, uint32_t addr, uint32_t data, u
 void nfc_i2c_reset_flag ();
 
 //-------------------------------------------------------------------
-// Function: nfc_i2c_set_flag
+// Function: [DEPRECATED] nfc_i2c_set_flag
 // Args    : bit_idx: bit index into which the value is written (valid range: 0 - 31).
 //           value  : flag value
 // Description:
@@ -780,7 +784,7 @@ void nfc_i2c_reset_flag ();
 void nfc_i2c_set_flag (uint32_t bit_idx, uint32_t value);
 
 //-------------------------------------------------------------------
-// Function: nfc_i2c_get_flag
+// Function: [DEPRECATED] nfc_i2c_get_flag
 // Args    : bit_idx: bit index to be read (valid range: 0 - 31).
 // Description:
 //           Read the flag bit at bit_idx in the EEPROM.
