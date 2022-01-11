@@ -225,8 +225,6 @@
 //*******************************************************************************************
 // DEBUGGING
 //*******************************************************************************************
-#define DEVEL                   // Enable this to shorten long delays/wait times. FLAG_STARTED also becomes 1 when FLAG_ACTIVATED becomes 1.
-#define GOCEP_RUN_CPU_ONLY      // Enable this when you cannot do 'GEN_IRQ' in GOC/EP Header (e.g., the current m3_ice script)
 #define DEBUG                   // Send debug messages
 
 //*******************************************************************************************
@@ -358,10 +356,8 @@ volatile uint32_t tmp_state;                // TMP state
 volatile uint32_t snt_running;              // Indicates whether the SNT temp sensor is running.
 volatile uint32_t eeprom_addr;              // EEPROM byte address for temperature data storage
 
-#ifdef DEVEL
-//--- Used for DEVEL
-volatile uint32_t devel_var;
-#endif
+volatile uint32_t mode, iter;
+
 
 //*******************************************************************************************
 // FUNCTIONS DECLARATIONS
@@ -441,10 +437,6 @@ static void operation_back_to_default(void){
     }
     tmp_state = TMP_IDLE;
     nfc_power_off();
-    #ifdef DEVEL
-        devel_var = 0;
-        *GOC_DATA_IRQ = 0;
-    #endif
 }
 
 //-------------------------------------------------------------------
@@ -470,25 +462,14 @@ static void operation_init (void) {
         snt_timer_sleep_duration = SNT_1MIN;
 
         // User Parameter Initialization
-        #ifdef DEVEL
-            start_delay         = 1;
-            period_temp_meas    = 1;
-            period_refresh_disp = 60;
-            period_timer_calib  = 1;
-            num_temp_meas_iter  = 1;
-            num_temp_meas       = 0;
-            high_temp_threshold = 300;
-            low_temp_threshold  = 100;
-        #else
-            start_delay         = 30;
-            period_temp_meas    = 15;
-            period_refresh_disp = 1440;
-            period_timer_calib  = 1;
-            num_temp_meas_iter  = 1;
-            num_temp_meas       = 0;
-            high_temp_threshold = 300;
-            low_temp_threshold  = 100;
-        #endif
+        start_delay         = 1;
+        period_temp_meas    = 1;
+        period_refresh_disp = 60;
+        period_timer_calib  = 1;
+        num_temp_meas_iter  = 1;
+        num_temp_meas       = 0;
+        high_temp_threshold = 300;
+        low_temp_threshold  = 100;
 
         curr_start_delay            = 0;
         curr_period_temp_meas       = 0;
@@ -497,9 +478,9 @@ static void operation_init (void) {
         curr_num_temp_meas_iter     = 0;
         curr_num_temp_meas          = 0;
 
-        #ifdef DEVEL
-            devel_var = 0;
-        #endif
+        mode = 0;
+        iter = 0;
+
 
         //-------------------------------------------------
         // PRE Tuning
@@ -576,7 +557,7 @@ static void operation_init (void) {
         //-------------------------------------------------
         // Indefinite Sleep
         //-------------------------------------------------
-        operation_sleep();
+        operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/5*SNT_1SEC);
     }
 }
 
@@ -684,30 +665,15 @@ static uint32_t snt_operation (void) {
             if (pmu_adc_vbat_val > pmu_get_adc_low_val()) seg_display |= DISP_LOW_VBAT;
 
             //--- Update the Display if needed
-            #ifdef DEVEL
-                if (devel_var == 0x2) {
-                    eid_update(seg_display);
-                }
-                else if (devel_var == 0x0) {
-                    if (seg_display!=eid_get_current_display()) eid_update(seg_display);
-                }
-            #else
-                if (seg_display!=eid_get_current_display()) eid_update(seg_display);
-            #endif
+            if (mode==2) eid_update(seg_display);
             /////////////////////////////////////////////////////////////////
 
             snt_running = 0;
 
-            #ifdef DEVEL
-                // Temp Meas routine is done.
-                if (devel_var==0) {return 1;}
-            #else
-                return 1;
-            #endif
-
+            return 1;
         }
     }
-    return 0; // Temp Meas routine is still running.
+    return 0;
 }
 
 //*******************************************************************************************
@@ -774,30 +740,8 @@ void handler_ext_int_gocep    (void) {
     }
 
 #ifdef DEVEL
-    uint32_t goc_data;
-    uint32_t i;
     // Demo Display
     if (((goc_raw>>24)&0xFF)==0xFF) { eid_update(goc_raw&0x1FF);}
-    // Power Measurement (goc_raw[31:24] = 0xFF)
-    else if (((goc_raw>>24)&0xFF)==0xAA) { 
-        goc_data = goc_raw&0xFFFFFF;
-
-        // Keep reading the first 4 bytes from EEPROM (goc_raw[23:0] = 0x000000)
-        if (goc_data == 0x000000) {
-            uint32_t temp=nfc_i2c_byte_read(/*e2*/0, /*addr*/0, /*nb*/4);
-        }
-        // Temp Meas + Write EEPROM (goc_raw[23:0] = 0x000001)
-        else if (goc_data == 0x000001) {
-            devel_var = 0x1;
-            operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/SNT_1SEC<<1);
-        }
-        // Temp Meas + Write EEPROM + Write Eink (goc_raw[23:0] = 0x000002)
-        else if (goc_data == 0x000002) {
-            devel_var = 0x2;
-            operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/SNT_1SEC<<1);
-        }
-    }
-
 #endif
 
     // Activating System
@@ -869,12 +813,6 @@ int main() {
     wakeup_source = *SREG_WAKEUP_SOURCE;
     *SCTR_REG_CLR_WUP_SOURCE = 1;
 
-    #ifdef DEVEL
-    if ((devel_var==0x1)||(devel_var==0x2)) {
-        if (*GOC_DATA_IRQ!=0) operation_back_to_default();
-    }
-    #endif
-
     #ifdef DEBUG
         mbus_write_message32(0x80, wakeup_source);
     #endif
@@ -884,182 +822,37 @@ int main() {
 
     // Enable IRQs
     *NVIC_ISER = (0x1 << IRQ_TIMER32);
-    #ifndef GOCEP_RUN_CPU_ONLY
-        *NVIC_ISER = (0x1 << IRQ_GOCEP);
-    #endif
 
     // If this is the very first wakeup, initialize the system (STATE 1)
     if (!get_flag(FLAG_INITIALIZED)) operation_init();
 
-    #ifdef GOCEP_RUN_CPU_ONLY
-        if (get_flag(FLAG_INITIALIZED) && get_bit(wakeup_source, 0)) {
-            handler_ext_int_gocep();
-        }
-    #endif
-
-    // Wakeup Count (increment only when SNT_IDLE)
-    if (snt_state==SNT_IDLE) {
-        wakeup_count++;
-        #ifdef DEBUG
-            mbus_write_message32(0x81, wakeup_count);
-        #endif
+    // Assuming you only have RUN_CPU
+    if (get_flag(FLAG_INITIALIZED) && get_bit(wakeup_source, 0)) {
+        handler_ext_int_gocep();
     }
 
     //--------------------------------------------------------------------------
-    // DEVEL Mode
+    // For Power Measurement
     //--------------------------------------------------------------------------
-    #ifdef DEVEL
-    if ((devel_var==0x1)||(devel_var==0x2)) {
-        snt_disable_wup_timer();
-        while(*GOC_DATA_IRQ==0) { snt_operation(); }
+    
+    snt_disable_wup_timer();
+
+    mbus_write_message32(0x8A, mode);
+    mbus_write_message32(0x8B, iter);
+
+    if (mode==0) { uint32_t temp=nfc_i2c_byte_read(/*e2*/0, /*addr*/0, /*nb*/4); }
+    else if (mode==1) { while(!snt_operation()); }
+    else if (mode==2) { while(!snt_operation()); }
+
+    if (iter<2) {
+        iter++;
+        operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/5*SNT_1SEC);
     }
-    #endif
-
-
-    //--------------------------------------------------------------------------
-    // System Activated
-    //--------------------------------------------------------------------------
-    if (get_flag(FLAG_ACTIVATED)) {
-
-        #ifdef DEBUG
-            mbus_write_message32(0x82, (0x00 << 24) | tmp_state);
-            mbus_write_message32(0x82, (0x01 << 24) | curr_start_delay);
-            mbus_write_message32(0x82, (0x02 << 24) | curr_period_temp_meas);
-            mbus_write_message32(0x82, (0x03 << 24) | curr_period_refresh_disp);
-            mbus_write_message32(0x82, (0x04 << 24) | curr_period_timer_calib);
-            mbus_write_message32(0x82, (0x05 << 24) | curr_num_temp_meas_iter);
-            mbus_write_message32(0x82, (0x06 << 24) | curr_num_temp_meas);
-        #endif
-
-        //----------------------------------------------------------------------
-        // NFC activity detected (GPO=1)
-        //----------------------------------------------------------------------
-        if ((*GPIO_DATA&0x1)&&(snt_state==SNT_IDLE)) {
-            #ifdef DEBUG
-                mbus_write_message32(0x83, 0x00000000);
-            #endif
-            // Act as if the NFC has waken up the system, then call GOC/EP handler.
-            wakeup_source = set_bit(wakeup_source, 31, 1);
-            handler_ext_int_gocep();
-        }
-
-        //----------------------------------------------------------------------
-        // Temperature Measurement FSM
-        //----------------------------------------------------------------------
-        //-- If forced to stop
-        if (!get_flag(FLAG_STARTED)) {
-            #ifdef DEBUG
-                mbus_write_message32(0x83, 0x00000001);
-            #endif
-            operation_back_to_default();
-        }
-            
-        //-- FSM implementation
-        if (tmp_state==TMP_IDLE) {
-            if (get_flag(FLAG_STARTED)) {
-                #ifdef DEBUG
-                    mbus_write_message32(0x83, 0x00000002);
-                    mbus_write_message32(0x83, (0x01 << 24) | start_delay);
-                    mbus_write_message32(0x83, (0x02 << 24) | period_temp_meas);
-                    mbus_write_message32(0x83, (0x03 << 24) | period_refresh_disp);
-                    mbus_write_message32(0x83, (0x04 << 24) | period_timer_calib);
-                    mbus_write_message32(0x83, (0x05 << 24) | num_temp_meas_iter);
-                    mbus_write_message32(0x83, (0x06 << 24) | num_temp_meas);
-                    mbus_write_message32(0x83, (0x07 << 24) | high_temp_threshold);
-                    mbus_write_message32(0x83, (0x08 << 24) | low_temp_threshold);
-                #endif
-                tmp_state = TMP_PENDING;
-                // Reset counters
-                curr_start_delay        = 0;
-                curr_period_temp_meas   = 0;
-                curr_num_temp_meas_iter = 0;
-                curr_num_temp_meas      = 0;
-                // Display 
-                eid_update(DISP_RUNNING);
-            }
-            #ifdef DEBUG
-            else {
-                mbus_write_message32(0x83, 0x00000003);
-            }
-            #endif
-        }
-        else if (tmp_state==TMP_PENDING) {
-            if (curr_start_delay == start_delay) {
-                #ifdef DEBUG
-                    mbus_write_message32(0x83, 0x00000004);
-                #endif
-                tmp_state = TMP_ACTIVE;
-            }
-            else {
-                curr_start_delay++;
-                #ifdef DEBUG
-                    mbus_write_message32(0x83, 0x00000005);
-                #endif
-            }
-        }
-        else if (tmp_state==TMP_ACTIVE) {
-            if (curr_period_temp_meas == period_temp_meas) {
-                #ifdef DEBUG
-                    mbus_write_message32(0x83, 0x00000006);
-                #endif
-                while(!snt_operation());
-                curr_period_temp_meas = 0;
-                if ((num_temp_meas!=0) && (curr_num_temp_meas==num_temp_meas)) {
-                    tmp_state = TMP_DONE;
-                }
-            }
-            #ifdef DEBUG
-            else {
-                mbus_write_message32(0x83, 0x00000007);
-            }
-            #endif
-            curr_period_temp_meas++;
-
-        }
-        else if (tmp_state==TMP_DONE) {
-            #ifdef DEBUG
-                mbus_write_message32(0x83, 0x00000008);
-            #endif
-            set_flag(FLAG_STARTED, 0);
-            tmp_state = TMP_IDLE;
-        }
-
-        //----------------------------------------------------------------------
-        // Refresh Display
-        //----------------------------------------------------------------------
-        if (curr_period_refresh_disp == period_refresh_disp) {
-            #ifdef DEBUG
-                mbus_write_message32(0x83, 0x00000009);
-            #endif
-            eid_update(eid_get_current_display());
-            curr_period_refresh_disp = 0;
-        }
-        curr_period_refresh_disp++;
-
-        //----------------------------------------------------------------------
-        // SNT Timer Calibration
-        //----------------------------------------------------------------------
-        if (curr_period_timer_calib == period_timer_calib) {
-            #ifdef DEBUG
-                mbus_write_message32(0x83, 0x0000000A);
-            #endif
-            curr_period_timer_calib = 0;
-            // NOTE:
-            // XO & SNT Calibration
-            // 37000 SNT Timer
-            // 25 seconds XO calibration every measurement
-        }
-        curr_period_timer_calib++;
-
-        //----------------------------------------------------------------------
-        // Go to sleep
-        //----------------------------------------------------------------------
-        snt_timer_threshold = snt_timer_threshold + snt_timer_sleep_duration;
-        if(snt_timer_threshold==0) snt_timer_threshold = 1; // SNT Timer does not expire at cnt=0.
-        #ifdef DEBUG
-            mbus_write_message32(0x84, snt_timer_threshold);
-        #endif
-        operation_sleep_snt_timer(/*auto_reset*/0, /*threshold*/snt_timer_threshold);
+    else {
+        mode++;
+        if (mode==3) mode=0;
+        iter=0;
+        operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/30*SNT_1SEC);
     }
 
 

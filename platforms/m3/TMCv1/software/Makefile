@@ -152,6 +152,7 @@ cp:
 	scp \
         xt1_firmware_v0p1/xt1_firmware_v0p1.hex \
         xt1_alpha_rev0/xt1_alpha_rev0.hex \
+        xt1_alpha_rev1/xt1_alpha_rev1.hex \
         design_tb_0/design_tb_0.hex \
         yejoong@thurston.cubeworks.io:~/Dropbox/Designs/202106_XT1_Firmware/.
 
