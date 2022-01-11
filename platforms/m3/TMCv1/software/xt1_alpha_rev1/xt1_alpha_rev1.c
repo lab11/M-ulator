@@ -850,9 +850,14 @@ int main() {
     }
     else {
         mode++;
-        if (mode==3) mode=0;
         iter=0;
-        operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/30*SNT_1SEC);
+        if (mode==3) {
+            mode=0;
+            operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/30*SNT_1SEC);
+        }
+        else {
+            operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/5*SNT_1SEC);
+        }
     }
 
 
