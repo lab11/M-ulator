@@ -660,13 +660,13 @@ static void operation_init (void) {
         //-------------------------------------------------
         // PMU Settings
         //-------------------------------------------------
-        //pmu_init();
+        pmu_init();
 
         //-------------------------------------------------
         // EID Settings
         //-------------------------------------------------
-        //eid_init();
-        //eid_update(DISP_RUNNING);
+        eid_init();
+        eid_update(DISP_RUNNING);
 
         //-------------------------------------------------
         // NFC 
@@ -680,9 +680,6 @@ static void operation_init (void) {
 
         // Update the flag
         set_flag(FLAG_ENUMERATED, 1);
-        #ifdef FLAG_UPDATE_EEPROM
-            nfc_i2c_set_flag(FLAG_ENUMERATED, 1);
-        #endif
 
 //        // Start turning on the SNT timer 
 //        // NOTE: TMC goes into sleep at the end of snt_start_timer()
@@ -706,9 +703,6 @@ static void operation_init (void) {
 
 //        // Update the flag
         set_flag(FLAG_INITIALIZED, 1);
-//        #ifdef FLAG_UPDATE_EEPROM
-//            nfc_i2c_set_flag(FLAG_INITIALIZED, 1);
-//        #endif
 
         //-------------------------------------------------
         // Sleep
@@ -819,23 +813,23 @@ void handler_ext_int_gocep    (void) {
         // Write All0 to the entire EEPROM
         if (goc_data == 0x0) {
             for (i=0; i<8192; i=i+256) {
-                nfc_i2c_seq_word_pattern_write(/*e2*/0, /*addr*/i, /*data*/0x00000000, /*len*/64);
+                nfc_i2c_word_pattern_write(/*e2*/0, /*addr*/i, /*data*/0x00000000, /*len*/64);
             }
         }
         // Write All0 to the entire EEPROM (except the first 1 word)
         else if (goc_data == 0x1) {
-            nfc_i2c_seq_word_pattern_write(/*e2*/0, /*addr*/4, /*data*/0x00000000, /*len*/63);
+            nfc_i2c_word_pattern_write(/*e2*/0, /*addr*/4, /*data*/0x00000000, /*len*/63);
             for (i=256; i<8192; i=i+256) {
-                nfc_i2c_seq_word_pattern_write(/*e2*/0, /*addr*/i, /*data*/0x00000000, /*len*/64);
+                nfc_i2c_word_pattern_write(/*e2*/0, /*addr*/i, /*data*/0x00000000, /*len*/64);
             }
         }
         // Write a word 'data @ GOC_DATA_IRQ+2' to 'addr @ GOC_DATA_IRQ+1'
         else if (goc_data == 0x2) {
-            nfc_i2c_word_write(/*e2*/0, *(GOC_DATA_IRQ+1), *(GOC_DATA_IRQ+2));
+            nfc_i2c_byte_write(/*e2*/0, *(GOC_DATA_IRQ+1), *(GOC_DATA_IRQ+2), 4);
         }
         // Read a word from 'addr @ GOC_DATA_IRQ+1'
         else if (goc_data == 0x3) {
-            mbus_write_message32(0x80, nfc_i2c_word_read(/*e2*/0, *(GOC_DATA_IRQ+1)));
+            mbus_write_message32(0x80, nfc_i2c_byte_read(/*e2*/0, *(GOC_DATA_IRQ+1), 4));
         }
         // Toggle SCL (GPIO[1]) for the specified number at (GOC_DATA_IRQ+1)
         else if (goc_data == 0x4) {
@@ -900,17 +894,25 @@ void handler_ext_int_gocep    (void) {
         else if (goc_data == 0x9) {
             *XOT_START_COUT = 1;
         }
+        // Display Update (all black)
+        else if (goc_data == 0xA) {
+            eid_update(0xFF);
+        }
+        // Display Update (all white)
+        else if (goc_data == 0xB) {
+            eid_update(0x0);
+        }
         // Write All1 to the entire EEPROM (except the first 1 word)
         else if (goc_data == 0xE) {
-            nfc_i2c_seq_word_pattern_write(/*e2*/0, /*addr*/4, /*data*/0xFFFFFFFF, /*len*/63);
+            nfc_i2c_word_pattern_write(/*e2*/0, /*addr*/4, /*data*/0xFFFFFFFF, /*len*/63);
             for (i=256; i<8192; i=i+256) {
-                nfc_i2c_seq_word_pattern_write(/*e2*/0, /*addr*/i, /*data*/0xFFFFFFFF, /*len*/64);
+                nfc_i2c_word_pattern_write(/*e2*/0, /*addr*/i, /*data*/0xFFFFFFFF, /*len*/64);
             }
         }
         // Write All1 to the entire EEPROM
         else if (goc_data == 0xF) {
             for (i=0; i<8192; i=i+256) {
-                nfc_i2c_seq_word_pattern_write(/*e2*/0, /*addr*/i, /*data*/0xFFFFFFFF, /*len*/64);
+                nfc_i2c_word_pattern_write(/*e2*/0, /*addr*/i, /*data*/0xFFFFFFFF, /*len*/64);
             }
         }
         nfc_power_off();
@@ -989,9 +991,6 @@ int main() {
             // Enable GIT (GOC Instant Trigger)
             *REG_GOC_CONFIG = set_bit(*REG_GOC_CONFIG, 16, 1);
             set_flag(FLAG_GIT_ENABLED, 1);
-            #ifdef FLAG_UPDATE_EEPROM
-                nfc_i2c_set_flag(FLAG_GIT_ENABLED, 1);
-            #endif
             // Start Temp/VBAT measurement
             snt_running = 1;
             meas_count = 0;

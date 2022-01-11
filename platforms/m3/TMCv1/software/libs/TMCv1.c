@@ -45,11 +45,6 @@ uint32_t get_bit (uint32_t variable, uint32_t idx) {
     return get_bits(variable, idx, idx);
 }
 
-void set_pre_nfc_flag (uint32_t bit_idx, uint32_t value) {
-//    set_flag(bit_idx, value);
-//    nfc_i2c_set_flag(bit_idx, value);
-}
-
 //*******************************************************************
 // PMU FUNCTIONS
 //*******************************************************************
@@ -579,104 +574,143 @@ void nfc_i2c_stop(void) {
 }
 
 void nfc_i2c_byte(uint8_t byte){
-    uint32_t i;
-
 #ifdef __USE_FAST_I2C__
+//-------------------------------------------------------------------------------------
+// NOTE: Below is a compact implementation, but it does not really reduce the code size
+//       due to the loop unrolling.
+//-------------------------------------------------------------------------------------
+    uint32_t i = 7;
     *GPIO_DIR  = 0x06; // SDA=output(1), SCL=output(1);
-    // Send byte[7]
-    if((byte>>7)&0x1) {
-        *GPIO_DATA = 0x04; // SDA=1, SCL=0
-        *GPIO_DATA = 0x06; // SDA=1, SCL=1
-        *GPIO_DATA = 0x04; // SDA=1, SCL=0
+    while(i>0) {
+        if ((byte&0x80)!=0) {
+            *GPIO_DATA = 0x04; // SDA=1, SCL=0
+            *GPIO_DATA = 0x06; // SDA=1, SCL=1
+            *GPIO_DATA = 0x04; // SDA=1, SCL=0
+        } else {
+            *GPIO_DATA = 0x00; // SDA=0, SCL=0
+            *GPIO_DATA = 0x02; // SDA=0, SCL=1
+            *GPIO_DATA = 0x00; // SDA=0, SCL=0
+        }
+        byte = byte << 1;
+        i--;
     }
-    else {
-        *GPIO_DATA = 0x00; // SDA=0, SCL=0
-        *GPIO_DATA = 0x02; // SDA=0, SCL=1
-        *GPIO_DATA = 0x00; // SDA=0, SCL=0
-    }
-    // Send byte[6]
-    if((byte>>6)&0x1) {
-        *GPIO_DATA = 0x04; // SDA=1, SCL=0
-        *GPIO_DATA = 0x06; // SDA=1, SCL=1
-        *GPIO_DATA = 0x04; // SDA=1, SCL=0
-    }
-    else {
-        *GPIO_DATA = 0x00; // SDA=0, SCL=0
-        *GPIO_DATA = 0x02; // SDA=0, SCL=1
-        *GPIO_DATA = 0x00; // SDA=0, SCL=0
-    }
-    // Send byte[5]
-    if((byte>>5)&0x1) {
-        *GPIO_DATA = 0x04; // SDA=1, SCL=0
-        *GPIO_DATA = 0x06; // SDA=1, SCL=1
-        *GPIO_DATA = 0x04; // SDA=1, SCL=0
-    }
-    else {
-        *GPIO_DATA = 0x00; // SDA=0, SCL=0
-        *GPIO_DATA = 0x02; // SDA=0, SCL=1
-        *GPIO_DATA = 0x00; // SDA=0, SCL=0
-    }
-    // Send byte[4]
-    if((byte>>4)&0x1) {
-        *GPIO_DATA = 0x04; // SDA=1, SCL=0
-        *GPIO_DATA = 0x06; // SDA=1, SCL=1
-        *GPIO_DATA = 0x04; // SDA=1, SCL=0
-    }
-    else {
-        *GPIO_DATA = 0x00; // SDA=0, SCL=0
-        *GPIO_DATA = 0x02; // SDA=0, SCL=1
-        *GPIO_DATA = 0x00; // SDA=0, SCL=0
-    }
-    // Send byte[3]
-    if((byte>>3)&0x1) {
-        *GPIO_DATA = 0x04; // SDA=1, SCL=0
-        *GPIO_DATA = 0x06; // SDA=1, SCL=1
-        *GPIO_DATA = 0x04; // SDA=1, SCL=0
-    }
-    else {
-        *GPIO_DATA = 0x00; // SDA=0, SCL=0
-        *GPIO_DATA = 0x02; // SDA=0, SCL=1
-        *GPIO_DATA = 0x00; // SDA=0, SCL=0
-    }
-    // Send byte[2]
-    if((byte>>2)&0x1) {
-        *GPIO_DATA = 0x04; // SDA=1, SCL=0
-        *GPIO_DATA = 0x06; // SDA=1, SCL=1
-        *GPIO_DATA = 0x04; // SDA=1, SCL=0
-    }
-    else {
-        *GPIO_DATA = 0x00; // SDA=0, SCL=0
-        *GPIO_DATA = 0x02; // SDA=0, SCL=1
-        *GPIO_DATA = 0x00; // SDA=0, SCL=0
-    }
-    // Send byte[1]
-    if((byte>>1)&0x1) {
-        *GPIO_DATA = 0x04; // SDA=1, SCL=0
-        *GPIO_DATA = 0x06; // SDA=1, SCL=1
-        *GPIO_DATA = 0x04; // SDA=1, SCL=0
-    }
-    else {
-        *GPIO_DATA = 0x00; // SDA=0, SCL=0
-        *GPIO_DATA = 0x02; // SDA=0, SCL=1
-        *GPIO_DATA = 0x00; // SDA=0, SCL=0
-    }
+
     // Send byte[0]
-    if (byte&0x1) {
-        *GPIO_DIR  = 0x02; // SDA=input(0), SCL=output(1);
-        *GPIO_DATA = 0x00; // SDA=z, SCL=0
-        *GPIO_DATA = 0x02; // SDA=z, SCL=1
-        *GPIO_DATA = 0x00; // SDA=z, SCL=0
-    }
-    else {
-        *GPIO_DATA = 0x00; // SDA=0, SCL=0
-        *GPIO_DATA = 0x02; // SDA=0, SCL=1
-        *GPIO_DATA = 0x00; // SDA=0, SCL=0
-        *GPIO_DIR  = 0x02; // SDA=input(0), SCL=output(1);
-    }
+    if ((byte&0x80)!=0) { *GPIO_DIR  = 0x02; } // SDA=input(0), SCL=output(1);
+    *GPIO_DATA = 0x00; // SDA=z, SCL=0
+    *GPIO_DATA = 0x02; // SDA=z, SCL=1
+    *GPIO_DATA = 0x00; // SDA=z, SCL=0
+    if ((byte&0x80)!=0) { *GPIO_DIR  = 0x02; } // SDA=input(0), SCL=output(1);
+
+    // Check ACK
+    *GPIO_DATA = 0x02; // SDA=z, SCL=1
+    no_ack = (*GPIO_DATA>>__NFC_SDA__)&0x1;
+    *GPIO_DATA = 0x00; // SDA=z, SCL=0
+
     // update the retentive memory
     *R_GPIO_DIR  = 0x02;
     *R_GPIO_DATA = 0x00;
+
+//-------------------------------------------------------------------------------------
+// NOTE: Below is the original implementation with already un-rolled loop.
+//-------------------------------------------------------------------------------------
+//    *GPIO_DIR  = 0x06; // SDA=output(1), SCL=output(1);
+//    // Send byte[7]
+//    if((byte>>7)&0x1) {
+//        *GPIO_DATA = 0x04; // SDA=1, SCL=0
+//        *GPIO_DATA = 0x06; // SDA=1, SCL=1
+//        *GPIO_DATA = 0x04; // SDA=1, SCL=0
+//    }
+//    else {
+//        *GPIO_DATA = 0x00; // SDA=0, SCL=0
+//        *GPIO_DATA = 0x02; // SDA=0, SCL=1
+//        *GPIO_DATA = 0x00; // SDA=0, SCL=0
+//    }
+//    // Send byte[6]
+//    if((byte>>6)&0x1) {
+//        *GPIO_DATA = 0x04; // SDA=1, SCL=0
+//        *GPIO_DATA = 0x06; // SDA=1, SCL=1
+//        *GPIO_DATA = 0x04; // SDA=1, SCL=0
+//    }
+//    else {
+//        *GPIO_DATA = 0x00; // SDA=0, SCL=0
+//        *GPIO_DATA = 0x02; // SDA=0, SCL=1
+//        *GPIO_DATA = 0x00; // SDA=0, SCL=0
+//    }
+//    // Send byte[5]
+//    if((byte>>5)&0x1) {
+//        *GPIO_DATA = 0x04; // SDA=1, SCL=0
+//        *GPIO_DATA = 0x06; // SDA=1, SCL=1
+//        *GPIO_DATA = 0x04; // SDA=1, SCL=0
+//    }
+//    else {
+//        *GPIO_DATA = 0x00; // SDA=0, SCL=0
+//        *GPIO_DATA = 0x02; // SDA=0, SCL=1
+//        *GPIO_DATA = 0x00; // SDA=0, SCL=0
+//    }
+//    // Send byte[4]
+//    if((byte>>4)&0x1) {
+//        *GPIO_DATA = 0x04; // SDA=1, SCL=0
+//        *GPIO_DATA = 0x06; // SDA=1, SCL=1
+//        *GPIO_DATA = 0x04; // SDA=1, SCL=0
+//    }
+//    else {
+//        *GPIO_DATA = 0x00; // SDA=0, SCL=0
+//        *GPIO_DATA = 0x02; // SDA=0, SCL=1
+//        *GPIO_DATA = 0x00; // SDA=0, SCL=0
+//    }
+//    // Send byte[3]
+//    if((byte>>3)&0x1) {
+//        *GPIO_DATA = 0x04; // SDA=1, SCL=0
+//        *GPIO_DATA = 0x06; // SDA=1, SCL=1
+//        *GPIO_DATA = 0x04; // SDA=1, SCL=0
+//    }
+//    else {
+//        *GPIO_DATA = 0x00; // SDA=0, SCL=0
+//        *GPIO_DATA = 0x02; // SDA=0, SCL=1
+//        *GPIO_DATA = 0x00; // SDA=0, SCL=0
+//    }
+//    // Send byte[2]
+//    if((byte>>2)&0x1) {
+//        *GPIO_DATA = 0x04; // SDA=1, SCL=0
+//        *GPIO_DATA = 0x06; // SDA=1, SCL=1
+//        *GPIO_DATA = 0x04; // SDA=1, SCL=0
+//    }
+//    else {
+//        *GPIO_DATA = 0x00; // SDA=0, SCL=0
+//        *GPIO_DATA = 0x02; // SDA=0, SCL=1
+//        *GPIO_DATA = 0x00; // SDA=0, SCL=0
+//    }
+//    // Send byte[1]
+//    if((byte>>1)&0x1) {
+//        *GPIO_DATA = 0x04; // SDA=1, SCL=0
+//        *GPIO_DATA = 0x06; // SDA=1, SCL=1
+//        *GPIO_DATA = 0x04; // SDA=1, SCL=0
+//    }
+//    else {
+//        *GPIO_DATA = 0x00; // SDA=0, SCL=0
+//        *GPIO_DATA = 0x02; // SDA=0, SCL=1
+//        *GPIO_DATA = 0x00; // SDA=0, SCL=0
+//    }
+//    // Send byte[0]
+//    if (byte&0x1) {
+//        *GPIO_DIR  = 0x02; // SDA=input(0), SCL=output(1);
+//        *GPIO_DATA = 0x00; // SDA=z, SCL=0
+//        *GPIO_DATA = 0x02; // SDA=z, SCL=1
+//        *GPIO_DATA = 0x00; // SDA=z, SCL=0
+//    }
+//    else {
+//        *GPIO_DATA = 0x00; // SDA=0, SCL=0
+//        *GPIO_DATA = 0x02; // SDA=0, SCL=1
+//        *GPIO_DATA = 0x00; // SDA=0, SCL=0
+//        *GPIO_DIR  = 0x02; // SDA=input(0), SCL=output(1);
+//    }
+//    // update the retentive memory
+//    *R_GPIO_DIR  = 0x02;
+//    *R_GPIO_DATA = 0x00;
 #else
+    uint32_t i;
+
     // Direction: SCL (output), SDA (output)
     gpio_set_dir_with_mask(__I2C_MASK__,(1<<__NFC_SDA__)|(1<<__NFC_SCL__));
 
@@ -719,10 +753,49 @@ void nfc_i2c_byte(uint8_t byte){
 }
 
 uint32_t nfc_i2c_byte_imm (uint8_t byte){
-    uint32_t i;
     uint32_t no_ack;
 
 #ifdef __USE_FAST_I2C__
+
+//-------------------------------------------------------------------------------------
+// NOTE: Below is a compact implementation, but it does not really reduce the code size
+//       due to the loop unrolling.
+//-------------------------------------------------------------------------------------
+//    *GPIO_DIR  = 0x06; // SDA=output(1), SCL=output(1);
+//    uint32_t i = 7;
+//    while(i>0) {
+//        if ((byte&0x80)!=0) {
+//            *GPIO_DATA = 0x04; // SDA=1, SCL=0
+//            *GPIO_DATA = 0x06; // SDA=1, SCL=1
+//            *GPIO_DATA = 0x04; // SDA=1, SCL=0
+//        } else {
+//            *GPIO_DATA = 0x00; // SDA=0, SCL=0
+//            *GPIO_DATA = 0x02; // SDA=0, SCL=1
+//            *GPIO_DATA = 0x00; // SDA=0, SCL=0
+//        }
+//        byte = byte << 1;
+//        i--;
+//    }
+//
+//    // Send byte[0]
+//    if ((byte&0x80)!=0) { *GPIO_DIR  = 0x02; } // SDA=input(0), SCL=output(1);
+//    *GPIO_DATA = 0x00; // SDA=z, SCL=0
+//    *GPIO_DATA = 0x02; // SDA=z, SCL=1
+//    *GPIO_DATA = 0x00; // SDA=z, SCL=0
+//    if ((byte&0x80)!=0) { *GPIO_DIR  = 0x02; } // SDA=input(0), SCL=output(1);
+//
+//    // Check ACK
+//    *GPIO_DATA = 0x02; // SDA=z, SCL=1
+//    no_ack = (*GPIO_DATA>>__NFC_SDA__)&0x1;
+//    *GPIO_DATA = 0x00; // SDA=z, SCL=0
+//
+//    // update the retentive memory
+//    *R_GPIO_DIR  = 0x02;
+//    *R_GPIO_DATA = 0x00;
+
+//-------------------------------------------------------------------------------------
+// NOTE: Below is the original implementation with already un-rolled loop.
+//-------------------------------------------------------------------------------------
     *GPIO_DIR  = 0x06; // SDA=output(1), SCL=output(1);
     // Send byte[7]
     if((byte>>7)&0x1) {
@@ -823,7 +896,10 @@ uint32_t nfc_i2c_byte_imm (uint8_t byte){
     // update the retentive memory
     *R_GPIO_DIR  = 0x02;
     *R_GPIO_DATA = 0x00;
+
 #else
+    uint32_t i;
+
     // Direction: SCL (output), SDA (output)
     gpio_set_dir_with_mask(__I2C_MASK__,(1<<__NFC_SDA__)|(1<<__NFC_SCL__));
 
@@ -956,81 +1032,34 @@ uint8_t nfc_i2c_rd(uint8_t ack){
     return data;
 }
 
-uint8_t nfc_i2c_byte_read(uint32_t e2, uint32_t addr){
-    uint8_t data;
-    nfc_i2c_start();
-    nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
-    nfc_i2c_byte(addr >> 8);
-    nfc_i2c_byte(addr);
-    nfc_i2c_start();
-    nfc_i2c_byte(0xA7 | ((e2&0x1) << 3));
-    data = nfc_i2c_rd(0);  // must not acknowledge
-    nfc_i2c_stop();
-    return data;
-}
-
-uint32_t nfc_i2c_word_read(uint32_t e2, uint32_t addr){
-    uint32_t data;
-    nfc_i2c_start();
-    nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
-    nfc_i2c_byte(addr >> 8);
-    nfc_i2c_byte(addr);
-    nfc_i2c_start();
-    nfc_i2c_byte(0xA7 | ((e2&0x1) << 3));
-    data  =  nfc_i2c_rd(1);
-    data |= (nfc_i2c_rd(1) << 8);
-    data |= (nfc_i2c_rd(1) << 16);
-    data |= (nfc_i2c_rd(0) << 24); // must not acknowledge
-    nfc_i2c_stop();
-    return data;
-}
-
-void nfc_i2c_byte_write(uint32_t e2, uint32_t addr, uint8_t data){
+void nfc_i2c_byte_write(uint32_t e2, uint32_t addr, uint32_t data, uint32_t nb){
+    // In order to reduce the code space,
+    // this function does not generate an error when 'nb' is out of the valid range.
     nfc_i2c_start();
     nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
     nfc_i2c_byte(addr>>8);
     nfc_i2c_byte(addr);
-    nfc_i2c_byte(data);
+    //-------------------------------------------------
+              nfc_i2c_byte((data>> 0)&0xFF);
+    if (nb>1) nfc_i2c_byte((data>> 8)&0xFF);
+    if (nb>2) nfc_i2c_byte((data>>16)&0xFF);
+    if (nb>3) nfc_i2c_byte((data>>24)&0xFF);
+    //-------------------------------------------------
     nfc_i2c_stop();
     #ifdef __NFC_DO_POLLING__
         nfc_i2c_polling();
     #else
+        uint32_t i;
+        for (i=(nb>>2); i>0; i--) { delay(__NFC_TW__); }
         delay(__NFC_TW__);
+        delay(__NFC_TW__); // We need two more __NFC_TW__ in the worst case (i.e., addr is not word-aligned.)
     #endif
 }
 
-
-void nfc_i2c_seq_byte_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_t len){
-    if (len<=256) {
-        uint32_t i;
-        uint32_t s;
-        nfc_i2c_start();
-        nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
-        nfc_i2c_byte(addr>>8);
-        nfc_i2c_byte(addr);
-        s=0;
-        for (i=0; i<len; i++) {
-            if(s==4) s=0;
-            if      (s==0) nfc_i2c_byte((data[i]>> 0)&0xFF);
-            else if (s==1) nfc_i2c_byte((data[i]>> 8)&0xFF);
-            else if (s==2) nfc_i2c_byte((data[i]>>16)&0xFF);
-            else if (s==3) nfc_i2c_byte((data[i]>>24)&0xFF);
-            s++;
-        }
-        nfc_i2c_stop();
-        #ifdef __NFC_DO_POLLING__
-            nfc_i2c_polling();
-        #else
-            for (i=(len>>2); i>0; i--) { delay(__NFC_TW__); }
-            delay(__NFC_TW__);
-            delay(__NFC_TW__); // We need two more __NFC_TW__ in the worst case (i.e., addr is not word-aligned.)
-        #endif
-    }
-}
-
-uint32_t nfc_i2c_seq_byte_read(uint32_t e2, uint32_t addr, uint32_t len){
+uint32_t nfc_i2c_byte_read(uint32_t e2, uint32_t addr, uint32_t nb){
+    // In order to reduce the code space,
+    // this function does not generate an error when 'nb' is out of the valid range.
     uint32_t data;
-    if ((len==0) || (len>4)) return 0;
     nfc_i2c_start();
     nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
     nfc_i2c_byte(addr >> 8);
@@ -1038,97 +1067,169 @@ uint32_t nfc_i2c_seq_byte_read(uint32_t e2, uint32_t addr, uint32_t len){
     nfc_i2c_start();
     nfc_i2c_byte(0xA7 | ((e2&0x1) << 3));
     //-------------------------------------------------
-                data  =  nfc_i2c_rd(!(len==1));
-    if (len>1)  data |= (nfc_i2c_rd(!(len==2)) << 8);
-    if (len>2)  data |= (nfc_i2c_rd(!(len==3)) << 16);
-    if (len>3)  data |= (nfc_i2c_rd(!(len==4)) << 24);
+               data  =  nfc_i2c_rd(!(nb==1));
+    if (nb>1)  data |= (nfc_i2c_rd(!(nb==2)) << 8);
+    if (nb>2)  data |= (nfc_i2c_rd(!(nb==3)) << 16);
+    if (nb>3)  data |= (nfc_i2c_rd(!(nb==4)) << 24);
     //-------------------------------------------------
     nfc_i2c_stop();
     return data;
 }
 
-void nfc_i2c_seq_word_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_t len){
-    if (len<=64) {
-        uint32_t i, j;
-        uint32_t word;
-        addr &= 0xFFFC; // Force the 2 LSBs to 0 to make it word-aligned.
-        nfc_i2c_start();
-        nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
-        nfc_i2c_byte(addr>>8);
-        nfc_i2c_byte(addr);
-        for (i=0; i<len; i++) {
-            word = data[i];
-            for (j=0; j<4; j++) {
-                nfc_i2c_byte(word&0xFF);
-                word = word>>8;
-            }
-        }
-        nfc_i2c_stop();
-        #ifdef __NFC_DO_POLLING__
-            nfc_i2c_polling();
-        #else
-            for (i=len; i>0; i--) { delay(__NFC_TW__); }
-        #endif
+void nfc_i2c_seq_byte_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_t nb){
+    // In order to reduce the code space,
+    // this function does not generate an error when 'nb' is out of the valid range.
+    uint32_t i;
+    uint32_t s;
+    nfc_i2c_start();
+    nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
+    nfc_i2c_byte(addr>>8);
+    nfc_i2c_byte(addr);
+    s=0;
+    for (i=0; i<nb; i++) {
+        if(s==4) s=0;
+        if      (s==0) nfc_i2c_byte((data[i]>> 0)&0xFF);
+        else if (s==1) nfc_i2c_byte((data[i]>> 8)&0xFF);
+        else if (s==2) nfc_i2c_byte((data[i]>>16)&0xFF);
+        else if (s==3) nfc_i2c_byte((data[i]>>24)&0xFF);
+        s++;
     }
+    nfc_i2c_stop();
+    #ifdef __NFC_DO_POLLING__
+        nfc_i2c_polling();
+    #else
+        for (i=(nb>>2); i>0; i--) { delay(__NFC_TW__); }
+        delay(__NFC_TW__);
+        delay(__NFC_TW__); // We need two more __NFC_TW__ in the worst case (i.e., addr is not word-aligned.)
+    #endif
 }
 
-void nfc_i2c_word_write(uint32_t e2, uint32_t addr, uint32_t data) {
-    uint32_t j;
+//void nfc_i2c_single_byte_write(uint32_t e2, uint32_t addr, uint8_t data){
+//    nfc_i2c_start();
+//    nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
+//    nfc_i2c_byte(addr>>8);
+//    nfc_i2c_byte(addr);
+//    nfc_i2c_byte(data);
+//    nfc_i2c_stop();
+//    #ifdef __NFC_DO_POLLING__
+//        nfc_i2c_polling();
+//    #else
+//        delay(__NFC_TW__);
+//    #endif
+//}
+
+//uint8_t nfc_i2c_single_byte_read(uint32_t e2, uint32_t addr){
+//    uint8_t data;
+//    nfc_i2c_start();
+//    nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
+//    nfc_i2c_byte(addr >> 8);
+//    nfc_i2c_byte(addr);
+//    nfc_i2c_start();
+//    nfc_i2c_byte(0xA7 | ((e2&0x1) << 3));
+//    data = nfc_i2c_rd(0);  // must not acknowledge
+//    nfc_i2c_stop();
+//    return data;
+//}
+
+//void nfc_i2c_single_word_write(uint32_t e2, uint32_t addr, uint32_t data) {
+//    uint32_t j;
+//    addr &= 0xFFFC; // Force the 2 LSBs to 0 to make it word-aligned.
+//    nfc_i2c_start();
+//    nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
+//    nfc_i2c_byte(addr>>8);
+//    nfc_i2c_byte(addr);
+//    for (j=0; j<4; j++) {
+//        nfc_i2c_byte(data&0xFF);
+//        data = data >> 8;
+//    }
+//    nfc_i2c_stop();
+//    #ifdef __NFC_DO_POLLING__
+//        nfc_i2c_polling();
+//    #else
+//        delay(__NFC_TW__);
+//    #endif
+//}
+//
+//uint32_t nfc_i2c_single_word_read(uint32_t e2, uint32_t addr){
+//    uint32_t data;
+//    nfc_i2c_start();
+//    nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
+//    nfc_i2c_byte(addr >> 8);
+//    nfc_i2c_byte(addr);
+//    nfc_i2c_start();
+//    nfc_i2c_byte(0xA7 | ((e2&0x1) << 3));
+//    data  =  nfc_i2c_rd(1);
+//    data |= (nfc_i2c_rd(1) << 8);
+//    data |= (nfc_i2c_rd(1) << 16);
+//    data |= (nfc_i2c_rd(0) << 24); // must not acknowledge
+//    nfc_i2c_stop();
+//    return data;
+//}
+
+
+void nfc_i2c_word_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_t nw){
+    // In order to reduce the code space,
+    // this function does not generate an error when 'nw' is out of the valid range.
+    uint32_t i, j;
+    uint32_t word;
     addr &= 0xFFFC; // Force the 2 LSBs to 0 to make it word-aligned.
     nfc_i2c_start();
     nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
     nfc_i2c_byte(addr>>8);
     nfc_i2c_byte(addr);
-    for (j=0; j<4; j++) {
-        nfc_i2c_byte(data&0xFF);
-        data = data >> 8;
+    for (i=0; i<nw; i++) {
+        word = data[i];
+        for (j=0; j<4; j++) {
+            nfc_i2c_byte(word&0xFF);
+            word = word>>8;
+        }
     }
     nfc_i2c_stop();
     #ifdef __NFC_DO_POLLING__
         nfc_i2c_polling();
     #else
-        delay(__NFC_TW__);
+        for (i=nw; i>0; i--) { delay(__NFC_TW__); }
     #endif
 }
 
-void nfc_i2c_seq_word_pattern_write(uint32_t e2, uint32_t addr, uint32_t data, uint32_t len){
-    if (len<=64) {
-        uint32_t i;
-        addr &= 0xFFFC; // Force the 2 LSBs to 0 to make it word-aligned.
-        nfc_i2c_start();
-        nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
-        nfc_i2c_byte(addr>>8);
-        nfc_i2c_byte(addr);
-        for (i=0; i<len; i++) {
-            nfc_i2c_byte((data>> 0)&0xFF);
-            nfc_i2c_byte((data>> 8)&0xFF);
-            nfc_i2c_byte((data>>16)&0xFF);
-            nfc_i2c_byte((data>>24)&0xFF);
-        }
-        nfc_i2c_stop();
-        #ifdef __NFC_DO_POLLING__
-            nfc_i2c_polling();
-        #else
-            for (i=len; i>0; i--) { delay(__NFC_TW__); }
-        #endif
+void nfc_i2c_word_pattern_write(uint32_t e2, uint32_t addr, uint32_t data, uint32_t nw){
+    // In order to reduce the code space,
+    // this function does not generate an error when 'nw' is out of the valid range.
+    uint32_t i;
+    addr &= 0xFFFC; // Force the 2 LSBs to 0 to make it word-aligned.
+    nfc_i2c_start();
+    nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
+    nfc_i2c_byte(addr>>8);
+    nfc_i2c_byte(addr);
+    for (i=0; i<nw; i++) {
+        nfc_i2c_byte((data>> 0)&0xFF);
+        nfc_i2c_byte((data>> 8)&0xFF);
+        nfc_i2c_byte((data>>16)&0xFF);
+        nfc_i2c_byte((data>>24)&0xFF);
     }
+    nfc_i2c_stop();
+    #ifdef __NFC_DO_POLLING__
+        nfc_i2c_polling();
+    #else
+        for (i=nw; i>0; i--) { delay(__NFC_TW__); }
+    #endif
 }
 
-void nfc_i2c_reset_flag (void) {
-//    nfc_i2c_word_write(/*e2*/0, /*addr*/__NFC_FLAG_ADDR__, /*data*/0);
-}
+//void nfc_i2c_reset_flag (void) {
+//    nfc_i2c_single_word_write(/*e2*/0, /*addr*/__NFC_FLAG_ADDR__, /*data*/0);
+//}
 
-void nfc_i2c_set_flag (uint32_t bit_idx, uint32_t value) {
-//    uint32_t word_val = nfc_i2c_word_read(/*e2*/0, /*addr*/__NFC_FLAG_ADDR__);
+//void nfc_i2c_set_flag (uint32_t bit_idx, uint32_t value) {
+//    uint32_t word_val = nfc_i2c_single_word_read(/*e2*/0, /*addr*/__NFC_FLAG_ADDR__);
 //    word_val = (word_val & (~(0x1 << bit_idx))) | (value << bit_idx);
-//    nfc_i2c_word_write(/*e2*/0, /*addr*/__NFC_FLAG_ADDR__, /*data*/word_val);
-}
+//    nfc_i2c_single_word_write(/*e2*/0, /*addr*/__NFC_FLAG_ADDR__, /*data*/word_val);
+//}
 
-uint8_t nfc_i2c_get_flag (uint32_t bit_idx) {
-//    uint32_t word_val = nfc_i2c_word_read(/*e2*/0, /*addr*/__NFC_FLAG_ADDR__);
+//uint8_t nfc_i2c_get_flag (uint32_t bit_idx) {
+//    uint32_t word_val = nfc_i2c_single_word_read(/*e2*/0, /*addr*/__NFC_FLAG_ADDR__);
 //    return (word_val & (0x1 << bit_idx)) >> bit_idx;
-    return 0;
-}
+//    return 0;
+//}
 
 
 //*******************************************************************
@@ -1296,7 +1397,7 @@ void eid_enable_cp_ck(uint32_t te, uint32_t fd, uint32_t seg) {
         set_halt_until_mbus_trx();
         mbus_remote_register_write(EID_ADDR,0x09,eid_r09.as_int);
         set_halt_until_mbus_tx();
-        eid_set_pulse_width(__eid_cp_pulse_width__);
+        eid_set_pulse_width(__eid_cp_pulse_width__<<1);
     }
 
     // Make PG_DIODE=1

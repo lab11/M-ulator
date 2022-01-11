@@ -358,6 +358,11 @@ volatile uint32_t tmp_state;                // TMP state
 volatile uint32_t snt_running;              // Indicates whether the SNT temp sensor is running.
 volatile uint32_t eeprom_addr;              // EEPROM byte address for temperature data storage
 
+#ifdef DEVEL
+//--- Used for DEVEL
+volatile uint32_t devel_var;
+#endif
+
 //*******************************************************************************************
 // FUNCTIONS DECLARATIONS
 //*******************************************************************************************
@@ -434,7 +439,12 @@ static void operation_back_to_default(void){
         snt_temp_sensor_power_off();
         snt_ldo_power_off();
     }
+    tmp_state = TMP_IDLE;
     nfc_power_off();
+    #ifdef DEVEL
+        devel_var = 0;
+        *GOC_DATA_IRQ = 0;
+    #endif
 }
 
 //-------------------------------------------------------------------
@@ -487,6 +497,10 @@ static void operation_init (void) {
         curr_num_temp_meas_iter     = 0;
         curr_num_temp_meas          = 0;
 
+        #ifdef DEVEL
+            devel_var = 0;
+        #endif
+
         //-------------------------------------------------
         // PRE Tuning
         //-------------------------------------------------
@@ -532,7 +546,6 @@ static void operation_init (void) {
 
         // Flag Initialization
         reset_flag();
-        nfc_i2c_reset_flag();
 
         //-------------------------------------------------
         // SNT Settings
@@ -540,7 +553,7 @@ static void operation_init (void) {
         snt_init();
 
         // Update the flag
-        set_pre_nfc_flag(FLAG_ENUMERATED, 1);
+        set_flag(FLAG_ENUMERATED, 1);
 
         // Start turning on the SNT timer 
         // NOTE: TMC goes into sleep at the end of snt_start_timer()
@@ -558,7 +571,7 @@ static void operation_init (void) {
         eid_update(DISP_ALL);
 
         // Update the flag
-        set_pre_nfc_flag(FLAG_INITIALIZED, 1);
+        set_flag(FLAG_INITIALIZED, 1);
 
         //-------------------------------------------------
         // Indefinite Sleep
@@ -578,10 +591,12 @@ static uint32_t snt_operation (void) {
     #endif
 
     if (snt_state == SNT_IDLE) {
+        snt_running = 1;
+
         snt_state = SNT_LDO;
 
         //--- Update the Display
-        eid_update(DISP_RUNNING | DISP_NORMAL | DISP_PLUS | DISP_MINUS);
+        //eid_update(DISP_RUNNING | DISP_NORMAL | DISP_PLUS | DISP_MINUS);
 
         // Turn on SNT LDO VREF.
         snt_ldo_vref_on();
@@ -639,13 +654,15 @@ static uint32_t snt_operation (void) {
             /////////////////////////////////////////////////////////////////
             // Store the Measured data
             //---------------------------------------------------------------
-            nfc_i2c_word_write(/*e2*/0, 
+            nfc_i2c_byte_write(/*e2*/0, 
                 /*addr*/ EEPROM_SYS_START_ADDR, 
-                /*data*/ (0<<31) | (curr_num_temp_meas&0x7FFFFFFF)
+                /*data*/ (0<<31) | (curr_num_temp_meas&0x7FFFFFFF),
+                /* nb */ 4
                 );
-            nfc_i2c_word_write(/*e2*/0, 
+            nfc_i2c_byte_write(/*e2*/0, 
                 /*addr*/ eeprom_addr, 
-                /*data*/ (0<<31) | ((curr_num_temp_meas&0x7F)<<24) | (snt_temp_val&0xFFFFFF)
+                /*data*/ (0<<31) | ((curr_num_temp_meas&0x7F)<<24) | (snt_temp_val&0xFFFFFF),
+                /* nb */ 4
                 );
             eeprom_addr += 4;
             if (eeprom_addr==EEPROM_NUM_BYTES) eeprom_addr = EEPROM_TMP_START_ADDR; // roll-over
@@ -667,11 +684,27 @@ static uint32_t snt_operation (void) {
             if (pmu_adc_vbat_val > pmu_get_adc_low_val()) seg_display |= DISP_LOW_VBAT;
 
             //--- Update the Display if needed
-            if (seg_display!=eid_get_current_display()) eid_update(seg_display);
+            #ifdef DEVEL
+                if (devel_var == 0x2) {
+                    eid_update(seg_display);
+                }
+                else if (devel_var == 0x0) {
+                    if (seg_display!=eid_get_current_display()) eid_update(seg_display);
+                }
+            #else
+                if (seg_display!=eid_get_current_display()) eid_update(seg_display);
+            #endif
             /////////////////////////////////////////////////////////////////
 
-            // Temp Meas routine is done.
-            return 1;
+            snt_running = 0;
+
+            #ifdef DEVEL
+                // Temp Meas routine is done.
+                if (devel_var==0) {return 1;}
+            #else
+                return 1;
+            #endif
+
         }
     }
     return 0; // Temp Meas routine is still running.
@@ -737,12 +770,36 @@ void handler_ext_int_gocep    (void) {
     else {
         *NVIC_ICPR      = (0x1 << IRQ_GOCEP);      
         goc_raw         = *GOC_DATA_IRQ;
-        *GOC_DATA_IRQ   = 0;
+        //*GOC_DATA_IRQ   = 0;
     }
 
 #ifdef DEVEL
+    uint32_t goc_data;
+    uint32_t i;
     // Demo Display
-    if ((goc_raw>>24)&0xFF==0xFF) { eid_update(goc_raw&0x1FF);}
+    if (((goc_raw>>24)&0xFF)==0xFF) { eid_update(goc_raw&0x1FF);}
+    // Power Measurement (goc_raw[31:24] = 0xFF)
+    else if (((goc_raw>>24)&0xFF)==0xAA) { 
+        goc_data = goc_raw&0xFFFFFF;
+
+        // Keep reading the entire EEPROM (goc_raw[23:0] = 0x000000)
+        if (goc_data == 0x000000) {
+            for (i=0; i<8192; i++) {
+                nfc_i2c_byte_read(/*e2*/0, /*addr*/i, /*nb*/1);
+            }
+        }
+        // Temp Meas + Write EEPROM (goc_raw[23:0] = 0x000001)
+        else if (goc_data == 0x000001) {
+            devel_var = 0x1;
+            operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/SNT_1SEC<<1);
+        }
+        // Temp Meas + Write EEPROM + Write Eink (goc_raw[23:0] = 0x000002)
+        else if (goc_data == 0x000002) {
+            devel_var = 0x2;
+            operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/SNT_1SEC<<1);
+        }
+    }
+
 #endif
 
     // Activating System
@@ -752,10 +809,10 @@ void handler_ext_int_gocep    (void) {
             eid_enable_crash_handler();
 
             // Update the flags
-            set_pre_nfc_flag(FLAG_ACTIVATED, 1); 
-            set_pre_nfc_flag(FLAG_WD_ENABLED, 1); 
+            set_flag(FLAG_ACTIVATED, 1); 
+            set_flag(FLAG_WD_ENABLED, 1); 
             #ifdef DEVEL
-                set_pre_nfc_flag(FLAG_STARTED, 1);
+                set_flag(FLAG_STARTED, 1);
             #endif
             nfc_power_off();
 
@@ -766,7 +823,7 @@ void handler_ext_int_gocep    (void) {
     // Quick Start the temperature measurement
     else if (goc_raw==GOC_QUICK_START_KEY) { 
         if (!get_flag(FLAG_STARTED)) {
-            set_pre_nfc_flag(FLAG_STARTED, 1);
+            set_flag(FLAG_STARTED, 1);
         }
     }
     // Start the temperature measurement
@@ -782,13 +839,13 @@ void handler_ext_int_gocep    (void) {
             high_temp_threshold = *(GOC_DATA_IRQ+7);
             low_temp_threshold  = *(GOC_DATA_IRQ+8);
 
-            set_pre_nfc_flag(FLAG_STARTED, 1);
+            set_flag(FLAG_STARTED, 1);
         }
     }
     // Stop the ongoing temperature measurement
     else if (goc_raw==GOC_STOP_KEY) { 
         if (get_flag(FLAG_STARTED)) {
-            set_pre_nfc_flag(FLAG_STARTED, 0);
+            set_flag(FLAG_STARTED, 0);
         }
     }
 
@@ -813,6 +870,12 @@ int main() {
     // Get the info on who woke up the system, then reset WAKEUP_SOURCE register.
     wakeup_source = *SREG_WAKEUP_SOURCE;
     *SCTR_REG_CLR_WUP_SOURCE = 1;
+
+    #ifdef DEVEL
+    if ((devel_var==0x1)||(devel_var==0x2)) {
+        if (*GOC_DATA_IRQ!=0) operation_back_to_default();
+    }
+    #endif
 
     #ifdef DEBUG
         mbus_write_message32(0x80, wakeup_source);
@@ -843,6 +906,17 @@ int main() {
             mbus_write_message32(0x81, wakeup_count);
         #endif
     }
+
+    //--------------------------------------------------------------------------
+    // DEVEL Mode
+    //--------------------------------------------------------------------------
+    #ifdef DEVEL
+    if ((devel_var==0x1)||(devel_var==0x2)) {
+        snt_disable_wup_timer();
+        while(*GOC_DATA_IRQ==0) { snt_operation(); }
+    }
+    #endif
+
 
     //--------------------------------------------------------------------------
     // System Activated
@@ -879,7 +953,6 @@ int main() {
             #ifdef DEBUG
                 mbus_write_message32(0x83, 0x00000001);
             #endif
-            tmp_state = TMP_IDLE;
             operation_back_to_default();
         }
             
@@ -949,7 +1022,7 @@ int main() {
             #ifdef DEBUG
                 mbus_write_message32(0x83, 0x00000008);
             #endif
-            set_pre_nfc_flag(FLAG_STARTED, 0);
+            set_flag(FLAG_STARTED, 0);
             tmp_state = TMP_IDLE;
         }
 

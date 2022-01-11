@@ -122,16 +122,6 @@ uint32_t get_bits (uint32_t variable, uint32_t msb_idx, uint32_t lsb_idx);
 //-------------------------------------------------------------------
 uint32_t get_bit (uint32_t variable, uint32_t idx);
 
-//-------------------------------------------------------------------
-// Function: [DEPRECATED] set_pre_nfc_flag
-// Args    : bit_idx: bit index into which the value is written (valid range: 0 - 31).
-//           value  : flag value
-// Description:
-//           Set the given flag in the PRE as well as in the EEPROM
-//           By default, XT1 reserves a word (4 bytes) in EEPROM, starting from __NFC_FLAG_ADDR__.
-// Return  : None
-//-------------------------------------------------------------------
-void set_pre_nfc_flag (uint32_t bit_idx, uint32_t value);
 
 //-------------------------------------------------------------------
 // PRE Register File
@@ -505,8 +495,6 @@ void pmu_init();
 #define __I2C_ACK_TIMEOUT__         50000   // Checked using TIMER32
 #define __FCODE_I2C_ACK_TIMEOUT__   6       // Failure code to be displayed if timeout during I2C ACK
 
-//// EEPROM Addresses [DEPRECATED]
-//#define __NFC_FLAG_ADDR__   0x0000      // The first byte address in EEPROM where the flags are stored
 
 // Status Flag
 volatile uint32_t __nfc_on__;
@@ -653,44 +641,52 @@ void nfc_i2c_update_password(uint32_t upper, uint32_t lower);
 //-------------------------------------------------------------------
 uint8_t nfc_i2c_rd(uint8_t ack);
 
-//-------------------------------------------------------------------
-// Function: nfc_i2c_byte_read
-// Args    : e2     : Bit[3] in Device Select Code
-//           addr   : 16-bit byte address
-// Description:
-//           Read data at the address 'addr'
-// Return  : 8-bit read data
-//-------------------------------------------------------------------
-uint8_t nfc_i2c_byte_read(uint32_t e2, uint32_t addr);
 
 //-------------------------------------------------------------------
-// Function: nfc_i2c_word_read
-// Args    : e2     : Bit[3] in Device Select Code
-//           addr   : 16-bit byte address
-// Description:
-//           Read 4-bytes of data starting at the address 'addr'
-// Return  : 32-bit read data
-//           {data@(addr+3), data@(addr+2), data@(addr+1), data@(addr)}
+// NFC - Byte Read/Write
 //-------------------------------------------------------------------
-uint32_t nfc_i2c_word_read(uint32_t e2, uint32_t addr);
+
 
 //-------------------------------------------------------------------
 // Function: nfc_i2c_byte_write
 // Args    : e2     : Bit[3] in Device Select Code
 //           addr   : 16-bit byte address
-//           data   : 8-bit data
+//           data   : Data to be written
+//           nb     : Number of bytes to be sent.
+//                      Valid Range: 1 - 4
 // Description:
-//           Write data at the address 'addr'
+//           Write data starting at the address 'addr'
+//              addr        =   data[7:0]
+//              addr+1      =   data[15:8]
+//              addr+2      =   data[23:16]
+//              addr+3      =   data[31:24]
 // Return  : None
 //-------------------------------------------------------------------
-void nfc_i2c_byte_write(uint32_t e2, uint32_t addr, uint8_t data);
+void nfc_i2c_byte_write(uint32_t e2, uint32_t addr, uint32_t data, uint32_t nb);
+
+//-------------------------------------------------------------------
+// Function: nfc_i2c_byte_read
+// Args    : e2     : Bit[3] in Device Select Code
+//           addr   : 16-bit byte address
+//           nb     : Number of bytes to be read. 
+//                      Valid Range: 1 - 4
+// Description:
+//           Read the specified number (nb) of bytes starting at the address 'addr'
+// Return  : If nb=1: {        24'h0, data@(addr)}
+//           If nb=2: {        16'h0, data@(addr+1), data@(addr)}
+//           If nb=3: {         8'h0, data@(addr+2), data@(addr+1), data@(addr)}
+//           If nb=4: {data@(addr+3), data@(addr+2), data@(addr+1), data@(addr)}
+//           If nb=0 or nb>4: 32'h0
+//-------------------------------------------------------------------
+uint32_t nfc_i2c_byte_read(uint32_t e2, uint32_t addr, uint32_t nb);
 
 //-------------------------------------------------------------------
 // Function: nfc_i2c_seq_byte_write
 // Args    : e2     : Bit[3] in Device Select Code
 //           addr   : 16-bit byte address
 //           data   : Memory address of the data array.
-//           len    : Number of bytes to be sent. Max: 256.
+//           nb     : Number of bytes to be sent.
+//                      Valid Range: 1 - 256
 // Description:
 //           Write data starting at the address 'addr'
 //              addr        =   data[0][7:0]
@@ -702,33 +698,26 @@ void nfc_i2c_byte_write(uint32_t e2, uint32_t addr, uint8_t data);
 //              addr+6      =   data[1][23:16]
 //              addr+7      =   data[1][31:24]
 //              ...
-//              addr+len-1  =   data[int((len-1)/4)][((len-1)%4)*8+7:((len-1)%4)*8]
+//              addr+nb-1   =   data[int((nb-1)/4)][((nb-1)%4)*8+7:((nb-1)%4)*8]
 // Return  : None
 //-------------------------------------------------------------------
-void nfc_i2c_seq_byte_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_t len);
+void nfc_i2c_seq_byte_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_t nb);
+
+
 
 //-------------------------------------------------------------------
-// Function: nfc_i2c_seq_byte_read
-// Args    : e2     : Bit[3] in Device Select Code
-//           addr   : 16-bit byte address
-//           len    : Number of bytes to be read. Min: 1, Max: 4
-// Description:
-//           Read the specified number (len) of bytes starting at the address 'addr'
-// Return  : If len=1: {        24'h0, data@(addr)}
-//           If len=2: {        16'h0, data@(addr+1), data@(addr)}
-//           If len=3: {         8'h0, data@(addr+2), data@(addr+1), data@(addr)}
-//           If len=4: {data@(addr+3), data@(addr+2), data@(addr+1), data@(addr)}
-//           If len=0 or len>4: 32'h0
+// NFC - Word Read/Write
 //-------------------------------------------------------------------
-uint32_t nfc_i2c_seq_byte_read(uint32_t e2, uint32_t addr, uint32_t len);
+
 
 //-------------------------------------------------------------------
-// Function: nfc_i2c_seq_word_write
+// Function: nfc_i2c_word_write
 // Args    : e2     : Bit[3] in Device Select Code
 //           addr   : 16-bit byte address ( 2 LSBs are internally forced to 0 to make it word-aligned)
 //           data   : Memory address of the data array,
 //                    where each element is a word (4 bytes)
-//           len    : Number of words (4-bytes) to be sent. Max: 64.
+//           nw     : Number of words (4-bytes) to be sent.
+//                      Valid Range: 1 - 64
 // Description:
 //           Write data starting at the address 'addr'
 //              addr        =   data[0][ 7: 0]
@@ -737,32 +726,18 @@ uint32_t nfc_i2c_seq_byte_read(uint32_t e2, uint32_t addr, uint32_t len);
 //              addr+3      =   data[0][31:25]
 //              addr+4      =   data[1][ 7: 0]
 //              ...
-//              addr+len-1  =   data[len-1][31:25]
+//              addr+nw-1   =   data[nw-1][31:25]
 // Return  : None
 //-------------------------------------------------------------------
-void nfc_i2c_seq_word_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_t len);
+void nfc_i2c_word_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_t nw);
 
 //-------------------------------------------------------------------
-// Function: nfc_i2c_word_write
+// Function: nfc_i2c_word_pattern_write
 // Args    : e2     : Bit[3] in Device Select Code
 //           addr   : 16-bit byte address ( 2 LSBs are internally forced to 0 to make it word-aligned)
 //           data   : 32-bit data to be written
-// Description:
-//           Write data starting at the address 'addr'
-//              addr        =   data[ 7: 0]
-//              addr+1      =   data[15: 8]
-//              addr+2      =   data[24:16]
-//              addr+3      =   data[31:25]
-// Return  : None
-//-------------------------------------------------------------------
-void nfc_i2c_word_write(uint32_t e2, uint32_t addr, uint32_t data);
-
-//-------------------------------------------------------------------
-// Function: nfc_i2c_seq_word_pattern_write
-// Args    : e2     : Bit[3] in Device Select Code
-//           addr   : 16-bit byte address ( 2 LSBs are internally forced to 0 to make it word-aligned)
-//           data   : 32-bit data to be written
-//           len    : Number of words (4-bytes) to be sent. Max: 64.
+//           nw     : Number of words (4-bytes) to be sent.
+//                      Valid Range: 1 - 64
 // Description:
 //           Write data starting at the address 'addr'
 //              addr        =   data[ 7: 0]
@@ -771,42 +746,10 @@ void nfc_i2c_word_write(uint32_t e2, uint32_t addr, uint32_t data);
 //              addr+3      =   data[31:25]
 //              addr+4      =   data[ 7: 0]
 //              ...
-//              addr+len-1  =   data[31:25]
+//              addr+nw-1   =   data[31:25]
 // Return  : None
 //-------------------------------------------------------------------
-void nfc_i2c_seq_word_pattern_write(uint32_t e2, uint32_t addr, uint32_t data, uint32_t len);
-
-//-------------------------------------------------------------------
-// Function: [DEPRECATED] nfc_i2c_reset_flag
-// Args    : none
-// Description:
-//           Reset the flag in the EEPROM.
-//           After the execution, the flag word becomes all 0.
-//           By default, XT1 reserves a word (4 bytes) in EEPROM, starting from __NFC_FLAG_ADDR__.
-// Return  : None
-//-------------------------------------------------------------------
-void nfc_i2c_reset_flag ();
-
-//-------------------------------------------------------------------
-// Function: [DEPRECATED] nfc_i2c_set_flag
-// Args    : bit_idx: bit index into which the value is written (valid range: 0 - 31).
-//           value  : flag value
-// Description:
-//           Set the given flag in the EEPROM
-//           By default, XT1 reserves a word (4 bytes) in EEPROM, starting from __NFC_FLAG_ADDR__.
-// Return  : None
-//-------------------------------------------------------------------
-void nfc_i2c_set_flag (uint32_t bit_idx, uint32_t value);
-
-//-------------------------------------------------------------------
-// Function: [DEPRECATED] nfc_i2c_get_flag
-// Args    : bit_idx: bit index to be read (valid range: 0 - 31).
-// Description:
-//           Read the flag bit at bit_idx in the EEPROM.
-//           By default, XT1 reserves a word (4 bytes) in EEPROM, starting from __NFC_FLAG_ADDR__.
-// Return  : flag bit value at bit_idx.
-//-------------------------------------------------------------------
-uint8_t nfc_i2c_get_flag (uint32_t bit_idx);
+void nfc_i2c_word_pattern_write(uint32_t e2, uint32_t addr, uint32_t data, uint32_t nw);
 
 
 //*******************************************************************
