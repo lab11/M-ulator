@@ -332,6 +332,16 @@ uint32_t pmu_get_temp_state (void);
 void pmu_set_active_temp_based();
 
 //-------------------------------------------------------------------
+// Function: pmu_set_active_min
+// Args    : None
+// Description:
+//           Sets PMU active floors to the minimum
+//           R/L/Base = 1/0/1 for UPC/SAR/DNC
+// Return  : None
+//-------------------------------------------------------------------
+void pmu_set_active_min();
+
+//-------------------------------------------------------------------
 // Function: pmu_set_sleep_temp_based
 // Args    : None
 // Description:

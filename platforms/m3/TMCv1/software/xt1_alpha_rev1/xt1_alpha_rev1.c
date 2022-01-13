@@ -1,3 +1,20 @@
+// VBAT=3V
+// w/ pmu_init
+//      WFI():   89.5uA
+//      delay(): 94.6uA
+//      w/ pmu_config_rat(1) w/ min active floor: 82uA
+//      w/ pmu_config_rat(1) w/ min active floor w/ 0x47 3433->4213: 67.5uA
+//      w/ pmu_config_rat(1) w/ min active floor w/ 0x47 4213->4443: 53uA
+//      w/ pmu_config_rat(1) w/ min active floor w/ 0x47 4443 w/ 0x48 SAR_CP_CAP 2->1: 48uA
+//      w/o pmu_config_rat(1): 26.7uA
+// w/o pmu_init
+//      delay(): 16.9uA
+//
+// 3V
+// min active, 0x47 4443, SAR_RATIO 0x48, w/ or w/o pmu_set_adc_period: 53uA
+// min active, 0x47 4443, SAR_RATIO 0x4C: 64uA
+// min active, 0x47 4213, SAR_RATIO 0x48: 67uA
+// min active, 0x47 4443, SAR_RATIO 0x48, w/ or w/o voltage clamp setting: 53uA
 //*******************************************************************************************
 // XT1 (TMCv1) FIRMWARE
 // Version alpha-0.1
@@ -545,11 +562,14 @@ static void operation_init (void) {
         // Finish setting up the SNT timer
         snt_start_timer();
 
+        // Set the Active floor setting to the minimum (b/c RAT is enabled at this point)
+        pmu_set_active_min();
+
         //-------------------------------------------------
         // EID Settings
         //-------------------------------------------------
-        eid_init();
-        eid_update(DISP_ALL);
+        //eid_init();
+        //eid_update(DISP_ALL);
 
         // Update the flag
         set_flag(FLAG_INITIALIZED, 1);
@@ -709,19 +729,19 @@ void handler_ext_int_timer32  (void) {
     __wfi_timeout_flag__ = 1; // Declared in PREv22E.h
     set_halt_until_mbus_tx();
     }
-void handler_ext_int_timer16  (void) { *NVIC_ICPR = (0x1 << IRQ_TIMER16);    }
-void handler_ext_int_reg0     (void) { *NVIC_ICPR = (0x1 << IRQ_REG0);       }
-void handler_ext_int_reg1     (void) { *NVIC_ICPR = (0x1 << IRQ_REG1);       }
-void handler_ext_int_reg2     (void) { *NVIC_ICPR = (0x1 << IRQ_REG2);       }
-void handler_ext_int_reg3     (void) { *NVIC_ICPR = (0x1 << IRQ_REG3);       }
-void handler_ext_int_reg4     (void) { *NVIC_ICPR = (0x1 << IRQ_REG4);       }
-void handler_ext_int_reg5     (void) { *NVIC_ICPR = (0x1 << IRQ_REG5);       }
-void handler_ext_int_reg6     (void) { *NVIC_ICPR = (0x1 << IRQ_REG6);       }
-void handler_ext_int_reg7     (void) { *NVIC_ICPR = (0x1 << IRQ_REG7);       }
-void handler_ext_int_mbusmem  (void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_MEM);   }
-void handler_ext_int_mbusrx   (void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_RX);    }
-void handler_ext_int_mbustx   (void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_TX);    }
-void handler_ext_int_mbusfwd  (void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_FWD);   }
+void handler_ext_int_timer16  (void) { mbus_write_message32(0x8F, 0x2); *NVIC_ICPR = (0x1 << IRQ_TIMER16);    }
+void handler_ext_int_reg0     (void) { mbus_write_message32(0x8F, 0x3); *NVIC_ICPR = (0x1 << IRQ_REG0);       }
+void handler_ext_int_reg1     (void) { mbus_write_message32(0x8F, 0x4); *NVIC_ICPR = (0x1 << IRQ_REG1);       }
+void handler_ext_int_reg2     (void) { mbus_write_message32(0x8F, 0x5); *NVIC_ICPR = (0x1 << IRQ_REG2);       }
+void handler_ext_int_reg3     (void) { mbus_write_message32(0x8F, 0x6); *NVIC_ICPR = (0x1 << IRQ_REG3);       }
+void handler_ext_int_reg4     (void) { mbus_write_message32(0x8F, 0x7); *NVIC_ICPR = (0x1 << IRQ_REG4);       }
+void handler_ext_int_reg5     (void) { mbus_write_message32(0x8F, 0x8); *NVIC_ICPR = (0x1 << IRQ_REG5);       }
+void handler_ext_int_reg6     (void) { mbus_write_message32(0x8F, 0x9); *NVIC_ICPR = (0x1 << IRQ_REG6);       }
+void handler_ext_int_reg7     (void) { mbus_write_message32(0x8F, 0xA); *NVIC_ICPR = (0x1 << IRQ_REG7);       }
+void handler_ext_int_mbusmem  (void) { mbus_write_message32(0x8F, 0xB); *NVIC_ICPR = (0x1 << IRQ_MBUS_MEM);   }
+void handler_ext_int_mbusrx   (void) { mbus_write_message32(0x8F, 0xC); *NVIC_ICPR = (0x1 << IRQ_MBUS_RX);    }
+void handler_ext_int_mbustx   (void) { mbus_write_message32(0x8F, 0xD); *NVIC_ICPR = (0x1 << IRQ_MBUS_TX);    }
+void handler_ext_int_mbusfwd  (void) { mbus_write_message32(0x8F, 0xE); *NVIC_ICPR = (0x1 << IRQ_MBUS_FWD);   }
 
 void handler_ext_int_gocep    (void) { 
 
@@ -805,6 +825,8 @@ void handler_ext_int_gpio     (void) { *NVIC_ICPR = (0x1 << IRQ_GPIO);       }
 
 int main() {
 
+    mbus_write_message32(0x8F, 5);
+
     // Disable PRE Watchdog Timers (CPU watchdog and MBus watchdog)
     *TIMERWD_GO  = 0;
     *REG_MBUS_WD = 0;
@@ -840,25 +862,29 @@ int main() {
     mbus_write_message32(0x8A, mode);
     mbus_write_message32(0x8B, iter);
 
-    if (mode==0) { uint32_t temp=nfc_i2c_byte_read(/*e2*/0, /*addr*/0, /*nb*/4); }
-    else if (mode==1) { while(!snt_operation()); }
-    else if (mode==2) { while(!snt_operation()); }
+    delay(100000);
+    //WFI();
+    operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/5*SNT_1SEC);
 
-    if (iter<2) {
-        iter++;
-        operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/5*SNT_1SEC);
-    }
-    else {
-        mode++;
-        iter=0;
-        if (mode==3) {
-            mode=0;
-            operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/30*SNT_1SEC);
-        }
-        else {
-            operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/5*SNT_1SEC);
-        }
-    }
+    //if (mode==0) { uint32_t temp=nfc_i2c_byte_read(/*e2*/0, /*addr*/0, /*nb*/4); }
+    //else if (mode==1) { while(!snt_operation()); }
+    //else if (mode==2) { while(!snt_operation()); }
+
+    //if (iter<2) {
+    //    iter++;
+    //    operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/5*SNT_1SEC);
+    //}
+    //else {
+    //    mode++;
+    //    iter=0;
+    //    if (mode==3) {
+    //        mode=0;
+    //        operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/30*SNT_1SEC);
+    //    }
+    //    else {
+    //        operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/5*SNT_1SEC);
+    //    }
+    //}
 
 
     //--------------------------------------------------------------------------

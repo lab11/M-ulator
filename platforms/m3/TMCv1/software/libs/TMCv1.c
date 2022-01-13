@@ -133,12 +133,16 @@ void pmu_config_rat(uint8_t rat) {
         | (rat << 15)   // 1'h0     // Enable SAR Slow-Loop in Sleep
         | (rat << 14)   // 1'h0     // Enable UPC Slow-Loop in Sleep
         | (rat << 13)   // 1'h0     // Enable DNC Slow-Loop in Sleep
-        | (1   << 11)   // 2'h0     // Clock Ring Tuning
-        | (3   << 8 )   // 3'h0     // Clock Divider Tuning for SAR Charge Pump Pull-Up
-        | (4   << 5 )   // 3'h0     // Clock Divider Tuning for UPC Charge Pump Pull-Up
-        | (3   << 2 )   // 3'h0     // Clock Divider Tuning for DNC Charge Pump Pull-Up
+        | (1   << 11)   // 2'h0     // Clock Ring Tuning (0x0: 13 stages; 0x1: 11 stages; 0x2: 9 stages; 0x3: 7 stages)
+        | (4   << 8 )   // 3'h0     // Clock Divider Tuning for SAR Charge Pump Pull-Up (0x0: div by 1; 0x1: div by 2; 0x2: div by 4; 0x3: div by 8; 0x4: div by 16)
+        | (4   << 5 )   // 3'h0     // Clock Divider Tuning for UPC Charge Pump Pull-Up (0x0: div by 1; 0x1: div by 2; 0x2: div by 4; 0x3: div by 8; 0x4: div by 16)
+        | (4   << 2 )   // 3'h0     // Clock Divider Tuning for DNC Charge Pump Pull-Up (0x0: div by 1; 0x1: div by 2; 0x2: div by 4; 0x3: div by 8; 0x4: div by 16)
         | (3   << 0 )   // 2'h0     // Clock Pre-Divider Tuning for UPC/DNC Charge Pump Pull-Up
     ));
+        //| (3   << 8 )   // 3'h0     // Clock Divider Tuning for SAR Charge Pump Pull-Up (0x0: div by 1; 0x1: div by 2; 0x2: div by 4; 0x3: div by 8; 0x4: div by 16)
+        //| (4   << 5 )   // 3'h0     // Clock Divider Tuning for UPC Charge Pump Pull-Up (0x0: div by 1; 0x1: div by 2; 0x2: div by 4; 0x3: div by 8; 0x4: div by 16)
+        //| (3   << 2 )   // 3'h0     // Clock Divider Tuning for DNC Charge Pump Pull-Up (0x0: div by 1; 0x1: div by 2; 0x2: div by 4; 0x3: div by 8; 0x4: div by 16)
+        //| (3   << 0 )   // 2'h0     // Clock Pre-Divider Tuning for UPC/DNC Charge Pump Pull-Up
 
 }
 
@@ -157,7 +161,7 @@ void pmu_set_floor(uint8_t mode, uint8_t r, uint8_t l, uint8_t base, uint8_t l_s
         ( (0 << 19)     // 1'h0     // Enable PFM even during periodic reset
         | (0 << 18)     // 1'h0     // Enable PFM even when VREF is not used as reference
         | (0 << 17)     // 1'h0     // Enable PFM
-        | (3 << 14)     // 3'h3     // Comparator clock division ratio
+        | (1 << 14)     // 3'h3     // Comparator clock division ratio (0x1 being slowest)
         | (0 << 13)     // 1'h0     // Makes the converter clock 2x slower
         | (r << 9)      // 4'h8     // Frequency multiplier R
         | (l_sar << 5)  // 4'h8     // Frequency multiplier L (actually L+1)
@@ -203,6 +207,10 @@ void pmu_set_active_temp_based(){
                     __pmu_floor_active__[__pmu_temp_state__].BASE,
                     __pmu_floor_active__[__pmu_temp_state__].L_SAR
                     );
+}
+
+void pmu_set_active_min(){
+    pmu_set_floor(PMU_ACTIVE, 0x1, 0x0, 0x1, 0x0);
 }
 
 void pmu_set_sleep_temp_based(){
@@ -349,7 +357,8 @@ void pmu_init(){
         ));
     
     // Initialize SAR Ratio
-    pmu_set_sar_ratio(0x48);
+    pmu_set_sar_ratio(0x48); // For VBAT=3.0V
+    //pmu_set_sar_ratio(0x4C); // For VBAT=2.5V
 
     // Disable ADC in Active
     // PMU ADC will be automatically reset when system wakes up
