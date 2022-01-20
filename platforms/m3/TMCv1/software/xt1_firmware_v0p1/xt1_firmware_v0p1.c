@@ -1,0 +1,1470 @@
+// TODO
+//
+// * I2C timeout detection and handling.
+//   If there is an active RF field when TMC wants to do I2C, what does TMC need to do?
+//  - What to do if i2c timeout? (mostly due to RF activity?) just skip and try again 
+//      in the next session (after 1min)? will shfit the time or what?
+//
+// * During operation_init(), the firmware reads EEPROM to get the low VBAT threshold number.
+// 
+// * Use 0x60 SAR Ratio
+// 
+// * TWO (2) temp threshold for eink duration change
+//
+// * Skip the refresh if temp is lower than a certain threshold
+// 
+// * Eink duration config? Field erase duration?
+//
+// * SNT calibration
+//  - What to do if calibration error? more than, let's say, 5% change? Skip? 
+//      Increment xo fail? another fail type?
+//
+// * If INTERVAL is set to 0, we want to skip the function?
+//
+// * EID
+//  - Two temp threshold values, Three duration values, Three refresh intervals
+//
+// * PMU
+//  - Two VBAT threshold; low and critical
+//  - If below the low, turn on the VBAT indicator on the display
+//  - If below the critical, put the system into the idle mode (as if it is right after the first programming)
+//      We can also trigger the EID crash handler - what to display? need to discuss
+//
+// * XT1 Doc
+//  - Update the memory map when ready
+//  - Add heatbonding/connecitivy issue 
+//  - Add 'active current drop issue' (i.e., active current vs. VBAT at specific SAR ratio)
+
+
+//*******************************************************************************************
+// XT1 (TMCv1) FIRMWARE
+// Version 0.1
+//-------------------------------------------------------------------------------------------
+// IMPORTANT
+//  - This program assumes that GOC/EP uses RUN_CPU (not GEN_IRQ) only in its Control section.
+//-------------------------------------------------------------------------------------------
+//
+// TMCv1 SUB-LAYER CONNECTION:
+//      PREv22E -> SNTv5 -> EIDv1 -> MRRv11A -> MEMv3 -> PMUv13
+//
+//-------------------------------------------------------------------------------------------
+// Short Address (Defined in TMCv1.h)
+//-------------------------------------------------------------------------------------------
+//      PRE: 0x1
+//      SNT: 0x2
+//      EID: 0x3
+//      MRR: 0x4
+//      MEM: 0x5
+//      PMU: 0x6
+//
+//-------------------------------------------------------------------------------------------
+// NOTE: GIT can be triggered by either VGOC or EDI.
+//-------------------------------------------------------------------------------------------
+//
+// External Connections
+//
+//  XT1         NFC (ST25DVxxx)     XT1     e-Ink Display           Display    
+//  ---------------------------     ------------------------                       
+//  GPIO[0]     GPO                 SEG[0]  Play                       [==]                 .
+//  GPIO[1]     SCL                 SEG[1]  Tick                                            .
+//  GPIO[2]     SDA                 SEG[2]  Low Battery               \\  //                .
+//  VPG2_OUT    VCC                 SEG[3]  Back Slash          |\     \\//    +            .
+//                                  SEG[4]  Slash               |/     //\\    -            .
+//                                  SEG[5]  Plus                    \\//  \\                .
+//                                  SEG[6]  Minus                                
+//
+//-------------------------------------------------------------------------------------------
+// General Operation 
+//-------------------------------------------------------------------------------------------
+//
+//  * INITIALIZED: 
+//      You have run the very first programming, and it has gone through enumeration and initializations. 
+//      The SNT timer runs at this point. The system is in indefinite sleep. 
+//      The display lit all the segments.
+//
+//  * ACTIVATED: 
+//      You do a GOC to *activate* the system. Now the system wakes up every 1 min, checks NFC, 
+//      as well as some housekeeping (display refresh and timer calibration when needed..) 
+//      The display becomes all white.
+//
+//          GOC_ACTIVATE_KEY    0x16002351  // Activate the system. Once executed, the system starts the 1-min wakeup/sleep operation.
+//
+//  * STARTED: 
+//      You do a GOC to "start" the temperature measurement. 
+//      The display immediately shows the 'triangle'. 
+//      Once actual temp measurement starts after the eeprom_temp_meas_start_delay, 
+//      the display shows the 'triangle' as well as the 'check mark' or 'plus/minus' mark, depending on the measurement. 
+//      It also displays the 'low batt' if the VBAT ADC reading indicates so.
+//
+//          GOC_QUICK_START_KEY 0xDECAFBAD  // Start the temperature measurement without changing the existing settings.
+//          GOC_START_KEY       0xFEEDC0DE  // Start the temperature measurement after updating the settings.
+//
+//  * STOPPED: 
+//      You can stop the system by sending GOC_STOP_KEY.
+//      Once triggered, the system goes back to 'ACTIVATED' state.
+//
+//          GOC_STOP_KEY        0xDEADBEEF  // Stop the ongoing temperature measurement.
+//
+//-------------------------------------------------------------------------------------------
+// SNT Temperature Sensor Raw Code
+//-------------------------------------------------------------------------------------------
+//
+//  Temp(C)     Raw Code (Estimated value from Long-Term XT1 testing)
+//  --------------------
+//  -40            50
+//  -30           100
+//  -20           180
+//  -10           250
+//    0           450
+//   10           700
+//   25          1350
+//   35          2000
+//   45          2950
+//   55          4200
+//
+//-------------------------------------------------------------------------------------------
+// FLAG Register
+//-------------------------------------------------------------------------------------------
+//
+//-------------------------------------------------------------------------------------------
+// WAKEUP_SOURCE (wakeup_source) definition
+//-------------------------------------------------------------------------------------------
+//
+//  Use get_bit(wakeup_source, n) to get the current value, where n is 0-5, 8-11 as shown below.
+//
+//  [31:12] - Reserved (NOTE: wakeup_source[31] is used to detect the NFC GPO activity.)
+//     [11] - GPIO_PAD[3] has triggered wakeup (valid only when wakeup_source[3]=1)
+//     [10] - GPIO_PAD[2] has triggered wakeup (valid only when wakeup_source[3]=1)
+//     [ 9] - GPIO_PAD[1] has triggered wakeup (valid only when wakeup_source[3]=1)
+//     [ 8] - GPIO_PAD[0] has triggered wakeup (valid only when wakeup_source[3]=1)
+//  [ 7: 6] - Reserved
+//      [5] - GIT (GOC Instant Trigger) has triggered wakeup
+//              NOTE: If GIT is triggered while the system is in active, the GIT is NOT immediately handled.
+//                    Instead, it waits until the system goes in sleep, and then, the (pending) GIT will wake up the system.
+//                    Thus, you can safely assume that GIT is (effectively) triggered only while the system is in Sleep.
+//      [4] - MBus message has triggered wakeup (e.g., Flash Auto Boot-up)
+//      [3] - One of GPIO_PAD[3:0] has triggered wakeup
+//      [2] - XO Timer has triggered wakeup
+//      [1] - Wake-up Timer has triggered wakeup
+//      [0] - GOC/EP has triggered wakeup
+//
+//-------------------------------------------------------------------------------------------
+// DEBUG Messages
+//-------------------------------------------------------------------------------------------
+// Valid only when DEBUG is enabled
+//
+//  ADDR    DATA                                Description
+//  -----------------------------------------------------------------------------------------
+//  0x80    wakeup_source                       Wakeup Source (See above WAKEUP_SOURCE definition)
+//
+//  0x81    wakeup_count                        Wakeup Count (only when snt_state = SNT_IDLE)
+//
+//  0x82    {0x00, tmp_state}                   Temp Meas State (only when system is activated)
+//                                                      0x0 TMP_IDLE        
+//                                                      0x1 TMP_PENDING     
+//                                                      0x2 TMP_ACTIVE      
+//                                                      0x3 TMP_DONE        
+//
+//  0x82    {0x01, cnt_temp_meas_start_delay}   Counter for Start Delay
+//  0x82    {0x02, cnt_temp_meas_interval}      Counter for Temp Meas Period
+//  0x82    {0x03, cnt_disp_refresh_interval}   Counter for Display Refresh
+//  0x82    {0x04, cnt_timer_calib_interval}    Counter for Timer Calibration
+//  0x82    {0x0F, temp_sample_count}           Current Number of Temp Meas
+//
+//  0x82    {0x10, snt_state}                   SNT State (in snt_operation())
+//                                                      0x0 SNT_IDLE        
+//                                                      0x1 SNT_LDO         
+//                                                      0x2 SNT_TEMP_START  
+//                                                      0x3 SNT_TEMP_READ   
+//
+//  0x83    0x00000000                          NFC activity detected (GPO=1) (only when snt_state=SNT_IDLE)
+//  0x83    0x00000001                          Temp Meas forced to stop by user
+//  0x83    0x00000002                          Temp Meas started and now it becomes TMP_PENDING
+//
+//  0x83    {0x01, eeprom_temp_meas_start_delay}    Start Delay
+//  0x83    {0x02, eeprom_temp_meas_interval}       Temp Meas Period
+//  0x83    {0x04, eeprom_timer_calib_interval}     Timer Calibration
+//  0x83    {0x06, eeprom_high_temp_threshold}      High Temp Threshold
+//  0x83    {0x07, eeprom_low_temp_threshold}       Low Temp Threshold
+//
+//  0x83    0x00000003                          Temp Meas stays in IDLE (Has not started by user)
+//  0x83    0x00000004                          Temp Meas Start Delay has met. Now it becomes TMP_ACTIVE.
+//  0x83    0x00000005                          Temp Meas Start Delay has not met. It is still in TMP_PENDING.
+//  0x83    0x00000006                          Temp Meas performs the temp measurement in this active session (TMP_ACTIVE)
+//  0x83    0x00000007                          Temp Meas skips this active session (TMP_ACTIVE)
+//  0x83    0x00000008                          Temp Meas has performed the given number of temp measurements. Now it goes back to TMP_IDLE.
+//  0x83    0x00000009                          Refreshing Eink display
+//  0x83    0x0000000A                          Calibrating the SNT timer (using XO)
+//  0x83    0x0000000B                          CONFIG command detected
+//
+//  0x84    snt_timer_threshold                 New threshold value for the SNT timer
+//
+//  0x85    0x00000000                          NFC Command (NOP) Detected
+//  0x85    0x00000001                          NFC Command (START) Detected
+//  0x85    0x00000002                          NFC Command (STOP) Detected
+//  0x85    others                              NFC Command (Invalid) Detected
+//
+//  0x86    0x00000001                          NFC Command ACKed (ACK Bit Set)
+//  0x86    0xDEADBEEF                          NFC Command ERRORed (ERR Bit Set)
+//
+//  0x87    old_val (snt_timer_1min)            The old_val value before an SNT Calibration
+//  0x87    new_val                             The new_val value after an SNT Calibration
+//      NOTE: The first 0x87 is the old_val, and the second 0x87 is the new_val.
+//  0x88    0x00000000                          XO timeout during SNT timer calibration
+//  0x88    0x00000001                          SNT calibration result is out of expectation.
+//  0x88    0x00000002                          SNT calibration successful
+//
+//-------------------------------------------------------------------------------------------
+// Use of Cortex-M0 Vector Table
+//  ----------------------------------------------------------
+//   MEM_ADDR  M0-Usage       PRE-Usage       PRE-Usage       
+//                            (GPIO)          (AES)           
+//  ----------------------------------------------------------
+//    0 (0x00) STACK_TOP      STACK_TOP       STACK_TOP       
+//    1 (0x04) RESET_VECTOR   RESET_VECTOR    RESET_VECTOR    
+//    2 (0x08) NMI            GOC_DATA_IRQ    GOC_DATA_IRQ    
+//    3 (0x0C) HardFault                      GOC_AES_PASS    
+//    4 (0x10) RESERVED                       GOC_AES_CT[0]   
+//    5 (0x14) RESERVED                       GOC_AES_CT[1]   
+//    6 (0x18) RESERVED                       GOC_AES_CT[2]   
+//    7 (0x1C) RESERVED                       GOC_AES_CT[3]   
+//    8 (0x20) RESERVED                       GOC_AES_PT[0]   
+//    9 (0x24) RESERVED                       GOC_AES_PT[1]   
+//   10 (0x28) RESERVED                       GOC_AES_PT[2]   
+//   11 (0x2C) SVCall                         GOC_AES_PT[3]   
+//   12 (0x30) RESERVED                       GOC_AES_KEY[0]  
+//   13 (0x34) RESERVED       R_GPIO_DATA     GOC_AES_KEY[1]  
+//   14 (0x38) PendSV         R_GPIO_DIR      GOC_AES_KEY[2]  
+//   15 (0x3C) SysTick        R_GPIO_IRQ_MASK GOC_AES_KEY[3]  
+//
+//-------------------------------------------------------------------------------------------
+// EEPROM in ST25DV64K using I2C interface
+//-------------------------------------------------------------------------------------------
+//  Memory Capacity: 64 kbits = 8kB = 2k words = 2k pages (1 page = 1 word)
+//  
+//  A Sequential Write can write up to 256 bytes (= 64 words = 64 pages)
+//  2k / 64 = 32 Sequential Writes are needed to overwrite the entire EEPROM.
+//
+//-------------------------------------------------------------------------------------------
+// < UPDATE HISTORY >
+//  Jun 24 2021 -   First commit 
+//-------------------------------------------------------------------------------------------
+// < AUTHOR > 
+//  Yejoong Kim (yejoong@cubeworks.io)
+//******************************************************************************************* 
+
+//******************************************************************************************* 
+// THINGS TO DO
+//******************************************************************************************* 
+// - Is it possible to get a GOC/EP to go into sleep while the system is doing the display update?
+//      If yes, how can we ensure that we stop the EID operataion before going into sleep?
+//******************************************************************************************* 
+
+//******************************************************************************************* 
+//
+//                               THINGS TO BE NOTED
+//
+//******************************************************************************************* 
+// set_halt and IRQ
+//-------------------------------------------------------------------------------------------
+//
+// NOTE: Do NOT enable IRQ_REGn if: 
+//                    REGn is a target register that a reply msg writes into 
+//              -AND- set_halt_until_mbus_trx() is used
+//              -AND- REGn IRQ handler generates an MBus message.
+//      Example)
+//              PMU Reply message writes into REG0.
+//              In main()
+//                  *NVIC_ISER = (0x1 << IRQ_REG0);
+//                  set_halt_until_mbus_trx();
+//                  mbus_remote_register_write(PMU_ADDR,reg_addr,reg_data);
+//                  set_halt_until_mbus_tx();
+//              In handler_ext_int_reg0
+//                  mbus_write_message32(0x71, 0x3);
+//
+//              -> The reply msg from PMU writes into REG0, triggering IRQ_REG0, which then sends out the msg 0x71, 0x3.
+//                 If this happens BEFORE the system releases the halt state, the system may still stay in 'set_halt_until_mbus_trx()'
+//
+//******************************************************************************************* 
+
+#include "ST25DV64K.h"
+#include "TMCv1.h"
+
+//*******************************************************************************************
+// DEBUGGING
+//*******************************************************************************************
+#define DEVEL                   // Enable this to enable the use of GOC to Start/Stop the system with customized settings.
+#define GOCEP_RUN_CPU_ONLY      // Enable this when you cannot do 'GEN_IRQ' in GOC/EP Header (e.g., the current m3_ice script)
+#define DEBUG                   // Send debug messages
+#define USE_DEFAULT_VALUE       // Use default values rather than grabbing the values from EEPROM
+#define GOC_ACTIVATE_ALSO_STARTS    // Enable this to make 'GOC Activate' also starts the temperature measurements
+#define SKIP_SNT_CALIB          // Enable this to bypass the SNT timer calibration
+
+//*******************************************************************************************
+// GROUP ID
+//*******************************************************************************************
+
+#define FIRMWARE_ID    0x58540001  // XT Firmware Version 0.1
+
+//*******************************************************************************************
+// KEYS
+//*******************************************************************************************
+
+#define GOC_ACTIVATE_KEY    0x16002351  // Activate the system. Once executed, the system starts the 1-min wakeup/sleep operation.
+#define GOC_QUICK_START_KEY 0xDECAFBAD  // Start the temperature measurement without changing the existing settings.
+#define GOC_START_KEY       0xFEEDC0DE  // Start the temperature measurement after updating the settings.
+#define GOC_STOP_KEY        0xDEADBEEF  // Stop the ongoing temperature measurement.
+
+//*******************************************************************************************
+// FLAG BIT INDEXES
+//*******************************************************************************************
+#define FLAG_ENUMERATED     0
+#define FLAG_INITIALIZED    1
+#define FLAG_ACTIVATED      2
+#define FLAG_STARTED        3
+#define FLAG_WD_ENABLED     4
+
+//*******************************************************************************************
+// XO, SNT WAKEUP TIMER AND SLEEP DURATIONS
+//*******************************************************************************************
+
+// PRE Clock Generator Frequency
+#define CPU_CLK_FREQ    211700  // MASTER_CLK_GEN_V3_TSMC180; POST-PEX simulation, TT, 25C, Default Setting (DIV=2, RING=1)
+
+// PRE Clock-based Delay (5 instructions @ CPU_CLK_FREQ w/ 2x margin)
+#define DLY_1MS     85
+#define DLY_1S      84680
+
+// XO Initialization Wait Duration
+#define XO_WAIT_A   20000   // Must be ~1 second delay. Delay for XO Start-Up. LSB corresponds to ~50us, assuming ~100kHz CPU clock and 5 cycles per delay(1).
+#define XO_WAIT_B   20000   // Must be ~1 second delay. Delay for VLDO & IBIAS Generation. LSB corresponds to ~50us, assuming ~100kHz CPU clock and 5 cycles per delay(1).
+
+// XO Counter Value per Specific Time Durations
+#define XOT_1SEC    2048        // By default, the XO clock frequency is 2kHz. Frequency = 2 ^ XO_SEL_CLK_OUT_DIV (kHz).
+#define XOT_1MIN    60*XOT_1SEC
+#define XOT_1HR     60*XOT_1MIN
+#define XOT_1DAY    24*XOT_1HR
+
+//*******************************************************************************************
+// SNT LAYER CONFIGURATION
+//*******************************************************************************************
+
+// SNT states
+#define SNT_IDLE        0x0
+#define SNT_LDO         0x1
+#define SNT_TEMP_START  0x2
+#define SNT_TEMP_READ   0x3
+
+// Temp Meas states
+#define TMP_IDLE        0x0
+#define TMP_PENDING     0x1
+#define TMP_ACTIVE      0x2
+#define TMP_DONE        0x3 // NOT USED
+
+//*******************************************************************************************
+// EID LAYER CONFIGURATION
+//*******************************************************************************************
+
+// Segment ID : See 'External Connections' for details
+#define SEG_PLAY        0
+#define SEG_TICK        1
+#define SEG_LOWBATT     2
+#define SEG_BACKSLASH   3
+#define SEG_SLASH       4
+#define SEG_PLUS        5
+#define SEG_MINUS       6
+
+// Display Patterns: See 'External Connections' for details
+#define DISP_PLAY       (0x1 << SEG_PLAY     )
+#define DISP_TICK       (0x1 << SEG_TICK     )
+#define DISP_LOWBATT    (0x1 << SEG_LOWBATT  )
+#define DISP_BACKSLASH  (0x1 << SEG_BACKSLASH)
+#define DISP_SLASH      (0x1 << SEG_SLASH    )
+#define DISP_PLUS       (0x1 << SEG_PLUS     )
+#define DISP_MINUS      (0x1 << SEG_MINUS    )
+
+// Display Presets
+#define DISP_NONE           (0)
+#define DISP_CHECK          (DISP_TICK  | DISP_SLASH)
+#define DISP_CROSS          (DISP_SLASH | DISP_BACKSLASH)
+#define DISP_NORMAL         (DISP_CHECK)
+#define DISP_HIGH_TEMP      (DISP_PLUS)
+#define DISP_LOW_TEMP       (DISP_MINUS)
+#define DISP_LOW_VBAT       (DISP_LOWBATT)
+#define DISP_ALL            (0x7F)
+
+//*******************************************************************************************
+// GLOBAL VARIABLES
+//*******************************************************************************************
+
+//-------------------------------------------------------------------------------------------
+// EEPROM Variables
+//-------------------------------------------------------------------------------------------
+// NOTE: eeprom_* variables are copied from EEPROM whenever needed.
+
+//--- System Status
+volatile uint32_t temp_sample_count;                // Counter for sample count
+volatile uint32_t num_xo_fails;                     // Number of XO fails
+volatile uint32_t num_i2c_fails;                    // Number of I2C fails (mostly due to ACK timeout)
+volatile uint32_t num_calib_fails;                  // Number of Calibration fails (mostly due to MAX_CHANGE error)
+
+//--- User Commands
+volatile uint32_t eeprom_high_temp_threshold;       // (Default:  300) Threshold for High Temperature
+volatile uint32_t eeprom_low_temp_threshold;        // (Default:  100) Threshold for Low Temperature
+volatile uint32_t eeprom_temp_meas_interval;        // (Default:   15) Period of Temperature Measurement (unit: snt_timer_1min)
+volatile uint32_t eeprom_temp_meas_start_delay;     // (Default:   30) Start Delay before starting temperature measurement (unit: snt_timer_1min)
+volatile uint32_t eeprom_timer_calib_interval;      // (Default:    1) Period of SNT Timer Calibration (unit:snt_timer_1min)
+
+//--- Counter for User Parameters
+volatile uint32_t cnt_temp_meas_start_delay;        // Counter for eeprom_temp_meas_start_delay
+volatile uint32_t cnt_temp_meas_interval;           // Counter for eeprom_temp_meas_interval
+volatile uint32_t cnt_disp_refresh_interval;        // Counter for disp_refresh_interval
+volatile uint32_t cnt_timer_calib_interval;         // Counter for eeprom_timer_calib_interval
+
+//--- Calibration Data
+volatile uint32_t eeprom_vbat_info;                 // VBAT + calibration data
+volatile uint32_t eeprom_low_vbat_threshold;        // Low VBAT threshold (PMU ADC output) that turns on the VBAT indicator on the display
+volatile uint32_t eeprom_crit_vbat_threshold;       // Critical VBAT threshold (PMU ADC output) that shuts down (and freezes) the system
+volatile uint32_t eeprom_sar_ratio;                 // SAR RATIO to use
+volatile uint32_t eeprom_snt_base_freq;             // SNT Timer Base Frequency in Hz (integer value only)
+volatile uint32_t eeprom_snt_calib_config;          // [7]: Calibration Duration (0: 7.5sec, 1: 15sec); [6:5]: XO Frequency (0: 4kHz, 1: 8kHz, 2: 16kHz, 3: 32kHz); [4:3]: Reserved; [2:0]: Max Error allowed (# bit shift from SNT_BASE_FREQ)
+
+//--- EID Configurations
+volatile uint32_t eeprom_eid_high_temp_threshold;   // Temperature Threshold (Raw Code) to determin HIGH and MID temperature
+volatile uint32_t eeprom_eid_low_temp_threshold;    // Temperature Threshold (Raw Code) to determin MID and LOW temperature
+volatile uint32_t eeprom_eid_duration_high;         // EID duration (ECTR_PULSE_WIDTH) for High Temperature
+volatile uint32_t eeprom_eid_fe_duration_high;      // EID 'Field Erase' duration (ECTR_PULSE_WIDTH) for High Temperature. '0' makes it skip 'Field Erase'
+volatile uint32_t eeprom_eid_rfrsh_int_hr_high;     // EID Refresh interval for High Temperature (unit: hr). '0' makes it skip the refresh.
+volatile uint32_t eeprom_eid_duration_mid;          // EID duration (ECTR_PULSE_WIDTH) for Mid Temperature
+volatile uint32_t eeprom_eid_fe_duration_mid;       // EID 'Field Erase' duration (ECTR_PULSE_WIDTH) for Mid Temperature. '0' makes it skip 'Field Erase'
+volatile uint32_t eeprom_eid_rfrsh_int_hr_mid;      // EID Refresh interval for Mid Temperature (unit: hr). '0' makes it skip the refresh.
+volatile uint32_t eeprom_eid_duration_low;          // EID duration (ECTR_PULSE_WIDTH) for Low Temperature
+volatile uint32_t eeprom_eid_fe_duration_low;       // EID 'Field Erase' duration (ECTR_PULSE_WIDTH) for Low Temperature. '0' makes it skip 'Field Erase'
+volatile uint32_t eeprom_eid_rfrsh_int_hr_low;      // EID Refresh interval for Low Temperature (unit: hr). '0' makes it skip the refresh.
+
+
+//-------------------------------------------------------------------------------------------
+// Other Global Variables
+//-------------------------------------------------------------------------------------------
+
+//--- General 
+volatile uint32_t wakeup_source;            // Wakeup Source. Updated each time the system wakes up. See 'WAKEUP_SOURCE definition'.
+volatile uint32_t wakeup_count;             // Wakeup Count. Incrementing each time the system wakes up. It does not increment if the system wakes up to resume the SNT temperature measurement.
+
+//--- SNT & Temperature Measurement
+volatile uint32_t snt_state;                // SNT state
+volatile uint32_t tmp_state;                // TMP state
+volatile uint32_t snt_running;              // Indicates whether the SNT temp sensor is running.
+volatile uint32_t eeprom_addr;              // EEPROM byte address for temperature data storage
+volatile uint32_t snt_temp_val;             // Latest temp measurement (raw code)
+
+//--- SNT & Timer
+volatile uint32_t snt_timer_threshold;      // SNT Timer Threshold to wake up the system
+volatile uint32_t snt_timer_1min;           // SNT Timer tick count corresponding to 1 minute
+
+//--- Display
+volatile uint32_t disp_refresh_interval;     // Period of Display Refresh (unit: snt_timer_1min)
+
+//*******************************************************************************************
+// FUNCTIONS DECLARATIONS
+//*******************************************************************************************
+
+//-- Initialization/Sleep Functions
+static void operation_sleep (void);
+static void operation_sleep_snt_timer(uint32_t auto_reset, uint32_t timestamp);
+static void operation_back_to_default(void);
+static void operation_init (void);
+
+//-- Application Specific
+static void eid_update_with_eeprom(uint32_t seg);
+static uint32_t snt_operation (void);
+static void nfc_set_ack(uint32_t cmd);
+static void nfc_set_err(uint32_t cmd);
+static void nfc_check_cmd(void);
+static void calibrate_snt_timer(void);
+static void reset_eeprom(uint32_t fw_id);
+static void update_eeprom_variables(void);
+
+
+//*******************************************************************************************
+// FUNCTIONS IMPLEMENTATION
+//*******************************************************************************************
+
+//-------------------------------------------------------------------
+// Initialization/Sleep Functions
+//-------------------------------------------------------------------
+
+//-------------------------------------------------------------------
+// Function: operation_sleep
+// Args    : None
+// Description:
+//           Sends the MBus Sleep message
+// Return  : None
+//-------------------------------------------------------------------
+static void operation_sleep (void) {
+    // Reset GOC_DATA_IRQ
+    *GOC_DATA_IRQ = 0;
+
+    // FIXME: Stop any ongoing EID operation (but how...?)
+
+    // Power off NFC
+    nfc_power_off();
+
+    // Clear all pending IRQs; otherwise, PREv22E replaces the sleep msg with a selective wakeup msg
+    *NVIC_ICER = 0xFFFFFFFF;
+
+    // Send a sleep msg
+    mbus_sleep_all();
+    while(1);
+}
+
+//-------------------------------------------------------------------
+// Function: operation_sleep_snt_timer
+// Args    : auto_reset - 1: Auto Reset enabled.
+//                              SNT Wakeup counter automatically gets reset to 0 upon system going into sleep
+//                        0: Auto Reset disabled.
+//           timestamp - Time stamp for the SNT Timer
+// Description:
+//           Goes into sleep with SNT Timer enabled
+// Return  : None
+//-------------------------------------------------------------------
+static void operation_sleep_snt_timer(uint32_t auto_reset, uint32_t timestamp){
+    snt_set_wup_timer(auto_reset, timestamp);
+    operation_sleep();
+}
+
+//-------------------------------------------------------------------
+// Function: operation_back_to_default
+// Args    : None
+// Description:
+//           Reset everything to its default.
+// Return  : None
+//-------------------------------------------------------------------
+static void operation_back_to_default(void){
+    set_halt_until_mbus_tx();
+    if (snt_running) {
+        snt_running = 0;
+        snt_state = SNT_IDLE;
+        snt_temp_sensor_reset();
+        snt_temp_sensor_power_off();
+        snt_ldo_power_off();
+    }
+    nfc_power_off();
+    tmp_state = TMP_IDLE;
+}
+
+//-------------------------------------------------------------------
+// Function: operation_init
+// Args    : None
+// Description:
+//           Initializes the system
+// Return  : None
+//-------------------------------------------------------------------
+static void operation_init (void) {
+
+    if (!get_flag(FLAG_ENUMERATED)) {
+
+        //-------------------------------------------------
+        // EEPROM Variables (w/ their suggested default value)
+        //-------------------------------------------------
+
+        //--- System Status
+        temp_sample_count               = 0;
+        num_xo_fails                    = 0;
+        num_i2c_fails                   = 0;
+        num_calib_fails                 = 0;
+
+        //--- Counter for User Parameters
+        cnt_temp_meas_start_delay       = 0;
+        cnt_temp_meas_interval          = 0;
+        cnt_disp_refresh_interval       = 0;
+        cnt_timer_calib_interval        = 0;
+
+        //--- User Parameters
+        eeprom_high_temp_threshold      = 700;
+        eeprom_low_temp_threshold       = 450;
+        eeprom_temp_meas_interval       = 15;
+        eeprom_temp_meas_start_delay    = 30;
+        eeprom_timer_calib_interval     = 10;
+
+        //-------------------------------------------------
+        // Global Variables
+        //-------------------------------------------------
+
+        wakeup_count = 0;
+
+        snt_state    = SNT_IDLE;
+        tmp_state    = TMP_IDLE;
+        snt_running  = 0;
+        eeprom_addr  = EEPROM_ADDR_DATA_RESET_VALUE;
+        snt_temp_val = 1350; // Assume 25C by default
+
+        snt_timer_threshold         = 0;
+        snt_timer_1min              = 0; // will be updated again in update_eeprom_variables()
+
+        disp_refresh_interval = 240;
+
+        //-------------------------------------------------
+        // PRE Tuning
+        //-------------------------------------------------
+        pre_r0B.as_int = PRE_R0B_DEFAULT_AS_INT;
+        //--- Set CPU & MBus Clock Speeds      Default
+        pre_r0B.CLK_GEN_RING         = 0x1; // 0x1
+        pre_r0B.CLK_GEN_DIV_MBC      = 0x1; // 0x2
+        pre_r0B.CLK_GEN_DIV_CORE     = 0x2; // 0x3
+        pre_r0B.GOC_CLK_GEN_SEL_FREQ = 0x5; // 0x7
+        pre_r0B.GOC_CLK_GEN_SEL_DIV  = 0x0; // 0x1
+        pre_r0B.GOC_SEL              = 0xF; // 0x8
+        *REG_CLKGEN_TUNE = pre_r0B.as_int;
+
+        //-------------------------------------------------
+        // Enumeration
+        //-------------------------------------------------
+        set_halt_until_mbus_trx();
+        mbus_enumerate(SNT_ADDR);
+        mbus_enumerate(EID_ADDR);
+        mbus_enumerate(MRR_ADDR);
+        mbus_enumerate(MEM_ADDR);
+        mbus_enumerate(PMU_ADDR);
+        set_halt_until_mbus_tx();
+
+        //-------------------------------------------------
+        // Target Register Index
+        //-------------------------------------------------
+        mbus_remote_register_write(PMU_ADDR, 0x52, (0x10 << 8) | PMU_TARGET_REG_IDX);
+        mbus_remote_register_write(SNT_ADDR, 0x07, (0x10 << 8) | SNT_TARGET_REG_IDX);
+        mbus_remote_register_write(EID_ADDR, 0x05, (0x1 << 16) | (0x10 << 8) | EID_TARGET_REG_IDX);
+        mbus_remote_register_write(MRR_ADDR, 0x1E, (0x10 << 8) | MRR_TARGET_REG_IDX); // FSM_IRQ_REPLY_PACKET
+        mbus_remote_register_write(MRR_ADDR, 0x23, (0x10 << 8) | MRR_TARGET_REG_IDX); // TRX_IRQ_REPLY_PACKET
+
+        //-------------------------------------------------
+        // PMU Settings
+        //-------------------------------------------------
+        pmu_init();
+
+        //-------------------------------------------------
+        // SNT Settings
+        //-------------------------------------------------
+        snt_init();
+
+        // Update the flag
+        set_flag(FLAG_ENUMERATED, 1);
+
+        // Turn on the SNT timer 
+        snt_start_timer(/*wait_time*/2*DLY_1S);
+
+        // Go to sleep
+        set_wakeup_timer (/*timestamp*/10, /*irq_en*/0x1, /*reset*/0x1); // About 2 seconds
+        mbus_sleep_all();
+        while(1);
+    }
+    else if (!get_flag(FLAG_INITIALIZED)) {
+        
+        // Set the Active floor setting to the minimum (b/c RAT is enabled at this point)
+        pmu_set_active_min();
+
+        //-------------------------------------------------
+        // NFC 
+        //-------------------------------------------------
+        nfc_init();
+
+        // Reset status in EEPROM
+        reset_eeprom(FIRMWARE_ID);
+
+        // Initialize the EEPROM variables
+        update_eeprom_variables();
+
+        //-------------------------------------------------
+        // EID Settings
+        //-------------------------------------------------
+	    eid_init(/*ring*/0, /*te_div*/3, /*fd_div*/3, /*seg_div*/3);
+        // Update the display
+        eid_update_with_eeprom(DISP_ALL);
+
+        // Update the flag
+        set_flag(FLAG_INITIALIZED, 1);
+
+        //-------------------------------------------------
+        // Indefinite Sleep
+        //-------------------------------------------------
+        operation_sleep();
+    }
+}
+
+//-------------------------------------------------------------------
+// Application-Specific Functions
+//-------------------------------------------------------------------
+
+static void eid_update_with_eeprom(uint32_t seg) {
+
+    // Update duration based on lastest temperature measurement
+    if (snt_temp_val > eeprom_eid_high_temp_threshold) {
+        eid_set_duration(eeprom_eid_duration_high);
+        eid_set_fe_duration(eeprom_eid_fe_duration_high);
+    }
+    else if (snt_temp_val > eeprom_eid_low_temp_threshold) {
+        eid_set_duration(eeprom_eid_duration_mid);
+        eid_set_fe_duration(eeprom_eid_fe_duration_mid);
+    }
+    else {
+        eid_set_duration(eeprom_eid_duration_low);
+        eid_set_fe_duration(eeprom_eid_fe_duration_low);
+    }
+
+    // E-ink Update
+    eid_update(seg);
+
+    // EEPROM Update
+    nfc_i2c_byte_write(/*e2*/0,
+        /*addr*/ EEPROM_ADDR_DISPLAY,
+        /*data*/ seg,
+        /* nb */ 1
+    );
+
+    // Reset the refresh counter
+    cnt_disp_refresh_interval = 0;
+}
+
+static uint32_t snt_operation (void) {
+
+    #ifdef DEBUG
+        mbus_write_message32(0x82, (0x10 << 24) | snt_state);
+    #endif
+
+    if (snt_state == SNT_IDLE) {
+        snt_running = 1;
+
+        snt_state = SNT_LDO;
+
+        // Turn on SNT LDO VREF.
+        snt_ldo_vref_on();
+    }
+    else if (snt_state == SNT_LDO) {
+        snt_state = SNT_TEMP_START;
+
+        // Turn on SNT LDO
+        snt_ldo_power_on();
+
+        // Turn on SNT Temperature Sensor
+        snt_temp_sensor_power_on();
+    }
+    else if (snt_state == SNT_TEMP_START){
+        snt_state = SNT_TEMP_READ;
+
+        // Reset the Temp Sensor
+        snt_temp_sensor_reset();
+
+        // Release the reset for the Temp Sensor
+        snt_temp_sensor_start();
+
+        // Go to sleep during measurement
+        operation_sleep();
+    }
+    else if (snt_state == SNT_TEMP_READ) {
+
+        snt_temp_val = *SNT_TARGET_REG_ADDR;
+        temp_sample_count++;
+
+        // VBAT Measurement and SAR_RATIO Adjustment
+        uint32_t pmu_adc_vbat_val = pmu_adc_read_and_sar_ratio_adjustment();
+
+        // If VBAT is too low, trigger the EID Watchdog (System Crash)
+        if (pmu_adc_vbat_val < eeprom_crit_vbat_threshold) {
+            eid_trigger_crash();
+            while(1);
+        }
+        
+        // Assert temp sensor isolation & turn off temp sensor power
+        snt_temp_sensor_power_off();
+        snt_ldo_power_off();
+        snt_state = SNT_IDLE;
+
+        /////////////////////////////////////////////////////////////////
+        // Store the Measured data (only the lower 16 bits)
+        //---------------------------------------------------------------
+        nfc_i2c_byte_write(/*e2*/0, 
+            /*addr*/ EEPROM_ADDR_SAMPLE_COUNT, 
+            /*data*/ temp_sample_count,
+            /* nb */ 4
+            );
+        nfc_i2c_byte_write(/*e2*/0, 
+            /*addr*/ eeprom_addr, 
+            /*data*/ snt_temp_val&0xFFFF,
+            /* nb */ 2
+            );
+        eeprom_addr += 2;
+        if (eeprom_addr==EEPROM_NUM_BYTES) eeprom_addr = EEPROM_ADDR_DATA_RESET_VALUE; // roll-over
+        /////////////////////////////////////////////////////////////////
+
+        /////////////////////////////////////////////////////////////////
+        // Update e-Ink
+        //---------------------------------------------------------------
+        uint32_t curr_seg = eid_get_current_display();
+        uint32_t new_seg = curr_seg;
+
+        //--- If the current display does not show temp excursions (i.e., no HIGH nor LOW TEMP)
+        if (!get_bit(curr_seg, SEG_PLUS) && !get_bit(curr_seg, SEG_MINUS)) {
+            if       (snt_temp_val > eeprom_high_temp_threshold) new_seg = DISP_PLAY | DISP_CROSS | DISP_HIGH_TEMP;
+            else if  (snt_temp_val < eeprom_low_temp_threshold ) new_seg = DISP_PLAY | DISP_CROSS | DISP_LOW_TEMP;
+            else                                                 new_seg = DISP_PLAY | DISP_NORMAL;
+        }
+        //--- If the current display shows HIGH TEMP
+        else if (get_bit(curr_seg, SEG_PLUS)) {
+            if (snt_temp_val < eeprom_low_temp_threshold ) new_seg = set_bit(new_seg, SEG_MINUS, 1);
+        }
+        //--- If the current display shows LOW TEMP
+        if (get_bit(curr_seg, SEG_MINUS)) {
+            if (snt_temp_val > eeprom_high_temp_threshold) new_seg = set_bit(new_seg, SEG_PLUS, 1);
+        }
+
+        //--- Update the Battery Indicator
+        new_seg = set_bit(new_seg, SEG_LOWBATT, (pmu_adc_vbat_val < eeprom_low_vbat_threshold));
+
+        //--- Update the Display if needed
+        if (new_seg!=curr_seg) eid_update_with_eeprom(new_seg);
+        /////////////////////////////////////////////////////////////////
+
+        /////////////////////////////////////////////////////////////////
+        // Update Display Refresh Interval
+        //---------------------------------------------------------------
+        //--- Get the new value
+        uint32_t new_val;
+        if      (snt_temp_val > eeprom_eid_high_temp_threshold) new_val = eeprom_eid_rfrsh_int_hr_high;
+        else if (snt_temp_val > eeprom_eid_low_temp_threshold)  new_val = eeprom_eid_rfrsh_int_hr_mid;
+        else                                                    new_val = eeprom_eid_rfrsh_int_hr_low;
+        new_val = (new_val << 6) - (new_val << 2); // convert hr to min
+
+        //--- if new_val < disp_refresh_interval, do refresh display now.
+        if (new_val < disp_refresh_interval) {
+            if (cnt_disp_refresh_interval > new_val) cnt_disp_refresh_interval = new_val;
+        }
+        disp_refresh_interval = new_val;
+        /////////////////////////////////////////////////////////////////
+
+        snt_running = 0;
+
+        // Temp Meas routine is done.
+        return 1;
+    }
+
+    return 0; // Temp Meas routine is still running.
+}
+
+void nfc_set_ack(uint32_t cmd) {
+    nfc_i2c_byte_write(/*e2*/0, /*addr*/ EEPROM_ADDR_CMD, /*data*/ (0x1<<6)|(cmd&0x1F), /*nb*/ 1);
+    #ifdef DEBUG
+        mbus_write_message32(0x86, 0x1);
+    #endif
+}
+void nfc_set_err(uint32_t cmd) {
+    nfc_i2c_byte_write(/*e2*/0, /*addr*/ EEPROM_ADDR_CMD, /*data*/ (0x1<<5)|(cmd&0x1F), /*nb*/ 1);
+    #ifdef DEBUG
+        mbus_write_message32(0x86, 0xDEADBEEF);
+    #endif
+}
+void nfc_check_cmd(void) {
+
+    // Read the command from EEPROM
+    uint32_t cmd_raw = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_CMD, /*nb*/1);
+
+    //---------------------------------------------------------------
+    // Normal Handshaking (REQ=1 AND ACK=0 AND ERR=0)
+    //---------------------------------------------------------------
+    // REQ=cmd_raw[7], ACK=cmd_raw[6], ERR=cmd_raw[5], CMD=cmd_raw[4:0]
+    if ((cmd_raw&0xE0)==0x80) {  // If REQ=1, ACK=0, ERR=0
+
+        // Disable RF (RF_SLEEP=1)
+        nfc_i2c_byte_write(/*e2*/0, /*addr*/ ST25DV_ADDR_RF_MNGT_DYN, /*data*/ (0x1 << 1), /*nb*/ 1);
+
+        // Extract the command
+        uint32_t cmd = get_bits(cmd_raw, 4, 0);
+        uint32_t temp;
+
+        #ifdef DEBUG
+            mbus_write_message32(0x85, cmd);
+        #endif
+
+        //-----------------------------------------------------------
+        // CMD: NOP
+        //-----------------------------------------------------------
+        if (cmd == 0x00) { nfc_set_ack(cmd); } 
+        //-----------------------------------------------------------
+        // CMD: START
+        //-----------------------------------------------------------
+        else if (cmd == 0x01) {
+
+            // If this is a re-start
+            if (get_flag(FLAG_STARTED)) { operation_back_to_default(); }
+
+            // Update the parameters
+            #ifdef USE_DEFAULT_VALUE
+                eeprom_temp_meas_start_delay = 1;
+                eeprom_temp_meas_interval    = 1;
+                eeprom_timer_calib_interval  = 10;
+                eeprom_high_temp_threshold   = 700;
+                eeprom_low_temp_threshold    = 450;
+            #else
+                temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_HIGH_TEMP_THRESHOLD, /*nb*/4);
+                eeprom_high_temp_threshold = get_bits(temp, 15, 0);
+                eeprom_low_temp_threshold  = get_bits(temp, 31, 16);
+
+                temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_MEAS_INTERVAL, /*nb*/4);
+                eeprom_temp_meas_interval    = get_bits(temp, 15, 0);
+                eeprom_temp_meas_start_delay = get_bits(temp, 31, 16);
+
+                temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_TIMER_CALIB_INTERVAL, /*nb*/2);
+                eeprom_timer_calib_interval  = get_bits(temp, 15, 0);
+            #endif
+
+            // Start the system
+            set_flag(FLAG_STARTED, 1);
+            nfc_set_ack(cmd);
+        }
+        //-----------------------------------------------------------
+        // CMD: STOP
+        //-----------------------------------------------------------
+        else if (cmd == 0x02) {
+
+            // If system is not in STARTED, set ERR.
+            if (!get_flag(FLAG_STARTED)) { nfc_set_err(cmd); }
+            // Stop the system
+            else {
+                #ifdef DEBUG
+                    mbus_write_message32(0x83, 0x00000001);
+                #endif
+                operation_back_to_default();
+                // Remove the 'Play' sign
+                eid_update_with_eeprom(eid_get_current_display() & ~DISP_PLAY);
+                // Reset FLAG_STARTED
+                set_flag(FLAG_STARTED, 0);
+                nfc_set_ack(cmd);
+            }
+        }
+        //-----------------------------------------------------------
+        // CMD: CONFIG
+        //-----------------------------------------------------------
+        else if (cmd == 0x03) {
+
+            #ifdef DEBUG
+                mbus_write_message32(0x83, 0x0000000B);
+            #endif
+
+            // Update the EEPROM variables
+            update_eeprom_variables();
+
+            // Stop the system
+            operation_back_to_default();
+            // Remove the 'Play' sign
+            eid_update_with_eeprom(eid_get_current_display() & ~DISP_PLAY);
+            // Reset FLAG_STARTED
+            set_flag(FLAG_STARTED, 0);
+            nfc_set_ack(cmd);
+
+        }
+        //-----------------------------------------------------------
+        // CMD: Invalid
+        //-----------------------------------------------------------
+        else { nfc_set_err(cmd); }
+
+    }
+    //---------------------------------------------------------------
+    // Invalid Handshaking (REQ=0 OR ACK=1 OR ERR=1)
+    // NOTE: This just means there was no user (NFC) activity.
+    //       Check this later when we implement the real GPIO IRQ.
+    //---------------------------------------------------------------
+    else {}
+
+    // Turn off NFC (This also resets RF_SLEEP, so the RF becomes enabled again next time NFC turns on)
+    nfc_power_off();
+}
+
+// SNT Timer Calibration
+static void calibrate_snt_timer(void) {
+
+#ifdef SKIP_SNT_CALIB
+    return;
+#else
+    uint32_t a, b, new_val;
+
+    //------------------------------------------------------------------
+    // xo_freq = 1024Hz << (sel_freq+2);
+    //------------------------------------------------------------------
+    // 15 sec     (sel_duration=1): threshold = (xo_freq << 4) - xo_freq
+    // 7.5 sec    (sel_duration=0): threshold = (xo_freq << 3) - (xo_freq >> 1)
+    //------------------------------------------------------------------
+
+    uint32_t sel_duration = get_bit(eeprom_snt_calib_config, 7);
+    uint32_t sel_freq     = get_bits(eeprom_snt_calib_config, 6, 5);
+    uint32_t max_change   = eeprom_snt_base_freq >> get_bits(eeprom_snt_calib_config, 2, 0);
+    uint32_t xo_freq      = 1024 << (sel_freq + 2);
+    uint32_t xo_threshold = (xo_freq << (sel_duration+3)) - (xo_freq >> (1-sel_duration));
+
+    // XO Frequency
+    *REG_XO_CONF2 =             // Default  // Description
+        //-----------------------------------------------------------------------------------------------------------
+        ( (0x2 << 13)           // 2'h2     // XO_INJ	            #Adjusts injection period
+        | (0x1 << 10)           // 3'h1     // XO_SEL_DLY	        #Adjusts pulse delay
+        | (0x1 <<  8)           // 2'h1     // XO_SEL_CLK_SCN	    #Selects division ratio for SCN CLK
+        | ((sel_freq+2) << 5)   // 3'h1     // XO_SEL_CLK_OUT_DIV   #Selects division ratio for the XO CLK output
+        | (0x1 <<  4)           // 1'h1     // XO_SEL_LDO	        #Selects LDO output as an input to SCN
+        | (0x0 <<  3)           // 1'h0     // XO_SEL_0P6	        #Selects V0P6 as an input to SCN
+        | (0x0 <<  0)           // 3'h0     // XO_I_AMP	            #Adjusts VREF body bias buffer current
+        );
+
+    // Start XO clock (High Power Mode)
+    xo_start_high_power(XO_WAIT_A, XO_WAIT_B);
+
+    // Configure the XO Counter as needed (See 'Use as a Timer in Active Mode' in Section 18.4. XO Timer)
+    set_xo_timer(   /*mode*/      0,
+                    /*threshold*/ xo_threshold,
+                    /*wreq_en*/   0,
+                    /*irq_en*/    1
+                );
+
+    // Time-out Check (30 sec)
+    set_timeout32_check(3*30*CPU_CLK_FREQ); // FIXME: Somehow, 30*CPU_CLK_FREQ takes only 12 seconds. Check this later again.
+
+    // Start the XO counter
+    start_xo_cnt();
+
+    // Read SNT counter
+    a = snt_read_wup_timer();
+
+    // Wait for WFI
+    WFI();
+
+    // Read SNT counter
+    b = snt_read_wup_timer();
+
+    // Disable XO Driver & XO Counter
+    xo_stop();
+
+    // Time-out (TIMER32)
+    if (__wfi_timeout_flag__) {
+        *TIMER32_GO = 0; __wfi_timeout_flag__ = 0;
+
+        #ifdef DEBUG
+            mbus_write_message32(0x87, snt_timer_1min);
+            mbus_write_message32(0x87, 0xFFFFFFFF);
+            mbus_write_message32(0x88, 0x0);
+        #endif
+
+        // ERROR: XO timeout during calibration
+        num_xo_fails++;
+        nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_NUM_XO_FAILS, /*data*/num_xo_fails, /*nb*/1);
+    }
+    // Successful
+    else {
+        *TIMER32_GO = 0; __wfi_timeout_flag__ = 0;
+
+        // Calculate the new snt_timer_1min candidate
+        if (b > a) new_val = (b - a) << (3 - sel_duration);
+        else       new_val = ((0xFFFFFFFF - a) + b) << (3 - sel_duration);
+
+        if ((new_val > (eeprom_snt_base_freq + max_change))
+         || (new_val < (eeprom_snt_base_freq - max_change))) {
+            // ERROR: Calibration Result Out Of Expectation (FIXME: do we want to log this as well?)
+            #ifdef DEBUG
+                mbus_write_message32(0x87, snt_timer_1min);
+                mbus_write_message32(0x87, new_val);
+                mbus_write_message32(0x88, 0x1);
+            #endif
+        }
+        else {
+            // SUCCESS: Update snt_timer_1min
+            #ifdef DEBUG
+                mbus_write_message32(0x87, snt_timer_1min);
+                mbus_write_message32(0x87, new_val);
+                mbus_write_message32(0x88, 0x2);
+            #endif
+            snt_timer_1min = new_val;
+        }
+    }
+#endif
+
+}
+
+static void reset_eeprom(uint32_t fw_id) {
+    // Set the Firmware ID
+    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_FW_ID, /*data*/fw_id, /*nb*/4);
+    // Reset the Sample Count
+    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SAMPLE_COUNT, /*data*/0x0, /*nb*/4);
+    // Reset the System State
+    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0x0, /*nb*/2);
+    // Reset NUM_XO/I2C/CALIB_FAILS
+    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_NUM_XO_FAILS, /*data*/0x0, /*nb*/3);
+    // Reset the Command
+    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_CMD, /*data*/0x0, /*nb*/1);
+    // Reset Start/Stop Time and User IDs
+    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_START_TIME, /*data*/0x0, /*nb*/16);
+}
+
+static void update_eeprom_variables(void) {
+
+#ifdef USE_DEFAULT_VALUE
+    //--- Calibration Data
+    eeprom_vbat_info                = 0;    // VBAT + calibration data
+    eeprom_low_vbat_threshold       = 110;  // (=(110/256)x1.4Vx4 = 2.4V) Low VBAT threshold (PMU ADC output) that turns on the VBAT indicator on the display
+    eeprom_crit_vbat_threshold      = 100;  // (=(100/256)x1.4Vx4 = 2.2V) Critical VBAT threshold (PMU ADC output) that shuts down (and freezes) the system
+    eeprom_sar_ratio                = 0x60; // SAR RATIO to use
+    eeprom_snt_base_freq            = 1494; // SNT Timer Base Frequency in Hz (integer value only)
+    eeprom_snt_calib_config         = ((1 << 7) | (2 << 5) | (4 << 0)); // [7]: Calibration Duration (0: 7.5sec, 1: 15sec); [6:5]: XO Frequency (0: 4kHz, 1: 8kHz, 2: 16kHz, 3: 32kHz); [4:3]: Reserved; [2:0]: Max Error allowed (# bit shift from SNT_BASE_FREQ)
+    
+    //--- EID Configurations
+    eeprom_eid_high_temp_threshold  = 1250; // ( 1250 (=20C)  ) Temperature Threshold (Raw Code) to determin HIGH and MID temperature
+    eeprom_eid_low_temp_threshold   = 700;  // ( 700  (=10C)  ) Temperature Threshold (Raw Code) to determin MID and LOW temperature
+    eeprom_eid_duration_high        = 30;   // ( 30   (=0.25s)) EID duration (ECTR_PULSE_WIDTH) for High Temperature
+    eeprom_eid_fe_duration_high     = 15;   // ( 15   (=0.12s)) EID 'Field Erase' duration (ECTR_PULSE_WIDTH) for High Temperature. '0' makes it skip 'Field Erase'
+    eeprom_eid_rfrsh_int_hr_high    = 2;    // ( 2    (=2hr)  ) EID Refresh interval for High Temperature (unit: hr). '0' makes it skip the refresh.
+    eeprom_eid_duration_mid         = 250;  // ( 250  (=2s)   ) EID duration (ECTR_PULSE_WIDTH) for Mid Temperature
+    eeprom_eid_fe_duration_mid      = 125;  // ( 125  (=1s)   ) EID 'Field Erase' duration (ECTR_PULSE_WIDTH) for Mid Temperature. '0' makes it skip 'Field Erase'
+    eeprom_eid_rfrsh_int_hr_mid     = 4;    // ( 4    (=4hr)  ) EID Refresh interval for Mid Temperature (unit: hr). '0' makes it skip the refresh.
+    eeprom_eid_duration_low         = 500;  // ( 500  (=4s)   ) EID duration (ECTR_PULSE_WIDTH) for Low Temperature
+    eeprom_eid_fe_duration_low      = 500;  // ( 500  (=4s)   ) EID 'Field Erase' duration (ECTR_PULSE_WIDTH) for Low Temperature. '0' makes it skip 'Field Erase'
+    eeprom_eid_rfrsh_int_hr_low     = 8;    // ( 8    (=8hr)  ) EID Refresh interval for Low Temperature (unit: hr). '0' makes it skip the refresh.
+#else
+    uint32_t temp;
+    //--- Calibration Data
+    eeprom_vbat_info                = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_VBAT_INFO, /*nb*/2);
+
+    temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_LOW_VBAT_THRESHOLD, /*nb*/3);
+    eeprom_low_vbat_threshold       = get_bits(temp,  7,  0);
+    eeprom_crit_vbat_threshold      = get_bits(temp, 15,  8);
+    eeprom_sar_ratio                = get_bits(temp, 23, 16);
+
+    temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_SNT_BASE_FREQ, /*nb*/3);
+    eeprom_snt_base_freq            = get_bits(temp, 15,  0);
+    eeprom_snt_calib_config         = get_bits(temp, 23, 16);,
+    
+    //--- EID Configurations
+    temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_HIGH_TEMP_THRESHOLD, /*nb*/4);
+    eeprom_eid_high_temp_threshold  = get_bits(temp, 15,  0);
+    eeprom_eid_low_temp_threshold   = get_bits(temp, 31, 16);
+
+    temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_DURATION_HIGH, /*nb*/4);
+    eeprom_eid_duration_high        = get_bits(temp, 15,  0);
+    eeprom_eid_fe_duration_high     = get_bits(temp, 31, 16);
+    eeprom_eid_rfrsh_int_hr_high    = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_RFRSH_INT_HR_HIGH, /*nb*/1);
+
+    temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_DURATION_MID, /*nb*/4);
+    eeprom_eid_duration_mid        = get_bits(temp, 15,  0);
+    eeprom_eid_fe_duration_mid     = get_bits(temp, 31, 16);
+    eeprom_eid_rfrsh_int_hr_mid    = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_RFRSH_INT_HR_MID, /*nb*/1);
+
+    temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_DURATION_LOW, /*nb*/4);
+    eeprom_eid_duration_low        = get_bits(temp, 15,  0);
+    eeprom_eid_fe_duration_low     = get_bits(temp, 31, 16);
+    eeprom_eid_rfrsh_int_hr_low    = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_RFRSH_INT_HR_LOW, /*nb*/1);
+#endif
+
+    // Update SAR ratio if needed
+    if (eeprom_sar_ratio != pmu_get_sar_ratio()) {
+        pmu_set_sar_ratio(/*ratio*/eeprom_sar_ratio);
+    }
+    // Update SNT timer variables
+    snt_timer_1min = (eeprom_snt_base_freq << 6) - (eeprom_snt_base_freq << 2);
+
+}
+
+//*******************************************************************************************
+// INTERRUPT HANDLERS
+//*******************************************************************************************
+
+void handler_ext_int_wakeup   (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_softreset(void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_gocep    (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_timer32  (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_timer16  (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_mbustx   (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_mbusrx   (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_mbusfwd  (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg0     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg1     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg2     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg3     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg4     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg5     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg6     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg7     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_mbusmem  (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_aes      (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_gpio     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_spi      (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_xot      (void) __attribute__ ((interrupt ("IRQ")));
+
+void handler_ext_int_timer32  (void) {
+    *NVIC_ICPR = (0x1 << IRQ_TIMER32);
+    *REG1 = *TIMER32_CNT;
+    *REG2 = *TIMER32_STAT;
+    *TIMER32_STAT = 0x0;
+    __wfi_timeout_flag__ = 1; // Declared in PREv22E.h
+    set_halt_until_mbus_tx();
+    }
+void handler_ext_int_timer16  (void) { *NVIC_ICPR = (0x1 << IRQ_TIMER16);    }
+void handler_ext_int_reg0     (void) { *NVIC_ICPR = (0x1 << IRQ_REG0);       }
+void handler_ext_int_reg1     (void) { *NVIC_ICPR = (0x1 << IRQ_REG1);       }
+void handler_ext_int_reg2     (void) { *NVIC_ICPR = (0x1 << IRQ_REG2);       }
+void handler_ext_int_reg3     (void) { *NVIC_ICPR = (0x1 << IRQ_REG3);       }
+void handler_ext_int_reg4     (void) { *NVIC_ICPR = (0x1 << IRQ_REG4);       }
+void handler_ext_int_reg5     (void) { *NVIC_ICPR = (0x1 << IRQ_REG5);       }
+void handler_ext_int_reg6     (void) { *NVIC_ICPR = (0x1 << IRQ_REG6);       }
+void handler_ext_int_reg7     (void) { *NVIC_ICPR = (0x1 << IRQ_REG7);       }
+void handler_ext_int_mbusmem  (void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_MEM);   }
+void handler_ext_int_mbusrx   (void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_RX);    }
+void handler_ext_int_mbustx   (void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_TX);    }
+void handler_ext_int_mbusfwd  (void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_FWD);   }
+
+void handler_ext_int_gocep    (void) { 
+    *NVIC_ICPR = (0x1 << IRQ_GOCEP);      
+
+    uint32_t goc_raw = *GOC_DATA_IRQ;
+    *GOC_DATA_IRQ   = 0;
+
+    // Activating System
+    if (goc_raw==GOC_ACTIVATE_KEY) { 
+        if (!get_flag(FLAG_ACTIVATED)) {
+            // Enable EID Crash Hander
+            eid_enable_crash_handler();
+
+            // Update the flags
+            set_flag(FLAG_ACTIVATED, 1); 
+            set_flag(FLAG_WD_ENABLED, 1); 
+
+            // Clear the display
+            eid_update_with_eeprom(DISP_NONE);
+
+        #ifdef GOC_ACTIVATE_ALSO_STARTS
+            #ifdef USE_DEFAULT_VALUE
+                eeprom_temp_meas_start_delay = 1;
+                eeprom_temp_meas_interval    = 1;
+                eeprom_timer_calib_interval  = 10;
+                eeprom_high_temp_threshold   = 700;
+                eeprom_low_temp_threshold    = 450;
+            #else
+                eeprom_temp_meas_start_delay = *(GOC_DATA_IRQ+1);
+                eeprom_temp_meas_interval    = *(GOC_DATA_IRQ+2);
+                eeprom_timer_calib_interval  = *(GOC_DATA_IRQ+3);
+                eeprom_high_temp_threshold   = *(GOC_DATA_IRQ+4);
+                eeprom_low_temp_threshold    = *(GOC_DATA_IRQ+5);
+            #endif
+
+            set_flag(FLAG_STARTED, 1);
+        #endif
+        }
+    }
+#ifdef DEVEL
+    // Quick Start the temperature measurement
+    else if (goc_raw==GOC_QUICK_START_KEY) { 
+        if (!get_flag(FLAG_STARTED)) {
+            set_flag(FLAG_STARTED, 1);
+        }
+    }
+    // Start the temperature measurement
+    else if (goc_raw==GOC_START_KEY) { 
+        if (!get_flag(FLAG_STARTED)) {
+
+            #ifdef USE_DEFAULT_VALUE
+                eeprom_temp_meas_start_delay = 1;
+                eeprom_temp_meas_interval    = 1;
+                eeprom_timer_calib_interval  = 10;
+                eeprom_high_temp_threshold   = 700;
+                eeprom_low_temp_threshold    = 450;
+            #else
+                eeprom_temp_meas_start_delay = *(GOC_DATA_IRQ+1);
+                eeprom_temp_meas_interval    = *(GOC_DATA_IRQ+2);
+                eeprom_timer_calib_interval  = *(GOC_DATA_IRQ+3);
+                eeprom_high_temp_threshold   = *(GOC_DATA_IRQ+4);
+                eeprom_low_temp_threshold    = *(GOC_DATA_IRQ+5);
+            #endif
+
+            set_flag(FLAG_STARTED, 1);
+        }
+    }
+    // Stop the ongoing temperature measurement
+    else if (goc_raw==GOC_STOP_KEY) { 
+        #ifdef DEBUG
+            mbus_write_message32(0x83, 0x00000001);
+        #endif
+        operation_back_to_default();
+        // Remove the 'Play' sign
+        eid_update_with_eeprom(eid_get_current_display() & ~DISP_PLAY);
+        // Reset FLAG_STARTED
+        set_flag(FLAG_STARTED, 0);
+    }
+#endif
+}
+
+void handler_ext_int_softreset(void) { *NVIC_ICPR = (0x1 << IRQ_SOFT_RESET); }
+void handler_ext_int_wakeup   (void) { *NVIC_ICPR = (0x1 << IRQ_WAKEUP);     }
+void handler_ext_int_aes      (void) { *NVIC_ICPR = (0x1 << IRQ_AES);        }
+void handler_ext_int_gpio     (void) { *NVIC_ICPR = (0x1 << IRQ_GPIO);       }
+void handler_ext_int_spi      (void) { *NVIC_ICPR = (0x1 << IRQ_SPI);        }
+void handler_ext_int_xot      (void) { *NVIC_ICPR = (0x1 << IRQ_XOT);        }
+
+
+//********************************************************************
+// MAIN function starts here             
+//********************************************************************
+
+int main() {
+
+    // Disable PRE Watchdog Timers (CPU watchdog and MBus watchdog)
+    *TIMERWD_GO  = 0;
+    *REG_MBUS_WD = 0;
+    
+    // Get the info on who woke up the system, then reset WAKEUP_SOURCE register.
+    wakeup_source = *SREG_WAKEUP_SOURCE;
+    *SCTR_REG_CLR_WUP_SOURCE = 1;
+
+    #ifdef DEBUG
+        mbus_write_message32(0x80, wakeup_source);
+    #endif
+
+    // Check-in the EID Watchdog if it is enabled (STATE 6)
+    if (get_flag(FLAG_WD_ENABLED) && !snt_running) eid_check_in();
+
+    // Enable IRQs
+    *NVIC_ISER = (0x1 << IRQ_TIMER32) | (0x1 << IRQ_XOT);
+    #ifndef GOCEP_RUN_CPU_ONLY
+        *NVIC_ISER = (0x1 << IRQ_GOCEP);
+    #endif
+
+    // If this is the very first wakeup, initialize the system (STATE 1)
+    if (!get_flag(FLAG_INITIALIZED)) operation_init();
+
+    #ifdef GOCEP_RUN_CPU_ONLY
+        if (get_flag(FLAG_INITIALIZED) && get_bit(wakeup_source, 0)) {
+            handler_ext_int_gocep();
+        }
+    #endif
+
+    // Wakeup Count (increment only when SNT_IDLE)
+    if (!snt_running) {
+        wakeup_count++;
+        #ifdef DEBUG
+            mbus_write_message32(0x81, wakeup_count);
+        #endif
+    }
+
+    //--------------------------------------------------------------------------
+    // System Activated
+    //--------------------------------------------------------------------------
+    if (get_flag(FLAG_ACTIVATED)) {
+
+        #ifdef DEBUG
+            mbus_write_message32(0x82, (0x00 << 24) | tmp_state);
+            mbus_write_message32(0x82, (0x01 << 24) | cnt_temp_meas_start_delay);
+            mbus_write_message32(0x82, (0x02 << 24) | cnt_temp_meas_interval);
+            mbus_write_message32(0x82, (0x03 << 24) | cnt_disp_refresh_interval);
+            mbus_write_message32(0x82, (0x04 << 24) | cnt_timer_calib_interval);
+            mbus_write_message32(0x82, (0x0F << 24) | temp_sample_count);
+        #endif
+
+        //----------------------------------------------------------------------
+        // Checking NFC Activity
+        //----------------------------------------------------------------------
+        if (!snt_running) { nfc_check_cmd(); }
+
+        //----------------------------------------------------------------------
+        // Temperature Measurement FSM
+        //----------------------------------------------------------------------
+        if (tmp_state==TMP_IDLE) {
+            if (get_flag(FLAG_STARTED)) {
+                #ifdef DEBUG
+                    mbus_write_message32(0x83, 0x00000002);
+                    mbus_write_message32(0x83, (0x01 << 24) | eeprom_temp_meas_start_delay);
+                    mbus_write_message32(0x83, (0x02 << 24) | eeprom_temp_meas_interval);
+                    mbus_write_message32(0x83, (0x04 << 24) | eeprom_timer_calib_interval);
+                    mbus_write_message32(0x83, (0x06 << 24) | eeprom_high_temp_threshold);
+                    mbus_write_message32(0x83, (0x07 << 24) | eeprom_low_temp_threshold);
+                #endif
+                tmp_state = TMP_PENDING;
+                // Reset counters
+                cnt_temp_meas_start_delay   = 0;
+                cnt_temp_meas_interval      = 0;
+                temp_sample_count           = 0;
+                // Display 
+                eid_update_with_eeprom(DISP_PLAY);
+            }
+            #ifdef DEBUG
+            else {
+                mbus_write_message32(0x83, 0x00000003);
+            }
+            #endif
+        }
+        else if (tmp_state==TMP_PENDING) {
+            if (cnt_temp_meas_start_delay == eeprom_temp_meas_start_delay) {
+                #ifdef DEBUG
+                    mbus_write_message32(0x83, 0x00000004);
+                #endif
+                tmp_state = TMP_ACTIVE;
+            }
+            else {
+                // Calibrate the SNT timer
+                if (cnt_temp_meas_start_delay==0) cnt_timer_calib_interval = eeprom_timer_calib_interval;
+                cnt_temp_meas_start_delay++;
+                #ifdef DEBUG
+                    mbus_write_message32(0x83, 0x00000005);
+                #endif
+            }
+        }
+        else if (tmp_state==TMP_ACTIVE) {
+            if (cnt_temp_meas_interval == eeprom_temp_meas_interval) {
+                #ifdef DEBUG
+                    mbus_write_message32(0x83, 0x00000006);
+                #endif
+                while(!snt_operation());
+                cnt_temp_meas_interval = 0;
+            }
+            #ifdef DEBUG
+            else {
+                mbus_write_message32(0x83, 0x00000007);
+            }
+            #endif
+            cnt_temp_meas_interval++;
+
+        }
+
+        //----------------------------------------------------------------------
+        // Refresh Display
+        //----------------------------------------------------------------------
+        if (cnt_disp_refresh_interval == disp_refresh_interval) {
+            #ifdef DEBUG
+                mbus_write_message32(0x83, 0x00000009);
+            #endif
+            eid_update(eid_get_current_display());
+            cnt_disp_refresh_interval = 0;
+        }
+        cnt_disp_refresh_interval++;
+
+        //----------------------------------------------------------------------
+        // SNT Timer Calibration
+        //----------------------------------------------------------------------
+        if (cnt_timer_calib_interval == eeprom_timer_calib_interval) {
+            #ifdef DEBUG
+                mbus_write_message32(0x83, 0x0000000A);
+            #endif
+            calibrate_snt_timer();
+            cnt_timer_calib_interval = 0;
+        }
+        cnt_timer_calib_interval++;
+
+        //----------------------------------------------------------------------
+        // Go to sleep
+        //----------------------------------------------------------------------
+        snt_timer_threshold = snt_timer_threshold + snt_timer_1min;
+        if(snt_timer_threshold==0) snt_timer_threshold = 1; // SNT Timer does not expire at cnt=0.
+        #ifdef DEBUG
+            mbus_write_message32(0x84, snt_timer_threshold);
+        #endif
+        operation_sleep_snt_timer(/*auto_reset*/0, /*threshold*/snt_timer_threshold);
+    }
+
+
+    //--------------------------------------------------------------------------
+    // Invalid Operation - Go to Sleep
+    //--------------------------------------------------------------------------
+    operation_sleep();
+    while(1) asm("nop");
+    return 1;
+}
