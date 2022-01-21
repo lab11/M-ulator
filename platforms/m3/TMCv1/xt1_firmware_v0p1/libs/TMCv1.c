@@ -280,19 +280,33 @@ uint32_t pmu_adc_read_and_sar_ratio_adjustment() {
     // Read the ADC result
     uint32_t adc_vbat_dout = pmu_reg_read(0x03) & 0xFF;
 
-    //// Adjust SAR RATIO (NOTE: this is based on the ADC non-flip mode operation. Change appropriately if you use the ADC flip-mode.)
-    //if      (adc_vbat_dout < __pmu_adc_3p0_val__ + 0 ){ pmu_set_sar_ratio(0x3C);} // VBAT > 3.0V
-    //else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 4 ){ pmu_set_sar_ratio(0x3F);} // 2.9V < VBAT < 3.0V
-    //else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 8 ){ pmu_set_sar_ratio(0x41);} // 2.8V < VBAT < 2.9V
-    //else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 12){ pmu_set_sar_ratio(0x43);} // 2.7V < VBAT < 2.8V
-    //else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 17){ pmu_set_sar_ratio(0x45);} // 2.6V < VBAT < 2.7V
-    //else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 21){ pmu_set_sar_ratio(0x48);} // 2.5V < VBAT < 2.6V
-    //else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 27){ pmu_set_sar_ratio(0x4B);} // 2.4V < VBAT < 2.5V
-    //else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 32){ pmu_set_sar_ratio(0x4E);} // 2.3V < VBAT < 2.4V
-    //else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 39){ pmu_set_sar_ratio(0x51);} // 2.2V < VBAT < 2.3V
-    //else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 46){ pmu_set_sar_ratio(0x56);} // 2.1V < VBAT < 2.2V
-    //else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 53){ pmu_set_sar_ratio(0x5A);} // 2.0V < VBAT < 2.1V
-    //else                                          { pmu_set_sar_ratio(0x5F);} // VBAT < 2.0V
+    //---------------------------------------------------
+    // Adjust SAR RATIO
+    //---------------------------------------------------
+    // 2.0V ( 91) < VBAT < 2.3V (105): 0x60
+    // 2.3V (105) < VBAT < 2.5V (114): 0x58
+    // 2.5V (114) < VBAT < 2.7V (123): 0x50
+    // 2.7V (123) < VBAT < 3.0V (137): 0x4C
+    //---------------------------------------------------
+    // Hysteresis: 65mV (3)
+    uint32_t hyst = 3; // hysteresis
+    //---------------------------------------------------
+
+    // Get the current value
+    uint32_t curr_val = __pmu_sar_ratio__;
+
+    // Calculate the new value
+    uint32_t new_val, upper_limit, lower_limit;
+    if      (adc_vbat_dout < 105) { new_val = 0x60; upper_limit = 105; lower_limit =   0; }
+    else if (adc_vbat_dout < 114) { new_val = 0x58; upper_limit = 114; lower_limit = 105; }
+    else if (adc_vbat_dout < 123) { new_val = 0x50; upper_limit = 123; lower_limit = 114; }
+    else                          { new_val = 0x4C; upper_limit = 256; lower_limit = 123; }
+
+    if (((new_val > curr_val) && (adc_vbat_dout < (upper_limit - hyst))) 
+     || ((new_val < curr_val) && (adc_vbat_dout > (lower_limit + hyst)))) {
+        pmu_set_sar_ratio(new_val);
+        delay(40000);
+    }
 
     return adc_vbat_dout;
 }
@@ -331,7 +345,7 @@ void pmu_init(void){
         ));
     
     // Initialize SAR Ratio
-    pmu_set_sar_ratio(0x60);
+    pmu_set_sar_ratio(0x4C); // See pmu_adc_read_and_sar_ratio_adjustment()
 
     // Disable ADC in Active
     // PMU ADC will be automatically reset when system wakes up

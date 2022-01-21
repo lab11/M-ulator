@@ -42,12 +42,6 @@
 // 0x10 0x00400084 - 0000 0000 01 0000000000000 0100001 00 - Password Fail (RUN_M0_SAMPLED=1)
 //-------------------------------------------------------------------------------------------
 
-// After Boot: 4.06 / 1.41 / 0.70
-// SAR_RATIO 0x60
-//              Sleep                   Active            
-//      3.0V:   4.70 / 1.65 / 0.82      6.25 / 2.15 / 1.03
-//      2.9V:   4.63 / 1.62 / 0.81
-
 //*******************************************************************************************
 // XT1 (TMCv1) FIRMWARE
 // Version 0.1
@@ -310,7 +304,7 @@
 #define DEBUG                   // Send debug messages
 #define USE_DEFAULT_VALUE       // Use default values rather than grabbing the values from EEPROM
 #define GOC_ACTIVATE_ALSO_STARTS    // Enable this to make 'GOC Activate' also starts the temperature measurements
-#define SKIP_SNT_CALIB          // Enable this to bypass the SNT timer calibration
+//#define SKIP_SNT_CALIB          // Enable this to bypass the SNT timer calibration
 
 //*******************************************************************************************
 // GROUP ID
@@ -341,7 +335,7 @@
 //*******************************************************************************************
 
 // PRE Clock Generator Frequency
-#define CPU_CLK_FREQ    225000  // XT1F#1, SAR_RATIO=0x60 (Sleep Voltages: 4.55V/1.59V/0.79V)
+#define CPU_CLK_FREQ    140000  // XT1F#1, SAR_RATIO=0x60 (Sleep Voltages: 4.55V/1.59V/0.79V)
 
 // PRE Clock-based Delay (5 instructions @ CPU_CLK_FREQ)
 #define DLY_1S      ((CPU_CLK_FREQ>>3)+(CPU_CLK_FREQ>>4)+(CPU_CLK_FREQ>>5))  // = CPU_CLK_FREQx(1/8 + 1/16 + 1/32) = CPU_CLK_FREQx(35/160) ~= (CPU_CLK_FREQ/5)
@@ -616,8 +610,8 @@ static void operation_init (void) {
         pre_r0B.as_int = PRE_R0B_DEFAULT_AS_INT;
         //--- Set CPU & MBus Clock Speeds      Default
         pre_r0B.CLK_GEN_RING         = 0x1; // 0x1
-        pre_r0B.CLK_GEN_DIV_MBC      = 0x2; // 0x2  // XT1F#1: 450kHz with SAR_RATIO=0x60
-        pre_r0B.CLK_GEN_DIV_CORE     = 0x3; // 0x3  // XT1F#1: 225kHz with SAR_RATIO=0x60
+        pre_r0B.CLK_GEN_DIV_MBC      = 0x2; // 0x2  // XT1F#1: 280kHz with SAR_RATIO=0x4C @ VBAT=2.8V
+        pre_r0B.CLK_GEN_DIV_CORE     = 0x3; // 0x3  // XT1F#1: 140kHz with SAR_RATIO=0x4C @ VBAT=2.8V
         pre_r0B.GOC_CLK_GEN_SEL_FREQ = 0x5; // 0x7
         pre_r0B.GOC_CLK_GEN_SEL_DIV  = 0x0; // 0x1
         pre_r0B.GOC_SEL              = 0xF; // 0x8
@@ -693,8 +687,7 @@ static void operation_init (void) {
         //-------------------------------------------------
         // Indefinite Sleep
         //-------------------------------------------------
-        //operation_sleep();
-        operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/4500);
+        operation_sleep();
     }
 }
 
@@ -1029,7 +1022,7 @@ static void calibrate_snt_timer(void) {
                 );
 
     // Time-out Check (30 sec)
-    set_timeout32_check(3*30*CPU_CLK_FREQ); // FIXME: Somehow, 30*CPU_CLK_FREQ takes only 12 seconds. Check this later again.
+    set_timeout32_check(30*CPU_CLK_FREQ);
 
     // Start the XO counter
     start_xo_cnt();
@@ -1068,8 +1061,10 @@ static void calibrate_snt_timer(void) {
         if (b > a) new_val = (b - a) << (3 - sel_duration);
         else       new_val = ((0xFFFFFFFF - a) + b) << (3 - sel_duration);
 
-        if ((new_val > (eeprom_snt_base_freq + max_change))
-         || (new_val < (eeprom_snt_base_freq - max_change))) {
+        uint32_t upper_limit = ((eeprom_snt_base_freq + max_change)<<6)-((eeprom_snt_base_freq + max_change)<<2);
+        uint32_t lower_limit = ((eeprom_snt_base_freq - max_change)<<6)-((eeprom_snt_base_freq - max_change)<<2);
+
+        if ((new_val > upper_limit) || (new_val < lower_limit)) {
             // ERROR: Calibration Result Out Of Expectation (FIXME: do we want to log this as well?)
             #ifdef DEBUG
                 mbus_write_message32(0x87, snt_timer_1min);
@@ -1113,7 +1108,7 @@ static void update_eeprom_variables(void) {
     eeprom_vbat_info                = 0;    // VBAT + calibration data
     eeprom_low_vbat_threshold       = 110;  // (=(110/256)x1.4Vx4 = 2.4V) Low VBAT threshold (PMU ADC output) that turns on the VBAT indicator on the display
     eeprom_crit_vbat_threshold      = 100;  // (=(100/256)x1.4Vx4 = 2.2V) Critical VBAT threshold (PMU ADC output) that shuts down (and freezes) the system
-    eeprom_sar_ratio                = 0x60; // SAR RATIO to use
+    eeprom_sar_ratio                = 0x4C; // SAR RATIO to use
     eeprom_snt_base_freq            = 1494; // SNT Timer Base Frequency in Hz (integer value only)
     eeprom_snt_calib_config         = ((1 << 7) | (2 << 5) | (4 << 0)); // [7]: Calibration Duration (0: 7.5sec, 1: 15sec); [6:5]: XO Frequency (0: 4kHz, 1: 8kHz, 2: 16kHz, 3: 32kHz); [4:3]: Reserved; [2:0]: Max Error allowed (# bit shift from SNT_BASE_FREQ)
     
@@ -1339,8 +1334,8 @@ int main() {
     // If this is the very first wakeup, initialize the system (STATE 1)
     if (!get_flag(FLAG_INITIALIZED)) operation_init();
 
-    delay(100000);
-    operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/15000);
+    //delay(200000);
+    //operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/15000);
 
     #ifdef GOCEP_RUN_CPU_ONLY
         if (get_flag(FLAG_INITIALIZED) && get_bit(wakeup_source, 0)) {
