@@ -229,6 +229,13 @@ void xo_stop( void ) {
     xo_control.XO_START_UP = 1;
     *REG_XO_CONF1 = xo_control.as_int;
 
+    // Just in case you used xo_start_high_power()
+    xo_control.XO_ISOL_CLK_HP = 1;
+    *REG_XO_CONF1 = xo_control.as_int;
+
+    xo_control.XO_PGb_START_UP = 0;
+    *REG_XO_CONF1 = xo_control.as_int;
+
     // Stop the XO Wakeup Timer
     disable_xo_timer();
 }
