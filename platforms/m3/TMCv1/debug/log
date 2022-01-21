@@ -1,0 +1,227 @@
+//-------------------------------------
+
+    else if (!get_flag(FLAG_INITIALIZED)) {
+        
+	  // Finish setting up the SNT timer
+	  snt_start_timer();
+
+	  // Set the Active floor setting to the minimum (b/c RAT is enabled at this point)
+	  pmu_set_active_min();
+
+
+    -> [FAIL] Stuck in active with 45uA
+
+//-------------------------------------
+
+    else if (!get_flag(FLAG_INITIALIZED)) {
+        
+	  // Finish setting up the SNT timer
+	  snt_start_timer();
+
+      operation_sleep();
+
+	  // Set the Active floor setting to the minimum (b/c RAT is enabled at this point)
+	  pmu_set_active_min();
+
+
+    -> [PASS] Goes to sleep
+
+//-------------------------------------
+
+    else if (!get_flag(FLAG_INITIALIZED)) {
+        
+	  // Finish setting up the SNT timer
+	  snt_start_timer();
+
+	  // Set the Active floor setting to the minimum (b/c RAT is enabled at this point)
+	  pmu_set_active_min();
+
+      operation_sleep();
+
+
+    -> [PASS] Goes to sleep
+
+//-------------------------------------
+
+    else if (!get_flag(FLAG_INITIALIZED)) {
+        
+	  // Finish setting up the SNT timer
+	  snt_start_timer();
+
+	  // Set the Active floor setting to the minimum (b/c RAT is enabled at this point)
+	  pmu_set_active_min();
+
+	  //-------------------------------------------------
+	  // EID Settings
+	  //-------------------------------------------------
+	  eid_init();
+
+      operation_sleep();
+
+
+    -> [PASS] Goes to sleep
+
+//-------------------------------------
+
+    else if (!get_flag(FLAG_INITIALIZED)) {
+        
+	  // Finish setting up the SNT timer
+	  snt_start_timer();
+
+	  // Set the Active floor setting to the minimum (b/c RAT is enabled at this point)
+	  pmu_set_active_min();
+
+	  //-------------------------------------------------
+	  // EID Settings
+	  //-------------------------------------------------
+	  eid_init();
+
+	  eid_config_cp_clk_gen(0,3,3,3);
+
+      operation_sleep();
+
+
+    -> [FAIL] Stuck in active with 45uA
+
+//-------------------------------------
+
+    else if (!get_flag(FLAG_INITIALIZED)) {
+        
+	  // Finish setting up the SNT timer
+	  snt_start_timer();
+
+	  // Set the Active floor setting to the minimum (b/c RAT is enabled at this point)
+	  pmu_set_active_min();
+
+	  //-------------------------------------------------
+	  // EID Settings
+	  //-------------------------------------------------
+	  eid_init();
+
+    eid_r02.ECP_PG_DIODE    = 1;
+    eid_r02.ECP_SEL_RING    = 0;
+    eid_r02.ECP_SEL_TE_DIV  = 3;
+    eid_r02.ECP_SEL_FD_DIV  = 3;
+    eid_r02.ECP_SEL_SEG_DIV = 3;
+    mbus_remote_register_write(EID_ADDR,0x02,eid_r02.as_int);
+
+      operation_sleep();
+
+
+    -> [FAIL] Stuck in active with 45uA
+
+//-------------------------------------
+
+
+    else if (!get_flag(FLAG_INITIALIZED)) {
+        
+	  // Finish setting up the SNT timer
+	  snt_start_timer();
+
+	  // Set the Active floor setting to the minimum (b/c RAT is enabled at this point)
+	  pmu_set_active_min();
+
+	  //-------------------------------------------------
+	  // EID Settings
+	  //-------------------------------------------------
+	  eid_init();
+
+    mbus_remote_register_write(EID_ADDR,0x02,eid_r02.as_int);
+
+      operation_sleep();
+
+
+    -> [PASS] Goes to sleep
+
+//-------------------------------------
+
+
+    else if (!get_flag(FLAG_INITIALIZED)) {
+        
+	  // Finish setting up the SNT timer
+	  snt_start_timer();
+
+	  // Set the Active floor setting to the minimum (b/c RAT is enabled at this point)
+	  pmu_set_active_min();
+
+	  //-------------------------------------------------
+	  // EID Settings
+	  //-------------------------------------------------
+	  eid_init();
+
+    eid_r02.ECP_PG_DIODE    = 1;
+    eid_r02.ECP_SEL_RING    = 0;
+    eid_r02.ECP_SEL_TE_DIV  = 0;
+    eid_r02.ECP_SEL_FD_DIV  = 0;
+    eid_r02.ECP_SEL_SEG_DIV = 0;
+    mbus_remote_register_write(EID_ADDR,0x02,eid_r02.as_int);
+
+      operation_sleep();
+
+
+    -> [PASS] Goes to sleep
+
+//-------------------------------------
+
+However, my debug unit (XT1#3) works well with below code, which made unit#18 hang.
+
+    else if (!get_flag(FLAG_INITIALIZED)) {
+        
+	  // Finish setting up the SNT timer
+	  snt_start_timer();
+
+	  // Set the Active floor setting to the minimum (b/c RAT is enabled at this point)
+	  pmu_set_active_min();
+
+	  //-------------------------------------------------
+	  // EID Settings
+	  //-------------------------------------------------
+	  eid_init();
+
+    eid_r02.ECP_PG_DIODE    = 1;
+    eid_r02.ECP_SEL_RING    = 0;
+    eid_r02.ECP_SEL_TE_DIV  = 3;
+    eid_r02.ECP_SEL_FD_DIV  = 3;
+    eid_r02.ECP_SEL_SEG_DIV = 3;
+    mbus_remote_register_write(EID_ADDR,0x02,eid_r02.as_int);
+
+      operation_sleep();
+
+
+    -> Unit#18: [FAIL] Stuck in active with 45uA
+    -> XT1#3:   [PASS] Goes to sleep
+
+//-------------------------------------
+
+
+XT1#3
+    pmu_set_sar_ratio(0x50) - PASS
+    pmu_set_sar_ratio(0x54) - PASS
+    pmu_set_sar_ratio(0x58) - PASS
+    pmu_set_sar_ratio(0x5C) - PASS
+    pmu_set_sar_ratio(0x60) - PASS
+    pmu_set_sar_ratio(0x64) - PASS
+    pmu_set_sar_ratio(0x68) - PASS
+    pmu_set_sar_ratio(0x6C) - PASS
+    pmu_set_sar_ratio(0x70) - PASS
+    pmu_set_sar_ratio(0x74) - PASS
+    pmu_set_sar_ratio(0x78) - PASS
+    pmu_set_sar_ratio(0x7C) - PASS
+
+VBAT = 3V
+        XT1#3   XT1#4   XT1#5   XT1F#1
+0x50    PASS    PASS
+0x54    PASS
+0x58    PASS
+0x5C    PASS
+0x60    PASS    PASS
+0x64    PASS
+0x68    PASS
+0x6C    PASS
+0x70    PASS    PASS
+0x74    PASS
+0x78    PASS
+0x7C    PASS                    PASS
+0x7F    PASS    PASS            PASS
+
+A) Crash immediately after changing SAR ratio

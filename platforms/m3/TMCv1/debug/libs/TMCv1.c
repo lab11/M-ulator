@@ -139,6 +139,10 @@ void pmu_config_rat(uint8_t rat) {
         | (4   << 2 )   // 3'h0     // Clock Divider Tuning for DNC Charge Pump Pull-Up (0x0: div by 1; 0x1: div by 2; 0x2: div by 4; 0x3: div by 8; 0x4: div by 16)
         | (3   << 0 )   // 2'h0     // Clock Pre-Divider Tuning for UPC/DNC Charge Pump Pull-Up
     ));
+        //| (3   << 8 )   // 3'h0     // Clock Divider Tuning for SAR Charge Pump Pull-Up (0x0: div by 1; 0x1: div by 2; 0x2: div by 4; 0x3: div by 8; 0x4: div by 16)
+        //| (4   << 5 )   // 3'h0     // Clock Divider Tuning for UPC Charge Pump Pull-Up (0x0: div by 1; 0x1: div by 2; 0x2: div by 4; 0x3: div by 8; 0x4: div by 16)
+        //| (3   << 2 )   // 3'h0     // Clock Divider Tuning for DNC Charge Pump Pull-Up (0x0: div by 1; 0x1: div by 2; 0x2: div by 4; 0x3: div by 8; 0x4: div by 16)
+        //| (3   << 0 )   // 2'h0     // Clock Pre-Divider Tuning for UPC/DNC Charge Pump Pull-Up
 
 }
 
@@ -250,12 +254,6 @@ void pmu_set_sar_ratio (uint32_t ratio) {
         | (0x1 << 7 )   // 0x0      // If 1, override SAR ratio with [6:0].
         | (ratio)       // 0x00     // SAR ratio for overriding (valid only when [7]=1)
     ));
-
-    __pmu_sar_ratio__ = ratio;
-}
-
-uint32_t pmu_get_sar_ratio (void) {
-    return __pmu_sar_ratio__;
 }
 
 void pmu_set_adc_period(uint32_t val){
@@ -280,24 +278,52 @@ uint32_t pmu_adc_read_and_sar_ratio_adjustment() {
     // Read the ADC result
     uint32_t adc_vbat_dout = pmu_reg_read(0x03) & 0xFF;
 
-    //// Adjust SAR RATIO (NOTE: this is based on the ADC non-flip mode operation. Change appropriately if you use the ADC flip-mode.)
-    //if      (adc_vbat_dout < __pmu_adc_3p0_val__ + 0 ){ pmu_set_sar_ratio(0x3C);} // VBAT > 3.0V
-    //else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 4 ){ pmu_set_sar_ratio(0x3F);} // 2.9V < VBAT < 3.0V
-    //else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 8 ){ pmu_set_sar_ratio(0x41);} // 2.8V < VBAT < 2.9V
-    //else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 12){ pmu_set_sar_ratio(0x43);} // 2.7V < VBAT < 2.8V
-    //else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 17){ pmu_set_sar_ratio(0x45);} // 2.6V < VBAT < 2.7V
-    //else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 21){ pmu_set_sar_ratio(0x48);} // 2.5V < VBAT < 2.6V
-    //else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 27){ pmu_set_sar_ratio(0x4B);} // 2.4V < VBAT < 2.5V
-    //else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 32){ pmu_set_sar_ratio(0x4E);} // 2.3V < VBAT < 2.4V
-    //else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 39){ pmu_set_sar_ratio(0x51);} // 2.2V < VBAT < 2.3V
-    //else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 46){ pmu_set_sar_ratio(0x56);} // 2.1V < VBAT < 2.2V
-    //else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 53){ pmu_set_sar_ratio(0x5A);} // 2.0V < VBAT < 2.1V
-    //else                                          { pmu_set_sar_ratio(0x5F);} // VBAT < 2.0V
+    // Adjust SAR RATIO
+    if      (adc_vbat_dout < __pmu_adc_3p0_val__ + 0 ){ pmu_set_sar_ratio(0x3C);} // VBAT > 3.0V
+    else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 4 ){ pmu_set_sar_ratio(0x3F);} // 2.9V < VBAT < 3.0V
+    else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 8 ){ pmu_set_sar_ratio(0x41);} // 2.8V < VBAT < 2.9V
+    else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 12){ pmu_set_sar_ratio(0x43);} // 2.7V < VBAT < 2.8V
+    else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 17){ pmu_set_sar_ratio(0x45);} // 2.6V < VBAT < 2.7V
+    else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 21){ pmu_set_sar_ratio(0x48);} // 2.5V < VBAT < 2.6V
+    else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 27){ pmu_set_sar_ratio(0x4B);} // 2.4V < VBAT < 2.5V
+    else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 32){ pmu_set_sar_ratio(0x4E);} // 2.3V < VBAT < 2.4V
+    else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 39){ pmu_set_sar_ratio(0x51);} // 2.2V < VBAT < 2.3V
+    else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 46){ pmu_set_sar_ratio(0x56);} // 2.1V < VBAT < 2.2V
+    else if (adc_vbat_dout < __pmu_adc_3p0_val__ + 53){ pmu_set_sar_ratio(0x5A);} // 2.0V < VBAT < 2.1V
+    else                                          { pmu_set_sar_ratio(0x5F);} // VBAT < 2.0V
 
     return adc_vbat_dout;
 }
 
-void pmu_init(void){
+void pmu_set_adc_3p0_val (uint32_t val) {
+    __pmu_adc_3p0_val__ = val;
+}
+
+uint32_t pmu_get_adc_3p0_val (void) {
+    return __pmu_adc_3p0_val__;
+}
+
+void pmu_set_adc_low_val (uint32_t val) {
+    __pmu_adc_low_val__ = val;
+}
+
+uint32_t pmu_get_adc_low_val (void) {
+    return __pmu_adc_low_val__;
+}
+
+void pmu_set_adc_crit_val (uint32_t val) {
+    __pmu_adc_crit_val__ = val;
+}
+
+uint32_t pmu_get_adc_crit_val (void) {
+    return __pmu_adc_crit_val__;
+}
+
+void pmu_init(){
+
+    __pmu_adc_3p0_val__  = 0x62;  // VBAT = ~3.00V
+    __pmu_adc_low_val__  = 0x97;  // VBAT = ~2.00V
+    __pmu_adc_crit_val__ = 0x9E;  // VBAT = ~1.90V
 
     #ifdef __PMU_CHECK_WRITE__ // See PMU Behavior section at the top)
         //[5]: PMU_CHECK_WRITE(1'h0); [4]: PMU_IRQ_EN(1'h1); [3:2]: LC_CLK_DIV(2'h3); [1:0]: LC_CLK_RING(2'h1)
@@ -331,12 +357,13 @@ void pmu_init(void){
         ));
     
     // Initialize SAR Ratio
-    pmu_set_sar_ratio(0x60);
+    pmu_set_sar_ratio(0x50); // For VBAT=3.0V
+    //pmu_set_sar_ratio(0x4C); // For VBAT=2.5V
 
     // Disable ADC in Active
     // PMU ADC will be automatically reset when system wakes up
     //---------------------------------------------------
-    // CTRL_DESIRED_STATE_ACTIVE; Disable ADC
+    // CTRL_DESIRED_STATE_ACTIVE
     //---------------------------------------------------
     __pmu_desired_state_active__.adc_output_ready   = 0;
     __pmu_desired_state_active__.adc_adjusted       = 0;
@@ -346,12 +373,10 @@ void pmu_init(void){
 
     // Turn off ADC offset measurement in Sleep
     //---------------------------------------------------
-    // CTRL_DESIRED_STATE_SLEEP; Use ADC in Flip-Mode
+    // CTRL_DESIRED_STATE_SLEEP / Turn off ADC
     //---------------------------------------------------
-    __pmu_desired_state_sleep__.adc_output_ready   = 1;
     __pmu_desired_state_sleep__.adc_adjusted       = 0;
-    __pmu_desired_state_sleep__.sar_ratio_adjusted = 0;
-    __pmu_desired_state_sleep__.vbat_read_only     = 1;
+    __pmu_desired_state_sleep__.vbat_read_only     = 0;
     pmu_reg_write(0x3B, __pmu_desired_state_sleep__.value);
 
     // Set ADC Period
@@ -365,8 +390,8 @@ void pmu_init(void){
         // NOTE: [14:11] is ignored if the corresponding DESIRED=0 -OR- STALL=1.
         //------------------------------------------------------------------------
         ( (0x1 << 14)   // 0x1      // If 1, 'horizon' enqueues 'wait_clock_count' with TICK_REPEAT_VBAT_ADJUST
-        | (0x0 << 13)   // 0x1      // If 1, 'horizon' enqueues 'adjust_adc'
-        | (0x0 << 12)   // 0x1      // If 1, 'horizon' enqueues 'adjust_sar_ratio'
+        | (0x1 << 13)   // 0x1      // If 1, 'horizon' enqueues 'adjust_adc'
+        | (0x1 << 12)   // 0x1      // If 1, 'horizon' enqueues 'adjust_sar_ratio'
         | (0x1 << 11)   // 0x1      // If 1, 'horizon' enqueues 'vbat_read_only'
         //------------------------------------------------------------------------
         | (0x0 << 9 )   // 0x0      // 0x0: Disable clock monitoring
@@ -374,7 +399,7 @@ void pmu_init(void){
                                     // 0x2: Monitoring UPC clock
                                     // 0x3: Monitoring DNC clock
         | (0x0  << 8)   // 0x0      // Reserved
-        | (64   << 0)   // 0x48     // Sets ADC_SAMPLING_BIT in 'vbat_read_only' task (0<=N<=255); ADC measures (N/256)xVBAT in Flip mode.
+        | (0x48 << 0)   // 0x48     // Sets ADC_SAMPLING_BIT in 'vbat_read_only' task
     ));
 
     // VOLTAGE_CLAMP_TRIM (See PMU VSOLAR SHORT BEHAVIOR section at the top)
@@ -1220,15 +1245,18 @@ void nfc_i2c_word_pattern_write(uint32_t e2, uint32_t addr, uint32_t data, uint3
 // EID FUNCTIONS
 //*******************************************************************
 
-void eid_init(uint32_t ring, uint32_t te_div, uint32_t fd_div, uint32_t seg_div){
+void eid_init(void){
 
     __eid_current_display__     = 0;
     __eid_tmr_sel_ldo__         = 1;
     __eid_tmr_init_delay__      = 120000;
-    __eid_cp_duration__         = 250;
-    __eid_cp_fe_duration__      = 125;
+    __eid_cp_pulse_width__      = 250;
     __eid_clear_fd__            = 1;
     __eid_vin__                 = 0;
+    __crsh_cp_clk_sel_ring__    = 0x0;
+    __crsh_cp_clk_sel_te_div__  = 0x0;
+    __crsh_cp_clk_sel_fd_div__  = 0x0;
+    __crsh_cp_clk_sel_seg_div__ = 0x0;
     __crsh_wd_thrshld__         = 360000;
     __crsh_cp_idle_width__      = 400;
     __crsh_cp_pulse_width__     = 400;
@@ -1262,20 +1290,17 @@ void eid_init(uint32_t ring, uint32_t te_div, uint32_t fd_div, uint32_t seg_div)
     // Start EID Timer 
     eid_enable_timer();
 
-    // Charge Pump Clock Generator
-	eid_config_cp_clk_gen(/*ring*/ring, /*te_div*/te_div, /*fd_div*/fd_div, /*seg_div*/seg_div);
-
     // Charge Pump Pulse Width
-    eid_set_duration(__eid_cp_duration__);
+    eid_set_pulse_width(__eid_cp_pulse_width__);
 
     // Configuration for Crash Behavior (See comment section in the top)
     eid_r10.WCTR_THRESHOLD = __crsh_wd_thrshld__;
     mbus_remote_register_write(EID_ADDR,0x10,eid_r10.as_int);
 
-    eid_r11.WCTR_CR_ECP_SEL_SEG_DIV     = seg_div;
-    eid_r11.WCTR_CR_ECP_SEL_FD_DIV      = fd_div;
-    eid_r11.WCTR_CR_ECP_SEL_TE_DIV      = te_div;
-    eid_r11.WCTR_CR_ECP_SEL_RING        = ring;
+    eid_r11.WCTR_CR_ECP_SEL_SEG_DIV     = __crsh_cp_clk_sel_seg_div__;
+    eid_r11.WCTR_CR_ECP_SEL_FD_DIV      = __crsh_cp_clk_sel_fd_div__;
+    eid_r11.WCTR_CR_ECP_SEL_TE_DIV      = __crsh_cp_clk_sel_te_div__;
+    eid_r11.WCTR_CR_ECP_SEL_RING        = __crsh_cp_clk_sel_ring__;
     eid_r11.WCTR_CR_ECP_PG_DIODE_C1     = 0;
     eid_r11.WCTR_CR_ECP_PG_DIODE_C      = 0;
     eid_r11.WCTR_CR_ECP_PG_DIODE_B1     = 0;
@@ -1348,14 +1373,10 @@ void eid_set_vin(uint32_t vin) {
     __eid_vin__ = vin;
 }
 
-void eid_set_duration(uint32_t duration){
-    __eid_cp_duration__ = duration;
-    eid_r07.ECTR_PULSE_WIDTH = duration;
+void eid_set_pulse_width(uint32_t pulse_width){
+    __eid_cp_pulse_width__ = pulse_width;
+    eid_r07.ECTR_PULSE_WIDTH = pulse_width;
     mbus_remote_register_write(EID_ADDR,0x07,eid_r07.as_int);
-}
-
-void eid_set_fe_duration(uint32_t duration){
-    __eid_cp_fe_duration__ = duration;
 }
 
 void eid_enable_cp_ck(uint32_t te, uint32_t fd, uint32_t seg) {
@@ -1376,16 +1397,16 @@ void eid_enable_cp_ck(uint32_t te, uint32_t fd, uint32_t seg) {
     set_halt_until_mbus_tx();
 
     // Make FD White
-    if (__eid_clear_fd__ && (seg != 0) && (__eid_cp_fe_duration__ != 0)) {
+    if (__eid_clear_fd__ && (seg != 0)) {
         cp_ck = ((0x1 << 10) | (0x0 << 9) | (seg << 0)) & 0x7FF;
         cp_pd = (~cp_ck) & 0x7FF;
-        eid_set_duration(__eid_cp_fe_duration__);
+        eid_set_pulse_width(__eid_cp_pulse_width__>>1); // Use a half duration to prevent over-erase.
         eid_r09.ECTR_EN_CP_PD  = cp_pd;
         eid_r09.ECTR_EN_CP_CK  = cp_ck;
         set_halt_until_mbus_trx();
         mbus_remote_register_write(EID_ADDR,0x09,eid_r09.as_int);
         set_halt_until_mbus_tx();
-        eid_set_duration(__eid_cp_duration__);
+        eid_set_pulse_width(__eid_cp_pulse_width__<<1);
     }
 
     // Make PG_DIODE=1
@@ -1440,6 +1461,9 @@ void eid_trigger_crash() {
 
 void snt_init(void) {
 
+    // global variables
+    __snt_timer_status__ = 0;
+
     // Regiser File variables
     snt_r00.as_int = SNT_R00_DEFAULT_AS_INT;
     snt_r01.as_int = SNT_R01_DEFAULT_AS_INT;
@@ -1457,7 +1481,7 @@ void snt_init(void) {
 
     // Set temp sensor conversion time
     snt_r03.TSNS_SEL_STB_TIME  = 0x1; // Default: 0x1
-    snt_r03.TSNS_SEL_CONV_TIME = 0xA; // Default: 0x6
+    snt_r03.TSNS_SEL_CONV_TIME = 0x6; // Default: 0x6
     mbus_remote_register_write(SNT_ADDR,0x03,snt_r03.as_int);
 
     // Wakeup Timer configuration
@@ -1522,42 +1546,69 @@ void snt_ldo_power_on(void){
     mbus_remote_register_write(SNT_ADDR,0x00,snt_r00.as_int);
 }
 
-void snt_start_timer(uint32_t wait_time){
+void set_snt_timer_status(uint32_t status) {
+    __snt_timer_status__ = status;
+}
 
-    // New for SNTv3
-    snt_r08.TMR_SLEEP = 0x0; // Default : 0x1
-    mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
-    snt_r08.TMR_ISOLATE = 0x0; // Default : 0x1
-    mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
+uint32_t get_snt_timer_status(void) {
+    return __snt_timer_status__;
+}
 
-    // TIMER SELF_EN Disable 
-    snt_r09.TMR_SELF_EN = 0x0; // Default : 0x1
-    mbus_remote_register_write(SNT_ADDR,0x09,snt_r09.as_int);
+void snt_start_timer(void){
 
-    // EN_OSC 
-    snt_r08.TMR_EN_OSC = 0x1; // Default : 0x0
-    mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
+    if (__snt_timer_status__ == 0x0) {
+	    // New for SNTv3
+	    snt_r08.TMR_SLEEP = 0x0; // Default : 0x1
+	    mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
+	    snt_r08.TMR_ISOLATE = 0x0; // Default : 0x1
+	    mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
 
-    // Release Reset 
-    snt_r08.TMR_RESETB = 0x1; // Default : 0x0
-    snt_r08.TMR_RESETB_DIV = 0x1; // Default : 0x0
-    snt_r08.TMR_RESETB_DCDC = 0x1; // Default : 0x0
-    mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
+        // TIMER SELF_EN Disable 
+        snt_r09.TMR_SELF_EN = 0x0; // Default : 0x1
+        mbus_remote_register_write(SNT_ADDR,0x09,snt_r09.as_int);
 
-    // TIMER EN_SEL_CLK Reset 
-    snt_r08.TMR_EN_SELF_CLK = 0x1; // Default : 0x0
-    mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
+        // EN_OSC 
+        snt_r08.TMR_EN_OSC = 0x1; // Default : 0x0
+        mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
 
-    // TIMER SELF_EN 
-    snt_r09.TMR_SELF_EN = 0x1; // Default : 0x0
-    mbus_remote_register_write(SNT_ADDR,0x09,snt_r09.as_int);
+        // Release Reset 
+        snt_r08.TMR_RESETB = 0x1; // Default : 0x0
+        snt_r08.TMR_RESETB_DIV = 0x1; // Default : 0x0
+        snt_r08.TMR_RESETB_DCDC = 0x1; // Default : 0x0
+        mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
 
-    // Delay (must be >2 seconds at RT)
-    delay(wait_time);
+        // TIMER EN_SEL_CLK Reset 
+        snt_r08.TMR_EN_SELF_CLK = 0x1; // Default : 0x0
+        mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
 
-    // Turn off sloscillator
-    snt_r08.TMR_EN_OSC = 0x0; // Default : 0x0
-    mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
+        // TIMER SELF_EN 
+        snt_r09.TMR_SELF_EN = 0x1; // Default : 0x0
+        mbus_remote_register_write(SNT_ADDR,0x09,snt_r09.as_int);
+
+        // Set the status
+        __snt_timer_status__ = 0x2;
+
+//        // Go to sleep
+//        set_wakeup_timer (10, 0x1, 0x1);    // About 2 seconds
+//        mbus_sleep_all();
+//        while(1);
+//    }
+//    else if (__snt_timer_status__ == 0x2) {
+
+        delay(100000);
+
+        // Turn off sloscillator
+        snt_r08.TMR_EN_OSC = 0x0; // Default : 0x0
+        mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
+
+        // Set the status
+        __snt_timer_status__ = 0x1;
+
+        // Go to sleep
+        set_wakeup_timer (10, 0x1, 0x1);    // About 2 seconds
+        mbus_sleep_all();
+        while(1);
+    }
 
 }
 
@@ -1579,6 +1630,9 @@ void snt_stop_timer(void){
 	snt_r08.TMR_SLEEP = 0x1; // Default : 0x1
 	snt_r08.TMR_ISOLATE = 0x1; // Default : 0x1
 	mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
+
+    // Set the status
+    __snt_timer_status__ = 0x0;
 }
 
 void snt_set_timer_threshold(uint32_t threshold){
@@ -1604,6 +1658,7 @@ void snt_set_wup_timer(uint32_t auto_reset, uint32_t threshold){
 }
 
 uint32_t snt_read_wup_timer(void){
+    //set_timeout32_check(__SNT_WUP_READ_TIMEOUT__);
     set_halt_until_mbus_trx();
     mbus_remote_register_write(SNT_ADDR,0x14,
                              (0x0  << 16)   // 0: Synchronous 32-bit; 1: Synchronous lower 24-bit, 2: Synchronous Upper 8-bit, 3: Invalid
@@ -1611,6 +1666,7 @@ uint32_t snt_read_wup_timer(void){
                             |(0x06 <<  0)   // Destination Register ID
                             );
     set_halt_until_mbus_tx();
+    //stop_timeout32_check(__FCODE_SNT_WUP_READ_TIMEOUT__);
     return ((*REG6 << 24) | *REG7);
 }
     

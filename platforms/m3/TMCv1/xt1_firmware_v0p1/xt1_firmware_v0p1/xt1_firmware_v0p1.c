@@ -35,6 +35,18 @@
 //  - Add heatbonding/connecitivy issue 
 //  - Add 'active current drop issue' (i.e., active current vs. VBAT at specific SAR ratio)
 
+//-------------------------------------------------------------------------------------------
+// 0x10 0x00000104 - 0000 0000 0000 0000 0000 0001 0000 0100
+// 0x10 0x00400084 - 0000 0000 0100 0000 0000 0000 1000 0100
+// 0x10 0x00000104 - 0000 0000 00 0000000000000 1000001 00 - Glitch Fail
+// 0x10 0x00400084 - 0000 0000 01 0000000000000 0100001 00 - Password Fail (RUN_M0_SAMPLED=1)
+//-------------------------------------------------------------------------------------------
+
+// After Boot: 4.06 / 1.41 / 0.70
+// SAR_RATIO 0x60
+//              Sleep                   Active            
+//      3.0V:   4.70 / 1.65 / 0.82      6.25 / 2.15 / 1.03
+//      2.9V:   4.63 / 1.62 / 0.81
 
 //*******************************************************************************************
 // XT1 (TMCv1) FIRMWARE
@@ -329,21 +341,15 @@
 //*******************************************************************************************
 
 // PRE Clock Generator Frequency
-#define CPU_CLK_FREQ    211700  // MASTER_CLK_GEN_V3_TSMC180; POST-PEX simulation, TT, 25C, Default Setting (DIV=2, RING=1)
+#define CPU_CLK_FREQ    225000  // XT1F#1, SAR_RATIO=0x60 (Sleep Voltages: 4.55V/1.59V/0.79V)
 
-// PRE Clock-based Delay (5 instructions @ CPU_CLK_FREQ w/ 2x margin)
-#define DLY_1MS     85
-#define DLY_1S      84680
+// PRE Clock-based Delay (5 instructions @ CPU_CLK_FREQ)
+#define DLY_1S      ((CPU_CLK_FREQ>>3)+(CPU_CLK_FREQ>>4)+(CPU_CLK_FREQ>>5))  // = CPU_CLK_FREQx(1/8 + 1/16 + 1/32) = CPU_CLK_FREQx(35/160) ~= (CPU_CLK_FREQ/5)
+#define DLY_1MS     DLY_1S >> 10                                             // = DLY_1S / 1024 ~= DLY_1S / 1000
 
 // XO Initialization Wait Duration
-#define XO_WAIT_A   20000   // Must be ~1 second delay. Delay for XO Start-Up. LSB corresponds to ~50us, assuming ~100kHz CPU clock and 5 cycles per delay(1).
-#define XO_WAIT_B   20000   // Must be ~1 second delay. Delay for VLDO & IBIAS Generation. LSB corresponds to ~50us, assuming ~100kHz CPU clock and 5 cycles per delay(1).
-
-// XO Counter Value per Specific Time Durations
-#define XOT_1SEC    2048        // By default, the XO clock frequency is 2kHz. Frequency = 2 ^ XO_SEL_CLK_OUT_DIV (kHz).
-#define XOT_1MIN    60*XOT_1SEC
-#define XOT_1HR     60*XOT_1MIN
-#define XOT_1DAY    24*XOT_1HR
+#define XO_WAIT_A   2*DLY_1S  // Must be ~1 second delay.
+#define XO_WAIT_B   2*DLY_1S  // Must be ~1 second delay.
 
 //*******************************************************************************************
 // SNT LAYER CONFIGURATION
@@ -610,8 +616,8 @@ static void operation_init (void) {
         pre_r0B.as_int = PRE_R0B_DEFAULT_AS_INT;
         //--- Set CPU & MBus Clock Speeds      Default
         pre_r0B.CLK_GEN_RING         = 0x1; // 0x1
-        pre_r0B.CLK_GEN_DIV_MBC      = 0x1; // 0x2
-        pre_r0B.CLK_GEN_DIV_CORE     = 0x2; // 0x3
+        pre_r0B.CLK_GEN_DIV_MBC      = 0x2; // 0x2  // XT1F#1: 450kHz with SAR_RATIO=0x60
+        pre_r0B.CLK_GEN_DIV_CORE     = 0x3; // 0x3  // XT1F#1: 225kHz with SAR_RATIO=0x60
         pre_r0B.GOC_CLK_GEN_SEL_FREQ = 0x5; // 0x7
         pre_r0B.GOC_CLK_GEN_SEL_DIV  = 0x0; // 0x1
         pre_r0B.GOC_SEL              = 0xF; // 0x8
@@ -687,7 +693,8 @@ static void operation_init (void) {
         //-------------------------------------------------
         // Indefinite Sleep
         //-------------------------------------------------
-        operation_sleep();
+        //operation_sleep();
+        operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/4500);
     }
 }
 
@@ -1331,6 +1338,9 @@ int main() {
 
     // If this is the very first wakeup, initialize the system (STATE 1)
     if (!get_flag(FLAG_INITIALIZED)) operation_init();
+
+    delay(100000);
+    operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/15000);
 
     #ifdef GOCEP_RUN_CPU_ONLY
         if (get_flag(FLAG_INITIALIZED) && get_bit(wakeup_source, 0)) {

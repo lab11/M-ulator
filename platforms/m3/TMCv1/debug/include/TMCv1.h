@@ -222,7 +222,9 @@ volatile uint32_t __pmu_temp_state__; // Current PMU temperature. e.g., PMU_10C,
 #define __PMU_TICK_ADC_RESET__  2   // Pulse Width of PMU's ADC_RESET signal (Default: 50)
 #define __PMU_TICK_ADC_CLK__    2   // Pulse Width of PMU's ADC_CLK signal (Default: 2)
 
-volatile uint32_t __pmu_sar_ratio__;      // (Default: 0x62 set in pmu_init()) PMU ADC value at VBAT = 3.0V.
+volatile uint32_t __pmu_adc_3p0_val__;      // (Default: 0x62 set in pmu_init()) PMU ADC value at VBAT = 3.0V.
+volatile uint32_t __pmu_adc_low_val__;      // (Default: 0x97 set in pmu_init()) Threshold for Low VBAT (used for display). The default value corresponds to VBAT = ~2.0V.
+volatile uint32_t __pmu_adc_crit_val__;     // (Default: 0x9E set in pmu_init()) Threshold for Critical VBAT (used to trigger the EID crash detector & handler). The default value corresponds to VBAT = ~1.9V.
 
 //-------------------------------------------------------------------
 // PMU VSOLAR SHORT BEHAVIOR
@@ -364,20 +366,9 @@ void pmu_set_sleep_low();
 // Description:
 //           Overrides SAR ratio with 'ratio', and then performs
 //           sar_reset and sar/upc/dnc_stabilized tasks
-//           It also updates __pmu_sar_ratio__ variable.
 // Return  : None
 //-------------------------------------------------------------------
 void pmu_set_sar_ratio (uint32_t ratio);
-
-//-------------------------------------------------------------------
-// Function: pmu_get_sar_ratio
-// Args    : None
-// Description:
-//           Get the current __pmu_sar_ratio__.
-//           By default, pmu_init() sets __pmu_sar_ratio__ = 0x60.
-// Return  : Current __pmu_sar_ratio__ 
-//-------------------------------------------------------------------
-uint32_t pmu_get_sar_ratio (void);
 
 //-------------------------------------------------------------------
 // Function: pmu_set_adc_period
@@ -395,10 +386,73 @@ void pmu_set_adc_period(uint32_t val);
 // Description:
 //           Read the latest ADC VBAT measurement from PMU.
 //           Then adjust SAR Ratio based on the VBAT measurement.
-//           NOTE: It does NOT adjust the SAR ratio in this firmware version.
 // Return  : PMU ADC VBAT raw reading
 //-------------------------------------------------------------------
 uint32_t pmu_adc_read_and_sar_ratio_adjustment();
+
+//-------------------------------------------------------------------
+// Function: pmu_set_adc_3p0_val
+// Args    : val    - new value for __pmu_adc_3p0_val__
+// Description:
+//           Set __pmu_adc_3p0_val__, the expected PMU ADC value for VBAT = 3.0V
+//           By default, pmu_init() sets __pmu_adc_3p0_val__ = 0x62.
+// Return  : None
+//-------------------------------------------------------------------
+void pmu_set_adc_3p0_val (uint32_t val);
+
+//-------------------------------------------------------------------
+// Function: pmu_get_adc_3p0_val
+// Args    : None
+// Description:
+//           Get the current __pmu_adc_3p0_val__, the expected PMU ADC value for VBAT = 3.0V
+//           By default, pmu_init() sets __pmu_adc_3p0_val__ = 0x62.
+// Return  : Current __pmu_adc_3p0_val__ 
+//-------------------------------------------------------------------
+uint32_t pmu_get_adc_3p0_val (void);
+
+//-------------------------------------------------------------------
+// Function: pmu_set_adc_low_val
+// Args    : val    - new value for __pmu_adc_low_val__
+// Description:
+//           Set __pmu_adc_low_val__, the expected PMU ADC value for 'Low VBAT' threshold,
+//           __pmu_adc_low_val__ is intended to be used for updating the display (low battery indicator)
+//           By default, pmu_init() sets __pmu_adc_low_val__ = 0x97.
+// Return  : None
+//-------------------------------------------------------------------
+void pmu_set_adc_low_val (uint32_t val);
+
+//-------------------------------------------------------------------
+// Function: pmu_get_adc_low_val
+// Args    : None
+// Description:
+//           Get the current __pmu_adc_low_val__, the expected PMU ADC value for 'Low VBAT' threshold,
+//           __pmu_adc_low_val__ is intended to be used for updating the display (low battery indicator)
+//           By default, pmu_init() sets __pmu_adc_low_val__ = 0x97.
+// Return  : Current __pmu_adc_low_val__ 
+//-------------------------------------------------------------------
+uint32_t pmu_get_adc_low_val (void);
+
+//-------------------------------------------------------------------
+// Function: pmu_set_adc_crit_val
+// Args    : val    - new value for __pmu_adc_crit_val__
+// Description:
+//           Set __pmu_adc_crit_val__, the expected PMU ADC value for 'Critical VBAT' threshold,
+//           __pmu_adc_crit_val__ is intended to be used to trigger the EID crash detector & handler.
+//           By default, pmu_init() sets __pmu_adc_crit_val__ = 0x9E.
+// Return  : None
+//-------------------------------------------------------------------
+void pmu_set_adc_crit_val (uint32_t val);
+
+//-------------------------------------------------------------------
+// Function: pmu_get_adc_crit_val
+// Args    : None
+// Description:
+//           Get the current __pmu_adc_crit_val__, the expected PMU ADC value for 'Critical VBAT' threshold,
+//           __pmu_adc_crit_val__ is intended to be used to trigger the EID crash detector & handler.
+//           By default, pmu_init() sets __pmu_adc_crit_val__ = 0x9E.
+// Return  : Current __pmu_adc_crit_val__ 
+//-------------------------------------------------------------------
+uint32_t pmu_get_adc_crit_val (void);
 
 //-------------------------------------------------------------------
 // Function: pmu_init
@@ -410,7 +464,7 @@ uint32_t pmu_adc_read_and_sar_ratio_adjustment();
 //              and sets ADC timing parameters.
 // Return  : None
 //-------------------------------------------------------------------
-void pmu_init(void);
+void pmu_init();
 
 
 //*******************************************************************
@@ -746,7 +800,7 @@ volatile uint32_t __eid_tmr_sel_ldo__;
 volatile uint32_t __eid_tmr_init_delay__;
 
 //-------------------------------------------------------------------
-// __eid_cp_duration__
+// __eid_cp_pulse_width__
 //-------------------------------------------------------------------
 // Charge Pump Activation Duration
 //-------------------------------------------------------------------
@@ -755,19 +809,7 @@ volatile uint32_t __eid_tmr_init_delay__;
 //-------------------------------------------------------------------
 // Default: 250; Max: 65535
 //-------------------------------------------------------------------
-volatile uint32_t __eid_cp_duration__;
-
-//-------------------------------------------------------------------
-// __eid_cp_fe_duration__
-//-------------------------------------------------------------------
-// Charge Pump Activation Duration for Field Erase
-//-------------------------------------------------------------------
-// NOTE: In silicon, the FSM clock speed (=TMR clock frequency / 16) 
-//       is 120~125Hz at RT, which means, LSB corresponds to ~8ms.
-//-------------------------------------------------------------------
-// Default: 250; Max: 65535
-//-------------------------------------------------------------------
-volatile uint32_t __eid_cp_fe_duration__;
+volatile uint32_t __eid_cp_pulse_width__;
 
 //-------------------------------------------------------------------
 // __eid_clear_fd__
@@ -807,6 +849,13 @@ volatile uint32_t __eid_vin__;
 // (intended)
 //
 //////////////////////////////////////////////////////////
+
+// CP Clock setting for Crash handling
+//-----------------------------------------------
+volatile uint32_t __crsh_cp_clk_sel_ring__;     // (Default: 0x0; Max: 0x3) Selects # of rings. 0x0: 11 stages; 0x3: 5 stages.
+volatile uint32_t __crsh_cp_clk_sel_te_div__;   // (Default: 0x0; Max: 0x3) Selects clock division ratio for Top Electrode (TE) charge pump.
+volatile uint32_t __crsh_cp_clk_sel_fd_div__;   // (Default: 0x0; Max: 0x3) Selects clock division ratio for Field (FD) charge pump.
+volatile uint32_t __crsh_cp_clk_sel_seg_div__;  // (Default: 0x0; Max: 0x3) Selects clock division ratio for Segment (SEG) charge pumps.
 
 // Watchdog Threshold for Crash Detection
 //-----------------------------------------------
@@ -861,15 +910,12 @@ volatile eid_r17_t eid_r17;
 
 //-------------------------------------------------------------------
 // Function: eid_init
-// Args    : ring   : Sets ECP_SEL_RING    (Default: 0x0; Max: 0x3) Selects # of rings. 0x0: 11 stages; 0x3: 5 stages.
-//           te_div : Sets ECP_SEL_TE_DIV  (Default: 0x0; Max: 0x3) Selects clock division ratio for Top Electrode (TE) charge pump. Divide the core clock by 2^EID_CP_CLK_SEL_TE_DIV.
-//           fd_div : Sets ECP_SEL_FD_DIV  (Default: 0x0; Max: 0x3) Selects clock division ratio for Field (FD) charge pump. Divide the core clock by 2^EID_CP_CLK_SEL_FD_DIV.
-//           seg_div: Sets ECP_SEL_SEG_DIV (Default: 0x0; Max: 0x3) Selects clock division ratio for Segment (SEG) charge pumps. Divide the core clock by 2^EID_CP_CLK_SEL_SEG_DIV.
+// Args    : None
 // Description:
 //           Initializes the EID layer
 // Return  : None
 //-------------------------------------------------------------------
-void eid_init(uint32_t ring, uint32_t te_div, uint32_t fd_div, uint32_t seg_div);
+void eid_init(void);
 
 //-------------------------------------------------------------------
 // Function: eid_enable_timer
@@ -905,25 +951,14 @@ void eid_config_cp_clk_gen(uint32_t ring, uint32_t te_div, uint32_t fd_div, uint
 void eid_set_vin(uint32_t vin);
 
 //-------------------------------------------------------------------
-// Function: eid_set_duration
-// Args    : duration - Duration of Charge Pump Activation 
+// Function: eid_set_pulse_width
+// Args    : pulse_width - Duration of Charge Pump Activation 
 //                          (Default: 400; Max: 65535)
 // Description:
 //           Set the duration of the charge pump activation 
 // Return  : None
 //-------------------------------------------------------------------
-void eid_set_duration(uint32_t duration);
-
-//-------------------------------------------------------------------
-// Function: eid_set_fe_duration
-// Args    : duration - Duration of Charge Pump Activation for Field Erase
-//                          (Default: 400; Max: 65535)
-//                      0: Skip field erase
-// Description:
-//           Set the duration of the charge pump activation for field erase
-// Return  : None
-//-------------------------------------------------------------------
-void eid_set_fe_duration(uint32_t duration);
+void eid_set_pulse_width(uint32_t pulse_width);
 
 //-------------------------------------------------------------------
 // Function: eid_enable_cp_ck
@@ -1047,6 +1082,15 @@ void eid_trigger_crash(void);
 #define __FCODE_SNT_WUP_READ_TIMEOUT__   7       // Failure code to be displayed if timeout during SNT WUP Timer Read
 
 //-------------------------------------------------------------------
+// __snt_timer_status__
+//-------------------------------------------------------------------
+// 0: (default) SNT timer is not running
+// 1: SNT timer is fully running
+// 2: SNT timer has finishes the start-uhas finishes the start-up (i.e., snt_start_timer_presleep())
+//-------------------------------------------------------------------
+volatile uint32_t __snt_timer_status__;
+
+//-------------------------------------------------------------------
 // SNT Register File
 //-------------------------------------------------------------------
 volatile snt_r00_t snt_r00;
@@ -1129,15 +1173,36 @@ void snt_ldo_vref_on(void);
 void snt_ldo_power_on(void);
 
 //-------------------------------------------------------------------
-// Function: snt_start_timer
-// Args    : wait_time  - Wait time before turning off the sloscillator
-//                        It measure the delay using delay(wait_time).
-//                        Requirement: >2sec at RT
+// Function: set_snt_timer_status
+// Args    : status - the new status to be written to __snt_timer_status__
 // Description:
-//           Start the SNT timer.
+//           Set the SNT timer status variable (__snt_timer_status__)
 // Return  : None
 //-------------------------------------------------------------------
-void snt_start_timer(uint32_t wait_time);
+void set_snt_timer_status(uint32_t status);
+
+//-------------------------------------------------------------------
+// Function: get_snt_timer_status
+// Args    : None
+// Description:
+//           Return the value of the SNT timer status varible (__snt_timer_status__)
+// Return  : The value of the SNT timer status variable (__snt_timer_status__)
+//              0: (default) SNT timer is not running
+//              1: SNT timer is running
+//-------------------------------------------------------------------
+uint32_t get_snt_timer_status(void);
+
+//-------------------------------------------------------------------
+// Function: snt_start_timer
+// Args    : None
+// Description:
+//           Start the SNT timer.
+//           It includes a brief sleep duration (2~3 seconds)
+//           Thus, it must be placed before any other 'sleep' command,
+//           and needs to be reached after the wakeup following the brief sleep duration.
+// Return  : None
+//-------------------------------------------------------------------
+void snt_start_timer(void);
 
 //-------------------------------------------------------------------
 // Function: snt_stop_timer
