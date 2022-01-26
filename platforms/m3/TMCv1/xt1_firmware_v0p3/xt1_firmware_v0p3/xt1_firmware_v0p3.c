@@ -28,7 +28,7 @@
 //                  - Removed SKIP_SNT_CALIB switch
 //  Jan 26 2022 - Version 0.3
 //                  - Added back GOC_ACTIVATE_ALSO_STARTS switch (for Zhiyoong's long term testing)
-//                  - xo_start!‰!D
+//                  - xo_start()
 //                      Added the following configuration.
 //                          [NOTE] xo_control is an instance of pre_r19_t
 //                          xo_control.XO_SEL_VLDO     = 0x2; // Default value: 3'h0
