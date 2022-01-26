@@ -12,6 +12,8 @@
 //
 // * If INTERVAL is set to 0, we want to skip the function?
 //
+// * Turn off NFC while doing the calibration?
+//
 //-------------------------------------------------------------------------------------------
 // 0x10 0x00000104 - 0000 0000 0000 0000 0000 0001 0000 0100
 // 0x10 0x00400084 - 0000 0000 0100 0000 0000 0000 1000 0100
@@ -21,7 +23,20 @@
 
 //*******************************************************************************************
 // XT1 (TMCv1) FIRMWARE
-// Version 0.1
+// Version 0.2
+//-------------------------------------------------------------------------------------------
+// < UPDATE HISTORY >
+//  Jun 24 2021 - First commit 
+//  Jan 21 2022 - Version 0.1
+//                  - For Long-term testing with SNT Timer calibration
+//  Jan 24 2022 - Version 0.2
+//                  - snt_init()
+//                      Changed TSNS_SEL_CONV_TIME from 0xA to 0x7
+//                  - operation_init()
+//                      Now it writes HW ID (0x01000000) into EEPROM (WRITE_HW_ID switch). 
+//                      Remove this for the final version.
+//                  - Removed GOC_ACTIVATE_ALSO_STARTS switch
+//                  - Removed SKIP_SNT_CALIB switch
 //-------------------------------------------------------------------------------------------
 // IMPORTANT
 //  - This program assumes that GOC/EP uses RUN_CPU (not GEN_IRQ) only in its Control section.
@@ -229,9 +244,6 @@
 //  2k / 64 = 32 Sequential Writes are needed to overwrite the entire EEPROM.
 //
 //-------------------------------------------------------------------------------------------
-// < UPDATE HISTORY >
-//  Jun 24 2021 -   First commit 
-//-------------------------------------------------------------------------------------------
 // < AUTHOR > 
 //  Yejoong Kim (yejoong@cubeworks.io)
 //******************************************************************************************* 
@@ -280,8 +292,7 @@
 #define GOCEP_RUN_CPU_ONLY      // Enable this when you cannot do 'GEN_IRQ' in GOC/EP Header (e.g., the current m3_ice script)
 #define DEBUG                   // Send debug messages
 #define USE_DEFAULT_VALUE       // Use default values rather than grabbing the values from EEPROM
-#define GOC_ACTIVATE_ALSO_STARTS    // Enable this to make 'GOC Activate' also starts the temperature measurements
-//#define SKIP_SNT_CALIB          // Enable this to bypass the SNT timer calibration
+#define WRITE_HW_ID             // Write the HW ID (0x01000000) during operation_init()
 
 //*******************************************************************************************
 // GROUP ID
@@ -645,6 +656,11 @@ static void operation_init (void) {
         //-------------------------------------------------
         nfc_init();
 
+    #ifdef WRITE_HW_ID
+        // Set the Hardware ID
+        nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_HW_ID, /*data*/0x01000000, /*nb*/4);
+    #endif
+
         // Reset status in EEPROM
         reset_eeprom(FIRMWARE_ID);
 
@@ -958,9 +974,6 @@ void nfc_check_cmd(void) {
 // SNT Timer Calibration
 static void calibrate_snt_timer(void) {
 
-#ifdef SKIP_SNT_CALIB
-    return;
-#else
     uint32_t a, b, new_val;
 
     //------------------------------------------------------------------
@@ -1059,7 +1072,6 @@ static void calibrate_snt_timer(void) {
             snt_timer_1min = new_val;
         }
     }
-#endif
 
 }
 
@@ -1211,24 +1223,6 @@ void handler_ext_int_gocep    (void) {
 
             // Clear the display
             eid_update_with_eeprom(DISP_NONE);
-
-        #ifdef GOC_ACTIVATE_ALSO_STARTS
-            #ifdef USE_DEFAULT_VALUE
-                eeprom_temp_meas_start_delay = 1;
-                eeprom_temp_meas_interval    = 1;
-                eeprom_timer_calib_interval  = 10;
-                eeprom_high_temp_threshold   = 700;
-                eeprom_low_temp_threshold    = 450;
-            #else
-                eeprom_temp_meas_start_delay = *(GOC_DATA_IRQ+1);
-                eeprom_temp_meas_interval    = *(GOC_DATA_IRQ+2);
-                eeprom_timer_calib_interval  = *(GOC_DATA_IRQ+3);
-                eeprom_high_temp_threshold   = *(GOC_DATA_IRQ+4);
-                eeprom_low_temp_threshold    = *(GOC_DATA_IRQ+5);
-            #endif
-
-            set_flag(FLAG_STARTED, 1);
-        #endif
         }
     }
 #ifdef DEVEL

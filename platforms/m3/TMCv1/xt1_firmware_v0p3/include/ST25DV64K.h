@@ -32,10 +32,10 @@
 #define EEPROM_ADDR_SAMPLE_COUNT            8   //  4       Sample Count (Little Endian)
 #define EEPROM_ADDR_SYSTEM_STATE            12  //  2       System State
 #define EEPROM_ADDR_DISPLAY                 14  //  2       Current e-ink display
-#define EEPROM_ADDR_NUM_XO_FAILS            16  //  1       Num XO Failures
-#define EEPROM_ADDR_NUM_I2C_FAILS           17  //  1       Num I2C Failures (Ack timeout)
-#define EEPROM_ADDR_NUM_CALIB_FAILS         18  //  1       Num Calibration Failures (Max Change Error)
-//#define EEPROM_ADDR_RESERVED              19  //  1       Reserved
+#define EEPROM_ADDR_NUM_CALIB_XO_FAILS      16  //  1       Num Calibration Failures (XO does not start)
+#define EEPROM_ADDR_NUM_CALIB_MAX_ERR_FAILS 17  //  1       Num Calibration Failures (Max Change Error)
+#define EEPROM_ADDR_NUM_CALIB_TIMEOUT_FAILS 18  //  1       Num Calibration Failures (~45sec Timeout; XO frequency is much slower than expected.)
+#define EEPROM_ADDR_NUM_I2C_FAILS           19  //  1       Num I2C Failures (Ack timeout)
 
 //--- User Commands
 #define EEPROM_ADDR_HIGH_TEMP_THRESHOLD     20  //  2       Threshold for High Temperature (Raw Code)

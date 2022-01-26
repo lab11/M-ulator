@@ -43,7 +43,7 @@
 #define EEPROM_ADDR_TEMP_MEAS_INTERVAL      24  //  2       Temperature Measurement Interval (unit: minute)
 #define EEPROM_ADDR_TEMP_MEAS_START_DELAY   26  //  2       Temperature Measurement Start Delay (unit: minute)
 #define EEPROM_ADDR_TIMER_CALIB_INTERVAL    28  //  2       Timer Calibration Interval (unit: minute)
-//#define EEPROM_ADDR_RESERVED              30  //  2       Reserved
+#define EEPROM_ADDR_DISP_REFRESH_INTERVAL   30  //  2       Display Refresh Interval (unit: minute)
 #define EEPROM_ADDR_CMD                     32  //  1       Command (REQ/ACK/ERR/CMD)
 //#define EEPROM_ADDR_RESERVED              33  //  3       Reserved
 
@@ -55,37 +55,30 @@
 
 //--- Calibration Data
 #define EEPROM_ADDR_VBAT_INFO               52  //  2       VBAT + calibration data
-#define EEPROM_ADDR_LOW_VBAT_THRESHOLD      54  //  1       Low VBAT threshold (PMU ADC output) that turns on the VBAT indicator on the display
-#define EEPROM_ADDR_CRIT_VBAT_THRESHOLD     55  //  1       Critical VBAT threshold (PMU ADC output) that shuts down (and freezes) the system
-#define EEPROM_ADDR_SAR_RATIO               56  //  1       SAR RATIO to use
-//#define EEPROM_ADDR_RESERVED              57  //  3       Reserved
-#define EEPROM_ADDR_TEMP_CALIB_A            60  //  4       Temperature Calibration Coefficient a
-#define EEPROM_ADDR_TEMP_CALIB_B            64  //  4       Temperature Calibration Coefficient b
-#define EEPROM_ADDR_SNT_BASE_FREQ           68  //  2       SNT Timer Base Frequency in Hz (integer value only)
-#define EEPROM_ADDR_SNT_CALIB_CONFIG        70  //  1       [7]: Calibration Duration (0: 7.5sec, 1: 15sec); [6:5]: XO Frequency (0: 4kHz, 1: 8kHz, 2: 16kHz, 3: 32kHz); [4:3]: Reserved; [2:0]: Max Error allowed (# bit shift from SNT_BASE_FREQ)
-//#define EEPROM_ADDR_RESERVED              71  //  1       Reserved
+//#define EEPROM_ADDR_RESERVED              54  //  2       Reserved
+#define EEPROM_ADDR_TEMP_CALIB_A            56  //  4       Temperature Calibration Coefficient a
+#define EEPROM_ADDR_TEMP_CALIB_B            60  //  4       Temperature Calibration Coefficient b
+#define EEPROM_ADDR_SNT_BASE_FREQ           64  //  2       SNT Timer Base Frequency in Hz (integer value only)
+#define EEPROM_ADDR_SNT_CALIB_CONFIG        66  //  2       [7]: Calibration Duration (0: 7.5sec, 1: 15sec); [6:5]: XO Frequency (0: 4kHz, 1: 8kHz, 2: 16kHz, 3: 32kHz); [4:3]: Reserved; [2:0]: Max Error allowed (# bit shift from SNT_BASE_FREQ)
 
-//--- EID Configuration                                     Recommended Value
-#define EEPROM_ADDR_EID_HIGH_TEMP_THRESHOLD 72  //  2       ( 1250 (=20C)  ) Temperature Threshold (Raw Code) to determin HIGH and MID temperature
-#define EEPROM_ADDR_EID_LOW_TEMP_THRESHOLD  74  //  2       ( 700  (=10C)  ) Temperature Threshold (Raw Code) to determin MID and LOW temperature
-#define EEPROM_ADDR_EID_DURATION_HIGH       76  //  2       ( 30   (=0.25s)) EID duration (ECTR_PULSE_WIDTH) for High Temperature
-#define EEPROM_ADDR_EID_FE_DURATION_HIGH    78  //  2       ( 15   (=0.12s)) EID 'Field Erase' duration (ECTR_PULSE_WIDTH) for High Temperature. '0' makes it skip 'Field Erase'
-#define EEPROM_ADDR_EID_RFRSH_INT_HR_HIGH   80  //  1       ( 2    (=2hr)  ) EID Refresh interval for High Temperature (unit: hr). '0' makes it skip the refresh.
-//#define EEPROM_ADDR_RESERVED              81  //  1       Reserved
-#define EEPROM_ADDR_EID_DURATION_MID        82  //  2       ( 250  (=2s)   ) EID duration (ECTR_PULSE_WIDTH) for Mid Temperature
-#define EEPROM_ADDR_EID_FE_DURATION_MID     84  //  2       ( 125  (=1s)   ) EID 'Field Erase' duration (ECTR_PULSE_WIDTH) for Mid Temperature. '0' makes it skip 'Field Erase'
-#define EEPROM_ADDR_EID_RFRSH_INT_HR_MID    86  //  1       ( 4    (=4hr)  ) EID Refresh interval for Mid Temperature (unit: hr). '0' makes it skip the refresh.
-//#define EEPROM_ADDR_RESERVED              87  //  1       Reserved
-#define EEPROM_ADDR_EID_DURATION_LOW        88  //  2       ( 500  (=4s)   ) EID duration (ECTR_PULSE_WIDTH) for Low Temperature
-#define EEPROM_ADDR_EID_FE_DURATION_LOW     90  //  2       ( 500  (=4s)   ) EID 'Field Erase' duration (ECTR_PULSE_WIDTH) for Low Temperature. '0' makes it skip 'Field Erase'
-#define EEPROM_ADDR_EID_RFRSH_INT_HR_LOW    92  //  1       ( 8    (=8hr)  ) EID Refresh interval for Low Temperature (unit: hr). '0' makes it skip the refresh.
-//#define EEPROM_ADDR_RESERVED              93  //  3       Reserved
-
-//--- Reserved
-//#define EEPROM_ADDR_RESERVED              96  //  4       Reserved
+//--- EID Configuration
+#define EEPROM_ADDR_EID_DURATION_HIGH       68  //  2       EID duration (ECTR_PULSE_WIDTH) for High Temperature
+#define EEPROM_ADDR_EID_FE_DURATION_HIGH    70  //  2       EID 'Field Erase' duration (ECTR_PULSE_WIDTH) for High Temperature. '0' makes it skip 'Field Erase'
+#define EEPROM_ADDR_EID_HIGH_TEMP_THRESHOLD 72  //  2       Temperature Threshold (Raw Code) to determin HIGH and MID temperature
+#define EEPROM_ADDR_EID_DURATION_MID        74  //  2       EID duration (ECTR_PULSE_WIDTH) for Mid Temperature
+#define EEPROM_ADDR_EID_FE_DURATION_MID     76  //  2       EID 'Field Erase' duration (ECTR_PULSE_WIDTH) for Mid Temperature. '0' makes it skip 'Field Erase'
+#define EEPROM_ADDR_EID_LOW_TEMP_THRESHOLD  78  //  2       Temperature Threshold (Raw Code) to determin MID and LOW temperature
+#define EEPROM_ADDR_EID_DURATION_LOW        80  //  2       EID duration (ECTR_PULSE_WIDTH) for Low Temperature
+#define EEPROM_ADDR_EID_FE_DURATION_LOW     82  //  2       EID 'Field Erase' duration (ECTR_PULSE_WIDTH) for Low Temperature. '0' makes it skip 'Field Erase'
+#define EEPROM_ADDR_EID_CRIT_TEMP_THRESHOLD 84  //  2       Temperature Threshold (Raw Code) below which the system does not perform display refresh
+//#define EEPROM_ADDR_RESERVED              86  //  14      Reserved
 
 //--- Product Information
 #define EEPROM_ADDR_PRODUCT_INFO            100 //  28      Drug Info, Mfg, Batch ID, Exp date
+
+
+
+
 
 
 //-------------------------------------

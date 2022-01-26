@@ -6,22 +6,42 @@
 //      in the next session (after 1min)? will shfit the time or what?
 //
 //
-// * SNT calibration
-//  - What to do if calibration error? more than, let's say, 5% change? Skip? 
-//      Increment xo fail? another fail type?
-//
 // * If INTERVAL is set to 0, we want to skip the function?
 //
-//-------------------------------------------------------------------------------------------
-// 0x10 0x00000104 - 0000 0000 0000 0000 0000 0001 0000 0100
-// 0x10 0x00400084 - 0000 0000 0100 0000 0000 0000 1000 0100
-// 0x10 0x00000104 - 0000 0000 00 0000000000000 1000001 00 - Glitch Fail
-// 0x10 0x00400084 - 0000 0000 01 0000000000000 0100001 00 - Password Fail (RUN_M0_SAMPLED=1)
 //-------------------------------------------------------------------------------------------
 
 //*******************************************************************************************
 // XT1 (TMCv1) FIRMWARE
-// Version 0.1
+// Version 0.3
+//-------------------------------------------------------------------------------------------
+// < UPDATE HISTORY >
+//  Jun 24 2021 - First commit 
+//  Jan 21 2022 - Version 0.1
+//                  - For Long-term testing with SNT Timer calibration
+//  Jan 24 2022 - Version 0.2
+//                  - snt_init()
+//                      Changed TSNS_SEL_CONV_TIME from 0xA to 0x7
+//                  - operation_init()
+//                      Now it writes HW ID (0x01000000) into EEPROM (WRITE_HW_ID switch). 
+//                      Remove this for the final version.
+//                  - Removed GOC_ACTIVATE_ALSO_STARTS switch
+//                  - Removed SKIP_SNT_CALIB switch
+//  Jan 26 2022 - Version 0.3
+//                  - Added back GOC_ACTIVATE_ALSO_STARTS switch (for Zhiyoong's long term testing)
+//                  - xo_start!‰!D
+//                      Added the following configuration.
+//                          [NOTE] xo_control is an instance of pre_r19_t
+//                          xo_control.XO_SEL_VLDO     = 0x2; // Default value: 3'h0
+//                          xo_control.XO_SEL_vV0P6    = 0x0; // Default value: 2'h2
+//                  - calibrate_snt_timer()
+//                      Changed the timeout from 30sec to 45sec
+//                      Now it has THREE (3) failure typs during calibration.
+//                          CLIB_XO_FAILS:      Most likely that the XO does not start from the beginning.
+//                          CLIB_MAX_ERR_FAILS: Calibration results go out of the maximum accepted error.
+//                          CLIB_MAX_ERR_FAILS: Calibration results go out of the maximum accepted error.
+//                      Now it turns off the NFC, if it was on, before starting the calibration, to save power.
+//                  - snt_operation()
+//                      Added ALSO_STORE_VBAT switch to save the current SAR ratio, VBAT, and temperature data into EEPROM.
 //-------------------------------------------------------------------------------------------
 // IMPORTANT
 //  - This program assumes that GOC/EP uses RUN_CPU (not GEN_IRQ) only in its Control section.
@@ -196,6 +216,7 @@
 //  0x88    0x00000000                          XO timeout during SNT timer calibration
 //  0x88    0x00000001                          SNT calibration result is out of expectation.
 //  0x88    0x00000002                          SNT calibration successful
+//  0x88    0x00000003                          XO does not start
 //
 //-------------------------------------------------------------------------------------------
 // Use of Cortex-M0 Vector Table
@@ -228,9 +249,6 @@
 //  A Sequential Write can write up to 256 bytes (= 64 words = 64 pages)
 //  2k / 64 = 32 Sequential Writes are needed to overwrite the entire EEPROM.
 //
-//-------------------------------------------------------------------------------------------
-// < UPDATE HISTORY >
-//  Jun 24 2021 -   First commit 
 //-------------------------------------------------------------------------------------------
 // < AUTHOR > 
 //  Yejoong Kim (yejoong@cubeworks.io)
@@ -281,7 +299,7 @@
 #define DEBUG                   // Send debug messages
 #define USE_DEFAULT_VALUE       // Use default values rather than grabbing the values from EEPROM
 #define GOC_ACTIVATE_ALSO_STARTS    // Enable this to make 'GOC Activate' also starts the temperature measurements
-//#define SKIP_SNT_CALIB          // Enable this to bypass the SNT timer calibration
+#define ALSO_STORE_VBAT         // Enable this to store SAR ratio, VBAT, and temperature data into EEPROM.
 
 //*******************************************************************************************
 // GROUP ID
@@ -381,9 +399,11 @@
 
 //--- System Status
 volatile uint32_t temp_sample_count;                // Counter for sample count
-volatile uint32_t num_xo_fails;                     // Number of XO fails
+volatile uint32_t num_calib_pass;                   // Number of Calibration passes
+volatile uint32_t num_calib_xo_fails;               // Number of Calibration fails (XO fails)
+volatile uint32_t num_calib_max_err_fails;          // Number of Calibration fails (MAX_CHANGE error)
+volatile uint32_t num_calib_timeout_fails;          // Number of Calibration fails (Timeout error)
 volatile uint32_t num_i2c_fails;                    // Number of I2C fails (mostly due to ACK timeout)
-volatile uint32_t num_calib_fails;                  // Number of Calibration fails (mostly due to MAX_CHANGE error)
 
 //--- User Commands
 volatile uint32_t eeprom_high_temp_threshold;       // (Default:  300) Threshold for High Temperature
@@ -547,9 +567,11 @@ static void operation_init (void) {
 
         //--- System Status
         temp_sample_count               = 0;
-        num_xo_fails                    = 0;
+        num_calib_pass                  = 0;
+        num_calib_xo_fails              = 0;
         num_i2c_fails                   = 0;
-        num_calib_fails                 = 0;
+        num_calib_max_err_fails         = 0;
+        num_calib_timeout_fails         = 0;
 
         //--- Counter for User Parameters
         cnt_temp_meas_start_delay       = 0;
@@ -644,6 +666,11 @@ static void operation_init (void) {
         // NFC 
         //-------------------------------------------------
         nfc_init();
+
+    #ifdef WRITE_HW_ID
+        // Set the Hardware ID
+        nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_HW_ID, /*data*/0x01000000, /*nb*/4);
+    #endif
 
         // Reset status in EEPROM
         reset_eeprom(FIRMWARE_ID);
@@ -764,12 +791,21 @@ static uint32_t snt_operation (void) {
             /*data*/ temp_sample_count,
             /* nb */ 4
             );
+    #ifdef ALSO_STORE_VBAT
+        nfc_i2c_byte_write(/*e2*/0, 
+            /*addr*/ eeprom_addr, 
+            /*data*/ (pmu_get_sar_ratio()<<24)|(pmu_adc_vbat_val<<16)|(snt_temp_val&0xFFFF),
+            /* nb */ 4
+            );
+        eeprom_addr += 4;
+    #else
         nfc_i2c_byte_write(/*e2*/0, 
             /*addr*/ eeprom_addr, 
             /*data*/ snt_temp_val&0xFFFF,
             /* nb */ 2
             );
         eeprom_addr += 2;
+    #endif
         if (eeprom_addr==EEPROM_NUM_BYTES) eeprom_addr = EEPROM_ADDR_DATA_RESET_VALUE; // roll-over
         /////////////////////////////////////////////////////////////////
 
@@ -958,10 +994,10 @@ void nfc_check_cmd(void) {
 // SNT Timer Calibration
 static void calibrate_snt_timer(void) {
 
-#ifdef SKIP_SNT_CALIB
-    return;
-#else
     uint32_t a, b, new_val;
+
+    // Turn of NFC, if on, to save power
+    nfc_power_off();
 
     //------------------------------------------------------------------
     // xo_freq = 1024Hz << (sel_freq+2);
@@ -998,8 +1034,8 @@ static void calibrate_snt_timer(void) {
                     /*irq_en*/    1
                 );
 
-    // Time-out Check (30 sec)
-    set_timeout32_check(30*CPU_CLK_FREQ);
+    // Time-out Check (45 sec)
+    set_timeout32_check(45*CPU_CLK_FREQ);
 
     // Start the XO counter
     start_xo_cnt();
@@ -1013,26 +1049,51 @@ static void calibrate_snt_timer(void) {
     // Read SNT counter
     b = snt_read_wup_timer();
 
-    // Disable XO Driver & XO Counter
-    xo_stop();
-
     // Time-out (TIMER32)
     if (__wfi_timeout_flag__) {
         *TIMER32_GO = 0; __wfi_timeout_flag__ = 0;
 
-        #ifdef DEBUG
-            mbus_write_message32(0x87, snt_timer_1min);
-            mbus_write_message32(0x87, 0xFFFFFFFF);
-            mbus_write_message32(0x88, 0x0);
-        #endif
+        // Check the XO counter value. It uses the asynchrounous reading, and the synchronous reading may not work if the XO failed to start.
+        uint32_t xot_val = (*REG_XOT_VAL_U << 16) | (*REG_XOT_VAL_L & 0xFFFF);
 
-        // ERROR: XO timeout during calibration
-        num_xo_fails++;
-        nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_NUM_XO_FAILS, /*data*/num_xo_fails, /*nb*/1);
+        // Disable XO Driver & XO Counter
+        xo_stop();
+
+        // FAIL TYPE I - XO does not start
+        if (xot_val < 5) {
+
+            #ifdef DEBUG
+                mbus_write_message32(0x87, snt_timer_1min);
+                mbus_write_message32(0x87, 0xFFFFFFFF);
+                mbus_write_message32(0x88, 0x3);
+            #endif
+
+            // ERROR: XO failure
+            num_calib_xo_fails++;
+            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_NUM_CALIB_XO_FAILS, /*data*/num_calib_xo_fails, /*nb*/1);
+
+        }
+
+        // FAIL TYPE II - Timeout (XO frequency off)
+        else {
+            #ifdef DEBUG
+                mbus_write_message32(0x87, snt_timer_1min);
+                mbus_write_message32(0x87, 0xFFFFFFFF);
+                mbus_write_message32(0x88, 0x0);
+            #endif
+
+            // ERROR: XO timeout during calibration
+            num_calib_timeout_fails++;
+            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_NUM_CALIB_TIMEOUT_FAILS, /*data*/num_calib_timeout_fails, /*nb*/1);
+        }
+
     }
     // Successful
     else {
         *TIMER32_GO = 0; __wfi_timeout_flag__ = 0;
+
+        // Disable XO Driver & XO Counter
+        xo_stop();
 
         // Calculate the new snt_timer_1min candidate
         if (b > a) new_val = (b - a) << (3 - sel_duration);
@@ -1042,12 +1103,16 @@ static void calibrate_snt_timer(void) {
         uint32_t lower_limit = ((eeprom_snt_base_freq - max_change)<<6)-((eeprom_snt_base_freq - max_change)<<2);
 
         if ((new_val > upper_limit) || (new_val < lower_limit)) {
-            // ERROR: Calibration Result Out Of Expectation (FIXME: do we want to log this as well?)
+            // ERROR: Calibration Result Out Of Expectation
             #ifdef DEBUG
                 mbus_write_message32(0x87, snt_timer_1min);
                 mbus_write_message32(0x87, new_val);
                 mbus_write_message32(0x88, 0x1);
             #endif
+
+            // ERROR: Calibration Max Error
+            num_calib_max_err_fails++;
+            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_NUM_CALIB_MAX_ERR_FAILS, /*data*/num_calib_max_err_fails, /*nb*/1);
         }
         else {
             // SUCCESS: Update snt_timer_1min
@@ -1056,10 +1121,15 @@ static void calibrate_snt_timer(void) {
                 mbus_write_message32(0x87, new_val);
                 mbus_write_message32(0x88, 0x2);
             #endif
+
+            // Store Calibration Result // FIXME: Remove this in the final version
+            num_calib_pass++;
+            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_NUM_I2C_FAILS, /*data*/num_calib_pass, /*nb*/1);
+            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_START_TIME, /*data*/new_val, /*nb*/4);
+
             snt_timer_1min = new_val;
         }
     }
-#endif
 
 }
 
@@ -1070,8 +1140,8 @@ static void reset_eeprom(uint32_t fw_id) {
     nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SAMPLE_COUNT, /*data*/0x0, /*nb*/4);
     // Reset the System State
     nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0x0, /*nb*/2);
-    // Reset NUM_XO/I2C/CALIB_FAILS
-    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_NUM_XO_FAILS, /*data*/0x0, /*nb*/3);
+    // Reset NUM_XO/I2C/CALIB_MAX_ERR_FAILS
+    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_NUM_CALIB_XO_FAILS, /*data*/0x0, /*nb*/4);
     // Reset the Command
     nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_CMD, /*data*/0x0, /*nb*/1);
     // Reset Start/Stop Time and User IDs
