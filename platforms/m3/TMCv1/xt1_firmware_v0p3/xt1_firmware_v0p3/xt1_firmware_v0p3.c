@@ -38,7 +38,7 @@
 //                      Now it has THREE (3) failure typs during calibration.
 //                          CLIB_XO_FAILS:      Most likely that the XO does not start from the beginning.
 //                          CLIB_MAX_ERR_FAILS: Calibration results go out of the maximum accepted error.
-//                          CLIB_MAX_ERR_FAILS: Calibration results go out of the maximum accepted error.
+//                          CLIB_TIMEOUT_FAILS: XO does not reach the threshold within the ~45sec timeout.
 //                      Now it turns off the NFC, if it was on, before starting the calibration, to save power.
 //                  - snt_operation()
 //                      Added ALSO_STORE_VBAT switch to save the current SAR ratio, VBAT, and temperature data into EEPROM.
@@ -569,9 +569,9 @@ static void operation_init (void) {
         temp_sample_count               = 0;
         num_calib_pass                  = 0;
         num_calib_xo_fails              = 0;
-        num_i2c_fails                   = 0;
         num_calib_max_err_fails         = 0;
         num_calib_timeout_fails         = 0;
+        num_i2c_fails                   = 0;
 
         //--- Counter for User Parameters
         cnt_temp_meas_start_delay       = 0;
