@@ -1,6 +1,9 @@
+// FIXME: ADC testing at different temperatures
+// FIXME: Display something once buffer overrun; pending discussion.
+// FIXME: How to program the eeprom variables? GOC? or NFC?
 //*******************************************************************************************
 // XT1 (TMCv1) FIRMWARE
-// Version 0.4
+// Version 0.5
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
 //  Jun 24 2021 - First commit 
@@ -63,7 +66,6 @@
 //                  - snt_operation()
 //                      eid_trigger_crash() is triggered *after* writing temp data into EEPROM.
 //                      Added two temperature thresholds for adc_low_vbat and adc_crit_vbat
-//                          FIXME: Do we need to do the same for pmu_adc_read_and_sar_ratio_adjustment?
 //                      Implement the buffer overrun error
 //                      Simplified the FSM states. Now snt_state has only two available states: SNT_IDLE and SNT_TEMP_READ.
 //                  - eid_update_write_eeprom()
@@ -91,6 +93,23 @@
 //                          nfc_i2c_word_write()
 //                  - PREv22E.h/PREv22E.c
 //                      Now stop_timeout32_check() returns 1 if there was no timeout, or returns 0 if there was a timeout.
+//  Feb 03 2022 - Version 0.5
+//                  - It performs the SNT timer calibration right after it detects the START command. 
+//                      Previously it was done in TMP_PENDING state, but now it is done *before* going into TMP_PENDING.
+//                  - For ADC, now it has four temperature thresholds (ADC_T1 ~ ADC_T4) and five different offsets (ADC_OFFSET_R1 ~ ADC_OFFSET_R5)
+//                      to be added to various ADC thresholds, such as SAR ratio adjustment, ADC Low VBAT, ADC Critical VBAT.
+//                  - Default (base) value of ADC Low VBAT and ADC Critical VBAT are also read from EEPROM.
+//                  - It writes the system state. See comment on EEPROM_ADDR_SYSTEM_STATE
+//                  - snt_operation()
+//                          Added operartion_back_to_default() before calling eid_trigger_crash(),
+//                              so that it turns off the NFC and temp sensors if needed.
+//                          Now, the Low BATT indicator does not go OFF once turned on.
+//                  - calibrate_snt_timer()
+//                          Reduced the timeout duration from 45s to 30s when checked using the SNT timer (i.e., CALIB_TIMEOUT_USING_SNT enabled)
+//                  - Change the reset values of the following variables. This is to remove the unwanted 'offset' in the beginning.
+//                          cnt_temp_meas_start_delay = 1 -> 2
+//                      Also, if the start delay is 1 (i.e., eeprom_temp_meas_start_delay=), tmp_state is going from TMP_IDLE to TMP_ACTIVE, skipping TMP_PENDING.
+//                      Thus, now the 'start delay=N' means an N-minute delay, not an (N+1)-minute delay.
 //-------------------------------------------------------------------------------------------
 // IMPORTANT
 //  - This program assumes that GOC/EP uses RUN_CPU (not GEN_IRQ) only in its Control section.
@@ -153,7 +172,7 @@
 //
 //  * STOPPED: 
 //      You can stop the system by sending GOC_STOP_KEY.
-//      Once triggered, the system goes back to 'ACTIVATED' state.
+//      Once triggered, the system stops measuring the temperatuares but keeps doing the housekeeping.
 //
 //          GOC_STOP_KEY        0xDEADBEEF  // Stop the ongoing temperature measurement.
 //
@@ -302,8 +321,8 @@
 //  0x88    0x00000002                          SNT calibration successful
 //  0x88    0x00000003                          XO does not start
 //
-//  0x90    0x00aabbcc                          PMU ADC reading and SAR ratio values (aa: ADC output code, bb=cc: current SAR ratio)
-//  0x90    0xFFaabbcc                          PMU ADC reading and SAR ratio values (aa: ADC output code, bb: previous SAR ratio, cc: new SAR ratio)
+//  0x90    0xaabbccdd                          PMU ADC reading and SAR ratio values (aa: Given offset, bb: ADC output code, cc: previous SAR ratio, dd: new SAR ratio)
+//  0x91    0xaabbccdd                          PMU ADC reading and SAR ratio values (aa: Given offset, bb: ADC output code, cc=dd: current SAR ratio)
 //
 //  0xA0    0x0abcdefg                          E-ink display has been updated.
 //                                                  a: Minus
@@ -385,7 +404,7 @@
 //*******************************************************************************************
 #define DEVEL                   // Enable this to enable the use of GOC to Start/Stop the system with customized settings.
 #define GOCEP_RUN_CPU_ONLY      // Enable this when you cannot do 'GEN_IRQ' in GOC/EP Header (e.g., the current m3_ice script)
-//#define DEBUG                   // Send debug messages
+#define DEBUG                   // Send debug messages
 #define USE_DEFAULT_VALUE       // Use default values rather than grabbing the values from EEPROM
 #define GOC_ACTIVATE_ALSO_STARTS    // Enable this to make 'GOC Activate' also starts the temperature measurements
 //#define ALSO_STORE_VBAT       // Enable this to store SAR ratio, VBAT, and temperature data into EEPROM.
@@ -519,19 +538,37 @@ volatile uint32_t cnt_disp_refresh_interval;        // Counter for disp_refresh_
 volatile uint32_t cnt_timer_calib_interval;         // Counter for eeprom_timer_calib_interval
 
 //--- VBAT and ADC
+
+//----------------------------------------------------
+//  ADC Temperature Region Definition
+//----------------------------------------------------
+//  Z = Temperature Measurement (raw code)
+//
+//  Temp Measurement        Offset added to ADC threshold values
+//----------------------------------------------------
+//  ADC_T1 < Z              ADC_OFFSET_R1 
+//  ADC_T2 < Z <= ADC_T1    ADC_OFFSET_R2
+//  ADC_T3 < Z <= ADC_T2    ADC_OFFSET_R3
+//  ADC_T4 < Z <= ADC_T3    ADC_OFFSET_R4
+//           Z <= ADC_T4    ADC_OFFSET_R5
+//----------------------------------------------------
+
 volatile uint32_t eeprom_vbat_info;                 // VBAT + calibration data
-volatile uint32_t eeprom_adc_high_temp_threshold;   // Temperature Threshold (Raw Code) to determin HIGH and MID temperature for ADC
-volatile uint32_t eeprom_adc_low_temp_threshold;    // Temperature Threshold (Raw Code) to determin MID and LOW temperature for ADC
-volatile uint32_t eeprom_adc_low_vbat_high;         // (ADC Raw Code) Low VBAT threshold that turns on the VBAT indicator on the display, in the high temperature zone (i.e., temp > eeprom_adc_high_temp_threshold)
-volatile uint32_t eeprom_adc_crit_vbat_high;        // (ADC Raw Code) Critical VBAT threshold that shuts down (and freezes) the system, in the high temperature zone (i.e., temp > eeprom_adc_high_temp_threshold)
-volatile uint32_t eeprom_adc_low_vbat_mid;          // (ADC Raw Code) Low VBAT threshold that turns on the VBAT indicator on the display, in the mid temperature zone (i.e., eeprom_adc_low_temp_threshold < temp < eeprom_adc_high_temp_threshold)
-volatile uint32_t eeprom_adc_crit_vbat_mid;         // (ADC Raw Code) Critical VBAT threshold that shuts down (and freezes) the system, in the mid temperature zone (i.e., eeprom_adc_low_temp_threshold < temp < eeprom_adc_high_temp_threshold)
-volatile uint32_t eeprom_adc_low_vbat_low;          // (ADC Raw Code) Low VBAT threshold that turns on the VBAT indicator on the display, in the low temperature zone (i.e., temp < eeprom_adc_low_temp_threshold)
-volatile uint32_t eeprom_adc_crit_vbat_low;         // (ADC Raw Code) Critical VBAT threshold that shuts down (and freezes) the system, in the low temperature zone (i.e., temp < eeprom_adc_low_temp_threshold)
+volatile uint32_t eeprom_adc_t1;                    //  ( 1250 ) Temperature Threshold (Raw Code) for ADC. See the table above.
+volatile uint32_t eeprom_adc_t2;                    //  ( 1250 ) Temperature Threshold (Raw Code) for ADC. See the table above.
+volatile uint32_t eeprom_adc_t3;                    //  ( 1250 ) Temperature Threshold (Raw Code) for ADC. See the table above.
+volatile uint32_t eeprom_adc_t4;                    //  ( 1250 ) Temperature Threshold (Raw Code) for ADC. See the table above.
+volatile uint32_t eeprom_adc_offset_r1;             //  (    0 ) ADC offset. 2's complement. See the table above.
+volatile uint32_t eeprom_adc_offset_r2;             //  (    0 ) ADC offset. 2's complement. See the table above.
+volatile uint32_t eeprom_adc_offset_r3;             //  (    0 ) ADC offset. 2's complement. See the table above.
+volatile uint32_t eeprom_adc_offset_r4;             //  (    0 ) ADC offset. 2's complement. See the table above.
+volatile uint32_t eeprom_adc_offset_r5;             //  (    0 ) ADC offset. 2's complement. See the table above.
+volatile uint32_t eeprom_adc_low_vbat;              //  (  105 ) ADC code threshold to turn on the Low VBAT indicator.
+volatile uint32_t eeprom_adc_crit_vbat;             //  (   95 ) ADC code threshold to trigger the EID crash handler.
 
 //--- Calibration Data
-volatile uint32_t eeprom_snt_base_freq;             // SNT Timer Base Frequency in Hz (integer value only)
 volatile uint32_t eeprom_snt_calib_config;          // [7]: Calibration Duration (0: 7.5sec, 1: 15sec); [6:5]: XO Frequency (0: 4kHz, 1: 8kHz, 2: 16kHz, 3: 32kHz); [4:3]: Reserved; [2:0]: Max Error allowed (# bit shift from SNT_BASE_FREQ)
+volatile uint32_t eeprom_snt_base_freq;             // SNT Timer Base Frequency in Hz (integer value only)
 
 //--- EID Configurations
 volatile uint32_t eeprom_eid_high_temp_threshold;   // Temperature Threshold (Raw Code) to determin HIGH and MID temperature for EID
@@ -565,10 +602,6 @@ volatile uint32_t snt_temp_val;             // Latest temp measurement (raw code
 //--- SNT & Timer
 volatile uint32_t snt_timer_threshold;      // SNT Timer Threshold to wake up the system
 volatile uint32_t snt_timer_1min;           // SNT Timer tick count corresponding to 1 minute
-
-//--- ADC
-volatile uint32_t adc_low_vbat;             // ADC value that corresponds to Low VBAT
-volatile uint32_t adc_crit_vbat;            // ADC Value that corresponds to Critical VBAT
 
 //--- Display
 volatile uint32_t disp_refresh_interval;     // Period of Display Refresh. 0 means 'do not refresh'. (unit: snt_timer_1min)
@@ -698,7 +731,7 @@ static void operation_init (void) {
         num_i2c_fails                   = 0;
 
         //--- Counter for User Parameters
-        cnt_temp_meas_start_delay       = 1;
+        cnt_temp_meas_start_delay       = 2;
         cnt_temp_meas_interval          = 1;
         cnt_disp_refresh_interval       = 1;
         cnt_timer_calib_interval        = 1;
@@ -794,7 +827,7 @@ static void operation_init (void) {
 
     #ifdef WRITE_HW_ID
         // Set the Hardware ID
-        nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_HW_ID, /*data*/0x01000000, /*nb*/4);
+        nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_HW_ID, /*data*/0x00000001, /*nb*/4);
     #endif
 
         // Reset status in EEPROM
@@ -913,22 +946,18 @@ static void snt_operation (void) {
         snt_ldo_power_off();
         snt_state = SNT_IDLE;
 
-        // VBAT Measurement and SAR_RATIO Adjustment
-        uint32_t pmu_adc_vbat_val = pmu_adc_read_and_sar_ratio_adjustment();
+        // Determine ADC Offset, ADC Low VBAT threshold, and ADC Critical VBAT threshold
+        uint32_t adc_offset, adc_low_vbat, adc_crit_vbat;
+        if      (snt_temp_val > eeprom_adc_t1) { adc_offset = eeprom_adc_offset_r1; }
+        else if (snt_temp_val > eeprom_adc_t2) { adc_offset = eeprom_adc_offset_r2; }
+        else if (snt_temp_val > eeprom_adc_t3) { adc_offset = eeprom_adc_offset_r3; }
+        else if (snt_temp_val > eeprom_adc_t4) { adc_offset = eeprom_adc_offset_r4; }
+        else                                   { adc_offset = eeprom_adc_offset_r5; }
+        adc_low_vbat  = eeprom_adc_low_vbat  + adc_offset;
+        adc_crit_vbat = eeprom_adc_crit_vbat + adc_offset;
 
-        // Update ADC thresholds based on latest temperature measurement
-        if (snt_temp_val > eeprom_adc_high_temp_threshold) {
-            adc_low_vbat  = eeprom_adc_low_vbat_high;
-            adc_crit_vbat = eeprom_adc_crit_vbat_high;
-        }
-        else if (snt_temp_val > eeprom_adc_low_temp_threshold) {
-            adc_low_vbat  = eeprom_adc_low_vbat_mid;
-            adc_crit_vbat = eeprom_adc_crit_vbat_mid;
-        }
-        else {
-            adc_low_vbat  = eeprom_adc_low_vbat_low;
-            adc_crit_vbat = eeprom_adc_crit_vbat_low;
-        }
+        // VBAT Measurement and SAR_RATIO Adjustment
+        uint32_t pmu_adc_vbat_val = pmu_adc_read_and_sar_ratio_adjustment(/*offset*/adc_offset);
 
         // Write data into the write buffer
         if(!buffer_add_item((pmu_get_sar_ratio()<<24)|(pmu_adc_vbat_val<<16)|(snt_temp_val&0xFFFF))) {
@@ -965,7 +994,9 @@ static void snt_operation (void) {
         }
 
         //--- Update the Battery Indicator
-        new_seg = set_bit(new_seg, SEG_LOWBATT, (pmu_adc_vbat_val < adc_low_vbat));
+        if (!get_bit(curr_seg, SEG_LOWBATT) && (pmu_adc_vbat_val<adc_low_vbat)) {
+            new_seg = set_bit(new_seg, SEG_LOWBATT, 1);
+        }
 
 
         /////////////////////////////////////////////////////////////////
@@ -1023,15 +1054,12 @@ static void snt_operation (void) {
                     );
             }
 
-            // NOTE: Need to postpone 'nfc_i2c_release_token' after 'eid_update_with_eeprom' 
-            // since eid_update_with_eeprom requires the token anyway.
+            // NOTE: Need to postpone 'nfc_i2c_release_token' after 'eid_trigger_crash' 
+            // since eid_update_with_eeprom and the System State update require the token anyway.
         }
 
         // Update the e-Ink Display if needed
         if (new_seg!=curr_seg) eid_update_with_eeprom(new_seg);
-
-        // Release the I2C token
-        nfc_i2c_release_token();
 
         /////////////////////////////////////////////////////////////////
 
@@ -1040,10 +1068,18 @@ static void snt_operation (void) {
         //---------------------------------------------------------------
         //--- If VBAT is too low, trigger the EID Watchdog (System Crash)
         if (pmu_adc_vbat_val < adc_crit_vbat) {
+            // Update the System State
+            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0xFF, /*nb*/2);
+            // Back to Default
+            operation_back_to_default();
+            // Trigger the Crash Handler
             eid_trigger_crash();
             while(1);
         }
         /////////////////////////////////////////////////////////////////
+
+        // Release the I2C token
+        nfc_i2c_release_token();
 
         /////////////////////////////////////////////////////////////////
         // Update Display Refresh Interval
@@ -1137,6 +1173,11 @@ void nfc_check_cmd(void) {
 
                 // Start the system
                 set_flag(FLAG_STARTED, 1);
+
+                // Update the System State
+                nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0x2, /*nb*/2);
+
+                // ACK
                 nfc_set_ack(cmd);
             }
             //-----------------------------------------------------------
@@ -1156,11 +1197,16 @@ void nfc_check_cmd(void) {
                     eid_update_with_eeprom(eid_get_current_display() & ~DISP_PLAY);
                     // Reset FLAG_STARTED
                     set_flag(FLAG_STARTED, 0);
+
+                    // Update the System State
+                    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0x3, /*nb*/2);
+
+                    // ACK
                     nfc_set_ack(cmd);
                 }
             }
             //-----------------------------------------------------------
-            // CMD: CONFIG
+            // CMD: UPDATE
             //-----------------------------------------------------------
             else if (cmd == 0x03) {
 
@@ -1171,12 +1217,20 @@ void nfc_check_cmd(void) {
                 // Update the EEPROM variables
                 update_eeprom_variables();
 
-                // Stop the system
-                operation_back_to_default();
-                // Remove the 'Play' sign
-                eid_update_with_eeprom(eid_get_current_display() & ~DISP_PLAY);
-                // Reset FLAG_STARTED
-                set_flag(FLAG_STARTED, 0);
+                if (get_flag(FLAG_STARTED)) {
+                    // Stop the system
+                    operation_back_to_default();
+
+                    // Remove the 'Play' sign
+                    eid_update_with_eeprom(eid_get_current_display() & ~DISP_PLAY);
+                    // Reset FLAG_STARTED
+                    set_flag(FLAG_STARTED, 0);
+                    
+                    // Update the System State
+                    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0x3, /*nb*/2);
+                }
+
+                // ACK
                 nfc_set_ack(cmd);
 
             }
@@ -1244,11 +1298,11 @@ static void calibrate_snt_timer(void) {
                     /*irq_en*/    1
                 );
 
-    // Time-out Check (45 sec)
+    // Time-out Check
 #ifdef CALIB_TIMEOUT_USING_SNT
     *NVIC_ISER = (0x1 << IRQ_REG7);
     // threshold for the timeout
-    uint32_t snt_timeout_threshold = snt_timer_threshold+(snt_timer_1min>>1)+(snt_timer_1min>>2);
+    uint32_t snt_timeout_threshold = snt_timer_threshold+(snt_timer_1min>>1);
     if(snt_timeout_threshold==0) snt_timeout_threshold = 1; // SNT Timer does not expire at cnt=0.
     set_timeout_snt_check(/*threshold*/snt_timeout_threshold);
 #else
@@ -1353,19 +1407,22 @@ static void update_eeprom_variables(void) {
 
 #ifdef USE_DEFAULT_VALUE
     //--- VBAT and ADC
-    eeprom_vbat_info                = 0;    // VBAT + calibration data
-    eeprom_adc_high_temp_threshold  = 1250; // ( 1250 (=20C)  ) Temperature Threshold (Raw Code) to determin HIGH and MID temperature for ADC
-    eeprom_adc_low_temp_threshold   = 700;  // ( 700  (=10C)  ) Temperature Threshold (Raw Code) to determin MID and LOW temperature for ADC
-    eeprom_adc_low_vbat_high        = 110;  // (ADC Raw Code) Low VBAT threshold that turns on the VBAT indicator on the display, in the high temperature zone (i.e., temp > eeprom_adc_high_temp_threshold)
-    eeprom_adc_crit_vbat_high       = 100;  // (ADC Raw Code) Critical VBAT threshold that shuts down (and freezes) the system, in the high temperature zone (i.e., temp > eeprom_adc_high_temp_threshold)
-    eeprom_adc_low_vbat_mid         = 110;  // (ADC Raw Code) Low VBAT threshold that turns on the VBAT indicator on the display, in the mid temperature zone (i.e., eeprom_adc_low_temp_threshold < temp < eeprom_adc_high_temp_threshold)
-    eeprom_adc_crit_vbat_mid        = 100;  // (ADC Raw Code) Critical VBAT threshold that shuts down (and freezes) the system, in the mid temperature zone (i.e., eeprom_adc_low_temp_threshold < temp < eeprom_adc_high_temp_threshold)
-    eeprom_adc_low_vbat_low         = 110;  // (ADC Raw Code) Low VBAT threshold that turns on the VBAT indicator on the display, in the low temperature zone (i.e., temp < eeprom_adc_low_temp_threshold)
-    eeprom_adc_crit_vbat_low        = 100;  // (ADC Raw Code) Critical VBAT threshold that shuts down (and freezes) the system, in the low temperature zone (i.e., temp < eeprom_adc_low_temp_threshold)
+    eeprom_vbat_info        = 0;    // VBAT + calibration data
+    eeprom_adc_t1           = 1250; // ( 1250 ) Temperature Threshold (Raw Code) for ADC. See the table above.
+    eeprom_adc_t2           = 1250; // ( 1250 ) Temperature Threshold (Raw Code) for ADC. See the table above.
+    eeprom_adc_t3           = 1250; // ( 1250 ) Temperature Threshold (Raw Code) for ADC. See the table above.
+    eeprom_adc_t4           = 1250; // ( 1250 ) Temperature Threshold (Raw Code) for ADC. See the table above.
+    eeprom_adc_offset_r1    = 0;    // (    0 ) ADC offset to be used in Region 1. 2's complement. See the table above.
+    eeprom_adc_offset_r2    = 0;    // (    0 ) ADC offset to be used in Region 2. 2's complement. See the table above.
+    eeprom_adc_offset_r3    = 0;    // (    0 ) ADC offset to be used in Region 3. 2's complement. See the table above.
+    eeprom_adc_offset_r4    = 0;    // (    0 ) ADC offset to be used in Region 4. 2's complement. See the table above.
+    eeprom_adc_offset_r5    = 0;    // (    0 ) ADC offset to be used in Region 5. 2's complement. See the table above.
+    eeprom_adc_low_vbat     = 105;  // (  105 ) ADC code threshold to turn on the Low VBAT indicator.
+    eeprom_adc_crit_vbat    = 95;   // (   95 ) ADC code threshold to trigger the EID crash handler.
 
     //--- Calibration Data
-    eeprom_snt_base_freq            = 1494; // SNT Timer Base Frequency in Hz (integer value only)
     eeprom_snt_calib_config         = ((1 << 7) | (2 << 5) | (2 << 0)); // [7]: Calibration Duration (0: 7.5sec, 1: 15sec); [6:5]: XO Frequency (0: 4kHz, 1: 8kHz, 2: 16kHz, 3: 32kHz); [4:3]: Reserved; [2:0]: Max Error allowed (# bit shift from SNT_BASE_FREQ)
+    eeprom_snt_base_freq            = 1500; // SNT Timer Base Frequency in Hz (integer value only)
     
     //--- EID Configurations
     eeprom_eid_high_temp_threshold  = 1250; // ( 1250 (=20C)  ) Temperature Threshold (Raw Code) to determin HIGH and MID temperature for EID
@@ -1383,28 +1440,31 @@ static void update_eeprom_variables(void) {
     uint32_t temp;
 
     //--- VBAT and ADC
-    eeprom_vbat_info                = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_VBAT_INFO, /*nb*/2);
+    eeprom_vbat_info = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_VBAT_INFO, /*nb*/2);
 
-    temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_HIGH_TEMP_THRESHOLD, /*nb*/4);
-    eeprom_adc_high_temp_threshold  = get_bits(temp, 15,  0);
-    eeprom_adc_low_temp_threshold   = get_bits(temp, 31, 16);
+    temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_T1, /*nb*/4);
+    eeprom_adc_t1  = get_bits(temp, 15,  0);
+    eeprom_adc_t2  = get_bits(temp, 31, 16);
 
-    temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADC_LOW_VBAT_HIGH, /*nb*/2);
-    eeprom_adc_low_vbat_high        = get_bits(temp,  7,  0);
-    eeprom_adc_crit_vbat_high       = get_bits(temp, 15,  8);
+    temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_T3, /*nb*/4);
+    eeprom_adc_t3  = get_bits(temp, 15,  0);
+    eeprom_adc_t4  = get_bits(temp, 31, 16);
 
-    temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADC_LOW_VBAT_MID, /*nb*/2);
-    eeprom_adc_low_vbat_mid         = get_bits(temp,  7,  0);
-    eeprom_adc_crit_vbat_mid        = get_bits(temp, 15,  8);
+    temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_OFFSET_R1, /*nb*/4);
+    eeprom_adc_offset_r1    = get_bits(temp,  7,  0);
+    eeprom_adc_offset_r2    = get_bits(temp, 15,  8);
+    eeprom_adc_offset_r3    = get_bits(temp, 23, 16);
+    eeprom_adc_offset_r4    = get_bits(temp, 31, 24);
 
-    temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADC_LOW_VBAT_LOW, /*nb*/2);
-    eeprom_adc_low_vbat_low         = get_bits(temp,  7,  0);
-    eeprom_adc_crit_vbat_low        = get_bits(temp, 15,  8);
+    temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_OFFSET_R5, /*nb*/3);
+    eeprom_adc_offset_r5    = get_bits(temp,  7,  0);
+    eeprom_adc_low_vbat     = get_bits(temp, 15,  8);
+    eeprom_adc_crit_vbat    = get_bits(temp, 23, 16);
 
     //--- Calibration Data
-    temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_SNT_BASE_FREQ, /*nb*/3);
-    eeprom_snt_base_freq            = get_bits(temp, 15,  0);
-    eeprom_snt_calib_config         = get_bits(temp, 23, 16);,
+    temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_SNT_CALIB_CONFIG, /*nb*/3);
+    eeprom_snt_calib_config         = get_bits(temp,  7,  0);,
+    eeprom_snt_base_freq            = get_bits(temp, 23,  8);
     
     //--- EID Configurations
     temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_HIGH_TEMP_THRESHOLD, /*nb*/4);
@@ -1564,6 +1624,9 @@ void handler_ext_int_gocep    (void) {
             set_flag(FLAG_ACTIVATED, 1); 
             set_flag(FLAG_WD_ENABLED, 1); 
 
+            // Update the System State
+            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0x1, /*nb*/2);
+
             // Clear the display
             eid_update_with_eeprom(DISP_NONE);
 
@@ -1585,6 +1648,10 @@ void handler_ext_int_gocep    (void) {
             #endif
 
             set_flag(FLAG_STARTED, 1);
+
+            // Update the System State
+            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0x2, /*nb*/2);
+
         #endif
         }
     }
@@ -1593,6 +1660,10 @@ void handler_ext_int_gocep    (void) {
     else if (goc_raw==GOC_QUICK_START_KEY) { 
         if (!get_flag(FLAG_STARTED)) {
             set_flag(FLAG_STARTED, 1);
+
+            // Update the System State
+            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0x2, /*nb*/2);
+
         }
     }
     // Start the temperature measurement
@@ -1616,6 +1687,10 @@ void handler_ext_int_gocep    (void) {
             #endif
 
             set_flag(FLAG_STARTED, 1);
+
+            // Update the System State
+            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0x2, /*nb*/2);
+
         }
     }
     // Stop the ongoing temperature measurement
@@ -1628,6 +1703,10 @@ void handler_ext_int_gocep    (void) {
         eid_update_with_eeprom(eid_get_current_display() & ~DISP_PLAY);
         // Reset FLAG_STARTED
         set_flag(FLAG_STARTED, 0);
+
+        // Update the System State
+        nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0x3, /*nb*/2);
+
     }
 #endif
 }
@@ -1718,14 +1797,17 @@ int main() {
                     mbus_write_message32(0x83, (0x06 << 24) | eeprom_high_temp_threshold);
                     mbus_write_message32(0x83, (0x07 << 24) | eeprom_low_temp_threshold);
                 #endif
-                tmp_state = TMP_PENDING;
+                if (eeprom_temp_meas_start_delay==1) tmp_state = TMP_ACTIVE;
+                else tmp_state = TMP_PENDING;
                 // Reset counters
-                cnt_temp_meas_start_delay   = 1;
+                cnt_temp_meas_start_delay   = 2;
                 cnt_temp_meas_interval      = 1;
                 temp_sample_count           = 0;
                 eeprom_sample_count         = 0;
                 // Display 
                 eid_update_with_eeprom(DISP_PLAY);
+                // Calibrate the SNT timer
+                cnt_timer_calib_interval = eeprom_timer_calib_interval;
             }
             #ifdef DEBUG
             else {
@@ -1734,9 +1816,6 @@ int main() {
             #endif
         }
         else if (tmp_state==TMP_PENDING) {
-            // Calibrate the SNT timer
-            if (cnt_temp_meas_start_delay==1) cnt_timer_calib_interval = eeprom_timer_calib_interval;
-
             if (cnt_temp_meas_start_delay == eeprom_temp_meas_start_delay) {
                 #ifdef DEBUG
                     mbus_write_message32(0x83, 0x00000004);
