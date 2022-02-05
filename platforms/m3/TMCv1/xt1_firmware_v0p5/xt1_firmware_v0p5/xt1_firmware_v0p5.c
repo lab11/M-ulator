@@ -102,7 +102,7 @@
 //                  - Added 'TE_LAST_SAMPLE' tracking. It shows how many minutes have elapsed since the last temperature measurement.
 //                      This helps post-calibrate the time on the app. 
 //                      TE_LAST_SAMPLE resolution is set using TE_LAST_SAMPLE_RES variable.
-//                  - Changed the code that it measures the temperature once the 'start delay' has passed.
+//                  - Changed the code so that it measures the temperature once the 'start delay' has passed.
 //                      Previously, it starts the 'temp_meas_interval' counting once the 'start delay' has passed.
 //                  - snt_operation()
 //                          Added operartion_back_to_default() before calling eid_trigger_crash(),
