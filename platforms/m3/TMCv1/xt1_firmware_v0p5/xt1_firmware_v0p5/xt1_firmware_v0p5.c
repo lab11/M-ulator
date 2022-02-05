@@ -1,6 +1,3 @@
-// FIXME: ADC testing at different temperatures
-// FIXME: Display something once buffer overrun; pending discussion.
-// FIXME: How to program the eeprom variables? GOC? or NFC?
 //*******************************************************************************************
 // XT1 (TMCv1) FIRMWARE
 // Version 0.5
@@ -100,6 +97,13 @@
 //                      to be added to various ADC thresholds, such as SAR ratio adjustment, ADC Low VBAT, ADC Critical VBAT.
 //                  - Default (base) value of ADC Low VBAT and ADC Critical VBAT are also read from EEPROM.
 //                  - It writes the system state. See comment on EEPROM_ADDR_SYSTEM_STATE
+//                      NOTE: EEPROM_ADDR_BUF_OVERRUN_FAIL has been removed. Now the buffer overrun fail is logged in EEPROM_ADDR_SYSTEM_STATE.
+//                  - Now the eeprom_timer_calib_interval is within the 'Other Configurations' section, rather than 'User Command'
+//                  - Added 'TE_LAST_SAMPLE' tracking. It shows how many minutes have elapsed since the last temperature measurement.
+//                      This helps post-calibrate the time on the app. 
+//                      TE_LAST_SAMPLE resolution is set using TE_LAST_SAMPLE_RES variable.
+//                  - Changed the code that it measures the temperature once the 'start delay' has passed.
+//                      Previously, it starts the 'temp_meas_interval' counting once the 'start delay' has passed.
 //                  - snt_operation()
 //                          Added operartion_back_to_default() before calling eid_trigger_crash(),
 //                              so that it turns off the NFC and temp sensors if needed.
@@ -288,7 +292,8 @@
 //
 //  0x83    {0x01, eeprom_temp_meas_start_delay}    Start Delay
 //  0x83    {0x02, eeprom_temp_meas_interval}       Temp Meas Period
-//  0x83    {0x04, eeprom_timer_calib_interval}     Timer Calibration
+//  0x83    {0x03, eeprom_timer_calib_interval}     Timer Calibration
+//  0x83    {0x04, eeprom_te_last_sample_res}       Resolution of TE_LAST_SAMPLE.
 //  0x83    {0x05, eeprom_temp_meas_config}         Misc. Configurations
 //  0x83    {0x06, eeprom_high_temp_threshold}      High Temp Threshold
 //  0x83    {0x07, eeprom_low_temp_threshold}       Low Temp Threshold
@@ -518,14 +523,13 @@ volatile uint32_t eeprom_sample_count;              // Counter for sample count 
 volatile uint32_t num_calib_pass;                   // Number of Calibration passes
 volatile uint32_t num_calib_xo_fails;               // Number of Calibration fails (XO timeout)
 volatile uint32_t num_calib_max_err_fails;          // Number of Calibration fails (MAX_CHANGE error)
-volatile uint32_t num_i2c_fails;                    // Number of I2C fails (mostly due to ACK timeout)
+volatile uint32_t system_state;                     // System State (See comment on EEPROM_ADDR_SYSTEM_STATE)
 
 //--- User Commands
 volatile uint32_t eeprom_high_temp_threshold;       // (Default:  300) Threshold for High Temperature
 volatile uint32_t eeprom_low_temp_threshold;        // (Default:  100) Threshold for Low Temperature
 volatile uint32_t eeprom_temp_meas_interval;        // (Default:   15) Period of Temperature Measurement (unit: snt_timer_1min)
 volatile uint32_t eeprom_temp_meas_start_delay;     // (Default:   30) Start Delay before starting temperature measurement (unit: snt_timer_1min)
-volatile uint32_t eeprom_timer_calib_interval;      // (Default:    1) Period of SNT Timer Calibration. 0 means 'do not calibrate'. (unit:snt_timer_1min).
 volatile uint32_t eeprom_temp_meas_config;          // Misc. Configurations
                                                     // [15: 1] Reserved
                                                     // [0]     EN_ROLL_OVER     If 1, it overwrites the oldest measurement data when the #sample exceeds the maximum allowed in the EEPROM capacity. 
@@ -536,6 +540,8 @@ volatile uint32_t cnt_temp_meas_start_delay;        // Counter for eeprom_temp_m
 volatile uint32_t cnt_temp_meas_interval;           // Counter for eeprom_temp_meas_interval
 volatile uint32_t cnt_disp_refresh_interval;        // Counter for disp_refresh_interval
 volatile uint32_t cnt_timer_calib_interval;         // Counter for eeprom_timer_calib_interval
+volatile uint32_t cnt_te_last_sample;               // Counter for eeprom_te_last_sample
+volatile uint32_t cnt_te_last_sample_res;           // Counter for eeprom_te_last_sample_res
 
 //--- VBAT and ADC
 
@@ -583,6 +589,9 @@ volatile uint32_t eeprom_eid_duration_low;          // EID duration (ECTR_PULSE_
 volatile uint32_t eeprom_eid_fe_duration_low;       // EID 'Field Erase' duration (ECTR_PULSE_WIDTH) for Low Temperature. '0' makes it skip 'Field Erase'
 volatile uint32_t eeprom_eid_rfrsh_int_hr_low;      // EID Refresh interval for Low Temperature (unit: hr). '0' meas 'do not refresh'.
 
+//--- Other Configurations
+volatile uint32_t eeprom_timer_calib_interval;      // Period of SNT Timer Calibration. 0 means 'do not calibrate'. (unit:snt_timer_1min).
+volatile uint32_t eeprom_te_last_sample_res;        // Resolution of TE_LAST_SAMPLE (unit: minute). See comment on EEPROM_ADDR_TE_LAST_SAMPLE.
 
 //-------------------------------------------------------------------------------------------
 // Other Global Variables
@@ -625,6 +634,7 @@ static void operation_init (void);
 
 //--- Application Specific
 static void eid_update_with_eeprom(uint32_t seg);
+static void set_system_state(uint32_t msb, uint32_t lsb, uint32_t val);
 static void snt_operation (void);
 static void nfc_set_ack(uint32_t cmd);
 static void nfc_set_err(uint32_t cmd);
@@ -728,20 +738,21 @@ static void operation_init (void) {
         num_calib_pass                  = 0;
         num_calib_xo_fails              = 0;
         num_calib_max_err_fails         = 0;
-        num_i2c_fails                   = 0;
+        system_state                    = 0;
 
         //--- Counter for User Parameters
         cnt_temp_meas_start_delay       = 2;
         cnt_temp_meas_interval          = 1;
         cnt_disp_refresh_interval       = 1;
         cnt_timer_calib_interval        = 1;
+        cnt_te_last_sample              = 0;
+        cnt_te_last_sample_res          = 0;
 
         //--- User Parameters
         eeprom_high_temp_threshold      = 700;
         eeprom_low_temp_threshold       = 450;
         eeprom_temp_meas_interval       = 15;
         eeprom_temp_meas_start_delay    = 30;
-        eeprom_timer_calib_interval     = 10;
         eeprom_temp_meas_config         = (1 << 0);
 
         //-------------------------------------------------
@@ -908,6 +919,14 @@ static void eid_update_with_eeprom(uint32_t seg) {
     #endif
 }
 
+static void set_system_state(uint32_t msb, uint32_t lsb, uint32_t val) {
+    system_state = set_bits(/*original_var*/system_state, /*msb_idx*/msb, /*lsb_idx*/lsb, /*value*/val);
+    if(nfc_i2c_get_token(30)) {
+        nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/system_state, /*nb*/2);
+        nfc_i2c_release_token();
+    }
+}
+
 static void snt_operation (void) {
 
     #ifdef DEBUG
@@ -1047,11 +1066,7 @@ static void snt_operation (void) {
 
             // If buffer overrun, set the failure flag
             if (buffer_overrun) {
-                nfc_i2c_byte_write(/*e2*/0, 
-                    /*addr*/ EEPROM_ADDR_BUF_OVERRUN_FAIL, 
-                    /*data*/ 0x1,
-                    /* nb */ 1
-                    );
+                set_system_state(/*msb*/14, /*lsb*/14, /*val*/0x1);
             }
 
             // NOTE: Need to postpone 'nfc_i2c_release_token' after 'eid_trigger_crash' 
@@ -1069,7 +1084,7 @@ static void snt_operation (void) {
         //--- If VBAT is too low, trigger the EID Watchdog (System Crash)
         if (pmu_adc_vbat_val < adc_crit_vbat) {
             // Update the System State
-            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0xFF, /*nb*/2);
+            set_system_state(/*msb*/15, /*lsb*/15, /*val*/0x1);
             // Back to Default
             operation_back_to_default();
             // Trigger the Crash Handler
@@ -1151,7 +1166,6 @@ void nfc_check_cmd(void) {
                 #ifdef USE_DEFAULT_VALUE
                     eeprom_temp_meas_start_delay = 1;
                     eeprom_temp_meas_interval    = 1;
-                    eeprom_timer_calib_interval  = 10;
                     eeprom_temp_meas_config      = (1 << 0);
                     eeprom_high_temp_threshold   = 700;
                     eeprom_low_temp_threshold    = 450;
@@ -1166,16 +1180,15 @@ void nfc_check_cmd(void) {
                     eeprom_temp_meas_interval    = get_bits(temp, 15, 0);
                     eeprom_temp_meas_start_delay = get_bits(temp, 31, 16);
 
-                    temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_TIMER_CALIB_INTERVAL, /*nb*/4);
-                    eeprom_timer_calib_interval  = get_bits(temp, 15, 0);
-                    eeprom_temp_meas_config      = get_bits(temp, 31, 16);
+                    temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_MEAS_CONFIG, /*nb*/2);
+                    eeprom_temp_meas_config      = get_bits(temp, 15, 0);
                 #endif
 
                 // Start the system
                 set_flag(FLAG_STARTED, 1);
 
                 // Update the System State
-                nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0x2, /*nb*/2);
+                set_system_state(/*msb*/1, /*lsb*/0, /*val*/0x2);
 
                 // ACK
                 nfc_set_ack(cmd);
@@ -1199,7 +1212,7 @@ void nfc_check_cmd(void) {
                     set_flag(FLAG_STARTED, 0);
 
                     // Update the System State
-                    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0x3, /*nb*/2);
+                    set_system_state(/*msb*/1, /*lsb*/0, /*val*/0x3);
 
                     // ACK
                     nfc_set_ack(cmd);
@@ -1227,7 +1240,7 @@ void nfc_check_cmd(void) {
                     set_flag(FLAG_STARTED, 0);
                     
                     // Update the System State
-                    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0x3, /*nb*/2);
+                    set_system_state(/*msb*/1, /*lsb*/0, /*val*/0x3);
                 }
 
                 // ACK
@@ -1393,14 +1406,14 @@ static void reset_eeprom(uint32_t fw_id) {
     nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_FW_ID, /*data*/fw_id, /*nb*/4);
     // Reset the Sample Count
     nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SAMPLE_COUNT, /*data*/0x0, /*nb*/4);
-    // Reset the System State
-    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0x0, /*nb*/2);
     // Reset NUM_XO/CALIB_MAX_ERR/BUF_OVERRUN
-    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_NUM_CALIB_XO_FAILS, /*data*/0x0, /*nb*/4);
+    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_NUM_CALIB_XO_FAILS, /*data*/0x0, /*nb*/2);
     // Reset the Command
     nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_CMD, /*data*/0x0, /*nb*/1);
     // Reset Start/Stop Time and User IDs
     nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_START_TIME, /*data*/0x0, /*nb*/16);
+    // Reset the System State
+    set_system_state(/*msb*/15, /*lsb*/0, /*val*/0);
 }
 
 static void update_eeprom_variables(void) {
@@ -1436,6 +1449,11 @@ static void update_eeprom_variables(void) {
     eeprom_eid_duration_low         = 500;  // ( 500  (=4s)   ) EID duration (ECTR_PULSE_WIDTH) for Low Temperature
     eeprom_eid_fe_duration_low      = 500;  // ( 500  (=4s)   ) EID 'Field Erase' duration (ECTR_PULSE_WIDTH) for Low Temperature. '0' makes it skip 'Field Erase'
     eeprom_eid_rfrsh_int_hr_low     = 8;    // ( 8    (=8hr)  ) EID Refresh interval for Low Temperature (unit: hr). '0' makes it skip the refresh.
+
+    //--- Other Configurations
+    eeprom_timer_calib_interval     = 10;   // (           10 ) Timer Calibration Interval. '0' means 'do not calibrate'. (unit: minute)
+    eeprom_te_last_sample_res       =  5;   // (            5 ) Resolution of TE_LAST_SAMPLE (unit: minute). See comment on EEPROM_ADDR_TE_LAST_SAMPLE.
+
 #else
     uint32_t temp;
 
@@ -1477,14 +1495,19 @@ static void update_eeprom_variables(void) {
     eeprom_eid_rfrsh_int_hr_high    = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_RFRSH_INT_HR_HIGH, /*nb*/1);
 
     temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_DURATION_MID, /*nb*/4);
-    eeprom_eid_duration_mid        = get_bits(temp, 15,  0);
-    eeprom_eid_fe_duration_mid     = get_bits(temp, 31, 16);
-    eeprom_eid_rfrsh_int_hr_mid    = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_RFRSH_INT_HR_MID, /*nb*/1);
+    eeprom_eid_duration_mid         = get_bits(temp, 15,  0);
+    eeprom_eid_fe_duration_mid      = get_bits(temp, 31, 16);
+    eeprom_eid_rfrsh_int_hr_mid     = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_RFRSH_INT_HR_MID, /*nb*/1);
 
     temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_DURATION_LOW, /*nb*/4);
-    eeprom_eid_duration_low        = get_bits(temp, 15,  0);
-    eeprom_eid_fe_duration_low     = get_bits(temp, 31, 16);
-    eeprom_eid_rfrsh_int_hr_low    = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_RFRSH_INT_HR_LOW, /*nb*/1);
+    eeprom_eid_duration_low         = get_bits(temp, 15,  0);
+    eeprom_eid_fe_duration_low      = get_bits(temp, 31, 16);
+    eeprom_eid_rfrsh_int_hr_low     = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_RFRSH_INT_HR_LOW, /*nb*/1);
+
+    temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_TIMER_CALIB_INTERVAL, /*nb*/4);
+    eeprom_timer_calib_interval     = get_bits(temp, 15,  0);
+    eeprom_te_last_sample_res       = get_bits(temp, 31, 16);
+
 #endif
 
     // Update SNT timer variables
@@ -1625,7 +1648,7 @@ void handler_ext_int_gocep    (void) {
             set_flag(FLAG_WD_ENABLED, 1); 
 
             // Update the System State
-            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0x1, /*nb*/2);
+            set_system_state(/*msb*/1, /*lsb*/0, /*val*/0x1);
 
             // Clear the display
             eid_update_with_eeprom(DISP_NONE);
@@ -1634,23 +1657,21 @@ void handler_ext_int_gocep    (void) {
             #ifdef USE_DEFAULT_VALUE
                 eeprom_temp_meas_start_delay = 1;
                 eeprom_temp_meas_interval    = 1;
-                eeprom_timer_calib_interval  = 10;
                 eeprom_temp_meas_config      = (1 << 0);
                 eeprom_high_temp_threshold   = 700;
                 eeprom_low_temp_threshold    = 450;
             #else
                 eeprom_temp_meas_start_delay = *(GOC_DATA_IRQ+1);
                 eeprom_temp_meas_interval    = *(GOC_DATA_IRQ+2);
-                eeprom_timer_calib_interval  = *(GOC_DATA_IRQ+3);
-                eeprom_temp_meas_config      = *(GOC_DATA_IRQ+4);
-                eeprom_high_temp_threshold   = *(GOC_DATA_IRQ+5);
-                eeprom_low_temp_threshold    = *(GOC_DATA_IRQ+6);
+                eeprom_temp_meas_config      = *(GOC_DATA_IRQ+3);
+                eeprom_high_temp_threshold   = *(GOC_DATA_IRQ+4);
+                eeprom_low_temp_threshold    = *(GOC_DATA_IRQ+5);
             #endif
 
             set_flag(FLAG_STARTED, 1);
 
             // Update the System State
-            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0x2, /*nb*/2);
+            set_system_state(/*msb*/1, /*lsb*/0, /*val*/0x2);
 
         #endif
         }
@@ -1662,7 +1683,7 @@ void handler_ext_int_gocep    (void) {
             set_flag(FLAG_STARTED, 1);
 
             // Update the System State
-            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0x2, /*nb*/2);
+            set_system_state(/*msb*/1, /*lsb*/0, /*val*/0x2);
 
         }
     }
@@ -1673,23 +1694,21 @@ void handler_ext_int_gocep    (void) {
             #ifdef USE_DEFAULT_VALUE
                 eeprom_temp_meas_start_delay = 1;
                 eeprom_temp_meas_interval    = 1;
-                eeprom_timer_calib_interval  = 10;
                 eeprom_temp_meas_config      = (1 << 0);
                 eeprom_high_temp_threshold   = 700;
                 eeprom_low_temp_threshold    = 450;
             #else
                 eeprom_temp_meas_start_delay = *(GOC_DATA_IRQ+1);
                 eeprom_temp_meas_interval    = *(GOC_DATA_IRQ+2);
-                eeprom_timer_calib_interval  = *(GOC_DATA_IRQ+3);
-                eeprom_temp_meas_config      = *(GOC_DATA_IRQ+4);
-                eeprom_high_temp_threshold   = *(GOC_DATA_IRQ+5);
-                eeprom_low_temp_threshold    = *(GOC_DATA_IRQ+6);
+                eeprom_temp_meas_config      = *(GOC_DATA_IRQ+3);
+                eeprom_high_temp_threshold   = *(GOC_DATA_IRQ+4);
+                eeprom_low_temp_threshold    = *(GOC_DATA_IRQ+5);
             #endif
 
             set_flag(FLAG_STARTED, 1);
 
             // Update the System State
-            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0x2, /*nb*/2);
+            set_system_state(/*msb*/1, /*lsb*/0, /*val*/0x2);
 
         }
     }
@@ -1703,10 +1722,8 @@ void handler_ext_int_gocep    (void) {
         eid_update_with_eeprom(eid_get_current_display() & ~DISP_PLAY);
         // Reset FLAG_STARTED
         set_flag(FLAG_STARTED, 0);
-
         // Update the System State
-        nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0x3, /*nb*/2);
-
+        set_system_state(/*msb*/1, /*lsb*/0, /*val*/0x3);
     }
 #endif
 }
@@ -1792,18 +1809,24 @@ int main() {
                     mbus_write_message32(0x83, 0x00000002);
                     mbus_write_message32(0x83, (0x01 << 24) | eeprom_temp_meas_start_delay);
                     mbus_write_message32(0x83, (0x02 << 24) | eeprom_temp_meas_interval);
-                    mbus_write_message32(0x83, (0x04 << 24) | eeprom_timer_calib_interval);
+                    mbus_write_message32(0x83, (0x03 << 24) | eeprom_timer_calib_interval);
+                    mbus_write_message32(0x83, (0x04 << 24) | eeprom_te_last_sample_res);
                     mbus_write_message32(0x83, (0x05 << 24) | eeprom_temp_meas_config);
                     mbus_write_message32(0x83, (0x06 << 24) | eeprom_high_temp_threshold);
                     mbus_write_message32(0x83, (0x07 << 24) | eeprom_low_temp_threshold);
                 #endif
-                if (eeprom_temp_meas_start_delay==1) tmp_state = TMP_ACTIVE;
+                if (eeprom_temp_meas_start_delay==1) {
+                    tmp_state = TMP_ACTIVE;
+                    cnt_temp_meas_interval = eeprom_temp_meas_interval;
+                }
                 else tmp_state = TMP_PENDING;
                 // Reset counters
                 cnt_temp_meas_start_delay   = 2;
-                cnt_temp_meas_interval      = 1;
+                cnt_temp_meas_interval      = 1;    // maybe redundant
                 temp_sample_count           = 0;
                 eeprom_sample_count         = 0;
+                cnt_te_last_sample          = 0;    // maybe redundant
+                cnt_te_last_sample_res      = 0;    // maybe redundant
                 // Display 
                 eid_update_with_eeprom(DISP_PLAY);
                 // Calibrate the SNT timer
@@ -1821,6 +1844,7 @@ int main() {
                     mbus_write_message32(0x83, 0x00000004);
                 #endif
                 tmp_state = TMP_ACTIVE;
+                cnt_temp_meas_interval = eeprom_temp_meas_interval;
             }
             else {
                 cnt_temp_meas_start_delay++;
@@ -1836,13 +1860,28 @@ int main() {
                 #endif
                 snt_operation();
                 cnt_temp_meas_interval = 0;
+                cnt_te_last_sample     = 0;
+                cnt_te_last_sample_res = 0;
             }
             #ifdef DEBUG
             else {
                 mbus_write_message32(0x83, 0x00000007);
             }
             #endif
+
+            // Write TE_LAST_SAMPLE
+            if (  (cnt_te_last_sample_res == 0) 
+               || (cnt_te_last_sample_res == eeprom_te_last_sample_res)) {
+                if(nfc_i2c_get_token(30)) {
+                    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_TE_LAST_SAMPLE, /*data*/cnt_te_last_sample, /*nb*/2);
+                    nfc_i2c_release_token();
+                }
+                cnt_te_last_sample_res = 0;
+            }
+
             cnt_temp_meas_interval++;
+            cnt_te_last_sample++;
+            cnt_te_last_sample_res++;
 
         }
 

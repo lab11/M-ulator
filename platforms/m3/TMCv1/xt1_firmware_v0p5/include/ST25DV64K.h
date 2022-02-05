@@ -30,14 +30,44 @@
 
 //--- System Status
 #define EEPROM_ADDR_SAMPLE_COUNT            8   //  4       Sample Count (Little Endian)
-#define EEPROM_ADDR_SYSTEM_STATE            12  //  2       System State (See comment on EEPROM_ADDR_DISPLAY)
-                                                //              0x00: System is in IDLE
-                                                //              0x01: System is in ACTIVATED
-                                                //              0x02: System is in STARTED
-                                                //              0x03: System is in STOPPED
-                                                //              0xFF: Crash handler has been triggered due to the critical VBAT level.
-                                                //                      At this point, the display shows the 'Cross' only.
-#define EEPROM_ADDR_DISPLAY                 14  //  2       Current e-ink display
+#define EEPROM_ADDR_TE_LAST_SAMPLE          12  //  2       Time elapsed since the last sample (unit: minute)
+                                                //
+                                                //          ------------------------------------------------------------------------------------------------------
+                                                //              SAMPLE_COUNT and TE_LAST_SAMPLE
+                                                //          ------------------------------------------------------------------------------------------------------
+                                                //              Example: TE_LAST_SAMPLE_RES = 5
+                                                //                       TEMP_MEAS_INTERVAL = 15
+                                                //
+                                                //              Time(min)       0   1   2   3   4   5   6   7   8   9   0   1   2   3   4   5   6   7   8   9   0
+                                                //              Wakeup          v   v   v   v   v   v   v   v   v   v   v   v   v   v   v   v   v   v   v   v   v
+                                                //              Temp Meas       v                                                           v                
+                                                //              SAMPLE_COUNT    n                                                           n+1
+                                                //              TE_LAST_SAMPLE  0                   5                   10                  0                   5
+                                                //          ------------------------------------------------------------------------------------------------------
+                                                //              Example: TE_LAST_SAMPLE_RES = 2
+                                                //                       TEMP_MEAS_INTERVAL = 15
+                                                //
+                                                //              Time(min)       0   1   2   3   4   5   6   7   8   9   0   1   2   3   4   5   6   7   8   9   0
+                                                //              Wakeup          v   v   v   v   v   v   v   v   v   v   v   v   v   v   v   v   v   v   v   v   v
+                                                //              Temp Meas       v                                                           v                
+                                                //              SAMPLE_COUNT    n                                                           n+1
+                                                //              TE_LAST_SAMPLE  0       2       4       6       8       10      12      14  0       2       4   
+                                                //          ------------------------------------------------------------------------------------------------------
+                                                //
+#define EEPROM_ADDR_SYSTEM_STATE            14  //  2       System State (See comment on EEPROM_ADDR_DISPLAY)
+                                                //              [   15] Crash handler 
+                                                //                          0x0: Crash handler not yet triggered
+                                                //                          0x1: Crash handler has been triggered due to the critical VBAT level.
+                                                //                                At this point, the display shows the 'Cross' only.
+                                                //              [   14] Buffer Overrun
+                                                //                          0x0: No buffer overrun.
+                                                //                          0x1: Buffer overrun has occurred.
+                                                //              [ 1: 0] Current System state (See comment on EEPROM_ADDR_DISPLAY)
+                                                //                          0x0: System is in IDLE
+                                                //                          0x1: System is in ACTIVATED
+                                                //                          0x2: System is in STARTED
+                                                //                          0x3: System is in STOPPED
+#define EEPROM_ADDR_DISPLAY                 16  //  2       Current e-ink display
                                                 //              [6] Minus
                                                 //              [5] Plus
                                                 //              [4] Slash
@@ -72,11 +102,8 @@
                                                 //                          System goes into STOPPED when it detects the valid STOP command at EEPROM_ADDR_CMD.
                                                 //                          The play sign (DISPLAY[0]) becomes white. All the other segments remain the same.
                                                 //                          System still wakes up every 1 min and checkes whether there is a valid NFC command at EEPROM_ADDR_CMD.
-                                                //                          
-#define EEPROM_ADDR_NUM_CALIB_XO_FAILS      16  //  1       Num Calibration Failures (XO timeout)
-#define EEPROM_ADDR_NUM_CALIB_MAX_ERR_FAILS 17  //  1       Num Calibration Failures (Max Change Error)
-#define EEPROM_ADDR_BUF_OVERRUN_FAIL        18  //  1       Buffer Overrun Status: 0 - normal; 1 - buffer overrun has occurred.
-//#define EEPROM_ADDR_RESERVED              19  //  1       Reserved
+#define EEPROM_ADDR_NUM_CALIB_XO_FAILS      18  //  1       Num Calibration Failures (XO timeout)
+#define EEPROM_ADDR_NUM_CALIB_MAX_ERR_FAILS 19  //  1       Num Calibration Failures (Max Change Error)
 
 //--- User Commands
 #define EEPROM_ADDR_HIGH_TEMP_THRESHOLD     20  //  2       Threshold for High Temperature (Raw Code)
@@ -147,18 +174,17 @@
 #define EEPROM_ADDR_EID_DURATION_HIGH       84  //  2       ( 30   (=0.25s)) EID duration (ECTR_PULSE_WIDTH) for High Temperature
 #define EEPROM_ADDR_EID_FE_DURATION_HIGH    86  //  2       ( 15   (=0.12s)) EID 'Field Erase' duration (ECTR_PULSE_WIDTH) for High Temperature. '0' makes it skip 'Field Erase'
 #define EEPROM_ADDR_EID_RFRSH_INT_HR_HIGH   88  //  1       ( 2    (=2hr)  ) EID Refresh interval for High Temperature (unit: hr). '0' means 'do not refresh'.
-//#define EEPROM_ADDR_RESERVED              89  //  1       Reserved
-#define EEPROM_ADDR_EID_DURATION_MID        90  //  2       ( 250  (=2s)   ) EID duration (ECTR_PULSE_WIDTH) for Mid Temperature
-#define EEPROM_ADDR_EID_FE_DURATION_MID     92  //  2       ( 125  (=1s)   ) EID 'Field Erase' duration (ECTR_PULSE_WIDTH) for Mid Temperature. '0' makes it skip 'Field Erase'
-#define EEPROM_ADDR_EID_RFRSH_INT_HR_MID    94  //  1       ( 4    (=4hr)  ) EID Refresh interval for Mid Temperature (unit: hr). '0' means 'do not refresh'.
-//#define EEPROM_ADDR_RESERVED              95  //  1       Reserved
-#define EEPROM_ADDR_EID_DURATION_LOW        96  //  2       ( 500  (=4s)   ) EID duration (ECTR_PULSE_WIDTH) for Low Temperature
-#define EEPROM_ADDR_EID_FE_DURATION_LOW     98  //  2       ( 500  (=4s)   ) EID 'Field Erase' duration (ECTR_PULSE_WIDTH) for Low Temperature. '0' makes it skip 'Field Erase'
-#define EEPROM_ADDR_EID_RFRSH_INT_HR_LOW    100 //  1       ( 8    (=8hr)  ) EID Refresh interval for Low Temperature (unit: hr). '0' means 'do not refresh'.
-//#define EEPROM_ADDR_RESERVED              101 //  1       Reserved
+#define EEPROM_ADDR_EID_DURATION_MID        89  //  2       ( 250  (=2s)   ) EID duration (ECTR_PULSE_WIDTH) for Mid Temperature
+#define EEPROM_ADDR_EID_FE_DURATION_MID     91  //  2       ( 125  (=1s)   ) EID 'Field Erase' duration (ECTR_PULSE_WIDTH) for Mid Temperature. '0' makes it skip 'Field Erase'
+#define EEPROM_ADDR_EID_RFRSH_INT_HR_MID    93  //  1       ( 4    (=4hr)  ) EID Refresh interval for Mid Temperature (unit: hr). '0' means 'do not refresh'.
+#define EEPROM_ADDR_EID_DURATION_LOW        94  //  2       ( 500  (=4s)   ) EID duration (ECTR_PULSE_WIDTH) for Low Temperature
+#define EEPROM_ADDR_EID_FE_DURATION_LOW     96  //  2       ( 500  (=4s)   ) EID 'Field Erase' duration (ECTR_PULSE_WIDTH) for Low Temperature. '0' makes it skip 'Field Erase'
+#define EEPROM_ADDR_EID_RFRSH_INT_HR_LOW    98  //  1       ( 8    (=8hr)  ) EID Refresh interval for Low Temperature (unit: hr). '0' means 'do not refresh'.
+//#define EEPROM_ADDR_RESERVED              99  //  1       Reserved
 
 //--- Other Configuration                                   Recommended Value
-#define EEPROM_ADDR_TIMER_CALIB_INTERVAL    102 //  2       (           10 ) Timer Calibration Interval. '0' means 'do not calibrate'. (unit: minute)
+#define EEPROM_ADDR_TIMER_CALIB_INTERVAL    100 //  2       (           10 ) Timer Calibration Interval. '0' means 'do not calibrate'. (unit: minute)
+#define EEPROM_ADDR_TE_LAST_SAMPLE_RES      102 //  2       (            5 ) Resolution of TE_LAST_SAMPLE (unit: minute). See comment on EEPROM_ADDR_TE_LAST_SAMPLE.
 
 //--- Product Information
 #define EEPROM_ADDR_PRODUCT_INFO            104 //  24      Drug Info, Mfg, Batch ID, Exp date
