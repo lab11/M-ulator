@@ -169,8 +169,8 @@
 #define EEPROM_ADDR_SNT_BASE_FREQ           78  //  2       (         1500 ) SNT Timer Base Frequency in Hz (integer value only)
 
 //--- EID Configuration                                     Recommended Value
-#define EEPROM_ADDR_EID_HIGH_TEMP_THRESHOLD 80  //  2       ( 1250 (=20C)  ) Temperature Threshold (Raw Code) to determin HIGH and MID temperature for EID
-#define EEPROM_ADDR_EID_LOW_TEMP_THRESHOLD  82  //  2       ( 700  (=10C)  ) Temperature Threshold (Raw Code) to determin MID and LOW temperature for EID
+#define EEPROM_ADDR_EID_HIGH_TEMP_THRESHOLD 80  //  2       ( 1250 (=20C)  ) Temperature Threshold (Raw Code) to determine HIGH and MID temperature for EID
+#define EEPROM_ADDR_EID_LOW_TEMP_THRESHOLD  82  //  2       ( 700  (=10C)  ) Temperature Threshold (Raw Code) to determine MID and LOW temperature for EID
 #define EEPROM_ADDR_EID_DURATION_HIGH       84  //  2       ( 30   (=0.25s)) EID duration (ECTR_PULSE_WIDTH) for High Temperature
 #define EEPROM_ADDR_EID_FE_DURATION_HIGH    86  //  2       ( 15   (=0.12s)) EID 'Field Erase' duration (ECTR_PULSE_WIDTH) for High Temperature. '0' makes it skip 'Field Erase'
 #define EEPROM_ADDR_EID_RFRSH_INT_HR_HIGH   88  //  1       ( 2    (=2hr)  ) EID Refresh interval for High Temperature (unit: hr). '0' means 'do not refresh'.
