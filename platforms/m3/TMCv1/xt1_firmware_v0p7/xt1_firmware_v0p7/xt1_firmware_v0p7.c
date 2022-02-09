@@ -1,6 +1,6 @@
 //*******************************************************************************************
 // XT1 (TMCv1) FIRMWARE
-// Version 0.6
+// Version 0.7
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
 //  Jun 24 2021 - First commit 
@@ -131,6 +131,10 @@
 //                          Added 'use_default' argument.
 //                  - Re-implemeted set_system() (previous reset_eeprom())
 //                          Major overhaul of the code utilizing the set_system() function - more efficient coding and less code size.
+//  Feb 09 2022 - Version 0.7
+//                  - Removed operation_back_to_default(). Now set_system() handles such scenario as well.
+//                  - set_system()
+//                          Fixed a bug where TMP_IDLE is not included for STOPPED target.
 //-------------------------------------------------------------------------------------------
 //
 // External Connections
@@ -558,7 +562,6 @@ volatile uint32_t buffer_missing_sample_id; // ID of the missing sample in case 
 //--- Initialization/Sleep Functions
 static void operation_sleep (void);
 static void operation_sleep_snt_timer(uint32_t auto_reset, uint32_t timestamp);
-static void operation_back_to_default(void);
 static void operation_init (void);
 
 //--- Application Specific
@@ -624,25 +627,6 @@ static void operation_sleep (void) {
 static void operation_sleep_snt_timer(uint32_t auto_reset, uint32_t timestamp){
     snt_set_wup_timer(auto_reset, timestamp);
     operation_sleep();
-}
-
-//-------------------------------------------------------------------
-// Function: operation_back_to_default
-// Args    : None
-// Description:
-//           Reset everything to its default.
-// Return  : None
-//-------------------------------------------------------------------
-static void operation_back_to_default(void){
-    set_halt_until_mbus_tx();
-    if (snt_running) {
-        snt_running = 0;
-        snt_temp_sensor_reset();
-        snt_temp_sensor_power_off();
-        snt_ldo_power_off();
-    }
-    nfc_power_off();
-    tmp_state = TMP_IDLE;
 }
 
 //-------------------------------------------------------------------
@@ -740,9 +724,9 @@ static void operation_init (void) {
         // System Reset
         //-------------------------------------------------
         // Set system
-        set_system  (   /*target*/          0,  /*IDLE*/
-                        /*reset_cmd*/       1,
-                        /*reset_start_info*/1
+        set_system  (   /*target*/          0x0,    /*IDLE*/
+                        /*reset_cmd*/       0x1,
+                        /*reset_start_info*/0x1
                     );
 
         // Update the flag
@@ -993,10 +977,13 @@ static void snt_operation (void) {
         //---------------------------------------------------------------
         //--- If VBAT is too low, trigger the EID Watchdog (System Crash)
         if (pmu_adc_vbat_val < adc_crit_vbat) {
-            // Update the System State
-            set_system_state(/*msb*/15, /*lsb*/15, /*val*/0x1);
-            // Back to Default
-            operation_back_to_default();
+
+            // Set system
+            set_system  (   /*target*/          0x9,    /*Crash*/
+                            /*reset_cmd*/       0x0,    /*Not Used*/
+                            /*reset_start_info*/0x0     /*Not Used*/
+                        );
+
             // Trigger the Crash Handler
             eid_trigger_crash();
             while(1);
@@ -1070,9 +1057,9 @@ void nfc_check_cmd(void) {
             else if (cmd == 0x01) {
 
                 // Set system
-                set_system  (   /*target*/          2,  /*STARTED*/
-                                /*reset_cmd*/       0,
-                                /*reset_start_info*/0
+                set_system  (   /*target*/          0x2,    /*STARTED*/
+                                /*reset_cmd*/       0x0,
+                                /*reset_start_info*/0x0
                             );
 
                 // ACK
@@ -1092,9 +1079,9 @@ void nfc_check_cmd(void) {
                     #endif
 
                     // Set system
-                    set_system  (   /*target*/          3,  /*STOPPED*/
-                                    /*reset_cmd*/       0,  /*Not Used*/
-                                    /*reset_start_info*/0   /*Not Used*/
+                    set_system  (   /*target*/          0x3,    /*STOPPED*/
+                                    /*reset_cmd*/       0x0,    /*Not Used*/
+                                    /*reset_start_info*/0x0     /*Not Used*/
                                 );
 
                     // ACK
@@ -1110,9 +1097,9 @@ void nfc_check_cmd(void) {
                 #endif
 
                 // Set system
-                set_system  (   /*target*/          1,  /*ACTIVATED*/
-                                /*reset_cmd*/       0,
-                                /*reset_start_info*/1
+                set_system  (   /*target*/          0x1,    /*ACTIVATED*/
+                                /*reset_cmd*/       0x0,
+                                /*reset_start_info*/0x1
                             );
 
                 // ACK
@@ -1263,12 +1250,16 @@ static void calibrate_snt_timer(void) {
 
 static void set_system(uint32_t target, uint32_t reset_cmd, uint32_t reset_start_info) {
     //------------------------------------------
-    // target:  0 - Go back to System IDLE
-    //          1 - Go back to System ACTIVATED
-    //          2 - Go back to System STARTED
-    //          3 - Go back to System STOPPED; it ignores 'reset_cmd' and 'reset_start_info'.
+    // target:  0x0     - Go back to System IDLE
+    //          0x1     - Go back to System ACTIVATED
+    //          0x2     - Go back to System STARTED
+    //          0x3     - Go back to System STOPPED; it ignores 'reset_cmd' and 'reset_start_info'.
+    //          0x9     - Prepare for EID crash handler; it ignores 'reset_cmd' and 'reset_start_info'.
     //------------------------------------------
 
+    //------------------------------------------
+    // COMMON FOR ALL TARGETS
+    //------------------------------------------
     // MBus Halt Setting
     set_halt_until_mbus_tx();
 
@@ -1280,8 +1271,22 @@ static void set_system(uint32_t target, uint32_t reset_cmd, uint32_t reset_start
         snt_ldo_power_off();
     }
 
-    // Whole Syste Reset EXCEPT when the target is STOPPED.
-    if (target != 3) {
+    // Reset tmp_state
+    tmp_state = TMP_IDLE;
+
+    // EID Crash Handler
+    if (target == 0x9) {
+        // Turn off NFC
+        nfc_power_off();
+        // Update the System State
+        set_system_state(/*msb*/15, /*lsb*/15, /*val*/0x1);
+        return;
+    }
+
+    //------------------------------------------
+    // FOR TARGETS OTHER THAN 'STOPPED'
+    //------------------------------------------
+    if (target != 0x3) {
         // Reset the Sample Count
         nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SAMPLE_COUNT, /*data*/0x0, /*nb*/4);
         temp_sample_count   = 0;
@@ -1318,7 +1323,6 @@ static void set_system(uint32_t target, uint32_t reset_cmd, uint32_t reset_start
         // Global Variables
         wakeup_count = 0;
 
-        tmp_state    = TMP_IDLE;
         snt_running  = 0;
         eeprom_addr  = EEPROM_ADDR_DATA_RESET_VALUE;
         snt_temp_val = 1350; // Assume 25C by default
@@ -1333,8 +1337,10 @@ static void set_system(uint32_t target, uint32_t reset_cmd, uint32_t reset_start
         buffer_init();
     }
 
-    // If go back to IDLE
-    if (target == 0) {
+    //------------------------------------------
+    // FOR 'IDLE' TARGET
+    //------------------------------------------
+    if (target == 0x0) {
         // Set Flags
         set_flag(FLAG_ACTIVATED, 0); 
         set_flag(FLAG_STARTED,   0);
@@ -1343,8 +1349,10 @@ static void set_system(uint32_t target, uint32_t reset_cmd, uint32_t reset_start
         // Display all segments
         eid_update_with_eeprom(DISP_ALL);
     }
-    // If go back to ACTIVATED
-    else if (target == 1) {
+    //------------------------------------------
+    // FOR 'ACTIVATED' TARGET
+    //------------------------------------------
+    else if (target == 0x1) {
         // Set Flags
         set_flag(FLAG_ACTIVATED, 1); 
         set_flag(FLAG_STARTED,   0);
@@ -1355,8 +1363,10 @@ static void set_system(uint32_t target, uint32_t reset_cmd, uint32_t reset_start
         // Display the Check mark
         eid_update_with_eeprom(DISP_CHECK);
     }
-    // If go back to STARTED
-    else if (target == 2) {
+    //------------------------------------------
+    // FOR 'STARTED' TARGET
+    //------------------------------------------
+    else if (target == 0x2) {
         // Set Flags
         set_flag(FLAG_ACTIVATED, 1); 
         set_flag(FLAG_STARTED,   1);
@@ -1392,8 +1402,10 @@ static void set_system(uint32_t target, uint32_t reset_cmd, uint32_t reset_start
         // Update the System Config Variables
         update_system_configs(/*use_default*/0);
     }
-    // If go back to STOPPED
-    else if (target == 3) {
+    //------------------------------------------
+    // FOR 'STOPPED' TARGET
+    //------------------------------------------
+    else if (target == 0x3) {
         // Set Flags
         set_flag(FLAG_ACTIVATED, 1); 
         set_flag(FLAG_STARTED,   0);
@@ -1638,9 +1650,9 @@ void handler_ext_int_gocep    (void) {
             set_flag(FLAG_WD_ENABLED, 1); 
 
             // Set system
-            set_system  (   /*target*/          1,  /*ACTIVATED*/
-                            /*reset_cmd*/       1,
-                            /*reset_start_info*/1
+            set_system  (   /*target*/          0x1,    /*ACTIVATED*/
+                            /*reset_cmd*/       0x1,
+                            /*reset_start_info*/0x1
                         );
 
             if (goc_raw==GOC_ACT_START_KEY) { 
