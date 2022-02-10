@@ -1,14 +1,8 @@
-//-------------------------------------------------------------------------------------------
-//   If there is an active RF field when TMC wants to do I2C, what does TMC need to do?
-//  - What to do if i2c timeout? (mostly due to RF activity?) just skip and try again 
-//      in the next session (after 1min)? will shfit the time or what?
-//
-//-------------------------------------------------------------------------------------------
-
 //*******************************************************************************************
 // XT1 (TMCv1) FIRMWARE
 // Version 0.4a
 //  A fork from v0.4 (ongoing) to test ADC output vs. VBAT at various SAR_RATIO.
+//      Change the SAR ratio value in pmu_init() 
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
 //  Jun 24 2021 - First commit 
