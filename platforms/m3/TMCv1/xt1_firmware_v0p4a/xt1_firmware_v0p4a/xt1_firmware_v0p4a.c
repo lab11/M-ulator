@@ -2,7 +2,8 @@
 // XT1 (TMCv1) FIRMWARE
 // Version 0.4a
 //  A fork from v0.4 (ongoing) to test ADC output vs. VBAT at various SAR_RATIO.
-//      Change the SAR ratio value in pmu_init() 
+//      See handler_ext_int_gocep()
+//  USE GEN_IRQ for GOC/EP TRIGGER
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
 //  Jun 24 2021 - First commit 
@@ -738,7 +739,9 @@ static void operation_init (void) {
         //-------------------------------------------------
         // Sleep
         //-------------------------------------------------
-        operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/15*1500);
+        //operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/15*1500);
+        //while(1);
+        operation_sleep();
         while(1);
     }
 }
@@ -1403,82 +1406,26 @@ void handler_ext_int_gocep    (void) {
     uint32_t goc_raw = *GOC_DATA_IRQ;
     *GOC_DATA_IRQ   = 0;
 
-    // Activating System
-    if (goc_raw==GOC_ACTIVATE_KEY) { 
-        if (!get_flag(FLAG_ACTIVATED)) {
-            // Enable EID Crash Hander
-            eid_enable_crash_handler();
-
-            // Update the flags
-            set_flag(FLAG_ACTIVATED, 1); 
-            set_flag(FLAG_WD_ENABLED, 1); 
-
-            // Clear the display
-            eid_update_with_eeprom(DISP_NONE);
-
-        #ifdef GOC_ACTIVATE_ALSO_STARTS
-            #ifdef USE_DEFAULT_VALUE
-                eeprom_temp_meas_start_delay = 1;
-                eeprom_temp_meas_interval    = 1;
-                eeprom_timer_calib_interval  = 10;
-                eeprom_temp_meas_config      = (1 << 0);
-                eeprom_high_temp_threshold   = 700;
-                eeprom_low_temp_threshold    = 450;
-            #else
-                eeprom_temp_meas_start_delay = *(GOC_DATA_IRQ+1);
-                eeprom_temp_meas_interval    = *(GOC_DATA_IRQ+2);
-                eeprom_timer_calib_interval  = *(GOC_DATA_IRQ+3);
-                eeprom_temp_meas_config      = *(GOC_DATA_IRQ+4);
-                eeprom_high_temp_threshold   = *(GOC_DATA_IRQ+5);
-                eeprom_low_temp_threshold    = *(GOC_DATA_IRQ+6);
-            #endif
-
-            set_flag(FLAG_STARTED, 1);
-        #endif
-        }
+    // Go to sleep
+    if (goc_raw == 0x00000000) {
+        operation_sleep();
+        while(1);
     }
-#ifdef DEVEL
-    // Quick Start the temperature measurement
-    else if (goc_raw==GOC_QUICK_START_KEY) { 
-        if (!get_flag(FLAG_STARTED)) {
-            set_flag(FLAG_STARTED, 1);
-        }
-    }
-    // Start the temperature measurement
-    else if (goc_raw==GOC_START_KEY) { 
-        if (!get_flag(FLAG_STARTED)) {
 
-            #ifdef USE_DEFAULT_VALUE
-                eeprom_temp_meas_start_delay = 1;
-                eeprom_temp_meas_interval    = 1;
-                eeprom_timer_calib_interval  = 10;
-                eeprom_temp_meas_config      = (1 << 0);
-                eeprom_high_temp_threshold   = 700;
-                eeprom_low_temp_threshold    = 450;
-            #else
-                eeprom_temp_meas_start_delay = *(GOC_DATA_IRQ+1);
-                eeprom_temp_meas_interval    = *(GOC_DATA_IRQ+2);
-                eeprom_timer_calib_interval  = *(GOC_DATA_IRQ+3);
-                eeprom_temp_meas_config      = *(GOC_DATA_IRQ+4);
-                eeprom_high_temp_threshold   = *(GOC_DATA_IRQ+5);
-                eeprom_low_temp_threshold    = *(GOC_DATA_IRQ+6);
-            #endif
+    // Read ADC
+    else if (goc_raw == 0x00000001) {
+        delay(1*DLY_1S);
+        mbus_write_message32(0x88, pmu_reg_read(0x03)&0xFF);
+    }
 
-            set_flag(FLAG_STARTED, 1);
-        }
-    }
-    // Stop the ongoing temperature measurement
-    else if (goc_raw==GOC_STOP_KEY) { 
-        #ifdef DEBUG
-            mbus_write_message32(0x83, 0x00000001);
-        #endif
-        operation_back_to_default();
-        // Remove the 'Play' sign
-        eid_update_with_eeprom(eid_get_current_display() & ~DISP_PLAY);
-        // Reset FLAG_STARTED
-        set_flag(FLAG_STARTED, 0);
-    }
-#endif
+    // Change SAR Ratio
+    else if (goc_raw == 0x00000002) pmu_set_sar_ratio(0x60);
+    else if (goc_raw == 0x00000003) pmu_set_sar_ratio(0x5C);
+    else if (goc_raw == 0x00000004) pmu_set_sar_ratio(0x58);
+    else if (goc_raw == 0x00000005) pmu_set_sar_ratio(0x54);
+    else if (goc_raw == 0x00000006) pmu_set_sar_ratio(0x50);
+    else if (goc_raw == 0x00000007) pmu_set_sar_ratio(0x4C);
+    else if (goc_raw == 0x00000008) pmu_set_sar_ratio(0x48);
 }
 
 void handler_ext_int_softreset(void) { *NVIC_ICPR = (0x1 << IRQ_SOFT_RESET); }
@@ -1499,37 +1446,34 @@ int main() {
     *TIMERWD_GO  = 0;
     *REG_MBUS_WD = 0;
     
-    // Get the info on who woke up the system, then reset WAKEUP_SOURCE register.
-    wakeup_source = *SREG_WAKEUP_SOURCE;
-    *SCTR_REG_CLR_WUP_SOURCE = 1;
+    //// Get the info on who woke up the system, then reset WAKEUP_SOURCE register.
+    //wakeup_source = *SREG_WAKEUP_SOURCE;
+    //*SCTR_REG_CLR_WUP_SOURCE = 1;
 
-    #ifdef DEBUG
-        mbus_write_message32(0x80, wakeup_source);
-    #endif
+    //#ifdef DEBUG
+    //    mbus_write_message32(0x80, wakeup_source);
+    //#endif
 
     // Check-in the EID Watchdog if it is enabled (STATE 6)
     if (get_flag(FLAG_WD_ENABLED) && !snt_running) eid_check_in();
 
     // Enable IRQs
-    *NVIC_ISER = (0x1 << IRQ_TIMER32) | (0x1 << IRQ_XOT);
-    #ifndef GOCEP_RUN_CPU_ONLY
-        *NVIC_ISER = (0x1 << IRQ_GOCEP);
-    #endif
+    *NVIC_ISER = (0x1 << IRQ_GOCEP);
 
     // If this is the very first wakeup, initialize the system (STATE 1)
     if (!get_flag(FLAG_INITIALIZED)) operation_init();
 
-    delay(10*DLY_1S);
-    mbus_write_message32(0x88, pmu_adc_read_and_sar_ratio_adjustment());
-    delay(10*DLY_1S);
-    operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/15*1500);
+    //delay(10*DLY_1S);
+    //mbus_write_message32(0x88, pmu_adc_read_and_sar_ratio_adjustment());
+    //delay(10*DLY_1S);
+    //operation_sleep_snt_timer(/*auto_reset*/1, /*threshold*/15*1500);
     while(1);
 
 
     //--------------------------------------------------------------------------
     // Invalid Operation - Go to Sleep
     //--------------------------------------------------------------------------
-    operation_sleep();
-    while(1) asm("nop");
+    //operation_sleep();
+    //while(1) asm("nop");
     return 1;
 }

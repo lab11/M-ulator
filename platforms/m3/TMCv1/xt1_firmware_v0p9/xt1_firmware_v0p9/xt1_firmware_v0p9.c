@@ -1,6 +1,6 @@
 //*******************************************************************************************
 // XT1 (TMCv1) FIRMWARE
-// Version 0.8
+// Version 0.9
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
 //  Jun 24 2021 - First commit 
@@ -147,6 +147,10 @@
 //                          This is because SNTv5 does not have a glitch protection while changing its threshold values.
 //                  - If an active session takes too long (59s or more), then it does not go into sleep. 
 //                          Instead, it immediately calls main() again (i.e., it skips the sleep).
+//  Feb 10 2022 - Version 0.9
+//                  - Added GOC_DISPLAY_KEY to manually change the display. It works only in IDLE state.
+//                  - eid_update() in TMCv1.c
+//                          Now it calls eid_seg_black() only when seg is not 0.
 //-------------------------------------------------------------------------------------------
 //
 // External Connections
@@ -367,7 +371,7 @@
 //*******************************************************************************************
 #define GOC_NFC_EMULATION           // Enable this to enable the use of GOC to do the NFC commands
 #define GOCEP_RUN_CPU_ONLY          // Enable this when you cannot do 'GEN_IRQ' in GOC/EP Header (e.g., the current m3_ice script)
-#define DEBUG                       // Send debug messages
+//#define DEBUG                       // Send debug messages
 //#define USE_DEFAULT_VALUE           // Use default values rather than grabbing the values from EEPROM
 #define WRITE_HW_ID                 // Write the Hardware ID to EEPROM
 
@@ -386,6 +390,7 @@
 #define GOC_STOP_KEY        0xDEADBEEF  // Stop the ongoing temperature measurement.
 #define GOC_RESET_KEY       0x19821229  // Reset the system and put it into 'Activated' state.
 #define GOC_ACT_START_KEY   0x16002329  // Activate & Start the System. 
+#define GOC_DISPLAY_KEY     0xD1590000  // GOC Display Key
 
 //*******************************************************************************************
 // FLAG BIT INDEXES
@@ -1658,6 +1663,12 @@ void handler_ext_int_gocep    (void) {
                 goc_raw = GOC_START_KEY;
             }
         }
+    }
+
+    // Manually change the display
+    else if (get_bits(goc_raw, 31, 16)==0xD159) {
+        if (!get_flag(FLAG_ACTIVATED)) 
+            eid_update_with_eeprom(goc_raw&0x7F);
     }
 
 #ifdef GOC_NFC_EMULATION
