@@ -696,7 +696,7 @@ static void operation_init (void) {
         snt_start_timer(/*wait_time*/2*DLY_1S);
 
         // Go to sleep
-        set_wakeup_timer (/*timestamp*/10, /*irq_en*/0x1, /*reset*/0x1); // About 2 seconds
+        set_wakeup_timer (/*timestamp*/5, /*irq_en*/0x1, /*reset*/0x1); // About 2 seconds
         mbus_sleep_all();
         while(1);
     }
@@ -724,7 +724,7 @@ static void operation_init (void) {
         //-------------------------------------------------
         // EID Settings
         //-------------------------------------------------
-	    eid_init(/*ring*/0, /*te_div*/3, /*fd_div*/3, /*seg_div*/3);
+	    //eid_init(/*ring*/0, /*te_div*/3, /*fd_div*/3, /*seg_div*/3);
         // Update the display
         eid_update_with_eeprom(DISP_ALL);
 
@@ -752,32 +752,32 @@ static void operation_init (void) {
 
 static void eid_update_with_eeprom(uint32_t seg) {
 
-    // Update duration based on lastest temperature measurement
-    if (snt_temp_val > eeprom_eid_high_temp_threshold) {
-        eid_set_duration(eeprom_eid_duration_high);
-        eid_set_fe_duration(eeprom_eid_fe_duration_high);
-    }
-    else if (snt_temp_val > eeprom_eid_low_temp_threshold) {
-        eid_set_duration(eeprom_eid_duration_mid);
-        eid_set_fe_duration(eeprom_eid_fe_duration_mid);
-    }
-    else {
-        eid_set_duration(eeprom_eid_duration_low);
-        eid_set_fe_duration(eeprom_eid_fe_duration_low);
-    }
+    //// Update duration based on lastest temperature measurement
+    //if (snt_temp_val > eeprom_eid_high_temp_threshold) {
+    //    eid_set_duration(eeprom_eid_duration_high);
+    //    eid_set_fe_duration(eeprom_eid_fe_duration_high);
+    //}
+    //else if (snt_temp_val > eeprom_eid_low_temp_threshold) {
+    //    eid_set_duration(eeprom_eid_duration_mid);
+    //    eid_set_fe_duration(eeprom_eid_fe_duration_mid);
+    //}
+    //else {
+    //    eid_set_duration(eeprom_eid_duration_low);
+    //    eid_set_fe_duration(eeprom_eid_fe_duration_low);
+    //}
 
-    // E-ink Update
-    //eid_update(seg);
+    //// E-ink Update
+    ////eid_update(seg);
 
-    // EEPROM Update
-    nfc_i2c_byte_write(/*e2*/0,
-        /*addr*/ EEPROM_ADDR_DISPLAY,
-        /*data*/ seg,
-        /* nb */ 1
-    );
+    //// EEPROM Update
+    //nfc_i2c_byte_write(/*e2*/0,
+    //    /*addr*/ EEPROM_ADDR_DISPLAY,
+    //    /*data*/ seg,
+    //    /* nb */ 1
+    //);
 
-    // Reset the refresh counter
-    cnt_disp_refresh_interval = 1;
+    //// Reset the refresh counter
+    //cnt_disp_refresh_interval = 1;
 }
 
 static uint32_t snt_operation (void) {
@@ -1415,7 +1415,7 @@ void handler_ext_int_gocep    (void) {
     // Read ADC
     else if (goc_raw == 0x00000001) {
         delay(1*DLY_1S);
-        mbus_write_message32(0x88, pmu_reg_read(0x03)&0xFF);
+        mbus_write_message32(0x88, pmu_reg_read(0x03)&0xFFFF);
     }
 
     // Change SAR Ratio
