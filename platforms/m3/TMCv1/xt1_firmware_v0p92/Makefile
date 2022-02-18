@@ -151,7 +151,7 @@ clean-%:
 cp: 
 	scp \
         /afs/eecs.umich.edu/vlsida/projects/m3_sdk/M-ulator/platforms/m3/TMCv1/xt1_firmware_*/*/*.hex \
-        yejoong@thurston.cubeworks.io:~/Dropbox/Designs/202106_XT1_Firmware/.
+        yejoong@thurston.cubeworks.io:~/Dropbox/Designs/202106_XT1_Firmware/hex/.
 
 
 .PHONY: clean clean-% cp

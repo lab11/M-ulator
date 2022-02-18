@@ -151,7 +151,7 @@ clean-%:
 cp: 
 	scp \
         xt1_alpha_rev1/xt1_alpha_rev1.hex \
-        yejoong@thurston.cubeworks.io:~/Dropbox/Designs/202106_XT1_Firmware/.
+        yejoong@thurston.cubeworks.io:~/Dropbox/Designs/202106_XT1_Firmware/hex/.
 
 #cp: 
 #	scp \

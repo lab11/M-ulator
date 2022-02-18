@@ -151,7 +151,7 @@ clean-%:
 cp: 
 	scp \
         xt1_firmware_v0p2/xt1_firmware_v0p2.hex \
-        yejoong@thurston.cubeworks.io:~/Dropbox/Designs/202106_XT1_Firmware/.
+        yejoong@thurston.cubeworks.io:~/Dropbox/Designs/202106_XT1_Firmware/hex/.
 
 .PHONY: clean clean-% cp
 

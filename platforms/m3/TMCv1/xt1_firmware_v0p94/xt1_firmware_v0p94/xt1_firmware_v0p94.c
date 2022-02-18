@@ -1,6 +1,6 @@
 //*******************************************************************************************
 // XT1 (TMCv1) FIRMWARE
-// Version 0.92
+// Version 0.94
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
 //  Jun 24 2021 - First commit 
@@ -174,6 +174,39 @@
 //                              pmu_read_adc() and pmu_calc_new_sar_ratio()
 //                              Also, pmu_set_sar_ratio() must be explicitly called if needed.
 //                  - Added long-term testing debuggability with DEBUG_LT switch
+//  Feb 16 2022 - Version 0.93
+//                  - Fixed the stack overflow bug.
+//                          Disabled the PRC/PRE wakeup timer when it first wakes up with the RAT enabled (see operation_init())
+//                          Added FLAG_SKIP_BYPASS to indicate that update_snt_timer_threshold() bypasses the sleep and explicitly calls main()
+//                              It also sets wakeup_source[4]=1 (SNT Timer) and wakeup_source[7]=1 (Sleep Bypassed). See WAKEUP_SOURCE.
+//                          update_snt_timer_threshold() disables/clears all IRQs before calling main().
+//                          update_snt_timer_threshold() updates snt_timer_threshold only when it was waken up by the SNT timer.
+//                              But still, if a GOC comes in while the system is in active, it may cause malfunction.
+//                                  (it may prematurely terminates the current active session.
+//                          In update_snt_timer_threshold(), the criteria to skip the sleep duration has been changed:
+//                              Prev: if ((distance < (snt_timer_1min>>6)) || (distance > snt_timer_1min))
+//                              New : if ((distance < (snt_timer_1min>>5)) || (distance > (snt_timer_1min<<2)))
+//                  - Fixed the bug where low battery indicator can disappear
+//                  [DEBUG FEATURE]
+//                  - Long-Term Debugging Feature (DEBUG_LT) 
+//                          Removed DEBUT_LT from TMCv1.h/TMCv1.c. This removes 'id' argument from nfc_i2c_get_token().
+//                          Removed logging EEPROM_ADDR_LT_WFI in calibrate_snt_timer() as this would kill the XO.
+//                          Stored ADC readings (1 byte/meas) instead of temperature readings (2 bytes/meas)
+//                  - Added DO_NOT_CHECK_CRIT_VBAT switch to disable the crash handler.
+//                  - Added DO_NOT_CHANGE_SAR_RATIO to disable SAR ratio adjustment.
+//                  - Increased the amount of space reserved for debug message storage.
+//                  - Added a initialization of the debug storage.
+//  Feb 17 2022 - Version 0.94
+//                  - Added WAKEUP_BY_* and SLEEP_BYPASSED switches for more readability
+//                  - The core section of main() is executed only when it is waken up by the SNT timer.
+//                  - Changed the algorithm that adjusts SAR ratio, display Low VBAT warning, and trigger the crash handler.
+//                           Now it ignores ADC value if it is out of range (64 ~ 164 as defined in TMCv1.h)
+//                           Now it requires a consecutive number of ADC values to trigger them.
+//                           Added EEPROM_ADDR_PMU_NUM_CONS_MEAS to set this number.
+//                           SAR ratio changes by only one step at a time even if the ADC values changes significantly.
+//                  [DEBUG FEATURE]
+//                  - Long-Term Debugging Feature (DEBUG_LT) 
+//                          It forces the measurement interval to 2 mins, and num_cons_meas to 3.
 //-------------------------------------------------------------------------------------------
 //
 // External Connections
@@ -233,12 +266,13 @@
 //
 //  Use get_bit(wakeup_source, n) to get the current value, where n is 0-5, 8-11 as shown below.
 //
-//  [31:12] - Reserved (NOTE: wakeup_source[31] is used to detect the NFC GPO activity.)
+//  [31:12] - Reserved
 //     [11] - GPIO_PAD[3] has triggered wakeup (valid only when wakeup_source[3]=1)
 //     [10] - GPIO_PAD[2] has triggered wakeup (valid only when wakeup_source[3]=1)
 //     [ 9] - GPIO_PAD[1] has triggered wakeup (valid only when wakeup_source[3]=1)
 //     [ 8] - GPIO_PAD[0] has triggered wakeup (valid only when wakeup_source[3]=1)
-//  [ 7: 6] - Reserved
+//      [7] - Reserved (NOTE: wakeup_source[7] is used to indicate that the previous 'sleep' has been skipped)
+//      [6] - Reserved
 //      [5] - GIT (GOC Instant Trigger) has triggered wakeup
 //              NOTE: If GIT is triggered while the system is in active, the GIT is NOT immediately handled.
 //                    Instead, it waits until the system goes in sleep, and then, the (pending) GIT will wake up the system.
@@ -286,7 +320,6 @@
 //  0x82    {0x0E, eeprom_sample_count}         Current Number of Temp Meas (saved into EEPROM)
 //  0x82    {0x0F, temp_sample_count}           Current Number of Temp Meas
 //
-//  0x83    0x00000000                          NFC activity detected (GPO=1) (only when snt_state=SNT_IDLE)
 //  0x83    0x00000001                          Temp Meas forced to stop by user
 //  0x83    0x00000002                          Temp Meas started and now it becomes TMP_PENDING
 //
@@ -330,7 +363,6 @@
 //  0x88    0x00000002                          SNT calibration successful
 //  0x88    0x00000003                          XO does not start
 //
-//  0x90    0xaabbccdd                          PMU ADC reading and (suggested) SAR ratio values (aa: Given offset, bb: ADC output code, cc: previous SAR ratio, dd: new SAR ratio)
 //  0x91    pmu_sar_ratio                       About the change the sar ratio to pmu_sar_ratio
 //  0x92    pmu_sar_ratio                       Has changed the sar ratio to pmu_sar_ratio
 //
@@ -399,13 +431,17 @@
 //*******************************************************************************************
 // DEBUGGING
 //*******************************************************************************************
-#define GOC_NFC_EMULATION           // Enable this to enable the use of GOC to do the NFC commands
+#define GOC_NFC_EMULATION           // Enable this to enable the use of GOC to do the NFC commands 
+                                    // [FIXME] This must be disabled in the final version.
+                                    //          There is a risk when main() is called inside update_snt_timer_threshold() inside handler_ext_int_gocep().
+                                    //          Since the ISR calls main, the same IRQ may not be called again properly afterwards.
 #define GOCEP_RUN_CPU_ONLY          // Enable this when you cannot do 'GEN_IRQ' in GOC/EP Header (e.g., the current m3_ice script)
 #define DEBUG                       // Send debug messages
-#define USE_DEFAULT_VALUE           // Use default values rather than grabbing the values from EEPROM
+//#define USE_DEFAULT_VALUE           // Use default values rather than grabbing the values from EEPROM
 #define WRITE_HW_ID                 // Write the Hardware ID to EEPROM
+#define DO_NOT_CHECK_CRIT_VBAT      // If enabled, it does not trigger the crash handler when the ADC reading goes below the critical VBAT level.
+//#define DO_NOT_CHANGE_SAR_RATIO   // If enabled, it keeps using the default sar ratio (defined in pmu_init()) rather than adjusting the sar ratio based on ADC readings.
 
-    // WARNING: DEBUG_LT may be also defined in TMCv1.h
 #define DEBUG_LT                    // Long-Term Debugging Enabled
 
 //*******************************************************************************************
@@ -434,6 +470,7 @@
 #define FLAG_ACTIVATED      2
 #define FLAG_STARTED        3
 #define FLAG_WD_ENABLED     4
+#define FLAG_SLEEP_BYPASS   5
 
 //*******************************************************************************************
 // WRITE BUFFER CONFIGURATIONS
@@ -454,6 +491,22 @@
 // XO Initialization Wait Duration
 #define XO_WAIT_A   2*DLY_1S  // Must be ~1 second delay.
 #define XO_WAIT_B   2*DLY_1S  // Must be ~1 second delay.
+
+//*******************************************************************************************
+// WAKEUP SOURCE DEFINITIONS
+//*******************************************************************************************
+#define WAKEUP_BY_GOCEP     get_bit(wakeup_source, 0)
+#define WAKEUP_BY_WUPT      get_bit(wakeup_source, 1)
+#define WAKEUP_BY_XOT       get_bit(wakeup_source, 2)
+#define WAKEUP_BY_GPIO      get_bit(wakeup_source, 3)
+#define WAKEUP_BY_MBUS      get_bit(wakeup_source, 4)
+#define WAKEUP_BY_GIT       get_bit(wakeup_source, 5)
+#define WAKEUP_BY_GPIO0     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 8))
+#define WAKEUP_BY_GPIO1     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 9))
+#define WAKEUP_BY_GPIO2     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 10))
+#define WAKEUP_BY_GPIO3     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 11))
+#define WAKEUP_BY_SNT       WAKEUP_BY_MBUS
+#define SLEEP_BYPASSED      (WAKEUP_BY_MBUS && get_bit(wakeup_source, 7))
 
 //*******************************************************************************************
 // FSM STATES
@@ -574,6 +627,7 @@ volatile uint32_t eeprom_eid_fe_duration_low;       // EID 'Field Erase' duratio
 volatile uint32_t eeprom_eid_rfrsh_int_hr_low;      // EID Refresh interval for Low Temperature (unit: hr). '0' meas 'do not refresh'.
 
 //--- Other Configurations
+volatile uint32_t eeprom_pmu_num_cons_meas;         // Number of consecutive measurements required to change SAR ratio or trigger Low VBAT warning/Crash Handler.
 volatile uint32_t eeprom_timer_calib_interval;      // Period of SNT Timer Calibration. 0 means 'do not calibrate'. (unit:snt_timer_1min).
 volatile uint32_t eeprom_te_last_sample_res;        // Resolution of TE_LAST_SAMPLE (unit: minute). See comment on EEPROM_ADDR_TE_LAST_SAMPLE.
 
@@ -657,7 +711,7 @@ void debug_mbus_write_message32(uint32_t addr, uint32_t data) {
     debug_mbus_ptr = debug_mbus_ptr + 4;
     nfc_i2c_byte_write(/*e2*/0, /*addr*/ debug_mbus_ptr, /*data*/ data, /*nb*/ 4);
     debug_mbus_ptr = debug_mbus_ptr + 4;
-    if(debug_mbus_ptr == debug_mbus_ptr_last) debug_mbus_ptr = 132;
+    if(debug_mbus_ptr == debug_mbus_ptr_last) debug_mbus_ptr = 136;
 #endif
     mbus_write_message32(addr, data);
 }
@@ -718,8 +772,8 @@ static void operation_init (void) {
     if (!get_flag(FLAG_ENUMERATED)) {
 
     #ifdef DEBUG_LT
-        debug_mbus_ptr      = 132;
-        debug_mbus_ptr_last = 252;
+        debug_mbus_ptr      = 136;
+        debug_mbus_ptr_last = 512;
     #endif
 
         //-------------------------------------------------
@@ -781,6 +835,9 @@ static void operation_init (void) {
         // Set the Active floor setting to the minimum (b/c RAT is enabled at this point)
         pmu_set_active_min();
 
+        // Disable the PRC wakeup timer
+        *REG_WUPT_CONFIG = *REG_WUPT_CONFIG & 0xFF3FFFFF; // WUP_ENABLE=0, WUP_WREQ_EN=0
+
         //-------------------------------------------------
         // NFC 
         //-------------------------------------------------
@@ -796,6 +853,11 @@ static void operation_init (void) {
 
         // Initialize the EEPROM variables
         update_system_configs(/*use_default*/1);
+
+    #ifdef DEBUG_LT
+        // Initialize the debug section (byte#104 - byte#131)
+        nfc_i2c_word_pattern_write(/*e2*/0, /*addr*/104, /*data*/0, /*nw*/7);
+    #endif
 
         //-------------------------------------------------
         // EID Settings
@@ -848,7 +910,7 @@ static void eid_update_with_eeprom(uint32_t seg) {
     cnt_disp_refresh_interval = 1;
 
     // Try up to 30 times - Consistency between the EEPROM log and the actual display is important!
-    if(nfc_i2c_get_token(/*id*/0x1, /*num_try*/30)) {
+    if(nfc_i2c_get_token(/*num_try*/30)) {
         // EEPROM Update
         nfc_i2c_byte_write(/*e2*/0,
             /*addr*/ EEPROM_ADDR_DISPLAY,
@@ -873,7 +935,7 @@ static void eid_update_with_eeprom(uint32_t seg) {
 
 static void set_system_state(uint32_t msb, uint32_t lsb, uint32_t val) {
     system_state = set_bits(/*original_var*/system_state, /*msb_idx*/msb, /*lsb_idx*/lsb, /*value*/val);
-    if(nfc_i2c_get_token(/*id*/0x2, /*num_try*/30)) {
+    if(nfc_i2c_get_token(/*num_try*/30)) {
         nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/system_state, /*nb*/2);
         nfc_i2c_release_token();
     }
@@ -918,14 +980,12 @@ static void snt_operation (void) {
     snt_ldo_power_off();
 
     // Determine ADC Offset, ADC Low VBAT threshold, and ADC Critical VBAT threshold
-    uint32_t adc_offset, adc_low_vbat, adc_crit_vbat;
+    uint32_t adc_offset;
     if      (snt_temp_val > eeprom_adc_t1) { adc_offset = eeprom_adc_offset_r1; }
     else if (snt_temp_val > eeprom_adc_t2) { adc_offset = eeprom_adc_offset_r2; }
     else if (snt_temp_val > eeprom_adc_t3) { adc_offset = eeprom_adc_offset_r3; }
     else if (snt_temp_val > eeprom_adc_t4) { adc_offset = eeprom_adc_offset_r4; }
     else                                   { adc_offset = eeprom_adc_offset_r5; }
-    adc_low_vbat  = eeprom_adc_low_vbat  + adc_offset;
-    adc_crit_vbat = eeprom_adc_crit_vbat + adc_offset;
 
     // VBAT Measurement and SAR_RATIO Adjustment
 #ifdef DEBUG_LT
@@ -934,7 +994,22 @@ static void snt_operation (void) {
 #endif
 
     pmu_adc_vbat_val = pmu_read_adc();
-    pmu_sar_ratio    = pmu_calc_new_sar_ratio(/*adc_val*/pmu_adc_vbat_val, /*offset*/adc_offset);
+    pmu_sar_ratio    = pmu_calc_new_sar_ratio(  /*adc_val*/         pmu_adc_vbat_val, 
+                                                /*offset*/          adc_offset, 
+                                                /*num_cons_meas*/   eeprom_pmu_num_cons_meas
+                                            );
+
+    uint32_t low_vbat  = pmu_check_low_vbat (   /*adc_val*/         pmu_adc_vbat_val, 
+                                                /*offset*/          adc_offset, 
+                                                /*threshold*/       eeprom_adc_low_vbat,  
+                                                /*num_cons_meas*/   eeprom_pmu_num_cons_meas
+                                            );
+
+    uint32_t crit_vbat = pmu_check_crit_vbat(   /*adc_val*/         pmu_adc_vbat_val, 
+                                                /*offset*/          adc_offset, 
+                                                /*threshold*/       eeprom_adc_crit_vbat, 
+                                                /*num_cons_meas*/   eeprom_pmu_num_cons_meas
+                                            );
 
 #ifdef DEBUG_LT
     nfc_i2c_byte_write(/*e2*/0, /*addr*/ EEPROM_ADDR_LT_ADC, /*data*/ pmu_adc_vbat_val, /*nb*/ 1);
@@ -945,10 +1020,12 @@ static void snt_operation (void) {
         debug_mbus_write_message32(0x91, pmu_sar_ratio);
     #endif
 
+#ifndef DO_NOT_CHANGE_SAR_RATIO
     if (pmu_sar_ratio != pmu_get_sar_ratio()) {
         pmu_set_sar_ratio(pmu_sar_ratio);
         delay(40000);
     }
+#endif
 
     #ifdef DEBUG_LT
         debug_mbus_write_message32(0x92, pmu_sar_ratio);
@@ -971,26 +1048,28 @@ static void snt_operation (void) {
 
     //--- Read the current display
     uint32_t curr_seg = eid_get_current_display();
-    uint32_t new_seg = curr_seg;
+    uint32_t new_seg;
 
-    //--- If the current display does not show temp excursions (i.e., no HIGH nor LOW TEMP)
-    if (!get_bit(curr_seg, SEG_PLUS) && !get_bit(curr_seg, SEG_MINUS)) {
-        if       (snt_temp_val > eeprom_high_temp_threshold) new_seg = DISP_PLAY | DISP_CROSS | DISP_HIGH_TEMP;
-        else if  (snt_temp_val < eeprom_low_temp_threshold ) new_seg = DISP_PLAY | DISP_CROSS | DISP_LOW_TEMP;
-        else                                                 new_seg = DISP_PLAY | DISP_NORMAL;
-    }
-    //--- If the current display shows HIGH TEMP
-    else if (get_bit(curr_seg, SEG_PLUS)) {
-        if (snt_temp_val < eeprom_low_temp_threshold ) new_seg = set_bit(new_seg, SEG_MINUS, 1);
-    }
-    //--- If the current display shows LOW TEMP
-    if (get_bit(curr_seg, SEG_MINUS)) {
-        if (snt_temp_val > eeprom_high_temp_threshold) new_seg = set_bit(new_seg, SEG_PLUS, 1);
+    //--- Add Play
+    new_seg = curr_seg | DISP_PLAY;
+
+    //--- Show Plus (if needed)
+    if (!get_bit(new_seg, SEG_PLUS) && (snt_temp_val > eeprom_high_temp_threshold)) {
+        new_seg = new_seg & ~DISP_CHECK;    // Remove the Check
+        new_seg = new_seg | DISP_CROSS;     // Add the Cross
+        new_seg = new_seg | DISP_PLUS;      // Add Plus
     }
 
-    //--- Update the Battery Indicator
-    if (!get_bit(curr_seg, SEG_LOWBATT) && (pmu_adc_vbat_val<adc_low_vbat)) {
-        new_seg = set_bit(new_seg, SEG_LOWBATT, 1);
+    //--- Show Minus (if needed)
+    if (!get_bit(new_seg, SEG_MINUS) && (snt_temp_val < eeprom_low_temp_threshold)) {
+        new_seg = new_seg & ~DISP_CHECK;    // Remove the Check
+        new_seg = new_seg | DISP_CROSS;     // Add the Cross
+        new_seg = new_seg | DISP_MINUS;     // Add Minus
+    }
+
+    //--- Show Low VBATT Indicator (if needed)
+    if (!get_bit(new_seg, SEG_LOWBATT) && low_vbat) {
+        new_seg = new_seg | DISP_LOWBATT;
     }
 
 
@@ -998,7 +1077,7 @@ static void snt_operation (void) {
     // Write into EEPROM/Display
     //---------------------------------------------------------------
 
-    if (nfc_i2c_get_token(/*id*/0x3, /*num_try*/1)) {
+    if (nfc_i2c_get_token(/*num_try*/1)) {
         // Store the Measured Temp data
         while (num_buffer_items!=0) {
 
@@ -1021,6 +1100,17 @@ static void snt_operation (void) {
                 /* nb */ 2
                 );
 
+        #ifdef DEBUG_LT
+            // Store the ADC Reading
+            if (eeprom_addr != 0) { // eeprom_addr=0 indicates the EEPROM is full -AND- the roll-over is not allowed.
+                nfc_i2c_byte_write(/*e2*/0, 
+                    /*addr*/ eeprom_addr, 
+                    /*data*/ get_bits(buf_val, 23, 16),
+                    /* nb */ 1
+                    );
+                eeprom_addr += 1;
+            }
+        #else
             // Store the Temperature Data
             if (eeprom_addr != 0) { // eeprom_addr=0 indicates the EEPROM is full -AND- the roll-over is not allowed.
                 nfc_i2c_byte_write(/*e2*/0, 
@@ -1030,6 +1120,7 @@ static void snt_operation (void) {
                     );
                 eeprom_addr += 2;
             }
+        #endif
 
             if (eeprom_addr==EEPROM_NUM_BYTES) {
                 // Roll-over Allowed
@@ -1061,7 +1152,8 @@ static void snt_operation (void) {
     // EID Crash Handler
     //---------------------------------------------------------------
     //--- If VBAT is too low, trigger the EID Watchdog (System Crash)
-    if (pmu_adc_vbat_val < adc_crit_vbat) {
+#ifndef DO_NOT_CHECK_CRIT_VBAT
+    if (crit_vbat) {
 
         // Set system
         set_system  (   /*target*/          0x9,    /*Crash*/
@@ -1073,6 +1165,7 @@ static void snt_operation (void) {
         eid_trigger_crash();
         while(1);
     }
+#endif
     /////////////////////////////////////////////////////////////////
 
     // Release the I2C token
@@ -1113,7 +1206,7 @@ void nfc_set_err(uint32_t cmd) {
 void nfc_check_cmd(void) {
 
     // Get the token
-    if (nfc_i2c_get_token(/*id*/0x4, /*num_try*/1)) {
+    if (nfc_i2c_get_token(/*num_try*/1)) {
 
         // Read the command from EEPROM
         uint32_t cmd_raw = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_CMD, /*nb*/1);
@@ -1278,19 +1371,11 @@ static void calibrate_snt_timer(void) {
     // Start the XO counter
     start_xo_cnt();
 
-    #ifdef DEBUG_LT
-        nfc_i2c_byte_write(/*e2*/0, /*addr*/ EEPROM_ADDR_LT_WFI, /*data*/ 0x2, /*nb*/ 1);
-    #endif
-
     // Read SNT counter
     a = snt_read_wup_timer();
 
     // Wait for WFI
     WFI();
-
-    #ifdef DEBUG_LT
-        nfc_i2c_byte_write(/*e2*/0, /*addr*/ EEPROM_ADDR_LT_WFI, /*data*/ 0x0, /*nb*/ 1);
-    #endif
 
     // Read SNT counter
     b = snt_read_wup_timer();
@@ -1310,7 +1395,7 @@ static void calibrate_snt_timer(void) {
 
         // ERROR: XO failure
         num_calib_xo_fails++;
-        if (nfc_i2c_get_token(/*id*/0x5, /*num_try*/1)) {
+        if (nfc_i2c_get_token(/*num_try*/1)) {
             nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_NUM_CALIB_XO_FAILS, /*data*/num_calib_xo_fails, /*nb*/1);
             nfc_i2c_release_token();
         }
@@ -1336,7 +1421,7 @@ static void calibrate_snt_timer(void) {
 
             // ERROR: Calibration Max Error
             num_calib_max_err_fails++;
-            if (nfc_i2c_get_token(/*id*/0x6, /*num_try*/1)) {
+            if (nfc_i2c_get_token(/*num_try*/1)) {
                 nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_NUM_CALIB_MAX_ERR_FAILS, /*data*/num_calib_max_err_fails, /*nb*/1);
                 nfc_i2c_release_token();
             }
@@ -1514,6 +1599,11 @@ static void set_system(uint32_t target, uint32_t reset_cmd, uint32_t reset_start
             eeprom_temp_meas_config      = get_bits(temp, 15, 0);
         #endif
 
+        #ifdef DEBUG_LT
+            // Force 2 min interval
+            eeprom_temp_meas_interval = 2;
+        #endif
+
         // Update the System Config Variables
         update_system_configs(/*use_default*/0);
     }
@@ -1574,6 +1664,7 @@ static void update_system_configs(uint32_t use_default) {
         eeprom_eid_rfrsh_int_hr_low     = 0   ; // ( 0    (=none) ) EID Refresh interval for Low Temperature (unit: hr). '0' means 'do not refresh'.
 
         //--- Other Configurations
+        eeprom_pmu_num_cons_meas        =  5;   // (            5 ) Number of consecutive measurements required to change SAR ratio or trigger Low VBAT warning/Crash Handler.
         eeprom_timer_calib_interval     = 10;   // (           10 ) Timer Calibration Interval. '0' means 'do not calibrate'. (unit: minute)
         eeprom_te_last_sample_res       =  5;   // (            5 ) Resolution of TE_LAST_SAMPLE (unit: minute). See comment on EEPROM_ADDR_TE_LAST_SAMPLE.
     }
@@ -1627,10 +1718,19 @@ static void update_system_configs(uint32_t use_default) {
         eeprom_eid_fe_duration_low      = get_bits(temp, 31, 16);
         eeprom_eid_rfrsh_int_hr_low     = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_RFRSH_INT_HR_LOW, /*nb*/1);
 
+        //--- Other Configurations
+        temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_PMU_NUM_CONS_MEAS, /*nb*/1);
+        eeprom_pmu_num_cons_meas        = get_bits(temp, 7,  0);
+
         temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_TIMER_CALIB_INTERVAL, /*nb*/4);
         eeprom_timer_calib_interval     = get_bits(temp, 15,  0);
         eeprom_te_last_sample_res       = get_bits(temp, 31, 16);
     }
+
+#ifdef DEBUG_LT
+    // Force num_cons_meas = 3
+    eeprom_pmu_num_cons_meas = 3;
+#endif
 
     // Update SNT timer variables
     snt_timer_1min = (eeprom_snt_base_freq << 6) - (eeprom_snt_base_freq << 2);
@@ -1643,10 +1743,11 @@ static void update_snt_timer_threshold(void) {
     nfc_i2c_byte_write(/*e2*/0, /*addr*/ EEPROM_ADDR_LT_SNT_TH_PREV, /*data*/ snt_timer_threshold, /*nb*/ 4);
 #endif
 
-    // Add an 1-min interval
-    snt_timer_threshold = snt_timer_threshold + snt_timer_1min;
-
-    if(snt_timer_threshold==0) snt_timer_threshold = 1; // SNT Timer does not expire at cnt=0.
+    // Update snt_timer_threshold only if it has been woken up by the SNT timer
+    if (WAKEUP_BY_SNT) {
+        snt_timer_threshold = snt_timer_threshold + snt_timer_1min;
+        if(snt_timer_threshold==0) snt_timer_threshold = 1; // SNT Timer does not expire at cnt=0.
+    }
 
     // Just in case - check the current SNT counter value.
     //-----------------------------------------------------------------
@@ -1686,10 +1787,15 @@ static void update_snt_timer_threshold(void) {
     nfc_i2c_byte_write(/*e2*/0, /*addr*/ EEPROM_ADDR_LT_SNT_DIST, /*data*/ distance,            /*nb*/ 4);
 #endif
 
-    if ((distance < (snt_timer_1min>>6)) || (distance > snt_timer_1min)) {
+    if ((distance < (snt_timer_1min>>5)) || (distance > (snt_timer_1min<<2))) {
         #ifdef DEBUG
             debug_mbus_write_message32(0x84, 0x0);
         #endif
+        set_flag(FLAG_SLEEP_BYPASS, 1);
+        // For safely, disable/clear all IRQs.
+        *NVIC_ICER = 0xFFFFFFFF;
+        *NVIC_ICPR = 0xFFFFFFFF;
+        // Call main()
         main();
         return;
     }
@@ -1856,7 +1962,7 @@ void handler_ext_int_gocep    (void) {
         if ((goc_raw==GOC_START_KEY) || (goc_raw==GOC_STOP_KEY) || (goc_raw==GOC_RESET_KEY)
             || ((goc_raw&0xFFFF0000)==(GOC_DISPLAY_KEY&0xFFFF0000))) {
 
-            if (nfc_i2c_get_token(/*id*/0x7, /*num_try*/1)) {
+            if (nfc_i2c_get_token(/*num_try*/1)) {
 
                 // Start the temperature measurement
                 if (goc_raw==GOC_START_KEY) 
@@ -1873,7 +1979,6 @@ void handler_ext_int_gocep    (void) {
                     nfc_i2c_byte_write(/*e2*/0, /*addr*/ EEPROM_ADDR_CMD_PARAM, /*data*/ goc_raw&0x7F, /*nb*/ 1);
                 }
 
-                // Go to sleep. NOTE: The next wakeup may happen after 1 ~ 2min.
                 update_snt_timer_threshold();
                 operation_sleep_snt_timer(/*auto_reset*/0, /*threshold*/snt_timer_threshold);
             }
@@ -1901,7 +2006,13 @@ int main(void) {
     *REG_MBUS_WD = 0;
     
     // Get the info on who woke up the system, then reset WAKEUP_SOURCE register.
-    wakeup_source = *SREG_WAKEUP_SOURCE;
+    if (get_flag(FLAG_SLEEP_BYPASS)) {
+        wakeup_source = 0x90; // Treat it as if the SNT timer has woken up the system. Set bit[7] as well. See WAKEUP_SOURCE.
+        set_flag(FLAG_SLEEP_BYPASS, 0);
+    }
+    else {
+        wakeup_source = *SREG_WAKEUP_SOURCE;
+    }
     *SCTR_REG_CLR_WUP_SOURCE = 1;
 
     #ifdef DEBUG
@@ -1921,7 +2032,7 @@ int main(void) {
     if (!get_flag(FLAG_INITIALIZED)) operation_init();
 
     #ifdef GOCEP_RUN_CPU_ONLY
-        if (get_flag(FLAG_INITIALIZED) && get_bit(wakeup_source, 0)) {
+        if (get_flag(FLAG_INITIALIZED) && WAKEUP_BY_GOCEP) {
             handler_ext_int_gocep();
         }
     #endif
@@ -1939,139 +2050,143 @@ int main(void) {
     //--------------------------------------------------------------------------
     if (get_flag(FLAG_ACTIVATED)) {
 
-        #ifdef DEBUG
-            debug_mbus_write_message32(0x82, (0x00 << 24) | tmp_state);
-            debug_mbus_write_message32(0x82, (0x01 << 24) | cnt_temp_meas_start_delay);
-            debug_mbus_write_message32(0x82, (0x02 << 24) | cnt_temp_meas_interval);
-            debug_mbus_write_message32(0x82, (0x03 << 24) | cnt_disp_refresh_interval);
-            debug_mbus_write_message32(0x82, (0x04 << 24) | cnt_timer_calib_interval);
-            debug_mbus_write_message32(0x82, (0x0E << 24) | eeprom_sample_count);
-            debug_mbus_write_message32(0x82, (0x0F << 24) | temp_sample_count);
-        #endif
+        // Only if it has been waken up by SNT
+        if (WAKEUP_BY_SNT) {
 
-        //----------------------------------------------------------------------
-        // Checking NFC Activity
-        //----------------------------------------------------------------------
-        if (!snt_running) { nfc_check_cmd(); }
+            #ifdef DEBUG
+                debug_mbus_write_message32(0x82, (0x00 << 24) | tmp_state);
+                debug_mbus_write_message32(0x82, (0x01 << 24) | cnt_temp_meas_start_delay);
+                debug_mbus_write_message32(0x82, (0x02 << 24) | cnt_temp_meas_interval);
+                debug_mbus_write_message32(0x82, (0x03 << 24) | cnt_disp_refresh_interval);
+                debug_mbus_write_message32(0x82, (0x04 << 24) | cnt_timer_calib_interval);
+                debug_mbus_write_message32(0x82, (0x0E << 24) | eeprom_sample_count);
+                debug_mbus_write_message32(0x82, (0x0F << 24) | temp_sample_count);
+            #endif
 
-        //----------------------------------------------------------------------
-        // Temperature Measurement FSM
-        //----------------------------------------------------------------------
-        if (tmp_state==TMP_IDLE) {
-            if (get_flag(FLAG_STARTED)) {
+            //----------------------------------------------------------------------
+            // Checking NFC Activity
+            //----------------------------------------------------------------------
+            if (!snt_running) { nfc_check_cmd(); }
+
+            //----------------------------------------------------------------------
+            // Temperature Measurement FSM
+            //----------------------------------------------------------------------
+            if (tmp_state==TMP_IDLE) {
+                if (get_flag(FLAG_STARTED)) {
+                    #ifdef DEBUG
+                        debug_mbus_write_message32(0x83, 0x00000002);
+                        debug_mbus_write_message32(0x83, (0x01 << 24) | eeprom_temp_meas_start_delay);
+                        debug_mbus_write_message32(0x83, (0x02 << 24) | eeprom_temp_meas_interval);
+                        debug_mbus_write_message32(0x83, (0x03 << 24) | eeprom_timer_calib_interval);
+                        debug_mbus_write_message32(0x83, (0x04 << 24) | eeprom_te_last_sample_res);
+                        debug_mbus_write_message32(0x83, (0x05 << 24) | eeprom_temp_meas_config);
+                        debug_mbus_write_message32(0x83, (0x06 << 24) | eeprom_high_temp_threshold);
+                        debug_mbus_write_message32(0x83, (0x07 << 24) | eeprom_low_temp_threshold);
+                    #endif
+
+                    // Decide where to go
+                    if (eeprom_temp_meas_start_delay==1) {
+                        tmp_state = TMP_ACTIVE;
+                        cnt_temp_meas_interval = eeprom_temp_meas_interval;
+                    }
+                    else tmp_state = TMP_PENDING;
+
+                    // Calibrate the SNT timer
+                    cnt_timer_calib_interval = eeprom_timer_calib_interval;
+
+                }
                 #ifdef DEBUG
-                    debug_mbus_write_message32(0x83, 0x00000002);
-                    debug_mbus_write_message32(0x83, (0x01 << 24) | eeprom_temp_meas_start_delay);
-                    debug_mbus_write_message32(0x83, (0x02 << 24) | eeprom_temp_meas_interval);
-                    debug_mbus_write_message32(0x83, (0x03 << 24) | eeprom_timer_calib_interval);
-                    debug_mbus_write_message32(0x83, (0x04 << 24) | eeprom_te_last_sample_res);
-                    debug_mbus_write_message32(0x83, (0x05 << 24) | eeprom_temp_meas_config);
-                    debug_mbus_write_message32(0x83, (0x06 << 24) | eeprom_high_temp_threshold);
-                    debug_mbus_write_message32(0x83, (0x07 << 24) | eeprom_low_temp_threshold);
+                else {
+                    debug_mbus_write_message32(0x83, 0x00000003);
+                }
                 #endif
-
-                // Decide where to go
-                if (eeprom_temp_meas_start_delay==1) {
+            }
+            else if (tmp_state==TMP_PENDING) {
+                if (cnt_temp_meas_start_delay == eeprom_temp_meas_start_delay) {
+                    #ifdef DEBUG
+                        debug_mbus_write_message32(0x83, 0x00000004);
+                    #endif
                     tmp_state = TMP_ACTIVE;
                     cnt_temp_meas_interval = eeprom_temp_meas_interval;
                 }
-                else tmp_state = TMP_PENDING;
-
-                // Calibrate the SNT timer
-                cnt_timer_calib_interval = eeprom_timer_calib_interval;
-
-            }
-            #ifdef DEBUG
-            else {
-                debug_mbus_write_message32(0x83, 0x00000003);
-            }
-            #endif
-        }
-        else if (tmp_state==TMP_PENDING) {
-            if (cnt_temp_meas_start_delay == eeprom_temp_meas_start_delay) {
-                #ifdef DEBUG
-                    debug_mbus_write_message32(0x83, 0x00000004);
-                #endif
-                tmp_state = TMP_ACTIVE;
-                cnt_temp_meas_interval = eeprom_temp_meas_interval;
-            }
-            else {
-                cnt_temp_meas_start_delay++;
-                #ifdef DEBUG
-                    debug_mbus_write_message32(0x83, 0x00000005);
-                #endif
-            }
-        }
-        else if (tmp_state==TMP_ACTIVE) {
-            if (cnt_temp_meas_interval == eeprom_temp_meas_interval) {
-                #ifdef DEBUG
-                    debug_mbus_write_message32(0x83, 0x00000006);
-                #endif
-                snt_operation();
-                cnt_temp_meas_interval = 0;
-                cnt_te_last_sample     = 0;
-                cnt_te_last_sample_res = 0;
-            }
-            #ifdef DEBUG
-            else {
-                debug_mbus_write_message32(0x83, 0x00000007);
-            }
-            #endif
-
-            // Write TE_LAST_SAMPLE
-        #ifdef DEBUG_LT
-            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_TE_LAST_SAMPLE, /*data*/cnt_te_last_sample, /*nb*/2);
-            cnt_te_last_sample_res = 0;
-        #else
-            if (  (cnt_te_last_sample_res == 0) 
-               || (cnt_te_last_sample_res == eeprom_te_last_sample_res)) {
-                if(nfc_i2c_get_token(/*id*/0x8, /*num_try*/30)) {
-                    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_TE_LAST_SAMPLE, /*data*/cnt_te_last_sample, /*nb*/2);
-                    nfc_i2c_release_token();
+                else {
+                    cnt_temp_meas_start_delay++;
+                    #ifdef DEBUG
+                        debug_mbus_write_message32(0x83, 0x00000005);
+                    #endif
                 }
+            }
+            else if (tmp_state==TMP_ACTIVE) {
+                if (cnt_temp_meas_interval == eeprom_temp_meas_interval) {
+                    #ifdef DEBUG
+                        debug_mbus_write_message32(0x83, 0x00000006);
+                    #endif
+                    snt_operation();
+                    cnt_temp_meas_interval = 0;
+                    cnt_te_last_sample     = 0;
+                    cnt_te_last_sample_res = 0;
+                }
+                #ifdef DEBUG
+                else {
+                    debug_mbus_write_message32(0x83, 0x00000007);
+                }
+                #endif
+
+                // Write TE_LAST_SAMPLE
+            #ifdef DEBUG_LT
+                nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_TE_LAST_SAMPLE, /*data*/cnt_te_last_sample, /*nb*/2);
                 cnt_te_last_sample_res = 0;
+            #else
+                if (  (cnt_te_last_sample_res == 0) 
+                   || (cnt_te_last_sample_res == eeprom_te_last_sample_res)) {
+                    if(nfc_i2c_get_token(/*num_try*/30)) {
+                        nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_TE_LAST_SAMPLE, /*data*/cnt_te_last_sample, /*nb*/2);
+                        nfc_i2c_release_token();
+                    }
+                    cnt_te_last_sample_res = 0;
+                }
+            #endif
+
+                cnt_temp_meas_interval++;
+                cnt_te_last_sample++;
+                cnt_te_last_sample_res++;
+
             }
-        #endif
 
-            cnt_temp_meas_interval++;
-            cnt_te_last_sample++;
-            cnt_te_last_sample_res++;
-
-        }
-
-        //----------------------------------------------------------------------
-        // Refresh Display
-        //----------------------------------------------------------------------
-        if (disp_refresh_interval != 0) {
-            if (cnt_disp_refresh_interval == disp_refresh_interval) {
-                #ifdef DEBUG
-                    debug_mbus_write_message32(0x83, 0x00000009);
-                #endif
-                eid_update(eid_get_current_display());
-                cnt_disp_refresh_interval = 0;
+            //----------------------------------------------------------------------
+            // Refresh Display
+            //----------------------------------------------------------------------
+            if (disp_refresh_interval != 0) {
+                if (cnt_disp_refresh_interval == disp_refresh_interval) {
+                    #ifdef DEBUG
+                        debug_mbus_write_message32(0x83, 0x00000009);
+                    #endif
+                    eid_update(eid_get_current_display());
+                    cnt_disp_refresh_interval = 0;
+                }
+                cnt_disp_refresh_interval++;
             }
-            cnt_disp_refresh_interval++;
-        }
-        else {
-            cnt_disp_refresh_interval = 1;
-        }
-
-        //----------------------------------------------------------------------
-        // SNT Timer Calibration (Only when the system has been started)
-        //----------------------------------------------------------------------
-        if ((get_flag(FLAG_STARTED)) && (eeprom_timer_calib_interval != 0)) {
-            if (cnt_timer_calib_interval == eeprom_timer_calib_interval) {
-                #ifdef DEBUG
-                    debug_mbus_write_message32(0x83, 0x0000000A);
-                #endif
-                calibrate_snt_timer();
-                cnt_timer_calib_interval = 0;
+            else {
+                cnt_disp_refresh_interval = 1;
             }
-            cnt_timer_calib_interval++;
-        }
-        else {
-            cnt_timer_calib_interval = 1;
-        }
+
+            //----------------------------------------------------------------------
+            // SNT Timer Calibration (Only when the system has been started)
+            //----------------------------------------------------------------------
+            if ((get_flag(FLAG_STARTED)) && (eeprom_timer_calib_interval != 0)) {
+                if (cnt_timer_calib_interval == eeprom_timer_calib_interval) {
+                    #ifdef DEBUG
+                        debug_mbus_write_message32(0x83, 0x0000000A);
+                    #endif
+                    calibrate_snt_timer();
+                    cnt_timer_calib_interval = 0;
+                }
+                cnt_timer_calib_interval++;
+            }
+            else {
+                cnt_timer_calib_interval = 1;
+            }
+        } // WAKEUP_BY_SNT
 
         //----------------------------------------------------------------------
         // Go to sleep
