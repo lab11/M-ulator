@@ -325,12 +325,18 @@ uint32_t pmu_calc_new_sar_ratio(uint32_t adc_val, uint32_t offset, uint32_t num_
         if (adc_val > upper_threshold) {
             __pmu_sar_ratio_lower_streak__ = 0;
             if (__pmu_sar_ratio_upper_streak__ < num_cons_meas) __pmu_sar_ratio_upper_streak__++;
-            if (__pmu_sar_ratio_upper_streak__ >= num_cons_meas) new_val = new_up;
+            if (__pmu_sar_ratio_upper_streak__ >= num_cons_meas) {
+                new_val = new_up;
+                __pmu_sar_ratio_upper_streak__ = 0;
+            }
         }
         else if (adc_val < lower_threshold) {
             __pmu_sar_ratio_upper_streak__ = 0;
             if (__pmu_sar_ratio_lower_streak__ < num_cons_meas) __pmu_sar_ratio_lower_streak__++;
-            if (__pmu_sar_ratio_lower_streak__ >= num_cons_meas) new_val = new_down;
+            if (__pmu_sar_ratio_lower_streak__ >= num_cons_meas) {
+                new_val = new_down;
+                __pmu_sar_ratio_lower_streak__ = 0;
+            }
         }
         else {
             __pmu_sar_ratio_upper_streak__ = 0;
