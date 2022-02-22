@@ -243,39 +243,10 @@
 //--- Product Information
 #define EEPROM_ADDR_PRODUCT_INFO            104 //  24      Drug Info, Mfg, Batch ID, Exp date
 
-//--- For DEBUG_LT
-#define EEPROM_ADDR_LT_ADC_PREV             104 //  1       pmu_adc_vbat_val (prev)
-#define EEPROM_ADDR_LT_SAR_PREV             105 //  1       pmu_sar_ratio (prev)
-#define EEPROM_ADDR_LT_ADC                  106 //  1       pmu_adc_vbat_val
-#define EEPROM_ADDR_LT_SAR                  107 //  1       pmu_sar_ratio
-#define EEPROM_ADDR_LT_SNT_FREQ_PREV        108 //  2       snt_timer_1min (prev)
-#define EEPROM_ADDR_LT_SNT_FREQ             110 //  2       snt_timer_1min
-#define EEPROM_ADDR_LT_SNT_TH_PREV          112 //  4       snt_timer_threshold (prev)
-#define EEPROM_ADDR_LT_SNT_CURR             116 //  4       curr_snt_val
-#define EEPROM_ADDR_LT_SNT_TH               120 //  4       snt_timer_threshold
-#define EEPROM_ADDR_LT_SNT_DIST             124 //  4       distance (in calibrate_snt_timer())
-
-#define EEPROM_ADDR_LT_I2C_TOKEN_ID         128 //  1       The last NFC I2C token ID
-#define EEPROM_ADDR_LT_I2C_TOKEN_STATUS     129 //  1       Token Status 
-                                                //              0: no token (token successfully released); 
-                                                //              1: token successfully obtained; 
-                                                //              2: token was already existing; 
-                                                //              3: timeout; 
-                                                //              4: number of trial exceeds; 
-                                                //              F: attempted;
-#define EEPROM_ADDR_LT_WFI                  130 //  1       WFI Status
-                                                //              0: no WFI
-                                                //              1: Waiting for Temp Sensor
-                                                //              2: Waiting for SNT Calibration
-//#define EEPROM_ADDR_RESERVED              131 //  1       Reserved
-#define EEPROM_ADDR_LT_MBUS_MSG_PTR         132 //  4       Pointer to the last MBus Message
-#define EEPROM_ADDR_LT_MBUS_MSG             136 //  376     MBus Messages (addr, 32-bit data)
-
 //-------------------------------------
 // Data Section (Byte 128 - 8191)
 //-------------------------------------
-//#define EEPROM_ADDR_DATA_RESET_VALUE        128 //  8064    Temperature Measurements (Max. 4032 samples w/ 16-bit data)
-#define EEPROM_ADDR_DATA_RESET_VALUE        512
+#define EEPROM_ADDR_DATA_RESET_VALUE        128 //  8064    Temperature Measurements (Max. 4032 samples w/ 16-bit data)
 
 
 //-------------------------------------------------------------------------------------------
