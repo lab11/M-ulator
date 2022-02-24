@@ -1,6 +1,6 @@
 //*******************************************************************************************
 // XT1 (TMCv1) FIRMWARE
-// Version 0.96_devel
+// Version 0.96_act
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
 //  Jun 24 2021 - First commit 
@@ -339,98 +339,6 @@
 //  Alse see the Memory Map.
 //
 //-------------------------------------------------------------------------------------------
-// DEBUG Messages
-//-------------------------------------------------------------------------------------------
-// Valid only when DEVEL is enabled
-//
-//  ADDR    DATA                                Description
-//  -----------------------------------------------------------------------------------------
-//  0x80    wakeup_source                       Wakeup Source (See above WAKEUP_SOURCE definition)
-//
-//  0x81    wakeup_count                        Wakeup Count (only when snt_state = SNT_IDLE)
-//
-//  0x82    {0x00, tmp_state}                   Temp Meas State (only when system is activated)
-//                                                      0x0 TMP_IDLE        
-//                                                      0x1 TMP_PENDING     
-//                                                      0x2 TMP_ACTIVE      
-//                                                      0x3 TMP_DONE        
-//
-//  0x82    {0x01, cnt_temp_meas_start_delay}   Counter for Start Delay
-//  0x82    {0x02, cnt_temp_meas_interval}      Counter for Temp Meas Period
-//  0x82    {0x03, cnt_disp_refresh_interval}   Counter for Display Refresh
-//  0x82    {0x04, cnt_timer_calib_interval}    Counter for Timer Calibration
-//  0x82    {0x0E, eeprom_sample_count}         Current Number of Temp Meas (saved into EEPROM)
-//  0x82    {0x0F, temp_sample_count}           Current Number of Temp Meas
-//
-//  0x83    0x00000001                          Temp Meas forced to stop by user
-//  0x83    0x00000002                          Temp Meas started and now it becomes TMP_PENDING
-//
-//  0x83    {0x01, eeprom_temp_meas_start_delay}    Start Delay
-//  0x83    {0x02, eeprom_temp_meas_interval}       Temp Meas Period
-//  0x83    {0x03, eeprom_timer_calib_interval}     Timer Calibration
-//  0x83    {0x04, eeprom_te_last_sample_res}       Resolution of TE_LAST_SAMPLE.
-//  0x83    {0x05, eeprom_temp_meas_config}         Misc. Configurations
-//  0x83    {0x06, eeprom_high_temp_threshold}      High Temp Threshold
-//  0x83    {0x07, eeprom_low_temp_threshold}       Low Temp Threshold
-//
-//  0x83    0x00000003                          Temp Meas stays in IDLE (Has not started by user)
-//  0x83    0x00000004                          Temp Meas Start Delay has met. Now it becomes TMP_ACTIVE.
-//  0x83    0x00000005                          Temp Meas Start Delay has not met. It is still in TMP_PENDING.
-//  0x83    0x00000006                          Temp Meas performs the temp measurement in this active session (TMP_ACTIVE)
-//  0x83    0x00000007                          Temp Meas skips this active session (TMP_ACTIVE)
-//  0x83    0x00000008                          Temp Meas has performed the given number of temp measurements. Now it goes back to TMP_IDLE.
-//  0x83    0x00000009                          Refreshing Eink display
-//  0x83    0x0000000A                          Calibrating the SNT timer (using XO)
-//  0x83    0x0000000B                          RESET command detected
-//  0x83    0xD15900nn                          DISPLAY command uses a parameter 'nn'
-//
-//  0x84    0x00000000                          main() is called at the end of main()
-//  0x84    snt_timer_threshold                 New threshold value for the SNT timer
-//
-//  0x85    0x00000000                          NFC Command (NOP) Detected
-//  0x85    0x00000001                          NFC Command (START) Detected
-//  0x85    0x00000002                          NFC Command (STOP) Detected
-//  0x85    0x00000010                          NFC Command (DISPLAY) Detected
-//  0x85    0x0000001E                          NFC Command (RESET) Detected
-//  0x85    others                              NFC Command (Invalid) Detected
-//
-//  0x86    0x00000001                          NFC Command ACKed (ACK Bit Set)
-//  0x86    0xDEADBEEF                          NFC Command ERRORed (ERR Bit Set)
-//
-//  0x87    old_val (snt_timer_1min)            The old_val value before an SNT Calibration
-//  0x87    new_val                             The new_val value after an SNT Calibration
-//      NOTE: The first 0x87 is the old_val, and the second 0x87 is the new_val.
-//  0x88    0x00000000                          XO timeout during SNT timer calibration
-//  0x88    0x00000001                          SNT calibration result is out of expectation.
-//  0x88    0x00000002                          SNT calibration successful
-//  0x88    0x00000003                          XO does not start
-//
-//  0x91    pmu_sar_ratio                       About the change the sar ratio to pmu_sar_ratio
-//  0x92    pmu_sar_ratio                       Has changed the sar ratio to pmu_sar_ratio
-//
-//  0xA0    0x0abcdefg                          E-ink display has been updated.
-//                                                  a: Minus
-//                                                  b: Plus
-//                                                  c: Slash
-//                                                  d: Back Slash
-//                                                  e: Low Battery
-//                                                  f: Tick
-//                                                  g: Play
-//
-//  0xE0    snt_temp_val                        See eid_update_with_eeprom()
-//  0xE1    eeprom_eid_high_temp_threshold      See eid_update_with_eeprom()                  
-//  0xE2    eeprom_eid_low_temp_threshold       See eid_update_with_eeprom()                 
-//  0xE3    eeprom_eid_duration_high            See eid_update_with_eeprom()            
-//  0xE4    eeprom_eid_fe_duration_high         See eid_update_with_eeprom()               
-//  0xE5    eeprom_eid_duration_mid             See eid_update_with_eeprom()           
-//  0xE6    eeprom_eid_fe_duration_mid          See eid_update_with_eeprom()              
-//  0xE7    eeprom_eid_duration_low             See eid_update_with_eeprom()           
-//  0xE8    eeprom_eid_fe_duration_low          See eid_update_with_eeprom()              
-//  0xEF    0x00000001                          High Temp Zone used in eid_update_with_eeprom()              
-//  0xEF    0x00000002                          Mid  Temp Zone used in eid_update_with_eeprom()              
-//  0xEF    0x00000003                          Low  Temp Zone used in eid_update_with_eeprom()              
-//
-//-------------------------------------------------------------------------------------------
 // < AUTHOR > 
 //  Yejoong Kim (yejoong@cubeworks.io)
 //******************************************************************************************* 
@@ -471,18 +379,6 @@
 #include "TMCv1.h"
 
 //*******************************************************************************************
-// DEVEL Mode
-//*******************************************************************************************
-// Enable 'DEVEL' for the following features:
-//      - Use of GOC to do the NFC commands 
-//          [FIXME] This must be disabled in the final version.
-//                   There is a risk when main() is called inside update_snt_timer_threshold() inside handler_ext_int_gocep().
-//                   Since the ISR calls main, the same IRQ may not be called again properly afterwards.
-//      - Send debug messages
-//      - Use default values rather than grabbing the values from EEPROM
-#define DEVEL
-
-//*******************************************************************************************
 // HARDWARE/FIRMWARE ID
 //*******************************************************************************************
 
@@ -497,7 +393,7 @@
 #define GOC_START_KEY       0xFEEDC0DE  // Start the temperature measurement after updating the settings.
 #define GOC_STOP_KEY        0xDEADBEEF  // Stop the ongoing temperature measurement.
 #define GOC_RESET_KEY       0x19821229  // Reset the system and put it into 'Activated' state.
-#define GOC_ACT_START_KEY   0x16002329  // Activate & Start the System. 
+#define GOC_ACT_START_KEY   0x16002329  // Activate & Start the System (WORKS ONLY IN DEVEL VERSION)
 #define GOC_DISPLAY_KEY     0xD1500000  // GOC Display Key; [6:0] used for segment pattern.
 #define GOC_IMM_DISPLAY_KEY 0xD1590000  // GOC Display Key (immediate); [6:0] used for segment pattern.
 
@@ -891,9 +787,10 @@ static void operation_init (void) {
         set_flag(FLAG_INITIALIZED, 1);
 
         //-------------------------------------------------
-        // Indefinite Sleep
+        // Immediately activate the system
         //-------------------------------------------------
-        operation_sleep();
+        wakeup_source = 0x1;    // Pretend to be waken by GOC/EP
+        *GOC_DATA_IRQ = GOC_ACTIVATE_KEY;
     }
 }
 
@@ -935,18 +832,6 @@ static void eid_update_with_eeprom(uint32_t seg) {
             /* nb */ 1
         );
     }
-
-    #ifdef DEVEL
-        mbus_write_message32(0xA0, 
-            (get_bit(seg, 6)<<24) |
-            (get_bit(seg, 5)<<20) |
-            (get_bit(seg, 4)<<16) |
-            (get_bit(seg, 3)<<12) |
-            (get_bit(seg, 2)<< 8) |
-            (get_bit(seg, 1)<< 4) |
-            (get_bit(seg, 0)<< 0)
-        );
-    #endif
 }
 
 static void set_system_state(uint32_t msb, uint32_t lsb, uint32_t val) {
@@ -1161,17 +1046,11 @@ static void snt_operation (void) {
 void nfc_set_ack(uint32_t cmd) {
     if (nfc_i2c_get_token(/*num_try*/30)) {
         nfc_i2c_byte_write(/*e2*/0, /*addr*/ EEPROM_ADDR_CMD, /*data*/ (0x1<<6)|(cmd&0x1F), /*nb*/ 1);
-        #ifdef DEVEL
-            mbus_write_message32(0x86, 0x1);
-        #endif
     }
 }
 void nfc_set_err(uint32_t cmd) {
     if (nfc_i2c_get_token(/*num_try*/30)) {
         nfc_i2c_byte_write(/*e2*/0, /*addr*/ EEPROM_ADDR_CMD, /*data*/ (0x1<<5)|(cmd&0x1F), /*nb*/ 1);
-        #ifdef DEVEL
-            mbus_write_message32(0x86, 0xDEADBEEF);
-        #endif
     }
 }
 void nfc_check_cmd(void) {
@@ -1190,10 +1069,6 @@ void nfc_check_cmd(void) {
 
             // Extract the command
             uint32_t cmd = get_bits(cmd_raw, 4, 0);
-
-            #ifdef DEVEL
-                mbus_write_message32(0x85, cmd);
-            #endif
 
             //-----------------------------------------------------------
             // CMD: NOP
@@ -1222,9 +1097,6 @@ void nfc_check_cmd(void) {
                 if (!get_flag(FLAG_STARTED)) { nfc_set_err(cmd); }
                 // Stop the system
                 else {
-                    #ifdef DEVEL
-                        mbus_write_message32(0x83, 0x00000001);
-                    #endif
 
                     // Set system
                     set_system  (   /*target*/          0x3,    /*STOPPED*/
@@ -1244,10 +1116,6 @@ void nfc_check_cmd(void) {
                 // Get the parameter
                 uint32_t param = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_CMD_PARAM, /*nb*/1);
 
-                #ifdef DEVEL
-                    mbus_write_message32(0x83, 0xD159|(param&0x7F));
-                #endif
-
                 // Update the display
                 eid_update_with_eeprom(param&0x7F);
 
@@ -1259,9 +1127,6 @@ void nfc_check_cmd(void) {
             // CMD: RESET
             //-----------------------------------------------------------
             else if (cmd == 0x1E) {
-                #ifdef DEVEL
-                    mbus_write_message32(0x83, 0x0000000B);
-                #endif
 
                 // Set system
                 set_system  (   /*target*/          0x1,    /*ACTIVATED*/
@@ -1354,13 +1219,6 @@ static void calibrate_snt_timer(void) {
     // Time-out
     if (!stop_timeout32_check(0x0)) {
 
-        // FAIL TYPE I - XO does not start
-        #ifdef DEVEL
-            mbus_write_message32(0x87, snt_timer_1min);
-            mbus_write_message32(0x87, 0xFFFFFFFF);
-            mbus_write_message32(0x88, 0x3);
-        #endif
-
         // ERROR: XO failure
         num_calib_xo_fails++;
         if (nfc_i2c_get_token(/*num_try*/1)) {
@@ -1379,12 +1237,6 @@ static void calibrate_snt_timer(void) {
         uint32_t lower_limit = ((eeprom_snt_base_freq - max_change)<<6)-((eeprom_snt_base_freq - max_change)<<2);
 
         if ((new_val > upper_limit) || (new_val < lower_limit)) {
-            // ERROR: Calibration Result Out Of Expectation
-            #ifdef DEVEL
-                mbus_write_message32(0x87, snt_timer_1min);
-                mbus_write_message32(0x87, new_val);
-                mbus_write_message32(0x88, 0x1);
-            #endif
 
             // ERROR: Calibration Max Error
             num_calib_max_err_fails++;
@@ -1394,13 +1246,6 @@ static void calibrate_snt_timer(void) {
         }
         else {
             // SUCCESS: Update snt_timer_1min
-            #ifdef DEVEL
-                mbus_write_message32(0x87, snt_timer_1min);
-                mbus_write_message32(0x87, new_val);
-                mbus_write_message32(0x88, 0x2);
-            #endif
-
-            // Update snt_timer_1min
             snt_timer_1min = new_val;
         }
     }
@@ -1576,10 +1421,6 @@ static void set_system(uint32_t target, uint32_t reset_cmd, uint32_t reset_start
 
 static void update_system_configs(uint32_t use_default) {
 
-#ifdef DEVEL
-    use_default = 1;
-#endif
-
     // Use Default values
     if (use_default) {
         //--- VBAT and ADC
@@ -1722,9 +1563,6 @@ static void update_snt_timer_threshold(void) {
     else                                     { distance = snt_timer_threshold + (0xFFFFFFFF - curr_snt_val); }
 
     if ((distance < dist_min) || (distance > dist_max)) {
-        #ifdef DEVEL
-            mbus_write_message32(0x84, 0x0);
-        #endif
         set_flag(FLAG_SLEEP_BYPASS, 1);
         // For safely, disable/clear all IRQs.
         *NVIC_ICER = 0xFFFFFFFF;
@@ -1734,9 +1572,6 @@ static void update_snt_timer_threshold(void) {
         return;
     }
 
-    #ifdef DEVEL
-        mbus_write_message32(0x84, snt_timer_threshold);
-    #endif
 }
 
 static void buffer_init(void) {
@@ -1882,43 +1717,6 @@ void handler_ext_int_gocep    (void) {
     else if ((goc_raw&0xFFFF0000)==(GOC_IMM_DISPLAY_KEY&0xFFFF0000)) {
         eid_update_with_eeprom(goc_raw&0x7F);
     }
-
-#ifdef DEVEL
-    //---------------------------------------------------------
-    // GOC NFC Emulation 
-    //---------------------------------------------------------
-    // IMPORTANT: It is assumed that 
-    //              1) System is in ACTIVATED state
-    //              2) there is no RF acitivity while executing
-    //---------------------------------------------------------
-
-    if (get_flag(FLAG_ACTIVATED)) {
-        if ((goc_raw==GOC_START_KEY) || (goc_raw==GOC_STOP_KEY) || (goc_raw==GOC_RESET_KEY)
-            || ((goc_raw&0xFFFF0000)==(GOC_DISPLAY_KEY&0xFFFF0000))) {
-
-            if (nfc_i2c_get_token(/*num_try*/1)) {
-
-                // Start the temperature measurement
-                if (goc_raw==GOC_START_KEY) 
-                    nfc_i2c_byte_write(/*e2*/0, /*addr*/ EEPROM_ADDR_CMD, /*data*/ (0x1<<7)|(0x01<<0), /*nb*/ 1);
-                // Stop the temperature measurement
-                else if (goc_raw==GOC_STOP_KEY) 
-                    nfc_i2c_byte_write(/*e2*/0, /*addr*/ EEPROM_ADDR_CMD, /*data*/ (0x1<<7)|(0x02<<0), /*nb*/ 1);
-                // Reset the system
-                else if (goc_raw==GOC_RESET_KEY) 
-                    nfc_i2c_byte_write(/*e2*/0, /*addr*/ EEPROM_ADDR_CMD, /*data*/ (0x1<<7)|(0x1E<<0), /*nb*/ 1);
-                // Manipulate Display
-                else if ((goc_raw&0xFFFF0000)==(GOC_DISPLAY_KEY&0xFFFF0000)) {
-                    nfc_i2c_byte_write(/*e2*/0, /*addr*/ EEPROM_ADDR_CMD, /*data*/ (0x1<<7)|(0x10<<0), /*nb*/ 1);
-                    nfc_i2c_byte_write(/*e2*/0, /*addr*/ EEPROM_ADDR_CMD_PARAM, /*data*/ goc_raw&0x7F, /*nb*/ 1);
-                }
-
-                update_snt_timer_threshold();
-                operation_sleep_snt_timer(/*auto_reset*/0, /*threshold*/snt_timer_threshold);
-            }
-        }
-    }
-#endif
 }
 
 void handler_ext_int_softreset(void) { *NVIC_ICPR = (0x1 << IRQ_SOFT_RESET); }
@@ -1949,10 +1747,6 @@ int main(void) {
     }
     *SCTR_REG_CLR_WUP_SOURCE = 1;
 
-    #ifdef DEVEL
-        mbus_write_message32(0x80, wakeup_source);
-    #endif
-
     // Check-in the EID Watchdog if it is enabled
     if (get_flag(FLAG_WD_ENABLED) && !snt_running) eid_check_in();
 
@@ -1970,9 +1764,6 @@ int main(void) {
     // Wakeup Count (increment only when SNT_IDLE)
     if (!snt_running) {
         wakeup_count++;
-        #ifdef DEVEL
-            mbus_write_message32(0x81, wakeup_count);
-        #endif
     }
 
     //--------------------------------------------------------------------------
@@ -1982,16 +1773,6 @@ int main(void) {
 
         // Only if it has been waken up by SNT
         if (WAKEUP_BY_SNT) {
-
-            #ifdef DEVEL
-                mbus_write_message32(0x82, (0x00 << 24) | tmp_state);
-                mbus_write_message32(0x82, (0x01 << 24) | cnt_temp_meas_start_delay);
-                mbus_write_message32(0x82, (0x02 << 24) | cnt_temp_meas_interval);
-                mbus_write_message32(0x82, (0x03 << 24) | cnt_disp_refresh_interval);
-                mbus_write_message32(0x82, (0x04 << 24) | cnt_timer_calib_interval);
-                mbus_write_message32(0x82, (0x0E << 24) | eeprom_sample_count);
-                mbus_write_message32(0x82, (0x0F << 24) | temp_sample_count);
-            #endif
 
             //----------------------------------------------------------------------
             // Checking NFC Activity
@@ -2004,23 +1785,6 @@ int main(void) {
             if (tmp_state==TMP_IDLE) {
                 if (get_flag(FLAG_STARTED)) {
 
-                    #ifdef DEVEL
-                        eeprom_high_temp_threshold   = 700;
-                        eeprom_low_temp_threshold    = 450;
-                        eeprom_temp_meas_interval    = 2;
-                        eeprom_temp_meas_start_delay = 1;
-                        eeprom_temp_meas_config      = (1 << 0);
-
-                        mbus_write_message32(0x83, 0x00000002);
-                        mbus_write_message32(0x83, (0x01 << 24) | eeprom_temp_meas_start_delay);
-                        mbus_write_message32(0x83, (0x02 << 24) | eeprom_temp_meas_interval);
-                        mbus_write_message32(0x83, (0x03 << 24) | eeprom_timer_calib_interval);
-                        mbus_write_message32(0x83, (0x04 << 24) | eeprom_te_last_sample_res);
-                        mbus_write_message32(0x83, (0x05 << 24) | eeprom_temp_meas_config);
-                        mbus_write_message32(0x83, (0x06 << 24) | eeprom_high_temp_threshold);
-                        mbus_write_message32(0x83, (0x07 << 24) | eeprom_low_temp_threshold);
-                    #endif
-
                     // Decide where to go
                     if (eeprom_temp_meas_start_delay==1) {
                         tmp_state = TMP_ACTIVE;
@@ -2032,42 +1796,23 @@ int main(void) {
                     cnt_timer_calib_interval = eeprom_timer_calib_interval;
 
                 }
-                #ifdef DEVEL
-                else {
-                    mbus_write_message32(0x83, 0x00000003);
-                }
-                #endif
             }
             else if (tmp_state==TMP_PENDING) {
                 if (cnt_temp_meas_start_delay == eeprom_temp_meas_start_delay) {
-                    #ifdef DEVEL
-                        mbus_write_message32(0x83, 0x00000004);
-                    #endif
                     tmp_state = TMP_ACTIVE;
                     cnt_temp_meas_interval = eeprom_temp_meas_interval;
                 }
                 else {
                     cnt_temp_meas_start_delay++;
-                    #ifdef DEVEL
-                        mbus_write_message32(0x83, 0x00000005);
-                    #endif
                 }
             }
             else if (tmp_state==TMP_ACTIVE) {
                 if (cnt_temp_meas_interval == eeprom_temp_meas_interval) {
-                    #ifdef DEVEL
-                        mbus_write_message32(0x83, 0x00000006);
-                    #endif
                     snt_operation();
                     cnt_temp_meas_interval = 0;
                     cnt_te_last_sample     = 0;
                     cnt_te_last_sample_res = 0;
                 }
-                #ifdef DEVEL
-                else {
-                    mbus_write_message32(0x83, 0x00000007);
-                }
-                #endif
 
                 // Write TE_LAST_SAMPLE
                 if (  (cnt_te_last_sample_res == 0) 
@@ -2089,9 +1834,6 @@ int main(void) {
             //----------------------------------------------------------------------
             if (disp_refresh_interval != 0) {
                 if (cnt_disp_refresh_interval == disp_refresh_interval) {
-                    #ifdef DEVEL
-                        mbus_write_message32(0x83, 0x00000009);
-                    #endif
                     nfc_power_off(); // Turn off NFC, if on, to save power
                     eid_update(eid_get_current_display());
                     cnt_disp_refresh_interval = 0;
@@ -2107,9 +1849,6 @@ int main(void) {
             //----------------------------------------------------------------------
             if ((get_flag(FLAG_STARTED)) && (eeprom_timer_calib_interval != 0)) {
                 if (cnt_timer_calib_interval == eeprom_timer_calib_interval) {
-                    #ifdef DEVEL
-                        mbus_write_message32(0x83, 0x0000000A);
-                    #endif
                     calibrate_snt_timer();
                     cnt_timer_calib_interval = 0;
                 }

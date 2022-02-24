@@ -219,6 +219,10 @@
 //                              dist_min: (snt_timer_1min>>5) -> (snt_timer_1min>>3) + (snt_timer_1min>>5)
 //                              dist_max: remains same at (snt_timer_1min<<2)
 //  Feb 22 2022 - Version 0.96
+//                  - Offered in three flavors
+//                          v0p96       : Standard
+//                          v0p96_act   : [ACT] For Internal Use Only (Standard + Immediate Activation)
+//                          v0p96_devel : [DEVEL] Development (Debug)
 //                  - Reduced the delay added to the post-SAR_Ratio change, and moved the delay into pmu_set_sar_ratio():
 //                          delay(40000) (~1.4s) -> delay(10000) (~0.4s)
 //                          It uses the manual SAR ratio change followed by the automatic sar_ratio, sar/upc/dnc_stabilized checks
@@ -233,7 +237,7 @@
 //                  - Added nfc_i2c_get_token() in nfc_set_ack() and nfc_set_err()
 //                          This is because the 'DISPLAY' command calls eid_update_with_eeprom() which may turn off the NFC chip.
 //                  - Commented out the un-used 'else{}' in nfc_check_cmd()
-//                  [DEBUG FEATURE]
+//                  [DEVEL ONLY]
 //                  - Now only 'devel' version has the debug features
 //                  - Removed DEBUG_LT and related codes
 //                  - Removed DO_NOT_CHANGE_SAR_RATIO; It always changes the SAR ratio
@@ -243,6 +247,8 @@
 //                  - Now the previous debug switches DEBUG, USE_DEFAULT_VALUES, GOC_NFC_EMULATION
 //                          are combined into one switch, DEVEL.
 //                  - Now GOC_ACT_START_KEY works only in the devel version.
+//                  [ACT ONLY]
+//                  - The initial program also activiates the system at the end of operation_init()
 //-------------------------------------------------------------------------------------------
 //
 // External Connections
