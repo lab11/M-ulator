@@ -902,6 +902,13 @@ static void operation_init (void) {
         // Indefinite Sleep
         //-------------------------------------------------
         //operation_sleep();
+
+        // Reset GOC_DATA_IRQ
+        *GOC_DATA_IRQ = 0;
+
+        // Power off NFC
+        nfc_power_off();
+
         while(1);   // Stay here forever.
     }
 }
