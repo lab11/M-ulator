@@ -3,3 +3,4 @@
 *.memmap
 *.asm
 *.boot*
+log_*
