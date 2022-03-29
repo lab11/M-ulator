@@ -90,10 +90,14 @@ FW_VER = $(shell pwd | sed 's/^.*\/xt1_firmware_\(.*\)$$/\1/')
 
 all: $(GDB) $(HEXS) $(LSTS)
 
-std:
-	cp -f xt1_firmware_$(FW_VER)_devel/xt1_firmware_$(FW_VER)_devel.c xt1_firmware_$(FW_VER)_std/xt1_firmware_$(FW_VER)_std.c
-	sed -i "s/^#define DEVEL/\/\/#define DEVEL/" xt1_firmware_$(FW_VER)_std/xt1_firmware_$(FW_VER)_std.c
-	sed -i "s/(devel)/(standard)/" xt1_firmware_$(FW_VER)_std/xt1_firmware_$(FW_VER)_std.c
+others:
+	# Make '_nodevel' version
+	cp -f xt1_firmware_$(FW_VER)_devel/xt1_firmware_$(FW_VER)_devel.c xt1_firmware_$(FW_VER)_nodevel/xt1_firmware_$(FW_VER)_nodevel.c
+	sed -i "s/^#define DEVEL/\/\/#define DEVEL/" xt1_firmware_$(FW_VER)_nodevel/xt1_firmware_$(FW_VER)_nodevel.c
+	sed -i "s/(devel)/(no_devel)/" xt1_firmware_$(FW_VER)_nodevel/xt1_firmware_$(FW_VER)_nodevel.c
+	# Make '_std' version
+	cp -f xt1_firmware_$(FW_VER)_nodevel/xt1_firmware_$(FW_VER)_nodevel.c xt1_firmware_$(FW_VER)_std/xt1_firmware_$(FW_VER)_std.c
+	sed -i "s/(no_devel)/(standard)/" xt1_firmware_$(FW_VER)_std/xt1_firmware_$(FW_VER)_std.c
 
 $(DIRS):
 	$(MAKE) $@/$@.hex

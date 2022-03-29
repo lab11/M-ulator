@@ -564,9 +564,9 @@ void pmu_init(void);
 
 // GPIO Interface
 // NOTE: Following variables may be overridden
-#define __NFC_GPO__         0
-#define __NFC_SCL__         1
-#define __NFC_SDA__         3
+#define __NFC_GPO__ 1
+#define __NFC_SCL__ 3
+#define __NFC_SDA__ 0
 #define __I2C_MASK__        (1<<__NFC_SDA__)|(1<<__NFC_SCL__)
 #define __I2C_SCL_MASK__    (1<<__NFC_SCL__)
 #define __I2C_SDA_MASK__    (1<<__NFC_SDA__)
