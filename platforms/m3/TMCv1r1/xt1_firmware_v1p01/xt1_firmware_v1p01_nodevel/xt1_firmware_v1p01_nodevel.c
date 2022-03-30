@@ -139,7 +139,7 @@
 //  0x84    snt_duration                        SNT counter value that corresponds to the given interval (previous sleep duration)
 //  0x85    XO_FREQ                             XO frequency
 //  0x86    snt_freq                            SNT frequency that is used for the previous sleep.
-//  0x87    delta_xo_val                        xo_val_curr - xo_val_prev
+//  0x87    delta_xo_val                        (xo_val_curr - xo_val_prev) or (xo_val_curr + (0xFFFFFFFF - xo_val_prev) + 1)
 //  0x88    a                                   Calculated a (Custom fixed-point, N=30)
 //  0x89    temp_snt_freq                       Newly Calculated SNT frequency
 //  0x8A    wakeup_interval_sec                 New wakeup interval (in seconds)
@@ -1402,9 +1402,14 @@ static void calibrate_snt_timer(uint32_t restart) {
                         mbus_write_message32(0x83, 0x4);
                     #endif
 
+                    // Calculate delta_xo
+                    uint32_t delta_xo;
+                    if (xo_val_curr > xo_val_prev) delta_xo = xo_val_curr - xo_val_prev;
+                    else delta_xo = xo_val_curr + (0xFFFFFFFF - xo_val_prev) + 1;
+
                     // Calculate 'A'
                     a = div(/*dividend*/mult(/*num_a*/snt_duration, /*num_b*/XO_FREQ),
-                            /*divisor*/ mult(/*num_a*/snt_freq,     /*num_b*/xo_val_curr - xo_val_prev)
+                            /*divisor*/ mult(/*num_a*/snt_freq,     /*num_b*/delta_xo)
                            );
 
                     // Calculate the new SNT frequency
@@ -1414,7 +1419,7 @@ static void calibrate_snt_timer(uint32_t restart) {
                         mbus_write_message32(0x84, snt_duration);
                         mbus_write_message32(0x85, XO_FREQ);
                         mbus_write_message32(0x86, snt_freq);
-                        mbus_write_message32(0x87, xo_val_curr - xo_val_prev);
+                        mbus_write_message32(0x87, delta_xo);
                         mbus_write_message32(0x88, a);
                         mbus_write_message32(0x89, temp_snt_freq);
                     #endif
