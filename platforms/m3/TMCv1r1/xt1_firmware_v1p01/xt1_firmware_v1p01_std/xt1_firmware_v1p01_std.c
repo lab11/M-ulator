@@ -1,13 +1,14 @@
 //*******************************************************************************************
 // XT1 (TMCv1r1) FIRMWARE
-// Version 1.00 (standard)
+// Version 1.01 (standard)
 //------------------------
 #define HARDWARE_ID 0x01005843  // XT1r1 Hardware ID
-#define FIRMWARE_ID 0x0100      // [15:8] Integer part, [7:0]: Non-Integer part
+#define FIRMWARE_ID 0x0101      // [15:8] Integer part, [7:0]: Non-Integer part
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
 //  Mar 28 2022 - Version 1.00
 //                  - Hard-forked from xt1_firmware_v0p99
+//  Mar 30 2022 - Version 1.01
 //-------------------------------------------------------------------------------------------
 //
 // External Connections
@@ -199,7 +200,7 @@
 //
 //  mult_dec()
 //  0xC2    num_int (int) or num_dec (custom FP)
-//  0xC3    result (int)                        result = num_int * num_dec
+//  0xC3    error_int (int) or result (int)     result = bit_truncated(num_int*num_dec) + error_int
 //
 //  mult()
 //  0xC4    num_a (int) or num_b (int)
@@ -282,6 +283,7 @@
 #define FLAG_INITIALIZED    1
 #define FLAG_XO_INITIALIZED 2
 #define FLAG_WD_ENABLED     3
+#define FLAG_BOOTUP_DONE    4
 
 //*******************************************************************************************
 // WRITE BUFFER CONFIGURATIONS
@@ -492,7 +494,8 @@ volatile uint32_t low_sample_id_2;                  // 3rd sample ID that violat
 // XO/SNT Counters and Calibration
 //-------------------------------------------------------------------------------------------
 
-volatile uint32_t xo_val_curr;                      // XO counter value read in the beginning of main()
+volatile uint32_t xo_val_curr_tmp;                  // XO counter value read in the beginning of main() (tentative)
+volatile uint32_t xo_val_curr;                      // XO counter value read in the beginning of main() (committed)
 volatile uint32_t xo_val_prev;                      // XO counter value from the previous active session
 volatile uint32_t snt_freq;                         // SNT Timer Frequency (Hz)
 volatile uint32_t snt_duration;                     // SNT counter value that corresponds to the given interval
@@ -522,6 +525,8 @@ volatile uint32_t cnt_update_eeprom;        // Counter to track when to write th
 volatile uint32_t disp_refresh_interval;    // (Unit: min) Display Refresh Interval. 0 means 'do not refresh'.
 volatile uint32_t disp_min_since_refresh;   // (Unit: min) Minutes since the last Display Refresh.
 volatile uint32_t eid_duration;             // EID active CP duration 
+volatile uint32_t eid_disp_before_user_mod; // [ 31] Display has been modified by user using DISPLAY command
+                                            // [6:0] Display pattern before being modified by DISPLAY command. Valid only if bit[31]=1.
 
 //--- Write Buffer
 volatile uint32_t num_buffer_items;         // Number of items in the buffer
@@ -558,6 +563,7 @@ static uint32_t get_xo_cnt(void);
 static void calibrate_snt_timer(uint32_t restart);
 
 //--- E-Ink Display
+static uint32_t eid_get_curr_seg(void);
 static void eid_update(uint32_t seg);
 
 //--- NFC
@@ -663,7 +669,7 @@ static void operation_init (void) {
         *REG_SYS_CONF =       (0x0 << 8)    // 1'h0     ENABLE_SOFT_RESET	#If 1, Soft Reset will occur when there is an MBus Memory Bulk Write message received and the MEM Start Address is 0x2000
                             | (0x1 << 7)    // 1'h1     PUF_CHIP_ID_SLEEP
                             | (0x1 << 6)    // 1'h1     PUF_CHIP_ID_ISOLATE
-                            | (0x0 << 0);   // 5'h1E    WAKEUP_ON_PEND_REQ	#[4]: GIT (PRE_E Only), [3]: GPIO (PRE only), [2]: XO TIMER (PRE only), [1]: WUP TIMER, [0]: GOC/EP
+                            | (0x8 << 0);   // 5'h1E    WAKEUP_ON_PEND_REQ	#[4]: GIT (PRE_E Only), [3]: GPIO (PRE only), [2]: XO TIMER (PRE only), [1]: WUP TIMER, [0]: GOC/EP
 
         //-------------------------------------------------
         // Enumeration
@@ -828,6 +834,7 @@ static void set_system(uint32_t target) {
         eeprom_addr     = EEPROM_ADDR_DATA_RESET_VALUE;
         snt_temp_val    = 2534; // Assume 20C by default
         snt_threshold   = 0;
+        cmd             = CMD_NOP;
 
         // Reset the Write Buffer
         buffer_init();
@@ -839,6 +846,7 @@ static void set_system(uint32_t target) {
             // Reset some variables
             disp_refresh_interval = WAKEUP_INTERVAL_IDLE;
             eid_duration          = 100;
+            eid_disp_before_user_mod = 0;
             // Update/Reset System Configuration
             update_system_configs(/*use_default*/0);
             // Reset the System State
@@ -881,12 +889,18 @@ static void set_system(uint32_t target) {
         // Reset the System State
         set_system_state(/*msb*/1, /*lsb*/0, /*val*/XT1_IDLE);
 
+        // During Boot-Up
+        if (!get_flag(FLAG_BOOTUP_DONE))
+            eid_update(/*seg*/DISP_CHECK|DISP_PLUS|DISP_MINUS|DISP_LOWBATT);
         // If coming from XT1_RESET: Display Check only
-        if (xt1_state==XT1_RESET)
+        else if (xt1_state==XT1_RESET)
             eid_update(/*seg*/DISP_CHECK);
+        // If coming from XT1_PEND: Display Check only. Preserve Low-BATT indicator.
+        else if (xt1_state==XT1_PEND)
+            eid_update(/*seg*/(eid_get_curr_seg() & DISP_LOWBATT) | DISP_CHECK);
         // If coming from other states: Remove the Play sign
         else
-            eid_update(/*seg*/eid_get_current_display() & ~DISP_PLAY);
+            eid_update(/*seg*/eid_get_curr_seg() & ~DISP_PLAY);
 
         // Update the state
         xt1_state = XT1_IDLE;
@@ -1063,7 +1077,7 @@ static void snt_operation (uint32_t update_eeprom) {
     }
 
     //--- Read the current display
-    uint32_t curr_seg = eid_get_current_display();
+    uint32_t curr_seg = eid_get_curr_seg();
     uint32_t new_seg;
 
     // XT1_ACTIVE
@@ -1240,17 +1254,26 @@ static void snt_operation (uint32_t update_eeprom) {
     }
 
     // Update/Refresh the e-Ink Display if needed
+    //--- If display has been changed by DISPLAY
+    if (get_bit(eid_disp_before_user_mod, 31)) eid_update(/*seg*/new_seg);
     //--- Update 
-    if (new_seg!=curr_seg) eid_update(/*seg*/new_seg);
+    else if (new_seg!=curr_seg) eid_update(/*seg*/new_seg);
     //--- Refresh
     else {
         if (xt1_state == XT1_IDLE) {
-            eid_update(/*seg*/eid_get_current_display());
+            //--- During Bootup, display the check mark to confirm that the bootup is done.
+            if (!get_flag(FLAG_BOOTUP_DONE)) {
+                eid_update(/*seg*/DISP_CHECK);
+                set_flag(FLAG_BOOTUP_DONE, 1);
+            }
+            //--- Normal Refresh
+            else 
+                eid_update(/*seg*/eid_get_curr_seg());
         }
         else if (xt1_state == XT1_ACTIVE) {
             if ((disp_refresh_interval != 0)
              && ((disp_min_since_refresh + wakeup_interval) >= disp_refresh_interval)) {
-                eid_update(/*seg*/eid_get_current_display());
+                eid_update(/*seg*/eid_get_curr_seg());
             }
         }
     }
@@ -1326,6 +1349,9 @@ static void calibrate_snt_timer(uint32_t restart) {
     uint32_t temp_snt_freq;
     uint32_t fail = 0;
     uint32_t a = (0x1 << 30);   // Default: 1 (this is the ideal case; i.e., no error)
+
+    // Committ xo_val_curr_tmp
+    xo_val_curr = xo_val_curr_tmp;
 
     // FAIL: XO has failed before
     if (calib_status!=0) {
@@ -1502,6 +1528,13 @@ static void calibrate_snt_timer(uint32_t restart) {
 // E-Ink Display
 //-------------------------------------------------------------------
 
+static uint32_t eid_get_curr_seg(void) {
+    if (get_bit(eid_disp_before_user_mod, 31))
+        return eid_disp_before_user_mod&0x1FF;
+    else
+        return eid_get_current_display();
+}
+
 static void eid_update(uint32_t seg) {
 
     // Enable low-power active
@@ -1511,7 +1544,7 @@ static void eid_update(uint32_t seg) {
     nfc_power_off();
 
     // Get the current display
-    uint32_t curr_seg = eid_get_current_display();
+    uint32_t prev_seg = eid_get_current_display();
 
     // Set the duration
     eid_set_duration(eid_duration);
@@ -1525,8 +1558,11 @@ static void eid_update(uint32_t seg) {
     // Reset the refresh counter
     disp_min_since_refresh = 0;
 
-    // Update EEPROM if it is different from the current status (curr_seg)
-    if (seg != curr_seg) {
+    // Reset eid_disp_before_user_mod if needed
+    if (cmd!=CMD_DISPLAY) eid_disp_before_user_mod = 0;
+
+    // Update EEPROM if it is different from the previous status (prev_seg)
+    if (seg != prev_seg) {
         // Try up to 30 times - Consistency between the EEPROM log and the actual display is important!
         if(nfc_i2c_get_token(/*num_try*/30)) {
             // EEPROM Update
@@ -1970,8 +2006,8 @@ int main(void) {
     *REG_MBUS_WD = 0;
 
     // Read the XO value for the calibration later
-    xo_val_prev = xo_val_curr;
-    xo_val_curr = get_xo_cnt(); // It returns 0 if XO has not been initialized yet
+    xo_val_prev       = xo_val_curr;
+    xo_val_curr_tmp   = get_xo_cnt(); // It returns 0 if XO has not been initialized yet
     snt_calib_restart = 0;      // By default, it does the normal calibration
     calib_status = 0;           // Reset Calibration status
 
@@ -2001,8 +2037,7 @@ int main(void) {
     //-----------------------------------------
     if (WAKEUP_BY_SNT) {
         // Counter for E-Ink Refresh 
-        // NOTE: '20000' condition is added to avoid the refresh after the very first SNT wakeup (initiated from within operation_init())
-        if (snt_duration > 20000) disp_min_since_refresh += wakeup_interval;
+        disp_min_since_refresh += wakeup_interval;
 
         #ifdef DEVEL
             mbus_write_message32(0xA1, disp_min_since_refresh);
@@ -2065,7 +2100,10 @@ int main(void) {
             else {
                 // Command: DISPLAY
                 if (cmd==CMD_DISPLAY) {
+                    if (!get_bit(eid_disp_before_user_mod, 31))
+                        eid_disp_before_user_mod = (0x1<<31)|eid_get_current_display();
                     eid_update(/*seg*/cmd_param&0x7F);
+                    cmd = CMD_NOP;
                 }
                 // Command: HARD_RESET
                 else if (cmd==CMD_HRESET) {
