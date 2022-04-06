@@ -63,9 +63,6 @@
 // Sleep Duration in seconds
 #define SLEEP_DURATION  10  
 
-// SNT Counter Increment
-#define SNT_TH_INC  (SNT_FREQ * SLEEP_DURATION)
-
 // PRE Clock Generator Frequency
 #define CPU_CLK_FREQ    140000  // XT1F#1, SAR_RATIO=0x60 (Sleep Voltages: 4.55V/1.59V/0.79V)
 
