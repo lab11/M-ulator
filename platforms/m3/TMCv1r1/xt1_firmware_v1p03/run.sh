@@ -7,6 +7,7 @@ touch libs/TMCv1r1.c
 make others
 make *_devel
 make tconv_test
+make pmu_counter
 sed -i "s/#define DEVEL/\/\/#define DEVEL/" include/TMCv1r1.h
 touch libs/TMCv1r1.c
 make *_nodevel
