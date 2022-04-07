@@ -93,7 +93,6 @@ int main(void);
 
 //--- Initialization/Sleep Functions
 static void operation_sleep (void);
-static void operation_sleep_snt_timer(void);
 static void operation_init (void);
 
 //*******************************************************************************************
@@ -269,6 +268,16 @@ static void operation_init (void) {
         nfc_init();
         eeprom_addr = 0;
 
+        // Wipe out the EEPROM
+        uint32_t idx;
+        for (idx=0; idx<8192; idx+=256) {
+            nfc_i2c_word_pattern_write(
+                /*e2*/      0, 
+                /*addr*/    idx, 
+                /*data*/    0x0, 
+                /*nw*/      64);
+        }
+
         // Update the flag
         set_flag(FLAG_INITIALIZED, 1);
 
@@ -401,6 +410,16 @@ int main(void) {
             }
             else if (goc_header == 0x01) {
                 pmu_threshold = goc_data&0x3FFFFF;
+            }
+            else if (goc_header == 0xEE) {
+                uint32_t idx;
+                for (idx=0; idx<8192; idx+=256) {
+                    nfc_i2c_word_pattern_write(
+                        /*e2*/      0, 
+                        /*addr*/    idx, 
+                        /*data*/    0x0, 
+                        /*nw*/      64);
+                }
             }
             else if (goc_header == 0xFF) {
                 eeprom_addr = goc_data;

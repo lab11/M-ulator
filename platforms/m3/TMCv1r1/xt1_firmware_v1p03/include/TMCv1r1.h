@@ -888,7 +888,7 @@ uint32_t nfc_i2c_seq_byte_write(uint32_t e2, uint32_t addr, uint32_t data[], uin
 //              addr+3      =   data[0][31:25]
 //              addr+4      =   data[1][ 7: 0]
 //              ...
-//              addr+nw-1   =   data[nw-1][31:25]
+//              addr+4*nw-1 =   data[nw-1][31:25]
 // Return  : 1  -   Acked
 //           0  -   Not Acked
 //-------------------------------------------------------------------
@@ -909,7 +909,7 @@ uint32_t nfc_i2c_word_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_
 //              addr+3      =   data[31:25]
 //              addr+4      =   data[ 7: 0]
 //              ...
-//              addr+nw-1   =   data[31:25]
+//              addr+4*nw-1 =   data[31:25]
 // Return  : 1  -   Acked
 //           0  -   Not Acked
 //-------------------------------------------------------------------
