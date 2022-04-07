@@ -79,6 +79,8 @@ uint32_t wakeup_source;
 uint32_t pmu_threshold;
 uint32_t snt_prev;
 uint32_t snt_curr;
+uint32_t adc_offset;
+uint32_t eeprom_pmu_num_cons_meas;
 
 //-------------------------------------------------------------------------------------------
 // Other Global Variables
@@ -206,6 +208,8 @@ static void operation_init (void) {
         //  sleep_duration = 0.054688*(pmu_threshold - 4096)
         //  pmu_threshold = 18.28571*sleep_duration + 4096
         //
+        adc_offset = 0xFFFFFFFD; // -3
+        eeprom_pmu_num_cons_meas = 5;
 
 
         //---------------------------------------------------------------------------------------
@@ -387,6 +391,29 @@ int main(void) {
                 mbus_write_message32(0xA0, eeprom_addr);
                 mbus_write_message32(0xA1, (pmu_get_sar_ratio()<<24)|((snt_curr-snt_prev)&0xFFFFFF));
                 eeprom_addr += 4;
+
+                // VBAT Measurement and SAR_RATIO Adjustment
+                uint32_t pmu_adc_vbat_val = pmu_read_adc();
+                uint32_t pmu_sar_ratio    = pmu_calc_new_sar_ratio( /*adc_val*/         pmu_adc_vbat_val, 
+                                                                    /*offset*/          adc_offset, 
+                                                                    /*num_cons_meas*/   eeprom_pmu_num_cons_meas
+                                                                    );
+
+                // Change the SAR ratio
+                if (pmu_sar_ratio != pmu_get_sar_ratio()) {
+                    pmu_set_sar_ratio(pmu_sar_ratio);
+                }
+
+                nfc_i2c_byte_write( /*e2*/  0,
+                                    /*addr*/eeprom_addr,
+                                    /*data*/(pmu_get_sar_ratio()<<24)|(pmu_adc_vbat_val<<16)|(adc_offset&0xFFFF),
+                                    /*nb*/  4
+                                    );
+
+                mbus_write_message32(0xA2, eeprom_addr);
+                mbus_write_message32(0xA3, (pmu_get_sar_ratio()<<24)|(pmu_adc_vbat_val<<16)|(adc_offset&0xFFFF));
+                eeprom_addr += 4;
+
             }
             // Something Wrong happened
             else {
@@ -410,6 +437,16 @@ int main(void) {
             }
             else if (goc_header == 0x01) {
                 pmu_threshold = goc_data&0x3FFFFF;
+            }
+            else if (goc_header == 0x02) {
+                // Sign Bit Extension
+                if ((goc_data>>23)&0x1)
+                    adc_offset = 0xFF000000 | goc_data;
+                else
+                    adc_offset = goc_data;
+            }
+            else if (goc_header == 0x03) {
+                eeprom_pmu_num_cons_meas = goc_data;
             }
             else if (goc_header == 0xEE) {
                 uint32_t idx;
