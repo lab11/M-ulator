@@ -495,6 +495,17 @@ void pmu_set_adc_period(uint32_t val);
 uint32_t pmu_read_adc(void);
 
 //-------------------------------------------------------------------
+// Function: pmu_validate_adc_val
+// Args    : adc_val
+// Description:
+//           Determines whether the given adc value is valid or not
+// Return  : 1 if the adc value is in the range of __PMU_ADC_LOWER_LIMIT__ 
+//              and __PMU_ADC_UPPER_LIMIT__
+//           0 if not
+//-------------------------------------------------------------------
+uint32_t pmu_validate_adc_val (uint32_t adc_val);
+
+//-------------------------------------------------------------------
 // Function: pmu_calc_new_sar_ratio
 // Args    : adc_val        - ADC raw code
 //           offset         - ADC offset to be added to the threshold values

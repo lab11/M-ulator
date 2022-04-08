@@ -81,6 +81,7 @@ uint32_t snt_prev;
 uint32_t snt_curr;
 uint32_t adc_offset;
 uint32_t eeprom_pmu_num_cons_meas;
+uint32_t hysteresis;
 
 //-------------------------------------------------------------------------------------------
 // Other Global Variables
@@ -96,6 +97,7 @@ int main(void);
 //--- Initialization/Sleep Functions
 static void operation_sleep (void);
 static void operation_init (void);
+static uint32_t calc_new_sar_ratio(uint32_t adc_val, uint32_t offset, uint32_t num_cons_meas, uint32_t hyst);
 
 //*******************************************************************************************
 // FUNCTIONS IMPLEMENTATION
@@ -189,9 +191,10 @@ static void operation_init (void) {
         pmu_init();
 
         // Initialize SAR Ratio
-        pmu_set_sar_ratio(0x4C); // See pmu_calc_new_sar_ratio()
+        pmu_set_sar_ratio(0x48); // See calc_new_sar_ratio()
 
-        pmu_threshold = 0x0010B7;    // 22-bit
+        //pmu_threshold = 0x0010B7;    // 22-bit ~10 seconds
+        pmu_threshold = 0x001725;    // 22-bit ~100 seconds
         //--------------------------
         // Measured Sleep Duration
         //--------------------------
@@ -208,8 +211,10 @@ static void operation_init (void) {
         //  sleep_duration = 0.054688*(pmu_threshold - 4096)
         //  pmu_threshold = 18.28571*sleep_duration + 4096
         //
-        adc_offset = 0xFFFFFFFD; // -3
-        eeprom_pmu_num_cons_meas = 5;
+        //adc_offset = 0xFFFFFFFD; // -3
+        adc_offset = 0xFFFFFFFA; // -6
+        eeprom_pmu_num_cons_meas = 0;
+        hysteresis = 0;
 
 
         //---------------------------------------------------------------------------------------
@@ -287,6 +292,74 @@ static void operation_init (void) {
 
     }
 }
+
+static uint32_t calc_new_sar_ratio(uint32_t adc_val, uint32_t offset, uint32_t num_cons_meas, uint32_t hyst) {
+    // Get the current value
+    uint32_t new_val = __pmu_sar_ratio__;
+
+    // If ADC value is valid
+    if (pmu_validate_adc_val(adc_val)) {
+        //---------------------------------------------------
+        // Adjust SAR RATIO
+        //---------------------------------------------------
+        // 2.0V ( 95) < VBAT < 2.3V (109): 0x60
+        // 2.3V (109) < VBAT < 2.5V (118): 0x54
+        // 2.5V (118) < VBAT < 2.7V (127): 0x4C
+        // 2.7V (127) < VBAT < 3.0V (137): 0x48
+        //---------------------------------------------------
+        // Hysteresis: 65mV (3)
+        //uint32_t hyst = 3; // hysteresis
+        //---------------------------------------------------
+
+        uint32_t new_down, new_up, upper_threshold, lower_threshold;
+
+        if (__pmu_sar_ratio__ == 0x60) {
+            new_up   = 0x54; upper_threshold = 109 + hyst + offset;
+            new_down = 0x60; lower_threshold =  95 - hyst + offset;
+        }
+        else if (__pmu_sar_ratio__ == 0x54) {
+            new_up   = 0x4C; upper_threshold = 118 + hyst + offset;
+            new_down = 0x60; lower_threshold = 109 - hyst + offset;
+        }
+        else if (__pmu_sar_ratio__ == 0x4C) {
+            new_up   = 0x48; upper_threshold = 127 + hyst + offset;
+            new_down = 0x54; lower_threshold = 118 - hyst + offset;
+        }
+        else if (__pmu_sar_ratio__ == 0x48) {
+            new_up   = 0x48; upper_threshold = 137 + hyst + offset;
+            new_down = 0x4C; lower_threshold = 127 - hyst + offset;
+        }
+        // dummy values
+        else {
+            new_up   = 0x48; upper_threshold = 137 + hyst + offset;
+            new_down = 0x4C; lower_threshold = 127 - hyst + offset;
+        }
+
+        if (adc_val > upper_threshold) {
+            __pmu_sar_ratio_lower_streak__ = 0;
+            if (__pmu_sar_ratio_upper_streak__ < num_cons_meas) __pmu_sar_ratio_upper_streak__++;
+            if (__pmu_sar_ratio_upper_streak__ >= num_cons_meas) {
+                new_val = new_up;
+                __pmu_sar_ratio_upper_streak__ = 0;
+            }
+        }
+        else if (adc_val < lower_threshold) {
+            __pmu_sar_ratio_upper_streak__ = 0;
+            if (__pmu_sar_ratio_lower_streak__ < num_cons_meas) __pmu_sar_ratio_lower_streak__++;
+            if (__pmu_sar_ratio_lower_streak__ >= num_cons_meas) {
+                new_val = new_down;
+                __pmu_sar_ratio_lower_streak__ = 0;
+            }
+        }
+        else {
+            __pmu_sar_ratio_upper_streak__ = 0;
+            __pmu_sar_ratio_lower_streak__ = 0;
+        }
+    }
+
+    return new_val;
+}
+
 
 
 //*******************************************************************************************
@@ -394,10 +467,11 @@ int main(void) {
 
                 // VBAT Measurement and SAR_RATIO Adjustment
                 uint32_t pmu_adc_vbat_val = pmu_read_adc();
-                uint32_t pmu_sar_ratio    = pmu_calc_new_sar_ratio( /*adc_val*/         pmu_adc_vbat_val, 
-                                                                    /*offset*/          adc_offset, 
-                                                                    /*num_cons_meas*/   eeprom_pmu_num_cons_meas
-                                                                    );
+                uint32_t pmu_sar_ratio    = calc_new_sar_ratio( /*adc_val*/         pmu_adc_vbat_val, 
+                                                                /*offset*/          adc_offset, 
+                                                                /*num_cons_meas*/   eeprom_pmu_num_cons_meas,
+                                                                /*hyst*/            hysteresis
+                                                                );
 
                 // Change the SAR ratio
                 if (pmu_sar_ratio != pmu_get_sar_ratio()) {
@@ -447,6 +521,9 @@ int main(void) {
             }
             else if (goc_header == 0x03) {
                 eeprom_pmu_num_cons_meas = goc_data;
+            }
+            else if (goc_header == 0x04) {
+                hysteresis = goc_data;
             }
             else if (goc_header == 0xEE) {
                 uint32_t idx;
