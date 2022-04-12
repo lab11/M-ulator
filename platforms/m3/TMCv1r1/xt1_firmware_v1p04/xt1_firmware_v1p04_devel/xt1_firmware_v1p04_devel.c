@@ -1308,14 +1308,12 @@ static void snt_operation (uint32_t update_eeprom) {
             // STORE THE RAW DATA
             if (sample_type) {
 
-                eeprom_sample_count++;
-
                 uint32_t byte_addr = (eeprom_sample_count<<1)+EEPROM_ADDR_DATA_RESET_VALUE;
 
                 // Store the Sample Count
                 nfc_i2c_byte_write(/*e2*/0, 
                     /*addr*/ EEPROM_ADDR_SAMPLE_COUNT, 
-                    /*data*/ eeprom_sample_count,
+                    /*data*/ (eeprom_sample_count+1),
                     /* nb */ 4
                     );
 
@@ -1328,9 +1326,12 @@ static void snt_operation (uint32_t update_eeprom) {
                 }
 
                 // Update Valid Sample Bit
-                if (eeprom_sample_count==1) {
+                if (eeprom_sample_count==0) {
                     set_system_state(/*msb*/5, /*lsb*/5, /*val*/0x1);
                 }
+
+                eeprom_sample_count++;
+
             }
             // STORE THE CONVERTED & COMPRESSED DATA
             else {
