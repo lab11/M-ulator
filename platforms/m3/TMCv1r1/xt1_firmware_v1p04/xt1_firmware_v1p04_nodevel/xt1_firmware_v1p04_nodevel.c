@@ -951,8 +951,6 @@ static void set_system(uint32_t target) {
         snt_temp_val        = 1000; // Assume 20C by default
         snt_threshold_prev  = 0;
         snt_threshold       = 0;
-        cmd                 = CMD_NOP;
-        sample_type         = 0;
 
         // Data Compression Variables
         comp_sample_id   = 0;
@@ -968,6 +966,8 @@ static void set_system(uint32_t target) {
         if (target==XT1_RESET) {
 
             // Reset some variables
+        cmd                 = CMD_NOP;
+        sample_type         = 0;
             disp_refresh_interval = WAKEUP_INTERVAL_IDLE;
             eid_duration          = 100;
             eid_disp_before_user_mod = 0;
@@ -1006,7 +1006,7 @@ static void set_system(uint32_t target) {
             wakeup_interval = eeprom_temp_meas_start_delay;
 
             // Set the System State
-            set_system_state(/*msb*/5, /*lsb*/0, /*val*/(0<<5)|XT1_PEND);
+            set_system_state(/*msb*/5, /*lsb*/0, /*val*/(0<<5)|(sample_type<<4)|XT1_PEND);
 
             // Update the state
             xt1_state = XT1_PEND;
