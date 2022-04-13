@@ -1,12 +1,18 @@
 //*******************************************************************************************
-// E-InkTesting for XT1r1
-//-------------------------------------------------------------------------------------------
-// < UPDATE HISTORY >
-//  Apr 08 2022 - First commit
+// XT1 (TMCv1r1) XO Test
 //-------------------------------------------------------------------------------------------
 // < AUTHOR > 
 //  Yejoong Kim (yejoong@cubeworks.io)
 //******************************************************************************************* 
+
+// At RT
+//      Started (550bps)
+//      GOC Trigger (200bps) to enable the pad out
+// At -40C
+//      XO is still running
+//      100bps GOC does not work
+//      80bps GOC does not work
+//      LabVIEW cannot generate 70bps GOC...
 
 //*******************************************************************************************
 // HEADER FILES
@@ -40,40 +46,18 @@
 #define DLY_1S      ((CPU_CLK_FREQ>>3)+(CPU_CLK_FREQ>>4)+(CPU_CLK_FREQ>>5))  // = CPU_CLK_FREQx(1/8 + 1/16 + 1/32) = CPU_CLK_FREQx(35/160) ~= (CPU_CLK_FREQ/5)
 #define DLY_1MS     DLY_1S >> 10                                             // = DLY_1S / 1024 ~= DLY_1S / 1000
 
-//*******************************************************************************************
-// EID LAYER CONFIGURATION
-//*******************************************************************************************
+// XO Frequency
+#define XO_FREQ_SEL 0                       // XO Frequency (in kHz) = 2 ^ XO_FREQ_SEL
+#define XO_FREQ     1<<(XO_FREQ_SEL+10)     // XO Frequency (in Hz)
 
-// Segment ID : See 'External Connections' for details
-#define SEG_PLAY        0
-#define SEG_TICK        1
-#define SEG_LOWBATT     2
-#define SEG_BACKSLASH   3
-#define SEG_SLASH       4
-#define SEG_PLUS        5
-#define SEG_MINUS       6
-
-// Display Patterns: See 'External Connections' for details
-#define DISP_PLAY       (0x1 << SEG_PLAY     )
-#define DISP_TICK       (0x1 << SEG_TICK     )
-#define DISP_LOWBATT    (0x1 << SEG_LOWBATT  )
-#define DISP_BACKSLASH  (0x1 << SEG_BACKSLASH)
-#define DISP_SLASH      (0x1 << SEG_SLASH    )
-#define DISP_PLUS       (0x1 << SEG_PLUS     )
-#define DISP_MINUS      (0x1 << SEG_MINUS    )
-
-// Display Presets
-#define DISP_NONE           (0)
-#define DISP_CHECK          (DISP_TICK  | DISP_SLASH)
-#define DISP_CROSS          (DISP_SLASH | DISP_BACKSLASH)
-#define DISP_ALL            (0x7F)
+// XO Initialization Wait Duration
+#define XO_WAIT_A   2*DLY_1S    // Must be ~1 second delay.
+#define XO_WAIT_B   2*DLY_1S    // Must be ~1 second delay.
 
 
 //*******************************************************************************************
 // GLOBAL VARIABLES
 //*******************************************************************************************
-uint32_t eeprom_addr;
-uint32_t wakeup_source;
 
 //-------------------------------------------------------------------------------------------
 // Other Global Variables
@@ -87,7 +71,7 @@ uint32_t wakeup_source;
 int main(void);
 
 //--- Initialization/Sleep Functions
-static void operation_sleep (void);
+static void operation_sleep (uint32_t lp_act);
 static void operation_init (void);
 
 //*******************************************************************************************
@@ -100,12 +84,14 @@ static void operation_init (void);
 
 //-------------------------------------------------------------------
 // Function: operation_sleep
-// Args    : None
+// Args    : lp_act  - Perform the low-power active mode 
+//                     before sending the sleep message
 // Description:
 //           Sends the MBus Sleep message
+//           If check_snt=1, it first checks the SNT counter value.
 // Return  : None
 //-------------------------------------------------------------------
-static void operation_sleep (void) {
+static void operation_sleep (uint32_t lp_act) {
 
     // Reset GOC_DATA_IRQ
     *GOC_DATA_IRQ = 0;
@@ -118,9 +104,17 @@ static void operation_sleep (void) {
     // Clear all pending IRQs; otherwise, PREv22E replaces the sleep msg with a selective wakeup msg
     *NVIC_ICER = 0xFFFFFFFF;
 
+    // Perform the low-power active mode if needed
+    if (lp_act) {
+        // Low-Power Active mode: 18~20uA for ~6 seconds
+        *REG_MBUS_WD = 1680000; // 6s with 280kHz;
+        halt_cpu();
+    }
     // Go to sleep
-    mbus_sleep_all(); 
-    while(1);
+    else {
+        mbus_sleep_all(); 
+        while(1);
+    }
 }
 
 //-------------------------------------------------------------------
@@ -192,8 +186,33 @@ static void operation_init (void) {
         // Turn on the SNT timer clock
         snt_start_timer(/*wait_time*/2*DLY_1S);
 
-        // Start the SNT counter and initialize snt_threshold
+        // Start the SNT counter
         snt_enable_wup_timer(/*auto_reset*/0);
+
+        //-------------------------------------------------
+        // XO Settings
+        //-------------------------------------------------
+        //--- XO Frequency
+        *REG_XO_CONF2 =             // Default  // Description
+            //-----------------------------------------------------------------------------------------------------------
+            ( (0x2          << 13)  // 2'h2     // XO_INJ	            #Adjusts injection period
+            | (0x1          << 10)  // 3'h1     // XO_SEL_DLY	        #Adjusts pulse delay
+            | (0x1          <<  8)  // 2'h1     // XO_SEL_CLK_SCN	    #Selects division ratio for SCN CLK
+            | (XO_FREQ_SEL  <<  5)  // 3'h1     // XO_SEL_CLK_OUT_DIV   #Selects division ratio for the XO CLK output; freq = (2^XO_SEL_CLK_OUT_DIV) in kHz.
+            | (0x1          <<  4)  // 1'h1     // XO_SEL_LDO	        #Selects LDO output as an input to SCN
+            | (0x0          <<  3)  // 1'h0     // XO_SEL_0P6	        #Selects V0P6 as an input to SCN
+            | (0x0          <<  0)  // 3'h0     // XO_I_AMP	            #Adjusts VREF body bias buffer current
+            );
+
+        //--- Start XO clock
+        xo_start(/*delay_a*/XO_WAIT_A, /*delay_b*/XO_WAIT_B, /*start_cnt*/0);
+        // Update the flag
+        set_flag(FLAG_XO_INITIALIZED, 1);
+
+        //--- Configure and Start the XO Counter
+        set_xo_timer(/*mode*/0, /*threshold*/0, /*wreq_en*/0, /*irq_en*/0);
+        start_xo_cnt();
+        start_xo_cout();
 
         //-------------------------------------------------
         // Go to Sleep
@@ -204,7 +223,7 @@ static void operation_init (void) {
         while(1);
     }
     else if (!get_flag(FLAG_INITIALIZED)) {
-
+        
         // Set the Active floor setting to the minimum (b/c RAT is enabled at this point)
         pmu_set_active_min();
 
@@ -216,25 +235,12 @@ static void operation_init (void) {
         //-------------------------------------------------
         nfc_init();
 
-        //-------------------------------------------------
-        // EID Settings
-        //-------------------------------------------------
-	    eid_init(/*ring*/0, /*te_div*/3, /*fd_div*/3, /*seg_div*/3);
-
-        // Set the duration
-        eid_set_duration(500);  // 500 is the default duration for *_mid (=-5 ~ 15C) and *_low (< -15C) temparatures.
-
-        //eid_r00.TMR_EN_CLK_OUT = 1;
-        //mbus_remote_register_write(EID_ADDR,0x00,eid_r00.as_int);
-        // EID Clock Frequency: 132.8 Hz
-        // clk_tmr_bat: 132.8 Hz -> used in WD_CTRL
-        // clk_tmr_raw_bat: 2124.8 Hz
-
         // Update the flag
         set_flag(FLAG_INITIALIZED, 1);
 
     }
 }
+
 
 //*******************************************************************************************
 // INTERRUPT HANDLERS
@@ -242,7 +248,7 @@ static void operation_init (void) {
 
 //void handler_ext_int_wakeup   (void) __attribute__ ((interrupt ("IRQ")));
 //void handler_ext_int_softreset(void) __attribute__ ((interrupt ("IRQ")));
-//void handler_ext_int_gocep    (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_gocep    (void) __attribute__ ((interrupt ("IRQ")));
 //void handler_ext_int_timer32  (void) __attribute__ ((interrupt ("IRQ")));
 //void handler_ext_int_timer16  (void) __attribute__ ((interrupt ("IRQ")));
 //void handler_ext_int_mbustx   (void) __attribute__ ((interrupt ("IRQ")));
@@ -264,7 +270,103 @@ static void operation_init (void) {
 
 //void handler_ext_int_wakeup   (void) { *NVIC_ICPR = (0x1 << IRQ_WAKEUP);     }
 //void handler_ext_int_softreset(void) { *NVIC_ICPR = (0x1 << IRQ_SOFT_RESET); }
-//void handler_ext_int_gocep    (void) { *NVIC_ICPR = (0x1 << IRQ_GOCEP);      }
+void handler_ext_int_gocep    (void) { 
+    *NVIC_ICPR = (0x1 << IRQ_GOCEP);      
+    uint32_t goc_raw = *GOC_DATA_IRQ;
+    *GOC_DATA_IRQ   = 0;
+
+    uint32_t goc_lp_act = (goc_raw>>28)&0xF;
+    uint32_t goc_header = (goc_raw>>24)&0xF;
+    uint32_t goc_data   = goc_raw&0xFFFFFF;
+
+    // if goc_lp_act==1, it performs the low power active mode before going into sleep
+
+    // 0xn0abcdef
+    //  -> Stay active for delay(abcdef)
+    if (goc_header==0x0) {
+        delay(goc_data);
+    }
+    else if (goc_header==0x1) {
+    // 0xn1000000
+    //  -> Restart the XO using the default delay setting (delay_a=delay_b=delay(56000))
+    //     Pad out disabled
+        if (goc_data==0) {
+            restart_xo(/*delay_a*/XO_WAIT_A, /*delay_b*/XO_WAIT_B);
+        }
+    // 0xn1abcdef
+    //  -> Restart the XO using the given delay setting (delay_a=delay_b=delay(abcdef))
+    //     Pad out disabled
+        else {
+            restart_xo(/*delay_a*/goc_data, /*delay_b*/goc_data);
+        }
+        stop_xo_cout();
+    }
+    else if (goc_header==0x2) {
+    // 0xn2000000
+    //  -> Restart the XO using the default delay setting (delay_a=delay_b=delay(56000))
+    //     Pad out enabled
+        if (goc_data==0) {
+            restart_xo(/*delay_a*/XO_WAIT_A, /*delay_b*/XO_WAIT_B);
+        }
+    // 0xn2abcdef
+    //  -> Restart the XO using the given delay setting (delay_a=delay_b=delay(abcdef))
+    //     Pad out enabled
+        else {
+            restart_xo(/*delay_a*/goc_data, /*delay_b*/goc_data);
+        }
+        start_xo_cout();
+    }
+    else if (goc_header==0x3) {
+    // 0xn3000000
+    //  -> Disable pad out
+        if (goc_data==0x000000) {
+            stop_xo_cout();
+        }
+    // 0xn3000001
+    //  -> Enable pad out
+        else if (goc_data==0x000001) {
+            start_xo_cout();
+        }
+    }
+    else if (goc_header==0x4) {
+    // 0xn4abcdef
+    //  -> Write *(GOC_DATA_IRQ+1) to EEPROM[abcdef]
+        nfc_i2c_byte_write(/*e2*/0, /*addr*/goc_data, /*data*/*(GOC_DATA_IRQ+1), /*nb*/4);
+    }
+    else if (goc_header==0x5) {
+    // 0xn5abcdef
+    //  -> Read from EEPROM[abcdef]
+        nfc_i2c_byte_read(/*e2*/0, /*addr*/goc_data, /*nb*/4);
+    }
+    else if (goc_header==0x6) {
+    // 0xn6000000
+    //  -> Write *(GOC_DATA_IRQ+1) to EEPROM[goc_data] ~ EEPROM[goc_data+256]
+        nfc_i2c_word_pattern_write(/*e2*/0, /*addr*/goc_data, /*data*/*(GOC_DATA_IRQ+1), /*nw*/64);
+    }
+    // 0xn7abcdef
+    //  -> Toggle gpio pin(s) whose index is the bit pattern of "a" by "bcdef" times.
+    else if (goc_header==0x7) {
+        uint32_t i;
+        uint32_t gpio = (goc_data>>20)&0xF;
+        uint32_t num = goc_data&0xFFFFF;
+        unfreeze_gpio_out();
+        *GPIO_DIR = 0xF; 
+        for (i=0; i<num; i++) { 
+            *GPIO_DATA = 0x0; 
+            *GPIO_DATA = gpio;
+        }
+    }
+
+    // Go to sleep either with lp_act or not.
+    freeze_gpio_out();
+    if (goc_lp_act) {
+        operation_sleep(/*lp_act*/1);
+    }
+    else {
+        operation_sleep(/*lp_act*/0);
+    }
+}
+
 //void handler_ext_int_timer32  (void) {
 //    *NVIC_ICPR = (0x1 << IRQ_TIMER32);
 //    *REG1 = *TIMER32_CNT;
@@ -294,95 +396,6 @@ static void operation_init (void) {
 //void handler_ext_int_spi      (void) { *NVIC_ICPR = (0x1 << IRQ_SPI);        }
 //void handler_ext_int_xot      (void) { *NVIC_ICPR = (0x1 << IRQ_XOT);        }
 
-static void global_update(uint32_t seg) { 
-    // Make all black segments white
-    if (__eid_current_display__!=0) eid_enable_cp_ck(0x1, 0x1, (~__eid_current_display__ & 0x1FF), 0);
-    // Make all segments/field black
-    eid_enable_cp_ck(0x0, 0x1, 0x1FF, 0);
-    // Make selected segments white
-    eid_enable_cp_ck(0x1, 0x0, seg & 0x1FF, 0);
-}
-
-static void simple_update(uint32_t seg) { 
-    // Make all segments/field white
-    eid_enable_cp_ck(0x1, 0x0, 0x0, 0);
-    // Make selected segments black
-    eid_enable_cp_ck(0x0, 0x0, seg&0x1FF, 0);
-}
-
-static void local_wb_update(uint32_t seg) { 
-    // Segments to become white
-    uint32_t seg_b2w = __eid_current_display__ & (~seg);
-    // Segments to become black
-    uint32_t seg_w2b = (~__eid_current_display__) & seg;
-    // Perform Black to White
-    if (seg_b2w != 0) eid_enable_cp_ck(0x1, 0x1, (~seg_b2w & 0x1FF), 0);
-    // Perform White to Black
-    if (seg_w2b != 0) eid_enable_cp_ck(0x0, 0x0, seg_w2b & 0x1FF, 0);
-    // Need to explicitly set __eid_current_display__
-    __eid_current_display__ = seg;
-}
-
-static void local_bw_update(uint32_t seg) { 
-    // Segments to become white
-    uint32_t seg_b2w = __eid_current_display__ & (~seg);
-    // Segments to become black
-    uint32_t seg_w2b = (~__eid_current_display__) & seg;
-    // Perform White to Black
-    if (seg_w2b != 0) eid_enable_cp_ck(0x0, 0x0, seg_w2b & 0x1FF, 0);
-    // Perform Black to White
-    if (seg_b2w != 0) eid_enable_cp_ck(0x1, 0x1, (~seg_b2w & 0x1FF), 0);
-    // Need to explicitly set __eid_current_display__
-    __eid_current_display__ = seg;
-}
-
-static void local_eb_update(uint32_t seg) {
-    // Erase the whole
-    eid_enable_cp_ck(0x1, 0x0, 0x000, 0);
-    // Make each segment black, one at a time
-    uint32_t pattern = 0x1;
-    uint32_t seg_temp = seg;
-    while (seg_temp!=0) {
-        if (seg_temp&0x1) eid_enable_cp_ck(0x0, 0x0, pattern, 0);
-        seg_temp >>= 1;
-        pattern <<= 1;
-    }
-    // Update __eid_current_display__
-    __eid_current_display__ = seg;
-}
-
-static void test_seq(void) {
-
-    delay(2*DLY_1S);
-    //----------------------------------------
-    global_update(DISP_PLAY|DISP_CHECK);
-    delay(2*DLY_1S);
-    //----------------------------------------
-    simple_update(DISP_PLAY|DISP_CHECK);
-    delay(2*DLY_1S);
-    //----------------------------------------
-    global_update(DISP_CROSS|DISP_PLUS|DISP_MINUS|DISP_LOWBATT);
-    delay(2*DLY_1S);
-    //----------------------------------------
-    local_wb_update(DISP_PLAY|DISP_CHECK);
-    delay(2*DLY_1S);
-    //----------------------------------------
-    global_update(DISP_CROSS|DISP_PLUS|DISP_MINUS|DISP_LOWBATT);
-    delay(2*DLY_1S);
-    //----------------------------------------
-    local_bw_update(DISP_PLAY|DISP_CHECK);
-    delay(2*DLY_1S);
-    //----------------------------------------
-    global_update(DISP_CROSS|DISP_PLUS|DISP_MINUS|DISP_LOWBATT);
-    delay(2*DLY_1S);
-    //----------------------------------------
-    local_eb_update(DISP_PLAY|DISP_CHECK);
-    delay(2*DLY_1S);
-    //----------------------------------------
-    global_update(DISP_ALL);
-    delay(2*DLY_1S);
-
-}
 
 //********************************************************************
 // MAIN function starts here             
@@ -394,37 +407,16 @@ int main(void) {
     *TIMERWD_GO  = 0;
     *REG_MBUS_WD = 0;
 
-    // Get the wakeup source
-    wakeup_source = *SREG_WAKEUP_SOURCE;
-    *SCTR_REG_CLR_WUP_SOURCE = 1;
+    // Enable IRQs
+    *NVIC_ISER = (0x1 << IRQ_GOCEP);
 
     // If this is the very first wakeup, initialize the system
     if (!get_flag(FLAG_INITIALIZED)) operation_init();
-    else {
 
-        // If waken up by GOC/EP
-        uint32_t goc_raw = *GOC_DATA_IRQ;
-        if (goc_raw!=0) {
-            *GOC_DATA_IRQ   = 0;
+    delay(10000);
 
-            //uint32_t goc_header = (goc_raw>>24)&0xFF;
-            //uint32_t goc_data   = goc_raw&0xFFFFFF;
-
-        }
-        // E-Ink Operation 
-        else {
-            // Slowest Clock (default)
-	        eid_config_cp_clk_gen(/*ring*/0, /*te_div*/3, /*fd_div*/3, /*seg_div*/3);
-            test_seq();
-            // 4x Faster Clock
-	        eid_config_cp_clk_gen(/*ring*/0, /*te_div*/1, /*fd_div*/1, /*seg_div*/1);
-            test_seq();
-        }
-
-    }
-
-    snt_set_wup_timer(/*auto_reset*/1, /*threshold*/30*1500);
-    operation_sleep();
+    snt_set_wup_timer(/*auto_reset*/1, /*threshold*/15000);
+    operation_sleep(/*lp_act*/0);
 
     //--------------------------------------------------------------------------
     // Dummy Buffer

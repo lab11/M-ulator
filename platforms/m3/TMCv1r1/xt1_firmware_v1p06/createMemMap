@@ -1,0 +1,100 @@
+#!/usr/bin/perl 
+##########################################################################################################################
+# <Description>
+#
+# <Prerequisites>
+#
+# <Usage>
+#
+# <Example>
+#
+# <Update History>
+#
+# 06/20/2015 - First Version 
+#
+# ---------------------------
+# Author:       Yejoong Kim
+# Last Updated: June 16, 2015.
+##########################################################################################################################
+
+$inFile = $ARGV[0];
+$outFile = $inFile;
+$outFile =~ s/\.hex/.memmap/;
+
+open (IN, "$inFile") || die "ERROR: Cannot open the file $inFile\n";
+open (OUT, ">$outFile") || die "ERROR: Cannot open the file $outFile\n";
+
+$memAddrDec = 0;
+
+print OUT " MEM_ADDR |   AMBA   |          \n";
+print OUT " DEC  HEX |   ADDR   |   DATA   \n";
+print OUT "--------------------------------\n";
+
+while ($line0 = <IN>) {
+    chop($line0);
+    $line1 = <IN>; chop($line1);
+    $line2 = <IN>; chop($line2);
+    $line3 = <IN>; chop($line3);
+
+    $outLine = $line3 . $line2 . $line1 . $line0;
+    $outLine = uc $outLine;
+
+    $memAddrHex = Dec2Hex($memAddrDec, 3);
+    $memAddrAmba = Dec2Hex($memAddrDec*4, 8);
+
+    $address = sprintf("%4d (%3s) [%8s]: ", $memAddrDec, $memAddrHex, $memAddrAmba);
+
+    $outLine = $address . $outLine;
+
+    print OUT "$outLine\n";
+
+    $memAddrDec ++;
+}
+
+print "[INFO] ------ Memory Map File $outFile has been created\n";
+
+close(IN);
+close(OUT);
+
+sub Dec2Hex {
+	my $numDec = $_[0];
+	my $length = $_[1];
+	my $idx_i;
+	my $mod;
+	my $hex;
+	my $hexLength;
+	my $numHex = "";
+
+	while ($numDec > 0) {
+		$mod = $numDec % 16;
+
+		if    ($mod == 0) { $hex = "0";}
+		elsif ($mod == 1) { $hex = "1";}
+		elsif ($mod == 2) { $hex = "2";}
+		elsif ($mod == 3) { $hex = "3";}
+		elsif ($mod == 4) { $hex = "4";}
+		elsif ($mod == 5) { $hex = "5";}
+		elsif ($mod == 6) { $hex = "6";}
+		elsif ($mod == 7) { $hex = "7";}
+		elsif ($mod == 8) { $hex = "8";}
+		elsif ($mod == 9) { $hex = "9";}
+		elsif ($mod == 10) { $hex = "A";}
+		elsif ($mod == 11) { $hex = "B";}
+		elsif ($mod == 12) { $hex = "C";}
+		elsif ($mod == 13) { $hex = "D";}
+		elsif ($mod == 14) { $hex = "E";}
+		elsif ($mod == 15) { $hex = "F";}
+
+		$numHex = $hex . $numHex;
+		$numDec = int($numDec / 16);
+	}
+
+	$hexLength = length($numHex);
+
+	if ($hexLength > $length) { $numHex = substr ($numHex, $hexLength - $length, $length);}
+	else {
+		for ($idx_i=0; $idx_i<($length - $hexLength); $idx_i++) { $numHex = "0" . $numHex;}
+	}
+
+	return $numHex;
+}

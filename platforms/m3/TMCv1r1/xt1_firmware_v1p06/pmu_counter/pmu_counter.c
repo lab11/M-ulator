@@ -1,8 +1,35 @@
 //*******************************************************************************************
-// E-InkTesting for XT1r1
+// PMU Counter Testing for XT1r1
+//-------------------------------------------------------------------------------------------
+//
+//  --------------------------
+//   Measured Sleep Duration
+//  --------------------------
+//   0x4000 (16384): 672s
+//   0x3000 (12288): 446s
+//   0x2000 ( 8192): 224s
+//   0x1800 ( 6144): 112s
+//   0x1600 ( 5632):  83.1s
+//   0x1400 ( 5120):  55.2s
+//   0x1200 ( 4608):  27.2s
+//   0x1000 ( 4096):   0.106s
+//  --------------------------
+// 
+//  [ Equation ]
+//
+//  For pmu_threshold > 4096
+//
+//  sleep_duration = 0.054688*(pmu_threshold - 4096)
+//
+//  pmu_threshold = 18.28571*sleep_duration + 4096
+//
+//      NOTE: sleep_duration is in sec
+//
+//  By default, pmu_threshold is set to 0x10B7, which would result in ~10sec sleep duration
+//
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
-//  Apr 08 2022 - First commit
+//  Apr 06 2022 - First commit
 //-------------------------------------------------------------------------------------------
 // < AUTHOR > 
 //  Yejoong Kim (yejoong@cubeworks.io)
@@ -33,6 +60,9 @@
 // XO, SNT WAKEUP TIMER AND SLEEP DURATIONS
 //*******************************************************************************************
 
+// Sleep Duration in seconds
+#define SLEEP_DURATION  10  
+
 // PRE Clock Generator Frequency
 #define CPU_CLK_FREQ    140000  // XT1F#1, SAR_RATIO=0x60 (Sleep Voltages: 4.55V/1.59V/0.79V)
 
@@ -40,40 +70,18 @@
 #define DLY_1S      ((CPU_CLK_FREQ>>3)+(CPU_CLK_FREQ>>4)+(CPU_CLK_FREQ>>5))  // = CPU_CLK_FREQx(1/8 + 1/16 + 1/32) = CPU_CLK_FREQx(35/160) ~= (CPU_CLK_FREQ/5)
 #define DLY_1MS     DLY_1S >> 10                                             // = DLY_1S / 1024 ~= DLY_1S / 1000
 
-//*******************************************************************************************
-// EID LAYER CONFIGURATION
-//*******************************************************************************************
-
-// Segment ID : See 'External Connections' for details
-#define SEG_PLAY        0
-#define SEG_TICK        1
-#define SEG_LOWBATT     2
-#define SEG_BACKSLASH   3
-#define SEG_SLASH       4
-#define SEG_PLUS        5
-#define SEG_MINUS       6
-
-// Display Patterns: See 'External Connections' for details
-#define DISP_PLAY       (0x1 << SEG_PLAY     )
-#define DISP_TICK       (0x1 << SEG_TICK     )
-#define DISP_LOWBATT    (0x1 << SEG_LOWBATT  )
-#define DISP_BACKSLASH  (0x1 << SEG_BACKSLASH)
-#define DISP_SLASH      (0x1 << SEG_SLASH    )
-#define DISP_PLUS       (0x1 << SEG_PLUS     )
-#define DISP_MINUS      (0x1 << SEG_MINUS    )
-
-// Display Presets
-#define DISP_NONE           (0)
-#define DISP_CHECK          (DISP_TICK  | DISP_SLASH)
-#define DISP_CROSS          (DISP_SLASH | DISP_BACKSLASH)
-#define DISP_ALL            (0x7F)
-
 
 //*******************************************************************************************
 // GLOBAL VARIABLES
 //*******************************************************************************************
 uint32_t eeprom_addr;
 uint32_t wakeup_source;
+uint32_t pmu_threshold;
+uint32_t snt_prev;
+uint32_t snt_curr;
+uint32_t adc_offset;
+uint32_t eeprom_pmu_num_cons_meas;
+uint32_t hysteresis;
 
 //-------------------------------------------------------------------------------------------
 // Other Global Variables
@@ -89,6 +97,7 @@ int main(void);
 //--- Initialization/Sleep Functions
 static void operation_sleep (void);
 static void operation_init (void);
+static uint32_t calc_new_sar_ratio(uint32_t adc_val, uint32_t offset, uint32_t num_cons_meas, uint32_t hyst);
 
 //*******************************************************************************************
 // FUNCTIONS IMPLEMENTATION
@@ -181,6 +190,55 @@ static void operation_init (void) {
         //-------------------------------------------------
         pmu_init();
 
+        // Initialize SAR Ratio
+        pmu_set_sar_ratio(0x48); // See calc_new_sar_ratio()
+
+        //pmu_threshold = 0x0010B7;    // 22-bit ~10 seconds
+        pmu_threshold = 0x001725;    // 22-bit ~100 seconds
+        //--------------------------
+        // Measured Sleep Duration
+        //--------------------------
+        // 0x4000 (16384): 672s
+        // 0x3000 (12288): 446s
+        // 0x2000 ( 8192): 224s
+        // 0x1800 ( 6144): 112s
+        // 0x1600 ( 5632):  83.1s
+        // 0x1400 ( 5120):  55.2s
+        // 0x1200 ( 4608):  27.2s
+        // 0x1000 ( 4096):   0.106s
+        //--------------------------
+        // Equation (NOTE: sleep_duratio in sec)
+        //  sleep_duration = 0.054688*(pmu_threshold - 4096)
+        //  pmu_threshold = 18.28571*sleep_duration + 4096
+        //
+        //adc_offset = 0xFFFFFFFD; // -3
+        adc_offset = 0xFFFFFFFA; // -6
+        eeprom_pmu_num_cons_meas = 0;
+        hysteresis = 0;
+
+
+        //---------------------------------------------------------------------------------------
+        // HORIZON_CONFIG
+        //---------------------------------------------------------------------------------------
+        pmu_reg_write(0x45, // Default  // Description
+        //---------------------------------------------------------------------------------------
+            // NOTE: [14:11] is ignored if the corresponding DESIRED=0 -OR- STALL=1.
+            //------------------------------------------------------------------------
+            ( (0x1 << 14)   // 0x1      // If 1, 'horizon' enqueues 'wait_clock_count' with TICK_REPEAT_VBAT_ADJUST
+            | (0x0 << 13)   // 0x1      // If 1, 'horizon' enqueues 'adjust_adc'
+            | (0x0 << 12)   // 0x1      // If 1, 'horizon' enqueues 'adjust_sar_ratio'
+            | (0x1 << 11)   // 0x1      // If 1, 'horizon' enqueues 'vbat_read_only'
+            //------------------------------------------------------------------------
+            | (0x1 << 9 )   // 0x0      // 0x0: Disable clock monitoring
+                                        // 0x1: Monitoring SAR clock
+                                        // 0x2: Monitoring UPC clock
+                                        // 0x3: Monitoring DNC clock
+            | (0x0  << 8)   // 0x0      // Reserved
+            | (64   << 0)   // 0x48     // Sets ADC_SAMPLING_BIT in 'vbat_read_only' task (0<=N<=255); ADC measures (N/256)xVBAT in Flip mode.
+        ));
+
+        *PMU_TARGET_REG_ADDR = 0;
+
         //-------------------------------------------------
         // SNT Settings
         //-------------------------------------------------
@@ -205,6 +263,8 @@ static void operation_init (void) {
     }
     else if (!get_flag(FLAG_INITIALIZED)) {
 
+        snt_curr = snt_read_wup_timer();
+        
         // Set the Active floor setting to the minimum (b/c RAT is enabled at this point)
         pmu_set_active_min();
 
@@ -215,26 +275,92 @@ static void operation_init (void) {
         // NFC 
         //-------------------------------------------------
         nfc_init();
+        eeprom_addr = 0;
 
-        //-------------------------------------------------
-        // EID Settings
-        //-------------------------------------------------
-	    eid_init(/*ring*/0, /*te_div*/3, /*fd_div*/3, /*seg_div*/3);
-
-        // Set the duration
-        eid_set_duration(500);  // 500 is the default duration for *_mid (=-5 ~ 15C) and *_low (< -15C) temparatures.
-
-        //eid_r00.TMR_EN_CLK_OUT = 1;
-        //mbus_remote_register_write(EID_ADDR,0x00,eid_r00.as_int);
-        // EID Clock Frequency: 132.8 Hz
-        // clk_tmr_bat: 132.8 Hz -> used in WD_CTRL
-        // clk_tmr_raw_bat: 2124.8 Hz
+        // Wipe out the EEPROM
+        uint32_t idx;
+        for (idx=0; idx<8192; idx+=256) {
+            nfc_i2c_word_pattern_write(
+                /*e2*/      0, 
+                /*addr*/    idx, 
+                /*data*/    0x0, 
+                /*nw*/      64);
+        }
 
         // Update the flag
         set_flag(FLAG_INITIALIZED, 1);
 
     }
 }
+
+static uint32_t calc_new_sar_ratio(uint32_t adc_val, uint32_t offset, uint32_t num_cons_meas, uint32_t hyst) {
+    // Get the current value
+    uint32_t new_val = __pmu_sar_ratio__;
+
+    // If ADC value is valid
+    if (pmu_validate_adc_val(adc_val)) {
+        //---------------------------------------------------
+        // Adjust SAR RATIO
+        //---------------------------------------------------
+        // 2.0V ( 95) < VBAT < 2.3V (109): 0x60
+        // 2.3V (109) < VBAT < 2.5V (118): 0x54
+        // 2.5V (118) < VBAT < 2.7V (127): 0x4C
+        // 2.7V (127) < VBAT < 3.0V (137): 0x48
+        //---------------------------------------------------
+        // Hysteresis: 65mV (3)
+        //uint32_t hyst = 3; // hysteresis
+        //---------------------------------------------------
+
+        uint32_t new_down, new_up, upper_threshold, lower_threshold;
+
+        if (__pmu_sar_ratio__ == 0x60) {
+            new_up   = 0x54; upper_threshold = 109 + hyst + offset;
+            new_down = 0x60; lower_threshold =  95 - hyst + offset;
+        }
+        else if (__pmu_sar_ratio__ == 0x54) {
+            new_up   = 0x4C; upper_threshold = 118 + hyst + offset;
+            new_down = 0x60; lower_threshold = 109 - hyst + offset;
+        }
+        else if (__pmu_sar_ratio__ == 0x4C) {
+            new_up   = 0x48; upper_threshold = 127 + hyst + offset;
+            new_down = 0x54; lower_threshold = 118 - hyst + offset;
+        }
+        else if (__pmu_sar_ratio__ == 0x48) {
+            new_up   = 0x48; upper_threshold = 137 + hyst + offset;
+            new_down = 0x4C; lower_threshold = 127 - hyst + offset;
+        }
+        // dummy values
+        else {
+            new_up   = 0x48; upper_threshold = 137 + hyst + offset;
+            new_down = 0x4C; lower_threshold = 127 - hyst + offset;
+        }
+
+        if (adc_val > upper_threshold) {
+            __pmu_sar_ratio_lower_streak__ = 0;
+            if (__pmu_sar_ratio_upper_streak__ < num_cons_meas) __pmu_sar_ratio_upper_streak__++;
+            if (__pmu_sar_ratio_upper_streak__ >= num_cons_meas) {
+                new_val = new_up;
+                __pmu_sar_ratio_upper_streak__ = 0;
+            }
+        }
+        else if (adc_val < lower_threshold) {
+            __pmu_sar_ratio_upper_streak__ = 0;
+            if (__pmu_sar_ratio_lower_streak__ < num_cons_meas) __pmu_sar_ratio_lower_streak__++;
+            if (__pmu_sar_ratio_lower_streak__ >= num_cons_meas) {
+                new_val = new_down;
+                __pmu_sar_ratio_lower_streak__ = 0;
+            }
+        }
+        else {
+            __pmu_sar_ratio_upper_streak__ = 0;
+            __pmu_sar_ratio_lower_streak__ = 0;
+        }
+    }
+
+    return new_val;
+}
+
+
 
 //*******************************************************************************************
 // INTERRUPT HANDLERS
@@ -294,95 +420,6 @@ static void operation_init (void) {
 //void handler_ext_int_spi      (void) { *NVIC_ICPR = (0x1 << IRQ_SPI);        }
 //void handler_ext_int_xot      (void) { *NVIC_ICPR = (0x1 << IRQ_XOT);        }
 
-static void global_update(uint32_t seg) { 
-    // Make all black segments white
-    if (__eid_current_display__!=0) eid_enable_cp_ck(0x1, 0x1, (~__eid_current_display__ & 0x1FF), 0);
-    // Make all segments/field black
-    eid_enable_cp_ck(0x0, 0x1, 0x1FF, 0);
-    // Make selected segments white
-    eid_enable_cp_ck(0x1, 0x0, seg & 0x1FF, 0);
-}
-
-static void simple_update(uint32_t seg) { 
-    // Make all segments/field white
-    eid_enable_cp_ck(0x1, 0x0, 0x0, 0);
-    // Make selected segments black
-    eid_enable_cp_ck(0x0, 0x0, seg&0x1FF, 0);
-}
-
-static void local_wb_update(uint32_t seg) { 
-    // Segments to become white
-    uint32_t seg_b2w = __eid_current_display__ & (~seg);
-    // Segments to become black
-    uint32_t seg_w2b = (~__eid_current_display__) & seg;
-    // Perform Black to White
-    if (seg_b2w != 0) eid_enable_cp_ck(0x1, 0x1, (~seg_b2w & 0x1FF), 0);
-    // Perform White to Black
-    if (seg_w2b != 0) eid_enable_cp_ck(0x0, 0x0, seg_w2b & 0x1FF, 0);
-    // Need to explicitly set __eid_current_display__
-    __eid_current_display__ = seg;
-}
-
-static void local_bw_update(uint32_t seg) { 
-    // Segments to become white
-    uint32_t seg_b2w = __eid_current_display__ & (~seg);
-    // Segments to become black
-    uint32_t seg_w2b = (~__eid_current_display__) & seg;
-    // Perform White to Black
-    if (seg_w2b != 0) eid_enable_cp_ck(0x0, 0x0, seg_w2b & 0x1FF, 0);
-    // Perform Black to White
-    if (seg_b2w != 0) eid_enable_cp_ck(0x1, 0x1, (~seg_b2w & 0x1FF), 0);
-    // Need to explicitly set __eid_current_display__
-    __eid_current_display__ = seg;
-}
-
-static void local_eb_update(uint32_t seg) {
-    // Erase the whole
-    eid_enable_cp_ck(0x1, 0x0, 0x000, 0);
-    // Make each segment black, one at a time
-    uint32_t pattern = 0x1;
-    uint32_t seg_temp = seg;
-    while (seg_temp!=0) {
-        if (seg_temp&0x1) eid_enable_cp_ck(0x0, 0x0, pattern, 0);
-        seg_temp >>= 1;
-        pattern <<= 1;
-    }
-    // Update __eid_current_display__
-    __eid_current_display__ = seg;
-}
-
-static void test_seq(void) {
-
-    delay(2*DLY_1S);
-    //----------------------------------------
-    global_update(DISP_PLAY|DISP_CHECK);
-    delay(2*DLY_1S);
-    //----------------------------------------
-    simple_update(DISP_PLAY|DISP_CHECK);
-    delay(2*DLY_1S);
-    //----------------------------------------
-    global_update(DISP_CROSS|DISP_PLUS|DISP_MINUS|DISP_LOWBATT);
-    delay(2*DLY_1S);
-    //----------------------------------------
-    local_wb_update(DISP_PLAY|DISP_CHECK);
-    delay(2*DLY_1S);
-    //----------------------------------------
-    global_update(DISP_CROSS|DISP_PLUS|DISP_MINUS|DISP_LOWBATT);
-    delay(2*DLY_1S);
-    //----------------------------------------
-    local_bw_update(DISP_PLAY|DISP_CHECK);
-    delay(2*DLY_1S);
-    //----------------------------------------
-    global_update(DISP_CROSS|DISP_PLUS|DISP_MINUS|DISP_LOWBATT);
-    delay(2*DLY_1S);
-    //----------------------------------------
-    local_eb_update(DISP_PLAY|DISP_CHECK);
-    delay(2*DLY_1S);
-    //----------------------------------------
-    global_update(DISP_ALL);
-    delay(2*DLY_1S);
-
-}
 
 //********************************************************************
 // MAIN function starts here             
@@ -401,29 +438,120 @@ int main(void) {
     // If this is the very first wakeup, initialize the system
     if (!get_flag(FLAG_INITIALIZED)) operation_init();
     else {
+        // Stop the VCO counter
+        mbus_write_message32(PMU_ADDR<<4,
+                             (0x53 << 24)   // REG ADDR
+                            |( 0x0 << 23)   // VCO_CNT_ENABLE
+                            |( 0x0 << 22)   // VCO_CNT_MODE
+                            |( 0x0 <<  0)   // VCO_CNT_THRESHOLD
+                            );
+
+        snt_prev = snt_curr;
+        snt_curr = snt_read_wup_timer();
+
+        // Waken up by PMU
+        if (get_bit(wakeup_source, 4)) {
+            // Waken up by PMU VCO Counter
+            if ((((*PMU_TARGET_REG_ADDR)>>22)&0x3)==0x2) {
+                *PMU_TARGET_REG_ADDR = 0;
+
+                nfc_i2c_byte_write( /*e2*/  0,
+                                    /*addr*/eeprom_addr,
+                                    /*data*/(pmu_get_sar_ratio()<<24)|((snt_curr-snt_prev)&0xFFFFFF),
+                                    /*nb*/  4
+                                    );
+
+                mbus_write_message32(0xA0, eeprom_addr);
+                mbus_write_message32(0xA1, (pmu_get_sar_ratio()<<24)|((snt_curr-snt_prev)&0xFFFFFF));
+                eeprom_addr += 4;
+
+                // VBAT Measurement and SAR_RATIO Adjustment
+                uint32_t pmu_adc_vbat_val = pmu_read_adc();
+                uint32_t pmu_sar_ratio    = calc_new_sar_ratio( /*adc_val*/         pmu_adc_vbat_val, 
+                                                                /*offset*/          adc_offset, 
+                                                                /*num_cons_meas*/   eeprom_pmu_num_cons_meas,
+                                                                /*hyst*/            hysteresis
+                                                                );
+
+                // Change the SAR ratio
+                if (pmu_sar_ratio != pmu_get_sar_ratio()) {
+                    pmu_set_sar_ratio(pmu_sar_ratio);
+                }
+
+                nfc_i2c_byte_write( /*e2*/  0,
+                                    /*addr*/eeprom_addr,
+                                    /*data*/(pmu_get_sar_ratio()<<24)|(pmu_adc_vbat_val<<16)|(adc_offset&0xFFFF),
+                                    /*nb*/  4
+                                    );
+
+                mbus_write_message32(0xA2, eeprom_addr);
+                mbus_write_message32(0xA3, (pmu_get_sar_ratio()<<24)|(pmu_adc_vbat_val<<16)|(adc_offset&0xFFFF));
+                eeprom_addr += 4;
+
+            }
+            // Something Wrong happened
+            else {
+            }
+        }
+        // Error
+        else {
+        }
 
         // If waken up by GOC/EP
         uint32_t goc_raw = *GOC_DATA_IRQ;
         if (goc_raw!=0) {
             *GOC_DATA_IRQ   = 0;
 
-            //uint32_t goc_header = (goc_raw>>24)&0xFF;
-            //uint32_t goc_data   = goc_raw&0xFFFFFF;
+            uint32_t goc_header = (goc_raw>>24)&0xFF;
+            uint32_t goc_data   = goc_raw&0xFFFFFF;
 
-        }
-        // E-Ink Operation 
-        else {
-            // Slowest Clock (default)
-	        eid_config_cp_clk_gen(/*ring*/0, /*te_div*/3, /*fd_div*/3, /*seg_div*/3);
-            test_seq();
-            // 4x Faster Clock
-	        eid_config_cp_clk_gen(/*ring*/0, /*te_div*/1, /*fd_div*/1, /*seg_div*/1);
-            test_seq();
+            if (goc_header == 0x00) {
+                pmu_set_sar_ratio(goc_data&0xFF);
+                *PMU_TARGET_REG_ADDR = 0;
+            }
+            else if (goc_header == 0x01) {
+                pmu_threshold = goc_data&0x3FFFFF;
+            }
+            else if (goc_header == 0x02) {
+                // Sign Bit Extension
+                if ((goc_data>>23)&0x1)
+                    adc_offset = 0xFF000000 | goc_data;
+                else
+                    adc_offset = goc_data;
+            }
+            else if (goc_header == 0x03) {
+                eeprom_pmu_num_cons_meas = goc_data;
+            }
+            else if (goc_header == 0x04) {
+                hysteresis = goc_data;
+            }
+            else if (goc_header == 0xEE) {
+                uint32_t idx;
+                for (idx=0; idx<8192; idx+=256) {
+                    nfc_i2c_word_pattern_write(
+                        /*e2*/      0, 
+                        /*addr*/    idx, 
+                        /*data*/    0x0, 
+                        /*nw*/      64);
+                }
+            }
+            else if (goc_header == 0xFF) {
+                eeprom_addr = goc_data;
+            }
+
         }
 
     }
+    
 
-    snt_set_wup_timer(/*auto_reset*/1, /*threshold*/30*1500);
+    // Restart the VCO counter
+    mbus_write_message32(PMU_ADDR<<4,
+                         (    0x53 << 24)   // REG ADDR
+                        |(     0x1 << 23)   // VCO_CNT_ENABLE
+                        |(     0x0 << 22)   // VCO_CNT_MODE
+                        |(pmu_threshold <<  0)   // VCO_CNT_THRESHOLD
+                        );
+
     operation_sleep();
 
     //--------------------------------------------------------------------------
