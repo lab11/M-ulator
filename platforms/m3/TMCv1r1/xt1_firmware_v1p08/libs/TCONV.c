@@ -315,15 +315,27 @@ uint32_t div_n11 (uint32_t dividend, uint32_t divisor) {
     mbus_write_message32(0xC1, divisor);
 #endif
 
+    // Find out the position of leading 1
+    uint32_t dividend_m = 32;
+    while (dividend_m>0) {
+        dividend_m--;
+        if (dividend&(0x1<<dividend_m)) break;
+    }
+    uint32_t divisor_m = 32;
+    while (divisor_m>0) {
+        divisor_m--;
+        if (divisor&(0x1<<divisor_m)) break;
+    }
+
     uint32_t inc = (0x1 << 11);
 
-    while (dividend > divisor) {
-        divisor = divisor << 1;
-        inc = inc << 1;
+    if (dividend_m > divisor_m) {
+        divisor <<= (dividend_m - divisor_m);
+        inc     <<= (dividend_m - divisor_m);
     }
-    while (dividend < divisor) {
-        dividend = dividend << 1;
-        inc = inc >> 1;
+    else if (divisor_m > dividend_m) {
+        dividend <<= (divisor_m - dividend_m);
+        inc      >>= (divisor_m - dividend_m);
     }
 
     uint32_t result = 0;
@@ -332,8 +344,8 @@ uint32_t div_n11 (uint32_t dividend, uint32_t divisor) {
             dividend -= divisor;
             result |= inc;
         }
-        divisor = divisor >> 1;
-        inc = inc >> 1;
+        divisor >>= 1;
+        inc     >>= 1;
     }
 
 #ifdef TCONV_DEBUG
@@ -350,6 +362,9 @@ uint32_t tconv (uint32_t dout, uint32_t a, uint32_t b, uint32_t offset) {
 
 #ifdef TCONV_DEBUG
     mbus_write_message32(0xA0, dout);
+    mbus_write_message32(0xA0, a);
+    mbus_write_message32(0xA0, b);
+    mbus_write_message32(0xA0, offset);
 #endif
 
     // If dout=0, just return 0.

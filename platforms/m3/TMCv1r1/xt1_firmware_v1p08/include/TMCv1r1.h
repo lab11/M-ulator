@@ -164,6 +164,9 @@ uint32_t div (uint32_t dividend, uint32_t divisor);
 // Description:
 //          Returns the result of 'devidend / divisor'
 //          in the integer form.
+// IMPORTANT
+//           dividend[31:30] must be 2'b00
+//           divisor[31:30] must be 2'b00
 // Return  : devidend / divisor (integer)
 //-------------------------------------------------------------------
 uint32_t div_int (uint32_t dividend, uint32_t divisor);
