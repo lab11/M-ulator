@@ -595,6 +595,15 @@ volatile uint32_t buffer_missing_sample_id; // ID of the missing sample in case 
 volatile uint32_t pmu_adc_vbat_val;         // Latest PMU ADC Reading
 volatile uint32_t pmu_sar_ratio;            // Suggested new SAR Ratio
 
+volatile uint32_t sar_adc_addr;             // For debugging (temp sensor calibration)
+volatile uint32_t sar_adc_data;             // For debugging (temp sensor calibration)
+                                            // [   15] XO Fail
+                                            // [   14] Max Error Fail
+                                            // [10: 8] 0x1: SAR_RATIO=0x48
+                                            //         0x2: SAR_RATIO=0x4C
+                                            //         0x3: SAR_RATIO=0x54
+                                            //         0x4: SAR_RATIO=0x60
+                                            // [ 7: 0] ADC Value
 
 //*******************************************************************************************
 // FUNCTIONS DECLARATIONS
@@ -1330,10 +1339,31 @@ static void snt_operation (uint32_t update_eeprom) {
                     );
 
                 // Store the raw data
-                if (eeprom_sample_count<4032) {
+                //  Max Sample Count = (8192 - 128) / 2 = 4032
+                //  However, we split this into two and store the raw data into the first half,
+                //  and SAR/ADC values in to the second half.
+                //  i.e., max sample count = 4032 / 2 = 2016
+                //      Byte# 128 - Byte#4159: Raw Data      (each sample is 16-bit)
+                //      Byte#4160 - Byte#8192: SAR/ADC Value (each sample is 16-bit)
+                if (eeprom_sample_count<2016) {
                     nfc_i2c_byte_write( /*e2*/   0, 
                                         /*addr*/ byte_addr, 
                                         /*data*/ buf_temp_val,
+                                        /*nb*/   2);
+
+                    // Store ADC & SAR
+                    uint32_t sar_temp = get_bits(buf_val, 31, 24);
+                    if      (sar_temp==0x48) buf_val = set_bits(buf_val, 31, 24, 0x1);
+                    else if (sar_temp==0x4C) buf_val = set_bits(buf_val, 31, 24, 0x2);
+                    else if (sar_temp==0x54) buf_val = set_bits(buf_val, 31, 24, 0x3);
+                    else if (sar_temp==0x60) buf_val = set_bits(buf_val, 31, 24, 0x4);
+
+                    sar_adc_addr = byte_addr + (2016<<1);
+                    sar_adc_data = buf_val >> 16;
+
+                    nfc_i2c_byte_write( /*e2*/   0,
+                                        /*addr*/ sar_adc_addr,  // Starting from Byte#4160
+                                        /*data*/ sar_adc_data,  // See Description
                                         /*nb*/   2);
                 }
 
@@ -1746,6 +1776,21 @@ static void calibrate_snt_timer(uint32_t restart) {
                             /*addr*/EEPROM_ADDR_NUM_CALIB_XO_FAILS, 
                             /*data*/((num_calib_max_err_fails&0xFF)<<8)|(num_calib_xo_fails&0xFF), 
                             /*nb*/2);
+
+        if (sample_type) {
+            if (xt1_state==XT1_ACTIVE) {
+                if (sar_adc_addr < 8192) {
+                    uint32_t data = ((get_bit(calib_status, 1)||get_bit(calib_status, 0)) << 15)
+                                  | (get_bit(calib_status, 2) << 14)
+                                  | (sar_adc_data&0x3FFF);
+
+                    nfc_i2c_byte_write( /*e2*/   0,
+                                        /*addr*/ sar_adc_addr,
+                                        /*data*/ data,
+                                        /*nb*/   2);
+                }
+            }
+        }
 
         // Restart the XO
         restart_xo(/*delay_a*/XO_WAIT_A, /*delay_b*/XO_WAIT_B);
