@@ -1,9 +1,9 @@
 //*******************************************************************************************
 // XT1 (TMCv1r1) FIRMWARE
-// Version 1.12 (standard)
+// Version 1.13 (no_devel)
 //------------------------
 #define HARDWARE_ID 0x01005843  // XT1r1 Hardware ID
-#define FIRMWARE_ID 0x010C      // [15:8] Integer part, [7:0]: Non-Integer part
+#define FIRMWARE_ID 0x010D      // [15:8] Integer part, [7:0]: Non-Integer part
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
 //  Mar 28 2022 - Version 1.00
@@ -196,6 +196,9 @@
 //  0xA4    0x00000001                          eid_update_display() requires a new temperature measurement
 //  0xA5    eid_updated_at_low_temp             1 indicates that the display has been updated at a low temperature
 //  0xA6    eid_updated_at_crit_temp            1 indicates that the display has a pending update due to a critical temperature
+//  0xA7    eid_update_type                     Update type used for the display update
+//                                                  0x0: Global Update
+//                                                  0x1: Local Update
 //
 //  -----------------------------------------------------------------------------------------
 //  < NFC and EEPROM >
@@ -365,7 +368,7 @@
 #define WAKEUP_BY_GPIO2     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 10))
 #define WAKEUP_BY_GPIO3     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 11))
 #define WAKEUP_BY_SNT       WAKEUP_BY_MBUS
-#define WAKEUP_BY_NFC       WAKEUP_BY_GPIO1
+#define WAKEUP_BY_NFC       WAKEUP_BY_GPIO0
 #define SLEEP_BYPASSED      (WAKEUP_BY_MBUS && get_bit(wakeup_source, 7))
 
 //*******************************************************************************************
@@ -421,6 +424,10 @@
 #define DISP_CROSS          (DISP_SLASH | DISP_BACKSLASH)
 #define DISP_ALL            (0x7F)
 
+// Update Types
+#define EID_GLOBAL      0
+#define EID_LOCAL       1
+
 //*******************************************************************************************
 // GLOBAL VARIABLES
 //*******************************************************************************************
@@ -471,6 +478,8 @@ volatile uint32_t eeprom_eid_rfrsh_int_hr_mid;      // EID Refresh interval for 
 volatile uint32_t eeprom_eid_rfrsh_int_hr_low;      // EID Refresh interval for Low Temperature (unit: hr). '0' meas 'do not refresh'.
 
 //--- Other Configurations
+volatile uint32_t eeprom_eid_disable_local_update;  // 0x1: Use GLOBAL_UPDATE for all temperatures.
+                                                    // 0x0: Use LOCAL_UPDATE below EEPROM_ADDR_EID_LOW_TEMP_THRESHOLD. Use GLOBAL_UPDATE otherwise.
 volatile uint32_t eeprom_eid_crit_temp_threshold;   // Display does not update when temperature is lower than EID_CRIT_TEMP_THRESHOLD
                                                     //      0x1: -20C; 0x0: -25C
 volatile uint32_t eeprom_pmu_num_cons_meas;         // Number of consecutive measurements required to change SAR ratio or trigger Low VBAT warning/Crash Handler.
@@ -585,7 +594,7 @@ volatile uint32_t eid_disp_before_user_mod; // [ 31] Display has been modified b
 volatile uint32_t eid_updated_at_low_temp;  // Becomes 1 when the display gets updated at a temperature lower than eeprom_eid_low_temp_threshold.
 volatile uint32_t eid_updated_at_crit_temp; // Becomes 1 when the display has a pending update due to a critical temperature.
 volatile uint32_t eid_crit_temp_threshold;  // Display does not update when temperature is lower than EID_CRIT_TEMP_THRESHOLD
-                                            //      0x1: -20C; 0x0: -25C
+volatile uint32_t eid_update_type;          // EID Update Type (0: Global Update, 1: Local Update)
 
 //--- Write Buffer
 volatile uint32_t num_buffer_items;         // Number of items in the buffer
@@ -677,7 +686,7 @@ uint32_t reverse_bits (uint32_t bit_stream, uint32_t num_bits);
 static void operation_sleep (uint32_t check_snt) {
 
     // Reset GOC_DATA_IRQ
-    *GOC_DATA_IRQ = 0;
+    //*GOC_DATA_IRQ = 0; // GOC IRQ is not used.
 
     // FIXME: Stop any ongoing EID operation (but how...?)
 
@@ -949,10 +958,10 @@ static void set_system(uint32_t target) {
     // XT1_CRASH
     //------------------------------------------
     if (target==XT1_CRASH) {
-        // Turn off NFC
-        nfc_power_off();
         // Update the System State
         set_system_state(/*msb*/7, /*lsb*/7, /*val*/0x1);
+        // Turn off NFC
+        nfc_power_off();
         // Update the state
         xt1_state = XT1_CRASH;
         return;
@@ -990,6 +999,7 @@ static void set_system(uint32_t target) {
             eid_disp_before_user_mod = 0;
             eid_updated_at_low_temp  = 0;
             eid_updated_at_crit_temp = 0;
+            eid_update_type          = EID_GLOBAL;
             snt_temp_valid           = 0;
             system_status_at_stop    = 0;
 
@@ -1332,27 +1342,27 @@ static void snt_operation (uint32_t update_eeprom) {
             // STORE THE RAW DATA
             if (sample_type) {
 
-                uint32_t byte_addr = (eeprom_sample_count<<1)+EEPROM_ADDR_DATA_RESET_VALUE;
+                    uint32_t byte_addr = (eeprom_sample_count<<1)+EEPROM_ADDR_DATA_RESET_VALUE;
 
-                // Store the Sample Count
-                nfc_i2c_byte_write(/*e2*/0, 
-                    /*addr*/ EEPROM_ADDR_SAMPLE_COUNT, 
-                    /*data*/ (eeprom_sample_count+1),
-                    /* nb */ 4
-                    );
+                    // Store the Sample Count
+                    nfc_i2c_byte_write(/*e2*/0, 
+                        /*addr*/ EEPROM_ADDR_SAMPLE_COUNT, 
+                        /*data*/ (eeprom_sample_count+1),
+                        /* nb */ 4
+                        );
 
-                // Store the raw data
-                //  Max Sample Count = (8192 - 128) / 2 = 4032
-                //  However, we split this into two and store the raw data into the first half,
-                //  and SAR/ADC values in to the second half.
-                //  i.e., max sample count = 4032 / 2 = 2016
-                //      Byte# 128 - Byte#4159: Raw Data      (each sample is 16-bit)
-                //      Byte#4160 - Byte#8192: SAR/ADC Value (each sample is 16-bit)
-                if (eeprom_sample_count<2016) {
-                    nfc_i2c_byte_write( /*e2*/   0, 
-                                        /*addr*/ byte_addr, 
+                    // Store the raw data
+                    //  Max Sample Count = (8192 - 128) / 2 = 4032
+                    //  However, we split this into two and store the raw data into the first half,
+                    //  and SAR/ADC values in to the second half.
+                    //  i.e., max sample count = 4032 / 2 = 2016
+                    //      Byte# 128 - Byte#4159: Raw Data      (each sample is 16-bit)
+                    //      Byte#4160 - Byte#8192: SAR/ADC Value (each sample is 16-bit)
+                    if (eeprom_sample_count<2016) {
+                        nfc_i2c_byte_write( /*e2*/   0, 
+                                            /*addr*/ byte_addr, 
                                         /*data*/ buf_temp_val,
-                                        /*nb*/   2);
+                                            /*nb*/   2);
 
                     // Store ADC & SAR
                     uint32_t sar_temp = get_bits(buf_val, 31, 24);
@@ -1378,12 +1388,12 @@ static void snt_operation (uint32_t update_eeprom) {
 
                 }
 
-                // Update Valid Sample Bit
-                if (eeprom_sample_count==0) {
-                    set_system_state(/*msb*/5, /*lsb*/5, /*val*/0x1);
-                }
+                    // Update Valid Sample Bit
+                    if (eeprom_sample_count==0) {
+                        set_system_state(/*msb*/5, /*lsb*/5, /*val*/0x1);
+                    }
 
-                eeprom_sample_count++;
+                    eeprom_sample_count++;
 
             }
             // STORE THE CONVERTED & COMPRESSED DATA
@@ -1600,7 +1610,10 @@ static void snt_operation (uint32_t update_eeprom) {
 
         // Trigger the Crash Handler
         eid_trigger_crash();
-        while(1);
+
+        // Go to indefinite sleep
+        snt_set_wup_timer(/*auto_reset*/1, /*threshold*/0);
+        operation_sleep(/*check_snt*/0);
     }
     /////////////////////////////////////////////////////////////////
 }
@@ -1767,10 +1780,6 @@ static void calibrate_snt_timer(uint32_t restart) {
 
     // Update the previous snt_threshold
     snt_threshold_prev = snt_threshold;
-
-    // FIXME: Remove This!!!
-    fail = 1;
-    calib_status |= 0x1;
 
     // If there was a failure: Use previous numbers as they are.
     if (fail) {
@@ -1941,6 +1950,7 @@ static uint32_t eid_get_curr_seg(void) {
 
 static void eid_update_configs(void) {
     uint32_t new_val;
+    eid_update_type = EID_GLOBAL;
     if (snt_temp_val > eeprom_eid_high_temp_threshold) {
         new_val = eeprom_eid_rfrsh_int_hr_high;
         eid_duration = eeprom_eid_duration_high;
@@ -1952,6 +1962,8 @@ static void eid_update_configs(void) {
     else {
         new_val = eeprom_eid_rfrsh_int_hr_low;
         eid_duration = eeprom_eid_duration_low;
+        if (!eeprom_eid_disable_local_update)
+            eid_update_type = EID_LOCAL;
     }
 
     // Set the refresh interval
@@ -1994,7 +2006,18 @@ static void eid_update_display(uint32_t seg) {
     // E-ink Update
     // Update the flag if it is a critical temperature
     if (snt_temp_val > eid_crit_temp_threshold) {
-        eid_update_global(seg);
+        if (eid_update_type == EID_GLOBAL) {
+            #ifdef DEVEL
+                mbus_write_message32(0xA7, 0x0);
+            #endif
+            eid_update_global(seg);
+        }
+        else { 
+            #ifdef DEVEL
+                mbus_write_message32(0xA7, 0x1);
+            #endif
+            eid_update_local(seg);
+        }
         eid_updated_at_crit_temp = 0;
     }
     else {
@@ -2283,6 +2306,8 @@ static void update_system_configs(uint32_t use_default) {
         eeprom_eid_rfrsh_int_hr_low     = 0  ; // ( 0   (=none) ) EID Refresh interval for Low Temperature (unit: hr). '0' means 'do not refresh'.
 
         //--- Other Configurations
+        eeprom_eid_disable_local_update =  0;   // (            0 )  0x1: Use GLOBAL_UPDATE for all temperatures.
+                                                //                   0x0: Use LOCAL_UPDATE below EEPROM_ADDR_EID_LOW_TEMP_THRESHOLD. Use GLOBAL_UPDATE otherwise.
         eeprom_eid_crit_temp_threshold  =  0;   // (            0 )  Display does not update when temperature is lower than EID_CRIT_TEMP_THRESHOLD
                                                 //                      0x1: -20C; 0x0: -25C
         eeprom_pmu_num_cons_meas        =  5;   // (            5 ) Number of consecutive measurements required to change SAR ratio or trigger Low VBAT warning/Crash Handler.
@@ -2340,6 +2365,7 @@ static void update_system_configs(uint32_t use_default) {
 
         //--- Other Configurations
         temp = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_MISC_CONFIG, /*nb*/1);
+        eeprom_eid_disable_local_update = get_bit (temp,     5);
         eeprom_eid_crit_temp_threshold  = get_bit (temp,     4);
         eeprom_pmu_num_cons_meas        = get_bits(temp, 3,  0);
 
@@ -2522,7 +2548,7 @@ uint32_t reverse_bits (uint32_t bit_stream, uint32_t num_bits) {
 
 //void handler_ext_int_wakeup   (void) __attribute__ ((interrupt ("IRQ")));
 //void handler_ext_int_softreset(void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_gocep    (void) __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_gocep    (void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_timer32  (void) __attribute__ ((interrupt ("IRQ")));
 //void handler_ext_int_timer16  (void) __attribute__ ((interrupt ("IRQ")));
 //void handler_ext_int_mbustx   (void) __attribute__ ((interrupt ("IRQ")));
@@ -2544,11 +2570,7 @@ void handler_ext_int_reg1     (void) __attribute__ ((interrupt ("IRQ")));
 
 //void handler_ext_int_wakeup   (void) { *NVIC_ICPR = (0x1 << IRQ_WAKEUP);     }
 //void handler_ext_int_softreset(void) { *NVIC_ICPR = (0x1 << IRQ_SOFT_RESET); }
-void handler_ext_int_gocep    (void) { 
-    *NVIC_ICPR = (0x1 << IRQ_GOCEP);      
-    //uint32_t goc_raw = *GOC_DATA_IRQ;
-    //*GOC_DATA_IRQ   = 0;
-}
+//void handler_ext_int_gocep    (void) { *NVIC_ICPR = (0x1 << IRQ_GOCEP);      }
 void handler_ext_int_timer32  (void) {
     *NVIC_ICPR = (0x1 << IRQ_TIMER32);
     *REG1 = *TIMER32_CNT;
@@ -2705,10 +2727,6 @@ int main(void) {
         }
 
     }
-    //-----------------------------------------
-    // GOC/EP FIXME: Do we need this?
-    //-----------------------------------------
-    //else if (WAKEUP_BY_GOCEP) {}
     //-----------------------------------------
     // Other Wakeup Source - Probably a Glitch
     //-----------------------------------------

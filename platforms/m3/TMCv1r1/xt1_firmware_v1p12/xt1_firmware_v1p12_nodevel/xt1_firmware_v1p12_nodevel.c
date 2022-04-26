@@ -177,7 +177,10 @@
 //                                                  [15: 0] Raw code (*SNT_TARGET_REG_ADDR)
 //  0x9B    value                               Measured Temperature (from snt_get_temp())
 //                                                  [15: 0] After the conversion (snt_temp_val) "10 x (T + 80)" where T is the actual temperature in celsius degree.
-//
+//  0x9C    byte_addr                           [Raw Sample] Byte Address
+//  0x9D    buf_temp_val                        [Raw Sample] Raw Temperature Data
+//  0x9E    sar_adc_addr                        [Raw Sample] Byte Address to store SAR/ADC (or XO FAIL) value
+//  0x9F    sar_adc_data                        [Raw Sample] SAR/ADC (or XO FAIL) data
 //
 //  -----------------------------------------------------------------------------------------
 //  < Display >
@@ -1365,6 +1368,14 @@ static void snt_operation (uint32_t update_eeprom) {
                                         /*addr*/ sar_adc_addr,  // Starting from Byte#4160
                                         /*data*/ sar_adc_data,  // See Description
                                         /*nb*/   2);
+
+                    #ifdef DEVEL
+                        mbus_write_message32(0x9C, byte_addr);
+                        mbus_write_message32(0x9D, buf_temp_val);
+                        mbus_write_message32(0x9E, sar_adc_addr);
+                        mbus_write_message32(0x9F, sar_adc_data);
+                    #endif
+
                 }
 
                 // Update Valid Sample Bit
@@ -1757,6 +1768,10 @@ static void calibrate_snt_timer(uint32_t restart) {
     // Update the previous snt_threshold
     snt_threshold_prev = snt_threshold;
 
+    // FIXME: Remove This!!!
+    fail = 1;
+    calib_status |= 0x1;
+
     // If there was a failure: Use previous numbers as they are.
     if (fail) {
         // Update the next duration
@@ -1788,6 +1803,10 @@ static void calibrate_snt_timer(uint32_t restart) {
                                         /*addr*/ sar_adc_addr,
                                         /*data*/ data,
                                         /*nb*/   2);
+                    #ifdef DEVEL
+                        mbus_write_message32(0x9E, sar_adc_addr);
+                        mbus_write_message32(0x9F, data);
+                    #endif
                 }
             }
         }
