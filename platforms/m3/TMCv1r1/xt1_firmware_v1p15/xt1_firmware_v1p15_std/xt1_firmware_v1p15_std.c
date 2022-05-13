@@ -1,9 +1,9 @@
 //*******************************************************************************************
-// XT1 (TMCv1r1) FIRMWARE - XO Debugging
-// Version 1.14 (devel)
+// XT1 (TMCv1r1) FIRMWARE
+// Version 1.15 (standard)
 //------------------------
 #define HARDWARE_ID 0x01005843  // XT1r1 Hardware ID
-#define FIRMWARE_ID 0x010E      // [15:8] Integer part, [7:0]: Non-Integer part
+#define FIRMWARE_ID 0x010F      // [15:8] Integer part, [7:0]: Non-Integer part
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
 //  Mar 28 2022 - Version 1.00
@@ -318,7 +318,7 @@
 #define FLAG_XO_INITIALIZED 2
 #define FLAG_WD_ENABLED     3
 #define FLAG_MAIN_CALLED    4   // Sleep has been bypassed before the current active session. Thus, main() has called from within operation_sleep(). This implies that xo_val_curr is inaccurate.
-#define FLAG_INVLD_XO_PREV 5   // Sleep has been bypassed before the previous active session. This implies that xo_val_prev is inaccurate.
+#define FLAG_INVLD_XO_PREV  5   // Sleep has been bypassed before the previous active session. This implies that xo_val_prev is inaccurate.
 #define FLAG_BOOTUP_DONE    6
 
 //*******************************************************************************************
@@ -374,7 +374,7 @@
 #define WAKEUP_BY_GPIO3     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 11))
 #define WAKEUP_BY_SNT       WAKEUP_BY_MBUS
 #define WAKEUP_BY_NFC       WAKEUP_BY_GPIO1
-#define MAIN_CALLED      (WAKEUP_BY_MBUS && get_bit(wakeup_source, 7))
+#define MAIN_CALLED         (WAKEUP_BY_MBUS && get_bit(wakeup_source, 7))
 
 //*******************************************************************************************
 // FSM STATES
@@ -436,11 +436,6 @@
 //*******************************************************************************************
 // GLOBAL VARIABLES
 //*******************************************************************************************
-
-//FIXME
-volatile uint32_t xo_addr;
-volatile uint32_t xo_eid_cnt;
-volatile uint32_t xo_detail;
 
 //-------------------------------------------------------------------------------------------
 // System Configuration Variables in EEPROM
@@ -562,7 +557,7 @@ volatile uint32_t snt_duration;                     // SNT counter value that co
 volatile uint32_t snt_threshold;                    // SNT Timer Threshold to wake up the system
 volatile uint32_t snt_threshold_prev;               // Previous SNT Timer Threshold
 volatile uint32_t wakeup_interval;                  // Wakeup Period (unit: minutes)
-volatile uint32_t snt_skip_calib;                // If 1, it skips the SNT calibration and uses the previous snt_freq to calculate the next snt_threshold.
+volatile uint32_t snt_skip_calib;                   // If 1, it skips the SNT calibration and uses the previous snt_freq to calculate the next snt_threshold.
 volatile uint32_t calib_status;                     // Calibration Status
                                                     // [2]: 1 if the SNT or XO counter has an incorrect value (>6.25% (=1/16) error than expected)
                                                     // [1]: 1 if XO is unstable (i.e., asynchronous read glitches do not disappear quickly)
@@ -935,10 +930,6 @@ static void operation_init (void) {
 
         // Update the flag
         set_flag(FLAG_INITIALIZED, 1);
-
-        // FIXME
-        xo_addr = EEPROM_ADDR_DATA_RESET_VALUE;
-        xo_eid_cnt = 0;
 
         //-------------------------------------------------
         // Go to Sleep for 10s.
@@ -1573,7 +1564,7 @@ static void snt_operation (uint32_t update_eeprom) {
                 // MEMORY IS FULL
                 }
                 else { // Roll-over disabled
-                    comp_bit_pos = 0xFFFFFFFF;
+                    comp_bit_pos = 65536;
                     // Update Memory Full Flag
                     set_system_state(/*msb*/3, /*lsb*/3, /*val*/0x1);
 
@@ -1691,17 +1682,6 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
     // Committ xo_val_curr_tmp
     xo_val_curr = xo_val_curr_tmp;
 
-
-    // FIXME---------------------------------------------
-    // 1st
-    nfc_i2c_byte_write( /*e2*/   0, 
-                        /*addr*/ xo_addr,
-                        /*data*/ xo_val_curr,
-                        /*nb*/   4);
-    xo_addr += 4;
-    // FIXME---------------------------------------------
-
-
     // XO malfunction during sleep 
     if (xo_val_curr <= xo_val_prev) {
         calib_status |= XO_FAIL_STOP;
@@ -1713,30 +1693,12 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
         #ifdef DEVEL
             mbus_write_message32(0x83, 0x0);
         #endif
-        // FIXME---------------------------------------------
-        // 2nd
-        nfc_i2c_byte_write( /*e2*/   0, 
-                            /*addr*/ xo_addr,
-                            /*data*/ 0xDEADBEEF,
-                            /*nb*/   4);
-        xo_addr += 4;
-        // FIXME---------------------------------------------
     }
     // XO has been fine so far
     else {
 
         // Read the current counter value
         temp_xo_val = get_xo_cnt();
-
-        // FIXME---------------------------------------------
-        // 2nd
-        nfc_i2c_byte_write( /*e2*/   0, 
-                            /*addr*/ xo_addr,
-                            /*data*/ temp_xo_val,
-                            /*nb*/   4);
-        xo_addr += 4;
-        // FIXME---------------------------------------------
-
 
         #ifdef DEVEL
             mbus_write_message32(0x80, xo_val_prev);
@@ -1864,17 +1826,6 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
             }
         }
 
-        // FIXME---------------------------------------------
-        // 3rd
-        nfc_i2c_byte_write( /*e2*/   0, 
-                            /*addr*/ xo_addr,
-                            /*data*/ 0x55555555,
-                            /*nb*/   4);
-        xo_addr += 4;
-        // FIXME---------------------------------------------
-
-
-
         // Restart the XO
         restart_xo(/*delay_a*/XO_WAIT_A, /*delay_b*/XO_WAIT_B);
 
@@ -1904,16 +1855,6 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
         // Calculate the next threshold
         snt_threshold = snt_read_wup_timer() + snt_duration;
 
-        // FIXME---------------------------------------------
-        // 3rd
-        nfc_i2c_byte_write( /*e2*/   0, 
-                            /*addr*/ xo_addr,
-                            /*data*/ 0x66666666,
-                            /*nb*/   4);
-        xo_addr += 4;
-        // FIXME---------------------------------------------
-
-
         // Update xo_val_curr
         xo_val_curr = get_xo_cnt();
         set_flag(FLAG_INVLD_XO_PREV, 0);
@@ -1926,7 +1867,7 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
     else if (MAIN_CALLED||get_flag(FLAG_INVLD_XO_PREV)) {
         #ifdef DEVEL
             if (MAIN_CALLED) mbus_write_message32(0x83, 0xA);
-            else                mbus_write_message32(0x83, 0xB);
+            else             mbus_write_message32(0x83, 0xB);
         #endif
 
         // Update the next duration
@@ -1939,16 +1880,6 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
             set_flag(FLAG_INVLD_XO_PREV, 1);
         else 
             set_flag(FLAG_INVLD_XO_PREV, 0);
-
-        // FIXME---------------------------------------------
-        // 3rd
-        nfc_i2c_byte_write( /*e2*/   0, 
-                            /*addr*/ xo_addr,
-                            /*data*/ 0x44444444,
-                            /*nb*/   4);
-        xo_addr += 4;
-        // FIXME---------------------------------------------
-
     }
     // PASS
     else {
@@ -1972,26 +1903,7 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
         // Calculate the next threshold
         snt_threshold += snt_duration;
 
-        // FIXME---------------------------------------------
-        // 3rd
-        nfc_i2c_byte_write( /*e2*/   0, 
-                            /*addr*/ xo_addr,
-                            /*data*/ 0x77777777,
-                            /*nb*/   4);
-        xo_addr += 4;
-        // FIXME---------------------------------------------
-
     }
-
-    // FIXME---------------------------------------------
-    // 4th
-    nfc_i2c_byte_write( /*e2*/   0, 
-                        /*addr*/ xo_addr,
-                        /*data*/ xo_detail,
-                        /*nb*/   4);
-    xo_addr += 4;
-    // FIXME---------------------------------------------
-
 
     if(snt_threshold==0) {
         #ifdef DEVEL
@@ -2112,18 +2024,12 @@ static void eid_update_display(uint32_t seg) {
                 mbus_write_message32(0xA7, 0x0);
             #endif
             eid_update_global(seg);
-            // FIXME---------------------------------------------
-            xo_detail |= 0x1<<0;
-            // FIXME---------------------------------------------
         }
         else { 
             #ifdef DEVEL
                 mbus_write_message32(0xA7, 0x1);
             #endif
             eid_update_local(seg);
-            // FIXME---------------------------------------------
-            xo_detail |= 0x1<<1;
-            // FIXME---------------------------------------------
         }
         eid_updated_at_crit_temp = 0;
     }
@@ -2714,17 +2620,15 @@ void handler_ext_int_reg1     (void) {
 
 int main(void) {
 
-    xo_detail = 0;
-
     // Disable PRE Watchdog Timers (CPU watchdog and MBus watchdog)
     *TIMERWD_GO  = 0;
     *REG_MBUS_WD = 0;
 
     // Read the XO value for the calibration later
-    snt_skip_calib = 0;      // By default, it does the normal calibration
-    calib_status      = 0;           // Reset Calibration status
-    xo_val_prev       = xo_val_curr;
-    xo_val_curr_tmp   = get_xo_cnt(); // It returns 0 if XO has not been initialized yet
+    snt_skip_calib  = 0;    // By default, it does the normal calibration
+    calib_status    = 0;    // Reset Calibration status
+    xo_val_prev     = xo_val_curr;
+    xo_val_curr_tmp = get_xo_cnt(); // It returns 0 if XO has not been initialized yet
 
     // Reset variables
     set_high_power_history(0);
@@ -2781,8 +2685,7 @@ int main(void) {
         }
 
         // Bookkeeping/Temp Measurement
-        //snt_operation(/*update_eeprom*/update_eeprom);
-        snt_operation(/*update_eeprom*/0); // FIXME
+        snt_operation(/*update_eeprom*/update_eeprom);
 
     }
     //-----------------------------------------
@@ -2843,17 +2746,6 @@ int main(void) {
     else {
         operation_sleep(/*check_snt*/1);
     }
-
-    // FIXME---------------------------------------------
-    if (xo_eid_cnt>>3) {
-        eid_update_display(eid_get_curr_seg());
-        xo_eid_cnt = 0;
-        xo_detail |= 0x1<<4;
-    }
-    else {
-        xo_eid_cnt++;
-    }
-    // FIXME---------------------------------------------
 
     // SNT Calibration
     calibrate_snt_timer(/*skip_calib*/snt_skip_calib);
