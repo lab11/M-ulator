@@ -1,0 +1,63 @@
+1.15t has been forked from 1.15.
+
+Compared to 1.15:
+
+* Unit of some time variables has been changed from 'minute' to 'second'
+    - Start Delay
+    - Measurement Interval
+
+* XT1 automtacally stops when 'sample_count == 100 x (HIGH_TEMP_THRESHOLD in C)'
+    - Example
+        Write 1 in 'High Threshold (C)' in the app, then XT1 stops once it has measured 100 samples.
+        Write 50 in 'High Threshold (C)' in the app, then XT1 stops once it has measured 5000 samples.
+
+* It does NOT check temperature excursions.
+    - Check/Cross/+/- are NOT displayed during operation.
+        NOTE: These segments are displayed during boot-up.
+    - HIGH_TEMP_THRESHOLD(Byte#68) is used to set the max sample count (See above)
+    - LOW_TEMP_THRESHOLD(Byte#70) is NOT used.
+    - Once started, XT1 displays the 'play' segment only.
+        Once the start delay expires, XT1 still displays the 'play' segment only.
+        Once it reaches the 'max sample count', XT1 automatically stops,
+        and the 'play' sign disappears, so the display becomes 'all white'.
+
+* Once the start delay expires, XT1 stays in active (i.e., not going into sleep)
+    until it automatically stops when 'sample_count == 100 x (HIGH_TEMP_THRESHOLD in C)'
+
+* NFC does not work while the XT1 stays in active.
+
+* E-ink does NOT refresh while XT1 stays in active.
+
+
+-------------------------------------------------------------------------
+
+< Some Technical Details >
+
+The unit of variables below has been changed from 'minute' to 'second'
+
+    eeprom_temp_meas_interval
+    eeprom_temp_meas_start_delay
+        wakeup_interval
+        WAKEUP_INTERVAL_IDLE;
+        wakeup_interval_sec     // changed every instance of wakeup_interval_sec to wakeup_interval
+        disp_min_since_refresh  // nothing to change
+        disp_refresh_interval   // done
+
+    EEPROM_ADDR_TEMP_MEAS_INTERVAL    (Byte#72)
+    EEPROM_ADDR_TEMP_MEAS_START_DELAY (Byte#74)
+
+It does not check temperature excursions. 
+    Therefore, Check/Cross/+/- are NOT displayed during operation.
+    These segments are displayed during boot-up.
+    EEPROM_ADDR_HIGH_TEMP_THRESHOLD(Byte#68) is used to set the max sample count.
+    EEPROM_ADDR_LOW_TEMP_THRESHOLD(Byte#70) is NOT used.
+
+Automatically stops when 'Sample Count' == 100 x (HIGH_TEMP_THRESHOLD in C)
+
+Once the start_delay expires, XT1 stays in active until the above condition is met.
+NFC does not work while the XT1 stays in active.
+
+Disables e-ink refresh 
+    e-ink updates during boot-up
+    PLAY segments are updated upon START and (automatic) STOP.
+
