@@ -47,7 +47,7 @@
 // Enable 'DEVEL' for the following features:
 //      - Send debug messages
 //      - Use default values rather than grabbing the values from EEPROM
-#define DEVEL
+//#define DEVEL
 
 //*******************************************************************************************
 // FLAG BIT INDEXES
@@ -211,8 +211,8 @@ static void operation_init (void) {
         //  sleep_duration = 0.054688*(pmu_threshold - 4096)
         //  pmu_threshold = 18.28571*sleep_duration + 4096
         //
-        //adc_offset = 0xFFFFFFFD; // -3
-        adc_offset = 0xFFFFFFFA; // -6
+        adc_offset = 0xFFFFFFFD; // -3
+        //adc_offset = 0xFFFFFFFA; // -6
         eeprom_pmu_num_cons_meas = 0;
         hysteresis = 0;
 
