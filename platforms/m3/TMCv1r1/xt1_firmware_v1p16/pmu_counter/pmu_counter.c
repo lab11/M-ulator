@@ -80,7 +80,7 @@ uint32_t pmu_threshold;
 uint32_t snt_prev;
 uint32_t snt_curr;
 uint32_t adc_offset;
-uint32_t sel_margin;
+uint32_t pmu_sel_margin;
 uint32_t hysteresis;
 
 //-------------------------------------------------------------------------------------------
@@ -218,16 +218,16 @@ static void operation_init (void) {
 
 
         //-------------------------
-        // sel_margin   Margin     
+        // pmu_sel_margin   Margin     
         //-------------------------
-        //  5           No margin  
-        //  4           50.00%     
-        //  3           25.00%     
-        //  2           12.50%     
-        //  1            6.25%     
-        //  0            3.13%     
+        //  5               No margin  
+        //  4               50.00%     
+        //  3               25.00%     
+        //  2               12.50%     
+        //  1                6.25%     
+        //  0                3.13%     
         //-------------------------
-        sel_margin = 1;
+        pmu_sel_margin = 1;
 
 
         hysteresis = 0; // Hysteresis is NOT implemented!
@@ -490,7 +490,7 @@ int main(void) {
                 //                                                );
                 uint32_t pmu_sar_ratio    = pmu_calc_new_sar_ratio( /*adc_val*/     pmu_adc_vbat_val, 
                                                                     /*offset*/      adc_offset, 
-                                                                    /*sel_margin*/  sel_margin
+                                                                    /*sel_margin*/  pmu_sel_margin
                                                                     );
 
                 // Change the SAR ratio
@@ -540,7 +540,7 @@ int main(void) {
                     adc_offset = goc_data;
             }
             else if (goc_header == 0x03) {
-                sel_margin = goc_data;
+                pmu_sel_margin = goc_data;
             }
             else if (goc_header == 0x04) {
                 hysteresis = goc_data;
