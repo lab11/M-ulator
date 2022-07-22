@@ -616,7 +616,7 @@ void pmu_init(void){
         ( (0x1 << 14)   // 0x1      // If 1, 'horizon' enqueues 'wait_clock_count' with TICK_REPEAT_VBAT_ADJUST
         | (0x0 << 13)   // 0x1      // If 1, 'horizon' enqueues 'adjust_adc'
         | (0x0 << 12)   // 0x1      // If 1, 'horizon' enqueues 'adjust_sar_ratio'
-        | (0x1 << 11)   // 0x1      // If 1, 'horizon' enqueues 'vbat_read_only'
+        | (0x1 << 11)   // 0x0		// If 1, 'horizon' enqueues 'vbat_read_only'
         //------------------------------------------------------------------------
         | (0x0 << 9 )   // 0x0      // 0x0: Disable clock monitoring
                                     // 0x1: Monitoring SAR clock

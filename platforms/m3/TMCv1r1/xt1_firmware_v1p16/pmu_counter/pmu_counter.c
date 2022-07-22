@@ -80,7 +80,7 @@ uint32_t pmu_threshold;
 uint32_t snt_prev;
 uint32_t snt_curr;
 uint32_t adc_offset;
-uint32_t eeprom_pmu_num_cons_meas;
+uint32_t sel_margin;
 uint32_t hysteresis;
 
 //-------------------------------------------------------------------------------------------
@@ -211,10 +211,26 @@ static void operation_init (void) {
         //  sleep_duration = 0.054688*(pmu_threshold - 4096)
         //  pmu_threshold = 18.28571*sleep_duration + 4096
         //
+
         //adc_offset = 0xFFFFFFFD; // -3
-        adc_offset = 0xFFFFFFFA; // -6
-        eeprom_pmu_num_cons_meas = 0;
-        hysteresis = 0;
+        //adc_offset = 0xFFFFFFFA; // -6
+        adc_offset = 0;
+
+
+        //-------------------------
+        // sel_margin   Margin     
+        //-------------------------
+        //  5           No margin  
+        //  4           50.00%     
+        //  3           25.00%     
+        //  2           12.50%     
+        //  1            6.25%     
+        //  0            3.13%     
+        //-------------------------
+        sel_margin = 1;
+
+
+        hysteresis = 0; // Hysteresis is NOT implemented!
 
 
         //---------------------------------------------------------------------------------------
@@ -227,7 +243,7 @@ static void operation_init (void) {
             ( (0x1 << 14)   // 0x1      // If 1, 'horizon' enqueues 'wait_clock_count' with TICK_REPEAT_VBAT_ADJUST
             | (0x0 << 13)   // 0x1      // If 1, 'horizon' enqueues 'adjust_adc'
             | (0x0 << 12)   // 0x1      // If 1, 'horizon' enqueues 'adjust_sar_ratio'
-            | (0x1 << 11)   // 0x1      // If 1, 'horizon' enqueues 'vbat_read_only'
+            | (0x1 << 11)   // 0x0		// If 1, 'horizon' enqueues 'vbat_read_only'
             //------------------------------------------------------------------------
             | (0x1 << 9 )   // 0x0      // 0x0: Disable clock monitoring
                                         // 0x1: Monitoring SAR clock
@@ -467,11 +483,15 @@ int main(void) {
 
                 // VBAT Measurement and SAR_RATIO Adjustment
                 uint32_t pmu_adc_vbat_val = pmu_read_adc();
-                uint32_t pmu_sar_ratio    = calc_new_sar_ratio( /*adc_val*/         pmu_adc_vbat_val, 
-                                                                /*offset*/          adc_offset, 
-                                                                /*num_cons_meas*/   eeprom_pmu_num_cons_meas,
-                                                                /*hyst*/            hysteresis
-                                                                );
+                //uint32_t pmu_sar_ratio    = calc_new_sar_ratio( /*adc_val*/         pmu_adc_vbat_val, 
+                //                                                /*offset*/          adc_offset, 
+                //                                                /*num_cons_meas*/   sel_margin,
+                //                                                /*hyst*/            hysteresis
+                //                                                );
+                uint32_t pmu_sar_ratio    = pmu_calc_new_sar_ratio( /*adc_val*/     pmu_adc_vbat_val, 
+                                                                    /*offset*/      adc_offset, 
+                                                                    /*sel_margin*/  sel_margin
+                                                                    );
 
                 // Change the SAR ratio
                 if (pmu_sar_ratio != pmu_get_sar_ratio()) {
@@ -520,7 +540,7 @@ int main(void) {
                     adc_offset = goc_data;
             }
             else if (goc_header == 0x03) {
-                eeprom_pmu_num_cons_meas = goc_data;
+                sel_margin = goc_data;
             }
             else if (goc_header == 0x04) {
                 hysteresis = goc_data;
