@@ -1231,7 +1231,8 @@ static void snt_operation (uint32_t update_eeprom) {
     pmu_adc_vbat_val = pmu_read_adc();
     pmu_sar_ratio    = pmu_calc_new_sar_ratio(  /*adc_val*/         pmu_adc_vbat_val, 
                                                 /*offset*/          adc_offset, 
-                                                /*sel_margin*/      eeprom_pmu_num_cons_meas
+                                                /*sel_margin*/      eeprom_pmu_num_cons_meas,
+                                                /*hysteresis*/      1
                                             );
 
     uint32_t low_vbat  = pmu_check_low_vbat (   /*adc_val*/         pmu_adc_vbat_val, 
@@ -1252,12 +1253,7 @@ static void snt_operation (uint32_t update_eeprom) {
     #endif
 
     // Change the SAR ratio
-    if (pmu_sar_ratio != pmu_get_sar_ratio()) {
-        #ifdef DEVEL
-            mbus_write_message32(0x94, (pmu_get_sar_ratio()<<8)|pmu_sar_ratio);
-        #endif
-        pmu_set_sar_ratio(pmu_sar_ratio);
-    }
+    pmu_set_sar_ratio(pmu_sar_ratio);
 
     // Adjust e-Ink Settings: Refresh Interval and Active Duration
     eid_update_configs();

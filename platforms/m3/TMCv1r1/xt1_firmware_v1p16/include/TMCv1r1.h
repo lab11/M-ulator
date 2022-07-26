@@ -329,6 +329,7 @@ volatile uint32_t __pmu_sar_ratio_upper_streak__;   // Counter for SAR ratio cha
 volatile uint32_t __pmu_sar_ratio_lower_streak__;   // Counter for SAR ratio change (lower direction - higher SAR ratio)
 volatile uint32_t __pmu_low_vbat_streak__;          // Counter for LOW VBAT indicator
 volatile uint32_t __pmu_crit_vbat_streak__;         // Counter for Crash Handler
+volatile uint32_t __pmu_last_effective_adc_val__;   // Last ADC value that was used to change the SAR ratio
 
 //-------------------------------------------------------------------
 // PMU VSOLAR SHORT BEHAVIOR
@@ -468,9 +469,10 @@ void pmu_set_sleep_low();
 // Function: pmu_set_sar_ratio
 // Args    : ratio - desired SAR ratio
 // Description:
-//           Overrides SAR ratio with 'ratio', and then performs
+//           Only if ratio is different from __pmu_sar_ratio__,
+//           it changes the SAR ratio to 'ratio', and then performs
 //           sar_reset and sar/upc/dnc_stabilized tasks
-//           It also updates __pmu_sar_ratio__ variable.
+//           It also updates __pmu_sar_ratio__.
 // Return  : None
 //-------------------------------------------------------------------
 void pmu_set_sar_ratio (uint32_t ratio);
@@ -480,7 +482,7 @@ void pmu_set_sar_ratio (uint32_t ratio);
 // Args    : None
 // Description:
 //           Get the current __pmu_sar_ratio__.
-//           By default, pmu_init() sets __pmu_sar_ratio__ = 0x60.
+//           By default, pmu_init() sets __pmu_sar_ratio__ = 0x4C.
 // Return  : Current __pmu_sar_ratio__ 
 //-------------------------------------------------------------------
 uint32_t pmu_get_sar_ratio (void);
@@ -522,6 +524,12 @@ uint32_t pmu_validate_adc_val (uint32_t adc_val);
 //                                1            6.25%      1.0625
 //                                0            3.13%      1.03125
 //                              ---------------------------------
+//           hysteresis     - Hysteresis
+//                              This value is used only when "decreasing" the SAR ratio 
+//                              (i.e., when the ADC value goes "up")
+//                              If (adc_val < previous_adc_value) -OR- (adc_val > (previous_adc_value + hysteresis)),
+//                              it calculates the new SAR ratio and returns the value. 
+//                              Otherwise, it skips the calculation and returns the current SAR ratio.
 // Description:
 //           Find out a new SAR Ratio based on 
 //           the current VBAT measurements, using the following equation:
@@ -529,7 +537,7 @@ uint32_t pmu_validate_adc_val (uint32_t adc_val);
 //           NOTE: It does NOT change the SAR ratio
 // Return  : New SAR Ratio
 //-------------------------------------------------------------------
-uint32_t pmu_calc_new_sar_ratio(uint32_t adc_val, uint32_t offset, uint32_t sel_margin);
+uint32_t pmu_calc_new_sar_ratio(uint32_t adc_val, uint32_t offset, uint32_t sel_margin, uint32_t hysteresis);
 
 //-------------------------------------------------------------------
 // Function: pmu_check_low_vbat

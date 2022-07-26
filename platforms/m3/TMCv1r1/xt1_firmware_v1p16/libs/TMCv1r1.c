@@ -398,32 +398,40 @@ void pmu_set_sleep_low(){
 }
 
 void pmu_set_sar_ratio (uint32_t ratio) {
-    //---------------------------------------------------------------------------------------
-    // SAR_RATIO_OVERRIDE
-    //---------------------------------------------------------------------------------------
-    pmu_reg_write(0x05, // Default  // Description
-    //---------------------------------------------------------------------------------------
-        ( (0x3 << 14)   // 0x0      // 0x3: Perform sar_reset followed by sar/upc/dnc_stabilized upon writing into this register
-                                    // 0x2: Perform sar_reset upon writing into this register
-                                    // 0x1: Perform sar/upc/dnc_stabilized upon writing into this register
-                                    // 0x0: Do nothing
-        | (0x2 << 12)   // 0x0      // 0x3: Let VDD_CLK always connected to VBAT; 
-                                    // 0x2: Let VDD_CLK always connected to V1P2;
-                                    // 0x0: Let PMU handle.
-        | (0x2 << 10)   // 0x2      // 0x3: Enable the periodic SAR reset; 
-                                    // 0x2: Disable the periodic SAR reset; 
-                                    // 0x0: Let PMU handle.
-                                    // This setting is temporarily ignored when [15] is triggered.
-        | (0x0 << 8 )   // 0x0      // 0x3: Let the SAR do UP-conversion (use if VBAT < 1.2V)
-                                    // 0x2: Let the SAR do DOWN-conversion (use if VBAT > 1.2V)
-                                    // 0x0: Let PMU handle.
-        | (0x1 << 7 )   // 0x0      // If 1, override SAR ratio with [6:0].
-        | (ratio)       // 0x00     // SAR ratio for overriding (valid only when [7]=1)
-    ));
 
-    __pmu_sar_ratio__ = ratio;
+    #ifdef DEVEL
+        mbus_write_message32(0x94, (__pmu_sar_ratio__<<8)|ratio);
+    #endif
 
-    delay(10000); // ~0.4s with 140kHz CPU clock
+    if (ratio != __pmu_sar_ratio__) {
+
+        //---------------------------------------------------------------------------------------
+        // SAR_RATIO_OVERRIDE
+        //---------------------------------------------------------------------------------------
+        pmu_reg_write(0x05, // Default  // Description
+        //---------------------------------------------------------------------------------------
+            ( (0x3 << 14)   // 0x0      // 0x3: Perform sar_reset followed by sar/upc/dnc_stabilized upon writing into this register
+                                        // 0x2: Perform sar_reset upon writing into this register
+                                        // 0x1: Perform sar/upc/dnc_stabilized upon writing into this register
+                                        // 0x0: Do nothing
+            | (0x2 << 12)   // 0x0      // 0x3: Let VDD_CLK always connected to VBAT; 
+                                        // 0x2: Let VDD_CLK always connected to V1P2;
+                                        // 0x0: Let PMU handle.
+            | (0x2 << 10)   // 0x2      // 0x3: Enable the periodic SAR reset; 
+                                        // 0x2: Disable the periodic SAR reset; 
+                                        // 0x0: Let PMU handle.
+                                        // This setting is temporarily ignored when [15] is triggered.
+            | (0x0 << 8 )   // 0x0      // 0x3: Let the SAR do UP-conversion (use if VBAT < 1.2V)
+                                        // 0x2: Let the SAR do DOWN-conversion (use if VBAT > 1.2V)
+                                        // 0x0: Let PMU handle.
+            | (0x1 << 7 )   // 0x0      // If 1, override SAR ratio with [6:0].
+            | (ratio)       // 0x00     // SAR ratio for overriding (valid only when [7]=1)
+        ));
+
+        __pmu_sar_ratio__ = ratio;
+
+        delay(10000); // ~0.4s with 140kHz CPU clock
+    }
 }
 
 uint32_t pmu_get_sar_ratio (void) {
@@ -438,7 +446,7 @@ uint32_t pmu_validate_adc_val (uint32_t adc_val) {
     return ((adc_val > __PMU_ADC_LOWER_LIMIT__) && (adc_val < __PMU_ADC_UPPER_LIMIT__));
 }
 
-uint32_t pmu_calc_new_sar_ratio(uint32_t adc_val, uint32_t offset, uint32_t sel_margin) {
+uint32_t pmu_calc_new_sar_ratio(uint32_t adc_val, uint32_t offset, uint32_t sel_margin, uint32_t hysteresis) {
 
     // Equations - Credit: Seokhyeon Jeong, Zhiyoong Foo (06/16/2022)
     //-------------------------------------------------------
@@ -463,29 +471,41 @@ uint32_t pmu_calc_new_sar_ratio(uint32_t adc_val, uint32_t offset, uint32_t sel_
         // Add the ADC offset
         adc_val += offset;
 
-        // Margin
-        //---------------------------------
-        // sel_margin   Margin      1+(n/100) in binary
-        //---------------------------------
-        //  5           No margin   1.00000
-        //  4           50.00%      1.10000
-        //  3           25.00%      1.01000
-        //  2           12.50%      1.00100
-        //  1            6.25%      1.00010
-        //  0            3.13%      1.00001
-        //---------------------------------
-        if (sel_margin > 5) sel_margin = 5;
-        uint32_t factor = (0x1<<5)|(0x1<<sel_margin);   // factor = 1+(n/100) in 5-fixed-point representation
+        // Calculate the new SAR ratio
+        if (
+               (__pmu_last_effective_adc_val__==0)                       // The very first-time
+            || (adc_val < __pmu_last_effective_adc_val__)                // ADC values went down
+            || (adc_val > (__pmu_last_effective_adc_val__ + hysteresis)) // ADC values went up (+ hysteresis)
+        ) {
 
-        // Calculate the new sar ratio
-        new_val = div(  /*numer*/
-                            mult(/*num_a*/ 8192, /*num_b*/ factor), // Calculate 8192 x factor. Result is in 5-fixed-point representation
-                        /*denom*/
-                            adc_val<<5, // ADC value in 5-fixed-point representation
-                        /*n*/
-                            0           // Final result should be an integer
-                      );
-        new_val++;  // Increment by 1 (round-up)
+            // Margin
+            //---------------------------------
+            // sel_margin   Margin      1+(n/100) in binary
+            //---------------------------------
+            //  5           No margin   1.00000
+            //  4           50.00%      1.10000
+            //  3           25.00%      1.01000
+            //  2           12.50%      1.00100
+            //  1            6.25%      1.00010
+            //  0            3.13%      1.00001
+            //---------------------------------
+            if (sel_margin > 5) sel_margin = 5;
+            uint32_t factor = (0x1<<5)|(0x1<<sel_margin);   // factor = 1+(n/100) in 5-fixed-point representation
+
+            // Calculate the new sar ratio
+            new_val = div(  /*numer*/
+                                mult(/*num_a*/ 8192, /*num_b*/ factor), // Calculate 8192 x factor. Result is in 5-fixed-point representation
+                            /*denom*/
+                                adc_val<<5, // ADC value in 5-fixed-point representation
+                            /*n*/
+                                0           // Final result should be an integer
+                          );
+            new_val++;  // Increment by 1 (round-up)
+
+            // Updates __pmu_last_effective_adc_val__
+            if ((__pmu_last_effective_adc_val__==0) || (new_val != __pmu_sar_ratio__))
+                __pmu_last_effective_adc_val__ = adc_val;
+        }
 
     }
 
@@ -559,7 +579,8 @@ void pmu_init(void){
         ));
     
     // Initialize SAR Ratio
-    pmu_set_sar_ratio(0x4C); // See pmu_calc_new_sar_ratio()
+    pmu_set_sar_ratio(0x4C);        // See pmu_calc_new_sar_ratio()
+    __pmu_last_effective_adc_val__ = 0;
 
     // Disable ADC in Active
     // PMU ADC will be automatically reset when system wakes up

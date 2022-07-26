@@ -29,7 +29,7 @@
 //
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
-//  Apr 06 2022 - First commit
+//  Jul 26 2022 - First commit
 //-------------------------------------------------------------------------------------------
 // < AUTHOR > 
 //  Yejoong Kim (yejoong@cubeworks.io)
@@ -40,14 +40,6 @@
 //*******************************************************************************************
 
 #include "TMCv1r1.h"
-
-//*******************************************************************************************
-// DEVEL Mode
-//*******************************************************************************************
-// Enable 'DEVEL' for the following features:
-//      - Send debug messages
-//      - Use default values rather than grabbing the values from EEPROM
-#define DEVEL
 
 //*******************************************************************************************
 // FLAG BIT INDEXES
@@ -230,7 +222,9 @@ static void operation_init (void) {
         pmu_sel_margin = 1;
 
 
-        hysteresis = 0; // Hysteresis is NOT implemented!
+        hysteresis = 1; // hysteresis is used only when "decreasing" the SAR ratio (i.e., when the ADC value goes "up")
+                        // If (adc_val < previous_adc_value) -OR- (adc_val > (previous_adc_value + hysteresis)),
+                        // it changes the SAR ratio as needed. Otherwise, the SAR ratio does not change.
 
 
         //---------------------------------------------------------------------------------------
@@ -490,13 +484,12 @@ int main(void) {
                 //                                                );
                 uint32_t pmu_sar_ratio    = pmu_calc_new_sar_ratio( /*adc_val*/     pmu_adc_vbat_val, 
                                                                     /*offset*/      adc_offset, 
-                                                                    /*sel_margin*/  pmu_sel_margin
+                                                                    /*sel_margin*/  pmu_sel_margin,
+                                                                    /*hysteresis*/  hysteresis
                                                                     );
 
                 // Change the SAR ratio
-                if (pmu_sar_ratio != pmu_get_sar_ratio()) {
-                    pmu_set_sar_ratio(pmu_sar_ratio);
-                }
+                pmu_set_sar_ratio(pmu_sar_ratio);
 
                 nfc_i2c_byte_write( /*e2*/  0,
                                     /*addr*/eeprom_addr,
