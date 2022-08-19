@@ -531,6 +531,10 @@ uint32_t pmu_validate_adc_val (uint32_t adc_val);
 //                              it calculates the new SAR ratio and returns the value. 
 //                              Otherwise, it skips the calculation and returns the current SAR ratio.
 // Description:
+//
+//      <NOTE> I have tried several equations here.
+//              See TMCv1r1.c file for details.
+//
 //           Find out a new SAR Ratio based on 
 //           the current VBAT measurements, using the following equation:
 //              SAR_RATIO = ((8192 x (1+(n/100))) / (adc_val+offset)) + 1

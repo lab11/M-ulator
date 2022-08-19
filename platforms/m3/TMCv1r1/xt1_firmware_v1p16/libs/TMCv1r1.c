@@ -465,11 +465,12 @@ uint32_t pmu_calc_new_sar_ratio(uint32_t adc_val, uint32_t offset, uint32_t sel_
     // Get the current value
     uint32_t new_val = __pmu_sar_ratio__;
 
+    // Add the ADC offset
+    adc_val += offset;
+    adc_val &= 0xFF;
+
     // If ADC value is valid
     if (pmu_validate_adc_val(adc_val)) {
-
-        // Add the ADC offset
-        adc_val += offset;
 
         // Calculate the new SAR ratio
         if (
@@ -478,29 +479,302 @@ uint32_t pmu_calc_new_sar_ratio(uint32_t adc_val, uint32_t offset, uint32_t sel_
             || (adc_val > (__pmu_last_effective_adc_val__ + hysteresis)) // ADC values went up (+ hysteresis)
         ) {
 
-            // Margin
+            //// ORIGINAL Margin
+            ////---------------------------------
+            //// sel_margin   Margin      1+(n/100) in binary
+            ////---------------------------------
+            ////  5           No margin   1.00000
+            ////  4           50.00%      1.10000
+            ////  3           25.00%      1.01000
+            ////  2           12.50%      1.00100
+            ////  1            6.25%      1.00010
+            ////  0            3.13%      1.00001
+            ////---------------------------------
+            //if (sel_margin > 5) sel_margin = 5;
+            //uint32_t factor = (0x1<<5)|(0x1<<sel_margin);   // factor = 1+(n/100) in 5-fixed-point representation
+
+            // ORIGINAL METHOD ------------------------//
+            //new_val = div(  /*numer*/
+            //                    mult(/*num_a*/ 8192, /*num_b*/ factor), // Calculate 8192 x factor. Result is in 5-fixed-point representation
+            //                /*denom*/
+            //                    adc_val<<5, // ADC value in 5-fixed-point representation
+            //                /*n*/
+            //                    0           // Final result should be an integer
+            //              );
+            //new_val++;  // Increment by 1 (round-up)
+            //-------------------------------------------//
+
+
+            //// SECOND METHOD - SAR Compensation
+            //// SAR = (8192 x M / ADC) x (1 + beta / ADC)
+            ////  where M = 1+(n/100) and 'beta' is an empirical value (ADC = alpha x VBAT + beta)
+            //uint32_t a_n5 = mult(/*num_a*/ 8192, /*num_b*/ factor); // a = 8192 x M. This is a 5-fixed-point representation.
+            //uint32_t b_n5 = 0x6 << 5;                               // b = empirical 'beta' value from the equation ADC = alpha x VBAT + beta. This is a 5-fixed-point representation.
+            //uint32_t c_n5 = (0x1<<5) + div(/*numer*/b_n5, /*denom*/(adc_val<<5), /*n*/5); // c = 1 + beta/ADC. This is a 5-fixed-point representation.
+            //uint32_t d_n5 = div (/*numer*/a_n5, /*denom*/(adc_val<<5), /*n*/5);     // d = a / ADC = 8192 x M / ADC. This is a 5-fixed-point representation.
+
+            //new_val = mult(/*num_a*/d_n5, /*num_b*/c_n5) >> 10;
+            ////-------------------------------------------//
+
+
+            // NEW Margin
             //---------------------------------
             // sel_margin   Margin      1+(n/100) in binary
             //---------------------------------
-            //  5           No margin   1.00000
-            //  4           50.00%      1.10000
-            //  3           25.00%      1.01000
-            //  2           12.50%      1.00100
-            //  1            6.25%      1.00010
-            //  0            3.13%      1.00001
+            //  0           No margin   1.00_0000_0000 // invalid
             //---------------------------------
-            if (sel_margin > 5) sel_margin = 5;
-            uint32_t factor = (0x1<<5)|(0x1<<sel_margin);   // factor = 1+(n/100) in 5-fixed-point representation
 
-            // Calculate the new sar ratio
-            new_val = div(  /*numer*/
-                                mult(/*num_a*/ 8192, /*num_b*/ factor), // Calculate 8192 x factor. Result is in 5-fixed-point representation
-                            /*denom*/
-                                adc_val<<5, // ADC value in 5-fixed-point representation
-                            /*n*/
-                                0           // Final result should be an integer
-                          );
-            new_val++;  // Increment by 1 (round-up)
+            //---------------------------------
+            // sel_margin   Margin      1+(n/100) in binary
+            //---------------------------------
+            //  8           25.00%      1.01_0000_0000
+            //  7           20.00%      1.00_1100_1100
+            //  6           15.00%      1.00_1001_1001
+            //  5           10.00%      1.00_0110_0110
+            //  4            5.00%      1.00_0011_0011
+            //  3            0.00%      1.00_0000_0000
+            //  2           -5.00%      0.11_1100_1100
+            //  1          -10.00%      0.11_1001_1001
+            //  0           No margin   1.00_0000_0000 // invalid
+            //---------------------------------
+            // NOTE: With original equation (SAR=8192/ADC), the system crashes with M=0.9 at VBAT=2.95V. Active V1P2 is ~1.20V at VBAT=3.0V.
+
+            if (sel_margin  > 3) sel_margin = 3;
+            if (sel_margin == 0) sel_margin = 1;
+
+//            //-------------------------------------------//
+//            // EMPIRICAL CALIBRATION
+//            // It uses Excel's trendline to calculate a and b
+//            //----------------------------------------------------------
+//            // For V1P2 = a x VBAT + b
+//            // Margin=-10% makes the system crash with the original equation
+//            //----------------------------------------------------------------------------------------------------------
+//            // margin       -10%        -5%         0%          5%          6%          7%          10%         15%         20%         25%
+//            //----------------------------------------------------------------------------------------------------------
+//            // M            0.90        0.95        1.00        1.05        1.06        1.07        1.10        1.15        1.20        1.25
+//            // a            -           0.0457      0.0801      0.0857      0.0753      0.0931      0.1095      0.1044      0.1274      0.1498
+//            // b            -           1.1376      1.1020      1.1181      1.1523      1.1244      1.1209      1.194       1.1955      1.1947
+//            // vref         1.30        <-          <-          <-          <-          <-          <-          <-          <-          <-
+//            // v0           1.40        <-          <-          <-          <-          <-          <-          <-          <-          <-
+//            // M (10-np)    0x399       0x3CC       0x400       0x433       0x43D       0x447       0x466       0x499       0x4CC       0x500
+//            // a (16-np)    -           0x0BB2      0x1481      0x15F0      0x1346      0x17D5      0x1C08      0x1AB9      0x209D      0x2659
+//            // b (16-np)    -           0x12339     0x11A1C     0x11E3B     0x126FD     0x11FD8     0x11EF3     0x131A9     0x1320C     0x131D7
+//            // vref (16-np) 0x14CCC     <-          <-          <-          <-          <-          <-          <-          <-          <-
+//            // v0   (16-np) 0x16666     <-          <-          <-          <-          <-          <-          <-          <-          <-
+//            //----------------------------------------------------------------------------------------------------------
+//            // 2-point Fitting: It only considers V1P2@2V and V1P2@3V to calculate a and b.
+//            //----------------------------------------------------------------------------------------------------------
+//            // a            -           0.066       0.074       0.095       0.082       0.095       0.155       0.129       0.153       0.166
+//            // b            -           1.070       1.115       1.074       1.112       1.097       1.000       1.111       1.107       1.134
+//            // a (16-np)    -           0x10E5      0x12F1      0x1851      0x14FD      0x1851      0x27AE      0x2106      0x272B      0x2A7E
+//            // b (16-np)    -           0x111EB     0x11D70     0x112F1     0x11CAC     0x118D4     0x10000     0x11C6A     0x11B64     0x1224D
+//            //----------------------------------------------------------------------------------------------------------
+//            uint32_t M;     // M = 1+(n/100) in 10-fixed-point representation
+//            uint32_t a;     // value of a; 16-fixed-point representation
+//            uint32_t b;     // value of b; 16-fixed-point representation
+//            uint32_t vref;  // VREF=1.35 (fixed). 16-fixed-point representation
+//            uint32_t v0;    // V0=1.40 (fixed). Desired V1P2 value. 16-fixed-point representation
+//            
+//            //----------------------------------------------------------------------
+//            // 21-point fitting
+//            //----------------------------------------------------------------------
+//            if      (sel_margin==1) { M=0x433; a=0x15F0; b=0x11E3B;}    // M=1.05
+//            else if (sel_margin==2) { M=0x43D; a=0x1346; b=0x126FD;}    // M=1.06
+//            else if (sel_margin==3) { M=0x447; a=0x17D5; b=0x11FD8;}    // M=1.07
+//            if      (sel_margin==1) { M=0x399; a=0x0BB2; b=0x12339;}    // M=0.90
+//            else if (sel_margin==2) { M=0x3CC; a=0x0BB2; b=0x12339;}    // M=0.95
+//            else if (sel_margin==3) { M=0x400; a=0x1481; b=0x11A1C;}    // M=1.00
+//            else if (sel_margin==4) { M=0x433; a=0x15F0; b=0x11E3B;}    // M=1.05
+//            else if (sel_margin==5) { M=0x466; a=0x1C08; b=0x11EF3;}    // M=1.10
+//            else if (sel_margin==6) { M=0x499; a=0x1AB9; b=0x131A9;}    // M=1.15
+//            else if (sel_margin==7) { M=0x4CC; a=0x209D; b=0x1320C;}    // M=1.20
+//            else if (sel_margin==8) { M=0x500; a=0x2659; b=0x131D7;}    // M=1.25
+//            else                    { M=0x400; a=0x1481; b=0x11A1C;}    // invalid
+//            //----------------------------------------------------------------------
+//
+//            //----------------------------------------------------------------------
+//            // 2-point fitting
+//            //----------------------------------------------------------------------
+//            if      (sel_margin==1) { a=0x10E5; b=0x111EB;}    // M=0.90
+//            else if (sel_margin==2) { a=0x10E5; b=0x111EB;}    // M=0.95
+//            else if (sel_margin==3) { a=0x12F1; b=0x11D70;}    // M=1.00
+//            else if (sel_margin==4) { a=0x1851; b=0x112F1;}    // M=1.05
+//            else if (sel_margin==5) { a=0x27AE; b=0x10000;}    // M=1.10
+//            else if (sel_margin==6) { a=0x2106; b=0x11C6A;}    // M=1.15
+//            else if (sel_margin==7) { a=0x272B; b=0x11B64;}    // M=1.20
+//            else if (sel_margin==8) { a=0x2A7E; b=0x1224D;}    // M=1.25
+//            else                    { a=0x10E5; b=0x111EB;}    // invalid
+//            //----------------------------------------------------------------------
+//
+//            //vref = 0x13333; // 1.20; 16-point
+//            //vref = 0x14000; // 1.25; 16-point
+//            vref = 0x14CCC; // 1.30; 16-point
+//            //vref = 0x15999; // 1.35; 16-point
+//            v0   = 0x16666;
+
+//            new_val = div (/*numer*/  mult(/*num_a*/8192, /*num_b*/M),
+//                           /*denom*/  adc_val<<10,
+//                           /*n*/      0);
+
+//-----------------------------------------------------------------------------------------------
+// EMPIRICAL FITTING - 1
+//-----------------------------------------------------------------------------------------------
+//            // sar_orig = 8192 / ADC; 16-point
+//            uint32_t sar_orig = div (/*numer*/ 8192,
+//                                     /*denom*/ adc_val,
+//                                     /*n*/     16);
+//
+//            // a128 = 128 x a; 16-point
+//            uint32_t a128 = mult(/*num_a*/128, /*num_b*/a);
+//
+//            // mv0 = M x v0; 16-point
+//            uint32_t mv0 = mult(/*num_a*/M, /*num_b*/v0) >> 10; 
+//
+//            // term1 = M + (M x v0 - b) / VREF
+//            uint32_t term1;
+//            if (mv0 > b) {
+//                // term1 = M + (M x v0 - b) / VREF;    16-point
+//                term1 = (M << 6) + div (/*numer*/ mv0 - b,
+//                                        /*denom*/ vref,
+//                                        /*n*/     16);
+//            }
+//            else {
+//                // term1 = M - (b - M x v0) / VREF;    16-point
+//                term1 = (M << 6) - div (/*numer*/ b - mv0,
+//                                        /*denom*/ vref,
+//                                        /*n*/     16);
+//            }
+//
+//            // new_sar = sar_orig x term1 - 128a
+//            new_val = (mult(/*num_a*/sar_orig>>16, /*num_b*/term1) - a128) >> 16;
+
+//-----------------------------------------------------------------------------------------------
+// EMPIRICAL FITTING - 2
+//-----------------------------------------------------------------------------------------------
+
+//            // sar_orig = 8192 x M / ADC; integer
+//            uint32_t sar_orig = div (/*numer*/ 
+//                                                mult(/*num_a*/8192, /*num_b*/M),
+//                                     /*denom*/  adc_val<<10,
+//                                     /*n*/      0);
+//            
+//            // mv0x64 = 64 x M x v0; 16-fp
+//            uint32_t mv0x64 = (mult(/*num_a*/M, /*num_b*/v0) >> 10) << 6; 
+//
+//            // bx64 = 64 x b; 16-fp
+//            uint32_t bx64 = b << 6;
+//
+//            // axvrefxadc = a x vref x ADC; 16-fp
+//            uint32_t axvrefxadc = mult (/*num_a*/   a >> 8,
+//                                        /*num_b*/   mult(/*num_a*/vref, /*num_b*/adc_val) >> 8   // 16-fp
+//                                        );
+//
+//            // term1 = a x vref x ADC + 64b; 16-fp
+//            uint32_t term1 = axvrefxadc + bx64;
+//
+//            // factor = (64 x M x v0) / (a x vref x ADC + 64b); 16-fp
+//            uint32_t factor = div ( /*numer*/   mv0x64,
+//                                    /*denom*/   term1, 
+//                                    /*n*/       16
+//                                    );
+//
+//            // Final SAR = sar_orig x factor; integer
+//            new_val = mult(/*num_a*/sar_orig, /*num_b*/factor) >> 16;
+
+//-----------------------------------------------------------------------------------------------
+// LINEAR APPROXIMATION -> Not a negligible error
+//-----------------------------------------------------------------------------------------------
+// For Option 3 (Empirical Fitting - 2), 10% Margin, 2pt Meas. (a=0.155, b=1.000), VREF=1.30, V0=1.4
+//            new_val = (0xC7FD98/*199.990604 in 16-fp*/ - mult(/*num_a*/0xF498/*0.955454 w/ 16-fp)*/, /*num_b*/adc_val)) >> 16;
+
+//-----------------------------------------------------------------------------------------------
+// TAYLOR-2 (centered at 110) APPROXIMATION
+//-----------------------------------------------------------------------------------------------
+
+            uint32_t cent_val = 110;
+            uint32_t c0, c1, c2;
+
+//            // For Option 3 (Empirical Fitting - 2), 10% Margin, 2pt Meas. (a=0.155, b=1.000), VREF=1.30, V0=1.4
+//            // Equation: SAR = 36223.058253 x ADC^(-1.267595) for ADC=[95, 140]
+//            // Taylor Approximation:
+//            //          SAR = 93.61079931 - 1.078732556 x (ADC - 110) + 0.011118766 x (ADC - 110)^2
+//            //              = 0x5D9C5D    - 0x11427     x (ADC - 110) + 0x2D8       x (ADC - 110)^2  (hex numbers are in 16-fp)
+//            c0 = 0x5D9C5D; // 93.61079931 (16-fp)
+//            c1 = 0x11427;  // 1.078732556 (16-fp)
+//            c2 = 0x2D8;    // 0.011118766 (16-fp)
+
+//            // For Option 3 (Empirical Fitting - 2), 5% Margin, 2pt Meas. (a=0.095, b=1.074), VREF=1.30, V0=1.4
+//            // Equation: SAR = 22114.206806 x ADC^(-1.172637) for ADC=[95, 140]
+//            // Taylor Approximation:
+//            //          SAR = 89.30150385 - 0.951984069 x (ADC - 110) + 0.009401436 x (ADC - 110)^2
+//            //              = 0x594D2F    - 0xF3B5      x (ADC - 110) + 0x268       x (ADC - 110)^2  (hex numbers are in 16-fp)
+//            c0 = 0x594D2F; // 89.30150385 (16-fp)
+//            c1 = 0xF3B5;   // 0.951984069 (16-fp)
+//            c2 = 0x268;    // 0.009401436 (16-fp)
+
+//            // For Option 3 (Empirical Fitting - 2), 6% Margin, 2pt Meas. (a=0.082, b=1.112), VREF=1.30, V0=1.4
+//            // Equation: SAR = 19954.623963 x ADC^(-1.1482) for ADC=[95, 140]
+//            // Taylor Approximation:
+//            //          SAR = 90.38918426 - 0.94349874 x (ADC - 110) + 0.009212836 x (ADC - 110)^2
+//            //              = 0x5A63A1    - 0xF189     x (ADC - 110) + 0x25B       x (ADC - 110)^2  (hex numbers are in 16-fp)
+            if (sel_margin==2) {
+                c0 = 0x5A63A1;
+                c1 = 0xF189;
+                c2 = 0x25B;
+            }
+
+//            // For Option 3 (Empirical Fitting - 2), 7% Margin, 2pt Meas. (a=0.095, b=1.097), VREF=1.30, V0=1.4
+//            // Equation: SAR = 22245.330076 x ADC^(-1.169634) for ADC=[95, 140]
+//            // Taylor Approximation:
+//            //          SAR = 91.10801031 - 0.968754787 x (ADC - 110) + 0.009553833 x (ADC - 110)^2
+//            //              = 0x5B1BA6    - 0xF800      x (ADC - 110) + 0x272       x (ADC - 110)^2  (hex numbers are in 16-fp)
+            if (sel_margin==3) {
+                c0 = 0x5B1BA6;
+                c1 = 0xF800;
+                c2 = 0x272;
+            }
+
+//            // For Option 3 (Empirical Fitting - 2), 6% Margin, 21pt Meas. (a=0.0753, b=1.1523), VREF=1.30, V0=1.4
+//            // Equation: SAR = 18274.5732 x ADC^(-1.133598) for ADC=[95, 140]
+//            // Taylor Approximation:
+//            //          SAR = 88.66017371 - 0.913681778 x (ADC - 110) + 0.008861044 x (ADC - 110)^2
+//            //              = 0x58A901    - 0xE9E7      x (ADC - 110) + 0x244       x (ADC - 110)^2  (hex numbers are in 16-fp)
+            if (sel_margin==2) {
+                c0 = 0x58A901;
+                c1 = 0xE9E7;
+                c2 = 0x244;
+            }
+
+//            // For Option 3 (Empirical Fitting - 2), 7% Margin, 21pt Meas. (a=0.0931, b=1.1244), VREF=1.30, V0=1.4
+//            // Equation: SAR = 21229.29852 x ADC^(-1.163414) for ADC=[95, 140]
+//            // Taylor Approximation:
+//            //          SAR = 89.52633679 - 0.946874487 x (ADC - 110) + 0.00931128 x (ADC - 110)^2
+//            //              = 0x5986BE    - 0xF266      x (ADC - 110) + 0x262      x (ADC - 110)^2  (hex numbers are in 16-fp)
+            if (sel_margin==3) {
+                c0 = 0x5986BE;
+                c1 = 0xF266;
+                c2 = 0x262;
+            }
+
+
+            // Actual Implementation
+            uint32_t pwr1, pwr1_sign;
+            if (adc_val < cent_val) { pwr1_sign = 0; pwr1 = cent_val - adc_val;}
+            else                    { pwr1_sign = 1; pwr1 = adc_val - cent_val;}
+            uint32_t pwr2 = mult(/*num_a*/pwr1, /*num_b*/pwr1);
+
+            if (pwr1_sign) {
+                new_val = c0 - mult(/*num_a*/c1, /*num_b*/pwr1) + mult(/*num_a*/c2, /*num_b*/pwr2);
+            }
+            else {
+                new_val = c0 + mult(/*num_a*/c1, /*num_b*/pwr1) + mult(/*num_a*/c2, /*num_b*/pwr2);
+            }
+
+            new_val = new_val >> 16;
+
+//-----------------------------------------------------------------------------------------------
+            // Limit the SAR ratio
+            if (new_val < 64) new_val = 64;
 
             // Updates __pmu_last_effective_adc_val__
             if ((__pmu_last_effective_adc_val__==0) || (new_val != __pmu_sar_ratio__))

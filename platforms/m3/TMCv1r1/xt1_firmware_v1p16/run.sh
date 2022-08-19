@@ -9,6 +9,7 @@ make *_devel
 make tconv_test
 make math_test
 make eink_test
+make sar_vs_vdd
 sed -i "s/#define DEVEL/\/\/#define DEVEL/" include/TMCv1r1.h
 make clean_libs
 make *_nodevel
