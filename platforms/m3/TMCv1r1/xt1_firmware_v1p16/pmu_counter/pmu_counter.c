@@ -208,20 +208,18 @@ static void operation_init (void) {
         //adc_offset = 0xFFFFFFFA; // -6
         adc_offset = 0;
 
-
         //-------------------------
         // pmu_sel_margin   Margin     
         //-------------------------
-        //  5               No margin  
-        //  4               50.00%     
-        //  3               25.00%     
-        //  2               12.50%     
-        //  1                6.25%     
-        //  0                3.13%     
+        //  0               5%
+        //  1               6%
+        //  2               7%
+        //  3               8%
         //-------------------------
-        pmu_sel_margin = 1;
+        pmu_sel_margin = 2;
 
 
+        // Hysteresis
         hysteresis = 1; // hysteresis is used only when "decreasing" the SAR ratio (i.e., when the ADC value goes "up")
                         // If (adc_val < previous_adc_value) -OR- (adc_val > (previous_adc_value + hysteresis)),
                         // it changes the SAR ratio as needed. Otherwise, the SAR ratio does not change.
@@ -370,6 +368,62 @@ static uint32_t calc_new_sar_ratio(uint32_t adc_val, uint32_t offset, uint32_t n
     return new_val;
 }
 
+uint32_t calc_auto_sar_ratio (uint32_t adc_val, uint32_t offset, uint32_t sel_margin, uint32_t hysteresis) {
+
+    // Get the current value
+    uint32_t new_val = __pmu_sar_ratio__;
+
+    // Add the ADC offset
+    adc_val += offset;
+    adc_val &= 0xFF;
+
+    // If ADC value is valid
+    if (pmu_validate_adc_val(adc_val)) {
+
+        // Calculate the new SAR ratio
+        if (
+               (__pmu_last_effective_adc_val__==0)                       // The very first-time
+            || (adc_val < __pmu_last_effective_adc_val__)                // ADC values went down
+            || (adc_val > (__pmu_last_effective_adc_val__ + hysteresis)) // ADC values went up (+ hysteresis)
+        ) {
+
+            if (sel_margin  > 3) sel_margin = 3;
+
+            uint32_t cent_val = 115;
+            uint32_t c0, c1, c2;
+
+            if      (sel_margin==0)  {   c0 = 0x536778;  c1 = 0x0D5DB;    c2 = 0x1E5; }   // 5%
+            else if (sel_margin==1)  {   c0 = 0x545DCE;  c1 = 0x0D4AD;    c2 = 0x1E0; }   // 6%
+            else if (sel_margin==2)  {   c0 = 0x5516E1;  c1 = 0x0DC1D;    c2 = 0x1F5; }   // 7%
+            else if (sel_margin==3)  {   c0 = 0x559E24;  c1 = 0x0DC93;    c2 = 0x1F5; }   // 8%
+
+            // Actual Implementation
+            uint32_t pwr1, pwr1_sign;
+            if (adc_val < cent_val) { pwr1_sign = 0; pwr1 = cent_val - adc_val;}
+            else                    { pwr1_sign = 1; pwr1 = adc_val - cent_val;}
+            uint32_t pwr2 = mult(/*num_a*/pwr1, /*num_b*/pwr1);
+
+            if (pwr1_sign)
+                new_val = c0 - mult(/*num_a*/c1, /*num_b*/pwr1) + mult(/*num_a*/c2, /*num_b*/pwr2);
+            else
+                new_val = c0 + mult(/*num_a*/c1, /*num_b*/pwr1) + mult(/*num_a*/c2, /*num_b*/pwr2);
+
+            new_val = new_val >> 16;
+
+            // Limit the SAR ratio
+            if (new_val < 64) new_val = 64;
+
+            // Updates __pmu_last_effective_adc_val__
+            if ((__pmu_last_effective_adc_val__==0) || (new_val != __pmu_sar_ratio__))
+                __pmu_last_effective_adc_val__ = adc_val;
+        }
+
+    }
+
+    return new_val;
+
+}
+
 
 
 //*******************************************************************************************
@@ -482,7 +536,12 @@ int main(void) {
                 //                                                /*num_cons_meas*/   sel_margin,
                 //                                                /*hyst*/            hysteresis
                 //                                                );
-                uint32_t pmu_sar_ratio    = pmu_calc_new_sar_ratio( /*adc_val*/     pmu_adc_vbat_val, 
+                //uint32_t pmu_sar_ratio    = pmu_calc_new_sar_ratio( /*adc_val*/     pmu_adc_vbat_val, 
+                //                                                    /*offset*/      adc_offset, 
+                //                                                    /*sel_margin*/  pmu_sel_margin,
+                //                                                    /*hysteresis*/  hysteresis
+                //                                                    );
+                uint32_t pmu_sar_ratio    = calc_auto_sar_ratio   ( /*adc_val*/     pmu_adc_vbat_val, 
                                                                     /*offset*/      adc_offset, 
                                                                     /*sel_margin*/  pmu_sel_margin,
                                                                     /*hysteresis*/  hysteresis
