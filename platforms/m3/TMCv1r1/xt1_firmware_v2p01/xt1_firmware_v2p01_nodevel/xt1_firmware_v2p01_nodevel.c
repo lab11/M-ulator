@@ -2585,6 +2585,14 @@ static void update_system_configs(uint32_t use_default) {
     eid_crit_temp_threshold = eeprom_misc_config.eid_crit_temp_threshold ?
                                 600 :   // 0x1: -20C
                                 550 ;   // 0x0: -25C
+
+    #ifdef DEVEL
+        mbus_write_message32(0xE1, eeprom_eid_duration.high);
+        mbus_write_message32(0xE2, eeprom_eid_duration.mid);
+        mbus_write_message32(0xE3, eeprom_eid_duration.low);
+        mbus_write_message32(0xE4, (uint32_t) &eeprom_eid_duration.value);
+        mbus_write_message32(0xE5, (uint32_t) &eeprom_eid_duration);
+    #endif
 }
 
 static void debug_system_configs(void) {

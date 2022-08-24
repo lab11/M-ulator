@@ -1,28 +1,9 @@
 //*******************************************************************************************
 // XT1 (TMCv1r1) FIRMWARE
-// Version 2.01 (devel)
-// id   _devel   _std    description
-//  0   4070    3755    Original
-//  1   3957    3642    Add EXTRA_STAT to make HIGHEST/LOWEST_TEMP and HIGH/LOW_SAMPLE_0-3 optional
-//  2   3965    3645    Add eeprom_user_config_t
-//  3   3964    3645    Add eeprom_adc_th_t and eeprom_adc_t (UINT64_C to cast constants)
-//  4   3886    3567    Using upper/lower in eeprom_adc_th_t and eeprom_adc_t.
-//  5   3815    3494    Add eeprom_eid_threshold_t, eeprom_eid_duration_t, eeprom_eid_rfrsh_int_hr_t, eeprom_misc_config_t, eeprom_temp_calib_t
-//  6   3791    3475    Add upper/lower in eeprom_user_config_t
-//  7   3728    3419    Replace nfc_i2c_byte_read with nfc_i2c_word_read
-//  8   3622    3314    TMCv1r1: Add __USE_HCODE__ for PMU & NFC variables
-//                               gpio_set_dir_with_mask()    -> gpio_set_dir()
-//                               gpio_write_data_with_mask() -> gpio_write_data()
-//                               Add __i2c_password_t__
-//  9   3520    3212    TMCv1r1: Add __USE_HCODE__ for EID
-//                              Removed args from eid_init()
-// 10   3634    3324    Enable EXTRA_STAT
-// 11   3646    3337    Add excursion_status_t for EXTRA_STAT
-//                      Add 'use_default' arg in update_system_config() again.
-// ref  3487    3319    Firmware 1.15
+// Version 2.02 (standard)
 //------------------------
 #define HARDWARE_ID 0x01005843  // XT1r1 Hardware ID
-#define FIRMWARE_ID 0x0201      // [15:8] Integer part, [7:0]: Non-Integer part
+#define FIRMWARE_ID 0x0202      // [15:8] Integer part, [7:0]: Non-Integer part
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
 //  Mar 28 2022 - Version 1.00
@@ -281,7 +262,10 @@
 //  0xD5    {ptr}                               Word Read Information.
 //                                                  [31: 0] ptr (where the read data is stored)
 //  0xD6    0x1                                 Word Read operation has been successfully done
-//
+//  0xD7    ptr                                 Word Read Information
+//                                                  pointer address at which the 32-bit data is written
+//  0xD8    data                                Word Read Information
+//                                                  32-bit data which is written into the above pointer address
 //
 //  -----------------------------------------------------------------------------------------
 //  < I2C Token > - Defined in TMCv1r1.c
@@ -337,7 +321,7 @@
 // Enable 'DEVEL' for the following features:
 //      - Send debug messages
 //      - Use default values rather than grabbing the values from EEPROM
-#define DEVEL
+//#define DEVEL
 #ifdef DEVEL
     //#define DEVEL_SHORT_REFRESH
     //#define DEVEL_ENABLE_XO_PAD
@@ -427,7 +411,7 @@
 #define WAKEUP_BY_GPIO2     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 10))
 #define WAKEUP_BY_GPIO3     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 11))
 #define WAKEUP_BY_SNT       WAKEUP_BY_MBUS
-#define WAKEUP_BY_NFC       WAKEUP_BY_GPIO0
+#define WAKEUP_BY_NFC       WAKEUP_BY_GPIO1
 #define MAIN_CALLED         (WAKEUP_BY_MBUS && get_bit(wakeup_source, 7))
 
 //*******************************************************************************************
@@ -2585,14 +2569,6 @@ static void update_system_configs(uint32_t use_default) {
     eid_crit_temp_threshold = eeprom_misc_config.eid_crit_temp_threshold ?
                                 600 :   // 0x1: -20C
                                 550 ;   // 0x0: -25C
-
-    #ifdef DEVEL
-        mbus_write_message32(0xE1, eeprom_eid_duration.high);
-        mbus_write_message32(0xE2, eeprom_eid_duration.mid);
-        mbus_write_message32(0xE3, eeprom_eid_duration.low);
-        mbus_write_message32(0xE4, (uint32_t) &eeprom_eid_duration.value);
-        mbus_write_message32(0xE5, (uint32_t) &eeprom_eid_duration);
-    #endif
 }
 
 static void debug_system_configs(void) {

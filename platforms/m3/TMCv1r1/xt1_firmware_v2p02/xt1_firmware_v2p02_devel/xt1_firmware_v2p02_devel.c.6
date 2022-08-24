@@ -9,16 +9,7 @@
 //  4   3886    3567    Using upper/lower in eeprom_adc_th_t and eeprom_adc_t.
 //  5   3815    3494    Add eeprom_eid_threshold_t, eeprom_eid_duration_t, eeprom_eid_rfrsh_int_hr_t, eeprom_misc_config_t, eeprom_temp_calib_t
 //  6   3791    3475    Add upper/lower in eeprom_user_config_t
-//  7   3728    3419    Replace nfc_i2c_byte_read with nfc_i2c_word_read
-//  8   3622    3314    TMCv1r1: Add __USE_HCODE__ for PMU & NFC variables
-//                               gpio_set_dir_with_mask()    -> gpio_set_dir()
-//                               gpio_write_data_with_mask() -> gpio_write_data()
-//                               Add __i2c_password_t__
-//  9   3520    3212    TMCv1r1: Add __USE_HCODE__ for EID
-//                              Removed args from eid_init()
-// 10   3634    3324    Enable EXTRA_STAT
-// 11   3646    3337    Add excursion_status_t for EXTRA_STAT
-//                      Add 'use_default' arg in update_system_config() again.
+
 // ref  3487    3319    Firmware 1.15
 //------------------------
 #define HARDWARE_ID 0x01005843  // XT1r1 Hardware ID
@@ -348,7 +339,7 @@
 //*******************************************************************************************
 // EXTRA_STAT: If enabled, it stores the following stats:
 //                  HIGHEST_TEMP, LOWEST_TEMP, HIGH_SAMPLE_0-3, LOW_SAMPLE_0-3
-#define EXTRA_STAT
+//#define EXTRA_STAT
 
 //*******************************************************************************************
 // INITIALIZATION
@@ -662,34 +653,21 @@ volatile uint32_t num_calib_max_err_fails;          // Number of Calibration fai
 volatile uint32_t system_state;                     // System State (See comment on EEPROM_ADDR_SYSTEM_STATE)
 
 #ifdef EXTRA_STAT
-union eeprom_peak_temp_t {
-    struct {
-        unsigned max    :   16; // [15: 0] Highest Temperature observed
-        unsigned min    :   16; // [31:16] Lowest Temperature observed
-    };
-    uint32_t value;
-};
-volatile union eeprom_peak_temp_t eeprom_peak_temp;
-
-union excursion_status_t {
-    struct {
-        unsigned sid        :   17; // [16: 0] Sample ID
-        unsigned num        :   7;  // [23:17] Number of consecutive samples
-        unsigned addr       :   7;  // [30:24] Last updated EEPROM Byte Address
-        unsigned ongoing    :   1;  // [   31] If 1, it indicates that the current excursion is still ongoing.
-                                    //         If 0, it indicates that the streak of the previous excursion has ended.
-    };
-    uint32_t value;
-};
-volatile union excursion_status_t high_ex_status;
-volatile union excursion_status_t low_ex_status;
-
-volatile uint32_t high_sample_id_0; // 1st sample ID that violates the high threshold (valid only if bit[23]=1; bit[22:0] is the sample ID.)
-volatile uint32_t high_sample_id_1; // 2nd sample ID that violates the high threshold (valid only if bit[23]=1; bit[22:0] is the sample ID.)
-volatile uint32_t high_sample_id_2; // 3rd sample ID that violates the high threshold (valid only if bit[23]=1; bit[22:0] is the sample ID.)
-volatile uint32_t low_sample_id_0;  // 1st sample ID that violates the low threshold  (valid only if bit[23]=1; bit[22:0] is the sample ID.)
-volatile uint32_t low_sample_id_1;  // 2nd sample ID that violates the low threshold  (valid only if bit[23]=1; bit[22:0] is the sample ID.)
-volatile uint32_t low_sample_id_2;  // 3rd sample ID that violates the low threshold  (valid only if bit[23]=1; bit[22:0] is the sample ID.)
+volatile uint32_t highest_temp;                     // Highest Temperature observed
+volatile uint32_t lowest_temp;                      // Lowest Temperature observed
+volatile uint32_t high_sample_id_status;            // Status for updating high_sample_id_*
+volatile uint32_t low_sample_id_status;             // Status for updating low_sample_id_*
+                                                    // [   31] If 1, it indicates that the current excursion is still ongoing.
+                                                    //         If 0, it indicates that the streak of the previous excursion has ended.
+                                                    // [27:24] Last updated EEPROM Byte Address
+                                                    // [23:17] Number of consecutive samples
+                                                    // [16: 0] Sample ID
+volatile uint32_t high_sample_id_0;                 // 1st sample ID that violates the high threshold (valid only if bit[23]=1; bit[22:0] is the sample ID.)
+volatile uint32_t high_sample_id_1;                 // 2nd sample ID that violates the high threshold (valid only if bit[23]=1; bit[22:0] is the sample ID.)
+volatile uint32_t high_sample_id_2;                 // 3rd sample ID that violates the high threshold (valid only if bit[23]=1; bit[22:0] is the sample ID.)
+volatile uint32_t low_sample_id_0;                  // 1st sample ID that violates the low threshold  (valid only if bit[23]=1; bit[22:0] is the sample ID.)
+volatile uint32_t low_sample_id_1;                  // 2nd sample ID that violates the low threshold  (valid only if bit[23]=1; bit[22:0] is the sample ID.)
+volatile uint32_t low_sample_id_2;                  // 3rd sample ID that violates the low threshold  (valid only if bit[23]=1; bit[22:0] is the sample ID.)
 #endif
 
 
@@ -814,7 +792,7 @@ static uint32_t nfc_set_ack_with_data(uint32_t data);
 static uint32_t nfc_check_cmd(void);
 
 //--- EEPROM Variables
-static void update_system_configs(uint32_t use_default);
+static void update_system_configs(void);
 static void debug_system_configs(void);
 static void update_user_configs(void);
 static void update_aes_key(void);
@@ -1087,12 +1065,12 @@ static void operation_init (void) {
         for (i=0; i<4; i++) *(aes_key+i) = 0x0;
 
         // Initialize the EEPROM variables
-        update_system_configs(/*use_default*/1);
+        update_system_configs();
 
         //-------------------------------------------------
         // EID Settings
         //-------------------------------------------------
-	    eid_init();
+	    eid_init(/*ring*/0, /*te_div*/3, /*fd_div*/3, /*seg_div*/3);
 
         // Enable EID Crash Hander
         eid_enable_crash_handler();
@@ -1195,7 +1173,7 @@ static void set_system(uint32_t target) {
             reset_system_status();
 
             // Update/Reset System Configuration
-            update_system_configs(/*use_default*/0);
+            update_system_configs();
 
             // Reset the System State
             system_state = 0;
@@ -1309,9 +1287,10 @@ static void reset_system_status(void) {
         nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_LOW_SAMPLE_0,  /*data*/0, /*nb*/3);
         nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_LOW_SAMPLE_1,  /*data*/0, /*nb*/3);
         nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_LOW_SAMPLE_2,  /*data*/0, /*nb*/3);
-        eeprom_peak_temp.value = (/*min*/0xFFFF << 16) | (/*max*/0x0 << 0);
-        high_ex_status.value  = (/*ongoing*/0 << 31) | (/*addr*/(EEPROM_ADDR_HIGH_SAMPLE_0 - 3) << 24) | (/*num*/0 << 17) | (/*sid*/0 << 0);
-        low_ex_status.value   = (/*ongoing*/0 << 31) | (/*addr*/(EEPROM_ADDR_LOW_SAMPLE_0  - 3) << 24) | (/*num*/0 << 17) | (/*sid*/0 << 0);
+        highest_temp     = 0;
+        lowest_temp      = 0xFFFFFFFF;
+        high_sample_id_status = (EEPROM_ADDR_HIGH_SAMPLE_0 - 3) << 24;
+        low_sample_id_status  = (EEPROM_ADDR_LOW_SAMPLE_0  - 3) << 24;
         high_sample_id_0      = 0;
         high_sample_id_1      = 0;
         high_sample_id_2      = 0;
@@ -1655,66 +1634,68 @@ static void snt_operation (uint32_t update_eeprom) {
 
                 #ifdef EXTRA_STAT
                     // Update Measurement Snapshot
-                    if (buf_temp_val > eeprom_peak_temp.max) {
-                        eeprom_peak_temp.max = buf_temp_val;
-                        nfc_i2c_byte_write(/*e2*/0, /*addr*/ EEPROM_ADDR_HIGHEST_TEMP, /*data*/ eeprom_peak_temp.max, /*nb*/ 2);
+                    if (buf_temp_val > highest_temp) {
+                        highest_temp = buf_temp_val;
+                        nfc_i2c_byte_write(/*e2*/0, /*addr*/ EEPROM_ADDR_HIGHEST_TEMP, /*data*/ highest_temp, /*nb*/ 2);
                     }
-                    if (buf_temp_val < eeprom_peak_temp.min) {
-                        eeprom_peak_temp.min = buf_temp_val;
-                        nfc_i2c_byte_write(/*e2*/0, /*addr*/ EEPROM_ADDR_LOWEST_TEMP, /*data*/ eeprom_peak_temp.min, /*nb*/ 2);
+                    if (buf_temp_val < lowest_temp) {
+                        lowest_temp = buf_temp_val;
+                        nfc_i2c_byte_write(/*e2*/0, /*addr*/ EEPROM_ADDR_LOWEST_TEMP, /*data*/ lowest_temp, /*nb*/ 2);
                     }
 
                     //--- Update the streaks
-                    uint32_t curr_addr, curr_num;
+                    uint32_t curr_act, curr_addr, curr_num;
                     if (buf_temp_val > eeprom_user_config.high_temp_threshold) {
                         // End low_temp streak, if any.
-                        low_ex_status.ongoing = 0;
+                        low_sample_id_status &= 0x7FFFFFFF;
                         // Get the current status
-                        curr_addr = high_ex_status.addr;
-                        curr_num  = high_ex_status.num;
+                        curr_act  = get_bit (high_sample_id_status, 31);
+                        curr_addr = get_bits(high_sample_id_status, 30, 24);
+                        curr_num  = get_bits(high_sample_id_status, 23, 17);
                         // If there the current streak is ongoing
-                        if (high_ex_status.ongoing) {
+                        if (curr_act) {
                             if (curr_num != 0x3F) {
                                 curr_num++;
-                                high_ex_status.num = curr_num;
-                                nfc_i2c_byte_write(/*e2*/0, /*addr*/ curr_addr, /*data*/ high_ex_status.value, /*nb*/ 3);
+                                high_sample_id_status = set_bits(high_sample_id_status, 23, 17, curr_num);
+                                nfc_i2c_byte_write(/*e2*/0, /*addr*/ curr_addr, /*data*/ high_sample_id_status, /*nb*/ 3);
                             }
                         }
                         // If this is a start of a new streak
                         else {
                             if (curr_addr < EEPROM_ADDR_HIGH_SAMPLE_2) {
                                 curr_addr += 3;
-                                high_ex_status.value = (/*ongoing*/1 << 31) | (/*addr*/curr_addr << 24) | (/*num*/1 << 17) | (/*sid*/eeprom_sample_count - 1);
-                                nfc_i2c_byte_write(/*e2*/0, /*addr*/ curr_addr, /*data*/ high_ex_status.value, /*nb*/ 3);
+                                high_sample_id_status = (1 << 31) | (curr_addr << 24) | (1 << 17) | (eeprom_sample_count - 1);
+                                nfc_i2c_byte_write(/*e2*/0, /*addr*/ curr_addr, /*data*/ high_sample_id_status, /*nb*/ 3);
                             }
                         }
                     }
                     else if (buf_temp_val < eeprom_user_config.low_temp_threshold) {
                         // End high_temp streak, if any.
-                        high_ex_status.ongoing = 0;
+                        high_sample_id_status &= 0x7FFFFFFF;
                         // Get the current status
-                        curr_addr = low_ex_status.addr;
-                        curr_num  = low_ex_status.num;
+                        curr_act  = get_bit (low_sample_id_status, 31);
+                        curr_addr = get_bits(low_sample_id_status, 30, 24);
+                        curr_num  = get_bits(low_sample_id_status, 23, 17);
                         // If there the current streak is ongoing
-                        if (low_ex_status.ongoing) {
+                        if (curr_act) {
                             if (curr_num != 0x3F) {
                                 curr_num++;
-                                low_ex_status.num = curr_num;
-                                nfc_i2c_byte_write(/*e2*/0, /*addr*/ curr_addr, /*data*/ low_ex_status.value, /*nb*/ 3);
+                                low_sample_id_status = set_bits(low_sample_id_status, 23, 17, curr_num);
+                                nfc_i2c_byte_write(/*e2*/0, /*addr*/ curr_addr, /*data*/ low_sample_id_status, /*nb*/ 3);
                             }
                         }
                         // If this is a start of a new streak
                         else {
                             if (curr_addr < EEPROM_ADDR_LOW_SAMPLE_2) {
                                 curr_addr += 3;
-                                low_ex_status.value = (/*ongoing*/1 << 31) | (/*addr*/curr_addr << 24) | (/*num*/1 << 17) | (/*sid*/eeprom_sample_count - 1);
-                                nfc_i2c_byte_write(/*e2*/0, /*addr*/ curr_addr, /*data*/ low_ex_status.value, /*nb*/ 3);
+                                low_sample_id_status = (1 << 31) | (curr_addr << 24) | (1 << 17) | (eeprom_sample_count - 1);
+                                nfc_i2c_byte_write(/*e2*/0, /*addr*/ curr_addr, /*data*/ low_sample_id_status, /*nb*/ 3);
                             }
                         }
                     }
                     else {
-                        high_ex_status.ongoing = 0;
-                        low_ex_status.ongoing = 0;
+                        high_sample_id_status &= 0x7FFFFFFF;
+                        low_sample_id_status  &= 0x7FFFFFFF;
                     }
                 #endif
 
@@ -1747,14 +1728,8 @@ static void snt_operation (uint32_t update_eeprom) {
     else {
        //--- During Bootup, display the check mark to confirm that the bootup is done.
        if (!get_flag(FLAG_BOOTUP_DONE)) {
-            // If correctly initialized, display Check Only
-            if (!get_flag(FLAG_USE_DEFAULT))
-                eid_update_display(/*seg*/DISP_CHECK);
-            // If using the default values, display 'backslash' and 'tick'
-            else                           
-                eid_update_display(/*seg*/DISP_BACKSLASH|DISP_TICK);
-            // Update the flag
-            set_flag(FLAG_BOOTUP_DONE, 1);
+           eid_update_display(/*seg*/DISP_CHECK);
+           set_flag(FLAG_BOOTUP_DONE, 1);
        }
        else if (// Display has a pending update due to a critical temperature
                 (eid_updated_at_crit_temp && (snt_temp_val > eid_crit_temp_threshold))
@@ -2487,30 +2462,75 @@ uint32_t nfc_check_cmd(void) {
 // EEPROM Variables
 //-------------------------------------------------------------------
 
-static void update_system_configs(uint32_t use_default) {
-
-    uint32_t init_status;
+static void update_system_configs(void) {
 
     // Check INIT_STATUS
-    if (use_default==0) {
-        nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_INIT_STATUS, /*nw*/1, /*ptr*/&init_status);
-        init_status &= 0xFFFF;
-        if ((init_status!=INIT_TRIG_ALL) && (init_status!=INIT_TRIG_NOCAL))
-            use_default = 1;
+    uint32_t init_status = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_INIT_STATUS, /*nb*/2) & 0xFFFF;
+
+    // Get the real values from EEPROM
+    if ((init_status == INIT_TRIG_ALL) || (init_status == INIT_TRIG_NOCAL)) {
+
+        #ifdef DEVEL
+            mbus_write_message32(0x73, 0x2);
+        #endif
+
+        //--- VBAT and ADC
+        eeprom_adc_th.lower = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_T1, /*nb*/4); // EEPROM_ADDR_ADC_T1, EEPROM_ADDR_ADC_T2
+        eeprom_adc_th.upper = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_T3, /*nb*/4); // EEPROM_ADDR_ADC_T3, EEPROM_ADDR_ADC_T4
+        eeprom_adc.lower    = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_OFFSET_R1, /*nb*/4); // EEPROM_ADDR_ADC_OFFSET_R1, EEPROM_ADDR_ADC_OFFSET_R2, EEPROM_ADDR_ADC_OFFSET_R3, EEPROM_ADDR_ADC_OFFSET_R4
+        eeprom_adc.upper    = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_OFFSET_R5, /*nb*/3); // EEPROM_ADDR_ADC_OFFSET_R5, EEPROM_ADDR_ADC_LOW_VBAT, EEPROM_ADDR_ADC_CRIT_VBAT
+
+        //--- EID Configurations
+        eeprom_eid_threshold.value    = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_HIGH_TEMP_THRESHOLD, /*nb*/4); // EEPROM_ADDR_EID_HIGH_TEMP_THRESHOLD, EEPROM_ADDR_EID_LOW_TEMP_THRESHOLD
+        eeprom_eid_duration.lower     = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_DURATION_HIGH, /*nb*/4); // EEPROM_ADDR_EID_DURATION_HIGH, EEPROM_ADDR_EID_DURATION_MID
+        eeprom_eid_duration.upper     = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_DURATION_LOW, /*nb*/2);
+        eeprom_eid_rfrsh_int_hr.value = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_RFRSH_INT_HR_HIGH, /*nb*/3); // EEPROM_ADDR_EID_RFRSH_INT_HR_HIGH, EEPROM_ADDR_EID_RFRSH_INT_HR_MID, EEPROM_ADDR_EID_RFRSH_INT_HR_LOW
+
+        //--- Other Configurations
+        eeprom_misc_config.value = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_MISC_CONFIG, /*nb*/1);
+
+        if (init_status == INIT_TRIG_ALL) {
+
+            // Read the temperature coefficients
+            eeprom_temp_calib.a = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_A_WRITEONLY, /*nb*/4);
+            eeprom_temp_calib.b = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_B_WRITEONLY, /*nb*/4);
+
+            // Write the calibration info in the designated place
+            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_A, /*data*/eeprom_temp_calib.a, /*nb*/4);
+            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_B, /*data*/eeprom_temp_calib.b, /*nb*/4);
+
+            #ifdef DEVEL
+                mbus_write_message32(0x76, eeprom_temp_calib.a);
+                mbus_write_message32(0x77, eeprom_temp_calib.b);
+            #endif
+        }
+
+        // Reset INIT_STATUS
+        nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_INIT_STATUS, /*data*/INIT_RESET, /*nb*/2);
+
+        // Update the flag
+        set_flag(FLAG_USE_DEFAULT, 0);
     }
 
     // Use Default values
-    if (use_default) {
+    else {
 
         #ifdef DEVEL
             mbus_write_message32(0x73, 0x1);
         #endif
 
         //--- VBAT and ADC
-        //eeprom_adc_th.t* = 0;     // t1 ~ t4
+        //eeprom_adc_th.t1 = 0;
+        //eeprom_adc_th.t2 = 0;
+        //eeprom_adc_th.t3 = 0;
+        //eeprom_adc_th.t4 = 0;
         eeprom_adc_th.value = 0;
 
-        //eeprom_adc.offset_r* = 0; // r1 ~ r5
+        //eeprom_adc.offset_r1 = 0;
+        //eeprom_adc.offset_r2 = 0;
+        //eeprom_adc.offset_r3 = 0;
+        //eeprom_adc.offset_r4 = 0;
+        //eeprom_adc.offset_r5 = 0;
         //eeprom_adc.low_vbat  = 105;
         //eeprom_adc.crit_vbat = 95;
         eeprom_adc.value = 0x005F690000000000;
@@ -2538,61 +2558,13 @@ static void update_system_configs(uint32_t use_default) {
 
         // Update the flag
         set_flag(FLAG_USE_DEFAULT, 1);
-    }
 
-    // Get the real values from EEPROM
-    else {
-
-        #ifdef DEVEL
-            mbus_write_message32(0x73, 0x2);
-        #endif
-
-        //--- VBAT and ADC
-        nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_T1,        /*nw*/2, /*ptr*/ (volatile uint32_t *)&eeprom_adc_th.value);
-        nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_OFFSET_R1, /*nw*/2, /*ptr*/ (volatile uint32_t *)&eeprom_adc.value);
-
-        //--- EID Configurations
-        nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_HIGH_TEMP_THRESHOLD, /*nw*/1, /*ptr*/ (volatile uint32_t *)&eeprom_eid_threshold.value);
-        nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_DURATION_HIGH,       /*nw*/2, /*ptr*/ (volatile uint32_t *)&eeprom_eid_duration.value);
-        nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_RFRSH_INT_HR_HIGH,   /*nw*/1, /*ptr*/ (volatile uint32_t *)&eeprom_eid_rfrsh_int_hr.value);
-
-        //--- Other Configurations
-        nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_MISC_CONFIG,   /*nw*/1, /*ptr*/ (volatile uint32_t *)&eeprom_misc_config.value);
-
-        if (init_status == INIT_TRIG_ALL) {
-
-            // Read the temperature coefficients
-            nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_A_WRITEONLY, /*nw*/2, /*ptr*/ (volatile uint32_t *)&eeprom_temp_calib.value);
-
-            // Write the calibration info in the designated place
-            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_A, /*data*/eeprom_temp_calib.a, /*nb*/4);
-            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_B, /*data*/eeprom_temp_calib.b, /*nb*/4);
-
-            #ifdef DEVEL
-                mbus_write_message32(0x76, eeprom_temp_calib.a);
-                mbus_write_message32(0x77, eeprom_temp_calib.b);
-            #endif
-        }
-
-        // Reset INIT_STATUS
-        nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_INIT_STATUS, /*data*/INIT_RESET, /*nb*/2);
-
-        // Update the flag
-        set_flag(FLAG_USE_DEFAULT, 0);
     }
 
     // EID_CRIT_TEMP_THRESHOLD Configuration using 10x(T+80)
     eid_crit_temp_threshold = eeprom_misc_config.eid_crit_temp_threshold ?
                                 600 :   // 0x1: -20C
                                 550 ;   // 0x0: -25C
-
-    #ifdef DEVEL
-        mbus_write_message32(0xE1, eeprom_eid_duration.high);
-        mbus_write_message32(0xE2, eeprom_eid_duration.mid);
-        mbus_write_message32(0xE3, eeprom_eid_duration.low);
-        mbus_write_message32(0xE4, (uint32_t) &eeprom_eid_duration.value);
-        mbus_write_message32(0xE5, (uint32_t) &eeprom_eid_duration);
-    #endif
 }
 
 static void debug_system_configs(void) {
@@ -2658,8 +2630,8 @@ static void update_user_configs(void) {
         mbus_write_message32(0x73, 0x3);
     #endif
 
-    // Read the user configuration
-    nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_HIGH_TEMP_THRESHOLD, /*nw*/2, /*ptr*/ (volatile uint32_t *)&eeprom_user_config.value);
+    eeprom_user_config.lower = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_HIGH_TEMP_THRESHOLD, /*nb*/4); // EEPROM_ADDR_HIGH_TEMP_THRESHOLD, EEPROM_ADDR_LOW_TEMP_THRESHOLD
+    eeprom_user_config.upper = nfc_i2c_byte_read(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_MEAS_INTERVAL, /*nb*/4); // EEPROM_ADDR_TEMP_MEAS_INTERVAL, EEPROM_ADDR_TEMP_MEAS_START_DELAY
 
     // Set Flag
     set_flag(FLAG_CONFIG_SET, 1);
@@ -2677,7 +2649,7 @@ static void update_aes_key(void) {
     #endif
 
     // Read the key and store in aes_key
-    nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_AES_KEY, /*nw*/4, /*ptr*/aes_key);
+    nfc_i2c_word_read_volatile(/*e2*/0, /*addr*/EEPROM_ADDR_AES_KEY, /*nw*/4, /*ptr*/aes_key);
 
     // Erase the key in EEPROM
     nfc_i2c_word_pattern_write(/*e2*/0, /*addr*/EEPROM_ADDR_AES_KEY, /*data*/0x0, /*nw*/4);
@@ -2905,7 +2877,8 @@ void aes_encrypt_eeprom(uint32_t addr) {
     uint32_t text[4];
 
     // Read the raw data
-    nfc_i2c_word_read(/*e2*/0, /*addr*/addr, /*nw*/4, /*ptr*/text);
+    for (i=0; i<4; i++)
+        text[i] = nfc_i2c_byte_read(/*e2*/0, /*addr*/addr+(i<<2), /*nb*/4);
 
     // Encrypt
     aes_encrypt(/*pt*/text);
