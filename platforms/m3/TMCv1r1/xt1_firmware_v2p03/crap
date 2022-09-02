@@ -1,0 +1,123 @@
+#define SAMPLE_BUFFER_SIZE 2 // Number of qwords
+Buffer Init
+    for (i=0; i<SAMPLE_BUFFER_SIZE; i++) {
+        buffer[i].data_ptr = &buffer_data[i<<2];
+    }
+
+
+
+Data to store in EEPROM
+    <Common>
+        EEPROM_ADDR_LAST_ADC (2 bytes)
+            ADC and SAR values
+
+            nfc_i2c_byte_write(/*e2*/0, 
+                /*addr*/ EEPROM_ADDR_LAST_ADC,      // EEPROM_ADDR_LAST_ADC, EEPROM_ADDR_LAST_SAR
+                /*data*/ (pmu_sar_ratio<<8)|pmu_adc_vbat_val,
+                /* nb */ 2
+                );
+
+    <Normal>
+
+        EEPROM_ADDR_SAMPLE_COUNT (4 bytes)
+            sample count
+
+                nfc_i2c_byte_write(/*e2*/0, 
+                    /*addr*/ EEPROM_ADDR_SAMPLE_COUNT, 
+                    /*data*/ (last_qword_id<<23)|(eeprom_sample_cnt&0x7FFFFF),
+                    /* nb */ 4
+                    );
+
+
+        addr (16 bytes) - 4 words
+            actual data
+
+        EEPROM_ADDR_CRC (4 bytes)
+            CRC
+
+        addr (16 bytes) - 4 words
+            actual data
+
+        EEPROM_ADDR_CRC (4 bytes)
+            CRC
+
+
+                    // CASE I ) Entire bits go into the same qword (bit_pos_start>>7 == bit_pos_end>>7)
+                    if ((bit_pos_start>>7)==(bit_pos_end>>7)) {
+                        uint32_t end_at_bndry = ((bit_pos_end&0x7F)==0x7F);
+
+                        sub_qword(/*msb*/bit_pos_end&0x7F, /*lsb*/bit_pos_start&0x7F, /*value*/reverse_code);
+                        save_qword( /*addr*/ ((bit_pos_start>>7)<<4) + EEPROM_ADDR_DATA_RESET_VALUE,
+                                    /*commit_crc*/ end_at_bndry
+                                    );
+
+                        if (end_at_bndry) set_qword(/*pattern*/0xFFFFFFFF);
+                    }
+                    // CASE II) Bits go across different qwords (bit_pos_start>>7 != bit_pos_end>>7)
+                    else {
+                        sub_qword(/*msb*/127, /*lsb*/bit_pos_start&0x7F, /*value*/reverse_code);
+                        save_qword( /*addr*/ ((bit_pos_start>>7)<<4) + EEPROM_ADDR_DATA_RESET_VALUE,
+                                    /*commit_crc*/ 1
+                                    );
+
+                        set_qword(/*pattern*/0xFFFFFFFF);
+
+                        sub_qword(/*msb*/bit_pos_end&0x7F, /*lsb*/0, /*value*/reverse_code>>(128-(bit_pos_start&0x7F)));
+                        save_qword( /*addr*/ ((bit_pos_end>>7)<<4) + EEPROM_ADDR_DATA_RESET_VALUE,
+                                    /*commit_crc*/ 0    // Assuming that 'reverse_code' is less than 128 bits.
+                                    );
+                    }
+
+
+
+
+
+
+
+            void save_qword (uint32_t addr, uint32_t commit_crc) {
+            
+                uint32_t text[4];
+            
+                // Make a clone
+                copy_qword(/*targ*/text);
+            
+                // Encrypt
+                aes_encrypt(/*pt*/text);
+            
+                // Save into EEPROM
+                nfc_i2c_word_write( /* e2 */ 0,
+                                    /*addr*/ addr,
+                                    /*data*/ text,
+                                    /* nw */ 4
+                                    );
+                // Calculate CRC
+                uint32_t new_crc32 = calc_crc32_128(/*src*/text, /*crc_prev*/crc32);
+            
+                // Save CRC
+                nfc_i2c_byte_write( /* e2 */ 0,
+                                    /*addr*/ EEPROM_ADDR_CRC,
+                                    /*data*/ new_crc32,
+                                    /* nb */ 4
+                                    );
+            
+                // Commit CRC
+                if (commit_crc) crc32 = new_crc32;
+            
+            }
+
+
+
+
+
+
+
+
+
+        <Extra Stat>
+
+            EEPROM_ADDR_HIGHEST_TEMP (2 bytes)
+            EEPROM_ADDR_LOWEST_TEMP (2 bytes)
+            High Excursion Value (3 bytes)
+            Low Excursion Value (3 bytes)
+
+
