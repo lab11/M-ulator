@@ -215,6 +215,10 @@ static void operation_init (void) {
         //  1               6%
         //  2               7%
         //  3               8%
+        //  4               9%
+        //  5              10%
+        //  6              15%
+        //  7              20%
         //-------------------------
         pmu_sel_margin = 3;
 
@@ -387,7 +391,7 @@ uint32_t calc_auto_sar_ratio (uint32_t adc_val, uint32_t offset, uint32_t sel_ma
             || (adc_val > (__pmu_last_effective_adc_val__ + hysteresis)) // ADC values went up (+ hysteresis)
         ) {
 
-            if (sel_margin  > 3) sel_margin = 3;
+            if (sel_margin  > 7) sel_margin = 7;
 
             uint32_t cent_val = 115;
             uint32_t c0, c1, c2;
@@ -396,6 +400,10 @@ uint32_t calc_auto_sar_ratio (uint32_t adc_val, uint32_t offset, uint32_t sel_ma
             else if (sel_margin==1)  {   c0 = 0x545DCE;  c1 = 0x0D4AD;    c2 = 0x1E0; }   // 6%
             else if (sel_margin==2)  {   c0 = 0x5516E1;  c1 = 0x0DC1D;    c2 = 0x1F5; }   // 7%
             else if (sel_margin==3)  {   c0 = 0x559E24;  c1 = 0x0DC93;    c2 = 0x1F5; }   // 8%
+            else if (sel_margin==4)  {   c0 = 0x56A605;  c1 = 0x0E0B7;    c2 = 0x1FF; }   // 9%
+            else if (sel_margin==5)  {   c0 = 0x57A761;  c1 = 0x0E760;    c2 = 0x212; }   // 10%
+            else if (sel_margin==6)  {   c0 = 0x5BBA07;  c1 = 0x0EED2;    c2 = 0x220; }   // 15%
+            else if (sel_margin==7)  {   c0 = 0x602E9D;  c1 = 0x100C9;    c2 = 0x24E; }   // 20%
 
             // Actual Implementation
             uint32_t pwr1, pwr1_sign;
