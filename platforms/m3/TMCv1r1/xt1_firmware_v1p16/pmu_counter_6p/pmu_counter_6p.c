@@ -520,7 +520,6 @@ int main(void) {
 
         snt_prev = snt_curr;
         snt_curr = snt_read_wup_timer();
-        uint32_t pmu_adc_vbat_val = pmu_read_adc();
 
         // Waken up by PMU
         if (get_bit(wakeup_source, 4)) {
@@ -539,6 +538,17 @@ int main(void) {
                 eeprom_addr += 4;
 
                 // VBAT Measurement and SAR_RATIO Adjustment
+                uint32_t pmu_adc_vbat_val = pmu_read_adc();
+                //uint32_t pmu_sar_ratio    = calc_new_sar_ratio( /*adc_val*/         pmu_adc_vbat_val, 
+                //                                                /*offset*/          adc_offset, 
+                //                                                /*num_cons_meas*/   sel_margin,
+                //                                                /*hyst*/            hysteresis
+                //                                                );
+                //uint32_t pmu_sar_ratio    = pmu_calc_new_sar_ratio( /*adc_val*/     pmu_adc_vbat_val, 
+                //                                                    /*offset*/      adc_offset, 
+                //                                                    /*sel_margin*/  pmu_sel_margin,
+                //                                                    /*hysteresis*/  hysteresis
+                //                                                    );
                 uint32_t pmu_sar_ratio    = calc_auto_sar_ratio   ( /*adc_val*/     pmu_adc_vbat_val, 
                                                                     /*offset*/      adc_offset, 
                                                                     /*sel_margin*/  pmu_sel_margin,
@@ -559,36 +569,12 @@ int main(void) {
                 eeprom_addr += 4;
 
             }
-            // Something Wrong happened (Waken up by MBus, but it is not PMU)
+            // Something Wrong happened
             else {
-                nfc_i2c_byte_write( /*e2*/  0,
-                                    /*addr*/eeprom_addr,
-                                    /*data*/(0xF0<<24)|((snt_curr-snt_prev)&0xFFFFFF),
-                                    /*nb*/  4
-                                    );
-                eeprom_addr += 4;
-                nfc_i2c_byte_write( /*e2*/  0,
-                                    /*addr*/eeprom_addr,
-                                    /*data*/(pmu_get_sar_ratio()<<24)|(pmu_adc_vbat_val<<16)|(adc_offset&0xFFFF),
-                                    /*nb*/  4
-                                    );
-                eeprom_addr += 4;
             }
         }
-        // Error (It was not waken up by MBus)
+        // Error
         else {
-            nfc_i2c_byte_write( /*e2*/  0,
-                                /*addr*/eeprom_addr,
-                                /*data*/(0xFF<<24)|((snt_curr-snt_prev)&0xFFFFFF),
-                                /*nb*/  4
-                                );
-            eeprom_addr += 4;
-            nfc_i2c_byte_write( /*e2*/  0,
-                                /*addr*/eeprom_addr,
-                                /*data*/(pmu_get_sar_ratio()<<24)|(pmu_adc_vbat_val<<16)|(adc_offset&0xFFFF),
-                                /*nb*/  4
-                                );
-            eeprom_addr += 4;
         }
 
         // If waken up by GOC/EP
