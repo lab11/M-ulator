@@ -264,6 +264,7 @@ static void operation_init (void) {
 
         // Start the SNT counter and initialize snt_threshold
         snt_enable_wup_timer(/*auto_reset*/0);
+        snt_set_wup_timer(/*auto_reset*/0, /*threshold*/0xFFFFFFFF);
 
         //-------------------------------------------------
         // Go to Sleep
