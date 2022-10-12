@@ -253,10 +253,10 @@
 //
 //  --- status
 //  0xBA    {0x00, curr_state     }             status.curr_state      (committed)
-//          {0x02, activated      }             status.activated       (committed)
+//          {0x02, config_set     }             status.config_set      (committed)
 //          {0x03, memory_full    }             status.memory_full     (committed)
 //          {0x04, sample_type    }             status.sample_type     (committed)
-//          {0x05, config_set     }             status.config_set      (committed)
+//          {0x05, activated      }             status.activated       (committed)
 //          {0x06, unread_sample  }             status.unread_sample   (committed)
 //          {0x07, crash_triggered}             status.crash_triggered (committed)
 //          {0x08, aes_key_set    }             status.aes_key_set     (updated)
@@ -715,10 +715,10 @@ union status_t {
     struct {
         //--- Stored in EEPROM (SYSTEM_STATE)
         unsigned curr_state     :   2;  // [1:0] Current System State
-        unsigned activated      :   1;  // [  2] System Activated
+        unsigned config_set     :   1;  // [  2] Valid User Configs set using CONFIG command
         unsigned memory_full    :   1;  // [  3] Memory (EEPROM) Full
         unsigned sample_type    :   1;  // [  4] Sample Type (1: Raw, 0: Normal)
-        unsigned config_set     :   1;  // [  5] Valid User Configs set using CONFIG command
+        unsigned activated      :   1;  // [  5] System Activated
         unsigned unread_sample  :   1;  // [  6] Unread Samples
         unsigned crash_triggered:   1;  // [  7] Crash Handler Triggered
         //--- TMC-internal
@@ -1409,10 +1409,10 @@ static void commit_status(void) {
     nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/status.eeprom, /*nb*/1);
     #ifdef DEVEL
         mbus_write_message32(0xBA, (0x00 << 24) | status.curr_state);
-        mbus_write_message32(0xBA, (0x02 << 24) | status.activated);
+        mbus_write_message32(0xBA, (0x02 << 24) | status.config_set);
         mbus_write_message32(0xBA, (0x03 << 24) | status.memory_full);
         mbus_write_message32(0xBA, (0x04 << 24) | status.sample_type);
-        mbus_write_message32(0xBA, (0x05 << 24) | status.config_set);
+        mbus_write_message32(0xBA, (0x05 << 24) | status.activated);
         mbus_write_message32(0xBA, (0x06 << 24) | status.unread_sample);
         mbus_write_message32(0xBA, (0x07 << 24) | status.crash_triggered);
     #endif
