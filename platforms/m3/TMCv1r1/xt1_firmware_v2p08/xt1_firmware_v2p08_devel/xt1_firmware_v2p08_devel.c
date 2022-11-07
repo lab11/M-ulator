@@ -1,9 +1,9 @@
 //*******************************************************************************************
 // XT1 (TMCv1r1) FIRMWARE
-// Version 2.07 (devel)
+// Version 2.08 (devel)
 //------------------------
 #define HARDWARE_ID 0x01005843  // XT1r1 Hardware ID
-#define FIRMWARE_ID 0x0207      // [15:8] Integer part, [7:0]: Non-Integer part
+#define FIRMWARE_ID 0x0208      // [15:8] Integer part, [7:0]: Non-Integer part
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
 //  Mar 28 2022 - Version 1.00
@@ -286,7 +286,7 @@
 //  0xCC    snt_threshold_prev                  snt_threshold_prev in calc_ssls()
 //  0xCD    snt_curr_val                        snt_curr_val in calc_ssls()
 //  0xCE    snt_delta                           snt_delta in calc_ssls()
-//  0xCF    slss                                ssls calculated in calc_ssls()
+//  0xCF    ssls                                ssls calculated in calc_ssls()
 //  -----------------------------------------------------------------------------------------
 //  < I2C Transaction > - Defined in TMCv1r1.c
 //  -----------------------------------------------------------------------------------------
@@ -2087,7 +2087,8 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
 
         // Calculate the next threshold
         if (skip_calib) {
-            snt_threshold = snt_read_wup_timer() + snt_duration;
+            snt_threshold_prev = snt_read_wup_timer();
+            snt_threshold      = snt_threshold_prev + snt_duration;
             #ifdef DEVEL
                 mbus_write_message32(0xCA, snt_threshold);
             #endif
@@ -2112,7 +2113,8 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
         snt_duration = mult(/*num_a*/wakeup_interval_sec, /*num_b*/snt_freq);
 
         // Calculate the next threshold
-        snt_threshold = snt_read_wup_timer() + snt_duration;
+        snt_threshold_prev = snt_read_wup_timer();
+        snt_threshold      = snt_threshold_prev + snt_duration;
         #ifdef DEVEL
             mbus_write_message32(0xCB, snt_threshold);
         #endif
@@ -2533,11 +2535,16 @@ uint32_t nfc_check_cmd(void) {
         else if (cmd == CMD_STOP) {
 
             // STOP Successful
-            if (((xt1_state==XT1_PEND) || (xt1_state==XT1_ACTIVE)) && (     // Must be in PEND or ACTIVE state - AND
+            if (((xt1_state==XT1_PEND) || (xt1_state==XT1_ACTIVE)) && (      // Must be in PEND or ACTIVE state - AND
                     (status.sample_type==SAMPLE_RAW) || (status.aes_key_set) // Must be the Raw Sample -OR- AES KEY is set
                 )) {
-                nfc_set_ack(/*ack*/ACK);
+                // Dump pending data, if any.
+                if (status.sample_type==SAMPLE_NORMAL) 
+                    buffer_commit();
+                // SSLS and ACK
                 ssls = calc_ssls();
+                nfc_set_ack_with_data(/*data*/ssls);
+
                 return XT1_IDLE;
             }
 
@@ -3283,10 +3290,8 @@ int main(void) {
                     }
                 }
                 else if (cmd==CMD_STOP) {
-                    if (status.sample_type==SAMPLE_NORMAL) {
+                    if (status.sample_type==SAMPLE_NORMAL)
                         aes_encrypt_eeprom(/*addr*/EEPROM_ADDR_STOP_TIME);
-                        buffer_commit();
-                    }
                 }
             }
         }

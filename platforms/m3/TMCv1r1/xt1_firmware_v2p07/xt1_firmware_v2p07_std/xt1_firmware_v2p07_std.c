@@ -281,6 +281,12 @@
 //  0xC6    numer or denom or n                 Three messages. The first one is numer, the second one is denom, the third one is n.
 //  0xC7    result (n fixed-point)              result = numer / denom
 //
+//  0xCA    snt_threshold                       snt_threshold has been updated with snt_read_wup_timer() + snt_duration (xo fail w/ skip_calib)
+//  0xCB    snt_threshold                       snt_threshold has been updated with snt_read_wup_timer() + snt_duration (xo pass w/ skip_calib)
+//  0xCC    snt_threshold_prev                  snt_threshold_prev in calc_ssls()
+//  0xCD    snt_curr_val                        snt_curr_val in calc_ssls()
+//  0xCE    snt_delta                           snt_delta in calc_ssls()
+//  0xCF    slss                                ssls calculated in calc_ssls()
 //  -----------------------------------------------------------------------------------------
 //  < I2C Transaction > - Defined in TMCv1r1.c
 //  -----------------------------------------------------------------------------------------
@@ -2082,6 +2088,9 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
         // Calculate the next threshold
         if (skip_calib) {
             snt_threshold = snt_read_wup_timer() + snt_duration;
+            #ifdef DEVEL
+                mbus_write_message32(0xCA, snt_threshold);
+            #endif
         }
         else {
             snt_threshold += snt_duration;
@@ -2104,6 +2113,9 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
 
         // Calculate the next threshold
         snt_threshold = snt_read_wup_timer() + snt_duration;
+        #ifdef DEVEL
+            mbus_write_message32(0xCB, snt_threshold);
+        #endif
 
         // Update xo_val_curr
         xo_val_curr = get_xo_cnt();
@@ -2164,6 +2176,7 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
 
     #ifdef DEVEL
         mbus_write_message32(0x8B, snt_duration);
+        mbus_write_message32(0x8D, snt_threshold_prev);
         mbus_write_message32(0x8C, snt_threshold);
     #endif
 
@@ -2173,6 +2186,7 @@ static uint32_t calc_ssls(void) {
 
     uint32_t snt_curr_val = snt_read_wup_timer();
     uint32_t snt_delta;
+    uint32_t result;
 
     // CASE I) snt_curr_val > snt_threshold_prev
     if (snt_curr_val > snt_threshold_prev) {
@@ -2191,8 +2205,17 @@ static uint32_t calc_ssls(void) {
         }
     }
 
-    return (sub_sample_cnt << 6) - (sub_sample_cnt << 2)                    // Full-minutes (converted to seconds) from the last 'sample'
-            + (div(/*numer*/snt_delta, /*denom*/snt_freq, /*n*/0)&0xFFFF);  // Seconds from the last 'wake-up'
+    result = (sub_sample_cnt << 6) - (sub_sample_cnt << 2)                    // Full-minutes (converted to seconds) from the last 'sample'
+             + (div(/*numer*/snt_delta, /*denom*/snt_freq, /*n*/0)&0xFFFF);  // Seconds from the last 'wake-up'
+
+    #ifdef DEVEL
+        mbus_write_message32(0xCC, snt_threshold_prev);
+        mbus_write_message32(0xCD, snt_curr_val);
+        mbus_write_message32(0xCE, snt_delta);
+        mbus_write_message32(0xCF, result);
+    #endif
+
+    return result;
 }
 
 //-------------------------------------------------------------------
