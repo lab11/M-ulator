@@ -379,10 +379,8 @@
 //      - Send debug messages
 //      - Use default values rather than grabbing the values from EEPROM
 //#define DEVEL
-#ifdef DEVEL
-    //#define DEVEL_SHORT_REFRESH
-    //#define DEVEL_ENABLE_XO_PAD
-#endif
+//#define ENABLE_XO_PAD
+//#define USE_SHORT_REFRESH
 
 //*******************************************************************************************
 // INITIALIZATION
@@ -427,7 +425,7 @@
 
 // Pre-defined Wakeup Intervals
 #define WAKEUP_INTERVAL_ACTIVE      1   // (Default: 1) Wakeup Interval for XT1_ACTIVE (unit: minutes)
-#ifdef DEVEL_SHORT_REFRESH
+#ifdef USE_SHORT_REFRESH
     #define WAKEUP_INTERVAL_IDLE    2   // (Default: 720) Wakeup Interval for XT1_IDLE (unit: minutes)
 #else
     #define WAKEUP_INTERVAL_IDLE    720    // (Default: 720) Wakeup Interval for XT1_IDLE (unit: minutes)
@@ -1112,7 +1110,7 @@ static void operation_init (void) {
         set_xo_timer(/*mode*/0, /*threshold*/0, /*wreq_en*/0, /*irq_en*/0);
         start_xo_cnt();
 
-    #ifdef DEVEL_ENABLE_XO_PAD
+    #ifdef ENABLE_XO_PAD
         start_xo_cout();
     #endif
 
@@ -2250,9 +2248,10 @@ static void eid_update_configs(void) {
     }
 
     // Set the refresh interval
-    #ifdef DEVEL_SHORT_REFRESH
+    #ifdef USE_SHORT_REFRESH
         disp_refresh_interval = new_val; // Dummy line to avoid the warning 'new_val set but not used'
-        disp_refresh_interval = (WAKEUP_INTERVAL_IDLE<<1);
+        //disp_refresh_interval = (WAKEUP_INTERVAL_IDLE<<1);
+        disp_refresh_interval = WAKEUP_INTERVAL_IDLE;
     #else
         disp_refresh_interval = (new_val << 6) - (new_val << 2); // convert hr to min
     #endif

@@ -1,9 +1,9 @@
 //*******************************************************************************************
 // XT1 (TMCv1r1) FIRMWARE
-// Version 2.08 (devel)
+// Version 2.09 (devel)
 //------------------------
 #define HARDWARE_ID 0x01005843  // XT1r1 Hardware ID
-#define FIRMWARE_ID 0x0208      // [15:8] Integer part, [7:0]: Non-Integer part
+#define FIRMWARE_ID 0x0209      // [15:8] Integer part, [7:0]: Non-Integer part
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
 //  Mar 28 2022 - Version 1.00
@@ -160,7 +160,9 @@
 //  -----------------------------------------------------------------------------------------
 //  0x90    value                               Measured Temperature
 //                                                  [31:16] Raw code (*SNT_TARGET_REG_ADDR)
-//                                                  [15: 0] After the conversion (snt_temp_val) "10 x (T + 80)" where T is the actual temperature in celsius degree.
+//                                                  [15: 0] After the conversion (temp.val) "10 x (T + 80)" where T is the actual temperature in celsius degree.
+//  0x91    0x00000000                          meas_temp_adc() is called
+//  0x91    0xFFFFFFFF                          Skipped the temperature measurement since meas.valid=1
 //  0x92    {0x1, sub_sample_cnt}               Sub-sample count
 //  0x92    {0x2, sub_sample_sum}               Current sum of the sub-samples
 //  0x92    {0x3, temp_sample_cnt}              Temp sample count (NOTE: Temp Sample ID = temp_sample_cnt - 1)
@@ -168,26 +170,26 @@
 //                                                  [   28] Critical VBAT (crit_vbat)
 //                                                  [   24] Low VBAT (low_vbat)
 //                                                  [23:16] ADC Offset (adc_offset)
-//                                                  [15: 8] SAR Ratio (pmu_sar_ratio)
-//                                                  [ 7: 0] ADC Reading (pmu_adc_vbat_val)
+//                                                  [15: 8] SAR Ratio (meas.sar)
+//                                                  [ 7: 0] ADC Reading (meas.adc)
 //  0x94    value                               PMU SAR Ratio is changing
 //                                                  [15: 8] Previous SAR Ratio
 //                                                  [ 7: 0] New SAR Ratio
 //  0x95    value                               Temperature Data read from the write buffer
-//                                                  [15: 0] Temperature Data read from the write buffer (snt_temp_val)
+//                                                  [15: 0] Temperature Data read from the write buffer (temp.val)
 //  0x96    comp_sample_id                      Compression Sample ID
 //  0x97    value                               (Reversed) Raw/Encoded data to be stored
 //                                                  [31:24] Number of bits
 //                                                  [23: 0] Reversed code
-//  0x9A    value                               Measured Temperature (from snt_get_temp_raw())
+//  0x9A    value                               [DEPRECATED] Measured Temperature (from snt_get_temp_raw())
 //                                                  [15: 0] Raw code (*SNT_TARGET_REG_ADDR)
-//  0x9B    value                               Measured Temperature (from snt_get_temp())
-//                                                  [15: 0] After the conversion (snt_temp_val) "10 x (T + 80)" where T is the actual temperature in celsius degree.
+//  0x9B    value                               [DEPRECATED] Measured Temperature (from snt_get_temp())
+//                                                  [15: 0] After the conversion (temp.val) "10 x (T + 80)" where T is the actual temperature in celsius degree.
 //  0x9C    value                               Averaged sample value
-//  0x9D    {0x00, tmp_exc.num_cons_hi}         snt_temp_val exceeds the high threshold. Alarm not yet triggered.
-//  0x9D    {0x0F, tmp_exc.num_cons_hi}         snt_temp_val exceeds the high threshold. A new alarm has been triggered.
-//  0x9D    {0x10, tmp_exc.num_cons_lo}         snt_temp_val exceeds the low threshold. Alarm not yet triggered.
-//  0x9D    {0x1F, tmp_exc.num_cons_lo}         snt_temp_val exceeds the low threshold. A new alarm has been triggered.
+//  0x9D    {0x00, tmp_exc.num_cons_hi}         temp.val exceeds the high threshold. Alarm not yet triggered.
+//  0x9D    {0x0F, tmp_exc.num_cons_hi}         temp.val exceeds the high threshold. A new alarm has been triggered.
+//  0x9D    {0x10, tmp_exc.num_cons_lo}         temp.val exceeds the low threshold. Alarm not yet triggered.
+//  0x9D    {0x1F, tmp_exc.num_cons_lo}         temp.val exceeds the low threshold. A new alarm has been triggered.
 //  0x9E    value                               Current alarm status
 //                                                  0xFFFFFFFF: High Alarm && Low Alarm
 //                                                  0xFFFF0000: High Alarm Only
@@ -197,7 +199,7 @@
 //  <--- Below are valid only when [Raw Sample] is enabled --->
 //
 //  0x9C    byte_addr                           [Raw Sample] Byte Address
-//  0x9D    snt_temp_val                        [Raw Sample] Raw Temperature Data
+//  0x9D    temp.val                        [Raw Sample] Raw Temperature Data
 //  0x9E    sar_adc_addr                        [Raw Sample] Byte Address to store SAR/ADC (or XO FAIL) value
 //  0x9F    sar_adc_data                        [Raw Sample] SAR/ADC (or XO FAIL) data
 //
@@ -213,12 +215,14 @@
 //                                                  [31:16] EID Duration
 //                                                  [15: 0] Refresh Interval (minutes)
 //  0xA3    0x00000000                          Critical Temperature. Display did not update, although XT1 behaves like it did.
-//  0xA4    0x00000001                          eid_update_display() requires a new temperature measurement
+//  0xA4    0x00000001                          [DEPRECATED] eid_update_display() requires a new temperature measurement
 //  0xA5    eid_updated_at_low_temp             1 indicates that the display has been updated at a low temperature
 //  0xA6    eid_updated_at_crit_temp            1 indicates that the display has a pending update due to a critical temperature
 //  0xA7    eid_update_type                     Update type used for the display update
 //                                                  0x0: Global Update
 //                                                  0x1: Local Update
+//  0xA8    0x00000000                          display_low_batt() is called.
+//  0xA8    0xFFFFFFFF                          Does not have to display LOW_BATT since it is already on.
 //
 //  -----------------------------------------------------------------------------------------
 //  < NFC and EEPROM >
@@ -234,6 +238,7 @@
 //                                                              0x04: CONFIG
 //                                                              0x07: HRESET      
 //                                                              0x08: NEWKEY      
+//                                                              0x09: NEWAB
 //                                                              0x10: DISPLAY     
 //                                                              0x1E: SRESET       
 //                                                              0x1F: DEBUG       
@@ -381,6 +386,7 @@
 #define DEVEL
 //#define ENABLE_XO_PAD
 //#define USE_SHORT_REFRESH
+//#define ENABLE_DEBUG_SYSTEM_CONFIG
 
 //*******************************************************************************************
 // INITIALIZATION
@@ -473,6 +479,7 @@
 #define CMD_CONFIG      0x04
 #define CMD_HRESET      0x07
 #define CMD_NEWKEY      0x08
+#define CMD_NEWAB       0x09
 #define CMD_DISPLAY     0x10
 #define CMD_SRESET      0x1E
 #define CMD_DEBUG       0x1F
@@ -786,11 +793,50 @@ volatile uint32_t crc32;                    // Adler-32 CRC Value
 //--- Wakeups
 volatile uint32_t wakeup_source;            // Wakeup Source. Updated each time the system wakes up. See 'WAKEUP_SOURCE definition'.
 
-//--- SNT & Temperature Measurement
+//--- System State
 volatile uint32_t xt1_state;                // TMP state
-volatile uint32_t snt_temp_raw;             // Latest temp measurement: Raw code
-volatile uint32_t snt_temp_val;             // Latest temp measurement: 10x(T+80)
-volatile uint32_t snt_temp_valid;           // 1 indicates that the snt_temp_raw has been measured in the current wakeup session.
+
+//--- Temperatre & ADC
+union temp_t {
+    struct {
+        unsigned val        : 16;   // [ 0:15] Latest temp measurement: 10x(T+80)
+        unsigned raw        : 16;   // [31:16] Latest temp measurement: Raw code
+    };
+    uint32_t value;
+};
+
+volatile union temp_t temp;
+
+union meas_t {
+    struct {
+        unsigned adc        : 8;    // [ 7: 0] Latest PMU ADC Reading
+        unsigned sar        : 8;    // [15: 8] Suggested new SAR Ratio
+        unsigned low_vbat   : 1;    // [   16] Low VBAT Detected
+        unsigned crit_vbat  : 1;    // [   17] Critical VBAT Detected
+        unsigned valid      : 1;    // [   18] 1 indicates temp and meas have been updated during the current active session.
+    };
+    uint32_t value;
+};
+
+volatile union meas_t meas;
+
+volatile uint32_t sar_adc_addr;             // For debugging (temp sensor calibration)
+volatile uint32_t sar_adc_data;             // For debugging (temp sensor calibration)
+                                            // [   15] XO Fail
+                                            // [   14] Max Error Fail
+                                            // [13: 8] SAR_RATIO - 64
+                                            // [ 7: 0] ADC Value
+
+union override_t {
+    struct {
+        unsigned sar_margin :  4;   // [ 3: 0] SAR Margin
+        unsigned dummy      : 27;   // [30: 4] Dummy
+        unsigned enable     :  1;   // [   31] Override enable
+    };
+    uint32_t value;
+};
+
+volatile union override_t override;
 
 //--- Display
 volatile uint32_t disp_refresh_interval;    // (Unit: min) Display Refresh Interval. 0 means 'do not refresh'.
@@ -827,17 +873,6 @@ volatile uint32_t buffer_data[4];
 volatile uint32_t buffer_crc32;
 
 
-//--- PMU ADC and SAR Ratio
-volatile uint32_t pmu_adc_vbat_val;         // Latest PMU ADC Reading
-volatile uint32_t pmu_sar_ratio;            // Suggested new SAR Ratio
-
-volatile uint32_t sar_adc_addr;             // For debugging (temp sensor calibration)
-volatile uint32_t sar_adc_data;             // For debugging (temp sensor calibration)
-                                            // [   15] XO Fail
-                                            // [   14] Max Error Fail
-                                            // [13: 8] SAR_RATIO - 64
-                                            // [ 7: 0] ADC Value
-
 //*******************************************************************************************
 // FUNCTIONS DECLARATIONS
 //*******************************************************************************************
@@ -854,9 +889,9 @@ static void operation_init (void);
 static void set_system(uint32_t target);
 static void reset_system_status(uint32_t target);
 static void commit_status(void);
-static uint32_t snt_get_temp_raw (void);
-static uint32_t snt_get_temp (uint32_t temp_raw);
+static void meas_temp_adc (void);
 static void snt_operation (void);
+static void display_low_batt (void);
 
 //--- XO & SNT Timers
 static uint32_t get_xo_cnt(void);
@@ -876,9 +911,12 @@ static uint32_t nfc_check_cmd(void);
 
 //--- EEPROM Variables
 static void update_system_configs(uint32_t use_default);
-static void debug_system_configs(void);
+static void update_temp_coefficients(void);
 static void update_user_configs(void);
 static void update_aes_key(void);
+#ifdef ENABLE_DEBUG_SYSTEM_CONFIG
+static void debug_system_configs(void);
+#endif
 
 //--- Write Buffer
 static void buffer_init  (void);
@@ -924,6 +962,10 @@ static void operation_sleep (uint32_t check_snt) {
 
     // Power off NFC
     nfc_power_off();
+
+    // Make sure we have done the PMU adjustmenet
+    meas_temp_adc();
+    if (meas.low_vbat) display_low_batt();
 
     // Clear all pending IRQs; otherwise, PREv22E replaces the sleep msg with a selective wakeup msg
     *NVIC_ICER = 0xFFFFFFFF;
@@ -1172,7 +1214,7 @@ static void operation_init (void) {
         //-------------------------------------------------
         // this provides the information for the very first SNT calibration
         snt_freq = 1500;
-        snt_duration = 15000;
+        snt_duration = 30000;   // supposed to be ~20 seconds.
         snt_threshold_prev = snt_read_wup_timer();
         snt_threshold = snt_threshold_prev + snt_duration;
         xo_val_curr = get_xo_cnt();
@@ -1225,7 +1267,8 @@ static void set_system(uint32_t target) {
         eid_updated_at_low_temp  = 0;
         eid_updated_at_crit_temp = 0;
         eid_update_type          = EID_GLOBAL;
-        snt_temp_valid           = 0;
+        meas.valid               = 0;
+        override.enable          = 0;
         ssls                     = 0;
 
         // Display all segments
@@ -1345,8 +1388,7 @@ static void reset_system_status(uint32_t target) {
     #endif
 
     // Critical Variables
-    snt_temp_raw        = 2534; // Assume 20C by default
-    snt_temp_val        = 1000; // Assume 20C by default
+    temp.value          = (2534 << 16) | (1000); // Assume 20C by default
     snt_threshold_prev  = 0;
     snt_threshold       = 0;
 
@@ -1422,101 +1464,113 @@ static void commit_status(void) {
     #endif
 }
 
-static uint32_t snt_get_temp_raw (void) {
-
-    // Enable REG IRQ
-    *NVIC_ISER = (0x1 << (SNT_TARGET_REG_IDX+8));
-
-    // Turn on SNT Temperature Sensor
-    snt_temp_sensor_power_on();
-
-    // Reset the Temp Sensor
-    snt_temp_sensor_reset();
-
-    // Release the reset for the Temp Sensor
-    snt_temp_sensor_start();
-
-    // Wait
-    WFI();
-
-    // Update snt_temp_valid
-    snt_temp_valid = 1;
-
+static void meas_temp_adc (void) {
     #ifdef DEVEL
-        mbus_write_message32(0x9A, *SNT_TARGET_REG_ADDR);
+        mbus_write_message32(0x91, 0x00000000);
     #endif
 
-    // Return the measurement
-    return (*SNT_TARGET_REG_ADDR) & 0xFFFF;
-}
+    if (!meas.valid) {
 
-static uint32_t snt_get_temp (uint32_t temp_raw) {
-    // NOTE: snt_temp_val is "10 x (T + 80)" where T is the actual temperature in celsius degree
-    uint32_t result = tconv(/* dout */ temp_raw,
+        // Enable REG IRQ
+        *NVIC_ISER = (0x1 << (SNT_TARGET_REG_IDX+8));
+
+        // Turn on SNT Temperature Sensor
+        snt_temp_sensor_power_on();
+        snt_temp_sensor_reset();
+
+        // Release the reset for the Temp Sensor
+        snt_temp_sensor_start();
+
+        // Wait
+        WFI();
+
+        // Raw value
+        temp.raw = (*SNT_TARGET_REG_ADDR) & 0xFFFF;
+
+        // NOTE: temp.val is "10 x (T + 80)" where T is the actual temperature in celsius degree
+        temp.val = tconv(   /* dout */ temp.raw,
                             /*   a  */ eeprom_temp_calib.a, 
                             /*   b  */ eeprom_temp_calib.b, 
                             /*offset*/ COMP_OFFSET_K);
 
+        // Turn off the temperature sensor
+        snt_temp_sensor_reset();
+        snt_temp_sensor_power_off();
+
+        // Determine ADC Offset, ADC Low VBAT threshold, and ADC Critical VBAT threshold
+        uint32_t adc_offset;
+        if      (temp.val > eeprom_adc_th.t1) { adc_offset = eeprom_adc.offset_r1; }
+        else if (temp.val > eeprom_adc_th.t2) { adc_offset = eeprom_adc.offset_r2; }
+        else if (temp.val > eeprom_adc_th.t3) { adc_offset = eeprom_adc.offset_r3; }
+        else if (temp.val > eeprom_adc_th.t4) { adc_offset = eeprom_adc.offset_r4; }
+        else                                      { adc_offset = eeprom_adc.offset_r5; }
+
+        // VBAT Measurement and SAR_RATIO Adjustment
+        meas.adc = pmu_read_adc();
+        meas.sar = pmu_calc_new_sar_ratio(  /*meas.adc*/      meas.adc,
+                                           /*offset*/       adc_offset, 
+                                           /*sel_margin*/   override.enable ? 
+                                                                override.sar_margin : 
+                                                                eeprom_misc_config.pmu_adc_sar_margin,
+                                           /*hysteresis*/   eeprom_misc_config.pmu_adc_sar_hysteresis
+                                        );
+
+        meas.low_vbat  = pmu_check_low_vbat (    /*meas.adc*/         meas.adc,
+                                                /*offset*/          adc_offset, 
+                                                /*threshold*/       eeprom_adc.low_vbat,  
+                                                /*num_cons_meas*/   eeprom_misc_config.pmu_num_cons_meas
+                                                );
+
+        meas.crit_vbat = pmu_check_crit_vbat(    /*meas.adc*/         meas.adc,
+                                                /*offset*/          adc_offset, 
+                                                /*threshold*/       eeprom_adc.crit_vbat, 
+                                                /*num_cons_meas*/   eeprom_misc_config.pmu_num_cons_meas
+                                               );
+
+        #ifdef DEVEL
+            mbus_write_message32(0x90, temp.value);
+            mbus_write_message32(0x93, (meas.crit_vbat<<28)|(meas.low_vbat<<24)|(adc_offset<<16)|(meas.sar<<8)|(meas.adc));
+        #endif
+
+        // Change the SAR ratio
+        pmu_set_sar_ratio(meas.sar);
+
+        meas.valid = 1;
+
+        /////////////////////////////////////////////////////////////////
+        // EID Crash Handler
+        //---------------------------------------------------------------
+        //--- If VBAT is too low, trigger the EID Watchdog (System Crash)
+        if (meas.crit_vbat) {
+
+            // Set system
+            set_system(/*target*/XT1_CRASH);
+
+            // Trigger the Crash Handler
+            eid_trigger_crash();
+
+            // Go to indefinite sleep
+            snt_set_wup_timer(/*auto_reset*/1, /*threshold*/0);
+            operation_sleep(/*check_snt*/0);
+        }
+        /////////////////////////////////////////////////////////////////
+
+
+        // Temp-releated settings
+        eid_update_configs();
+    }
     #ifdef DEVEL
-        mbus_write_message32(0x9B, result);
+    else {
+        mbus_write_message32(0x91, 0xFFFFFFFF);
+    }
     #endif
 
-    return result;
 }
 
 static void snt_operation (void) {
 
-    // Get the measurement
-    snt_temp_raw = snt_get_temp_raw();
-
-    // Convert the raw data into temperature
-    snt_temp_val = snt_get_temp(snt_temp_raw);
-
-    // Assert temp sensor isolation & turn off temp sensor power
-    snt_temp_sensor_reset();
-    snt_temp_sensor_power_off();
-
-    #ifdef DEVEL
-        mbus_write_message32(0x90, (snt_temp_raw<<16)|snt_temp_val);
-    #endif
-
-    // Determine ADC Offset, ADC Low VBAT threshold, and ADC Critical VBAT threshold
-    uint32_t adc_offset;
-    if      (snt_temp_val > eeprom_adc_th.t1) { adc_offset = eeprom_adc.offset_r1; }
-    else if (snt_temp_val > eeprom_adc_th.t2) { adc_offset = eeprom_adc.offset_r2; }
-    else if (snt_temp_val > eeprom_adc_th.t3) { adc_offset = eeprom_adc.offset_r3; }
-    else if (snt_temp_val > eeprom_adc_th.t4) { adc_offset = eeprom_adc.offset_r4; }
-    else                                      { adc_offset = eeprom_adc.offset_r5; }
-
-    // VBAT Measurement and SAR_RATIO Adjustment
-    pmu_adc_vbat_val = pmu_read_adc();
-    pmu_sar_ratio    = pmu_calc_new_sar_ratio(  /*adc_val*/         pmu_adc_vbat_val, 
-                                                /*offset*/          adc_offset, 
-                                                /*sel_margin*/      eeprom_misc_config.pmu_adc_sar_margin,
-                                                /*hysteresis*/      eeprom_misc_config.pmu_adc_sar_hysteresis
-                                            );
-
-    uint32_t low_vbat  = pmu_check_low_vbat (   /*adc_val*/         pmu_adc_vbat_val, 
-                                                /*offset*/          adc_offset, 
-                                                /*threshold*/       eeprom_adc.low_vbat,  
-                                                /*num_cons_meas*/   eeprom_misc_config.pmu_num_cons_meas
-                                            );
-
-    uint32_t crit_vbat = pmu_check_crit_vbat(   /*adc_val*/         pmu_adc_vbat_val, 
-                                                /*offset*/          adc_offset, 
-                                                /*threshold*/       eeprom_adc.crit_vbat, 
-                                                /*num_cons_meas*/   eeprom_misc_config.pmu_num_cons_meas
-                                            );
-
-    #ifdef DEVEL
-        mbus_write_message32(0x93, (crit_vbat<<28)|(low_vbat<<24)|(adc_offset<<16)|(pmu_sar_ratio<<8)|(pmu_adc_vbat_val));
-    #endif
-
-    // Change the SAR ratio
-    pmu_set_sar_ratio(pmu_sar_ratio);
-
-    // Adjust e-Ink Settings: Refresh Interval and Active Duration
-    eid_update_configs();
+    // Meas temperature & ADC
+    meas_temp_adc();
 
     // Read the current display
     uint32_t curr_seg = eid_get_curr_seg();
@@ -1527,7 +1581,7 @@ static void snt_operation (void) {
 
         // Increment the sub-sample counter
         sub_sample_cnt++;
-        sub_sample_sum += snt_temp_val;
+        sub_sample_sum += temp.val;
 
         #ifdef DEVEL
             mbus_write_message32(0x92, (0x1<<28)|sub_sample_cnt);
@@ -1548,20 +1602,20 @@ static void snt_operation (void) {
             #endif
 
             // Calculate the average
-            snt_temp_val = div(/*numer*/sub_sample_sum, /*denom*/sub_sample_cnt, /*n*/1);
-            if (snt_temp_val&0x1) snt_temp_val += 0x2;  // round-up
-            snt_temp_val >>= 1;
+            temp.val = div(/*numer*/sub_sample_sum, /*denom*/sub_sample_cnt, /*n*/1);
+            if (temp.val&0x1) temp.val += 0x2;  // round-up
+            temp.val >>= 1;
             sub_sample_cnt = 0;
             sub_sample_sum = 0;
 
             #ifdef DEVEL
-                if (status.sample_type==SAMPLE_NORMAL) mbus_write_message32(0x9C, snt_temp_val);
+                if (status.sample_type==SAMPLE_NORMAL) mbus_write_message32(0x9C, temp.val);
             #endif
 
             // Check Excursions / Alarm
             uint32_t new_alarm = 0;
             if ((temp_sample_cnt>1) || (eeprom_misc_config.ignore_first_sample_exc==0)) {
-                if (snt_temp_val > eeprom_user_config.high_temp_threshold) {
+                if (temp.val > eeprom_user_config.high_temp_threshold) {
                     tmp_exc.lo = 0;
                     if (!tmp_exc.alarm_hi) {
                         tmp_exc.num_cons_hi++;
@@ -1579,7 +1633,7 @@ static void snt_operation (void) {
                         #endif
                     }
                 }
-                else if (snt_temp_val < eeprom_user_config.low_temp_threshold) {
+                else if (temp.val < eeprom_user_config.low_temp_threshold) {
                     tmp_exc.hi = 0;
                     if (!tmp_exc.alarm_lo) {
                         tmp_exc.num_cons_lo++;
@@ -1603,7 +1657,7 @@ static void snt_operation (void) {
             }
 
             #ifdef DEVEL
-                mbus_write_message32(0x95, snt_temp_val);
+                mbus_write_message32(0x95, temp.val);
                 mbus_write_message32(0x96, comp_sample_id);
                 if (tmp_exc.alarm_hi && tmp_exc.alarm_lo) {
                     mbus_write_message32(0x9E, 0xFFFFFFFF);
@@ -1629,7 +1683,7 @@ static void snt_operation (void) {
                     // Store ADC Reading and SAR Ratio
                     nfc_i2c_byte_write(/*e2*/0, 
                         /*addr*/ EEPROM_ADDR_LAST_ADC,      // EEPROM_ADDR_LAST_ADC, EEPROM_ADDR_LAST_SAR
-                        /*data*/ (pmu_sar_ratio<<8)|pmu_adc_vbat_val,
+                        /*data*/ (meas.sar<<8)|meas.adc,
                         /* nb */ 2
                         );
 
@@ -1652,12 +1706,12 @@ static void snt_operation (void) {
                     if (eeprom_sample_cnt<2016) {
                         nfc_i2c_byte_write( /*e2*/   0, 
                                             /*addr*/ byte_addr, 
-                                            /*data*/ snt_temp_raw,
+                                            /*data*/ temp.raw,
                                             /*nb*/   2);
 
                     // Store ADC & SAR
                     sar_adc_addr = byte_addr + (2016<<1);
-                    sar_adc_data = ((pmu_sar_ratio - 64)<<8) | (pmu_adc_vbat_val&0xFF);
+                    sar_adc_data = ((meas.sar - 64)<<8) | (meas.adc&0xFF);
 
                     nfc_i2c_byte_write( /*e2*/   0,
                                         /*addr*/ sar_adc_addr,  // Starting from Byte#4160
@@ -1666,7 +1720,7 @@ static void snt_operation (void) {
 
                     #ifdef DEVEL
                         mbus_write_message32(0x9C, byte_addr);
-                        mbus_write_message32(0x9D, snt_temp_raw);
+                        mbus_write_message32(0x9D, temp.raw);
                         mbus_write_message32(0x9E, sar_adc_addr);
                         mbus_write_message32(0x9F, sar_adc_data);
                     #endif
@@ -1684,24 +1738,24 @@ static void snt_operation (void) {
             else {
 
                 // Store ADC Reading and SAR_RATIO
-                buffer.adc = pmu_adc_vbat_val;
-                buffer.sar = pmu_sar_ratio;
+                buffer.adc = meas.adc;
+                buffer.sar = meas.sar;
 
                 uint32_t num_bits;
                 uint32_t reverse_code;
                 //--- Store the Uncompressed Data (128*N-th samples)
                 if (comp_sample_id==0) {
                     num_bits = COMP_UNCOMP_NUM_BITS;
-                    reverse_code = reverse_bits(/*bit_stream*/snt_temp_val, /*num_bits*/COMP_UNCOMP_NUM_BITS);
+                    reverse_code = reverse_bits(/*bit_stream*/temp.val, /*num_bits*/COMP_UNCOMP_NUM_BITS);
                 }
                 //--- Calculate the Delta
                 else {
-                    uint32_t comp_result = tcomp_encode(/*value*/snt_temp_val - comp_prev_sample);
+                    uint32_t comp_result = tcomp_encode(/*value*/temp.val - comp_prev_sample);
                     num_bits = comp_result >> 24;
                     reverse_code = comp_result&0xFFFFF;
                 }
                 //--- Store the current temperature in comp_prev_sample
-                comp_prev_sample = snt_temp_val;
+                comp_prev_sample = temp.val;
 
                 #ifdef DEVEL
                     mbus_write_message32(0x97, (num_bits<<24)|reverse_code);
@@ -1825,7 +1879,7 @@ static void snt_operation (void) {
     }
 
     //--- Show Low VBATT Indicator (if needed)
-    if (!get_bit(new_seg, SEG_LOWBATT) && low_vbat) {
+    if (!get_bit(new_seg, SEG_LOWBATT) && meas.low_vbat) {
         new_seg = new_seg | DISP_LOWBATT;
     }
 
@@ -1850,9 +1904,9 @@ static void snt_operation (void) {
             set_flag(FLAG_BOOTUP_DONE, 1);
        }
        else if (// Display has a pending update due to a critical temperature
-                (eid_updated_at_crit_temp && (snt_temp_val > eid_crit_temp_threshold))
+                (eid_updated_at_crit_temp && (temp.val > eid_crit_temp_threshold))
                 // Display has been updated at a low temperature
-             || (eid_updated_at_low_temp && (snt_temp_val > eeprom_eid_threshold.low))
+             || (eid_updated_at_low_temp && (temp.val > eeprom_eid_threshold.low))
                 // User-configured Refresh interval
              || ((disp_refresh_interval != 0) && ((disp_min_since_refresh + wakeup_interval) > disp_refresh_interval)) 
              ){
@@ -1860,23 +1914,21 @@ static void snt_operation (void) {
        }
     }
 
-    /////////////////////////////////////////////////////////////////
-    // EID Crash Handler
-    //---------------------------------------------------------------
-    //--- If VBAT is too low, trigger the EID Watchdog (System Crash)
-    if (crit_vbat) {
+}
 
-        // Set system
-        set_system(/*target*/XT1_CRASH);
+static void display_low_batt(void) {
+    #ifdef DEVEL
+        mbus_write_message32(0xA8, 0x00000000);
+    #endif
 
-        // Trigger the Crash Handler
-        eid_trigger_crash();
-
-        // Go to indefinite sleep
-        snt_set_wup_timer(/*auto_reset*/1, /*threshold*/0);
-        operation_sleep(/*check_snt*/0);
+    if (!get_bit(eid_get_current_display(), SEG_LOWBATT)) {
+        eid_update_display(eid_get_current_display() | DISP_LOWBATT);
     }
-    /////////////////////////////////////////////////////////////////
+    #ifdef DEVEL
+    else {
+        mbus_write_message32(0xA8, 0xFFFFFFFF);
+    }
+    #endif
 }
 
 
@@ -2232,11 +2284,11 @@ static uint32_t eid_get_curr_seg(void) {
 static void eid_update_configs(void) {
     uint32_t new_val;
     eid_update_type = EID_GLOBAL;
-    if (snt_temp_val > eeprom_eid_threshold.high) {
+    if (temp.val > eeprom_eid_threshold.high) {
         new_val = eeprom_eid_rfrsh_int_hr.high;
         eid_duration = eeprom_eid_duration.high;
     }
-    else if (snt_temp_val > eeprom_eid_threshold.low) { 
+    else if (temp.val > eeprom_eid_threshold.low) { 
         new_val = eeprom_eid_rfrsh_int_hr.mid;
         eid_duration = eeprom_eid_duration.mid;
     }
@@ -2275,19 +2327,12 @@ static void eid_update_display(uint32_t seg) {
     // Get the current display
     uint32_t prev_seg = eid_get_current_display();
 
-    // Measure the temperature and re-configure, if needed.
-    if (!snt_temp_valid) {
-        #ifdef DEVEL
-            mbus_write_message32(0xA4, 0x1);
-        #endif
-        snt_temp_raw = snt_get_temp_raw();
-        snt_temp_val = snt_get_temp(snt_temp_raw);
-        eid_update_configs();
-    }
+    // Make sure you have a valid temperature measurement
+    meas_temp_adc();
 
     // E-ink Update
     // Update the flag if it is a critical temperature
-    if (snt_temp_val > eid_crit_temp_threshold) {
+    if (temp.val > eid_crit_temp_threshold) {
         if (eid_update_type == EID_GLOBAL) {
             #ifdef DEVEL
                 mbus_write_message32(0xA7, 0x0);
@@ -2311,7 +2356,7 @@ static void eid_update_display(uint32_t seg) {
     }
 
     // Update the flag if it is a low temperature
-    if (snt_temp_val > eeprom_eid_threshold.low)
+    if (temp.val > eeprom_eid_threshold.low)
         eid_updated_at_low_temp = 0;
     else
         eid_updated_at_low_temp = 1;
@@ -2611,6 +2656,7 @@ uint32_t nfc_check_cmd(void) {
         // CMD: NOP, HARD_RESET, DISPLAY
         //-----------------------------------------------------------
         else if (  (cmd == CMD_NOP)
+                || (cmd == CMD_NEWAB)
                 || (cmd == CMD_HRESET)
                 || (cmd == CMD_DISPLAY)
                 || (cmd == CMD_DEBUG)) {
@@ -2718,20 +2764,8 @@ static void update_system_configs(uint32_t use_default) {
         //--- Other Configurations
         nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_MISC_CONFIG,   /*nw*/1, /*ptr*/ (volatile uint32_t *)&eeprom_misc_config.value);
 
-        if (init_status == INIT_TRIG_ALL) {
-
-            // Read the temperature coefficients
-            nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_A_WRITEONLY, /*nw*/2, /*ptr*/ (volatile uint32_t *)&eeprom_temp_calib.value);
-
-            // Write the calibration info in the designated place
-            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_A, /*data*/eeprom_temp_calib.a, /*nb*/4);
-            nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_B, /*data*/eeprom_temp_calib.b, /*nb*/4);
-
-            #ifdef DEVEL
-                mbus_write_message32(0x76, eeprom_temp_calib.a);
-                mbus_write_message32(0x77, eeprom_temp_calib.b);
-            #endif
-        }
+        //--- Update a and b if needed.
+        if (init_status == INIT_TRIG_ALL) update_temp_coefficients();
 
         // Reset INIT_STATUS
         nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_INIT_STATUS, /*data*/INIT_RESET, /*nb*/2);
@@ -2749,6 +2783,21 @@ static void update_system_configs(uint32_t use_default) {
                                 550 ;   // 0x0: -25C
 }
 
+static void update_temp_coefficients (void) {
+    // Read the temperature coefficients
+    nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_A_WRITEONLY, /*nw*/2, /*ptr*/ (volatile uint32_t *)&eeprom_temp_calib.value);
+
+    // Write the calibration info in the designated place
+    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_A, /*data*/eeprom_temp_calib.a, /*nb*/4);
+    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_B, /*data*/eeprom_temp_calib.b, /*nb*/4);
+
+    #ifdef DEVEL
+        mbus_write_message32(0x76, eeprom_temp_calib.a);
+        mbus_write_message32(0x77, eeprom_temp_calib.b);
+    #endif
+}
+
+#ifdef ENABLE_DEBUG_SYSTEM_CONFIG
 static void debug_system_configs(void) {
 
     #ifdef DEVEL
@@ -2806,6 +2855,7 @@ static void debug_system_configs(void) {
     nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_INIT_STATUS, /*data*/INIT_DEBUG_READ, /*nb*/2);
 
 }
+#endif
 
 static void update_user_configs(void) {
     #ifdef DEVEL
@@ -3145,7 +3195,7 @@ void handler_ext_int_timer32  (void) {
     *TIMER32_STAT = 0x0;
     __wfi_timeout_flag__ = 1; // Declared in PREv22E.h
     set_halt_until_mbus_tx();
-    }
+}
 //void handler_ext_int_timer16  (void) { *NVIC_ICPR = (0x1 << IRQ_TIMER16);    }
 //void handler_ext_int_mbustx   (void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_TX);    }
 //void handler_ext_int_mbusrx   (void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_RX);    }
@@ -3183,7 +3233,7 @@ int main(void) {
 
     // Reset variables
     set_high_power_history(0);
-    snt_temp_valid = 0;
+    meas.valid = 0;
     aes_key_valid = 0;
     
     // Get the info on who woke up the system, then reset WAKEUP_SOURCE register.
@@ -3254,6 +3304,11 @@ int main(void) {
                     update_aes_key();
                     eid_blink_display();
                 }
+                // Command: NEWAB
+                else if (cmd==CMD_NEWAB) {
+                    update_temp_coefficients();
+                    eid_blink_display();
+                }
                 // Command: DISPLAY
                 else if (cmd==CMD_DISPLAY) {
                     if (!get_bit(eid_disp_before_user_mod, 31))
@@ -3263,11 +3318,20 @@ int main(void) {
                 }
                 // Command: DEBUG
                 else if (cmd==CMD_DEBUG) {
-                    if (cmd_param==0x00) {
-                        debug_system_configs();
-                    }
+                    override.enable = get_bit(cmd_param, 7);
+                    override.sar_margin = cmd_param&0xF;
+
+                    #ifdef ENABLE_DEBUG_SYSTEM_CONFIG
+                    if (cmd_param==0x00) debug_system_configs();
+                    #endif
+
+                    eid_blink_display();
                 }
                 // Command: NOP
+                else if (cmd==CMD_NOP) {
+                    eid_blink_display();
+                }
+                // Command: Invalid
                 else {}
 
                 // Go to Sleep
@@ -3316,9 +3380,19 @@ int main(void) {
     }
 
     //-----------------------------------------
-    // Other Wakeup Source - Probably a Glitch
+    // Other Wakeup Source - GOC/EP or a Glitch
     //-----------------------------------------
     if (!WAKEUP_BY_NFC && !WAKEUP_BY_SNT) {
+        if (WAKEUP_BY_GOCEP) {
+            uint32_t goc_head = (*REG0 >> 16) & 0xFF;
+            //uint32_t goc_data = *REG0 & 0xFFFF;
+            uint32_t orig_disp;
+            if (goc_head==0x00) {
+                orig_disp = eid_get_current_display();
+                eid_update_display(/*seg*/DISP_ALL);
+                eid_update_display(/*seg*/orig_disp);
+            }
+        }
         operation_sleep(/*check_snt*/1);
     }
 
