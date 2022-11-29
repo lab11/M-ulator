@@ -220,7 +220,7 @@ static void operation_init (void) {
         //  6              15%
         //  7              20%
         //-------------------------
-        pmu_sel_margin = 3;
+        pmu_sel_margin = 0;
 
 
         // Hysteresis
