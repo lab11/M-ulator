@@ -1921,14 +1921,17 @@ void eid_enable_cp_ck(uint32_t te, uint32_t fd, uint32_t seg) {
     #endif
 
     // Enable charge pumps
-    set_halt_until_mbus_trx();
+//    set_halt_until_mbus_trx();
+    *NVIC_ISER = (0x1 << (EID_TARGET_REG_IDX+8)); // Reg 0x02
     mbus_remote_register_write(EID_ADDR,0x09,
                                   (0x1   << 23) // ECTR_RESETB_CP
                                 | (0x0   << 22) // ECTR_VIN_CP
                                 | (cp_pd << 11) // ECTR_EN_CP_PD
                                 | (cp_ck <<  0) // ECTR_EN_CP_CK
                                 );
-    set_halt_until_mbus_tx();
+//    set_halt_until_mbus_tx();
+    WFI();
+    *NVIC_ICER = (0x1 << (EID_TARGET_REG_IDX+8)); // Reg 0x02
 
     // Make PG_DIODE=1
     #ifndef __USE_HCODE__
@@ -1944,8 +1947,6 @@ void eid_enable_cp_ck(uint32_t te, uint32_t fd, uint32_t seg) {
                                     );
     #endif
 
-    // Update __eid_current_display__
-    __eid_current_display__ = seg;
 }
 
 void eid_all_black(void) { 
@@ -1965,12 +1966,26 @@ void eid_seg_white(uint32_t seg) {
 }
 
 void eid_update_global(uint32_t seg) { 
+    uint32_t error = 0x0;
     // Make all black segments white
+    *REG7 = 0;
     if (__eid_current_display__!=0) eid_enable_cp_ck(0x1, 0x1, (~__eid_current_display__ & 0x1FF));
+    if (*REG7==0x023005) error |= 0x1;
     // Make all segments/field black
+    *REG7 = 0;
     eid_enable_cp_ck(0x0, 0x1, 0x1FF);
+    if (*REG7==0x023005) error |= 0x2;
     // Make selected segments white
+    *REG7 = 0;
     eid_enable_cp_ck(0x1, 0x0, seg & 0x1FF);
+    if (*REG7==0x023005) error |= 0x4;
+
+    if ((error&0x1)!=0) eid_enable_cp_ck(0x0, 0x1, 0x000); // Black Field
+    if ((error&0x2)!=0) eid_enable_cp_ck(0x0, 0x0, 0x020); // Plus
+    if ((error&0x4)!=0) eid_enable_cp_ck(0x0, 0x0, 0x040); // Minus
+
+    // Update __eid_current_display__
+    __eid_current_display__ = seg;
 }
 
 void eid_update_local(uint32_t seg) {

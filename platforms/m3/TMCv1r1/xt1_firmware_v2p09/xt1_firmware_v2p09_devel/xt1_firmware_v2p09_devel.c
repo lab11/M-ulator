@@ -1181,6 +1181,9 @@ static void operation_init (void) {
         nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_HW_ID, /*data*/HARDWARE_ID, /*nb*/4);
         nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_FW_ID, /*data*/FIRMWARE_ID, /*nb*/2);
 
+        // FIXME - Debug Code
+        nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_DEBUG, /*data*/0xC0DE, /*nb*/2);
+
         // Set default values for CALIB and AES_KEY
         eeprom_temp_calib.a = TEMP_CALIB_A_DEFAULT;
         eeprom_temp_calib.b = TEMP_CALIB_B_DEFAULT;
@@ -3173,7 +3176,7 @@ void handler_ext_int_timer32  (void) __attribute__ ((interrupt ("IRQ")));
 //void handler_ext_int_mbusfwd  (void) __attribute__ ((interrupt ("IRQ")));
 //void handler_ext_int_reg0     (void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_reg1     (void) __attribute__ ((interrupt ("IRQ")));
-//void handler_ext_int_reg2     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg2     (void) __attribute__ ((interrupt ("IRQ")));
 //void handler_ext_int_reg3     (void) __attribute__ ((interrupt ("IRQ")));
 //void handler_ext_int_reg4     (void) __attribute__ ((interrupt ("IRQ")));
 //void handler_ext_int_reg5     (void) __attribute__ ((interrupt ("IRQ")));
@@ -3202,7 +3205,7 @@ void handler_ext_int_timer32  (void) {
 //void handler_ext_int_mbusfwd  (void) { *NVIC_ICPR = (0x1 << IRQ_MBUS_FWD);   }
 //void handler_ext_int_reg0     (void) { *NVIC_ICPR = (0x1 << IRQ_REG0);       }
 void handler_ext_int_reg1     (void) { *NVIC_ICPR = (0x1 << IRQ_REG1);       }
-//void handler_ext_int_reg2     (void) { *NVIC_ICPR = (0x1 << IRQ_REG2);       }
+void handler_ext_int_reg2     (void) { *NVIC_ICPR = (0x1 << IRQ_REG2);       }
 //void handler_ext_int_reg3     (void) { *NVIC_ICPR = (0x1 << IRQ_REG3);       }
 //void handler_ext_int_reg4     (void) { *NVIC_ICPR = (0x1 << IRQ_REG4);       }
 //void handler_ext_int_reg5     (void) { *NVIC_ICPR = (0x1 << IRQ_REG5);       }

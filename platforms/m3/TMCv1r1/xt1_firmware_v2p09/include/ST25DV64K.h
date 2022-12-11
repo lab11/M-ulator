@@ -72,6 +72,7 @@
 //      -------------------------------------------------------------------------------------------
 #define EEPROM_ADDR_HW_ID                       0      //      4 (  0x58540001) Hardware ID                                                                                                                                                                        
 #define EEPROM_ADDR_FW_ID                       4      //      2 (      0xnnnn) Firmware ID                                                                                                                                                                        
+#define EEPROM_ADDR_DEBUG                       6      //      2 (      0xnnnn) Debug Code
 //      EEPROM_ADDR_RESERVED_1                  6              2                                                                                                                                                                                                   
 //                                                                                                                                                                                                                                                                 
 //      -------------------------------------------------------------------------------------------
