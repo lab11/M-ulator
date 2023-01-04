@@ -1,6 +1,6 @@
 //*******************************************************************************************
 // XT1 (TMCv1r1) FIRMWARE
-// Version 2.09 (accelerated_refresh)
+// Version 2.09 (standard; no refresh)
 //------------------------
 #define HARDWARE_ID 0x01005843  // XT1r1 Hardware ID
 #define FIRMWARE_ID 0x0209      // [15:8] Integer part, [7:0]: Non-Integer part
@@ -432,7 +432,7 @@
 // Pre-defined Wakeup Intervals
 #define WAKEUP_INTERVAL_ACTIVE      1   // (Default: 1) Wakeup Interval for XT1_ACTIVE (unit: minutes)
 #ifdef USE_SHORT_REFRESH
-    #define WAKEUP_INTERVAL_IDLE    2   // (Default: 720) Wakeup Interval for XT1_IDLE (unit: minutes)
+    #define WAKEUP_INTERVAL_IDLE    0   // (Default: 720) Wakeup Interval for XT1_IDLE (unit: minutes)
 #else
     #define WAKEUP_INTERVAL_IDLE    720    // (Default: 720) Wakeup Interval for XT1_IDLE (unit: minutes)
 #endif

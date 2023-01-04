@@ -1,6 +1,6 @@
 //*******************************************************************************************
 // XT1 (TMCv1r1) FIRMWARE
-// Version 2.09 (accelerated_refresh)
+// Version 2.09 (standard; 2-min refresh interval)
 //------------------------
 #define HARDWARE_ID 0x01005843  // XT1r1 Hardware ID
 #define FIRMWARE_ID 0x0209      // [15:8] Integer part, [7:0]: Non-Integer part

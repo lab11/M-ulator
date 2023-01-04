@@ -36,6 +36,8 @@ make clean_libs
 make *_std
 make *_accref
 make pmu_counter
+make *_std_r0
+make *_std_r2
 echo ">>> *_devel.memmap"
 tail -n 1 *_devel/*_devel.memmap
 echo ">>> *_std.memmap"
