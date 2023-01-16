@@ -1,0 +1,10 @@
+no  dev     std
+1   16368   14446
+2   16264   14446   Removed 0xCx debug messages (DEVEL -> OPT_DEVEL)
+3   15972   14446   Removed 0x8x debug messages (DEVEL -> OPT_DEVEL)
+4   15948   14422   Removed MRR register configuration in operation_init()
+5   15860   14342   Set adc_offset = 0 in meas_temp_adc()
+6   14916   13398   Replaced the log2 table with a taylor approx (n=8)
+7   14848   13390   Timeout implemention completed
+8   14972   13490   Implemented the SNT timer validity check upon wakeup
+9   15096   13606   Not doing SAR adjustment after enabling RAT; Re-enabled adc_offset in meas_temp_adc()
