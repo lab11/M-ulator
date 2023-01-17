@@ -3,16 +3,14 @@
 //-------------------------------------------------------------------------------------------
 // SUB-LAYER CONNECTION:
 //-------------------------------------------------------------------------------------------
-//      PREv22E -> SNTv5 -> EIDv1 -> MRRv11A -> MEMv3 -> PMUv13
+//      PREv23E -> EIDv1 -> SNTv6 -> PMUv13r1
 //-------------------------------------------------------------------------------------------
 // Short Address
 //-------------------------------------------------------------------------------------------
 //      PRE: 0x1
-//      SNT: 0x2
-//      EID: 0x3
-//      MRR: 0x4
-//      MEM: 0x5
-//      PMU: 0x6
+//      EID: 0x2
+//      SNT: 0x3
+//      PMU: 0x4
 //-------------------------------------------------------------------------------------------
 // < AUTHOR > 
 //  Yejoong Kim (yejoong@cubeworks.io)
@@ -20,18 +18,16 @@
 
 //#define DEVEL
 
-#ifndef TMCV1R1_H
-#define TMCV1R1_H
-#define TMCV1R1
+#ifndef TMCV2_H
+#define TMCV2_H
+#define TMCV2
 
 #include "mbus.h"
 #include "ST25DV64K.h"
-#include "PREv22E.h"
-#include "SNTv5_RF.h"
+#include "PREv23E.h"
+#include "SNTv6_RF.h"
 #include "EIDv1_RF.h"
-#include "MRRv11A_RF.h"
-#include "MEMv3_RF.h"
-#include "PMUv13_RF.h"
+#include "PMUv13r1_RF.h"
 
 //-------------------------------------------------------------------
 // Options
@@ -42,11 +38,9 @@
 // Short Addresses
 //-------------------------------------------------------------------
 #define PRE_ADDR    0x1
-#define SNT_ADDR    0x2
-#define EID_ADDR    0x3
-#define MRR_ADDR    0x4
-#define MEM_ADDR    0x5
-#define PMU_ADDR    0x6
+#define EID_ADDR    0x2
+#define SNT_ADDR    0x3
+#define PMU_ADDR    0x4
 
 //*******************************************************************************************
 // TARGET REGISTER INDEX FOR LAYER COMMUNICATIONS
@@ -56,24 +50,31 @@
 // NOTE: Reg0x0-0x3 are retentive; Reg0x4-0x7 are non-retentive.
 //*******************************************************************************************
 #define PMU_TARGET_REG_IDX  0x0
-#define SNT_TARGET_REG_IDX  0x1
+#define SNT_TARGET_REG_IDX  0x1 // SNT Temperature Sensor
 #define EID_TARGET_REG_IDX  0x2
-#define MRR_TARGET_REG_IDX  0x3
+#define WP0_TARGET_REG_IDX  0x4 // SNT Timer (Timer Read, Threshold Update)
+#define WP1_TARGET_REG_IDX  0x5 //  NOTE: Only WP1_TARGET_REG_IDX is used to trigger an M0 IRQ. WP0_TARGET_REG_IDX is used to handle 32-bit data.
+#define PLD_TARGET_REG_IDX  0x6 // Payload Register (Wakeup by SNT Timer, etc); It is not used to trigger an IRQ.
+#define I2C_TARGET_REG_IDX  0x7 // Used to handle I2C NAK failure
 
 #define PMU_TARGET_REG_ADDR  ((volatile uint32_t *) (0xA0000000 | (PMU_TARGET_REG_IDX << 2)))
 #define SNT_TARGET_REG_ADDR  ((volatile uint32_t *) (0xA0000000 | (SNT_TARGET_REG_IDX << 2)))
 #define EID_TARGET_REG_ADDR  ((volatile uint32_t *) (0xA0000000 | (EID_TARGET_REG_IDX << 2)))
-#define MRR_TARGET_REG_ADDR  ((volatile uint32_t *) (0xA0000000 | (MRR_TARGET_REG_IDX << 2)))
+#define WP0_TARGET_REG_ADDR  ((volatile uint32_t *) (0xA0000000 | (WP0_TARGET_REG_IDX << 2)))
+#define WP1_TARGET_REG_ADDR  ((volatile uint32_t *) (0xA0000000 | (WP1_TARGET_REG_IDX << 2)))
+#define PLD_TARGET_REG_ADDR  ((volatile uint32_t *) (0xA0000000 | (PLD_TARGET_REG_IDX << 2)))
+#define I2C_TARGET_REG_ADDR  ((volatile uint32_t *) (0xA0000000 | (I2C_TARGET_REG_IDX << 2)))
 
 //-------------------------------------------------------------------
 // TIMEOUT CHECK
 //-------------------------------------------------------------------
 #define FAIL_ID_EID     1           // Display Update
-#define FAIL_ID_WUP     2           // SNT Timer Reading (Timeout)
+#define FAIL_ID_WUP     2           // SNT Timer Access (Timeout)
 #define FAIL_ID_PMU     3           // PMU Register Access
 #define FAIL_ID_SNT     4           // SNT Temperature Measurement
 #define FAIL_ID_I2C     5           // I2C NAK Failure
 #define FAIL_ID_MET     6           // SNT Timer Reading (Meta-stability)
+#define FAIL_ID_GEN     7           // Generic/Unknown
 #define FAIL_ID_INIT    0x1010DEAD  // Timeout/Fail during Initialization
 
 #define TIMEOUT_1S      140000      // TIMER32 Threshold to measure 1 second
@@ -102,7 +103,7 @@
 volatile uint32_t __high_power_history__;
 
 //*******************************************************************
-// TMCv1 FUNCTIONS
+// TMCv2 FUNCTIONS
 //*******************************************************************
 
 //-------------------------------------------------------------------
@@ -236,7 +237,7 @@ uint32_t get_high_power_history (void);
 
 
 //*******************************************************************
-// PRE FUNCTIONS (Specific to TMCv1r1)
+// PRE FUNCTIONS (Specific to TMCv2)
 //*******************************************************************
 
 //-------------------------------------------------------------------
@@ -553,7 +554,7 @@ uint32_t pmu_validate_adc_val (uint32_t adc_val);
 // Description:
 //           Find out a new SAR Ratio based on 
 //           the current VBAT measurements, using the following equation:
-//           For detailed algorithm, see TMCv1r1.c
+//           For detailed algorithm, see TMCv2.c
 //           NOTE: It does NOT change the SAR ratio
 // Return  : New SAR Ratio
 //-------------------------------------------------------------------
@@ -635,7 +636,7 @@ void pmu_init(void);
 #define __NFC_NUM_RETRY__   5
 
 // I2C "Retry" delay. When it is NAK'd, it waits for __NFC_RETRY_DELAY__ before the next attempt.
-#define __NFC_RETRY_DELAY__  30000 // ~1s
+#define __NFC_RETRY_DELAY__  30000  // ~1s
 
 
 // Fast I2C
@@ -1315,7 +1316,7 @@ void snt_ldo_vref_on(void);
 // Function: snt_start_timer
 // Args    : wait_time  - Wait time before turning off the sloscillator
 //                        It measure the delay using delay(wait_time).
-//                        Requirement: >2sec at RT
+//                        Requirement: >400ms at RT
 // Description:
 //           Start the SNT timer.
 // Return  : None
@@ -1335,10 +1336,11 @@ void snt_stop_timer(void);
 // Function: snt_set_timer_threshold
 // Args    : threshold  - SNT Wakeup timer threshold (32-bit)
 // Description:
-//           Set the threshold for the SNT Wakeup timer
-// Return  : None
+//           (Synchronously) set the threshold for the SNT Wakeup timer
+// Return  : 1 if SNT returns the correct threshold[23:0]
+//           0 if SNT return value does not match threshold[23:0]
 //-------------------------------------------------------------------
-void snt_set_timer_threshold(uint32_t threshold);
+uint32_t snt_set_timer_threshold(uint32_t threshold);
 
 //-------------------------------------------------------------------
 // Function: snt_enable_wup_timer
@@ -1369,15 +1371,16 @@ void snt_disable_wup_timer (void);
 //           auto_reset -   0: Auto Reset is disabled
 //                          1: Auto Reset is enabled
 // Description:
-//           Set the threshold for the SNT wakeup timer,
+//           (Synchronously) set the threshold for the SNT wakeup timer,
 //           then enables the SNT wakeup timer so that the wakeup counter starts running.
 //           wakeup counter stops running.
 //           If auto_reset=1, the Auto Reset feature is also enabled,
 //           where the SNT wakeup counter gets automatically reset upon the system
 //           going into sleep.
-// Return  : None
+// Return  : 1 if SNT returns the correct threshold[23:0]
+//           0 if SNT return value does not match threshold[23:0]
 //-------------------------------------------------------------------
-void snt_set_wup_timer(uint32_t auto_reset, uint32_t threshold);
+uint32_t snt_set_wup_timer(uint32_t auto_reset, uint32_t threshold);
 
 //-------------------------------------------------------------------
 // Function: snt_sync_read_wup_timer
@@ -1442,4 +1445,4 @@ uint32_t tconv_log2_taylor (uint32_t idx);     // Using a Taylor approximation
 //-------------------------------------------------------------------
 uint32_t tconv (uint32_t dout, uint32_t a, uint32_t b, uint32_t offset);
 
-#endif // TMCV1R1_H
+#endif // TMCV2_H
