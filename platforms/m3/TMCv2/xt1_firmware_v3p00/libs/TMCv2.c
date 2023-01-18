@@ -2233,23 +2233,49 @@ void snt_init(void) {
     snt_ldo_vref_on();
 }
 
-void snt_temp_sensor_power_on(void){
+void snt_temp_sensor_power_on(uint32_t sel_ldo){
+
+    if (sel_ldo) {
+        // Turn on LDO
+        snt_r00.LDO_EN_IREF = 1;
+        snt_r00.LDO_EN_LDO  = 1;
+        mbus_remote_register_write(SNT_ADDR,0x00,snt_r00.as_int);
+
+        // Delay (~10ms) @ 100kHz clock speed)
+        delay(1000); 
+    }
+
     // Turn on digital block
-    snt_r01.TSNS_SEL_V1P2 = 1;
+    if (sel_ldo) snt_r01.TSNS_SEL_LDO  = 1;
+    else         snt_r01.TSNS_SEL_V1P2 = 1;
     mbus_remote_register_write(SNT_ADDR,0x01,snt_r01.as_int);
+
     // Turn on analog block
-    snt_r01.TSNS_EN_SENSOR_V1P2 = 1;
+    if (sel_ldo) snt_r01.TSNS_EN_SENSOR_LDO  = 1;
+    else         snt_r01.TSNS_EN_SENSOR_V1P2 = 1;
     mbus_remote_register_write(SNT_ADDR,0x01,snt_r01.as_int);
+
     // Delay (~2ms @ 100kHz clock speed)
     delay(200);
 }
 
+
 void snt_temp_sensor_power_off(void){
+
     snt_r01.TSNS_RESETn         = 0;
-    snt_r01.TSNS_SEL_V1P2       = 0;
-    snt_r01.TSNS_EN_SENSOR_V1P2 = 0;
     snt_r01.TSNS_ISOLATE        = 1;
     mbus_remote_register_write(SNT_ADDR,0x01,snt_r01.as_int);
+
+    snt_r01.TSNS_SEL_V1P2       = 0;
+    snt_r01.TSNS_EN_SENSOR_V1P2 = 0;
+    snt_r01.TSNS_SEL_LDO        = 0;
+    snt_r01.TSNS_EN_SENSOR_LDO  = 0;
+    mbus_remote_register_write(SNT_ADDR,0x01,snt_r01.as_int);
+
+    // Turn off LDO
+    snt_r00.LDO_EN_IREF   = 0;
+    snt_r00.LDO_EN_LDO    = 0;
+    mbus_remote_register_write(SNT_ADDR,0x00,snt_r00.as_int);
 }
 
 void snt_temp_sensor_start(void){

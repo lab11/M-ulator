@@ -1269,12 +1269,13 @@ void snt_init(void);
 
 //-------------------------------------------------------------------
 // Function: snt_temp_sensor_power_on
-// Args    : None
+// Args    : sel_ldo    - If 1, use LDO
+//                        If 0, use V1P2
 // Description:
 //           Power on SNT Temp Sensor
 // Return  : None
 //-------------------------------------------------------------------
-void snt_temp_sensor_power_on(void);
+void snt_temp_sensor_power_on(uint32_t sel_ldo);
 
 //-------------------------------------------------------------------
 // Function: snt_temp_sensor_power_off

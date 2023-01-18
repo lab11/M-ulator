@@ -1580,7 +1580,7 @@ static void meas_temp_adc (void) {
         enable_reg_irq(SNT_TARGET_REG_IDX); // REG1
 
         // Turn on SNT Temperature Sensor
-        snt_temp_sensor_power_on();
+        snt_temp_sensor_power_on(/*sel_ldo*/1);
         snt_temp_sensor_reset();
 
         // Release the reset for the Temp Sensor
