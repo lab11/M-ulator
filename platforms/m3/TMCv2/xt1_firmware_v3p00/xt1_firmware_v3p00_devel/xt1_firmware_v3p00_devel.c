@@ -1314,8 +1314,8 @@ static void operation_init (void) {
         // Go to Sleep for 10s.
         //-------------------------------------------------
         // this provides the information for the very first SNT calibration
-        snt_freq = 1500;
-        snt_duration = 30000;   // supposed to be ~20 seconds.
+        snt_freq = 1400;
+        snt_duration = 30000;
     #ifdef SNT_TIMER_ISSUE
         snt_threshold_prev = 0;
     #else
