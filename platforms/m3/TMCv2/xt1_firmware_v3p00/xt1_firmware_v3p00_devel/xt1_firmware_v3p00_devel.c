@@ -408,7 +408,7 @@
 //      - Use default values rather than grabbing the values from EEPROM
 #define DEVEL
 #define SNT_TIMER_ISSUE
-//#define ENABLE_XO_PAD
+#define ENABLE_XO_PAD
 //#define USE_SHORT_REFRESH
 //#define ENABLE_DEBUG_SYSTEM_CONFIG
 
@@ -2256,6 +2256,10 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
 
         // Restart the XO
         restart_xo(/*delay_a*/XO_WAIT_A, /*delay_b*/XO_WAIT_B);
+
+    #ifdef ENABLE_XO_PAD
+        start_xo_cout();
+    #endif
 
         // Calculate the next threshold
         if (skip_calib) {
