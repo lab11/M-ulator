@@ -409,6 +409,7 @@
 //#define DEVEL
 #define SNT_TIMER_ISSUE
 #define ENABLE_XO_PAD
+#define DETAILED_XO_INFO_FOR_RAW
 //#define USE_SHORT_REFRESH
 //#define ENABLE_DEBUG_SYSTEM_CONFIG
 
@@ -1796,34 +1797,62 @@ static void snt_operation (void) {
             // sample_type: SAMPLE_RAW
             if (status.sample_type==SAMPLE_RAW) {
 
-                    // Store ADC Reading and SAR Ratio
-                    nfc_i2c_byte_write(/*e2*/0, 
-                        /*addr*/ EEPROM_ADDR_LAST_ADC,      // EEPROM_ADDR_LAST_ADC, EEPROM_ADDR_LAST_SAR
-                        /*data*/ (meas.sar<<8)|meas.adc,
-                        /* nb */ 2
-                        );
+                // Store ADC Reading and SAR Ratio
+                nfc_i2c_byte_write(/*e2*/0, 
+                    /*addr*/ EEPROM_ADDR_LAST_ADC,      // EEPROM_ADDR_LAST_ADC, EEPROM_ADDR_LAST_SAR
+                    /*data*/ (meas.sar<<8)|meas.adc,
+                    /* nb */ 2
+                    );
 
-                    uint32_t byte_addr = (eeprom_sample_cnt<<1)+EEPROM_ADDR_DATA_RESET_VALUE;
+                // Store the Sample Count
+                nfc_i2c_byte_write(/*e2*/0, 
+                    /*addr*/ EEPROM_ADDR_SAMPLE_COUNT, 
+                    /*data*/ (eeprom_sample_cnt+1),
+                    /* nb */ 4
+                    );
 
-                    // Store the Sample Count
-                    nfc_i2c_byte_write(/*e2*/0, 
-                        /*addr*/ EEPROM_ADDR_SAMPLE_COUNT, 
-                        /*data*/ (eeprom_sample_cnt+1),
-                        /* nb */ 4
-                        );
+            #ifdef DETAILED_XO_INFO_FOR_RAW
+                uint32_t byte_addr = (eeprom_sample_cnt<<2)+EEPROM_ADDR_DATA_RESET_VALUE;
 
-                    // Store the raw data
-                    //  Max Sample Count = (8192 - 128) / 2 = 4032
-                    //  However, we split this into two and store the raw data into the first half,
-                    //  and SAR/ADC values in to the second half.
-                    //  i.e., max sample count = 4032 / 2 = 2016
-                    //      Byte# 128 - Byte#4159: Raw Data      (each sample is 16-bit)
-                    //      Byte#4160 - Byte#8192: SAR/ADC Value (each sample is 16-bit)
-                    if (eeprom_sample_cnt<2016) {
-                        nfc_i2c_byte_write( /*e2*/   0, 
-                                            /*addr*/ byte_addr, 
-                                            /*data*/ temp.raw,
-                                            /*nb*/   2);
+                // Store the raw data
+                //  Max Sample Count = (8192 - 128) / 2 = 4032
+                //  However, we split this into two and store the raw data into the first half,
+                //  and SAR/ADC values in to the second half.
+                //  i.e., max sample count = 4032 / 2 = 2016
+                //      Byte# 128 - Byte#4159: Raw Data      (each sample is 16-bit)
+                //      Byte#4160 - Byte#8192: SAR/ADC Value (each sample is 16-bit)
+                if (eeprom_sample_cnt<1008) {
+                    sar_adc_addr = byte_addr + (1008<<2);
+                    sar_adc_data = ((meas.sar - 64)<<8) | (meas.adc&0xFF);
+                    nfc_i2c_byte_write( /*e2*/   0, 
+                                        /*addr*/ byte_addr, 
+                                        /*data*/ (sar_adc_data<<16)|temp.raw,
+                                        /*nb*/   4);
+
+                    #ifdef DEVEL
+                        mbus_write_message32(0x9C, byte_addr);
+                        mbus_write_message32(0x9D, temp.raw);
+                        mbus_write_message32(0x9E, sar_adc_addr);
+                        mbus_write_message32(0x9F, sar_adc_data);
+                    #endif
+
+                }
+
+            #else
+                uint32_t byte_addr = (eeprom_sample_cnt<<1)+EEPROM_ADDR_DATA_RESET_VALUE;
+
+                // Store the raw data
+                //  Max Sample Count = (8192 - 128) / 2 = 4032
+                //  However, we split this into two and store the raw data into the first half,
+                //  and SAR/ADC values in to the second half.
+                //  i.e., max sample count = 4032 / 2 = 2016
+                //      Byte# 128 - Byte#4159: Raw Data      (each sample is 16-bit)
+                //      Byte#4160 - Byte#8192: SAR/ADC Value (each sample is 16-bit)
+                if (eeprom_sample_cnt<2016) {
+                    nfc_i2c_byte_write( /*e2*/   0, 
+                                        /*addr*/ byte_addr, 
+                                        /*data*/ temp.raw,
+                                        /*nb*/   2);
 
                     // Store ADC & SAR
                     sar_adc_addr = byte_addr + (2016<<1);
@@ -1834,6 +1863,7 @@ static void snt_operation (void) {
                                         /*data*/ sar_adc_data,  // See Description
                                         /*nb*/   2);
 
+
                     #ifdef DEVEL
                         mbus_write_message32(0x9C, byte_addr);
                         mbus_write_message32(0x9D, temp.raw);
@@ -1842,6 +1872,7 @@ static void snt_operation (void) {
                     #endif
 
                 }
+            #endif
 
                 eeprom_sample_cnt++;
             }
@@ -2215,6 +2246,27 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
     snt_threshold_prev = snt_threshold;
 #endif
 
+    #ifdef DETAILED_XO_INFO_FOR_RAW
+        if (xt1_state==XT1_ACTIVE) {
+            if (status.sample_type==SAMPLE_RAW) {
+                if (sar_adc_addr < 8192) {
+                    uint32_t data = ((((calib_status&XO_FAIL_UNSTABLE)!=0)||((calib_status&XO_FAIL_STOP)!=0)) << 31)
+                                  | (((calib_status&XO_FAIL_MAX_ERR)!=0) << 30)
+                                  | (xo_val_curr&0x3FFFFFFF);
+
+                    nfc_i2c_byte_write( /*e2*/   0,
+                                        /*addr*/ sar_adc_addr,
+                                        /*data*/ data,
+                                        /*nb*/   4);
+                    #ifdef DEVEL
+                        mbus_write_message32(0x9E, sar_adc_addr);
+                        mbus_write_message32(0x9F, data);
+                    #endif
+                }
+            }
+        }
+    #endif
+
     // If there was a failure: Use previous numbers as they are.
     if (fail) {
         // Update the next duration
@@ -2235,6 +2287,7 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
                             /*data*/((num_calib_max_err_fails&0xFF)<<8)|(num_calib_xo_fails&0xFF), 
                             /*nb*/2);
 
+    #ifndef DETAILED_XO_INFO_FOR_RAW
         if (xt1_state==XT1_ACTIVE) {
             if (status.sample_type==SAMPLE_RAW) {
                 if (sar_adc_addr < 8192) {
@@ -2253,8 +2306,10 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
                 }
             }
         }
+    #endif
 
         // Restart the XO
+        nfc_power_off(); // Turn off the NFC
         restart_xo(/*delay_a*/XO_WAIT_A, /*delay_b*/XO_WAIT_B);
 
     #ifdef ENABLE_XO_PAD
