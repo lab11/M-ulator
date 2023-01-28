@@ -1823,7 +1823,7 @@ static void snt_operation (void) {
                 //      Byte#4160 - Byte#8192: SAR/ADC Value (each sample is 16-bit)
                 if (eeprom_sample_cnt<1008) {
                     sar_adc_addr = byte_addr + (1008<<2);
-                    sar_adc_data = ((meas.sar - 64)<<8) | (meas.adc&0xFF);
+                    sar_adc_data = (meas.sar<<8) | (meas.adc&0xFF);
                     nfc_i2c_byte_write( /*e2*/   0, 
                                         /*addr*/ byte_addr, 
                                         /*data*/ (sar_adc_data<<16)|temp.raw,
