@@ -2,7 +2,7 @@
 // TMC SOURCE FILE
 //-------------------------------------------------------------------------------------------
 // SUB-LAYER CONNECTION:
-//      PREv23E -> EIDv1 -> SNTv6 -> PMUv13r1
+//      PREv22E -> SNTv5 -> EIDv1 -> MRRv11A -> MEMv3 -> PMUv13
 //-------------------------------------------------------------------------------------------
 // < AUTHOR > 
 //  Yejoong Kim (yejoong@cubeworks.io)
@@ -11,10 +11,10 @@
 //*********************************************************
 // HEADER AND OTHER SOURCE FILES
 //*********************************************************
-#include "TMCv2.h"
+#include "TMCv1r1.h"
 
 //*******************************************************************
-// TMCv2 FUNCTIONS
+// TMCv1 FUNCTIONS
 //*******************************************************************
 // SEE HEADER FILE FOR FUNCTION BRIEFS
 
@@ -225,7 +225,7 @@ uint32_t get_high_power_history (void) {
 }
 
 //*******************************************************************
-// PRE FUNCTIONS (Specific to TMCv2)
+// PRE FUNCTIONS (Specific to TMCv1r1)
 //*******************************************************************
 
 void restart_xo(uint32_t delay_a, uint32_t delay_b) {
@@ -233,10 +233,10 @@ void restart_xo(uint32_t delay_a, uint32_t delay_b) {
     xo_stop();
 
     //--- Start XO clock (NOTE: xo_stop() disables both the clock and the timer)
-    xo_start(/*delay_a*/delay_a, /*delay_b*/delay_b);
+    xo_start(/*delay_a*/delay_a, /*delay_b*/delay_b, /*start_cnt*/0);
 
     //--- Configure and Start the XO Counter
-    set_xo_timer(/*mode*/0, /*threshold*/0, /*wreq_en*/0, /*irq_en*/0, /*auto_reset*/0);
+    set_xo_timer(/*mode*/0, /*threshold*/0, /*wreq_en*/0, /*irq_en*/0);
     start_xo_cnt();
 }
 
@@ -300,7 +300,7 @@ volatile union pmu_floor_t __pmu_floor_sleep_radio__[] = {
 //-------------------------------------------------------------------
 
 void pmu_reg_write_core (uint32_t reg_addr, uint32_t reg_data) {
-    enable_reg_irq(PMU_TARGET_REG_IDX);
+    enable_reg_irq(PMU_TARGET_REG_IDX); // REG0
     start_timeout32_check(/*id*/FAIL_ID_PMU, /*val*/TIMEOUT_TH);
     mbus_remote_register_write(PMU_ADDR,reg_addr,reg_data);
     WFI();
@@ -596,6 +596,9 @@ uint32_t pmu_calc_new_sar_ratio(uint32_t adc_val, uint32_t offset, uint32_t sel_
     //  [Reference] CubeWorks, Inc. Dropbox/Yejoong Kim/Designs/202106_XT1_Firmware/sar_and_vdd/auto_sar_ratio_adjustment.pptx
     //              CubeWorks, Inc. Dropbox/Yejoong Kim/Designs/202106_XT1_Firmware/sar_and_vdd/auto_sar_comparison.xlsx
     //              NOTE: The algorithm shown here is called an empirical 'Option 3 with 2-pt meas.' in the above docs.
+    //
+    //  [NOTE]  This method, as well as other candidates, were first tried for sar_and_vdd.c in xt1_firmware_v1p16.
+    //          Its TMCv1r1.c file contains all the detailed and temporary implementation of those methods.
     //
     //--------------------------------------------------------------------------------------------------------------------------------
     //  Written on August 22, 2022
@@ -1379,33 +1382,6 @@ uint32_t nfc_i2c_release_token(void) {
     }
 }
 
-//uint32_t nfc_i2c_byte_write(uint32_t e2, uint32_t addr, uint32_t data, uint32_t nb){
-//    #ifdef DEVEL
-//        mbus_write_message32(0xD0, (e2<<28)|(nb<<24)|addr);
-//        mbus_write_message32(0xD1, data);
-//    #endif
-//    // In order to reduce the code space,
-//    // this function does not generate an error when 'nb' is out of the valid range.
-//    nfc_i2c_start();
-//    nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
-//    nfc_i2c_byte(addr>>8);
-//    nfc_i2c_byte(addr);
-//    //-------------------------------------------------
-//              nfc_i2c_byte((data>> 0)&0xFF);
-//    if (nb>1) nfc_i2c_byte((data>> 8)&0xFF);
-//    if (nb>2) nfc_i2c_byte((data>>16)&0xFF);
-//    if (nb>3) nfc_i2c_byte((data>>24)&0xFF);
-//    //-------------------------------------------------
-//    nfc_i2c_stop();
-//    // If NAK'd
-//    if (__nfc_i2c_nak__) return 0;
-//    // If everything went well
-//    else {
-//        nfc_i2c_polling();
-//        return 1;
-//    }
-//}
-
 uint32_t nfc_i2c_byte_write(uint32_t e2, uint32_t addr, uint32_t data, uint32_t nb){
     // In order to reduce the code space,
     // this function does not generate an error when 'nb' is out of the valid range.
@@ -1447,40 +1423,9 @@ uint32_t nfc_i2c_byte_write(uint32_t e2, uint32_t addr, uint32_t data, uint32_t 
 
     // Still NAK'd after __NUM_NUM_RETRY__ tries.
     // -> Trigger I2C ACK Failure Handling
-    set_reg_pend_irq(I2C_TARGET_REG_IDX);
+    set_reg_pend_irq(0x7);
     return 0;
 }
-
-//uint32_t nfc_i2c_byte_read(uint32_t e2, uint32_t addr, uint32_t nb){
-//    #ifdef DEVEL
-//        mbus_write_message32(0xD2, (e2<<28)|(nb<<24)|addr);
-//    #endif
-//    // In order to reduce the code space,
-//    // this function does not generate an error when 'nb' is out of the valid range.
-//    uint32_t data;
-//    nfc_i2c_start();
-//    nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
-//    nfc_i2c_byte(addr >> 8);
-//    nfc_i2c_byte(addr);
-//    nfc_i2c_start();
-//    nfc_i2c_byte(0xA7 | ((e2&0x1) << 3));
-//    //-------------------------------------------------
-//               data  =  nfc_i2c_rd(!(nb==1));
-//    if (nb>1)  data |= (nfc_i2c_rd(!(nb==2)) << 8);
-//    if (nb>2)  data |= (nfc_i2c_rd(!(nb==3)) << 16);
-//    if (nb>3)  data |= (nfc_i2c_rd(!(nb==4)) << 24);
-//    //-------------------------------------------------
-//    nfc_i2c_stop();
-//    // If NAK'd
-//    if (__nfc_i2c_nak__) return 0;
-//    // If everything went well
-//    else {
-//        #ifdef DEVEL
-//            mbus_write_message32(0xD3, data);
-//        #endif
-//        return data;
-//    }
-//}
 
 uint32_t nfc_i2c_byte_read(uint32_t e2, uint32_t addr, uint32_t nb){
     // In order to reduce the code space,
@@ -1527,37 +1472,9 @@ uint32_t nfc_i2c_byte_read(uint32_t e2, uint32_t addr, uint32_t nb){
 
     // Still NAK'd after __NUM_NUM_RETRY__ tries.
     // -> Trigger I2C ACK Failure Handling
-    set_reg_pend_irq(I2C_TARGET_REG_IDX);
+    set_reg_pend_irq(0x7);
     return 0;
 }
-
-//uint32_t nfc_i2c_seq_byte_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_t nb){
-//    // In order to reduce the code space,
-//    // this function does not generate an error when 'nb' is out of the valid range.
-//    uint32_t i;
-//    uint32_t s;
-//    nfc_i2c_start();
-//    nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
-//    nfc_i2c_byte(addr>>8);
-//    nfc_i2c_byte(addr);
-//    s=0;
-//    for (i=0; i<nb; i++) {
-//        if(s==4) s=0;
-//        if      (s==0) nfc_i2c_byte((data[i]>> 0)&0xFF);
-//        else if (s==1) nfc_i2c_byte((data[i]>> 8)&0xFF);
-//        else if (s==2) nfc_i2c_byte((data[i]>>16)&0xFF);
-//        else if (s==3) nfc_i2c_byte((data[i]>>24)&0xFF);
-//        s++;
-//    }
-//    nfc_i2c_stop();
-//    // If NAK'd
-//    if (__nfc_i2c_nak__) return 0;
-//    // If everything went well
-//    else {
-//        nfc_i2c_polling();
-//        return 1;
-//    }
-//}
 
 uint32_t nfc_i2c_seq_byte_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_t nb){
     // In order to reduce the code space,
@@ -1595,36 +1512,9 @@ uint32_t nfc_i2c_seq_byte_write(uint32_t e2, uint32_t addr, uint32_t data[], uin
 
     // Still NAK'd after __NUM_NUM_RETRY__ tries.
     // -> Trigger I2C ACK Failure Handling
-    set_reg_pend_irq(I2C_TARGET_REG_IDX);
+    set_reg_pend_irq(0x7);
     return 0;
 }
-
-//uint32_t nfc_i2c_word_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_t nw){
-//    // In order to reduce the code space,
-//    // this function does not generate an error when 'nw' is out of the valid range.
-//    uint32_t i, j;
-//    uint32_t word;
-//    addr &= 0xFFFC; // Force the 2 LSBs to 0 to make it word-aligned.
-//    nfc_i2c_start();
-//    nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
-//    nfc_i2c_byte(addr>>8);
-//    nfc_i2c_byte(addr);
-//    for (i=0; i<nw; i++) {
-//        word = data[i];
-//        for (j=0; j<4; j++) {
-//            nfc_i2c_byte(word&0xFF);
-//            word = word>>8;
-//        }
-//    }
-//    nfc_i2c_stop();
-//    // If NAK'd
-//    if (__nfc_i2c_nak__) return 0;
-//    // If everything went well
-//    else {
-//        nfc_i2c_polling();
-//        return 1;
-//    }
-//}
 
 uint32_t nfc_i2c_word_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_t nw){
     // In order to reduce the code space,
@@ -1662,77 +1552,9 @@ uint32_t nfc_i2c_word_write(uint32_t e2, uint32_t addr, uint32_t data[], uint32_
 
     // Still NAK'd after __NUM_NUM_RETRY__ tries.
     // -> Trigger I2C ACK Failure Handling
-    set_reg_pend_irq(I2C_TARGET_REG_IDX);
+    set_reg_pend_irq(0x7);
     return 0;
 }
-
-//uint32_t nfc_i2c_word_read(uint32_t e2, uint32_t addr, uint32_t nw, volatile uint32_t* ptr){
-//    // In order to reduce the code space,
-//    // this function does not generate an error when 'nw' is out of the valid range.
-//
-//    #ifdef DEVEL
-//        mbus_write_message32(0xD4, (nw<<24)|addr);
-//        mbus_write_message32(0xD5, (uint32_t) ptr);
-//    #endif
-//    // This assumes a memory boundary between byte 31 and byte 32.
-//
-//    uint32_t data = 0;
-//    uint32_t bcnt = 0;
-//    uint32_t enda = addr + (nw<<2);
-//
-//    nfc_i2c_start();
-//    nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
-//    nfc_i2c_byte(addr >> 8);
-//    nfc_i2c_byte(addr);
-//    nfc_i2c_start();
-//    nfc_i2c_byte(0xA7 | ((e2&0x1) << 3));
-//
-//    while (addr<enda) {
-//
-//        data |= (nfc_i2c_rd((addr!=31)&&(addr!=(enda-1))) << (bcnt << 3));
-//
-//        addr++;
-//        bcnt++;
-//
-//        if (bcnt==4) {
-//            #ifdef DEVEL
-//                mbus_write_message32(0xD7, (uint32_t) ptr);
-//                mbus_write_message32(0xD8, (uint32_t) data);
-//            #endif
-//            *ptr = data;
-//            data = 0;
-//            bcnt = 0;
-//            ptr++;
-//        }
-//
-//        if ((addr==32)&&(addr!=enda)) {
-//            nfc_i2c_stop();
-//            nfc_i2c_start();
-//            nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
-//            nfc_i2c_byte(addr >> 8);
-//            nfc_i2c_byte(addr);
-//            nfc_i2c_start();
-//            nfc_i2c_byte(0xA7 | ((e2&0x1) << 3));
-//        }
-//
-//    }
-//    nfc_i2c_stop();
-//
-//    // If NAK'd
-//    if (__nfc_i2c_nak__) {
-//        #ifdef DEVEL
-//            mbus_write_message32(0xD6, 0x0);
-//        #endif
-//        return 0;
-//    }
-//    // If everything went well
-//    else {
-//        #ifdef DEVEL
-//            mbus_write_message32(0xD6, 0x1);
-//        #endif
-//        return 1;
-//    }
-//}
 
 uint32_t nfc_i2c_word_read(uint32_t e2, uint32_t addr, uint32_t nw, volatile uint32_t* ptr){
     // In order to reduce the code space,
@@ -1815,34 +1637,9 @@ uint32_t nfc_i2c_word_read(uint32_t e2, uint32_t addr, uint32_t nw, volatile uin
 
     // Still NAK'd after __NUM_NUM_RETRY__ tries.
     // -> Trigger I2C ACK Failure Handling
-    set_reg_pend_irq(I2C_TARGET_REG_IDX);
+    set_reg_pend_irq(0x7);
     return 0;
 }
-
-//uint32_t nfc_i2c_word_pattern_write(uint32_t e2, uint32_t addr, uint32_t data, uint32_t nw){
-//    // In order to reduce the code space,
-//    // this function does not generate an error when 'nw' is out of the valid range.
-//    uint32_t i;
-//    addr &= 0xFFFC; // Force the 2 LSBs to 0 to make it word-aligned.
-//    nfc_i2c_start();
-//    nfc_i2c_byte(0xA6 | ((e2&0x1) << 3));
-//    nfc_i2c_byte(addr>>8);
-//    nfc_i2c_byte(addr);
-//    for (i=0; i<nw; i++) {
-//        nfc_i2c_byte((data>> 0)&0xFF);
-//        nfc_i2c_byte((data>> 8)&0xFF);
-//        nfc_i2c_byte((data>>16)&0xFF);
-//        nfc_i2c_byte((data>>24)&0xFF);
-//    }
-//    nfc_i2c_stop();
-//    // If NAK'd
-//    if (__nfc_i2c_nak__) return 0;
-//    // If everything went well
-//    else {
-//        nfc_i2c_polling();
-//        return 1;
-//    }
-//}
 
 uint32_t nfc_i2c_word_pattern_write(uint32_t e2, uint32_t addr, uint32_t data, uint32_t nw){
     // In order to reduce the code space,
@@ -1877,7 +1674,7 @@ uint32_t nfc_i2c_word_pattern_write(uint32_t e2, uint32_t addr, uint32_t data, u
 
     // Still NAK'd after __NUM_NUM_RETRY__ tries.
     // -> Trigger I2C ACK Failure Handling
-    set_reg_pend_irq(I2C_TARGET_REG_IDX);
+    set_reg_pend_irq(0x7);
     return 0;
 }
 
@@ -2039,11 +1836,11 @@ void eid_enable_timer(void){
         eid_r01.TMR_RESETB_DIV = 1;
         eid_r01.TMR_RESETB_DCDC = 1;
         mbus_remote_register_write(EID_ADDR,0x01,eid_r01.as_int);
-        delay(50000); // Wait for >2s
         eid_r01.TMR_EN_SELF_CLK = 1;
         mbus_remote_register_write(EID_ADDR,0x01,eid_r01.as_int);
         eid_r01.TMR_SELF_EN = 1;
         mbus_remote_register_write(EID_ADDR,0x01,eid_r01.as_int);
+        delay(120000); // Wait for >3s
         eid_r01.TMR_EN_OSC = 0;
         mbus_remote_register_write(EID_ADDR,0x01,eid_r01.as_int);
         eid_r01.TMR_SEL_LDO = 1; // 1: use VBAT; 0: use V1P2
@@ -2056,9 +1853,9 @@ void eid_enable_timer(void){
         mbus_remote_register_write(EID_ADDR,0x01,(/*TMR_RESETB_DCDC*/0<<0)|(/*TMR_EN_SELF_CLK*/0<<1)|(/*TMR_SELF_EN*/0<<2)|(/*TMR_RESETB_DIV*/0<<3)|(/*TMR_RESETB*/0<<4)|(/*TMR_SEL_LDO*/0<<5)|(/*TMR_EN_OSC*/0<<6)|(/*TMR_ISOL_CLK*/1<<7));
         mbus_remote_register_write(EID_ADDR,0x01,(/*TMR_RESETB_DCDC*/0<<0)|(/*TMR_EN_SELF_CLK*/0<<1)|(/*TMR_SELF_EN*/0<<2)|(/*TMR_RESETB_DIV*/0<<3)|(/*TMR_RESETB*/0<<4)|(/*TMR_SEL_LDO*/0<<5)|(/*TMR_EN_OSC*/1<<6)|(/*TMR_ISOL_CLK*/1<<7));
         mbus_remote_register_write(EID_ADDR,0x01,(/*TMR_RESETB_DCDC*/1<<0)|(/*TMR_EN_SELF_CLK*/0<<1)|(/*TMR_SELF_EN*/0<<2)|(/*TMR_RESETB_DIV*/1<<3)|(/*TMR_RESETB*/1<<4)|(/*TMR_SEL_LDO*/0<<5)|(/*TMR_EN_OSC*/1<<6)|(/*TMR_ISOL_CLK*/1<<7));
-        delay(50000); // Wait for >2s
         mbus_remote_register_write(EID_ADDR,0x01,(/*TMR_RESETB_DCDC*/1<<0)|(/*TMR_EN_SELF_CLK*/1<<1)|(/*TMR_SELF_EN*/0<<2)|(/*TMR_RESETB_DIV*/1<<3)|(/*TMR_RESETB*/1<<4)|(/*TMR_SEL_LDO*/0<<5)|(/*TMR_EN_OSC*/1<<6)|(/*TMR_ISOL_CLK*/1<<7));
         mbus_remote_register_write(EID_ADDR,0x01,(/*TMR_RESETB_DCDC*/1<<0)|(/*TMR_EN_SELF_CLK*/1<<1)|(/*TMR_SELF_EN*/1<<2)|(/*TMR_RESETB_DIV*/1<<3)|(/*TMR_RESETB*/1<<4)|(/*TMR_SEL_LDO*/0<<5)|(/*TMR_EN_OSC*/1<<6)|(/*TMR_ISOL_CLK*/1<<7));
+        delay(120000); // Wait for >3s
         mbus_remote_register_write(EID_ADDR,0x01,(/*TMR_RESETB_DCDC*/1<<0)|(/*TMR_EN_SELF_CLK*/1<<1)|(/*TMR_SELF_EN*/1<<2)|(/*TMR_RESETB_DIV*/1<<3)|(/*TMR_RESETB*/1<<4)|(/*TMR_SEL_LDO*/0<<5)|(/*TMR_EN_OSC*/0<<6)|(/*TMR_ISOL_CLK*/1<<7));
         mbus_remote_register_write(EID_ADDR,0x01,(/*TMR_RESETB_DCDC*/1<<0)|(/*TMR_EN_SELF_CLK*/1<<1)|(/*TMR_SELF_EN*/1<<2)|(/*TMR_RESETB_DIV*/1<<3)|(/*TMR_RESETB*/1<<4)|(/*TMR_SEL_LDO*/1<<5)|(/*TMR_EN_OSC*/0<<6)|(/*TMR_ISOL_CLK*/1<<7));
         mbus_remote_register_write(EID_ADDR,0x01,(/*TMR_RESETB_DCDC*/1<<0)|(/*TMR_EN_SELF_CLK*/1<<1)|(/*TMR_SELF_EN*/1<<2)|(/*TMR_RESETB_DIV*/1<<3)|(/*TMR_RESETB*/1<<4)|(/*TMR_SEL_LDO*/1<<5)|(/*TMR_EN_OSC*/0<<6)|(/*TMR_ISOL_CLK*/0<<7));
@@ -2101,7 +1898,7 @@ void eid_enable_cp_ck(uint32_t te, uint32_t fd, uint32_t seg) {
     #endif
 
     // Enable charge pumps
-    enable_reg_irq(EID_TARGET_REG_IDX);
+    enable_reg_irq(EID_TARGET_REG_IDX); // REG2
     start_timeout32_check(/*id*/FAIL_ID_EID, /*val*/TIMEOUT_TH<<4); // ~16s timeout
     mbus_remote_register_write(EID_ADDR,0x09,
                                   (0x1   << 23) // ECTR_RESETB_CP
@@ -2230,7 +2027,7 @@ void snt_init(void) {
         ));
 
     // Wakeup Timer configuration
-    snt_r17.WUP_INT_RPLY_REG_ADDR = PLD_TARGET_REG_IDX;
+    snt_r17.WUP_INT_RPLY_REG_ADDR = 0x07;
     snt_r17.WUP_INT_RPLY_SHORT_ADDR = 0x10;
     snt_r17.WUP_CLK_SEL = 0x0; // 0: Use CLK_TMR, 1: Use CLK_TSNS
     snt_r17.WUP_AUTO_RESET = 0x0; // Automatically reset counter to 0 upon sleep 
@@ -2240,49 +2037,23 @@ void snt_init(void) {
     snt_ldo_vref_on();
 }
 
-void snt_temp_sensor_power_on(uint32_t sel_ldo){
-
-    if (sel_ldo) {
-        // Turn on LDO
-        snt_r00.LDO_EN_IREF = 1;
-        snt_r00.LDO_EN_LDO  = 1;
-        mbus_remote_register_write(SNT_ADDR,0x00,snt_r00.as_int);
-
-        // Delay (~10ms) @ 100kHz clock speed)
-        delay(1000); 
-    }
-
+void snt_temp_sensor_power_on(void){
     // Turn on digital block
-    if (sel_ldo) snt_r01.TSNS_SEL_LDO  = 1;
-    else         snt_r01.TSNS_SEL_V1P2 = 1;
+    snt_r01.TSNS_SEL_V1P2 = 1;
     mbus_remote_register_write(SNT_ADDR,0x01,snt_r01.as_int);
-
     // Turn on analog block
-    if (sel_ldo) snt_r01.TSNS_EN_SENSOR_LDO  = 1;
-    else         snt_r01.TSNS_EN_SENSOR_V1P2 = 1;
+    snt_r01.TSNS_EN_SENSOR_V1P2 = 1;
     mbus_remote_register_write(SNT_ADDR,0x01,snt_r01.as_int);
-
     // Delay (~2ms @ 100kHz clock speed)
     delay(200);
 }
 
-
 void snt_temp_sensor_power_off(void){
-
     snt_r01.TSNS_RESETn         = 0;
-    snt_r01.TSNS_ISOLATE        = 1;
-    mbus_remote_register_write(SNT_ADDR,0x01,snt_r01.as_int);
-
     snt_r01.TSNS_SEL_V1P2       = 0;
     snt_r01.TSNS_EN_SENSOR_V1P2 = 0;
-    snt_r01.TSNS_SEL_LDO        = 0;
-    snt_r01.TSNS_EN_SENSOR_LDO  = 0;
+    snt_r01.TSNS_ISOLATE        = 1;
     mbus_remote_register_write(SNT_ADDR,0x01,snt_r01.as_int);
-
-    // Turn off LDO
-    snt_r00.LDO_EN_IREF   = 0;
-    snt_r00.LDO_EN_LDO    = 0;
-    mbus_remote_register_write(SNT_ADDR,0x00,snt_r00.as_int);
 }
 
 void snt_temp_sensor_start(void){
@@ -2304,49 +2075,39 @@ void snt_ldo_vref_on(void){
 }
 
 void snt_start_timer(uint32_t wait_time){
-    // Newly implemented following the input vector at:
-    //  /afs/eecs.umich.edu/vlsida/projects/m3_hdk/layer/SNT/SNTv6/spice/4_wakeup_timer/input.vec
-    
-    // [6] TMR_SLEEP: 1'h1 -> 1'h0
-    snt_r08.TMR_SLEEP = 0x0;
+
+    // New for SNTv3
+    snt_r08.TMR_SLEEP = 0x0; // Default : 0x1
+    mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
+    snt_r08.TMR_ISOLATE = 0x0; // Default : 0x1
     mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
 
-    // [5] TMR_ISOLATE: 1'h1 -> 1'h0
-    snt_r08.TMR_ISOLATE = 0x0;
-    mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
-
-    // [21] TMR_SELF_EN: 1'h1 -> 1'h0
-    snt_r09.TMR_SELF_EN = 0x0;
+    // TIMER SELF_EN Disable 
+    snt_r09.TMR_SELF_EN = 0x0; // Default : 0x1
     mbus_remote_register_write(SNT_ADDR,0x09,snt_r09.as_int);
 
-    // [3] TMR_EN_OSC: 1'h0 -> 1'h1
-    snt_r08.TMR_EN_OSC = 0x1;
+    // EN_OSC 
+    snt_r08.TMR_EN_OSC = 0x1; // Default : 0x0
     mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
 
     // Release Reset 
-    // [4] TMR_RESETB: 1'h0 -> 1'h1
-    // [2] TMR_RESETB_DIV: 1'h0 -> 1'h1
-    // [1] TMR_RESETB_DCDC: 1'h0 -> 1'h1
-    snt_r08.TMR_RESETB = 0x1;
-    snt_r08.TMR_RESETB_DIV = 0x1;
-    snt_r08.TMR_RESETB_DCDC = 0x1;
+    snt_r08.TMR_RESETB = 0x1; // Default : 0x0
+    snt_r08.TMR_RESETB_DIV = 0x1; // Default : 0x0
+    snt_r08.TMR_RESETB_DCDC = 0x1; // Default : 0x0
     mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
 
-    // Delay (must be >400ms at RT)
-    delay(wait_time);
-
-    // [0] TMR_EN_SELF_CLK: 1'h0 -> 1'h1
-    snt_r08.TMR_EN_SELF_CLK = 0x1;
+    // TIMER EN_SEL_CLK Reset 
+    snt_r08.TMR_EN_SELF_CLK = 0x1; // Default : 0x0
     mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
 
-    // [21] TMR_SELF_EN: 1'h0 -> 1'h1
-    snt_r09.TMR_SELF_EN = 0x1;
+    // TIMER SELF_EN 
+    snt_r09.TMR_SELF_EN = 0x1; // Default : 0x0
     mbus_remote_register_write(SNT_ADDR,0x09,snt_r09.as_int);
 
-//    // Delay (must be >400ms at RT)
-//    delay(wait_time);
+    // Delay (must be >2 seconds at RT)
+    delay(wait_time);
 
-    // [3] TMR_EN_OSC: 1'h1 -> 1'h0
+    // Turn off sloscillator
     snt_r08.TMR_EN_OSC = 0x0; // Default : 0x0
     mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
 
@@ -2372,14 +2133,10 @@ void snt_stop_timer(void){
 	mbus_remote_register_write(SNT_ADDR,0x08,snt_r08.as_int);
 }
 
-uint32_t snt_set_timer_threshold(uint32_t threshold){
-    mbus_remote_register_write(SNT_ADDR,0x19,(0x10<<16)|(WP1_TARGET_REG_IDX<<8)|((threshold>>24)&0xFF));
-    enable_reg_irq(WP1_TARGET_REG_IDX);
-    start_timeout32_check(/*id*/FAIL_ID_WUP, /*val*/TIMEOUT_TH);
+void snt_set_timer_threshold(uint32_t threshold){
+    mbus_remote_register_write(SNT_ADDR,0x19,threshold>>24);
     mbus_remote_register_write(SNT_ADDR,0x1A,threshold & 0xFFFFFF);
-    WFI();
-    // NOTE: In normal operation, 'Threshold Update' returns the lower 24-bit of the data and it gets written to WP1_TARGET_REG_IDX.
-    return (*WP1_TARGET_REG_ADDR==(threshold&0xFFFFFF));
+    
 }
 
 void snt_enable_wup_timer (uint32_t auto_reset) {
@@ -2393,21 +2150,21 @@ void snt_disable_wup_timer (void) {
     mbus_remote_register_write(SNT_ADDR,0x17,snt_r17.as_int);
 }
 
-uint32_t snt_set_wup_timer(uint32_t auto_reset, uint32_t threshold){
+void snt_set_wup_timer(uint32_t auto_reset, uint32_t threshold){
+    snt_set_timer_threshold(threshold);
     snt_enable_wup_timer(auto_reset);
-    return snt_set_timer_threshold(threshold);
 }
 
 uint32_t snt_sync_read_wup_timer(void) {
-    enable_reg_irq(WP1_TARGET_REG_IDX);
+    enable_reg_irq(0x5); // REG5
     start_timeout32_check(/*id*/FAIL_ID_WUP, /*val*/TIMEOUT_TH);
     mbus_remote_register_write(SNT_ADDR,0x14,
                              (0x0  << 16)   // 0: Synchronous 32-bit; 1: Synchronous lower 24-bit, 2: Synchronous Upper 8-bit, 3: Invalid
                             |(0x10 <<  8)   // MBus Target Address
-                            |(WP0_TARGET_REG_IDX << 0)   // Destination Register ID
+                            |(0x04 <<  0)   // Destination Register ID
                             );
     WFI();
-    uint32_t result = ((*WP0_TARGET_REG_ADDR << 24) | *WP1_TARGET_REG_ADDR);
+    uint32_t result = ((*REG4 << 24) | *REG5);
     #ifdef DEVEL
         mbus_write_message32(0xEE, result);
     #endif
@@ -2894,5 +2651,4 @@ uint32_t tconv (uint32_t dout, uint32_t a, uint32_t b, uint32_t offset) {
 
     return result&0xFFFF;  // 10x(T+273-OFFSET)
 }
-
 

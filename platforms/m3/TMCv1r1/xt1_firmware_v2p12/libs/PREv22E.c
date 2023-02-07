@@ -1,6 +1,6 @@
 //*******************************************************************
 //Author: Yejoong Kim
-//Description: PREv23E lib file
+//Description: PREv22E lib file
 //-------------------------------------------------------------------
 //  <Update History>
 //  Jul 13 2020 - PRCv21 Family
@@ -14,12 +14,9 @@
 //                  - Removed *gpio* functions and 
 //                      made the previous *ngpio* functions new *gpio* functions
 //  Apr 28 2021 - PRCv22 Family
-//  Jul 06 2022 - PRCv23 Family
-//                  - Updated set_xo_timer() to support the new XO timer threshold access.
-//                      Now it writes in *XOT_SAT to change the XO timer threshold.
 //*******************************************************************
 
-#include "PREv23E.h"
+#include "PREv22E.h"
 #include "mbus.h"
 
 //*******************************************************************
@@ -121,16 +118,17 @@ void disable_xo_timer () {
     *REG_XOT_CONFIG = regval;
 }
 
-void set_xo_timer (uint8_t mode, uint32_t timestamp, uint8_t wreq_en, uint8_t irq_en, uint8_t auto_reset) {
+void set_xo_timer (uint8_t mode, uint32_t timestamp, uint8_t wreq_en, uint8_t irq_en) {
+    uint32_t regval0 = timestamp & 0x0000FFFF;
+    uint32_t regval1 = (timestamp >> 16) & 0xFFFF;
 
-    uint32_t           regval0  = (1<<23); // XOT_ENABLE = 1;
-    if (mode)          regval0 |= (1<<22); // XOT_MODE = 1
-    if (wreq_en)       regval0 |= (1<<21); // XOT_WREQ_EN = 1
-    if (irq_en)        regval0 |= (1<<20); // XOT_IRQ_EN = 1
-    if (auto_reset==0) regval0 |= (1<<18); // XOT_DISABLE_AUTO_RESET = 1
+    regval0 |= 0x00800000; // XOT_ENABLE = 1;
+    if (mode)    regval0 |= 0x00400000; // XOT_MODE = 1
+    if (wreq_en) regval0 |= 0x00200000; // XOT_WREQ_EN = 1
+    if (irq_en)  regval0 |= 0x00100000; // XOT_IRQ_EN = 1
 
+    *REG_XOT_CONFIGU = regval1;
     *REG_XOT_CONFIG  = regval0;
-    *XOT_SAT = timestamp;
 }
 
 void reset_xo_cnt  () { *XOT_RESET_CNT  = 0x1; }
@@ -139,10 +137,20 @@ void stop_xo_cnt   () { *XOT_STOP_CNT   = 0x1; }
 void start_xo_cout () { *XOT_START_COUT = 0x1; }
 void stop_xo_cout  () { *XOT_STOP_COUT  = 0x1; }
 
-void xo_start(uint32_t delay_a, uint32_t delay_b) {
+void xot_enable (uint32_t timestamp) {
+    *REG_XOT_CONFIGU = (timestamp >> 16) & 0xFFFF;
+    *REG_XOT_CONFIG  = (timestamp & 0x0000FFFF) | 0x00A00000; // [23] XOT_ENABLE = 1; [21] XOT_WREQ_EN = 1;
+    start_xo_cnt();
+}
+
+void xot_disable_wreq (void) {
+    *REG_XOT_CONFIG  = *REG_XOT_CONFIG & 0xFFDFFFFF; // [21] XOT_WREQ_EN = 0;
+}
+
+void xo_start(uint32_t delay_a, uint32_t delay_b, uint32_t start_cnt ) {
 
     //--------------------------------------------------------------------------
-    // XO Driver (XO_DRV_V5_TSMC180) Start-Up Sequence
+    // XO Driver (XO_DRV_V3_TSMC180) Start-Up Sequence
     //--------------------------------------------------------------------------
     // RESETn       __|*********************************************************
     // PGb_StartUp  __|***************************|_____________________________
@@ -157,10 +165,11 @@ void xo_start(uint32_t delay_a, uint32_t delay_b) {
     // .(dot): minimum delay
     //--------------------------------------------------------------------------
 
-    pre_r19_t xo_control;
-    xo_control.as_int = *REG_XO_CONF1;
+    pre_r19_t xo_control = PRE_R19_DEFAULT; // REG_XO_CONF1
 
-    xo_control.XO_CAP_TUNE     = 0x3;
+    xo_control.XO_SEL_VLDO     = 0x2; // Default value: 3'h0
+    xo_control.XO_SEL_vV0P6    = 0x0; // Default value: 2'h2
+    xo_control.XO_CAP_TUNE     = 0x3; // Default value: 3'h0
     xo_control.XO_RESETn       = 1;
     xo_control.XO_PGb_START_UP = 1;
     *REG_XO_CONF1 = xo_control.as_int;
@@ -188,9 +197,52 @@ void xo_start(uint32_t delay_a, uint32_t delay_b) {
 
     delay(100); // Dummy Delay
 
-//    // Start XO Wakeup Timer
-//    enable_xo_timer();
-//    if (start_cnt) start_xo_cnt();
+    // Start XO Wakeup Timer
+    enable_xo_timer();
+    if (start_cnt) start_xo_cnt();
+}
+
+void xo_start_high_power(uint32_t delay_a, uint32_t delay_b, uint32_t start_cnt ) {
+
+    //--------------------------------------------------------------------------
+    // XO Driver (XO_DRV_V3_TSMC180) Start-Up Sequence
+    //--------------------------------------------------------------------------
+    // RESETn       __|*********************************************************
+    // PGb_StartUp  __|*********************************************************
+    // START_UP     ************************************************************
+    // ISOL_CLK_HP  **********|_________________________________________________
+    // ISOL_CLK_LP  ******************|_________________________________________
+    //                |<--A-->|<--B-->|<--C-->
+    //--------------------------------------------------------------------------
+    // A: ~1s  (XO Start-Up): NOTE: You may need more time here due to the weak power-gate switch.
+    // B: ~1s  (VLDO & IBIAS generation)
+    // C: <1ms (SCN Output Generation)
+    //--------------------------------------------------------------------------
+
+    pre_r19_t xo_control = PRE_R19_DEFAULT; // REG_XO_CONF1
+
+    xo_control.XO_SEL_VLDO     = 0x2; // Default value: 3'h0
+    xo_control.XO_SEL_vV0P6    = 0x0; // Default value: 2'h2
+    xo_control.XO_CAP_TUNE     = 0x3; // Default value: 3'h0
+    xo_control.XO_RESETn       = 1;
+    xo_control.XO_PGb_START_UP = 1;
+    *REG_XO_CONF1 = xo_control.as_int;
+
+    delay(delay_a); // Delay A (~1s; XO Start-Up)
+
+    xo_control.XO_ISOL_CLK_HP = 0;
+    *REG_XO_CONF1 = xo_control.as_int;
+    
+    delay(delay_b); // Delay B (~1s; VLDO & IBIAS generation)
+
+    xo_control.XO_ISOL_CLK_LP = 0;
+    *REG_XO_CONF1 = xo_control.as_int;
+    
+    delay(100); // Delay C (~1ms; SCN Output Generation)
+
+    // Start XO Wakeup Timer
+    enable_xo_timer();
+    if (start_cnt) start_xo_cnt();
 }
 
 void xo_stop( void ) {
@@ -198,7 +250,7 @@ void xo_stop( void ) {
     pre_r19_t xo_control;
     xo_control.as_int = *REG_XO_CONF1;
 
-    xo_control.XO_CAP_TUNE    = 0x3;
+    xo_control.XO_CAP_TUNE    = 0x3; // Default value: 3'h0
     xo_control.XO_ISOL_CLK_LP = 1;
     *REG_XO_CONF1 = xo_control.as_int;
 
@@ -206,7 +258,7 @@ void xo_stop( void ) {
     xo_control.XO_START_UP = 1;
     *REG_XO_CONF1 = xo_control.as_int;
 
-    // Just in case you used xo_start_high_power() [legacy]
+    // Just in case you used xo_start_high_power()
     xo_control.XO_ISOL_CLK_HP = 1;
     *REG_XO_CONF1 = xo_control.as_int;
 
@@ -246,11 +298,13 @@ void reset_flag (void) {
 uint32_t set_flag ( uint32_t bit_idx, uint32_t value ) {
     uint32_t reg_val = (*REG_FLAGS & (~(0x1 << bit_idx))) | (value << bit_idx);
     *REG_FLAGS = reg_val;
+    //mbus_write_message32(0x7C, (bit_idx<<24)|value);
     return reg_val;
 }
     
 uint8_t get_flag ( uint32_t bit_idx ) {
     uint8_t reg_val = (*REG_FLAGS & (0x1 << bit_idx)) >> bit_idx;
+    //mbus_write_message32(0x7D, (bit_idx<<24)|reg_val);
     return reg_val;
 }
     
@@ -420,4 +474,3 @@ void arb_debug_reg (uint8_t id, uint32_t code) {
     uint32_t temp_addr = 0xBFFF0000 | (id << 2);
     *((volatile uint32_t *) temp_addr) = code;
 }
-

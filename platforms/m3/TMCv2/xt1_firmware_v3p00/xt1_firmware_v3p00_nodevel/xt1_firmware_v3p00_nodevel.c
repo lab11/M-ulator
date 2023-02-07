@@ -1815,10 +1815,10 @@ static void snt_operation (void) {
                 uint32_t byte_addr = (eeprom_sample_cnt<<2)+EEPROM_ADDR_DATA_RESET_VALUE;
 
                 // Store the raw data
-                //  Max Sample Count = (8192 - 128) / 2 = 4032
+                //  Max Sample Count = (8192 - 128) / 4 = 2016
                 //  However, we split this into two and store the raw data into the first half,
                 //  and SAR/ADC values in to the second half.
-                //  i.e., max sample count = 4032 / 2 = 2016
+                //  i.e., max sample count = 2016 / 2 = 1008
                 //      Byte# 128 - Byte#4159: Raw Data      (each sample is 16-bit)
                 //      Byte#4160 - Byte#8192: SAR/ADC Value (each sample is 16-bit)
                 if (eeprom_sample_cnt<1008) {

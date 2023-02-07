@@ -1,13 +1,13 @@
 //*******************************************************************************************
-// XT1 (TMCv2) FIRMWARE
-// Version 3.00 (devel)
+// XT1 (TMCv1r1) FIRMWARE
+// Version 2.12 (devel)
 //------------------------
 #define HARDWARE_ID 0x01005843  // XT1r1 Hardware ID
-#define FIRMWARE_ID 0x0300      // [15:8] Integer part, [7:0]: Non-Integer part
+#define FIRMWARE_ID 0x020C      // [15:8] Integer part, [7:0]: Non-Integer part
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
-//  Jan 05 2023 - Version 3.00
-//                  - Hard-forked & modified from xt1_firmware_v2p10
+//  Mar 28 2022 - Version 1.00
+//                  - Hard-forked from xt1_firmware_v0p99
 //  See Google Doc for detailed update history.
 //-------------------------------------------------------------------------------------------
 //
@@ -275,7 +275,7 @@
 //          {0x13, skip_init        }           status.skip_init          (updated)
 //
 //  -----------------------------------------------------------------------------------------
-//  < Math Functions > -> Need to enable DEVEL
+//  < Math Functions > -> Need to enable OPT_DEVEL
 //  -----------------------------------------------------------------------------------------
 //  NOTE: Integer numbers are 0 fixed-point numbers
 //
@@ -298,7 +298,7 @@
 //  0xCE    snt_delta                           snt_delta in calc_ssls()
 //  0xCF    ssls                                ssls calculated in calc_ssls()
 //  -----------------------------------------------------------------------------------------
-//  < I2C Transaction > - Defined in TMCv2.c
+//  < I2C Transaction > - Defined in TMCv1r1.c
 //  -----------------------------------------------------------------------------------------
 //
 //  --- nfc_i2c_byte_write()
@@ -331,7 +331,7 @@
 //  0xDF    iter                                Iteration number (if previous I2C transcation was NAK'd)
 //
 //  -----------------------------------------------------------------------------------------
-//  < I2C Token > - Defined in TMCv2.c
+//  < I2C Token > - Defined in TMCv1r1.c
 //  -----------------------------------------------------------------------------------------
 //
 //  --- nfc_i2c_get_token()
@@ -346,7 +346,7 @@
 //  0xE0    0x02000003                          PASS - There was no token
 //
 //  -----------------------------------------------------------------------------------------
-//  < Timeout & Error Handling > - Some of them are defined in TMCv2.c
+//  < Timeout & Error Handling > - Some of them are defined in TMCv1r1.c
 //  -----------------------------------------------------------------------------------------
 //  0xEE    value                               SNT Timer Sync Read value 
 //  0xEF    __wfi_timeout_id__                  Timeout/Fail occurs
@@ -398,7 +398,7 @@
 // HEADER FILES
 //*******************************************************************************************
 
-#include "TMCv2.h"
+#include "TMCv1r1.h"
 
 //*******************************************************************************************
 // DEVEL Mode
@@ -407,9 +407,8 @@
 //      - Send debug messages
 //      - Use default values rather than grabbing the values from EEPROM
 #define DEVEL
-#define SNT_TIMER_ISSUE
-#define ENABLE_XO_PAD
-#define DETAILED_XO_INFO_FOR_RAW
+//#define ENABLE_XO_PAD
+//#define DETAILED_XO_INFO_FOR_RAW
 //#define USE_SHORT_REFRESH
 //#define ENABLE_DEBUG_SYSTEM_CONFIG
 
@@ -1006,7 +1005,7 @@ static void operation_sleep (uint32_t check_snt) {
 
     // Disable all IRQs. PREv22E replaces the sleep msg with a selective wakeup msg
     // if there is an enabled && pending IRQ.
-//    *NVIC_ICER = 0xFFFFFFFF;
+    *NVIC_ICER = 0xFFFFFFFF;
 
     if (check_snt) {
         // Just in case - check the current SNT counter value.
@@ -1098,14 +1097,7 @@ static void operation_sleep (uint32_t check_snt) {
 // Return  : None
 //-------------------------------------------------------------------
 static void operation_sleep_snt_timer(uint32_t check_snt) {
-#ifdef SNT_TIMER_ISSUE
-    if (!snt_set_wup_timer(/*auto_reset*/1, /*threshold*/snt_threshold)) {
-#else
-    if (!snt_set_wup_timer(/*auto_reset*/0, /*threshold*/snt_threshold)) {
-#endif
-        __wfi_id__ = FAIL_ID_GEN;
-        fail_handler(/*id*/__wfi_id__);
-    }
+    snt_set_wup_timer(/*auto_reset*/0, /*threshold*/snt_threshold);
     #ifdef DEVEL
         mbus_write_message32(0x8F, snt_threshold);
     #endif
@@ -1176,8 +1168,7 @@ static void operation_init (void) {
                             | (0xF <<  0);  // 4'h8     GOC_SEL
 
         //--- Pending Wakeup Handling          Default
-        *REG_SYS_CONF =       (0x0 << 9)    // 1'h1     NO_SLEEP_WITH_PEND_IRQ  #If 1, it replaces the sleep message with a selective wakeup message if there is a pending M0 IRQ. If 0, it goes to sleep even when there is a pending M0 IRQ.
-                            | (0x0 << 8)    // 1'h0     ENABLE_SOFT_RESET	#If 1, Soft Reset will occur when there is an MBus Memory Bulk Write message received and the MEM Start Address is 0x2000
+        *REG_SYS_CONF =       (0x0 << 8)    // 1'h0     ENABLE_SOFT_RESET	#If 1, Soft Reset will occur when there is an MBus Memory Bulk Write message received and the MEM Start Address is 0x2000
                             | (0x1 << 7)    // 1'h1     PUF_CHIP_ID_SLEEP
                             | (0x1 << 6)    // 1'h1     PUF_CHIP_ID_ISOLATE
                             | (0x8 << 0);   // 5'h1E    WAKEUP_ON_PEND_REQ	#[4]: GIT (PRE_E Only), [3]: GPIO (PRE only), [2]: XO TIMER (PRE only), [1]: WUP TIMER, [0]: GOC/EP
@@ -1186,8 +1177,10 @@ static void operation_init (void) {
         // Enumeration
         //-------------------------------------------------
         set_halt_until_mbus_trx();
-        mbus_enumerate(EID_ADDR);
         mbus_enumerate(SNT_ADDR);
+        mbus_enumerate(EID_ADDR);
+        mbus_enumerate(MRR_ADDR);
+        mbus_enumerate(MEM_ADDR);
         mbus_enumerate(PMU_ADDR);
         set_halt_until_mbus_tx();
 
@@ -1197,6 +1190,8 @@ static void operation_init (void) {
         mbus_remote_register_write(PMU_ADDR, 0x52, (0x10 << 8) | PMU_TARGET_REG_IDX);
         mbus_remote_register_write(SNT_ADDR, 0x07, (0x10 << 8) | SNT_TARGET_REG_IDX);
         mbus_remote_register_write(EID_ADDR, 0x05, (0x1 << 16) | (0x10 << 8) | EID_TARGET_REG_IDX);
+//      mbus_remote_register_write(MRR_ADDR, 0x1E, (0x10 << 8) | MRR_TARGET_REG_IDX); // FSM_IRQ_REPLY_PACKET
+//      mbus_remote_register_write(MRR_ADDR, 0x23, (0x10 << 8) | MRR_TARGET_REG_IDX); // TRX_IRQ_REPLY_PACKET
 
         //-------------------------------------------------
         // PMU Settings
@@ -1212,14 +1207,10 @@ static void operation_init (void) {
         set_flag(FLAG_ENUMERATED, 1);
 
         // Turn on the SNT timer clock
-        snt_start_timer(/*wait_time*/DLY_1S);
+        snt_start_timer(/*wait_time*/2*DLY_1S);
 
         // Start the SNT counter
-    #ifdef SNT_TIMER_ISSUE
-        snt_enable_wup_timer(/*auto_reset*/1);
-    #else
         snt_enable_wup_timer(/*auto_reset*/0);
-    #endif
 
         //-------------------------------------------------
         // XO Settings
@@ -1227,25 +1218,24 @@ static void operation_init (void) {
         //--- XO Frequency
         *REG_XO_CONF2 =             // Default  // Description
             //-----------------------------------------------------------------------------------------------------------
-            ( (0x1         << 20)   // (3'h1) XO_SEL_DLY	        #Adjusts pulse delay
-            | (0x1         << 18)   // (2'h1) XO_SEL_CLK_SCN	    #Selects division ratio for SCN CLK
-            | (XO_FREQ_SEL << 15)   // (3'h1) XO_SEL_CLK_OUT_DIV	#Selects division ratio for the XO CLK output. XO Freq = 2^XO_SEL_CLK_OUT_DIV (kHz)
-            | (0x1         << 14)   // (1'h1) XO_SEL_LDO            #Selects LDO output as an input to SCN
-            | (0x0         << 13)   // (1'h0) XO_SEL_0P6            #Selects V0P6 as an input to SCN
-            | (0x0         << 10)   // (3'h0) XO_I_AMP	            #Adjusts VREF body bias buffer current
-            | (0x0         <<  3)   // (7'h0) XO_VREF_TUNEB 	    #Adjust VREF level and TC
-            | (0x0         <<  0)   // (3'h0) XO_SEL_VREF 	        #Selects VREF output from its diode stack
+            ( (0x0          << 13)  // 2'h2     // XO_INJ	            #Adjusts injection period
+            | (0x1          << 10)  // 3'h1     // XO_SEL_DLY	        #Adjusts pulse delay
+            | (0x1          <<  8)  // 2'h1     // XO_SEL_CLK_SCN	    #Selects division ratio for SCN CLK
+            | (XO_FREQ_SEL  <<  5)  // 3'h1     // XO_SEL_CLK_OUT_DIV   #Selects division ratio for the XO CLK output; freq = (2^XO_SEL_CLK_OUT_DIV) in kHz.
+            | (0x1          <<  4)  // 1'h1     // XO_SEL_LDO	        #Selects LDO output as an input to SCN
+            | (0x0          <<  3)  // 1'h0     // XO_SEL_0P6	        #Selects V0P6 as an input to SCN
+            | (0x0          <<  0)  // 3'h0     // XO_I_AMP	            #Adjusts VREF body bias buffer current
             );
 
         xo_stop();  // Default value of XO_START_UP is wrong in RegFile, so need to override it.
 
         //--- Start XO clock
-        xo_start(/*delay_a*/XO_WAIT_A, /*delay_b*/XO_WAIT_B);
+        xo_start(/*delay_a*/XO_WAIT_A, /*delay_b*/XO_WAIT_B, /*start_cnt*/0);
         // Update the flag
         set_flag(FLAG_XO_INITIALIZED, 1);
 
         //--- Configure and Start the XO Counter
-        set_xo_timer(/*mode*/0, /*threshold*/0, /*wreq_en*/0, /*irq_en*/0, /*auto_reset*/0);
+        set_xo_timer(/*mode*/0, /*threshold*/0, /*wreq_en*/0, /*irq_en*/0);
         start_xo_cnt();
 
     #ifdef ENABLE_XO_PAD
@@ -1277,7 +1267,7 @@ static void operation_init (void) {
         nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_HW_ID, /*data*/HARDWARE_ID, /*nb*/4);
         nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_FW_ID, /*data*/FIRMWARE_ID, /*nb*/2);
         // Sub-Versions
-        //nfc_i2c_byte_write(/*e2*/0, /*addr*/6, /*data*/0x0203, /*nb*/2);
+        nfc_i2c_byte_write(/*e2*/0, /*addr*/6, /*data*/0x0203, /*nb*/2);
 
         // Set default values for CALIB and AES_KEY
         eeprom_temp_calib.a = TEMP_CALIB_A_DEFAULT;
@@ -1315,13 +1305,9 @@ static void operation_init (void) {
         // Go to Sleep for 10s.
         //-------------------------------------------------
         // this provides the information for the very first SNT calibration
-        snt_freq = 1400;
-        snt_duration = 30000;
-    #ifdef SNT_TIMER_ISSUE
-        snt_threshold_prev = 0;
-    #else
+        snt_freq = 1500;
+        snt_duration = 30000;   // supposed to be ~20 seconds.
         snt_threshold_prev = snt_read_wup_timer();
-    #endif
         snt_threshold = snt_threshold_prev + snt_duration;
         xo_val_curr = get_xo_cnt();
         operation_sleep_snt_timer(/*check_snt*/0);
@@ -1581,7 +1567,7 @@ static void meas_temp_adc (void) {
         enable_reg_irq(SNT_TARGET_REG_IDX); // REG1
 
         // Turn on SNT Temperature Sensor
-        snt_temp_sensor_power_on(/*sel_ldo*/1);
+        snt_temp_sensor_power_on();
         snt_temp_sensor_reset();
 
         // Release the reset for the Temp Sensor
@@ -1636,7 +1622,7 @@ static void meas_temp_adc (void) {
                                                     /*threshold*/       eeprom_adc.crit_vbat, 
                                                     /*num_cons_meas*/   eeprom_misc_config.pmu_num_cons_meas
                                                    );
-    
+
             #ifdef DEVEL
                 mbus_write_message32(0x90, temp.value);
                 mbus_write_message32(0x93, (meas.crit_vbat<<28)|(meas.low_vbat<<24)|(adc_offset<<16)|(meas.sar<<8)|(meas.adc));
@@ -1646,7 +1632,7 @@ static void meas_temp_adc (void) {
             pmu_set_sar_ratio(meas.sar);
     
             meas.valid = 1;
-    
+
             /////////////////////////////////////////////////////////////////
             // EID Crash Handler
             //---------------------------------------------------------------
@@ -1658,7 +1644,7 @@ static void meas_temp_adc (void) {
     
                 // Trigger the Crash Handler
                 eid_trigger_crash();
-    
+
                 // Go to indefinite sleep
                 snt_set_wup_timer(/*auto_reset*/1, /*threshold*/0);
                 operation_sleep(/*check_snt*/0);
@@ -1797,19 +1783,19 @@ static void snt_operation (void) {
             // sample_type: SAMPLE_RAW
             if (status.sample_type==SAMPLE_RAW) {
 
-                // Store ADC Reading and SAR Ratio
-                nfc_i2c_byte_write(/*e2*/0, 
-                    /*addr*/ EEPROM_ADDR_LAST_ADC,      // EEPROM_ADDR_LAST_ADC, EEPROM_ADDR_LAST_SAR
-                    /*data*/ (meas.sar<<8)|meas.adc,
-                    /* nb */ 2
-                    );
+                    // Store ADC Reading and SAR Ratio
+                    nfc_i2c_byte_write(/*e2*/0, 
+                        /*addr*/ EEPROM_ADDR_LAST_ADC,      // EEPROM_ADDR_LAST_ADC, EEPROM_ADDR_LAST_SAR
+                        /*data*/ (meas.sar<<8)|meas.adc,
+                        /* nb */ 2
+                        );
 
-                // Store the Sample Count
-                nfc_i2c_byte_write(/*e2*/0, 
-                    /*addr*/ EEPROM_ADDR_SAMPLE_COUNT, 
-                    /*data*/ (eeprom_sample_cnt+1),
-                    /* nb */ 4
-                    );
+                    // Store the Sample Count
+                    nfc_i2c_byte_write(/*e2*/0, 
+                        /*addr*/ EEPROM_ADDR_SAMPLE_COUNT, 
+                        /*data*/ (eeprom_sample_cnt+1),
+                        /* nb */ 4
+                        );
 
             #ifdef DETAILED_XO_INFO_FOR_RAW
                 uint32_t byte_addr = (eeprom_sample_cnt<<2)+EEPROM_ADDR_DATA_RESET_VALUE;
@@ -1819,8 +1805,8 @@ static void snt_operation (void) {
                 //  However, we split this into two and store the raw data into the first half,
                 //  and SAR/ADC values in to the second half.
                 //  i.e., max sample count = 2016 / 2 = 1008
-                //      Byte# 128 - Byte#4159: Raw Data      (each sample is 16-bit)
-                //      Byte#4160 - Byte#8192: SAR/ADC Value (each sample is 16-bit)
+                //      Byte# 128 - Byte#4159: SAR, ADC, Raw Temp Data (each sample is 32-bit)
+                //      Byte#4160 - Byte#8192: XO Information          (each sample is 32-bit)
                 if (eeprom_sample_cnt<1008) {
                     sar_adc_addr = byte_addr + (1008<<2);
                     sar_adc_data = (meas.sar<<8) | (meas.adc&0xFF);
@@ -1839,20 +1825,20 @@ static void snt_operation (void) {
                 }
 
             #else
-                uint32_t byte_addr = (eeprom_sample_cnt<<1)+EEPROM_ADDR_DATA_RESET_VALUE;
+                    uint32_t byte_addr = (eeprom_sample_cnt<<1)+EEPROM_ADDR_DATA_RESET_VALUE;
 
-                // Store the raw data
-                //  Max Sample Count = (8192 - 128) / 2 = 4032
-                //  However, we split this into two and store the raw data into the first half,
-                //  and SAR/ADC values in to the second half.
-                //  i.e., max sample count = 4032 / 2 = 2016
-                //      Byte# 128 - Byte#4159: Raw Data      (each sample is 16-bit)
-                //      Byte#4160 - Byte#8192: SAR/ADC Value (each sample is 16-bit)
-                if (eeprom_sample_cnt<2016) {
-                    nfc_i2c_byte_write( /*e2*/   0, 
-                                        /*addr*/ byte_addr, 
-                                        /*data*/ temp.raw,
-                                        /*nb*/   2);
+                    // Store the raw data
+                    //  Max Sample Count = (8192 - 128) / 2 = 4032
+                    //  However, we split this into two and store the raw data into the first half,
+                    //  and SAR/ADC values in to the second half.
+                    //  i.e., max sample count = 4032 / 2 = 2016
+                    //      Byte# 128 - Byte#4159: Raw Data      (each sample is 16-bit)
+                    //      Byte#4160 - Byte#8192: SAR/ADC Value (each sample is 16-bit)
+                    if (eeprom_sample_cnt<2016) {
+                        nfc_i2c_byte_write( /*e2*/   0, 
+                                            /*addr*/ byte_addr, 
+                                            /*data*/ temp.raw,
+                                            /*nb*/   2);
 
                     // Store ADC & SAR
                     sar_adc_addr = byte_addr + (2016<<1);
@@ -1862,7 +1848,6 @@ static void snt_operation (void) {
                                         /*addr*/ sar_adc_addr,  // Starting from Byte#4160
                                         /*data*/ sar_adc_data,  // See Description
                                         /*nb*/   2);
-
 
                     #ifdef DEVEL
                         mbus_write_message32(0x9C, byte_addr);
@@ -2240,11 +2225,7 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
     #endif
 
     // Update the previous snt_threshold
-#ifdef SNT_TIMER_ISSUE
-    snt_threshold_prev = 0;
-#else
     snt_threshold_prev = snt_threshold;
-#endif
 
     #ifdef DETAILED_XO_INFO_FOR_RAW
         if (xt1_state==XT1_ACTIVE) {
@@ -2309,7 +2290,6 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
     #endif
 
         // Restart the XO
-        nfc_power_off(); // Turn off the NFC
         restart_xo(/*delay_a*/XO_WAIT_A, /*delay_b*/XO_WAIT_B);
 
     #ifdef ENABLE_XO_PAD
@@ -2318,22 +2298,14 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
 
         // Calculate the next threshold
         if (skip_calib) {
-        #ifdef SNT_TIMER_ISSUE
-            snt_threshold_prev = 0;
-        #else
             snt_threshold_prev = snt_read_wup_timer();
-        #endif
             snt_threshold      = snt_threshold_prev + snt_duration;
             #ifdef DEVEL
                 mbus_write_message32(0xCA, snt_threshold);
             #endif
         }
         else {
-        #ifdef SNT_TIMER_ISSUE
-            snt_threshold = snt_duration;
-        #else
             snt_threshold += snt_duration;
-        #endif
         }
 
         // Update xo_val_curr. 
@@ -2352,11 +2324,7 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
         snt_duration = mult(/*num_a*/wakeup_interval_sec, /*num_b*/snt_freq);
 
         // Calculate the next threshold
-    #ifdef SNT_TIMER_ISSUE
-        snt_threshold_prev = 0;
-    #else
         snt_threshold_prev = snt_read_wup_timer();
-    #endif
         snt_threshold      = snt_threshold_prev + snt_duration;
         #ifdef DEVEL
             mbus_write_message32(0xCB, snt_threshold);
@@ -2381,11 +2349,7 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
         snt_duration = mult(/*num_a*/wakeup_interval_sec, /*num_b*/snt_freq);
 
         // Calculate the next threshold
-    #ifdef SNT_TIMER_ISSUE
-        snt_threshold = snt_duration;
-    #else
         snt_threshold += snt_duration;
-    #endif
 
         if (MAIN_CALLED) 
             set_flag(FLAG_INVLD_XO_PREV, 1);
@@ -2412,11 +2376,7 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
         }
 
         // Calculate the next threshold
-    #ifdef SNT_TIMER_ISSUE
-        snt_threshold = snt_duration;
-    #else
         snt_threshold += snt_duration;
-    #endif
 
     }
 
@@ -3412,7 +3372,6 @@ void fail_handler(uint32_t id) {
         disp_pattern = DISP_BACKSLASH|DISP_PLUS|DISP_MINUS;
     }
     // Generic/Unknown Timeout
-    //  NOTE: It may indicate that the SNT Threshold Update has failed.
     else {
         #ifdef DEVEL
             mbus_write_message32(0xEF, 0x00000000);
@@ -3473,23 +3432,23 @@ void handler_ext_int_wfi (void) {
     disable_all_irq_except_timer32();
     *TIMER32_GO = 0;
 }
-//// PMU (PMU_TARGET_REG_IDX)
+//// PMU
 //void handler_ext_int_reg0 (void) {
 //    disable_all_irq_except_timer32();
 //}
-//// SNT (Temperature Sensor) (SNT_TARGET_REG_IDX)
+//// SNT (Temperature Sensor)
 //void handler_ext_int_reg1 (void) {
 //    disable_all_irq_except_timer32();
 //}
-////  EID (EID_TARGET_REG_IDX)
+////  EID
 //void handler_ext_int_reg2 (void) {
 //    disable_all_irq_except_timer32();
 //}
-//// SNT (Timer Access) (WP1_TARGET_REG_IDX)
+//// SNT (Reading WUP Timer)
 //void handler_ext_int_reg5 (void) {
 //    disable_all_irq_except_timer32();
 //}
-// I2C ACK Failure Handling (I2C_TARGET_REG_IDX)
+// I2C ACK Failure Handling
 void handler_ext_int_reg7 (void) {
     disable_all_irq_except_timer32();
     *TIMER32_GO = 0;
