@@ -1819,8 +1819,8 @@ static void snt_operation (void) {
                 //  However, we split this into two and store the raw data into the first half,
                 //  and SAR/ADC values in to the second half.
                 //  i.e., max sample count = 2016 / 2 = 1008
-                //      Byte# 128 - Byte#4159: Raw Data      (each sample is 16-bit)
-                //      Byte#4160 - Byte#8192: SAR/ADC Value (each sample is 16-bit)
+                //      Byte# 128 - Byte#4159: SAR, ADC, Raw Temp Data (each sample is 32-bit)
+                //      Byte#4160 - Byte#8192: XO Information          (each sample is 32-bit)
                 if (eeprom_sample_cnt<1008) {
                     sar_adc_addr = byte_addr + (1008<<2);
                     sar_adc_data = (meas.sar<<8) | (meas.adc&0xFF);
@@ -1862,7 +1862,6 @@ static void snt_operation (void) {
                                         /*addr*/ sar_adc_addr,  // Starting from Byte#4160
                                         /*data*/ sar_adc_data,  // See Description
                                         /*nb*/   2);
-
 
                     #ifdef DEVEL
                         mbus_write_message32(0x9C, byte_addr);
