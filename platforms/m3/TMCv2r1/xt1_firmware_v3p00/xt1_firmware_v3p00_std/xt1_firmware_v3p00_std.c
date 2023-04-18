@@ -407,7 +407,7 @@
 //      - Send debug messages
 //      - Use default values rather than grabbing the values from EEPROM
 //#define DEVEL
-#define ENABLE_XO_PAD
+//#define ENABLE_XO_PAD
 //#define USE_SHORT_REFRESH
 //#define ENABLE_DEBUG_SYSTEM_CONFIG
 
@@ -2050,7 +2050,6 @@ static uint32_t get_xo_cnt(void) {
         // GETTING THE SAME VALUES TWICE CONSECUTIVELY
         //----------------------------------------
 
-        //uint32_t temp = (*REG_XOT_VAL_U << 16) | (*REG_XOT_VAL_L & 0xFFFF);
         uint32_t temp = *XOT_VAL_ASYNC;
         uint32_t temp_prev;
         uint32_t num_same_reads = 1;
@@ -2058,7 +2057,6 @@ static uint32_t get_xo_cnt(void) {
 
         while ((num_same_reads < 2) && (num_try<5)) {
             temp_prev = temp;
-            //temp = (*REG_XOT_VAL_U << 16) | (*REG_XOT_VAL_L & 0xFFFF);
             temp = *XOT_VAL_ASYNC;
             if (temp==temp_prev) num_same_reads++;
             else num_same_reads=1;

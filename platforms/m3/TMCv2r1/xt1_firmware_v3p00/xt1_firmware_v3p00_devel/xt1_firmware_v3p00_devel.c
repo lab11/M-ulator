@@ -407,7 +407,7 @@
 //      - Send debug messages
 //      - Use default values rather than grabbing the values from EEPROM
 #define DEVEL
-#define ENABLE_XO_PAD
+//#define ENABLE_XO_PAD
 //#define USE_SHORT_REFRESH
 //#define ENABLE_DEBUG_SYSTEM_CONFIG
 
