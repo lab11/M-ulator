@@ -1593,10 +1593,15 @@ static void meas_temp_adc (uint32_t go_sleep) {
         temp.raw = (*SNT_TARGET_REG_ADDR) & 0xFFFF;
 
         // NOTE: temp.val is "10 x (T + 80)" where T is the actual temperature in celsius degree
-        temp.val = tconv(   /* dout */ temp.raw,
-                            /*   a  */ eeprom_temp_calib.a, 
-                            /*   b  */ eeprom_temp_calib.b, 
-                            /*offset*/ COMP_OFFSET_K);
+        if (temp.raw < 240) { // if the raw code is low enough, skip the temp conversion process.
+            temp.val = 500; // -30C
+        }
+        else {
+            temp.val = tconv(   /* dout */ temp.raw,
+                                /*   a  */ eeprom_temp_calib.a, 
+                                /*   b  */ eeprom_temp_calib.b, 
+                                /*offset*/ COMP_OFFSET_K);
+        }
 
         // Turn off the temperature sensor
         snt_temp_sensor_reset();

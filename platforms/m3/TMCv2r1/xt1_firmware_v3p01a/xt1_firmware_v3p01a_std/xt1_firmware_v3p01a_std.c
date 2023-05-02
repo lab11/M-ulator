@@ -119,9 +119,6 @@
 //  0x7B    value                               aes_key[3] is set to 'value'
 //  0x7C    value                               Measurement Configuration
 //                                                  [15: 0] num_cons_excursions
-//  0x7F    value                               FSM Information
-//                                                  0x1: snt_read_wup_timer() - snt_threshold is too large. Going into sleep. // FIXME: Remove this from the parser.
-//                                                  0x2: GPO pulse detected before/during low-power active mode // FIXME: Remove this from the parser..
 //
 //  -----------------------------------------------------------------------------------------
 //  < XO and SNT Timer - calibrate_snt_timer() >
@@ -165,10 +162,10 @@
 //  0x90    value                               Measured Temperature
 //                                                  [31:16] Raw code (*SNT_TARGET_REG_ADDR)
 //                                                  [15: 0] After the conversion (temp.val) "10 x (T + 80)" where T is the actual temperature in celsius degree.
-//  0x91    0x00000000                          meas_temp_adc() is called with go_sleep=0 // FIXME: Add to the parser
-//  0x91    0x00000001                          meas_temp_adc() is called with go_sleep=1 // FIXME: Add to the parser
-//  0x91    0x00000002                          meas_temp_adc() is called with go_sleep=1 & FLAG_TEMP_MEAS_PEND=0 // FIXME: Add to the parser
-//  0x91    0x00000003                          meas_temp_adc() is called with go_sleep=1 & FLAG_TEMP_MEAS_PEND=1 // FIXME: Add to the parser
+//  0x91    0x00000000                          meas_temp_adc() is called with go_sleep=0
+//  0x91    0x00000001                          meas_temp_adc() is called with go_sleep=1
+//  0x91    0x00000002                          meas_temp_adc() is called with go_sleep=1 & FLAG_TEMP_MEAS_PEND=0
+//  0x91    0x00000003                          meas_temp_adc() is called with go_sleep=1 & FLAG_TEMP_MEAS_PEND=1
 //  0x91    0xFFFFFFFF                          Skipped the temperature measurement since meas.valid=1
 //  0x92    {0x1, sub_sample_cnt}               Sub-sample count
 //  0x92    {0x2, sub_sample_sum}               Current sum of the sub-samples
@@ -1596,10 +1593,15 @@ static void meas_temp_adc (uint32_t go_sleep) {
         temp.raw = (*SNT_TARGET_REG_ADDR) & 0xFFFF;
 
         // NOTE: temp.val is "10 x (T + 80)" where T is the actual temperature in celsius degree
-        temp.val = tconv(   /* dout */ temp.raw,
-                            /*   a  */ eeprom_temp_calib.a, 
-                            /*   b  */ eeprom_temp_calib.b, 
-                            /*offset*/ COMP_OFFSET_K);
+        if (temp.raw < 240) { // if the raw code is low enough, skip the temp conversion process.
+            temp.val = 500; // -30C
+        }
+        else {
+            temp.val = tconv(   /* dout */ temp.raw,
+                                /*   a  */ eeprom_temp_calib.a, 
+                                /*   b  */ eeprom_temp_calib.b, 
+                                /*offset*/ COMP_OFFSET_K);
+        }
 
         // Turn off the temperature sensor
         snt_temp_sensor_reset();
