@@ -899,6 +899,8 @@ void pmu_init(void){
         ( (0xFFF << 0)  // 0x1E     // (12-bit) Delay before turning on UPC/DNC slow loop
     ));
 
+    //pmu_reg_write(0x2B, 32);    // TICK_SAR_WAKEUP_WAIT
+    //pmu_reg_write(0x2C, 32);    // TICK_UDC_WAKEUP_WAIT
 }
 
 //*******************************************************************
