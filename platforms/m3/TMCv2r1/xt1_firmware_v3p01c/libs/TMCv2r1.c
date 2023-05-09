@@ -2247,7 +2247,8 @@ void snt_temp_sensor_power_on(uint32_t sel_ldo){
         mbus_remote_register_write(SNT_ADDR,0x00,snt_r00.as_int);
 
         // Delay (~10ms) @ 100kHz clock speed)
-        delay(1000); 
+        //delay(1000); 
+        delay(1500); 
     }
 
     // Turn on digital block
@@ -2261,7 +2262,8 @@ void snt_temp_sensor_power_on(uint32_t sel_ldo){
     mbus_remote_register_write(SNT_ADDR,0x01,snt_r01.as_int);
 
     // Delay (~2ms @ 100kHz clock speed)
-    delay(200);
+    //delay(200);
+    delay(300);
 }
 
 
