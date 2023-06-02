@@ -1,0 +1,516 @@
+#!/usr/bin/perl 
+###############################################################################
+# FLASH LAYER (FLX) BOOT ISA PROGRAM COMPILER
+# Author: Yejoong Kim
+# Last Modified: Sep 10 2015
+# ----------------------------------------------------------------------------
+# [Usage] ./compileBootFLX [.memmap FileName]
+#
+# NOTE:	1) This script was made in hurry. 
+# 			It is a very long and inefficient code :P
+#			Anyone is welcome to improve this :)
+# 		2) Prepare a source code named $inFile
+#		3) Output hex files are stored in $outFileXX.
+#			Use these to preload the flash memory.
+#		4) For detailed syntax for source codes, see the sample code './prog'
+###############################################################################
+
+$BootCodeBeforeProg = "
+# Start of Boot-Up Code
+";
+
+$BootCodeAfterProg = "
+# Register Write (Write B0C3CB in Reg0 in Proc. And Set RUN_CPU)
+RW 0001
+1 00 B0C3CB
+1 10 000001
+
+# Tail Idle
+ID
+";
+
+###############################################################################
+# Start of the Script (You may not need to modify below this line
+###############################################################################
+$tempFile = "./createBootHexFLX_Program.temp";
+$memMapFile = $ARGV[0];
+
+########################################
+## Read out memmap file
+########################################
+open(IN, "$memMapFile") || die "ERROR: cannot open the file $memMapFile\n";
+@line = <IN>;
+$startLineIdx = 3;                              # $line[3] contains the very first hex code
+$endLineIdx = scalar(@line) - 1;                # The last index of @line
+$numWords = $endLineIdx - $startLineIdx + 1;    # Number of 32-bit words
+
+for ($idx=$startLineIdx; $idx<scalar(@line); $idx++) {
+    $dataRawHex = $line[$idx];
+    chop($dataRawHex);
+    $dataRawHex =~ s/^.*: //;
+    $memData[$idx-$startLineIdx] = $dataRawHex; # Store the data(Hex) in $memData
+}
+close(IN);
+
+
+########################################
+## Print out $tempFile
+########################################
+open(TEMP, ">$tempFile") || die "ERROR: cannot open the file $tempFile\n";
+print TEMP $BootCodeBeforeProg;
+
+print TEMP "\n";
+print TEMP "#--- createBootHexFLS Start of MEM Data ---#\n";
+
+$numWords_1 = $numWords - 1;
+$numWords_1_Hex = Dec2Hex($numWords_1, 4);
+
+print TEMP "MC $numWords_1_Hex\n";
+print TEMP "1\n";
+print TEMP "00000000\n";
+
+for ($idx=0; $idx<$numWords; $idx++) {
+    print TEMP "$memData[$idx]\n";
+}
+
+print TEMP "#--- createBootHexFLS End of MEM Data ---#\n";
+print TEMP "\n";
+
+print TEMP $BootCodeAfterProg;
+
+close(TEMP);
+
+
+########################################
+## Read-In $tempFile and Compile
+########################################
+
+$outFile = $memMapFile;
+$incFile = $memMapFile;
+$outFile =~ s/.memmap/.boothex/;
+$incFile =~ s/.memmap/.bootinc/;
+
+open(IN, "$tempFile") || die "ERROR: cannot open the file $tempFile\n";
+open(OUT, ">$outFile") || die "ERROR: cannot open the file $outFile\n";
+open(INC, ">$incFile") || die "ERROR: cannot open the file $incFile\n";
+
+
+$num=0; $outLine[$num]="6AB0C3CB";
+while ($line = <IN>)
+{
+	if (($line =~ /^#/) or ($line =~ /^\s+$/)){ 
+		# COMMENT. DO NOTHING 
+	}
+	else
+	{
+		chop($line);
+		@line = split(/\s+/, $line);
+
+		if   ($line[0] =~ /RW/) { $ctrlType = "CMND";  $currentCtrl = "RW"; $opcodeBin = "00010001"; } # REGISTER WRITE
+		elsif($line[0] =~ /MC/) { $ctrlType = "CMND";  $currentCtrl = "MC"; $opcodeBin = "00010010"; } # MEMORY COPY
+		elsif($line[0] =~ /EN/) { $ctrlType = "CMND";  $currentCtrl = "EN"; $opcodeBin = "00011110"; } # ENUMERATION
+		elsif($line[0] =~ /NO/) { $ctrlType = "CMND";  $currentCtrl = "NO"; $opcodeBin = "00011101"; } # NOP
+		elsif($line[0] =~ /ID/) { $ctrlType = "TAIL";  $currentCtrl = "ID"; $opcodeBin = "11110000"; } # TAIL: IDLE
+		elsif($line[0] =~ /PD/) { $ctrlType = "TAIL";  $currentCtrl = "PD"; $opcodeBin = "11111111"; } # TAIL: FLASH POWER-DOWN
+		elsif($line[0] =~ /SL/) { $ctrlType = "TAIL";  $currentCtrl = "SL"; $opcodeBin = "11111100"; } # TAIL: SLEEP
+
+		if    ($ctrlType =~ /CMND/)
+		{
+			$iterHex = $line[1];
+            $iterBin = Hex2Bin($iterHex, 16);
+            $iterDec = Hex2Dec($iterHex);
+		}
+		elsif ($ctrlType =~ /TAIL/) { $iterHex = "0000"; $iterBin="0000000000000000"; $iterDec = 0; }
+
+        ### Make ECC'ed Command
+		$cmdBin = join "", $opcodeBin, "00", $iterBin; # Complete 26-bit command line before ECC
+
+		@cmdBin = split(//, $cmdBin);
+		$cmdEccBin[31] = $cmdBin[0];
+		$cmdEccBin[30] = $cmdBin[1];
+		$cmdEccBin[29] = $cmdBin[2];
+		$cmdEccBin[28] = $cmdBin[3];
+		$cmdEccBin[27] = $cmdBin[4];
+		$cmdEccBin[26] = $cmdBin[5];
+		$cmdEccBin[25] = $cmdBin[6];
+		$cmdEccBin[24] = $cmdBin[7];
+		$cmdEccBin[23] = $cmdBin[8];
+		$cmdEccBin[22] = $cmdBin[9];
+		$cmdEccBin[21] = $cmdBin[10];
+		$cmdEccBin[20] = $cmdBin[11];
+		$cmdEccBin[19] = $cmdBin[12];
+		$cmdEccBin[18] = $cmdBin[13];
+		$cmdEccBin[17] = $cmdBin[14];
+		$cmdEccBin[15] = $cmdBin[15];
+		$cmdEccBin[14] = $cmdBin[16];
+		$cmdEccBin[13] = $cmdBin[17];
+		$cmdEccBin[12] = $cmdBin[18];
+		$cmdEccBin[11] = $cmdBin[19];
+		$cmdEccBin[10] = $cmdBin[20];
+		$cmdEccBin[9] = $cmdBin[21];
+		$cmdEccBin[7] = $cmdBin[22];
+		$cmdEccBin[6] = $cmdBin[23];
+		$cmdEccBin[5] = $cmdBin[24];
+		$cmdEccBin[3] = $cmdBin[25];
+		$cmdEccBin[1] = $cmdEccBin[3] + $cmdEccBin[5] + $cmdEccBin[7] + $cmdEccBin[9] + $cmdEccBin[11] + $cmdEccBin[13] + $cmdEccBin[15] + $cmdEccBin[17] + $cmdEccBin[19] + $cmdEccBin[21] + $cmdEccBin[23] + $cmdEccBin[25] + $cmdEccBin[27] + $cmdEccBin[29] + $cmdEccBin[31];
+		$cmdEccBin[2] = $cmdEccBin[3] + $cmdEccBin[6] + $cmdEccBin[7] + $cmdEccBin[10] + $cmdEccBin[11] + $cmdEccBin[14] + $cmdEccBin[15] + $cmdEccBin[18] + $cmdEccBin[19] + $cmdEccBin[22] + $cmdEccBin[23] + $cmdEccBin[26] + $cmdEccBin[27] + $cmdEccBin[30] + $cmdEccBin[31];
+		$cmdEccBin[4] = $cmdEccBin[5] + $cmdEccBin[6] + $cmdEccBin[7] + $cmdEccBin[12] + $cmdEccBin[13] + $cmdEccBin[14] + $cmdEccBin[15] + $cmdEccBin[20] + $cmdEccBin[21] + $cmdEccBin[22] + $cmdEccBin[23] + $cmdEccBin[28] + $cmdEccBin[29] + $cmdEccBin[30] + $cmdEccBin[31];
+		$cmdEccBin[8] = $cmdEccBin[9] + $cmdEccBin[10] + $cmdEccBin[11] + $cmdEccBin[12] + $cmdEccBin[13] + $cmdEccBin[14] + $cmdEccBin[15] + $cmdEccBin[24] + $cmdEccBin[25] + $cmdEccBin[26] + $cmdEccBin[27] + $cmdEccBin[28] + $cmdEccBin[29] + $cmdEccBin[30] + $cmdEccBin[31];
+		$cmdEccBin[16] = $cmdEccBin[17] + $cmdEccBin[18] + $cmdEccBin[19] + $cmdEccBin[20] + $cmdEccBin[21] + $cmdEccBin[22] + $cmdEccBin[23] + $cmdEccBin[24] + $cmdEccBin[25] + $cmdEccBin[26] + $cmdEccBin[27] + $cmdEccBin[28] + $cmdEccBin[29] + $cmdEccBin[30] + $cmdEccBin[31];
+		$cmdEccBin[1] = $cmdEccBin[1] % 2;
+		$cmdEccBin[2] = $cmdEccBin[2] % 2;
+		$cmdEccBin[4] = $cmdEccBin[4] % 2;
+		$cmdEccBin[8] = $cmdEccBin[8] % 2;
+		$cmdEccBin[16] = $cmdEccBin[16] % 2;
+		$cmdEccBin[0] = 0;
+		for ($idx=1; $idx<32; $idx=$idx+1) { $cmdEccBin[0] = $cmdEccBin[0] + $cmdEccBin[$idx]; }
+		$cmdEccBin[0] = $cmdEccBin[0] % 2;
+
+
+        $cmdEccBin = "";
+		for ($idx=31; $idx>-1; $idx--) { $cmdEccBin = $cmdEccBin . $cmdEccBin[$idx];}
+        $cmdEccHex = Bin2Hex($cmdEccBin);
+
+		$num=$num+1; $outLine[$num]=$cmdEccHex; 
+
+        ### Register Write Command
+		if ($currentCtrl =~ /RW/)
+		{
+			$iterDec = $iterDec + 1;
+			while ($iterDec > 0)
+			{
+				$iterDec = $iterDec - 1;
+				$line = <IN>;
+				chop($line);
+				@line = split (/\s+/, $line);
+				$layerHex = $line[0];
+				$regIdxHex = $line[1];
+				$regDataHex = $line[2];
+				$regLineHex = join "", $regIdxHex, $regDataHex;
+
+                $layerBin = Hex2Bin($layerHex, 32);
+				@layerBin = split(//, $layerBin);
+                $layerHex = Bin2Hex($layerBin);
+
+                $regLineBin = Hex2Bin($regLineHex, 32);
+				@regLineBin = split(//, $regLineBin);
+                $regLineHex = Bin2Hex($regLineBin);
+
+				# Calculate Checksum
+				$carry=0;
+				for ($idx=31; $idx>-1; $idx=$idx-1)
+				{
+					$sum_ = ($carry + $layerBin[$idx] + $regLineBin[$idx]);
+					$sum = $sum_ % 2;
+					if ($sum_ > 1) {$carry = 1;}
+					else           {$carry = 0;}
+					$checkSumBin[$idx] = $sum;
+				}
+
+                $checkSumBin = "";
+		        for ($idx=0; $idx<32; $idx++) { $checkSumBin = $checkSumBin . $checkSumBin[$idx];}
+                $checkSumHex = Bin2Hex($checkSumBin);
+
+				$num=$num+1; $outLine[$num] = $layerHex;
+				$num=$num+1; $outLine[$num] = $regLineHex;
+				$num=$num+1; $outLine[$num] = $checkSumHex;
+
+
+			} # RW while
+		} # if currentCtrl = RW
+
+        ### Memory Copy Command
+		elsif ($currentCtrl =~ /MC/)
+		{
+			$line = <IN>;
+			chop($line);
+			$layerHex = $line;
+            $layerBin = Hex2Bin($layerHex, 32);
+			@layerBin = split(//, $layerBin);
+            $layerHex = Bin2Hex($layerBin);
+
+			for($idx=0; $idx<32; $idx=$idx+1) { $checkSumBin[$idx] = $layerBin[$idx];}
+
+			$num=$num+1; $outLine[$num]=$layerHex;
+
+			$line = <IN>;
+			chop($line);
+			$addrHex = $line;
+            $addrBin = Hex2Bin($addrHex, 32);
+			@addrBin = split(//, $addrBin);
+
+			# Calculate Checksum
+			$carry=0;
+			for ($idx=31; $idx>-1; $idx=$idx-1)
+			{
+				$sum_ = ($carry + $checkSumBin[$idx] + $addrBin[$idx]);
+				$sum = $sum_ % 2;
+				if ($sum_ > 1) {$carry = 1;}
+				else           {$carry = 0;}
+				$checkSumBin[$idx] = $sum;
+			}
+
+			$num=$num+1; $outLine[$num]=$addrHex;
+
+			$iterDec = $iterDec + 1;
+			while ($iterDec > 0)
+			{
+				$iterDec = $iterDec - 1;
+
+				$line = <IN>;
+				chop($line);
+				$dataHex = $line;
+                $dataBin = Hex2Bin($dataHex, 32);
+			    @dataBin = split(//, $dataBin);
+
+				# Calculate Checksum
+				$carry=0;
+				for ($idx=31; $idx>-1; $idx=$idx-1)
+				{
+					$sum_ = ($carry + $checkSumBin[$idx] + $dataBin[$idx]);
+					$sum = $sum_ % 2;
+					if ($sum_ > 1) {$carry = 1;}
+					else           {$carry = 0;}
+					$checkSumBin[$idx] = $sum;
+				}
+
+				$num=$num+1; $outLine[$num]=$dataHex;
+			}
+
+            $checkSumBin = "";
+		    for ($idx=0; $idx<32; $idx++) { $checkSumBin = $checkSumBin . $checkSumBin[$idx];}
+            $checkSumHex = Bin2Hex($checkSumBin);
+
+			$num=$num+1; $outLine[$num]=$checkSumHex;
+		} # if currentCtrl = MC
+	} # no comment
+}
+
+##################
+# Make .boothex
+##################
+for ($idx=0; $idx<$num+1; $idx=$idx+1)
+{
+	print OUT "$outLine[$idx]\n";
+}
+print "[INFO] ------ Boot Hex File $outFile has been created\n";
+
+##################
+# Make .bootinc
+##################
+printf INC "#define BOOT_STREAM_DATA_LENGTH %d\n", $num+1;
+printf INC "static uint32_t boot_stream_data[%d] = {\n", $num+1;
+for ($idx=0; $idx<$num+1; $idx=$idx+1)
+{
+	print INC "\t0x$outLine[$idx]";
+    if ($idx != $num) { print INC ",\n"; }
+    else {print INC "\n";}
+}
+print INC "\t};";
+print "[INFO] ------ Boot Include File $incFile has been created\n";
+
+##################
+# Closing Files
+##################
+close(IN);
+close(OUT);
+close(INC);
+
+system("rm -f $tempFile");
+
+##################
+# Sub Functions
+##################
+sub Dec2Hex {
+	my $numDec = $_[0];
+	my $length = $_[1];
+	my $idx_i;
+	my $mod;
+	my $hex;
+	my $hexLength;
+	my $numHex = "";
+
+	while ($numDec > 0) {
+		$mod = $numDec % 16;
+
+		if    ($mod == 0) { $hex = "0";}
+		elsif ($mod == 1) { $hex = "1";}
+		elsif ($mod == 2) { $hex = "2";}
+		elsif ($mod == 3) { $hex = "3";}
+		elsif ($mod == 4) { $hex = "4";}
+		elsif ($mod == 5) { $hex = "5";}
+		elsif ($mod == 6) { $hex = "6";}
+		elsif ($mod == 7) { $hex = "7";}
+		elsif ($mod == 8) { $hex = "8";}
+		elsif ($mod == 9) { $hex = "9";}
+		elsif ($mod == 10) { $hex = "A";}
+		elsif ($mod == 11) { $hex = "B";}
+		elsif ($mod == 12) { $hex = "C";}
+		elsif ($mod == 13) { $hex = "D";}
+		elsif ($mod == 14) { $hex = "E";}
+		elsif ($mod == 15) { $hex = "F";}
+
+		$numHex = $hex . $numHex;
+		$numDec = int($numDec / 16);
+	}
+
+	$hexLength = length($numHex);
+
+	if ($hexLength > $length) { $numHex = substr ($numHex, $hexLength - $length, $length);}
+	else {
+		for ($idx_i=0; $idx_i<($length - $hexLength); $idx_i++) { $numHex = "0" . $numHex;}
+	}
+
+	return $numHex;
+}
+
+
+sub Hex2Dec {
+	my $numHex = $_[0];
+	my $length = length($numHex);
+	my @digit_rev = split(//, $numHex);
+	my @digit;
+	my $idx_i;
+	my $numDig = 0;
+
+	for ($idx_i=0; $idx_i<$length; $idx_i++) { $digit[$idx_i] = $digit_rev[$length-1-$idx_i]; }
+
+	for ($idx_i=0; $idx_i<$length; $idx_i++) { 
+		if    ($digit[$idx_i] =~ /a/i) {$digit[$idx_i] = 10;}
+		elsif ($digit[$idx_i] =~ /b/i) {$digit[$idx_i] = 11;}
+		elsif ($digit[$idx_i] =~ /c/i) {$digit[$idx_i] = 12;}
+		elsif ($digit[$idx_i] =~ /d/i) {$digit[$idx_i] = 13;}
+		elsif ($digit[$idx_i] =~ /e/i) {$digit[$idx_i] = 14;}
+		elsif ($digit[$idx_i] =~ /f/i) {$digit[$idx_i] = 15;}
+		elsif ($digit[$idx_i] =~ /x/i) {$digit[$idx_i] = 0;}
+
+		$numDig = $numDig + ($digit[$idx_i] * (16**$idx_i));
+	}
+	
+	return $numDig;
+}
+
+sub Bin2Hex {
+	my $numBin = $_[0];
+	my $length = length($numBin);
+	my $idx_i;
+	my $mod4;
+	my $numHex = "";
+	my $newHex;
+	my $bit4;
+
+	# Replace 'x' or 'X' with 0.
+	$numBin =~ s/x/0/ig;
+
+	# Make sure that the length is a multiple of 4
+	$mod4 = $length % 4;
+
+	if ($mod4 != 0) {
+		for ($idx_i=0; $idx_i<(4-$mod4); $idx_i++) { $numBin = "0" . $numBin; }
+	}
+
+	# Get the new length
+	$length = length($numBin);
+
+	# Conversion
+	for ($idx_i=0; $idx_i<$length; $idx_i=$idx_i+4) {
+		$bit4 = substr ($numBin, $idx_i, 4);
+
+		if    ($bit4 eq "0000") {$newHex = "0";}
+		elsif ($bit4 eq "0001") {$newHex = "1";}
+		elsif ($bit4 eq "0010") {$newHex = "2";}
+		elsif ($bit4 eq "0011") {$newHex = "3";}
+		elsif ($bit4 eq "0100") {$newHex = "4";}
+		elsif ($bit4 eq "0101") {$newHex = "5";}
+		elsif ($bit4 eq "0110") {$newHex = "6";}
+		elsif ($bit4 eq "0111") {$newHex = "7";}
+		elsif ($bit4 eq "1000") {$newHex = "8";}
+		elsif ($bit4 eq "1001") {$newHex = "9";}
+		elsif ($bit4 eq "1010") {$newHex = "A";}
+		elsif ($bit4 eq "1011") {$newHex = "B";}
+		elsif ($bit4 eq "1100") {$newHex = "C";}
+		elsif ($bit4 eq "1101") {$newHex = "D";}
+		elsif ($bit4 eq "1110") {$newHex = "E";}
+		elsif ($bit4 eq "1111") {$newHex = "F";}
+
+		$numHex = $numHex . $newHex;
+	}
+
+	return $numHex;
+}
+
+sub Hex2Bin {
+	my $numHex = $_[0];
+	my $bitLength = $_[1];
+	my $idx_i;
+	my $hexLength = length($numHex);
+	my $bitUnabridged = "";
+	my $hex;
+	my $bitPattern;
+	my $wholeLength;
+	my $startIdx;
+	my $bit;
+
+	for ($idx_i=0; $idx_i<$hexLength; $idx_i++) {
+		$hex = substr ($numHex, $idx_i, 1);
+
+		if    ($hex =~ /0/) {$bitPattern = "0000";}
+		elsif ($hex =~ /1/) {$bitPattern = "0001";}
+		elsif ($hex =~ /2/) {$bitPattern = "0010";}
+		elsif ($hex =~ /3/) {$bitPattern = "0011";}
+		elsif ($hex =~ /4/) {$bitPattern = "0100";}
+		elsif ($hex =~ /5/) {$bitPattern = "0101";}
+		elsif ($hex =~ /6/) {$bitPattern = "0110";}
+		elsif ($hex =~ /7/) {$bitPattern = "0111";}
+		elsif ($hex =~ /8/) {$bitPattern = "1000";}
+		elsif ($hex =~ /9/) {$bitPattern = "1001";}
+		elsif ($hex =~ /a/i) {$bitPattern = "1010";}
+		elsif ($hex =~ /b/i) {$bitPattern = "1011";}
+		elsif ($hex =~ /c/i) {$bitPattern = "1100";}
+		elsif ($hex =~ /d/i) {$bitPattern = "1101";}
+		elsif ($hex =~ /e/i) {$bitPattern = "1110";}
+		elsif ($hex =~ /f/i) {$bitPattern = "1111";}
+		elsif ($hex =~ /x/i) {$bitPattern = "0000";}
+
+		$bitUnabridged = $bitUnabridged . $bitPattern;
+	}
+
+	$wholeLength = length($bitUnabridged);
+	if ($wholeLength > $bitLength) {
+		$startIdx = $wholeLength - $bitLength;
+		$bit = substr ($bitUnabridged, $startIdx, $bitLength);
+	} elsif ($wholeLength < $bitLength) {
+		$numZeros = $bitLength - $wholeLength;
+		for ($idx_i=0; $idx_i<$numZeros; $idx_i++) {
+			$bitUnabridged = "0" . $bitUnabridged;
+		}
+		$bit = $bitUnabridged;
+	} else { $bit = $bitUnabridged;}
+
+	return $bit;
+}
+
+sub FormatBin {
+	my $numBin = $_[0];
+	my $length = length($numBin);
+	my $mod4;
+	my $idx_i;
+	my $newBin = "";
+
+	# Make sure that the length is a multiple of 4
+	$mod4 = $length % 4;
+
+	if ($mod4 != 0) {
+		for ($idx_i=0; $idx_i<$mod4; $idx_i++) { $numBin = "0" . $numBin; }
+	}
+
+	# Get the new length
+	$length = length($numBin);
+
+	for ($idx_i=0; $idx_i<$length; $idx_i=$idx_i+4) {
+		$newBin	= $newBin . substr ($numBin, $idx_i, 4) . "_";
+	}
+
+	chop($newBin);
+	return $newBin;
+}
