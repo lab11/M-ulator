@@ -543,7 +543,7 @@ uint32_t pmu_validate_adc_val (uint32_t adc_val);
 //                                  1           9%
 //                                  2           5%
 //                                  3           7%
-//                                  4          10%
+//                                  4          15%
 //                              ---------------------------
 //           hysteresis     - Hysteresis
 //                              This value is used only when "decreasing" the SAR ratio 

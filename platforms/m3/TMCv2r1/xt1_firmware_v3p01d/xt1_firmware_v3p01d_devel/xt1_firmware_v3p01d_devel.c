@@ -1625,7 +1625,7 @@ static void meas_temp_adc (uint32_t go_sleep) {
                                                /*sel_margin*/   /*override.enable ? 
                                                                     override.sar_margin : 
                                                                     eeprom_misc_config.pmu_adc_sar_margin,*/
-                                                                4,  // 10% margin
+                                                                4,  // 15% margin
                                                /*hysteresis*/   eeprom_misc_config.pmu_adc_sar_hysteresis
                                             );
     
