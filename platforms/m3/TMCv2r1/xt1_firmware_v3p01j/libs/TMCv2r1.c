@@ -623,11 +623,13 @@ uint32_t pmu_calc_new_sar_ratio(uint32_t adc_val, uint32_t offset, uint32_t sel_
             uint32_t cent_val = 115;
             uint32_t c0, c1, c2;
 
-                         /*default*/  c0 = 0x559E24; c1 = 0x0DC93; c2 = 0x1F5;      // 8%
-            if      (sel_margin==1) { c0 = 0x56A605; c1 = 0x0E0B7; c2 = 0x1FF; }    // 9%
-            else if (sel_margin==2) { c0 = 0x536778; c1 = 0x0D5DB; c2 = 0x1E5; }    // 5%  
-            else if (sel_margin==3) { c0 = 0x5516E1; c1 = 0x0DC1D; c2 = 0x1F5; }    // 7%  
-            else if (sel_margin==4) { c0 = 0x5BBA07; c1 = 0x0EED2; c2 = 0x220; }    // 15%
+          //             /*default*/  c0 = 0x559E24; c1 = 0x0DC93; c2 = 0x1F5;      // 8%
+          //if      (sel_margin==1) { c0 = 0x56A605; c1 = 0x0E0B7; c2 = 0x1FF; }    // 9%
+          //else if (sel_margin==2) { c0 = 0x536778; c1 = 0x0D5DB; c2 = 0x1E5; }    // 5%  
+          //else if (sel_margin==3) { c0 = 0x5516E1; c1 = 0x0DC1D; c2 = 0x1F5; }    // 7%  
+          //else if (sel_margin==4) { c0 = 0x57A761; c1 = 0x0E760; c2 = 0x212; }    // 10% 
+          //else if (sel_margin==4) { c0 = 0x5BBA07; c1 = 0x0EED2; c2 = 0x220; }    // 15%
+          c0 = 0x57A761; c1 = 0x0E760; c2 = 0x212; // 10% 
 
             // Taylor Series Implementation
             uint32_t pwr1, pwr1_sign;
