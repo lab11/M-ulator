@@ -1,6 +1,6 @@
 //*******************************************************************************************
 // XT1 (TMCv2r1) FIRMWARE
-// Version 3.01j (standard)
+// Version 3.01k (standard)
 //------------------------
 #define HARDWARE_ID 0x01005843  // XT1r1 Hardware ID
 #define FIRMWARE_ID 0x0301      // [15:8] Integer part, [7:0]: Non-Integer part

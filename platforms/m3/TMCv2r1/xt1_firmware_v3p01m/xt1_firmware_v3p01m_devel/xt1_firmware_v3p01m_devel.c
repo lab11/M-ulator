@@ -1,6 +1,6 @@
 //*******************************************************************************************
 // XT1 (TMCv2r1) FIRMWARE
-// Version 3.01k (devel)
+// Version 3.01m (devel)
 //------------------------
 #define HARDWARE_ID 0x01005843  // XT1r1 Hardware ID
 #define FIRMWARE_ID 0x0301      // [15:8] Integer part, [7:0]: Non-Integer part
@@ -1248,7 +1248,7 @@ static void operation_init (void) {
         nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_HW_ID, /*data*/HARDWARE_ID, /*nb*/4);
         nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_FW_ID, /*data*/FIRMWARE_ID, /*nb*/2);
         // Sub-Versions
-        nfc_i2c_byte_write(/*e2*/0, /*addr*/6, /*data*/0x0F00, /*nb*/2);
+        nfc_i2c_byte_write(/*e2*/0, /*addr*/6, /*data*/0x0100, /*nb*/2);
 
         // Set default values for CALIB and AES_KEY
         eeprom_temp_calib.a = TEMP_CALIB_A_DEFAULT;

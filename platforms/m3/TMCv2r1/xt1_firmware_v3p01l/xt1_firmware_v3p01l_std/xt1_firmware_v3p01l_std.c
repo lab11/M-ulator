@@ -1,6 +1,6 @@
 //*******************************************************************************************
 // XT1 (TMCv2r1) FIRMWARE
-// Version 3.01k (devel)
+// Version 3.01l (standard)
 //------------------------
 #define HARDWARE_ID 0x01005843  // XT1r1 Hardware ID
 #define FIRMWARE_ID 0x0301      // [15:8] Integer part, [7:0]: Non-Integer part
@@ -406,7 +406,7 @@
 // Enable 'DEVEL' for the following features:
 //      - Send debug messages
 //      - Use default values rather than grabbing the values from EEPROM
-#define DEVEL
+//#define DEVEL
 //#define ENABLE_XO_PAD
 //#define USE_SHORT_REFRESH
 //#define ENABLE_DEBUG_SYSTEM_CONFIG
@@ -482,7 +482,7 @@
 #define WAKEUP_BY_GPIO2     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 10))
 #define WAKEUP_BY_GPIO3     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 11))
 #define WAKEUP_BY_SNT       WAKEUP_BY_MBUS
-#define WAKEUP_BY_NFC       WAKEUP_BY_GPIO0
+#define WAKEUP_BY_NFC       WAKEUP_BY_GPIO1
 #define MAIN_CALLED         (WAKEUP_BY_MBUS && get_bit(wakeup_source, 7))
 
 //*******************************************************************************************
@@ -1248,7 +1248,7 @@ static void operation_init (void) {
         nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_HW_ID, /*data*/HARDWARE_ID, /*nb*/4);
         nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_FW_ID, /*data*/FIRMWARE_ID, /*nb*/2);
         // Sub-Versions
-        nfc_i2c_byte_write(/*e2*/0, /*addr*/6, /*data*/0x0F00, /*nb*/2);
+        nfc_i2c_byte_write(/*e2*/0, /*addr*/6, /*data*/0x0000, /*nb*/2);
 
         // Set default values for CALIB and AES_KEY
         eeprom_temp_calib.a = TEMP_CALIB_A_DEFAULT;
