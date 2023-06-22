@@ -620,6 +620,15 @@ void pmu_temp_sleep_floor(void);
 void pmu_normal_active_floor(void);
 
 //-------------------------------------------------------------------
+// Function: pmu_rat_active_floor
+// Args    : None
+// Description:
+//           Set floor settings for Active (RAT)
+// Return  : None
+//-------------------------------------------------------------------
+void pmu_rat_active_floor(void);
+
+//-------------------------------------------------------------------
 // Function: pmu_init
 // Args    : None
 // Description:

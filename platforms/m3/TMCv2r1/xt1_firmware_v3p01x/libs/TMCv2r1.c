@@ -768,6 +768,46 @@ void pmu_normal_active_floor(void) {
         | ( 0 << 17)    // 1'h0     // Enable PFM
         | ( 1 << 14)    // 3'h3     // Comparator clock division ratio (0x1 being slowest)
         | ( 0 << 13)    // 1'h0     // Makes the converter clock 2x slower
+        | (15 <<  9)    // 4'h8     // Frequency multiplier R
+        | ( 7 <<  5)    // 4'h8     // Frequency multiplier L (actually L+1)
+        | (15      )    // 5'h0F    // Floor frequency base (0-63)
+    ));
+
+    //---------------------------------------------------------------------------------------
+    // UPC_TRIM_V3_ACTIVE
+    //---------------------------------------------------------------------------------------
+    pmu_reg_write(0x18,  // Default  // Description
+    //---------------------------------------------------------------------------------------
+        ( ( 3 << 14)    // 2'h0     // Desired Vout/Vin ratio
+        | ( 0 << 13)    // 1'h0     // Makes the converter clock 2x slower
+        | (15 <<  9)    // 4'h8     // Frequency multiplier R
+        | ( 3 <<  5)    // 4'h4     // Frequency multiplier L (actually L+1)
+        | (15      )    // 5'h08    // Floor frequency base (0-63)
+    ));
+
+    //---------------------------------------------------------------------------------------
+    // DNC_TRIM_V3_ACTIVE
+    //---------------------------------------------------------------------------------------
+    pmu_reg_write(0x1A,  // Default  // Description
+    //---------------------------------------------------------------------------------------
+        ( ( 0 << 13)    // 1'h0     // Makes the converter clock 2x slower
+        | (15 <<  9)    // 4'h8     // Frequency multiplier R
+        | ( 3 <<  5)    // 4'h4     // Frequency multiplier L (actually L+1)
+        | (15      )    // 5'h08    // Floor frequency base (0-63)
+    ));
+}
+
+void pmu_rat_active_floor(void) {
+    //---------------------------------------------------------------------------------------
+    // SAR_TRIM_V3_ACTIVE
+    //---------------------------------------------------------------------------------------
+    pmu_reg_write(0x16,  // Default  // Description
+    //---------------------------------------------------------------------------------------
+        ( ( 0 << 19)    // 1'h0     // Enable PFM even during periodic reset
+        | ( 0 << 18)    // 1'h0     // Enable PFM even when VREF is not used as reference
+        | ( 0 << 17)    // 1'h0     // Enable PFM
+        | ( 1 << 14)    // 3'h3     // Comparator clock division ratio (0x1 being slowest)
+        | ( 0 << 13)    // 1'h0     // Makes the converter clock 2x slower
         | ( 8 <<  9)    // 4'h8     // Frequency multiplier R
         | ( 4 <<  5)    // 4'h8     // Frequency multiplier L (actually L+1)
         | ( 4      )    // 5'h0F    // Floor frequency base (0-63)

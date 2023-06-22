@@ -1233,8 +1233,8 @@ static void operation_init (void) {
     }
     else if (!get_flag(FLAG_INITIALIZED)) {
         
-      //// Set the Active floor setting to the minimum (b/c RAT is enabled at this point)
-      //pmu_set_active_min();
+        // Set the Active floor setting for RAT
+        pmu_rat_active_floor();
 
         // Disable the PRC wakeup timer
         *REG_WUPT_CONFIG = *REG_WUPT_CONFIG & 0xFF3FFFFF; // WUP_ENABLE=0, WUP_WREQ_EN=0
