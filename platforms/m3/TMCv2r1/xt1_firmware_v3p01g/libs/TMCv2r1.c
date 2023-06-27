@@ -725,7 +725,7 @@ void pmu_init(void){
         | (0x0 << 14)   // 0x3      // Comparator clock division ratio
         | (0x0 << 13)   // 0x0      // Makes the converter clock 2x slower
         | (0xF <<  9)   // 0x2      // Frequency multiplier R
-        | (0x0 <<  5)   // 0x2      // Frequency multiplier L
+        | (0x1 <<  5)   // 0x2      // Frequency multiplier L
         | (0x01)        // 0x6      // Floor frequency base
         ));
     

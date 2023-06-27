@@ -686,7 +686,7 @@ void pmu_normal_sleep_floor(void) {
         ( ( 0 << 19)    // 1'h0     // Enable PFM even during periodic reset
         | ( 0 << 18)    // 1'h0     // Enable PFM even when VREF is not used as reference
         | ( 0 << 17)    // 1'h0     // Enable PFM
-        | ( 1 << 14)    // 3'h3     // Comparator clock division ratio (0x1 being slowest)
+        | ( 0 << 14)    // 3'h3     // Comparator clock division ratio (0x1 being slowest)
         | ( 0 << 13)    // 1'h0     // Makes the converter clock 2x slower
         | ( 8 <<  9)    // 4'h8     // Frequency multiplier R
         | ( 4 <<  5)    // 4'h8     // Frequency multiplier L (actually L+1)
@@ -726,7 +726,7 @@ void pmu_temp_sleep_floor(void) {
         ( ( 0 << 19)    // 1'h0     // Enable PFM even during periodic reset
         | ( 0 << 18)    // 1'h0     // Enable PFM even when VREF is not used as reference
         | ( 0 << 17)    // 1'h0     // Enable PFM
-        | ( 1 << 14)    // 3'h3     // Comparator clock division ratio (0x1 being slowest)
+        | ( 0 << 14)    // 3'h3     // Comparator clock division ratio (0x1 being slowest)
         | ( 0 << 13)    // 1'h0     // Makes the converter clock 2x slower
         | (15 <<  9)    // 4'h8     // Frequency multiplier R
         | ( 4 <<  5)    // 4'h8     // Frequency multiplier L (actually L+1)
@@ -880,20 +880,20 @@ void pmu_init(void){
     __pmu_low_vbat_streak__         = 0;
     __pmu_crit_vbat_streak__        = 0;
 
-    //---------------------------------------------------------------------------------------
-    // SAR_TRIM_V3_SLEEP
-    //---------------------------------------------------------------------------------------
-    pmu_reg_write(0x15, // Default  // Description
-    //---------------------------------------------------------------------------------------
-        ( (0x0 << 19)   // 0x0      // Enable PFM even during periodic reset
-        | (0x0 << 18)   // 0x0      // Enable PFM even when VREF is not used as reference
-        | (0x0 << 17)   // 0x0      // Enable PFM
-        | (0x0 << 14)   // 0x3      // Comparator clock division ratio
-        | (0x0 << 13)   // 0x0      // Makes the converter clock 2x slower
-        | (0xF <<  9)   // 0x2      // Frequency multiplier R
-        | (0x0 <<  5)   // 0x2      // Frequency multiplier L
-        | (0x01)        // 0x6      // Floor frequency base
-        ));
+//    //---------------------------------------------------------------------------------------
+//    // SAR_TRIM_V3_SLEEP
+//    //---------------------------------------------------------------------------------------
+//    pmu_reg_write(0x15, // Default  // Description
+//    //---------------------------------------------------------------------------------------
+//        ( (0x0 << 19)   // 0x0      // Enable PFM even during periodic reset
+//        | (0x0 << 18)   // 0x0      // Enable PFM even when VREF is not used as reference
+//        | (0x0 << 17)   // 0x0      // Enable PFM
+//        | (0x0 << 14)   // 0x3      // Comparator clock division ratio
+//        | (0x0 << 13)   // 0x0      // Makes the converter clock 2x slower
+//        | (0xF <<  9)   // 0x2      // Frequency multiplier R
+//        | (0x0 <<  5)   // 0x2      // Frequency multiplier L
+//        | (0x01)        // 0x6      // Floor frequency base
+//        ));
     
     // Initialize SAR Ratio
     pmu_set_sar_ratio(0x4C); // See pmu_calc_new_sar_ratio()

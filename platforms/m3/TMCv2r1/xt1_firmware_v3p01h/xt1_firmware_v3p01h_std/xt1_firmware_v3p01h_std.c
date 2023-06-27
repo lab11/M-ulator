@@ -1563,7 +1563,7 @@ static void meas_temp_adc (uint32_t go_sleep) {
                     ( ( 0 << 19)    // 1'h0     // Enable PFM even during periodic reset
                     | ( 0 << 18)    // 1'h0     // Enable PFM even when VREF is not used as reference
                     | ( 0 << 17)    // 1'h0     // Enable PFM
-                    | ( 1 << 14)    // 3'h3     // Comparator clock division ratio (0x1 being slowest)
+                    | ( 0 << 14)    // 3'h3     // Comparator clock division ratio (0x1 being slowest)
                     | ( 0 << 13)    // 1'h0     // Makes the converter clock 2x slower
                     | (15 <<  9)    // 4'h8     // Frequency multiplier R
                     | ( 4 <<  5)    // 4'h8     // Frequency multiplier L (actually L+1)
@@ -1611,7 +1611,7 @@ static void meas_temp_adc (uint32_t go_sleep) {
                     ( ( 0 << 19)    // 1'h0     // Enable PFM even during periodic reset
                     | ( 0 << 18)    // 1'h0     // Enable PFM even when VREF is not used as reference
                     | ( 0 << 17)    // 1'h0     // Enable PFM
-                    | ( 1 << 14)    // 3'h3     // Comparator clock division ratio (0x1 being slowest)
+                    | ( 0 << 14)    // 3'h3     // Comparator clock division ratio (0x1 being slowest)
                     | ( 0 << 13)    // 1'h0     // Makes the converter clock 2x slower
                     | (15 <<  9)    // 4'h8     // Frequency multiplier R
                     | ( 1 <<  5)    // 4'h8     // Frequency multiplier L (actually L+1)
