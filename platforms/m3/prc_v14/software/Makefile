@@ -5,6 +5,7 @@
 ################################################################################
 
 CFLAGS :=
+CLDFLAGS :=
 ASFLAGS :=
 
 ##########################
@@ -13,13 +14,13 @@ ASFLAGS :=
 #CFLAGS  += -Wall -Wextra -Werror -mthumb -mcpu=cortex-m0 -ffreestanding
 # Don't care about the warnings not compiling. It's annoying.
 CFLAGS  += -Os -Wall -Wextra -mthumb -mcpu=cortex-m0 -ffreestanding -fdata-sections -ffunction-sections -g
-LDFLAGS += -Os -static -S -nostartfiles --gc-sections -e _start #-dead_strip #-why_live read_mbus_register_RADv4
+CFLAGS += -flto -ffat-lto-objects
+CLDFLAGS = -static -nostdlib -Wl,--gc-sections --entry=_start 
+
+# no longer usling linker, as it can't do link-time-optimization, using gcc  with CLDFLAGS
+#LDFLAGS += -Os -static -S -nostartfiles --gc-sections -e _start #-dead_strip #-why_live read_mbus_register_RADv4
 #LDFLAGS += -Os -static -S -nostartfiles -nodefaultlibs -nostdlib --gc-sections -e _start #-dead_strip #-why_live read_mbus_register_RADv4
 ASFLAGS += -mthumb --warn -mcpu=cortex-m0
-
-# Experiments in not linking unused sections
-#CFLAGS  += -fvtable-gc -fdata-sections -ffunction-sections -Wl,-static -Wl,--gc-sections -s
-#LDFLAGS += -nostartfiles -nodefaultlibs -nostdlib
 
 # Attempt to divine ARM toolchain
 SHELL=/bin/bash
@@ -52,6 +53,7 @@ CXX     := $(CROSS_COMPILE)-g++
 LD      := $(CROSS_COMPILE)-ld
 OBJDUMP := $(CROSS_COMPILE)-objdump
 OBJCOPY := $(CROSS_COMPILE)-objcopy
+NM		:= $(CROSS_COMPILE)-nm
 
 ################################################################################
 ## You should not need to edit this makefile beyond this point
@@ -63,20 +65,30 @@ OBJCOPY := $(CROSS_COMPILE)-objcopy
 ASFLAGS += -Iinclude/
 CFLAGS += -Iinclude/
 
+GCCLIB := $(shell arm-none-eabi-gcc -print-libgcc-file-name | tr -d '\r')
+
 LIBS := $(subst .c,.o,$(wildcard libs/*.c))
 LIBS += $(subst .s,.o,$(wildcard libs/*.s))
 HEADERS := $(wildcard include/*.h)
 
-DIRS := $(patsubst %/,%,$(filter-out libs/,$(filter-out include/,$(wildcard */))))
+GDB:= $(subst .c,.o,$(wildcard gdb/*.c))
+GDB+= $(subst .s,.o,$(wildcard gdb/*.s))
+
+DIRS := $(patsubst %/,%,\
+			$(filter-out libs/,\
+				$(filter-out include/,\
+					$(filter-out gdb/,\
+						$(wildcard */)))))
 BINS := $(foreach var,$(DIRS),$(var)/$(var).bin)
 HEXS := $(foreach var,$(DIRS),$(var)/$(var).hex)
 ELFS := $(foreach var,$(DIRS),$(var)/$(var).elf)
 
-.PRECIOUS: $(LIBS) $(BINS) $(ELFS)
+.PRECIOUS: $(LIBS) $(BINS) $(ELFS) $(GDB)
 
 .PHONY: all
 
-all: $(HEXS)
+# GDB needs to be first if we want to link against it
+all: $(GDB) $(HEXS) libs/memmap
 
 $(DIRS):
 	$(MAKE) $@/$@.hex
@@ -97,13 +109,21 @@ $(DIRS):
 %.bin:	%.elf
 	$(OBJCOPY) -O binary $< $@
 
-# Mind the order here to align -T$^
-%.elf:	libs/memmap $(LIBS) %.o
-	$(LD) $(LDFLAGS) -T$^ "$$(echo $$(arm-none-eabi-gcc -print-libgcc-file-name) | tr -d '\r')" -o $@
+# Uses GCC (not LD) to do the linking to make use of LTO
+# This will link in GDB support if you #include "gdb.h" in any of the source files
+%.elf: COBJ=$(patsubst %.c,%.o,$(wildcard $(dir $@)*.c))
+%.elf: SOBJ=$(patsubst %.s,%.o,$(wildcard $(dir $@)*.s))
+%.elf:	$(LIBS) $$(COBJ) $$(SOBJ) 
+	if [ -n "$$(echo $$( $(NM) $^ | grep use_gdb))" ]; then  \
+		$(CC) $(CFLAGS) $(CLDFLAGS) -Tlibs/memmap \
+			-Wl,--start-group $^ $(GCCLIB) $(GDB) -Wl,--end-group -o $@ ; \
+	else \
+		$(CC) $(CFLAGS) $(CLDFLAGS) -Tlibs/memmap \
+			-Wl,--start-group $^ $(GCCLIB) -Wl,--end-group -o $@ ;\
+	fi				
 	$(OBJDUMP) -Sd $@ > $*.asm
 
-.PRECIOUS: %.elf
-
+.PRECIOUS: %.elf %.o
 
 ##########
 ## Cleanup
@@ -113,6 +133,7 @@ clean:
 	rm -f $(HEXS)
 	rm -f $(LIBS)
 	rm -f $(ELFS)
+	rm -f $(GDB)
 
 clean-%:
 	rm -f $*/$*.bin $*/$*.hex
