@@ -1,9 +1,9 @@
 //*******************************************************************************************
 // XT1 (TMCv2r1) FIRMWARE
-// Version 3.03 (devel)
+// Version 3.04 (standard)
 //------------------------
 #define HARDWARE_ID 0x01005843  // XT1r1 Hardware ID
-#define FIRMWARE_ID 0x0303      // [15:8] Integer part, [7:0]: Non-Integer part
+#define FIRMWARE_ID 0x0304      // [15:8] Integer part, [7:0]: Non-Integer part
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
 //  Jan 05 2023 - Version 3.00
@@ -416,7 +416,7 @@
 // Enable 'DEVEL' for the following features:
 //      - Send debug messages
 //      - Use default values rather than grabbing the values from EEPROM
-#define DEVEL
+//#define DEVEL
 //#define ENABLE_XO_PAD
 //#define USE_SHORT_REFRESH
 //#define ENABLE_DEBUG_SYSTEM_CONFIG
@@ -424,7 +424,7 @@
 //#define DEBUG_AES_KEY                     // Display when aes_key[3:0] changes
 //#define DEBUG_RAW                         // Display Raw Sample information
 
-#define SKIP_SAR_IF_HIBERNATION             // Skip SAR adjustment if in hibernation
+//#define SKIP_SAR_IF_HIBERNATION             // Skip SAR adjustment if in hibernation
 #define EID_USE_GLOBAL_UPDATE_ONLY          // Use GLOBAL_UPDATE for all temperatures. If disabled, use LOCAL_UPDATE below EEPROM_ADDR_EID_LOW_TEMP_THRESHOLD. Use GLOBAL_UPDATE otherwise.
 #define IGNORE_FIRST_SAMPLE_EXCURSION       // The first sample is NOT counted for NUM_CONS_EXCURSIONS
 #define EID_CRIT_TEMP_THRESHOLD         25  // Display does not update when temperature is lower than (-1)*EID_CRIT_TEMP_THRESHOLD
@@ -505,7 +505,7 @@
 #define WAKEUP_BY_GPIO2     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 10))
 #define WAKEUP_BY_GPIO3     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 11))
 #define WAKEUP_BY_SNT       WAKEUP_BY_MBUS
-#define WAKEUP_BY_NFC       WAKEUP_BY_GPIO0
+#define WAKEUP_BY_NFC       WAKEUP_BY_GPIO1
 #define MAIN_CALLED         (WAKEUP_BY_MBUS && get_bit(wakeup_source, 7))
 
 //*******************************************************************************************

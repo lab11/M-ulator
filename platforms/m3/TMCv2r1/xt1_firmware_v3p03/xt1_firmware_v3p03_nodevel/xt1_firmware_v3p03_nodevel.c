@@ -256,8 +256,8 @@
 //
 //  --- all_buffer_commit()
 //  0xB8    value                               all_buffer_commit() is called
-//                                                  [12]: cnt_buf.valid
-//                                                  [ 8]: pmu_buf.valid
+//                                                  [ 8]: cnt_buf.valid
+//                                                  [ 4]: pmu_buf.valid
 //                                                  [ 0]: dat_buf.valid
 //
 //  --- status
@@ -3258,7 +3258,7 @@ static void data_buffer_update (uint32_t addr, uint32_t commit_crc) {
 static void all_buffer_commit(void) {
 
     #ifdef DEVEL
-        mbus_write_message32(0xB8, (cnt_buf.valid<<12) | (pmu_buf.valid<<8) | (dat_buf.valid<<0));
+        mbus_write_message32(0xB8, (cnt_buf.valid<<8) | (pmu_buf.valid<<4) | (dat_buf.valid<<0));
     #endif
 
     // Counter Buffer
@@ -3886,6 +3886,27 @@ int main(void) {
     // If waken up by the temp sensor, resume snt_operation()
     else {
         snt_operation();
+    }
+
+    ////* Testing & Debugging */
+    //uint64_t reverse_code;
+    //reverse_code = reverse_bits_ext(/*code*/0x20, /*count*/88, /*value*/350);
+    //sub_qword(/*msb*/(2093)&0x7F, /*lsb*/(2054)&0x7F, /*value*/0x0000000683400001);
+    //uint32_t val;
+    //for (val=27; val<47; val++) {
+    //    //reverse_bits_ext(/*code*/0x20, /*count*/88, /*value*/val);
+    //    mbus_write_message32(0xEA, tconv(   /* dout */ val,
+    //                                        /*   a  */ 0x7E24,      /*31.535156*/
+    //                                        /*   b  */ 0x541C29,    /*5383.04*/
+    //                                        /*offset*/ COMP_OFFSET_K)
+    //                        );
+    //}
+    uint32_t val, res;
+    for (val=340; val<370; val++) {
+        res = div(/*numer*/val, /*denom*/1, /*n*/1);
+        if (res&0x1) res += 0x2;  // round-up
+        res >>= 1;
+        mbus_write_message32(0xEA, res);
     }
 
     // SNT Calibration
