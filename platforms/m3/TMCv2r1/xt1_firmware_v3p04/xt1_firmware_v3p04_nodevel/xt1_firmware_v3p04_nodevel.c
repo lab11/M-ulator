@@ -3901,13 +3901,13 @@ int main(void) {
     //                                        /*offset*/ COMP_OFFSET_K)
     //                        );
     //}
-    uint32_t val, res;
-    for (val=340; val<370; val++) {
-        res = div(/*numer*/val, /*denom*/1, /*n*/1);
-        if (res&0x1) res += 0x2;  // round-up
-        res >>= 1;
-        mbus_write_message32(0xEA, res);
-    }
+    //uint32_t val, res;
+    //for (val=340; val<370; val++) {
+    //    res = div(/*numer*/val, /*denom*/1, /*n*/1);
+    //    if (res&0x1) res += 0x2;  // round-up
+    //    res >>= 1;
+    //    mbus_write_message32(0xEA, res);
+    //}
 
     // SNT Calibration
     calibrate_snt_timer(/*skip_calib*/snt_skip_calib);
