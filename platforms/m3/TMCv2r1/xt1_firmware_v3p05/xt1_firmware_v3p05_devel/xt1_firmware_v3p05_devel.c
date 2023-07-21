@@ -1,9 +1,9 @@
 //*******************************************************************************************
 // XT1 (TMCv2r1) FIRMWARE
-// Version 3.04 (devel)
+// Version 3.05 (devel)
 //------------------------
 #define HARDWARE_ID 0x01005843  // XT1r1 Hardware ID
-#define FIRMWARE_ID 0x0304      // [15:8] Integer part, [7:0]: Non-Integer part
+#define FIRMWARE_ID 0x0305      // [15:8] Integer part, [7:0]: Non-Integer part
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
 //  Jan 05 2023 - Version 3.00
@@ -118,6 +118,7 @@
 //  0x7A    value                               [DEBUG_AES_KEY] aes_key[2] is set to 'value'
 //  0x7B    value                               [DEBUG_AES_KEY] aes_key[3] is set to 'value'
 //  0x7C    value                               num_cons_excursions
+//  0x7D    value                               start_delay_cnt
 //
 //  -----------------------------------------------------------------------------------------
 //  < XO and SNT Timer - calibrate_snt_timer() >
@@ -782,6 +783,7 @@ volatile uint32_t snt_duration;                     // SNT counter value that co
 volatile uint32_t snt_threshold;                    // SNT Timer Threshold to wake up the system
 volatile uint32_t snt_threshold_prev;               // Previous SNT Timer Threshold
 volatile uint32_t wakeup_interval;                  // Wakeup Period (unit: minutes)
+volatile uint32_t start_delay_cnt;                  // Start Delay Counter (incrementing every 1 min)
 volatile uint32_t snt_skip_calib;                   // If 1, it skips the SNT calibration and uses the previous snt_freq to calculate the next snt_threshold.
 volatile uint32_t calib_status;                     // Calibration Status
                                                     // [2]: 1 if the SNT or XO counter has an incorrect value (>6.25% (=1/16) error than expected)
@@ -1395,7 +1397,7 @@ static void set_system(uint32_t target) {
         }
 
         // Start Delay
-        wakeup_interval = eeprom_user_config_0.temp_meas_start_delay;
+        wakeup_interval = WAKEUP_INTERVAL_ACTIVE;
 
         // Set the System State
         status.curr_state = XT1_PEND;
@@ -1643,12 +1645,12 @@ static void meas_temp_adc (uint32_t go_sleep) {
 
         // Hibernation Control (Set status.hbr_flag)
         // -------------------------------------------------------------------------
-        // If in XT1_ACTIVE
+        // If in XT1_PEND or XT1_ACTIVE
         #ifdef DEVEL
             mbus_write_message32(0xBA, (0x14 << 24) | (status.hbr_temp << 12) | (status.hbr_flag << 8) | (status.hibernating << 4) | (status.nfc_out_temp << 0) );
             mbus_write_message32(0x9F, hbr_temp_threshold_raw);
         #endif
-        if (xt1_state == XT1_ACTIVE) {
+        if ((xt1_state == XT1_PEND) || (xt1_state == XT1_ACTIVE)) {
 
             temp.val = 0; // Default Value
 
@@ -3831,6 +3833,14 @@ int main(void) {
                             if (eeprom_user_config_0.temp_meas_start_delay==0) {
                                 wakeup_source |= (0x1 << 4);
                                 pretend_wakeup_by_snt = 1;
+                                // start_delay_cnt needs to be set to 0
+                                // since "if (WAKEUP_BY_SNT)" is called immediately
+                                start_delay_cnt = 0;
+                            }
+                            else {
+                                // start_delay_cnt needs to be set to 1
+                                // since "if (WAKEUP_BY_SNT)" is called after 1min
+                                start_delay_cnt = 1;
                             }
                         }
                         else if (cmd==CMD_STOP) {
@@ -3860,7 +3870,16 @@ int main(void) {
                     mbus_write_message32(0xA1, disp_min_since_refresh);
                 #endif
 
-                if (xt1_state==XT1_PEND) set_system(/*target*/XT1_ACTIVE);
+                if (xt1_state==XT1_PEND) {
+                    #ifdef DEVEL
+                        mbus_write_message32(0x7D, start_delay_cnt);
+                    #endif
+
+                    if (start_delay_cnt==eeprom_user_config_0.temp_meas_start_delay) 
+                        set_system(/*target*/XT1_ACTIVE);
+                    else
+                        start_delay_cnt++;
+                }
 
                 // Bookkeeping/Temp Measurement
                 snt_operation();
