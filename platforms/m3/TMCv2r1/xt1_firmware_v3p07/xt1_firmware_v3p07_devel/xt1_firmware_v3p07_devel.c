@@ -1040,8 +1040,10 @@ static void operation_sleep (uint32_t check_snt) {
     nfc_power_off();
 
     // Make sure we have done the PMU adjustmenet
-    meas_temp_adc(/*go_sleep*/0);
-    if (meas.low_vbat) display_low_batt(); // NOTE: If status.hbr_flag=1, then eid_update_display() within display_low_batt() sets eid_updated_at_crit_temp=1
+    if (WAKEUP_BY_NFC) {
+        meas_temp_adc(/*go_sleep*/0);
+        if (meas.low_vbat) display_low_batt();
+    }
 
     // Execute commit_status() if there is any pending status
     if (status.commit_status_pend) {
@@ -1840,6 +1842,7 @@ static void snt_operation (void) {
     // Read the current display
     uint32_t curr_seg = eid_expected_display; // Start from eid_expected_display, NOT __eid_current_display__
     uint32_t new_seg = curr_seg;
+    uint32_t display_update_allowed = 0;
 
     // XT_ACTIVE (Sample Average & Buffer Write)
     if (xt1_state == XT1_ACTIVE) {
@@ -1865,6 +1868,8 @@ static void snt_operation (void) {
             (meas_cnt==0)
             // At User-defined measurement interval (Calculate an Averaged Sample)
            || (sub_meas_cnt==eeprom_user_config_1.temp_meas_interval)) {
+
+            display_update_allowed = 1;
 
             // Increment the Measurement Count
             meas_cnt++;
@@ -2253,7 +2258,8 @@ static void snt_operation (void) {
     } // if (xt1_state == XT1_ACTIVE)
 
     //--- Show Low VBATT Indicator (if needed)
-    if (!get_bit(new_seg, SEG_LOWBATT) && meas.low_vbat) {
+    //      It does not check the low batt while in XT1_PEND
+    if ((xt1_state != XT1_PEND) && !get_bit(new_seg, SEG_LOWBATT) && meas.low_vbat) {
         new_seg = new_seg | DISP_LOWBATT;
     }
 
@@ -2261,8 +2267,17 @@ static void snt_operation (void) {
     // Update/Refresh the e-Ink Display if needed
     // NOTE: If status.hbr_flag=1, then eid_update_display() updates flags only; 
 
-    //--- Update 
-    if (new_seg!=__eid_current_display__) eid_update_display(/*seg*/new_seg);
+    //--- Update
+    if (new_seg!=__eid_current_display__) {
+        // If in XT1_ACTIVE, the display can be changed only at measurement intervals
+        if (xt1_state == XT1_ACTIVE) {
+            if (display_update_allowed) eid_update_display(/*seg*/new_seg);
+        }
+        // If NOT in XT1_ACTIVE, the display can be updated anytime the system wakes up
+        else {
+            eid_update_display(/*seg*/new_seg);
+        }
+    }
     //--- Refresh
     else {
        //--- During Bootup, display the check mark to confirm that the bootup is done.
@@ -2288,6 +2303,7 @@ static void snt_operation (void) {
     }
 }
 
+// NOTE: If status.hbr_flag=1, then eid_update_display() within display_low_batt() sets eid_updated_at_crit_temp=1
 static void display_low_batt(void) {
     #ifdef DEVEL
         mbus_write_message32(0xA8, 0x00000000);
