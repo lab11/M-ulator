@@ -482,7 +482,7 @@
 // Pre-defined Wakeup Intervals
 #define WAKEUP_INTERVAL_ACTIVE      1   // (Default: 1) Wakeup Interval for XT1_ACTIVE (unit: minutes)
 #ifdef USE_SHORT_REFRESH
-    #define WAKEUP_INTERVAL_IDLE    2   // (Default: 720) Wakeup Interval for XT1_IDLE (unit: minutes)
+    #define WAKEUP_INTERVAL_IDLE    5   // (Default: 720) Wakeup Interval for XT1_IDLE (unit: minutes)
 #else
     #define WAKEUP_INTERVAL_IDLE    720    // (Default: 720) Wakeup Interval for XT1_IDLE (unit: minutes)
 #endif

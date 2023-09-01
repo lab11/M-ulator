@@ -1,13 +1,13 @@
 //*******************************************************************************************
-// XT1 (TMCv1r1) FIRMWARE
-// Version 2.12 (devel)
+// XT1 (TMCv2r1) FIRMWARE
+// Version 3.08 (standard-short_interval)
 //------------------------
 #define HARDWARE_ID 0x01005843  // XT1r1 Hardware ID
-#define FIRMWARE_ID 0x020C      // [15:8] Integer part, [7:0]: Non-Integer part
+#define FIRMWARE_ID 0x0308      // [15:8] Integer part, [7:0]: Non-Integer part
 //-------------------------------------------------------------------------------------------
 // < UPDATE HISTORY >
-//  Mar 28 2022 - Version 1.00
-//                  - Hard-forked from xt1_firmware_v0p99
+//  Jan 05 2023 - Version 3.00
+//                  - Hard-forked & modified from xt1_firmware_v2p10
 //  See Google Doc for detailed update history.
 //-------------------------------------------------------------------------------------------
 //
@@ -111,17 +111,14 @@
 //  0x75    value                               Measurement Configuration
 //                                                  [31:16] Start Delay (unit: minutes)
 //                                                  [15: 0] Measurement Interval (unit: minutes)
-//  0x76    value                               Temperature Calibration Coefficient A gets updated to 'value'
-//  0x77    value                               Temperature Calibration Coefficient B gets updated to 'value'
-//  0x78    value                               aes_key[0] is set to 'value'
-//  0x79    value                               aes_key[1] is set to 'value'
-//  0x7A    value                               aes_key[2] is set to 'value'
-//  0x7B    value                               aes_key[3] is set to 'value'
-//  0x7C    value                               Measurement Configuration
-//                                                  [15: 0] num_cons_excursions
-//  0x7F    value                               FSM Information
-//                                                  0x1: snt_read_wup_timer() - snt_threshold is too large. Going into sleep.
-//                                                  0x2: GPO pulse detected before/during low-power active mode
+//  0x76    value                               [DEBUG_TEMP_CALIB] Temperature Calibration Coefficient A gets updated to 'value'
+//  0x77    value                               [DEBUG_TEMP_CALIB] Temperature Calibration Coefficient B gets updated to 'value'
+//  0x78    value                               [DEBUG_AES_KEY] aes_key[0] is set to 'value'
+//  0x79    value                               [DEBUG_AES_KEY] aes_key[1] is set to 'value'
+//  0x7A    value                               [DEBUG_AES_KEY] aes_key[2] is set to 'value'
+//  0x7B    value                               [DEBUG_AES_KEY] aes_key[3] is set to 'value'
+//  0x7C    value                               num_cons_excursions
+//  0x7D    value                               start_delay_cnt
 //
 //  -----------------------------------------------------------------------------------------
 //  < XO and SNT Timer - calibrate_snt_timer() >
@@ -163,13 +160,21 @@
 //  < Temperature Measurement >
 //  -----------------------------------------------------------------------------------------
 //  0x90    value                               Measured Temperature
-//                                                  [31:16] Raw code (*SNT_TARGET_REG_ADDR)
-//                                                  [15: 0] After the conversion (temp.val) "10 x (T + 80)" where T is the actual temperature in celsius degree.
-//  0x91    0x00000000                          meas_temp_adc() is called
-//  0x91    0xFFFFFFFF                          Skipped the temperature measurement since meas.valid=1
-//  0x92    {0x1, sub_sample_cnt}               Sub-sample count
-//  0x92    {0x2, sub_sample_sum}               Current sum of the sub-samples
-//  0x92    {0x3, temp_sample_cnt}              Temp sample count (NOTE: Temp Sample ID = temp_sample_cnt - 1)
+//                                                  [31:16] Raw code (temp.raw)
+//                                                  [15: 0] Translated Temperature (temp.val)
+//  0x91    value                               meas_temp_adc(), snt_operation() information
+//                                                  0x00000000: meas_temp_adc() is called with go_sleep=0
+//                                                  0x00000001: meas_temp_adc() is called with go_sleep=1
+//                                                  0x00000002: Skipped SAR adjustment due to hibernation
+//                                                  0x00000004: Beginning of the new hibernation
+//                                                  0x00000005: Hibernation continues
+//                                                  0x00000006: new_alarm_hbr=1 and new_alarm=1 right after a hibernation
+//                                                  0x00000007: First sample after a hibernation.
+//                                                  0xFFFFFFFF: Skipped the temperature measurement since meas.valid=1
+//  0x92    {0x1, sub_meas_cnt}                 Sub-measurement count (incrementing every minute)
+//  0x92    {0x2, sub_meas_sum}                 Current sum of the sub-measurements
+//  0x92    {0x3, meas_cnt}                     Measurement Count
+//  0x92    {0x4, hbr_meas_cnt}                 Hibernation Meas Count
 //  0x93    value                               VBAT and SAR Ratio Information
 //                                                  [   28] Critical VBAT (crit_vbat)
 //                                                  [   24] Low VBAT (low_vbat)
@@ -179,54 +184,48 @@
 //  0x94    value                               PMU SAR Ratio is changing
 //                                                  [15: 8] Previous SAR Ratio
 //                                                  [ 7: 0] New SAR Ratio
-//  0x95    value                               Temperature Data read from the write buffer
-//                                                  [15: 0] Temperature Data read from the write buffer (temp.val)
 //  0x96    comp_sample_id                      Compression Sample ID
-//  0x97    value                               (Reversed) Raw/Encoded data to be stored
-//                                                  [31:24] Number of bits
-//                                                  [23: 0] Reversed code
-//  0x9A    value                               [DEPRECATED] Measured Temperature (from snt_get_temp_raw())
-//                                                  [15: 0] Raw code (*SNT_TARGET_REG_ADDR)
-//  0x9B    value                               [DEPRECATED] Measured Temperature (from snt_get_temp())
-//                                                  [15: 0] After the conversion (temp.val) "10 x (T + 80)" where T is the actual temperature in celsius degree.
-//  0x9C    value                               Averaged sample value
+//  0x97    num_bits                            Encoded data to be stored (num_bits)
+//  0x98    reverse_code[63:32]                 (Reversed) Encoded data to be stored (reverse_code[63:32])
+//  0x99    reverse_code[31:0]                  (Reversed) Encoded data to be stored (reverse_code[31:0])
+//  0x9C    value                               Averaged Measurement value (temp.val)
 //  0x9D    {0x00, tmp_exc.num_cons_hi}         temp.val exceeds the high threshold. Alarm not yet triggered.
 //  0x9D    {0x0F, tmp_exc.num_cons_hi}         temp.val exceeds the high threshold. A new alarm has been triggered.
 //  0x9D    {0x10, tmp_exc.num_cons_lo}         temp.val exceeds the low threshold. Alarm not yet triggered.
+//  0x9D    {0x20, tmp_exc.num_cons_lo}         tmp_exc.num_cons_lo has been incremented due to hibernation
 //  0x9D    {0x1F, tmp_exc.num_cons_lo}         temp.val exceeds the low threshold. A new alarm has been triggered.
 //  0x9E    value                               Current alarm status
 //                                                  0xFFFFFFFF: High Alarm && Low Alarm
 //                                                  0xFFFF0000: High Alarm Only
 //                                                  0x0000FFFF: Low Alarm && Low Alarm
 //                                                  0x00000000: No Alarm
+//  0x9F    hbr_temp_threshold_raw              Temperature Thresholds for Hibernation (Raw)
 //
 //  <--- Below are valid only when [Raw Sample] is enabled --->
 //
-//  0x9C    byte_addr                           [Raw Sample] Byte Address
-//  0x9D    temp.val                            [Raw Sample] Raw Temperature Data
-//  0x9E    sar_adc_addr                        [Raw Sample] Byte Address to store SAR/ADC (or XO FAIL) value
-//  0x9F    sar_adc_data                        [Raw Sample] SAR/ADC (or XO FAIL) data
+//  0x9C    byte_addr                           [DEBUG_RAW; Raw Sample] Byte Address
+//  0x9D    temp.val                            [DEBUG_RAW; Raw Sample] Raw Temperature Data
+//  0x9E    sar_adc_addr                        [DEBUG_RAW; Raw Sample] Byte Address to store SAR/ADC (or XO FAIL) value
+//  0x9F    sar_adc_data                        [DEBUG_RAW; Raw Sample] SAR/ADC (or XO FAIL) data
 //
 //  -----------------------------------------------------------------------------------------
 //  < Display >
 //  -----------------------------------------------------------------------------------------
-//  0xA0    {0x0, pattern}                      Display has changed to 'pattern' (EEPROM Updated)
-//  0xA0    {0x1, pattern}                      Display has been refreshed with 'pattern' (EEPROM Not Updated)
-//  0xA0    {0x2, pattern}                      Display has changed to 'pattern' but failed to update the EEPROM.
-//  0xA0    {0xF, pattern}                      Display has blinked.
+//  0xA0    {0x0, seg}                          Display has changed to 'seg' (EEPROM Updated)
+//  0xA0    {0x1, 0x0}                          Display has been refreshed (EEPROM Not Updated)
+//  0xA0    {0x2, seg}                          Display has changed to 'seg' but failed to update the EEPROM.
+//  0xA0    {0xF, seg}                          Display has blinked.
 //  0xA1    disp_min_since_refresh              Elapsed time (in minutes) since the last E-ink update
 //  0xA2    value                               EID duration and Refresh Interval are set
 //                                                  [31:16] EID Duration
 //                                                  [15: 0] Refresh Interval (minutes)
-//  0xA3    0x00000000                          Critical Temperature. Display did not update, although XT1 behaves like it did.
-//  0xA4    0x00000001                          [DEPRECATED] eid_update_display() requires a new temperature measurement
+//  0xA3    0x00000000                          Critical Temperature or hibernation. Display did not update, although XT1 behaves like it did.
 //  0xA5    eid_updated_at_low_temp             1 indicates that the display has been updated at a low temperature
 //  0xA6    eid_updated_at_crit_temp            1 indicates that the display has a pending update due to a critical temperature
 //  0xA7    eid_update_type                     Update type used for the display update
 //                                                  0x0: Global Update
 //                                                  0x1: Local Update
 //  0xA8    0x00000000                          display_low_batt() is called.
-//  0xA8    0xFFFFFFFF                          Does not have to display LOW_BATT since it is already on.
 //
 //  -----------------------------------------------------------------------------------------
 //  < NFC and EEPROM >
@@ -249,16 +248,17 @@
 //  0xB2    value                               ACK with Data Successful and 'value' is written in EEPROM_ADDR_CMD
 //  0xB3    value                               ACK with Data Fail; 'value' was supposed to be written in EEPROM_ADDR_CMD
 //
-//  --- buffer_update()
+//  --- data_buffer_update()
 //  0xB4    data                                Unencrypted data (qword)
-//  0xB5    addr                                buffer_eeprom_addr
+//  0xB5    addr                                dat_buf_addr.addr
 //  0xB6    data                                Encrypted data
-//  0xB7    CRC                                 buffer_crc32
+//  0xB7    CRC                                 dat_buf_crc.crc32
 //
-//  --- buffer_commit()
-//  0xB8    value                               buffer_commit() result
-//                                                  0x1: Successfully committed the buffer
-//                                                  0x0: There was no data in the buffer
+//  --- all_buffer_commit()
+//  0xB8    value                               all_buffer_commit() is called
+//                                                  [ 8]: cnt_buf_meas.valid
+//                                                  [ 4]: pmu_buf.valid
+//                                                  [ 0]: dat_buf_addr.valid
 //
 //  --- status
 //  0xBA    {0x00, curr_state       }           status.curr_state         (committed)
@@ -273,9 +273,20 @@
 //          {0x11, disp_skipped     }           status.disp_skipped       (updated)
 //          {0x12, custom_init      }           status.custom_init        (updated)
 //          {0x13, skip_init        }           status.skip_init          (updated)
-//
+//          {0x14, pattern          }           hibernation status have been set
+//                                                  [12]: status.hbr_temp
+//                                                  [ 8]: status.hbr_flag
+//                                                  [ 4]: status.hibernating
+//                                                  [ 0]: status.nfc_out_temp
+//          {0x15, commit_status_pend}          status.commit_status_pend
+//  0xBB    value                               Bit Positions
+//                                                  [31:16] bit_pos_start
+//                                                  [15: 0] bit_pos_end
+//  0xBC    value                               Misc Info
+//                                                  [31:24] last_qword_id
+//                                                  [23: 0] sample_cnt
 //  -----------------------------------------------------------------------------------------
-//  < Math Functions > -> Need to enable OPT_DEVEL
+//  < Math Functions > -> Need to enable DEBUG_MATH
 //  -----------------------------------------------------------------------------------------
 //  NOTE: Integer numbers are 0 fixed-point numbers
 //
@@ -298,7 +309,7 @@
 //  0xCE    snt_delta                           snt_delta in calc_ssls()
 //  0xCF    ssls                                ssls calculated in calc_ssls()
 //  -----------------------------------------------------------------------------------------
-//  < I2C Transaction > - Defined in TMCv1r1.c
+//  < I2C Transaction > - Defined in TMCv2r1.c
 //  -----------------------------------------------------------------------------------------
 //
 //  --- nfc_i2c_byte_write()
@@ -319,19 +330,19 @@
 //  0xD4    {nw, addr}                          Word Read Information.
 //                                                  [31:24] Number of Words (1-64)
 //                                                  [23: 0] Byte Address in EEPROM
-//  0xD5    {ptr}                               Word Read Information.
+//  0xD5    {ptr}                               [DEPRECATED] Word Read Information.
 //                                                  [31: 0] ptr (where the read data is stored)
 //  0xD6    value                               Word Read operation return value
 //                                                  0x1: Word Read operation has been successfully done
 //                                                  0x0: Word Read operation has NAKed. May retry.
-//  0xD7    ptr                                 ptr where the 32-bit read data (shown with 0xD8) is stored
+//  0xD7    ptr                                 [DEPRECATED] ptr where the 32-bit read data (shown with 0xD8) is stored
 //  0xD8    data                                32-bit read data stored at ptr (shown with 0xD7)
 //
 //  --- Common
-//  0xDF    iter                                Iteration number (if previous I2C transcation was NAK'd)
+//  0xDF    iter                                [DEPRECATED] Iteration number (if previous I2C transcation was NAK'd)
 //
 //  -----------------------------------------------------------------------------------------
-//  < I2C Token > - Defined in TMCv1r1.c
+//  < I2C Token > - Defined in TMCv2r1.c
 //  -----------------------------------------------------------------------------------------
 //
 //  --- nfc_i2c_get_token()
@@ -346,11 +357,11 @@
 //  0xE0    0x02000003                          PASS - There was no token
 //
 //  -----------------------------------------------------------------------------------------
-//  < Timeout & Error Handling > - Some of them are defined in TMCv1r1.c
+//  < Timeout & Error Handling > - Some of them are defined in TMCv2r1.c
 //  -----------------------------------------------------------------------------------------
 //  0xEE    value                               SNT Timer Sync Read value 
 //  0xEF    __wfi_timeout_id__                  Timeout/Fail occurs
-//                                                  0x0: Generic/Unknown
+//                                                  0x0: [DEPRECATED] Generic/Unknown
 //                                                  0x1: Timed out during a display update (EID)
 //                                                  0x2: Timed out while reading SNT timer (WUP)
 //                                                  0x3: Timed out while accessing PMU register (PMU)
@@ -398,7 +409,7 @@
 // HEADER FILES
 //*******************************************************************************************
 
-#include "TMCv1r1.h"
+#include "TMCv2r1.h"
 
 //*******************************************************************************************
 // DEVEL Mode
@@ -406,13 +417,22 @@
 // Enable 'DEVEL' for the following features:
 //      - Send debug messages
 //      - Use default values rather than grabbing the values from EEPROM
-#define DEVEL
+//#define DEVEL
 //#define ENABLE_XO_PAD
-//#define DETAILED_XO_INFO_FOR_RAW
-//#define USE_SHORT_REFRESH
+#define USE_SHORT_REFRESH
 //#define ENABLE_DEBUG_SYSTEM_CONFIG
+//#define DEBUG_TEMP_CALIB                  // Display when eeprom_temp_calib changes
+//#define DEBUG_AES_KEY                     // Display when aes_key[3:0] changes
+//#define DEBUG_RAW                         // Display Raw Sample information
 
-//#define USE_WFI_FOR_LOW_POWER_ACTIVE  // Experimental Feature: Use WFI() for the low-power active mode. But seems like the GPO pulse does not trigger the CPU IRQ even when properly(?) enabled. Revisit this later.
+//#define SKIP_SAR_IF_HIBERNATION           // Skip SAR adjustment if in hibernation
+#define EID_USE_GLOBAL_UPDATE_ONLY          // Use GLOBAL_UPDATE for all temperatures. If disabled, use LOCAL_UPDATE below EEPROM_ADDR_EID_LOW_TEMP_THRESHOLD. Use GLOBAL_UPDATE otherwise.
+#define IGNORE_FIRST_SAMPLE_EXCURSION       // The first sample is NOT counted for NUM_CONS_EXCURSIONS
+#define EID_CRIT_TEMP_THRESHOLD         25  // Display does not update when temperature is lower than (-1)*EID_CRIT_TEMP_THRESHOLD
+
+#define EID_REFRESH_INT_MIN_HIGH     12*60  //  EID Refresh interval for High Temperature (unit: min). '0' means 'do not refresh'.
+#define EID_REFRESH_INT_MIN_MID      24*60  //  EID Refresh interval for Mid Temperature (unit: min). '0' means 'do not refresh'.
+#define EID_REFRESH_INT_MIN_LOW       0*60  //  EID Refresh interval for Low Temperature (unit: min). '0' means 'do not refresh'.
 
 //*******************************************************************************************
 // INITIALIZATION
@@ -425,6 +445,8 @@
 #define TEMP_CALIB_A_DEFAULT    0x00007E8B  // Default value of temperature Calibration Coefficient a (fixed-point, N=10)
 #define TEMP_CALIB_B_DEFAULT    0x005479B9  // Default value of temperature Calibration Coefficient b (fixed-point, N=10)
 
+#define HBR_TEMP_THRESHOLD_RAW_DEFAULT  0   // Default value of hbr_temp_threshold_raw. 0 means 'hibernation disabled'
+
 //*******************************************************************************************
 // FLAG BIT INDEXES
 //*******************************************************************************************
@@ -436,6 +458,7 @@
 #define FLAG_INVLD_XO_PREV      5   // Sleep has been bypassed before the previous active session. This implies that xo_val_prev is inaccurate.
 #define FLAG_BOOTUP_DONE        6
 #define FLAG_MAIN_CALLED_BY_GPO 7   // Same as FLAG_MAIN_CALLED_BY_SNT. The only difference is that it directly calls main() because it detects a GPO pulse before/during the low-power active mode.
+#define FLAG_TEMP_MEAS_PEND     8   // Indicates that the system has gone sleep for temperature measurement
 
 //*******************************************************************************************
 // XO, SNT WAKEUP TIMER AND SLEEP DURATIONS
@@ -469,7 +492,6 @@
 #define XO_FAIL_UNSTABLE    (0x1<<1)
 #define XO_FAIL_MAX_ERR     (0x1<<2)
 
-
 //*******************************************************************************************
 // WAKEUP SOURCE DEFINITIONS
 //*******************************************************************************************
@@ -484,7 +506,7 @@
 #define WAKEUP_BY_GPIO2     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 10))
 #define WAKEUP_BY_GPIO3     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 11))
 #define WAKEUP_BY_SNT       WAKEUP_BY_MBUS
-#define WAKEUP_BY_NFC       WAKEUP_BY_GPIO0
+#define WAKEUP_BY_NFC       WAKEUP_BY_GPIO1
 #define MAIN_CALLED         (WAKEUP_BY_MBUS && get_bit(wakeup_source, 7))
 
 //*******************************************************************************************
@@ -507,7 +529,7 @@
 #define CMD_HRESET      0x07
 #define CMD_NEWKEY      0x08
 #define CMD_NEWAB       0x09
-#define CMD_DISPLAY     0x10
+//#define CMD_DISPLAY   0x10  // DEPRECATED
 #define CMD_SRESET      0x1E
 #define CMD_DEBUG       0x1F
 
@@ -577,39 +599,43 @@
     //           Z <= ADC_T4    ADC_OFFSET_R5
     //----------------------------------------------------
 
+#ifndef DEVEL
 union eeprom_adc_th_t {
+    // eeprom_adc_th_0
     struct {
         unsigned t1 :   16; // [15: 0] Temperature Threshold (Raw Code) for ADC. See the table above.
         unsigned t2 :   16; // [31:16] Temperature Threshold (Raw Code) for ADC. See the table above.
-        unsigned t3 :   16; // [47:32] Temperature Threshold (Raw Code) for ADC. See the table above.
-        unsigned t4 :   16; // [63:48] Temperature Threshold (Raw Code) for ADC. See the table above.
     };
+    // eeprom_adc_th_1
     struct {
-        unsigned lower  :   32;
-        unsigned upper  :   32;
+        unsigned t3 :   16; // [15: 0] Temperature Threshold (Raw Code) for ADC. See the table above.
+        unsigned t4 :   16; // [31:16] Temperature Threshold (Raw Code) for ADC. See the table above.
     };
-    uint64_t value;
+    uint32_t value;
 };
-volatile union eeprom_adc_th_t eeprom_adc_th;
+volatile union eeprom_adc_th_t eeprom_adc_th_0;
+volatile union eeprom_adc_th_t eeprom_adc_th_1;
+#endif
 
 union eeprom_adc_t {
+    // eeprom_adc_0
     struct {
         unsigned offset_r1  :   8;  // [ 7: 0] ADC offset. 2's complement. See the table above.
         unsigned offset_r2  :   8;  // [15: 8] ADC offset. 2's complement. See the table above.
         unsigned offset_r3  :   8;  // [23:16] ADC offset. 2's complement. See the table above.
         unsigned offset_r4  :   8;  // [31:24] ADC offset. 2's complement. See the table above.
-        unsigned offset_r5  :   8;  // [39:32] ADC offset. 2's complement. See the table above.
-        unsigned low_vbat   :   8;  // [47:40] ADC code threshold to turn on the Low VBAT indicator.
-        unsigned crit_vbat  :   8;  // [55:48] ADC code threshold to trigger the EID crash handler.
-        unsigned dummy      :   8;  // [63:56]
     };
+    // eeprom_adc_1
     struct {
-        unsigned lower  :   32;
-        unsigned upper  :   32;
+        unsigned offset_r5  :   8;  // [ 7: 0] ADC offset. 2's complement. See the table above.
+        unsigned low_vbat   :   8;  // [15: 8] ADC code threshold to turn on the Low VBAT indicator.
+        unsigned crit_vbat  :   8;  // [23:16] ADC code threshold to trigger the EID crash handler.
+        unsigned dummy      :   8;  // [31:24]
     };
-    uint64_t value;
+    uint32_t value;
 };
-volatile union eeprom_adc_t eeprom_adc;
+volatile union eeprom_adc_t eeprom_adc_0;
+volatile union eeprom_adc_t eeprom_adc_1;
 
 
 //--- EID Configurations
@@ -623,68 +649,27 @@ union eeprom_eid_threshold_t {
 volatile union eeprom_eid_threshold_t eeprom_eid_threshold;
     
 union eeprom_eid_duration_t {
+    // eeprom_eid_duration_0
     struct {
         unsigned high   :   16; // [15: 0] EID duration (ECTR_PULSE_WIDTH) for High Temperature
         unsigned mid    :   16; // [31:16] EID duration (ECTR_PULSE_WIDTH) for Mid Temperature
-        unsigned low    :   16; // [47:32] EID duration (ECTR_PULSE_WIDTH) for Low Temperature
-        unsigned dummy  :   16; // [63:48]
     };
+    // eeprom_eid_duration_1
     struct {
-        unsigned lower  :   32;
-        unsigned upper  :   32;
-    };
-    uint64_t value;
-};
-volatile union eeprom_eid_duration_t eeprom_eid_duration;
-
-union eeprom_eid_rfrsh_int_hr_t {
-    struct {
-        unsigned high   :   8;  // [ 7: 0] EID Refresh interval for High Temperature (unit: hr). '0' means 'do not refresh'.
-        unsigned mid    :   8;  // [15: 8] EID Refresh interval for Mid Temperature (unit: hr). '0' means 'do not refresh'.
-        unsigned low    :   8;  // [23:16] EID Refresh interval for Low Temperature (unit: hr). '0' meas 'do not refresh'.
-        unsigned dummy  :   8;  // [31:24] 
+        unsigned low    :   16; // [15: 0] EID duration (ECTR_PULSE_WIDTH) for Low Temperature
+        unsigned dummy  :   16; // [31:16]
     };
     uint32_t value;
 };
-volatile union eeprom_eid_rfrsh_int_hr_t eeprom_eid_rfrsh_int_hr;
-
-//--- Other Configurations
-union eeprom_misc_config_t {
-    struct {
-        unsigned pmu_num_cons_meas          :   4;  // [3:0] PMU_NUM_CONS_MEAS
-                                                    //          Number of consecutive measurements required to trigger Low VBAT warning/Crash Handler.
-        unsigned eid_crit_temp_threshold    :   1;  // [  4] EID_CRIT_TEMP_THRESHOLD
-                                                    //          Display does not update when temperature is lower than EID_CRIT_TEMP_THRESHOLD
-                                                    //          0x1: -20C 
-                                                    //          0x0: -25C
-        unsigned eid_disable_local_update   :   1;  // [  5] EID_DISABLE_LOCAL_UPDATE
-                                                    //          0x1: Use GLOBAL_UPDATE for all temperatures.
-                                                    //          0x0: Use LOCAL_UPDATE below EEPROM_ADDR_EID_LOW_TEMP_THRESHOLD. Use GLOBAL_UPDATE otherwise.
-        unsigned pmu_adc_sar_margin         :   1;  // [  6] PMU_ADC_SAR_MARGIN
-                                                    //          0x1: 9%
-                                                    //          0x0: 8% (default)
-        unsigned pmu_adc_sar_hysteresis     :   1;  // [  7] PMU_ADC_SAR_HYSTERESIS
-                                                    //          0x1: 1 (default)
-                                                    //          0x0: 0
-        unsigned ignore_first_sample_exc    :   1;  // [  8] IGNORE_FIRST_SAMPLE_EXCURSION
-                                                    //          0x1: The first sample is NOT counted for NUM_CONS_EXCURSIONS
-                                                    //          0x0: The first sample is counted for NUM_CONS_EXCURSIONS
-    };
-    uint32_t value;
-};
-volatile union eeprom_misc_config_t eeprom_misc_config;
-        
+volatile union eeprom_eid_duration_t eeprom_eid_duration_0;
+volatile union eeprom_eid_duration_t eeprom_eid_duration_1;
 
 //--- Temperature Calibration Coefficients
-union eeprom_temp_calib_t {
-    struct {
-        unsigned a  :   32; // Temperature Calibration Coefficient a
-        unsigned b  :   32; // Temperature Calibration Coefficient b
-    };
-    uint64_t value;
-};
-volatile union eeprom_temp_calib_t eeprom_temp_calib;
+volatile uint32_t eeprom_temp_calib_a;  // Temperature Calibration Coefficient a
+volatile uint32_t eeprom_temp_calib_b;  // Temperature Calibration Coefficient b
 
+//--- Hibernation Threshold
+volatile uint32_t hbr_temp_threshold_raw;   // Hibernation Threshold (Raw) - Read from EEPROM_ADDR_HBR_THRESHOLD_RAW_WRITEONLY
 
 //-------------------------------------------------------------------------------------------
 // User Configuration Variables in EEPROM
@@ -693,22 +678,22 @@ volatile union eeprom_temp_calib_t eeprom_temp_calib;
 //-------------------------------------------------------------------------------------------
 
 union eeprom_user_config_t {
+    // eeprom_user_config_0
     struct {
-        //--- VBAT and ADC
         unsigned high_temp_threshold   :    16; // [15: 0] Threshold for High Temperature
         unsigned low_temp_threshold    :    16; // [31:16] Threshold for Low Temperature
-        unsigned temp_meas_interval    :    16; // [47:32] Period of Temperature Measurement
-        unsigned temp_meas_start_delay :    16; // [63:48] Start Delay before starting temperature measurement
     };
+    // eeprom_user_config_1
     struct {
-        unsigned lower  :   32;
-        unsigned upper  :   32;
+        unsigned temp_meas_interval    :    16; // [15: 0] Period of Temperature Measurement
+        unsigned temp_meas_start_delay :    16; // [31:16] Start Delay before starting temperature measurement
     };
-    uint64_t value;
+    uint32_t value;
 };
-volatile union eeprom_user_config_t eeprom_user_config;
+volatile union eeprom_user_config_t eeprom_user_config_0;
+volatile union eeprom_user_config_t eeprom_user_config_1;
 
-volatile uint32_t num_cons_excursions;      // Number of excursions required to trigger an alarm
+volatile uint32_t num_cons_excursions; // Number of excursions required to trigger an alarm
 
 union excursion_t {
     struct {
@@ -736,15 +721,16 @@ volatile uint32_t cmd;              // Command
 volatile uint32_t cmd_param;        // Command Parameter
 
 //-------------------------------------------------------------------------------------------
-// System Status in EEPROM
+// System Status
 //-------------------------------------------------------------------------------------------
 // NOTE: Most of these variables are reset in reset_system_status() function.
 // NOTE: Sample ID starts from 0
 //-------------------------------------------------------------------------------------------
-volatile uint32_t sub_sample_cnt;                   // Sub-sample count (Sample measured every minute)
-volatile uint32_t temp_sample_cnt;                  // Temp sample count ('sample average' calculated at user-specified interval)
-volatile uint32_t eeprom_sample_cnt;                // EEPROM sample count ('sample average' stored into EEPROM)
-volatile uint32_t sub_sample_sum;                   // Sum of the sub-samples
+volatile uint32_t sub_meas_cnt;                     // Sub-measurement count (incrementing every minute)
+volatile uint32_t meas_cnt;                         // Measurement Count. Incremending at every measurement interval, regardless of the hibernation status.
+volatile uint32_t sample_cnt;                       // Sample Count. Incremending at every measurement interval ONLY IF it is NOT in hibernation.
+volatile uint32_t hbr_meas_cnt;                     // Hibernation Measurement count; Incrementing with meas_cnt but only in hibernation.
+volatile uint32_t sub_meas_sum;                     // Sum of the sub-measurements
 volatile uint32_t num_calib_xo_fails;               // Number of Calibration fails (XO timeout/unstable)
 volatile uint32_t num_calib_max_err_fails;          // Number of Calibration fails (MAX_CHANGE error)
 
@@ -766,7 +752,12 @@ union status_t {
         unsigned disp_skipped       :   1;  // [   17] 1 indicates it has skipped a display update (e.g., when start_delay=0 it skips the 'play-only' pattern.)
         unsigned custom_init        :   1;  // [   18] 1 indicates it uses a custom system init values, rather than the default values.
         unsigned skip_init          :   1;  // [   19] 1 indicates it needs to skip loading the init values from EEPROM.
-        unsigned dummy0             :  12;  // [31:20] 
+        unsigned hbr_temp           :   1;  // [   20] 1 indicates that the temp.raw < hbr_temp_threshold_raw
+        unsigned hbr_flag           :   1;  // [   21] 1 indicates that the it has seen a temp below hbr_temp_threshold_raw during the last meas interval
+        unsigned hibernating        :   1;  // [   22] 1 indicates it is currently in hibernation
+        unsigned nfc_out_temp       :   1;  // [   23] 1 indicates that the current temperature is out of the NFC chip operating range.
+        unsigned commit_status_pend :   1;  // [   24] 1 indicates that commit_status() is pending due to lack of valid temp measurement or status.hbr_flag.
+        unsigned dummy0             :   7;  // [31:25] 
     };
     struct {
         unsigned eeprom_state   :   8;
@@ -791,6 +782,7 @@ volatile uint32_t snt_duration;                     // SNT counter value that co
 volatile uint32_t snt_threshold;                    // SNT Timer Threshold to wake up the system
 volatile uint32_t snt_threshold_prev;               // Previous SNT Timer Threshold
 volatile uint32_t wakeup_interval;                  // Wakeup Period (unit: minutes)
+volatile uint32_t start_delay_cnt;                  // Start Delay Counter (incrementing every 1 min)
 volatile uint32_t snt_skip_calib;                   // If 1, it skips the SNT calibration and uses the previous snt_freq to calculate the next snt_threshold.
 volatile uint32_t calib_status;                     // Calibration Status
                                                     // [2]: 1 if the SNT or XO counter has an incorrect value (>6.25% (=1/16) error than expected)
@@ -816,6 +808,62 @@ volatile uint32_t aes_key_valid;            // 1 indicates *(AES_KEY_n) is valid
 volatile uint32_t aes_key[4];               // Clone of the AES Key written to EEPROM (EEPROM is reset after the cloning is done)
 
 volatile uint32_t crc32;                    // Adler-32 CRC Value
+
+//-------------------------------------------------------------------------------------------
+// Write Buffers
+//-------------------------------------------------------------------------------------------
+
+//--- Counter Buffer
+union cnt_buf_t {
+    // cnt_buf_sample: Last Qword ID and Sample Count
+    struct {
+        unsigned sample_cnt     :   23; // [22: 0] Sample Count
+        unsigned last_qword_id  :    9; // [31:23] Last Qword ID
+    };
+    // cnt_buf_meas: Valid & Measurement Count
+    struct {
+        unsigned meas_cnt       :   23; // [22: 0] Measurement Count
+        unsigned rsvd0          :    8; // [30:23] 
+        unsigned valid          :    1; // [21] 
+    };
+    uint32_t value;
+};
+volatile union cnt_buf_t cnt_buf_sample;
+volatile union cnt_buf_t cnt_buf_meas;
+
+//--- PMU Buffer
+union pmu_buf_t {    
+    struct {
+        unsigned adc    :    8; // [ 7: 0] ADC Value
+        unsigned sar    :    8; // [15: 8] SAR Ratio
+        unsigned rsvd0  :   15; // [30:16]
+        unsigned valid  :    1; // [31]
+    };
+    struct {
+        unsigned sar_adc:   16; // [15: 0] SAR and ADC
+        unsigned upper  :   16; // [31:16]
+    };
+    uint32_t value;
+};
+volatile union pmu_buf_t pmu_buf;
+
+//--- Data Buffer
+union dat_buf_t {
+    // dat_buf_crc
+    struct {
+        unsigned crc32  :   32; // [31: 0] CRC32
+    };
+    // dat_buf_addr
+    struct {
+        unsigned addr   :   16; // [15: 0] EEPROM Address
+        unsigned rsvd0  :   15; // [30:16]
+        unsigned valid  :    1; // [31] Becomes 1 when updating buf_storage and dat_buf_crc.crc32; Becomes 0 after writing buf_storage and dat_buf_crc.crc32 in EEPROM.
+    };
+    uint32_t value;
+};
+volatile union dat_buf_t dat_buf_crc;
+volatile union dat_buf_t dat_buf_addr;
+volatile uint32_t buf_storage[4];
 
 //-------------------------------------------------------------------------------------------
 // Other Global Variables
@@ -860,6 +908,7 @@ volatile uint32_t sar_adc_data;             // For debugging (temp sensor calibr
                                             // [13: 8] SAR_RATIO - 64
                                             // [ 7: 0] ADC Value
 
+#ifdef ENABLE_DEBUG_SYSTEM_CONFIG
 union override_t {
     struct {
         unsigned sar_margin :  4;   // [ 3: 0] SAR Margin
@@ -870,41 +919,32 @@ union override_t {
 };
 
 volatile union override_t override;
+#endif
 
 //--- Display
 volatile uint32_t disp_refresh_interval;    // (Unit: min) Display Refresh Interval. 0 means 'do not refresh'.
 volatile uint32_t disp_min_since_refresh;   // (Unit: min) Minutes since the last Display Refresh.
 volatile uint32_t eid_duration;             // EID active CP duration 
-volatile uint32_t eid_disp_before_user_mod; // [ 31] Display has been modified by user using DISPLAY command
-                                            // [6:0] Display pattern before being modified by DISPLAY command. Valid only if bit[31]=1.
 volatile uint32_t eid_updated_at_low_temp;  // Becomes 1 when the display gets updated at a temperature lower than eeprom_eid_threshold.low.
 volatile uint32_t eid_updated_at_crit_temp; // Becomes 1 when the display has a pending update due to a critical temperature.
 volatile uint32_t eid_crit_temp_threshold;  // Display does not update when temperature is lower than EID_CRIT_TEMP_THRESHOLD
 volatile uint32_t eid_update_type;          // EID Update Type (0: Global Update, 1: Local Update)
 
-//--- Write Buffer
-union buffer_t {
-    struct {
-        unsigned sample_count   :   23; // [22: 0] Sample Count
-        unsigned last_qword_id  :    9; // [31:23] Last Qword ID
-        unsigned adc            :    8; // [39:32] ADC Value
-        unsigned sar            :    8; // [47:40] SAR Ratio
-        unsigned eeprom_addr    :   16; // [63:48]
-    };
-    struct {
-        unsigned count          :   32; // [31: 0] Last Qword ID and Sample Count
-        unsigned pmu            :   16; // [47:40] SAR and ADC
-        unsigned eeprom_info    :   16; // [63:48]
-    };
-    uint64_t value;
-};
-
-volatile union buffer_t buffer;
-
-volatile uint32_t buffer_valid;     // Becomes 1 when updating buffer_data and buffer_crc32; Becomes 0 after writing buffer_data and buffer_crc32 in EEPROM.
-volatile uint32_t buffer_data[4];
-volatile uint32_t buffer_crc32;
-
+//--- EID-related variables
+//  __eid_current_display__ (Defined in TMCv2r1.h)
+//          Indicates the actual pattern displayed on the e-ink.
+//          Updated by eid_enable_cp_ck()
+//
+//  eid_expected_display
+//          Indicates the expected display pattern. Updated in eid_update_display()
+//          There could be discrepancy between __eid_current_display__ and eid_expected_display
+//          if the display update process is skipped due to the EID critical temperature, etc.
+volatile uint32_t eid_expected_display;
+//
+//  eid_seg_in_eeprom
+//          EID pattern status saved in EEPROM. 
+//          This may not consistent with the actual display pattern on the e-ink, due to hibernation, etc.
+volatile uint32_t eid_seg_in_eeprom;        
 
 //*******************************************************************************************
 // FUNCTIONS DECLARATIONS
@@ -924,8 +964,8 @@ void fail_handler(uint32_t id);
 //--- FSM
 static void set_system(uint32_t target);
 static void reset_system_status(uint32_t target);
-static void commit_status(void);
-static void meas_temp_adc (void);
+static void commit_status(uint32_t forced);
+static void meas_temp_adc (uint32_t go_sleep);
 static void snt_operation (void);
 static void display_low_batt (void);
 
@@ -935,7 +975,6 @@ static void calibrate_snt_timer(uint32_t skip_calib);
 static uint32_t calc_ssls(void);
 
 //--- E-Ink Display
-static uint32_t eid_get_curr_seg(void);
 static void eid_update_configs(void);
 static void eid_update_display(uint32_t seg);
 static void eid_blink_display(void);
@@ -956,16 +995,17 @@ static void debug_system_configs(void);
 
 //--- Write Buffer
 static void buffer_init  (void);
-static void buffer_update(uint32_t addr, uint32_t commit_crc);
-static void buffer_commit(void);
+static void data_buffer_update(uint32_t addr, uint32_t commit_crc);
+static void all_buffer_commit(void);
 
 //--- Data Compression
-uint32_t tcomp_encode (uint32_t value);
+uint32_t tcomp_encode (uint32_t delta);
 uint32_t reverse_bits (uint32_t bit_stream, uint32_t num_bits);
+void reverse_bits_ext (uint32_t* ptr, uint32_t code, uint32_t count, uint32_t value);
 
 //--- 128-bit qword Handling
 void set_qword (uint32_t pattern);
-void sub_qword (uint32_t msb, uint32_t lsb, uint32_t value);
+void sub_qword (uint32_t msb, uint32_t lsb, uint32_t* ptr);
 
 //--- AES & CRC
 void aes_encrypt(uint32_t* pt);
@@ -1000,12 +1040,16 @@ static void operation_sleep (uint32_t check_snt) {
     nfc_power_off();
 
     // Make sure we have done the PMU adjustmenet
-    meas_temp_adc();
-    if (meas.low_vbat) display_low_batt();
+    if (WAKEUP_BY_NFC) {
+        meas_temp_adc(/*go_sleep*/0);
+        if (meas.low_vbat) display_low_batt();
+    }
 
-    // Disable all IRQs. PREv22E replaces the sleep msg with a selective wakeup msg
-    // if there is an enabled && pending IRQ.
-    *NVIC_ICER = 0xFFFFFFFF;
+    // Execute commit_status() if there is any pending status
+    if (status.commit_status_pend) {
+        commit_status(/*forced*/0);
+        nfc_power_off();
+    }
 
     if (check_snt) {
         // Just in case - check the current SNT counter value.
@@ -1061,22 +1105,7 @@ static void operation_sleep (uint32_t check_snt) {
     if (get_high_power_history()) {
         // Low-Power Active mode: 18~20uA for ~6 seconds
         *REG_MBUS_WD = 1680000; // 6s with 280kHz;
-        #ifdef USE_WFI_FOR_LOW_POWER_ACTIVE
-            *NVIC_ISER = (1 << IRQ_GPIO);
-            WFI();
-
-            // If IRQ occurs (i.e., GPO pulse), call main()
-            *REG_MBUS_WD = 0;
-            #ifdef DEVEL
-                mbus_write_message32(0x7F, 0x00000002);
-            #endif
-            set_flag(FLAG_MAIN_CALLED_BY_GPO, 1);
-            *NVIC_ICPR = 0xFFFFFFFF; // For safety, disable/clear all pending IRQs.
-            main();
-            return;
-        #else
-            halt_cpu();
-        #endif
+        halt_cpu();
     }
     // Go to sleep
     else {
@@ -1097,7 +1126,10 @@ static void operation_sleep (uint32_t check_snt) {
 // Return  : None
 //-------------------------------------------------------------------
 static void operation_sleep_snt_timer(uint32_t check_snt) {
-    snt_set_wup_timer(/*auto_reset*/0, /*threshold*/snt_threshold);
+    if (!snt_set_wup_timer(/*auto_reset*/0, /*threshold*/snt_threshold)) {
+        __wfi_id__ = FAIL_ID_GEN;
+        fail_handler(/*id*/__wfi_id__);
+    }
     #ifdef DEVEL
         mbus_write_message32(0x8F, snt_threshold);
     #endif
@@ -1118,8 +1150,7 @@ static void operation_dead(void) {
     // Turn off NFC 
     nfc_power_off();
     
-    // Turn off temperature sensor
-    snt_temp_sensor_reset();
+    // Reset & Turn off the temperature sensor
     snt_temp_sensor_power_off();
 
     // Disable SNT timer, XO timer
@@ -1127,8 +1158,7 @@ static void operation_dead(void) {
     snt_disable_wup_timer();
     xo_stop();
 
-    // Disable all IRQs. PREv22E replaces the sleep msg with a selective wakeup msg
-    // if there is an enabled && pending IRQ.
+    // For safetly, disable all IRQs.
     *NVIC_ICER = 0xFFFFFFFF;
 
     mbus_sleep_all();  // This will turn off any ongoing EID CP operation
@@ -1168,7 +1198,8 @@ static void operation_init (void) {
                             | (0xF <<  0);  // 4'h8     GOC_SEL
 
         //--- Pending Wakeup Handling          Default
-        *REG_SYS_CONF =       (0x0 << 8)    // 1'h0     ENABLE_SOFT_RESET	#If 1, Soft Reset will occur when there is an MBus Memory Bulk Write message received and the MEM Start Address is 0x2000
+        *REG_SYS_CONF =       (0x0 << 9)    // 1'h1     NO_SLEEP_WITH_PEND_IRQ  #If 1, it replaces the sleep message with a selective wakeup message if there is a pending M0 IRQ. If 0, it goes to sleep even when there is a pending M0 IRQ.
+                            | (0x0 << 8)    // 1'h0     ENABLE_SOFT_RESET	#If 1, Soft Reset will occur when there is an MBus Memory Bulk Write message received and the MEM Start Address is 0x2000
                             | (0x1 << 7)    // 1'h1     PUF_CHIP_ID_SLEEP
                             | (0x1 << 6)    // 1'h1     PUF_CHIP_ID_ISOLATE
                             | (0x8 << 0);   // 5'h1E    WAKEUP_ON_PEND_REQ	#[4]: GIT (PRE_E Only), [3]: GPIO (PRE only), [2]: XO TIMER (PRE only), [1]: WUP TIMER, [0]: GOC/EP
@@ -1177,10 +1208,8 @@ static void operation_init (void) {
         // Enumeration
         //-------------------------------------------------
         set_halt_until_mbus_trx();
-        mbus_enumerate(SNT_ADDR);
         mbus_enumerate(EID_ADDR);
-        mbus_enumerate(MRR_ADDR);
-        mbus_enumerate(MEM_ADDR);
+        mbus_enumerate(SNT_ADDR);
         mbus_enumerate(PMU_ADDR);
         set_halt_until_mbus_tx();
 
@@ -1190,8 +1219,6 @@ static void operation_init (void) {
         mbus_remote_register_write(PMU_ADDR, 0x52, (0x10 << 8) | PMU_TARGET_REG_IDX);
         mbus_remote_register_write(SNT_ADDR, 0x07, (0x10 << 8) | SNT_TARGET_REG_IDX);
         mbus_remote_register_write(EID_ADDR, 0x05, (0x1 << 16) | (0x10 << 8) | EID_TARGET_REG_IDX);
-//      mbus_remote_register_write(MRR_ADDR, 0x1E, (0x10 << 8) | MRR_TARGET_REG_IDX); // FSM_IRQ_REPLY_PACKET
-//      mbus_remote_register_write(MRR_ADDR, 0x23, (0x10 << 8) | MRR_TARGET_REG_IDX); // TRX_IRQ_REPLY_PACKET
 
         //-------------------------------------------------
         // PMU Settings
@@ -1207,7 +1234,7 @@ static void operation_init (void) {
         set_flag(FLAG_ENUMERATED, 1);
 
         // Turn on the SNT timer clock
-        snt_start_timer(/*wait_time*/2*DLY_1S);
+        snt_start_timer(/*wait_time*/DLY_1S);
 
         // Start the SNT counter
         snt_enable_wup_timer(/*auto_reset*/0);
@@ -1218,24 +1245,25 @@ static void operation_init (void) {
         //--- XO Frequency
         *REG_XO_CONF2 =             // Default  // Description
             //-----------------------------------------------------------------------------------------------------------
-            ( (0x0          << 13)  // 2'h2     // XO_INJ	            #Adjusts injection period
-            | (0x1          << 10)  // 3'h1     // XO_SEL_DLY	        #Adjusts pulse delay
-            | (0x1          <<  8)  // 2'h1     // XO_SEL_CLK_SCN	    #Selects division ratio for SCN CLK
-            | (XO_FREQ_SEL  <<  5)  // 3'h1     // XO_SEL_CLK_OUT_DIV   #Selects division ratio for the XO CLK output; freq = (2^XO_SEL_CLK_OUT_DIV) in kHz.
-            | (0x1          <<  4)  // 1'h1     // XO_SEL_LDO	        #Selects LDO output as an input to SCN
-            | (0x0          <<  3)  // 1'h0     // XO_SEL_0P6	        #Selects V0P6 as an input to SCN
-            | (0x0          <<  0)  // 3'h0     // XO_I_AMP	            #Adjusts VREF body bias buffer current
+            ( (0x1         << 20)   // (3'h1) XO_SEL_DLY	        #Adjusts pulse delay
+            | (0x1         << 18)   // (2'h1) XO_SEL_CLK_SCN	    #Selects division ratio for SCN CLK
+            | (XO_FREQ_SEL << 15)   // (3'h1) XO_SEL_CLK_OUT_DIV	#Selects division ratio for the XO CLK output. XO Freq = 2^XO_SEL_CLK_OUT_DIV (kHz)
+            | (0x1         << 14)   // (1'h1) XO_SEL_LDO            #Selects LDO output as an input to SCN
+            | (0x0         << 13)   // (1'h0) XO_SEL_0P6            #Selects V0P6 as an input to SCN
+            | (0x0         << 10)   // (3'h0) XO_I_AMP	            #Adjusts VREF body bias buffer current
+            | (0x0         <<  3)   // (7'h0) XO_VREF_TUNEB 	    #Adjust VREF level and TC
+            | (0x0         <<  0)   // (3'h0) XO_SEL_VREF 	        #Selects VREF output from its diode stack
             );
 
         xo_stop();  // Default value of XO_START_UP is wrong in RegFile, so need to override it.
 
         //--- Start XO clock
-        xo_start(/*delay_a*/XO_WAIT_A, /*delay_b*/XO_WAIT_B, /*start_cnt*/0);
+        xo_start(/*delay_a*/XO_WAIT_A, /*delay_b*/XO_WAIT_B);
         // Update the flag
         set_flag(FLAG_XO_INITIALIZED, 1);
 
         //--- Configure and Start the XO Counter
-        set_xo_timer(/*mode*/0, /*threshold*/0, /*wreq_en*/0, /*irq_en*/0);
+        set_xo_timer(/*mode*/0, /*threshold*/0, /*wreq_en*/0, /*irq_en*/0, /*auto_reset*/0);
         start_xo_cnt();
 
     #ifdef ENABLE_XO_PAD
@@ -1267,12 +1295,15 @@ static void operation_init (void) {
         nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_HW_ID, /*data*/HARDWARE_ID, /*nb*/4);
         nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_FW_ID, /*data*/FIRMWARE_ID, /*nb*/2);
         // Sub-Versions
-        nfc_i2c_byte_write(/*e2*/0, /*addr*/6, /*data*/0x0203, /*nb*/2);
+        //nfc_i2c_byte_write(/*e2*/0, /*addr*/6, /*data*/0x0100, /*nb*/2);
 
         // Set default values for CALIB and AES_KEY
-        eeprom_temp_calib.a = TEMP_CALIB_A_DEFAULT;
-        eeprom_temp_calib.b = TEMP_CALIB_B_DEFAULT;
+        eeprom_temp_calib_a = TEMP_CALIB_A_DEFAULT;
+        eeprom_temp_calib_b = TEMP_CALIB_B_DEFAULT;
         for (i=0; i<4; i++) *(aes_key+i) = 0x0;
+
+        // Set default values for Hibernation Threshold
+        hbr_temp_threshold_raw = HBR_TEMP_THRESHOLD_RAW_DEFAULT;
 
         // Initialize the EEPROM variables
         update_system_configs(/*use_default*/1);
@@ -1305,8 +1336,8 @@ static void operation_init (void) {
         // Go to Sleep for 10s.
         //-------------------------------------------------
         // this provides the information for the very first SNT calibration
-        snt_freq = 1500;
-        snt_duration = 30000;   // supposed to be ~20 seconds.
+        snt_freq = 1400;
+        snt_duration = 30000;
         snt_threshold_prev = snt_read_wup_timer();
         snt_threshold = snt_threshold_prev + snt_duration;
         xo_val_curr = get_xo_cnt();
@@ -1334,7 +1365,7 @@ static void set_system(uint32_t target) {
     if (target==XT1_CRASH) {
         // Update the System State
         status.crash_triggered = 1;
-        commit_status();
+        commit_status(/*forced*/1); // FORCED
         // Turn off NFC
         nfc_power_off();
         // Update the state
@@ -1349,17 +1380,6 @@ static void set_system(uint32_t target) {
 
         reset_system_status(target);
 
-        // Reset some variables
-        disp_refresh_interval    = 720;    // Every 12 hrs
-        eid_duration             = 100;
-        eid_disp_before_user_mod = 0;
-        eid_updated_at_low_temp  = 0;
-        eid_updated_at_crit_temp = 0;
-        eid_update_type          = EID_GLOBAL;
-        meas.valid               = 0;
-        override.enable          = 0;
-        ssls                     = 0;
-
         // Display all segments
         eid_update_display(/*seg*/DISP_ALL);
 
@@ -1369,7 +1389,7 @@ static void set_system(uint32_t target) {
         // Reset the System State in EEPROM
         status.eeprom_state = 0; // curr_state=XT1_RESET
         status.eeprom_fail = 0;
-        commit_status();
+        commit_status(/*forced*/1); // it is guaranteed that it is not in hibernation.
 
         // Update the state
         xt1_state = XT1_RESET;
@@ -1384,16 +1404,16 @@ static void set_system(uint32_t target) {
 
         // If Raw Sample mode, use the pre-defined configuration
         if (status.sample_type == SAMPLE_RAW) {
-            eeprom_user_config.high_temp_threshold   = 1800;   // 100C
-            eeprom_user_config.low_temp_threshold    = 400;    // -40C
-            eeprom_user_config.temp_meas_interval    = 1;      // 1 min
-            eeprom_user_config.temp_meas_start_delay = 0;      // 0 min
-            num_cons_excursions = 1;
+            eeprom_user_config_0.high_temp_threshold   = 1800;   // 100C
+            eeprom_user_config_0.low_temp_threshold    = 400;    // -40C
+            eeprom_user_config_1.temp_meas_interval    = 1;      // 1 min
+            eeprom_user_config_1.temp_meas_start_delay = 0;      // 0 min
+            num_cons_excursions   = 1;
         }
 
         // Display Play Sign 
         // If start_delay=0, the display does not need to be updated here. 
-        if (eeprom_user_config.temp_meas_start_delay!=0) 
+        if (eeprom_user_config_1.temp_meas_start_delay!=0) 
             eid_update_display(/*seg*/DISP_PLAY);
         else {
             status.disp_skipped = 1;
@@ -1403,14 +1423,14 @@ static void set_system(uint32_t target) {
         }
 
         // Start Delay
-        wakeup_interval = eeprom_user_config.temp_meas_start_delay;
+        wakeup_interval = WAKEUP_INTERVAL_ACTIVE;
 
         // Set the System State
         status.curr_state = XT1_PEND;
         status.activated = 1;
         status.memory_full = 0;
         status.unread_sample = 0;
-        commit_status();
+        commit_status(/*forced*/1); // it is guaranteed that it is not in hibernation.
 
         // Update the state
         xt1_state = XT1_PEND;
@@ -1424,8 +1444,8 @@ static void set_system(uint32_t target) {
         // Reset variables
         wakeup_interval   = WAKEUP_INTERVAL_IDLE;
 
-        sub_sample_cnt = 0;
-        sub_sample_sum = 0;
+        sub_meas_cnt = 0;
+        sub_meas_sum = 0;
 
         // During Boot-Up
         if (!get_flag(FLAG_BOOTUP_DONE))
@@ -1440,14 +1460,23 @@ static void set_system(uint32_t target) {
                 eid_update_display(/*seg*/DISP_BACKSLASH|DISP_TICK);
         // If coming from XT1_PEND: Display Check only. Preserve Low-BATT indicator.
         else if (xt1_state==XT1_PEND)
-            eid_update_display(/*seg*/(eid_get_curr_seg() & DISP_LOWBATT) | DISP_CHECK);
+            eid_update_display(/*seg*/(eid_expected_display & DISP_LOWBATT) | DISP_CHECK);
         // If coming from other states: Remove the Play sign
         else
-            eid_update_display(/*seg*/eid_get_curr_seg() & ~DISP_PLAY);
+            eid_update_display(/*seg*/eid_expected_display & ~DISP_PLAY);
+
+        // Hiberation Status
+        status.hbr_temp     = 0;
+        status.hbr_flag     = 0;
+        status.hibernating  = 0;
+        status.nfc_out_temp = 0;
+        #ifdef DEVEL
+            mbus_write_message32(0xBA, (0x14 << 24) | 0x0); // hibernation status
+        #endif
 
         // Reset the System State
         status.curr_state = XT1_IDLE;
-        commit_status();
+        commit_status(/*forced*/1); // it is guaranteed that it is not in hibernation.
 
         // Update the state
         xt1_state = XT1_IDLE;
@@ -1461,7 +1490,7 @@ static void set_system(uint32_t target) {
 
         // Reset the System State
         status.curr_state = XT1_ACTIVE;
-        commit_status();
+        commit_status(/*forced*/0);
 
         // Update the state
         xt1_state = XT1_ACTIVE;
@@ -1489,14 +1518,15 @@ static void reset_system_status(uint32_t target) {
     crc32            = 1;
     set_qword(/*pattern*/0xFFFFFFFF);  // qword = all 1s.
 
-    // Sub-sample counts
-    sub_sample_cnt    = 0;
-    sub_sample_sum    = 0;
+    // Sub-measurements
+    sub_meas_cnt    = 0;
+    sub_meas_sum    = 0;
 
     // Reset the Sample Count
     nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SAMPLE_COUNT, /*data*/0, /*nb*/4);
-    temp_sample_cnt   = 0;
-    eeprom_sample_cnt = 0;
+    meas_cnt    = 0;
+    sample_cnt  = 0;
+    hbr_meas_cnt= 0;
 
     // Reset NUM_XO/CALIB_MAX_ERR
     nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_NUM_CALIB_XO_FAILS, /*data*/0, /*nb*/2); // EEPROM_ADDR_NUM_CALIB_XO_FAILS, EEPROM_ADDR_NUM_CALIB_MAX_ERR_FAILS
@@ -1511,10 +1541,18 @@ static void reset_system_status(uint32_t target) {
 
     // Other System Status
     status.disp_skipped = 0;
+    status.hbr_temp     = 0;
+    status.hbr_flag     = 0;
+    status.hibernating  = 0;
+    status.nfc_out_temp = 0;
     #ifdef DEVEL
         mbus_write_message32(0xBA, (0x11 << 24) | 0x0 /*status.disp_skipped*/);
+        mbus_write_message32(0xBA, (0x14 << 24) | 0x0); // hibernation status
     #endif
+
+    // XT1_RESET
     if (target==XT1_RESET) {
+
         // custom_init & skip_init
         if ((cmd==CMD_SRESET) && (get_bit(cmd_param, 0))) {
             status.skip_init = 1; 
@@ -1530,6 +1568,20 @@ static void reset_system_status(uint32_t target) {
                 mbus_write_message32(0xBA, (0x13 << 24) | 0x0 /*status.skip_init*/);
             #endif
         }
+
+        // Other variables
+        disp_refresh_interval    = 720;    // Every 12 hrs
+        eid_duration             = 100;
+        eid_updated_at_low_temp  = 0;
+        eid_updated_at_crit_temp = 0;
+        eid_update_type          = EID_GLOBAL;
+        eid_seg_in_eeprom        = 0;
+        eid_expected_display     = 0;
+        meas.valid               = 0;
+        ssls                     = 0;
+        #ifdef ENABLE_DEBUG_SYSTEM_CONFIG
+            override.enable          = 0;
+        #endif
     }
 
     // Following variables are not set/reset here
@@ -1541,90 +1593,200 @@ static void reset_system_status(uint32_t target) {
 
 }
 
-static void commit_status(void) {
-    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/status.eeprom_state, /*nb*/1);
-    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_FAIL, /*data*/status.eeprom_fail, /*nb*/1);
+static void commit_status(uint32_t forced) {
+    //----------------------------------------------
+    // If forced = 1
+    //      It commits the status regardless of meas.valid or hibernation status.
+    //          User needs to make sure that the unit is NOT in hibernation or below nfc_out_temp.
+    // If forced = 0
+    //      It commits the status ONLY IF meas.valid=1 and NOT in hibernation status.
+    //      Otherwise, it sets status.commit_status_pend=1 and returns.
+    //----------------------------------------------
+    if (forced || (meas.valid && !status.hbr_flag) ) {
+        nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/status.eeprom_state, /*nb*/1);
+        nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_FAIL, /*data*/status.eeprom_fail, /*nb*/1);
+        status.commit_status_pend = 0;
+        #ifdef DEVEL
+            mbus_write_message32(0xBA, (0x00 << 24) | status.curr_state);
+            mbus_write_message32(0xBA, (0x02 << 24) | status.config_set);
+            mbus_write_message32(0xBA, (0x03 << 24) | status.memory_full);
+            mbus_write_message32(0xBA, (0x04 << 24) | status.sample_type);
+            mbus_write_message32(0xBA, (0x05 << 24) | status.activated);
+            mbus_write_message32(0xBA, (0x06 << 24) | status.unread_sample);
+            mbus_write_message32(0xBA, (0x07 << 24) | status.crash_triggered);
+            mbus_write_message32(0xBA, (0x08 << 24) | status.fail_id);
+        #endif
+    }
+    else {
+        // operation_sleep() checks status.commit_status_pend, and if it is 1, then it calls commit_status().
+        status.commit_status_pend = 1;
+    }
     #ifdef DEVEL
-        mbus_write_message32(0xBA, (0x00 << 24) | status.curr_state);
-        mbus_write_message32(0xBA, (0x02 << 24) | status.config_set);
-        mbus_write_message32(0xBA, (0x03 << 24) | status.memory_full);
-        mbus_write_message32(0xBA, (0x04 << 24) | status.sample_type);
-        mbus_write_message32(0xBA, (0x05 << 24) | status.activated);
-        mbus_write_message32(0xBA, (0x06 << 24) | status.unread_sample);
-        mbus_write_message32(0xBA, (0x07 << 24) | status.crash_triggered);
-        mbus_write_message32(0xBA, (0x08 << 24) | status.fail_id);
+        mbus_write_message32(0xBA, (0x15 << 24) | status.commit_status_pend);
     #endif
 }
 
-static void meas_temp_adc (void) {
+static void meas_temp_adc (uint32_t go_sleep) {
     #ifdef DEVEL
-        mbus_write_message32(0x91, 0x00000000);
+        mbus_write_message32(0x91, go_sleep);
     #endif
 
     if (!meas.valid) {
 
-        // Enable REG IRQ
-        enable_reg_irq(SNT_TARGET_REG_IDX); // REG1
+        if (go_sleep) {
+            if (!get_flag(FLAG_TEMP_MEAS_PEND)) {
 
-        // Turn on SNT Temperature Sensor
-        snt_temp_sensor_power_on();
-        snt_temp_sensor_reset();
+                meas.adc = pmu_read_adc();
 
-        // Release the reset for the Temp Sensor
-        start_timeout32_check(/*id*/FAIL_ID_SNT, /*val*/TIMEOUT_TH<<2); // ~2s
-        snt_temp_sensor_start();
+                // Higher Floor Setting for Sleep
+                pmu_sleep_floor(/*type*/1);
 
-        // Wait
-        WFI();
+                // Turn on SNT Temperature Sensor
+                snt_temp_sensor_power_on();
+
+                // Set flag
+                set_flag(FLAG_TEMP_MEAS_PEND, 1);
+
+                // Release the reset for the Temp Sensor
+                snt_temp_sensor_start();
+
+                // go sleep
+                mbus_sleep_all(); 
+                while(1);
+            }
+            else {
+
+                // Get back to the original Floor Setting
+                pmu_sleep_floor(/*type*/0);
+
+                set_flag(FLAG_TEMP_MEAS_PEND, 0);
+            }
+        }
+        else {
+
+            meas.adc = pmu_read_adc();
+
+            // Enable REG IRQ
+            enable_reg_irq(SNT_TARGET_REG_IDX); // REG1
+
+            // Turn on SNT Temperature Sensor
+            snt_temp_sensor_power_on();
+
+            // Release the reset for the Temp Sensor
+            start_timeout32_check(/*id*/FAIL_ID_SNT, /*val*/TIMEOUT_TH<<2); // ~2s
+
+            // Release the reset for the Temp Sensor
+            snt_temp_sensor_start();
+
+            WFI();
+        }
 
         // Raw value
         temp.raw = (*SNT_TARGET_REG_ADDR) & 0xFFFF;
 
-        // NOTE: temp.val is "10 x (T + 80)" where T is the actual temperature in celsius degree
-        temp.val = tconv(   /* dout */ temp.raw,
-                            /*   a  */ eeprom_temp_calib.a, 
-                            /*   b  */ eeprom_temp_calib.b, 
-                            /*offset*/ COMP_OFFSET_K);
-
-        // Turn off the temperature sensor
-        snt_temp_sensor_reset();
+        // Reset & Turn off the temperature sensor
         snt_temp_sensor_power_off();
+
+        // Hibernation Control (Set status.hbr_flag)
+        // -------------------------------------------------------------------------
+        // If in XT1_PEND or XT1_ACTIVE
+        #ifdef DEVEL
+            mbus_write_message32(0xBA, (0x14 << 24) | (status.hbr_temp << 12) | (status.hbr_flag << 8) | (status.hibernating << 4) | (status.nfc_out_temp << 0) );
+            mbus_write_message32(0x9F, hbr_temp_threshold_raw);
+        #endif
+        if ((xt1_state == XT1_PEND) || (xt1_state == XT1_ACTIVE)) {
+
+            temp.val = 0; // Default Value
+
+            // current temp is below the hibernation threshold
+            if (temp.raw < hbr_temp_threshold_raw) {
+                status.hbr_temp = 1;
+                status.hbr_flag = 1;
+            }
+            // current temp is high
+            else {
+                status.hbr_temp = 0;
+
+                // If this is the first sub-measurement, reset hbr_flag.
+                if (status.hbr_flag && (sub_meas_cnt==0)) {
+                    status.hbr_flag = 0;
+                }
+
+                // Translate the temperature if needed
+                if (!status.hbr_flag) {
+                    temp.val = tconv(   /* dout */ temp.raw,
+                                        /*   a  */ eeprom_temp_calib_a, 
+                                        /*   b  */ eeprom_temp_calib_b, 
+                                        /*offset*/ COMP_OFFSET_K);
+                }
+            }
+
+            // NFC chip temperature check 
+            // NOTE1: __NFC_OP_MIN_TEMP__ must be higher than the hibernation threshold temperature.
+            // NOTE2: status.hbr_flag=1 guarantees temp.val=0. 
+            //        Otherwise, temp.val should have a reasonable value and should be compared against __NFC_OP_MIN_TEMP__.
+            status.nfc_out_temp = (temp.val < __NFC_OP_MIN_TEMP__);
+
+        }
+        // If NOT in (XT1_PEND | XT1_ACTIVE)
+        else {
+            // Translate the temperature
+            temp.val = tconv(   /* dout */ temp.raw,
+                                /*   a  */ eeprom_temp_calib_a, 
+                                /*   b  */ eeprom_temp_calib_b, 
+                                /*offset*/ COMP_OFFSET_K);
+            status.nfc_out_temp = 0;
+        }
+        #ifdef DEVEL
+            mbus_write_message32(0x90, temp.value);
+            mbus_write_message32(0xBA, (0x14 << 24) | (status.hbr_temp << 12) | (status.hbr_flag << 8) | (status.hibernating << 4) | (status.nfc_out_temp << 0) );
+        #endif
+
+        // -------------------------------------------------------------------------
+        
 
         // PMU adjustment is done only after initialization (FLAG_INITIALIZED=1)
         if (get_flag(FLAG_INITIALIZED)) {
             // Determine ADC Offset, ADC Low VBAT threshold, and ADC Critical VBAT threshold
-//            uint32_t adc_offset = 0;
+        #ifdef DEVEL
+            uint32_t adc_offset = 0;
+        #else
             uint32_t adc_offset;
-            if      (temp.val > eeprom_adc_th.t1) { adc_offset = eeprom_adc.offset_r1; }
-            else if (temp.val > eeprom_adc_th.t2) { adc_offset = eeprom_adc.offset_r2; }
-            else if (temp.val > eeprom_adc_th.t3) { adc_offset = eeprom_adc.offset_r3; }
-            else if (temp.val > eeprom_adc_th.t4) { adc_offset = eeprom_adc.offset_r4; }
-            else                                  { adc_offset = eeprom_adc.offset_r5; }
+            if      (temp.val > eeprom_adc_th_0.t1) { adc_offset = eeprom_adc_0.offset_r1; }
+            else if (temp.val > eeprom_adc_th_0.t2) { adc_offset = eeprom_adc_0.offset_r2; }
+            else if (temp.val > eeprom_adc_th_1.t3) { adc_offset = eeprom_adc_0.offset_r3; }
+            else if (temp.val > eeprom_adc_th_1.t4) { adc_offset = eeprom_adc_0.offset_r4; }
+            else                                    { adc_offset = eeprom_adc_1.offset_r5; }
+        #endif
     
             // VBAT Measurement and SAR_RATIO Adjustment
-            meas.adc = pmu_read_adc();
-            meas.sar = pmu_calc_new_sar_ratio(  /*meas.adc*/      meas.adc,
-                                               /*offset*/       adc_offset, 
-                                               /*sel_margin*/   override.enable ? 
-                                                                    override.sar_margin : 
-                                                                    eeprom_misc_config.pmu_adc_sar_margin,
-                                               /*hysteresis*/   eeprom_misc_config.pmu_adc_sar_hysteresis
-                                            );
+        #ifdef SKIP_SAR_IF_HIBERNATION
+            if (status.hbr_flag) {
+            #ifdef DEVEL
+                mbus_write_message32(0x91, 0x00000002);
+            #endif
+                meas.sar = pmu_get_sar_ratio();
+            }
+            else {
+        #endif
+                meas.sar = pmu_calc_new_sar_ratio( /*meas.adc*/     meas.adc,
+                                                   /*offset*/       adc_offset
+                                                );
+        #ifdef SKIP_SAR_IF_HIBERNATION
+            }
+        #endif
     
-            meas.low_vbat  = pmu_check_low_vbat (    /*meas.adc*/         meas.adc,
+            meas.low_vbat  = pmu_check_low_vbat (   /*meas.adc*/        meas.adc,
                                                     /*offset*/          adc_offset, 
-                                                    /*threshold*/       eeprom_adc.low_vbat,  
-                                                    /*num_cons_meas*/   eeprom_misc_config.pmu_num_cons_meas
+                                                    /*threshold*/       eeprom_adc_1.low_vbat
                                                     );
     
-            meas.crit_vbat = pmu_check_crit_vbat(    /*meas.adc*/         meas.adc,
+            meas.crit_vbat = pmu_check_crit_vbat(   /*meas.adc*/        meas.adc,
                                                     /*offset*/          adc_offset, 
-                                                    /*threshold*/       eeprom_adc.crit_vbat, 
-                                                    /*num_cons_meas*/   eeprom_misc_config.pmu_num_cons_meas
+                                                    /*threshold*/       eeprom_adc_1.crit_vbat
                                                    );
-
+    
             #ifdef DEVEL
-                mbus_write_message32(0x90, temp.value);
                 mbus_write_message32(0x93, (meas.crit_vbat<<28)|(meas.low_vbat<<24)|(adc_offset<<16)|(meas.sar<<8)|(meas.adc));
             #endif
     
@@ -1632,7 +1794,7 @@ static void meas_temp_adc (void) {
             pmu_set_sar_ratio(meas.sar);
     
             meas.valid = 1;
-
+    
             /////////////////////////////////////////////////////////////////
             // EID Crash Handler
             //---------------------------------------------------------------
@@ -1644,14 +1806,16 @@ static void meas_temp_adc (void) {
     
                 // Trigger the Crash Handler
                 eid_trigger_crash();
-
+    
                 // Go to indefinite sleep
                 snt_set_wup_timer(/*auto_reset*/1, /*threshold*/0);
                 operation_sleep(/*check_snt*/0);
             }
             /////////////////////////////////////////////////////////////////
 
-        }
+        } // if (get_flag(FLAG_INITIALIZED))
+
+        // During boot-up
         else {
             // During boot-up, set some default values.
             meas.valid = 1;
@@ -1659,7 +1823,7 @@ static void meas_temp_adc (void) {
             meas.crit_vbat = 0;
         }
 
-        // Temp-releated settings
+        // Temp-related settings
         eid_update_configs();
     }
     #ifdef DEVEL
@@ -1673,355 +1837,447 @@ static void meas_temp_adc (void) {
 static void snt_operation (void) {
 
     // Meas temperature & ADC
-    meas_temp_adc();
+    meas_temp_adc(/*go_sleep*/1);
 
     // Read the current display
-    uint32_t curr_seg = eid_get_curr_seg();
+    uint32_t curr_seg = eid_expected_display; // Start from eid_expected_display, NOT __eid_current_display__
     uint32_t new_seg = curr_seg;
+    uint32_t display_update_allowed = 0;
 
     // XT_ACTIVE (Sample Average & Buffer Write)
     if (xt1_state == XT1_ACTIVE) {
 
-        // Increment the sub-sample counter
-        sub_sample_cnt++;
-        sub_sample_sum += temp.val;
+    #ifdef DEVEL
+        mbus_write_message32(0xBA, (0x14 << 24) | (status.hbr_temp << 12) | (status.hbr_flag << 8) | (status.hibernating << 4) | (status.nfc_out_temp << 0) );
+    #endif
 
+        // Increment the sub-measurement counter
+        sub_meas_cnt++;
         #ifdef DEVEL
-            mbus_write_message32(0x92, (0x1<<28)|sub_sample_cnt);
-            mbus_write_message32(0x92, (0x2<<28)|sub_sample_sum);
+            mbus_write_message32(0x92, (0x1<<28)|sub_meas_cnt);
         #endif
 
+        if (!status.hbr_flag) {
+            sub_meas_sum += temp.val;
+            #ifdef DEVEL
+                mbus_write_message32(0x92, (0x2<<28)|sub_meas_sum);
+            #endif
+        }
 
         if (// If this is the very first sample (right after the start delay)
-            (temp_sample_cnt==0)
+            (meas_cnt==0)
             // At User-defined measurement interval (Calculate an Averaged Sample)
-           || (sub_sample_cnt==eeprom_user_config.temp_meas_interval)) {
+           || (sub_meas_cnt==eeprom_user_config_1.temp_meas_interval)) {
 
-            // Increment the temp sample counter 
-            temp_sample_cnt++;
+            display_update_allowed = 1;
 
-            #ifdef DEVEL
-                mbus_write_message32(0x92, (0x3<<28)|temp_sample_cnt);
-            #endif
-
-            // Calculate the average
-            temp.val = div(/*numer*/sub_sample_sum, /*denom*/sub_sample_cnt, /*n*/1);
-            if (temp.val&0x1) temp.val += 0x2;  // round-up
-            temp.val >>= 1;
-            sub_sample_cnt = 0;
-            sub_sample_sum = 0;
+            // Increment the Measurement Count
+            meas_cnt++;
+            cnt_buf_meas.meas_cnt = meas_cnt;
+            cnt_buf_meas.valid = 1;
 
             #ifdef DEVEL
-                if (status.sample_type==SAMPLE_NORMAL) mbus_write_message32(0x9C, temp.val);
+                mbus_write_message32(0x92, (0x3<<28)|meas_cnt);
             #endif
 
-            // Check Excursions / Alarm
-            uint32_t new_alarm = 0;
-            if ((temp_sample_cnt>1) || (eeprom_misc_config.ignore_first_sample_exc==0)) {
-                if (temp.val > eeprom_user_config.high_temp_threshold) {
-                    tmp_exc.lo = 0;
-                    if (!tmp_exc.alarm_hi) {
-                        tmp_exc.num_cons_hi++;
-                        if (tmp_exc.num_cons_hi>=num_cons_excursions) {
-                            tmp_exc.alarm_hi = 1;
-                            new_alarm = 1;
-                            #ifdef DEVEL
-                                mbus_write_message32(0x9D, (0x0<<28) | (0xF<<24) | tmp_exc.num_cons_hi);
-                            #endif
-                        }
-                        #ifdef DEVEL
-                        else {
-                            mbus_write_message32(0x9D, (0x0<<28) | (0x0<<24) | tmp_exc.num_cons_hi);
-                        }
-                        #endif
-                    }
-                }
-                else if (temp.val < eeprom_user_config.low_temp_threshold) {
-                    tmp_exc.hi = 0;
-                    if (!tmp_exc.alarm_lo) {
-                        tmp_exc.num_cons_lo++;
-                        if (tmp_exc.num_cons_lo>=num_cons_excursions) {
-                            tmp_exc.alarm_lo = 1;
-                            new_alarm = 1;
-                            #ifdef DEVEL
-                                mbus_write_message32(0x9D, (0x1<<28) | (0xF<<24) | tmp_exc.num_cons_lo);
-                            #endif
-                        }
-                        #ifdef DEVEL
-                        else {
-                            mbus_write_message32(0x9D, (0x1<<28) | (0x0<<24) | tmp_exc.num_cons_lo);
-                        }
-                        #endif
-                    }
-                }
-                else {
-                    tmp_exc.value = 0;
-                }
-            }
+            // If hbr_temp has been seen
+            if (status.hbr_flag) {
 
-            #ifdef DEVEL
-                mbus_write_message32(0x95, temp.val);
-                mbus_write_message32(0x96, comp_sample_id);
-                if (tmp_exc.alarm_hi && tmp_exc.alarm_lo) {
-                    mbus_write_message32(0x9E, 0xFFFFFFFF);
-                }
-                else if (tmp_exc.alarm_hi) {
-                    mbus_write_message32(0x9E, 0xFFFF0000);
-                }
-                else if (tmp_exc.alarm_lo) {
-                    mbus_write_message32(0x9E, 0x0000FFFF);
-                }
-                else {
-                    mbus_write_message32(0x9E, 0x00000000);
-                }
-            #endif
-
-            //--------------------------------------------------------------------------------
-            // RAW DATA MODE
-            //--------------------------------------------------------------------------------
-
-            // sample_type: SAMPLE_RAW
-            if (status.sample_type==SAMPLE_RAW) {
-
-                    // Store ADC Reading and SAR Ratio
-                    nfc_i2c_byte_write(/*e2*/0, 
-                        /*addr*/ EEPROM_ADDR_LAST_ADC,      // EEPROM_ADDR_LAST_ADC, EEPROM_ADDR_LAST_SAR
-                        /*data*/ (meas.sar<<8)|meas.adc,
-                        /* nb */ 2
-                        );
-
-                    // Store the Sample Count
-                    nfc_i2c_byte_write(/*e2*/0, 
-                        /*addr*/ EEPROM_ADDR_SAMPLE_COUNT, 
-                        /*data*/ (eeprom_sample_cnt+1),
-                        /* nb */ 4
-                        );
-
-            #ifdef DETAILED_XO_INFO_FOR_RAW
-                uint32_t byte_addr = (eeprom_sample_cnt<<2)+EEPROM_ADDR_DATA_RESET_VALUE;
-
-                // Store the raw data
-                //  Max Sample Count = (8192 - 128) / 4 = 2016
-                //  However, we split this into two and store the raw data into the first half,
-                //  and SAR/ADC values in to the second half.
-                //  i.e., max sample count = 2016 / 2 = 1008
-                //      Byte# 128 - Byte#4159: SAR, ADC, Raw Temp Data (each sample is 32-bit)
-                //      Byte#4160 - Byte#8192: XO Information          (each sample is 32-bit)
-                if (eeprom_sample_cnt<1008) {
-                    sar_adc_addr = byte_addr + (1008<<2);
-                    sar_adc_data = (meas.sar<<8) | (meas.adc&0xFF);
-                    nfc_i2c_byte_write( /*e2*/   0, 
-                                        /*addr*/ byte_addr, 
-                                        /*data*/ (sar_adc_data<<16)|temp.raw,
-                                        /*nb*/   4);
-
+                // Beginning of the hibernation
+                if (!status.hibernating) {
+                    status.hibernating = 1;
+                    hbr_meas_cnt = 1;
                     #ifdef DEVEL
-                        mbus_write_message32(0x9C, byte_addr);
-                        mbus_write_message32(0x9D, temp.raw);
-                        mbus_write_message32(0x9E, sar_adc_addr);
-                        mbus_write_message32(0x9F, sar_adc_data);
+                        mbus_write_message32(0x91, 0x00000004);
+                        mbus_write_message32(0x92, (0x4<<28)|hbr_meas_cnt);
+                        mbus_write_message32(0xBA, (0x14 << 24) | (status.hbr_temp << 12) | (status.hbr_flag << 8) | (status.hibernating << 4) | (status.nfc_out_temp << 0) );
                     #endif
 
                 }
-
-            #else
-                    uint32_t byte_addr = (eeprom_sample_cnt<<1)+EEPROM_ADDR_DATA_RESET_VALUE;
-
-                    // Store the raw data
-                    //  Max Sample Count = (8192 - 128) / 2 = 4032
-                    //  However, we split this into two and store the raw data into the first half,
-                    //  and SAR/ADC values in to the second half.
-                    //  i.e., max sample count = 4032 / 2 = 2016
-                    //      Byte# 128 - Byte#4159: Raw Data      (each sample is 16-bit)
-                    //      Byte#4160 - Byte#8192: SAR/ADC Value (each sample is 16-bit)
-                    if (eeprom_sample_cnt<2016) {
-                        nfc_i2c_byte_write( /*e2*/   0, 
-                                            /*addr*/ byte_addr, 
-                                            /*data*/ temp.raw,
-                                            /*nb*/   2);
-
-                    // Store ADC & SAR
-                    sar_adc_addr = byte_addr + (2016<<1);
-                    sar_adc_data = ((meas.sar - 64)<<8) | (meas.adc&0xFF);
-
-                    nfc_i2c_byte_write( /*e2*/   0,
-                                        /*addr*/ sar_adc_addr,  // Starting from Byte#4160
-                                        /*data*/ sar_adc_data,  // See Description
-                                        /*nb*/   2);
-
+                // Keep hibernating
+                else {
+                    hbr_meas_cnt++;
                     #ifdef DEVEL
-                        mbus_write_message32(0x9C, byte_addr);
-                        mbus_write_message32(0x9D, temp.raw);
-                        mbus_write_message32(0x9E, sar_adc_addr);
-                        mbus_write_message32(0x9F, sar_adc_data);
+                        mbus_write_message32(0x91, 0x00000005);
+                        mbus_write_message32(0x92, (0x4<<28)|hbr_meas_cnt);
                     #endif
-
                 }
-            #endif
 
-                eeprom_sample_cnt++;
-            }
+                // Hibernation is considered a low excursion
+                if ((eeprom_user_config_0.low_temp_threshold!=0) // If low-excursion check is enabled
+                    && (tmp_exc.num_cons_lo!=0x7FFF) // prevent roll-over
+                ){
+                    tmp_exc.num_cons_lo++;
+                    #ifdef DEVEL
+                        mbus_write_message32(0x9D, (0x2<<28) | (0x0<<24) | tmp_exc.num_cons_lo);
+                    #endif
+                }
 
-            //--------------------------------------------------------------------------------
-            // CONVERTED & COMPRESSED DATA MODE
-            //--------------------------------------------------------------------------------
+                // Reset sub-measurement stat
+                sub_meas_cnt = 0;
+                sub_meas_sum = 0;
 
-            // sample_type: SAMPLE_NORMAL
+            } // if (status.hbr_flag)
+
+            // If hbr_temp has NOT been seen
             else {
 
-                // Store ADC Reading and SAR_RATIO
-                buffer.adc = meas.adc;
-                buffer.sar = meas.sar;
-
-                uint32_t num_bits;
-                uint32_t reverse_code;
-                //--- Store the Uncompressed Data (128*N-th samples)
-                if (comp_sample_id==0) {
-                    num_bits = COMP_UNCOMP_NUM_BITS;
-                    reverse_code = reverse_bits(/*bit_stream*/temp.val, /*num_bits*/COMP_UNCOMP_NUM_BITS);
-                }
-                //--- Calculate the Delta
-                else {
-                    uint32_t comp_result = tcomp_encode(/*value*/temp.val - comp_prev_sample);
-                    num_bits = comp_result >> 24;
-                    reverse_code = comp_result&0xFFFFF;
-                }
-                //--- Store the current temperature in comp_prev_sample
-                comp_prev_sample = temp.val;
+                // Calculate the average
+                temp.val = div(/*numer*/sub_meas_sum, /*denom*/sub_meas_cnt, /*n*/1);
+                if (temp.val&0x1) temp.val += 0x2;  // round-up
+                temp.val >>= 1;
+                sub_meas_cnt = 0;
+                sub_meas_sum = 0;
 
                 #ifdef DEVEL
-                    mbus_write_message32(0x97, (num_bits<<24)|reverse_code);
+                    if (status.sample_type==SAMPLE_NORMAL) mbus_write_message32(0x9C, temp.val);
                 #endif
 
-                // Find out the byte address of comp_bit_pos
-                uint32_t bit_pos_start = comp_bit_pos;
-                uint32_t bit_pos_end   = bit_pos_start + num_bits - 1;
-                uint32_t eeprom_avail  = (bit_pos_end < 64512); // NOTE: 64512 = (8192 - 128) * 8
-                uint32_t last_qword_id = eeprom_avail ? (bit_pos_end>>7) : 503;
+                // Check Excursions / Alarm
+                uint32_t new_alarm = 0;
 
-                // Store the Sample Count & Last Qword ID
-                eeprom_sample_cnt++;
+                // If this is the one right after a hibernation: check the low excursion.
+                //  By definition, it is guaranteed that meas_cnt > 1
+                uint32_t new_alarm_hbr = 0;
+                if ((status.hibernating) 
+                    && (tmp_exc.num_cons_lo>=num_cons_excursions)
+                ){
+                    new_alarm_hbr = 1; // to update the display
+                    new_alarm     = 1; // to dump the buffer
+                    #ifdef DEVEL
+                        mbus_write_message32(0x91, 0x00000006);
+                    #endif
+                }
 
-                buffer.sample_count = eeprom_sample_cnt;
-                buffer.last_qword_id = last_qword_id;
-
-                #ifdef DEVEL
-                    mbus_write_message32(0xC8, (bit_pos_start<<16)|(bit_pos_end&0xFFFF));
-                    mbus_write_message32(0xC9, (last_qword_id<<24)|(eeprom_sample_cnt&0xFFFFFF));
-                #endif
-
-                // MEMORY IS AVAILABLE
-                if (eeprom_avail) {
-
-                    // CASE I ) Entire bits go into the same qword (bit_pos_start>>7 == bit_pos_end>>7)
-                    if ((bit_pos_start>>7)==(bit_pos_end>>7)) {
-                        uint32_t end_at_bndry = ((bit_pos_end&0x7F)==0x7F);
-
-                        sub_qword(/*msb*/bit_pos_end&0x7F, /*lsb*/bit_pos_start&0x7F, /*value*/reverse_code);
-                        buffer_update(  /*addr*/ ((bit_pos_start>>7)<<4) + EEPROM_ADDR_DATA_RESET_VALUE,
-                                        /*commit_crc*/ end_at_bndry
-                                        );
-
-                        if (end_at_bndry) {
-                            buffer_commit();
-                            set_qword(/*pattern*/0xFFFFFFFF);
+                // High/Low excursion checks
+            #ifdef IGNORE_FIRST_SAMPLE_EXCURSION
+                if (meas_cnt>1) {
+            #endif
+                    if (temp.val > eeprom_user_config_0.high_temp_threshold) {
+                        tmp_exc.lo = 0;
+                        if (!tmp_exc.alarm_hi) {
+                            tmp_exc.num_cons_hi++;
+                            if (tmp_exc.num_cons_hi>=num_cons_excursions) {
+                                tmp_exc.alarm_hi = 1;
+                                new_alarm = 1;
+                                #ifdef DEVEL
+                                    mbus_write_message32(0x9D, (0x0<<28) | (0xF<<24) | tmp_exc.num_cons_hi);
+                                #endif
+                            }
+                            #ifdef DEVEL
+                            else {
+                                mbus_write_message32(0x9D, (0x0<<28) | (0x0<<24) | tmp_exc.num_cons_hi);
+                            }
+                            #endif
                         }
                     }
-
-                    // CASE II) Bits go across different qwords (bit_pos_start>>7 != bit_pos_end>>7)
+                    else if (temp.val < eeprom_user_config_0.low_temp_threshold) {
+                        tmp_exc.hi = 0;
+                        if (!tmp_exc.alarm_lo) {
+                            tmp_exc.num_cons_lo++;
+                            if (tmp_exc.num_cons_lo>=num_cons_excursions) {
+                                tmp_exc.alarm_lo = 1;
+                                new_alarm = 1;
+                                #ifdef DEVEL
+                                    mbus_write_message32(0x9D, (0x1<<28) | (0xF<<24) | tmp_exc.num_cons_lo);
+                                #endif
+                            }
+                            #ifdef DEVEL
+                            else {
+                                mbus_write_message32(0x9D, (0x1<<28) | (0x0<<24) | tmp_exc.num_cons_lo);
+                            }
+                            #endif
+                        }
+                    }
                     else {
-                        sub_qword(/*msb*/127, /*lsb*/bit_pos_start&0x7F, /*value*/reverse_code);
-                        buffer_update(  /*addr*/ ((bit_pos_start>>7)<<4) + EEPROM_ADDR_DATA_RESET_VALUE,
-                                        /*commit_crc*/ 1
-                                        );
+                        tmp_exc.value = 0;
+                    }
+            #ifdef IGNORE_FIRST_SAMPLE_EXCURSION
+                }
+            #endif
 
-                        buffer_commit();
-                        set_qword(/*pattern*/0xFFFFFFFF);
+                #ifdef DEVEL
+                    mbus_write_message32(0x96, comp_sample_id);
+                    if (tmp_exc.alarm_hi && tmp_exc.alarm_lo) {
+                        mbus_write_message32(0x9E, 0xFFFFFFFF);
+                    }
+                    else if (tmp_exc.alarm_hi) {
+                        mbus_write_message32(0x9E, 0xFFFF0000);
+                    }
+                    else if (tmp_exc.alarm_lo) {
+                        mbus_write_message32(0x9E, 0x0000FFFF);
+                    }
+                    else {
+                        mbus_write_message32(0x9E, 0x00000000);
+                    }
+                #endif
 
-                        sub_qword(/*msb*/bit_pos_end&0x7F, /*lsb*/0, /*value*/reverse_code>>(128-(bit_pos_start&0x7F)));
-                        buffer_update(  /*addr*/ ((bit_pos_end>>7)<<4) + EEPROM_ADDR_DATA_RESET_VALUE,
-                                        /*commit_crc*/ 0    // Assuming that 'reverse_code' is less than 128 bits.
-                                        );
+                //--------------------------------------------------------------------------------
+                // RAW DATA MODE
+                //--------------------------------------------------------------------------------
+
+                // sample_type: SAMPLE_RAW
+                if (status.sample_type==SAMPLE_RAW) {
+
+                        // Store ADC Reading and SAR Ratio
+                        nfc_i2c_byte_write(/*e2*/0, 
+                            /*addr*/ EEPROM_ADDR_LAST_ADC,      // EEPROM_ADDR_LAST_ADC, EEPROM_ADDR_LAST_SAR
+                            /*data*/ (meas.sar<<8)|meas.adc,
+                            /* nb */ 2
+                            );
+
+                        uint32_t byte_addr = (sample_cnt<<1)+EEPROM_ADDR_DATA_RESET_VALUE;
+
+                        // Store the Sample Count
+                        nfc_i2c_byte_write(/*e2*/0, 
+                            /*addr*/ EEPROM_ADDR_SAMPLE_COUNT, 
+                            /*data*/ (sample_cnt+1),
+                            /* nb */ 4
+                            );
+
+                        // Store the raw data
+                        //  Max Sample Count = (8192 - 128) / 2 = 4032
+                        //  However, we split this into two and store the raw data into the first half,
+                        //  and SAR/ADC values in to the second half.
+                        //  i.e., max sample count = 4032 / 2 = 2016
+                        //      Byte# 128 - Byte#4159: Raw Data      (each sample is 16-bit)
+                        //      Byte#4160 - Byte#8192: SAR/ADC Value (each sample is 16-bit)
+                        if (sample_cnt<2016) {
+                            nfc_i2c_byte_write( /*e2*/   0, 
+                                                /*addr*/ byte_addr, 
+                                                /*data*/ temp.raw,
+                                                /*nb*/   2);
+
+                        // Store ADC & SAR
+                        sar_adc_addr = byte_addr + (2016<<1);
+                        sar_adc_data = ((meas.sar - 64)<<8) | (meas.adc&0xFF);
+
+                        nfc_i2c_byte_write( /*e2*/   0,
+                                            /*addr*/ sar_adc_addr,  // Starting from Byte#4160
+                                            /*data*/ sar_adc_data,  // See Description
+                                            /*nb*/   2);
+
+                        #ifdef DEBUG_RAW
+                            mbus_write_message32(0x9C, byte_addr);
+                            mbus_write_message32(0x9D, temp.raw);
+                            mbus_write_message32(0x9E, sar_adc_addr);
+                            mbus_write_message32(0x9F, sar_adc_data);
+                        #endif
+
                     }
 
-                    comp_sample_id++;
-                    if (comp_sample_id==COMP_SECTION_SIZE) comp_sample_id = 0;
-                    comp_bit_pos = bit_pos_end + 1;
-
-                    // Dump the buffer when a new alarm occurs
-                    if (new_alarm) buffer_commit();
-                }
-                // MEMORY GETS FULL (Roll-over is disabled)
-                else if (comp_bit_pos != 65536) {
-                    comp_bit_pos = 65536;
-                    // Buffer Commit
-                    buffer_commit();
-                    // Update Memory Full Flag
-                    status.memory_full = 1;
-                    commit_status();
+                    sample_cnt++;
                 }
 
-            }
+                //--------------------------------------------------------------------------------
+                // CONVERTED & COMPRESSED DATA MODE
+                //--------------------------------------------------------------------------------
 
-            /////////////////////////////////////////////////////////////////
-            // e-Ink Display
-            //---------------------------------------------------------------
-            // NOTE: 'Play' is common in all cases
-            //
-            //  Current     > High      Normal      < Low Threshold
-            //  -------------------------------------------------------------
-            //  None        Cross/+     Check       Cross/-
-            //  Check       Cross/+     Check       Cross/-
-            //  Cross/+     Cross/+     Cross/+     Cross/+/-
-            //  Cross/-     Cross/+/-   Cross/-     Cross/-
-            //  Cross/+/-   Cross/+/-   Cross/+/-   Cross/+/-
-            //
-            //---------------------------------------------------------------
-            // NOTE: Actual update happens in 'Write into EEPROM/Display"
+                // sample_type: SAMPLE_NORMAL
+                else {
 
-            // 'initialize' new_seg to play sign only. 
-            // This is to reset new_seg with start_delay=0. Otherwise, new_seg may retain previous 'cross' mark or the broken sign (i.e., status.custom_init=0), if any.
-            if (status.disp_skipped) {
-                curr_seg = DISP_PLAY;
-                new_seg = DISP_PLAY;
-                status.disp_skipped = 0;
+                    // Store ADC Reading and SAR_RATIO
+                    pmu_buf.adc = meas.adc;
+                    pmu_buf.sar = meas.sar;
+                    pmu_buf.valid = 1;
+
+                    uint32_t num_bits;
+                    uint32_t reverse_code[2];   // reverse_code[0] = bit[31:0]
+                                                // reverse_code[1] = bit[63:32]
+
+                    //--- Store the Uncompressed Data (128*N-th samples)
+                    if (comp_sample_id==0) {
+                        if (status.hibernating) {
+                            num_bits = COMP_UNCOMP_NUM_BITS + 23 + COMP_UNCOMP_NUM_BITS; // hbr_meas_cnt is 23-bit wide.
+                            reverse_bits_ext(/*ptr*/reverse_code, /*code*/0x0, /*count*/hbr_meas_cnt, /*value*/temp.val);
+                        }
+                        else {
+                            num_bits = COMP_UNCOMP_NUM_BITS;
+                            reverse_code[0] = reverse_bits(/*bit_stream*/temp.val, /*num_bits*/COMP_UNCOMP_NUM_BITS);
+                            reverse_code[1] = 0;
+                        }
+                    }
+                    //--- For non-128*N-th samples)
+                    else {
+                        if (status.hibernating) {
+                            num_bits = 6 + 23 + COMP_UNCOMP_NUM_BITS; // hbr_meas_cnt is 23-bit wide.
+                            reverse_bits_ext(/*ptr*/reverse_code, /*code*/0x20, /*count*/hbr_meas_cnt, /*value*/temp.val);
+                        }
+                        else {
+                            uint32_t comp_result = tcomp_encode(/*delta*/temp.val - comp_prev_sample);
+                            num_bits = comp_result >> 24;
+                            reverse_code[0] = comp_result&0xFFFFFF;
+                            reverse_code[1] = 0;
+                        }
+                    }
+                    //--- Store the current temperature in comp_prev_sample
+                    comp_prev_sample = temp.val;
+
+                    #ifdef DEVEL
+                        mbus_write_message32(0x97, num_bits);
+                        mbus_write_message32(0x98, reverse_code[1]);
+                        mbus_write_message32(0x99, reverse_code[0]);
+                    #endif
+
+                    // Find out the byte address of comp_bit_pos
+                    uint32_t bit_pos_start = comp_bit_pos;
+                    uint32_t bit_pos_end   = bit_pos_start + num_bits - 1;
+                    uint32_t eeprom_avail  = (bit_pos_end < 64512); // NOTE: 64512 = (8192 - 128) * 8
+                    uint32_t last_qword_id = eeprom_avail ? (bit_pos_end>>7) : 503;
+
+                    // Store the Sample Count & Last Qword ID
+                    sample_cnt++;
+                    cnt_buf_sample.sample_cnt    = sample_cnt;
+                    cnt_buf_sample.last_qword_id = last_qword_id;
+
+                    #ifdef DEVEL
+                        mbus_write_message32(0xBB, (bit_pos_start<<16)|(bit_pos_end&0xFFFF));
+                        mbus_write_message32(0xBC, (last_qword_id<<24)|(sample_cnt&0xFFFFFF));
+                    #endif
+
+                    // MEMORY IS AVAILABLE
+                    if (eeprom_avail) {
+
+                        // CASE I ) Entire bits go into the same qword (bit_pos_start>>7 == bit_pos_end>>7)
+                        if ((bit_pos_start>>7)==(bit_pos_end>>7)) {
+                            uint32_t end_at_bndry = ((bit_pos_end&0x7F)==0x7F);
+
+                            sub_qword(/*msb*/bit_pos_end&0x7F, /*lsb*/bit_pos_start&0x7F, /*ptr*/reverse_code);
+                            data_buffer_update(  /*addr*/ ((bit_pos_start>>7)<<4) + EEPROM_ADDR_DATA_RESET_VALUE,
+                                            /*commit_crc*/ end_at_bndry
+                                            );
+
+                            if (end_at_bndry) {
+                                all_buffer_commit();
+                                set_qword(/*pattern*/0xFFFFFFFF);
+                            }
+                        }
+
+                        // CASE II) Bits go across different qwords (bit_pos_start>>7 != bit_pos_end>>7)
+                        else {
+                            sub_qword(/*msb*/127, /*lsb*/bit_pos_start&0x7F, /*ptr*/reverse_code);
+                            data_buffer_update(  /*addr*/ ((bit_pos_start>>7)<<4) + EEPROM_ADDR_DATA_RESET_VALUE,
+                                            /*commit_crc*/ 1
+                                            );
+
+                            all_buffer_commit();
+
+                            set_qword(/*pattern*/0xFFFFFFFF);
+
+                            uint32_t shift_amt = 128-(bit_pos_start&0x7F);
+                            if (shift_amt > 31) {
+                                reverse_code[0] = reverse_code[1]>>(shift_amt-32);
+                                reverse_code[1] = 0;
+                            }
+                            else {
+                                reverse_code[0] = (reverse_code[1]<<(32-shift_amt)) | (reverse_code[0]>>shift_amt);
+                                reverse_code[1] = reverse_code[1]>>shift_amt;
+
+                            }
+                            sub_qword(/*msb*/bit_pos_end&0x7F, /*lsb*/0, /*ptr*/reverse_code);
+                            data_buffer_update(  /*addr*/ ((bit_pos_end>>7)<<4) + EEPROM_ADDR_DATA_RESET_VALUE,
+                                            /*commit_crc*/ 0    // Assuming that 'reverse_code' is less than 128 bits.
+                                            );
+                        }
+
+                        comp_sample_id++;
+                        if (comp_sample_id==COMP_SECTION_SIZE) comp_sample_id = 0;
+                        comp_bit_pos = bit_pos_end + 1;
+
+                        // Dump the buffer when a new alarm occurs
+                        if (new_alarm) all_buffer_commit();
+                    }
+                    // MEMORY GETS FULL (Roll-over is disabled)
+                    else if (comp_bit_pos != 65536) {
+                        comp_bit_pos = 65536;
+                        // Buffer Commit
+                        all_buffer_commit();
+                        // Update Memory Full Flag
+                        status.memory_full = 1;
+                        commit_status(/*forced*/1); // it is guranteed that it is not in hibernation.
+                    }
+
+                }
+
+                /////////////////////////////////////////////////////////////////
+                // e-Ink Display
+                //---------------------------------------------------------------
+                // NOTE: 'Play' is common in all cases
+                //
+                //  Current     > High      Normal      < Low Threshold
+                //  -------------------------------------------------------------
+                //  None        Cross/+     Check       Cross/-
+                //  Check       Cross/+     Check       Cross/-
+                //  Cross/+     Cross/+     Cross/+     Cross/+/-
+                //  Cross/-     Cross/+/-   Cross/-     Cross/-
+                //  Cross/+/-   Cross/+/-   Cross/+/-   Cross/+/-
+                //
+                //---------------------------------------------------------------
+                // NOTE: Actual update happens in 'Write into EEPROM/Display"
+
+                // 'initialize' new_seg to play sign only. 
+                // This is to reset new_seg with start_delay=0. Otherwise, new_seg may retain previous 'cross' mark or the broken sign (i.e., status.custom_init=0), if any.
+                if (status.disp_skipped) {
+                    curr_seg = DISP_PLAY; // pretend that the display is showing the play-sign only
+                    new_seg = DISP_PLAY;
+                    status.disp_skipped = 0;
+                    #ifdef DEVEL
+                        mbus_write_message32(0xBA, (0x11 << 24) | 0x0 /*status.disp_skipped*/);
+                    #endif
+                }
+
+                if (new_alarm_hbr || tmp_exc.alarm_hi || tmp_exc.alarm_lo) {
+                    //--- High Temperature Alarm
+                    if (tmp_exc.alarm_hi) {
+                        new_seg &= ~DISP_CHECK;     // Remove Check
+                        new_seg |= DISP_CROSS;      // Add Cross
+                        new_seg |= DISP_PLUS;       // Add Plus
+                    }
+                    //--- Low Temperature Alarm
+                    if (tmp_exc.alarm_lo || new_alarm_hbr ) {
+                        new_seg &= ~DISP_CHECK;     // Remove Check
+                        new_seg |= DISP_CROSS;      // Add Cross
+                        new_seg |= DISP_MINUS;      // Add Minus
+                    }
+                }
+                //--- Normal Temperature
+                else if (!get_bit(curr_seg, SEG_PLUS) && !get_bit(curr_seg, SEG_MINUS)) {
+                    new_seg |= DISP_CHECK;      // Add Check
+                }
+
+                // Reset status.hibernating
                 #ifdef DEVEL
-                    mbus_write_message32(0xBA, (0x11 << 24) | 0x0 /*status.disp_skipped*/);
+                    if (status.hibernating) mbus_write_message32(0x91, 0x00000007);
                 #endif
-            }
+                status.hibernating = 0;
 
-            //--- High Temperature Alarm
-            if (tmp_exc.alarm_hi) {
-                new_seg &= ~DISP_CHECK;     // Remove Check
-                new_seg |= DISP_CROSS;      // Add Cross
-                new_seg |= DISP_PLUS;       // Add Plus
-            }
-            //--- Low Temperature Alarm
-            else if (tmp_exc.alarm_lo) {
-                new_seg &= ~DISP_CHECK;     // Remove Check
-                new_seg |= DISP_CROSS;      // Add Cross
-                new_seg |= DISP_MINUS;      // Add Minus
-            }
-            //--- Normal Temperature
-            else if (!get_bit(curr_seg, SEG_PLUS) && !get_bit(curr_seg, SEG_MINUS)) {
-                new_seg |= DISP_CHECK;      // Add Check
-            }
+            } // if (!status.hbr_flag)
 
-        }
-    }
+        } // if (@ user_defined_interval)
+
+    } // if (xt1_state == XT1_ACTIVE)
 
     //--- Show Low VBATT Indicator (if needed)
-    if (!get_bit(new_seg, SEG_LOWBATT) && meas.low_vbat) {
+    //      It does not check the low batt while in XT1_PEND
+    if ((xt1_state != XT1_PEND) && !get_bit(new_seg, SEG_LOWBATT) && meas.low_vbat) {
         new_seg = new_seg | DISP_LOWBATT;
     }
 
     /////////////////////////////////////////////////////////////////
     // Update/Refresh the e-Ink Display if needed
+    // NOTE: If status.hbr_flag=1, then eid_update_display() updates flags only; 
 
-    //--- If display has been changed by DISPLAY
-    if (get_bit(eid_disp_before_user_mod, 31)) eid_update_display(/*seg*/new_seg);
-    //--- Update 
-    else if (new_seg!=curr_seg) eid_update_display(/*seg*/new_seg);
+    //--- Update
+    if (new_seg!=__eid_current_display__) {
+        // If in XT1_ACTIVE, the display can be changed only at measurement intervals
+        if (xt1_state == XT1_ACTIVE) {
+            if (display_update_allowed) eid_update_display(/*seg*/new_seg);
+        }
+        // If NOT in XT1_ACTIVE, the display can be updated anytime the system wakes up
+        else {
+            eid_update_display(/*seg*/new_seg);
+        }
+    }
     //--- Refresh
     else {
        //--- During Bootup, display the check mark to confirm that the bootup is done.
@@ -2042,25 +2298,20 @@ static void snt_operation (void) {
                 // User-configured Refresh interval
              || ((disp_refresh_interval != 0) && ((disp_min_since_refresh + wakeup_interval) > disp_refresh_interval)) 
              ){
-           eid_update_display(/*seg*/eid_get_curr_seg());
+           eid_update_display(/*seg*/eid_expected_display);
        }
     }
-
 }
 
+// NOTE: If status.hbr_flag=1, then eid_update_display() within display_low_batt() sets eid_updated_at_crit_temp=1
 static void display_low_batt(void) {
     #ifdef DEVEL
         mbus_write_message32(0xA8, 0x00000000);
     #endif
 
-    if (!get_bit(eid_get_current_display(), SEG_LOWBATT)) {
-        eid_update_display(eid_get_current_display() | DISP_LOWBATT);
+    if (!get_bit(eid_expected_display, SEG_LOWBATT)) {
+        eid_update_display(eid_expected_display | DISP_LOWBATT);
     }
-    #ifdef DEVEL
-    else {
-        mbus_write_message32(0xA8, 0xFFFFFFFF);
-    }
-    #endif
 }
 
 
@@ -2084,14 +2335,14 @@ static uint32_t get_xo_cnt(void) {
         // GETTING THE SAME VALUES TWICE CONSECUTIVELY
         //----------------------------------------
 
-        uint32_t temp = (*REG_XOT_VAL_U << 16) | (*REG_XOT_VAL_L & 0xFFFF);
+        uint32_t temp = *XOT_VAL_ASYNC;
         uint32_t temp_prev;
         uint32_t num_same_reads = 1;
         uint32_t num_try = 0;
 
         while ((num_same_reads < 2) && (num_try<5)) {
             temp_prev = temp;
-            temp = (*REG_XOT_VAL_U << 16) | (*REG_XOT_VAL_L & 0xFFFF);
+            temp = *XOT_VAL_ASYNC;
             if (temp==temp_prev) num_same_reads++;
             else num_same_reads=1;
             num_try++;
@@ -2117,105 +2368,113 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
     uint32_t fail = 0;
     uint32_t a = (0x1 << 28);   // Default: 1 (this is the ideal case; i.e., no error)
 
-    // Committ xo_val_curr_tmp
-    xo_val_curr = xo_val_curr_tmp;
+    // Make sure you have a valid temperature measurement
+    meas_temp_adc(/*go_sleep*/0);
 
-    // XO malfunction during sleep 
-    if (xo_val_curr <= xo_val_prev) {
-        calib_status |= XO_FAIL_STOP;
-    }
+    // Fail check
+    if (!status.hbr_flag) {
 
-    // FAIL: XO has failed before
-    if (calib_status!=0) {
-        fail = 1;
-        #ifdef DEVEL
-            mbus_write_message32(0x83, 0x0);
-        #endif
-    }
-    // XO has been fine so far
-    else {
+        // Committ xo_val_curr_tmp
+        xo_val_curr = xo_val_curr_tmp;
 
-        // Read the current counter value
-        temp_xo_val = get_xo_cnt();
+        // XO malfunction during sleep 
+        if (xo_val_curr <= xo_val_prev) {
+            calib_status |= XO_FAIL_STOP;
+        }
 
-        #ifdef DEVEL
-            mbus_write_message32(0x80, xo_val_prev);
-            mbus_write_message32(0x81, xo_val_curr);
-            mbus_write_message32(0x82, temp_xo_val);
-        #endif
-
-        // FAIL: XO is unstable (calib_status is updated within get_xo_cnt())
+        // FAIL: XO has failed before
         if (calib_status!=0) {
             fail = 1;
             #ifdef DEVEL
-                mbus_write_message32(0x83, 0x1);
+                mbus_write_message32(0x83, 0x0);
             #endif
         }
-        // XO is running
+        // XO has been fine so far
         else {
-    
-            // FAIL: XO counter has not incremented
-            if (temp_xo_val <= xo_val_curr) {
+
+            // Read the current counter value
+            temp_xo_val = get_xo_cnt();
+
+            #ifdef DEVEL
+                mbus_write_message32(0x80, xo_val_prev);
+                mbus_write_message32(0x81, xo_val_curr);
+                mbus_write_message32(0x82, temp_xo_val);
+            #endif
+
+            // FAIL: XO is unstable (calib_status is updated within get_xo_cnt())
+            if (calib_status!=0) {
                 fail = 1;
-                calib_status |= XO_FAIL_STOP;
                 #ifdef DEVEL
-                    mbus_write_message32(0x83, 0x2);
+                    mbus_write_message32(0x83, 0x1);
                 #endif
             }
+            // XO is running
             else {
-                if (skip_calib||MAIN_CALLED||get_flag(FLAG_INVLD_XO_PREV)) {
-                    temp_snt_freq = snt_freq;
+        
+                // FAIL: XO counter has not incremented
+                if (temp_xo_val <= xo_val_curr) {
+                    fail = 1;
+                    calib_status |= XO_FAIL_STOP;
                     #ifdef DEVEL
-                        mbus_write_message32(0x83, 0x3);
+                        mbus_write_message32(0x83, 0x2);
                     #endif
                 }
                 else {
-                    #ifdef DEVEL
-                        mbus_write_message32(0x83, 0x4);
-                    #endif
-
-                    // Calculate delta_xo
-                    uint32_t delta_xo = xo_val_curr - xo_val_prev;
-
-                    //uint32_t delta_xo;
-                    //if (xo_val_curr > xo_val_prev) delta_xo = xo_val_curr - xo_val_prev;
-                    //else delta_xo = xo_val_curr + (0xFFFFFFFF - xo_val_prev) + 1;
-
-                    // Calculate 'A' (n=30 fixed-ratio)
-                    a = mult_b28(/*num_a*/ div(/*numer*/snt_duration, /*denom*/delta_xo, /*n*/28),
-                                 /*num_b*/ div(/*numer*/XO_FREQ,      /*denom*/snt_freq, /*n*/28)
-                                );
-
-                    // Calculate the new SNT frequency
-                    temp_snt_freq = mult_b28(/*num_a*/snt_freq, /*num_b*/a);
-
-                    // 'A' must be close to 1. (Allowed Range: 0.75 < A < 1.25)
-                    //      delta_xo + 25% results in a = 0.8       (0x0CCCCCCC with N=28)
-                    //      delta_xo - 25% results in a = 1.3333333 (0x15555555 with N=28)
-                    if ( (a>0x0CCCCCCC) && (a<0x15555555) ) {
-                        // Update SNT frequency
-                        snt_freq = temp_snt_freq;
-                    }
-                    // FAIL: Something is wrong if 'A' is not close to 1
-                    else {
-                        fail = 1;
-                        calib_status |= XO_FAIL_MAX_ERR;
+                    if (skip_calib||MAIN_CALLED||get_flag(FLAG_INVLD_XO_PREV)) {
+                        temp_snt_freq = snt_freq;
                         #ifdef DEVEL
-                            mbus_write_message32(0x83, 0x5);
+                            mbus_write_message32(0x83, 0x3);
                         #endif
                     }
+                    else {
+                        #ifdef DEVEL
+                            mbus_write_message32(0x83, 0x4);
+                        #endif
 
-                    #ifdef DEVEL
-                        mbus_write_message32(0x84, snt_duration);
-                        mbus_write_message32(0x85, XO_FREQ);
-                        mbus_write_message32(0x86, snt_freq);
-                        mbus_write_message32(0x87, delta_xo);
-                        mbus_write_message32(0x88, a);
-                        mbus_write_message32(0x89, temp_snt_freq);
-                    #endif
+                        // Calculate delta_xo
+                        uint32_t delta_xo = xo_val_curr - xo_val_prev;
+
+                        //uint32_t delta_xo;
+                        //if (xo_val_curr > xo_val_prev) delta_xo = xo_val_curr - xo_val_prev;
+                        //else delta_xo = xo_val_curr + (0xFFFFFFFF - xo_val_prev) + 1;
+
+                        // Calculate 'A' (n=30 fixed-ratio)
+                        a = mult_b28(/*num_a*/ div(/*numer*/snt_duration, /*denom*/delta_xo, /*n*/28),
+                                     /*num_b*/ div(/*numer*/XO_FREQ,      /*denom*/snt_freq, /*n*/28)
+                                    );
+
+                        // Calculate the new SNT frequency
+                        temp_snt_freq = mult_b28(/*num_a*/snt_freq, /*num_b*/a);
+
+                        // 'A' must be close to 1. (Allowed Range: 0.75 < A < 1.25)
+                        //      delta_xo + 25% results in a = 0.8       (0x0CCCCCCC with N=28)
+                        //      delta_xo - 25% results in a = 1.3333333 (0x15555555 with N=28)
+                        if ( (a>0x0CCCCCCC) && (a<0x15555555) ) {
+                            // Update SNT frequency
+                            snt_freq = temp_snt_freq;
+                        }
+                        // FAIL: Something is wrong if 'A' is not close to 1
+                        else {
+                            fail = 1;
+                            calib_status |= XO_FAIL_MAX_ERR;
+                            #ifdef DEVEL
+                                mbus_write_message32(0x83, 0x5);
+                            #endif
+                        }
+
+                        #ifdef DEVEL
+                            mbus_write_message32(0x84, snt_duration);
+                            mbus_write_message32(0x85, XO_FREQ);
+                            mbus_write_message32(0x86, snt_freq);
+                            mbus_write_message32(0x87, delta_xo);
+                            mbus_write_message32(0x88, a);
+                            mbus_write_message32(0x89, temp_snt_freq);
+                        #endif
+                    }
                 }
             }
         }
+
     }
 
     // Get wakeup_interval in seconds
@@ -2226,27 +2485,6 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
 
     // Update the previous snt_threshold
     snt_threshold_prev = snt_threshold;
-
-    #ifdef DETAILED_XO_INFO_FOR_RAW
-        if (xt1_state==XT1_ACTIVE) {
-            if (status.sample_type==SAMPLE_RAW) {
-                if (sar_adc_addr < 8192) {
-                    uint32_t data = ((((calib_status&XO_FAIL_UNSTABLE)!=0)||((calib_status&XO_FAIL_STOP)!=0)) << 31)
-                                  | (((calib_status&XO_FAIL_MAX_ERR)!=0) << 30)
-                                  | (xo_val_curr&0x3FFFFFFF);
-
-                    nfc_i2c_byte_write( /*e2*/   0,
-                                        /*addr*/ sar_adc_addr,
-                                        /*data*/ data,
-                                        /*nb*/   4);
-                    #ifdef DEVEL
-                        mbus_write_message32(0x9E, sar_adc_addr);
-                        mbus_write_message32(0x9F, data);
-                    #endif
-                }
-            }
-        }
-    #endif
 
     // If there was a failure: Use previous numbers as they are.
     if (fail) {
@@ -2268,7 +2506,6 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
                             /*data*/((num_calib_max_err_fails&0xFF)<<8)|(num_calib_xo_fails&0xFF), 
                             /*nb*/2);
 
-    #ifndef DETAILED_XO_INFO_FOR_RAW
         if (xt1_state==XT1_ACTIVE) {
             if (status.sample_type==SAMPLE_RAW) {
                 if (sar_adc_addr < 8192) {
@@ -2287,9 +2524,9 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
                 }
             }
         }
-    #endif
 
         // Restart the XO
+        nfc_power_off(); // Turn off the NFC
         restart_xo(/*delay_a*/XO_WAIT_A, /*delay_b*/XO_WAIT_B);
 
     #ifdef ENABLE_XO_PAD
@@ -2392,7 +2629,6 @@ static void calibrate_snt_timer(uint32_t skip_calib) {
         mbus_write_message32(0x8D, snt_threshold_prev);
         mbus_write_message32(0x8C, snt_threshold);
     #endif
-
 }
 
 static uint32_t calc_ssls(void) {
@@ -2419,7 +2655,7 @@ static uint32_t calc_ssls(void) {
         }
     }
 
-    result = (sub_sample_cnt << 6) - (sub_sample_cnt << 2)                    // Full-minutes (converted to seconds) from the last 'sample'
+    result = (sub_meas_cnt << 6) - (sub_meas_cnt << 2)                       // Full-minutes (converted to seconds) from the last 'measurement'
              + (div(/*numer*/snt_delta, /*denom*/snt_freq, /*n*/0)&0xFFFF);  // Seconds from the last 'wake-up'
 
     #ifdef DEVEL
@@ -2436,38 +2672,27 @@ static uint32_t calc_ssls(void) {
 // E-Ink Display
 //-------------------------------------------------------------------
 
-static uint32_t eid_get_curr_seg(void) {
-    if (get_bit(eid_disp_before_user_mod, 31))
-        return eid_disp_before_user_mod&0x1FF;
-    else
-        return eid_get_current_display();
-}
-
 static void eid_update_configs(void) {
-    uint32_t new_val;
     eid_update_type = EID_GLOBAL;
     if (temp.val > eeprom_eid_threshold.high) {
-        new_val = eeprom_eid_rfrsh_int_hr.high;
-        eid_duration = eeprom_eid_duration.high;
+        disp_refresh_interval = EID_REFRESH_INT_MIN_HIGH;
+        eid_duration = eeprom_eid_duration_0.high;
     }
     else if (temp.val > eeprom_eid_threshold.low) { 
-        new_val = eeprom_eid_rfrsh_int_hr.mid;
-        eid_duration = eeprom_eid_duration.mid;
+        disp_refresh_interval = EID_REFRESH_INT_MIN_MID;
+        eid_duration = eeprom_eid_duration_0.mid;
     }
     else {
-        new_val = eeprom_eid_rfrsh_int_hr.low;
-        eid_duration = eeprom_eid_duration.low;
-        if (!eeprom_misc_config.eid_disable_local_update)
+        disp_refresh_interval = EID_REFRESH_INT_MIN_LOW;
+        eid_duration = eeprom_eid_duration_1.low;
+        #ifndef EID_USE_GLOBAL_UPDATE_ONLY
             eid_update_type = EID_LOCAL;
+        #endif
     }
 
     // Set the refresh interval
     #ifdef USE_SHORT_REFRESH
-        disp_refresh_interval = new_val; // Dummy line to avoid the warning 'new_val set but not used'
-        //disp_refresh_interval = (WAKEUP_INTERVAL_IDLE<<1);
         disp_refresh_interval = WAKEUP_INTERVAL_IDLE;
-    #else
-        disp_refresh_interval = (new_val << 6) - (new_val << 2); // convert hr to min
     #endif
 
     // Set the duration
@@ -2480,21 +2705,16 @@ static void eid_update_configs(void) {
 
 static void eid_update_display(uint32_t seg) {
 
-    // Enable low-power active
-    set_high_power_history(1);
+    eid_expected_display = seg;
+
+    // Make sure you have a valid temperature measurement
+    meas_temp_adc(/*go_sleep*/0);
 
     // Turn off NFC, if on, to save power
     nfc_power_off();
 
-    // Get the current display
-    uint32_t prev_seg = eid_get_current_display();
-
-    // Make sure you have a valid temperature measurement
-    meas_temp_adc();
-
     // E-ink Update
-    // Update the flag if it is a critical temperature
-    if (temp.val > eid_crit_temp_threshold) {
+    if ((temp.val > eid_crit_temp_threshold) && !status.hbr_flag) {
         if (eid_update_type == EID_GLOBAL) {
             #ifdef DEVEL
                 mbus_write_message32(0xA7, 0x0);
@@ -2508,9 +2728,14 @@ static void eid_update_display(uint32_t seg) {
             eid_update_local(seg);
         }
         eid_updated_at_crit_temp = 0;
+
+        // Reset the refresh counter
+        disp_min_since_refresh = 0;
+
+        // Enable low-power active
+        set_high_power_history(1);
     }
     else {
-        __eid_current_display__ = seg;
         eid_updated_at_crit_temp = 1;
         #ifdef DEVEL
             mbus_write_message32(0xA3, 0x00000000);
@@ -2523,77 +2748,43 @@ static void eid_update_display(uint32_t seg) {
     else
         eid_updated_at_low_temp = 1;
 
-    // Reset the refresh counter
-    disp_min_since_refresh = 0;
-
     #ifdef DEVEL
         mbus_write_message32(0xA5, eid_updated_at_low_temp);
         mbus_write_message32(0xA6, eid_updated_at_crit_temp);
     #endif
 
-    // Reset eid_disp_before_user_mod if needed
-    if (cmd!=CMD_DISPLAY) eid_disp_before_user_mod = 0;
-
-    // Update EEPROM if it is different from the previous status (prev_seg)
-    if (seg != prev_seg) {
+    // Update EEPROM if it is different from the previous status (eid_seg_in_eeprom)
+    if ((eid_expected_display != eid_seg_in_eeprom) && !status.hbr_flag) {
         // Try up to 30 times - Consistency between the EEPROM log and the actual display is important!
         if(nfc_i2c_get_token(/*num_try*/30)) {
             // EEPROM Update
             nfc_i2c_byte_write(/*e2*/0,
                 /*addr*/ EEPROM_ADDR_DISPLAY,
-                /*data*/ seg,
+                /*data*/ eid_expected_display,
                 /* nb */ 1
             );
+            eid_seg_in_eeprom = eid_expected_display;
             #ifdef DEVEL
-                mbus_write_message32(0xA0, 
-                    (0x0            <<28) |
-                    (get_bit(seg, 6)<<24) |
-                    (get_bit(seg, 5)<<20) |
-                    (get_bit(seg, 4)<<16) |
-                    (get_bit(seg, 3)<<12) |
-                    (get_bit(seg, 2)<< 8) |
-                    (get_bit(seg, 1)<< 4) |
-                    (get_bit(seg, 0)<< 0)
-                );
+                mbus_write_message32(0xA0, (0x0<<28) | eid_expected_display);
             #endif
         }
         #ifdef DEVEL
         else {
-            mbus_write_message32(0xA0, 
-                (0x2            <<28) |
-                (get_bit(seg, 6)<<24) |
-                (get_bit(seg, 5)<<20) |
-                (get_bit(seg, 4)<<16) |
-                (get_bit(seg, 3)<<12) |
-                (get_bit(seg, 2)<< 8) |
-                (get_bit(seg, 1)<< 4) |
-                (get_bit(seg, 0)<< 0)
-            );
+                mbus_write_message32(0xA0, (0x2<<28) | eid_expected_display);
         }
         #endif
     }
+    #ifdef DEVEL
     else {
-        #ifdef DEVEL
-            mbus_write_message32(0xA0, 
-                (0x1            <<28) |
-                (get_bit(seg, 6)<<24) |
-                (get_bit(seg, 5)<<20) |
-                (get_bit(seg, 4)<<16) |
-                (get_bit(seg, 3)<<12) |
-                (get_bit(seg, 2)<< 8) |
-                (get_bit(seg, 1)<< 4) |
-                (get_bit(seg, 0)<< 0)
-            );
-        #endif
+        mbus_write_message32(0xA0, 0x1 << 28);
     }
-
+    #endif
 }
 
 static void eid_blink_display(void) {
-    uint32_t curr_disp = eid_get_current_display();
-    eid_update_display(curr_disp);
+    eid_update_display(eid_expected_display);
     #ifdef DEVEL
-        mbus_write_message32(0xA0, (0xF<<28) | (curr_disp&0xFFFFFF));
+        mbus_write_message32(0xA0, (0xF<<28) | eid_expected_display);
     #endif
 }
 
@@ -2746,7 +2937,7 @@ uint32_t nfc_check_cmd(void) {
                 )) {
                 // Dump pending data, if any.
                 if (status.sample_type==SAMPLE_NORMAL) 
-                    buffer_commit();
+                    all_buffer_commit();
                 // SSLS and ACK
                 ssls = calc_ssls();
                 nfc_set_ack_with_data(/*data*/ssls);
@@ -2767,13 +2958,13 @@ uint32_t nfc_check_cmd(void) {
             // Unread_sample flag
             if (status.unread_sample) {
                 status.unread_sample = 0;
-                commit_status();
+                commit_status(/*forced*/1); // It is guaranteed that it is not in hibernation.
             }
 
             // Unit is currently running
             if ((xt1_state==XT1_PEND) || (xt1_state==XT1_ACTIVE)) {
                 // Dump pending data, if any.
-                buffer_commit();
+                all_buffer_commit();
                 // SSLS and ACK
                 nfc_set_ack_with_data(/*data*/calc_ssls());
             }
@@ -2815,12 +3006,11 @@ uint32_t nfc_check_cmd(void) {
             }
         }
         //-----------------------------------------------------------
-        // CMD: NOP, HARD_RESET, DISPLAY
+        // CMD: NOP, NEWAB, HRESET
         //-----------------------------------------------------------
         else if (  (cmd == CMD_NOP)
                 || (cmd == CMD_NEWAB)
                 || (cmd == CMD_HRESET)
-                || (cmd == CMD_DISPLAY)
                 || (cmd == CMD_DEBUG)) {
             nfc_set_ack(/*ack*/ACK); 
             return 0xF00D;
@@ -2832,7 +3022,6 @@ uint32_t nfc_check_cmd(void) {
             nfc_set_ack(/*ack*/ERR); 
             return 0xDEAD;
         }
-
 
     }
     // Checksum Error
@@ -2868,37 +3057,29 @@ static void update_system_configs(uint32_t use_default) {
         #endif
 
         //--- VBAT and ADC
-        //eeprom_adc_th.t* = 0;     // t1 ~ t4
-        eeprom_adc_th.value = 0;
+        #ifndef DEVEL
+            //eeprom_adc_th_0.t* = 0;
+            //eeprom_adc_th_1.t* = 0;
+            eeprom_adc_th_0.value = 0;
+            eeprom_adc_th_1.value = 0;
+        #endif
 
-        //eeprom_adc.offset_r* = 0; // r1 ~ r5
-        //eeprom_adc.low_vbat  = 105;
-        //eeprom_adc.crit_vbat = 95;
-        eeprom_adc.value = 0x005F690000000000;
+        //eeprom_adc_*.offset_r* = 0; // r1 ~ r5
+        //eeprom_adc_1.low_vbat  = 105;
+        //eeprom_adc_1.crit_vbat = 95;
+        eeprom_adc_0.value = 0x00000000;
+        eeprom_adc_1.value = 0x005F6900;
 
         //--- EID Configurations 
         //eeprom_eid_threshold.high = 950; // 15C
         //eeprom_eid_threshold.low  = 750; // -5C
         eeprom_eid_threshold.value = (750 << 16) | (950 << 0);
 
-        //eeprom_eid_duration.high        = 60 ; // 0.5s
-        //eeprom_eid_duration.mid         = 500; // 4s
-        //eeprom_eid_duration.low         = 500; // 4s
-        eeprom_eid_duration.value = 0x000001F401F4003C;
-
-        //eeprom_eid_rfrsh_int_hr.high    = 12 ;
-        //eeprom_eid_rfrsh_int_hr.mid     = 24 ;
-        //eeprom_eid_rfrsh_int_hr.low     = 0  ;
-        eeprom_eid_rfrsh_int_hr.value = (0 << 16) | (24 << 8) | (12 << 0);
-
-        //--- Other Configurations
-        //eeprom_misc_config.ignore_first_sample_exc  =  1; // [8]
-        //eeprom_misc_config.pmu_adc_sar_hysteresis   =  1; // [7]
-        //eeprom_misc_config.pmu_adc_sar_margin       =  0; // [6]
-        //eeprom_misc_config.eid_disable_local_update =  1; // [5]
-        //eeprom_misc_config.eid_crit_temp_threshold  =  0; // [4]
-        //eeprom_misc_config.pmu_num_cons_meas        =  5; // [3:0]
-        eeprom_misc_config.value = (1 << 8) | (1 << 7) | (0 << 6) | (1 << 5) | (0 << 4) | (5 << 0);
+        //eeprom_eid_duration_0.high        = 60 ; // 0.5s
+        //eeprom_eid_duration_0.mid         = 500; // 4s
+        //eeprom_eid_duration_1.low         = 500; // 4s
+        eeprom_eid_duration_0.value = 0x01F4003C;
+        eeprom_eid_duration_1.value = 0x000001F4;
 
         // Update the flag
         status.custom_init = 0;
@@ -2915,16 +3096,17 @@ static void update_system_configs(uint32_t use_default) {
         #endif
 
         //--- VBAT and ADC
-        nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_T1,        /*nw*/2, /*ptr*/ (volatile uint32_t *)&eeprom_adc_th.value);
-        nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_OFFSET_R1, /*nw*/2, /*ptr*/ (volatile uint32_t *)&eeprom_adc.value);
+        #ifndef DEVEL
+        nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_T1,        /*nw*/1, /*ptr*/ (volatile uint32_t *)&eeprom_adc_th_0.value);
+        nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_T3,        /*nw*/1, /*ptr*/ (volatile uint32_t *)&eeprom_adc_th_1.value);
+        #endif
+        nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_OFFSET_R1, /*nw*/1, /*ptr*/ (volatile uint32_t *)&eeprom_adc_0.value);
+        nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_OFFSET_R5, /*nw*/1, /*ptr*/ (volatile uint32_t *)&eeprom_adc_1.value);
 
         //--- EID Configurations
         nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_HIGH_TEMP_THRESHOLD, /*nw*/1, /*ptr*/ (volatile uint32_t *)&eeprom_eid_threshold.value);
-        nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_DURATION_HIGH,       /*nw*/2, /*ptr*/ (volatile uint32_t *)&eeprom_eid_duration.value);
-        nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_RFRSH_INT_HR_HIGH,   /*nw*/1, /*ptr*/ (volatile uint32_t *)&eeprom_eid_rfrsh_int_hr.value);
-
-        //--- Other Configurations
-        nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_MISC_CONFIG,   /*nw*/1, /*ptr*/ (volatile uint32_t *)&eeprom_misc_config.value);
+        nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_DURATION_HIGH,       /*nw*/1, /*ptr*/ (volatile uint32_t *)&eeprom_eid_duration_0.value);
+        nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_EID_DURATION_LOW,        /*nw*/1, /*ptr*/ (volatile uint32_t *)&eeprom_eid_duration_1.value);
 
         //--- Update a and b if needed.
         if (init_status == INIT_TRIG_ALL) update_temp_coefficients();
@@ -2940,22 +3122,32 @@ static void update_system_configs(uint32_t use_default) {
     }
 
     // EID_CRIT_TEMP_THRESHOLD Configuration using 10x(T+80)
-    eid_crit_temp_threshold = eeprom_misc_config.eid_crit_temp_threshold ?
-                                600 :   // 0x1: -20C
-                                550 ;   // 0x0: -25C
+    eid_crit_temp_threshold = ((80-EID_CRIT_TEMP_THRESHOLD)<<3) + ((80-EID_CRIT_TEMP_THRESHOLD)<<1);
 }
 
 static void update_temp_coefficients (void) {
     // Read the temperature coefficients
-    nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_A_WRITEONLY, /*nw*/2, /*ptr*/ (volatile uint32_t *)&eeprom_temp_calib.value);
+    nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_A_WRITEONLY, /*nw*/1, /*ptr*/ (volatile uint32_t *)&eeprom_temp_calib_a);
+    nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_B_WRITEONLY, /*nw*/1, /*ptr*/ (volatile uint32_t *)&eeprom_temp_calib_b);
+
+    // Read the hibernation threshold
+    nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_HBR_THRESHOLD_RAW_WRITEONLY, /*nw*/1, /*ptr*/ &hbr_temp_threshold_raw);
+    hbr_temp_threshold_raw &= 0xFFFF;
 
     // Write the calibration info in the designated place
-    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_A, /*data*/eeprom_temp_calib.a, /*nb*/4);
-    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_B, /*data*/eeprom_temp_calib.b, /*nb*/4);
+    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_A, /*data*/eeprom_temp_calib_a, /*nb*/4);
+    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_B, /*data*/eeprom_temp_calib_b, /*nb*/4);
+
+    // Write the Hibernation Threshold in the designated place
+    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_HBR_THRESHOLD_RAW, /*data*/hbr_temp_threshold_raw, /*nb*/2);
+
+    #ifdef DEBUG_TEMP_CALIB
+        mbus_write_message32(0x76, eeprom_temp_calib_a);
+        mbus_write_message32(0x77, eeprom_temp_calib_b);
+    #endif
 
     #ifdef DEVEL
-        mbus_write_message32(0x76, eeprom_temp_calib.a);
-        mbus_write_message32(0x77, eeprom_temp_calib.b);
+        mbus_write_message32(0x9F, hbr_temp_threshold_raw);
     #endif
 }
 
@@ -2967,20 +3159,22 @@ static void debug_system_configs(void) {
     #endif
 
     //--- VBAT and ADC
+    #ifndef DEVEL
     nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_T1,
-        /*data*/  eeprom_adc_th.lower,
+        /*data*/  eeprom_adc_th_0.value,
         /* nb */  4);
 
     nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_T3,
-        /*data*/  eeprom_adc_th.upper,
+        /*data*/  eeprom_adc_th_1.value,
         /* nb */  4);
+    #endif
 
     nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_OFFSET_R1,
-        /*data*/  eeprom_adc.lower,
+        /*data*/  eeprom_adc_0.value,
         /* nb */  4);
 
     nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_ADC_OFFSET_R5,
-        /*data*/  eeprom_adc.upper,
+        /*data*/  eeprom_adc_1.value,
         /* nb */  3);
 
     //--- EID Configurations
@@ -2989,28 +3183,28 @@ static void debug_system_configs(void) {
         /* nb */  4);
 
     nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_EID_DURATION_HIGH,
-        /*data*/  eeprom_eid_duration.lower,
+        /*data*/  eeprom_eid_duration_0.value,
         /* nb */  4);
 
     nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_EID_DURATION_LOW,
-        /*data*/  eeprom_eid_duration.upper,
+        /*data*/  eeprom_eid_duration_1.value,
         /* nb */  2);
 
     nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_EID_RFRSH_INT_HR_HIGH,
         /*data*/  eeprom_eid_rfrsh_int_hr.value,
         /* nb */  3);
 
-    //--- Other Configurations
-    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_MISC_CONFIG,
-        /*data*/  eeprom_misc_config.value,
-        /* nb */  2);
-
     //--- Temperature Coefficients
     nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_A_WRITEONLY, 
-        /*data*/  eeprom_temp_calib.a, 
+        /*data*/  eeprom_temp_calib_a, 
         /* nb */  4);
     nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_CALIB_B_WRITEONLY, 
-        /*data*/  eeprom_temp_calib.b, 
+        /*data*/  eeprom_temp_calib_b, 
+        /* nb */  4);
+
+    //--- Hibernation Threshold
+    nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_HBR_THRESHOLD_RAW_WRITEONLY, 
+        /*data*/  hbr_temp_threshold_raw, 
         /* nb */  4);
 
     // Reset INIT_STATUS
@@ -3025,17 +3219,17 @@ static void update_user_configs(void) {
     #endif
 
     // Read the user configuration
-    nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_HIGH_TEMP_THRESHOLD, /*nw*/2, /*ptr*/ (volatile uint32_t *)&eeprom_user_config.value);
+    nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_HIGH_TEMP_THRESHOLD, /*nw*/1, /*ptr*/ (volatile uint32_t *)&eeprom_user_config_0.value);
+    nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_TEMP_MEAS_INTERVAL,  /*nw*/1, /*ptr*/ (volatile uint32_t *)&eeprom_user_config_1.value);
     nfc_i2c_word_read(/*e2*/0, /*addr*/EEPROM_ADDR_NUM_CONS_EXCURSIONS, /*nw*/1, /*ptr*/ &num_cons_excursions);
-    num_cons_excursions &= 0xFFFF;  // num_cons_excursions is 2-byte-long
 
     // Set Flag
     status.config_set = 1;
-    commit_status();
+    commit_status(/*forced*/1); // it is guranteed that it is not in hibernation.
 
     #ifdef DEVEL
-        mbus_write_message32(0x74, eeprom_user_config.lower);
-        mbus_write_message32(0x75, eeprom_user_config.upper);
+        mbus_write_message32(0x74, eeprom_user_config_0.value);
+        mbus_write_message32(0x75, eeprom_user_config_1.value);
         mbus_write_message32(0x7C, num_cons_excursions);
     #endif
 
@@ -3057,6 +3251,8 @@ static void update_aes_key(void) {
 
     #ifdef DEVEL
         mbus_write_message32(0xBA, (0x10 << 24) | status.aes_key_set);
+    #endif
+    #ifdef DEBUG_AES_KEY
         mbus_write_message32(0x78, aes_key[0]);
         mbus_write_message32(0x79, aes_key[1]);
         mbus_write_message32(0x7A, aes_key[2]);
@@ -3070,10 +3266,12 @@ static void update_aes_key(void) {
 //-------------------------------------------------------------------
 
 static void buffer_init(void) {
-    buffer_valid = 0;
+    cnt_buf_meas.valid = 0;
+    pmu_buf.valid = 0;
+    dat_buf_addr.valid = 0;
 }
 
-static void buffer_update (uint32_t addr, uint32_t commit_crc) {
+static void data_buffer_update (uint32_t addr, uint32_t commit_crc) {
 
     uint32_t text[4];
     uint32_t i;
@@ -3090,59 +3288,69 @@ static void buffer_update (uint32_t addr, uint32_t commit_crc) {
     aes_encrypt(/*pt*/text);
 
     // Save into the Buffer
-    buffer.eeprom_addr = addr;
+    dat_buf_addr.addr = addr;
     #ifdef DEVEL
         mbus_write_message32(0xB5, addr);
     #endif
     for(i=0; i<4; i++) {
-        buffer_data[i] = text[i];
+        buf_storage[i] = text[i];
         #ifdef DEVEL
             mbus_write_message32(0xB6, text[i]);
         #endif
     }
 
     // Calculate CRC
-    buffer_crc32 = calc_crc32_128(/*src*/text, /*crc_prev*/crc32);
+    dat_buf_crc.crc32 = calc_crc32_128(/*src*/text, /*crc_prev*/crc32);
     #ifdef DEVEL
-        mbus_write_message32(0xB7, buffer_crc32);
+        mbus_write_message32(0xB7, dat_buf_crc.crc32);
     #endif
 
     // Commit CRC
-    if (commit_crc) crc32 = buffer_crc32;
+    if (commit_crc) crc32 = dat_buf_crc.crc32;
 
     // Set the Buffer Valid bit
-    buffer_valid = 1;
+    dat_buf_addr.valid = 1;
 
     // Update unread_sample status
     if (!status.unread_sample) {
         status.unread_sample = 1;
-        commit_status();
+        commit_status(/*forced*/1); // it is guranteed that it is not in hibernation.
     }
 }
 
-static void buffer_commit(void) {
+static void all_buffer_commit(void) {
 
-    // Sample Count
-    nfc_i2c_byte_write(/*e2*/ 0, /*addr*/ EEPROM_ADDR_SAMPLE_COUNT, /*data*/ buffer.count, /*nb*/ 4);
-    // Last ADC/SAR
-    nfc_i2c_byte_write(/*e2*/ 0, /*addr*/ EEPROM_ADDR_LAST_ADC,     /*data*/ buffer.pmu,   /*nb*/ 2);
-
-    if (buffer_valid) {
-        // Data
-        nfc_i2c_word_write(/*e2*/ 0, /*addr*/ buffer.eeprom_addr,       /*data*/ (uint32_t *) buffer_data,  /*nw*/ 4);
-        // CRC
-        nfc_i2c_byte_write(/*e2*/ 0, /*addr*/ EEPROM_ADDR_CRC,          /*data*/ buffer_crc32, /*nb*/ 4);
-        // Now the buffer is empty
-        buffer_valid = 0;
-        #ifdef DEVEL
-            mbus_write_message32(0xB8, 0x1);
-        #endif
-    }
     #ifdef DEVEL
-    else {
-        mbus_write_message32(0xB8, 0x0);
-    }
+        mbus_write_message32(0xB8, (cnt_buf_meas.valid<<8) | (pmu_buf.valid<<4) | (dat_buf_addr.valid<<0));
     #endif
+
+    // Counter Buffer
+    if (cnt_buf_meas.valid) {
+        // Last Qword ID & Sample Count
+        nfc_i2c_byte_write(/*e2*/ 0, /*addr*/ EEPROM_ADDR_SAMPLE_COUNT, /*data*/ cnt_buf_sample.value, /*nb*/ 4);
+        // Measurement Count
+        nfc_i2c_byte_write(/*e2*/ 0, /*addr*/ EEPROM_ADDR_MEAS_COUNT,   /*data*/ cnt_buf_meas.meas_cnt,    /*nb*/ 3);
+        // Invalidate the buffer
+        cnt_buf_meas.valid = 0;
+    }
+
+    // PMU Buffer
+    if (pmu_buf.valid) {
+        // Last ADC/SAR
+        nfc_i2c_byte_write(/*e2*/ 0, /*addr*/ EEPROM_ADDR_LAST_ADC, /*data*/ pmu_buf.sar_adc, /*nb*/ 2);
+        // Invalidate the buffer
+        pmu_buf.valid = 0;
+    }
+
+    // Data Buffer
+    if (dat_buf_addr.valid) {
+        // Data
+        nfc_i2c_word_write(/*e2*/ 0, /*addr*/ dat_buf_addr.addr,  /*data*/ (uint32_t *) buf_storage, /*nw*/ 4);
+        // CRC
+        nfc_i2c_byte_write(/*e2*/ 0, /*addr*/ EEPROM_ADDR_CRC,  /*data*/ dat_buf_crc.crc32, /*nb*/ 4);
+        // Now the buffer is empty
+        dat_buf_addr.valid = 0;
+    }
 
     return;
 }
@@ -3150,66 +3358,119 @@ static void buffer_commit(void) {
 //-------------------------------------------------------------------
 // Data Compression
 //-------------------------------------------------------------------
-
+//  Glossary
+//
+//      value (11 bits): 
+//          A translated temperature, "10 x (T + 80)", 
+//              where 'T' is the measured temperature in C. 
+//          e.g., if TMC measures 20C (T=20), then the value is 1000 (=10 x (20 + 80))
+//
+//      sample_id (23 bits): 
+//          A 23-bit-long Sample ID. 
+//          It starts from 0, and increments by 1 for each measured sample.
+//
+//      delta (variable length): 
+//          Difference between the current value and the previous value. 
+//          delta@(sample_id=n) = value@(sample_id=n) - value@(sample_id=n-1). 
+//          e.g., delta=1 means the current value is 1 higher than the previous value.
+//
+//      count (23 bits): 
+//          A value of the hibernation counter: TMC goes into hibernation once it measures 
+//              a temperature that is lower than a given threshold. During hibernation, 
+//              it increments the hibernation count (count) at the given interval. 
+//              It starts from 1.
+//
+//  Storing measured samples
+//
+//      If sample_id == 128xN (N=0, 1, 2, ..):
+//          In general, the full 11-bit value is stored. 
+//              e.g., if the measured temperature is 20C, 
+//                  then it stores 11'b011_1110_1000.
+//          If it is the first measured sample following a hibernation, 
+//              it stores 11'b000_0000_0000, followed by count and value. 
+//              The sample_id still increments by 1.
+//              e.g., if TMC measures 20C (i.e., value=1000) right after 
+//                  the hibernation with count=10, and if it is the 128N-th sample, 
+//                  then it stores 
+//                  {11'b000_0000_0000, 23'b000_0000_0000_0000_0000_1010, 11'b011_1110_1000}
+//
+//      If sample_id != 128xN (N=0, 1, 2, ..):
+//          In general, it stores a "Encoded Bit Stream" shown in the table below.
+//          If it is the first measured sample following a hibernation, 
+//              it stores 6'b10_0000, followed by count and value. 
+//              The sample_id still increments by 1.
+//              e.g., if TMC measures 20C (i.e., value=1000) right after the 
+//                  hibernation with count=10, and if it is NOT the 128N-th sample, 
+//                  then it stores 
+//                  {6'b10_0000, 23'b000_0000_0000_0000_0000_1010, 11'b011_1110_1000}
+//
+//
 //-----------------------------------------------
-// HUFFMAN TABLE
+//  For                Encoded Bit
+//  sample_id!=128N    Stream                  
 //-----------------------------------------------
-//  value       Encoded Bit             Num Bits 
-//  Range       Stream                  Used
-//-----------------------------------------------
-//  -2047~-9    {10000, |value|&0x7FF}  16       
-//  -8          10001                   5        
-//  -7          10010                   5        
-//  -6          10011                   5        
-//  -5          10100                   5        
-//  -4          10101                   5        
-//  -3          10110                   5        
-//  -2          10111                   5        
-//  -1          010                     3        
-//  0           00                      2        
-//  +1          011                     3        
-//  +2          11000                   5        
-//  +3          11001                   5        
-//  +4          11010                   5        
-//  +5          11011                   5        
-//  +6          11100                   5        
-//  +7          11101                   5        
-//  +8          11110                   5        
-//  +9~+2047    {11111, value&0x7FF}    16       
+//  First sample
+//  after  hibernation {100000, 23-bit count, 11-bit value}      
+//
+//  delta=-2047~-9     {100001, 11-bit |delta|}
+//  delta=-8           10001
+//  delta=-7           10010
+//  delta=-6           10011
+//  delta=-5           10100
+//  delta=-4           10101
+//  delta=-3           10110
+//  delta=-2           10111
+//  delta=-1           010
+//  delta= 0           00
+//  delta=+1           011
+//  delta=+2           11000
+//  delta=+3           11001
+//  delta=+4           11010
+//  delta=+5           11011
+//  delta=+6           11100
+//  delta=+7           11101
+//  delta=+8           11110
+//  delta=+9~+2047     {11111, 11-bit delta}
 //-----------------------------------------------
 
 // return value:
 // [31:24] Number of valid bits in the Encoded code
-// [17: 0] Encoded code (bit reversed)
-
-uint32_t tcomp_encode (uint32_t value) {
+// [23: 0] Encoded code (bit reversed)
+uint32_t tcomp_encode (uint32_t delta) {
     uint32_t num_bits;
     uint32_t code;
 
-    uint32_t sign = (value >> 31);  // 0: positive, 1: negative
-    // Make 'value' an absolute number
-    if (sign) value = (0xFFFFFFFF - value) + 1;
+    uint32_t sign = (delta >> 31);  // 0: positive, 1: negative
+    // Make 'delta' an absolute number
+    if (sign) delta = (0xFFFFFFFF - delta) + 1;
 
-    // value=0: code=00
-    if (value == 0) {
+    // delta=0: code=00
+    if (delta == 0) {
         num_bits = 2; code = 0x0;
     }
-    // value=1: code=010(-) or 011(+)
-    else if (value == 1) {
+    // delta=1: code=010(-) or 011(+)
+    else if (delta == 1) {
         num_bits = 3; code = sign ? 0x2 : 0x3;
     }
-    // value=2~8:
-    else if (value < 9) {
+    // delta=2~8:
+    else if (delta < 9) {
         num_bits = 5; 
-        code = 0x8 | (value - 2);
+        code = 0x8 | (delta - 2);
         if (sign) code = ~code; // Bit negation for negative numbers.
         else      code |= 0x10; // For positive numbers
     }
-    // value > 8
+    // delta > 8
     else {
-        num_bits = 16;
-        if (sign) code = (0x10 << 11) | (value & 0x7FF);
-        else      code = (0x1F << 11) | (value & 0x7FF);
+        // negative
+        if (sign) {
+            num_bits = 17;
+            code = (0x21 << 11) | (delta & 0x7FF);
+        }
+        // positive
+        else {
+            num_bits = 16;
+            code = (0x1F << 11) | (delta & 0x7FF);
+        }
     }
 
     return (num_bits<<24) 
@@ -3228,6 +3489,39 @@ uint32_t reverse_bits (uint32_t bit_stream, uint32_t num_bits) {
 }
 
 
+void reverse_bits_ext (uint32_t* ptr, uint32_t code, uint32_t count, uint32_t value) {
+
+    uint32_t reversed_value = reverse_bits(/*bit_stream*/value, /*num_bits*/11);
+    uint32_t reversed_count = reverse_bits(/*bit_stream*/count, /*num_bits*/23);
+
+    // For 128xN-th sample (code = 11'b000_0000_0000)
+    //      result[44:34] = (reversed)value[10:0]
+    //      result[33:11] = (reversed)count[22:0]
+    //      result[10:0]  = (reversed)code[10:0]
+    //      -------------------------------------
+    //      upper[12: 2] = (reversed)value[10:0]
+    //      upper[ 1: 0] = (reversed)count[22:21]
+    //      lower[31:11] = (reversed)count[20:0]
+    //      lower[10: 0] = (reversed)code[10:0]
+    if (code == 0x0) {
+        *(ptr+1) = (reversed_value <<  2) | get_bits(/*variable*/reversed_count, /*msb_idx*/22, /*lsb_idx*/21);
+        *(ptr+0) = (reversed_count << 11) | /*code*/0x000;
+    }
+    // For non-128xN-th sample (code = 6'b10_0000)
+    //      result[39:29] = (reversed)value[10:0]
+    //      result[28:6]  = (reversed)count[22:0]
+    //      result[5:0]   = (reversed)code[5:0]
+    //      -------------------------------------
+    //      upper[ 7: 0] = (reversed)value[10:3]
+    //      lower[31:29] = (reversed)value[2:0]
+    //      lower[28: 6] = (reversed)count[22:0]
+    //      lower[ 5: 0] = (reversed)code[5:0]
+    else {
+        *(ptr+1) = get_bits(/*variable*/reversed_value, /*msb_idx*/10, /*lsb_idx*/3);
+        *(ptr+0) = (reversed_value << 29) | (reversed_count << 6) | /*code*/0x01;
+    }
+}
+
 //-------------------------------------------------------------------
 // 128-bit qword Handling
 //-------------------------------------------------------------------
@@ -3237,18 +3531,25 @@ void set_qword (uint32_t pattern) {
     for (i=0; i<4; i++) *(qword+i) = pattern;
 }
 
-void sub_qword (uint32_t msb, uint32_t lsb, uint32_t value) {
+void sub_qword (uint32_t msb, uint32_t lsb, uint32_t* ptr) {
 // Valid Range: msb= 0 - 127
 //              lsb= 0 - 127
 //
-    // CASE I) msb and lsb belong to the same word
-    if ((msb>>5)==(lsb>>5)) {
-        *(qword+(lsb>>5)) = set_bits(/*var*/*(qword+(lsb>>5)), /*msb_idx*/msb&0x1F, /*lsb_idx*/lsb&0x1F, /*value*/value);
-    }
-    // CASE II) msb and lsb belong to the different word
-    else {
-        *(qword+(lsb>>5)) = set_bits(/*var*/*(qword+(lsb>>5)), /*msb_idx*/31, /*lsb_idx*/lsb&0x1F, /*value*/value);
-        *(qword+(msb>>5)) = set_bits(/*var*/*(qword+(msb>>5)), /*msb_idx*/msb&0x1F, /*lsb_idx*/0, /*value*/value>>(32-(lsb&0x1F)));
+    uint32_t num_bits = msb - lsb + 1;
+    uint32_t wid = (lsb>>5);    // Word ID
+    uint32_t lsb0 = lsb&0x1F;   // LSB within a word
+    uint32_t nb;                // Num Bits to Write
+    uint32_t val_l = *(ptr+0);
+    uint32_t val_u = *(ptr+1);
+
+    while (num_bits>0) {
+        nb = (num_bits > (32 - lsb0)) ? (32 - lsb0) : num_bits;
+        *(qword + wid) = set_bits(/*var*/*(qword+wid), /*msb_idx*/lsb0 + nb - 1, /*lsb_idx*/lsb0, /*val_l*/val_l);
+        wid++;
+        val_l = (val_u << (32-nb)) | (val_l >> nb);
+        val_u = val_u >> nb;
+        num_bits -= nb;
+        lsb0 = 0;
     }
 }
 
@@ -3347,6 +3648,7 @@ void fail_handler(uint32_t id) {
     uint32_t disp_pattern;
     status.fail_id = id;
 
+#ifndef DEVEL
     // Timeout during display update
     if (id==FAIL_ID_EID) {
         disp_pattern = 0;   // No display update if the timeout is from EID
@@ -3372,16 +3674,20 @@ void fail_handler(uint32_t id) {
         disp_pattern = DISP_BACKSLASH|DISP_PLUS|DISP_MINUS;
     }
     // Generic/Unknown Timeout
+    //  NOTE: It may indicate that the SNT Threshold Update has failed.
     else {
-        #ifdef DEVEL
-            mbus_write_message32(0xEF, 0x00000000);
-        #endif
+ //       #ifdef DEVEL
+ //           mbus_write_message32(0xEF, 0x00000000);
+ //       #endif
         disp_pattern = DISP_BACKSLASH|DISP_PLUS|DISP_MINUS|DISP_PLAY;
     }
+#else
+        disp_pattern = DISP_BACKSLASH;
+#endif
 
     if (commit_result) {
         // Commit the Status
-        if (id!=FAIL_ID_I2C) commit_status();
+        if (id!=FAIL_ID_I2C) commit_status(/*forced*/1); // FORCED
 
         // Display
         if (id!=FAIL_ID_EID) eid_update_display(/*seg*/disp_pattern);
@@ -3410,9 +3716,6 @@ void handler_ext_int_wfi      (void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_reg7     (void) __attribute__ ((interrupt ("IRQ")));
 //void handler_ext_int_mbusmem  (void) __attribute__ ((interrupt ("IRQ")));
 //void handler_ext_int_aes      (void) __attribute__ ((interrupt ("IRQ")));
-#ifdef USE_WFI_FOR_LOW_POWER_ACTIVE
-void handler_ext_int_gpio     (void) __attribute__ ((interrupt ("IRQ")));
-#endif
 //void handler_ext_int_spi      (void) __attribute__ ((interrupt ("IRQ")));
 //void handler_ext_int_xot      (void) __attribute__ ((interrupt ("IRQ")));
 
@@ -3432,23 +3735,23 @@ void handler_ext_int_wfi (void) {
     disable_all_irq_except_timer32();
     *TIMER32_GO = 0;
 }
-//// PMU
+//// PMU (PMU_TARGET_REG_IDX)
 //void handler_ext_int_reg0 (void) {
 //    disable_all_irq_except_timer32();
 //}
-//// SNT (Temperature Sensor)
+//// SNT (Temperature Sensor) (SNT_TARGET_REG_IDX)
 //void handler_ext_int_reg1 (void) {
 //    disable_all_irq_except_timer32();
 //}
-////  EID
+////  EID (EID_TARGET_REG_IDX)
 //void handler_ext_int_reg2 (void) {
 //    disable_all_irq_except_timer32();
 //}
-//// SNT (Reading WUP Timer)
+//// SNT (Timer Access) (WP1_TARGET_REG_IDX)
 //void handler_ext_int_reg5 (void) {
 //    disable_all_irq_except_timer32();
 //}
-// I2C ACK Failure Handling
+// I2C ACK Failure Handling (I2C_TARGET_REG_IDX)
 void handler_ext_int_reg7 (void) {
     disable_all_irq_except_timer32();
     *TIMER32_GO = 0;
@@ -3459,12 +3762,6 @@ void handler_ext_int_reg7 (void) {
 //void handler_ext_int_aes (void) { 
 //    disable_all_irq_except_timer32();
 //}
-#ifdef USE_WFI_FOR_LOW_POWER_ACTIVE
-// GPO Pulse during low-power active mode
-void handler_ext_int_gpio (void) { 
-    *NVIC_ICER = 1 << IRQ_GPIO;
-}
-#endif
 
 
 //********************************************************************
@@ -3481,205 +3778,206 @@ int main(void) {
     // Disable MBus Watchdog
     *REG_MBUS_WD = 0;
 
-    #ifdef USE_WFI_FOR_LOW_POWER_ACTIVE
-        // Enable GPO IRQ (CPU NVIC is not enabled yet. It is enabled before going into low-power active)
-        *GPIO_IRQ_MASK = (1 << __NFC_GPO__);
-    #endif
-
-    // Read the XO value for the calibration later
-    snt_skip_calib  = 0;    // By default, it does the normal calibration
-    calib_status    = 0;    // Reset Calibration status
-    xo_val_prev     = xo_val_curr;
-    xo_val_curr_tmp = get_xo_cnt(); // It returns 0 if XO has not been initialized yet
-
     // Reset variables
     set_high_power_history(0);
-    meas.valid = 0;
-    aes_key_valid = 0;
-    pretend_wakeup_by_snt = 0;
     
-    // Get the info on who woke up the system, then reset WAKEUP_SOURCE register.
-    if (get_flag(FLAG_MAIN_CALLED_BY_SNT)) {
-        wakeup_source = 0x90; // Treat it as if the SNT timer has woken up the system. Set bit[7] as well. See WAKEUP_SOURCE.
-        pretend_wakeup_by_snt = 1;
-        set_flag(FLAG_MAIN_CALLED_BY_SNT, 0);
-    }
-    #ifdef USE_WFI_FOR_LOW_POWER_ACTIVE
-        else if (get_flag(FLAG_MAIN_CALLED_BY_GPO)) {
-            wakeup_source = 0xF88; // Treat it as if the NFC has woken up the system. Set bit[7] as well. See WAKEUP_SOURCE.
-            set_flag(FLAG_MAIN_CALLED_BY_GPO, 0);
-        }
-    #endif
-    else {
-        wakeup_source = *SREG_WAKEUP_SOURCE;
-    }
-    *SCTR_REG_CLR_WUP_SOURCE = 1;
-
-    #ifdef DEVEL
-        mbus_write_message32(0x70, wakeup_source);
-        mbus_write_message32(0x71, xt1_state);
-    #endif
-
     // Enable IRQs for timeout check
     *NVIC_IPR0 = (0x3 << 30); // Lowest Priority for TIMER32 IRQ.
     *NVIC_IPR3 = (0x3 << 30); // Lowest Priority for REG7 IRQ.
     *NVIC_ISER = (0x1 << IRQ_TIMER32);
 
-    // If this is the very first wakeup, initialize the system
-    if (!get_flag(FLAG_INITIALIZED)) operation_init();
+    if (!get_flag(FLAG_TEMP_MEAS_PEND)) {
 
-    // Check-in the EID Watchdog if it is enabled
-    if (get_flag(FLAG_WD_ENABLED)) eid_check_in();
+        // Read the XO value for the calibration later
+        snt_skip_calib  = 0;    // By default, it does the normal calibration
+        calib_status    = 0;    // Reset Calibration status
+        xo_val_prev     = xo_val_curr;
+        xo_val_curr_tmp = get_xo_cnt(); // It returns 0 if XO has not been initialized yet
 
-    //-----------------------------------------
-    // NFC HANDSHAKE
-    //-----------------------------------------
-    if (WAKEUP_BY_NFC) {
+        // Reset variables
+        meas.valid = 0;
+        aes_key_valid = 0;
+        pretend_wakeup_by_snt = 0;
 
-        if (nfc_i2c_get_token(30)) {
+        // Get the info on who woke up the system, then reset WAKEUP_SOURCE register.
+        if (get_flag(FLAG_MAIN_CALLED_BY_SNT)) {
+            wakeup_source = 0x90; // Treat it as if the SNT timer has woken up the system. Set bit[7] as well. See WAKEUP_SOURCE.
+            pretend_wakeup_by_snt = 1;
+            set_flag(FLAG_MAIN_CALLED_BY_SNT, 0);
+        }
+        else {
+            wakeup_source = *SREG_WAKEUP_SOURCE;
+        }
+        *SCTR_REG_CLR_WUP_SOURCE = 1;
 
-            uint32_t target = nfc_check_cmd();
+        #ifdef DEVEL
+            mbus_write_message32(0x70, wakeup_source);
+            mbus_write_message32(0x71, xt1_state);
+        #endif
 
-            nfc_i2c_release_token();
+        // If this is the very first wakeup, initialize the system
+        if (!get_flag(FLAG_INITIALIZED)) operation_init();
 
-            #ifdef DEVEL
-                mbus_write_message32(0xB0, target);
-            #endif
+        // Check-in the EID Watchdog if it is enabled
+        if (get_flag(FLAG_WD_ENABLED)) eid_check_in();
 
-            // Fail Handling
-            if (target==0xDEAD) {
+        //-----------------------------------------
+        // NFC HANDSHAKE
+        //-----------------------------------------
+        if (WAKEUP_BY_NFC) {
+            if (status.nfc_out_temp) {
                 operation_sleep(/*check_snt*/1);
-            }
+            } 
+            else {
+                if (nfc_i2c_get_token(30)) {
 
-            // Commands requiring further operation
-            else if (target==0xF00D) {
+                    uint32_t target = nfc_check_cmd();
 
-                // Command: GETSEC
-                if (cmd==CMD_GETSEC) {
-                    // Nothing to do here.
-                }
-                // Command: CONFIG
-                else if (cmd==CMD_CONFIG) {
-                    update_user_configs();
-                    aes_encrypt_eeprom(/*addr*/EEPROM_ADDR_HIGH_TEMP_THRESHOLD);
-                    eid_blink_display();
-                }
-                // Command: HARD_RESET
-                else if (cmd==CMD_HRESET) {
-                    eid_update_display(/*seg*/DISP_PLUS|DISP_MINUS);
-                    config_timerwd(/*cnt*/10);
-                    while(1);
-                }
-                // Command: NEWKEY
-                else if (cmd==CMD_NEWKEY) {
-                    update_aes_key();
-                    eid_blink_display();
-                }
-                // Command: NEWAB
-                else if (cmd==CMD_NEWAB) {
-                    update_temp_coefficients();
-                    eid_blink_display();
-                }
-                // Command: DISPLAY
-                else if (cmd==CMD_DISPLAY) {
-                    if (!get_bit(eid_disp_before_user_mod, 31))
-                        eid_disp_before_user_mod = (0x1<<31)|eid_get_current_display();
-                    eid_update_display(/*seg*/cmd_param&0x7F);
-                    cmd = CMD_NOP;
-                }
-                // Command: DEBUG
-                else if (cmd==CMD_DEBUG) {
-                    override.enable = get_bit(cmd_param, 7);
-                    override.sar_margin = cmd_param&0xF;
+                    nfc_i2c_release_token();
 
-                    #ifdef ENABLE_DEBUG_SYSTEM_CONFIG
-                    if (cmd_param==0x00) debug_system_configs();
+                    #ifdef DEVEL
+                        mbus_write_message32(0xB0, target);
                     #endif
 
-                    eid_blink_display();
-                }
-                // Command: NOP
-                else if (cmd==CMD_NOP) {
-                    eid_blink_display();
-                }
-                // Command: Invalid
-                else {}
+                    // Fail Handling
+                    if (target==0xDEAD) {
+                        operation_sleep(/*check_snt*/1);
+                    }
 
-                // Go to Sleep
+                    // Commands requiring further operation
+                    else if (target==0xF00D) {
+
+                        // Command: GETSEC
+                        if (cmd==CMD_GETSEC) {
+                            // Nothing to do here.
+                        }
+                        // Command: CONFIG
+                        else if (cmd==CMD_CONFIG) {
+                            update_user_configs();
+                            aes_encrypt_eeprom(/*addr*/EEPROM_ADDR_HIGH_TEMP_THRESHOLD);
+                            eid_blink_display();
+                        }
+                        // Command: HARD_RESET
+                        else if (cmd==CMD_HRESET) {
+                            eid_update_display(/*seg*/DISP_PLUS|DISP_MINUS);
+                            config_timerwd(/*cnt*/10);
+                            while(1);
+                        }
+                        // Command: NEWKEY
+                        else if (cmd==CMD_NEWKEY) {
+                            update_aes_key();
+                            eid_blink_display();
+                        }
+                        // Command: NEWAB
+                        else if (cmd==CMD_NEWAB) {
+                            update_temp_coefficients();
+                            eid_blink_display();
+                        }
+                    #ifdef ENABLE_DEBUG_SYSTEM_CONFIG
+                        // Command: DEBUG
+                        else if (cmd==CMD_DEBUG) {
+                            override.enable = get_bit(cmd_param, 7);
+                            override.sar_margin = cmd_param&0xF;
+                            if (cmd_param==0x00) debug_system_configs();
+                            eid_blink_display();
+                        }
+                    #endif
+                        // Command: NOP
+                        else if (cmd==CMD_NOP) {
+                            eid_blink_display();
+                        }
+                        // Command: Invalid
+                        else {}
+
+                        // Go to Sleep
+                        operation_sleep(/*check_snt*/1);
+                    }
+
+                    // Normal User commands (START, STOP, SRESET)
+                    else {
+                        set_system(/*target*/target);
+                        snt_skip_calib = 1;
+
+                        if (cmd==CMD_START) {
+                            if (status.sample_type==SAMPLE_NORMAL)
+                                aes_encrypt_eeprom(/*addr*/EEPROM_ADDR_START_TIME);
+
+                            // if start_delay=0, treat it as if waken up by SNT
+                            if (eeprom_user_config_1.temp_meas_start_delay==0) {
+                                wakeup_source |= (0x1 << 4);
+                                pretend_wakeup_by_snt = 1;
+                                // start_delay_cnt needs to be set to 0
+                                // since "if (WAKEUP_BY_SNT)" is called immediately
+                                start_delay_cnt = 0;
+                            }
+                            else {
+                                // start_delay_cnt needs to be set to 1
+                                // since "if (WAKEUP_BY_SNT)" is called after 1min
+                                start_delay_cnt = 1;
+                            }
+                        }
+                        else if (cmd==CMD_STOP) {
+                            if (status.sample_type==SAMPLE_NORMAL)
+                                aes_encrypt_eeprom(/*addr*/EEPROM_ADDR_STOP_TIME);
+                        }
+                    }
+                } // if (nfc_i2c_get_token(30))
+            } // if (!status.nfc_out_temp)
+        } // if (WAKEUP_BY_NFC)
+
+        //-----------------------------------------
+        // WAKEUP BY SNT
+        //-----------------------------------------
+        if (WAKEUP_BY_SNT) {
+            // If this is the expected wakeup by SNT
+            // --- CASE 1) pretend_wakeup_by_snt = 1
+            // --- CASE 2) SNT Counter Value - snt_threshold < 32 sec
+            if (  pretend_wakeup_by_snt
+               || ((snt_read_wup_timer()-snt_threshold)<(snt_freq<<5))
+               ) {
+
+                // Counter for E-Ink Refresh 
+                disp_min_since_refresh += wakeup_interval;
+
+                #ifdef DEVEL
+                    mbus_write_message32(0xA1, disp_min_since_refresh);
+                #endif
+
+                if (xt1_state==XT1_PEND) {
+                    #ifdef DEVEL
+                        mbus_write_message32(0x7D, start_delay_cnt);
+                    #endif
+
+                    if (start_delay_cnt==eeprom_user_config_1.temp_meas_start_delay) 
+                        set_system(/*target*/XT1_ACTIVE);
+                    else
+                        start_delay_cnt++;
+                }
+
+                // Bookkeeping/Temp Measurement
+                snt_operation();
+            }
+            // If this is an accidental/unintended wakeup, quietly go to sleep
+            else {
+                #ifdef DEVEL
+                    mbus_write_message32(0x8E, snt_threshold);
+                #endif
                 operation_sleep(/*check_snt*/1);
             }
 
-            // Normal User commands (START, STOP, SRESET)
-            else {
-                set_system(/*target*/target);
-                snt_skip_calib = 1;
-
-                if (cmd==CMD_START) {
-                    if (status.sample_type==SAMPLE_NORMAL)
-                        aes_encrypt_eeprom(/*addr*/EEPROM_ADDR_START_TIME);
-
-                    // if start_delay=0, treat it as if waken up by SNT
-                    if (eeprom_user_config.temp_meas_start_delay==0) {
-                        wakeup_source |= (0x1 << 4);
-                        pretend_wakeup_by_snt = 1;
-                    }
-                }
-                else if (cmd==CMD_STOP) {
-                    if (status.sample_type==SAMPLE_NORMAL)
-                        aes_encrypt_eeprom(/*addr*/EEPROM_ADDR_STOP_TIME);
-                }
-            }
         }
-    }
 
-    //-----------------------------------------
-    // WAKEUP BY SNT
-    //-----------------------------------------
-    if (WAKEUP_BY_SNT) {
-        // If this is the expected wakeup by SNT
-        // --- CASE 1) pretend_wakeup_by_snt = 1
-        // --- CASE 2) SNT Counter Value - snt_threshold < 32 sec
-        if (  pretend_wakeup_by_snt
-           || ((snt_read_wup_timer()-snt_threshold)<(snt_freq<<5))
-           ) {
-
-            // Counter for E-Ink Refresh 
-            disp_min_since_refresh += wakeup_interval;
-
-            #ifdef DEVEL
-                mbus_write_message32(0xA1, disp_min_since_refresh);
-            #endif
-
-            if (xt1_state==XT1_PEND) set_system(/*target*/XT1_ACTIVE);
-
-            // Bookkeeping/Temp Measurement
-            snt_operation();
-        }
-        // If this is an accidental/unintended wakeup, quietly go to sleep
-        else {
-            #ifdef DEVEL
-                mbus_write_message32(0x8E, snt_threshold);
-            #endif
+        //-----------------------------------------
+        // Other Wakeup Source - GOC/EP or a Glitch
+        //-----------------------------------------
+        if (!WAKEUP_BY_NFC && !WAKEUP_BY_SNT) {
             operation_sleep(/*check_snt*/1);
         }
 
     }
-
-    //-----------------------------------------
-    // Other Wakeup Source - GOC/EP or a Glitch
-    //-----------------------------------------
-    if (!WAKEUP_BY_NFC && !WAKEUP_BY_SNT) {
-        if (WAKEUP_BY_GOCEP) {
-            //uint32_t goc_head = (*REG0 >> 16) & 0xFF;
-            ////uint32_t goc_data = *REG0 & 0xFFFF;
-            uint32_t orig_disp;
-            //if (goc_head==0x00) {
-                orig_disp = eid_get_current_display();
-                eid_update_display(/*seg*/DISP_ALL);
-                eid_update_display(/*seg*/orig_disp);
-            //}
-        }
-        operation_sleep(/*check_snt*/1);
+    // If waken up by the temp sensor, resume snt_operation()
+    else {
+        snt_operation();
     }
 
     // SNT Calibration

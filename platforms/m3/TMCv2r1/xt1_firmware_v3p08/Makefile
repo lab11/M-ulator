@@ -102,6 +102,11 @@ others:
 	cp -f xt1_firmware_$(FW_VER)_nodevel/xt1_firmware_$(FW_VER)_nodevel.c xt1_firmware_$(FW_VER)_std/xt1_firmware_$(FW_VER)_std.c
 	sed -i "s/(no_devel)/(standard)/" xt1_firmware_$(FW_VER)_std/xt1_firmware_$(FW_VER)_std.c
 	sed -i "s/^#define WAKEUP_BY_NFC\( *\)WAKEUP_BY_GPIO0/#define WAKEUP_BY_NFC\1WAKEUP_BY_GPIO1/" xt1_firmware_$(FW_VER)_std/xt1_firmware_$(FW_VER)_std.c
+	# Make '_std_short' version
+	mkdir -p xt1_firmware_$(FW_VER)_std_short
+	cp -f xt1_firmware_$(FW_VER)_std/xt1_firmware_$(FW_VER)_std.c xt1_firmware_$(FW_VER)_std_short/xt1_firmware_$(FW_VER)_std_short.c
+	sed -i "s/^\/\/#define USE_SHORT_REFRESH/#define USE_SHORT_REFRESH/" xt1_firmware_$(FW_VER)_std_short/xt1_firmware_$(FW_VER)_std_short.c
+	sed -i "s/(standard)/(standard-short_interval)/" xt1_firmware_$(FW_VER)_std_short/xt1_firmware_$(FW_VER)_std_short.c
 
 $(DIRS):
 	$(MAKE) $@/$@.hex

@@ -1,6 +1,6 @@
 //*******************************************************************************************
 // XT1 (TMCv1r1) FIRMWARE
-// Version 2.12 (devel)
+// Version 2.12 (standard-short_interval)
 //------------------------
 #define HARDWARE_ID 0x01005843  // XT1r1 Hardware ID
 #define FIRMWARE_ID 0x020C      // [15:8] Integer part, [7:0]: Non-Integer part
@@ -406,10 +406,10 @@
 // Enable 'DEVEL' for the following features:
 //      - Send debug messages
 //      - Use default values rather than grabbing the values from EEPROM
-#define DEVEL
+//#define DEVEL
 //#define ENABLE_XO_PAD
 //#define DETAILED_XO_INFO_FOR_RAW
-//#define USE_SHORT_REFRESH
+#define USE_SHORT_REFRESH
 //#define ENABLE_DEBUG_SYSTEM_CONFIG
 
 //#define USE_WFI_FOR_LOW_POWER_ACTIVE  // Experimental Feature: Use WFI() for the low-power active mode. But seems like the GPO pulse does not trigger the CPU IRQ even when properly(?) enabled. Revisit this later.
@@ -484,7 +484,7 @@
 #define WAKEUP_BY_GPIO2     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 10))
 #define WAKEUP_BY_GPIO3     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 11))
 #define WAKEUP_BY_SNT       WAKEUP_BY_MBUS
-#define WAKEUP_BY_NFC       WAKEUP_BY_GPIO0
+#define WAKEUP_BY_NFC       WAKEUP_BY_GPIO1
 #define MAIN_CALLED         (WAKEUP_BY_MBUS && get_bit(wakeup_source, 7))
 
 //*******************************************************************************************
