@@ -29,7 +29,10 @@ sed -i "s/#define __NFC_SCL__ 1/#define __NFC_SCL__ 3/" include/TMCv1r1.h
 sed -i "s/#define __NFC_SDA__ 3/#define __NFC_SDA__ 0/" include/TMCv1r1.h
 make clean_libs
 make *_std
+sed -i "s/11491200/478800/" libs/TMCv1r1.c
+make clean_libs
 make *_std_short
+sed -i "s/478800/11491200/" libs/TMCv1r1.c
 make xt1_debug
 echo ">>> *_devel.memmap"
 tail -n 1 *_devel/*_devel.memmap
