@@ -28,6 +28,7 @@ sed -i "s/#define __NFC_SCL__ 1/#define __NFC_SCL__ 3/" include/TMCv2r1.h
 sed -i "s/#define __NFC_SDA__ 2/#define __NFC_SDA__ 0/" include/TMCv2r1.h
 make clean_libs
 make *_std
+make *_snt_check
 sed -i "s/11491200/478800/" libs/TMCv2r1.c
 make clean_libs
 make *_std_short

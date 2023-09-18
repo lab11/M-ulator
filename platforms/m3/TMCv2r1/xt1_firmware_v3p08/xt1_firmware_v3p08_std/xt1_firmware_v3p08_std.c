@@ -1230,7 +1230,7 @@ static void operation_init (void) {
         //-------------------------------------------------
         snt_init();
 
-        // Update the flag
+        // Update) the flag
         set_flag(FLAG_ENUMERATED, 1);
 
         // Turn on the SNT timer clock
