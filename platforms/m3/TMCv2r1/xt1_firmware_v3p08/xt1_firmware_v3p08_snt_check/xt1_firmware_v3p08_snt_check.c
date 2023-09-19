@@ -799,6 +799,8 @@ static void operation_init (void) {
     for (gidx=0; gidx<280; gidx=gidx+4) {
         nfc_i2c_byte_write(/*e2*/0, /*addr*/gidx, /*data*/0x00000000, /*nb*/4);
     }
+
+    set_flag(FLAG_INITIALIZED, 1);
 }
 
 
