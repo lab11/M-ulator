@@ -2541,6 +2541,10 @@ int main(void) {
         mbus_enumerate(PMU_ADDR);
         delay(10000);
 
+        // Set INT_RPLY_*_ADDR in PMU (Use REG0)
+        // -> This is not required. The default value of INT_RPLY_*_ADDR is already REG0 in PRE.
+        //mbus_remote_register_write(PMU_ADDR, 0x52, (0x10 << 8) | (0x0 << 0));
+
     }
     // If REG0 has changed, it implies that PMU still holds the previous enumation info.
     else {
