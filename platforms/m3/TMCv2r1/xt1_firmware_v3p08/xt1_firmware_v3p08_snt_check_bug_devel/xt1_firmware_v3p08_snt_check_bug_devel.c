@@ -795,6 +795,11 @@ static void operation_init (void) {
     state = 0;
     gidx  = 0;
 
+    // Initialize the status
+    __nfc_on__ = 0x0;
+    __nfc_i2c_token__ = 0x0;
+    __nfc_i2c_nak__ = 0x0;
+
     // Initialize EEPROM
     for (gidx=0; gidx<280; gidx=gidx+4) {
         nfc_i2c_byte_write(/*e2*/0, /*addr*/gidx, /*data*/0x00000000, /*nb*/4);
