@@ -20,6 +20,8 @@ sed -i "s/#define __NFC_SDA__ 0/#define __NFC_SDA__ 2/" include/TMCv2r1.h
 make clean_libs
 make others
 make *_devel
+make *_snt_check_devel
+make *_snt_check_bug_devel
 sed -i "s/#define DEVEL/\/\/#define DEVEL/" include/TMCv2r1.h
 make clean_libs
 make *_nodevel
