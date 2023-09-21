@@ -2014,12 +2014,14 @@ int main(void) {
         nfc_i2c_byte_write(/*e2*/0, /*addr*/0, /*data*/0x11111111, /*nb*/4);
 
         // Read & Store SNT Threshold
+        set_halt_until_mbus_trx();
         mbus_copy_registers_from_remote_to_local(
             /*remote_prefix*/       SNT_ADDR,
             /*remote_reg_start*/    0x19,
             /*local_reg_start*/     0x03,
             /*length_minus_one*/    1
         );
+        set_halt_until_mbus_tx();
         nfc_i2c_byte_write(/*e2*/0, /*addr*/4, /*data*/((*REG3&0xFF)<<24)|(*REG4&0xFFFFFF), /*nb*/4);
 
         // Marker
@@ -2028,12 +2030,14 @@ int main(void) {
         // Asynchronous: Read & Store SNT Counter Value (10 times)
         // Byte: 12, 16, ..., 48
         for(gidx=0; gidx<10; gidx++) {
+            set_halt_until_mbus_trx();
             mbus_copy_registers_from_remote_to_local(
                 /*remote_prefix*/       SNT_ADDR,
                 /*remote_reg_start*/    0x1B,
                 /*local_reg_start*/     0x03,
                 /*length_minus_one*/    1
             );
+            set_halt_until_mbus_tx();
             nfc_i2c_byte_write(/*e2*/0, /*addr*/12+(gidx<<2), /*data*/((*REG3&0xFF)<<24)|(*REG4&0xFFFFFF), /*nb*/4);
             delay(10000);
         }
@@ -2149,12 +2153,14 @@ int main(void) {
     // Asynchronous: Read & Store SNT Counter Value (10 times)
     // Byte: 188, 192, ..., 224
     for(gidx=0; gidx<10; gidx++) {
+        set_halt_until_mbus_trx();
         mbus_copy_registers_from_remote_to_local(
             /*remote_prefix*/       SNT_ADDR,
             /*remote_reg_start*/    0x1B,
             /*local_reg_start*/     0x03,
             /*length_minus_one*/    1
         );
+        set_halt_until_mbus_tx();
         nfc_i2c_byte_write(/*e2*/0, /*addr*/188+(gidx<<2), /*data*/((*REG3&0xFF)<<24)|(*REG4&0xFFFFFF), /*nb*/4);
         delay(10000);
     }
