@@ -21,6 +21,7 @@ make clean_libs
 make others
 make *_devel
 make *_snt_check_devel
+make *_reg_dump_devel
 sed -i "s/#define DEVEL/\/\/#define DEVEL/" include/TMCv2r1.h
 make clean_libs
 make *_nodevel
@@ -30,6 +31,7 @@ sed -i "s/#define __NFC_SDA__ 2/#define __NFC_SDA__ 0/" include/TMCv2r1.h
 make clean_libs
 make *_std
 make *_snt_check
+make *_reg_dump
 make xt1_debug
 sed -i "s/11491200/478800/" libs/TMCv2r1.c
 make clean_libs
