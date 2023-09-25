@@ -162,7 +162,8 @@
 //*******************************************************************************************
 // FLAG BIT INDEXES
 //*******************************************************************************************
-#define FLAG_INITIALIZED        23
+//#define FLAG_INITIALIZED        23
+#define FLAG_INITIALIZED        22
 
 #define FLAG_ENUMERATED         0
 //#define FLAG_INITIALIZED        1
