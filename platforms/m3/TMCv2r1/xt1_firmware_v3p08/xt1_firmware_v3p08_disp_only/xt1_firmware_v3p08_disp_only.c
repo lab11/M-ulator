@@ -1296,6 +1296,9 @@ static void operation_init (void) {
         nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_FW_ID, /*data*/FIRMWARE_ID, /*nb*/2);
         // Sub-Versions
         //nfc_i2c_byte_write(/*e2*/0, /*addr*/6, /*data*/0x0100, /*nb*/2);
+        // Reset Flags
+        nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_SYSTEM_STATE, /*data*/0, /*nb*/4);
+        nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_FAIL, /*data*/0, /*nb*/2);
 
         // Set default values for CALIB and AES_KEY
         eeprom_temp_calib_a = TEMP_CALIB_A_DEFAULT;
@@ -3813,6 +3816,9 @@ int main(void) {
     //-----------------------------------------
     // Keep Refreshing Display
     //-----------------------------------------
+    eid_update_display(/*seg*/DISP_ALL);
+    delay(DLY_1S);
+
     uint32_t iter = 0;
     while(1) {
         eid_blink_display();
