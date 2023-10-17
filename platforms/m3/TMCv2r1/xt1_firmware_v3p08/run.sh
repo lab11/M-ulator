@@ -37,6 +37,8 @@ sed -i "s/11491200/478800/" libs/TMCv2r1.c
 make clean_libs
 make *_std_short
 make *_disp_only
+make *_30s
+make *_20s
 sed -i "s/478800/11491200/" libs/TMCv2r1.c
 echo ">>> *_devel.memmap"
 tail -n 1 *_devel/*_devel.memmap
