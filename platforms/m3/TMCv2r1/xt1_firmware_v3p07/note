@@ -1,0 +1,34 @@
+eid_update_display() called in
+
+v   set_system() target = XT1_RESET
+v       operation_init()
+
+v   set_system() target = XT1_PEND
+v       main() cmd = CMD_START
+
+v   set_system() target = XT1_IDLE
+v       set_system() target = XT1_RESET
+v       main() cmd = CMD_STOP
+
+    snt_operation()
+        main()
+
+v   eid_blink_display()
+v       main() cmd = CMD_CONFIG
+v       main() cmd = CMD_NEWKEY
+v       main() cmd = CMD_NEWAB
+v       main() cmd = CMD_DEBUG
+v       main() cmd = CMD_NOP
+
+    fail_handler()
+
+v   main() cmd = CMD_HRESET
+
+
+operation_sleep()
+
+    operation_sleep_snt_timer()
+    meas_temp_adc() only if meas.crit_vbat=1
+    main() - WAKEUP_BY_NFC
+    main() - WAKEUP_BY_SNT (accidental wakeup)
+    main() - WAKEUP_BY_GLITCH
