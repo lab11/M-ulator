@@ -1070,37 +1070,6 @@ static void operation_init (void) {
         snt_enable_wup_timer(/*auto_reset*/0);
 
         //-------------------------------------------------
-        // XO Settings
-        //-------------------------------------------------
-        //--- XO Frequency
-        *REG_XO_CONF2 =             // Default  // Description
-            //-----------------------------------------------------------------------------------------------------------
-            ( (0x1         << 20)   // (3'h1) XO_SEL_DLY	        #Adjusts pulse delay
-            | (0x1         << 18)   // (2'h1) XO_SEL_CLK_SCN	    #Selects division ratio for SCN CLK
-            | (XO_FREQ_SEL << 15)   // (3'h1) XO_SEL_CLK_OUT_DIV	#Selects division ratio for the XO CLK output. XO Freq = 2^XO_SEL_CLK_OUT_DIV (kHz)
-            | (0x1         << 14)   // (1'h1) XO_SEL_LDO            #Selects LDO output as an input to SCN
-            | (0x0         << 13)   // (1'h0) XO_SEL_0P6            #Selects V0P6 as an input to SCN
-            | (0x0         << 10)   // (3'h0) XO_I_AMP	            #Adjusts VREF body bias buffer current
-            | (0x0         <<  3)   // (7'h0) XO_VREF_TUNEB 	    #Adjust VREF level and TC
-            | (0x0         <<  0)   // (3'h0) XO_SEL_VREF 	        #Selects VREF output from its diode stack
-            );
-
-        xo_stop();  // Default value of XO_START_UP is wrong in RegFile, so need to override it.
-
-        //--- Start XO clock
-        xo_start(/*delay_a*/XO_WAIT_A, /*delay_b*/XO_WAIT_B);
-        // Update the flag
-        set_flag(FLAG_XO_INITIALIZED, 1);
-
-        //--- Configure and Start the XO Counter
-        set_xo_timer(/*mode*/0, /*threshold*/0, /*wreq_en*/0, /*irq_en*/0, /*auto_reset*/0);
-        start_xo_cnt();
-
-    #ifdef ENABLE_XO_PAD
-        start_xo_cout();
-    #endif
-
-        //-------------------------------------------------
         // Go to Sleep
         //-------------------------------------------------
         // Go to sleep
@@ -1116,40 +1085,6 @@ static void operation_init (void) {
         // Disable the PRC wakeup timer
         *REG_WUPT_CONFIG = *REG_WUPT_CONFIG & 0xFF3FFFFF; // WUP_ENABLE=0, WUP_WREQ_EN=0
 
-        //-------------------------------------------------
-        // NFC 
-        //-------------------------------------------------
-        nfc_init();
-
-        // Set the Hardware/Firmware ID
-        nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_HW_ID, /*data*/HARDWARE_ID, /*nb*/4);
-        nfc_i2c_byte_write(/*e2*/0, /*addr*/EEPROM_ADDR_FW_ID, /*data*/FIRMWARE_ID, /*nb*/2);
-        // Sub-Versions
-        //nfc_i2c_byte_write(/*e2*/0, /*addr*/6, /*data*/0x0100, /*nb*/2);
-
-        // Set default values for CALIB and AES_KEY
-        eeprom_temp_calib_a = TEMP_CALIB_A_DEFAULT;
-        eeprom_temp_calib_b = TEMP_CALIB_B_DEFAULT;
-        for (i=0; i<4; i++) *(aes_key+i) = 0x0;
-
-        // Set default values for Hibernation Threshold
-        hbr_temp_threshold_raw = HBR_TEMP_THRESHOLD_RAW_DEFAULT;
-
-        // Initialize the EEPROM variables
-        update_system_configs(/*use_default*/1);
-
-        // Turn off the NFC
-        nfc_power_off();
-
-        //-------------------------------------------------
-        // System Reset
-        //-------------------------------------------------
-        // Set system
-        cmd = CMD_NOP;      // need to initialize here since it is used in reset_system_status()
-        if (status.eeprom_fail!=0) fail_handler(/*id*/FAIL_ID_INIT); // If there has been a timeout/failure during initialization
-        else status.value = 0;   // will be committed in set_system()
-        set_system(/*target*/XT1_RESET);
-
         // Update the flag
         set_flag(FLAG_INITIALIZED, 1);
 
@@ -1161,8 +1096,9 @@ static void operation_init (void) {
         snt_duration = 30000;
         snt_threshold_prev = snt_read_wup_timer();
         snt_threshold = snt_threshold_prev + snt_duration;
-        xo_val_curr = get_xo_cnt();
-        operation_sleep_snt_timer(/*check_snt*/0);
+        snt_set_wup_timer(/*auto_reset*/0, /*threshold*/snt_threshold);
+        mbus_sleep_all(); 
+        while(1);
     }
 }
 
@@ -3241,8 +3177,11 @@ int main(void) {
     WFI();
 
     // SNT Calibration
-    // threshold = snt_freq x 55s = 1400 x 55 = 77000
-    snt_set_wup_timer(/*auto_reset*/1, /*threshold*/77000);
+    // snt_duration = snt_freq x 55s = 1400 x 55 = 77000
+    snt_threshold_prev = snt_read_wup_timer();
+    snt_threshold = snt_threshold_prev + 77000;
+    snt_set_wup_timer(/*auto_reset*/0, /*threshold*/snt_threshold);
+    mbus_sleep_all(); 
 
     //--------------------------------------------------------------------------
     // Dummy Buffer
