@@ -3173,13 +3173,14 @@ int main(void) {
 
     // Active Duration
     // val = cpu_freq x 5s = 120000 x 5 = 600000
-    start_timeout32_check(/*id*/0, /*val*/600000);
+    // Looks like the actual frequency is faster than 120kHz @ 3V.
+    start_timeout32_check(/*id*/0, /*val*/900000);
     WFI();
 
     // SNT Calibration
-    // snt_duration = snt_freq x 55s = 1400 x 55 = 77000
+    // snt_duration = snt_freq x 60s = 1400 x 60 = 77000
     snt_threshold_prev = snt_read_wup_timer();
-    snt_threshold = snt_threshold_prev + 77000;
+    snt_threshold = snt_threshold_prev + 84000;
     snt_set_wup_timer(/*auto_reset*/0, /*threshold*/snt_threshold);
     mbus_sleep_all(); 
 
