@@ -719,9 +719,9 @@ void pmu_sleep_floor(uint32_t type) {
         | ( 0 << 17)    // 1'h0     // Enable PFM
         | ( 0 << 14)    // 3'h3     // Comparator clock division ratio
         | ( 0 << 13)    // 1'h0     // Makes the converter clock 2x slower
-        | ( r <<  9)    // 4'h8     // Frequency multiplier R
-        | ( 4 <<  5)    // 4'h8     // Frequency multiplier L (actually L+1)
-        | ( 4      )    // 5'h0F    // Floor frequency base (0-63)
+        | ( r <<  9)    // 4'h2     // Frequency multiplier R
+        | ( 4 <<  5)    // 4'h2     // Frequency multiplier L (actually L+1)
+        | ( 4      )    // 5'h06    // Floor frequency base (0-63)
     ));
 
     //---------------------------------------------------------------------------------------
@@ -731,9 +731,9 @@ void pmu_sleep_floor(uint32_t type) {
     //---------------------------------------------------------------------------------------
         ( ( 3 << 14)    // 2'h0     // Desired Vout/Vin ratio
         | ( 0 << 13)    // 1'h0     // Makes the converter clock 2x slower
-        | ( r <<  9)    // 4'h8     // Frequency multiplier R
-        | ( 3 <<  5)    // 4'h4     // Frequency multiplier L (actually L+1)
-        | ( 4      )    // 5'h08    // Floor frequency base (0-63)
+        | ( r <<  9)    // 4'h1     // Frequency multiplier R
+        | ( 3 <<  5)    // 4'h0     // Frequency multiplier L (actually L+1)
+        | ( 4      )    // 5'h04    // Floor frequency base (0-63)
     ));
 
     //---------------------------------------------------------------------------------------
@@ -742,9 +742,9 @@ void pmu_sleep_floor(uint32_t type) {
     pmu_reg_write(0x19,  // Default  // Description
     //---------------------------------------------------------------------------------------
         ( ( 0 << 13)    // 1'h0     // Makes the converter clock 2x slower
-        | (15 <<  9)    // 4'h8     // Frequency multiplier R
-        | ( 0 <<  5)    // 4'h4     // Frequency multiplier L (actually L+1)
-        | ( 1      )    // 5'h08    // Floor frequency base (0-63)
+        | (15 <<  9)    // 4'h2     // Frequency multiplier R
+        | ( 0 <<  5)    // 4'h2     // Frequency multiplier L (actually L+1)
+        | ( 1      )    // 5'h02    // Floor frequency base (0-63)
     ));
 }
 
@@ -775,7 +775,7 @@ void pmu_init(void){
     #endif
 
     // Sleep Floor Setting
-    pmu_sleep_floor(/*type*/0);
+//    pmu_sleep_floor(/*type*/0);
 
     // Initialize other PMU variables
     __pmu_sar_ratio_upper_streak__  = 0;

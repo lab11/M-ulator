@@ -176,7 +176,7 @@ cp:
 	scp \
         ./*/*.hex \
         ./include/ST25DV64K.h \
-        yejoong@thurston.cubeworks.io:~/Dropbox/Designs/202106_XT1_Firmware/hex/.
+        yejoong@thurston.cubeworks.io:~/Dropbox/Designs/202312_PS200_Firmware/hex/.
 
 
 .PHONY: clean clean_libs clean-% cp
