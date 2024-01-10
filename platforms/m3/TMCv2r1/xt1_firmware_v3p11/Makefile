@@ -113,6 +113,10 @@ others:
 	cp -f xt1_firmware_$(FW_VER)_std/xt1_firmware_$(FW_VER)_std.c xt1_firmware_$(FW_VER)_std_30s/xt1_firmware_$(FW_VER)_std_30s.c
 	sed -i "s/^#define WAKEUP_INTERVAL_IN_MINUTES/\/\/#define WAKEUP_INTERVAL_IN_MINUTES/" xt1_firmware_$(FW_VER)_std_30s/xt1_firmware_$(FW_VER)_std_30s.c
 	sed -i "s/(standard)/(standard-30s)/" xt1_firmware_$(FW_VER)_std_30s/xt1_firmware_$(FW_VER)_std_30s.c
+	# Make '_std_long_tran' version
+	mkdir -p xt1_firmware_$(FW_VER)_std_long_tran
+	cp -f xt1_firmware_$(FW_VER)_std/xt1_firmware_$(FW_VER)_std.c xt1_firmware_$(FW_VER)_std_long_tran/xt1_firmware_$(FW_VER)_std_long_tran.c
+	sed -i "s/(standard)/(standard-long-tran)/" xt1_firmware_$(FW_VER)_std_long_tran/xt1_firmware_$(FW_VER)_std_long_tran.c
 
 $(DIRS):
 	$(MAKE) $@/$@.hex

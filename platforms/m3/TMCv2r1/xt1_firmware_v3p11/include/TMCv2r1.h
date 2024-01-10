@@ -32,7 +32,8 @@
 //-------------------------------------------------------------------
 // Options
 //-------------------------------------------------------------------
-#define __USE_HCODE__  // Use hard-coded values (sacrificing readability, reducing code size)
+#define __USE_HCODE__               // Use hard-coded values (sacrificing readability, reducing code size)
+//#define __DEBUG_LONG_WAKEUP_TRAN__  // If enabled, use 32x delay (64->2048) for TICK_SAR_WAKEUP_WAIT and TICK_UDC_WAKEUP_WAIT for PMU.
 
 //-------------------------------------------------------------------
 // Short Addresses
