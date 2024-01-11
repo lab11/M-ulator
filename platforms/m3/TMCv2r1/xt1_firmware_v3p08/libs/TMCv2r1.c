@@ -943,6 +943,23 @@ void pmu_init(void){
         | (3 << 0 )   // 2'h0     // Clock Pre-Divider Tuning for UPC/DNC Charge Pump Pull-Up
     ));
 
+#ifdef __DEBUG_LONG_WAKEUP_TRAN__
+    // Debugging the Plateaus
+    //---------------------------------------------------------------------------------------
+    // TICK_SAR_WAKEUP_WAIT
+    //---------------------------------------------------------------------------------------
+    pmu_reg_write(0x2B, // Default  // Description
+    //---------------------------------------------------------------------------------------
+        ( (2048 << 0)   // 64   // (12-bit) Delay during RAT-Enabled Sleep-Active Transition
+    ));
+    //---------------------------------------------------------------------------------------
+    // TICK_UDC_WAKEUP_WAIT
+    //---------------------------------------------------------------------------------------
+    pmu_reg_write(0x2C, // Default  // Description
+    //---------------------------------------------------------------------------------------
+        ( (2048 << 0)   // 64   // (12-bit) Delay during RAT-Enabled Sleep-Active Transition
+    ));
+#endif
 
     // Maximize the sleep delay: This would add ~80ms delay before turning on the UDC/DNC slow loop.
     //---------------------------------------------------------------------------------------
