@@ -1,0 +1,8 @@
+File Name      : xt1_firmware_v3p19_std_30s/xt1_firmware_v3p19_std_30s.hex
+Code Size      : 13892 Byte(s)
+Total Num Words: 3473
+Last MEM ADDR  : 0x00003640 (Written at 0x00000010)
+---------------------------------------------------
+CRC (Dec): 0d3348260173
+CRC (Hex): 0xC792654D
+CRC (Hex;Big-Endian): 4D 65 92 C7
