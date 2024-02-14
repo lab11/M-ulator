@@ -1,0 +1,8 @@
+File Name      : xt1_firmware_v3p21_std_short/xt1_firmware_v3p21_std_short.hex
+Code Size      : 14300 Byte(s)
+Total Num Words: 3575
+Last MEM ADDR  : 0x000037D8 (Written at 0x00000010)
+---------------------------------------------------
+CRC (Dec): 0d767423113
+CRC (Hex): 0x2DBDF289
+CRC (Hex;Big-Endian): 89 F2 BD 2D

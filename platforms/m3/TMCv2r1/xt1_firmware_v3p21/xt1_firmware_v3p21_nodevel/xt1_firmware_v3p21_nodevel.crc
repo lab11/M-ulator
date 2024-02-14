@@ -1,0 +1,8 @@
+File Name      : xt1_firmware_v3p21_nodevel/xt1_firmware_v3p21_nodevel.hex
+Code Size      : 14304 Byte(s)
+Total Num Words: 3576
+Last MEM ADDR  : 0x000037DC (Written at 0x00000010)
+---------------------------------------------------
+CRC (Dec): 0d3964728045
+CRC (Hex): 0xEC50F2ED
+CRC (Hex;Big-Endian): ED F2 50 EC

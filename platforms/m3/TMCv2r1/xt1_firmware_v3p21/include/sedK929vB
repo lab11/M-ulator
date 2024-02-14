@@ -1,0 +1,371 @@
+//*******************************************************************************************
+// TMC HEADER FILE
+//-------------------------------------------------------------------------------------------
+// SUB-LAYER CONNECTION:
+//-------------------------------------------------------------------------------------------
+//      PREv23E -> EIDv1 -> SNTv6 -> PMUv13r1
+//-------------------------------------------------------------------------------------------
+// Short Address
+//-------------------------------------------------------------------------------------------
+//      PRE: 0x1
+//      EID: 0x2
+//      SNT: 0x3
+//      PMU: 0x4
+//-------------------------------------------------------------------------------------------
+// < AUTHOR > 
+//  Yejoong Kim (yejoong@cubeworks.io)
+//******************************************************************************************* 
+
+#define DEVEL
+
+#ifndef TMCV2_H
+#define TMCV2_H
+#define TMCV2
+
+#include "mbus.h"
+#include "ST25DV64K.h"
+#include "PREv23E.h"
+#include "SNTv6_RF.h"
+#include "EIDv1_RF.h"
+#include "PMUv13r1_RF.h"
+
+//-------------------------------------------------------------------
+// Options
+//-------------------------------------------------------------------
+#define __USE_HCODE__  // Use hard-coded values (sacrificing readability, reducing code size)
+
+//-------------------------------------------------------------------
+// Short Addresses
+//-------------------------------------------------------------------
+#define PRE_ADDR    0x1
+#define EID_ADDR    0x2
+#define SNT_ADDR    0x3
+#define PMU_ADDR    0x4
+
+//*******************************************************************************************
+// TARGET REGISTER INDEX FOR LAYER COMMUNICATIONS
+//-------------------------------------------------------------------------------------------
+// A register write message from a certain layer will be written 
+// in the following register in PRE.
+// NOTE: Reg0x0-0x3 are retentive; Reg0x4-0x7 are non-retentive.
+//*******************************************************************************************
+#define PMU_TARGET_REG_IDX  0x0
+#define SNT_TARGET_REG_IDX  0x1 // SNT Temperature Sensor
+#define EID_TARGET_REG_IDX  0x2
+#define WP0_TARGET_REG_IDX  0x4 // SNT Timer (Timer Read, Threshold Update)
+#define WP1_TARGET_REG_IDX  0x5 //  NOTE: Only WP1_TARGET_REG_IDX is used to trigger an M0 IRQ. WP0_TARGET_REG_IDX is used to handle 32-bit data.
+#define PLD_TARGET_REG_IDX  0x6 // Payload Register (Wakeup by SNT Timer, etc); It is not used to trigger an IRQ.
+#define I2C_TARGET_REG_IDX  0x7 // Used to handle I2C NAK failure
+
+#define PMU_TARGET_REG_ADDR  ((volatile uint32_t *) (0xA0000000 | (PMU_TARGET_REG_IDX << 2)))
+#define SNT_TARGET_REG_ADDR  ((volatile uint32_t *) (0xA0000000 | (SNT_TARGET_REG_IDX << 2)))
+#define EID_TARGET_REG_ADDR  ((volatile uint32_t *) (0xA0000000 | (EID_TARGET_REG_IDX << 2)))
+#define WP0_TARGET_REG_ADDR  ((volatile uint32_t *) (0xA0000000 | (WP0_TARGET_REG_IDX << 2)))
+#define WP1_TARGET_REG_ADDR  ((volatile uint32_t *) (0xA0000000 | (WP1_TARGET_REG_IDX << 2)))
+#define PLD_TARGET_REG_ADDR  ((volatile uint32_t *) (0xA0000000 | (PLD_TARGET_REG_IDX << 2)))
+#define I2C_TARGET_REG_ADDR  ((volatile uint32_t *) (0xA0000000 | (I2C_TARGET_REG_IDX << 2)))
+
+//-------------------------------------------------------------------
+// TIMEOUT CHECK
+//-------------------------------------------------------------------
+#define FAIL_ID_EID     1           // Display Update
+#define FAIL_ID_WUP     2           // SNT Timer Access (Timeout)
+#define FAIL_ID_PMU     3           // PMU Register Access
+#define FAIL_ID_SNT     4           // SNT Temperature Measurement
+#define FAIL_ID_I2C     5           // I2C NAK Failure
+#define FAIL_ID_MET     6           // SNT Timer Reading (Meta-stability)
+#define FAIL_ID_GEN     7           // Generic/Unknown
+#define FAIL_ID_INIT    0x1010DEAD  // Timeout/Fail during Initialization
+
+#define TIMEOUT_1S      140000      // TIMER32 Threshold to measure 1 second
+#define TIMEOUT_TH      TIMEOUT_1S  // Timeout Threshold
+
+//-------------------------------------------------------------------
+// PMU MODE DEFINITIONS
+//-------------------------------------------------------------------
+#define PMU_ACTIVE 0x1
+#define PMU_SLEEP  0x0
+
+//-------------------------------------------------------------------
+// PMU TEMPERATURE STATE VALUES
+//-------------------------------------------------------------------
+#define PMU_10C 0x0
+#define PMU_20C 0x1
+#define PMU_25C 0x2
+#define PMU_35C 0x3
+#define PMU_55C 0x4
+#define PMU_75C 0x5
+#define PMU_95C 0x6
+
+//-------------------------------------------------------------------
+// HIGH POWER HISTORY VARIABLE
+//-------------------------------------------------------------------
+volatile uint32_t __high_power_history__;
+
+//*******************************************************************
+// TMCv2r1 FUNCTIONS
+//*******************************************************************
+
+//-------------------------------------------------------------------
+// Basic Building Functions
+//-------------------------------------------------------------------
+
+//-------------------------------------------------------------------
+// Function: set_bits
+// Args    : var        - Original Value
+//           msb_idx    - Index of MSB
+//           lsb_idx    - Index of LSB
+//           value      - New value
+// Description:
+//          set_bits() replaces [msb_idx:lsb_idx] in var with value
+//          and returns the result
+// Return  : var with [msb_idx:lsb_idx] replaced with value
+//-------------------------------------------------------------------
+uint32_t set_bits (uint32_t var, uint32_t msb_idx, uint32_t lsb_idx, uint32_t value);
+
+//-------------------------------------------------------------------
+// Function: set_bit
+// Args    : var    - Original Value
+//           idx    - Bit Index
+//           value  - New bit value
+// Description:
+//          set_bit() replaces [idx] in var with value
+//          and returns the result
+// Return  : var with [idx] replaced with value
+//-------------------------------------------------------------------
+uint32_t set_bit (uint32_t var, uint32_t idx, uint32_t value);
+
+//-------------------------------------------------------------------
+// Function: get_bits
+// Args    : variable   - Original Value
+//           msb_idx    - Index of MSB
+//           lsb_idx    - Index of LSB
+// Description:
+//          get_bits() grabs [msb_idx:lsb_idx] in variable,
+//          right-shifts it by lsb_idx and returns the result.
+// Return  : [msb_idx:lsb_idx] in variable right-shifted by lsb_idx
+//-------------------------------------------------------------------
+uint32_t get_bits (uint32_t variable, uint32_t msb_idx, uint32_t lsb_idx);
+
+//-------------------------------------------------------------------
+// Function: get_bit
+// Args    : variable - Original Value
+//           idx      - Bit Index
+// Description:
+//          get_bit() returns variable[idx]
+// Return  : variable[idx] (it is always 1 bit)
+//-------------------------------------------------------------------
+uint32_t get_bit (uint32_t variable, uint32_t idx);
+
+//-------------------------------------------------------------------
+//[NOTE] The function below, rsh64, has been commented out
+//       since it is no longer used in the firmware.
+//-------------------------------------------------------------------
+// Function: rsh64
+// Args    : var  - 64-bit variable to be shifted by right
+//           nb     - number of bits to be shifted
+// Description:
+//          It right-shifts 'var' by 'nb' bits and return.
+//          Internally it breaks down 'var' into two 32-bit variables
+//          and properly shifts them and then stitches them together
+//          to return a 64-bit variable.
+//
+//          <NOTE>
+//          The compiler creates '__aeabi_llsr' function
+//          to handle a 64-bit variable shift.
+//          It seems to work fine if the number of bits to be shifted 
+//          is a constant (e.g., a = b >> 40).
+//          However, our CPU gets stuck if the number of bits to shifted
+//          is a variable (e.g., a = b >> c).
+//          The assembly code looks like below:
+//
+//              000000a8 <__aeabi_llsr>:
+//                a8:	e2523020 	subs	r3, r2, #32
+//                ac:	e262c020 	rsb	ip, r2, #32
+//                b0:	41a00230 	lsrmi	r0, r0, r2
+//                b4:	51a00331 	lsrpl	r0, r1, r3
+//                b8:	41800c11 	orrmi	r0, r0, r1, lsl ip
+//                bc:	e1a01231 	lsr	r1, r1, r2
+//                c0:	e12fff1e 	bx	lr
+//              ...
+//
+//              0000341c <snt_operation>:
+//              ...
+//              398a:	9b04      	ldr	r3, [sp, #16]
+//              398c:	2280      	movs	r2, #128	; 0x80
+//              398e:	1b52      	subs	r2, r2, r5
+//              3990:	9803      	ldr	r0, [sp, #12]
+//              3992:	1c39      	adds	r1, r7, #0
+//              3994:	401c      	ands	r4, r3
+//              3996:	f7fc fb87 	bl	a8 <__aeabi_llsr>
+//              399a:	0136      	lsls	r6, r6, #4
+//              399c:	1c02      	adds	r2, r0, #0
+//              399e:	1c0b      	adds	r3, r1, #0
+//              39a0:	1c20      	adds	r0, r4, #0
+//              39a2:	2100      	movs	r1, #0
+//              ...
+//
+// Return  : 'var' right-shifted by 'nb' bits
+//-------------------------------------------------------------------
+//uint64_t rsh64 (uint64_t var, uint32_t nb);
+
+//-------------------------------------------------------------------
+// Math Functions
+//-------------------------------------------------------------------
+
+//-------------------------------------------------------------------
+// Function: get_lead1_pos
+// Args    : val    - value
+// Description:
+//          Returns the bit position of the leading one.
+//          LSB's bit position is 0,
+//          thus the return value is in [0, 31].
+//          If val is 0, it returns 32.
+// Return  : Bit position of the leading one
+//          32 if val=0
+//-------------------------------------------------------------------
+uint32_t get_lead1_pos (uint32_t val);
+
+//-------------------------------------------------------------------
+// Function: div
+// Args    : numer - Numerator   (m fixed-point)
+//           denom - Denominator (m fixed-point)
+//           n     - Number of fixed-point decimal bits in result
+// Description:
+//          Returns the result of 'numer / denom'
+//          numer and denom must be in the m fixed-point format,
+//          and the result is in the n fixed-point format.
+//          m and n can be same or different,
+//          but both numer and denom must be m fixed-point numbers.
+// Return  : numer / denom (n fixed-point)
+//-------------------------------------------------------------------
+uint32_t div (uint32_t numer, uint32_t denom, uint32_t n);
+
+//-------------------------------------------------------------------
+// Function: mult
+// Args    : num_a - number (m fixed-point)
+//           num_b - number (n fixed-point)
+// Description:
+//          Returns the result of 'num_a * num_b'
+//          in the (m+n) fixed-point format
+// NOTE:    Integers are 0 fixed-point numbers.
+// Return  : num_a * num_b (m+n fixed-point)
+//           0xFFFFFFFF    (if over-flow occurs)
+//-------------------------------------------------------------------
+uint32_t mult (uint32_t num_a, uint32_t num_b);
+
+//-------------------------------------------------------------------
+// Function: mult_b28
+// Args    : num_a - number (m fixed-point)
+//           num_b - number (N=28 fixed-point)
+// Description:
+//          Returns the result of 'num_a * num_b'
+//          in the m fixed-point format
+// Return  : num_a * num_b (m fixed-point))
+//-------------------------------------------------------------------
+uint32_t mult_b28 (uint32_t num_a, uint32_t num_b);
+
+//-------------------------------------------------------------------
+// High Power History
+//-------------------------------------------------------------------
+
+//-------------------------------------------------------------------
+// Function: set_high_power_history
+// Args    : val    - New value for __high_power_history__
+// Description:
+//          Set __high_power_history__ = val
+// Return  : None
+//-------------------------------------------------------------------
+void set_high_power_history (uint32_t val);
+
+//-------------------------------------------------------------------
+// Function: get_high_power_history
+// Args    : None
+// Description:
+//          Return __high_power_history__
+// Return  : __high_power_history__
+//-------------------------------------------------------------------
+uint32_t get_high_power_history (void);
+
+
+//*******************************************************************
+// PRE FUNCTIONS (Specific to TMCv2r1)
+//*******************************************************************
+
+//-------------------------------------------------------------------
+// Function: restart_xo
+// Args    : delay_a: (Recommended: 20000) Must be ~1 second delay. Delay for XO Start-Up. LSB corresponds to ~50us, assuming ~100kHz CPU clock and 5 cycles per delay(1).
+//           delay_b: (Recommended: 20000) Must be ~1 second delay. Delay for VLDO & IBIAS Generation. LSB corresponds to ~50us, assuming ~100kHz CPU clock and 5 cycles per delay(1).
+// Description:
+//           Restart the XO driver
+// Return  : None
+//-------------------------------------------------------------------
+void restart_xo(uint32_t delay_a, uint32_t delay_b);
+
+
+//*******************************************************************
+// PMU FUNCTIONS
+//*******************************************************************
+
+#define __PMU_CHECK_WRITE__                 // If enabled, PMU replies with an actual read-out data from the analog block, rather than just forwarding the write data.
+
+#ifndef __USE_HCODE__
+//-------------------------------------------------------------------
+// PMU State
+//-------------------------------------------------------------------
+//                                  Default Value
+// idx  state_name                  sleep   active
+//-------------------------------------------------------------------
+// [20] horizon                     1       0
+// [19] vbat_read_only              0       0
+// [18] vdd_0p6_turned_on           1       1
+// [17] vdd_1p2_turned_on           1       1
+// [16] vdd_3p6_turned_on           1       1
+// [15] dnc_stabilized              1       1
+// [14] dnc_on                      1       1
+// [13] sar_ratio_adjusted          1       0
+// [12] adc_adjusted                1       0
+// [11] adc_output_ready            1       1
+// [10] refgen_on                   1       1
+// [9]  upc_stabilized              1       1
+// [8]  upc_on                      1       1
+// [7]  control_supply_switched     1       1
+// [6]  clock_supply_switched       1       1
+// [5]  sar_ratio_roughly_adjusted  1       1
+// [4]  sar_stabilized              1       1
+// [3]  sar_reset                   1       1
+// [2]  wait_for_cap_charge         1       1
+// [1]  wait_for_clock_cycles       1       1
+// [0]  sar_on                      1       1
+//-------------------------------------------------------------------
+union pmu_state_t {
+    struct {
+        unsigned sar_on                     : 1;    // [0]
+        unsigned wait_for_clock_cycles      : 1;    // [1]
+        unsigned wait_for_cap_charge        : 1;    // [2]
+        unsigned sar_reset                  : 1;    // [3]
+        unsigned sar_stabilized             : 1;    // [4]
+        unsigned sar_ratio_roughly_adjusted : 1;    // [5]
+        unsigned clock_supply_switched      : 1;    // [6]
+        unsigned control_supply_switched    : 1;    // [7]
+        unsigned upc_on                     : 1;    // [8]
+        unsigned upc_stabilized             : 1;    // [9]
+        unsigned refgen_on                  : 1;    // [10]
+        unsigned adc_output_ready           : 1;    // [11]
+        unsigned adc_adjusted               : 1;    // [12]
+        unsigned sar_ratio_adjusted         : 1;    // [13]
+        unsigned dnc_on                     : 1;    // [14]
+        unsigned dnc_stabilized             : 1;    // [15]
+        unsigned vdd_3p6_turned_on          : 1;    // [16]
+        unsigned vdd_1p2_turned_on          : 1;    // [17]
+        unsigned vdd_0p6_turned_on          : 1;    // [18]
+        unsigned vbat_read_only             : 1;    // [19]
+        unsigned horizon                    : 1;    // [20]
+    };
+    uint32_t value;
+};
+
+#define __PMU_DESIRED_STATE_SLEEP_DEFAULT__  0x17FFFF
+#define __PMU_DESIRED_STATE_ACTIVE_DEFAULT__ 0x07CFFF
+
+volatile union pmu_state_t __pmu_desired_state_sleep__;   // Register 0x3B
