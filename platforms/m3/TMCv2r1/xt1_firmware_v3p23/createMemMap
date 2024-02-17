@@ -1,0 +1,191 @@
+#!/usr/bin/perl 
+##########################################################################################################################
+# <Description>
+#
+# <Prerequisites>
+#
+# <Usage>
+#
+# <Example>
+#
+# <Update History>
+#
+# 02/10/2024 - First Version 
+#
+# ---------------------------
+# Author:       Yejoong Kim
+# Last Updated: Feb 10, 2024.
+##########################################################################################################################
+
+#--- Original .hex file
+$inFile = $ARGV[0];
+open (IN, "$inFile") || die "ERROR: Cannot open the file $inFile\n";
+
+#--- Pointer where the last address will be stored
+$ptrAddrHex = $ARGV[1];
+$ptrAddrHex =~ s/^0x//;
+$ptrAddrDec = Hex2Dec($ptrAddrHex);
+$ptrAddrHex = Dec2Hex($ptrAddrDec, 8);
+
+#--- New .hex file (temporarily named as .tmp)
+$outFile = $inFile;
+$outFile =~ s/\.hex/.tmp/;
+open (OUT, ">$outFile") || die "ERROR: Cannot open the file $outFile\n";
+
+#--- Memory Map File
+$memFile = $inFile;
+$memFile =~ s/\.hex/.memmap/;
+open (MEM, ">$memFile") || die "ERROR: Cannot open the file $memFile\n";
+
+#--- CRC Result File
+$crcFile = $inFile;
+$crcFile =~ s/\.hex/.crc/;
+open (CRC, ">$crcFile") || die "ERROR: Cannot open the file $crcFile\n";
+
+
+# Read in the original .hex file
+@origHexByte = <IN>;
+foreach (@origHexByte) { chop($_); $_ = uc $_; }
+
+# Analyze the original .hex file size
+$numBytes = scalar(@origHexByte);
+$numWords = $numBytes>>2;
+$lastMemAddrDec = $numBytes - 4;
+$lastMemAddrHex = Dec2Hex($lastMemAddrDec, 8);
+
+# OUT, MEM, CRC Calculation
+print MEM " MEM_IDX  |   MEM    |          \n";
+print MEM " DEC  HEX |   ADDR   |   DATA   \n";
+print MEM "--------------------------------\n";
+
+$memAddrDec = 0;
+$crcDec = 1;
+
+for ($memAddrDec = 0; $memAddrDec < ($lastMemAddrDec+1); $memAddrDec = $memAddrDec + 4) {
+    $wordHex =    $origHexByte[$memAddrDec+3] 
+                . $origHexByte[$memAddrDec+2] 
+                . $origHexByte[$memAddrDec+1] 
+                . $origHexByte[$memAddrDec+0];
+
+    # Replace if ptrAddrDec
+    if (($ptrAddrDec!=0) && ($memAddrDec==$ptrAddrDec)) {
+        $wordHex = $lastMemAddrHex;
+    }
+
+    # Print to .memmap file
+    $memIdxDec  = $memAddrDec >> 2;
+    $memIdxHex  = Dec2Hex($memIdxDec, 3);
+    $memAddrHex = Dec2Hex($memAddrDec, 8);
+    $addr = sprintf("%4d (%3s) [%8s]: ", $memIdxDec, $memIdxHex, $memAddrHex);
+    print MEM $addr . $wordHex . "\n";
+
+    # Calculate CRC & Generate the new hex file
+    $a = $crcDec % 65536;
+    $b = $crcDec >> 16;
+    $tempDec = Hex2Dec($wordHex);
+    for ($i=0; $i<4; $i=$i+1) {
+        $byteDec = $tempDec % 256;
+        $a = ($a + $byteDec) % 65521;
+        $b = ($b + $a) % 65521;
+        print OUT lc Dec2Hex($byteDec, 2) . "\n";
+        $tempDec = $tempDec >> 8;
+    }
+    $crcDec = ($b<<16) + $a;
+}
+
+# Write the CRC result
+$crcHex = Dec2Hex($crcDec, 8);
+print CRC "File Name      : $inFile"."\n";
+print CRC "Code Size      : $numBytes Byte(s)"."\n";
+print CRC "Total Num Words: $numWords"."\n";
+print CRC "Last MEM ADDR  : 0x$lastMemAddrHex (Written at 0x$ptrAddrHex)"."\n";
+print CRC "---------------------------------------------------"."\n";
+print CRC "CRC (Dec): 0d".$crcDec."\n";
+print CRC "CRC (Hex): 0x".$crcHex."\n";
+print CRC "CRC (Hex;Big-Endian): ".substr($crcHex,6,2)." ".substr($crcHex,4,2)." ".substr($crcHex,2,2)." ".substr($crcHex,0,2)."\n";
+
+# Close Files
+close(IN);
+close(OUT);
+close(MEM);
+close(CRC);
+
+# Rename Files
+system("mv -f $inFile $inFile.bak");   # mv -vf example.hex example.hex.bak
+system("mv -f $outFile $inFile");      # mv -vf example.tmp example.hex
+
+# Display 
+print "[INFO] ------ Last Address 0x$lastMemAddrHex has been written to $inFile\n";
+print "[INFO] ------ Memory Map File $memFile has been created\n";
+print "[INFO] ------ CRC File $crcFile has been created\n";
+
+exit;
+
+sub Dec2Hex {
+	my $numDec = $_[0];
+	my $length = $_[1];
+	my $idx_i;
+	my $mod;
+	my $hex;
+	my $hexLength;
+	my $numHex = "";
+
+	while ($numDec > 0) {
+		$mod = $numDec % 16;
+
+		if    ($mod == 0) { $hex = "0";}
+		elsif ($mod == 1) { $hex = "1";}
+		elsif ($mod == 2) { $hex = "2";}
+		elsif ($mod == 3) { $hex = "3";}
+		elsif ($mod == 4) { $hex = "4";}
+		elsif ($mod == 5) { $hex = "5";}
+		elsif ($mod == 6) { $hex = "6";}
+		elsif ($mod == 7) { $hex = "7";}
+		elsif ($mod == 8) { $hex = "8";}
+		elsif ($mod == 9) { $hex = "9";}
+		elsif ($mod == 10) { $hex = "A";}
+		elsif ($mod == 11) { $hex = "B";}
+		elsif ($mod == 12) { $hex = "C";}
+		elsif ($mod == 13) { $hex = "D";}
+		elsif ($mod == 14) { $hex = "E";}
+		elsif ($mod == 15) { $hex = "F";}
+
+		$numHex = $hex . $numHex;
+		$numDec = int($numDec / 16);
+	}
+
+	$hexLength = length($numHex);
+
+	if ($hexLength > $length) { $numHex = substr ($numHex, $hexLength - $length, $length);}
+	else {
+		for ($idx_i=0; $idx_i<($length - $hexLength); $idx_i++) { $numHex = "0" . $numHex;}
+	}
+
+	return $numHex;
+}
+
+sub Hex2Dec {
+    my $numHex = $_[0];
+    my $length = length($numHex);
+    my @digit_rev = split(//, $numHex);
+    my @digit;
+    my $idx_i;
+    my $numDig = 0;
+
+    for ($idx_i=0; $idx_i<$length; $idx_i++) { $digit[$idx_i] = $digit_rev[$length-1-$idx_i]; }
+
+    for ($idx_i=0; $idx_i<$length; $idx_i++) { 
+        if    ($digit[$idx_i] =~ /a/i) {$digit[$idx_i] = 10;}
+        elsif ($digit[$idx_i] =~ /b/i) {$digit[$idx_i] = 11;}
+        elsif ($digit[$idx_i] =~ /c/i) {$digit[$idx_i] = 12;}
+        elsif ($digit[$idx_i] =~ /d/i) {$digit[$idx_i] = 13;}
+        elsif ($digit[$idx_i] =~ /e/i) {$digit[$idx_i] = 14;}
+        elsif ($digit[$idx_i] =~ /f/i) {$digit[$idx_i] = 15;}
+        elsif ($digit[$idx_i] =~ /x/i) {$digit[$idx_i] = 0;}
+
+        $numDig = $numDig + ($digit[$idx_i] * (16**$idx_i));
+    }
+    
+    return $numDig;
+}
+
