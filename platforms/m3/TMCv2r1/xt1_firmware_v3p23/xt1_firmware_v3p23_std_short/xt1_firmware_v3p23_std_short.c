@@ -78,8 +78,8 @@
 //  -----------------------------------------
 //  TYPE     WUP PMU SNT I2C MET WTH GEN INIT
 //  -----------------------------------------
-//  PLAY             v   v   v   v    
-//  TICK                                 v
+//  PLAY                              
+//  TICK             v   v   v   v       v
 //  LOWBAT   v   v   v   v   v   v   v
 //  BSLASH   v   v   v   v   v   v   v   v
 //  SLASH                            
@@ -3859,19 +3859,19 @@ void fail_handler(uint32_t id) {
     }
     // Timeout during SNT temperature measurement
     else if (id==FAIL_ID_SNT) {
-        disp_pattern = DISP_LOWBATT|DISP_BACKSLASH|DISP_PLAY;
+        disp_pattern = DISP_LOWBATT|DISP_BACKSLASH|DISP_TICK;
     }
     // I2C NAK Failure
     else if (id==FAIL_ID_I2C) {
-        disp_pattern = DISP_LOWBATT|DISP_BACKSLASH|DISP_PLAY|DISP_MINUS;
+        disp_pattern = DISP_LOWBATT|DISP_BACKSLASH|DISP_TICK|DISP_MINUS;
     }
     // Meta-Stability (SNT Timer Reading)
     else if (id==FAIL_ID_MET) {
-        disp_pattern = DISP_LOWBATT|DISP_BACKSLASH|DISP_PLAY|DISP_PLUS;
+        disp_pattern = DISP_LOWBATT|DISP_BACKSLASH|DISP_TICK|DISP_PLUS;
     }
     // Timeout during SNT Timer Threshold Update
     else if (id==FAIL_ID_WTH) {
-        disp_pattern = DISP_LOWBATT|DISP_BACKSLASH|DISP_PLAY|DISP_PLUS|DISP_MINUS;
+        disp_pattern = DISP_LOWBATT|DISP_BACKSLASH|DISP_TICK|DISP_PLUS|DISP_MINUS;
     }
     // Generic/Unknown Timeout
     else {

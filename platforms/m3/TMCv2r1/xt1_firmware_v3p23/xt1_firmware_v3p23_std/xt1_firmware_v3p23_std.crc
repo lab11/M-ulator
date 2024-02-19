@@ -3,6 +3,6 @@ Code Size      : 14300 Byte(s)
 Total Num Words: 3575
 Last MEM ADDR  : 0x000037D8 (Written at 0x00000010)
 ---------------------------------------------------
-CRC (Dec): 0d4005033060
-CRC (Hex): 0xEEB7F464
-CRC (Hex;Big-Endian): 64 F4 B7 EE
+CRC (Dec): 0d315815016
+CRC (Hex): 0x12D2F468
+CRC (Hex;Big-Endian): 68 F4 D2 12
