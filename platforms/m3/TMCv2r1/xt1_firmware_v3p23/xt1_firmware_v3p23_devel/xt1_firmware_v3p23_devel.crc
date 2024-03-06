@@ -1,8 +1,8 @@
 File Name      : xt1_firmware_v3p23_devel/xt1_firmware_v3p23_devel.hex
-Code Size      : 15356 Byte(s)
-Total Num Words: 3839
-Last MEM ADDR  : 0x00003BF8 (Written at 0x00000010)
+Code Size      : 15364 Byte(s)
+Total Num Words: 3841
+Last MEM ADDR  : 0x00003C00 (Written at 0x00000010)
 ---------------------------------------------------
-CRC (Dec): 0d1721434906
-CRC (Hex): 0x669B031A
-CRC (Hex;Big-Endian): 1A 03 9B 66
+CRC (Dec): 0d79432718
+CRC (Hex): 0x04BC0C0E
+CRC (Hex;Big-Endian): 0E 0C BC 04

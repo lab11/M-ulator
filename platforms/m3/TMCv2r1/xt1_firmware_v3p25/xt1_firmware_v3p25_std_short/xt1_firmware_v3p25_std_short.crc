@@ -1,0 +1,8 @@
+File Name      : xt1_firmware_v3p25_std_short/xt1_firmware_v3p25_std_short.hex
+Code Size      : 14276 Byte(s)
+Total Num Words: 3569
+Last MEM ADDR  : 0x000037C0 (Written at 0x00000010)
+---------------------------------------------------
+CRC (Dec): 0d3442339223
+CRC (Hex): 0xCD2DED97
+CRC (Hex;Big-Endian): 97 ED 2D CD

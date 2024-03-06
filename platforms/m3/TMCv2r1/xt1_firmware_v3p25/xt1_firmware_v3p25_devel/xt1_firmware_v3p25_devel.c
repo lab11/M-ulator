@@ -1,9 +1,9 @@
 //*******************************************************************************************
 // XT1 (TMCv2r1) FIRMWARE
-// Version 3.23 (standard)
+// Version 3.25 (devel)
 //------------------------
 #define HARDWARE_ID 0x01005843  // XT1r1 Hardware ID
-#define FIRMWARE_ID 0x0317      // [15:8] Integer part, [7:0]: Non-Integer part
+#define FIRMWARE_ID 0x0319      // [15:8] Integer part, [7:0]: Non-Integer part
 //-------------------------------------------------------------------------------------------
 // SNT Timer Read Time-Out (snt_sync_read_wup_timer() in snt_read_wup_timer())
 //
@@ -503,9 +503,9 @@
 // Enable 'DEVEL' for the following features:
 //      - Send debug messages
 //      - Use default values rather than grabbing the values from EEPROM
-//#define DEVEL
-#define ENABLE_GOC_CRC                    // Enable GOC CRC Calculation
-#define ENABLE_RAW                        // Enable support for SAMPLE_RAW
+#define DEVEL
+//#define ENABLE_GOC_CRC                    // Enable GOC CRC Calculation
+//#define ENABLE_RAW                        // Enable support for SAMPLE_RAW
 //#define ENABLE_XO_PAD
 //#define ENABLE_EID_WATCHDOG               // Enable EID Watchdog
 //#define USE_SHORT_REFRESH
@@ -596,7 +596,7 @@
 #define WAKEUP_BY_GPIO2     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 10))
 #define WAKEUP_BY_GPIO3     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 11))
 #define WAKEUP_BY_SNT       WAKEUP_BY_MBUS
-#define WAKEUP_BY_NFC       WAKEUP_BY_GPIO1
+#define WAKEUP_BY_NFC       WAKEUP_BY_GPIO0
 #define MAIN_CALLED_BY_SNT  (WAKEUP_BY_SNT && get_bit(wakeup_source, 7))
 #define MAIN_CALLED_BY_NFC  (WAKEUP_BY_NFC && get_bit(wakeup_source, 7))
 
@@ -895,7 +895,6 @@ volatile uint32_t comp_bit_pos;             // Bit position; 0 means Byte#128[0]
                                             //          qword_id=comp_bit_pos>>7
 volatile uint32_t qword[4];                 // Current (incomplete) Quadword
 
-volatile uint32_t aes_key_valid;            // 1 indicates *(AES_KEY_n) is valid for the current wakeup session (It is NOT for the aes_key[4])
 volatile uint32_t aes_key[4];               // Clone of the AES Key written to EEPROM (EEPROM is reset after the cloning is done)
 
 volatile uint32_t crc32;                    // Adler-32 CRC Value (If ENABLE_GOC_CRC, it is also used to check the GOC CRC)
@@ -3754,13 +3753,10 @@ void aes_encrypt (uint32_t* pt) {
 
     uint32_t i;
 
-    // Set the key if needed
-//    if (!aes_key_valid) {
-        for (i=0; i<4; i++) {
-            *(AES_KEY_0+i) = *(aes_key+i);
-        }
-        aes_key_valid = 1;
-//    }
+    // Set the key
+    for (i=0; i<4; i++) {
+        *(AES_KEY_0+i) = *(aes_key+i);
+    }
 
     // Set Plain Text
     for (i=0; i<4; i++) {
@@ -4020,7 +4016,6 @@ int main(void) {
 
         // Reset variables
         meas.valid = 0;
-        aes_key_valid = 0;
 
         // If this is the very first wakeup, initialize the system
         if (!get_flag(FLAG_INITIALIZED)) operation_init();

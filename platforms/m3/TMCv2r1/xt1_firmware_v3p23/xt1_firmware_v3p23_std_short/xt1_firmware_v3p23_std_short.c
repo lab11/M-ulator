@@ -3755,12 +3755,12 @@ void aes_encrypt (uint32_t* pt) {
     uint32_t i;
 
     // Set the key if needed
-    if (!aes_key_valid) {
+//    if (!aes_key_valid) {
         for (i=0; i<4; i++) {
             *(AES_KEY_0+i) = *(aes_key+i);
         }
         aes_key_valid = 1;
-    }
+//    }
 
     // Set Plain Text
     for (i=0; i<4; i++) {
