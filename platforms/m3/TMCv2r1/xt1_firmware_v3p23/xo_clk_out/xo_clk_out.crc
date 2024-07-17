@@ -1,8 +1,8 @@
 File Name      : xo_clk_out/xo_clk_out.hex
-Code Size      : 900 Byte(s)
-Total Num Words: 225
-Last MEM ADDR  : 0x00000380 (Written at 0x00000010)
+Code Size      : 1016 Byte(s)
+Total Num Words: 254
+Last MEM ADDR  : 0x000003F4 (Written at 0x00000010)
 ---------------------------------------------------
-CRC (Dec): 0d3984917936
-CRC (Hex): 0xED8505B0
-CRC (Hex;Big-Endian): B0 05 85 ED
+CRC (Dec): 0d2742497504
+CRC (Hex): 0xA37730E0
+CRC (Hex;Big-Endian): E0 30 77 A3

@@ -36,6 +36,12 @@ int main(void);
 
 //--- Initialization/Sleep/IRQ Handling
 static void operation_init(void);
+void disable_all_irq_except_timer32(void);
+
+void disable_all_irq_except_timer32(void) {
+    *NVIC_ICPR = 0xFFFFFFFF;
+    *NVIC_ICER = ~(1 << IRQ_TIMER32);
+}
 
 //-------------------------------------------------------------------
 // Function: operation_init
@@ -144,6 +150,76 @@ static void operation_init (void) {
     }
 
 }
+
+//void handler_ext_int_wakeup   (void) __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_softreset(void) __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_gocep    (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_timer32  (void) __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_timer16  (void) __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_mbustx   (void) __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_mbusrx   (void) __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_mbusfwd  (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_wfi      (void) __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_reg0     (void) __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_reg1     (void) __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_reg2     (void) __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_reg3     (void) __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_reg4     (void) __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_reg5     (void) __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_reg6     (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg7     (void) __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_mbusmem  (void) __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_aes      (void) __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_spi      (void) __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_xot      (void) __attribute__ ((interrupt ("IRQ")));
+
+// TIMER32 - Timeout Check
+void handler_ext_int_timer32 (void) {
+    disable_all_irq_except_timer32();
+    *TIMER32_STAT = 0x0;
+    *TIMER32_GO = 0x0;
+//    fail_handler(/*id*/__wfi_id__);
+    // If __wfi_id__=FAIL_ID_SOFT, fail_handler() immediately returns here. 
+    // Change it to FAIL_ID_PEND to notify the caller.
+    __wfi_id__ = FAIL_ID_PEND;
+}
+void handler_ext_int_wfi (void) {
+    // REG0: PMU
+    // REG1: SNT (Temperature Sensor)
+    // REG2: EID Display Update
+    // REG5: SNT (Wakeup Timer)
+    // AES : AES
+    disable_all_irq_except_timer32();
+    *TIMER32_GO = 0;
+//    __wfi_id__ = FAIL_ID_NONE;
+}
+//// PMU (PMU_TARGET_REG_IDX)
+//void handler_ext_int_reg0 (void) {
+//    disable_all_irq_except_timer32();
+//}
+//// SNT (Temperature Sensor) (SNT_TARGET_REG_IDX)
+//void handler_ext_int_reg1 (void) {
+//    disable_all_irq_except_timer32();
+//}
+////  EID (EID_TARGET_REG_IDX)
+//void handler_ext_int_reg2 (void) {
+//    disable_all_irq_except_timer32();
+//}
+//// SNT (Timer Access) (WP1_TARGET_REG_IDX)
+//void handler_ext_int_reg5 (void) {
+//    disable_all_irq_except_timer32();
+//}
+// I2C ACK Failure Handling (I2C_TARGET_REG_IDX)
+void handler_ext_int_reg7 (void) {
+    disable_all_irq_except_timer32();
+    *TIMER32_GO = 0;
+    __wfi_id__ = FAIL_ID_I2C;
+//    fail_handler(/*id*/__wfi_id__);
+}
+//// AES
+//void handler_ext_int_aes (void) { 
+//    disable_all_irq_except_timer32();
+//}
 
 //********************************************************************
 // MAIN function starts here             
