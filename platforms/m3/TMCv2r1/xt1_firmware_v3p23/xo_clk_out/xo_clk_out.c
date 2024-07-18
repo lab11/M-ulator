@@ -37,10 +37,47 @@ int main(void);
 //--- Initialization/Sleep/IRQ Handling
 static void operation_init(void);
 void disable_all_irq_except_timer32(void);
+static uint32_t get_xo_cnt(void);
 
 void disable_all_irq_except_timer32(void) {
     *NVIC_ICPR = 0xFFFFFFFF;
     *NVIC_ICER = ~(1 << IRQ_TIMER32);
+}
+
+//-------------------------------------------------------------------
+// Function: get_xo_cnt
+// Args    : None
+// Description:
+//              Keep doing the asynchronous read.
+//              Return the last value if two consecutive values are the same.
+// Return  : XO counter value if no error
+//           0 if #tries exceeds 5
+//-------------------------------------------------------------------
+static uint32_t get_xo_cnt(void) {
+    //----------------------------------------
+    // GETTING THE SAME VALUES TWICE CONSECUTIVELY
+    //----------------------------------------
+
+    uint32_t temp = *XOT_VAL_ASYNC;
+    uint32_t temp_prev;
+    uint32_t num_same_reads = 1;
+    uint32_t num_try = 0;
+
+    while ((num_same_reads < 2) && (num_try<5)) {
+        temp_prev = temp;
+        temp = *XOT_VAL_ASYNC;
+        if (temp==temp_prev) num_same_reads++;
+        else num_same_reads=1;
+        num_try++;
+    }
+
+    if (num_try >= 5) {
+        return 0;
+    }
+    else {
+        if (temp==0) temp=1;    // Avoid returning 0, as 0 indicates an error.
+        return temp;
+    }
 }
 
 //-------------------------------------------------------------------
@@ -227,6 +264,10 @@ void handler_ext_int_reg7 (void) {
 
 int main(void) {
 
+    uint32_t xo_prev;
+    uint32_t xo_curr;
+    uint32_t xo_restart;
+
     // Disable PRE Watchdog
     *TIMERWD_GO  = 0;
 
@@ -237,6 +278,29 @@ int main(void) {
     *REG_WUPT_CONFIG = *REG_WUPT_CONFIG & 0xFF3FFFFF; // WUP_ENABLE=0, WUP_WREQ_EN=0
 
     operation_init();
+
+    //--------------------------------------------------------------------------
+    // Check XO clock running
+    //--------------------------------------------------------------------------
+    xo_prev = get_xo_cnt();
+    while(1) {
+        xo_restart = 0;
+        delay(DLY_1S);  // NOTE: XO normal freq is 1kHz. 
+
+        // Check the counter
+        xo_curr = get_xo_cnt();
+        if (xo_curr > xo_prev) {
+            if ((xo_curr - xo_prev) < 100) xo_restart = 1;
+        } else {
+            if ((xo_prev - xo_curr) < 100) xo_restart = 1;
+        }
+
+        // Restart the XO if needed
+        if (xo_restart) restart_xo(/*delay_a*/XO_WAIT_A, /*delay_b*/XO_WAIT_B);
+
+        // Update xo_prev
+        xo_prev = get_xo_cnt();
+    }
 
     //--------------------------------------------------------------------------
     // Dummy Buffer
