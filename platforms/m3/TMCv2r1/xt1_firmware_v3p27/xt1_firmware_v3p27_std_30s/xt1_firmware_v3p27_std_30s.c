@@ -1326,6 +1326,9 @@ static void operation_init (void) {
         //-------------------------------------------------
         pmu_init();
 
+        // Need to initialize meas.sar as the future SAR value can only change by 1 from meas.sar.
+        meas.sar = __PMU_SAR_INITIAL_VALUE__;
+
         //-------------------------------------------------
         // SNT Settings
         //-------------------------------------------------

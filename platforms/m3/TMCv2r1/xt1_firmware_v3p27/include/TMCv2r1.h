@@ -417,6 +417,7 @@ volatile uint32_t __pmu_temp_state__; // Current PMU temperature. e.g., PMU_10C,
 #define __PMU_ADC_UPPER_LIMIT__     164 // The ADC value is ignored if it is higher than __PMU_ADC_UPPER_LIMIT__
 #define __PMU_ADC_LOWER_LIMIT__     64  // The ADC value is ignored if it is lower than __PMU_ADC_LOWER_LIMIT__
 
+#define __PMU_SAR_INITIAL_VALUE__   76  // SAR Initial Value (0x4C)
 #define __PMU_ADC_SAR_HYSTERESIS__  1   // Hysteresis used in PMU SAR Adjustment
 
 #define __PMU_NUM_CONS_MEAS__       5   // Number of consecutive measurements required to trigger Low VBAT warning/Crash Handler.

@@ -836,7 +836,7 @@ void pmu_init(void){
     __pmu_crit_vbat_streak__        = 0;
 
     // Initialize SAR Ratio
-    pmu_set_sar_ratio(0x4C); // See pmu_calc_new_sar_ratio()
+    pmu_set_sar_ratio(__PMU_SAR_INITIAL_VALUE__); // See pmu_calc_new_sar_ratio()
     __pmu_last_effective_adc_val__ = 0;
 
     // Disable ADC in Active
