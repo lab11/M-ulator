@@ -1,0 +1,8 @@
+File Name      : initial/initial.hex
+Code Size      : 2824 Byte(s)
+Total Num Words: 706
+Last MEM ADDR  : 0x00000B04 (Written at 0x00000010)
+---------------------------------------------------
+CRC (Dec): 0d2166811924
+CRC (Hex): 0x8126ED14
+CRC (Hex;Big-Endian): 14 ED 26 81
