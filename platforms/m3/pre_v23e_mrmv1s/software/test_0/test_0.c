@@ -1,6 +1,71 @@
 //*******************************************************************************************
-// XT1 (TMCv2r1) FIRMWARE
-// Version 3.23 (devel)
+// MRMv1S Testing Suite
+//-------------------------------------------------------------------------------------------
+// GOC/EP IRQ 
+//-------------------------------------------------------------------------------------------
+//
+//  ------------------------------------------------------------
+//   goc_head = 0x00: Access PRC/PRE SRAM
+//  ------------------------------------------------------------
+//        goc_data = 0x000000: Set data_tx[n] = goc_data_ext w/ shuffle=0
+//        goc_data = 0x000001: Set data_tx[n] = goc_data_ext w/ shuffle=1
+//        goc_data = 0x000002: Send data_tx[] out through MBus
+//        goc_data = 0x000003: Send data_rx[] out through MBus
+//        goc_data = 0x000004: Send data_rand[] out through MBus
+//  
+//  ------------------------------------------------------------
+//   goc_head = 0x01: Basic Power Control
+//  ------------------------------------------------------------
+//        goc_data = 0x00000n: Turn on Macro#n
+//        goc_data = 0x000006: Turn off all macros
+//        goc_data = 0x000007: Turn on the LDO
+//        goc_data = 0x000008: Turn off the LDO
+//        goc_data = 0x00000F: Send MBus Sleep Message
+//  
+//  ------------------------------------------------------------
+//   goc_head = 0x02: Accessing MRM SRAM
+//  ------------------------------------------------------------
+//        goc_data = 0x000000: Read data_tx[] and Write into MRM SRAM.   i.e., MRM_SRAM[goc_data_ext+n] = data_tx[n], where n=0, ..., BUF_SIZE-1
+//        goc_data = 0x000001: Read MRM SRAM and Write into data_rx[].   i.e., data_rx[n] = MRM_SRAM[goc_data_ext+n], where n=0, ..., BUF_SIZE-1
+//        goc_data = 0x000002: Repeatedly write data_tx[] into MRM_SRAM. i.e., MRM_SRAM[BUF_SIZE x i + n] = data_tx[n], where n=0, ..., BUF_SIZE-1, and i=0, ..., 511
+//        goc_data = 0x000003: Write all-1 in MRM_SRAM. i.e., MRM_SRAM[n] = 0xFFFFFFFF, where n=0, ..., 16383; NOTE: This alters data_tx[].
+//        goc_data = 0x000004: Write all-0 in MRM_SRAM. i.e., MRM_SRAM[n] = 0x00000000, where n=0, ..., 16383; NOTE: This alters data_tx[].
+//        goc_data = 0x000005: Write goc_data_ext (w/ shuffle) in MRM_SRAM. i.e., MRM_SRAM[n] = goc_ext_data (w/ shuffle), where n=0, ..., 16383; NOTE: This alters data_tx[].
+//  
+//  ------------------------------------------------------------
+//   goc_head = 0x03: Read MRM SRAM and put it on the MBus
+//  ------------------------------------------------------------
+//        goc_data = n: Read MRM SRAM, starting from Page#(goc_data_ext), for n pages, and put it on MBus.
+//  
+//  ------------------------------------------------------------
+//   goc_head = 0x04: Read MRM MRAM and put it on the MBus
+//  ------------------------------------------------------------
+//        goc_data = n: Read MRM MRAM, starting from Page#(goc_data_ext), for n pages, and put it on MBus.
+//  
+//  ------------------------------------------------------------
+//   goc_head = 0x07: Ping-Pong (TMC_CLOCK_MODE=0)
+//   goc_head = 0x08: Ping-Pong (TMC_CLOCK_MODE=1)
+//  ------------------------------------------------------------
+//        goc_data = 0x000000: Force stop the Ping-Pong mode.
+//        goc_data = 0x000001: Goes into Ping-Pong Mode using DATA_EXT[0], with num_pages = goc_data_ext.
+//        goc_data = 0x000002: Goes into Ping-Pong Mode using DATA_EXT[1], with num_pages = goc_data_ext.
+//        goc_data = 0x000003: Goes into Ping-Pong Mode using DATA_EXT[1:0], with num_pages = goc_data_ext.
+//  
+//  ------------------------------------------------------------
+//   goc_head = 0x0A: Normal (Non-Ping-Pong) Test Suite (TMC_RST_AUTO_WK=0)
+//   goc_head = 0x0B: Normal (Non-Ping-Pong) Test Suite (TMC_RST_AUTO_WK=1)
+//  ------------------------------------------------------------
+//        goc_data = 0x000000: All-0 Test
+//        goc_data = 0x000001: All-1 Test
+//        goc_data = 0x000002: Random Data Test
+//        goc_data = 0x000003: Run All-0, All-1, Random Data, sequentially.
+//        goc_data = other   : Send the result through MBus
+//
+//  ------------------------------------------------------------
+//   goc_head = 0xFF: Miscellaneous
+//  ------------------------------------------------------------
+//        goc_data = 0xFFFFFF: NOP
+//
 //-------------------------------------------------------------------------------------------
 // Use of Cortex-M0 Vector Table
 //-------------------------------------------------------------------------------------------
@@ -85,29 +150,25 @@
 
 #include "mbus.h"
 #include "PREv23E.h"
+#include "MRMv1S.h"
 
 //*******************************************************************************************
 // COMPILE SETTING
 //*******************************************************************************************
-#define DEVEL
+//#define DEVEL // Not used for now.
 
 //*******************************************************************************************
 // ENUMERATION
 //*******************************************************************************************
 #define MRM_ADDR 0x4
+#define DBG_ADDR 0xA
+#define RES_ADDR 0xC
 
 //*******************************************************************************************
 // FLAG BIT INDEXES
 //*******************************************************************************************
 #define FLAG_ENUMERATED         0
 #define FLAG_INITIALIZED        1
-#define FLAG_XO_INITIALIZED     2
-#define FLAG_WD_ENABLED         3   // Only if ENABLE_EID_WATCHDOG is enabled.
-#define FLAG_MAIN_CALLED_BY_SNT 4   // Sleep has been bypassed before the current active session. Thus, main() has called from within operation_sleep(). This implies that xo_val_curr is inaccurate.
-#define FLAG_INVLD_XO_PREV      5   // Sleep has been bypassed before the previous active session. This implies that xo_val_prev is inaccurate.
-#define FLAG_BOOTUP_DONE        6
-#define FLAG_MAIN_CALLED_BY_NFC 7   // Same as FLAG_MAIN_CALLED_BY_SNT. The only difference is that it directly calls main() because it detects a GPO pulse during the 1st wakeup.
-#define FLAG_TEMP_MEAS_PEND     8   // Indicates that the system has gone sleep for temperature measurement
 
 //*******************************************************************************************
 // WAKEUP SOURCE DEFINITIONS
@@ -122,48 +183,30 @@
 #define WAKEUP_BY_GPIO1     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 9))
 #define WAKEUP_BY_GPIO2     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 10))
 #define WAKEUP_BY_GPIO3     (WAKEUP_BY_GPIO && get_bit(wakeup_source, 11))
-#define WAKEUP_BY_SNT       WAKEUP_BY_MBUS
-#define WAKEUP_BY_NFC       WAKEUP_BY_GPIO0
-#define MAIN_CALLED_BY_SNT  (WAKEUP_BY_SNT && get_bit(wakeup_source, 7))
-#define MAIN_CALLED_BY_NFC  (WAKEUP_BY_NFC && get_bit(wakeup_source, 7))
 
 volatile uint32_t wakeup_source;            // Wakeup Source. Updated each time the system wakes up. See 'WAKEUP_SOURCE definition'.
-
-//*******************************************************************************************
-// XO, SNT WAKEUP TIMER AND SLEEP DURATIONS
-//*******************************************************************************************
-
-// XO Frequency
-#define XO_FREQ_SEL 0                       // XO Frequency (in kHz) = 2 ^ XO_FREQ_SEL
-#define XO_FREQ     1<<(XO_FREQ_SEL+10)     // XO Frequency (in Hz)
-
-// XO Initialization Wait Duration
-#define XO_WAIT_A   2*DLY_1S    // Must be ~1 second delay.
-#define XO_WAIT_B   2*DLY_1S    // Must be ~1 second delay.
 
 //-------------------------------------------------------------------------------------------
 // Other Global Variables
 //-------------------------------------------------------------------------------------------
+
+volatile uint32_t goc_irq_count;
+volatile uint32_t goc_head;
+volatile uint32_t goc_data;
+volatile uint32_t goc_data_ext;
+
 #define BUF_SIZE 32
-volatile uint32_t data[BUF_SIZE];
+volatile uint32_t data_rand[BUF_SIZE];
+volatile uint32_t data_tx[BUF_SIZE];
+volatile uint32_t data_rx[BUF_SIZE];
 
-// MRAM GO Command
-#define CMD_NOP             0x0
-#define CMD_CP_MRAM2SRAM    0x1
-#define CMD_CP_SRAM2MRAM    0x2
-#define CMD_TMC_CMD         0x3
-#define CMD_TMC_JTAG        0x4
-#define CMD_EXT_WR_SRAM     0x6
-#define CMD_START_BOOT      0x8
-#define CMD_MEAS_CLK_FREQ   0x9
-
-#define EXP_CP_MRAM2SRAM    0x2F
-#define EXP_CP_SRAM2MRAM    0x3F
-#define EXP_TMC_CMD         0x0
-#define EXP_TMC_JTAG        0x0
-#define EXP_EXT_WR_SRAM     0x0
-#define EXP_START_BOOT      0x0
-#define EXP_MEAS_CLK_FREQ   0x0
+volatile uint32_t result_num_page_err[3];
+volatile uint32_t result_num_word_err[3];
+volatile uint32_t result_num_bit_err[3];
+volatile uint32_t result_page_id[3];
+volatile uint32_t result_word_offset[3];
+volatile uint32_t result_word_correct[3];
+volatile uint32_t result_word_actual[3];
 
 //*******************************************************************************************
 // FUNCTIONS DECLARATIONS
@@ -175,12 +218,6 @@ int main(void);
 //--- Initialization/Sleep/IRQ Handling
 static void operation_sleep (void);
 static void operation_init(void);
-void disable_all_irq_except_timer32_gocep(void);
-
-//--- MRAM Functions
-static void turn_on_ldo_manual (void);
-static uint32_t turn_on_ldo (void);
-static uint32_t sram_test (void);
 
 //*******************************************************************************************
 // FUNCTIONS IMPLEMENTATION
@@ -198,10 +235,6 @@ static uint32_t sram_test (void);
 // Return  : None
 //-------------------------------------------------------------------
 static void operation_sleep (void) {
-
-    // Reset GOC_DATA_IRQ
-    //*GOC_DATA_IRQ = 0; // GOC IRQ is not used.
-
     mbus_sleep_all(); 
     while(1);
 }
@@ -214,6 +247,11 @@ static void operation_sleep (void) {
 // Return  : None
 //-------------------------------------------------------------------
 static void operation_init (void) {
+
+    //-------------------------------------------------
+    // Global Variable Initialization
+    //-------------------------------------------------
+    goc_irq_count = 0;
 
     //-------------------------------------------------
     // PRE Tuning
@@ -251,460 +289,45 @@ static void operation_init (void) {
     set_halt_until_mbus_tx();
 
     //-------------------------------------------------
-    // XO Settings
-    //-------------------------------------------------
-    //--- XO Frequency
-    *REG_XO_CONF2 =             // Default  // Description
-        //-----------------------------------------------------------------------------------------------------------
-        ( (0x1         << 20)   // (3'h1) XO_SEL_DLY            #Adjusts pulse delay
-        | (0x1         << 18)   // (2'h1) XO_SEL_CLK_SCN        #Selects division ratio for SCN CLK
-        | (XO_FREQ_SEL << 15)   // (3'h1) XO_SEL_CLK_OUT_DIV    #Selects division ratio for the XO CLK output. XO Freq = 2^XO_SEL_CLK_OUT_DIV (kHz)
-        | (0x1         << 14)   // (1'h1) XO_SEL_LDO            #Selects LDO output as an input to SCN
-        | (0x0         << 13)   // (1'h0) XO_SEL_0P6            #Selects V0P6 as an input to SCN
-        | (0x0         << 10)   // (3'h0) XO_I_AMP              #Adjusts VREF body bias buffer current
-        | (0x0         <<  3)   // (7'h0) XO_VREF_TUNEB         #Adjust VREF level and TC
-        | (0x0         <<  0)   // (3'h0) XO_SEL_VREF           #Selects VREF output from its diode stack
-        );
-
-    //xo_stop();  // Default value of XO_START_UP is wrong in RegFile, so need to override it.
-
-    //--- Start XO clock
-    //xo_start(/*delay_a*/XO_WAIT_A, /*delay_b*/XO_WAIT_B);
-    
-    // Update the flag
-    set_flag(FLAG_XO_INITIALIZED, 1);
-
-    //--- Configure and Start the XO Counter
-    //set_xo_timer(/*mode*/0, /*threshold*/0, /*wreq_en*/0, /*irq_en*/0, /*auto_reset*/0);
-    //start_xo_cnt();
-
-    //#ifdef ENABLE_XO_PAD
-    //    start_xo_cout();
-    //#endif
-
-    //-------------------------------------------------
     // MRMv1S Setting
     //-------------------------------------------------
-    // CLK_GEN Setting
-    //      With CLK_GEN_S = 58, then the measured frequecies will be:
-    //          CLK_SLOW = 199 kHz
-    //          CLK_FAST = 51 MHz
-    mbus_remote_register_write(MRM_ADDR, 0x26, /*CLK_GEN_S*/ 58);
+    mrm_init(/*mrm_prefix*/MRM_ADDR, /*irq_reg_idx*/0x0);
 
-    // Enable Auto Power ON/OFF
-    mbus_remote_register_write(MRM_ADDR, 0x12, 0x0
-        /* MRAM_PWR_AUTO_OFF (1'h0) */  | (0x1 << 1)
-        /* MRAM_PWR_AUTO_ON  (1'h0) */  | (0x1 << 0)
-    );
-
-    // --- TMC Configuration
-    mbus_remote_register_write(MRM_ADDR, 0x2F, 0x0
-        /* TMC_RST_AUTO_WK  (1'h1) */   | (0x0 << 5)  // If 1, TMC automatically issues AUTO_WAKEUP upon its reset release. This is handled by TMC itself, not the CTRL. TMC_RST_AUTO_WK != TMC_DO_AWK is recommended.
-        /* TMC_CLOCK_MODE   (1'h0) */   | (0x0 << 4)  // See the table in genRF.conf
-        /* TMC_CHECK_ERR    (1'h0) */   | (0x0 << 3)  // If 1, it checks TMC_ERR and terminates the operation if an error occurs. If 0, it ignores TMC_ERR and proceeds.
-        /* TMC_FAST_LOAD    (1'h1) */   | (0x1 << 2)  // If 1, it does not check TMC_BUSY or TMC_ERR for LOAD command. It also performs 4 SRAM readings without a cease.
-        /* TMC_DO_REG_LOAD  (1'h1) */   | (0x1 << 1)  // If 1, it overwrites the selected TMC registers after auto-wakeup (Valid only when TMC_DO_AWK=1)
-        /* TMC_DO_AWK       (1'h0) */   | (0x1 << 0)  // If 1, it issues TMC's Auto-Wakeup Command upon power-up. This is handled by the CTRL, not the TMC. TMC_RST_AUTO_WK != TMC_DO_AWK is recommended. For now, let's do TMC_DO_AWK=0.
-    );
-    
+    //-------------------------------------------------
+    // End of Initialization
+    //-------------------------------------------------
     set_flag(FLAG_INITIALIZED, 1);
 }
 
 //*******************************************************************************************
-// MRAM Functions
+// MRAM Test Functions
 //*******************************************************************************************
 
-void turn_on_ldo_manual (void) {
-
-    // Dummy Message to wakeup MRMv1S
-    mbus_remote_register_write(MRM_ADDR, 0x00, 0x000000);
-
-    delay(100000);
-
-    // Turn on the LDO
-    // MESSAGE #1
-    // REGISTER 0x22
-    //       [1] LDO_VREF_ENb: 1'h1 -> 1'h0
-    //       [0] LDO_ISOL_LC: 1'h1 -> 1'h0
-    // -----------------------------------------------
-    mbus_remote_register_write(MRM_ADDR, 0x22, 0x000000);
-
-    // MESSAGE #2
-    // REGISTER 0x22
-    //       [2] LDO_EN_LDO_BUF: 1'h0 -> 1'h1
-    // -----------------------------------------------
-    mbus_remote_register_write(MRM_ADDR, 0x22, 0x000004);
-
-    // MESSAGE #2
-    // REGISTER 0x22
-    //       [3] LDO_EN_LDO_1P8: 1'h0 -> 1'h1
-    //       [5] LDO_EN_DCP_1P8: 1'h0 -> 1'h1
-    // -----------------------------------------------
-    mbus_remote_register_write(MRM_ADDR, 0x22, 0x00002C);
-
-    // Delay to charge the DCP_1P8 decap
-    delay(1000);
-
-    // MESSAGE #3
-    // REGISTER 0x22
-    //       [4] LDO_EN_LDO_0P8: 1'h0 -> 1'h1
-    //       [6] LDO_EN_DCP_0P8: 1'h0 -> 1'h1
-    // -----------------------------------------------
-    mbus_remote_register_write(MRM_ADDR, 0x22, 0x00007C);
-
-    // Delay to charge the DCP_0P8 decap
-    delay(1000);
-}
-
-uint32_t turn_on_ldo (void) {
-
-    // LDO Voltage Tune
-    mbus_remote_register_write(MRM_ADDR, 0x23, 
-       /* LDO_SELB_I_CTRL_LDO_0P8 (5'h01) */   (0x1F << 19) 
-       /* LDO_SELB_I_CTRL_LDO_1P8 (5'h01) */ | (0x1F << 14) 
-       /* LDO_SELB_VOUT_LDO_1P8   (4'h7 ) */ | (0x7  << 10) 
-       /* LDO_SELB_VOUT_LDO_BUF   (4'h4 ) */ | (0x8  <<  6) 
-       /* LDO_SEL_IBIAS_LDO_0P8   (2'h1 ) */ | (0x1  <<  4) 
-       /* LDO_SEL_IBIAS_LDO_1P8   (2'h1 ) */ | (0x1  <<  2) 
-       /* LDO_SEL_IBIAS_LDO_BUF   (2'h1 ) */ | (0x1  <<  0) 
-    );
-
-    *NVIC_ISER = (1 << IRQ_REG0);
-    // REGISTER 0x21
-    //       [2] IRQ_EN: 1'b1
-    //       [1] SEL_ON: 1'b1
-    //       [0] GO    : 1'b1
-    // -----------------------------------------------
-    mbus_remote_register_write(MRM_ADDR, 0x21, 0x000007);
-    WFI();
-    *NVIC_ICER = (1 << IRQ_REG0);
-
-    if ((*REG0&0xFF) != 0x7C) return 0;
-
-    // Delay to charge the DCP_0P8 decap
-    delay(2000); // delay(1000) =~ 0.6s
-    return 1;
-}
-
-//uint32_t meas_clk_freq (void) {
-//    // [NOTE] Seems like the MEAS_CLK_FREQ command does not work.
-//    //          It may be due to the wrong condition defined in MRMv1S_def_common.v, which is:
-//    //              `define TPCOND_FULL (time_par_cnt[19:0] == {`OP_TIMEPAR_WIDTH{1'b1}})
-//    //          Since `OP_TIMEPAR_WIDTH is 24, the above condition may never be met.
-//    //
-//    //          Thus, here I am using an indirect approach, using Tpwr.
-//    //          I turn on the MRAM macro w/ Tpwr=0 and Tpwr=0xFFFF, and see the difference.
-//    //
-//    //          Results:
-//    //              S=87:
-//    //                  Measurement
-//    //                      Delay w/ Tpwr=0x0000: 0.3922ms
-//    //                      Delay w/ Tpwr=0xFFFF: 0.4798s
-//    //                      CLK_SLOW = 65536 / (0.4798 - 0.0003922) = 136.702 kHz
-//    //                      CLK_FAST = CLK_SLOW x 256 = 34.996 MHz
-//    //                  Previous Simulation:
-//    //                      CLK_SLOW = 240 kHz
-//    //                      CLK_FAST = 61 MHz
-//    //              S=58:
-//    //                  Measurement
-//    //                      Delay w/ Tpwr=0x0000: 0.2652ms
-//    //                      Delay w/ Tpwr=0xFFFF: 0.3294s
-//    //                      CLK_SLOW = 65536 / (0.3294 - 0.0002652) = 199.115 kHz
-//    //                      CLK_FAST = CLK_SLOW x 256 = 50.973 MHz
-//    //                  Previous Simulation:
-//    //                      CLK_SLOW = 348 kHz
-//    //                      CLK_FAST = 89 MHz
-//    //
-//    //          CONCLUSION:
-//    //              Use CLK_GEN_S = 58, then the measured frequecies will be:
-//    //                  CLK_SLOW = 199 kHz
-//    //                  CLK_FAST = 51 MHz
-//    
-//    // --- CLK_GEN Tuning (Default: CLK_GEN_S = 87)
-//    mbus_remote_register_write(MRM_ADDR, 0x26, /*CLK_GEN_S*/ 58);
-//
-//    // --- TMC Configuration
-//    mbus_remote_register_write(MRM_ADDR, 0x2F, 0x0
-//        /* TMC_RST_AUTO_WK  (1'h1) */   | (0x0 << 5)  // If 1, TMC automatically issues AUTO_WAKEUP upon its reset release. This is handled by TMC itself, not the CTRL. TMC_RST_AUTO_WK != TMC_DO_AWK is recommended.
-//        /* TMC_CLOCK_MODE   (1'h0) */   | (0x0 << 4)  // See the table in genRF.conf
-//        /* TMC_CHECK_ERR    (1'h0) */   | (0x0 << 3)  // If 1, it checks TMC_ERR and terminates the operation if an error occurs. If 0, it ignores TMC_ERR and proceeds.
-//        /* TMC_FAST_LOAD    (1'h1) */   | (0x0 << 2)  // If 1, it does not check TMC_BUSY or TMC_ERR for LOAD command. It also performs 4 SRAM readings without a cease.
-//        /* TMC_DO_REG_LOAD  (1'h1) */   | (0x0 << 1)  // If 1, it overwrites the selected TMC registers after auto-wakeup (Valid only when TMC_DO_AWK=1)
-//        /* TMC_DO_AWK       (1'h0) */   | (0x0 << 0)  // If 1, it issues TMC's Auto-Wakeup Command upon power-up. This is handled by the CTRL, not the TMC. TMC_RST_AUTO_WK != TMC_DO_AWK is recommended. For now, let's do TMC_DO_AWK=0.
-//    );
-//
-//    // --- Tpwr=0
-//    mbus_remote_register_write(MRM_ADDR, 0x03, 0x0
-//        /* Tpwr   (16'd200) */ | (0x0000 << 8)
-//        /* T100ns ( 8'd0)   */ | (  0x00 << 0)
-//    );
-//
-//    // --- Power-On 
-//    *NVIC_ISER = (1 << IRQ_REG0);
-//    // REGISTER 0x11
-//    //       [2] MRAM_PWR_IRQ_EN: 1'b1
-//    //       [1] MRAM_PWR_SEL_ON: 1'b1
-//    //       [0] MRAM_PWR_GO    : 1'b1
-//    // -----------------------------------------------
-//    mbus_remote_register_write(MRM_ADDR, 0x11, 0x000007);
-//    WFI();
-//    *NVIC_ICER = (1 << IRQ_REG0);
-//
-//    if ((*REG0&0xFF) != 0x94) return 0;
-//
-//    // --- Power-Off
-//    *NVIC_ISER = (1 << IRQ_REG0);
-//    // REGISTER 0x11
-//    //       [2] MRAM_PWR_IRQ_EN: 1'b1
-//    //       [1] MRAM_PWR_SEL_ON: 1'b0
-//    //       [0] MRAM_PWR_GO    : 1'b1
-//    // -----------------------------------------------
-//    mbus_remote_register_write(MRM_ADDR, 0x11, 0x000005);
-//    WFI();
-//    *NVIC_ICER = (1 << IRQ_REG0);
-//
-//    if ((*REG0&0xFF) != 0x98) return 0;
-//
-//    // --- Tpwr=0xFFFF
-//    mbus_remote_register_write(MRM_ADDR, 0x03, 0x0
-//        /* Tpwr   (16'd200) */ | (0xFFFF << 8)
-//        /* T100ns ( 8'd0)   */ | (  0x00 << 0)
-//    );
-//
-//    // --- Power-On 
-//    *NVIC_ISER = (1 << IRQ_REG0);
-//    // REGISTER 0x11
-//    //       [2] MRAM_PWR_IRQ_EN: 1'b1
-//    //       [1] MRAM_PWR_SEL_ON: 1'b1
-//    //       [0] MRAM_PWR_GO    : 1'b1
-//    // -----------------------------------------------
-//    mbus_remote_register_write(MRM_ADDR, 0x11, 0x000007);
-//    WFI();
-//    *NVIC_ICER = (1 << IRQ_REG0);
-//
-//    if ((*REG0&0xFF) != 0x94) return 0;
-//
-//    // --- Power-Off
-//    *NVIC_ISER = (1 << IRQ_REG0);
-//    // REGISTER 0x11
-//    //       [2] MRAM_PWR_IRQ_EN: 1'b1
-//    //       [1] MRAM_PWR_SEL_ON: 1'b0
-//    //       [0] MRAM_PWR_GO    : 1'b1
-//    // -----------------------------------------------
-//    mbus_remote_register_write(MRM_ADDR, 0x11, 0x000005);
-//    WFI();
-//    *NVIC_ICER = (1 << IRQ_REG0);
-//
-//    if ((*REG0&0xFF) != 0x98) return 0;
-//
-//
-//    return 1;
-//
-//}
-
-uint32_t turn_on_mram (uint32_t mid) {
-    // --- Select Macro by Writing into MRAM_START_ADDR
-    mbus_remote_register_write(MRM_ADDR, 0x08, /*MRAM_START_ADDR*/mid << 19);
-
-    // --- Power-On 
-    *NVIC_ISER = (1 << IRQ_REG0);
-    // REGISTER 0x11
-    //       [2] MRAM_PWR_IRQ_EN: 1'b1
-    //       [1] MRAM_PWR_SEL_ON: 1'b1
-    //       [0] MRAM_PWR_GO    : 1'b1
-    // -----------------------------------------------
-    mbus_remote_register_write(MRM_ADDR, 0x11, 0x000007);
-    WFI();
-    *NVIC_ICER = (1 << IRQ_REG0);
-
-    if ((*REG0&0xFF) != 0x94) return 0;
-
-    return 1;
-}
-
-uint32_t turn_off_mram (void) {
-    // --- Power-On 
-    *NVIC_ISER = (1 << IRQ_REG0);
-    // REGISTER 0x11
-    //       [2] MRAM_PWR_IRQ_EN: 1'b1
-    //       [1] MRAM_PWR_SEL_ON: 1'b0
-    //       [0] MRAM_PWR_GO    : 1'b1
-    // -----------------------------------------------
-    mbus_remote_register_write(MRM_ADDR, 0x11, 0x000005);
-    WFI();
-    *NVIC_ICER = (1 << IRQ_REG0);
-
-    if ((*REG0&0xFF) != 0x98) return 0;
-
-    return 1;
-}
-
-void init_presram (uint32_t type) {
+void set_data_tx (uint32_t pattern, uint32_t shuffle) {
     uint32_t i;
     for (i=0; i<BUF_SIZE; i++) {
-        if      (type == 0x0) data[i] = 0x0;
-        else if (type == 0x1) data[i] = i;
-        else if (type == 0x2) data[i] = 0xDEADBEEF;
-        else if (type == 0x3) data[i] = 0x0EA7F00D;
-        else if (type == 0xF) data[i] = 0xFFFFFFFF;
+        data_tx[i] = pattern;
+        if (shuffle) pattern = (pattern << 1) | (pattern >> 31);
     }
 }
-
-uint32_t send_go (uint32_t cmd, uint32_t length_1, uint32_t expected) {
-    *NVIC_ISER = (1 << IRQ_REG0);
-    mbus_remote_register_write(MRM_ADDR, 0x09, 0x0
-        /* LENGTH (14'h0000) */ | (length_1 << 6)    
-        /* IRQ_EN (    1'h0) */ | (0x1 << 5)    
-        /* CMD    (    4'h0) */ | (cmd << 1)    
-        /* GO     (    1'h0) */ | (0x1 << 0)    
-    );
-    WFI();
-    *NVIC_ICER = (1 << IRQ_REG0);
-    uint32_t response = (*REG0&0xFF);
-    if (response != expected) return response;
-    return 1;
-}
-
-uint32_t cp_mram2sram_page (uint32_t page_id, uint32_t num_pages) {
-    // Set SRAM Start Address
-    mbus_remote_register_write(MRM_ADDR, 0x07, 0x000000);
-    // Set MRAM Start Address
-    mbus_remote_register_write(MRM_ADDR, 0x08, (page_id << 5)); // 32 words/page
-    // GO command
-    return send_go (/*cmd*/CMD_CP_MRAM2SRAM, /*length_1*/(num_pages<<5)-1, /*expected*/EXP_CP_MRAM2SRAM);
-}
-
-uint32_t cp_sram2mram_page (uint32_t sram_page_id, uint32_t mram_page_id, uint32_t num_pages) {
-    // Set SRAM Start Address
-    mbus_remote_register_write(MRM_ADDR, 0x07, (sram_page_id << 5));    // 32 words/page
-    // Set MRAM Start Address
-    mbus_remote_register_write(MRM_ADDR, 0x08, (mram_page_id << 5));    // 32 words/page
-    // GO command
-    return send_go (/*cmd*/CMD_CP_SRAM2MRAM, /*length_1*/(num_pages<<5)-1, /*expected*/EXP_CP_SRAM2MRAM);
-}
-
-void read_sram_page (uint32_t page_id, uint32_t num_pages, uint32_t* dest_addr) {
-    // SRAM -> PRE SRAM
-    set_halt_until_mbus_trx();
-    mbus_copy_mem_from_remote_to_any_bulk(
-        /*source_prefix  */ MRM_ADDR,
-        /*source_mem_addr*/ (uint32_t*) ((page_id << 5) << 2),
-        /*dest_prefix    */ 0x1,
-        /*dest_mem_addr  */ dest_addr,
-        /*length_minus_1 */ (num_pages << 5) - 1
-        );
-    set_halt_until_mbus_tx();
-}
-
-uint32_t read_mram_page (uint32_t page_id, uint32_t num_pages, uint32_t* dest_addr) {
-
-    // MRAM -> SRAM
-    if (cp_mram2sram_page(/*page_id*/page_id, /*num_pages*/num_pages)!=1) return 0;
-
-    // SRAM -> PRE SRAM
-    read_sram_page (/*page_id*/0, /*num_pages*/num_pages, /*dest_addr*/ dest_addr);
-
-    return 1;
-}
-
-uint32_t sram_test (void) {
-
-    uint32_t data_tx = 0xDEADBEEF;
-    uint32_t data_rx = 0x00000000;
-
-    mbus_write_message32(0x71, data_rx);
-
-    mbus_copy_mem_from_local_to_remote_bulk(
-        /*remote_prefix  */ MRM_ADDR,
-        /*remote_mem_addr*/ (uint32_t*) 0x00000000,
-        /*local_mem_addr */ &data_tx,
-        /*length_minus_1 */ 0
-        );
-
-    set_halt_until_mbus_trx();
-    mbus_copy_mem_from_remote_to_any_bulk(
-        /*source_prefix  */ MRM_ADDR,
-        /*source_mem_addr*/ (uint32_t*) 0x00000000,
-        /*dest_prefix    */ 0x1,
-        /*dest_mem_addr  */ &data_rx,
-        /*length_minus_1 */ 0
-        );
-    set_halt_until_mbus_tx();
-
-    mbus_write_message32(0x72, data_rx);
-
-    return 1;
-}
-
 
 //*******************************************************************************************
 // INTERRUPT HANDLERS
 //*******************************************************************************************
 
-void disable_all_irq_except_timer32_gocep(void) {
-    *NVIC_ICPR = 0xFFFFFFFF;
-    *NVIC_ICER = ~((1 << IRQ_TIMER32) | (1 << IRQ_GOCEP));
-}
-
-//void handler_ext_int_wakeup   (void) __attribute__ ((interrupt ("IRQ")));
-//void handler_ext_int_softreset(void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_gocep    (void) __attribute__ ((interrupt ("IRQ")));
-void handler_ext_int_timer32  (void) __attribute__ ((interrupt ("IRQ")));
-//void handler_ext_int_timer16  (void) __attribute__ ((interrupt ("IRQ")));
-//void handler_ext_int_mbustx   (void) __attribute__ ((interrupt ("IRQ")));
-//void handler_ext_int_mbusrx   (void) __attribute__ ((interrupt ("IRQ")));
-//void handler_ext_int_mbusfwd  (void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_reg0     (void) __attribute__ ((interrupt ("IRQ")));
-//void handler_ext_int_reg1     (void) __attribute__ ((interrupt ("IRQ")));
-//void handler_ext_int_reg2     (void) __attribute__ ((interrupt ("IRQ")));
-//void handler_ext_int_reg3     (void) __attribute__ ((interrupt ("IRQ")));
-//void handler_ext_int_reg4     (void) __attribute__ ((interrupt ("IRQ")));
-//void handler_ext_int_reg5     (void) __attribute__ ((interrupt ("IRQ")));
-//void handler_ext_int_reg6     (void) __attribute__ ((interrupt ("IRQ")));
-//void handler_ext_int_reg7     (void) __attribute__ ((interrupt ("IRQ")));
-//void handler_ext_int_mbusmem  (void) __attribute__ ((interrupt ("IRQ")));
-//void handler_ext_int_aes      (void) __attribute__ ((interrupt ("IRQ")));
-//void handler_ext_int_spi      (void) __attribute__ ((interrupt ("IRQ")));
-//void handler_ext_int_xot      (void) __attribute__ ((interrupt ("IRQ")));
 
 void handler_ext_int_gocep (void) {
-    // LDO_SELB_I_CTRL_LDO_0P8 = 0x1F
-    // LDO_SELB_I_CTRL_LDO_1P8 = 0x1F
-    // LDO_SELB_VOUT_LDO_1P8 = *REG0
-    // LDO_SELB_VOUT_LDO_BUF = *REG1
-    // Reset [13:6]
-    uint32_t reg_val = 0xFFDD15 & 0xFFC03F;
-    // Calculate the new value
-    reg_val = reg_val | (*REG1<<6) | (*REG0<<10);
-    // Send MBus Msg
-    mbus_remote_register_write(MRM_ADDR, 0x23, reg_val);
+    goc_head     = *GOC_DATA_IRQ >> 24;
+    goc_data     = *GOC_DATA_IRQ & 0xFFFFFF;
+    goc_data_ext = *(GOC_DATA_IRQ+1);
+    *GOC_DATA_IRQ = 0xFFFFFFFF;
 }
 
-// TIMER32 - Timeout Check
-void handler_ext_int_timer32 (void) {
-    disable_all_irq_except_timer32_gocep();
-    *TIMER32_STAT = 0x0;
-    *TIMER32_GO = 0x0;
+void handler_ext_int_reg0 (void) { 
+    disable_reg_irq(/*reg*/0);
 }
-void handler_ext_int_reg0 (void) {
-    disable_all_irq_except_timer32_gocep();
-}
-//void handler_ext_int_reg1 (void) {
-//    disable_all_irq_except_timer32_gocep();
-//}
-//void handler_ext_int_reg2 (void) {
-//    disable_all_irq_except_timer32_gocep();
-//}
-//void handler_ext_int_reg5 (void) {
-//    disable_all_irq_except_timer32_gocep();
-//}
-//void handler_ext_int_reg7 (void) {
-//    disable_all_irq_except_timer32_gocep();
-//}
-//void handler_ext_int_aes (void) { 
-//    disable_all_irq_except_timer32_gocep();
-//}
-
 
 //********************************************************************
 // MAIN function starts here             
@@ -712,165 +335,264 @@ void handler_ext_int_reg0 (void) {
 
 int main(void) {
 
-    // Set PRE Watchdog
-    *TIMERWD_GO  = 0;
-    *TIMERWD_CNT = 16800000; // ~120s @ 140kHz
-    *TIMERWD_GO  = 1;
+    uint32_t i, j, k, l, t;
 
-    // Disable MBus Watchdog
+    // Disable PRE Watchdog & MBus Watchdog
+    *TIMERWD_GO  = 0;
     *REG_MBUS_WD = 0;
 
-    // Enable IRQs for timeout check
-    *NVIC_IPR0 = (0x3 << 30); // Lowest Priority for TIMER32 IRQ.
-    *NVIC_IPR3 = (0x3 << 30); // Lowest Priority for REG7 IRQ.
-    *NVIC_ISER = (0x1 << IRQ_TIMER32) | (0x1 << IRQ_GOCEP);
-
-    // Get the info on who woke up the system, then reset WAKEUP_SOURCE register.
+    // Get the info on who woke up the system
     wakeup_source = *SREG_WAKEUP_SOURCE;
-    //*SCTR_REG_CLR_WUP_SOURCE = 1; // OBSOLETE
+    mbus_write_message32(0x70, wakeup_source);
 
     // If this is the very first wakeup, initialize the system
     if (!get_flag(FLAG_INITIALIZED)) operation_init();
 
-    #ifdef DEVEL
-        mbus_write_message32(0x70, wakeup_source);
-    #endif
+    // Enable GOC/EP IRQ
+    *NVIC_ISER = (0x1 << IRQ_GOCEP);
 
+    // GOC/EP IRQ
+    while(1) {
 
+        WFI();
 
+        goc_irq_count++;
+        mbus_write_message32(0x80, goc_irq_count);
+        mbus_write_message32(0x81, goc_head);
+        mbus_write_message32(0x82, goc_data);
+        mbus_write_message32(0x83, goc_data_ext);
 
-    turn_on_ldo();
+    //////////////////////////////////////////////////////////////////////////////////////////
+        
+        if (goc_head == 0x00) {
+            //--------------------------------------------------------
+            if      (goc_data == 0x000000) set_data_tx(/*shuffle*/0, /*pattern*/goc_data_ext);
+            //--------------------------------------------------------
+            else if (goc_data == 0x000001) set_data_tx(/*shuffle*/1, /*pattern*/goc_data_ext);
+            //--------------------------------------------------------
+            else if (goc_data == 0x000002) {
+                mbus_copy_mem_from_local_to_remote_bulk(
+                    /*remote_prefix  */ DBG_ADDR,
+                    /*remote_mem_addr*/ (uint32_t*) 0x0,
+                    /*local_mem_addr */ (uint32_t*) data_tx,
+                    /*length_minus_1 */ BUF_SIZE - 1
+                    );
+            }
+            //--------------------------------------------------------
+            else if (goc_data == 0x000003) {
+                mbus_copy_mem_from_local_to_remote_bulk(
+                    /*remote_prefix  */ DBG_ADDR,
+                    /*remote_mem_addr*/ (uint32_t*) 0x0,
+                    /*local_mem_addr */ (uint32_t*) data_rx,
+                    /*length_minus_1 */ BUF_SIZE - 1
+                    );
+            }
+            //--------------------------------------------------------
+            else if (goc_data == 0x000004) {
+                mbus_copy_mem_from_local_to_remote_bulk(
+                    /*remote_prefix  */ DBG_ADDR,
+                    /*remote_mem_addr*/ (uint32_t*) 0x0,
+                    /*local_mem_addr */ (uint32_t*) data_rand,
+                    /*length_minus_1 */ BUF_SIZE - 1
+                    );
+            }
+            //--------------------------------------------------------
+        }
 
-//    delay(10000);
-    
-//    turn_on_mram(/*mid*/0);
-//    WFI();
-//
-//    delay(10000);
-//    // Tcyc_read = 0
-//    mbus_remote_register_write(MRM_ADDR, 0x00, 0);
-//    cp_mram2sram_page(/*page_id*/0, /*num_pages*/512);
+    //////////////////////////////////////////////////////////////////////////////////////////
 
-    //delay(20000);
-    //cp_sram2mram_page(/*sram_page_id*/0, /*mram_page_id*/0, /*num_pages*/512);
+        else if (goc_head == 0x01) {
+            mrm_set_tmc_for_nopp();
+            //--------------------------------------------------------
+            if (goc_data < MRM_NUM_MRAM_MACROS) {
+                mrm_turn_on_macro(/*mid*/goc_data);
+            }
+            //--------------------------------------------------------
+            else if (goc_data == 0x000006) mrm_turn_off_macro();
+            //--------------------------------------------------------
+            else if (goc_data == 0x000007) mrm_turn_on_ldo();
+            //--------------------------------------------------------
+            else if (goc_data == 0x000008) mrm_turn_off_ldo();
+            //--------------------------------------------------------
+            else if (goc_data == 0x00000F) operation_sleep();
+        }
 
-//    delay(20000);
-//    // Tcyc_read = 1000
-//    mbus_remote_register_write(MRM_ADDR, 0x00, 1000);
-//    cp_mram2sram_page(/*page_id*/0, /*num_pages*/512);
-//
-//    delay(20000);
-//    // Tcyc_read = 5000
-//    mbus_remote_register_write(MRM_ADDR, 0x00, 5000);
-//    cp_mram2sram_page(/*page_id*/0, /*num_pages*/512);
-//
-//    delay(20000);
-//    // Tcyc_read = 10000
-//    mbus_remote_register_write(MRM_ADDR, 0x00, 10000);
-//    cp_mram2sram_page(/*page_id*/0, /*num_pages*/512);
+    //////////////////////////////////////////////////////////////////////////////////////////
 
-    // Copy SRAM -> MRAM
-    cp_sram2mram_page(/*sram_page_id*/ 0, /*mram_page_id*/ 0, /*num_pages*/ 256);
+        else if (goc_head == 0x02) {
+        
+            mrm_set_tmc_for_nopp();
+            mrm_turn_on_ldo();  // Need to turn on LDO first.
 
-    WFI();
-    while(1);
+            //--------------------------------------------------------
+            if (goc_data == 0x000000) 
+                mrm_write_sram(/*prc_sram_addr*/(uint32_t*)data_tx, /*num_words*/BUF_SIZE, /*mrm_sram_addr*/(uint32_t*)goc_data_ext);
+            //--------------------------------------------------------
+            else if (goc_data == 0x000001) 
+                mrm_read_sram(/*mrm_sram_addr*/(uint32_t*)goc_data_ext, /*num_words*/BUF_SIZE, /*prc_sram_addr*/(uint32_t*)data_rx);
+            //--------------------------------------------------------
+            else if ((goc_data == 0x000002) | (goc_data == 0x000003) | (goc_data == 0x000004) | (goc_data == 0x000005)) {
 
+                if      (goc_data == 0x000002) {}
+                else if (goc_data == 0x000003) set_data_tx(/*shuffle*/0, /*pattern*/0xFFFFFFFF);
+                else if (goc_data == 0x000004) set_data_tx(/*shuffle*/0, /*pattern*/0x00000000);
+                else if (goc_data == 0x000005) set_data_tx(/*shuffle*/1, /*pattern*/goc_data_ext);
 
+                for(i=0; i<512; i++) mrm_write_sram(/*prc_sram_addr*/(uint32_t*)data_tx, /*num_words*/BUF_SIZE, /*mrm_sram_addr*/(uint32_t*)((i<<5)<<2));
+            }
+            //--------------------------------------------------------
+        }
 
+    //////////////////////////////////////////////////////////////////////////////////////////
 
-    if (!turn_on_ldo()) operation_sleep();
+        else if (goc_head == 0x03) {
+            mrm_turn_on_ldo();  // Need to turn on LDO first.
+            mrm_read_sram_page_debug (/*mrm_sram_pid*/goc_data_ext, /*num_pages*/goc_data, /*dest_prefix*/DBG_ADDR);
+        }
 
-    // Turn on LDO (redundant but won't hurt)
-    turn_on_ldo();
+    //////////////////////////////////////////////////////////////////////////////////////////
 
-    // Measure Clock Freq
-    //meas_clk_freq();
-    
-    // Marker
-    mbus_write_message32(0x80, 0);
+        else if (goc_head == 0x04) {
+            mrm_set_tmc_for_nopp();
+            mrm_turn_on_ldo();  // Need to turn on LDO first.
+            mrm_read_mram_page_debug (/*mrm_mram_pid*/goc_data_ext, /*num_pages*/goc_data, /*dest_prefix*/DBG_ADDR);
+        }
 
+    //////////////////////////////////////////////////////////////////////////////////////////
 
+        else if ((goc_head == 0x07) | (goc_head == 0x08)) {
 
+            mrm_set_tmc_for_pp();
+            mrm_set_clock_mode(/*clock_mode*/goc_head>>3);
 
+            mrm_turn_on_ldo();  // Need to turn on LDO first.
 
+            //--------------------------------------------------------
+            if (goc_data == 0x000000) mrm_stop_pp_ext_stream();
+            //--------------------------------------------------------
+            else if ((goc_data == 0x000001) | (goc_data == 0x000002) | (goc_data == 0x000003)) {
+                if (goc_data_ext==0) 
+                    mrm_pp_ext_stream_unlim (/*bit_en*/goc_data, /*mram_page_id*/0);
+                else
+                    mrm_pp_ext_stream (/*bit_en*/goc_data, /*num_pages*/goc_data_ext, /*mram_page_id*/0);
+            }
+            //--------------------------------------------------------
+        }
 
+    //////////////////////////////////////////////////////////////////////////////////////////
 
+        else if ((goc_head == 0x0A) | (goc_head == 0x0B)) {
 
+            mrm_set_tmc_for_nopp();
+            mrm_set_clock_mode(/*clock_mode*/0);
 
+            if (goc_head == 0x0A) { // Tpwr = ~1ms (default)
+                mrm_set_tpwr(/*tpwr*/200);
+            } else if (goc_head == 0x0B) { // Tpwr = ~300ms
+                mrm_set_tpwr(/*tpwr*/60000);
+            }
 
+            mrm_turn_on_ldo();  // Need to turn on LDO first.
 
+            // Run the test procedure
+            if (goc_data < 0x000004) {
 
-    // MRAM Read
-    init_presram(/*type*/0x1); // data[i] = i
-    read_mram_page(/*page_id*/ 0, /*num_pages*/ 1, /*dest_addr*/ (uint32_t *) data);
+                uint32_t t_start, t_stop;
+                if      (goc_data == 0x000000) {t_start = 0; t_stop = 0;}
+                else if (goc_data == 0x000001) {t_start = 1; t_stop = 1;}
+                else if (goc_data == 0x000002) {t_start = 2; t_stop = 2;}
+                else if (goc_data == 0x000003) {t_start = 0; t_stop = 2;}
+                else                           {t_start = 0; t_stop = 0;}
 
-    // Marker
-    mbus_write_message32(0x80, 1);
-//
-//    // Read SRAM Page 3
-//    read_sram_page(/*page_id*/ 3, /*num_pages*/ 1, /*dest_addr*/ (uint32_t *) data);
-//    // Copy SRAM Page 3 into MRAM Page 0
-//    cp_sram2mram_page(/*sram_page_id*/ 3, /*mram_page_id*/ 0, /*num_pages*/ 1);
-//    // Read MRAM Page 0
-//    init_presram(/*type*/0x1); // data[i] = i
-//    read_mram_page(/*page_id*/ 0, /*num_pages*/ 1, /*dest_addr*/ (uint32_t *) data);
-//    
-//    // Marker
-//    mbus_write_message32(0x80, 2);
+                for (t=t_start; t<(t_stop+1); t++) {
 
+                    // Prepare data_tx[]
+                    if      (t==0) for(i=0; i<BUF_SIZE; i++) data_tx[i] = 0x00000000;
+                    else if (t==1) for(i=0; i<BUF_SIZE; i++) data_tx[i] = 0xFFFFFFFF;
+                    else if (t==2) for(i=0; i<BUF_SIZE; i++) data_tx[i] = data_rand[i];
 
+                    // Copy data_tx into the entire MRM SRAM (64kB = 512 pages)
+                    for(i=0; i<512; i++) mrm_write_sram(/*prc_sram_addr*/(uint32_t*)data_tx, /*num_words*/BUF_SIZE, /*mrm_sram_addr*/(uint32_t*)((i<<5)<<2));
 
+                    // Copy MRM SRAM into MRM MRAM (4MB = 32768 pages)
+                    for(i=0; i<32768; i=i+512) mrm_sram2mram(/*sram_pid*/i&0x1FF, /*num_pages*/512, /*mram_pid*/i);
 
+                    // Check the result
 
+                    // --- Initialize the error counters
+                    result_page_id[t] = 0xFFFFFFFF;
+                    result_num_page_err[t] = 0;
+                    result_num_word_err[t] = 0;
+                    result_num_bit_err[t]  = 0;
 
-    //operation_sleep();
+                    // --- i: MRM MRAM Page ID (32768 pages)
+                    for(i=0; i<32768; i=i+512) {
+                        mrm_mram2sram(/*mram_pid*/i, /*num_pages*/512, /*sram_pid*/0);
+
+                        // --- j: MRM SRAM Page ID (512 pages/SRAM)
+                        for(j=0; j<512; j++) { 
+                            mrm_read_sram_page (/*mrm_sram_pid*/j, /*num_pages*/1, /*prc_sram_addr*/(uint32_t*)data_rx);
+
+                            // --- k: Word Offset (32 words/page)
+                            uint32_t page_err = 0;
+                            for(k=0; k<32; k++) {
+                                if (data_tx[k] != data_rx[k]) {
+                                    page_err = 1;
+                                    result_num_word_err[t]++;
+
+                                    // Log the very first error word
+                                    if (result_page_id[t] == 0xFFFFFFFF) {
+                                        result_page_id[t] = i + j;
+                                        result_word_offset[t] = k;
+                                        result_word_correct[t] = data_tx[k];
+                                        result_word_actual[t]  = data_rx[k];
+                                    }
+
+                                    // --- l: Bit offset (32 bits/word)
+                                    uint32_t temp_tx = data_tx[k];
+                                    uint32_t temp_rx = data_rx[k];
+                                    for (l=0; l<32; l++) {
+                                        if ((temp_tx&0x1) != (temp_rx&0x1)) result_num_bit_err[t]++;
+                                        temp_tx >>=1;
+                                        temp_rx >>=1;
+                                    }
+                                }
+                            }
+
+                            if (page_err) result_num_page_err[t]++;
+
+                        }
+                    }
+                }
+            }
+            // Spit out the results
+            else {
+                for (t=0; t<3; t++) {
+                    mbus_write_message32((RES_ADDR<<4)|0x0, result_num_page_err[t] );
+                    mbus_write_message32((RES_ADDR<<4)|0x1, result_num_word_err[t] );
+                    mbus_write_message32((RES_ADDR<<4)|0x2, result_num_bit_err[t]  );
+                    mbus_write_message32((RES_ADDR<<4)|0x3, result_page_id[t]      );
+                    mbus_write_message32((RES_ADDR<<4)|0x4, result_word_offset[t]  );
+                    mbus_write_message32((RES_ADDR<<4)|0x5, result_word_correct[t] );
+                    mbus_write_message32((RES_ADDR<<4)|0x6, result_word_actual[t]  );
+                }
+            }
+        }
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+
+        else if (goc_head == 0xFF) {
+        
+            //--------------------------------------------------------
+            if (goc_data == 0xFFFFFF) {} // NOP
+            //--------------------------------------------------------
+            
+        }
+
+    }
 
     //--------------------------------------------------------------------------
-    // Dummy Buffer
+    // End of Execution; Never reaches here.
     //--------------------------------------------------------------------------
-    // Enable GOCEP for debugging
-    disable_all_irq_except_timer32_gocep();
-    while(1) WFI();
     return 1;
 }
-
-
-//print("Info: Up-stream SPIFI transaction - write MRAM_R_TEST to enter test mode")
-//gpio_spi.mram_wrcfg(nc.MRAM_R_TEST, nc.MRAM_TEST_PW.to_bytes(4, 'big'))
-
-# MRAM_R_4PHASE_WRITE0 = 0
-//gpio_spi.mram_wrcfg(nc.MRAM_R_4PHASE_WRITE0, (0).to_bytes(4, 'big'))
-//print("Info: Up-stream SPIFI transaction - MRAM_R_4PHASE_WRITE0 rdata is ", gpio_spi.mram_rdcfg(nc.MRAM_R_4PHASE_WRITE0))
-
-# MRAM_R_4PHASE_WRITE1 = 0
-//gpio_spi.mram_wrcfg(nc.MRAM_R_4PHASE_WRITE1, (0).to_bytes(4, 'big'))
-//print("Info: Up-stream SPIFI transaction - MRAM_R_4PHASE_WRITE1 rdata is ", gpio_spi.mram_rdcfg(nc.MRAM_R_4PHASE_WRITE1))
-
-# MRAM_R_4PHASE_MRG0 = 0000100000 0000000 000 100101 100
-//wdata = int('0000100000' + 7*'0' + '000' + '100101' + '100', 2).to_bytes(4, 'big')
-//gpio_spi.mram_wrcfg(nc.MRAM_R_4PHASE_MRG0, wdata)
-//print("Info: Up-stream SPIFI transaction - MRAM_R_4PHASE_MRG0 rdata is ", gpio_spi.mram_rdcfg(nc.MRAM_R_4PHASE_MRG0))
-
-# MRAM_R_4PHASE_MRG1 = 0000011000 0000000 000 000000 000
-//wdata = int('0000011000' + 7*'0' + '000' + '000000' + '000', 2).to_bytes(4, 'big')
-//gpio_spi.mram_wrcfg(nc.MRAM_R_4PHASE_MRG1, wdata)
-//print("Info: Up-stream SPIFI transaction - MRAM_R_4PHASE_MRG1 rdata is ", gpio_spi.mram_rdcfg(nc.MRAM_R_4PHASE_MRG1))
-
-# MRAM_R_CFG0 = A0 54 21 08
-//wdata = b'\xa0\x54\x21\x08'
-//gpio_spi.mram_wrcfg(nc.MRAM_R_CFG0, wdata)
-//print("Info: Up-stream SPIFI transaction - MRAM_R_CFG0 rdata is ", gpio_spi.mram_rdcfg(nc.MRAM_R_CFG0))
-
-# MRAM_R_CFG1 = 00 2A 1E 2E
-//wdata = b'\x00\x2a\x1e\x2e'
-//gpio_spi.mram_wrcfg(nc.MRAM_R_CFG1, wdata)
-//print("Info: Up-stream SPIFI transaction - MRAM_R_CFG1 rdata is ", gpio_spi.mram_rdcfg(nc.MRAM_R_CFG1))
-
-# MRAM_R_CFG5 = 0C 00 8D D3
-//wdata = b'\x0c\x00\x8d\xd3'
-//gpio_spi.mram_wrcfg(nc.MRAM_R_CFG5, wdata)
-//print("Info: Up-stream SPIFI transaction - MRAM_R_CFG5 rdata is ", gpio_spi.mram_rdcfg(nc.MRAM_R_CFG5))
-
-//print("Info: Up-stream SPIFI transaction - write MRAM_R_TEST to exit test mode")
-//gpio_spi.mram_wrcfg(nc.MRAM_R_TEST, (0).to_bytes(4, 'big'))
-

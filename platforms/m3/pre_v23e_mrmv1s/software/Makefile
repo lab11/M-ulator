@@ -94,30 +94,6 @@ FW_VER = $(shell pwd | sed 's/^.*\/xt1_firmware_\(.*\)$$/\1/')
 
 all: $(GDB) $(HEXS) $(LSTS)
 
-others:
-	## Make '_nodevel' version
-	#mkdir -p xt1_firmware_$(FW_VER)_nodevel
-	#cp -f xt1_firmware_$(FW_VER)_devel/xt1_firmware_$(FW_VER)_devel.c xt1_firmware_$(FW_VER)_nodevel/xt1_firmware_$(FW_VER)_nodevel.c
-	#sed -i "s/^#define DEVEL/\/\/#define DEVEL/" xt1_firmware_$(FW_VER)_nodevel/xt1_firmware_$(FW_VER)_nodevel.c
-	#sed -i "s/^\/\/#define ENABLE_GOC_CRC/#define ENABLE_GOC_CRC/" xt1_firmware_$(FW_VER)_nodevel/xt1_firmware_$(FW_VER)_nodevel.c
-	#sed -i "s/^\/\/#define ENABLE_RAW/#define ENABLE_RAW/" xt1_firmware_$(FW_VER)_nodevel/xt1_firmware_$(FW_VER)_nodevel.c
-	#sed -i "s/(devel)/(no_devel)/" xt1_firmware_$(FW_VER)_nodevel/xt1_firmware_$(FW_VER)_nodevel.c
-	## Make '_std' version
-	#mkdir -p xt1_firmware_$(FW_VER)_std
-	#cp -f xt1_firmware_$(FW_VER)_nodevel/xt1_firmware_$(FW_VER)_nodevel.c xt1_firmware_$(FW_VER)_std/xt1_firmware_$(FW_VER)_std.c
-	#sed -i "s/(no_devel)/(standard)/" xt1_firmware_$(FW_VER)_std/xt1_firmware_$(FW_VER)_std.c
-	#sed -i "s/^#define WAKEUP_BY_NFC\( *\)WAKEUP_BY_GPIO0/#define WAKEUP_BY_NFC\1WAKEUP_BY_GPIO1/" xt1_firmware_$(FW_VER)_std/xt1_firmware_$(FW_VER)_std.c
-	## Make '_std_short' version
-	#mkdir -p xt1_firmware_$(FW_VER)_std_short
-	#cp -f xt1_firmware_$(FW_VER)_std/xt1_firmware_$(FW_VER)_std.c xt1_firmware_$(FW_VER)_std_short/xt1_firmware_$(FW_VER)_std_short.c
-	#sed -i "s/^\/\/#define USE_SHORT_REFRESH/#define USE_SHORT_REFRESH/" xt1_firmware_$(FW_VER)_std_short/xt1_firmware_$(FW_VER)_std_short.c
-	#sed -i "s/(standard)/(standard-short_interval)/" xt1_firmware_$(FW_VER)_std_short/xt1_firmware_$(FW_VER)_std_short.c
-	## Make '_30s' version
-	#mkdir -p xt1_firmware_$(FW_VER)_std_30s
-	#cp -f xt1_firmware_$(FW_VER)_std/xt1_firmware_$(FW_VER)_std.c xt1_firmware_$(FW_VER)_std_30s/xt1_firmware_$(FW_VER)_std_30s.c
-	#sed -i "s/^#define WAKEUP_INTERVAL_IN_MINUTES/\/\/#define WAKEUP_INTERVAL_IN_MINUTES/" xt1_firmware_$(FW_VER)_std_30s/xt1_firmware_$(FW_VER)_std_30s.c
-	#sed -i "s/(standard)/(standard-30s)/" xt1_firmware_$(FW_VER)_std_30s/xt1_firmware_$(FW_VER)_std_30s.c
-
 $(DIRS):
 	$(MAKE) $@/$@.hex
 
@@ -194,37 +170,5 @@ cp:
         ./*/*.hex \
         yejoong@thurston.cubeworks.io:~/Dropbox/Designs/202401_MRAM/Testing/MRMv1S/hex/.
 
-#--------------------------------------------------------------------------------
-# Extracting XT1 Version Information (used for 'version_change' recipe)
-#--------------------------------------------------------------------------------
-# Example:
-# 	XT1_DIR 		= xt1_firmware_v3p19
-# 	XT1_VER 		= v3p19
-# 	XT1_OLD 		= v3p17 (extracted from the existing xt1_firmware_*_devel directory (i.e., the previous version))
-#	XT1_VER_NUM 	= 3.19
-#	XT1_OLD_NUM 	= 3.17
-#	XT1_VER_INT 	= 3
-#	XT1_VER_DEC 	= 19
-#	XT1_VER_INT_HEX = 03 (hexadecimal number for 3)
-#	XT1_VER_DEC_HEX = 13 (hexadecimal number for 19)
-#	XT1_FW_ID       = 0x0313
-#--------------------------------------------------------------------------------
-XT1_DIR			:= $(notdir $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST))))))
-XT1_VER 		:= $(patsubst xt1_firmware_%,%,$(XT1_DIR))
-XT1_OLD 		:= $(patsubst xt1_firmware_%_devel,%,$(wildcard xt1_firmware_*_devel))
-XT1_VER_NUM 	:= $(shell echo $(patsubst v%,%,$(XT1_VER)) | sed 's/p/\./')
-XT1_OLD_NUM 	:= $(shell echo $(patsubst v%,%,$(XT1_OLD)) | sed 's/p/\./')
-XT1_VER_INT 	:= $(basename $(XT1_VER_NUM))
-XT1_VER_DEC 	:= $(patsubst .%,%,$(suffix $(XT1_VER_NUM)))
-XT1_VER_INT_HEX := $(shell printf "%02X" $(XT1_VER_INT))
-XT1_VER_DEC_HEX := $(shell printf "%02X" $(XT1_VER_DEC))
-XT1_FW_ID 		:= 0x$(XT1_VER_INT_HEX)$(XT1_VER_DEC_HEX)
-
-version_change: nuke
-	#rename $(XT1_OLD) $(XT1_VER) *
-	#rename $(XT1_OLD) $(XT1_VER) */*
-	#sed -i 's/\/\/ Version $(XT1_OLD_NUM)/\/\/ Version $(XT1_VER_NUM)/' xt1_firmware_$(XT1_VER)_devel/xt1_firmware_$(XT1_VER)_devel.c
-	#sed -i 's/#define FIRMWARE_ID 0x..../#define FIRMWARE_ID $(XT1_FW_ID)/' xt1_firmware_$(XT1_VER)_devel/xt1_firmware_$(XT1_VER)_devel.c
-
-.PHONY: clean clean_libs clean-% nuke cp version_change
+.PHONY: clean clean_libs clean-% nuke cp 
 
