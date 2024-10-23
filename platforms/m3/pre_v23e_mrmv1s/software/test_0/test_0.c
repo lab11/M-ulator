@@ -52,14 +52,27 @@
 //        goc_data = 0x000003: Goes into Ping-Pong Mode using DATA_EXT[1:0], with num_pages = goc_data_ext.
 //  
 //  ------------------------------------------------------------
-//   goc_head = 0x0A: Normal (Non-Ping-Pong) Test Suite (TMC_RST_AUTO_WK=0)
-//   goc_head = 0x0B: Normal (Non-Ping-Pong) Test Suite (TMC_RST_AUTO_WK=1)
+//   goc_head = 0x0A: Normal (Non-Ping-Pong) Test Suite 
 //  ------------------------------------------------------------
 //        goc_data = 0x000000: All-0 Test
 //        goc_data = 0x000001: All-1 Test
 //        goc_data = 0x000002: Random Data Test
 //        goc_data = 0x000003: Run All-0, All-1, Random Data, sequentially.
 //        goc_data = other   : Send the result through MBus
+//
+//  ------------------------------------------------------------
+//   goc_head = 0x0F: CP Testing
+//      --------------------------------------------------------
+//      NOTE: CP Testing Procedure:
+//          1) Enable the CP testing using goc_head=0x0F, goc_data = macro_id
+//          2) Set VOTP = 2.2V
+//          3) Run the python code
+//          4) Disable the CP testing using goc_head=0x0F, goc_data = 0xF
+//          5) Repeat for each macro_id
+//  ------------------------------------------------------------
+//        goc_data = 0x000000: Enable the CP testing mode for MID=0
+//        goc_data = 0x000001: Enable the CP testing mode for MID=1
+//        goc_data = 0x00000F: Disable the CP testing mode
 //
 //  ------------------------------------------------------------
 //   goc_head = 0xFF: Miscellaneous
@@ -195,7 +208,7 @@ volatile uint32_t goc_head;
 volatile uint32_t goc_data;
 volatile uint32_t goc_data_ext;
 
-#define BUF_SIZE 32
+#define BUF_SIZE 32     // Corresponds to 1 Page (= 32 words = 8 Qwords)
 volatile uint32_t data_rand[BUF_SIZE];
 volatile uint32_t data_tx[BUF_SIZE];
 volatile uint32_t data_rx[BUF_SIZE];
@@ -402,7 +415,7 @@ int main(void) {
     //////////////////////////////////////////////////////////////////////////////////////////
 
         else if (goc_head == 0x01) {
-            mrm_set_tmc_for_nopp();
+            mrm_disable_tmc_rst_auto_wk();
             //--------------------------------------------------------
             if (goc_data < MRM_NUM_MRAM_MACROS) {
                 mrm_turn_on_macro(/*mid*/goc_data);
@@ -421,7 +434,7 @@ int main(void) {
 
         else if (goc_head == 0x02) {
         
-            mrm_set_tmc_for_nopp();
+            mrm_disable_tmc_rst_auto_wk();
             mrm_turn_on_ldo();  // Need to turn on LDO first.
 
             //--------------------------------------------------------
@@ -453,7 +466,7 @@ int main(void) {
     //////////////////////////////////////////////////////////////////////////////////////////
 
         else if (goc_head == 0x04) {
-            mrm_set_tmc_for_nopp();
+            mrm_disable_tmc_rst_auto_wk();
             mrm_turn_on_ldo();  // Need to turn on LDO first.
             mrm_read_mram_page_debug (/*mrm_mram_pid*/goc_data_ext, /*num_pages*/goc_data, /*dest_prefix*/DBG_ADDR);
         }
@@ -462,7 +475,7 @@ int main(void) {
 
         else if ((goc_head == 0x07) | (goc_head == 0x08)) {
 
-            mrm_set_tmc_for_pp();
+            mrm_enable_tmc_rst_auto_wk();
             mrm_set_clock_mode(/*clock_mode*/goc_head>>3);
 
             mrm_turn_on_ldo();  // Need to turn on LDO first.
@@ -481,16 +494,10 @@ int main(void) {
 
     //////////////////////////////////////////////////////////////////////////////////////////
 
-        else if ((goc_head == 0x0A) | (goc_head == 0x0B)) {
+        else if (goc_head == 0x0A) {
 
-            mrm_set_tmc_for_nopp();
+            mrm_disable_tmc_rst_auto_wk();
             mrm_set_clock_mode(/*clock_mode*/0);
-
-            if (goc_head == 0x0A) { // Tpwr = ~1ms (default)
-                mrm_set_tpwr(/*tpwr*/200);
-            } else if (goc_head == 0x0B) { // Tpwr = ~300ms
-                mrm_set_tpwr(/*tpwr*/60000);
-            }
 
             mrm_turn_on_ldo();  // Need to turn on LDO first.
 
@@ -515,7 +522,7 @@ int main(void) {
                     for(i=0; i<512; i++) mrm_write_sram(/*prc_sram_addr*/(uint32_t*)data_tx, /*num_words*/BUF_SIZE, /*mrm_sram_addr*/(uint32_t*)((i<<5)<<2));
 
                     // Copy MRM SRAM into MRM MRAM (4MB = 32768 pages)
-                    for(i=0; i<32768; i=i+512) mrm_sram2mram(/*sram_pid*/i&0x1FF, /*num_pages*/512, /*mram_pid*/i);
+                    for(i=0; i<32768; i=i+512) mrm_sram2mram(/*sram_pid*/0, /*num_pages*/512, /*mram_pid*/i);
 
                     // Check the result
 
@@ -577,6 +584,32 @@ int main(void) {
                     mbus_write_message32((RES_ADDR<<4)|0x6, result_word_actual[t]  );
                 }
             }
+        }
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+
+        else if (goc_head == 0x0F) {
+
+            //--------------------------------------------------------
+            if (goc_data < 2) {
+
+                mrm_disable_tmc_rst_auto_wk();
+                mrm_set_clock_mode(/*clock_mode*/0);
+
+                mrm_turn_on_ldo();
+                mrm_turn_on_macro(/*mid*/goc_data);
+
+                // Enable BIST
+                mrm_enable_bist();
+            }
+            //--------------------------------------------------------
+            else if (goc_data == 0x00000F) {
+
+                // Disable BIST
+                mrm_disable_bist();
+                mrm_turn_off_macro();
+            }
+            //--------------------------------------------------------
         }
 
     //////////////////////////////////////////////////////////////////////////////////////////
