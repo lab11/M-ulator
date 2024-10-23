@@ -60,7 +60,19 @@
 // PREDEFINED CONSTANTS
 //*******************************************************************
 
-#define MRM_NUM_MRAM_MACROS     2
+#define MRM_NUM_SRAM_MACROS     2
+#define MRM_NUM_MRAM_MACROS     6
+#define MRM_NUM_PAGES_SRAM      512
+#define MRM_NUM_PAGES_MRAM      98304
+
+#define MRM_NUM_BITS_PER_WORD   32
+#define MRM_NUM_WORDS_PER_PAGE  32
+
+// Each MBus message can carry up to 64kB
+// IMPORTANT: It MUST be NUM_MAX_PAGES_MBUS <= MRM_NUM_PAGES_SRAM.
+//            Otherwise, the code may not work.
+#define NUM_MAX_PAGES_MBUS      512
+
 
 //--- MRAM GO Command
 #define MRM_CMD_NOP             0x0
@@ -230,8 +242,8 @@ uint32_t mrm_turn_off_ldo(void);
 //-------------------------------------------------------------------
 // Function: mrm_turn_on_macro
 // Args    : 
-//      mid - Macro ID (valid range: 0 - 1)
-//              Valid Range: [0, 1]
+//      mid - Macro ID 
+//              Valid Range: [0, 5]
 // Description:
 //           Turn on the specified MRAM macro
 // Return  : 1  - Received the correct IRQ
@@ -309,7 +321,7 @@ void mrm_set_sram_addr (uint32_t addr);
 // Function: mrm_set_mram_addr
 // Args    : 
 //      addr - MRAM Address
-//              Valid Range: [0, 1048575]
+//              Valid Range: [0, 3145727]
 // Description:
 //           Set the MRAM address (MRAM_START_ADDR)
 // Return  : none
@@ -325,7 +337,7 @@ void mrm_set_mram_addr (uint32_t addr);
 // Function: mrm_mram2sram
 // Args    : 
 //      mram_pid    - Start Page ID of MRAM.
-//                      Valid Range: [0, 32767]
+//                      Valid Range: [0, 98303]
 //      num_pages   - Number of pages to be copied.
 //                      Valid Range: [1, 512]
 //      sram_pid    - Start Page ID of SRAM.
@@ -347,7 +359,7 @@ uint32_t mrm_mram2sram (uint32_t mram_pid, uint32_t num_pages, uint32_t sram_pid
 //      num_pages   - Number of pages to be copied.
 //                      Valid Range: [1, 512]
 //      mram_pid    - Start Page ID of MRAM.
-//                      Valid Range: [0, 32767]
+//                      Valid Range: [0, 98303]
 // Description:
 //           Copy the given number of pages ('num_pages') from SRAM to MRAM (i.e., MRAM Write).
 //           SRAM's Page#(sram_pid+n) is written to MRAM's Page#(mram_pid+n), 
@@ -472,7 +484,7 @@ void mrm_write_sram_page (uint32_t* prc_sram_addr, uint32_t num_pages, uint32_t 
 // Function: mrm_read_mram_page
 // Args    : 
 //      mrm_mram_pid    - MRM MRAM's Page ID to start reading from.
-//                          Valid Range: [0, 32767]
+//                          Valid Range: [0, 98303]
 //      num_pages       - Number of pages to read/write.
 //                          Valid Range: [1, 512]
 //      prc_sram_addr   - SRAM Byte Address (word-aligned) of PRC/PRE to write the data.
@@ -489,7 +501,7 @@ uint32_t mrm_read_mram_page (uint32_t mrm_mram_pid, uint32_t num_pages, uint32_t
 // Function: mrm_read_mram_page_debug
 // Args    : 
 //      mrm_mram_pid    - MRM MRAM's Page ID to start reading from.
-//                          Valid Range: [0, 32767]
+//                          Valid Range: [0, 98303]
 //      num_pages       - Number of pages to read/write.
 //                          Valid Range: [1, 512]
 //      dest_prefix     - MBus Short Prefix to be used in the reply
@@ -510,7 +522,7 @@ uint32_t mrm_read_mram_page_debug (uint32_t mrm_mram_pid, uint32_t num_pages, ui
 //      num_pages       - Number of pages to read/write.
 //                          Valid Range: [1, 512]
 //      mrm_mram_pid    - MRM MRAM's Page ID to write the data.
-//                          Valid Range: [0, 32767]
+//                          Valid Range: [0, 98303]
 // Description:
 //           Read from PRC/PRE's SRAM, and write the data into MRM's MRAM.
 // Return  : 
@@ -532,14 +544,14 @@ uint32_t mrm_write_mram_page (uint32_t* prc_sram_addr, uint32_t num_pages, uint3
 //                          2: Use DATA_EXT[1] only (1-bit mode)
 //                          3: Use DATA_EXT[1:0] (2-bit mode)
 //      num_pages   - Number of pages to be streamed.
-//                      Valid Range: [0, 32768]
+//                      Valid Range: [0, 98304]
 //                      Once it receives the specified number of pages,
 //                          the ping-pong mode automatically finishes.
 //                      num_pages=0 enables 'unlimited' ping-pong stream. 
 //                          However, it is recommeded to use mrm_pp_ext_stream_unlim()
 //                          for unlimited length of ping-pong streaming.
 //      mrm_page_id - MRM MRAM's Page ID to start writing the received streaming data.
-//                      Valid Range: [0, 32767]
+//                      Valid Range: [0, 98303]
 // Description:
 //      Configure and start the Ping-Pong External Streaming mode.
 //      Once MRM receives the specified number of pages ('num_pages'), 
@@ -562,7 +574,7 @@ uint32_t mrm_pp_ext_stream (uint32_t bit_en, uint32_t num_pages, uint32_t mram_p
 //                          2: Use DATA_EXT[1] only (1-bit mode)
 //                          3: Use DATA_EXT[1:0] (2-bit mode)
 //      mrm_page_id - MRM MRAM's Page ID to start writing the received streaming data.
-//                      Valid Range: [0, 32767]
+//                      Valid Range: [0, 98303]
 // Description:
 //      Configure and start the Unlimited Ping-Pong External Streaming mode.
 //      It stays in the ping-pong mode until one of the following events happens.

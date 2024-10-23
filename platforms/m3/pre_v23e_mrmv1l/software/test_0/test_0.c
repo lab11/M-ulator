@@ -7,30 +7,30 @@
 //  ------------------------------------------------------------
 //   goc_head = 0x00: Access PRC/PRE SRAM
 //  ------------------------------------------------------------
-//        goc_data = 0x000000: Set data_tx[n] = goc_data_ext w/ shuffle=0
-//        goc_data = 0x000001: Set data_tx[n] = goc_data_ext w/ shuffle=1
-//        goc_data = 0x000002: Send data_tx[] out through MBus
-//        goc_data = 0x000003: Send data_rx[] out through MBus
-//        goc_data = 0x000004: Send data_rand[] out through MBus
+//        goc_data = 0: Set data_tx[n] = goc_data_ext w/ shuffle=0
+//        goc_data = 1: Set data_tx[n] = goc_data_ext w/ shuffle=1
+//        goc_data = 2: Send data_tx[] out through MBus
+//        goc_data = 3: Send data_rx[] out through MBus
+//        goc_data = 4: Send data_rand[] out through MBus
 //  
 //  ------------------------------------------------------------
 //   goc_head = 0x01: Basic Power Control
 //  ------------------------------------------------------------
-//        goc_data = 0x00000n: Turn on Macro#n
-//        goc_data = 0x000006: Turn off all macros
-//        goc_data = 0x000007: Turn on the LDO
-//        goc_data = 0x000008: Turn off the LDO
-//        goc_data = 0x00000F: Send MBus Sleep Message
+//        goc_data = n: Turn on Macro#n (n = 1, 2, ..., 5)
+//        goc_data = 6: Turn off all macros
+//        goc_data = 7: Turn on the LDO
+//        goc_data = 8: Turn off the LDO
+//        goc_data = F: Send MBus Sleep Message
 //  
 //  ------------------------------------------------------------
 //   goc_head = 0x02: Accessing MRM SRAM
 //  ------------------------------------------------------------
-//        goc_data = 0x000000: Read data_tx[] and Write into MRM SRAM.   i.e., MRM_SRAM[goc_data_ext+n] = data_tx[n], where n=0, ..., BUF_SIZE-1
-//        goc_data = 0x000001: Read MRM SRAM and Write into data_rx[].   i.e., data_rx[n] = MRM_SRAM[goc_data_ext+n], where n=0, ..., BUF_SIZE-1
-//        goc_data = 0x000002: Repeatedly write data_tx[] into MRM_SRAM. i.e., MRM_SRAM[BUF_SIZE x i + n] = data_tx[n], where n=0, ..., BUF_SIZE-1, and i=0, ..., 511
-//        goc_data = 0x000003: Write all-1 in MRM_SRAM. i.e., MRM_SRAM[n] = 0xFFFFFFFF, where n=0, ..., 16383; NOTE: This alters data_tx[].
-//        goc_data = 0x000004: Write all-0 in MRM_SRAM. i.e., MRM_SRAM[n] = 0x00000000, where n=0, ..., 16383; NOTE: This alters data_tx[].
-//        goc_data = 0x000005: Write goc_data_ext (w/ shuffle) in MRM_SRAM. i.e., MRM_SRAM[n] = goc_ext_data (w/ shuffle), where n=0, ..., 16383; NOTE: This alters data_tx[].
+//        goc_data = 0: Read data_tx[] and Write into MRM SRAM.   i.e., MRM_SRAM[goc_data_ext+n] = data_tx[n], where n=0, ..., BUF_SIZE-1
+//        goc_data = 1: Read MRM SRAM and Write into data_rx[].   i.e., data_rx[n] = MRM_SRAM[goc_data_ext+n], where n=0, ..., BUF_SIZE-1
+//        goc_data = 2: Repeatedly write data_tx[] into MRM_SRAM. i.e., MRM_SRAM[BUF_SIZE x i + n] = data_tx[n], where n=0, ..., BUF_SIZE-1, and i=0, ..., 511
+//        goc_data = 3: Write all-1 in MRM_SRAM. i.e., MRM_SRAM[n] = 0xFFFFFFFF, where n=0, ..., 16383; NOTE: This alters data_tx[].
+//        goc_data = 4: Write all-0 in MRM_SRAM. i.e., MRM_SRAM[n] = 0x00000000, where n=0, ..., 16383; NOTE: This alters data_tx[].
+//        goc_data = 5: Write goc_data_ext (w/ shuffle) in MRM_SRAM. i.e., MRM_SRAM[n] = goc_ext_data (w/ shuffle), where n=0, ..., 16383; NOTE: This alters data_tx[].
 //  
 //  ------------------------------------------------------------
 //   goc_head = 0x03: Read MRM SRAM and put it on the MBus
@@ -43,13 +43,20 @@
 //        goc_data = n: Read MRM MRAM, starting from Page#(goc_data_ext), for n pages, and put it on MBus.
 //  
 //  ------------------------------------------------------------
+//   goc_head = 0x05: Read the MRM SRAM or MRAM, and put it on the MBus
+//  ------------------------------------------------------------
+//        goc_data = 0: Read the MRM SRAM, starting from Page#0, for 'goc_data_ext' pages. goc_data_ext=0 translates to all (MRM_NUM_PAGES_SRAM(512)) pages.
+//        goc_data = 1: Read the MRM MRAM, starting from Page#0, for 'goc_data_ext' pages. goc_data_ext=0 translates to all (MRM_NUM_PAGES_MRAM(98304)) pages.
+//                      If goc_data_ext > NUM_MAX_PAGES_MBUS(512), it sends out multiple MBus messages, with each carrying up to 64kB data.
+//  
+//  ------------------------------------------------------------
 //   goc_head = 0x07: Ping-Pong (TMC_CLOCK_MODE=0)
 //   goc_head = 0x08: Ping-Pong (TMC_CLOCK_MODE=1)
 //  ------------------------------------------------------------
-//        goc_data = 0x000000: Force stop the Ping-Pong mode.
-//        goc_data = 0x000001: Goes into Ping-Pong Mode using DATA_EXT[0], with num_pages = goc_data_ext.
-//        goc_data = 0x000002: Goes into Ping-Pong Mode using DATA_EXT[1], with num_pages = goc_data_ext.
-//        goc_data = 0x000003: Goes into Ping-Pong Mode using DATA_EXT[1:0], with num_pages = goc_data_ext.
+//        goc_data = 0: Force stop the Ping-Pong mode.
+//        goc_data = 1: Goes into Ping-Pong Mode using DATA_EXT[0], with num_pages = goc_data_ext.
+//        goc_data = 2: Goes into Ping-Pong Mode using DATA_EXT[1], with num_pages = goc_data_ext.
+//        goc_data = 3: Goes into Ping-Pong Mode using DATA_EXT[1:0], with num_pages = goc_data_ext.
 //  
 //  ------------------------------------------------------------
 //   goc_head = 0x0A: Normal (Non-Ping-Pong) Test Suite 
@@ -208,7 +215,7 @@ volatile uint32_t goc_head;
 volatile uint32_t goc_data;
 volatile uint32_t goc_data_ext;
 
-#define BUF_SIZE 32     // Corresponds to 1 Page (= 32 words = 8 Qwords)
+#define BUF_SIZE MRM_NUM_WORDS_PER_PAGE // Corresponds to 1 Page (= 32 words = 8 Qwords)
 volatile uint32_t data_rand[BUF_SIZE];
 volatile uint32_t data_tx[BUF_SIZE];
 volatile uint32_t data_rx[BUF_SIZE];
@@ -305,6 +312,7 @@ static void operation_init (void) {
     // MRMv1L Setting
     //-------------------------------------------------
     mrm_init(/*mrm_prefix*/MRM_ADDR, /*irq_reg_idx*/0x0);
+    mrm_enable_tmc_rst_auto_wk();
 
     //-------------------------------------------------
     // End of Initialization
@@ -415,7 +423,6 @@ int main(void) {
     //////////////////////////////////////////////////////////////////////////////////////////
 
         else if (goc_head == 0x01) {
-            mrm_disable_tmc_rst_auto_wk();
             //--------------------------------------------------------
             if (goc_data < MRM_NUM_MRAM_MACROS) {
                 mrm_turn_on_macro(/*mid*/goc_data);
@@ -434,7 +441,6 @@ int main(void) {
 
         else if (goc_head == 0x02) {
         
-            mrm_disable_tmc_rst_auto_wk();
             mrm_turn_on_ldo();  // Need to turn on LDO first.
 
             //--------------------------------------------------------
@@ -451,7 +457,7 @@ int main(void) {
                 else if (goc_data == 0x000004) set_data_tx(/*shuffle*/0, /*pattern*/0x00000000);
                 else if (goc_data == 0x000005) set_data_tx(/*shuffle*/1, /*pattern*/goc_data_ext);
 
-                for(i=0; i<512; i++) mrm_write_sram(/*prc_sram_addr*/(uint32_t*)data_tx, /*num_words*/BUF_SIZE, /*mrm_sram_addr*/(uint32_t*)((i<<5)<<2));
+                for(i=0; i<MRM_NUM_PAGES_SRAM; i++) mrm_write_sram(/*prc_sram_addr*/(uint32_t*)data_tx, /*num_words*/BUF_SIZE, /*mrm_sram_addr*/(uint32_t*)((i<<5)<<2));
             }
             //--------------------------------------------------------
         }
@@ -466,18 +472,51 @@ int main(void) {
     //////////////////////////////////////////////////////////////////////////////////////////
 
         else if (goc_head == 0x04) {
-            mrm_disable_tmc_rst_auto_wk();
             mrm_turn_on_ldo();  // Need to turn on LDO first.
             mrm_read_mram_page_debug (/*mrm_mram_pid*/goc_data_ext, /*num_pages*/goc_data, /*dest_prefix*/DBG_ADDR);
         }
 
     //////////////////////////////////////////////////////////////////////////////////////////
 
+        else if (goc_head == 0x05) {
+            mrm_turn_on_ldo();  // Need to turn on LDO first.
+
+            //--------------------------------------------------------
+            if (goc_data == 0x000000) {
+                if (goc_data_ext == 0) goc_data_ext = MRM_NUM_PAGES_SRAM;
+                uint32_t sram_pid = 0;
+                uint32_t remaining = goc_data_ext;
+                while (remaining > NUM_MAX_PAGES_MBUS) {
+                    mrm_read_sram_page_debug (/*mrm_sram_pid*/sram_pid, /*num_pages*/NUM_MAX_PAGES_MBUS, /*dest_prefix*/DBG_ADDR);
+                    sram_pid += NUM_MAX_PAGES_MBUS;
+                    remaining -= NUM_MAX_PAGES_MBUS;
+                }
+                if (remaining > 0) {
+                    mrm_read_sram_page_debug (/*mrm_sram_pid*/sram_pid, /*num_pages*/remaining, /*dest_prefix*/DBG_ADDR);
+                }
+            }
+            //--------------------------------------------------------
+            else if (goc_data == 0x000001) {
+                if (goc_data_ext == 0) goc_data_ext = 98304;
+                uint32_t mram_pid = 0;
+                uint32_t remaining = goc_data_ext;
+                while (remaining > NUM_MAX_PAGES_MBUS) {
+                    mrm_read_mram_page_debug (/*mrm_mram_pid*/mram_pid, /*num_pages*/NUM_MAX_PAGES_MBUS, /*dest_prefix*/DBG_ADDR);
+                    mram_pid += NUM_MAX_PAGES_MBUS;
+                    remaining -= NUM_MAX_PAGES_MBUS;
+                }
+                if (remaining > 0) {
+                    mrm_read_mram_page_debug (/*mrm_mram_pid*/mram_pid, /*num_pages*/remaining, /*dest_prefix*/DBG_ADDR);
+                }
+            }
+            //--------------------------------------------------------
+        }
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+
         else if ((goc_head == 0x07) | (goc_head == 0x08)) {
 
-            mrm_enable_tmc_rst_auto_wk();
             mrm_set_clock_mode(/*clock_mode*/goc_head>>3);
-
             mrm_turn_on_ldo();  // Need to turn on LDO first.
 
             //--------------------------------------------------------
@@ -496,9 +535,7 @@ int main(void) {
 
         else if (goc_head == 0x0A) {
 
-            mrm_disable_tmc_rst_auto_wk();
             mrm_set_clock_mode(/*clock_mode*/0);
-
             mrm_turn_on_ldo();  // Need to turn on LDO first.
 
             // Run the test procedure
@@ -518,11 +555,11 @@ int main(void) {
                     else if (t==1) for(i=0; i<BUF_SIZE; i++) data_tx[i] = 0xFFFFFFFF;
                     else if (t==2) for(i=0; i<BUF_SIZE; i++) data_tx[i] = data_rand[i];
 
-                    // Copy data_tx into the entire MRM SRAM (64kB = 512 pages)
-                    for(i=0; i<512; i++) mrm_write_sram(/*prc_sram_addr*/(uint32_t*)data_tx, /*num_words*/BUF_SIZE, /*mrm_sram_addr*/(uint32_t*)((i<<5)<<2));
+                    // Copy data_tx into the entire MRM SRAM (64kB = MRM_NUM_PAGES_SRAM pages)
+                    for(i=0; i<MRM_NUM_PAGES_SRAM; i++) mrm_write_sram(/*prc_sram_addr*/(uint32_t*)data_tx, /*num_words*/BUF_SIZE, /*mrm_sram_addr*/(uint32_t*)((i<<5)<<2));
 
-                    // Copy MRM SRAM into MRM MRAM (4MB = 32768 pages)
-                    for(i=0; i<32768; i=i+512) mrm_sram2mram(/*sram_pid*/0, /*num_pages*/512, /*mram_pid*/i);
+                    // Copy MRM SRAM into MRM MRAM (12MB = 98304 pages)
+                    for(i=0; i<MRM_NUM_PAGES_MRAM; i=i+MRM_NUM_PAGES_SRAM) mrm_sram2mram(/*sram_pid*/0, /*num_pages*/MRM_NUM_PAGES_SRAM, /*mram_pid*/i);
 
                     // Check the result
 
@@ -532,17 +569,17 @@ int main(void) {
                     result_num_word_err[t] = 0;
                     result_num_bit_err[t]  = 0;
 
-                    // --- i: MRM MRAM Page ID (32768 pages)
-                    for(i=0; i<32768; i=i+512) {
-                        mrm_mram2sram(/*mram_pid*/i, /*num_pages*/512, /*sram_pid*/0);
+                    // --- i: MRM MRAM Page ID (98304 pages)
+                    for(i=0; i<MRM_NUM_PAGES_MRAM; i=i+MRM_NUM_PAGES_SRAM) {
+                        mrm_mram2sram(/*mram_pid*/i, /*num_pages*/MRM_NUM_PAGES_SRAM, /*sram_pid*/0);
 
-                        // --- j: MRM SRAM Page ID (512 pages/SRAM)
-                        for(j=0; j<512; j++) { 
+                        // --- j: MRM SRAM Page ID (MRM_NUM_PAGES_SRAM pages/SRAM)
+                        for(j=0; j<MRM_NUM_PAGES_SRAM; j++) { 
                             mrm_read_sram_page (/*mrm_sram_pid*/j, /*num_pages*/1, /*prc_sram_addr*/(uint32_t*)data_rx);
 
                             // --- k: Word Offset (32 words/page)
                             uint32_t page_err = 0;
-                            for(k=0; k<32; k++) {
+                            for(k=0; k<MRM_NUM_WORDS_PER_PAGE; k++) {
                                 if (data_tx[k] != data_rx[k]) {
                                     page_err = 1;
                                     result_num_word_err[t]++;
@@ -558,7 +595,7 @@ int main(void) {
                                     // --- l: Bit offset (32 bits/word)
                                     uint32_t temp_tx = data_tx[k];
                                     uint32_t temp_rx = data_rx[k];
-                                    for (l=0; l<32; l++) {
+                                    for (l=0; l<MRM_NUM_BITS_PER_WORD; l++) {
                                         if ((temp_tx&0x1) != (temp_rx&0x1)) result_num_bit_err[t]++;
                                         temp_tx >>=1;
                                         temp_rx >>=1;
@@ -593,9 +630,7 @@ int main(void) {
             //--------------------------------------------------------
             if (goc_data < 2) {
 
-                mrm_disable_tmc_rst_auto_wk();
                 mrm_set_clock_mode(/*clock_mode*/0);
-
                 mrm_turn_on_ldo();
                 mrm_turn_on_macro(/*mid*/goc_data);
 
