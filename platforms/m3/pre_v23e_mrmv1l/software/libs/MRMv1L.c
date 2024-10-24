@@ -262,11 +262,11 @@ void mrm_read_sram (uint32_t* mrm_sram_addr, uint32_t num_words, uint32_t* prc_s
 }
 
 void mrm_read_sram_debug (uint32_t* mrm_sram_addr, uint32_t num_words, uint32_t dest_prefix) {
-    mbus_copy_mem_from_remote_to_any_bulk(
+    mbus_copy_mem_from_remote_to_any_stream(
+        /*stream_channel */ 0,
         /*source_prefix  */ __mrm_prefix__,
         /*source_mem_addr*/ mrm_sram_addr,
         /*dest_prefix    */ dest_prefix,
-        /*dest_mem_addr  */ (uint32_t*) 0x0,
         /*length_minus_1 */ num_words - 1
         );
 }
@@ -293,11 +293,11 @@ void mrm_read_sram_page (uint32_t mrm_sram_pid, uint32_t num_pages, uint32_t* pr
 }
 
 void mrm_read_sram_page_debug (uint32_t mrm_sram_pid, uint32_t num_pages, uint32_t dest_prefix) {
-    mbus_copy_mem_from_remote_to_any_bulk(
+    mbus_copy_mem_from_remote_to_any_stream(
+        /*stream_channel */ 0,
         /*source_prefix  */ __mrm_prefix__,
         /*source_mem_addr*/ (uint32_t*) ((mrm_sram_pid<<5)<<2),
         /*dest_prefix    */ dest_prefix,
-        /*dest_mem_addr  */ (uint32_t*) 0x0,
         /*length_minus_1 */ (num_pages<<5) - 1
         );
 }

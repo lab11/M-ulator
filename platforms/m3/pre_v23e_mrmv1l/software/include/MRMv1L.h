@@ -68,7 +68,7 @@
 #define MRM_NUM_BITS_PER_WORD   32
 #define MRM_NUM_WORDS_PER_PAGE  32
 
-// Each MBus message can carry up to 64kB
+// Each MBus message can carry up to 64kB (512 pages)
 // IMPORTANT: It MUST be NUM_MAX_PAGES_MBUS <= MRM_NUM_PAGES_SRAM.
 //            Otherwise, the code may not work.
 #define NUM_MAX_PAGES_MBUS      512
