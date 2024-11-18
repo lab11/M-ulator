@@ -1,15 +1,12 @@
 
 #include "MRMv1L.h"
 
-void mrm_init(uint32_t mrm_prefix, uint32_t irq_reg_idx) {
+void mrm_init(uint32_t mrm_prefix, uint32_t irq_reg_idx, uint32_t clk_gen_s) {
 
     __mrm_prefix__ = mrm_prefix;
 
     // CLK_GEN Setting
-    //      With CLK_GEN_S = 58, then the measured frequecies will be:
-    //          CLK_SLOW = 199 kHz
-    //          CLK_FAST = 51 MHz
-    mbus_remote_register_write(__mrm_prefix__, 0x26, /*CLK_GEN_S*/ 58);
+    mbus_remote_register_write(__mrm_prefix__, 0x26, /*CLK_GEN_S*/ clk_gen_s);
 
     // IRQ Register
     mbus_remote_register_write(__mrm_prefix__, 0x0F, 0x0
@@ -20,13 +17,10 @@ void mrm_init(uint32_t mrm_prefix, uint32_t irq_reg_idx) {
     __mrm_irq_reg_addr__    = ((volatile uint32_t *) (0xA0000000 | (__mrm_irq_reg_idx__ << 2)));
 
     // Enable Auto Power ON/OFF
-    mbus_remote_register_write(__mrm_prefix__, 0x12, 0x0
-        /* MRAM_PWR_AUTO_OFF (1'h0) */  | (0x1 << 1)
-        /* MRAM_PWR_AUTO_ON  (1'h0) */  | (0x1 << 0)
-    );
+    mrm_enable_auto_power_on_off();
 
     // --- TMC Configuration
-    mrm_disable_tmc_rst_auto_wk();
+    mrm_enable_tmc_rst_auto_wk();
     
     // --- LDO Voltage Tune
     mbus_remote_register_write(__mrm_prefix__, 0x23, 0x0
@@ -39,6 +33,32 @@ void mrm_init(uint32_t mrm_prefix, uint32_t irq_reg_idx) {
        /* LDO_SEL_IBIAS_LDO_BUF   (2'h1 ) */ | (0x1  <<  0) 
     );
 
+//    // Let's try the TMC-default values only. -> Do NOT do this... The results got terrible.
+//    mbus_remote_register_write(__mrm_prefix__, 0x36, 0x000000);
+//    mbus_remote_register_write(__mrm_prefix__, 0x37, 0x000000);  
+//    mbus_remote_register_write(__mrm_prefix__, 0x38, 0x000001);  
+//    mbus_remote_register_write(__mrm_prefix__, 0x39, 0x00012C);  
+//    mbus_remote_register_write(__mrm_prefix__, 0x3A, 0x00C000);  
+//    mbus_remote_register_write(__mrm_prefix__, 0x3B, 0x54A074);  
+//    mbus_remote_register_write(__mrm_prefix__, 0x3C, 0x210800);  
+//    mbus_remote_register_write(__mrm_prefix__, 0x3D, 0x2A1E2A);  
+//    mbus_remote_register_write(__mrm_prefix__, 0x3E, 0x08008D);  
+//    mbus_remote_register_write(__mrm_prefix__, 0x3F, 0xD30000);
+
+}
+
+void mrm_enable_auto_power_on_off(void) {
+    mbus_remote_register_write(__mrm_prefix__, 0x12, 0x0
+        /* MRAM_PWR_AUTO_OFF (1'h0) */  | (0x1 << 1)
+        /* MRAM_PWR_AUTO_ON  (1'h0) */  | (0x1 << 0)
+    );
+}
+
+void mrm_disable_auto_power_on_off(void) {
+    mbus_remote_register_write(__mrm_prefix__, 0x12, 0x0
+        /* MRAM_PWR_AUTO_OFF (1'h0) */  | (0x0 << 1)
+        /* MRAM_PWR_AUTO_ON  (1'h0) */  | (0x0 << 0)
+    );
 }
 
 void mrm_disable_tmc_rst_auto_wk(void) {
@@ -72,6 +92,17 @@ void mrm_enable_bist(void) {
         /* TMC_SCAN_RST_N (1'h0) */ | (0x0 << 1)
         /* TMC_SCAN_TEST  (1'h0) */ | (0x0 << 0)
     );
+
+    mbus_remote_register_write(__mrm_prefix__, 0x28, 0x0
+        /* EN_OUT_TDO    (1'h0) */ | (0x1 << 7)
+        /* EN_PD_TDI     (1'h1) */ | (0x1 << 6)
+        /* EN_PD_TMS     (1'h1) */ | (0x1 << 5)
+        /* EN_PD_TCK     (1'h1) */ | (0x1 << 4)
+        /* EN_PD_BOOT_EN (1'h1) */ | (0x1 << 3)
+        /* EN_PD_D_EXT   (2'h3) */ | (0x3 << 1)
+        /* EN_PD_C_EXT   (1'h1) */ | (0x1 << 0)
+    );
+
     mbus_remote_register_write(__mrm_prefix__, 0x29, 0x0
         /* BIST_ENABLE   (1'h0) */ | (0x1 << 0)
     );
@@ -81,6 +112,17 @@ void mrm_disable_bist(void) {
     mbus_remote_register_write(__mrm_prefix__, 0x29, 0x0
         /* BIST_ENABLE   (1'h0) */ | (0x0 << 0)
     );
+
+    mbus_remote_register_write(__mrm_prefix__, 0x28, 0x0
+        /* EN_OUT_TDO    (1'h0) */ | (0x0 << 7)
+        /* EN_PD_TDI     (1'h1) */ | (0x1 << 6)
+        /* EN_PD_TMS     (1'h1) */ | (0x1 << 5)
+        /* EN_PD_TCK     (1'h1) */ | (0x1 << 4)
+        /* EN_PD_BOOT_EN (1'h1) */ | (0x1 << 3)
+        /* EN_PD_D_EXT   (2'h3) */ | (0x3 << 1)
+        /* EN_PD_C_EXT   (1'h1) */ | (0x1 << 0)
+    );
+
     mbus_remote_register_write(__mrm_prefix__, 0x2C, 0x0
         /* TMC_SCAN_RST_N (1'h0) */ | (0x0 << 1)
         /* TMC_SCAN_TEST  (1'h0) */ | (0x0 << 0)
@@ -96,6 +138,10 @@ void mrm_set_clock_mode(uint32_t clock_mode) {
     uint32_t temp_reg = *__mrm_irq_reg_addr__ & 0xFFFFEF;   // Reset TMC_CLOCK_MODE to 0.
     temp_reg |= ((clock_mode&0x1) << 4); // Sets TMC_CLOCK_MODE = clock_mode
     mbus_remote_register_write(__mrm_prefix__, 0x2F, temp_reg);
+}
+
+void mrm_set_clock_tune(uint32_t s) {
+    mbus_remote_register_write(__mrm_prefix__, 0x26, /*CLK_GEN_S*/s);
 }
 
 void mrm_tune_ldo (uint32_t i0p8, uint32_t i1p8, uint32_t v0p8, uint32_t v1p8) {
@@ -328,6 +374,35 @@ uint32_t mrm_write_mram_page (uint32_t* prc_sram_addr, uint32_t num_pages, uint3
     return mrm_sram2mram (/*sram_pid*/0, /*num_pages*/num_pages, /*mram_pid*/mrm_mram_pid);
 }
 
+uint32_t mrm_ext_stream (uint32_t bit_en, uint32_t num_pages, uint32_t mrm_sram_pid) {
+
+    // --- Disable the Ping-Pong Streaming
+    mbus_remote_register_write(__mrm_prefix__, 0x13, 0x0
+        /* PP_STR_LIMIT (21'h000000) */ | (0 << 1) // Limit the number of words streamed. 0 means no-limit; Must be an integer multiple of NUM_WORDS_PER_PAGE.
+        /* PP_STR_EN    ( 1'h0     ) */ | (0 << 0) // Ping-Pong Straming Enable
+    );
+
+    // --- External Streaming Configuration
+    mbus_remote_register_write(__mrm_prefix__, 0x0C, 0x0
+        /* WRAP_EXT        (1'h0) */ | (0 << 3) 
+        /* UPDATE_ADDR_EXT (1'h0) */ | (0 << 2) 
+        /* BIT_EN_EXT      (2'h1) */ | (bit_en << 0) 
+    );
+
+    // --- Set SRAM Address
+    mrm_set_sram_addr (/*addr*/mrm_sram_pid<<MRM_LOG2_NUM_WORDS_PER_PAGE);
+
+    // --- External Streaming Time-out
+    mbus_remote_register_write(__mrm_prefix__, 0x0D, 0x0
+        /* TIMEOUT_EXT (24'hFFFFFF) */ | (0 << 0) // #0 means no time-limit
+    );
+
+    // --- Go into the ping-pong listening mode
+    mrm_cmd_go (/*cmd*/MRM_CMD_EXT_WR_SRAM, /*len_1*/(num_pages<<MRM_LOG2_NUM_WORDS_PER_PAGE)-1, /*expected*/MRM_EXP_NONE);
+
+    // --- Return the IRQ payload
+    return *__mrm_irq_reg_addr__&0xFF;
+}
 
 uint32_t mrm_pp_ext_stream (uint32_t bit_en, uint32_t num_pages, uint32_t mram_page_id) {
 
@@ -410,128 +485,55 @@ uint32_t mrm_stop_pp_ext_stream (void) {
     return *__mrm_irq_reg_addr__&0xFF;
 }
 
+// Currently supporting DIN[31:0] only.
+uint32_t mrm_tmc_cmd (uint32_t cmd, uint32_t xadr, uint32_t yadr, uint32_t din, uint32_t* result) {
 
+    mbus_remote_register_write(__mrm_prefix__, 0x07, 0x0
+        /* SRAM_START_ADDR (14'h0) */ | (0x0 << 0) 
+    );
 
+    mbus_remote_register_write(__mrm_prefix__, 0x08, 0x0
+        /* XADR (15'h0) */ | (xadr << 7) 
+        /* YADR ( 5'h0) */ | (yadr << 2) 
+    );
 
+    mbus_remote_register_write(__mrm_prefix__, 0x2B, 0x0
+        /* TMC_R_CFG_2CPB         (1'h0 ) */ | (0x0 << 11)      
+        /* TMC_R_CFG_VBL_EXT_VMAX (1'h0 ) */ | (0x0 << 10)      
+        /* TMC_R_SRAM_DMA         (1'h0 ) */ | (0x0 <<  9)      
+        /* TMC_R_IFREN1           (1'h0 ) */ | (0x0 <<  8)      
+        /* TMC_R_INFO             (1'h0 ) */ | (0x0 <<  7)      
+        /* TMC_R_SLP              (1'h0 ) */ | (0x0 <<  6)      
+        /* TMC_R_LPR              (1'h0 ) */ | (0x0 <<  5)      
+        /* TMC_R_CMD              (5'h00) */ | (cmd <<  0)   
+    );
 
+    mbus_copy_mem_from_local_to_remote_bulk(
+        /*remote_prefix  */ __mrm_prefix__,
+        /*remote_mem_addr*/ 0x0,
+        /*local_mem_addr */ &din,
+        /*length_minus_1 */ 0
+        );
 
+    mrm_cmd_go (/*cmd*/MRM_CMD_TMC_CMD, /*len_1*/0, /*expected*/MRM_EXP_NONE);
 
+    if (cmd == MRM_TMC_READ_CONFIG) {
+        mrm_read_sram (/*mrm_sram_addr*/(uint32_t *)0x14, /*num_words*/15, /*prc_sram_addr*/result);
+    }
 
+    // --- Return the IRQ payload
+    return *__mrm_irq_reg_addr__&0xFF;
+}
 
+void mrm_tmc_write_test_reg (uint32_t xadr, uint32_t wdata) {
 
-//uint32_t meas_clk_freq (void) {
-//    // [NOTE] Seems like the MEAS_CLK_FREQ command does not work.
-//    //          It may be due to the wrong condition defined in MRMv1L_def_common.v, which is:
-//    //              `define TPCOND_FULL (time_par_cnt[19:0] == {`OP_TIMEPAR_WIDTH{1'b1}})
-//    //          Since `OP_TIMEPAR_WIDTH is 24, the above condition may never be met.
-//    //
-//    //          Thus, here I am using an indirect approach, using Tpwr.
-//    //          I turn on the MRAM macro w/ Tpwr=0 and Tpwr=0xFFFF, and see the difference.
-//    //
-//    //          Results:
-//    //              S=87:
-//    //                  Measurement
-//    //                      Delay w/ Tpwr=0x0000: 0.3922ms
-//    //                      Delay w/ Tpwr=0xFFFF: 0.4798s
-//    //                      CLK_SLOW = 65536 / (0.4798 - 0.0003922) = 136.702 kHz
-//    //                      CLK_FAST = CLK_SLOW x 256 = 34.996 MHz
-//    //                  Previous Simulation:
-//    //                      CLK_SLOW = 240 kHz
-//    //                      CLK_FAST = 61 MHz
-//    //              S=58:
-//    //                  Measurement
-//    //                      Delay w/ Tpwr=0x0000: 0.2652ms
-//    //                      Delay w/ Tpwr=0xFFFF: 0.3294s
-//    //                      CLK_SLOW = 65536 / (0.3294 - 0.0002652) = 199.115 kHz
-//    //                      CLK_FAST = CLK_SLOW x 256 = 50.973 MHz
-//    //                  Previous Simulation:
-//    //                      CLK_SLOW = 348 kHz
-//    //                      CLK_FAST = 89 MHz
-//    //
-//    //          CONCLUSION:
-//    //              Use CLK_GEN_S = 58, then the measured frequecies will be:
-//    //                  CLK_SLOW = 199 kHz
-//    //                  CLK_FAST = 51 MHz
-//    
-//    // --- CLK_GEN Tuning (Default: CLK_GEN_S = 87)
-//    mbus_remote_register_write(__mrm_prefix__, 0x26, /*CLK_GEN_S*/ 58);
-//
-//    // --- TMC Configuration
-//    mbus_remote_register_write(__mrm_prefix__, 0x2F, 0x0
-//        /* TMC_RST_AUTO_WK  (1'h1) */   | (0x0 << 5)  // If 1, TMC automatically issues AUTO_WAKEUP upon its reset release. This is handled by TMC itself, not the CTRL. TMC_RST_AUTO_WK != TMC_DO_AWK is recommended.
-//        /* TMC_CLOCK_MODE   (1'h0) */   | (0x0 << 4)  // See the table in genRF.conf
-//        /* TMC_CHECK_ERR    (1'h0) */   | (0x0 << 3)  // If 1, it checks TMC_ERR and terminates the operation if an error occurs. If 0, it ignores TMC_ERR and proceeds.
-//        /* TMC_FAST_LOAD    (1'h1) */   | (0x0 << 2)  // If 1, it does not check TMC_BUSY or TMC_ERR for LOAD command. It also performs 4 SRAM readings without a cease.
-//        /* TMC_DO_REG_LOAD  (1'h1) */   | (0x0 << 1)  // If 1, it overwrites the selected TMC registers after auto-wakeup (Valid only when TMC_DO_AWK=1)
-//        /* TMC_DO_AWK       (1'h0) */   | (0x0 << 0)  // If 1, it issues TMC's Auto-Wakeup Command upon power-up. This is handled by the CTRL, not the TMC. TMC_RST_AUTO_WK != TMC_DO_AWK is recommended. For now, let's do TMC_DO_AWK=0.
-//    );
-//
-//    // --- Tpwr=0
-//    mbus_remote_register_write(__mrm_prefix__, 0x03, 0x0
-//        /* Tpwr   (16'd200) */ | (0x0000 << 8)
-//        /* T100ns ( 8'd0)   */ | (  0x00 << 0)
-//    );
-//
-//    // --- Power-On 
-//    *NVIC_ISER = (1 << IRQ_REG0);
-//    // REGISTER 0x11
-//    //       [2] MRAM_PWR_IRQ_EN: 1'b1
-//    //       [1] MRAM_PWR_SEL_ON: 1'b1
-//    //       [0] MRAM_PWR_GO    : 1'b1
-//    // -----------------------------------------------
-//    mbus_remote_register_write(__mrm_prefix__, 0x11, 0x000007);
-//    WFI();
-//    *NVIC_ICER = (1 << IRQ_REG0);
-//
-//    if ((*REG0&0xFF) != 0x94) return 0;
-//
-//    // --- Power-Off
-//    *NVIC_ISER = (1 << IRQ_REG0);
-//    // REGISTER 0x11
-//    //       [2] MRAM_PWR_IRQ_EN: 1'b1
-//    //       [1] MRAM_PWR_SEL_ON: 1'b0
-//    //       [0] MRAM_PWR_GO    : 1'b1
-//    // -----------------------------------------------
-//    mbus_remote_register_write(__mrm_prefix__, 0x11, 0x000005);
-//    WFI();
-//    *NVIC_ICER = (1 << IRQ_REG0);
-//
-//    if ((*REG0&0xFF) != 0x98) return 0;
-//
-//    // --- Tpwr=0xFFFF
-//    mbus_remote_register_write(__mrm_prefix__, 0x03, 0x0
-//        /* Tpwr   (16'd200) */ | (0xFFFF << 8)
-//        /* T100ns ( 8'd0)   */ | (  0x00 << 0)
-//    );
-//
-//    // --- Power-On 
-//    *NVIC_ISER = (1 << IRQ_REG0);
-//    // REGISTER 0x11
-//    //       [2] MRAM_PWR_IRQ_EN: 1'b1
-//    //       [1] MRAM_PWR_SEL_ON: 1'b1
-//    //       [0] MRAM_PWR_GO    : 1'b1
-//    // -----------------------------------------------
-//    mbus_remote_register_write(__mrm_prefix__, 0x11, 0x000007);
-//    WFI();
-//    *NVIC_ICER = (1 << IRQ_REG0);
-//
-//    if ((*REG0&0xFF) != 0x94) return 0;
-//
-//    // --- Power-Off
-//    *NVIC_ISER = (1 << IRQ_REG0);
-//    // REGISTER 0x11
-//    //       [2] MRAM_PWR_IRQ_EN: 1'b1
-//    //       [1] MRAM_PWR_SEL_ON: 1'b0
-//    //       [0] MRAM_PWR_GO    : 1'b1
-//    // -----------------------------------------------
-//    mbus_remote_register_write(__mrm_prefix__, 0x11, 0x000005);
-//    WFI();
-//    *NVIC_ICER = (1 << IRQ_REG0);
-//
-//    if ((*REG0&0xFF) != 0x98) return 0;
-//
-//
-//    return 1;
-//
-//}
+    // R_TEST = 16'h0001
+    mrm_tmc_cmd (/*cmd*/MRM_TMC_WRITE_CONFIG, /*xadr*/0x0, /*yadr*/0x0, /*din*/0x0001, /*result*/(uint32_t*)0x0);
+    
+    // Write Register
+    mrm_tmc_cmd (/*cmd*/MRM_TMC_WRITE_CONFIG, /*xadr*/xadr, /*yadr*/0x0, /*din*/wdata, /*result*/(uint32_t*)0x0);
+    
+    // R_TEST = 16'h0000
+    mrm_tmc_cmd (/*cmd*/MRM_TMC_WRITE_CONFIG, /*xadr*/0x0, /*yadr*/0x0, /*din*/0x0000, /*result*/(uint32_t*)0x0);
 
+}

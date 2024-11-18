@@ -60,10 +60,13 @@
 // PREDEFINED CONSTANTS
 //*******************************************************************
 
-#define MRM_NUM_SRAM_MACROS     2
-#define MRM_NUM_MRAM_MACROS     6
-#define MRM_NUM_PAGES_SRAM      512
-#define MRM_NUM_PAGES_MRAM      98304
+#define MRM_NUM_SRAM_MACROS             2
+#define MRM_NUM_MRAM_MACROS             6
+#define MRM_NUM_PAGES_SRAM              512
+#define MRM_NUM_PAGES_MRAM              98304
+#define MRM_NUM_PAGES_MRAM_MACRO        16384
+#define MRM_LOG2_NUM_PAGES_MRAM_MACRO   14
+#define MRM_LOG2_NUM_WORDS_PER_PAGE     5
 
 #define MRM_NUM_BITS_PER_WORD   32
 #define MRM_NUM_WORDS_PER_PAGE  32
@@ -87,7 +90,7 @@
 #define MRM_EXP_NONE            0x00
 #define MRM_EXP_CP_MRAM2SRAM    0x2F
 #define MRM_EXP_CP_SRAM2MRAM    0x3F
-//#define MRM_EXP_TMC_CMD         0x0
+#define MRM_EXP_TMC_CMD         0xC7
 //#define MRM_EXP_TMC_JTAG        0x0
 //#define MRM_EXP_EXT_WR_SRAM     0x0
 //#define MRM_EXP_START_BOOT      0x0
@@ -101,6 +104,21 @@
 #define MRM_SLOW_CLOCK_MODE     0x0
 #define MRM_FAST_PP_CLOCK_MODE  0x1
 
+//--- TMC COMMAND (Use with MRM_CMD_TMC_CMD)
+#define MRM_TMC_READ            1
+#define MRM_TMC_LOAD            2
+#define MRM_TMC_WRITE           3
+#define MRM_TMC_CLR_LOAD        4
+#define MRM_TMC_WRITE_CONFIG    5
+#define MRM_TMC_READ_CONFIG     6
+#define MRM_TMC_WAKEUP          12
+#define MRM_TMC_AUTO_WAKEUP     13
+#define MRM_TMC_WRITE_2CPB      14
+#define MRM_TMC_WRITE_OTP       15
+#define MRM_TMC_RECALL          22
+#define MRM_TMC_WRITE_SRAM      23
+#define MRM_TMC_READ_SRAM       24
+#define MRM_TMC_SET_TRIM        25
 
 //*******************************************************************
 // GLOBAL VARIABLES
@@ -122,11 +140,53 @@ volatile uint32_t* __mrm_irq_reg_addr__;
 //                      Valid Range: [0, 7]
 //                  Example: If irq_reg_id = 4, MRM sends IRQ messages to PRE's
 //                          Register 0x04.
+//      clk_gen_s   - CLK_GEN_S value.
+//                      Valid Range: [0 - 127]; Less value means a higher frequency.
+//                      GOAL: Try to make CLK_SLOW=199kHz (CLK_FAST = 50MHz)
+//
+//    // [NOTE] Seems like the MEAS_CLK_FREQ command does not work.
+//    //          It may be due to the wrong condition defined in MRMv1L_def_common.v, which is:
+//    //              `define TPCOND_FULL (time_par_cnt[19:0] == {`OP_TIMEPAR_WIDTH{1'b1}})
+//    //          Since `OP_TIMEPAR_WIDTH is 24, the above condition may never be met.
+//    //
+//    //          Thus, In 'test_0' program, I am using an indirect approach, using Tpwr.
+//    //          I turn on the MRAM macro w/ Tpwr=0 and Tpwr=0xFFFF, and see the difference.
+//    //            
+//    //          See the comment section in test_0.c, "Clock Frequency Measurement"
+//
 // Description:
 //           Initializes MRMv1L
+//
+//              Chip    Recommended 
+//                      clk_gen_S
+//          ----------------------------------------
+//           MRMv1L#1:  58
+//           MRMv1L#2:  not measured
+//           MRMv1L#3:  not measured
+//           MRMv1L#4:  51  (200.472 kHz / 51.3 MHz)
+//           MRMv1L#5:  53  (200.982 kHz / 51.5 MHz)
+//
 // Return  : None
 //-------------------------------------------------------------------
-void mrm_init(uint32_t mrm_prefix, uint32_t irq_reg_idx);
+void mrm_init(uint32_t mrm_prefix, uint32_t irq_reg_idx, uint32_t clk_gen_s);
+
+//-------------------------------------------------------------------
+// Function: mrm_enable_auto_power_on_off
+// Args    : None
+// Description:
+//           Enable the Auto-Power On/Off feature
+// Return  : None
+//-------------------------------------------------------------------
+void mrm_enable_auto_power_on_off(void);
+
+//-------------------------------------------------------------------
+// Function: mrm_disable_auto_power_on_off
+// Args    : None
+// Description:
+//           Disable the Auto-Power On/Off feature
+// Return  : None
+//-------------------------------------------------------------------
+void mrm_disable_auto_power_on_off(void);
 
 //-------------------------------------------------------------------
 // Function: mrm_disable_tmc_rst_auto_wk
@@ -201,6 +261,16 @@ void mrm_disable_bist(void);
 // Return  : None
 //-------------------------------------------------------------------
 void mrm_set_clock_mode(uint32_t clock_mode);
+
+//-------------------------------------------------------------------
+// Function: mrm_set_clock_tune
+// Args    :    
+//      s   - Set CLK_GEN_S = s
+// Description:
+//      Set CLK_GEN_S
+// Return  : None
+//-------------------------------------------------------------------
+void mrm_set_clock_tune(uint32_t s);
 
 //********************************************************************************************************************
 // MRM POWER CONTROL FUNCTIONS
@@ -530,6 +600,38 @@ uint32_t mrm_read_mram_page_debug (uint32_t mrm_mram_pid, uint32_t num_pages, ui
 //-------------------------------------------------------------------
 uint32_t mrm_write_mram_page (uint32_t* prc_sram_addr, uint32_t num_pages, uint32_t mrm_mram_pid);
 
+//********************************************************************************************************************
+// EXTERNAL STREAMING
+//********************************************************************************************************************
+
+//-------------------------------------------------------------------
+// Function: mrm_ext_stream
+// Args    : 
+//      bit_en      - External Data pads selection.
+//                      Valid Values:
+//                          1: Use DATA_EXT[0] only (1-bit mode)
+//                          2: Use DATA_EXT[1] only (1-bit mode)
+//                          3: Use DATA_EXT[1:0] (2-bit mode)
+//      num_pages   - Number of pages to be streamed.
+//                      Valid Range: [1, 512]
+//                      Once it receives the specified number of pages,
+//                          the external streaming mode automatically finishes.
+//                      'num_pages=0' case is NOT implemented.
+//      mrm_sram_pid - MRM SRAM's Page ID to start writing the received streaming data.
+//                      Valid Range: [0, 511]
+// Description:
+//      Configure and start the External Streaming mode.
+//      Once MRM receives the specified number of pages ('num_pages'), 
+//      it finishes the external streaming mode, and goes back to standby.
+// Return  : 
+//      IRQ data received from MRM.
+//          0xE2 - MRM successfully received the number of pages specified in 'num_pages', hence finished the ping-pong mode.
+//          0xE4 - Ping-pong mode has been forcefully stopped by user.
+//          0xE5 - Buffer overrun has occurred.
+//          0xE6 - The external streaming speed is too fast.
+//-------------------------------------------------------------------
+uint32_t mrm_ext_stream (uint32_t bit_en, uint32_t num_pages, uint32_t mrm_sram_pid);
+
 
 //********************************************************************************************************************
 // EXTERNAL PING-PONG STREAMING
@@ -600,5 +702,39 @@ void mrm_pp_ext_stream_unlim (uint32_t bit_en, uint32_t mram_page_id);
 //          0xE6 - The external streaming speed is too fast.
 //-------------------------------------------------------------------
 uint32_t mrm_stop_pp_ext_stream (void);
+
+//-------------------------------------------------------------------
+// Function: mrm_tmc_cmd
+// Args    : cmd    - TMC Command
+//           xadr   - TMC XADR
+//           yadr   - TMC YADR
+//           din    - TMC DIN (currently supports the lower 32-bit only)
+//           result - Pointer to which the TMC results will be stored.
+// Description:
+//      Issue the given TMC command
+//      Once the execution is done, you can check its output, 'result'
+//      which is the first 15 words in MRM SRAM.
+// Return  : 
+//      IRQ data received from MRM.
+//          0xC7 - TMC command execution completed successfully
+//-------------------------------------------------------------------
+uint32_t mrm_tmc_cmd (uint32_t cmd, uint32_t xadr, uint32_t yadr, uint32_t din, uint32_t* result);
+
+//-------------------------------------------------------------------
+// Function: mrm_tmc_write_test_reg
+// Args    : xadr   - Test Register Address (xadr)
+//           wdata  - Data to be written to the Test Register
+// Description:
+//      It writes wdata into the TMC's Test Register (xadr).
+//      It first writes 16'h0001 in R_TEST, then writes the wdata to the specified Test Register,
+//      then writes 16'h0000 in R_TEST.
+//
+//      IMPORTANT: You must DISABLE the auto-power on/off feature,
+//                  because R_TEST gets reset whenever the TMC gets reset.
+//
+// Return  : 
+//      None
+//-------------------------------------------------------------------
+void mrm_tmc_write_test_reg (uint32_t xadr, uint32_t wdata);
 
 #endif  // MRMV1L_H

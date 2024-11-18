@@ -1,6 +1,116 @@
 //*******************************************************************************************
 // MRMv1L Testing Suite
 //-------------------------------------------------------------------------------------------
+//
+// Summary of Operations
+//
+//  * ONE MACRO TESTING (SHORTCUT)
+//
+//      Set #bits        = 16777216
+//      goc_data         = Macro ID
+//      goc_data_ext     = Page Offset (0 - 16383)
+//
+//      1) Ping-Pong into One Macro w/ DATA_EXT[0]
+//          
+//              goc_head     = 0x06
+//
+//      2) Read one MRAM Macro
+//
+//              goc_head     = 0x05
+//
+//      3) CP Testing
+//
+//          1) Enable CP Testing
+//
+//              goc_head     = 0x0F
+//
+//          2) Set VOTP = 2.2V
+//
+//          3) Run the Python code
+//
+//          4) Set VOTP = 0V
+//
+//          5) Disable the CP Testing
+//
+//              goc_head    = 0x0F
+//
+//
+//  * ENTIRE MRAM TESTING
+//
+//      1) Ping-Pong into the First Half MRAM w/ DATA_EXT[0]
+//
+//          goc_head     = 0x08
+//          goc_data     = 0x1 (use 0x6 if DATA_EXT[1:0])
+//          goc_data_ext = 0xC000 (49152)
+//          #bits        = 50331648
+//
+//      2) Ping-Pong into the Second Half MRAM w/ DATA_EXT[0]
+//
+//          goc_head     = 0x08
+//          goc_data     = 0x4 (use 0x6 if DATA_EXT[1:0])
+//          goc_data_ext = 0xC000 (49152)
+//          #bits        = 50331648
+//
+//      3) Read the entire MRAM
+//
+//          goc_head     = 0x05
+//          goc_data     = 0x6
+//          goc_data_ext = 0x0
+//
+//
+//  * ONE MACRO TESTING
+//
+//      1) Ping-Pong into One Macro w/ DATA_EXT[0]
+//          
+//              goc_head     = 0x07
+//              goc_data     = Macro ID 
+//              goc_data_ext = 0x1 (use 0x3 if DATA_EXT[1:0])
+//              #bits        = 16777216
+//
+//      2) Read one MRAM Macro
+//
+//              goc_head     = 0x05
+//              goc_data     = Macro ID
+//              goc_data_ext = 0x0
+//
+//
+//  * CP TESTING
+//
+//      1) Enable CP Testing
+//
+//          goc_head     = 0x0F
+//          goc_data     = Macro ID
+//
+//      2) Set VOTP = 2.2V
+//
+//      3) Run the Python code
+//
+//      4) Set VOTP = 0V
+//
+//      5) Disable the CP Testing
+//
+//          goc_head    = 0x0F
+//          goc_data    = 0xF
+//
+//
+//
+//  * MISCELLANEOUS
+//
+//      * Ping-Pong into the entire MRAM w/ DATA_EXT[0] (NOTE: LabVIEW cannot handle this due to OutOfMemory)
+//
+//              goc_head     = 0x08
+//              goc_data     = 0x1 (use 0x3 if DATA_EXT[1:0])
+//              goc_data_ext = 0x18000 (98304)
+//              #bits        = 100663296
+//
+//      * Read the MRAM SRAM
+//
+//              goc_head     = 0x05
+//              goc_data     = 0x7
+//              goc_data_ext = 0x0
+//
+//
+//-------------------------------------------------------------------------------------------
 // GOC/EP IRQ 
 //-------------------------------------------------------------------------------------------
 //
@@ -45,27 +155,73 @@
 //  ------------------------------------------------------------
 //   goc_head = 0x05: Read the MRM SRAM or MRAM, and put it on the MBus
 //  ------------------------------------------------------------
-//        goc_data = 0: Read the MRM SRAM, starting from Page#0, for 'goc_data_ext' pages. goc_data_ext=0 translates to all (MRM_NUM_PAGES_SRAM(512)) pages.
-//        goc_data = 1: Read the MRM MRAM, starting from Page#0, for 'goc_data_ext' pages. goc_data_ext=0 translates to all (MRM_NUM_PAGES_MRAM(98304)) pages.
+//        goc_data = n: (n=0, 1, ..., 5)
+//                      Read the MRM MRAM, starting from Page#((16384xn)+goc_data_ext), for (MRM_NUM_PAGES_MRAM_MACRO(16384)) pages.
+//                      Thus, goc_data_ext=0 means that it starts from the beginning of Macro#n.
+//                      It sends out multiple MBus messages, with each carrying up to 64kB data.
+//        goc_data = 6: Read the MRM MRAM, starting from Page#0, for 'goc_data_ext' pages. goc_data_ext=0 translates to all (MRM_NUM_PAGES_MRAM(98304)) pages.
 //                      If goc_data_ext > NUM_MAX_PAGES_MBUS(512), it sends out multiple MBus messages, with each carrying up to 64kB data.
+//        goc_data = 7: Read the MRM SRAM, starting from Page#0, for 'goc_data_ext' pages. goc_data_ext=0 translates to all (MRM_NUM_PAGES_SRAM(512)) pages.
 //  
 //  ------------------------------------------------------------
-//   goc_head = 0x07: Ping-Pong (TMC_CLOCK_MODE=0)
+//   goc_head = 0x06: One-Macro Ping-Pong (TMC_CLOCK_MODE=1) w/ DATA_EXT[0]
+//  ------------------------------------------------------------
+//        goc_data = n: Goes into Ping-Pong Mode, with num_pages = 16384, starting from Page#((16384xn)+goc_data_ext)
+//                      Thus, goc_data_ext=0 means that it starts from the beginning of Macro#n.
+//
+//  ------------------------------------------------------------
+//   goc_head = 0x07: One-Macro Ping-Pong (TMC_CLOCK_MODE=0) w/ DATA_EXT[0]
+//  ------------------------------------------------------------
+//        goc_data = n: Goes into Ping-Pong Mode, with num_pages = 16384, starting from Page#((16384xn)+goc_data_ext)
+//                      Thus, goc_data_ext=0 means that it starts from the beginning of Macro#n.
+//
+//  ------------------------------------------------------------
 //   goc_head = 0x08: Ping-Pong (TMC_CLOCK_MODE=1)
 //  ------------------------------------------------------------
 //        goc_data = 0: Force stop the Ping-Pong mode.
-//        goc_data = 1: Goes into Ping-Pong Mode using DATA_EXT[0], with num_pages = goc_data_ext.
-//        goc_data = 2: Goes into Ping-Pong Mode using DATA_EXT[1], with num_pages = goc_data_ext.
-//        goc_data = 3: Goes into Ping-Pong Mode using DATA_EXT[1:0], with num_pages = goc_data_ext.
+//        goc_data = 1: Goes into Ping-Pong Mode using DATA_EXT[0],   with num_pages = goc_data_ext, starting from Page#0.
+//        goc_data = 2: Goes into Ping-Pong Mode using DATA_EXT[1],   with num_pages = goc_data_ext, starting from Page#0.
+//        goc_data = 3: Goes into Ping-Pong Mode using DATA_EXT[1:0], with num_pages = goc_data_ext, starting from Page#0.
+//        goc_data = 4: Goes into Ping-Pong Mode using DATA_EXT[0],   with num_pages = goc_data_ext, starting from Page#(MRM_NUM_PAGES_MRAM/2).
+//        goc_data = 5: Goes into Ping-Pong Mode using DATA_EXT[1],   with num_pages = goc_data_ext, starting from Page#(MRM_NUM_PAGES_MRAM/2).
+//        goc_data = 6: Goes into Ping-Pong Mode using DATA_EXT[1:0], with num_pages = goc_data_ext, starting from Page#(MRM_NUM_PAGES_MRAM/2).
 //  
 //  ------------------------------------------------------------
-//   goc_head = 0x0A: Normal (Non-Ping-Pong) Test Suite 
+//   goc_head = 0x09: 64kB External Streaming w/ DATA_EXT[0]
 //  ------------------------------------------------------------
-//        goc_data = 0x000000: All-0 Test
-//        goc_data = 0x000001: All-1 Test
-//        goc_data = 0x000002: Random Data Test
-//        goc_data = 0x000003: Run All-0, All-1, Random Data, sequentially.
-//        goc_data = other   : Send the result through MBus
+//        goc_data = 0: Goes into External Streaming mode, with num_pages = 512, starting from Page#(goc_data_ext) in SRAM.
+//        goc_data = 1: Read the MRM SRAM, starting from Page#0, for 512 pages (i.e., the entire 64kB SRAM)
+//
+//  ------------------------------------------------------------
+//   goc_head = 0x0C: Clock Frequency Measurement
+//  ------------------------------------------------------------
+//        goc_data = any: Start the measurement, with CLK_GEN_S = goc_data_ext.
+//
+//                  Less CLK_GEN_S -> Higher Frequency.
+//
+//                  GOAL: Make CLK_FAST = 50MHz
+//
+//          Example (Salaea Capture)
+//
+//              ...
+//              2.720135200000000, 0x40, 0x11000007 - Ta
+//              2.720744320000000, 0x10, 0x00000094 - Tb
+//              ...
+//              2.729130880000000, 0x40, 0x11000007 - Tc
+//              3.099683520000000, 0x10, 0x00000094 - Td
+//              ...
+//
+//              CL_SLOW = 65536 / ((Td - Tc) - (Tb - Ta))
+//                      = 65536 / (Ta - Tb - Tc + Td)
+//                      = 65536 / (2.720135200000000 - 2.720744320000000 - 2.729130880000000 + 3.099683520000000)
+//                      = 177.151 kHz
+//              CLK_FAST = CLK_SLOW x 256 = 45.35 MHz
+//
+//
+//  ------------------------------------------------------------
+//   goc_head = 0x0E: MRM Register File Access
+//  ------------------------------------------------------------
+//        goc_data = n/a: Writes goc_data_ext[23:0] into MRM Register#(goc_data_ext[31:24])
 //
 //  ------------------------------------------------------------
 //   goc_head = 0x0F: CP Testing
@@ -220,13 +376,9 @@ volatile uint32_t data_rand[BUF_SIZE];
 volatile uint32_t data_tx[BUF_SIZE];
 volatile uint32_t data_rx[BUF_SIZE];
 
-volatile uint32_t result_num_page_err[3];
-volatile uint32_t result_num_word_err[3];
-volatile uint32_t result_num_bit_err[3];
-volatile uint32_t result_page_id[3];
-volatile uint32_t result_word_offset[3];
-volatile uint32_t result_word_correct[3];
-volatile uint32_t result_word_actual[3];
+volatile uint32_t old_val;  // Generic Temporary Variable
+
+uint32_t tmc_result[15];
 
 //*******************************************************************************************
 // FUNCTIONS DECLARATIONS
@@ -311,8 +463,8 @@ static void operation_init (void) {
     //-------------------------------------------------
     // MRMv1L Setting
     //-------------------------------------------------
-    mrm_init(/*mrm_prefix*/MRM_ADDR, /*irq_reg_idx*/0x0);
-    mrm_enable_tmc_rst_auto_wk();
+    // See MRMv1L.h file for the recommneded 'clk_gen_s' value for each chip.
+    mrm_init(/*mrm_prefix*/MRM_ADDR, /*irq_reg_idx*/0x0, /*clk_gen_s*/53);
 
     //-------------------------------------------------
     // End of Initialization
@@ -356,7 +508,7 @@ void handler_ext_int_reg0 (void) {
 
 int main(void) {
 
-    uint32_t i, j, k, l, t;
+    uint32_t i;
 
     // Disable PRE Watchdog & MBus Watchdog
     *TIMERWD_GO  = 0;
@@ -482,7 +634,34 @@ int main(void) {
             mrm_turn_on_ldo();  // Need to turn on LDO first.
 
             //--------------------------------------------------------
-            if (goc_data == 0x000000) {
+            if (goc_data < 0x6) {
+                uint32_t mram_pid = (goc_data << MRM_LOG2_NUM_PAGES_MRAM_MACRO)+goc_data_ext;
+                uint32_t remaining = MRM_NUM_PAGES_MRAM_MACRO;
+                while (remaining > NUM_MAX_PAGES_MBUS) {
+                    mrm_read_mram_page_debug (/*mrm_mram_pid*/mram_pid, /*num_pages*/NUM_MAX_PAGES_MBUS, /*dest_prefix*/DBG_ADDR);
+                    mram_pid += NUM_MAX_PAGES_MBUS;
+                    remaining -= NUM_MAX_PAGES_MBUS;
+                }
+                if (remaining > 0) {
+                    mrm_read_mram_page_debug (/*mrm_mram_pid*/mram_pid, /*num_pages*/remaining, /*dest_prefix*/DBG_ADDR);
+                }
+            }
+            //--------------------------------------------------------
+            else if (goc_data == 0x6) {
+                if (goc_data_ext == 0) goc_data_ext = MRM_NUM_PAGES_MRAM;
+                uint32_t mram_pid = 0;
+                uint32_t remaining = goc_data_ext;
+                while (remaining > NUM_MAX_PAGES_MBUS) {
+                    mrm_read_mram_page_debug (/*mrm_mram_pid*/mram_pid, /*num_pages*/NUM_MAX_PAGES_MBUS, /*dest_prefix*/DBG_ADDR);
+                    mram_pid += NUM_MAX_PAGES_MBUS;
+                    remaining -= NUM_MAX_PAGES_MBUS;
+                }
+                if (remaining > 0) {
+                    mrm_read_mram_page_debug (/*mrm_mram_pid*/mram_pid, /*num_pages*/remaining, /*dest_prefix*/DBG_ADDR);
+                }
+            }
+            //--------------------------------------------------------
+            else if (goc_data == 0x7) {
                 if (goc_data_ext == 0) goc_data_ext = MRM_NUM_PAGES_SRAM;
                 uint32_t sram_pid = 0;
                 uint32_t remaining = goc_data_ext;
@@ -496,27 +675,72 @@ int main(void) {
                 }
             }
             //--------------------------------------------------------
-            else if (goc_data == 0x000001) {
-                if (goc_data_ext == 0) goc_data_ext = 98304;
-                uint32_t mram_pid = 0;
-                uint32_t remaining = goc_data_ext;
-                while (remaining > NUM_MAX_PAGES_MBUS) {
-                    mrm_read_mram_page_debug (/*mrm_mram_pid*/mram_pid, /*num_pages*/NUM_MAX_PAGES_MBUS, /*dest_prefix*/DBG_ADDR);
-                    mram_pid += NUM_MAX_PAGES_MBUS;
-                    remaining -= NUM_MAX_PAGES_MBUS;
-                }
-                if (remaining > 0) {
-                    mrm_read_mram_page_debug (/*mrm_mram_pid*/mram_pid, /*num_pages*/remaining, /*dest_prefix*/DBG_ADDR);
-                }
-            }
-            //--------------------------------------------------------
         }
 
     //////////////////////////////////////////////////////////////////////////////////////////
 
-        else if ((goc_head == 0x07) | (goc_head == 0x08)) {
+        else if (goc_head == 0x06) {
 
-            mrm_set_clock_mode(/*clock_mode*/goc_head>>3);
+            mrm_set_clock_mode(/*clock_mode*/1);
+            mrm_turn_on_ldo();  // Need to turn on LDO first.
+            mrm_pp_ext_stream (/*bit_en*/0x1, /*num_pages*/MRM_NUM_PAGES_MRAM_MACRO, /*mram_page_id*/(goc_data<<MRM_LOG2_NUM_PAGES_MRAM_MACRO)+goc_data_ext);
+
+        }
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+
+        else if (goc_head == 0x07) {
+
+            mrm_set_clock_mode(/*clock_mode*/0);
+            mrm_turn_on_ldo();  // Need to turn on LDO first.
+            mrm_pp_ext_stream (/*bit_en*/0x1, /*num_pages*/MRM_NUM_PAGES_MRAM_MACRO, /*mram_page_id*/(goc_data<<MRM_LOG2_NUM_PAGES_MRAM_MACRO)+goc_data_ext);
+
+        }
+
+//        else if (goc_head == 0x09) {
+//
+//            mrm_set_clock_mode(/*clock_mode*/1);
+//            mrm_turn_on_ldo();  // Need to turn on LDO first.
+//
+//
+//            // You must disable AUTO-POWER ON/OFF. Otherwise, R_TEST register gets reset.
+//            mrm_disable_auto_power_on_off();
+//            
+//            mrm_turn_on_macro(/*mid*/goc_data);
+//
+//            // ECC Off
+//            mrm_tmc_write_test_reg(/*xadr*/0x1, /*wdata*/0x3D8008C1);
+//
+//            mrm_pp_ext_stream (/*bit_en*/0x1, /*num_pages*/MRM_NUM_PAGES_MRAM_MACRO, /*mram_page_id*/goc_data<<MRM_LOG2_NUM_PAGES_MRAM_MACRO);
+//
+//            mrm_turn_off_macro();
+//           
+//            // Re-enable AUTO-POWER ON/OFF
+//            mrm_enable_auto_power_on_off();
+//        }
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+
+        else if (goc_head == 0x09) {
+
+            mrm_turn_on_ldo();  // Need to turn on LDO first.
+
+            //--------------------------------------------------------
+            if (goc_data == 0x0) {
+                mrm_ext_stream (/*bit_en*/0x1, /*num_pages*/MRM_NUM_PAGES_SRAM, /*mrm_sram_pid*/goc_data_ext);
+            }
+            //--------------------------------------------------------
+            else if (goc_data == 0x1) {
+                mrm_read_sram_page_debug (/*mrm_sram_pid*/0, /*num_pages*/MRM_NUM_PAGES_SRAM, /*dest_prefix*/DBG_ADDR);
+            }
+            //--------------------------------------------------------
+
+        }
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+        else if (goc_head == 0x08) {
+
+            mrm_set_clock_mode(/*clock_mode*/1);
             mrm_turn_on_ldo();  // Need to turn on LDO first.
 
             //--------------------------------------------------------
@@ -529,98 +753,47 @@ int main(void) {
                     mrm_pp_ext_stream (/*bit_en*/goc_data, /*num_pages*/goc_data_ext, /*mram_page_id*/0);
             }
             //--------------------------------------------------------
+            else if ((goc_data == 0x000004) | (goc_data == 0x000005) | (goc_data == 0x000006)) {
+                if (goc_data_ext==0) 
+                    mrm_pp_ext_stream_unlim (/*bit_en*/goc_data, /*mram_page_id*/MRM_NUM_PAGES_MRAM>>1);
+                else
+                    mrm_pp_ext_stream (/*bit_en*/goc_data-3, /*num_pages*/goc_data_ext, /*mram_page_id*/MRM_NUM_PAGES_MRAM>>1);
+            }
+            //--------------------------------------------------------
+        }
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+        else if (goc_head == 0x0C) {
+
+            // CLK_GEN Tuning (Default: CLK_GEN_S = 87)
+            mrm_set_clock_tune(/*s*/goc_data_ext);
+            mrm_turn_on_ldo();  // Need to turn on LDO first.
+
+            // All Zero TMC_CONFIG
+            set_halt_until_mbus_trx();
+            mbus_remote_register_read(MRM_ADDR, 0x2F, 0x7);
+            set_halt_until_mbus_tx();
+            old_val = *REG7;
+            mbus_remote_register_write(MRM_ADDR, 0x2F, 0x0);
+
+            // Tpwr=0, Power-On/Off
+            mrm_set_tpwr(/*tpwr*/0);
+            mrm_turn_on_macro(/*mid*/0);
+            mrm_turn_off_macro();
+
+            // Tpwr=0xFFFF (65535)
+            mrm_set_tpwr(/*tpwr*/0xFFFF);
+            mrm_turn_on_macro(/*mid*/0);
+            mrm_turn_off_macro();
+
+            // Set TMC_CONFIG back to its original value
+            mbus_remote_register_write(MRM_ADDR, 0x2F, old_val);
         }
 
     //////////////////////////////////////////////////////////////////////////////////////////
 
-        else if (goc_head == 0x0A) {
-
-            mrm_set_clock_mode(/*clock_mode*/0);
-            mrm_turn_on_ldo();  // Need to turn on LDO first.
-
-            // Run the test procedure
-            if (goc_data < 0x000004) {
-
-                uint32_t t_start, t_stop;
-                if      (goc_data == 0x000000) {t_start = 0; t_stop = 0;}
-                else if (goc_data == 0x000001) {t_start = 1; t_stop = 1;}
-                else if (goc_data == 0x000002) {t_start = 2; t_stop = 2;}
-                else if (goc_data == 0x000003) {t_start = 0; t_stop = 2;}
-                else                           {t_start = 0; t_stop = 0;}
-
-                for (t=t_start; t<(t_stop+1); t++) {
-
-                    // Prepare data_tx[]
-                    if      (t==0) for(i=0; i<BUF_SIZE; i++) data_tx[i] = 0x00000000;
-                    else if (t==1) for(i=0; i<BUF_SIZE; i++) data_tx[i] = 0xFFFFFFFF;
-                    else if (t==2) for(i=0; i<BUF_SIZE; i++) data_tx[i] = data_rand[i];
-
-                    // Copy data_tx into the entire MRM SRAM (64kB = MRM_NUM_PAGES_SRAM pages)
-                    for(i=0; i<MRM_NUM_PAGES_SRAM; i++) mrm_write_sram(/*prc_sram_addr*/(uint32_t*)data_tx, /*num_words*/BUF_SIZE, /*mrm_sram_addr*/(uint32_t*)((i<<5)<<2));
-
-                    // Copy MRM SRAM into MRM MRAM (12MB = 98304 pages)
-                    for(i=0; i<MRM_NUM_PAGES_MRAM; i=i+MRM_NUM_PAGES_SRAM) mrm_sram2mram(/*sram_pid*/0, /*num_pages*/MRM_NUM_PAGES_SRAM, /*mram_pid*/i);
-
-                    // Check the result
-
-                    // --- Initialize the error counters
-                    result_page_id[t] = 0xFFFFFFFF;
-                    result_num_page_err[t] = 0;
-                    result_num_word_err[t] = 0;
-                    result_num_bit_err[t]  = 0;
-
-                    // --- i: MRM MRAM Page ID (98304 pages)
-                    for(i=0; i<MRM_NUM_PAGES_MRAM; i=i+MRM_NUM_PAGES_SRAM) {
-                        mrm_mram2sram(/*mram_pid*/i, /*num_pages*/MRM_NUM_PAGES_SRAM, /*sram_pid*/0);
-
-                        // --- j: MRM SRAM Page ID (MRM_NUM_PAGES_SRAM pages/SRAM)
-                        for(j=0; j<MRM_NUM_PAGES_SRAM; j++) { 
-                            mrm_read_sram_page (/*mrm_sram_pid*/j, /*num_pages*/1, /*prc_sram_addr*/(uint32_t*)data_rx);
-
-                            // --- k: Word Offset (32 words/page)
-                            uint32_t page_err = 0;
-                            for(k=0; k<MRM_NUM_WORDS_PER_PAGE; k++) {
-                                if (data_tx[k] != data_rx[k]) {
-                                    page_err = 1;
-                                    result_num_word_err[t]++;
-
-                                    // Log the very first error word
-                                    if (result_page_id[t] == 0xFFFFFFFF) {
-                                        result_page_id[t] = i + j;
-                                        result_word_offset[t] = k;
-                                        result_word_correct[t] = data_tx[k];
-                                        result_word_actual[t]  = data_rx[k];
-                                    }
-
-                                    // --- l: Bit offset (32 bits/word)
-                                    uint32_t temp_tx = data_tx[k];
-                                    uint32_t temp_rx = data_rx[k];
-                                    for (l=0; l<MRM_NUM_BITS_PER_WORD; l++) {
-                                        if ((temp_tx&0x1) != (temp_rx&0x1)) result_num_bit_err[t]++;
-                                        temp_tx >>=1;
-                                        temp_rx >>=1;
-                                    }
-                                }
-                            }
-
-                            if (page_err) result_num_page_err[t]++;
-
-                        }
-                    }
-                }
-            }
-            // Spit out the results
-            else {
-                for (t=0; t<3; t++) {
-                    mbus_write_message32((RES_ADDR<<4)|0x0, result_num_page_err[t] );
-                    mbus_write_message32((RES_ADDR<<4)|0x1, result_num_word_err[t] );
-                    mbus_write_message32((RES_ADDR<<4)|0x2, result_num_bit_err[t]  );
-                    mbus_write_message32((RES_ADDR<<4)|0x3, result_page_id[t]      );
-                    mbus_write_message32((RES_ADDR<<4)|0x4, result_word_offset[t]  );
-                    mbus_write_message32((RES_ADDR<<4)|0x5, result_word_correct[t] );
-                    mbus_write_message32((RES_ADDR<<4)|0x6, result_word_actual[t]  );
-                }
-            }
+        else if (goc_head == 0x0E) {
+            mbus_remote_register_write(MRM_ADDR, (goc_data_ext>>24)&0xFF, goc_data_ext & 0xFFFFFF);
         }
 
     //////////////////////////////////////////////////////////////////////////////////////////
@@ -628,7 +801,20 @@ int main(void) {
         else if (goc_head == 0x0F) {
 
             //--------------------------------------------------------
-            if (goc_data < 2) {
+            if (goc_data < 0x6) {
+
+                // Disable REG_LOAD
+                set_halt_until_mbus_trx();
+                mbus_remote_register_read(MRM_ADDR, 0x2F, 0x0);
+                set_halt_until_mbus_tx();
+                old_val = *REG0;
+
+                uint32_t temp_reg = old_val & 0xFFFFDC;   // Reset TMC_RST_AUTO_WK, TMC_DO_REG_LOAD, TMC_DO_AWK
+                temp_reg |=   (0x1 << 5)  // TMC_RST_AUTO_WK = 0
+                            | (0x0 << 1)  // TMC_DO_REG_LOAD = 1
+                            | (0x0 << 0); // TMC_DO_AWK = 1
+                mbus_remote_register_write(MRM_ADDR, 0x2F, temp_reg);
+
 
                 mrm_set_clock_mode(/*clock_mode*/0);
                 mrm_turn_on_ldo();
@@ -643,6 +829,9 @@ int main(void) {
                 // Disable BIST
                 mrm_disable_bist();
                 mrm_turn_off_macro();
+
+                // Recover the old value
+                mbus_remote_register_write(MRM_ADDR, 0x2F, old_val);
             }
             //--------------------------------------------------------
         }
