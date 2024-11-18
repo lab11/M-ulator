@@ -5,3 +5,12 @@
 *.asm
 *.boot*
 log_*
+
+# Old Files
+prc_v12/*
+prc_v15/*
+prc_v16/*
+pre_v12/*
+pre_v13/*
+pre_v17/*
+pre_v20/*
