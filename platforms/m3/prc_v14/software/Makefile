@@ -52,6 +52,7 @@ CXX     := $(CROSS_COMPILE)-g++
 LD      := $(CROSS_COMPILE)-ld
 OBJDUMP := $(CROSS_COMPILE)-objdump
 OBJCOPY := $(CROSS_COMPILE)-objcopy
+NM		:= $(CROSS_COMPILE)-nm
 
 ################################################################################
 ## You should not need to edit this makefile beyond this point
@@ -67,16 +68,23 @@ LIBS := $(subst .c,.o,$(wildcard libs/*.c))
 LIBS += $(subst .s,.o,$(wildcard libs/*.s))
 HEADERS := $(wildcard include/*.h)
 
-DIRS := $(patsubst %/,%,$(filter-out libs/,$(filter-out include/,$(wildcard */))))
+GDB:= $(subst .c,.o,$(wildcard gdb/*.c))
+GDB+= $(subst .s,.o,$(wildcard gdb/*.s))
+
+DIRS := $(patsubst %/,%,\
+			$(filter-out libs/,\
+				$(filter-out include/,\
+					$(filter-out gdb/,\
+						$(wildcard */)))))
 BINS := $(foreach var,$(DIRS),$(var)/$(var).bin)
 HEXS := $(foreach var,$(DIRS),$(var)/$(var).hex)
 ELFS := $(foreach var,$(DIRS),$(var)/$(var).elf)
 
-.PRECIOUS: $(LIBS) $(BINS) $(ELFS)
+.PRECIOUS: $(LIBS) $(BINS) $(ELFS) $(GDB)
 
 .PHONY: all
 
-all: $(HEXS)
+all: $(GDB) $(HEXS)
 
 $(DIRS):
 	$(MAKE) $@/$@.hex
@@ -87,7 +95,7 @@ $(DIRS):
 
 #%.bin:	$$(wildcard $$(dir $$*)*.c)
 
-%.o: $(HEADERS)
+%.o: $(HEADERS) 
 
 %.hex:	%.bin
 	xxd -g1 -c1 $< | cut -d' ' -f2 > $@
@@ -98,11 +106,20 @@ $(DIRS):
 	$(OBJCOPY) -O binary $< $@
 
 # Mind the order here to align -T$^
-%.elf:	libs/memmap $(LIBS) %.o
-	$(LD) $(LDFLAGS) -T$^ "$$(echo $$(arm-none-eabi-gcc -print-libgcc-file-name) | tr -d '\r')" -o $@
+# This will link in GDB support if you #include "gdb.h" in any of the c/s files
+%.elf: COBJ=$(patsubst %.c,%.o,$(wildcard $(dir $@)*.c))
+%.elf: SOBJ=$(patsubst %.s,%.o,$(wildcard $(dir $@)*.s))
+%.elf:	libs/memmap $(LIBS) $$(COBJ) $$(SOBJ) 
+	@if [ -n "$$(echo $$( $(NM) $(filter-out $<,$^) | grep use_gdb))" ]; then  \
+		$(LD) $(LDFLAGS) -T$^ $(GDB) \
+			"$$(echo $$( $(CC) -print-libgcc-file-name) | tr -d '\r')" -o $@ ;\
+	else \
+		$(LD) $(LDFLAGS) -T$^ \
+			"$$(echo $$( $(CC) -print-libgcc-file-name) | tr -d '\r')" -o $@ ;\
+	fi				
 	$(OBJDUMP) -Sd $@ > $*.asm
 
-.PRECIOUS: %.elf
+.PRECIOUS: %.elf %.o
 
 
 ##########
@@ -113,6 +130,7 @@ clean:
 	rm -f $(HEXS)
 	rm -f $(LIBS)
 	rm -f $(ELFS)
+	rm -f $(GDB)
 
 clean-%:
 	rm -f $*/$*.bin $*/$*.hex

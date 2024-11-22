@@ -110,7 +110,6 @@ void mbus_remote_register_write(
 	mbus_write_message(address, &data, 1);
 }
 
-inline
 void mbus_remote_register_read(
 		uint8_t remote_prefix,
 		uint8_t remote_reg_addr,
