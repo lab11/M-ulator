@@ -159,7 +159,6 @@ void mbus_remote_register_write(
  * @param remote_reg_addr The register to read on the remote
  * @param local_reg_addr  The register to save the value to on this node
  */
-inline
 void mbus_remote_register_read(
 		uint8_t remote_prefix,
 		uint8_t remote_reg_addr,
