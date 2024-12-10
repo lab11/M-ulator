@@ -236,7 +236,7 @@
 //*******************************************************************************************
 
 // XO Frequency
-#define XO_FREQ_SEL 0                       // XO Frequency (in kHz) = 2 ^ XO_FREQ_SEL
+#define XO_FREQ_SEL 4                       // XO Frequency (in kHz) = 2 ^ XO_FREQ_SEL
 #define XO_FREQ     1<<(XO_FREQ_SEL+10)     // XO Frequency (in Hz)
 
 // XO Initialization Wait Duration
