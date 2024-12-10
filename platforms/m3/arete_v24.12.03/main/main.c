@@ -431,12 +431,12 @@ void handler_ext_int_gocep (void) {
 
 // REG0 IRQ (PMU)
 void handler_ext_int_reg0(void) { // REG0
-    disable_reg_irq(/*reg*/0);
+    *NVIC_ICPR = (1 << IRQ_REG0);
 }
 
 // REG1 IRQ (MRM)
 void handler_ext_int_reg1(void) { // REG1
-    disable_reg_irq(/*reg*/1);
+    *NVIC_ICPR = (1 << IRQ_REG1);
 }
 
 // XOT IRQ
@@ -466,6 +466,7 @@ int main() {
     
     // If this is the very first wakeup, initialize the system
     if (!get_flag(FLAG_INITIALIZED)) operation_init();
+
     else if (WAKEUP_BY_GOCEP || get_flag(FLAG_PEND_INIT_DELAY)) {
 
         if (get_flag(FLAG_PEND_INIT_DELAY)) {
