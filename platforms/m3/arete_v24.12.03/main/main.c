@@ -562,10 +562,10 @@ int main() {
                             ado_safr_set_mode(/*mode*/1);
                             ado_amp_set_mode (/*mode*/1);
 
-                            // Start Ping-Pong
-                            duration_sec = goc_head_lo;
-                            if (goc_head_2==0x03) offset_sec = get_min(goc_data_1, MRM_RECORD_DURATION);
-                            mrm_start_rec (/*offset_sec*/offset_sec, /*duration_sec*/duration_sec, /*wait_for_irq*/0);
+                         //   // Start Ping-Pong
+                         //   duration_sec = goc_head_lo;
+                         //   if (goc_head_2==0x03) offset_sec = get_min(goc_data_1, MRM_RECORD_DURATION);
+                         //   mrm_start_rec (/*offset_sec*/offset_sec, /*duration_sec*/duration_sec, /*wait_for_irq*/0);
 
                             // Enable ADC 
                             ado_adc_set_mode(/*mode*/1);
