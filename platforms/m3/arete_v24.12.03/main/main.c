@@ -213,7 +213,7 @@
 //      - Send debug messages
 //      - Use default values rather than grabbing the values from EEPROM
 #define DEVEL
-//#define ENABLE_XO_PAD     // Enable XO clock output for debugging
+#define ENABLE_XO_PAD     // Enable XO clock output for debugging
 
 #define XO_ALWAYS_RUNNING   // Enable this to make the XO always run. 
                             // Disable this to make the XO run only during the Init Delay.
