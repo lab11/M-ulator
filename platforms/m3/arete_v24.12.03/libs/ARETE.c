@@ -564,6 +564,11 @@ void mrm_start_rec (uint32_t offset_sec, uint32_t duration_sec, uint16_t wait_fo
 
     if (num_pages==0) num_pages = MRM_NUM_PAGES_MRAM;
     mrm_turn_on_ldo();
+
+    mbus_write_message32(0xE0, num_pages);
+    mbus_write_message32(0xE1, start_pid);
+    mbus_write_message32(0xE2, wait_for_irq);
+
     mrm_pp_ext_stream (/*bit_en*/0x1, /*num_pages*/num_pages, /*mram_page_id*/start_pid, /*wait_for_irq*/wait_for_irq);
 }
 
