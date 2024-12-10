@@ -34,6 +34,41 @@ void mrm_init(uint32_t irq_reg_idx, uint32_t clk_gen_s) {
        /* LDO_SEL_IBIAS_LDO_BUF   (2'h1 ) */ | (0x1  <<  0) 
     );
 
+
+    mbus_remote_register_write(MRM_ADDR, 0x30, 0x0
+        /* TPGM          (8'd11 )  */    | (16 << 16)  //  "[FAST CLOCK] Write pulse width; = (TPGM + 1) x Tclk_fast; Min 250ns, Max 275ns"
+        /* TW2R_S        (8'd0  )  */    | (0  <<  8)  //  "[SLOW CLOCK] Write to Read; = (16^TW2R[7]) x TW2R[6:0] x Tclk_slow; Min 1us"
+        /* TWRS_S        (8'd0  )  */    | (1  <<  0)  //  "[SLOW CLOCK] Read to Write; = (16^TWRS[7]) x TWRS[6:0] x Tclk_slow; Min 3us"
+    );
+    mbus_remote_register_write(MRM_ADDR, 0x31, 0x0
+        /* TRDL_S        (7'd0  )  */    | (0  <<  4)  // "[SLOW CLOCK] READ low pulse; = (TRDL + 1) x Tclk_slow; Min 200ns"
+        /* TCYCRD1_S     (4'd0  )  */    | (0  <<  0)  // "[SLOW CLOCK] When the read state exeed 16 clocks, it uses TCYCRD1 to control for BL leak measurement"
+    );
+    mbus_remote_register_write(MRM_ADDR, 0x32, 0x0
+        /* TRDS_S        (9'd0  )  */    | (0  << 12)  //"[SLOW CLOCK] READ Rising to 1st Clk; = TRDS[8] x (Twk[7:0] + 1) x Tclk_slow; Min 100ns"
+        /* TWK_S         (8'd0  )  */    | (1  <<  4)  //"[SLOW CLOCK] Wakeup Time; = (16^TWK[7]) x TWK[6:0] x Tclk_slow; Min 3us"
+        /* TCYCRD_S      (4'd0  )  */    | (0  <<  0)  //"[SLOW CLOCK] Read Cycle; = (TCYCRD + 1) x Tclk_slow; Min 16.5ns"
+    );
+    mbus_remote_register_write(MRM_ADDR, 0x33, 0x0
+        /* TPGM_OTP_RBD  (7'd29 )  */    | (43 << 12)  // "[FAST CLOCK] OTP RBD Tprog Pulse Width = (16 x TPGM_OTP_RBD + 1) x Tclk_fast; Min 9000ns, Max 11000ns"
+        /* TPGM_OTP_RAP  (6'd5  )  */    | (7  <<  6)  // "[FAST CLOCK] OTP RAP Tprog Pulse Width = (TPGM_OTP_RAP + 1) x Tclk_fast; Min 100ns, Max 140ns"
+        /* TPGM_OTP_RP   (6'd5  )  */    | (7  <<  0)  // "[FAST CLOCK] OTP RP Tprog Pulse Width = (TPGM_OTP_RP + 1) x Tclk_fast; Min 100ns, Max 140ns"
+    );
+    mbus_remote_register_write(MRM_ADDR, 0x34, 0x0
+        /* TW2R_F        (8'd50 )  */    | (75 << 16)  //  "[FAST CLOCK] Write to Read; = (16^TW2R[7]) x TW2R[6:0] x Tclk_fast; Min 1us"
+        /* TWRS_F        (8'd137)  */    | (142<<  8)  //  "[FAST CLOCK] Read to Write; = (16^TWRS[7]) x TWRS[6:0] x Tclk_fast; Min 3us"
+        /* TWK_F         (8'd134)  */    | (137<<  0)  //  "[FAST CLOCK] Wakeup Time; = (16^TWK[7]) x TWK[6:0] x Tclk_fast; Min 3us"
+    );
+    mbus_remote_register_write(MRM_ADDR, 0x35, 0x0
+        /* TRDL_F        (7'd10 )  */    | (15 << 17)  // "[FAST CLOCK] READ low pulse; = (TRDL + 1) x Tclk_fast; Min 200ns"
+        /* TRDS_F        (9'd5  )  */    | (7  <<  8)  // "[FAST CLOCK] READ Rising to 1st Clk; = TRDS[8] x (Twk[7:0] + 1) x Tclk_fast; Min 100ns"
+        /* TCYCRD1_F     (4'd0  )  */    | (0  <<  4)  // "[FAST CLOCK] When the read state exeed 16 clocks, it uses TCYCRD1 to control for BL leak measurement"
+        /* TCYCRD_F      (4'd0  )  */    | (1  <<  0)  // "[FAST CLOCK] Read Cycle; = (TCYCRD + 1) x Tclk_fast; Min 16.5ns"
+    );
+
+
+
+
 }
 
 void mrm_enable_auto_power_on_off(void) {

@@ -229,7 +229,8 @@
 // MRM CONFIGURATIONS
 //*******************************************************************************************
 // MRMv1L's Clock Generator Tuning. The fast clock must be ~50MHz. See the comments section of mrm_init() in MRMv1L.h.
-#define MRM_CLK_GEN_S           51
+//#define MRM_CLK_GEN_S           51
+#define MRM_CLK_GEN_S           31
 
 //*******************************************************************************************
 // XO CONFIGURATIONS
