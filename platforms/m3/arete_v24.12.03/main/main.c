@@ -466,8 +466,7 @@ int main() {
     
     // If this is the very first wakeup, initialize the system
     if (!get_flag(FLAG_INITIALIZED)) operation_init();
-    
-    if (WAKEUP_BY_GOCEP || get_flag(FLAG_PEND_INIT_DELAY)) {
+    else if (WAKEUP_BY_GOCEP || get_flag(FLAG_PEND_INIT_DELAY)) {
 
         if (get_flag(FLAG_PEND_INIT_DELAY)) {
             goc_head   = prev_goc_head;
