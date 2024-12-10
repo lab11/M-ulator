@@ -193,6 +193,12 @@
 //        goc_data = 1: Read the MRM SRAM, starting from Page#0, for 512 pages (i.e., the entire 64kB SRAM)
 //
 //  ------------------------------------------------------------
+//   goc_head = 0x0A: One-Macro Ping-Pong (TMC_CLOCK_MODE=1) w/ DATA_EXT[0]. No REG_LOAD. Recall trim-code from IFREN1 instead of from OTP.
+//  ------------------------------------------------------------
+//        goc_data = n: Goes into Ping-Pong Mode, with num_pages = 16384, starting from Page#((16384xn)+goc_data_ext)
+//                      Thus, goc_data_ext=0 means that it starts from the beginning of Macro#n.
+//
+//  ------------------------------------------------------------
 //   goc_head = 0x0C: Clock Frequency Measurement
 //  ------------------------------------------------------------
 //        goc_data = any: Start the measurement, with CLK_GEN_S = goc_data_ext.
@@ -763,6 +769,126 @@ int main(void) {
         }
 
     //////////////////////////////////////////////////////////////////////////////////////////
+    
+        else if (goc_head == 0x0A) {
+
+            // Just in case, reset.
+            mrm_turn_off_ldo();
+
+            // Configure...
+            // Disable Auto-Power-On/Off, Disable Auto Wakeup and Register Load. Use TMC_CLOCK_MODE=1.
+            mrm_disable_auto_power_on_off();
+            mbus_remote_register_read (MRM_ADDR, 0x2F, 0x07);   // Store the old value in REG7
+            mbus_remote_register_write(MRM_ADDR, 0x2F, 0x0
+                /* TMC_RST_AUTO_WK (1'h1) */ | (0x0 << 5)
+                /* TMC_CLOCK_MODE  (1'h0) */ | (0x1 << 4)
+                /* TMC_CHECK_ERR   (1'h0) */ | (0x0 << 3)
+                /* TMC_FAST_LOAD   (1'h1) */ | (0x1 << 2)
+                /* TMC_DO_REG_LOAD (1'h1) */ | (0x0 << 1)
+                /* TMC_DO_AWK      (1'h0) */ | (0x0 << 0)
+            );
+
+            // Turn on the LDO and the Macro
+            mrm_turn_on_ldo();
+            mrm_turn_on_macro(/*mid*/goc_data);
+
+            // Issue WRITE_CONFIG command.
+            // Make it recall the trim data from IFREN1, rather than from OTP)
+            // --> Bit[29]: 1 -> 0
+            mrm_tmc_write_test_reg(/*xadr*/0xB, /*wdata*/0x0 
+                /* ( 1'h0) */ | (0x0 << 31) // Reserved
+                /* ( 1'h0) */ | (0x0 << 30) // Used for load {YADR, MRAM.DOUT} to load-buffer when issuing read command. (See Doc)
+                /* ( 1'h1) */ | (0x0 << 29) // Select recall/auto-wakeup location come from IFREN1 or OTP (0: IFREN1; 1: OTP)
+                /* ( 1'h1) */ | (0x1 << 28) // Control IFREN for data comparison after waiting wakeup time (0: Selected Main Array; 1: Selected IFREN Array)
+                /* ( 1'h1) */ | (0x1 << 27) // Bypass comparison checker during recall repair/trim-code/wakeup/auto_wakeup mode.
+                /* ( 9'h0) */ | (0x0 << 18) // Set loop count for data comparison during wakeup and auto-wakeup sequence. Loop count = N + 1
+                /* (13'h0) */ | (0x0 << 5 ) // Set XADR for data comparison during wakeup and auto-wakeup sequence. 
+                /* ( 5'h0) */ | (0x0 << 0 ) // Set YADR for data comparison during wakeup and auto-wakeup sequence.
+            );
+
+            // Issue AUTO_WAKEUP Command
+            mrm_tmc_cmd (/*cmd*/MRM_TMC_AUTO_WAKEUP, /*xadr*/0, /*yadr*/0, /*din*/0, /*result*/(uint32_t *)0x0);
+
+            // Start Ping-Pong
+            mrm_pp_ext_stream (/*bit_en*/0x1, /*num_pages*/MRM_NUM_PAGES_MRAM_MACRO, /*mram_page_id*/(goc_data<<MRM_LOG2_NUM_PAGES_MRAM_MACRO)+goc_data_ext);
+
+            // Write the original TMC configuration
+            mbus_remote_register_write(MRM_ADDR, 0x2F, *REG7);
+
+            // Turn off Macro and LDO
+            mrm_turn_off_macro();
+            mrm_turn_off_ldo();
+
+            // Enable Auto-Power-On/Off, as this is the default setting in mrm_init()
+            mrm_enable_auto_power_on_off();
+
+        }
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+    
+        else if (goc_head == 0x0B) {
+            // Just in case, reset.
+            mrm_turn_off_ldo();
+
+            // Configure...
+            // Disable Auto-Power-On/Off, Disable Auto Wakeup and Register Load. Use TMC_CLOCK_MODE=1.
+            mrm_disable_auto_power_on_off();
+            mbus_remote_register_read (MRM_ADDR, 0x2F, 0x07);   // Store the old value in REG7
+            mbus_remote_register_write(MRM_ADDR, 0x2F, 0x0
+                /* TMC_RST_AUTO_WK (1'h1) */ | (0x0 << 5)
+                /* TMC_CLOCK_MODE  (1'h0) */ | (0x1 << 4)
+                /* TMC_CHECK_ERR   (1'h0) */ | (0x0 << 3)
+                /* TMC_FAST_LOAD   (1'h1) */ | (0x1 << 2)
+                /* TMC_DO_REG_LOAD (1'h1) */ | (0x0 << 1)
+                /* TMC_DO_AWK      (1'h0) */ | (0x0 << 0)
+            );
+
+            // Turn on the LDO and the Macro
+            mrm_turn_on_ldo();
+            mrm_turn_on_macro(/*mid*/goc_data);
+
+            // Issue WRITE_CONFIG command.
+            // Make it recall the trim data from IFREN1, rather than from OTP)
+            // --> Bit[29]: 1 -> 0
+            mrm_tmc_write_test_reg(/*xadr*/0xB, /*wdata*/0x0 
+                /* ( 1'h0) */ | (0x0 << 31) // Reserved
+                /* ( 1'h0) */ | (0x0 << 30) // Used for load {YADR, MRAM.DOUT} to load-buffer when issuing read command. (See Doc)
+                /* ( 1'h1) */ | (0x0 << 29) // Select recall/auto-wakeup location come from IFREN1 or OTP (0: IFREN1; 1: OTP)
+                /* ( 1'h1) */ | (0x1 << 28) // Control IFREN for data comparison after waiting wakeup time (0: Selected Main Array; 1: Selected IFREN Array)
+                /* ( 1'h1) */ | (0x1 << 27) // Bypass comparison checker during recall repair/trim-code/wakeup/auto_wakeup mode.
+                /* ( 9'h0) */ | (0x0 << 18) // Set loop count for data comparison during wakeup and auto-wakeup sequence. Loop count = N + 1
+                /* (13'h0) */ | (0x0 << 5 ) // Set XADR for data comparison during wakeup and auto-wakeup sequence. 
+                /* ( 5'h0) */ | (0x0 << 0 ) // Set YADR for data comparison during wakeup and auto-wakeup sequence.
+            );
+
+            // Issue AUTO_WAKEUP Command
+            mrm_tmc_cmd (/*cmd*/MRM_TMC_AUTO_WAKEUP, /*xadr*/0, /*yadr*/0, /*din*/0, /*result*/(uint32_t *)0x0);
+
+            // Main Operation
+            uint32_t mram_pid = (goc_data << MRM_LOG2_NUM_PAGES_MRAM_MACRO)+goc_data_ext;
+            uint32_t remaining = MRM_NUM_PAGES_MRAM_MACRO;
+            while (remaining > NUM_MAX_PAGES_MBUS) {
+                mrm_read_mram_page_debug (/*mrm_mram_pid*/mram_pid, /*num_pages*/NUM_MAX_PAGES_MBUS, /*dest_prefix*/DBG_ADDR);
+                mram_pid += NUM_MAX_PAGES_MBUS;
+                remaining -= NUM_MAX_PAGES_MBUS;
+            }
+            if (remaining > 0) {
+                mrm_read_mram_page_debug (/*mrm_mram_pid*/mram_pid, /*num_pages*/remaining, /*dest_prefix*/DBG_ADDR);
+            }
+
+            // Write the original TMC configuration
+            mbus_remote_register_write(MRM_ADDR, 0x2F, *REG7);
+
+            // Turn off Macro and LDO
+            mrm_turn_off_macro();
+            mrm_turn_off_ldo();
+
+            // Enable Auto-Power-On/Off, as this is the default setting in mrm_init()
+            mrm_enable_auto_power_on_off();
+        }
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+
         else if (goc_head == 0x0C) {
 
             // CLK_GEN Tuning (Default: CLK_GEN_S = 87)

@@ -411,6 +411,7 @@ static void operation_sleep(void){
 //*******************************************************************
 
 void handler_ext_int_gocep    (void) __attribute__ ((interrupt ("IRQ")));
+void handler_ext_int_reg0     (void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_reg1     (void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_xot      (void) __attribute__ ((interrupt ("IRQ")));
 
@@ -426,6 +427,11 @@ void handler_ext_int_gocep (void) {
         mbus_write_message32(0xE1, goc_data_0);
         mbus_write_message32(0xE2, goc_data_1);
     #endif    
+}
+
+// REG0 IRQ (PMU)
+void handler_ext_int_reg0(void) { // REG0
+    disable_reg_irq(/*reg*/0);
 }
 
 // REG1 IRQ (MRM)
@@ -453,12 +459,13 @@ int main() {
         mbus_write_message32(0xEF, wakeup_source);
     #endif    
     
-    // If this is the very first wakeup, initialize the system
-    if (!get_flag(FLAG_INITIALIZED)) operation_init();
-    
     // Enable required IRQs
     *NVIC_ISER = (1 << IRQ_GOCEP)
+               | (1 << IRQ_REG0)
                | (1 << IRQ_REG1);
+    
+    // If this is the very first wakeup, initialize the system
+    if (!get_flag(FLAG_INITIALIZED)) operation_init();
     
     if (WAKEUP_BY_GOCEP || get_flag(FLAG_PEND_INIT_DELAY)) {
 
