@@ -28,7 +28,7 @@
 .word   handler_ext_int_mbustx    /* 21 (0x54) External Interrupt(5)  */
 .word   handler_ext_int_mbusrx    /* 22 (0x58) External Interrupt(6)  */
 .word   handler_ext_int_mbusfwd   /* 23 (0x5C) External Interrupt(7)  */
-.word   handler_ext_int_wfi       /* 24 (0x60) External Interrupt(8)  */
+.word   handler_ext_int_reg0      /* 24 (0x60) External Interrupt(8)  */
 .word   handler_ext_int_wfi       /* 25 (0x64) External Interrupt(9)  */
 .word   handler_ext_int_wfi       /* 26 (0x68) External Interrupt(10) */
 .word   handler_ext_int_reg3      /* 27 (0x6C) External Interrupt(11) */
@@ -60,6 +60,7 @@ hang:   b .
 .weak handler_ext_int_mbustx, hang
 .weak handler_ext_int_mbusrx, hang
 .weak handler_ext_int_mbusfwd, hang
+.weak handler_ext_int_reg0, hang
 .weak handler_ext_int_wfi, hang
 .weak handler_ext_int_reg3, hang
 .weak handler_ext_int_reg4, hang
