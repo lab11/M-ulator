@@ -285,6 +285,17 @@ uint32_t mrm_cmd_go (uint32_t cmd, uint32_t len_1, uint32_t expected) {
     }
 }
 
+void mrm_cmd_go_irq_nowait (uint32_t cmd, uint32_t len_1) {
+
+    mbus_remote_register_write(MRM_ADDR, 0x09, 0x0
+        /* LENGTH (14'h0000) */ | (len_1 << 6)    
+        /* IRQ_EN (    1'h0) */ | (0x1 << 5)    
+        /* CMD    (    4'h0) */ | (cmd << 1)    
+        /* GO     (    1'h0) */ | (0x1 << 0)    
+    );
+
+}
+
 void mrm_cmd_go_noirq (uint32_t cmd, uint32_t len_1) {
 
     mbus_remote_register_write(MRM_ADDR, 0x09, 0x0
@@ -458,7 +469,7 @@ uint32_t mrm_pp_ext_stream (uint32_t bit_en, uint32_t num_pages, uint32_t mram_p
         return *__mrm_irq_reg_addr__&0xFF;
     }
     else {
-        mrm_cmd_go_noirq (/*cmd*/MRM_CMD_EXT_WR_SRAM, /*len_1*/0);
+        mrm_cmd_go_irq_nowait (/*cmd*/MRM_CMD_EXT_WR_SRAM, /*len_1*/0);
         return 1;
     }
 
