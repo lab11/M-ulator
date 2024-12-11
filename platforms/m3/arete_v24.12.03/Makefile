@@ -159,5 +159,10 @@ clean_libs:
 clean-%:
 	rm -f $*/$*.bin $*/$*.hex
 
+cp: 
+	scp \
+        ./*/*.hex \
+        yejoong@thurston.cubeworks.io:~/Dropbox/Designs/202401_MRAM/Testing/MRMv1S/hex/.
+
 .PHONY: clean clean_libs clean-%
 

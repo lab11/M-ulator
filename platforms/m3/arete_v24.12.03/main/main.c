@@ -54,11 +54,11 @@
 //      -------------------------------------------------------------------------------------
 //
 //      0x0008      a       b           -           Record Duration: 'a' seconds (Max: 1536 seconds)
-//                                                  MBus Destination Address: b (=goc_data_0[7:0])
+//                                                  MBus Destination Short Prefix: b (=goc_data_0[3:0])
 //                                                  MRAM Offset: 0 
 //
 //      0x0009      a       b           c           Record Duration: 'a' seconds (Max: 1536 seconds)
-//                                                  MBus Destination Address: b (=goc_data_0[7:0])
+//                                                  MBus Destination Short Prefix: b (=goc_data_0[3:0])
 //                                                  MRAM Offset: 'c' seconds (Max: 1536 seconds)
 //
 //      -------------------------------------------------------------------------------------
@@ -102,6 +102,22 @@
 //      0x0301      a       -           -           Read a MRM register Reg#(a), and send the MBus message to PRE's Reg#0x07.
 //      0x0302      a       b           -           Write into a MRM register, Reg#(a) = b, then wait for a reply.
 //
+//      0x0310      a       -           -           Clock Frequency Measurement with CLK_GEN_S = a (Valid Range: [0, 127], Smaller 'a' results in a higher frequency)
+//
+//                                                      Example (Salaea Capture)
+//                                          
+//                                                              ...
+//                                                              2.72013520, 0x40, 0x11000007 - Ta
+//                                                              2.72074432, 0x10, 0x00000094 - Tb
+//                                                              ...
+//                                                              2.72913088, 0x40, 0x11000007 - Tc
+//                                                              3.09968352, 0x10, 0x00000094 - Td
+//                                                              ...
+//                                          
+//                                                          CLK_SLOW = 65536 / (Ta - Tb - Tc + Td) = 65536 / (2.7201352 - 2.72074432 - 2.72913088 + 3.09968352) 
+//                                                                   = 177.151 kHz
+//                                                          CLK_FAST = CLK_SLOW x 256 = 45.35 MHz
+//                                          
 //      -------------------------------------------------------------------------------------
 //       PRE CONTROL
 //      -------------------------------------------------------------------------------------
@@ -228,9 +244,38 @@
 //*******************************************************************************************
 // MRM CONFIGURATIONS
 //*******************************************************************************************
-// MRMv1L's Clock Generator Tuning. The fast clock must be ~50MHz. See the comments section of mrm_init() in MRMv1L.h.
-//#define MRM_CLK_GEN_S           51
-#define MRM_CLK_GEN_S           31
+// MRMv1L's Clock Generator Tuning and MRAM Timing Parameters. 
+// See the comments section of mrm_init() in MRMv1L.h.
+#define MRM_CLK_GEN_S     0x24
+
+//---   Timing                  CLK_FAST Freq       Parameter
+//      Parameter           50MHz   75MHz   100MHz  Description
+#define MRM_TPGM          /*11 */   16    /*22 */   //[FAST CLOCK] Write pulse width; = (TPGM + 1) x Tclk_fast; Min 250ns, Max 275ns
+#define MRM_TW2R_S        /*0  */   0     /*0  */   //[SLOW CLOCK] Write to Read; = (16^TW2R[7]) x TW2R[6:0] x Tclk_slow; Min 1us
+#define MRM_TWRS_S        /*0  */   1     /*1  */   //[SLOW CLOCK] Read to Write; = (16^TWRS[7]) x TWRS[6:0] x Tclk_slow; Min 3us
+#define MRM_TRDL_S        /*0  */   0     /*0  */   //[SLOW CLOCK] READ low pulse; = (TRDL + 1) x Tclk_slow; Min 200ns
+#define MRM_TCYCRD1_S     /*0  */   0     /*0  */   //[SLOW CLOCK] When the read state exeed 16 clocks, it uses TCYCRD1 to control for BL leak measurement
+#define MRM_TRDS_S        /*0  */   0     /*0  */   //[SLOW CLOCK] READ Rising to 1st Clk; = TRDS[8] x (Twk[7:0] + 1) x Tclk_slow; Min 100ns
+#define MRM_TWK_S         /*0  */   1     /*1  */   //[SLOW CLOCK] Wakeup Time; = (16^TWK[7]) x TWK[6:0] x Tclk_slow; Min 3us
+#define MRM_TCYCRD_S      /*0  */   0     /*0  */   //[SLOW CLOCK] Read Cycle; = (TCYCRD + 1) x Tclk_slow; Min 16.5ns
+#define MRM_TPGM_OTP_RBD  /*29 */   43    /*57 */   //[FAST CLOCK] OTP RBD Tprog Pulse Width = (16 x TPGM_OTP_RBD + 1) x Tclk_fast; Min 9000ns, Max 11000ns
+#define MRM_TPGM_OTP_RAP  /*5  */   7     /*10 */   //[FAST CLOCK] OTP RAP Tprog Pulse Width = (TPGM_OTP_RAP + 1) x Tclk_fast; Min 100ns, Max 140ns
+#define MRM_TPGM_OTP_RP   /*5  */   7     /*10 */   //[FAST CLOCK] OTP RP Tprog Pulse Width = (TPGM_OTP_RP + 1) x Tclk_fast; Min 100ns, Max 140ns
+#define MRM_TW2R_F        /*50 */   75    /*100*/   //[FAST CLOCK] Write to Read; = (16^TW2R[7]) x TW2R[6:0] x Tclk_fast; Min 1us
+#define MRM_TWRS_F        /*137*/   142   /*146*/   //[FAST CLOCK] Read to Write; = (16^TWRS[7]) x TWRS[6:0] x Tclk_fast; Min 3us
+#define MRM_TWK_F         /*134*/   137   /*140*/   //[FAST CLOCK] Wakeup Time; = (16^TWK[7]) x TWK[6:0] x Tclk_fast; Min 3us
+#define MRM_TRDL_F        /*10 */   15    /*20 */   //[FAST CLOCK] READ low pulse; = (TRDL + 1) x Tclk_fast; Min 200ns
+#define MRM_TRDS_F        /*5  */   7     /*10 */   //[FAST CLOCK] READ Rising to 1st Clk; = TRDS[8] x (Twk[7:0] + 1) x Tclk_fast; Min 100ns
+#define MRM_TCYCRD1_F     /*0  */   0     /*0  */   //[FAST CLOCK] When the read state exeed 16 clocks, it uses TCYCRD1 to control for BL leak measurement
+#define MRM_TCYCRD_F      /*0  */   1     /*1  */   //[FAST CLOCK] Read Cycle; = (TCYCRD + 1) x Tclk_fast; Min 16.5ns
+
+//--- Group the timing parameters together
+#define MRM_TPAR_0x30   (MRM_TPGM<<16)|(MRM_TW2R_S<<8)|(MRM_TWRS_S<<0)
+#define MRM_TPAR_0x31   (MRM_TRDL_S<<4)|(MRM_TCYCRD1_S<<0)
+#define MRM_TPAR_0x32   (MRM_TRDS_S<<12)|(MRM_TWK_S<<4)|(MRM_TCYCRD_S<<0)
+#define MRM_TPAR_0x33   (MRM_TPGM_OTP_RBD<<12)|(MRM_TPGM_OTP_RAP<<6)|(MRM_TPGM_OTP_RP<<0)
+#define MRM_TPAR_0x34   (MRM_TW2R_F<<16)|(MRM_TWRS_F<<8)|(MRM_TWK_F<<0)
+#define MRM_TPAR_0x35   (MRM_TRDL_F<<17)|(MRM_TRDS_F<<8)|(MRM_TCYCRD1_F<<4)|(MRM_TCYCRD_F<<0)
 
 //*******************************************************************************************
 // XO CONFIGURATIONS
@@ -318,14 +363,15 @@ static void operation_init(void){
     //-------------------------------------------------
     // Enumeration
     //-------------------------------------------------
-    set_halt_until_mbus_trx();
-    mbus_enumerate(ADO_ADDR);
-    mbus_enumerate(MRM_ADDR);
-    mbus_enumerate(PMU_ADDR);
-    set_halt_until_mbus_tx();
-
-    // Update the flag
-    set_flag(FLAG_ENUMERATED, 1);
+    if (!get_flag(FLAG_ENUMERATED)) {
+        set_halt_until_mbus_trx();
+        mbus_enumerate(ADO_ADDR);
+        mbus_enumerate(MRM_ADDR);
+        mbus_enumerate(PMU_ADDR);
+        set_halt_until_mbus_tx();
+        // Update the flag
+        set_flag(FLAG_ENUMERATED, 1);
+    }
 
     //-------------------------------------------------
     // PMU Settings
@@ -335,7 +381,7 @@ static void operation_init(void){
     //-------------------------------------------------
     // MRM Settings
     //-------------------------------------------------
-    mrm_init(/*irq_reg_idx*/MRM_TARGET_REG_IDX, /*clk_gen_s*/MRM_CLK_GEN_S);
+    mrm_init(/*irq_reg_idx*/MRM_TARGET_REG_IDX, /*clk_gen_s*/MRM_CLK_GEN_S, /*tpar_30*/MRM_TPAR_0x30, /*tpar_31*/MRM_TPAR_0x31, /*tpar_32*/MRM_TPAR_0x32, /*tpar_33*/MRM_TPAR_0x33, /*tpar_34*/MRM_TPAR_0x34, /*tpar_35*/MRM_TPAR_0x35);
 
     //-------------------------------------------------
     // ADO Settings
@@ -411,24 +457,24 @@ static void operation_sleep(void){
 // INTERRUPT HANDLERS 
 //*******************************************************************
 
-void handler_ext_int_gocep    (void) __attribute__ ((interrupt ("IRQ")));
+//void handler_ext_int_gocep    (void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_reg0     (void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_reg1     (void) __attribute__ ((interrupt ("IRQ")));
 void handler_ext_int_xot      (void) __attribute__ ((interrupt ("IRQ")));
 
 // GOC/EP IRQ
-void handler_ext_int_gocep (void) {
-    goc_head   = *(GOC_DATA_IRQ+0);
-    goc_data_0 = *(GOC_DATA_IRQ+1);
-    goc_data_1 = *(GOC_DATA_IRQ+2);
-    *GOC_DATA_IRQ = 0xFFFFFFFF;
-
-    #ifdef DEVEL
-        mbus_write_message32(0xE0, goc_head);
-        mbus_write_message32(0xE1, goc_data_0);
-        mbus_write_message32(0xE2, goc_data_1);
-    #endif    
-}
+//void handler_ext_int_gocep (void) {
+//    goc_head   = *(GOC_DATA_IRQ+0);
+//    goc_data_0 = *(GOC_DATA_IRQ+1);
+//    goc_data_1 = *(GOC_DATA_IRQ+2);
+//    *GOC_DATA_IRQ = 0xFFFFFFFF;
+//
+//    #ifdef DEVEL
+//        mbus_write_message32(0xE0, goc_head);
+//        mbus_write_message32(0xE1, goc_data_0);
+//        mbus_write_message32(0xE2, goc_data_1);
+//    #endif    
+//}
 
 // REG0 IRQ (PMU)
 void handler_ext_int_reg0(void) { // REG0
@@ -461,20 +507,30 @@ int main() {
     #endif    
     
     // Enable required IRQs
-    *NVIC_ISER = (1 << IRQ_GOCEP)
-               | (1 << IRQ_REG0)
+    *NVIC_ISER = (1 << IRQ_REG0)
                | (1 << IRQ_REG1);
     
     // If this is the very first wakeup, initialize the system
-    if (!get_flag(FLAG_INITIALIZED)) operation_init();
-
+    //if (!get_flag(FLAG_INITIALIZED)) operation_init();
+    if (((*GOC_DATA_IRQ)>>16) == 0x0000) operation_init();
     else if (WAKEUP_BY_GOCEP || get_flag(FLAG_PEND_INIT_DELAY)) {
+
+        goc_head   = *(GOC_DATA_IRQ+0);
+        goc_data_0 = *(GOC_DATA_IRQ+1);
+        goc_data_1 = *(GOC_DATA_IRQ+2);
+        *GOC_DATA_IRQ = 0xFFFFFFFF;
 
         if (get_flag(FLAG_PEND_INIT_DELAY)) {
             goc_head   = prev_goc_head;
             goc_data_0 = prev_goc_data_0;
             goc_data_1 = prev_goc_data_1;
         } 
+
+        #ifdef DEVEL
+            mbus_write_message32(0xE0, goc_head);
+            mbus_write_message32(0xE1, goc_data_0);
+            mbus_write_message32(0xE2, goc_data_1);
+        #endif    
 
         uint32_t goc_head_3  = (goc_head>>24) & 0xFF;
         uint32_t goc_head_2  = (goc_head>>16) & 0xFF;
@@ -562,6 +618,7 @@ int main() {
                             ado_ldo_set_mode (/*mode*/1);
                             ado_safr_set_mode(/*mode*/1);
                             ado_amp_set_mode (/*mode*/1);
+			                ado_cp_set_mode  (/*mode*/1);
 
                             // Start Ping-Pong
                             duration_sec = goc_head_lo;
@@ -574,8 +631,12 @@ int main() {
                             // Wait for IRQ from MRAM
                             WFI();
 
+                            // Turn off the LDO
+                            mrm_turn_off_ldo();
+
                             // Turn off ADO
                             ado_adc_set_mode (/*mode*/0);
+			                ado_cp_set_mode  (/*mode*/0);
                             ado_amp_set_mode (/*mode*/0);
                             ado_safr_set_mode(/*mode*/0);
                             ado_ldo_set_mode (/*mode*/0);
@@ -588,11 +649,11 @@ int main() {
                     //------------------------------------------------------------------------
                     // goc_head = 0x0008nnnn: Read out the Recording.
                     //                          Record Duration: 'nnnn' seconds (max. 1536 seconds)
-                    //                          MBus Destination Prefix: goc_data_0
+                    //                          MBus Destination Short Prefix: goc_data_0[3:0]
                     //                          MRAM Offset: 0
                     // goc_head = 0x0009nnnn: Read out the Recording, with 'goc_data_1' offset in MRAM.
                     //                          Record Duration: 'nnnn' seconds (max. 1536 seconds)
-                    //                          MBus Destination Prefix: goc_data_0
+                    //                          MBus Destination Short Prefix: goc_data_0[3:0]
                     //                          MRAM Offset: goc_data_1 (in seconds; max 1536 seconds)
                     //------------------------------------------------------------------------
                     case 0x08:
@@ -796,6 +857,37 @@ int main() {
                         set_halt_until_mbus_trx();
                         mbus_remote_register_write(MRM_ADDR, goc_head_0, goc_data_0);
                         set_halt_until_mbus_tx();
+                        break;
+
+                    //------------------------------------------------------------------------
+                    // goc_head = 0x0310xxnn: Clock Frequency Measurement
+                    //------------------------------------------------------------------------
+                    case 0x10:
+
+                        // CLK_GEN Tuning (Default: CLK_GEN_S = 87)
+                        mrm_set_clock_tune(/*s*/goc_head_lo);
+                        mrm_turn_on_ldo();  // Need to turn on LDO first.
+
+                        // All Zero TMC_CONFIG
+                        set_halt_until_mbus_trx();
+                        mbus_remote_register_read(MRM_ADDR, 0x2F, 0x7);
+                        set_halt_until_mbus_tx();
+                        uint32_t old_val = *REG7;
+                        mbus_remote_register_write(MRM_ADDR, 0x2F, 0x0);
+
+                        // Tpwr=0, Power-On/Off
+                        mrm_set_tpwr(/*tpwr*/0);
+                        mrm_turn_on_macro(/*mid*/0);
+                        mrm_turn_off_macro();
+
+                        // Tpwr=0xFFFF (65535)
+                        mrm_set_tpwr(/*tpwr*/0xFFFF);
+                        mrm_turn_on_macro(/*mid*/0);
+                        mrm_turn_off_macro();
+
+                        // Set TMC_CONFIG back to its original value
+                        mbus_remote_register_write(MRM_ADDR, 0x2F, old_val);
+                    
                         break;
 
                     //------------------------------------------------------------------------
