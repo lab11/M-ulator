@@ -249,8 +249,8 @@
 #define XO_ALWAYS_RUNNING   // Enable this to make the XO always run. 
                             // Disable this to make the XO run only during the Init Delay.
 
-//#define ADD_DELAY_BETWEEN_PINGPONG_AND_ADC      // If enabled, it adds a delay between "starting the MRAM ping-pong mode" -AND- "starting the ADO ADC".
-//#define PINGPONG_TO_ADC_DELAY_IN_SEC        3   // Amount of the delay in seconds. Valid only if 'ADD_DELAY_BETWEEN_PINGPONG_AND_ADC' is enabled.
+#define ADD_DELAY_BETWEEN_PINGPONG_AND_ADC      // If enabled, it adds a delay between "starting the MRAM ping-pong mode" -AND- "starting the ADO ADC".
+#define PINGPONG_TO_ADC_DELAY_IN_SEC        4   // Amount of the delay in seconds. Valid only if 'ADD_DELAY_BETWEEN_PINGPONG_AND_ADC' is enabled.
 
 //#define ENABLE_PROGRAM_OVERRIDE // If enabled, You can re-write the program without rebooting the system. This is for debuggign purpose only.
 
