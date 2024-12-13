@@ -49,8 +49,15 @@
 //       READ OUT THE RECORDING
 //          
 //          These triggers read out the Recording from the MRAM and send MBus message(s).
-//          If the 'Record Duration' is longer than 8 seconds, it sends out multiple MBus messages. 
-//          Each MBus message contains up to 8-second-long recording.
+//          If the 'Record Duration' is longer than 15.625ms x NUM_MAX_PAGES_MBUS (See MRMv1L.h),
+//          it sends out multiple MBus messages.
+//          Each MBus message contains up to (15.625ms x NUM_MAX_PAGES_MBUS)-long recording.
+//
+//              NUM_MAX_PAGES_MBUS      Max Record Length Contained in each MBus message
+//              -------------------------------------------------------------------------
+//                  512                     8.0 sec     -> Use this for Salaea Logic 1
+//                  32                      0.5 sec     -> Use this for Salaea Logic 2
+//
 //      -------------------------------------------------------------------------------------
 //
 //      0x0008      a       b           -           Record Duration: 'a' seconds (Max: 1536 seconds)
@@ -67,6 +74,7 @@
 //
 //      0x0100      a       b           -           Write into a PMU register. Reg#(a) = b.
 //      0x0101      a       -           -           Read a PMU register Reg#(a), and send the MBus message to PRE.
+//
 //      0x0102      a       -           -           Set SAR Ratio. SAR Ratio = a.
 //      0x0103      a       b           -           Set Active Floor setting.
 //                                                      R     = b[31:24]
@@ -85,14 +93,17 @@
 //       ADO CONTROL
 //      -------------------------------------------------------------------------------------
 //
-//      0x0201      a       -           -           Execute ado_ldo_set_mode(a)
-//      0x0202      a       -           -           Execute ado_safr_set_mode(a)
-//      0x0203      a       -           -           Execute ado_amp_set_mode(a)
-//      0x0204      a       -           -           Execute ado_adc_set_mode(a)
-//      0x0205      a       -           -           Execute ado_cp_set_mode(a)
-//      0x0206      a       -           -           Set REC_PGA_GCON = a
-//      0x0207      a       -           -           Set DIV1 = a
-//      0x0208      a       -           -           Run the ADC for 'a' seconds (Max: 1536 seconds), then go to sleep.
+//      0x0200      a       b           -           Write into a ADO register. Reg#(a) = b.
+//      0x0201      a       -           -           Read a ADO register Reg#(a), and send the MBus message to PRE's Reg#0x07.
+//
+//      0x0202      a       -           -           Execute ado_ldo_set_mode(a)
+//      0x0203      a       -           -           Execute ado_safr_set_mode(a)
+//      0x0204      a       -           -           Execute ado_amp_set_mode(a)
+//      0x0205      a       -           -           Execute ado_adc_set_mode(a)
+//      0x0206      a       -           -           Execute ado_cp_set_mode(a)
+//      0x0207      a       -           -           Set REC_PGA_GCON = a
+//      0x0208      a       -           -           Set DIV1 = a
+//      0x0209      a       -           -           Run the ADC for 'a' seconds (Max: 1536 seconds), then go to sleep.
 //
 //      -------------------------------------------------------------------------------------
 //       MRM CONTROL
@@ -100,6 +111,7 @@
 //
 //      0x0300      a       b           -           Write into a MRM register. Reg#(a) = b.
 //      0x0301      a       -           -           Read a MRM register Reg#(a), and send the MBus message to PRE's Reg#0x07.
+//
 //      0x0302      a       b           -           Write into a MRM register, Reg#(a) = b, then wait for a reply.
 //
 //      0x0310      a       -           -           Clock Frequency Measurement with CLK_GEN_S = a (Valid Range: [0, 127], Smaller 'a' results in a higher frequency)
@@ -117,20 +129,23 @@
 //                                                          CLK_SLOW = 65536 / (Ta - Tb - Tc + Td) = 65536 / (2.7201352 - 2.72074432 - 2.72913088 + 3.09968352) 
 //                                                                   = 177.151 kHz
 //                                                          CLK_FAST = CLK_SLOW x 256 = 45.35 MHz
+//
+//      0x0311      a       -           -           Set CLK_GEN_S = a (Valid Range: [0, 127])
 //                                          
 //      -------------------------------------------------------------------------------------
 //       PRE CONTROL
 //      -------------------------------------------------------------------------------------
 //
 //      0x0400      a       b           -           Write into a PRE register. Reg#(a) = b.
+//      0x0401      a       -           -           Read a PRE register Reg#(a), and send the MBus message to PRE's Reg#0x07.
 //
-//      0x0401      0x0000  -           -           Stop XO
-//      0x0401      0x0001  -           -           Start XO (free running)
-//      0x0401      0x0002  b           -           Set XO timer threshold to 'b' and go to sleep
-//      0x0401      0x0003  -           -           Enable XO clock pad output
-//      0x0401      0x0004  -           -           Disable XO clock pad output
+//      0x0402      0x0000  -           -           Stop XO
+//      0x0402      0x0001  -           -           Start XO (free running)
+//      0x0402      0x0002  b           -           Set XO timer threshold to 'b' and go to sleep
+//      0x0402      0x0003  -           -           Enable XO clock pad output
+//      0x0402      0x0004  -           -           Disable XO clock pad output
 //
-//      0x0402      0x0000  b           -           Stay in active for delay(b) then go to sleep.
+//      0x0403      0x0000  b           -           Stay in active for delay(b) then go to sleep.
 //
 //
 //-------------------------------------------------------------------------------------------
@@ -400,7 +415,7 @@ static void operation_init(void){
         | (0x1         << 14)   // (1'h1) XO_SEL_LDO            #Selects LDO output as an input to SCN
         | (0x0         << 13)   // (1'h0) XO_SEL_0P6            #Selects V0P6 as an input to SCN
         | (0x0         << 10)   // (3'h0) XO_I_AMP              #Adjusts VREF body bias buffer current
-        | (0x0         <<  3)   // (7'h0) XO_VREF_TUNEB         #Adjust VREF level and TC
+        | (0x0         <<  3)   // (7'h0) XO_VREF_TUNEB         #Adjusts VREF level and TC
         | (0x0         <<  0)   // (3'h0) XO_SEL_VREF           #Selects VREF output from its diode stack
         );
 
@@ -509,7 +524,7 @@ int main() {
     // Enable required IRQs
     *NVIC_ISER = (1 << IRQ_REG0)
                | (1 << IRQ_REG1);
-    
+
     // If this is the very first wakeup, initialize the system
     //if (!get_flag(FLAG_INITIALIZED)) operation_init();
     if (((*GOC_DATA_IRQ)>>16) == 0x0000) operation_init();
@@ -732,65 +747,81 @@ int main() {
 
                 switch (goc_head_2) {
                     //------------------------------------------------------------------------
-                    // goc_head = 0x0201xxnn: ADO LDO Control
-                    //      - Executes ado_ldo_set_mode(nn)
+                    // goc_head = 0x0200xxnn: ADO Register Write
+                    //------------------------------------------------------------------------
+                    case 0x00:
+                        mbus_remote_register_write(ADO_ADDR, goc_head_0, goc_data_0);
+                        break;
+
+                    //------------------------------------------------------------------------
+                    // goc_head = 0x0201xxnn: ADO Register Read
                     //------------------------------------------------------------------------
                     case 0x01:
+                        set_halt_until_mbus_trx();
+                        mbus_remote_register_read(ADO_ADDR, goc_head_0, 0x07);
+                        set_halt_until_mbus_tx();
+                        break;
+
+                    //------------------------------------------------------------------------
+                    // goc_head = 0x0202xxnn: ADO LDO Control
+                    //      - Executes ado_ldo_set_mode(nn)
+                    //------------------------------------------------------------------------
+                    case 0x02:
                         ado_ldo_set_mode(goc_head_0);
                         break;
 
                     //------------------------------------------------------------------------
-                    // goc_head = 0x0202xxnn: ADO SAFR Control
+                    // goc_head = 0x0203xxnn: ADO SAFR Control
                     //      - Executes ado_safr_set_mode(nn)
                     //------------------------------------------------------------------------
-                    case 0x02:
+                    case 0x03:
                         ado_safr_set_mode(goc_head_0);
                         break;
 
                     //------------------------------------------------------------------------
-                    // goc_head = 0x0203xxnn: ADO AMP Control
+                    // goc_head = 0x0204xxnn: ADO AMP Control
                     //      - Executes ado_amp_set_mode(nn)
                     //------------------------------------------------------------------------
-                    case 0x03:
+                    case 0x04:
                         ado_amp_set_mode(goc_head_0);
                         break;
 
                     //------------------------------------------------------------------------
-                    // goc_head = 0x0204xxnn: ADO ADC Control
+                    // goc_head = 0x0205xxnn: ADO ADC Control
                     //      - Executes ado_adc_set_mode(nn)
                     //------------------------------------------------------------------------
-                    case 0x04:
+                    case 0x05:
                         ado_adc_set_mode(goc_head_0);
                         break;
 
                     //------------------------------------------------------------------------
-                    // goc_head = 0x0205xxnn: ADO CP Control
+                    // goc_head = 0x0206xxnn: ADO CP Control
                     //      - Executes ado_cp_set_mode(nn)
                     //------------------------------------------------------------------------
-                    case 0x05:
+                    case 0x06:
                         ado_cp_set_mode(goc_head_0);
                         break;
 
                     //------------------------------------------------------------------------
-                    // goc_head = 0x0206xxnn: ADO Change REC_PGA_GCON
+                    // goc_head = 0x0207xxnn: ADO Change REC_PGA_GCON
                     //      - Executes ado_set_rec_pga_gcon(nn)
                     //------------------------------------------------------------------------
-                    case 0x06:
+                    case 0x07:
                         ado_set_rec_pga_gcon(goc_head_0);
                         break;
 
                     //------------------------------------------------------------------------
-                    // goc_head = 0x0207xnnn: ADO Change DIV1
+                    // goc_head = 0x0208xnnn: ADO Change DIV1
                     //      - Executes ado_set_div1(nnn)
                     //------------------------------------------------------------------------
-                    case 0x07:
+                    case 0x08:
                         ado_set_div1(goc_head&0x1FF);
                         break;
 
                     //------------------------------------------------------------------------
-                    // goc_head = 0x0208nnnn: Run ADO ADC for 'nnnn' seconds
+                    // goc_head = 0x0209nnnn: Run ADO ADC for 'nnnn' seconds
                     //------------------------------------------------------------------------
-                    case 0x08:
+                    case 0x09:
                         *NVIC_ISER = (1 << IRQ_XOT);
                         ado_adc_set_mode(/*mode*/1);
 
@@ -891,6 +922,21 @@ int main() {
                         break;
 
                     //------------------------------------------------------------------------
+                    // goc_head = 0x0311nnnn: Clock Tuning Bits
+                    //------------------------------------------------------------------------
+                    case 0x11:
+                        mrm_set_clock_tune(/*s*/goc_head_lo);
+                        break;
+
+                    //------------------------------------------------------------------------
+                    // goc_head = 0x0320nnnn: Auto Clock Tuning
+                    //------------------------------------------------------------------------
+                    case 0x20:
+                        // Experimental
+                        //mbus_write_message32(0xE6, mrm_get_clk_slow_period(/*s*/MRM_CLK_GEN_S, /*xo_freq_sel*/XO_FREQ_SEL));
+                        break;
+
+                    //------------------------------------------------------------------------
                     // goc_head = 0x03xxxxxx: Default
                     //------------------------------------------------------------------------
                     default:
@@ -913,9 +959,16 @@ int main() {
                         break;
 
                     //------------------------------------------------------------------------
-                    // goc_head = 0x0401xxxx: XO Control
+                    // goc_head = 0x0401xxnn: PRE Register Read
                     //------------------------------------------------------------------------
                     case 0x01:
+                        mbus_write_message32(0x10, (0x07<<24) | *((volatile uint32_t *) (0xA0000000 | (goc_head_0<<2))));
+                        break;
+
+                    //------------------------------------------------------------------------
+                    // goc_head = 0x0402xxxx: XO Control
+                    //------------------------------------------------------------------------
+                    case 0x02:
                         
                         switch (goc_head_lo) {
 
@@ -972,21 +1025,21 @@ int main() {
                         break;
 
                     //------------------------------------------------------------------------
-                    // goc_head = 0x0402xxxx: XO Control
+                    // goc_head = 0x0403xxxx: Misc
                     //------------------------------------------------------------------------
-                    case 0x02:
+                    case 0x03:
                         
                         switch (goc_head_lo) {
 
                             //------------------------------------------------------------------------
-                            // goc_head = 0x04020000: Stay in Active
+                            // goc_head = 0x04030000: Stay in Active
                             //------------------------------------------------------------------------
                             case 0x0000:
                                 delay(goc_data_0);
                                 break;
 
                             //------------------------------------------------------------------------
-                            // goc_head = 0x0402xxxx: Default
+                            // goc_head = 0x0403xxxx: Default
                             //------------------------------------------------------------------------
                             default:
                                 break;

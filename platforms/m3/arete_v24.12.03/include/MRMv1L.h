@@ -74,8 +74,11 @@
 // Each MBus message can carry up to 64kB (512 pages)
 // IMPORTANT: It MUST be NUM_MAX_PAGES_MBUS <= MRM_NUM_PAGES_SRAM.
 //            Otherwise, the code may not work.
-#define NUM_MAX_PAGES_MBUS      512
-
+//NOTE: MBus Analyzer in Salaea Logic 1 can decode the 64kB per MBus message without an issue.
+//      However, MBus Analyzer in Salaea Logic 2 can only decode up to 7.99kB per MBus message.
+//      Thus, NUM_MAX_PAGES_MBUS must be 32 (pages), which corresponds to 4kB.
+//#define NUM_MAX_PAGES_MBUS      512
+#define NUM_MAX_PAGES_MBUS      32  
 
 //--- MRAM GO Command
 #define MRM_CMD_NOP             0x0

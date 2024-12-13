@@ -4,7 +4,7 @@
 void mrm_init(uint32_t irq_reg_idx, uint32_t clk_gen_s, uint32_t tpar_30, uint32_t tpar_31, uint32_t tpar_32, uint32_t tpar_33, uint32_t tpar_34, uint32_t tpar_35) {
 
     // CLK_GEN Setting
-    mbus_remote_register_write(MRM_ADDR, 0x26, /*CLK_GEN_S*/ clk_gen_s);
+    mrm_set_clock_tune(/*s*/clk_gen_s);
 
     // MRAM Timing Parameters
     mbus_remote_register_write(MRM_ADDR, 0x30, tpar_30);
@@ -32,16 +32,18 @@ void mrm_init(uint32_t irq_reg_idx, uint32_t clk_gen_s, uint32_t tpar_30, uint32
     mrm_set_clock_mode(/*clock_mode*/1);
     
     // --- LDO Voltage Tune
-    mbus_remote_register_write(MRM_ADDR, 0x23, 0x0
-       /* LDO_SELB_I_CTRL_LDO_0P8 (5'h01) */ | (0x1F << 19) 
-       /* LDO_SELB_I_CTRL_LDO_1P8 (5'h01) */ | (0x1F << 14) 
-       /* LDO_SELB_VOUT_LDO_1P8   (4'h7 ) */ | (0x7  << 10) 
-       /* LDO_SELB_VOUT_LDO_BUF   (4'h4 ) */ | (0x8  <<  6) 
-       /* LDO_SEL_IBIAS_LDO_0P8   (2'h1 ) */ | (0x1  <<  4) 
-       /* LDO_SEL_IBIAS_LDO_1P8   (2'h1 ) */ | (0x1  <<  2) 
-       /* LDO_SEL_IBIAS_LDO_BUF   (2'h1 ) */ | (0x1  <<  0) 
-    );
+    mrm_tune_ldo (/*i0p8*/0x1F, /*i1p8*/0x1F, /*v0p8*/0x8, /*v1p8*/0x7);
 
+    // Disable the pull-down for the EXT pads
+    mbus_remote_register_write(MRM_ADDR, 0x28, 0x0
+        /* EN_OUT_TDO    (1'h0) */ | (0x0 << 7)     
+        /* EN_PD_TDI     (1'h1) */ | (0x1 << 6)     
+        /* EN_PD_TMS     (1'h1) */ | (0x1 << 5)     
+        /* EN_PD_TCK     (1'h1) */ | (0x1 << 4)     
+        /* EN_PD_BOOT_EN (1'h1) */ | (0x1 << 3)     
+        /* EN_PD_D_EXT   (2'h3) */ | (0x2 << 1)     
+        /* EN_PD_C_EXT   (1'h1) */ | (0x0 << 0)     
+    );
 
 }
 
@@ -169,6 +171,7 @@ uint32_t mrm_turn_on_ldo (void) {
 
     // Delay to charge the DCP_0P8 decap
     delay(2000); // delay(1000) =~ 0.6s
+
     return 1;
 }
 
@@ -183,6 +186,10 @@ uint32_t mrm_turn_off_ldo (void) {
     );
 
     WFI();
+
+    // LDO_CTRL resets Reg0x23 to 0, which is a bug. 
+    // Let's re-write the correct value into Reg0x23.
+    mrm_tune_ldo (/*i0p8*/0x1F, /*i1p8*/0x1F, /*v0p8*/0x8, /*v1p8*/0x7);
 
     if ((*__mrm_irq_reg_addr__&0xFF) != 0x03) return 0;
 

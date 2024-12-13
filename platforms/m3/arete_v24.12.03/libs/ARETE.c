@@ -537,7 +537,6 @@ void ado_cp_set_mode(uint32_t mode){
    	}
    	else{                   //OFF
    	    ado_r03.CP_CLK_EN_1P2 = 0;
-   	    ado_r03.CP_CLK_DIV_1P2 = 3;
    	    mbus_remote_register_write(ADO_ADDR, 0x03, ado_r03.as_int);
    	}	
 }
@@ -596,5 +595,83 @@ void mrm_read (uint32_t offset_sec, uint32_t duration_sec, uint16_t dst_prefix) 
 
 }
 
-
+//uint32_t mrm_get_clk_slow_period (uint32_t s, uint32_t xo_freq_sel) {
+//
+//    uint32_t na, nb, nc, nd;
+//    uint32_t na1, nb1, nc1, nd1;
+//
+//    // Store the current reg values
+//    uint32_t old_clk_gen_s;
+//    uint32_t old_tmc_config;
+//    set_halt_until_mbus_trx();
+//    mbus_remote_register_read(MRM_ADDR, 0x26, 0x7);
+//    old_clk_gen_s = *REG7;
+//    mbus_remote_register_read(MRM_ADDR, 0x2F, 0x7);
+//    old_tmc_config = *REG7;
+//    set_halt_until_mbus_tx();
+//
+//    // Set the new CLK_GENS value
+//    mrm_set_clock_tune(/*s*/s);
+//
+//    // All Zero TMC_CONFIG
+//    mbus_remote_register_write(MRM_ADDR, 0x2F, 0x0);
+//
+//    // Turn on the LDO
+//    mrm_turn_on_ldo();  // Need to turn on LDO first.
+//
+//    // Tpwr=0, Power-On/Off
+//    mrm_set_tpwr(/*tpwr*/0);
+//
+//    na = *XOT_VAL_ASYNC;
+//    na1 = *XOT_VAL_ASYNC;
+//    mrm_turn_on_macro(/*mid*/0);
+//    nb = *XOT_VAL_ASYNC;
+//    nb1 = *XOT_VAL_ASYNC;
+//    mrm_turn_off_macro();
+//
+//
+//    // Tpwr=0xFFFF (65535)
+//    mrm_set_tpwr(/*tpwr*/0xFFFF);
+//
+//    nc = *XOT_VAL_ASYNC;
+//    nc1 = *XOT_VAL_ASYNC;
+//    mrm_turn_on_macro(/*mid*/0);
+//    nd = *XOT_VAL_ASYNC;
+//    nd1 = *XOT_VAL_ASYNC;
+//    mrm_turn_off_macro();
+//
+//    // Set Reg values back to their original
+//    mbus_remote_register_write(MRM_ADDR, 0x2F, old_tmc_config);
+//    mbus_remote_register_write(MRM_ADDR, 0x26, old_clk_gen_s);
+//
+//    // Calculation
+//    uint32_t Nmin, Nmax;
+//    if (nb > na) Nmin = nb - na;
+//    else Nmin = (0xFFFFFFFF - na) + nb;
+//    if (nd > nc) Nmax = nd - nc;
+//    else Nmax = (0xFFFFFFFF - nc) + nd;
+//
+//    uint32_t Ndiff = Nmax - Nmin;
+//    // Period in ns = 1000000000 x Ndiff / (65536 x 2^(10 + XO_FREQ_SEL))
+//    //              = Ndiff x 10^9 / (2^26 x 2^XO_FREQ_SEL)
+//    //              = Ndiff x (10^9 / 2^26) / 2^XO_FREQ_SEL
+//    //              = Ndiff x 14.901161194 / 2^XO_FREQ_SEL
+//    //              ~ 15 x Ndiff / 2^XO_FREQ_SEL
+//    uint32_t period_ns = ((Ndiff<<4) - Ndiff) >> xo_freq_sel;
+//
+////    mbus_write_message32(0xD0, na);
+////    mbus_write_message32(0xD0, na1);
+////    mbus_write_message32(0xD1, nb);
+////    mbus_write_message32(0xD1, nb1);
+////    mbus_write_message32(0xD2, nc);
+////    mbus_write_message32(0xD2, nc1);
+////    mbus_write_message32(0xD3, nd);
+////    mbus_write_message32(0xD3, nd1);
+////    mbus_write_message32(0xD4, Nmin);
+////    mbus_write_message32(0xD5, Nmax);
+////    mbus_write_message32(0xD6, Ndiff);
+//
+//    return period_ns;
+//
+//}
 

@@ -506,5 +506,7 @@ void mrm_start_rec (uint32_t offset_sec, uint32_t duration_sec, uint16_t wait_fo
 //-------------------------------------------------------------------
 void mrm_read (uint32_t offset_sec, uint32_t duration_sec, uint16_t dst_prefix);
 
+//uint32_t mrm_get_clk_slow_period (uint32_t s, uint32_t xo_freq_sel);
+
 #endif // ARETE_H
 
