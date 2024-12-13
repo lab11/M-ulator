@@ -249,6 +249,8 @@
 #define XO_ALWAYS_RUNNING   // Enable this to make the XO always run. 
                             // Disable this to make the XO run only during the Init Delay.
 
+//#define ENABLE_PROGRAM_OVERRIDE // If enabled, You can re-write the program without rebooting the system. This is for debuggign purpose only.
+
 //*******************************************************************************************
 // FLAG BIT INDEXES
 //*******************************************************************************************
@@ -460,7 +462,7 @@ static void operation_init(void){
 //-------------------------------------------------------------------
 static void operation_sleep(void){
     // Reset GOC_DATA_IRQ
-    *GOC_DATA_IRQ = 0;
+    *GOC_DATA_IRQ = 0xFFFFFFFF;
     
     // Go to Sleep
     mbus_sleep_all();
@@ -526,8 +528,15 @@ int main() {
                | (1 << IRQ_REG1);
 
     // If this is the very first wakeup, initialize the system
-    //if (!get_flag(FLAG_INITIALIZED)) operation_init();
-    if (((*GOC_DATA_IRQ)>>16) == 0x0000) operation_init();
+    if
+    #ifdef ENABLE_PROGRAM_OVERRIDE
+        (((*GOC_DATA_IRQ)>>16) == 0x0000) 
+    #else
+        (!get_flag(FLAG_INITIALIZED)) 
+    #endif
+        operation_init();
+
+    // Main Trigger Handling
     else if (WAKEUP_BY_GOCEP || get_flag(FLAG_PEND_INIT_DELAY)) {
 
         goc_head   = *(GOC_DATA_IRQ+0);
@@ -598,16 +607,20 @@ int main() {
 
                             #ifdef XO_ALWAYS_RUNNING
                                 //--- Update the XO threshold
-                                set_xo_timer (/*mode*/0, /*timestamp*/init_delay, /*wreq_en*/1, /*irq_en*/0, /*auto_reset*/1);
+                                set_xo_timer (/*mode*/0, /*timestamp*/init_delay, /*wreq_en*/1, /*irq_en*/0, /*auto_reset*/0);
                             #else
                                 //--- Start XO clock
                                 xo_start(/*delay_a*/XO_WAIT_A, /*delay_b*/XO_WAIT_B);
 
                                 //--- Configure and Start the XO Counter
-                                set_xo_timer(/*mode*/0, /*threshold*/init_delay, /*wreq_en*/1, /*irq_en*/0, /*auto_reset*/1);
+                                set_xo_timer(/*mode*/0, /*threshold*/init_delay, /*wreq_en*/1, /*irq_en*/0, /*auto_reset*/0);
                                 start_xo_cnt();
                             #endif
 
+                            // Reset XO counter
+                            *XOT_RESET_CNT = 1;
+
+                            // Go to sleep
                             operation_sleep();
 
                         }
