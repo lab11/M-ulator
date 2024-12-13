@@ -729,6 +729,16 @@ void xo_stop( void );
 //-------------------------------------------------------------------
 void restart_xo(uint32_t delay_a, uint32_t delay_b);
 
+//-------------------------------------------------------------------
+// Function: delay_xo
+// Args    : s           - Delay to be measured, in seconds.
+//           xo_freq_sel - XO Frequency Selection. The XO frequency (in kHz) must be 2^xo_freq_sel.
+// Description:
+//           Measure the given delay ('s' seconds) using the XO.
+// Return  : None
+//-------------------------------------------------------------------
+void delay_xo(uint32_t s, uint32_t xo_freq_sel);
+
 /**
  * @brief   Write into ARB debug register
  *          !!!    THIS IS FOR VERILOG SIM ONLY    !!!

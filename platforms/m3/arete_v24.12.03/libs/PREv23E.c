@@ -229,6 +229,13 @@ void restart_xo(uint32_t delay_a, uint32_t delay_b) {
     start_xo_cnt();
 }
 
+void delay_xo(uint32_t s, uint32_t xo_freq_sel) {
+    uint32_t threshold = s << (xo_freq_sel+10);
+    set_xo_timer (/*mode*/0, /*timestamp*/threshold, /*wreq_en*/0, /*irq_en*/1, /*auto_reset*/0);
+    *XOT_RESET_CNT = 1;
+    WFI();
+}
+
 //**************************************************
 // M0 IRQ SETTING
 //**************************************************

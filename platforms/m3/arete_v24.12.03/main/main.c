@@ -249,6 +249,9 @@
 #define XO_ALWAYS_RUNNING   // Enable this to make the XO always run. 
                             // Disable this to make the XO run only during the Init Delay.
 
+//#define ADD_DELAY_BETWEEN_PINGPONG_AND_ADC      // If enabled, it adds a delay between "starting the MRAM ping-pong mode" -AND- "starting the ADO ADC".
+//#define PINGPONG_TO_ADC_DELAY_IN_SEC        3   // Amount of the delay in seconds. Valid only if 'ADD_DELAY_BETWEEN_PINGPONG_AND_ADC' is enabled.
+
 //#define ENABLE_PROGRAM_OVERRIDE // If enabled, You can re-write the program without rebooting the system. This is for debuggign purpose only.
 
 //*******************************************************************************************
@@ -505,6 +508,7 @@ void handler_ext_int_reg1(void) { // REG1
 
 // XOT IRQ
 void handler_ext_int_xot(void) { // XOT
+    *NVIC_ICPR = (1 << IRQ_XOT);
 }
 
 //********************************************************************
@@ -525,7 +529,8 @@ int main() {
     
     // Enable required IRQs
     *NVIC_ISER = (1 << IRQ_REG0)
-               | (1 << IRQ_REG1);
+               | (1 << IRQ_REG1)
+               | (1 << IRQ_XOT);
 
     // If this is the very first wakeup, initialize the system
     if
@@ -652,6 +657,10 @@ int main() {
                             duration_sec = goc_head_lo;
                             if (goc_head_2==0x03) offset_sec = get_min(goc_data_1, MRM_RECORD_DURATION);
                             mrm_start_rec (/*offset_sec*/offset_sec, /*duration_sec*/duration_sec, /*wait_for_irq*/0);
+
+                            #ifdef ADD_DELAY_BETWEEN_PINGPONG_AND_ADC
+                                delay_xo(/*s*/PINGPONG_TO_ADC_DELAY_IN_SEC, /*xo_freq_sel*/XO_FREQ_SEL);
+                            #endif
 
                             // Enable ADC 
                             ado_adc_set_mode(/*mode*/1);
