@@ -56,6 +56,63 @@
 #include "mbus.h"
 #include "PREv23E.h"
 
+//*******************************************************************************************
+// MRM CONFIGURATIONS
+//*******************************************************************************************
+//              Chip    Recommended 
+//                      V0P8    V1P8
+//          ----------------------------------------
+//           MRMv1L#1:  
+//           MRMv1L#2:  
+//           MRMv1L#3:  
+//           MRMv1L#4:  3       5
+//           MRMv1L#5:  8       6 (to be confirmed)
+//           MRMv1L#6:  
+#define MRM_LDO_VOUT_V0P8       3   // Default: 4 [Range: 0 - 15] Sets LDO_SELB_VOUT_LDO_BUF
+#define MRM_LDO_VOUT_V1P8       5   // Default: 7 [Range: 0 - 15] Sets LDO_SELB_VOUT_LDO_0P8
+
+// MRMv1L's Clock Generator Tuning and MRAM Timing Parameters. 
+// See the comments section of mrm_init() in MRMv1L.h.
+//              Chip    Recommended 
+//                      clk_gen_S
+//          ----------------------------------------
+//           MRMv1L#1:  58
+//           MRMv1L#2:  not measured
+//           MRMv1L#3:  not measured
+//           MRMv1L#4:  51  (200.472 kHz / 51.3 MHz)
+//           MRMv1L#5:  53  (200.982 kHz / 51.5 MHz)
+//           MRMv1L#6:  53  (Not yet measured, but 53 worked fine for Macro#0-#2)
+#define MRM_CLK_GEN_S       51
+
+//---   Timing                  CLK_FAST Freq       Parameter
+//      Parameter           50MHz   75MHz   100MHz  Description
+#define MRM_TPGM            11    /*16 */ /*22 */   //[FAST CLOCK] Write pulse width; = (TPGM + 1) x Tclk_fast; Min 250ns, Max 275ns
+#define MRM_TW2R_S          0     /*0  */ /*0  */   //[SLOW CLOCK] Write to Read; = (16^TW2R[7]) x TW2R[6:0] x Tclk_slow; Min 1us
+#define MRM_TWRS_S          0     /*1  */ /*1  */   //[SLOW CLOCK] Read to Write; = (16^TWRS[7]) x TWRS[6:0] x Tclk_slow; Min 3us
+#define MRM_TRDL_S          0     /*0  */ /*0  */   //[SLOW CLOCK] READ low pulse; = (TRDL + 1) x Tclk_slow; Min 200ns
+#define MRM_TCYCRD1_S       0     /*0  */ /*0  */   //[SLOW CLOCK] When the read state exeed 16 clocks, it uses TCYCRD1 to control for BL leak measurement
+#define MRM_TRDS_S          0     /*0  */ /*0  */   //[SLOW CLOCK] READ Rising to 1st Clk; = TRDS[8] x (Twk[7:0] + 1) x Tclk_slow; Min 100ns
+#define MRM_TWK_S           0     /*1  */ /*1  */   //[SLOW CLOCK] Wakeup Time; = (16^TWK[7]) x TWK[6:0] x Tclk_slow; Min 3us
+#define MRM_TCYCRD_S        0     /*0  */ /*0  */   //[SLOW CLOCK] Read Cycle; = (TCYCRD + 1) x Tclk_slow; Min 16.5ns
+#define MRM_TPGM_OTP_RBD    29    /*43 */ /*57 */   //[FAST CLOCK] OTP RBD Tprog Pulse Width = (16 x TPGM_OTP_RBD + 1) x Tclk_fast; Min 9000ns, Max 11000ns
+#define MRM_TPGM_OTP_RAP    5     /*7  */ /*10 */   //[FAST CLOCK] OTP RAP Tprog Pulse Width = (TPGM_OTP_RAP + 1) x Tclk_fast; Min 100ns, Max 140ns
+#define MRM_TPGM_OTP_RP     5     /*7  */ /*10 */   //[FAST CLOCK] OTP RP Tprog Pulse Width = (TPGM_OTP_RP + 1) x Tclk_fast; Min 100ns, Max 140ns
+#define MRM_TW2R_F          50    /*75 */ /*100*/   //[FAST CLOCK] Write to Read; = (16^TW2R[7]) x TW2R[6:0] x Tclk_fast; Min 1us
+#define MRM_TWRS_F          137   /*142*/ /*146*/   //[FAST CLOCK] Read to Write; = (16^TWRS[7]) x TWRS[6:0] x Tclk_fast; Min 3us
+#define MRM_TWK_F           134   /*137*/ /*140*/   //[FAST CLOCK] Wakeup Time; = (16^TWK[7]) x TWK[6:0] x Tclk_fast; Min 3us
+#define MRM_TRDL_F          10    /*15 */ /*20 */   //[FAST CLOCK] READ low pulse; = (TRDL + 1) x Tclk_fast; Min 200ns
+#define MRM_TRDS_F          5     /*7  */ /*10 */   //[FAST CLOCK] READ Rising to 1st Clk; = TRDS[8] x (Twk[7:0] + 1) x Tclk_fast; Min 100ns
+#define MRM_TCYCRD1_F       0     /*0  */ /*0  */   //[FAST CLOCK] When the read state exeed 16 clocks, it uses TCYCRD1 to control for BL leak measurement
+#define MRM_TCYCRD_F        0     /*1  */ /*1  */   //[FAST CLOCK] Read Cycle; = (TCYCRD + 1) x Tclk_fast; Min 16.5ns
+
+//--- Group the timing parameters together
+#define MRM_TPAR_0x30   (MRM_TPGM<<16)|(MRM_TW2R_S<<8)|(MRM_TWRS_S<<0)
+#define MRM_TPAR_0x31   (MRM_TRDL_S<<4)|(MRM_TCYCRD1_S<<0)
+#define MRM_TPAR_0x32   (MRM_TRDS_S<<12)|(MRM_TWK_S<<4)|(MRM_TCYCRD_S<<0)
+#define MRM_TPAR_0x33   (MRM_TPGM_OTP_RBD<<12)|(MRM_TPGM_OTP_RAP<<6)|(MRM_TPGM_OTP_RP<<0)
+#define MRM_TPAR_0x34   (MRM_TW2R_F<<16)|(MRM_TWRS_F<<8)|(MRM_TWK_F<<0)
+#define MRM_TPAR_0x35   (MRM_TRDL_F<<17)|(MRM_TRDS_F<<8)|(MRM_TCYCRD1_F<<4)|(MRM_TCYCRD_F<<0)
+
 //*******************************************************************
 // PREDEFINED CONSTANTS
 //*******************************************************************
@@ -74,8 +131,11 @@
 // Each MBus message can carry up to 64kB (512 pages)
 // IMPORTANT: It MUST be NUM_MAX_PAGES_MBUS <= MRM_NUM_PAGES_SRAM.
 //            Otherwise, the code may not work.
+//NOTE: MBus Analyzer in Salaea Logic 1 can decode the 64kB per MBus message without an issue.
+//      However, MBus Analyzer in Salaea Logic 2 can only decode up to 7.99kB per MBus message.
+//      Thus, NUM_MAX_PAGES_MBUS must be 32 (pages), which corresponds to 4kB.
 #define NUM_MAX_PAGES_MBUS      512
-
+//#define NUM_MAX_PAGES_MBUS      32  
 
 //--- MRAM GO Command
 #define MRM_CMD_NOP             0x0
@@ -126,6 +186,8 @@
 volatile uint32_t  __mrm_prefix__;
 volatile uint32_t  __mrm_irq_reg_idx__;
 volatile uint32_t* __mrm_irq_reg_addr__;
+volatile uint32_t  __mrm_ldo_vout_v0p8__;
+volatile uint32_t  __mrm_ldo_vout_v1p8__;
 
 
 //********************************************************************************************************************
@@ -154,6 +216,31 @@ volatile uint32_t* __mrm_irq_reg_addr__;
 //    //            
 //    //          See the comment section in test_0.c, "Clock Frequency Measurement"
 //
+//      tpar_30     -   (TPGM<<16)|(TW2R_S<<8)|(TWRS_S<<0)
+//                          TPGM        : [FAST CLOCK] Write pulse width; = (TPGM + 1) x Tclk_fast; Min 250ns, Max 275ns
+//                          TW2R_S      : [SLOW CLOCK] Write to Read; = (16^TW2R[7]) x TW2R[6:0] x Tclk_slow; Min 1us
+//                          TWRS_S      : [SLOW CLOCK] Read to Write; = (16^TWRS[7]) x TWRS[6:0] x Tclk_slow; Min 3us
+//      tpar_31     -   (TRDL_S<<4)|(TCYCRD1_S<<0)
+//                          TRDL_S      : [SLOW CLOCK] READ low pulse; = (TRDL + 1) x Tclk_slow; Min 200ns
+//                          TCYCRD1_S   : [SLOW CLOCK] When the read state exeed 16 clocks, it uses TCYCRD1 to control for BL leak measurement
+//      tpar_32     -   (TRDS_S<<12)|(TWK_S<<4)|(TCYCRD_S<<0)
+//                          TRDS_S      : [SLOW CLOCK] READ Rising to 1st Clk; = TRDS[8] x (Twk[7:0] + 1) x Tclk_slow; Min 100ns
+//                          TWK_S       : [SLOW CLOCK] Wakeup Time; = (16^TWK[7]) x TWK[6:0] x Tclk_slow; Min 3us
+//                          TCYCRD_S    : [SLOW CLOCK] Read Cycle; = (TCYCRD + 1) x Tclk_slow; Min 16.5ns
+//      tpar_33     -   (TPGM_OTP_RBD<<12)|(TPGM_OTP_RAP<<6)|(TPGM_OTP_RP<<0)
+//                          TPGM_OTP_RBD: [FAST CLOCK] OTP RBD Tprog Pulse Width = (16 x TPGM_OTP_RBD + 1) x Tclk_fast; Min 9000ns, Max 11000ns
+//                          TPGM_OTP_RAP: [FAST CLOCK] OTP RAP Tprog Pulse Width = (TPGM_OTP_RAP + 1) x Tclk_fast; Min 100ns, Max 140ns
+//                          TPGM_OTP_RP : [FAST CLOCK] OTP RP Tprog Pulse Width = (TPGM_OTP_RP + 1) x Tclk_fast; Min 100ns, Max 140ns
+//      tpar_34     -   (TW2R_F<<16)|(TWRS_F<<8)|(TWK_F<<0)
+//                          TW2R_F      : [FAST CLOCK] Write to Read; = (16^TW2R[7]) x TW2R[6:0] x Tclk_fast; Min 1us
+//                          TWRS_F      : [FAST CLOCK] Read to Write; = (16^TWRS[7]) x TWRS[6:0] x Tclk_fast; Min 3us
+//                          TWK_F       : [FAST CLOCK] Wakeup Time; = (16^TWK[7]) x TWK[6:0] x Tclk_fast; Min 3us
+//      tpar_35     -   (TRDL_F<<17)|(TRDS_F<<8)|(TCYCRD1_F<<4)|(TCYCRD_F<<0)
+//                          TRDL_F      : [FAST CLOCK] READ low pulse; = (TRDL + 1) x Tclk_fast; Min 200ns
+//                          TRDS_F      : [FAST CLOCK] READ Rising to 1st Clk; = TRDS[8] x (Twk[7:0] + 1) x Tclk_fast; Min 100ns
+//                          TCYCRD1_F   : [FAST CLOCK] When the read state exeed 16 clocks, it uses TCYCRD1 to control for BL leak measurement
+//                          TCYCRD_F    : [FAST CLOCK] Read Cycle; = (TCYCRD + 1) x Tclk_fast; Min 16.5ns
+//
 // Description:
 //           Initializes MRMv1L
 //
@@ -168,7 +255,7 @@ volatile uint32_t* __mrm_irq_reg_addr__;
 //
 // Return  : None
 //-------------------------------------------------------------------
-void mrm_init(uint32_t mrm_prefix, uint32_t irq_reg_idx, uint32_t clk_gen_s);
+void mrm_init(uint32_t mrm_prefix, uint32_t irq_reg_idx, uint32_t clk_gen_s, uint32_t tpar_30, uint32_t tpar_31, uint32_t tpar_32, uint32_t tpar_33, uint32_t tpar_34, uint32_t tpar_35);
 
 //-------------------------------------------------------------------
 // Function: mrm_enable_auto_power_on_off
@@ -375,6 +462,19 @@ uint32_t mrm_cmd_go (uint32_t cmd, uint32_t len_1, uint32_t expected);
 // Return  : none
 //-------------------------------------------------------------------
 void mrm_cmd_go_noirq (uint32_t cmd, uint32_t len_1);
+
+//-------------------------------------------------------------------
+// Function: mrm_cmd_go_irq_nowait
+// Args    : 
+//      cmd     - MRAM Command
+//      len_1   - 'Num Words - 1'
+//                  Valid Range: [0, 16383]
+// Description:
+//           Set the MRAM command and writes GO=1, with IRQ_EN=1.
+//           It does not wait for the IRQ.
+// Return  : none
+//-------------------------------------------------------------------
+void mrm_cmd_go_irq_nowait (uint32_t cmd, uint32_t len_1);
 
 //-------------------------------------------------------------------
 // Function: mrm_set_sram_addr

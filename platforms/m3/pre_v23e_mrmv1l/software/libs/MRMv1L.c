@@ -1,12 +1,20 @@
 
 #include "MRMv1L.h"
 
-void mrm_init(uint32_t mrm_prefix, uint32_t irq_reg_idx, uint32_t clk_gen_s) {
+void mrm_init(uint32_t mrm_prefix, uint32_t irq_reg_idx, uint32_t clk_gen_s, uint32_t tpar_30, uint32_t tpar_31, uint32_t tpar_32, uint32_t tpar_33, uint32_t tpar_34, uint32_t tpar_35) {
 
     __mrm_prefix__ = mrm_prefix;
 
     // CLK_GEN Setting
-    mbus_remote_register_write(__mrm_prefix__, 0x26, /*CLK_GEN_S*/ clk_gen_s);
+    mrm_set_clock_tune(/*s*/clk_gen_s);
+
+    // MRAM Timing Parameters
+    mbus_remote_register_write(__mrm_prefix__, 0x30, tpar_30);
+    mbus_remote_register_write(__mrm_prefix__, 0x31, tpar_31);
+    mbus_remote_register_write(__mrm_prefix__, 0x32, tpar_32);
+    mbus_remote_register_write(__mrm_prefix__, 0x33, tpar_33);
+    mbus_remote_register_write(__mrm_prefix__, 0x34, tpar_34);
+    mbus_remote_register_write(__mrm_prefix__, 0x35, tpar_35);
 
     // IRQ Register
     mbus_remote_register_write(__mrm_prefix__, 0x0F, 0x0
@@ -23,27 +31,18 @@ void mrm_init(uint32_t mrm_prefix, uint32_t irq_reg_idx, uint32_t clk_gen_s) {
     mrm_enable_tmc_rst_auto_wk();
     
     // --- LDO Voltage Tune
-    mbus_remote_register_write(__mrm_prefix__, 0x23, 0x0
-       /* LDO_SELB_I_CTRL_LDO_0P8 (5'h01) */ | (0x1F << 19) 
-       /* LDO_SELB_I_CTRL_LDO_1P8 (5'h01) */ | (0x1F << 14) 
-       /* LDO_SELB_VOUT_LDO_1P8   (4'h7 ) */ | (0x7  << 10) 
-       /* LDO_SELB_VOUT_LDO_BUF   (4'h4 ) */ | (0x8  <<  6) 
-       /* LDO_SEL_IBIAS_LDO_0P8   (2'h1 ) */ | (0x1  <<  4) 
-       /* LDO_SEL_IBIAS_LDO_1P8   (2'h1 ) */ | (0x1  <<  2) 
-       /* LDO_SEL_IBIAS_LDO_BUF   (2'h1 ) */ | (0x1  <<  0) 
-    );
+    mrm_tune_ldo (/*i0p8*/0x1F, /*i1p8*/0x1F, /*v0p8*/MRM_LDO_VOUT_V0P8, /*v1p8*/MRM_LDO_VOUT_V1P8);
 
-//    // Let's try the TMC-default values only. -> Do NOT do this... The results got terrible.
-//    mbus_remote_register_write(__mrm_prefix__, 0x36, 0x000000);
-//    mbus_remote_register_write(__mrm_prefix__, 0x37, 0x000000);  
-//    mbus_remote_register_write(__mrm_prefix__, 0x38, 0x000001);  
-//    mbus_remote_register_write(__mrm_prefix__, 0x39, 0x00012C);  
-//    mbus_remote_register_write(__mrm_prefix__, 0x3A, 0x00C000);  
-//    mbus_remote_register_write(__mrm_prefix__, 0x3B, 0x54A074);  
-//    mbus_remote_register_write(__mrm_prefix__, 0x3C, 0x210800);  
-//    mbus_remote_register_write(__mrm_prefix__, 0x3D, 0x2A1E2A);  
-//    mbus_remote_register_write(__mrm_prefix__, 0x3E, 0x08008D);  
-//    mbus_remote_register_write(__mrm_prefix__, 0x3F, 0xD30000);
+    // Disable the pull-down for the EXT pads
+    mbus_remote_register_write(__mrm_prefix__, 0x28, 0x0
+        /* EN_OUT_TDO    (1'h0) */ | (0x0 << 7)     
+        /* EN_PD_TDI     (1'h1) */ | (0x1 << 6)     
+        /* EN_PD_TMS     (1'h1) */ | (0x1 << 5)     
+        /* EN_PD_TCK     (1'h1) */ | (0x1 << 4)     
+        /* EN_PD_BOOT_EN (1'h1) */ | (0x1 << 3)     
+        /* EN_PD_D_EXT   (2'h3) */ | (0x2 << 1)     
+        /* EN_PD_C_EXT   (1'h1) */ | (0x0 << 0)     
+    );
 
 }
 
@@ -69,8 +68,8 @@ void mrm_disable_tmc_rst_auto_wk(void) {
 
     uint32_t temp_reg = *__mrm_irq_reg_addr__ & 0xFFFFDC;   // Reset TMC_RST_AUTO_WK, TMC_DO_REG_LOAD, TMC_DO_AWK
     temp_reg |=   (0x0 << 5)  // TMC_RST_AUTO_WK = 0
-                | (0x1 << 1)  // TMC_DO_REG_LOAD = 1
-                | (0x1 << 0); // TMC_DO_AWK = 1
+                | (0x0 << 1)  // TMC_DO_REG_LOAD = 0
+                | (0x0 << 0); // TMC_DO_AWK = 1
     mbus_remote_register_write(__mrm_prefix__, 0x2F, temp_reg);
 }
 
@@ -82,8 +81,8 @@ void mrm_enable_tmc_rst_auto_wk(void) {
 
     uint32_t temp_reg = *__mrm_irq_reg_addr__ & 0xFFFFDC;   // Reset TMC_RST_AUTO_WK, TMC_DO_REG_LOAD, TMC_DO_AWK
     temp_reg |=   (0x1 << 5)  // TMC_RST_AUTO_WK = 1
-                | (0x1 << 1)  // TMC_DO_REG_LOAD = 1
-                | (0x1 << 0); // TMC_DO_AWK = 1
+                | (0x0 << 1)  // TMC_DO_REG_LOAD = 0
+                | (0x0 << 0); // TMC_DO_AWK = 1
     mbus_remote_register_write(__mrm_prefix__, 0x2F, temp_reg);
 }
 
@@ -95,9 +94,9 @@ void mrm_enable_bist(void) {
 
     mbus_remote_register_write(__mrm_prefix__, 0x28, 0x0
         /* EN_OUT_TDO    (1'h0) */ | (0x1 << 7)
-        /* EN_PD_TDI     (1'h1) */ | (0x1 << 6)
-        /* EN_PD_TMS     (1'h1) */ | (0x1 << 5)
-        /* EN_PD_TCK     (1'h1) */ | (0x1 << 4)
+        /* EN_PD_TDI     (1'h1) */ | (0x0 << 6)
+        /* EN_PD_TMS     (1'h1) */ | (0x0 << 5)
+        /* EN_PD_TCK     (1'h1) */ | (0x0 << 4)
         /* EN_PD_BOOT_EN (1'h1) */ | (0x1 << 3)
         /* EN_PD_D_EXT   (2'h3) */ | (0x3 << 1)
         /* EN_PD_C_EXT   (1'h1) */ | (0x1 << 0)
@@ -146,13 +145,16 @@ void mrm_set_clock_tune(uint32_t s) {
 
 void mrm_tune_ldo (uint32_t i0p8, uint32_t i1p8, uint32_t v0p8, uint32_t v1p8) {
 
-    set_halt_until_mbus_trx();
-    mbus_remote_register_read(__mrm_prefix__, 0x23, __mrm_irq_reg_idx__);
-    set_halt_until_mbus_tx();
+    //set_halt_until_mbus_trx();
+    //mbus_remote_register_read(__mrm_prefix__, 0x23, __mrm_irq_reg_idx__);
+    //set_halt_until_mbus_tx();
 
-    uint32_t temp_reg = *__mrm_irq_reg_addr__ & 0x00003F;
-    temp_reg |= (i0p8<<19)|(i1p8<<14)|(v1p8<<10)|(v0p8<<6);
+    //uint32_t temp_reg = *__mrm_irq_reg_addr__ & 0x00003F;
+    uint32_t temp_reg = (i0p8<<19)|(i1p8<<14)|(v1p8<<10)|(v0p8<<6)|(0x1<<4)|(0x1<<2)|(0x1<<0);
     mbus_remote_register_write(__mrm_prefix__, 0x23, temp_reg);
+
+    __mrm_ldo_vout_v0p8__ = v0p8;
+    __mrm_ldo_vout_v1p8__ = v1p8;
 }
 
 uint32_t mrm_turn_on_ldo (void) {
@@ -171,6 +173,7 @@ uint32_t mrm_turn_on_ldo (void) {
 
     // Delay to charge the DCP_0P8 decap
     delay(2000); // delay(1000) =~ 0.6s
+
     return 1;
 }
 
@@ -185,6 +188,10 @@ uint32_t mrm_turn_off_ldo (void) {
     );
 
     WFI();
+
+    // LDO_CTRL resets Reg0x23 to 0, which is a bug. 
+    // Let's re-write the correct value into Reg0x23.
+    mrm_tune_ldo (/*i0p8*/0x1F, /*i1p8*/0x1F, /*v0p8*/__mrm_ldo_vout_v0p8__, /*v1p8*/__mrm_ldo_vout_v1p8__);
 
     if ((*__mrm_irq_reg_addr__&0xFF) != 0x03) return 0;
 
@@ -259,6 +266,17 @@ uint32_t mrm_cmd_go (uint32_t cmd, uint32_t len_1, uint32_t expected) {
         if (response == expected) return 1;
         else return response;
     }
+}
+
+void mrm_cmd_go_irq_nowait (uint32_t cmd, uint32_t len_1) {
+
+    mbus_remote_register_write(__mrm_prefix__, 0x09, 0x0
+        /* LENGTH (14'h0000) */ | (len_1 << 6)    
+        /* IRQ_EN (    1'h0) */ | (0x1 << 5)    
+        /* CMD    (    4'h0) */ | (cmd << 1)    
+        /* GO     (    1'h0) */ | (0x1 << 0)    
+    );
+
 }
 
 void mrm_cmd_go_noirq (uint32_t cmd, uint32_t len_1) {

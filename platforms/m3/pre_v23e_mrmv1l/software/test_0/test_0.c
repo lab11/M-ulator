@@ -22,17 +22,56 @@
 //
 //          1) Enable CP Testing
 //
-//              goc_head     = 0x0F
+//              goc_head    = 0x0F
+//              goc_data    = Macro ID
 //
-//          2) Set VOTP = 2.2V
+//          2) Run the Python code (cw_mram_cp.py)
 //
-//          3) Run the Python code
-//
-//          4) Set VOTP = 0V
-//
-//          5) Disable the CP Testing
+//          3) Disable the CP Testing
 //
 //              goc_head    = 0x0F
+//              goc_data    = 0xF
+//
+//  * LDO Tuning
+//      
+//      goc_head = 0xE0 (for V0P8)
+//                 0xE1 (for V1P8)
+//      goc_data = n, where n = 0, ..., 15
+//                  Smaller n results in a higher voltage
+//
+//          NOTE: It also turns on Macro#0.
+//
+//      goc_head = 0xEE
+//      goc_data = any
+//
+//          -> This turns off ALL macros and the LDO.
+//      
+//
+//  * Clock Frequency Measurement
+//
+//      goc_head = 0x0C
+//      goc_data = any
+//      goc_data_ext = CLK_GEN_S, where CLK_GEN_S = 0, ..., 127
+//                  Smaller CLK_GEN_S results in a faster clock frequency
+//
+//      GOAL: Make CLK_FAST = 50MHz
+//
+//          Example (Salaea Capture)
+//
+//              ...
+//              2.720135200000000, 0x40, 0x11000007 - Ta
+//              2.720744320000000, 0x10, 0x00000094 - Tb
+//              ...
+//              2.729130880000000, 0x40, 0x11000007 - Tc
+//              3.099683520000000, 0x10, 0x00000094 - Td
+//              ...
+//
+//              CL_SLOW = 65536 / ((Td - Tc) - (Tb - Ta))
+//                      = 65536 / (Ta - Tb - Tc + Td)
+//                      = 65536 / (2.720135200000000 - 2.720744320000000 - 2.729130880000000 + 3.099683520000000)
+//                      = 177.151 kHz
+//              CLK_FAST = CLK_SLOW x 256 = 45.35 MHz
+//
 //
 //
 //  * ENTIRE MRAM TESTING
@@ -81,13 +120,9 @@
 //          goc_head     = 0x0F
 //          goc_data     = Macro ID
 //
-//      2) Set VOTP = 2.2V
+//      2) Run the Python code
 //
-//      3) Run the Python code
-//
-//      4) Set VOTP = 0V
-//
-//      5) Disable the CP Testing
+//      3) Disable the CP Testing
 //
 //          goc_head    = 0x0F
 //          goc_data    = 0xF
@@ -199,6 +234,13 @@
 //                      Thus, goc_data_ext=0 means that it starts from the beginning of Macro#n.
 //
 //  ------------------------------------------------------------
+//   goc_head = 0x0B: Read the MRM SRAM or MRAM, and put it on the MBus. No REG_LOAD. Recall trim-code from IFREN1 instead of from OTP.
+//  ------------------------------------------------------------
+//        goc_data = n: Read the MRM MRAM, starting from Page#((16384xn)+goc_data_ext), for (MRM_NUM_PAGES_MRAM_MACRO(16384)) pages.
+//                      Thus, goc_data_ext=0 means that it starts from the beginning of Macro#n.
+//                      It sends out multiple MBus messages, with each carrying up to 64kB data.
+//
+//  ------------------------------------------------------------
 //   goc_head = 0x0C: Clock Frequency Measurement
 //  ------------------------------------------------------------
 //        goc_data = any: Start the measurement, with CLK_GEN_S = goc_data_ext.
@@ -227,21 +269,31 @@
 //  ------------------------------------------------------------
 //   goc_head = 0x0E: MRM Register File Access
 //  ------------------------------------------------------------
-//        goc_data = n/a: Writes goc_data_ext[23:0] into MRM Register#(goc_data_ext[31:24])
+//        goc_data = 0: Writes goc_data_ext[23:0] into MRM Register#(goc_data_ext[31:24])
+//
+//  ------------------------------------------------------------
+//   goc_head = 0xE0: LDO Tuning (V0P8)
+//  ------------------------------------------------------------
+//        goc_data = n: Change LDO tuning (Register 0x23)
+//                          LDO_SELB_VOUT_LDO_BUF (V0P8) = n
+//
+//  ------------------------------------------------------------
+//   goc_head = 0xE1: LDO Tuning (V1P8)
+//  ------------------------------------------------------------
+//        goc_data = n: Change LDO tuning (Register 0x23)
+//                          LDO_SELB_VOUT_LDO_1P8 (V1P8) = n
 //
 //  ------------------------------------------------------------
 //   goc_head = 0x0F: CP Testing
 //      --------------------------------------------------------
 //      NOTE: CP Testing Procedure:
 //          1) Enable the CP testing using goc_head=0x0F, goc_data = macro_id
-//          2) Set VOTP = 2.2V
-//          3) Run the python code
-//          4) Disable the CP testing using goc_head=0x0F, goc_data = 0xF
-//          5) Repeat for each macro_id
+//          2) Run the python code
+//          3) Disable the CP testing using goc_head=0x0F, goc_data = 0xF
+//          4) Repeat for each macro_id
 //  ------------------------------------------------------------
-//        goc_data = 0x000000: Enable the CP testing mode for MID=0
-//        goc_data = 0x000001: Enable the CP testing mode for MID=1
-//        goc_data = 0x00000F: Disable the CP testing mode
+//        goc_data = n  : n=[0,5] Enable the CP testing mode for MID=n
+//        goc_data = 0xF: Disable the CP testing mode
 //
 //  ------------------------------------------------------------
 //   goc_head = 0xFF: Miscellaneous
@@ -470,7 +522,7 @@ static void operation_init (void) {
     // MRMv1L Setting
     //-------------------------------------------------
     // See MRMv1L.h file for the recommneded 'clk_gen_s' value for each chip.
-    mrm_init(/*mrm_prefix*/MRM_ADDR, /*irq_reg_idx*/0x0, /*clk_gen_s*/53);
+    mrm_init(/*mrm_prefix*/MRM_ADDR, /*irq_reg_idx*/0x0, /*clk_gen_s*/MRM_CLK_GEN_S, /*tpar_30*/MRM_TPAR_0x30, /*tpar_31*/MRM_TPAR_0x31, /*tpar_32*/MRM_TPAR_0x32, /*tpar_33*/MRM_TPAR_0x33, /*tpar_34*/MRM_TPAR_0x34, /*tpar_35*/MRM_TPAR_0x35);
 
     //-------------------------------------------------
     // End of Initialization
@@ -703,28 +755,6 @@ int main(void) {
 
         }
 
-//        else if (goc_head == 0x09) {
-//
-//            mrm_set_clock_mode(/*clock_mode*/1);
-//            mrm_turn_on_ldo();  // Need to turn on LDO first.
-//
-//
-//            // You must disable AUTO-POWER ON/OFF. Otherwise, R_TEST register gets reset.
-//            mrm_disable_auto_power_on_off();
-//            
-//            mrm_turn_on_macro(/*mid*/goc_data);
-//
-//            // ECC Off
-//            mrm_tmc_write_test_reg(/*xadr*/0x1, /*wdata*/0x3D8008C1);
-//
-//            mrm_pp_ext_stream (/*bit_en*/0x1, /*num_pages*/MRM_NUM_PAGES_MRAM_MACRO, /*mram_page_id*/goc_data<<MRM_LOG2_NUM_PAGES_MRAM_MACRO);
-//
-//            mrm_turn_off_macro();
-//           
-//            // Re-enable AUTO-POWER ON/OFF
-//            mrm_enable_auto_power_on_off();
-//        }
-
     //////////////////////////////////////////////////////////////////////////////////////////
 
         else if (goc_head == 0x09) {
@@ -919,8 +949,43 @@ int main(void) {
     //////////////////////////////////////////////////////////////////////////////////////////
 
         else if (goc_head == 0x0E) {
-            mbus_remote_register_write(MRM_ADDR, (goc_data_ext>>24)&0xFF, goc_data_ext & 0xFFFFFF);
+            if (goc_data == 0x0) {
+                mbus_remote_register_write(MRM_ADDR, (goc_data_ext>>24)&0xFF, goc_data_ext & 0xFFFFFF);
+            } 
         }
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+    
+        else if ((goc_head == 0xE0) || (goc_head == 0xE1)) {
+
+            if (goc_head == 0xE0) {
+                set_halt_until_mbus_trx();
+                mbus_remote_register_read(__mrm_prefix__, 0x23, __mrm_irq_reg_idx__);
+                set_halt_until_mbus_tx();
+
+                uint32_t v1p8 = (*__mrm_irq_reg_addr__ >> 10) & 0xF;
+                mrm_tune_ldo (/*i0p8*/0x1F, /*i1p8*/0x1F, /*v0p8*/goc_data&0xF, /*v1p8*/v1p8);
+            }
+
+            else if (goc_head == 0xE1) {
+                set_halt_until_mbus_trx();
+                mbus_remote_register_read(__mrm_prefix__, 0x23, __mrm_irq_reg_idx__);
+                set_halt_until_mbus_tx();
+
+                uint32_t v0p8 = (*__mrm_irq_reg_addr__ >> 6) & 0xF;
+                mrm_tune_ldo (/*i0p8*/0x1F, /*i1p8*/0x1F, /*v0p8*/v0p8, /*v1p8*/goc_data&0xF);
+            }
+
+            // Turn on the LDO and the Macro #0
+            mrm_turn_on_ldo();
+            mrm_turn_on_macro(/*mid*/0);
+        }
+
+        else if (goc_head == 0xEE) {
+            mrm_turn_off_macro();
+            mrm_turn_off_ldo();
+        }
+
 
     //////////////////////////////////////////////////////////////////////////////////////////
 
@@ -936,9 +1001,9 @@ int main(void) {
                 old_val = *REG0;
 
                 uint32_t temp_reg = old_val & 0xFFFFDC;   // Reset TMC_RST_AUTO_WK, TMC_DO_REG_LOAD, TMC_DO_AWK
-                temp_reg |=   (0x1 << 5)  // TMC_RST_AUTO_WK = 0
-                            | (0x0 << 1)  // TMC_DO_REG_LOAD = 1
-                            | (0x0 << 0); // TMC_DO_AWK = 1
+                temp_reg |=   (0x1 << 5)  // TMC_RST_AUTO_WK = 1
+                            | (0x0 << 1)  // TMC_DO_REG_LOAD = 0
+                            | (0x0 << 0); // TMC_DO_AWK = 0
                 mbus_remote_register_write(MRM_ADDR, 0x2F, temp_reg);
 
 

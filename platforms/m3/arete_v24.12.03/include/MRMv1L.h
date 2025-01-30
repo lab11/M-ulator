@@ -402,6 +402,18 @@ uint32_t mrm_cmd_go (uint32_t cmd, uint32_t len_1, uint32_t expected);
 // Return  : none
 //-------------------------------------------------------------------
 void mrm_cmd_go_noirq (uint32_t cmd, uint32_t len_1);
+
+//-------------------------------------------------------------------
+// Function: mrm_cmd_go_irq_nowait
+// Args    : 
+//      cmd     - MRAM Command
+//      len_1   - 'Num Words - 1'
+//                  Valid Range: [0, 16383]
+// Description:
+//           Set the MRAM command and writes GO=1, with IRQ_EN=1.
+//           It does not wait for the IRQ.
+// Return  : none
+//-------------------------------------------------------------------
 void mrm_cmd_go_irq_nowait (uint32_t cmd, uint32_t len_1);
 
 //-------------------------------------------------------------------
